@@ -1,0 +1,8 @@
+pytest==6.2.5
+tarantool==0.7.1
+requests==2.26.0
+flake8==3.8.1
+flake8-unused-arguments==0.0.6
+flake8-isort==4.0.0
+psutil==5.7.0
+pyyaml==5.4
