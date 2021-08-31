@@ -5,6 +5,7 @@ import (
 
 	"github.com/tarantool/tt/cli/cmd"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/cli/version"
 )
 
 func main() {
@@ -14,8 +15,7 @@ func main() {
 		// panic function and resume normal execution (handling this error below).
 		if r := recover(); r != nil {
 			log.Fatalf(
-				"%s", util.InternalError("Unhandled internal error: %s",
-					func(bool, bool) string { return "Tarantool CLI" }, r))
+				"%s", util.InternalError("Unhandled internal error: %s", version.GetVersion, r))
 		}
 	}()
 
