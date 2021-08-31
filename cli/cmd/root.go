@@ -41,6 +41,8 @@ func NewCmdRoot() *cobra.Command {
 		NewVersionCmd(),
 	)
 
+	rootCmd.InitDefaultHelpCmd()
+
 	log.SetHandler(cli.Default)
 
 	return rootCmd
@@ -82,4 +84,7 @@ func init() {
 	if len(os.Args) > 1 {
 		configure.ExternalCmd(rootCmd, &ctx, &modulesInfo, os.Args[1:])
 	}
+
+	// Configure help command.
+	configureHelpCommand(&ctx, rootCmd)
 }
