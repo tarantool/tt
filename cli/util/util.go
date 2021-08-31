@@ -10,6 +10,10 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// VersionFunc is a type of function that return
+// string with current Tarantool CLI version.
+type VersionFunc func(bool, bool) string
+
 // GetFileContentBytes returns file content as a bytes slice.
 func GetFileContentBytes(path string) ([]byte, error) {
 	file, err := os.Open(path)
@@ -50,15 +54,15 @@ func Find(src []string, find string) int {
 }
 
 // InternalError shows error information, version of tt and call stack.
-func InternalError(format string, err ...interface{}) error {
+func InternalError(format string, f VersionFunc, err ...interface{}) error {
 	internalErrorFmt := `Whoops! It looks like something is wrong with this version of Tarantool CLI.
 Error: %s
 Version: %s
 Stacktrace:
 %s
 `
-	return fmt.Errorf(
-		internalErrorFmt, fmt.Sprintf(format, err...), "Tarantool CLI <undefined>", debug.Stack())
+	version := f(false, false)
+	return fmt.Errorf(internalErrorFmt, fmt.Sprintf(format, err...), version, debug.Stack())
 }
 
 // ParseYAML parse yaml file at specified path.

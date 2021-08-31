@@ -37,6 +37,10 @@ func NewCmdRoot() *cobra.Command {
 	rootCmd.PersistentFlags().BoolVarP(&ctx.Cli.ForceInternal, "internal", "I", false, "Use internal module")
 	rootCmd.PersistentFlags().StringVarP(&ctx.Cli.ConfigPath, "cfg", "c", "", "Path to configuration file")
 
+	rootCmd.AddCommand(
+		NewVersionCmd(),
+	)
+
 	log.SetHandler(cli.Default)
 
 	return rootCmd
