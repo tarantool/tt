@@ -30,6 +30,7 @@ func NewCmdRoot() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()
 		},
+		ValidArgsFunction: RootShellCompletionCommands,
 	}
 
 	rootCmd.PersistentFlags().BoolVarP(&ctx.Cli.IsSystem, "system", "S", false, "System launch")
@@ -39,6 +40,7 @@ func NewCmdRoot() *cobra.Command {
 
 	rootCmd.AddCommand(
 		NewVersionCmd(),
+		NewCompletionCmd(),
 	)
 
 	rootCmd.InitDefaultHelpCmd()
