@@ -21,13 +21,20 @@ type Config struct {
 // tt:
 //   modules:
 //     directory: path/to
+//...app:
+//     available: path
 
 type modulesOpts struct {
 	Directory string
 }
 
+type appOpts struct {
+	InstancesAvailable string `mapstructure:"instances_available"`
+}
+
 type CliOpts struct {
 	Modules *modulesOpts
+	App     *appOpts
 }
 
 // getDefaultCliOpts returns `CliOpts`filled with default values.
@@ -35,7 +42,10 @@ func getDefaultCliOpts() *CliOpts {
 	modules := modulesOpts{
 		Directory: "",
 	}
-	return &CliOpts{Modules: &modules}
+	app := appOpts{
+		InstancesAvailable: "",
+	}
+	return &CliOpts{Modules: &modules, App: &app}
 }
 
 // GetCliOpts returns Tarantool CLI options from the config file
