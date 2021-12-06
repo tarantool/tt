@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/context"
@@ -180,8 +181,13 @@ func configureLocalCli(ctx *context.Ctx, launchDir string) error {
 					`Found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
 			}
 
-			rc := modules.RunExec(localCli, os.Args[1:])
-			os.Exit(rc)
+			// We are not using the "RunExec" function because we have no reason to have several
+			// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
+			// which starts tarantool or some external module.
+			err = syscall.Exec(localCli, append([]string{localCli}, os.Args[1:]...), os.Environ())
+			if err != nil {
+				return err
+			}
 		} else if !os.IsNotExist(err) {
 			return fmt.Errorf("Failed to get access to tt binary file: %s", err)
 		}
