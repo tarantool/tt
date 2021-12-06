@@ -173,8 +173,16 @@ func configureLocalCli(ctx *context.Ctx, launchDir string) error {
 		return err
 	}
 
+	// We have to use the absolute path to the current binary "tt" for
+	// comparison with "localCli", because the same binary can be started
+	// using a relative path, and we don't want to execute "exec" in this case.
+	currentCli, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
 	// This should save us from exec looping.
-	if localCli != os.Args[0] {
+	if localCli != currentCli {
 		if _, err := os.Stat(localCli); err == nil {
 			if _, err := exec.LookPath(localCli); err != nil {
 				return fmt.Errorf(
