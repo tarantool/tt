@@ -26,4 +26,7 @@ type CliCtx struct {
 type RunningCtx struct {
 	// Path to an application.
 	AppPath string
+	// If the instance is started under the watchdog it should
+	// restart on if it crashes.
+	Restartable bool
 }

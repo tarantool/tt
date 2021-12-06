@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/tarantool/tt/cli/context"
 	"github.com/tarantool/tt/cli/modules"
@@ -77,13 +78,8 @@ func Start(ctx *context.Ctx) error {
 		return err
 	}
 
-	if err = inst.Start(); err != nil {
-		return err
-	}
-
-	if err = inst.Wait(); err != nil {
-		return err
-	}
+	wd := NewWatchdog(inst, ctx.Running.Restartable, 5*time.Second)
+	wd.Start()
 
 	return nil
 }
