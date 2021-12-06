@@ -32,9 +32,7 @@ func startTestInstance(t *testing.T) *Instance {
 	err = inst.Start()
 	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
 
-	// We need to wait for the new process to set handlers.
-	// It is necessary to update for more correct synchronization.
-	time.Sleep(100 * time.Millisecond)
+	waitProcessStart()
 	alive := inst.IsAlive()
 	assert.True(alive, "Can't start the instance.")
 
