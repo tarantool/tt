@@ -114,7 +114,7 @@ func newExternalCommand(ctx *context.Ctx, modulesInfo *modules.ModulesInfo, cmdN
 	return cmd
 }
 
-// comfigureLocalCli configures Tarantool CLI if the launch is local.
+// configureLocalCli configures Tarantool CLI if the launch is local.
 func configureLocalCli(ctx *context.Ctx, launchDir string) error {
 	// If tt launch is local: we chdir to a local directory, check for tt
 	// and Tarantool binaries. If tt binary exists, then exec it.
