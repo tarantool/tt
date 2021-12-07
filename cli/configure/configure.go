@@ -217,6 +217,17 @@ func configureSystemCli(ctx *context.Ctx) error {
 
 // configureDefaultCLI configures Tarantool CLI if the launch was without flags (-S or -L).
 func configureDefaultCli(ctx *context.Ctx) error {
+	var err error
+	// Set default (system) tarantool binary, can be replaced by "local" later.
+	ctx.Cli.TarantoolExecutable, err = exec.LookPath("tarantool")
+
+	// It may be fine that the system tarantool is absent because:
+	// 1) We use the "local" tarantool.
+	// 2) For our purpose, tarantool is not needed at all.
+	if err != nil {
+		log.Println("Can't set the default tarantool from the system")
+	}
+
 	// If neither the local start nor the system flag is specified,
 	// we ourselves determine what kind of launch it is.
 
@@ -225,7 +236,6 @@ func configureDefaultCli(ctx *context.Ctx) error {
 		// If the config is found, we assume that it is a local launch in this directory.
 		// If the config is not found, then we take it from the standard place (/etc/tarantool).
 
-		var err error
 		if ctx.Cli.ConfigPath, err = getConfigPath(configName); err != nil {
 			return fmt.Errorf("Failed to get Tarantool CLI config: %s", err)
 		}
