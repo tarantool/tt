@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/tarantool/tt/cli/context"
@@ -13,9 +14,12 @@ import (
 
 // findAppFile searches of an application init file.
 func findAppFile(appName string, cliOpts *modules.CliOpts) (string, error) {
+	var err error
 	appDir := cliOpts.App.InstancesAvailable
 	if appDir == "" {
-		appDir = "."
+		if appDir, err = os.Getwd(); err != nil {
+			return "", err
+		}
 	}
 
 	var appPath string
@@ -53,6 +57,13 @@ func findAppFile(appName string, cliOpts *modules.CliOpts) (string, error) {
 	return appPath, nil
 }
 
+// cleanup removes runtime artifacts.
+func cleanup(ctx *context.Ctx) {
+	if _, err := os.Stat(ctx.Running.ConsoleSocket); err == nil {
+		os.Remove(ctx.Running.ConsoleSocket)
+	}
+}
+
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *modules.CliOpts, ctx *context.Ctx, args []string) error {
 	if len(args) != 1 {
@@ -67,13 +78,24 @@ func FillCtx(cliOpts *modules.CliOpts, ctx *context.Ctx, args []string) error {
 
 	ctx.Running.AppPath = appPath
 
+	runDir := cliOpts.App.RunDir
+	if runDir == "" {
+		if runDir, err = os.Getwd(); err != nil {
+			return fmt.Errorf(`Can't get the "RunDir: %s"`, err)
+		}
+	}
+	ctx.Running.RunDir = runDir
+	ctx.Running.ConsoleSocket = filepath.Join(runDir, appName+".control")
+
 	return nil
 }
 
 // Start an Instance.
 func Start(ctx *context.Ctx) error {
+	defer cleanup(ctx)
+
 	inst, err := NewInstance(ctx.Cli.TarantoolExecutable,
-		ctx.Running.AppPath, os.Environ())
+		ctx.Running.AppPath, ctx.Running.ConsoleSocket, os.Environ())
 	if err != nil {
 		return err
 	}

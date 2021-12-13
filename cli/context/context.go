@@ -26,7 +26,12 @@ type CliCtx struct {
 type RunningCtx struct {
 	// Path to an application.
 	AppPath string
+	// Directory that stores various instance runtime artifacts like
+	// console socket, PID file, etc.
+	RunDir string
 	// If the instance is started under the watchdog it should
 	// restart on if it crashes.
 	Restartable bool
+	// Control UNIX socket for started instance.
+	ConsoleSocket string
 }

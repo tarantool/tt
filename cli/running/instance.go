@@ -31,7 +31,8 @@ type Instance struct {
 }
 
 // NewInstance creates an Instance.
-func NewInstance(tarantoolPath string, appPath string, env []string) (*Instance, error) {
+func NewInstance(tarantoolPath string, appPath string, console_sock string,
+	env []string) (*Instance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {
 		return nil, err
@@ -42,7 +43,8 @@ func NewInstance(tarantoolPath string, appPath string, env []string) (*Instance,
 		return nil, err
 	}
 
-	inst := Instance{tarantoolPath: tarantoolPath, appPath: appPath, env: env}
+	inst := Instance{tarantoolPath: tarantoolPath, appPath: appPath,
+		consoleSocket: console_sock, env: env}
 	return &inst, nil
 }
 
@@ -78,9 +80,12 @@ func (inst *Instance) Wait() error {
 
 // Start starts the Instance with the specified parameters.
 func (inst *Instance) Start() error {
-	inst.Cmd = exec.Command(inst.tarantoolPath, inst.appPath)
+	inst.Cmd = exec.Command(inst.tarantoolPath, "-e", instanceLauncher)
 	inst.Cmd.Stdout = os.Stdout
 	inst.Cmd.Stderr = os.Stderr
+	inst.Cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
+	inst.Cmd.Env = append(inst.Cmd.Env,
+		"TT_CLI_CONSOLE_SOCKET="+inst.consoleSocket)
 
 	// Start an Instance.
 	if err := inst.Cmd.Start(); err != nil {
