@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/apex/log v1.9.0
+	github.com/dave/jennifer v1.4.1
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/hashicorp/go-version v1.3.0

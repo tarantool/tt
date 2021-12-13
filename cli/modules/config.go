@@ -23,6 +23,7 @@ type Config struct {
 //     directory: path/to
 //...app:
 //     available: path
+//     run_dir: path
 //     restart_on_failure: bool
 
 type modulesOpts struct {
@@ -31,6 +32,7 @@ type modulesOpts struct {
 
 type appOpts struct {
 	InstancesAvailable string `mapstructure:"instances_available"`
+	RunDir             string `mapstructure:"run_dir"`
 	Restartable        bool   `mapstructure:"restart_on_failure"`
 }
 
@@ -46,6 +48,7 @@ func getDefaultCliOpts() *CliOpts {
 	}
 	app := appOpts{
 		InstancesAvailable: "",
+		RunDir:             "",
 		Restartable:        false,
 	}
 	return &CliOpts{Modules: &modules, App: &app}

@@ -39,6 +39,8 @@ var (
 	goExecutableName     = "go"
 	pythonExecutableName = "python3"
 	ttExecutableName     = "tt"
+
+	generateModePath = filepath.Join(packagePath, "codegen", "generate_code.go")
 )
 
 func init() {
@@ -65,6 +67,8 @@ func init() {
 func Build() error {
 	fmt.Println("Building tt...")
 
+	mg.Deps(GenerateGoCode)
+
 	err := sh.RunWith(
 		getBuildEnvironment(), goExecutableName, "build",
 		"-o", ttExecutableName,
@@ -85,6 +89,8 @@ func Build() error {
 func Lint() error {
 	fmt.Println("Running go vet...")
 
+	mg.Deps(GenerateGoCode)
+
 	if err := sh.RunV(goExecutableName, "vet", packagePath); err != nil {
 		return err
 	}
@@ -101,6 +107,8 @@ func Lint() error {
 // Run unit tests.
 func Unit() error {
 	fmt.Println("Running unit tests...")
+
+	mg.Deps(GenerateGoCode)
 
 	if mg.Verbose() {
 		return sh.RunV(goExecutableName, "test", "-v", fmt.Sprintf("%s/...", packagePath))
@@ -126,6 +134,17 @@ func Clean() {
 	fmt.Println("Cleaning directory...")
 
 	os.Remove(ttExecutableName)
+}
+
+// GenerateGoCode generates code from lua files.
+func GenerateGoCode() error {
+	err := sh.RunWith(getBuildEnvironment(), goExecutableName, "run", generateModePath)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // getDefaultConfigPath returns the path to the configuration file,

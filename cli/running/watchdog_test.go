@@ -29,7 +29,7 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	tarantoolBin, err := exec.LookPath("tarantool")
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
-	inst, err := NewInstance(tarantoolBin, appPath, os.Environ())
+	inst, err := NewInstance(tarantoolBin, appPath, "", os.Environ())
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
 	wd := NewWatchdog(inst, restartable, wdTestRestartTimeout)
