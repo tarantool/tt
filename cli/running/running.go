@@ -2,9 +2,13 @@ package running
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/tarantool/tt/cli/context"
@@ -59,9 +63,91 @@ func findAppFile(appName string, cliOpts *modules.CliOpts) (string, error) {
 
 // cleanup removes runtime artifacts.
 func cleanup(ctx *context.Ctx) {
+	if _, err := os.Stat(ctx.Running.PIDFile); err == nil {
+		os.Remove(ctx.Running.PIDFile)
+	}
+
 	if _, err := os.Stat(ctx.Running.ConsoleSocket); err == nil {
 		os.Remove(ctx.Running.ConsoleSocket)
 	}
+}
+
+// getPIDFromFile returns PID from the PIDFile.
+func getPIDFromFile(pidFileName string) (int, error) {
+	if _, err := os.Stat(pidFileName); err != nil {
+		return 0, fmt.Errorf(`Can't "stat" the PID file. Error: "%v".`, err)
+	}
+
+	pidFile, err := os.Open(pidFileName)
+	if err != nil {
+		return 0, fmt.Errorf(`Can't open the PID file. Error: "%v".`, err)
+	}
+
+	pidBytes, err := ioutil.ReadAll(pidFile)
+	if err != nil {
+		return 0, fmt.Errorf(`Can't read the PID file. Error: "%v".`, err)
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	if err != nil {
+		return 0,
+			fmt.Errorf(`PID file exists with unknown format. Error: "%s"`, err)
+	}
+
+	return pid, nil
+}
+
+// isProcessAlive checks if the process is alive.
+func isProcessAlive(pid int) (bool, error) {
+	// The signal 0 is used to check if a process is alive.
+	// From `man 2 kill`:
+	// If  sig  is  0,  then  no  signal is sent, but existence and permission
+	// checks are still performed; this can be used to check for the existence
+	// of  a  process  ID  or process group ID that the caller is permitted to
+	// signal.
+	if err := syscall.Kill(pid, syscall.Signal(0)); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// createPIDFile checks that the instance PID file is absent or
+// deprecated and creates a new one. Returns an error on failure.
+func createPIDFile(pidFileName string) error {
+	if _, err := os.Stat(pidFileName); err == nil {
+		// The PID file already exists. We have to check if the process is alive.
+		pid, err := getPIDFromFile(pidFileName)
+		if err != nil {
+			return fmt.Errorf(`PID file exists, but PID can't be read. Error: "%v".`, err)
+		}
+		if res, _ := isProcessAlive(pid); res {
+			return fmt.Errorf("The Instance is already exists.")
+		} else {
+			os.Remove(pidFileName)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf(`Something went wrong while trying to read the PID file. Error: "%v".`,
+			err)
+	}
+
+	// Create a new PID file.
+	// 0644:
+	//    user:   read/write
+	//    group:  read
+	//    others: read
+	pidFile, err := os.OpenFile(pidFileName,
+		syscall.O_EXCL|syscall.O_CREAT|syscall.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf(`Can't create a new PID file. Error: "%v".`, err)
+	}
+	defer pidFile.Close()
+
+	if _, err = pidFile.WriteString(strconv.Itoa(os.Getpid())); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // FillCtx fills the RunningCtx context.
@@ -86,12 +172,17 @@ func FillCtx(cliOpts *modules.CliOpts, ctx *context.Ctx, args []string) error {
 	}
 	ctx.Running.RunDir = runDir
 	ctx.Running.ConsoleSocket = filepath.Join(runDir, appName+".control")
+	ctx.Running.PIDFile = filepath.Join(runDir, appName+".pid")
 
 	return nil
 }
 
 // Start an Instance.
 func Start(ctx *context.Ctx) error {
+	if err := createPIDFile(ctx.Running.PIDFile); err != nil {
+		return err
+	}
+
 	defer cleanup(ctx)
 
 	inst, err := NewInstance(ctx.Cli.TarantoolExecutable,
