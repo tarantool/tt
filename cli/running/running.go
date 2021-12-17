@@ -112,6 +112,35 @@ func isProcessAlive(pid int) (bool, error) {
 	return true, nil
 }
 
+// waitProcessTermination waits while the process will be terminated.
+// Returns true if the process was terminated and false if is steel alive.
+func waitProcessTermination(pid int, timeout time.Duration,
+	checkPeriod time.Duration) bool {
+	if res, _ := isProcessAlive(pid); !res {
+		return true
+	}
+
+	result := false
+	breakTimer := time.NewTimer(timeout)
+loop:
+	for {
+		select {
+		case <-breakTimer.C:
+			if res, _ := isProcessAlive(pid); !res {
+				result = true
+			}
+			break loop
+		case <-time.After(checkPeriod):
+			if res, _ := isProcessAlive(pid); !res {
+				result = true
+				break loop
+			}
+		}
+	}
+
+	return result
+}
+
 // createPIDFile checks that the instance PID file is absent or
 // deprecated and creates a new one. Returns an error on failure.
 func createPIDFile(pidFileName string) error {
@@ -153,7 +182,7 @@ func createPIDFile(pidFileName string) error {
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *modules.CliOpts, ctx *context.Ctx, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("Currently, you can run only one instance at a time.")
+		return fmt.Errorf("Currently, you can specify only one instance at a time.")
 	}
 
 	appName := args[0]
@@ -193,6 +222,30 @@ func Start(ctx *context.Ctx) error {
 
 	wd := NewWatchdog(inst, ctx.Running.Restartable, 5*time.Second)
 	wd.Start()
+
+	return nil
+}
+
+// Stop the Instance.
+func Stop(ctx *context.Ctx) error {
+	pid, err := getPIDFromFile(ctx.Running.PIDFile)
+	if err != nil {
+		return err
+	}
+
+	if err = syscall.Kill(pid, syscall.Signal(0)); err != nil {
+		return fmt.Errorf(`The instance is already dead. Error: "%v".`, err)
+	}
+
+	if err = syscall.Kill(pid, syscall.SIGINT); err != nil {
+		return fmt.Errorf(`Can't terminate the instance. Error: "%v".`, err)
+	}
+
+	if res := waitProcessTermination(pid, 30*time.Second, 100*time.Millisecond); !res {
+		return fmt.Errorf("Can't terminate the instance.")
+	}
+
+	log.Printf("The Instance (PID = %v) has been terminated.\n", pid)
 
 	return nil
 }
