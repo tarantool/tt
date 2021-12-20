@@ -43,6 +43,7 @@ func NewCmdRoot() *cobra.Command {
 		NewCompletionCmd(),
 		NewStartCmd(),
 		NewStopCmd(),
+		NewStatusCmd(),
 	)
 
 	rootCmd.InitDefaultHelpCmd()
