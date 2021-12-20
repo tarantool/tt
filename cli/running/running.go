@@ -233,7 +233,8 @@ func Stop(ctx *context.Ctx) error {
 		return err
 	}
 
-	if err = syscall.Kill(pid, syscall.Signal(0)); err != nil {
+	alive, err := isProcessAlive(pid)
+	if !alive {
 		return fmt.Errorf(`The instance is already dead. Error: "%v".`, err)
 	}
 
@@ -248,4 +249,19 @@ func Stop(ctx *context.Ctx) error {
 	log.Printf("The Instance (PID = %v) has been terminated.\n", pid)
 
 	return nil
+}
+
+// Status returns the status of the Instance.
+func Status(ctx *context.Ctx) string {
+	pid, err := getPIDFromFile(ctx.Running.PIDFile)
+	if err != nil {
+		return fmt.Sprintf(`NOT RUNNING. Can't get the PID of process: "%v".`, err)
+	}
+
+	alive, err := isProcessAlive(pid)
+	if !alive {
+		return fmt.Sprintf("ERROR. The process is dead.")
+	}
+
+	return fmt.Sprintf("RUNNING. PID: %v.", pid)
 }
