@@ -1,6 +1,9 @@
 package running
 
 import (
+	"bytes"
+	"io"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -13,22 +16,21 @@ import (
 )
 
 const (
-	instTestAppDir  = "./test_app"
-	instTestAppName = "dumb_test_app"
+	instTestAppDir = "./test_app"
 )
 
 // startTestInstance starts instance for the test.
-func startTestInstance(t *testing.T, consoleSock string) *Instance {
+func startTestInstance(t *testing.T, app string, consoleSock string, logger *log.Logger) *Instance {
 	assert := assert.New(t)
 
-	appPath := path.Join(instTestAppDir, instTestAppName+".lua")
+	appPath := path.Join(instTestAppDir, app+".lua")
 	_, err := os.Stat(appPath)
 	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
-	inst, err := NewInstance(tarantoolBin, appPath, consoleSock, os.Environ())
+	inst, err := NewInstance(tarantoolBin, appPath, consoleSock, os.Environ(), logger)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
 	err = inst.Start()
@@ -59,12 +61,35 @@ func TestInstanceBase(t *testing.T) {
 	assert.Nilf(err, `Can't get the path to the executable. Error: "%v".`, err)
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
 
-	inst := startTestInstance(t, consoleSock)
+	logger := log.New(io.Discard, "", 0)
+	inst := startTestInstance(t, "dumb_test_app", consoleSock, logger)
 	t.Cleanup(func() { cleanupTestInstance(inst) })
 
 	conn, err := net.Dial("unix", consoleSock)
 	assert.Nilf(err, `Can't connect to console socket. Error: "%v".`, err)
 	conn.Close()
+
+	err = inst.Stop(30 * time.Second)
+	assert.Nilf(err, `Can't stop the instance. Error: "%v".`, err)
+}
+
+func TestInstanceLogger(t *testing.T) {
+	assert := assert.New(t)
+
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	defer reader.Close()
+	logger := log.New(writer, "", 0)
+
+	inst := startTestInstance(t, "log_check_test_app", "", logger)
+	t.Cleanup(func() { cleanupTestInstance(inst) })
+
+	msg := "Check Log.\n"
+	msgLen := int64(len(msg))
+	buf := bytes.NewBufferString("")
+	_, err := io.CopyN(buf, reader, msgLen)
+	assert.Equal(buf.String(), msg, "The message in the log is different from what was expected.")
+	assert.Nilf(err, `Can't read log output. Error: "%v".`, err)
 
 	err = inst.Stop(30 * time.Second)
 	assert.Nilf(err, `Can't stop the instance. Error: "%v".`, err)

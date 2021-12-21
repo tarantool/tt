@@ -24,6 +24,10 @@ type Config struct {
 //...app:
 //     available: path
 //     run_dir: path
+//     log_dir: path
+//     log_maxsize: num (MB)
+//     log_maxage: num (Days)
+//     log_maxbackups: num
 //     restart_on_failure: bool
 
 type modulesOpts struct {
@@ -33,6 +37,10 @@ type modulesOpts struct {
 type appOpts struct {
 	InstancesAvailable string `mapstructure:"instances_available"`
 	RunDir             string `mapstructure:"run_dir"`
+	LogDir             string `mapstructure:"log_dir"`
+	LogMaxSize         int    `mapstructure:"log_maxsize"`
+	LogMaxAge          int    `mapstructure:"log_maxage"`
+	LogMaxBackups      int    `mapstructure:"log_maxbackups"`
 	Restartable        bool   `mapstructure:"restart_on_failure"`
 }
 
@@ -49,6 +57,10 @@ func getDefaultCliOpts() *CliOpts {
 	app := appOpts{
 		InstancesAvailable: "",
 		RunDir:             "",
+		LogDir:             "",
+		LogMaxSize:         0,
+		LogMaxAge:          0,
+		LogMaxBackups:      0,
 		Restartable:        false,
 	}
 	return &CliOpts{Modules: &modules, App: &app}
