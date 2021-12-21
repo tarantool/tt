@@ -1,6 +1,7 @@
 package running
 
 import (
+	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -12,6 +13,8 @@ import (
 type Watchdog struct {
 	// Instance describes the controlled Instance.
 	Instance *Instance
+	// logger represents an active logging object.
+	logger *log.Logger
 	// doneBarrier used to indicate the completion of the
 	// signal handling goroutine.
 	doneBarrier sync.WaitGroup
@@ -28,11 +31,12 @@ type Watchdog struct {
 
 // NewWatchdog creates a new instance of Watchdog.
 func NewWatchdog(instance *Instance, restartable bool,
-	restartTimeout time.Duration) *Watchdog {
-	wd := Watchdog{Instance: instance, restartable: restartable,
+	restartTimeout time.Duration, logger *log.Logger) *Watchdog {
+	wd := Watchdog{Instance: instance, logger: logger, restartable: restartable,
 		restartTimeout: restartTimeout}
 
 	wd.done = make(chan bool, 1)
+
 	return &wd
 }
 
@@ -43,14 +47,14 @@ func (wd *Watchdog) Start() {
 	for {
 		// Start the Instance and forwarding signals (except  SIGINT and SIGTERM)
 		if err := wd.Instance.Start(); err != nil {
-			// TODO: log the error.
+			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
 			break
 		}
 		wd.startSignalHandling()
 
 		// Wait while the Instance will be terminated.
 		if err := wd.Instance.Wait(); err != nil {
-			// TODO: log the error.
+			wd.logger.Printf(`Watchdog(WARN): "%v".`, err)
 		}
 
 		// Set Instance process completion indication.
@@ -60,7 +64,7 @@ func (wd *Watchdog) Start() {
 
 		// Stop the process if the Instance is not restartable.
 		if !wd.restartable {
-			// TODO: Add event to log.
+			wd.logger.Println("Watchdog(INFO): the Instance has shutdown.")
 			break
 		}
 

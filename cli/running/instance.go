@@ -2,6 +2,7 @@ package running
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"sync"
@@ -13,6 +14,8 @@ import (
 type Instance struct {
 	// Cmd represents an external command being prepared and run.
 	Cmd *exec.Cmd
+	// logger represents an active logging object.
+	logger *log.Logger
 	// tarantoolPath describes the path to the tarantool binary
 	// that will be used to launch the Instance.
 	tarantoolPath string
@@ -32,7 +35,7 @@ type Instance struct {
 
 // NewInstance creates an Instance.
 func NewInstance(tarantoolPath string, appPath string, console_sock string,
-	env []string) (*Instance, error) {
+	env []string, logger *log.Logger) (*Instance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {
 		return nil, err
@@ -44,7 +47,7 @@ func NewInstance(tarantoolPath string, appPath string, console_sock string,
 	}
 
 	inst := Instance{tarantoolPath: tarantoolPath, appPath: appPath,
-		consoleSocket: console_sock, env: env}
+		consoleSocket: console_sock, env: env, logger: logger}
 	return &inst, nil
 }
 
@@ -80,9 +83,19 @@ func (inst *Instance) Wait() error {
 
 // Start starts the Instance with the specified parameters.
 func (inst *Instance) Start() error {
-	inst.Cmd = exec.Command(inst.tarantoolPath, "-e", instanceLauncher)
-	inst.Cmd.Stdout = os.Stdout
-	inst.Cmd.Stderr = os.Stderr
+	// By default (when using "glibc") "stdout" is line buffered when connected
+	// to a TTY and block buffered (one page 4KB) when connected to a pipe / file.
+	// This is not how we want to log work, so set "stdout" to line buffered mode
+	// by using "stdbuf" utility. "strderr" is set to no-buffering by default.
+	//
+	// Several useful links:
+	// https://www.pixelbeat.org/programming/stdio_buffering/
+	// https://man7.org/linux/man-pages/man3/setbuf.3.html
+	// https://github.com/coreutils/coreutils/blob/master/src/stdbuf.c
+	inst.Cmd = exec.Command("stdbuf", "-o", "L",
+		inst.tarantoolPath, "-e", instanceLauncher)
+	inst.Cmd.Stdout = inst.logger.Writer()
+	inst.Cmd.Stderr = inst.logger.Writer()
 	inst.Cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
 	inst.Cmd.Env = append(inst.Cmd.Env,
 		"TT_CLI_CONSOLE_SOCKET="+inst.consoleSocket)

@@ -3,6 +3,7 @@ package running
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/tarantool/tt/cli/context"
 	"github.com/tarantool/tt/cli/modules"
@@ -95,6 +98,23 @@ func getPIDFromFile(pidFileName string) (int, error) {
 	}
 
 	return pid, nil
+}
+
+// createLogger prepares a logger for the watchdog and instance.
+func createLogger(ctx *context.Ctx) *log.Logger {
+	// We use a wrapper for the logger, which is responsible for
+	// writing and rotating the logs.
+	writer := lumberjack.Logger{
+		Filename:   ctx.Running.Log,
+		MaxSize:    ctx.Running.LogMaxSize,
+		MaxBackups: ctx.Running.LogMaxBackups,
+		MaxAge:     ctx.Running.LogMaxAge,
+		Compress:   false,
+		LocalTime:  true,
+	}
+	log.SetOutput(&writer)
+
+	return log.Default()
 }
 
 // isProcessAlive checks if the process is alive.
@@ -203,6 +223,15 @@ func FillCtx(cliOpts *modules.CliOpts, ctx *context.Ctx, args []string) error {
 	ctx.Running.ConsoleSocket = filepath.Join(runDir, appName+".control")
 	ctx.Running.PIDFile = filepath.Join(runDir, appName+".pid")
 
+	ctx.Running.LogDir = cliOpts.App.LogDir
+	ctx.Running.Log, err = util.JoinAbspath(ctx.Running.LogDir, appName+".log")
+	if err != nil {
+		return fmt.Errorf("Can't get the log file name: %s", err)
+	}
+	ctx.Running.LogMaxSize = cliOpts.App.LogMaxSize
+	ctx.Running.LogMaxAge = cliOpts.App.LogMaxAge
+	ctx.Running.LogMaxBackups = cliOpts.App.LogMaxBackups
+
 	return nil
 }
 
@@ -214,13 +243,15 @@ func Start(ctx *context.Ctx) error {
 
 	defer cleanup(ctx)
 
+	logger := createLogger(ctx)
+
 	inst, err := NewInstance(ctx.Cli.TarantoolExecutable,
-		ctx.Running.AppPath, ctx.Running.ConsoleSocket, os.Environ())
+		ctx.Running.AppPath, ctx.Running.ConsoleSocket, os.Environ(), logger)
 	if err != nil {
 		return err
 	}
 
-	wd := NewWatchdog(inst, ctx.Running.Restartable, 5*time.Second)
+	wd := NewWatchdog(inst, ctx.Running.Restartable, 5*time.Second, logger)
 	wd.Start()
 
 	return nil
