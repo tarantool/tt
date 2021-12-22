@@ -21,17 +21,28 @@ type Config struct {
 // tt:
 //   modules:
 //     directory: path/to
+
+type modulesOpts struct {
+	Directory string
+}
+
 type CliOpts struct {
-	Modules *struct {
-		Directory string
+	Modules *modulesOpts
+}
+
+// getDefaultCliOpts returns `CliOpts`filled with default values.
+func getDefaultCliOpts() *CliOpts {
+	modules := modulesOpts{
+		Directory: "",
 	}
+	return &CliOpts{Modules: &modules}
 }
 
 // GetCliOpts returns Tarantool CLI options from the config file
 // located at path configurePath.
 func GetCliOpts(configurePath string) (*CliOpts, error) {
-	// Config could not be processed - we ignore it and
-	// continue working without config.
+	var cfg Config
+	// Config could not be processed.
 	if _, err := os.Stat(configurePath); err != nil {
 		// TODO: Add warning in next patches, discussion
 		// what if the file exists, but access is denied, etc.
@@ -39,7 +50,8 @@ func GetCliOpts(configurePath string) (*CliOpts, error) {
 			return nil, fmt.Errorf("Failed to get access to configuration file: %s", err)
 		}
 
-		return nil, nil
+		cfg.CliConfig = getDefaultCliOpts()
+		return cfg.CliConfig, nil
 	}
 
 	rawConfigOpts, err := util.ParseYAML(configurePath)
@@ -47,7 +59,6 @@ func GetCliOpts(configurePath string) (*CliOpts, error) {
 		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: %s", err)
 	}
 
-	var cfg Config
 	if err := mapstructure.Decode(rawConfigOpts, &cfg); err != nil {
 		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: %s", err)
 	}
