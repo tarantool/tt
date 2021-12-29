@@ -71,9 +71,36 @@ file format:
     tt:
       modules:
         directory: path/to/modules/dir
+      app:
+        available: path/to/available/applications
+        run_dir: path/to/run_dir
+        log_dir: path/to/log_dir
+        log_maxsize: num (MB)
+        log_maxage: num (Days)
+        log_maxbackups: num
+        restart_on_failure: bool
 
-Cocnfiguration file contains the path to directory where the external modules
-are stored (field ``directory`` in example above).
+**modules**
+
+* ``directory`` (string) - the path to directory where the external modules are stored.
+
+**app**
+
+* ``available`` (string) - path to directory that stores all available applications.
+* ``run_dir`` (string) - path to directory that stores various instance runtime
+  artifacts like console socket, PID file, etc.
+* ``log_dir`` (string) - directory that stores log files.
+* ``log_maxsize`` (number) - the maximum size in MB of the log file before it gets
+  rotated. It defaults to 100 MB.
+* ``log_maxage`` (numder) - is the maximum number of days to retain old log files
+  based on the timestamp encoded in their filename. Note that a day is defined
+  as 24 hours and may not exactly correspond to calendar days due to daylight
+  savings, leap seconds, etc. The default is not to remove old log files based
+  on age.
+* ``log_maxbackups`` (number) - the maximum number of old log files to retain.
+  The default is to retain all old log files (though log_maxage may still cause
+  them to get deleted.)
+* ``restart_on_failure`` (bool) - should it restart on failure.
 
 External modules
 ----------------
@@ -121,3 +148,15 @@ You can generate autocompletion for ``bash`` or ``zsh`` shell:
 
 Enter ``tt``, press tab and you will see a list of available modules with
 descriptions. Also, autocomplete supports external modules.
+
+Commands
+--------
+Common description. For a detailed description, use ``tt help command`` .
+
+* ``start`` - start a tarantool instance.
+* ``stop`` - stop the tarantool instance.
+* ``status`` - get current status of the instance.
+* ``restart`` - restart the instance.
+* ``version`` - show Tarantool CLI version information.
+* ``completion`` - generate autocomplete for a specified shell.
+* ``help`` - display help for any command.
