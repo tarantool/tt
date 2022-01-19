@@ -102,6 +102,8 @@ func (inst *Instance) Start() error {
 
 	// Imitate the "tarantoolctl".
 	inst.Cmd.Env = append(inst.Cmd.Env, "TARANTOOLCTL=true")
+	// Set the sign that the program is running under "tt".
+	inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI=true")
 
 	// Start an Instance.
 	if err := inst.Cmd.Start(); err != nil {
