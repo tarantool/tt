@@ -100,6 +100,9 @@ func (inst *Instance) Start() error {
 	inst.Cmd.Env = append(inst.Cmd.Env,
 		"TT_CLI_CONSOLE_SOCKET="+inst.consoleSocket)
 
+	// Imitate the "tarantoolctl".
+	inst.Cmd.Env = append(inst.Cmd.Env, "TARANTOOLCTL=true")
+
 	// Start an Instance.
 	if err := inst.Cmd.Start(); err != nil {
 		return err
