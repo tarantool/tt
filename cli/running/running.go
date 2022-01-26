@@ -277,6 +277,13 @@ func Stop(ctx *context.Ctx) error {
 		return fmt.Errorf("Can't terminate the instance.")
 	}
 
+	// tarantool 1.10 does not have a trigger on terminate a process.
+	// So the socket will be closed automatically on termination and
+	// we need to delete the file.
+	if _, err := os.Stat(ctx.Running.ConsoleSocket); err == nil {
+		os.Remove(ctx.Running.ConsoleSocket)
+	}
+
 	log.Printf("The Instance (PID = %v) has been terminated.\n", pid)
 
 	return nil
