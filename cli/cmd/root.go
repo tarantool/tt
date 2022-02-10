@@ -47,6 +47,7 @@ func NewCmdRoot() *cobra.Command {
 		NewRestartCmd(),
 		NewLogrotateCmd(),
 		NewCheckCmd(),
+		NewConnectCmd(),
 	)
 
 	rootCmd.InitDefaultHelpCmd()

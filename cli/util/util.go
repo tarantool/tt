@@ -1,19 +1,32 @@
 package util
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime/debug"
 
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
 
+var bufSize int64 = 10000
+
 // VersionFunc is a type of function that return
 // string with current Tarantool CLI version.
 type VersionFunc func(bool, bool) string
+
+// FileLinesScanner returns scanner for file.
+func FileLinesScanner(file *os.File) *bufio.Scanner {
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	return scanner
+}
 
 // GetFileContentBytes returns file content as a bytes slice.
 func GetFileContentBytes(path string) ([]byte, error) {
@@ -29,6 +42,42 @@ func GetFileContentBytes(path string) ([]byte, error) {
 	}
 
 	return fileContent, nil
+}
+
+// GetFileContent returns file content as a string.
+func GetFileContent(path string) (string, error) {
+	fileContentBytes, err := GetFileContentBytes(path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(fileContentBytes), nil
+}
+
+func writeFileToWriter(filePath string, writer io.Writer) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// copy file data into tar writer
+	if _, err := io.Copy(writer, file); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func PrintFromStart(file *os.File) error {
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("Failed to seek file begin: %s", err)
+	}
+	if _, err := io.Copy(os.Stdout, file); err != nil {
+		log.Warnf("Failed to print file content: %s", err)
+	}
+
+	return nil
 }
 
 // JoinAbspath concat paths and makes the resulting path absolute.
@@ -90,4 +139,138 @@ func GetHelpCommand(cmd *cobra.Command) *cobra.Command {
 	}
 
 	return nil
+}
+
+// GetHomeDir returns current home directory.
+func GetHomeDir() (string, error) {
+	usr, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return usr.HomeDir, nil
+}
+
+func readFromPos(f *os.File, pos int64, buf *[]byte) (int, error) {
+	if _, err := f.Seek(pos, io.SeekStart); err != nil {
+		return 0, fmt.Errorf("Failed to seek: %s", err)
+	}
+
+	n, err := f.Read(*buf)
+	if err != nil {
+		return n, fmt.Errorf("Failed to read: %s", err)
+	}
+
+	return n, nil
+}
+
+// GetLastNLinesBegin return the position of last lines begin.
+func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
+	if lines == 0 {
+		return 0, nil
+	}
+
+	if lines < 0 {
+		lines = -lines
+	}
+
+	f, err := os.Open(filepath)
+	if err != nil {
+		return 0, fmt.Errorf("Failed to open file: %s", err)
+	}
+	defer f.Close()
+
+	var fileSize int64
+	if fileInfo, err := os.Stat(filepath); err != nil {
+		return 0, fmt.Errorf("Failed to get fileinfo: %s", err)
+	} else {
+		fileSize = fileInfo.Size()
+	}
+
+	if fileSize == 0 {
+		return 0, nil
+	}
+
+	buf := make([]byte, bufSize)
+
+	var filePos int64 = fileSize - bufSize
+	var lastNewLinePos int64 = 0
+	var newLinesN int = 0
+
+	// check last symbol of the last line
+
+	if _, err := readFromPos(f, fileSize-1, &buf); err != nil {
+		return 0, err
+	}
+	if buf[0] != '\n' {
+		newLinesN++
+	}
+
+	lastPart := false
+
+Loop:
+	for {
+		if filePos < 0 {
+			filePos = 0
+			lastPart = true
+		}
+
+		n, err := readFromPos(f, filePos, &buf)
+		if err != nil {
+			return 0, err
+		}
+
+		for i := n - 1; i >= 0; i-- {
+			b := buf[i]
+
+			if b == '\n' {
+				newLinesN++
+			}
+
+			if newLinesN == lines+1 {
+				lastNewLinePos = filePos + int64(i+1)
+				break Loop
+			}
+		}
+
+		if lastPart || filePos == 0 {
+			break
+		}
+
+		filePos -= bufSize
+	}
+
+	return lastNewLinePos, nil
+}
+
+func GetLastNLines(filepath string, linesN int) ([]string, error) {
+	lastNLinesBeginPos, err := GetLastNLinesBegin(filepath, linesN)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to open file: %s", err)
+	}
+
+	if _, err := file.Seek(lastNLinesBeginPos, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("Failed to seek in file: %s", err)
+	}
+
+	lines := []string{}
+
+	scanner := FileLinesScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	return lines, nil
+}
+
+func StdinHasUnreadData() (bool, error) {
+	stdinStat, err := os.Stdin.Stat()
+	if err != nil {
+		return false, err
+	}
+	return (stdinStat.Mode() & os.ModeCharDevice) == 0, nil
 }
