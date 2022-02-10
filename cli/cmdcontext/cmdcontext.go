@@ -5,6 +5,7 @@ package cmdcontext
 type CmdCtx struct {
 	Cli     CliCtx
 	Running RunningCtx
+	Connect ConnectCtx
 }
 
 // CliCtx - CLI context. Contains flags passed when starting
@@ -54,4 +55,12 @@ type RunningCtx struct {
 	Restartable bool
 	// Control UNIX socket for started instance.
 	ConsoleSocket string
+}
+
+// ConnectCtx contains information for connecting to the instance.
+type ConnectCtx struct {
+	// Username of the tarantool user.
+	Username string
+	// Password of the tarantool.user.
+	Password string
 }

@@ -23,6 +23,23 @@ var luaCodeFiles = []generateLuaCodeOpts{
 			"checkSyntax":      "cli/running/lua/check.lua",
 		},
 	},
+	{
+		PackageName: "connect",
+		FileName:    "cli/connect/lua_code_gen.go",
+		VariablesMap: map[string]string{
+			"evalFuncBody":           "cli/connect/lua/eval_func_body.lua",
+			"getSuggestionsFuncBody": "cli/connect/lua/get_suggestions_func_body.lua",
+			"getTitleFuncBody":       "cli/connect/lua/get_title_func_body.lua",
+		},
+	},
+	{
+		PackageName: "connector",
+		FileName:    "cli/connector/lua_code_gen.go",
+		VariablesMap: map[string]string{
+			"callFuncTmpl": "cli/connector/lua/call_func_template.lua",
+			"evalFuncTmpl": "cli/connector/lua/eval_func_template.lua",
+		},
+	},
 }
 
 func generateLuaCodeVar() error {
