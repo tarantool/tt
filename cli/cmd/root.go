@@ -6,13 +6,13 @@ import (
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/context"
 	"github.com/tarantool/tt/cli/modules"
 )
 
 var (
-	ctx         context.Ctx
+	cmdCtx      cmdcontext.CmdCtx
 	cliOpts     *modules.CliOpts
 	modulesInfo modules.ModulesInfo
 	rootCmd     *cobra.Command
@@ -33,10 +33,10 @@ func NewCmdRoot() *cobra.Command {
 		ValidArgsFunction: RootShellCompletionCommands,
 	}
 
-	rootCmd.PersistentFlags().BoolVarP(&ctx.Cli.IsSystem, "system", "S", false, "System launch")
-	rootCmd.PersistentFlags().StringVarP(&ctx.Cli.LocalLaunchDir, "local", "L", "", "Local launch")
-	rootCmd.PersistentFlags().BoolVarP(&ctx.Cli.ForceInternal, "internal", "I", false, "Use internal module")
-	rootCmd.PersistentFlags().StringVarP(&ctx.Cli.ConfigPath, "cfg", "c", "", "Path to configuration file")
+	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.IsSystem, "system", "S", false, "System launch")
+	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.LocalLaunchDir, "local", "L", "", "Local launch")
+	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.ForceInternal, "internal", "I", false, "Use internal module")
+	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.ConfigPath, "cfg", "c", "", "Path to configuration file")
 
 	rootCmd.AddCommand(
 		NewVersionCmd(),
@@ -69,18 +69,18 @@ func init() {
 	rootCmd.ParseFlags(os.Args)
 
 	// Configure Tarantool CLI.
-	if err := configure.Cli(&ctx); err != nil {
+	if err := configure.Cli(&cmdCtx); err != nil {
 		log.Fatalf("Failed to configure Tarantool CLI: %s", err)
 	}
 
 	var err error
-	cliOpts, err = modules.GetCliOpts(ctx.Cli.ConfigPath)
+	cliOpts, err = modules.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
 	}
 
 	// Getting modules information.
-	modulesInfo, err = modules.GetModulesInfo(&ctx, rootCmd.Commands(), cliOpts)
+	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd.Commands(), cliOpts)
 	if err != nil {
 		log.Fatalf("Failed to configure Tarantool CLI command: %s", err)
 	}
@@ -88,9 +88,9 @@ func init() {
 	// External commands must be configured in a special way.
 	// This is necessary, for example, so that we can pass arguments to these commands.
 	if len(os.Args) > 1 {
-		configure.ExternalCmd(rootCmd, &ctx, &modulesInfo, os.Args[1:])
+		configure.ExternalCmd(rootCmd, &cmdCtx, &modulesInfo, os.Args[1:])
 	}
 
 	// Configure help command.
-	configureHelpCommand(&ctx, rootCmd)
+	configureHelpCommand(&cmdCtx, rootCmd)
 }

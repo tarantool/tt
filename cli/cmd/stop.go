@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 )
@@ -14,7 +14,7 @@ func NewStopCmd() *cobra.Command {
 		Use:   "stop [INSTANCE_NAME]",
 		Short: "Stop tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&ctx, cmd.Name(), &modulesInfo, internalStopModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStopModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
@@ -25,17 +25,17 @@ func NewStopCmd() *cobra.Command {
 }
 
 // internalStopModule is a default stop module.
-func internalStopModule(ctx *context.Ctx, args []string) error {
-	cliOpts, err := modules.GetCliOpts(ctx.Cli.ConfigPath)
+func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	cliOpts, err := modules.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	if err = running.FillCtx(cliOpts, ctx, args); err != nil {
+	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
 		return err
 	}
 
-	if err = running.Stop(ctx); err != nil {
+	if err = running.Stop(cmdCtx); err != nil {
 		return err
 	}
 

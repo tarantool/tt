@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -27,28 +27,28 @@ var (
 )
 
 // Cli performs initial CLI configuration.
-func Cli(ctx *context.Ctx) error {
-	if ctx.Cli.ConfigPath != "" {
-		if _, err := os.Stat(ctx.Cli.ConfigPath); err != nil {
+func Cli(cmdCtx *cmdcontext.CmdCtx) error {
+	if cmdCtx.Cli.ConfigPath != "" {
+		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
 			return fmt.Errorf("Specified path to the configuration file is invalid: %s", err)
 		}
 	}
 
 	switch {
-	case ctx.Cli.IsSystem:
-		return configureSystemCli(ctx)
-	case ctx.Cli.LocalLaunchDir != "":
-		return configureLocalCli(ctx, ctx.Cli.LocalLaunchDir)
+	case cmdCtx.Cli.IsSystem:
+		return configureSystemCli(cmdCtx)
+	case cmdCtx.Cli.LocalLaunchDir != "":
+		return configureLocalCli(cmdCtx, cmdCtx.Cli.LocalLaunchDir)
 	}
 
 	// No flags specified.
-	return configureDefaultCli(ctx)
+	return configureDefaultCli(cmdCtx)
 }
 
 // ExternalCmd configures external commands.
-func ExternalCmd(rootCmd *cobra.Command, ctx *context.Ctx, modulesInfo *modules.ModulesInfo, args []string) {
+func ExternalCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesInfo, args []string) {
 	configureExistsCmd(rootCmd, modulesInfo)
-	configureNonExistentCmd(rootCmd, ctx, modulesInfo, args)
+	configureNonExistentCmd(rootCmd, cmdCtx, modulesInfo, args)
 }
 
 // configureExistsCmd configures an external commands
@@ -65,7 +65,7 @@ func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo
 
 // configureNonExistentCmd configures an external command that
 // has no internal implementation within the Tarantool CLI.
-func configureNonExistentCmd(rootCmd *cobra.Command, ctx *context.Ctx, modulesInfo *modules.ModulesInfo, args []string) {
+func configureNonExistentCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesInfo, args []string) {
 	// Since the user can pass flags, to determine the name of
 	// an external command we have to take the first non-flag argument.
 	externalCmd := args[0]
@@ -87,15 +87,15 @@ func configureNonExistentCmd(rootCmd *cobra.Command, ctx *context.Ctx, modulesIn
 	helpCmd := util.GetHelpCommand(rootCmd)
 	if module, ok := (*modulesInfo)[externalCmd]; ok {
 		if !module.IsInternal {
-			rootCmd.AddCommand(newExternalCommand(ctx, modulesInfo, externalCmd, nil))
-			helpCmd.AddCommand(newExternalCommand(ctx, modulesInfo, externalCmd, []string{"--help"}))
+			rootCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, nil))
+			helpCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, []string{"--help"}))
 		}
 	}
 }
 
 // newExternalCommand returns a pointer to a new external
 // command that will call modules.RunCmd.
-func newExternalCommand(ctx *context.Ctx, modulesInfo *modules.ModulesInfo, cmdName string, addArgs []string) *cobra.Command {
+func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesInfo, cmdName string, addArgs []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: cmdName,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -103,8 +103,8 @@ func newExternalCommand(ctx *context.Ctx, modulesInfo *modules.ModulesInfo, cmdN
 				args = append(args, addArgs...)
 			}
 
-			ctx.Cli.ForceInternal = false
-			if err := modules.RunCmd(ctx, cmdName, modulesInfo, nil, args); err != nil {
+			cmdCtx.Cli.ForceInternal = false
+			if err := modules.RunCmd(cmdCtx, cmdName, modulesInfo, nil, args); err != nil {
 				log.Fatalf(err.Error())
 			}
 		},
@@ -115,7 +115,7 @@ func newExternalCommand(ctx *context.Ctx, modulesInfo *modules.ModulesInfo, cmdN
 }
 
 // configureLocalCli configures Tarantool CLI if the launch is local.
-func configureLocalCli(ctx *context.Ctx, launchDir string) error {
+func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
 	// If tt launch is local: we chdir to a local directory, check for tt
 	// and Tarantool binaries. If tt binary exists, then exec it.
 	// If Tarantool binary is found, use it further, instead of what
@@ -130,22 +130,22 @@ func configureLocalCli(ctx *context.Ctx, launchDir string) error {
 		return fmt.Errorf(`Failed to change working directory: %s`, err)
 	}
 
-	if ctx.Cli.ConfigPath == "" {
-		ctx.Cli.ConfigPath = filepath.Join(launchDir, configName)
+	if cmdCtx.Cli.ConfigPath == "" {
+		cmdCtx.Cli.ConfigPath = filepath.Join(launchDir, configName)
 		// TODO: Add warning messages, discussion what if the file
 		// exists, but access is denied, etc.
-		if _, err := os.Stat(ctx.Cli.ConfigPath); err != nil {
+		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
 			if !os.IsNotExist(err) {
 				return fmt.Errorf("Failed to get access to configuration file: %s", err)
 			}
 
 			var err error
-			if ctx.Cli.ConfigPath, err = getConfigPath(configName); err != nil {
+			if cmdCtx.Cli.ConfigPath, err = getConfigPath(configName); err != nil {
 				return fmt.Errorf("Failed to get Tarantool CLI config: %s", err)
 			}
 
-			if ctx.Cli.ConfigPath == "" {
-				ctx.Cli.ConfigPath = filepath.Join(defaultConfigPath, configName)
+			if cmdCtx.Cli.ConfigPath == "" {
+				cmdCtx.Cli.ConfigPath = filepath.Join(defaultConfigPath, configName)
 			}
 		}
 	}
@@ -162,13 +162,13 @@ func configureLocalCli(ctx *context.Ctx, launchDir string) error {
 				`Found Tarantool binary in local directory "%s" isn't executable: %s`, launchDir, err)
 		}
 
-		ctx.Cli.TarantoolExecutable = localTarantool
+		cmdCtx.Cli.TarantoolExecutable = localTarantool
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("Failed to get access to Tarantool binary file: %s", err)
 	}
 
 	// Detect local tt.
-	localCli, err := util.JoinAbspath(ctx.Cli.LocalLaunchDir, cliExecutableName)
+	localCli, err := util.JoinAbspath(cmdCtx.Cli.LocalLaunchDir, cliExecutableName)
 	if err != nil {
 		return err
 	}
@@ -205,21 +205,21 @@ func configureLocalCli(ctx *context.Ctx, launchDir string) error {
 }
 
 // configureSystemCli configures Tarantool CLI if the launch is system.
-func configureSystemCli(ctx *context.Ctx) error {
+func configureSystemCli(cmdCtx *cmdcontext.CmdCtx) error {
 	// If tt launch is system: the only thing we do is look for tarantool.yaml
 	// config in the system directory (as opposed to running it locally).
-	if ctx.Cli.ConfigPath == "" {
-		ctx.Cli.ConfigPath = filepath.Join(defaultConfigPath, configName)
+	if cmdCtx.Cli.ConfigPath == "" {
+		cmdCtx.Cli.ConfigPath = filepath.Join(defaultConfigPath, configName)
 	}
 
 	return nil
 }
 
 // configureDefaultCLI configures Tarantool CLI if the launch was without flags (-S or -L).
-func configureDefaultCli(ctx *context.Ctx) error {
+func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 	var err error
 	// Set default (system) tarantool binary, can be replaced by "local" later.
-	ctx.Cli.TarantoolExecutable, err = exec.LookPath("tarantool")
+	cmdCtx.Cli.TarantoolExecutable, err = exec.LookPath("tarantool")
 
 	// It may be fine that the system tarantool is absent because:
 	// 1) We use the "local" tarantool.
@@ -231,21 +231,21 @@ func configureDefaultCli(ctx *context.Ctx) error {
 	// If neither the local start nor the system flag is specified,
 	// we ourselves determine what kind of launch it is.
 
-	if ctx.Cli.ConfigPath == "" {
+	if cmdCtx.Cli.ConfigPath == "" {
 		// We start looking for config in the current directory, going down to root directory.
 		// If the config is found, we assume that it is a local launch in this directory.
 		// If the config is not found, then we take it from the standard place (/etc/tarantool).
 
-		if ctx.Cli.ConfigPath, err = getConfigPath(configName); err != nil {
+		if cmdCtx.Cli.ConfigPath, err = getConfigPath(configName); err != nil {
 			return fmt.Errorf("Failed to get Tarantool CLI config: %s", err)
 		}
 	}
 
-	if ctx.Cli.ConfigPath != "" {
-		return configureLocalCli(ctx, filepath.Dir(ctx.Cli.ConfigPath))
+	if cmdCtx.Cli.ConfigPath != "" {
+		return configureLocalCli(cmdCtx, filepath.Dir(cmdCtx.Cli.ConfigPath))
 	}
 
-	return configureSystemCli(ctx)
+	return configureSystemCli(cmdCtx)
 }
 
 // getConfigPath looks for the path to the tarantool.yaml configuration file,

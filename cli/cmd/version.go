@@ -5,7 +5,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -22,7 +22,7 @@ func NewVersionCmd() *cobra.Command {
 		Short: "Show Tarantool CLI version information",
 		Run: func(cmd *cobra.Command, args []string) {
 			args = modules.GetDefaultCmdArgs(cmd.Name())
-			err := modules.RunCmd(&ctx, cmd.Name(), &modulesInfo, internalVersionModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalVersionModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
@@ -36,7 +36,7 @@ func NewVersionCmd() *cobra.Command {
 }
 
 // internalVersionModule is a default (internal) version module function.
-func internalVersionModule(ctx *context.Ctx, args []string) error {
+func internalVersionModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	fmt.Println(version.GetVersion(showShort, needCommit))
 	return nil
 }

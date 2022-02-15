@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -16,44 +16,44 @@ import (
 func TestConfigureCli(t *testing.T) {
 	assert := assert.New(t)
 
-	ctx := context.Ctx{}
+	cmdCtx := cmdcontext.CmdCtx{}
 
 	// Test system configuration.
-	ctx.Cli.IsSystem = true
-	assert.Nil(Cli(&ctx))
+	cmdCtx.Cli.IsSystem = true
+	assert.Nil(Cli(&cmdCtx))
 
-	// In fact, ctx.Cli.ConfigPath must contain the path, for example
+	// In fact, cmdCtx.Cli.ConfigPath must contain the path, for example
 	// /etc/tarantool/tarantool.yaml on Linux, to the standard configuration file.
 	// But, the path to the system configuration file is set at the compilation
 	// stage of the application (therefore, we get only the file name `tarantool.yaml`,
 	// not the entire path). We cannot set the path to the file at build time because
 	// we run `go test`, which compiles the functions again.
-	assert.Equal(ctx.Cli.ConfigPath, "tarantool.yaml")
+	assert.Equal(cmdCtx.Cli.ConfigPath, "tarantool.yaml")
 
 	// Test local cofniguration.
-	ctx.Cli.IsSystem = false
-	ctx.Cli.LocalLaunchDir = os.TempDir()
-	ctx.Cli.ConfigPath = ""
+	cmdCtx.Cli.IsSystem = false
+	cmdCtx.Cli.LocalLaunchDir = os.TempDir()
+	cmdCtx.Cli.ConfigPath = ""
 
 	expectedConfigPath, err := util.JoinAbspath(os.TempDir(), "tarantool.yaml")
 	assert.Nil(err)
 	ioutil.WriteFile(expectedConfigPath, []byte("config-file"), 0755)
 
 	// Create local tarantool and check that it is found during configuration.
-	expectedTarantoolPath := filepath.Join(ctx.Cli.LocalLaunchDir, "tarantool")
+	expectedTarantoolPath := filepath.Join(cmdCtx.Cli.LocalLaunchDir, "tarantool")
 	assert.Nil(ioutil.WriteFile(
 		expectedTarantoolPath, []byte("I am [fake] local Tarantool!"), 0777,
 	))
 
 	defer os.Remove(expectedTarantoolPath)
 
-	assert.Nil(Cli(&ctx))
-	assert.Equal(ctx.Cli.ConfigPath, expectedConfigPath)
-	assert.Equal(ctx.Cli.TarantoolExecutable, expectedTarantoolPath)
+	assert.Nil(Cli(&cmdCtx))
+	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
+	assert.Equal(cmdCtx.Cli.TarantoolExecutable, expectedTarantoolPath)
 
 	// Test default configuration (no flags specified).
-	ctx.Cli.LocalLaunchDir = ""
-	ctx.Cli.ConfigPath = ""
+	cmdCtx.Cli.LocalLaunchDir = ""
+	cmdCtx.Cli.ConfigPath = ""
 	dir, err := ioutil.TempDir(os.TempDir(), "temp")
 	assert.Nil(err)
 
@@ -69,11 +69,11 @@ func TestConfigureCli(t *testing.T) {
 
 	defer os.Remove(expectedConfigPath)
 
-	assert.Nil(Cli(&ctx))
+	assert.Nil(Cli(&cmdCtx))
 	// I don't know why, but go tests run in /private folder (when running on MacOS).
 	if runtime.GOOS == "darwin" {
 		expectedConfigPath = filepath.Join("/private", expectedConfigPath)
 	}
 
-	assert.Equal(ctx.Cli.ConfigPath, expectedConfigPath)
+	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
 }

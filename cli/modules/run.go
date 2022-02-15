@@ -6,13 +6,13 @@ import (
 	"os/exec"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
 )
 
 // InternalFunc is a type of function that implements
 // the external behavior of the module.
-type InternalFunc func(*context.Ctx, []string) error
+type InternalFunc func(*cmdcontext.CmdCtx, []string) error
 
 // RunCmd launches the required module.
 // It collects a list of available modules, and based on
@@ -25,14 +25,14 @@ type InternalFunc func(*context.Ctx, []string) error
 //
 // If the external module returns an error code,
 // then tt exit with this code.
-func RunCmd(ctx *context.Ctx, cmdName string, modulesInfo *ModulesInfo, internal InternalFunc, args []string) error {
+func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdName string, modulesInfo *ModulesInfo, internal InternalFunc, args []string) error {
 	info, found := (*modulesInfo)[cmdName]
 	if !found {
 		return fmt.Errorf("Module with specified name %s isn't found", cmdName)
 	}
 
-	if info.IsInternal || ctx.Cli.ForceInternal {
-		return internal(ctx, args)
+	if info.IsInternal || cmdCtx.Cli.ForceInternal {
+		return internal(cmdCtx, args)
 	}
 
 	if rc := RunExec(info.ExternalPath, args); rc != 0 {

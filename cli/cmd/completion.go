@@ -6,7 +6,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 )
 
@@ -18,7 +18,7 @@ func NewCompletionCmd() *cobra.Command {
 		ValidArgs: []string{"bash", "zsh"},
 		Run: func(cmd *cobra.Command, args []string) {
 			args = modules.GetDefaultCmdArgs(cmd.Name())
-			err := modules.RunCmd(&ctx, cmd.Name(), &modulesInfo, internalCompletionCmd, args)
+			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalCompletionCmd, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
@@ -46,7 +46,7 @@ func RootShellCompletionCommands(cmd *cobra.Command, args []string, toComplete s
 }
 
 // internalCompletionCmd is a default (internal) completion module function.
-func internalCompletionCmd(ctx *context.Ctx, args []string) error {
+func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	switch shell := args[0]; shell {
 	case "bash":
 		if err := rootCmd.GenBashCompletion(os.Stdout); err != nil {

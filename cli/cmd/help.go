@@ -6,7 +6,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -19,7 +19,7 @@ type DefaultHelpFunc func(*cobra.Command, []string)
 // so that it can be external as well.
 // If the help is called for an external module
 // (for example `tt help version`), we try to get the help from it.
-func configureHelpCommand(ctx *context.Ctx, rootCmd *cobra.Command) error {
+func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) error {
 	// Add information about external modules into help template.
 	rootCmd.SetUsageTemplate(fmt.Sprintf(usageTemplate, getExternalCommandsString(&modulesInfo)))
 	defaultHelp := rootCmd.HelpFunc()
@@ -31,7 +31,7 @@ func configureHelpCommand(ctx *context.Ctx, rootCmd *cobra.Command) error {
 		}
 
 		args = modules.GetDefaultCmdArgs("help")
-		err := modules.RunCmd(ctx, "help", &modulesInfo, getInternalHelpFunc(cmd, defaultHelp), args)
+		err := modules.RunCmd(cmdCtx, "help", &modulesInfo, getInternalHelpFunc(cmd, defaultHelp), args)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
@@ -50,7 +50,7 @@ func configureHelpCommand(ctx *context.Ctx, rootCmd *cobra.Command) error {
 
 // getInternalHelpFunc returns a internal implementation of help module.
 func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.InternalFunc {
-	return func(ctx *context.Ctx, args []string) error {
+	return func(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		switch module := modulesInfo[cmd.Name()]; {
 		// Cases when we have to run the "default" help:
 		// - `tt help` and no external help module.

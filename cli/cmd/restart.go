@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 )
 
@@ -13,7 +13,7 @@ func NewRestartCmd() *cobra.Command {
 		Use:   "restart [INSTANCE_NAME]",
 		Short: "restart tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&ctx, cmd.Name(), &modulesInfo, internalRestartModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalRestartModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
@@ -24,12 +24,12 @@ func NewRestartCmd() *cobra.Command {
 }
 
 // internalRestartModule is a default restart module.
-func internalRestartModule(ctx *context.Ctx, args []string) error {
-	if err := internalStopModule(ctx, args); err != nil {
+func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if err := internalStopModule(cmdCtx, args); err != nil {
 		return err
 	}
 
-	if err := internalStartModule(ctx, args); err != nil {
+	if err := internalStartModule(cmdCtx, args); err != nil {
 		return err
 	}
 

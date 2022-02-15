@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 )
@@ -14,7 +14,7 @@ func NewStatusCmd() *cobra.Command {
 		Use:   "status [INSTANCE_NAME]",
 		Short: "Status of the tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&ctx, cmd.Name(), &modulesInfo, internalStatusModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStatusModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
@@ -25,17 +25,17 @@ func NewStatusCmd() *cobra.Command {
 }
 
 // internalStatusModule is a default status module.
-func internalStatusModule(ctx *context.Ctx, args []string) error {
-	cliOpts, err := modules.GetCliOpts(ctx.Cli.ConfigPath)
+func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	cliOpts, err := modules.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	if err = running.FillCtx(cliOpts, ctx, args); err != nil {
+	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
 		return err
 	}
 
-	log.Info(running.Status(ctx))
+	log.Info(running.Status(cmdCtx))
 
 	return nil
 }
