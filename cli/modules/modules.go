@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 )
 
 const (
@@ -28,8 +28,8 @@ type ModuleInfo struct {
 type ModulesInfo map[string]*ModuleInfo
 
 // GetModulesInfo collects information about available modules (both external and internal).
-func GetModulesInfo(ctx *context.Ctx, subCommands []*cobra.Command, cliOpts *CliOpts) (ModulesInfo, error) {
-	modulesDir, err := getExternalModulesDir(ctx, cliOpts)
+func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command, cliOpts *CliOpts) (ModulesInfo, error) {
+	modulesDir, err := getExternalModulesDir(cmdCtx, cliOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +61,11 @@ func GetModulesInfo(ctx *context.Ctx, subCommands []*cobra.Command, cliOpts *Cli
 }
 
 // getExternalModulesDir returns the directory where external modules are located.
-func getExternalModulesDir(ctx *context.Ctx, cliOpts *CliOpts) (string, error) {
+func getExternalModulesDir(cmdCtx *cmdcontext.CmdCtx, cliOpts *CliOpts) (string, error) {
 	// Configuraion file not detected - ignore and work on.
 	// TODO: Add warning in next patches, discussion
 	// what if the file exists, but access is denied, etc.
-	if _, err := os.Stat(ctx.Cli.ConfigPath); err != nil {
+	if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
 		if !os.IsNotExist(err) {
 			return "", fmt.Errorf("Failed to get access to configuration file: %s", err)
 		}

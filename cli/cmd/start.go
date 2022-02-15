@@ -6,7 +6,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 )
@@ -24,7 +24,7 @@ func NewStartCmd() *cobra.Command {
 		Use:   "start [APPLICATION_NAME]",
 		Short: "Start tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&ctx, cmd.Name(), &modulesInfo, internalStartModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStartModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
@@ -38,13 +38,13 @@ func NewStartCmd() *cobra.Command {
 }
 
 // internalStartModule is a default start module.
-func internalStartModule(ctx *context.Ctx, args []string) error {
-	cliOpts, err := modules.GetCliOpts(ctx.Cli.ConfigPath)
+func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	cliOpts, err := modules.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	if err = running.FillCtx(cliOpts, ctx, args); err != nil {
+	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
 		return err
 	}
 
@@ -66,7 +66,7 @@ func internalStartModule(ctx *context.Ctx, args []string) error {
 	}
 
 	log.Info("Starting an instance...")
-	if err = running.Start(ctx); err != nil {
+	if err = running.Start(cmdCtx); err != nil {
 		return err
 	}
 

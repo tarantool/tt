@@ -14,7 +14,7 @@ import (
 
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	"github.com/tarantool/tt/cli/context"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -65,13 +65,13 @@ func findAppFile(appName string, cliOpts *modules.CliOpts) (string, error) {
 }
 
 // cleanup removes runtime artifacts.
-func cleanup(ctx *context.Ctx) {
-	if _, err := os.Stat(ctx.Running.PIDFile); err == nil {
-		os.Remove(ctx.Running.PIDFile)
+func cleanup(cmdCtx *cmdcontext.CmdCtx) {
+	if _, err := os.Stat(cmdCtx.Running.PIDFile); err == nil {
+		os.Remove(cmdCtx.Running.PIDFile)
 	}
 
-	if _, err := os.Stat(ctx.Running.ConsoleSocket); err == nil {
-		os.Remove(ctx.Running.ConsoleSocket)
+	if _, err := os.Stat(cmdCtx.Running.ConsoleSocket); err == nil {
+		os.Remove(cmdCtx.Running.ConsoleSocket)
 	}
 }
 
@@ -101,14 +101,14 @@ func getPIDFromFile(pidFileName string) (int, error) {
 }
 
 // createLogger prepares a logger for the watchdog and instance.
-func createLogger(ctx *context.Ctx) *log.Logger {
+func createLogger(cmdCtx *cmdcontext.CmdCtx) *log.Logger {
 	// We use a wrapper for the logger, which is responsible for
 	// writing and rotating the logs.
 	writer := lumberjack.Logger{
-		Filename:   ctx.Running.Log,
-		MaxSize:    ctx.Running.LogMaxSize,
-		MaxBackups: ctx.Running.LogMaxBackups,
-		MaxAge:     ctx.Running.LogMaxAge,
+		Filename:   cmdCtx.Running.Log,
+		MaxSize:    cmdCtx.Running.LogMaxSize,
+		MaxBackups: cmdCtx.Running.LogMaxBackups,
+		MaxAge:     cmdCtx.Running.LogMaxAge,
 		Compress:   false,
 		LocalTime:  true,
 	}
@@ -200,7 +200,7 @@ func createPIDFile(pidFileName string) error {
 }
 
 // FillCtx fills the RunningCtx context.
-func FillCtx(cliOpts *modules.CliOpts, ctx *context.Ctx, args []string) error {
+func FillCtx(cliOpts *modules.CliOpts, cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("Currently, you can specify only one instance at a time.")
 	}
@@ -211,7 +211,7 @@ func FillCtx(cliOpts *modules.CliOpts, ctx *context.Ctx, args []string) error {
 		return fmt.Errorf("Can't find an application init file: %s", err)
 	}
 
-	ctx.Running.AppPath = appPath
+	cmdCtx.Running.AppPath = appPath
 
 	runDir := cliOpts.App.RunDir
 	if runDir == "" {
@@ -219,47 +219,47 @@ func FillCtx(cliOpts *modules.CliOpts, ctx *context.Ctx, args []string) error {
 			return fmt.Errorf(`Can't get the "RunDir: %s"`, err)
 		}
 	}
-	ctx.Running.RunDir = runDir
-	ctx.Running.ConsoleSocket = filepath.Join(runDir, appName+".control")
-	ctx.Running.PIDFile = filepath.Join(runDir, appName+".pid")
+	cmdCtx.Running.RunDir = runDir
+	cmdCtx.Running.ConsoleSocket = filepath.Join(runDir, appName+".control")
+	cmdCtx.Running.PIDFile = filepath.Join(runDir, appName+".pid")
 
-	ctx.Running.LogDir = cliOpts.App.LogDir
-	ctx.Running.Log, err = util.JoinAbspath(ctx.Running.LogDir, appName+".log")
+	cmdCtx.Running.LogDir = cliOpts.App.LogDir
+	cmdCtx.Running.Log, err = util.JoinAbspath(cmdCtx.Running.LogDir, appName+".log")
 	if err != nil {
 		return fmt.Errorf("Can't get the log file name: %s", err)
 	}
-	ctx.Running.LogMaxSize = cliOpts.App.LogMaxSize
-	ctx.Running.LogMaxAge = cliOpts.App.LogMaxAge
-	ctx.Running.LogMaxBackups = cliOpts.App.LogMaxBackups
+	cmdCtx.Running.LogMaxSize = cliOpts.App.LogMaxSize
+	cmdCtx.Running.LogMaxAge = cliOpts.App.LogMaxAge
+	cmdCtx.Running.LogMaxBackups = cliOpts.App.LogMaxBackups
 
 	return nil
 }
 
 // Start an Instance.
-func Start(ctx *context.Ctx) error {
-	if err := createPIDFile(ctx.Running.PIDFile); err != nil {
+func Start(cmdCtx *cmdcontext.CmdCtx) error {
+	if err := createPIDFile(cmdCtx.Running.PIDFile); err != nil {
 		return err
 	}
 
-	defer cleanup(ctx)
+	defer cleanup(cmdCtx)
 
-	logger := createLogger(ctx)
+	logger := createLogger(cmdCtx)
 
-	inst, err := NewInstance(ctx.Cli.TarantoolExecutable,
-		ctx.Running.AppPath, ctx.Running.ConsoleSocket, os.Environ(), logger)
+	inst, err := NewInstance(cmdCtx.Cli.TarantoolExecutable,
+		cmdCtx.Running.AppPath, cmdCtx.Running.ConsoleSocket, os.Environ(), logger)
 	if err != nil {
 		return err
 	}
 
-	wd := NewWatchdog(inst, ctx.Running.Restartable, 5*time.Second, logger)
+	wd := NewWatchdog(inst, cmdCtx.Running.Restartable, 5*time.Second, logger)
 	wd.Start()
 
 	return nil
 }
 
 // Stop the Instance.
-func Stop(ctx *context.Ctx) error {
-	pid, err := getPIDFromFile(ctx.Running.PIDFile)
+func Stop(cmdCtx *cmdcontext.CmdCtx) error {
+	pid, err := getPIDFromFile(cmdCtx.Running.PIDFile)
 	if err != nil {
 		return err
 	}
@@ -280,8 +280,8 @@ func Stop(ctx *context.Ctx) error {
 	// tarantool 1.10 does not have a trigger on terminate a process.
 	// So the socket will be closed automatically on termination and
 	// we need to delete the file.
-	if _, err := os.Stat(ctx.Running.ConsoleSocket); err == nil {
-		os.Remove(ctx.Running.ConsoleSocket)
+	if _, err := os.Stat(cmdCtx.Running.ConsoleSocket); err == nil {
+		os.Remove(cmdCtx.Running.ConsoleSocket)
 	}
 
 	log.Printf("The Instance (PID = %v) has been terminated.\n", pid)
@@ -290,8 +290,8 @@ func Stop(ctx *context.Ctx) error {
 }
 
 // Status returns the status of the Instance.
-func Status(ctx *context.Ctx) string {
-	pid, err := getPIDFromFile(ctx.Running.PIDFile)
+func Status(cmdCtx *cmdcontext.CmdCtx) string {
+	pid, err := getPIDFromFile(cmdCtx.Running.PIDFile)
 	if err != nil {
 		return fmt.Sprintf(`NOT RUNNING. Can't get the PID of process: "%v".`, err)
 	}

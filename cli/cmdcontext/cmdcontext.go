@@ -1,8 +1,8 @@
-package context
+package cmdcontext
 
-// Ctx is the main structure of the program context.
+// CmdCtx is the main structure of the program context.
 // Contains within itself other structures of CLI modules.
-type Ctx struct {
+type CmdCtx struct {
 	Cli     CliCtx
 	Running RunningCtx
 }
