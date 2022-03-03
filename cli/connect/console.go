@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/adam-hanna/arrayOperations"
 	"github.com/apex/log"
 	lua "github.com/yuin/gopher-lua"
+	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/yaml.v2"
 
 	"github.com/c-bata/go-prompt"
@@ -20,12 +22,14 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+// EvalFunc defines a function type for evaluating an expression via connection.
 type EvalFunc func(console *Console, funcBodyFmt string, args ...interface{}) (interface{}, error)
 
 const (
 	HistoryFileName = ".tarantool_history"
 
 	MaxLivePrefixIndent = 15
+	MaxHistoryLines     = 10000
 )
 
 var (
@@ -38,6 +42,7 @@ func init() {
 	ControlRightBytes = []byte{0x1b, 0x66}
 }
 
+// Console describes the console connected to the tarantool instance.
 type Console struct {
 	input string
 
@@ -52,7 +57,7 @@ type Console struct {
 	livePrefix        string
 	livePrefixFunc    func() (string, bool)
 
-	connOpts *ConnOpts
+	connOpts *connector.ConnOpts
 	conn     *connector.Conn
 
 	executor  func(in string)
@@ -63,7 +68,8 @@ type Console struct {
 	prompt *prompt.Prompt
 }
 
-func NewConsole(connOpts *ConnOpts, title string) (*Console, error) {
+// NewConsole creates a new console connected to the tarantool instance.
+func NewConsole(connOpts *connector.ConnOpts, title string) (*Console, error) {
 	console := &Console{
 		title:    title,
 		connOpts: connOpts,
@@ -72,60 +78,48 @@ func NewConsole(connOpts *ConnOpts, title string) (*Console, error) {
 
 	var err error
 
-	// load Tarantool console history from file
+	// Load Tarantool console history from file.
 	if err := loadHistory(console); err != nil {
 		log.Debugf("Failed to load Tarantool console history: %s", err)
 	}
 
-	// connect to specified address
-	console.conn, err = connector.Connect(connOpts.Address, connector.Opts{
-		Username: connOpts.Username,
-		Password: connOpts.Password,
-	})
+	// Connect to specified address.
+	console.conn, err = connector.Connect(connOpts.Address, connOpts.Username, connOpts.Password)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect: %s", err)
 	}
 
-	// initialize user commands executor
+	// Initialize user commands executor.
 	console.executor = getExecutor(console)
 
-	// initialize commands completer
+	// Initialize commands completer.
 	console.completer = getCompleter(console)
 
-	// set title and prompt prefix
-	// <app-name>.<instance-name> for Cartridge application instances
-	// <host>:<port> otherwise
+	// Set title and prompt prefix.
 	setTitle(console)
 	setPrefix(console)
 
 	return console, nil
 }
 
+// Run starts console.
 func (console *Console) Run() error {
-	var err error
-
-	fmt.Printf("connected to %s\n", console.title)
-
-	pipedInputIsFound, err := util.StdinHasUnreadData()
-	if err != nil {
-		return fmt.Errorf("Failed to check unread data from stdin: %s", err)
-	}
-
-	if pipedInputIsFound {
+	if !terminal.IsTerminal(syscall.Stdin) {
 		log.Debugf("Found piped input")
-		// e.g. `echo "box.info()" | cartridge enter router`
 		pipedInputScanner := bufio.NewScanner(os.Stdin)
 		for pipedInputScanner.Scan() {
 			line := pipedInputScanner.Text()
 			console.executor(line)
 		}
 		return nil
+	} else {
+		log.Infof("Connected to %s\n", console.title)
 	}
 
-	// get options for Prompt instance
+	// Get options for Prompt instance.
 	options := getPromptOptions(console)
 
-	// create Prompt instance
+	// Create Prompt instance.
 	console.prompt = prompt.New(
 		console.executor,
 		console.completer,
@@ -137,6 +131,7 @@ func (console *Console) Run() error {
 	return nil
 }
 
+// Close frees up resources used by the console.
 func (console *Console) Close() {
 	if console.historyFile != nil {
 		console.historyFile.Close()
@@ -158,8 +153,8 @@ func loadHistory(console *Console) error {
 		return fmt.Errorf("Failed to read history from file: %s", err)
 	}
 
-	// open history file for appending
-	// see https://unix.stackexchange.com/questions/346062/concurrent-writing-to-a-log-file-from-many-processes
+	// Open history file for appending.
+	// See https://unix.stackexchange.com/questions/346062/concurrent-writing-to-a-log-file-from-many-processes
 	console.historyFile, err = os.OpenFile(
 		console.historyFilePath,
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
@@ -219,16 +214,14 @@ func getExecutor(console *Console) prompt.Executor {
 }
 
 func inputIsCompleted(input string, luaState *lua.LState) bool {
-	// see https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/src/box/lua/console.lua#L575
+	// See https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/src/box/lua/console.lua#L575
 	if _, err := luaState.LoadString(input); err == nil || !strings.Contains(err.Error(), "at EOF") {
-		// valid Lua code or a syntax error not due to
-		// an incomplete input
+		// Valid Lua code or a syntax error not due to an incomplete input.
 		return true
 	}
 
 	if _, err := luaState.LoadString(fmt.Sprintf("return %s", input)); err == nil {
-		// certain obscure inputs like '(42\n)' yield the
-		// same error as incomplete statement
+		// Certain obscure inputs like '(42\n)' yield the same error as incomplete statement.
 		return true
 	}
 
@@ -279,18 +272,7 @@ func getCompleter(console *Console) prompt.Completer {
 func setTitle(console *Console) {
 	if console.title != "" {
 		return
-	}
-
-	req := connector.EvalReq(getTitleFuncBody)
-
-	var titlesSlice []string
-	if err := console.conn.ExecTyped(req, &titlesSlice); err != nil {
-		log.Debugf("Failed to get instance title: %s", err)
 	} else {
-		console.title = titlesSlice[0]
-	}
-
-	if console.title == "" {
 		console.title = console.connOpts.Address
 	}
 }
@@ -324,7 +306,8 @@ func getPromptOptions(console *Console) []prompt.Option {
 		prompt.OptionCompletionWordSeparator(tarantoolWordSeparators),
 
 		prompt.OptionAddASCIICodeBind(
-			prompt.ASCIICodeBind{ // move to one word left
+			// Move to one word left.
+			prompt.ASCIICodeBind{
 				ASCIICode: ControlLeftBytes,
 				Fn: func(buf *prompt.Buffer) {
 					d := buf.Document()
@@ -332,7 +315,8 @@ func getPromptOptions(console *Console) []prompt.Option {
 					buf.CursorLeft(wordLen)
 				},
 			},
-			prompt.ASCIICodeBind{ // move to one word right
+			// Move to one word right.
+			prompt.ASCIICodeBind{
 				ASCIICode: ControlRightBytes,
 				Fn: func(buf *prompt.Buffer) {
 					d := buf.Document()
@@ -341,9 +325,9 @@ func getPromptOptions(console *Console) []prompt.Option {
 				},
 			},
 		),
-
+		// Interrupt current unfinished expression.
 		prompt.OptionAddKeyBind(
-			prompt.KeyBind{ // Interrupt current unfinished expression
+			prompt.KeyBind{
 				Key: prompt.ControlC,
 				Fn: func(buf *prompt.Buffer) {
 					console.input = ""

@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"syscall"
+
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 var (
@@ -38,7 +41,9 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	cmdCtx.Connect.Username = connectUser
 	cmdCtx.Connect.Password = connectPassword
 
-	log.Info("Connecting to the instance...")
+	if terminal.IsTerminal(syscall.Stdin) {
+		log.Info("Connecting to the instance...")
+	}
 	if err := connect.Connect(cmdCtx, args); err != nil {
 		return err
 	}

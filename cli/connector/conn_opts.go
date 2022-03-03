@@ -9,14 +9,20 @@ const (
 	UnixNetwork = "unix"
 )
 
+// ConnOpts describes the connection to a tarantool instance.
 type ConnOpts struct {
-	Network  string
-	Address  string
+	// Network is a characteristic of a connection like "type" ("tcp" and "unix" are used).
+	Network string
+	// Address of an instance.
+	Address string
+	// Username of the tarantool user.
 	Username string
+	// Password of the user.
 	Password string
 }
 
-func getConnOpts(connString, username, password string) *ConnOpts {
+// GetConnOpts returns the connection parameters according to the passed arguments.
+func GetConnOpts(connString, username, password string) *ConnOpts {
 	connOpts := ConnOpts{
 		Username: username,
 		Password: password,

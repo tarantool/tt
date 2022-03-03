@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/connector"
 )
 
 const (
@@ -11,17 +12,18 @@ const (
 	tarantoolWordSeparators = "\t\r\n !\"#$%&'()*+,-/;<=>?@[\\]^`{|}~"
 )
 
+func getConnOpts(connString string, cmdCtx *cmdcontext.CmdCtx) *connector.ConnOpts {
+	return connector.GetConnOpts(connString, cmdCtx.Connect.Username, cmdCtx.Connect.Password)
+}
+
+// Connect establishes a connection to the instance and starts the console.
 func Connect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("Should be specified one connection string")
 	}
 
 	connString := args[0]
-
-	connOpts, err := getConnOpts(connString, cmdCtx)
-	if err != nil {
-		return fmt.Errorf("Failed to get connection opts: %s", err)
-	}
+	connOpts := getConnOpts(connString, cmdCtx)
 
 	if err := runConsole(connOpts, ""); err != nil {
 		return fmt.Errorf("Failed to run interactive console: %s", err)
@@ -30,7 +32,8 @@ func Connect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return nil
 }
 
-func runConsole(connOpts *ConnOpts, title string) error {
+// runConsole run a new console.
+func runConsole(connOpts *connector.ConnOpts, title string) error {
 	console, err := NewConsole(connOpts, title)
 	if err != nil {
 		return fmt.Errorf("Failed to create new console: %s", err)

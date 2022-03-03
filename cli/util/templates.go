@@ -23,7 +23,7 @@ func GetHTMLTemplatedStr(text *string, obj interface{}) (string, error) {
 }
 
 // GetTextTemplatedStr returns the processed string text template.
-func GetTemplatedStr(text *string, obj interface{}) (string, error) {
+func GetTextTemplatedStr(text *string, obj interface{}) (string, error) {
 	funcMap := textTemplate.FuncMap{
 		"ToLower": strings.ToLower,
 	}

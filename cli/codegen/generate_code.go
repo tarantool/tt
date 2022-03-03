@@ -29,7 +29,6 @@ var luaCodeFiles = []generateLuaCodeOpts{
 		VariablesMap: map[string]string{
 			"evalFuncBody":           "cli/connect/lua/eval_func_body.lua",
 			"getSuggestionsFuncBody": "cli/connect/lua/get_suggestions_func_body.lua",
-			"getTitleFuncBody":       "cli/connect/lua/get_title_func_body.lua",
 		},
 	},
 	{
