@@ -41,7 +41,7 @@ type PlainTextEvalRes struct {
 // Function should return `interface{}`, `string` (res, err)
 // to be correctly processed.
 func callPlainTextConn(conn net.Conn, funcName string, args []interface{}, opts EvalPlainTextOpts) ([]interface{}, error) {
-	evalFunc, err := util.GetTemplatedStr(&callFuncTmpl, map[string]string{
+	evalFunc, err := util.GetTextTemplatedStr(&callFuncTmpl, map[string]string{
 		"FunctionName": funcName,
 	})
 
@@ -88,7 +88,7 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{}, e
 		return fmt.Errorf("Failed to encode args: %s", err)
 	}
 
-	evalFunc, err := util.GetTemplatedStr(&evalFuncTmpl, map[string]string{
+	evalFunc, err := util.GetTextTemplatedStr(&evalFuncTmpl, map[string]string{
 		"FunctionBody": funcBody,
 		"ArgsEncoded":  fmt.Sprintf("%x", argsEncoded),
 	})

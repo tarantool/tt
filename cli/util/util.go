@@ -10,12 +10,11 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
 
-var bufSize int64 = 10000
+const bufSize int64 = 10000
 
 // VersionFunc is a type of function that return
 // string with current Tarantool CLI version.
@@ -52,32 +51,6 @@ func GetFileContent(path string) (string, error) {
 	}
 
 	return string(fileContentBytes), nil
-}
-
-func writeFileToWriter(filePath string, writer io.Writer) error {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// copy file data into tar writer
-	if _, err := io.Copy(writer, file); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func PrintFromStart(file *os.File) error {
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("Failed to seek file begin: %s", err)
-	}
-	if _, err := io.Copy(os.Stdout, file); err != nil {
-		log.Warnf("Failed to print file content: %s", err)
-	}
-
-	return nil
 }
 
 // JoinAbspath concat paths and makes the resulting path absolute.
@@ -196,7 +169,7 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 	var lastNewLinePos int64 = 0
 	var newLinesN int = 0
 
-	// check last symbol of the last line
+	// Check last symbol of the last line.
 
 	if _, err := readFromPos(f, fileSize-1, &buf); err != nil {
 		return 0, err
@@ -242,6 +215,7 @@ Loop:
 	return lastNewLinePos, nil
 }
 
+// GetLastNLines returns the last N lines fromthe file.
 func GetLastNLines(filepath string, linesN int) ([]string, error) {
 	lastNLinesBeginPos, err := GetLastNLinesBegin(filepath, linesN)
 	if err != nil {
@@ -265,12 +239,4 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 	}
 
 	return lines, nil
-}
-
-func StdinHasUnreadData() (bool, error) {
-	stdinStat, err := os.Stdin.Stat()
-	if err != nil {
-		return false, err
-	}
-	return (stdinStat.Mode() & os.ModeCharDevice) == 0, nil
 }

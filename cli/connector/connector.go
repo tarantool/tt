@@ -9,8 +9,20 @@ import (
 	"github.com/FZambia/tarantool"
 )
 
+// Protocol describes the type of protocol used (plain text or IPROTO).
 type Protocol string
 
+// ExecOpts describes the parameters of the operation to be executed.
+type ExecOpts struct {
+	// PushCallback is the cb that will be called when a "push" message is received.
+	PushCallback func(interface{})
+	// ReadTimeout timeout for the operation.
+	ReadTimeout time.Duration
+	// ResData describes the typed result of the operation executed.
+	ResData interface{}
+}
+
+// Conn describes the connection to the tarantool instance.
 type Conn struct {
 	protocol Protocol
 
@@ -19,17 +31,6 @@ type Conn struct {
 
 	evalFunc func(conn *Conn, funcBody string, args []interface{}, execOpts ExecOpts) ([]interface{}, error)
 	callFunc func(conn *Conn, funcName string, args []interface{}, execOpts ExecOpts) ([]interface{}, error)
-}
-
-type Opts struct {
-	Username string
-	Password string
-}
-
-type ExecOpts struct {
-	PushCallback func(interface{})
-	ReadTimeout  time.Duration
-	ResData      interface{}
 }
 
 const (
@@ -42,26 +43,27 @@ const (
 	SimpleOperationTimeout = 3 * time.Second
 )
 
-func Connect(connString string, opts Opts) (*Conn, error) {
+// Connect connects to the tarantool instance according to "connString".
+func Connect(connString string, username string, password string) (*Conn, error) {
 	var err error
 
 	conn := &Conn{}
 
-	connOpts := getConnOpts(connString, opts.Username, opts.Password)
+	connOpts := GetConnOpts(connString, username, password)
 
-	// connect to specified address
+	// Connect to specified address.
 	plainTextConn, err := net.Dial(connOpts.Network, connOpts.Address)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to dial: %s", err)
 	}
 
-	// detect protocol
+	// Detect protocol.
 	conn.protocol, err = getProtocol(plainTextConn)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get protocol: %s", err)
 	}
 
-	// initialize connection
+	// Initialize connection.
 	switch conn.protocol {
 	case PlainTextProtocol:
 		if err := initPlainTextConn(conn, plainTextConn); err != nil {
@@ -78,14 +80,17 @@ func Connect(connString string, opts Opts) (*Conn, error) {
 	return conn, nil
 }
 
+// Exec executes an operation.
 func (conn *Conn) Exec(req *Request) ([]interface{}, error) {
 	return req.execFunc(conn)
 }
 
+// ExecTyped executes an operation and returns the typed result.
 func (conn *Conn) ExecTyped(req *Request, resData interface{}) error {
 	return req.execTypedFunc(conn, resData)
 }
 
+// Close closes the connection.
 func (conn *Conn) Close() error {
 	switch conn.protocol {
 	case PlainTextProtocol:

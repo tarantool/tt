@@ -79,7 +79,7 @@ func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.Inter
 
 // helpFlagError prints some help information if the user entered an invalid flag.
 func helpFlagError(cmd *cobra.Command, errMsg error) error {
-	templatedStr, err := util.GetTemplatedStr(&errorUsageTemplate, map[string]interface{}{
+	templatedStr, err := util.GetHTMLTemplatedStr(&errorUsageTemplate, map[string]interface{}{
 		"ErrorMsg":  errMsg,
 		"Cmd":       cmd.CommandPath(),
 		"HasFlags":  cmd.HasAvailableFlags(),
