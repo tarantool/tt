@@ -1,0 +1,5 @@
+[submodule "third_party/luarocks"]
+	path = cli/rocks/third_party/luarocks
+	url = https://github.com/tarantool/luarocks.git
+	branch = luarocks-3.1.1-tarantool
+	ignore = dirty
