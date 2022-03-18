@@ -8,7 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
-// NewStopCmd creates status command.
+// NewStatusCmd creates status command.
 func NewStatusCmd() *cobra.Command {
 	var statusCmd = &cobra.Command{
 		Use:   "status [INSTANCE_NAME]",
