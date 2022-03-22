@@ -95,6 +95,9 @@ func (wd *Watchdog) startSignalHandling() {
 					// If we recive one of the "stop" signals, the
 					// program should be terminated.
 					wd.restartable = false
+				case syscall.SIGHUP:
+					// Rotate the log files.
+					wd.logger.Rotate()
 				default:
 					wd.Instance.SendSignal(sig)
 				}

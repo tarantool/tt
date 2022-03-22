@@ -297,3 +297,23 @@ func Status(cmdCtx *cmdcontext.CmdCtx) string {
 
 	return fmt.Sprintf("RUNNING. PID: %v.", pid)
 }
+
+// Logrotate rotates logs of a started tarantool instance.
+func Logrotate(cmdCtx *cmdcontext.CmdCtx) (string, error) {
+	pid, err := getPIDFromFile(cmdCtx.Running.PIDFile)
+	if err != nil {
+		return "", fmt.Errorf(`NOT RUNNING. Can't get the PID of process: "%v".`, err)
+	}
+
+	alive, err := isProcessAlive(pid)
+	if !alive {
+		return "", fmt.Errorf("ERROR. The process is dead.")
+	}
+
+	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {
+		return "", fmt.Errorf(`Can't rotate logs: "%v".`, err)
+	}
+
+	// Rotates logs [instance name pid]
+	return fmt.Sprintf("Logs has been rotated. PID: %v.", pid), nil
+}
