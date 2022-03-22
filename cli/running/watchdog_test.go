@@ -2,7 +2,6 @@ package running
 
 import (
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/cli/ttlog"
 )
 
 const (
@@ -31,7 +31,7 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	tarantoolBin, err := exec.LookPath("tarantool")
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
-	logger := log.New(io.Discard, "", 0)
+	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
 	inst, err := NewInstance(tarantoolBin, appPath, "", os.Environ(), logger)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
