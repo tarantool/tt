@@ -1,12 +1,13 @@
 package running
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/tarantool/tt/cli/ttlog"
 )
 
 // Watchdog is a process that controls an Instance process.
@@ -14,7 +15,7 @@ type Watchdog struct {
 	// Instance describes the controlled Instance.
 	Instance *Instance
 	// logger represents an active logging object.
-	logger *log.Logger
+	logger *ttlog.Logger
 	// doneBarrier used to indicate the completion of the
 	// signal handling goroutine.
 	doneBarrier sync.WaitGroup
@@ -31,7 +32,7 @@ type Watchdog struct {
 
 // NewWatchdog creates a new instance of Watchdog.
 func NewWatchdog(instance *Instance, restartable bool,
-	restartTimeout time.Duration, logger *log.Logger) *Watchdog {
+	restartTimeout time.Duration, logger *ttlog.Logger) *Watchdog {
 	wd := Watchdog{Instance: instance, logger: logger, restartable: restartable,
 		restartTimeout: restartTimeout}
 

@@ -2,12 +2,13 @@ package running
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/tarantool/tt/cli/ttlog"
 )
 
 // Instance describes a running process.
@@ -15,7 +16,7 @@ type Instance struct {
 	// Cmd represents an external command being prepared and run.
 	Cmd *exec.Cmd
 	// logger represents an active logging object.
-	logger *log.Logger
+	logger *ttlog.Logger
 	// tarantoolPath describes the path to the tarantool binary
 	// that will be used to launch the Instance.
 	tarantoolPath string
@@ -35,7 +36,7 @@ type Instance struct {
 
 // NewInstance creates an Instance.
 func NewInstance(tarantoolPath string, appPath string, console_sock string,
-	env []string, logger *log.Logger) (*Instance, error) {
+	env []string, logger *ttlog.Logger) (*Instance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {
 		return nil, err

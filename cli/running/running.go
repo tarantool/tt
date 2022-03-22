@@ -12,10 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/natefinch/lumberjack.v2"
-
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -101,20 +100,15 @@ func getPIDFromFile(pidFileName string) (int, error) {
 }
 
 // createLogger prepares a logger for the watchdog and instance.
-func createLogger(cmdCtx *cmdcontext.CmdCtx) *log.Logger {
-	// We use a wrapper for the logger, which is responsible for
-	// writing and rotating the logs.
-	writer := lumberjack.Logger{
+func createLogger(cmdCtx *cmdcontext.CmdCtx) *ttlog.Logger {
+	opts := ttlog.LoggerOpts{
 		Filename:   cmdCtx.Running.Log,
 		MaxSize:    cmdCtx.Running.LogMaxSize,
 		MaxBackups: cmdCtx.Running.LogMaxBackups,
 		MaxAge:     cmdCtx.Running.LogMaxAge,
-		Compress:   false,
-		LocalTime:  true,
 	}
-	log.SetOutput(&writer)
 
-	return log.Default()
+	return ttlog.NewLogger(&opts)
 }
 
 // isProcessAlive checks if the process is alive.

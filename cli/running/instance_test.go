@@ -3,7 +3,6 @@ package running
 import (
 	"bytes"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/cli/ttlog"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 )
 
 // startTestInstance starts instance for the test.
-func startTestInstance(t *testing.T, app string, consoleSock string, logger *log.Logger) *Instance {
+func startTestInstance(t *testing.T, app string, consoleSock string, logger *ttlog.Logger) *Instance {
 	assert := assert.New(t)
 
 	appPath := path.Join(instTestAppDir, app+".lua")
@@ -61,7 +61,7 @@ func TestInstanceBase(t *testing.T) {
 	assert.Nilf(err, `Can't get the path to the executable. Error: "%v".`, err)
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
 
-	logger := log.New(io.Discard, "", 0)
+	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
 	inst := startTestInstance(t, "dumb_test_app", consoleSock, logger)
 	t.Cleanup(func() { cleanupTestInstance(inst) })
 
@@ -79,7 +79,7 @@ func TestInstanceLogger(t *testing.T) {
 	reader, writer := io.Pipe()
 	defer writer.Close()
 	defer reader.Close()
-	logger := log.New(writer, "", 0)
+	logger := ttlog.NewCustomLogger(writer, "", 0)
 
 	inst := startTestInstance(t, "log_check_test_app", "", logger)
 	t.Cleanup(func() { cleanupTestInstance(inst) })
