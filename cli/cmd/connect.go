@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"syscall"
 
 	"github.com/apex/log"
@@ -37,15 +38,30 @@ func NewConnectCmd() *cobra.Command {
 
 // internalConnectModule is a default connect module.
 func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	// Fill CmdCtx.
+	argsLen := len(args)
+	if argsLen < 1 {
+		return fmt.Errorf("Incorrect combination of command parameters")
+	}
+
 	cmdCtx.Connect.Username = connectUser
 	cmdCtx.Connect.Password = connectPassword
 
-	if terminal.IsTerminal(syscall.Stdin) {
-		log.Info("Connecting to the instance...")
-	}
-	if err := connect.Connect(cmdCtx, args); err != nil {
-		return err
+	if argsLen == 1 {
+		if terminal.IsTerminal(syscall.Stdin) {
+			log.Info("Connecting to the instance...")
+		}
+		if err := connect.Connect(cmdCtx, args); err != nil {
+			return err
+		}
+	} else if argsLen == 2 {
+		res, err := connect.Eval(cmdCtx, args)
+		if err != nil {
+			return err
+		}
+		// "Println" is used instead of "log..." to print the result without any decoration.
+		fmt.Println(string(res))
+	} else {
+		return fmt.Errorf("Incorrect combination of command parameters")
 	}
 
 	return nil
