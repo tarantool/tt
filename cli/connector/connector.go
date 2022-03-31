@@ -85,6 +85,13 @@ func (conn *Conn) Exec(req *Request) ([]interface{}, error) {
 	return req.execFunc(conn)
 }
 
+// Eval executes a command.
+func (conn *Conn) Eval(command string) ([]interface{}, error) {
+	evalFuncBody := "return require('console').eval(...)\n"
+	req := EvalReq(evalFuncBody, command)
+	return conn.Exec(req)
+}
+
 // ExecTyped executes an operation and returns the typed result.
 func (conn *Conn) ExecTyped(req *Request, resData interface{}) error {
 	return req.execTypedFunc(conn, resData)
