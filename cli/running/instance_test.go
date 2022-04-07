@@ -93,7 +93,7 @@ func TestInstanceLogger(t *testing.T) {
 	msgLen := int64(len(msg))
 	buf := bytes.NewBufferString("")
 	_, err := io.CopyN(buf, reader, msgLen)
-	assert.Equal(buf.String(), msg, "The message in the log is different from what was expected.")
+	assert.Equal(msg, buf.String(), "The message in the log is different from what was expected.")
 	assert.Nilf(err, `Can't read log output. Error: "%v".`, err)
 
 	err = inst.Stop(30 * time.Second)
