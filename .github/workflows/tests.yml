@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@master
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Go
         uses: actions/setup-go@v2
@@ -89,6 +90,7 @@ jobs:
       - uses: actions/checkout@master
         with:
           fetch-depth: 0
+          submodules: recursive
 
       - name: Setup Go
         uses: actions/setup-go@v2
