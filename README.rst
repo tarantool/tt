@@ -28,9 +28,19 @@ Build
 
 .. code-block:: bash
 
-   git clone https://github.com/tarantool/tt
+   git clone https://github.com/tarantool/tt --recursive
    cd tt
    mage build
+
+~~~~~~~~~~~~
+Dependencies
+~~~~~~~~~~~~
+
+**tt rocks runtime dependencies:**
+
+* `curl <https://curl.se>`_ or `wget <https://www.gnu.org/software/wget/>`_
+* `zip <http://infozip.sourceforge.net/>`_
+* `unzip <http://infozip.sourceforge.net/>`_
 
 ~~~~~~~~~
 Run tests
@@ -163,3 +173,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``logrotate`` - rotate logs of a started tarantool instance.
 * ``check`` - check an application file for syntax errors.
 * ``connect`` -  connect to the tarantool instance.
+* ``rocks`` - LuaRocks package manager.
