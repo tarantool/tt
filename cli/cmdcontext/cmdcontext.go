@@ -34,6 +34,9 @@ type RunningCtx struct {
 	LogDir string
 	// Log is the name of log file.
 	Log string
+	// DataDir is the directory where all the instance artifacts
+	// are stored.
+	DataDir string
 	// LogMaxSize is the maximum size in megabytes of the log file
 	// before it gets rotated. It defaults to 100 megabytes.
 	LogMaxSize int

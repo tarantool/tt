@@ -2,6 +2,7 @@ package running
 
 import (
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -20,19 +21,30 @@ const (
 	wdTestStopTimeout    = 2 * time.Second
 )
 
+// cleanupTempDir cleanups temp directory after test.
+func cleanupTempDir(tempDir string) {
+	if _, err := os.Stat(tempDir); !os.IsNotExist(err) {
+		os.RemoveAll(tempDir)
+	}
+}
+
 // createTestWatchdog creates an instance and a watchdog for the test.
 func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	assert := assert.New(t)
 
+	dataDir, err := ioutil.TempDir("", "tarantool_tt_")
+	t.Cleanup(func() { cleanupTempDir(dataDir) })
+	assert.Nil(err)
+
 	appPath := path.Join(wdTestAppDir, wdTestAppName+".lua")
-	_, err := os.Stat(appPath)
+	_, err = os.Stat(appPath)
 	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
-	inst, err := NewInstance(tarantoolBin, appPath, "", os.Environ(), logger)
+	inst, err := NewInstance(tarantoolBin, appPath, "", os.Environ(), logger, dataDir)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
 	wd := NewWatchdog(inst, restartable, wdTestRestartTimeout, logger)
