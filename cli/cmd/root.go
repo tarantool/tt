@@ -48,6 +48,7 @@ func NewCmdRoot() *cobra.Command {
 		NewLogrotateCmd(),
 		NewCheckCmd(),
 		NewConnectCmd(),
+		NewRocksCmd(),
 	)
 
 	rootCmd.InitDefaultHelpCmd()
