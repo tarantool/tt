@@ -38,6 +38,7 @@ type appOpts struct {
 	InstancesAvailable string `mapstructure:"instances_available"`
 	RunDir             string `mapstructure:"run_dir"`
 	LogDir             string `mapstructure:"log_dir"`
+	DataDir            string `mapstructure:"data_dir"`
 	LogMaxSize         int    `mapstructure:"log_maxsize"`
 	LogMaxAge          int    `mapstructure:"log_maxage"`
 	LogMaxBackups      int    `mapstructure:"log_maxbackups"`
@@ -58,6 +59,7 @@ func getDefaultCliOpts() *CliOpts {
 		InstancesAvailable: "",
 		RunDir:             "",
 		LogDir:             "",
+		DataDir:            "",
 		LogMaxSize:         0,
 		LogMaxAge:          0,
 		LogMaxBackups:      0,

@@ -157,6 +157,28 @@ loop:
 	return result
 }
 
+// createDataDir checks if DataDir folder exists, if not creates it.
+func createDataDir(dataDirPath string) error {
+	_, err := os.Stat(dataDirPath)
+	if err == nil {
+		return err
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf(`Something went wrong while trying to create the DataDir folder.
+			 Error: "%v".`, err)
+	}
+	// Create a new DataDirfolder.
+	// 0770:
+	//    user:   read/write/execute
+	//    group:  read/write/execute
+	//    others: nil
+	err = os.Mkdir(dataDirPath, 0770)
+	if err != nil {
+		return fmt.Errorf(`Something went wrong while trying to create the DataDir folder.
+			 Error: "%v".`, err)
+	}
+	return err
+}
+
 // createPIDFile checks that the instance PID file is absent or
 // deprecated and creates a new one. Returns an error on failure.
 func createPIDFile(pidFileName string) error {
@@ -231,7 +253,19 @@ func FillCtx(cliOpts *modules.CliOpts, cmdCtx *cmdcontext.CmdCtx, args []string)
 	cmdCtx.Running.LogMaxSize = cliOpts.App.LogMaxSize
 	cmdCtx.Running.LogMaxAge = cliOpts.App.LogMaxAge
 	cmdCtx.Running.LogMaxBackups = cliOpts.App.LogMaxBackups
-
+	if cliOpts.App.DataDir == "" {
+		curDir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		cmdCtx.Running.DataDir = filepath.Join(curDir, appName+"_data_dir")
+	} else {
+		cmdCtx.Running.DataDir = cliOpts.App.DataDir
+	}
+	err = createDataDir(cmdCtx.Running.DataDir)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -245,8 +279,8 @@ func Start(cmdCtx *cmdcontext.CmdCtx) error {
 
 	logger := createLogger(cmdCtx)
 
-	inst, err := NewInstance(cmdCtx.Cli.TarantoolExecutable,
-		cmdCtx.Running.AppPath, cmdCtx.Running.ConsoleSocket, os.Environ(), logger)
+	inst, err := NewInstance(cmdCtx.Cli.TarantoolExecutable, cmdCtx.Running.AppPath,
+		cmdCtx.Running.ConsoleSocket, os.Environ(), logger, cmdCtx.Running.DataDir)
 	if err != nil {
 		return err
 	}

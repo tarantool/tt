@@ -1,12 +1,64 @@
 --- This is a launch script that does the necessary preparation
 -- before launching an instance.
 
+local fun = require('fun')
 local os = require('os')
 local console = require('console')
 local log = require('log')
 local title = require('title')
 local ffi = require('ffi')
+local iter  = fun.iter
 
+--- Accumulating function for iter:reduce().
+local function reducer(result, left, right)
+    if result ~= nil then
+        return result
+    end
+    if tonumber(left) == tonumber(right) then
+        return nil
+    end
+    return tonumber(left) > tonumber(right)
+end
+
+local function split_version(version_string)
+    local version_table  = version_string:split('.')
+    local version_table2 = version_table[3]:split('-')
+    version_table[3], version_table[4] = version_table2[1], version_table2[2]
+    return version_table
+end
+
+--- Returns true if version of tarantool is greater then expected
+--- else false.
+local function check_version(expected)
+    local version = _TARANTOOL
+    if type(version) == 'string' then
+        version = split_version(version)
+    end
+    local res = iter(version):zip(expected):reduce(reducer, nil)
+    if res or res == nil then res = true end
+    return res
+end
+
+local origin_cfg = box.cfg
+
+--- Wrapper for cfg to push our values over tarantool.
+local function cfg_wrapper(cfg)
+    local cfg = cfg or {}
+    local tt_cfg = {}
+    tt_cfg.wal_dir = os.getenv('TT_WAL_DIR')
+    tt_cfg.memtx_dir = os.getenv('TT_MEMTX_DIR')
+    tt_cfg.vinyl_dir = os.getenv('TT_VINYL_DIR')
+    for i, v in pairs(tt_cfg) do
+        if cfg[i] == nil then
+            cfg[i] = v
+        end
+    end
+    local success, data = pcall(origin_cfg, cfg)
+    if not success then 
+        log.error('Someting wrong happened when tried to set dataDir.')
+    end
+    return data
+end
 
 --- Start an Instance. The "init" file of the Instance passes
 -- throught "TT_CLI_INSTANCE".
@@ -50,6 +102,11 @@ local function start_instance()
         ffi.C.setlinebuf(ffi.C.stdout)
     end
 
+    -- If tarantool version is above 2.8.1, then can use environment variables
+    -- instead of wrapping cfg.
+    if not check_version({2,8,1,0}) then
+        box.cfg = cfg_wrapper
+    end
     -- Preparation of the "console" socket.
     local console_sock = os.getenv('TT_CLI_CONSOLE_SOCKET')
     if console_sock ~= nil and console_sock ~= '' then
