@@ -9,8 +9,10 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -25,6 +27,56 @@ var (
 	// Defined at build time, see magefile.
 	defaultConfigPath string
 )
+
+// getDefaultCliOpts returns `CliOpts`filled with default values.
+func getDefaultCliOpts() *config.CliOpts {
+	modules := config.ModulesOpts{
+		Directory: "",
+	}
+	app := config.AppOpts{
+		InstancesAvailable: "",
+		RunDir:             "",
+		LogDir:             "",
+		LogMaxSize:         0,
+		LogMaxAge:          0,
+		LogMaxBackups:      0,
+		Restartable:        false,
+		DataDir:            "",
+	}
+	return &config.CliOpts{Modules: &modules, App: &app}
+}
+
+// GetCliOpts returns Tarantool CLI options from the config file
+// located at path configurePath.
+func GetCliOpts(configurePath string) (*config.CliOpts, error) {
+	var cfg config.Config
+	// Config could not be processed.
+	if _, err := os.Stat(configurePath); err != nil {
+		// TODO: Add warning in next patches, discussion
+		// what if the file exists, but access is denied, etc.
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("Failed to get access to configuration file: %s", err)
+		}
+
+		cfg.CliConfig = getDefaultCliOpts()
+		return cfg.CliConfig, nil
+	}
+
+	rawConfigOpts, err := util.ParseYAML(configurePath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: %s", err)
+	}
+
+	if err := mapstructure.Decode(rawConfigOpts, &cfg); err != nil {
+		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: %s", err)
+	}
+
+	if cfg.CliConfig == nil {
+		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: missing tt section")
+	}
+
+	return cfg.CliConfig, nil
+}
 
 // Cli performs initial CLI configuration.
 func Cli(cmdCtx *cmdcontext.CmdCtx) error {

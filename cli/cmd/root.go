@@ -7,13 +7,14 @@ import (
 	"github.com/apex/log/handlers/cli"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/modules"
 )
 
 var (
 	cmdCtx      cmdcontext.CmdCtx
-	cliOpts     *modules.CliOpts
+	cliOpts     *config.CliOpts
 	modulesInfo modules.ModulesInfo
 	rootCmd     *cobra.Command
 )
@@ -80,7 +81,7 @@ func init() {
 	}
 
 	var err error
-	cliOpts, err = modules.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	cliOpts, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
 	}

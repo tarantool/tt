@@ -10,6 +10,8 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
 	"golang.org/x/crypto/ssh/terminal"
@@ -42,7 +44,7 @@ func NewConnectCmd() *cobra.Command {
 
 // resolveInstAddr checks if the instance name is used as the address and
 // replaces it with a control socket if so.
-func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *modules.CliOpts, args []string) ([]string, error) {
+func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) ([]string, error) {
 	var err error
 	newArgs := args
 
@@ -75,7 +77,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("Incorrect combination of command parameters")
 	}
 
-	cliOpts, err := modules.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		return err
 	}
