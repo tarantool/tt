@@ -15,13 +15,13 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 )
 
 // findAppFile searches of an application init file.
-func findAppFile(appName string, cliOpts *modules.CliOpts) (string, error) {
+func findAppFile(appName string, cliOpts *config.CliOpts) (string, error) {
 	var err error
 	appDir := cliOpts.App.InstancesAvailable
 	if appDir == "" {
@@ -218,7 +218,7 @@ func createPIDFile(pidFileName string) error {
 }
 
 // FillCtx fills the RunningCtx context.
-func FillCtx(cliOpts *modules.CliOpts, cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) != 1 {
 		if len(args) > 1 {
 			return fmt.Errorf("Currently, you can specify only one instance at a time.")

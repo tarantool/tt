@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 )
 
 const (
@@ -28,7 +29,7 @@ type ModuleInfo struct {
 type ModulesInfo map[string]*ModuleInfo
 
 // GetModulesInfo collects information about available modules (both external and internal).
-func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command, cliOpts *CliOpts) (ModulesInfo, error) {
+func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command, cliOpts *config.CliOpts) (ModulesInfo, error) {
 	modulesDir, err := getExternalModulesDir(cmdCtx, cliOpts)
 	if err != nil {
 		return nil, err
@@ -61,7 +62,7 @@ func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command, cli
 }
 
 // getExternalModulesDir returns the directory where external modules are located.
-func getExternalModulesDir(cmdCtx *cmdcontext.CmdCtx, cliOpts *CliOpts) (string, error) {
+func getExternalModulesDir(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (string, error) {
 	// Configuraion file not detected - ignore and work on.
 	// TODO: Add warning in next patches, discussion
 	// what if the file exists, but access is denied, etc.
