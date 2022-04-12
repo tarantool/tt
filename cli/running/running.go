@@ -1,10 +1,12 @@
 package running
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -320,4 +322,18 @@ func Logrotate(cmdCtx *cmdcontext.CmdCtx) (string, error) {
 
 	// Rotates logs [instance name pid]
 	return fmt.Sprintf("Logs has been rotated. PID: %v.", pid), nil
+}
+
+// Check returns the result of checking the syntax of the application file.
+func Check(cmdCtx *cmdcontext.CmdCtx) error {
+	var errbuff bytes.Buffer
+	os.Setenv("TT_CLI_INSTANCE", cmdCtx.Running.AppPath)
+
+	cmd := exec.Command(cmdCtx.Cli.TarantoolExecutable, "-e", checkSyntax)
+	cmd.Stderr = &errbuff
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf(errbuff.String())
+	}
+
+	return nil
 }
