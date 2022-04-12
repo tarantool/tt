@@ -18,3 +18,4 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Module ``tt status``, to get information about the state of the instance.
 - Module ``tt restart``, responsible for restarting of the instance.
 - Module ``tt logrotate``, to rotate instance logs.
+- Module ``tt check``, to check an application file for syntax errors.

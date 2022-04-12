@@ -20,6 +20,7 @@ var luaCodeFiles = []generateLuaCodeOpts{
 		FileName:    "cli/running/lua_code_gen.go",
 		VariablesMap: map[string]string{
 			"instanceLauncher": "cli/running/lua/launcher.lua",
+			"checkSyntax":      "cli/running/lua/check.lua",
 		},
 	},
 }

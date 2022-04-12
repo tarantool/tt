@@ -161,3 +161,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``completion`` - generate autocomplete for a specified shell.
 * ``help`` - display help for any command.
 * ``logrotate`` - rotate logs of a started tarantool instance.
+* ``check`` - check an application file for syntax errors.
