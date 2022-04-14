@@ -196,7 +196,11 @@ func createPIDFile(pidFileName string) error {
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *modules.CliOpts, cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("Currently, you can specify only one instance at a time.")
+		if len(args) > 1 {
+			return fmt.Errorf("Currently, you can specify only one instance at a time.")
+		} else {
+			return fmt.Errorf("Please specify the name of the application.")
+		}
 	}
 
 	appName := args[0]
