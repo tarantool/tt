@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -127,6 +128,12 @@ func (console *Console) Run() error {
 	)
 
 	console.prompt.Run()
+
+	// Sets the terminal modes to “sane” values to workaround
+	// bug https://github.com/c-bata/go-prompt/issues/228
+	sttySane := exec.Command("stty", "sane")
+	sttySane.Stdin = os.Stdin
+	_ = sttySane.Run()
 
 	return nil
 }
