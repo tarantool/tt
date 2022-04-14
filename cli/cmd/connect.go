@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"syscall"
 
 	"github.com/apex/log"
@@ -36,6 +39,34 @@ func NewConnectCmd() *cobra.Command {
 	return connectCmd
 }
 
+// resolveInstAddr checks if the instance name is used as the address and
+// replaces it with a control socket if so.
+func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *modules.CliOpts, args []string) ([]string, error) {
+	var err error
+	newArgs := args
+
+	runDir := cliOpts.App.RunDir
+	if runDir == "" {
+		if runDir, err = os.Getwd(); err != nil {
+			return newArgs, err
+		}
+	}
+
+	files, err := ioutil.ReadDir(runDir)
+	if err != nil {
+		return newArgs, err
+	}
+
+	for _, file := range files {
+		if file.Name() == newArgs[0]+".pid" {
+			newArgs[0] = filepath.Join(runDir, newArgs[0]+".control")
+			break
+		}
+	}
+
+	return newArgs, nil
+}
+
 // internalConnectModule is a default connect module.
 func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	argsLen := len(args)
@@ -43,18 +74,25 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("Incorrect combination of command parameters")
 	}
 
+	cliOpts, err := modules.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	if err != nil {
+		return err
+	}
+
 	cmdCtx.Connect.Username = connectUser
 	cmdCtx.Connect.Password = connectPassword
+
+	newArgs, _ := resolveInstAddr(cmdCtx, cliOpts, args)
 
 	if argsLen == 1 {
 		if terminal.IsTerminal(syscall.Stdin) {
 			log.Info("Connecting to the instance...")
 		}
-		if err := connect.Connect(cmdCtx, args); err != nil {
+		if err := connect.Connect(cmdCtx, newArgs); err != nil {
 			return err
 		}
 	} else if argsLen == 2 {
-		res, err := connect.Eval(cmdCtx, args)
+		res, err := connect.Eval(cmdCtx, newArgs)
 		if err != nil {
 			return err
 		}
