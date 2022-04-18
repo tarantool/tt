@@ -9,4 +9,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Introduce ``tt version``, ``tt completion`` and ``tt help`` modules.
+- Module ``tt version``, to get information about the version of the CLI.
+- Module ``tt completion``, to generate autocompletion for a specified shell.
+- Module ``tt help``, to get information about the CLI and its modules.
