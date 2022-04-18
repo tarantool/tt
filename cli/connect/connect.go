@@ -2,6 +2,9 @@ package connect
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/connector"
@@ -15,6 +18,21 @@ const (
 
 func getConnOpts(connString string, cmdCtx *cmdcontext.CmdCtx) *connector.ConnOpts {
 	return connector.GetConnOpts(connString, cmdCtx.Connect.Username, cmdCtx.Connect.Password)
+}
+
+// getEvalCmd returns a command from a file if a filename was passed,
+// or a command if it was passed directly.
+func getEvalCmd(cmdArg string) (string, error) {
+	cmdPath := path.Clean(cmdArg)
+	if _, err := os.Stat(cmdPath); err == nil {
+		cmd, err := ioutil.ReadFile(cmdPath)
+		if err != nil {
+			return "", err
+		}
+		return string(cmd), nil
+	}
+
+	return cmdArg, nil
 }
 
 // Connect establishes a connection to the instance and starts the console.
@@ -38,7 +56,10 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 	// Parse the arguments.
 	connString := args[0]
 	connOpts := getConnOpts(connString, cmdCtx)
-	command := args[1]
+	command, err := getEvalCmd(args[1])
+	if err != nil {
+		return nil, err
+	}
 
 	// Connecting to the instance.
 	conn, err := connector.Connect(connOpts.Address, connOpts.Username, connOpts.Password)
