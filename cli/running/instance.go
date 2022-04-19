@@ -94,9 +94,13 @@ func (inst *Instance) Start() error {
 	// https://man7.org/linux/man-pages/man3/setbuf.3.html
 	// https://github.com/coreutils/coreutils/blob/master/src/stdbuf.c
 	inst.Cmd = exec.Command("stdbuf", "-o", "L",
-		inst.tarantoolPath, "-e", instanceLauncher)
+		inst.tarantoolPath, "-")
 	inst.Cmd.Stdout = inst.logger.Writer()
 	inst.Cmd.Stderr = inst.logger.Writer()
+	StdinPipe, err := inst.Cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
 	inst.Cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
 	inst.Cmd.Env = append(inst.Cmd.Env,
 		"TT_CLI_CONSOLE_SOCKET="+inst.consoleSocket)
@@ -110,6 +114,8 @@ func (inst *Instance) Start() error {
 	if err := inst.Cmd.Start(); err != nil {
 		return err
 	}
+	StdinPipe.Write([]byte(instanceLauncher))
+	StdinPipe.Close()
 	inst.done = false
 
 	return nil
