@@ -23,7 +23,8 @@ var (
 // NewConnectCmd creates connect command.
 func NewConnectCmd() *cobra.Command {
 	var connectCmd = &cobra.Command{
-		Use:   "connect [INSTANCE_NAME]",
+		Use: "connect (<INSTANCE_NAME> | <URI>) [<FILE> | <COMMAND>]\n" +
+			"  COMMAND | tt connect (<INSTANCE_NAME> | <URI>)",
 		Short: "Connect to the tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalConnectModule, args)
