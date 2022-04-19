@@ -162,3 +162,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``help`` - display help for any command.
 * ``logrotate`` - rotate logs of a started tarantool instance.
 * ``check`` - check an application file for syntax errors.
+* ``connect`` -  connect to the tarantool instance.
