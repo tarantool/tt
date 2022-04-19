@@ -39,7 +39,7 @@ jobs:
       - name: Install build requirements
         run: |
           sudo apt -y update
-          sudo apt -y install git gcc make cmake unzip
+          sudo apt -y install git gcc make cmake unzip zip
 
       - name: Install Tarantool
         uses: tarantool/setup-tarantool@v1
@@ -106,7 +106,7 @@ jobs:
       - name: Install build requirements
         run: |
           sudo apt -y update
-          sudo apt -y install git gcc make cmake unzip
+          sudo apt -y install git gcc make cmake unzip zip
 
       - name: Cache Tarantool SDK
         id: cache-sdk
