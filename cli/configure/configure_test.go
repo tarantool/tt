@@ -12,6 +12,13 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+// cleanupTempDir cleanups temp directory after test.
+func cleanupTempDir(tempDir string) {
+	if _, err := os.Stat(tempDir); !os.IsNotExist(err) {
+		os.RemoveAll(tempDir)
+	}
+}
+
 // Test Tarantool CLI configuration (system and local).
 func TestConfigureCli(t *testing.T) {
 	assert := assert.New(t)
@@ -30,12 +37,15 @@ func TestConfigureCli(t *testing.T) {
 	// we run `go test`, which compiles the functions again.
 	assert.Equal(cmdCtx.Cli.ConfigPath, "tarantool.yaml")
 
+	testDir, err := ioutil.TempDir(os.TempDir(), "tarantool_tt_")
+	t.Cleanup(func() { cleanupTempDir(testDir) })
+	assert.Nil(err)
 	// Test local cofniguration.
 	cmdCtx.Cli.IsSystem = false
-	cmdCtx.Cli.LocalLaunchDir = os.TempDir()
+	cmdCtx.Cli.LocalLaunchDir = testDir
 	cmdCtx.Cli.ConfigPath = ""
 
-	expectedConfigPath, err := util.JoinAbspath(os.TempDir(), "tarantool.yaml")
+	expectedConfigPath, err := util.JoinAbspath(testDir, "tarantool.yaml")
 	assert.Nil(err)
 	ioutil.WriteFile(expectedConfigPath, []byte("config-file"), 0755)
 
@@ -54,7 +64,7 @@ func TestConfigureCli(t *testing.T) {
 	// Test default configuration (no flags specified).
 	cmdCtx.Cli.LocalLaunchDir = ""
 	cmdCtx.Cli.ConfigPath = ""
-	dir, err := ioutil.TempDir(os.TempDir(), "temp")
+	dir, err := ioutil.TempDir(testDir, "temp")
 	assert.Nil(err)
 
 	// Check if it will go down to the bottom of the directory looking
