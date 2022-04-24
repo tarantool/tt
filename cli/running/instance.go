@@ -84,17 +84,7 @@ func (inst *Instance) Wait() error {
 
 // Start starts the Instance with the specified parameters.
 func (inst *Instance) Start() error {
-	// By default (when using "glibc") "stdout" is line buffered when connected
-	// to a TTY and block buffered (one page 4KB) when connected to a pipe / file.
-	// This is not how we want to log work, so set "stdout" to line buffered mode
-	// by using "stdbuf" utility. "strderr" is set to no-buffering by default.
-	//
-	// Several useful links:
-	// https://www.pixelbeat.org/programming/stdio_buffering/
-	// https://man7.org/linux/man-pages/man3/setbuf.3.html
-	// https://github.com/coreutils/coreutils/blob/master/src/stdbuf.c
-	inst.Cmd = exec.Command("stdbuf", "-o", "L",
-		inst.tarantoolPath, "-")
+	inst.Cmd = exec.Command(inst.tarantoolPath, "-")
 	inst.Cmd.Stdout = inst.logger.Writer()
 	inst.Cmd.Stderr = inst.logger.Writer()
 	StdinPipe, err := inst.Cmd.StdinPipe()
