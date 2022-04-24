@@ -5,6 +5,7 @@ local os = require('os')
 local console = require('console')
 local log = require('log')
 local title = require('title')
+local ffi = require('ffi')
 
 
 --- Start an Instance. The "init" file of the Instance passes
@@ -19,6 +20,35 @@ local function start_instance()
         script_name = instance_path,
         __defer_update = true
     }
+
+    -- Make stdout line buffered. gh-36.
+    -- By default (when using "glibc") "stdout" is line buffered when connected
+    -- to a TTY and block buffered (one page 4KB) when connected to a pipe / file.
+    -- In luajit print() calls fwrite(3) from glibc,
+    -- and since the launcher redirects stdout to a file, the write will be
+    -- block buffered and the user will not be able to read the log file in real time.
+    -- In order to change this behavior we will set "stdout" to line buffered mode
+    -- by calling "setlinebuf(3)". "stderr" is set to no-buffering by default.
+    --
+    -- Several useful links:
+    -- https://www.pixelbeat.org/programming/stdio_buffering/
+    -- https://man7.org/linux/man-pages/man3/setbuf.3.html
+    ffi.cdef([[
+        typedef struct __IO_FILE FILE;
+        void setlinebuf(FILE *stream);
+    ]])
+
+    if jit.os == 'OSX' then
+        ffi.cdef([[
+            FILE *__stdoutp;
+        ]])
+        ffi.C.setlinebuf(ffi.C.__stdoutp)
+    else
+        ffi.cdef([[
+            FILE *stdout;
+        ]])
+        ffi.C.setlinebuf(ffi.C.stdout)
+    end
 
     -- Preparation of the "console" socket.
     local console_sock = os.getenv('TT_CLI_CONSOLE_SOCKET')
