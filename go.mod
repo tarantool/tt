@@ -2,8 +2,6 @@ module github.com/tarantool/tt
 
 go 1.17
 
-replace github.com/yuin/gopher-lua => github.com/tarantool/gopher-lua v0.0.0-20220414144701-8b16ce4db185
-
 require (
 	github.com/FZambia/tarantool v0.2.1
 	github.com/adam-hanna/arrayOperations v0.2.6
@@ -17,7 +15,7 @@ require (
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.0
 	github.com/vmihailenco/msgpack/v5 v5.3.5
-	github.com/yuin/gopher-lua v0.0.0-20220413183635-c841877397d8
+	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.4.0
