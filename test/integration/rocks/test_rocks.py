@@ -31,7 +31,7 @@ def test_rocks_module(tt_cmd, tmpdir):
     assert(os.path.isfile(f'{tmpdir}/.rocks/share/tarantool/queue/init.lua'))
 
     rc, output = run_command_and_get_output(
-            [tt_cmd, "rocks", "doc", "queue"],
+            [tt_cmd, "rocks", "doc", "queue", "--list"],
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
     assert "Documentation files for queue" in output
