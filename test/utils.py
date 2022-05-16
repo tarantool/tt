@@ -1,5 +1,7 @@
 import os
+import re
 import subprocess
+import time
 
 import yaml
 
@@ -49,3 +51,31 @@ def create_external_module(module_name, directory):
     os.chmod(os.path.join(directory, f"{module_name}.sh"), 0o777)
 
     return module_message.strip('"')
+
+
+def wait_file(dir_name, file_pattern, exclude_list, timeout_sec=1):
+    """Wait for "timeout_sec" until a file matching "file_pattern" and not
+    included in "exclude_list" is found in the "dir_name" directory.
+    Returns the name of the file.
+
+    Alternatively, https://pypi.org/project/watchdog/ may be used,
+    but that seems like overkill.
+    """
+    iter_timeout_sec = 0.01
+    iter_count = 0
+
+    while True:
+        files = os.listdir(dir_name)
+        for file in files:
+            if re.match(file_pattern, file) is not None and file not in exclude_list:
+                return file
+
+        if (iter_count * iter_timeout_sec) > timeout_sec:
+            break
+
+        cur_timeout = timeout_sec if timeout_sec < iter_timeout_sec else iter_timeout_sec
+        time.sleep(cur_timeout)
+
+        iter_count = iter_count + 1
+
+    return ""
