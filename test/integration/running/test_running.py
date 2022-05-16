@@ -3,7 +3,7 @@ import re
 import shutil
 import subprocess
 
-from utils import run_command_and_get_output
+from utils import run_command_and_get_output, wait_file
 
 
 def test_running_base_functionality(tt_cmd, tmpdir):
@@ -120,19 +120,15 @@ def test_logrotate(tt_cmd, tmpdir):
     # We use the first "logrotate" call to create the first log file (the problem is that the log
     # file will be created after the first log message is written, but we don't write any logs in
     # the application), and the second one to rotate it and create the second one.
+    exists_log_files = []
     for _ in range(2):
         logrotate_rc, logrotate_out = run_command_and_get_output(logrotate_cmd, cwd=tmpdir)
         assert logrotate_rc == 0
         assert re.search(r"Logs has been rotated. PID: \d+.", logrotate_out)
 
-    # Check that the corresponding files have been created.
-    files = os.listdir(tmpdir)
-    count_log_files = 0
-    for file in files:
-        if re.match('test_app.*.log', file) is not None:
-            count_log_files = count_log_files + 1
-
-    assert count_log_files == 2
+        file = wait_file(tmpdir, 'test_app.*.log', exists_log_files)
+        assert file != ""
+        exists_log_files.append(file)
 
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]
