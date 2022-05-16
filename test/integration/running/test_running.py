@@ -115,15 +115,15 @@ def test_logrotate(tt_cmd, tmpdir):
     assert re.search(r"Starting an instance", start_output)
 
     # Check logrotate.
-    status_cmd = [tt_cmd, "logrotate", "test_app"]
+    logrotate_cmd = [tt_cmd, "logrotate", "test_app"]
 
     # We use the first "logrotate" call to create the first log file (the problem is that the log
     # file will be created after the first log message is written, but we don't write any logs in
     # the application), and the second one to rotate it and create the second one.
     for _ in range(2):
-        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
-        assert status_rc == 0
-        assert re.search(r"Logs has been rotated. PID: \d+.", status_out)
+        logrotate_rc, logrotate_out = run_command_and_get_output(logrotate_cmd, cwd=tmpdir)
+        assert logrotate_rc == 0
+        assert re.search(r"Logs has been rotated. PID: \d+.", logrotate_out)
 
     # Check that the corresponding files have been created.
     files = os.listdir(tmpdir)
@@ -137,7 +137,7 @@ def test_logrotate(tt_cmd, tmpdir):
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
-    assert status_rc == 0
+    assert stop_rc == 0
     assert re.search(r"The Instance \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process was terminated correctly.
