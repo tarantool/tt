@@ -39,6 +39,13 @@ var luaCodeFiles = []generateLuaCodeOpts{
 			"evalFuncTmpl": "cli/connector/lua/eval_func_template.lua",
 		},
 	},
+	{
+		PackageName: "checkpoint",
+		FileName:    "cli/checkpoint/lua_code_gen.go",
+		VariablesMap: map[string]string{
+			"catFile": "cli/checkpoint/lua/cat.lua",
+		},
+	},
 }
 
 func generateLuaCodeVar() error {

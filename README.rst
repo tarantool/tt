@@ -174,3 +174,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``check`` - check an application file for syntax errors.
 * ``connect`` -  connect to the tarantool instance.
 * ``rocks`` - LuaRocks package manager.
+* ``cat`` - print into stdout the contents of .snap/.xlog files.
