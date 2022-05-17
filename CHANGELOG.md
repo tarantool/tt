@@ -21,3 +21,4 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Module ``tt check``, to check an application file for syntax errors.
 - Module ``tt connect``, used to connect to a running instance.
 - Module ``tt rocks``, LuaRocks package manager.
+- Module ``tt cat``, to print into stdout the contents of .snap/.xlog files.
