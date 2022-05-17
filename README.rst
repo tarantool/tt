@@ -175,3 +175,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``connect`` -  connect to the tarantool instance.
 * ``rocks`` - LuaRocks package manager.
 * ``cat`` - print into stdout the contents of .snap/.xlog files.
+* ``play`` - play the contents of .snap/.xlog files to another Tarantool instance.

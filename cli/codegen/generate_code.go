@@ -43,7 +43,8 @@ var luaCodeFiles = []generateLuaCodeOpts{
 		PackageName: "checkpoint",
 		FileName:    "cli/checkpoint/lua_code_gen.go",
 		VariablesMap: map[string]string{
-			"catFile": "cli/checkpoint/lua/cat.lua",
+			"catFile":  "cli/checkpoint/lua/cat.lua",
+			"playFile": "cli/checkpoint/lua/play.lua",
 		},
 	},
 }

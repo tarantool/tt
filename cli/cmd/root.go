@@ -50,6 +50,7 @@ func NewCmdRoot() *cobra.Command {
 		NewConnectCmd(),
 		NewRocksCmd(),
 		NewCatCmd(),
+		NewPlayCmd(),
 	)
 
 	rootCmd.InitDefaultHelpCmd()
