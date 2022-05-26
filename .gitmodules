@@ -3,3 +3,7 @@
 	url = https://github.com/tarantool/luarocks.git
 	branch = luarocks-3.1.1-tarantool
 	ignore = dirty
+[submodule "third_party/cartridge-cli"]
+	path = cli/cartridge/third_party/cartridge-cli
+	url = https://github.com/tarantool/cartridge-cli.git
+	ignore = dirty
