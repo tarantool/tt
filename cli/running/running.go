@@ -20,6 +20,28 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+// RunFlags contains flags for tt run.
+type RunFlags struct {
+	// RunEval contains "-e" flag content.
+	RunEval string
+	// RunLib contains "-l" flag content.
+	RunLib string
+	// RunInteractive contains "-i" flag content.
+	RunInteractive bool
+	// RunStdin contains "-" flag content.
+	RunStdin string
+	// RunVersion contains "-v" flag content.
+	RunVersion bool
+	// RunArgs contains command args.
+	RunArgs []string
+}
+
+// RunOpts contains information for tt run.
+type RunOpts struct {
+	CmdCtx   *cmdcontext.CmdCtx
+	RunFlags *RunFlags
+}
+
 // findAppFile searches of an application init file.
 func findAppFile(appName string, cliOpts *config.CliOpts) (string, error) {
 	var err error
@@ -218,22 +240,31 @@ func createPIDFile(pidFileName string) error {
 }
 
 // FillCtx fills the RunningCtx context.
-func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if len(args) != 1 {
+func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
+	args []string) error {
+	if len(args) != 1 && cmdCtx.CommandName != "run" {
 		if len(args) > 1 {
 			return fmt.Errorf("Currently, you can specify only one instance at a time.")
 		} else {
 			return fmt.Errorf("Please specify the name of the application.")
 		}
 	}
-
 	appName := args[0]
+	if cmdCtx.CommandName == "run" {
+		if strings.HasSuffix(appName, ".lua") {
+			appName = appName[0 : len(appName)-4]
+		}
+	}
 	appPath, err := findAppFile(appName, cliOpts)
 	if err != nil {
 		return fmt.Errorf("Can't find an application init file: %s", err)
 	}
 
 	cmdCtx.Running.AppPath = appPath
+
+	if cmdCtx.CommandName == "run" {
+		return nil
+	}
 
 	runDir := cliOpts.App.RunDir
 	if runDir == "" {
@@ -321,6 +352,15 @@ func Stop(cmdCtx *cmdcontext.CmdCtx) error {
 	log.Printf("The Instance (PID = %v) has been terminated.\n", pid)
 
 	return nil
+}
+
+// Run runs an Instance.
+func Run(runOpts *RunOpts) error {
+	inst := Instance{tarantoolPath: runOpts.CmdCtx.Cli.TarantoolExecutable,
+		appPath: runOpts.CmdCtx.Running.AppPath,
+		env:     os.Environ()}
+	err := inst.Run(runOpts.RunFlags)
+	return err
 }
 
 // Status returns the status of the Instance.

@@ -18,6 +18,7 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
+	golang.org/x/sys v0.0.0-20220712014510-0a85c31ab51e
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -60,7 +61,6 @@ require (
 	github.com/tklauser/numcpus v0.2.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
-	golang.org/x/sys v0.0.0-20211205182925-97ca703d548d // indirect
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	google.golang.org/grpc v1.42.0 // indirect
