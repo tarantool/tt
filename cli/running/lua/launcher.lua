@@ -127,6 +127,17 @@ local function start_instance()
 
     end
 
+    -- If stdin of the program was moved by command "tt run" to another fd
+    -- then we need to move it back.
+    -- It is used in cases when calling tarantool with "-" flag to hide input
+	-- for example from ps|ax.
+	-- e.g ./tt run - ... or test.lua | ./tt run -
+    if os.getenv("TT_CLI_RUN_STDIN_FD") ~= nil then
+        ffi.cdef([[
+            int dup2(int old_handle, int new_handle);
+        ]])
+        ffi.C.dup2(tonumber(os.getenv("TT_CLI_RUN_STDIN_FD")), 0)
+    end
     -- Start the Instance.
     local success, data = pcall(dofile, instance_path)
     if not success then

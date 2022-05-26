@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/cli/ttlog"
+	"golang.org/x/sys/unix"
 )
 
 // Instance describes a running process.
@@ -115,6 +116,96 @@ func (inst *Instance) Start() error {
 	StdinPipe.Write([]byte(instanceLauncher))
 	StdinPipe.Close()
 	inst.done = false
+
+	return nil
+}
+
+// makeRunCommand turns flags into tarantool command.
+func makeRunCommand(flags *RunFlags) []string {
+	var command []string
+	if flags.RunEval != "" {
+		command = append(command, "-e")
+		command = append(command, flags.RunEval)
+	}
+	if flags.RunInteractive {
+		command = append(command, "-i")
+	}
+	if flags.RunLib != "" {
+		command = append(command, "-l")
+		command = append(command, flags.RunLib)
+	}
+	if flags.RunVersion {
+		command = append(command, "-v")
+	}
+	return command
+}
+
+// Run runs tarantool instance.
+func (inst *Instance) Run(flags *RunFlags) error {
+	command := makeRunCommand(flags)
+	// pipeFlag is a flag used to indicate whether stdin
+	// should be moved or not.
+	// It is used in cases when calling tarantool with "-" flag to hide input
+	// for example from ps|ax.
+	// e.g ./tt run - ... or test.lua | ./tt run -
+	pipeFlag := false
+	stdinFdNum := 0
+	inst.Cmd = exec.Command(inst.tarantoolPath)
+	if inst.appPath == "" && flags.RunStdin == "" {
+		if len(command) != 0 {
+			inst.Cmd.Args = append(inst.Cmd.Args, command...)
+		}
+	} else {
+		if len(command) == 0 && flags.RunStdin == "" {
+			inst.Cmd.Args = append(inst.Cmd.Args, "-")
+		} else {
+			inst.Cmd.Args = append(inst.Cmd.Args, command...)
+			inst.Cmd.Args = append(inst.Cmd.Args, "-")
+		}
+		// Move stdin to different Fd to write data
+		// passed through "-" flag or pipe.
+		stdinFdNum, _ = unix.FcntlInt(os.Stdin.Fd(), unix.F_DUPFD, 0)
+		pipeFlag = true
+	}
+
+	if len(flags.RunArgs) != 0 {
+		for i := 0; i < len(flags.RunArgs); i++ {
+			inst.Cmd.Args = append(inst.Cmd.Args, flags.RunArgs[i])
+		}
+	}
+
+	inst.Cmd.Stdout = os.Stdout
+	inst.Cmd.Stderr = os.Stderr
+
+	inst.Cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
+	// Set the sign that the program is running under "tt".
+	inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI=true")
+
+	if pipeFlag {
+		inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI_RUN_STDIN_FD="+fmt.Sprint(stdinFdNum))
+		StdinPipe, err := inst.Cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		if inst.appPath == "" {
+			StdinPipe.Write([]byte(flags.RunStdin))
+		} else {
+			StdinPipe.Write([]byte(instanceLauncher))
+		}
+		StdinPipe.Close()
+	} else {
+		inst.Cmd.Stdin = os.Stdin
+	}
+
+	// Start an Instance.
+	if err := inst.Cmd.Start(); err != nil {
+		return err
+	}
+
+	err := inst.Cmd.Wait()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

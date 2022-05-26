@@ -58,6 +58,7 @@ func NewCmdRoot() *cobra.Command {
 		NewPlayCmd(),
 		NewCartridgeCmd(),
 		NewCoredumpCmd(),
+		NewRunCmd(),
 	)
 
 	rootCmd.InitDefaultHelpCmd()
