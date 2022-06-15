@@ -20,6 +20,7 @@ import (
 var (
 	connectUser     string
 	connectPassword string
+	connectFile     string
 )
 
 // NewConnectCmd creates connect command.
@@ -38,6 +39,8 @@ func NewConnectCmd() *cobra.Command {
 
 	connectCmd.Flags().StringVarP(&connectUser, "username", "u", "", "username")
 	connectCmd.Flags().StringVarP(&connectPassword, "password", "p", "", "password")
+	connectCmd.Flags().StringVarP(&connectFile, "file", "f", "",
+		`file to read the script for evaluation. "-" - read the script from stdin`)
 
 	return connectCmd
 }
@@ -73,7 +76,7 @@ func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []
 // internalConnectModule is a default connect module.
 func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	argsLen := len(args)
-	if argsLen < 1 {
+	if argsLen != 1 {
 		return fmt.Errorf("Incorrect combination of command parameters")
 	}
 
@@ -84,25 +87,24 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	cmdCtx.Connect.Username = connectUser
 	cmdCtx.Connect.Password = connectPassword
+	cmdCtx.Connect.SrcFile = connectFile
 
 	newArgs, _ := resolveInstAddr(cmdCtx, cliOpts, args)
 
-	if argsLen == 1 {
+	if connectFile == "" {
 		if terminal.IsTerminal(syscall.Stdin) {
 			log.Info("Connecting to the instance...")
 		}
 		if err := connect.Connect(cmdCtx, newArgs); err != nil {
 			return err
 		}
-	} else if argsLen == 2 {
+	} else {
 		res, err := connect.Eval(cmdCtx, newArgs)
 		if err != nil {
 			return err
 		}
 		// "Println" is used instead of "log..." to print the result without any decoration.
 		fmt.Println(string(res))
-	} else {
-		return fmt.Errorf("Incorrect combination of command parameters")
 	}
 
 	return nil
