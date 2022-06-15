@@ -66,4 +66,6 @@ type ConnectCtx struct {
 	Username string
 	// Password of the tarantool.user.
 	Password string
+	// SrcFile describes the source of code for the evaluation.
+	SrcFile string
 }

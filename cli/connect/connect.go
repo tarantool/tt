@@ -5,9 +5,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"syscall"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/connector"
+	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/yaml.v2"
 )
 
@@ -20,19 +22,32 @@ func getConnOpts(connString string, cmdCtx *cmdcontext.CmdCtx) *connector.ConnOp
 	return connector.GetConnOpts(connString, cmdCtx.Connect.Username, cmdCtx.Connect.Password)
 }
 
-// getEvalCmd returns a command from a file if a filename was passed,
-// or a command if it was passed directly.
-func getEvalCmd(cmdArg string) (string, error) {
-	cmdPath := path.Clean(cmdArg)
-	if _, err := os.Stat(cmdPath); err == nil {
-		cmd, err := ioutil.ReadFile(cmdPath)
-		if err != nil {
-			return "", err
+// getEvalCmd returns a command from the input source (file or stdin).
+func getEvalCmd(cmdCtx *cmdcontext.CmdCtx) (string, error) {
+	var cmd string
+
+	if cmdCtx.Connect.SrcFile == "-" {
+		if !terminal.IsTerminal(syscall.Stdin) {
+			cmdByte, err := ioutil.ReadAll(os.Stdin)
+			if err != nil {
+				return "", err
+			}
+			cmd = string(cmdByte)
+		} else {
+			return "", fmt.Errorf("Can't use interactive input as a source file")
 		}
-		return string(cmd), nil
+	} else {
+		cmdPath := path.Clean(cmdCtx.Connect.SrcFile)
+		if _, err := os.Stat(cmdPath); err == nil {
+			cmdByte, err := ioutil.ReadFile(cmdPath)
+			if err != nil {
+				return "", err
+			}
+			cmd = string(cmdByte)
+		}
 	}
 
-	return cmdArg, nil
+	return cmd, nil
 }
 
 // Connect establishes a connection to the instance and starts the console.
@@ -56,7 +71,7 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 	// Parse the arguments.
 	connString := args[0]
 	connOpts := getConnOpts(connString, cmdCtx)
-	command, err := getEvalCmd(args[1])
+	command, err := getEvalCmd(cmdCtx)
 	if err != nil {
 		return nil, err
 	}
