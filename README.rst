@@ -82,7 +82,7 @@ file format:
       modules:
         directory: path/to/modules/dir
       app:
-        available: path/to/available/applications
+        instances_available: path/to/available/applications
         run_dir: path/to/run_dir
         log_dir: path/to/log_dir
         log_maxsize: num (MB)
@@ -96,7 +96,7 @@ file format:
 
 **app**
 
-* ``available`` (string) - path to directory that stores all available applications.
+* ``instances_available`` (string) - path to directory that stores all available applications.
 * ``run_dir`` (string) - path to directory that stores various instance runtime
   artifacts like console socket, PID file, etc.
 * ``log_dir`` (string) - directory that stores log files.
