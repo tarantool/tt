@@ -1,3 +1,4 @@
+//go:build mage
 // +build mage
 
 package main
@@ -25,6 +26,8 @@ const (
 
 	defaultLinuxConfigPath  = "/etc/tarantool"
 	defaultDarwinConfigPath = "/usr/local/etc/tarantool"
+
+	cartridgePath = "cli/cartridge/third_party/cartridge-cli"
 )
 
 var (
@@ -63,10 +66,78 @@ func init() {
 	os.Setenv("GO111MODULE", "on")
 }
 
+// Generate cartridge-cli Go code.
+// Cartridge-cli uses code generator for Go.
+// Accordingly, before building tt, we must generate this code.
+func GenCC() {
+	currDir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	err = os.Chdir(cartridgePath)
+	if err != nil {
+		panic(err)
+	}
+
+	err = sh.Run("go", "run", "cli/codegen/generate_code.go")
+	if err != nil {
+		panic(err)
+	}
+
+	err = os.Chdir(currDir)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Patch cartridge-cli.
+// Before building tt, we must apply patches for cartridge-cli.
+// These patches contain code specific to cartridge-cli integration into tt
+// and are not subject to commit to the cartridge's upstream.
+func PatchCC() error {
+	mg.Deps(GenCC)
+	fmt.Printf("%s", "Apply cartridge-cli patches... ")
+
+	patches_path := "../../extra/"
+	patches := []string{
+		"001_make_cmd_public.patch",
+		"002_fix_admin_param.patch",
+	}
+
+	// Check that patch has been already applied.
+	err := sh.Run(
+		"patch", "-d", cartridgePath, "-N", "-p1", "--dry-run", "-V", "none",
+		"-i", patches_path+patches[0],
+	)
+
+	if err != nil {
+		fmt.Println("[already applied]")
+		return nil
+	}
+
+	for _, patch := range patches {
+		err = sh.Run(
+			"patch", "-d", cartridgePath, "-N", "-p1", "-V", "none", "-i",
+			patches_path+patch,
+		)
+
+		if err != nil {
+			fmt.Println("[error]")
+			return err
+		}
+	}
+
+	fmt.Println("[done]")
+
+	return nil
+}
+
 // Building tt executable.
 func Build() error {
 	fmt.Println("Building tt...")
 
+	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)
 
 	err := sh.RunWith(
@@ -89,6 +160,7 @@ func Build() error {
 func Lint() error {
 	fmt.Println("Running go vet...")
 
+	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)
 
 	if err := sh.RunV(goExecutableName, "vet", packagePath); err != nil {
