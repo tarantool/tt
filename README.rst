@@ -14,7 +14,7 @@ Getting started
 Prerequisites
 ~~~~~~~~~~~~~
 
-* `Go (version 1.17+) <https://golang.org/doc/install>`_
+* `Go (version 1.18+) <https://golang.org/doc/install>`_
 * `Mage <https://magefile.org/>`_
 * `Git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_
 
