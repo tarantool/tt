@@ -52,6 +52,11 @@ func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) err
 func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.InternalFunc {
 	return func(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		switch module := modulesInfo[cmd.Name()]; {
+		// FIXME Some long commands from cartridge cli do not fall into modulesInfo.
+		// We are going to interpret them as internal:
+		// https://github.com/tarantool/tt/issues/82
+		case module == nil:
+			fallthrough
 		// Cases when we have to run the "default" help:
 		// - `tt help` and no external help module.
 		// 	It looks strange: if we type the command `tt help`,
