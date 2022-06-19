@@ -1,0 +1,159 @@
+diff --git a/cli/commands/admin.go b/cli/commands/admin.go
+index 5a37a75..77fdb4e 100644
+--- a/cli/commands/admin.go
++++ b/cli/commands/admin.go
+@@ -9,6 +9,8 @@ import (
+ 	"github.com/tarantool/cartridge-cli/cli/admin"
+ )
+ 
++var CartridgeCliAdmin *cobra.Command
++
+ func init() {
+ 	var adminCmd = &cobra.Command{
+ 		Use:   "admin [ADMIN_FUNC_NAME]",
+@@ -27,6 +29,7 @@ Otherwise, first available socket from all <run-dir>/<app-name>.*.control is use
+ 		DisableFlagParsing: true,
+ 	}
+ 
++	CartridgeCliAdmin = adminCmd
+ 	rootCmd.AddCommand(adminCmd)
+ 
+ 	// FLAGS are parsed in runAdminCommand
+diff --git a/cli/commands/bench.go b/cli/commands/bench.go
+index 8e408a6..06d85f0 100644
+--- a/cli/commands/bench.go
++++ b/cli/commands/bench.go
+@@ -6,6 +6,8 @@ import (
+ 	"github.com/tarantool/cartridge-cli/cli/bench"
+ )
+ 
++var CartridgeCliBench *cobra.Command
++
+ func init() {
+ 	var benchCmd = &cobra.Command{
+ 		Use:   "bench",
+@@ -17,6 +19,7 @@ func init() {
+ 			}
+ 		},
+ 	}
++	CartridgeCliBench = benchCmd
+ 	rootCmd.AddCommand(benchCmd)
+ 
+ 	configureFlags(benchCmd)
+diff --git a/cli/commands/build.go b/cli/commands/build.go
+index 5d444d3..127ea43 100644
+--- a/cli/commands/build.go
++++ b/cli/commands/build.go
+@@ -7,6 +7,8 @@ import (
+ 	"github.com/tarantool/cartridge-cli/cli/build"
+ )
+ 
++var CartridgeCliBuild *cobra.Command
++
+ func init() {
+ 	var buildCmd = &cobra.Command{
+ 		Use:   "build [PATH]",
+@@ -21,6 +23,7 @@ func init() {
+ 		},
+ 	}
+ 
++	CartridgeCliBuild = buildCmd
+ 	rootCmd.AddCommand(buildCmd)
+ 
+ 	// FLAGS
+diff --git a/cli/commands/create.go b/cli/commands/create.go
+index 468f0ab..c3b5730 100644
+--- a/cli/commands/create.go
++++ b/cli/commands/create.go
+@@ -13,6 +13,8 @@ import (
+ 	"github.com/tarantool/cartridge-cli/cli/create/templates"
+ )
+ 
++var CartridgeCliCreate *cobra.Command
++
+ func init() {
+ 	var createCmd = &cobra.Command{
+ 		Use:   "create [PATH]",
+@@ -27,6 +29,7 @@ func init() {
+ 		},
+ 	}
+ 
++	CartridgeCliCreate = createCmd
+ 	rootCmd.AddCommand(createCmd)
+ 
+ 	// FLAGS
+diff --git a/cli/commands/failover.go b/cli/commands/failover.go
+index 02c9c4d..ca58ad1 100644
+--- a/cli/commands/failover.go
++++ b/cli/commands/failover.go
+@@ -9,7 +9,8 @@ import (
+ )
+ 
+ var (
+-	failoverModes = []string{"stateful", "eventual", "disabled"}
++	failoverModes        = []string{"stateful", "eventual", "disabled"}
++	CartridgeCliFailover *cobra.Command
+ )
+ 
+ func init() {
+@@ -18,6 +19,7 @@ func init() {
+ 		Short: "Manage application failover",
+ 	}
+ 
++	CartridgeCliFailover = failoverCmd
+ 	rootCmd.AddCommand(failoverCmd)
+ 
+ 	var setupCmd = &cobra.Command{
+diff --git a/cli/commands/pack.go b/cli/commands/pack.go
+index 39ada3a..d6e389a 100644
+--- a/cli/commands/pack.go
++++ b/cli/commands/pack.go
+@@ -200,6 +200,8 @@ The supported types are: rpm, tgz, docker, deb`,
+ 	},
+ }
+ 
++var CartridgeCliPack = packCmd
++
+ func runPackCommand(cmd *cobra.Command, args []string) error {
+ 	ctx.Pack.Type = strings.ToLower(cmd.Flags().Arg(0))
+ 	ctx.Project.Path = cmd.Flags().Arg(1)
+diff --git a/cli/commands/repair.go b/cli/commands/repair.go
+index 174e489..3348257 100644
+--- a/cli/commands/repair.go
++++ b/cli/commands/repair.go
+@@ -9,12 +9,15 @@ import (
+ 	"github.com/tarantool/cartridge-cli/cli/repair"
+ )
+ 
++var CartridgeCliRepair *cobra.Command
++
+ func init() {
+ 	var repairCmd = &cobra.Command{
+ 		Use:   "repair",
+ 		Short: "Patch cluster configuration files",
+ 	}
+ 
++	CartridgeCliRepair = repairCmd
+ 	rootCmd.AddCommand(repairCmd)
+ 
+ 	// repair sub-commands
+diff --git a/cli/commands/replicasets.go b/cli/commands/replicasets.go
+index 6e000b8..661c926 100644
+--- a/cli/commands/replicasets.go
++++ b/cli/commands/replicasets.go
+@@ -8,12 +8,15 @@ import (
+ 	"github.com/tarantool/cartridge-cli/cli/replicasets"
+ )
+ 
++var CartridgeCliReplica *cobra.Command
++
+ func init() {
+ 	var replicasetsCmd = &cobra.Command{
+ 		Use:   "replicasets",
+ 		Short: "Manage application replica sets",
+ 	}
+ 
++	CartridgeCliReplica = replicasetsCmd
+ 	rootCmd.AddCommand(replicasetsCmd)
+ 
+ 	// replicasets sub-commands

@@ -1,0 +1,13 @@
+diff --git a/cli/commands/admin.go b/cli/commands/admin.go
+index 77fdb4e..9a9ed38 100644
+--- a/cli/commands/admin.go
++++ b/cli/commands/admin.go
+@@ -46,7 +46,7 @@ func addAdminFlags(flagSet *pflag.FlagSet) {
+ 	flagSet.BoolVarP(&ctx.Admin.Help, "help", "h", false, "Help for admin function")
+ 
+ 	flagSet.StringVar(&ctx.Admin.InstanceName, "instance", "", "Instance to connect to")
+-	flagSet.StringVarP(&ctx.Admin.ConnString, "conn", "c", "", "Address to connect to")
++	flagSet.StringVar(&ctx.Admin.ConnString, "conn", "", "Address to connect to")
+ 
+ 	flagSet.StringVar(&ctx.Running.RunDir, "run-dir", "", prodRunDirUsage)
+ 
