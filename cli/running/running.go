@@ -16,6 +16,7 @@ import (
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -40,6 +41,90 @@ type RunFlags struct {
 type RunOpts struct {
 	CmdCtx   *cmdcontext.CmdCtx
 	RunFlags *RunFlags
+}
+
+// providerImpl is an implementation of Provider interface.
+type providerImpl struct {
+	cmdCtx *cmdcontext.CmdCtx
+}
+
+// updateCtx updates cmdCtx according to the current contents of the cfg file.
+func (provider *providerImpl) updateCtx() error {
+	cliOpts, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath)
+	if err != nil {
+		return err
+	}
+
+	args := []string{provider.cmdCtx.Running.AppName}
+	if err = FillCtx(cliOpts, provider.cmdCtx, args); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// createInstance reads config and creates an Instance.
+func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (*Instance, error) {
+	if err := provider.updateCtx(); err != nil {
+		return nil, err
+	}
+
+	inst, err := NewInstance(provider.cmdCtx.Cli.TarantoolExecutable,
+		provider.cmdCtx.Running.AppPath, provider.cmdCtx.Running.ConsoleSocket,
+		os.Environ(), logger, provider.cmdCtx.Running.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	return inst, nil
+}
+
+// isLoggerChanged checks if any of the logging parameters has been changed.
+func isLoggerChanged(logger *ttlog.Logger, runningCtx *cmdcontext.RunningCtx) (bool, error) {
+	if runningCtx == nil {
+		return true, fmt.Errorf("RunningCtx, which is used to check if the logger parameters" +
+			" are updated, is nil.")
+	}
+	if logger == nil || runningCtx == nil {
+		return true, nil
+	}
+	loggerOpts := logger.GetOpts()
+
+	// Check if some of the parameters have been changed.
+	if loggerOpts.Filename != runningCtx.Log {
+		return true, nil
+	}
+	if loggerOpts.MaxAge != runningCtx.LogMaxAge {
+		return true, nil
+	}
+	if loggerOpts.MaxBackups != runningCtx.LogMaxBackups {
+		return true, nil
+	}
+	if loggerOpts.MaxSize != runningCtx.LogMaxSize {
+		return true, nil
+	}
+	return false, nil
+}
+
+// UpdateLogger updates the logger settings or creates a new logger, if passed nil.
+func (provider *providerImpl) UpdateLogger(logger *ttlog.Logger) (*ttlog.Logger, error) {
+	updateLogger, err := isLoggerChanged(logger, &provider.cmdCtx.Running)
+	if err != nil {
+		return logger, err
+	}
+	if updateLogger {
+		logger.Close()
+		return createLogger(provider.cmdCtx), nil
+	}
+	return logger, nil
+}
+
+// IsRestartable checks if the instance should be restarted in case of crash.
+func (provider *providerImpl) IsRestartable() (bool, error) {
+	if err := provider.updateCtx(); err != nil {
+		return false, err
+	}
+
+	return provider.cmdCtx.Running.Restartable, nil
 }
 
 // findAppFile searches of an application init file.
@@ -250,6 +335,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		}
 	}
 	appName := args[0]
+	cmdCtx.Running.AppName = appName
 	if cmdCtx.CommandName == "run" {
 		if strings.HasSuffix(appName, ".lua") {
 			appName = appName[0 : len(appName)-4]
@@ -310,14 +396,8 @@ func Start(cmdCtx *cmdcontext.CmdCtx) error {
 	defer cleanup(cmdCtx)
 
 	logger := createLogger(cmdCtx)
-
-	inst, err := NewInstance(cmdCtx.Cli.TarantoolExecutable, cmdCtx.Running.AppPath,
-		cmdCtx.Running.ConsoleSocket, os.Environ(), logger, cmdCtx.Running.DataDir)
-	if err != nil {
-		return err
-	}
-
-	wd := NewWatchdog(inst, cmdCtx.Running.Restartable, 5*time.Second, logger)
+	provider := providerImpl{cmdCtx: cmdCtx}
+	wd := NewWatchdog(cmdCtx.Running.Restartable, 5*time.Second, logger, &provider)
 	wd.Start()
 
 	return nil

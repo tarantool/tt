@@ -10,6 +10,19 @@ import (
 	"github.com/tarantool/tt/cli/ttlog"
 )
 
+// Provider interface provides Watchdog methods to get objects whose creation
+// and updating may depend on changing external parameters (such as configuration
+// file).
+type Provider interface {
+	// CreateInstance is used to create a new instance on restart.
+	CreateInstance(logger *ttlog.Logger) (*Instance, error)
+	// UpdateLogger updates the logger settings or creates a new logger,
+	// if passed nil.
+	UpdateLogger(logger *ttlog.Logger) (*ttlog.Logger, error)
+	// IsRestartable checks
+	IsRestartable() (bool, error)
+}
+
 // Watchdog is a process that controls an Instance process.
 type Watchdog struct {
 	// Instance describes the controlled Instance.
@@ -19,24 +32,28 @@ type Watchdog struct {
 	// doneBarrier used to indicate the completion of the
 	// signal handling goroutine.
 	doneBarrier sync.WaitGroup
-	// restartable is the flag is set to "true" if the Instance
-	// should be restarted in case of termination.
-	restartable bool
 	// restartTimeout describes the timeout between
 	// restarting the Instance.
 	restartTimeout time.Duration
+	// stopped indicates whether Watchdog was stopped.
+	stopped bool
 	// done channel used to inform the signal handle goroutine
 	// about termination of the Instance.
 	done chan bool
+	// provider provides Watchdog methods to get objects whose creation
+	// and updating may depend on changing external parameters
+	// (such as configuration file).
+	provider Provider
 }
 
 // NewWatchdog creates a new instance of Watchdog.
-func NewWatchdog(instance *Instance, restartable bool,
-	restartTimeout time.Duration, logger *ttlog.Logger) *Watchdog {
-	wd := Watchdog{Instance: instance, logger: logger, restartable: restartable,
-		restartTimeout: restartTimeout}
+func NewWatchdog(restartable bool, restartTimeout time.Duration, logger *ttlog.Logger,
+	provider Provider) *Watchdog {
+	wd := Watchdog{Instance: nil, logger: logger, restartTimeout: restartTimeout,
+		provider: provider}
 
 	wd.done = make(chan bool, 1)
+	wd.stopped = false
 
 	return &wd
 }
@@ -46,6 +63,13 @@ func (wd *Watchdog) Start() {
 	// The Instance must be restarted on completion if the "restartable"
 	// parameter is set to "true".
 	for {
+		var err error
+		// Create Instance.
+		if wd.Instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
+			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+			break
+		}
+		wd.logger = wd.Instance.logger
 		// Start the Instance and forwarding signals (except  SIGINT and SIGTERM)
 		if err := wd.Instance.Start(); err != nil {
 			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
@@ -64,11 +88,22 @@ func (wd *Watchdog) Start() {
 		wd.doneBarrier.Wait()
 
 		// Stop the process if the Instance is not restartable.
-		if !wd.restartable {
+		restartable, err := wd.provider.IsRestartable()
+		if err != nil {
+			wd.logger.Println("Watchdog(ERROR): can't check if the instance is restartable.")
+			break
+		}
+		if wd.stopped || !restartable {
 			wd.logger.Println("Watchdog(INFO): the Instance has shutdown.")
 			break
 		}
 
+		if logger, err := wd.provider.UpdateLogger(wd.logger); err != nil {
+			wd.logger.Println("Watchdog(ERROR): can't update logger parameters.")
+			break
+		} else {
+			wd.logger = logger
+		}
 		time.Sleep(wd.restartTimeout)
 	}
 }
@@ -94,7 +129,7 @@ func (wd *Watchdog) startSignalHandling() {
 					wd.Instance.Stop(30 * time.Second)
 					// If we recive one of the "stop" signals, the
 					// program should be terminated.
-					wd.restartable = false
+					wd.stopped = true
 				case syscall.SIGHUP:
 					// Rotate the log files.
 					wd.logger.Rotate()

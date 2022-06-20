@@ -35,6 +35,8 @@ type CliCtx struct {
 type RunningCtx struct {
 	// Path to an application.
 	AppPath string
+	// AppName contains the name of the application as it was passed on start.
+	AppName string
 	// Directory that stores various instance runtime artifacts like
 	// console socket, PID file, etc.
 	RunDir string

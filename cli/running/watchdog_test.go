@@ -21,6 +21,36 @@ const (
 	wdTestStopTimeout    = 2 * time.Second
 )
 
+// providerTestImpl is an implementation of the Watchdog provider used for tests.
+type providerTestImpl struct {
+	// tarantool is the tarantool binary in use.
+	tarantool string
+	// appPath is the path to the application.
+	appPath string
+	// logger describes the logger used by Watchdog.
+	logger *ttlog.Logger
+	// dataDir used by an Instance.
+	dataDir string
+	// restartable indicates the need to restart the instance in case of a crash.
+	restartable bool
+}
+
+// createInstance reads config and creates an Instance.
+func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (*Instance, error) {
+	return NewInstance(provider.tarantool, provider.appPath, "",
+		os.Environ(), logger, provider.dataDir)
+}
+
+// UpdateLogger updates the logger settings or creates a new logger, if passed nil.
+func (provider *providerTestImpl) UpdateLogger(logger *ttlog.Logger) (*ttlog.Logger, error) {
+	return logger, nil
+}
+
+// IsRestartable checks if the instance should be restarted in case of crash.
+func (provider *providerTestImpl) IsRestartable() (bool, error) {
+	return provider.restartable, nil
+}
+
 // cleanupTempDir cleanups temp directory after test.
 func cleanupTempDir(tempDir string) {
 	if _, err := os.Stat(tempDir); !os.IsNotExist(err) {
@@ -44,10 +74,11 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
-	inst, err := NewInstance(tarantoolBin, appPath, "", os.Environ(), logger, dataDir)
-	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
-	wd := NewWatchdog(inst, restartable, wdTestRestartTimeout, logger)
+	provider := providerTestImpl{tarantool: tarantoolBin, appPath: appPath, logger: logger,
+		dataDir: dataDir, restartable: restartable}
+
+	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider)
 
 	return wd
 }
@@ -67,7 +98,8 @@ func killAndCheckRestart(t *testing.T, wd *Watchdog, signal syscall.Signal) {
 
 // cleanupWatchdog kills the instance and stops the watchdog.
 func cleanupWatchdog(wd *Watchdog) {
-	wd.restartable = false
+	provider := wd.provider.(*providerTestImpl)
+	provider.restartable = false
 	if wd.Instance != nil && wd.Instance.IsAlive() {
 		syscall.Kill(wd.Instance.Cmd.Process.Pid, syscall.SIGKILL)
 	}
