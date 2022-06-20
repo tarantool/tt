@@ -7,8 +7,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/ttlog"
 )
+
+// InstanceBuilder interface is used for creating instances.
+type InstanceBuilder interface {
+	createInstance() (*Instance, error)
+}
 
 // Watchdog is a process that controls an Instance process.
 type Watchdog struct {
@@ -28,13 +34,18 @@ type Watchdog struct {
 	// done channel used to inform the signal handle goroutine
 	// about termination of the Instance.
 	done chan bool
+	// instanceBuilder is an interface used to build instances.
+	instanceBuilder InstanceBuilder
+	// configPath is used to re-read restartable option.
+	configPath string
 }
 
-// NewWatchdog creates a new instance of Watchdog.
-func NewWatchdog(instance *Instance, restartable bool,
-	restartTimeout time.Duration, logger *ttlog.Logger) *Watchdog {
-	wd := Watchdog{Instance: instance, logger: logger, restartable: restartable,
-		restartTimeout: restartTimeout}
+// newWatchdog creates a new instance of Watchdog.
+func newWatchdog(restartable bool,
+	restartTimeout time.Duration, logger *ttlog.Logger,
+	instanceBuilder InstanceBuilder, configPath string) *Watchdog {
+	wd := Watchdog{Instance: nil, logger: logger, restartable: restartable,
+		restartTimeout: restartTimeout, instanceBuilder: instanceBuilder, configPath: configPath}
 
 	wd.done = make(chan bool, 1)
 
@@ -46,6 +57,13 @@ func (wd *Watchdog) Start() {
 	// The Instance must be restarted on completion if the "restartable"
 	// parameter is set to "true".
 	for {
+		var err error
+		// Create Instance.
+		if wd.Instance, err = wd.instanceBuilder.createInstance(); err != nil {
+			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+			break
+		}
+		wd.logger = wd.Instance.logger
 		// Start the Instance and forwarding signals (except  SIGINT and SIGTERM)
 		if err := wd.Instance.Start(); err != nil {
 			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
@@ -62,6 +80,12 @@ func (wd *Watchdog) Start() {
 		wd.done <- true
 		// Wait for the signal processing goroutine to complete.
 		wd.doneBarrier.Wait()
+
+		// Parse cfg again to check if values changed.
+		if wd.configPath != "" {
+			newCliopts, _ := configure.GetCliOpts(wd.configPath)
+			wd.restartable = newCliopts.App.Restartable
+		}
 
 		// Stop the process if the Instance is not restartable.
 		if !wd.restartable {

@@ -16,9 +16,16 @@ import (
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 )
+
+// InstBuilderImpl is an implementation for InstanceBuilder interface.
+type InstBuilderImpl struct {
+	cmdCtx *cmdcontext.CmdCtx
+	logger *ttlog.Logger
+}
 
 // RunFlags contains flags for tt run.
 type RunFlags struct {
@@ -40,6 +47,25 @@ type RunFlags struct {
 type RunOpts struct {
 	CmdCtx   *cmdcontext.CmdCtx
 	RunFlags *RunFlags
+}
+
+func isLoggerChanged(oldCmdCtx *cmdcontext.CmdCtx, newCmdCtx *cmdcontext.CmdCtx) bool {
+	if oldCmdCtx.Running.Log != newCmdCtx.Running.Log {
+		return true
+	}
+	if oldCmdCtx.Running.LogDir != newCmdCtx.Running.LogDir {
+		return true
+	}
+	if oldCmdCtx.Running.LogMaxAge != newCmdCtx.Running.LogMaxAge {
+		return true
+	}
+	if oldCmdCtx.Running.LogMaxBackups != newCmdCtx.Running.LogMaxBackups {
+		return true
+	}
+	if oldCmdCtx.Running.LogMaxSize != newCmdCtx.Running.LogMaxSize {
+		return true
+	}
+	return false
 }
 
 // findAppFile searches of an application init file.
@@ -305,18 +331,11 @@ func Start(cmdCtx *cmdcontext.CmdCtx) error {
 	if err := createPIDFile(cmdCtx.Running.PIDFile); err != nil {
 		return err
 	}
-
 	defer cleanup(cmdCtx)
-
 	logger := createLogger(cmdCtx)
-
-	inst, err := NewInstance(cmdCtx.Cli.TarantoolExecutable, cmdCtx.Running.AppPath,
-		cmdCtx.Running.ConsoleSocket, os.Environ(), logger, cmdCtx.Running.DataDir)
-	if err != nil {
-		return err
-	}
-
-	wd := NewWatchdog(inst, cmdCtx.Running.Restartable, 5*time.Second, logger)
+	builder := InstBuilderImpl{cmdCtx: cmdCtx, logger: logger}
+	wd := newWatchdog(cmdCtx.Running.Restartable,
+		5*time.Second, builder.logger, &builder, cmdCtx.Cli.ConfigPath)
 	wd.Start()
 
 	return nil
@@ -410,4 +429,40 @@ func Check(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	return nil
+}
+
+// createInstance reads config and creates instance.
+func (builder *InstBuilderImpl) createInstance() (*Instance, error) {
+	oldCmdCtx := builder.cmdCtx
+	cliOpts, err := configure.GetCliOpts(builder.cmdCtx.Cli.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	appPath := builder.cmdCtx.Running.AppPath
+	appDir := cliOpts.App.InstancesAvailable
+	if appDir == "" {
+		if appDir, err = os.Getwd(); err != nil {
+			return nil, err
+		}
+	}
+	appPath = strings.TrimPrefix(appPath, appDir)
+	args := []string{appPath[:len(appPath)-4]}
+
+	if err = FillCtx(cliOpts, builder.cmdCtx, args); err != nil {
+		return nil, err
+	}
+
+	if isLoggerChanged(oldCmdCtx, builder.cmdCtx) {
+		builder.logger.Close()
+		builder.logger = createLogger(builder.cmdCtx)
+	}
+
+	inst, err := NewInstance(builder.cmdCtx.Cli.TarantoolExecutable,
+		builder.cmdCtx.Running.AppPath, builder.cmdCtx.Running.ConsoleSocket,
+		os.Environ(), builder.logger, builder.cmdCtx.Running.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	return inst, nil
 }
