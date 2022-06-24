@@ -23,3 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Module ``tt rocks``, LuaRocks package manager.
 - Module ``tt cat``, to print into stdout the contents of .snap/.xlog files.
 - Module ``tt play``, to play the contents of .snap/.xlog files to another Tarantool instance.
+- Module ``tt crud``, to interact with the [CRUD](http://github.com/tarantool/crud)
+   module of tarantool.
+- Subcommand ``import``, to import data into tarantool via [CRUD](http://github.com/tarantool/crud). 
+ 
