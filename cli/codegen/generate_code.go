@@ -47,6 +47,14 @@ var luaCodeFiles = []generateLuaCodeOpts{
 			"playFile": "cli/checkpoint/lua/play.lua",
 		},
 	},
+	{
+		PackageName: "crud",
+		FileName:    "cli/crud/lua_code_gen.go",
+		VariablesMap: map[string]string{
+			"evalFuncBody":   "cli/connect/lua/eval_func_body.lua",
+			"initCrudImport": "cli/crud/lua/import.lua",
+		},
+	},
 }
 
 func generateLuaCodeVar() error {
