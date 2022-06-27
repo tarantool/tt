@@ -359,7 +359,7 @@ local init_eval_import_prepared_batch = function()
             for tuple_num = 1, box.session.storage.crudimport_batch_table_for_import['tuplesAmount'] do
                 box.session.storage.batch_insert_err[tuple_num] = {}
                 box.session.storage.batch_insert_err[tuple_num]['str'] = box.session.storage.batch_insert_res
-                box.session.storage.batch_insert_err[tuple_num]['tuple'] = tupels_for_import[tuple_num]
+                box.session.storage.batch_insert_err[tuple_num]['operation_data'] = tupels_for_import[tuple_num]
             end
             box.session.storage.batch_insert_res = nil
         end
@@ -427,7 +427,7 @@ local init_eval_get_batch_final_ctx = function()
             end
             for error_tuple_num, error_tuple_val in pairs(box.session.storage.batch_insert_err) do
                 if box.session.storage.crud_import_is_tuples_equal(
-                    error_tuple_val['tuple'],
+                    error_tuple_val['operation_data'],
                     box.session.storage.crudimport_batch_table_for_import
                         ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple']
                     ) and
