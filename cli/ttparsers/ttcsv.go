@@ -107,7 +107,8 @@ func (e *ParseError) Error() string {
 		return fmt.Sprintf("record on line %d: %v", e.Line, e.Err)
 	}
 	if e.StartLine != e.Line {
-		return fmt.Sprintf("record on line %d; parse error on line %d, column %d: %v", e.StartLine, e.Line, e.Column, e.Err)
+		return fmt.Sprintf("record on line %d; parse error on line %d, column %d: %v",
+			e.StartLine, e.Line, e.Column, e.Err)
 	}
 	return fmt.Sprintf("parse error on line %d, column %d: %v", e.Line, e.Column, e.Err)
 }
@@ -368,7 +369,8 @@ parseField:
 			if !r.LazyQuotes {
 				if j := bytes.IndexByte(field, '"'); j >= 0 {
 					col := pos.col + j
-					err = &ParseError{StartLine: recLine, Line: r.NumLine, Column: col, Err: ErrBareQuote}
+					err = &ParseError{StartLine: recLine, Line: r.NumLine,
+						Column: col, Err: ErrBareQuote}
 					break parseField
 				}
 			}
@@ -416,7 +418,8 @@ parseField:
 						r.recordBuffer = append(r.recordBuffer, '"')
 					default:
 						// `"*` sequence (invalid non-escaped quote).
-						err = &ParseError{StartLine: recLine, Line: r.NumLine, Column: pos.col - quoteLen, Err: ErrQuote}
+						err = &ParseError{StartLine: recLine, Line: r.NumLine,
+							Column: pos.col - quoteLen, Err: ErrQuote}
 						break parseField
 					}
 				} else if len(line) > 0 {
@@ -437,7 +440,8 @@ parseField:
 				} else {
 					// Abrupt end of file (EOF or error).
 					if !r.LazyQuotes && errRead == nil {
-						err = &ParseError{StartLine: recLine, Line: pos.line, Column: pos.col, Err: ErrQuote}
+						err = &ParseError{StartLine: recLine, Line: pos.line,
+							Column: pos.col, Err: ErrQuote}
 						break parseField
 					}
 					r.fieldIndexes = append(r.fieldIndexes, len(r.recordBuffer))

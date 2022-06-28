@@ -78,7 +78,8 @@ func Find(src []string, find string) int {
 
 // InternalError shows error information, version of tt and call stack.
 func InternalError(format string, f VersionFunc, err ...interface{}) error {
-	internalErrorFmt := `Whoops! It looks like something is wrong with this version of Tarantool CLI.
+	internalErrorFmt :=
+		`Whoops! It looks like something is wrong with this version of Tarantool CLI.
 Error: %s
 Version: %s
 Stacktrace:

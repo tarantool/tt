@@ -47,7 +47,8 @@ func NewConnectCmd() *cobra.Command {
 
 // resolveInstAddr checks if the instance name is used as the address and
 // replaces it with a control socket if so.
-func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) ([]string, error) {
+func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
+	args []string) ([]string, error) {
 	var err error
 	newArgs := args
 

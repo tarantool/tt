@@ -34,10 +34,14 @@ func NewCmdRoot() *cobra.Command {
 		ValidArgsFunction: RootShellCompletionCommands,
 	}
 
-	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.IsSystem, "system", "S", false, "System launch")
-	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.LocalLaunchDir, "local", "L", "", "Local launch")
-	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.ForceInternal, "internal", "I", false, "Use internal module")
-	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.ConfigPath, "cfg", "c", "", "Path to configuration file")
+	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.IsSystem, "system", "S",
+		false, "System launch")
+	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.LocalLaunchDir, "local", "L",
+		"", "Local launch")
+	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.ForceInternal, "internal", "I",
+		false, "Use internal module")
+	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.ConfigPath, "cfg", "c",
+		"", "Path to configuration file")
 
 	rootCmd.AddCommand(
 		NewVersionCmd(),

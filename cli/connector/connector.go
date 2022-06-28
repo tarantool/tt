@@ -29,8 +29,10 @@ type Conn struct {
 	plainText net.Conn
 	binary    *tarantool.Connection
 
-	evalFunc func(conn *Conn, funcBody string, args []interface{}, execOpts ExecOpts) ([]interface{}, error)
-	callFunc func(conn *Conn, funcName string, args []interface{}, execOpts ExecOpts) ([]interface{}, error)
+	evalFunc func(conn *Conn, funcBody string, args []interface{},
+		execOpts ExecOpts) ([]interface{}, error)
+	callFunc func(conn *Conn, funcName string, args []interface{},
+		execOpts ExecOpts) ([]interface{}, error)
 }
 
 const (

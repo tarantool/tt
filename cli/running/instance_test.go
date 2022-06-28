@@ -21,7 +21,8 @@ const (
 )
 
 // startTestInstance starts instance for the test.
-func startTestInstance(t *testing.T, app string, consoleSock string, logger *ttlog.Logger) *Instance {
+func startTestInstance(t *testing.T, app string, consoleSock string,
+	logger *ttlog.Logger) *Instance {
 	assert := assert.New(t)
 
 	instTestDataDir, err := ioutil.TempDir("", "tarantool_tt_")
@@ -35,7 +36,8 @@ func startTestInstance(t *testing.T, app string, consoleSock string, logger *ttl
 	tarantoolBin, err := exec.LookPath("tarantool")
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
-	inst, err := NewInstance(tarantoolBin, appPath, consoleSock, os.Environ(), logger, instTestDataDir)
+	inst, err := NewInstance(tarantoolBin, appPath, consoleSock, os.Environ(),
+		logger, instTestDataDir)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
 	err = inst.Start()
