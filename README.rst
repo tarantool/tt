@@ -21,6 +21,7 @@ Prerequisites
 To run tests:
 
 * `Python3 <https://www.python.org/downloads/>`_
+* `golangci-lint <https://golangci-lint.run/usage/install/#local-installation>`_
 
 ~~~~~
 Build

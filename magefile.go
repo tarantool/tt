@@ -158,12 +158,12 @@ func Build() error {
 
 // Run golang and python linters.
 func Lint() error {
-	fmt.Println("Running go vet...")
+	fmt.Println("Running golangci-lint...")
 
 	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)
 
-	if err := sh.RunV(goExecutableName, "vet", packagePath); err != nil {
+	if err := sh.RunV("golangci-lint", "run", "--config=golangci-lint.yml"); err != nil {
 		return err
 	}
 

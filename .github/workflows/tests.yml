@@ -69,8 +69,14 @@ jobs:
           tarantool --version
           rpm --version
 
+      - name: Build tt
+        run: mage build
+
       - name: Linter
-        run: mage lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --config=golangci-lint.yml
+          skip-cache: true
 
       - name: Unit tests
         run: mage unit
@@ -147,8 +153,14 @@ jobs:
           tarantool --version
           rpm --version
 
+      - name: Build tt
+        run: mage build
+
       - name: Linter
-        run: mage lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --config=golangci-lint.yml
+          skip-cache: true
 
       - name: Unit tests
         run: mage unit

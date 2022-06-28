@@ -1,0 +1,16 @@
+linters:
+  disable-all: true
+  enable:
+    - lll
+    - govet
+
+linters-settings:
+  lll:
+    line-length: 100
+    tab-width: 4
+
+issues:
+  exclude-rules:
+    - linters:
+      - lll
+      source: "\t?// (see )?https://"
