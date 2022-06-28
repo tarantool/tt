@@ -40,7 +40,8 @@ type PlainTextEvalRes struct {
 // callPlainTextConnYAML calls function on Tarantool instance
 // Function should return `interface{}`, `string` (res, err)
 // to be correctly processed.
-func callPlainTextConn(conn net.Conn, funcName string, args []interface{}, opts EvalPlainTextOpts) ([]interface{}, error) {
+func callPlainTextConn(conn net.Conn, funcName string, args []interface{},
+	opts EvalPlainTextOpts) ([]interface{}, error) {
 	evalFunc, err := util.GetTextTemplatedStr(&callFuncTmpl, map[string]string{
 		"FunctionName": funcName,
 	})
@@ -55,7 +56,8 @@ func callPlainTextConn(conn net.Conn, funcName string, args []interface{}, opts 
 // evalPlainTextConnYAML calls function on Tarantool instance
 // Function should return `interface{}`, `string` (res, err)
 // to be correctly processed.
-func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{}, opts EvalPlainTextOpts) ([]interface{}, error) {
+func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{},
+	opts EvalPlainTextOpts) ([]interface{}, error) {
 	if err := formatAndSendEvalFunc(conn, funcBody, args, evalFuncTmpl); err != nil {
 		return nil, err
 	}
@@ -78,7 +80,8 @@ func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{}, opts 
 	return data, nil
 }
 
-func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{}, evalFuncTmpl string) error {
+func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{},
+	evalFuncTmpl string) error {
 	if args == nil {
 		args = []interface{}{}
 	}
@@ -201,7 +204,8 @@ func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error
 	return dataBytes, nil
 }
 
-func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer, readTimeout time.Duration) ([]byte, error) {
+func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
+	readTimeout time.Duration) ([]byte, error) {
 	tmp := make([]byte, 256)
 	data := make([]byte, 0)
 
@@ -251,7 +255,8 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer, readT
 		}
 
 		if !hasYAMLOutputPrefix &&
-			strings.HasPrefix(dataString, startOfYamlOutput) || strings.HasPrefix(dataString, tagPushPrefixYAML) {
+			strings.HasPrefix(dataString, startOfYamlOutput) ||
+			strings.HasPrefix(dataString, tagPushPrefixYAML) {
 			hasYAMLOutputPrefix = true
 		}
 

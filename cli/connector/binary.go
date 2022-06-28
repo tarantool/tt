@@ -36,17 +36,20 @@ func initBinaryConn(conn *Conn, connOpts *ConnOpts) error {
 	return nil
 }
 
-func evalBinary(conn *Conn, funcBody string, args []interface{}, execOpts ExecOpts) ([]interface{}, error) {
+func evalBinary(conn *Conn, funcBody string, args []interface{},
+	execOpts ExecOpts) ([]interface{}, error) {
 	evalReq := tarantool.Eval(funcBody, args)
 	return processTarantoolReqBinary(conn, evalReq, execOpts)
 }
 
-func callBinary(conn *Conn, funcName string, args []interface{}, execOpts ExecOpts) ([]interface{}, error) {
+func callBinary(conn *Conn, funcName string, args []interface{},
+	execOpts ExecOpts) ([]interface{}, error) {
 	callReq := tarantool.Call(funcName, args)
 	return processTarantoolReqBinary(conn, callReq, execOpts)
 }
 
-func processTarantoolReqBinary(conn *Conn, req *tarantool.Request, execOpts ExecOpts) ([]interface{}, error) {
+func processTarantoolReqBinary(conn *Conn, req *tarantool.Request,
+	execOpts ExecOpts) ([]interface{}, error) {
 	if execOpts.PushCallback != nil {
 		req.WithPush(func(r *tarantool.Response) {
 			execOpts.PushCallback(r.Data[0])
@@ -64,7 +67,8 @@ func processTarantoolReqBinary(conn *Conn, req *tarantool.Request, execOpts Exec
 	return execTarantoolReqBinary(ctx, conn.binary, req, execOpts.ResData)
 }
 
-func execTarantoolReqBinary(ctx context.Context, binaryConn *tarantool.Connection, req *tarantool.Request, resData interface{}) ([]interface{}, error) {
+func execTarantoolReqBinary(ctx context.Context, binaryConn *tarantool.Connection,
+	req *tarantool.Request, resData interface{}) ([]interface{}, error) {
 	var err error
 	var resp *tarantool.Response
 

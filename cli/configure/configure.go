@@ -98,7 +98,8 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 }
 
 // ExternalCmd configures external commands.
-func ExternalCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesInfo, args []string) {
+func ExternalCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
+	modulesInfo *modules.ModulesInfo, args []string) {
 	configureExistsCmd(rootCmd, modulesInfo)
 	configureNonExistentCmd(rootCmd, cmdCtx, modulesInfo, args)
 }
@@ -117,7 +118,8 @@ func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo
 
 // configureNonExistentCmd configures an external command that
 // has no internal implementation within the Tarantool CLI.
-func configureNonExistentCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesInfo, args []string) {
+func configureNonExistentCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
+	modulesInfo *modules.ModulesInfo, args []string) {
 	// Since the user can pass flags, to determine the name of
 	// an external command we have to take the first non-flag argument.
 	externalCmd := args[0]
@@ -140,14 +142,16 @@ func configureNonExistentCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx, 
 	if module, ok := (*modulesInfo)[externalCmd]; ok {
 		if !module.IsInternal {
 			rootCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, nil))
-			helpCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, []string{"--help"}))
+			helpCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd,
+				[]string{"--help"}))
 		}
 	}
 }
 
 // newExternalCommand returns a pointer to a new external
 // command that will call modules.RunCmd.
-func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesInfo, cmdName string, addArgs []string) *cobra.Command {
+func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesInfo,
+	cmdName string, addArgs []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: cmdName,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -211,7 +215,8 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
 	if _, err := os.Stat(localTarantool); err == nil {
 		if _, err := exec.LookPath(localTarantool); err != nil {
 			return fmt.Errorf(
-				`Found Tarantool binary in local directory "%s" isn't executable: %s`, launchDir, err)
+				`Found Tarantool binary in local directory "%s" isn't executable: %s`,
+				launchDir, err)
 		}
 
 		cmdCtx.Cli.TarantoolExecutable = localTarantool
