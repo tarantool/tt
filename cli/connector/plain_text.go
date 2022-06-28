@@ -13,12 +13,14 @@ func initPlainTextConn(conn *Conn, plainTextConn net.Conn) error {
 	return nil
 }
 
-func evalPlainText(conn *Conn, funcBody string, args []interface{}, execOpts ExecOpts) ([]interface{}, error) {
+func evalPlainText(conn *Conn, funcBody string, args []interface{},
+	execOpts ExecOpts) ([]interface{}, error) {
 	evalPlainTextOpts := getEvalPlainTextOpts(execOpts)
 	return evalPlainTextConn(conn.plainText, funcBody, args, evalPlainTextOpts)
 }
 
-func callPlainText(conn *Conn, funcName string, args []interface{}, execOpts ExecOpts) ([]interface{}, error) {
+func callPlainText(conn *Conn, funcName string, args []interface{},
+	execOpts ExecOpts) ([]interface{}, error) {
 	evalPlainTextOpts := getEvalPlainTextOpts(execOpts)
 	return callPlainTextConn(conn.plainText, funcName, args, evalPlainTextOpts)
 }

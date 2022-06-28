@@ -31,7 +31,8 @@ func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) err
 		}
 
 		args = modules.GetDefaultCmdArgs("help")
-		err := modules.RunCmd(cmdCtx, "help", &modulesInfo, getInternalHelpFunc(cmd, defaultHelp), args)
+		err := modules.RunCmd(cmdCtx, "help", &modulesInfo,
+			getInternalHelpFunc(cmd, defaultHelp), args)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}

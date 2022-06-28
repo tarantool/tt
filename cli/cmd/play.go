@@ -39,11 +39,16 @@ func NewPlayCmd() *cobra.Command {
 		},
 	}
 
-	playCmd.Flags().Uint64Var(&playFlags.To, "to", playFlags.To, "Show operations ending with the given lsn")
-	playCmd.Flags().Uint64Var(&playFlags.From, "from", playFlags.From, "Show operations starting from the given lsn")
-	playCmd.Flags().IntSliceVar(&playFlags.Space, "space", playFlags.Space, "Filter the output by space number. May be passed more than once")
-	playCmd.Flags().IntSliceVar(&playFlags.Replica, "replica", playFlags.Replica, "Filter the output by replica id. May be passed more than once")
-	playCmd.Flags().BoolVar(&playFlags.ShowSystem, "show-system", playFlags.ShowSystem, "Show the contents of system spaces")
+	playCmd.Flags().Uint64Var(&playFlags.To, "to", playFlags.To,
+		"Show operations ending with the given lsn")
+	playCmd.Flags().Uint64Var(&playFlags.From, "from", playFlags.From,
+		"Show operations starting from the given lsn")
+	playCmd.Flags().IntSliceVar(&playFlags.Space, "space", playFlags.Space,
+		"Filter the output by space number. May be passed more than once")
+	playCmd.Flags().IntSliceVar(&playFlags.Replica, "replica", playFlags.Replica,
+		"Filter the output by replica id. May be passed more than once")
+	playCmd.Flags().BoolVar(&playFlags.ShowSystem, "show-system", playFlags.ShowSystem,
+		"Show the contents of system spaces")
 
 	return playCmd
 }
@@ -57,7 +62,10 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// List of files and URI is passed to lua play scipt via environment variable in json format.
 	filesAndUriJson, err := json.Marshal(args)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with files and uri: %s", version.GetVersion, err)
+		util.InternalError(
+			"Internal error: problem with creating json params with files and uri: %s",
+			version.GetVersion, err,
+		)
 	}
 
 	os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndUriJson))
@@ -66,7 +74,11 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// List of spaces is passed to lua play scipt via environment variable in json format.
 	spacesJson, err := json.Marshal(playFlags.Space)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with spaces: %s", version.GetVersion, err)
+		util.InternalError(
+			"Internal error: problem with creating json params with spaces: %s",
+			version.GetVersion,
+			err,
+		)
 	}
 	if string(spacesJson) != "null" {
 		os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJson))
@@ -78,7 +90,11 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// List of replicas is passed to lua play scipt via environment variable in json format.
 	replicasJson, err := json.Marshal(playFlags.Replica)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with replicas: %s", version.GetVersion, err)
+		util.InternalError(
+			"Internal error: problem with creating json params with replicas: %s",
+			version.GetVersion,
+			err,
+		)
 	}
 	if string(replicasJson) != "null" {
 		os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJson))

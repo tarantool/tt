@@ -40,12 +40,18 @@ func NewCatCmd() *cobra.Command {
 		},
 	}
 
-	catCmd.Flags().Uint64Var(&catFlags.To, "to", catFlags.To, "Show operations ending with the given lsn")
-	catCmd.Flags().Uint64Var(&catFlags.From, "from", catFlags.From, "Show operations starting from the given lsn")
-	catCmd.Flags().IntSliceVar(&catFlags.Space, "space", catFlags.Space, "Filter the output by space number. May be passed more than once")
-	catCmd.Flags().StringVar(&catFlags.Format, "format", catFlags.Format, "Output format yaml, json or lua")
-	catCmd.Flags().IntSliceVar(&catFlags.Replica, "replica", catFlags.Replica, "Filter the output by replica id. May be passed more than once")
-	catCmd.Flags().BoolVar(&catFlags.ShowSystem, "show-system", catFlags.ShowSystem, "Show the contents of system spaces")
+	catCmd.Flags().Uint64Var(&catFlags.To, "to", catFlags.To,
+		"Show operations ending with the given lsn")
+	catCmd.Flags().Uint64Var(&catFlags.From, "from", catFlags.From,
+		"Show operations starting from the given lsn")
+	catCmd.Flags().IntSliceVar(&catFlags.Space, "space", catFlags.Space,
+		"Filter the output by space number. May be passed more than once")
+	catCmd.Flags().StringVar(&catFlags.Format, "format", catFlags.Format,
+		"Output format yaml, json or lua")
+	catCmd.Flags().IntSliceVar(&catFlags.Replica, "replica", catFlags.Replica,
+		"Filter the output by replica id. May be passed more than once")
+	catCmd.Flags().BoolVar(&catFlags.ShowSystem, "show-system", catFlags.ShowSystem,
+		"Show the contents of system spaces")
 
 	return catCmd
 }
@@ -59,7 +65,8 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// List of files is passed to lua cat scipt via environment variable in json format.
 	filesJson, err := json.Marshal(args)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with files: %s", version.GetVersion, err)
+		util.InternalError("Internal error: problem with creating json params with files: %s",
+			version.GetVersion, err)
 	}
 
 	os.Setenv("TT_CLI_CAT_FILES", string(filesJson))
@@ -69,7 +76,8 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// List of spaces is passed to lua cat scipt via environment variable in json format.
 	spacesJson, err := json.Marshal(catFlags.Space)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with spaces: %s", version.GetVersion, err)
+		util.InternalError("Internal error: problem with creating json params with spaces: %s",
+			version.GetVersion, err)
 	}
 	if string(spacesJson) != "null" {
 		os.Setenv("TT_CLI_CAT_SPACES", string(spacesJson))
@@ -81,7 +89,8 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// List of replicas is passed to lua cat scipt via environment variable in json format.
 	replicasJson, err := json.Marshal(catFlags.Replica)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with replicas: %s", version.GetVersion, err)
+		util.InternalError("Internal error: problem with creating json params with replicas: %s",
+			version.GetVersion, err)
 	}
 	if string(replicasJson) != "null" {
 		os.Setenv("TT_CLI_CAT_REPLICAS", string(replicasJson))

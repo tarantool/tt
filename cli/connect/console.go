@@ -222,7 +222,8 @@ func getExecutor(console *Console) prompt.Executor {
 
 func inputIsCompleted(input string, luaState *lua.LState) bool {
 	// See https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/src/box/lua/console.lua#L575
-	if _, err := luaState.LoadString(input); err == nil || !strings.Contains(err.Error(), "at EOF") {
+	if _, err := luaState.LoadString(input); err == nil ||
+		!strings.Contains(err.Error(), "at EOF") {
 		// Valid Lua code or a syntax error not due to an incomplete input.
 		return true
 	}

@@ -29,7 +29,8 @@ type ModuleInfo struct {
 type ModulesInfo map[string]*ModuleInfo
 
 // GetModulesInfo collects information about available modules (both external and internal).
-func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command, cliOpts *config.CliOpts) (ModulesInfo, error) {
+func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command,
+	cliOpts *config.CliOpts) (ModulesInfo, error) {
 	modulesDir, err := getExternalModulesDir(cmdCtx, cliOpts)
 	if err != nil {
 		return nil, err

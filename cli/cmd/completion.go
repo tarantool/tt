@@ -29,7 +29,8 @@ func NewCompletionCmd() *cobra.Command {
 }
 
 // RootShellCompletionCommands returns a list of external commands for autocomplete.
-func RootShellCompletionCommands(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func RootShellCompletionCommands(cmd *cobra.Command, args []string,
+	toComplete string) ([]string, cobra.ShellCompDirective) {
 	var commands []string
 	for name, info := range modulesInfo {
 		if !info.IsInternal {
