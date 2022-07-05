@@ -15,6 +15,7 @@ local crud_evals_init_complete = false
 box.session.storage.batch_insert_res = nil
 box.session.storage.batch_insert_err = nil
 box.session.storage.null_val_interpretation = nil
+box.session.storage.crud_stored_procedure_opts = nil
 
 -- Map string to boolean if possible, else return nil.
 local toboolean = function(value)
@@ -93,6 +94,13 @@ local init_eval_set_null_interpretation = function()
         end
 
         return false
+    end
+end
+
+-- Sets rollback-on-error to crud batching operation opts.
+local init_eval_set_rollback_on_error = function()
+    box.session.storage.crudimport_set_rollback_on_error = function()
+        box.session.storage.crud_stored_procedure_opts = { rollback_on_error = true }
     end
 end
 
@@ -352,7 +360,8 @@ local init_eval_import_prepared_batch = function()
         crud_ok, box.session.storage.batch_insert_res, box.session.storage.batch_insert_err = pcall(
             box.session.storage.crudimport_batch_stored_procedure,
                 box.session.storage.crudimport_targetspace,
-                tupels_for_import
+                tupels_for_import,
+                box.session.storage.crud_stored_procedure_opts
         )
         if not crud_ok then
             box.session.storage.batch_insert_err = {}
@@ -367,11 +376,11 @@ local init_eval_import_prepared_batch = function()
         -- box.session.storage.batch_insert_res, box.session.storage.batch_insert_err =
         --     box.session.storage.crudimport_batch_stored_procedure(
         --         box.session.storage.crudimport_targetspace,
-        --         tupels_for_import
+        --         tupels_for_import,
+        --         box.session.storage.crud_stored_procedure_opts
         -- )
     end
 end
-
 
 -- Due to the current design of crud batching, the equal tuples are indistinguishable
 -- in the variables RES/ERR and uploaded tuples at router.
@@ -453,6 +462,7 @@ local init_session_storage = function()
     init_eval_set_targetspace()
     init_eval_check_targetspace_exist()
     init_eval_set_null_interpretation()
+    init_eval_set_rollback_on_error()
     init_eval_upload_batch_from_parser()
     init_eval_get_prepared_batch_table()
     init_eval_swap_according_to_header()

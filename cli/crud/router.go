@@ -38,6 +38,11 @@ func initRouter(conn *connector.Conn, spaceName string, crudImportFlags *ImportO
 	if err := setNullInterpretation(conn, crudImportFlags.NullVal); err != nil {
 		return err
 	}
+	if crudImportFlags.RollbackOnError {
+		if err := setRollbackOnError(conn); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -127,6 +132,16 @@ func setNullInterpretation(conn *connector.Conn, nullVal string) error {
 		}
 
 		return fmt.Errorf(string(resYAML[5:]))
+	}
+
+	return nil
+}
+
+// setRollbackOnError sets rollback-on-error to crud batching operation opts.
+func setRollbackOnError(conn *connector.Conn) error {
+	_, err := conn.Eval(evalSetRollbackOnError())
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -249,6 +264,11 @@ func evalCheckTargetSpaceExist() string {
 func evalSetNullInterpretation(nullVal string) string {
 	funcArg := "('" + nullVal + "')"
 	return "box.session.storage.crudimport_set_null_interpretation" + funcArg
+}
+
+// evalSetRollbackOnError generates an eval for a call on the router side.
+func evalSetRollbackOnError() string {
+	return "box.session.storage.crudimport_set_rollback_on_error()"
 }
 
 // evalSetCrudOperation generates an eval for a call on the router side.

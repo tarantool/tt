@@ -37,6 +37,7 @@ var crudImportFlags = crud.ImportOpts{
 	Operation:       "insert",
 	OnError:         "stop",
 	NullVal:         "",
+	RollbackOnError: false,
 }
 
 // NewImportCmd creates a new import subcommand for crud command.
@@ -97,6 +98,9 @@ func NewImportCmd() *cobra.Command {
 		crudImportFlags.NullVal, "sets value to be interpreted as NULL when importing. "+
 			"By default, an empty value. Example for csv: field1val,,field3val, "+
 			"where field2val will be taken as NULL")
+	importCmd.Flags().BoolVarP(&crudImportFlags.RollbackOnError, "rollback-on-error", "",
+		crudImportFlags.RollbackOnError, "any failed operation on router will lead to rollback on"+
+			" a storage, where the operation is failed")
 
 	return importCmd
 }
