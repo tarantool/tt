@@ -12,8 +12,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// initRouterConnection establishes a connection to the router.
-func initRouterConnection(uri string, crudImportFlags *ImportOpts) (*connector.Conn, error) {
+// openRouterConnection establishes a connection to the router.
+func openRouterConnection(uri string, crudImportFlags *ImportOpts) (*connector.Conn, error) {
 	conn, err := connector.Connect(uri, crudImportFlags.ConnectUsername,
 		crudImportFlags.ConnectPassword)
 	if err != nil {
@@ -21,6 +21,25 @@ func initRouterConnection(uri string, crudImportFlags *ImportOpts) (*connector.C
 	}
 
 	return conn, nil
+}
+
+// initRouter performs initialization actions on the router: set session storage evals,
+// target space, crud stored procedure for import, null interpretation.
+func initRouter(conn *connector.Conn, spaceName string, crudImportFlags *ImportOpts) error {
+	if err := initCrudImportSessionStorageEvals(conn); err != nil {
+		return err
+	}
+	if err := setTargetSpace(conn, spaceName); err != nil {
+		return err
+	}
+	if err := setCrudOperation(conn, crudImportFlags.Operation); err != nil {
+		return err
+	}
+	if err := setNullInterpretation(conn, crudImportFlags.NullVal); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // initCrudImportSessionStorageEvals sets eval to session storage.
@@ -268,28 +287,21 @@ func evalGetBatchImportCtx() string {
 
 // mainRouterOperations performs communication actions with the router to import the batch.
 // Returns the updated after import batch and a dump sybsystem fatal error if it occurred.
-func mainRouterOperations(
-	isLastBatch bool,
-	batch *Batch,
-	batchSequenceCtx *BatchSequenceCtx,
-	progressCtx *ProgressCtx,
-	crudImportFlags *ImportOpts,
-	dumpSubsystemFd *DumpSubsystemFd,
-	conn *connector.Conn,
-	csvReader *ttcsv.Reader,
-) (*Batch, error) {
+func mainRouterOperations(isLastBatch bool, batch *Batch, batchSequenceCtx *BatchSequenceCtx,
+	progressCtx *ProgressCtx, crudImportFlags *ImportOpts, dumpSubsystemFiles *DumpSubsystemFiles,
+	conn *connector.Conn, csvReader *ttcsv.Reader) (*Batch, error) {
 	// Init struct with args for disk dump subsystem.
 	var dumpSubsystemArgs *DumpSubsystemArgs = &DumpSubsystemArgs{
-		dumpSubsystemFd: dumpSubsystemFd,
-		progressCtx:     progressCtx,
-		crudImportFlags: crudImportFlags,
+		dumpSubsystemFiles: dumpSubsystemFiles,
+		progressCtx:        progressCtx,
+		crudImportFlags:    crudImportFlags,
 	}
 
 	if err := uploadBatchToRouter(conn, batch, csvReader); err != nil {
 		dumpSubsystemArgs.batch = batch
 		dumpSubsystemArgs.caughtErr = err
 		if err := runDumpSubsystem(dumpSubsystemArgs); err != nil {
-			logDumpSubsystemMalfunction()
+			printDumpSubsystemMalfunction()
 			return batch, err
 		}
 
@@ -306,7 +318,7 @@ func mainRouterOperations(
 			dumpSubsystemArgs.batch = batch
 			dumpSubsystemArgs.caughtErr = err
 			if err := runDumpSubsystem(dumpSubsystemArgs); err != nil {
-				logDumpSubsystemMalfunction()
+				printDumpSubsystemMalfunction()
 				return batch, err
 			}
 
@@ -323,7 +335,7 @@ func mainRouterOperations(
 		dumpSubsystemArgs.batch = batch
 		dumpSubsystemArgs.caughtErr = err
 		if err := runDumpSubsystem(dumpSubsystemArgs); err != nil {
-			logDumpSubsystemMalfunction()
+			printDumpSubsystemMalfunction()
 			return batch, err
 		}
 
@@ -339,7 +351,7 @@ func mainRouterOperations(
 		dumpSubsystemArgs.batch = batch
 		dumpSubsystemArgs.caughtErr = err
 		if err := runDumpSubsystem(dumpSubsystemArgs); err != nil {
-			logDumpSubsystemMalfunction()
+			printDumpSubsystemMalfunction()
 			return batch, err
 		}
 
@@ -358,7 +370,7 @@ func mainRouterOperations(
 		dumpSubsystemArgs.batch = batch
 		dumpSubsystemArgs.caughtErr = err
 		if err := runDumpSubsystem(dumpSubsystemArgs); err != nil {
-			logDumpSubsystemMalfunction()
+			printDumpSubsystemMalfunction()
 			return batch, err
 		}
 
@@ -379,7 +391,7 @@ func mainRouterOperations(
 	dumpSubsystemArgs.batch = updatedBatch[0]
 	dumpSubsystemArgs.caughtErr = err
 	if err := runDumpSubsystem(dumpSubsystemArgs); err != nil {
-		logDumpSubsystemMalfunction()
+		printDumpSubsystemMalfunction()
 		return batch, err
 	}
 
@@ -388,8 +400,8 @@ func mainRouterOperations(
 		batch = moveBatchWindow(batchSequenceCtx)
 	}
 
-	if err := dumpProgressFile(dumpSubsystemArgs.dumpSubsystemFd, progressCtx); err != nil {
-		logDumpSubsystemMalfunction()
+	if err := dumpProgressFile(dumpSubsystemArgs.dumpSubsystemFiles, progressCtx); err != nil {
+		printDumpSubsystemMalfunction()
 		return batch, err
 	}
 

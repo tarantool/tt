@@ -5,7 +5,6 @@ package crud
 
 import (
 	"bufio"
-	"os"
 
 	ttcsv "github.com/tarantool/tt/cli/ttparsers"
 )
@@ -40,44 +39,24 @@ type ImportOpts struct {
 	NullVal string
 }
 
-// ImportSummary contains information for the import summary.
-type ImportSummary struct {
-	// readTotal is counter of total iterations of the parser.
-	readTotal uint32
-	// ignoredDueToProgress is counter of skipped iterations of the parser due to progress file.
-	ignoredDueToProgress uint32
-	// parsedSuccess is counter of succsess iterations of the parser.
-	parsedSuccess uint32
-	// parsedError is counter of fail iterations of the parser.
-	parsedError uint32
-	// importedSuccess is counter of succsess iterations of crud stored procedure.
-	importedSuccess uint32
-	// importedError is counter of fail iterations of crud stored procedure.
-	importedError uint32
-}
-
-// ParserCtx contains the tuple information that related to the parsing process.
-type ParserCtx struct {
-	// CsvRecordPosition is current position in input csv file.
-	CsvRecordPosition uint32 `yaml:"csvRecordPosition" json:"csvRecordPosition"`
-	// UnparsedCsvRecord is current unparsed csv record.
-	UnparsedCsvRecord string `yaml:"unparsedCsvRecord" json:"unparsedCsvRecord"`
-	// ParsedSuccess indicates the success of last parsing iteration.
-	ParsedSuccess bool `yaml:"parsedSuccess" json:"parsedSuccess"`
-	// ParsedCsvRecord contains parsed result of last parsing iteration.
-	ParsedCsvRecord []string `yaml:"parsedCsvRecord" json:"parsedCsvRecord"`
-	// ErrorMsg contains error description of last parsing iteration.
-	ErrorMsg string `yaml:"errorMsg" json:"errorMsg"`
-}
-
-// CrudCtx contains the tuple information that related to the crud work on router side.
-type CrudCtx struct {
-	// Imported indicates the success of the import.
-	Imported bool `yaml:"imported" json:"imported"`
-	// CastedTuple сontains a set of converted (on router side) fields to insert into space.
-	CastedTuple []interface{} `yaml:"castedTuple"  json:"castedTuple"`
-	// Err сontains error description from crud stored procedure.
-	Err string `yaml:"err" json:"err"`
+// Record contains information that related to the parsing process and crud working.
+type Record struct {
+	// Position is line number in input file.
+	Position uint32 `yaml:"position" json:"position"`
+	// Raw contains unparsed record.
+	Raw string `yaml:"raw" json:"raw"`
+	// Parsed contains parsed record.
+	Parsed []string `yaml:"parsed" json:"parsed"`
+	// Casted сontains a set of converted (on router side) fields to insert into space.
+	Casted []interface{} `yaml:"casted"  json:"casted"`
+	// ParserSuccess indicates the success of parsing process.
+	ParserSuccess bool `yaml:"parserSuccess" json:"parserSuccess"`
+	// ParserErr contains error description of parsing process.
+	ParserErr string `yaml:"parserErr" json:"parserErr"`
+	// ImportSuccess indicates the success of import.
+	ImportSuccess bool `yaml:"importSuccess" json:"importSuccess"`
+	// CrudErr сontains error description from crud stored procedure.
+	CrudErr string `yaml:"crudErr" json:"crudErr"`
 }
 
 // Tuple contains the context of a tuple within a batch.
@@ -87,10 +66,8 @@ type Tuple struct {
 	// For uninitialized tuples within a batch, a 0 value is used.
 	// The current number of initialized tuples is recorded in struct Batch->TuplesAmount.
 	Number uint32 `yaml:"Number" json:"Number"`
-	// ParserCtx contains parser context related to this tuple.
-	ParserCtx ParserCtx `yaml:"parserCtx" json:"parserCtx"`
-	// CrudCtx contains router side context related to this tuple.
-	CrudCtx CrudCtx `yaml:"crudCtx" json:"crudCtx"`
+	// Record contains parser and crud contexts related to this tuple.
+	Record Record `yaml:"record" json:"record"`
 }
 
 // Batch contains the context of the batch, including necessary meta information for crud.
@@ -111,16 +88,16 @@ type ProgressCtx struct {
 	StartTimestamp string `yaml:"startTimestamp" json:"startTimestamp"`
 	// LastDumpTimestamp contains the time of last write to progress file of this launch.
 	LastDumpTimestamp string `yaml:"lastDumpTimestamp" json:"lastDumpTimestamp"`
-	// EndOfFileReached indicates has the EOF been reached or not.
-	EndOfFileReached bool `yaml:"endOfFileReached" json:"endOfFileReached"`
+	// EOF indicates has the EOF been reached or not.
+	EOF bool `yaml:"endOfFileReached" json:"endOfFileReached"`
 	// LastPosition contains last processing position of input file in this launch.
 	LastPosition uint32 `yaml:"lastPosition" json:"lastPosition"`
 	// RetryPosition contains positions of input file that could not be imported in this launch.
 	RetryPosition []uint32 `yaml:"retryPositions" json:"retryPositions"`
-	// lastPositionPrevProgress contains LastPosition from previous version of progress file.
-	lastPositionPrevProgress uint32
-	// retryPositionPrevProgress contains RetryPosition from previous version of progress file.
-	retryPositionPrevProgress []uint32
+	// prevLastPosition contains LastPosition from previous version of progress file.
+	prevLastPosition uint32
+	// prevRetryPosition contains RetryPosition from previous version of progress file.
+	prevRetryPosition []uint32
 }
 
 // BatchSequenceCtx contains the context for
@@ -165,7 +142,7 @@ func (ctx *UnparsedCsvReaderCtx) updateOnError() (uint32, string) {
 	ctx.scanner.Scan()
 	ctx.currentRecord += ctx.scanner.Text()
 	currentPosition, currentRec := ctx.masterPosition, ctx.currentRecord
-	// clearing the current line in the ctx to write a new line on the next iteration of parser.
+	// Clearing the current line in the ctx to write a new line on the next iteration of parser.
 	ctx.currentRecord = ""
 
 	return currentPosition, currentRec
@@ -199,41 +176,8 @@ func (ctx *UnparsedCsvReaderCtx) updateOnSuccess(csvReader *ttcsv.Reader) (uint3
 		currentPosition = ctx.masterPosition
 	}
 	currentRec := ctx.currentRecord
-	// clearing the current line in the ctx to write a new line on the next iteration of parser.
+	// Clearing the current line in the ctx to write a new line on the next iteration of parser.
 	ctx.currentRecord = ""
 
 	return currentPosition, currentRec
-}
-
-// DumpSubsystemFd contains file descriptors for the disk dump subsystem.
-type DumpSubsystemFd struct {
-	// logFile is file descriptor for writing logs about unsuccessful imported data.
-	logFile *os.File
-	// errorFile is file descriptor for writing records that was not imported.
-	errorFile *os.File
-	// successFile is file descriptor for writing records that was imported.
-	successFile *os.File
-	// progressFile is file descriptor for writing import progress information.
-	progressFile *os.File
-}
-
-// DumpSubsystemArgs contains args for runDumpSubsystem func
-type DumpSubsystemArgs struct {
-	// batch contains context for the current batch.
-	batch *Batch
-	// caughtErr is error that occurred during work.
-	caughtErr error
-	// dumpSubsystemFd contains file descriptors of disk dump subsystem.
-	dumpSubsystemFd *DumpSubsystemFd
-	// progressCtx contains current context for the progress file.
-	progressCtx *ProgressCtx
-	// crudImportFlags contains import options.
-	crudImportFlags *ImportOpts
-}
-
-// close performs closing of file descriptors of the disk dump subsystem.
-func (dumpSubsystemFd *DumpSubsystemFd) close() {
-	dumpSubsystemFd.logFile.Close()
-	dumpSubsystemFd.errorFile.Close()
-	dumpSubsystemFd.successFile.Close()
 }

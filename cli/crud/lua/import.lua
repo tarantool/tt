@@ -104,19 +104,19 @@ local init_eval_upload_batch_from_parser = function()
             box.session.storage.crudimport_bin_batch_from_parser = json_batch_bin
             box.session.storage.crudimport_batch_table_for_import = json.decode(jsonstr)
             for tuple_num, tuple in pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
-                if tuple['parserCtx']['parsedCsvRecord'] == nil then
+                if tuple['record']['parsed'] == nil then
                     -- Case of batch with tupleAmount < batchSize.
-                    tuple['parserCtx']['parsedCsvRecord'] = {}
+                    tuple['record']['parsed'] = {}
                 end
                 -- Logic of NULL value set.
-                for key, val in pairs(tuple['parserCtx']['parsedCsvRecord']) do
+                for key, val in pairs(tuple['record']['parsed']) do
                     if val == '' and box.session.storage.null_val_interpretation == nil then
                         box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][tuple_num]['parserCtx']['parsedCsvRecord'][key] = json.NULL
+                            ['tuples'][tuple_num]['record']['parsed'][key] = json.NULL
                     elseif val == box.session.storage.null_val_interpretation and
                             box.session.storage.null_val_interpretation ~= nil then
                                 box.session.storage.crudimport_batch_table_for_import
-                                    ['tuples'][tuple_num]['parserCtx']['parsedCsvRecord'][key] = json.NULL
+                                    ['tuples'][tuple_num]['record']['parsed'][key] = json.NULL
                     end
                 end
             end
@@ -143,12 +143,12 @@ local init_eval_swap_according_to_header = function()
         -- Actions to prevent indexing of null values.
         for parsed_tuple_num, _ in pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
             box.session.storage.crudimport_batch_table_for_import
-                ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple'] = {}
+                ['tuples'][parsed_tuple_num]['record']['castedTuple'] = {}
             -- Case for batch with tupels amount < batchSize.
             if box.session.storage.crudimport_batch_table_for_import
-                ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'] == nil then
+                ['tuples'][parsed_tuple_num]['record']['parsed'] == nil then
                     box.session.storage.crudimport_batch_table_for_import
-                        ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'] = {}
+                        ['tuples'][parsed_tuple_num]['record']['parsed'] = {}
                 end
         end
 
@@ -186,7 +186,7 @@ local init_eval_swap_according_to_header = function()
 
         for parsed_tuple_num, _ in pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
             if box.session.storage.crudimport_batch_table_for_import
-                    ['tuples'][parsed_tuple_num]['parserCtx']['parsedSuccess'] ~= true then
+                    ['tuples'][parsed_tuple_num]['record']['parserSuccess'] ~= true then
                         goto skip_tuple_mapping
             end
 
@@ -196,10 +196,10 @@ local init_eval_swap_according_to_header = function()
             end
             for i = 1, #box.session.storage.crudimport_targetspace_format do
                 if box.session.storage.crudimport_batch_table_for_import
-                    ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][permutation_match_map[i]] ~= nil then
+                    ['tuples'][parsed_tuple_num]['record']['parsed'][permutation_match_map[i]] ~= nil then
                     if permutation_match_map[i] ~= json.NULL then
                         candidate_tule[i] = box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][permutation_match_map[i]]
+                            ['tuples'][parsed_tuple_num]['record']['parsed'][permutation_match_map[i]]
                     else
                         candidate_tule[i] = json.NULL
                     end
@@ -207,7 +207,7 @@ local init_eval_swap_according_to_header = function()
             end
 
             box.session.storage.crudimport_batch_table_for_import
-                                ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'] = candidate_tule
+                                ['tuples'][parsed_tuple_num]['record']['parsed'] = candidate_tule
 
             ::skip_tuple_mapping::
         end
@@ -225,22 +225,22 @@ local init_eval_cast_tuples_to_scapce_format = function()
         -- Actions to prevent indexing of null values.
         for parsed_tuple_num, _ in pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
             box.session.storage.crudimport_batch_table_for_import
-                ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple'] = {}
+                ['tuples'][parsed_tuple_num]['record']['castedTuple'] = {}
             -- Case for batch with tupels amount < batchSize.
             if box.session.storage.crudimport_batch_table_for_import
-                ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'] == nil then
+                ['tuples'][parsed_tuple_num]['record']['parsed'] == nil then
                     box.session.storage.crudimport_batch_table_for_import
-                        ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'] = {}
+                        ['tuples'][parsed_tuple_num]['record']['parsed'] = {}
                 end
         end
 
         for parsed_tuple_num, parsed_tuple_val in
                 pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
-            for parsedTupleFIeldNum, parsedTupleFIeldVal in pairs(parsed_tuple_val['parserCtx']['parsedCsvRecord']) do
+            for parsedTupleFIeldNum, parsedTupleFIeldVal in pairs(parsed_tuple_val['record']['parsed']) do
                 if box.session.storage.crudimport_batch_table_for_import
-                    ['tuples'][parsed_tuple_num]['parserCtx']['parsedSuccess'] == true then
+                    ['tuples'][parsed_tuple_num]['record']['parserSuccess'] == true then
                         box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple'][parsedTupleFIeldNum]
+                            ['tuples'][parsed_tuple_num]['record']['castedTuple'][parsedTupleFIeldNum]
                                 = parsedTupleFIeldVal
                 end
             end
@@ -248,7 +248,7 @@ local init_eval_cast_tuples_to_scapce_format = function()
 
         for parsed_tuple_num, _ in pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
             if box.session.storage.crudimport_batch_table_for_import
-                ['tuples'][parsed_tuple_num]['parserCtx']['parsedSuccess'] ~= true then
+                ['tuples'][parsed_tuple_num]['record']['parserSuccess'] ~= true then
                     goto skip_tuple
                 end
                 for format_record_number, format_record in pairs(box.session.storage.crudimport_targetspace_format) do
@@ -260,16 +260,16 @@ local init_eval_cast_tuples_to_scapce_format = function()
                     )
                       and
                         type(box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][format_record_number])
+                            ['tuples'][parsed_tuple_num]['record']['parsed'][format_record_number])
                                 == 'string' then
                         -- TODO: write separate function for th-sep.
                         local assump_number = box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][format_record_number]
+                            ['tuples'][parsed_tuple_num]['record']['parsed'][format_record_number]
                         assump_number = assump_number:gsub(' ', '')
                         assump_number = assump_number:gsub('`', '')
                         if tonumber(assump_number) ~= nil then
                             box.session.storage.crudimport_batch_table_for_import
-                                ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple'][format_record_number]
+                                ['tuples'][parsed_tuple_num]['record']['castedTuple'][format_record_number]
                                     = tonumber(assump_number)
                         end
                     end
@@ -280,16 +280,16 @@ local init_eval_cast_tuples_to_scapce_format = function()
                     )
                       and
                         type(box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][format_record_number])
+                            ['tuples'][parsed_tuple_num]['record']['parsed'][format_record_number])
                                 == 'string' then
                         -- TODO: write separate function for th-sep.
                         local assump_number = tostring(box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][format_record_number])
+                            ['tuples'][parsed_tuple_num]['record']['parsed'][format_record_number])
                         assump_number = assump_number:gsub(' ', '')
                         assump_number = assump_number:gsub('`', '')
                         if pcall(ffi.cast, 'double', tonumber(assump_number)) ~= false then
                             box.session.storage.crudimport_batch_table_for_import
-                                ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple'][format_record_number] =
+                                ['tuples'][parsed_tuple_num]['record']['castedTuple'][format_record_number] =
                                                                             ffi.cast('double', tonumber(assump_number))
                         end
                     end
@@ -299,16 +299,16 @@ local init_eval_cast_tuples_to_scapce_format = function()
                     )
                       and
                         type(box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][format_record_number])
+                            ['tuples'][parsed_tuple_num]['record']['parsed'][format_record_number])
                                 == 'string' then
                         -- TODO: write separate function for th-sep.
                         local assump_number = tostring(box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][format_record_number])
+                            ['tuples'][parsed_tuple_num]['record']['parsed'][format_record_number])
                         assump_number = assump_number:gsub(' ', '')
                         assump_number = assump_number:gsub('`', '')
                         if pcall(decimal.new, assump_number) ~= false then
                             box.session.storage.crudimport_batch_table_for_import
-                                ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple'][format_record_number] =
+                                ['tuples'][parsed_tuple_num]['record']['castedTuple'][format_record_number] =
                                                                                         decimal.new(assump_number)
                         end
                     end
@@ -318,12 +318,12 @@ local init_eval_cast_tuples_to_scapce_format = function()
                     )
                       and
                         toboolean(box.session.storage.crudimport_batch_table_for_import
-                            ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][format_record_number]) ~= nil
+                            ['tuples'][parsed_tuple_num]['record']['parsed'][format_record_number]) ~= nil
                       then
                         box.session.storage.crudimport_batch_table_for_import
-                                ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple'][format_record_number] =
+                                ['tuples'][parsed_tuple_num]['record']['castedTuple'][format_record_number] =
                             toboolean(box.session.storage.crudimport_batch_table_for_import
-                                ['tuples'][parsed_tuple_num]['parserCtx']['parsedCsvRecord'][format_record_number])
+                                ['tuples'][parsed_tuple_num]['record']['parsed'][format_record_number])
                     end
                 end
             ::skip_tuple::
@@ -339,11 +339,11 @@ local init_eval_import_prepared_batch = function()
         local tupels_for_import = {}
         for parsed_tuple_num, _ in pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
             if box.session.storage.crudimport_batch_table_for_import
-                ['tuples'][parsed_tuple_num]['parserCtx']['parsedSuccess'] == true then
+                ['tuples'][parsed_tuple_num]['record']['parserSuccess'] == true then
                     table.insert(
                     tupels_for_import,
                     box.session.storage.crudimport_batch_table_for_import
-                        ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple']
+                        ['tuples'][parsed_tuple_num]['record']['castedTuple']
                     )
             end
         end
@@ -414,12 +414,12 @@ local init_eval_get_batch_final_ctx = function()
                 if box.session.storage.crud_import_is_tuples_equal(
                     imported_tuple_val,
                     box.session.storage.crudimport_batch_table_for_import
-                        ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple']
+                        ['tuples'][parsed_tuple_num]['record']['castedTuple']
                     ) and
                     box.session.storage.crudimport_batch_table_for_import
-                        ['tuples'][parsed_tuple_num]['crudCtx']['imported'] == false
+                        ['tuples'][parsed_tuple_num]['record']['importSuccess'] == false
                     then
-                        batch_final_ctx['tuples'][parsed_tuple_num]['crudCtx']['imported'] = true
+                        batch_final_ctx['tuples'][parsed_tuple_num]['record']['importSuccess'] = true
                         -- Try to resist ambiguity, but a swap is still possible (at least we don't lose record).
                         box.session.storage.batch_insert_res['rows'][imported_tuple_num] = nil
                         goto resulted_tuple_found
@@ -429,12 +429,12 @@ local init_eval_get_batch_final_ctx = function()
                 if box.session.storage.crud_import_is_tuples_equal(
                     error_tuple_val['operation_data'],
                     box.session.storage.crudimport_batch_table_for_import
-                        ['tuples'][parsed_tuple_num]['crudCtx']['castedTuple']
+                        ['tuples'][parsed_tuple_num]['record']['castedTuple']
                     ) and
                     box.session.storage.crudimport_batch_table_for_import
-                        ['tuples'][parsed_tuple_num]['crudCtx']['imported'] == false
+                        ['tuples'][parsed_tuple_num]['record']['importSuccess'] == false
                     then
-                        batch_final_ctx['tuples'][parsed_tuple_num]['crudCtx']['err'] = error_tuple_val['str']
+                        batch_final_ctx['tuples'][parsed_tuple_num]['record']['crudErr'] = error_tuple_val['str']
                         -- Try to resist ambiguity, but a swap is still possible (at least we don't lose record).
                         box.session.storage.batch_insert_res['rows'][error_tuple_num] = nil
                         goto resulted_tuple_found

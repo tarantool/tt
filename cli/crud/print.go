@@ -8,6 +8,22 @@ import (
 	"time"
 )
 
+// ImportSummary contains information for the import summary.
+type ImportSummary struct {
+	// readTotal is counter of total iterations of the parser.
+	readTotal uint32
+	// ignoredDueToProgress is counter of skipped iterations of the parser due to progress file.
+	ignoredDueToProgress uint32
+	// parsedSuccess is counter of succsess iterations of the parser.
+	parsedSuccess uint32
+	// parsedError is counter of fail iterations of the parser.
+	parsedError uint32
+	// importedSuccess is counter of succsess iterations of crud stored procedure.
+	importedSuccess uint32
+	// importedError is counter of fail iterations of crud stored procedure.
+	importedError uint32
+}
+
 // printImportSummary prints the summary.
 func printImportSummary(crudImportFlags *ImportOpts) {
 	var speed float64 = float64(importSummary.readTotal) /
@@ -40,4 +56,13 @@ func printImportProgressBar() {
 		importSummary.parsedError,
 		importSummary.importedSuccess,
 		importSummary.importedError)
+}
+
+// printDumpSubsystemMalfunction logs information about dump log subsystem malfunction.
+func printDumpSubsystemMalfunction() {
+	// This subsystem is critical, work stops without it.
+	fmt.Println("Failure of the disk dump subsystem, emergency shutdown!")
+	fmt.Println("Work without the disk dump subsystem is impossible.")
+	fmt.Println("Possible damage of error.csv, success.csv, import.log, progress.json!")
+	fmt.Println("Consistency of the imported data in the storage is not guaranteed.")
 }

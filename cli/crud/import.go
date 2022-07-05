@@ -36,41 +36,37 @@ func RunImport(cmdCtx *cmdcontext.CmdCtx, crudImportFlags *ImportOpts, uri strin
 	// Init signal interceptor to ignore SIGINT/SIGTERM signals.
 	sigInterceptor(func() {}, syscall.SIGINT, syscall.SIGTERM)
 
-	// Init csv reader (main parser for getting parsed records).
-	csvReaderFd, err := os.Open(inputFileName)
+	// Init csv readers.
+	csvReader, unparsedCsvReaderCtx, csvReaderFile, rawReaderFile, err := initReaders(inputFileName)
 	if err != nil {
 		return err
 	}
-	defer csvReaderFd.Close()
-	csvReader := ttcsv.NewReader(csvReaderFd)
-	csvReader.FieldsPerRecord = -1
-	csvReader.ReuseRecord = true
+	defer csvReaderFile.Close()
+	defer rawReaderFile.Close()
 
-	// Init raw reader (auxiliary parser for getting unparsed records and their positions).
-	rawReaderFd, err := os.Open(inputFileName)
-	if err != nil {
-		return err
-	}
-	defer rawReaderFd.Close()
-
-	// Init connection.
-	conn, err := initRouterConnection(uri, crudImportFlags)
+	// Open connection to router.
+	conn, err := openRouterConnection(uri, crudImportFlags)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
+	// Init router for crud import work.
+	if err := initRouter(conn, spaceName, crudImportFlags); err != nil {
+		return err
+	}
+
 	// Init progress file context.
 	var progressCtx *ProgressCtx = &ProgressCtx{
 		StartTimestamp:    workStartTimestamp.String(),
 		LastDumpTimestamp: "",
-		EndOfFileReached:  false,
+		EOF:               false,
 		LastPosition:      1,
 		RetryPosition:     []uint32{},
 	}
 
 	// Init dump subsystem context.
-	dumpSubsystemFd, err := initDumpSubsystemFd(
+	dumpSubsystemFiles, err := initDumpSubsystemFiles(
 		crudImportFlags.LogFileName+".log",
 		crudImportFlags.ErrorFileName+".csv",
 		crudImportFlags.SuccessFileName+".csv",
@@ -79,50 +75,30 @@ func RunImport(cmdCtx *cmdcontext.CmdCtx, crudImportFlags *ImportOpts, uri strin
 	if err != nil {
 		return err
 	}
-	defer dumpSubsystemFd.close()
-
-	// Init raw parser context.
-	unparsedCsvReaderCtx := &UnparsedCsvReaderCtx{
-		masterPosition: 0,
-		currentRecord:  "",
-		slavePosition:  0,
-		scanner:        bufio.NewScanner(rawReaderFd),
-	}
-
-	if err := initCrudImportSessionStorageEvals(conn); err != nil {
-		return err
-	}
-	if err := setTargetSpace(conn, spaceName); err != nil {
-		return err
-	}
-	if err := setCrudOperation(conn, crudImportFlags.Operation); err != nil {
-		return err
-	}
-	if err := setNullInterpretation(conn, crudImportFlags.NullVal); err != nil {
-		return err
-	}
+	defer dumpSubsystemFiles.close()
 
 	var batchSequenceCtx *BatchSequenceCtx
 	var batch *Batch
 	batch, batchSequenceCtx, err = initContextsRelativeToHeader(crudImportFlags, csvReader,
-		dumpSubsystemFd, unparsedCsvReaderCtx)
+		dumpSubsystemFiles, unparsedCsvReaderCtx)
 	if err != nil {
 		return err
 	}
 
 	if crudImportFlags.Progress {
-		if err := initProgressCtxPrevLaunch(progressCtx, dumpSubsystemFd); err != nil {
+		if err := progressCtx.setPrevLaunchData(dumpSubsystemFiles); err != nil {
 			return err
 		}
 	}
 
 	fmt.Printf("In case of error:\t[%s]\n", crudImportFlags.OnError)
 	fmt.Printf("PID of this process:\t[%d]\n", os.Getpid())
-	fmt.Printf("\n\033[0;33mWARNING: "+
-		"Process is not sensitive to SIGINT (ctrl+c), use kill -9 %d\033[0m\n", os.Getpid())
+	fmt.Printf("\n\033[0;33m"+
+		"WARNING: Process is not sensitive to SIGINT and SIGTERM, use kill -9 %d"+
+		"\033[0m\n", os.Getpid())
 	fmt.Println()
 
-	err = mainParsingCycle(csvReader, progressCtx, batch, conn, dumpSubsystemFd, crudImportFlags,
+	err = mainParsingCycle(csvReader, progressCtx, batch, conn, dumpSubsystemFiles, crudImportFlags,
 		unparsedCsvReaderCtx, batchSequenceCtx)
 	if err != nil {
 		return err
@@ -145,13 +121,40 @@ func sigInterceptor(sigHandler func(), signals ...os.Signal) {
 	}()
 }
 
+// initReaders init csv reader (main parser for getting parsed records) and
+// raw reader (auxiliary parser for getting unparsed records and their positions).
+func initReaders(inputFileName string) (*ttcsv.Reader, *UnparsedCsvReaderCtx,
+	*os.File, *os.File, error) {
+	// Init csv reader (main parser for getting parsed records).
+	csvReaderFile, err := os.Open(inputFileName)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	csvReader := ttcsv.NewReader(csvReaderFile)
+	csvReader.FieldsPerRecord = -1
+	csvReader.ReuseRecord = true
+
+	// Init raw reader (auxiliary parser for getting unparsed records and their positions).
+	rawReaderFile, err := os.Open(inputFileName)
+	if err != nil {
+		return nil, nil, csvReaderFile, nil, err
+	}
+
+	// Init raw parser context.
+	unparsedCsvReaderCtx := &UnparsedCsvReaderCtx{
+		masterPosition: 0,
+		currentRecord:  "",
+		slavePosition:  0,
+		scanner:        bufio.NewScanner(rawReaderFile),
+	}
+
+	return csvReader, unparsedCsvReaderCtx, csvReaderFile, rawReaderFile, nil
+}
+
 // initContextsRelativeToHeader provides initialization logic for contexts with taking into account
 // the installed or non-installed header in input data.
-func initContextsRelativeToHeader(
-	crudImportFlags *ImportOpts,
-	csvReader *ttcsv.Reader,
-	dumpSubsystemFd *DumpSubsystemFd,
-	unparsedCsvReaderCtx *UnparsedCsvReaderCtx,
+func initContextsRelativeToHeader(crudImportFlags *ImportOpts, csvReader *ttcsv.Reader,
+	dumpSubsystemFiles *DumpSubsystemFiles, unparsedCsvReaderCtx *UnparsedCsvReaderCtx,
 ) (*Batch, *BatchSequenceCtx, error) {
 	if crudImportFlags.Header {
 		// Initialization in the case of a header use.
@@ -160,18 +163,18 @@ func initContextsRelativeToHeader(
 		importSummary.importedError--
 		if err == io.EOF {
 			// Case for problem with getting header (empty file).
-			if _, err := dumpSubsystemFd.logFile.WriteString("...\n" +
+			if _, err := dumpSubsystemFiles.Log.WriteString("...\n" +
 				"Empty input csv file" + "\n..."); err != nil {
-				logDumpSubsystemMalfunction()
+				printDumpSubsystemMalfunction()
 				return nil, nil, err
 			}
 			return nil, nil, fmt.Errorf("Empty input csv file!")
 		}
 		if err != nil {
 			// Case for problem with getting header (bad syntax).
-			if _, err := dumpSubsystemFd.logFile.WriteString("...\n" +
+			if _, err := dumpSubsystemFiles.Log.WriteString("...\n" +
 				err.Error() + "\n..."); err != nil {
-				logDumpSubsystemMalfunction()
+				printDumpSubsystemMalfunction()
 				return nil, nil, err
 			}
 			return nil, nil, fmt.Errorf("Cannot read header, check input csv file: " + err.Error())
@@ -187,12 +190,12 @@ func initContextsRelativeToHeader(
 			copy(batchSequenceCtx.header, headerRec)
 			var batch *Batch = makeEmptyBatch(batchSequenceCtx.batchCounter,
 				batchSequenceCtx.batchSize, batchSequenceCtx.header)
-			if err := dumpErrorFile(unparsedRec, dumpSubsystemFd); err != nil {
-				logDumpSubsystemMalfunction()
+			if err := dumpErrorFile(unparsedRec, dumpSubsystemFiles); err != nil {
+				printDumpSubsystemMalfunction()
 				return nil, nil, err
 			}
-			if err := dumpSuccessFile(unparsedRec, dumpSubsystemFd); err != nil {
-				logDumpSubsystemMalfunction()
+			if err := dumpSuccessFile(unparsedRec, dumpSubsystemFiles); err != nil {
+				printDumpSubsystemMalfunction()
 				return nil, nil, err
 			}
 
@@ -238,33 +241,19 @@ func moveBatchWindow(batchSequenceCtx *BatchSequenceCtx) *Batch {
 }
 
 // fillTupleWithinBatch fill a tuple within the batch.
-func fillTupleWithinBatch(
-	batch *Batch,
-	batchSequenceCtx *BatchSequenceCtx,
-	currentPosition uint32,
-	unparsedRec string,
-	record []string,
-	parserErr error,
-	progressCtx *ProgressCtx,
-) {
-	batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].
-		ParserCtx.CsvRecordPosition = currentPosition
-	batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].
-		ParserCtx.UnparsedCsvRecord = unparsedRec
-	batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].
-		ParserCtx.ParsedCsvRecord = make([]string, len(record))
-	copy(batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].
-		ParserCtx.ParsedCsvRecord, record)
-	batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].
-		Number = batchSequenceCtx.tupleNumber
+func fillTupleWithinBatch(batch *Batch, batchSequenceCtx *BatchSequenceCtx, currentPosition uint32,
+	unparsedRec string, record []string, parserErr error, progressCtx *ProgressCtx) {
+	batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].Record.Position = currentPosition
+	batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].Record.Raw = unparsedRec
+	batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].Record.Parsed =
+		make([]string, len(record))
+	copy(batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].Record.Parsed, record)
+	batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].Number = batchSequenceCtx.tupleNumber
 	if parserErr != nil {
-		batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].
-			ParserCtx.ParsedSuccess = false
-		batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].
-			ParserCtx.ErrorMsg = parserErr.Error()
+		batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].Record.ParserSuccess = false
+		batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].Record.ParserErr = parserErr.Error()
 	} else {
-		batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].
-			ParserCtx.ParsedSuccess = true
+		batch.Tuples[batchSequenceCtx.getCurrentTupleIndex()].Record.ParserSuccess = true
 	}
 	batch.TuplesAmount++
 	batchSequenceCtx.tupleNumber++
@@ -284,16 +273,9 @@ func contains(slice []uint32, element uint32) bool {
 
 // mainParsingCycle performs the process of line-by-line parsing of the input file,
 // and also calls the logic of import.
-func mainParsingCycle(
-	csvReader *ttcsv.Reader,
-	progressCtx *ProgressCtx,
-	batch *Batch,
-	conn *connector.Conn,
-	dumpSubsystemFd *DumpSubsystemFd,
-	crudImportFlags *ImportOpts,
-	unparsedCsvReaderCtx *UnparsedCsvReaderCtx,
-	batchSequenceCtx *BatchSequenceCtx,
-) error {
+func mainParsingCycle(csvReader *ttcsv.Reader, progressCtx *ProgressCtx, batch *Batch,
+	conn *connector.Conn, dumpSubsystemFiles *DumpSubsystemFiles, crudImportFlags *ImportOpts,
+	unparsedCsvReaderCtx *UnparsedCsvReaderCtx, batchSequenceCtx *BatchSequenceCtx) error {
 	// The main parsing cycle.
 	// Performs a line-by-line reading of the input data.
 	// As soon as the batch is filled with parsed records, it will be sent to the router.
@@ -305,7 +287,7 @@ func mainParsingCycle(
 
 		if parserErr == io.EOF {
 			// Section with processing of EOF.
-			progressCtx.EndOfFileReached = true
+			progressCtx.EOF = true
 			importSummary.readTotal--
 
 			if batch.Tuples[0].Number != 0 {
@@ -313,14 +295,14 @@ func mainParsingCycle(
 				// by this time (time of EOF), it will be sent to router.
 				var err error
 				_, err = mainRouterOperations(true, batch, batchSequenceCtx,
-					progressCtx, crudImportFlags, dumpSubsystemFd, conn, csvReader)
+					progressCtx, crudImportFlags, dumpSubsystemFiles, conn, csvReader)
 				if err != nil {
 					return err
 				}
 			} else {
 				// If there is no incomplete batch.
-				if err := dumpProgressFile(dumpSubsystemFd, progressCtx); err != nil {
-					logDumpSubsystemMalfunction()
+				if err := dumpProgressFile(dumpSubsystemFiles, progressCtx); err != nil {
+					printDumpSubsystemMalfunction()
 					return err
 				}
 			}
@@ -344,8 +326,8 @@ func mainParsingCycle(
 
 		if crudImportFlags.Progress {
 			// Skipping with taking into account the previous progress file.
-			if !contains(progressCtx.retryPositionPrevProgress, currentPosition) &&
-				currentPosition <= progressCtx.lastPositionPrevProgress {
+			if !contains(progressCtx.prevRetryPosition, currentPosition) &&
+				currentPosition <= progressCtx.prevLastPosition {
 				importSummary.ignoredDueToProgress++
 				continue
 			}
@@ -361,7 +343,7 @@ func mainParsingCycle(
 
 		var err error
 		batch, err = mainRouterOperations(false, batch, batchSequenceCtx,
-			progressCtx, crudImportFlags, dumpSubsystemFd, conn, csvReader)
+			progressCtx, crudImportFlags, dumpSubsystemFiles, conn, csvReader)
 		if err != nil {
 			return err
 		}
