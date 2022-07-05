@@ -158,9 +158,30 @@ func uploadBatchToRouter(conn *connector.Conn, batch *Batch, csvReader *ttcsv.Re
 	return nil
 }
 
-// swapAccordingToHeader performs the permutations in accordance with the match parameter.
+// swapAccordingToHeader performs the permutations in accordance with the header matching.
 func swapAccordingToHeader(conn *connector.Conn, batch *Batch) error {
 	res, err := conn.Eval(evalSwapAccordingToHeader())
+	if err != nil {
+		return err
+	}
+	swapedOk := make([]bool, 1)
+	err = yaml.Unmarshal([]byte((res[0]).(string)), &swapedOk)
+	if err != nil {
+		resYAML := []byte((res[0]).(string))
+		var rawRes interface{}
+		if err := yaml.Unmarshal(resYAML, &rawRes); err != nil {
+			return err
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// swapAccordingToManualMatching performs the permutations in accordance with the manual matching.
+func swapAccordingToManualMatching(conn *connector.Conn, batch *Batch) error {
+	res, err := conn.Eval(evalSwapAccordingToManualMatching())
 	if err != nil {
 		return err
 	}
@@ -270,6 +291,11 @@ func evalSwapAccordingToHeader() string {
 	return "box.session.storage.crud_import_swap_according_to_header()"
 }
 
+// evalSwapAccordingToManualMatching generates an eval for a call on the router side.
+func evalSwapAccordingToManualMatching() string {
+	return "box.session.storage.crud_import_swap_according_to_manual_matching()"
+}
+
 // evalcastTuplesToSpaceFormat generates an eval for a call on the router side.
 func evalcastTuplesToSpaceFormat() string {
 	return "box.session.storage.crudimport_cast_tuples_to_scapce_format()"
@@ -307,7 +333,7 @@ func mainRouterOperations(isLastBatch bool, batch *Batch, batchSequenceCtx *Batc
 
 		if !isLastBatch {
 			// Clean batch and move batch window after fail.
-			batch = moveBatchWindow(batchSequenceCtx)
+			batch = moveBatchWindow(batchSequenceCtx, crudImportFlags)
 		}
 
 		return batch, nil
@@ -324,7 +350,25 @@ func mainRouterOperations(isLastBatch bool, batch *Batch, batchSequenceCtx *Batc
 
 			if !isLastBatch {
 				// Clean batch and move batch window after fail.
-				batch = moveBatchWindow(batchSequenceCtx)
+				batch = moveBatchWindow(batchSequenceCtx, crudImportFlags)
+			}
+
+			return batch, nil
+		}
+	}
+
+	if crudImportFlags.Match != "" && crudImportFlags.Match != "header" {
+		if err := swapAccordingToManualMatching(conn, batch); err != nil {
+			dumpSubsystemArgs.batch = batch
+			dumpSubsystemArgs.caughtErr = err
+			if err := runDumpSubsystem(dumpSubsystemArgs); err != nil {
+				printDumpSubsystemMalfunction()
+				return batch, err
+			}
+
+			if !isLastBatch {
+				// Clean batch and move batch window after fail.
+				batch = moveBatchWindow(batchSequenceCtx, crudImportFlags)
 			}
 
 			return batch, nil
@@ -341,7 +385,7 @@ func mainRouterOperations(isLastBatch bool, batch *Batch, batchSequenceCtx *Batc
 
 		if !isLastBatch {
 			// Clean batch and move batch window after fail.
-			batch = moveBatchWindow(batchSequenceCtx)
+			batch = moveBatchWindow(batchSequenceCtx, crudImportFlags)
 		}
 
 		return batch, nil
@@ -357,7 +401,7 @@ func mainRouterOperations(isLastBatch bool, batch *Batch, batchSequenceCtx *Batc
 
 		if !isLastBatch {
 			// Clean batch and move batch window after fail.
-			batch = moveBatchWindow(batchSequenceCtx)
+			batch = moveBatchWindow(batchSequenceCtx, crudImportFlags)
 		}
 
 		return batch, nil
@@ -376,7 +420,7 @@ func mainRouterOperations(isLastBatch bool, batch *Batch, batchSequenceCtx *Batc
 
 		if !isLastBatch {
 			// Clean batch and move batch window after fail.
-			batch = moveBatchWindow(batchSequenceCtx)
+			batch = moveBatchWindow(batchSequenceCtx, crudImportFlags)
 		}
 
 		return batch, nil
@@ -397,7 +441,7 @@ func mainRouterOperations(isLastBatch bool, batch *Batch, batchSequenceCtx *Batc
 
 	if !isLastBatch {
 		// Clean batch and move batch window after fail.
-		batch = moveBatchWindow(batchSequenceCtx)
+		batch = moveBatchWindow(batchSequenceCtx, crudImportFlags)
 	}
 
 	if err := dumpProgressFile(dumpSubsystemArgs.dumpSubsystemFiles, progressCtx); err != nil {

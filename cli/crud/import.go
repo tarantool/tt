@@ -186,10 +186,11 @@ func initContextsRelativeToHeader(crudImportFlags *ImportOpts, csvReader *ttcsv.
 				batchCounter: 1,
 				tupleNumber:  1,
 				header:       make([]string, len(headerRec)),
+				matchingOpt:  crudImportFlags.Match,
 			}
 			copy(batchSequenceCtx.header, headerRec)
 			var batch *Batch = makeEmptyBatch(batchSequenceCtx.batchCounter,
-				batchSequenceCtx.batchSize, batchSequenceCtx.header)
+				batchSequenceCtx.batchSize, batchSequenceCtx.header, crudImportFlags.Match)
 			if err := dumpErrorFile(unparsedRec, dumpSubsystemFiles); err != nil {
 				printDumpSubsystemMalfunction()
 				return nil, nil, err
@@ -209,18 +210,21 @@ func initContextsRelativeToHeader(crudImportFlags *ImportOpts, csvReader *ttcsv.
 		batchCounter: 1,
 		tupleNumber:  1,
 		header:       make([]string, 0),
+		matchingOpt:  crudImportFlags.Match,
 	}
 	var batch *Batch = makeEmptyBatch(batchSequenceCtx.batchCounter,
-		batchSequenceCtx.batchSize, batchSequenceCtx.header)
+		batchSequenceCtx.batchSize, batchSequenceCtx.header, crudImportFlags.Match)
 
 	return batch, batchSequenceCtx, nil
 }
 
 // makeEmptyBatch allocates an empty batch in memory.
-func makeEmptyBatch(batchCounter uint32, batchSize uint32, header []string) *Batch {
+func makeEmptyBatch(batchCounter uint32, batchSize uint32, header []string,
+	matchingOpt string) *Batch {
 	return &Batch{
 		BatchNumber:  batchCounter,
 		Header:       header,
+		MatchingOpt:  matchingOpt,
 		TuplesAmount: 0,
 		Tuples:       make([]Tuple, batchSize),
 	}
@@ -228,7 +232,7 @@ func makeEmptyBatch(batchCounter uint32, batchSize uint32, header []string) *Bat
 
 // moveBatchWindow cleans the context of the current batch and prepares
 // the batch sequence context for moving batch window further along the input data.
-func moveBatchWindow(batchSequenceCtx *BatchSequenceCtx) *Batch {
+func moveBatchWindow(batchSequenceCtx *BatchSequenceCtx, crudImportFlags *ImportOpts) *Batch {
 	batchSequenceCtx.batchCounter++
 	if batchSequenceCtx.batchSize != 1 {
 		batchSequenceCtx.tupleNumber %= batchSequenceCtx.batchSize
@@ -237,7 +241,7 @@ func moveBatchWindow(batchSequenceCtx *BatchSequenceCtx) *Batch {
 	}
 
 	return makeEmptyBatch(batchSequenceCtx.batchCounter,
-		batchSequenceCtx.batchSize, batchSequenceCtx.header)
+		batchSequenceCtx.batchSize, batchSequenceCtx.header, crudImportFlags.Match)
 }
 
 // fillTupleWithinBatch fill a tuple within the batch.

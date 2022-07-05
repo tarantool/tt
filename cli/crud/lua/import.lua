@@ -137,7 +137,7 @@ local init_eval_get_prepared_batch_table = function()
     end
 end
 
--- Performs permutations for the match option.
+-- Performs permutations for the match option when matching=<header>.
 local init_eval_swap_according_to_header = function()
     box.session.storage.crud_import_swap_according_to_header = function ()
         -- Actions to prevent indexing of null values.
@@ -216,6 +216,115 @@ local init_eval_swap_according_to_header = function()
     end
 end
 
+-- Performs permutations for the match option when matching in manual mode.
+local init_eval_swap_according_to_manual_matching = function()
+    box.session.storage.crud_import_swap_according_to_manual_matching  = function ()
+        -- Actions to prevent indexing of null values.
+        for parsed_tuple_num, _ in pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
+            box.session.storage.crudimport_batch_table_for_import
+                ['tuples'][parsed_tuple_num]['record']['castedTuple'] = {}
+            -- Case for batch with tupels amount < batchSize.
+            if box.session.storage.crudimport_batch_table_for_import
+                ['tuples'][parsed_tuple_num]['record']['parsed'] == nil then
+                    box.session.storage.crudimport_batch_table_for_import
+                        ['tuples'][parsed_tuple_num]['record']['parsed'] = {}
+                end
+        end
+
+        -- Allows to get a key by value in table.
+        local function get_key_for_value(table, value)
+            for iteration_key, iteration_val in pairs(table) do
+                if iteration_val == value then
+                    return iteration_key
+                end
+            end
+
+            return nil
+        end
+
+        -- Allows split of string by the provided seporator.
+        local function split(str, sep)
+            local fields = {}
+            local sep = sep or " "
+            local pattern = string.format("([^%s]+)", sep)
+            string.gsub(str, pattern, function(c) fields[#fields + 1] = c end)
+
+            return fields
+        end
+
+        -- Creating a matching mapping before processing tuples in a batch:
+        -- matchMap = {
+        --      ...
+        --      { ["space"] = spaceName, ["header"] = appropriateIndexInHeader },
+        --      ...
+        -- }
+        -- These steps are performed for all tuples in the batch:
+        -- 1 step:
+        --     candidateTule -- is a candidate tuple for import.
+        --     create candidateTule = {NULL, ... , NULL}
+        --     |candidateTule| = |targetSpace|
+        -- 2 step:
+        --     candidateTule[fieldPositionInSpace] = parsedTuple[ F[fieldPositionInSpace, matchMap] ]
+        --         (parsedTuple took from uploaded butch.)
+        --     where F : (fieldPositionInSpace, matchMap) -> positionIndexInHeader
+        --         (If there is no space field name in header, then F matches NULL.)
+        -- 3 step:
+        --     parsedTuple = candidateTule
+
+        local match_map = split(box.session.storage.crudimport_batch_table_for_import['matchingOpt'], ':')
+        for k, v in pairs(match_map) do
+            match_map[k] = split(v, '=')
+            -- Renaming after splitting for better readability.
+            match_map[k]['space'] = match_map[k][1]
+            match_map[k]['header'] = match_map[k][2]
+            match_map[k][1] = nil
+            match_map[k][2] = nil
+
+            if match_map[k]['header'] == nil then
+                match_map[k]['header'] = json.NULL
+            end
+
+            if match_map[k]['header'] ~= json.NULL and get_key_for_value(
+                    box.session.storage.crudimport_batch_table_for_import['header'],
+                    match_map[k]['header'])  then
+                match_map[k]['header'] = get_key_for_value(
+                    box.session.storage.crudimport_batch_table_for_import['header'], 
+                    match_map[k]['header'])
+            end
+        end
+
+        for parsed_tuple_num, _ in pairs(box.session.storage.crudimport_batch_table_for_import['tuples']) do
+            if box.session.storage.crudimport_batch_table_for_import
+                    ['tuples'][parsed_tuple_num]['record']['parserSuccess'] ~= true then
+                        goto skip_tuple_mapping
+            end
+
+            local candidate_tule = {}
+            for i = 1, #box.session.storage.crudimport_targetspace_format do
+                candidate_tule[i] = json.NULL
+            end
+            for space_fileld_position, space_fileld_metadata  in
+                    pairs(box.session.storage.crudimport_targetspace_format) do
+                for i = 1, #match_map do
+                    if match_map[i]['space'] == space_fileld_metadata['name'] and
+                    box.session.storage.crudimport_batch_table_for_import
+                        ['tuples'][parsed_tuple_num]['record']['parsed'][tonumber(match_map[i]['header'])] ~= nil then
+                            candidate_tule[space_fileld_position] =
+                            box.session.storage.crudimport_batch_table_for_import
+                                ['tuples'][parsed_tuple_num]['record']['parsed'][tonumber(match_map[i]['header'])]
+                    end
+                end
+            end
+
+            box.session.storage.crudimport_batch_table_for_import
+                                ['tuples'][parsed_tuple_num]['record']['parsed'] = candidate_tule
+
+            ::skip_tuple_mapping::
+        end
+
+        return true
+    end
+end
 
 -- Tries to convert fields in tuples to the space format.
 -- Initially, all fields come as strings to router.
@@ -456,6 +565,7 @@ local init_session_storage = function()
     init_eval_upload_batch_from_parser()
     init_eval_get_prepared_batch_table()
     init_eval_swap_according_to_header()
+    init_eval_swap_according_to_manual_matching()
     init_eval_cast_tuples_to_scapce_format()
     init_eval_import_prepared_batch()
     init_eval_is_tuples_equal()

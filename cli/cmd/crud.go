@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -71,13 +73,16 @@ func NewImportCmd() *cobra.Command {
 		crudImportFlags.SuccessFileName, "name of file with rows that were imported. "+
 			"Overwrite existed file")
 	importCmd.Flags().StringVarP(&crudImportFlags.Match, "match", "", crudImportFlags.Match,
-		"use correspondence between header fields in input file and target space fields. "+
-			"Now it require option header as <true>. "+
+		"use correspondence between fields in the input data and fields in the target space. "+
+			"Specify this option as <header> and option header as <true> for using header as "+
+			"matching scheme during import."+
 			"If there are fields in the space format that are not specified in the header, "+
 			"an attempt will be made to insert null into them. "+
 			"If there are fields in the header that are not specified in the space format, "+
-			"they will be ignored. Now only <header> value for this option is supported. "+
-			"No yet possible to set a manual match, like <spaceId=csvFoo,spaceName=csvBar,...>")
+			"they will be ignored. "+
+			"Also you can set a manual match, for example: "+
+			"<spaceFieldFoo=csvFieldFoo:spaceFieldBar=csvFieldBar:...:...>, where FieldFoo can "+
+			"be numeric (position) or string (string only when option header as <true>)")
 	importCmd.Flags().Uint32VarP(&crudImportFlags.BatchSize, "batch-size", "",
 		crudImportFlags.BatchSize, "crud batch size during import")
 	importCmd.Flags().BoolVarP(&crudImportFlags.Progress, "progress", "",
@@ -120,10 +125,19 @@ func internalImportModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("The option on-error can be <skip> or <stop>.")
 	}
 
-	if (crudImportFlags.Match == "header" && !crudImportFlags.Header) ||
-		(crudImportFlags.Match != "" && crudImportFlags.Match != "header") {
-		return fmt.Errorf("Currently only <header> value supported for match option. " +
-			"Also it require option header as <true>.")
+	if crudImportFlags.Match == "header" && !crudImportFlags.Header {
+		return fmt.Errorf("Matching with value <header> require option header as <true>.")
+	} else if crudImportFlags.Match != "" && !crudImportFlags.Header {
+		for _, matchEqualityVal := range strings.Split(crudImportFlags.Match, ":") {
+			matchVal := strings.Split(matchEqualityVal, "=")
+			if len(matchVal) == 2 {
+				_, err := strconv.ParseUint(matchVal[1], 10, 32)
+				if err != nil {
+					return fmt.Errorf("Manual matching with string values require " +
+						"option header as <true>. Otherwise, only numeric positions can be used.")
+				}
+			}
+		}
 	}
 
 	log.Infof("Running crud import:\n")

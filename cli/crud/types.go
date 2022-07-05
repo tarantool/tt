@@ -76,6 +76,8 @@ type Batch struct {
 	BatchNumber uint32 `yaml:"batchNumber" json:"batchNumber"`
 	// Header сontains a header of input data.
 	Header []string `yaml:"header" json:"header"`
+	// MatchingOpt сontains a matching option value.
+	MatchingOpt string `yaml:"matchingOpt" json:"matchingOpt"`
 	// TuplesAmount сontains the number of initialized tuples within batch.
 	TuplesAmount uint32 `yaml:"tuplesAmount" json:"tuplesAmount"`
 	// Tuple is slice of tuples within this batch.
@@ -112,6 +114,8 @@ type BatchSequenceCtx struct {
 	tupleNumber uint32
 	// header сontains a header of input data.
 	header []string
+	// matchingOpt сontains a matching option value.
+	matchingOpt string
 }
 
 // UnparsedCsvReaderCtx contains private fields for organizing context of
