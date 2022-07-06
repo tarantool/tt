@@ -43,7 +43,8 @@ var crudImportFlags = crud.ImportOpts{
 // NewImportCmd creates a new import subcommand for crud command.
 func NewImportCmd() *cobra.Command {
 	importCmd := &cobra.Command{
-		Use:   "import URI FILE SPACE",
+		Use: "import URI FILE SPACE [flags]" + "\n  " +
+			"tt crud import URI - SPACE < FILE [flags]",
 		Short: "Import data from file into tarantool",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, "crud", &modulesInfo, internalImportModule, args)
@@ -111,7 +112,8 @@ func internalImportModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	case 0:
 		return fmt.Errorf("It is required to specify router URI.")
 	case 1:
-		return fmt.Errorf("It is required to specify input file.")
+		return fmt.Errorf("It is required to specify input file. " +
+			"To use STDIN, specify '-' as the second argument.")
 	case 2:
 		return fmt.Errorf("It is required to specify target space.")
 	}

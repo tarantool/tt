@@ -49,7 +49,7 @@ func dumpLogFile(csvRowRec string, csvRowPos uint32, errorDesc string,
 	dumpSubsystemFiles *DumpSubsystemFiles) error {
 	var timeMsg string = "timestamp: " + time.Now().String() + "\n"
 	var lineMsg string = "line position: " + strconv.FormatUint(uint64(csvRowPos), 10) + "\n"
-	var recordMsg string = "problem record: " + csvRowRec + "\n"
+	var recordMsg string = "problem record: " + csvRowRec
 	var errorMsg string = "error description: " + errorDesc + "\n"
 	if _, err := dumpSubsystemFiles.Log.WriteString("...\n" + timeMsg + lineMsg + recordMsg +
 		errorMsg + "...\n"); err != nil {
@@ -61,7 +61,7 @@ func dumpLogFile(csvRowRec string, csvRowPos uint32, errorDesc string,
 
 // dumpErrorFile implements the dumping of error file information to disk.
 func dumpErrorFile(csvRowRec string, dumpSubsystemFiles *DumpSubsystemFiles) error {
-	if _, err := dumpSubsystemFiles.Error.WriteString(csvRowRec + "\n"); err != nil {
+	if _, err := dumpSubsystemFiles.Error.WriteString(csvRowRec); err != nil {
 		return err
 	}
 	importSummary.importedError++
@@ -71,7 +71,7 @@ func dumpErrorFile(csvRowRec string, dumpSubsystemFiles *DumpSubsystemFiles) err
 
 // dumpSuccessFile implements the dumping of success file information to disk.
 func dumpSuccessFile(csvRowRec string, dumpSubsystemFiles *DumpSubsystemFiles) error {
-	if _, err := dumpSubsystemFiles.Success.WriteString(csvRowRec + "\n"); err != nil {
+	if _, err := dumpSubsystemFiles.Success.WriteString(csvRowRec); err != nil {
 		return err
 	}
 	importSummary.importedSuccess++

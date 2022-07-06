@@ -13,7 +13,6 @@
 package crud
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -37,12 +36,11 @@ func RunImport(cmdCtx *cmdcontext.CmdCtx, crudImportFlags *ImportOpts, uri strin
 	sigInterceptor(func() {}, syscall.SIGINT, syscall.SIGTERM)
 
 	// Init csv readers.
-	csvReader, unparsedCsvReaderCtx, csvReaderFile, rawReaderFile, err := initReaders(inputFileName)
+	csvReader, unparsedCsvReaderCtx, csvReaderFile, err := initReaders(inputFileName)
 	if err != nil {
 		return err
 	}
 	defer csvReaderFile.Close()
-	defer rawReaderFile.Close()
 
 	// Open connection to router.
 	conn, err := openRouterConnection(uri, crudImportFlags)
@@ -121,34 +119,34 @@ func sigInterceptor(sigHandler func(), signals ...os.Signal) {
 	}()
 }
 
-// initReaders init csv reader (main parser for getting parsed records) and
-// raw reader (auxiliary parser for getting unparsed records and their positions).
-func initReaders(inputFileName string) (*ttcsv.Reader, *UnparsedCsvReaderCtx,
-	*os.File, *os.File, error) {
-	// Init csv reader (main parser for getting parsed records).
-	csvReaderFile, err := os.Open(inputFileName)
-	if err != nil {
-		return nil, nil, nil, nil, err
+// initReaders init csv reader for getting parsed records.
+func initReaders(inputFileName string) (*ttcsv.Reader, *UnparsedCsvReaderCtx, *os.File, error) {
+	var csvReader *ttcsv.Reader
+	var csvReaderFile *os.File
+	var err error
+	if inputFileName != "-" {
+		// Case of regular file reading.
+		csvReaderFile, err = os.Open(inputFileName)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		csvReader = ttcsv.NewReader(csvReaderFile)
+	} else {
+		// Case of STDIN reading.
+		csvReaderFile = os.Stdin
+		csvReader = ttcsv.NewReader(os.Stdin)
 	}
-	csvReader := ttcsv.NewReader(csvReaderFile)
 	csvReader.FieldsPerRecord = -1
 	csvReader.ReuseRecord = true
-
-	// Init raw reader (auxiliary parser for getting unparsed records and their positions).
-	rawReaderFile, err := os.Open(inputFileName)
-	if err != nil {
-		return nil, nil, csvReaderFile, nil, err
-	}
 
 	// Init raw parser context.
 	unparsedCsvReaderCtx := &UnparsedCsvReaderCtx{
 		masterPosition: 0,
 		currentRecord:  "",
 		slavePosition:  0,
-		scanner:        bufio.NewScanner(rawReaderFile),
 	}
 
-	return csvReader, unparsedCsvReaderCtx, csvReaderFile, rawReaderFile, nil
+	return csvReader, unparsedCsvReaderCtx, csvReaderFile, nil
 }
 
 // initContextsRelativeToHeader provides initialization logic for contexts with taking into account
@@ -318,7 +316,7 @@ func mainParsingCycle(csvReader *ttcsv.Reader, progressCtx *ProgressCtx, batch *
 			// but they are not submitted to the import stored procedure of crud.
 			// Also, no type conversion is performed with such strings on router side.
 			importSummary.parsedError++
-			currentPosition, unparsedRec = unparsedCsvReaderCtx.updateOnError()
+			currentPosition, unparsedRec = unparsedCsvReaderCtx.updateOnError(csvReader)
 		} else {
 			importSummary.parsedSuccess++
 			currentPosition, unparsedRec = unparsedCsvReaderCtx.updateOnSuccess(csvReader)

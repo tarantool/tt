@@ -4,8 +4,6 @@
 package crud
 
 import (
-	"bufio"
-
 	ttcsv "github.com/tarantool/tt/cli/ttparsers"
 )
 
@@ -119,7 +117,6 @@ type BatchSequenceCtx struct {
 // UnparsedCsvReaderCtx contains private fields for organizing context of
 // raw reading of input data for import.
 // Raw reading is necessary to get a string of data in an unparsed form.
-// The standard parser does not allow this.
 // It also contains fields for implementing a mechanism to eliminate
 // the inconsistency of the position counter due to a multi-line CSV records.
 // WARNING: Fields inside this structure should not be read or overwritten by the programmer.
@@ -128,7 +125,6 @@ type UnparsedCsvReaderCtx struct {
 	masterPosition uint32
 	slavePosition  uint32
 	currentRecord  string
-	scanner        *bufio.Scanner
 }
 
 // getCurrentTupleIndex allows to get the index of the current tuple within the batch.
@@ -136,13 +132,11 @@ func (ctx *BatchSequenceCtx) getCurrentTupleIndex() uint32 {
 	return (ctx.tupleNumber - 1) % ctx.batchSize
 }
 
-// updateOnError updates the raw read context in case of a record.
-// reading error of the main parser.
-// WARNING: this method must not be called multiple times in one iteration of the main csv parser!
-func (ctx *UnparsedCsvReaderCtx) updateOnError() (uint32, string) {
+// updateOnError updates the raw read context in case of reading error of the csv parser.
+// WARNING: this method must not be called multiple times in one iteration of the csv parser!
+func (ctx *UnparsedCsvReaderCtx) updateOnError(csvReader *ttcsv.Reader) (uint32, string) {
 	ctx.masterPosition++
-	ctx.scanner.Scan()
-	ctx.currentRecord += ctx.scanner.Text()
+	ctx.currentRecord = csvReader.RawRecord
 	currentPosition, currentRec := ctx.masterPosition, ctx.currentRecord
 	// Clearing the current line in the ctx to write a new line on the next iteration of parser.
 	ctx.currentRecord = ""
@@ -150,25 +144,21 @@ func (ctx *UnparsedCsvReaderCtx) updateOnError() (uint32, string) {
 	return currentPosition, currentRec
 }
 
-// updateOnSuccess updates the raw read context in case
-// of a record success reading of the main parser.
-// WARNING: this method must not be called multiple times in one iteration of the main csv parser!
+// updateOnSuccess updates the raw read context in case of reading success of the csv parser.
+// WARNING: this method must not be called multiple times in one iteration of the csv parser!
 func (ctx *UnparsedCsvReaderCtx) updateOnSuccess(csvReader *ttcsv.Reader) (uint32, string) {
 	ctx.masterPosition++
-	ctx.scanner.Scan()
-	ctx.currentRecord += ctx.scanner.Text()
-
+	ctx.currentRecord = csvReader.RawRecord
 	ctx.slavePosition = ctx.masterPosition
 	for uint32(csvReader.NumLine) > ctx.masterPosition {
-		// Value of current position in raw reader should catch up
-		// with the reading position of the main parser.
-		// if a single entry in a CSV file could not make up several lines,
+		// Value of current position in raw reading should catch up
+		// with the reading position of the csv parser.
+		// If a single entry in a CSV file could not make up several lines,
 		// then this mechanism would not be needed.
 		// Example: 123,"da\nta",321 is one csv record, but unparsed form is two lines,
 		// parsed form is slice ["123", "da\nta", 321].
 		ctx.masterPosition++
-		ctx.scanner.Scan()
-		ctx.currentRecord += "\n" + ctx.scanner.Text()
+		ctx.currentRecord = csvReader.RawRecord
 	}
 
 	var currentPosition uint32

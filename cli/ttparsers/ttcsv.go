@@ -201,6 +201,9 @@ type Reader struct {
 
 	// LastRecord is a record cache and only used when ReuseRecord == true.
 	LastRecord []string // NOTE: was made public
+
+	// RawRecord is raw csv record.
+	RawRecord string // NOTE: was added
 }
 
 // NewReader returns a new Reader that reads from r.
@@ -343,6 +346,7 @@ func (r *Reader) readRecord(dst []string) ([]string, error) {
 	r.fieldIndexes = r.fieldIndexes[:0]
 	r.fieldPositions = r.fieldPositions[:0]
 	pos := position{line: r.NumLine, col: 1}
+	r.RawRecord = string(line)
 parseField:
 	for {
 		if r.TrimLeadingSpace {
@@ -389,6 +393,7 @@ parseField:
 			line = line[quoteLen:]
 			pos.col += quoteLen
 			for {
+				var escapeCase bool = false
 				i := bytes.IndexByte(line, '"')
 				if i >= 0 {
 					// Hit next quote.
@@ -398,6 +403,7 @@ parseField:
 					switch rn := nextRune(line); {
 					case rn == '"':
 						// `""` sequence (append quote).
+						escapeCase = true
 						r.recordBuffer = append(r.recordBuffer, '"')
 						line = line[quoteLen:]
 						pos.col += quoteLen
@@ -447,6 +453,11 @@ parseField:
 					r.fieldIndexes = append(r.fieldIndexes, len(r.recordBuffer))
 					r.fieldPositions = append(r.fieldPositions, fieldPos)
 					break parseField
+				}
+				if !escapeCase {
+					r.RawRecord += string(line)
+				} else {
+					escapeCase = false
 				}
 			}
 		}
