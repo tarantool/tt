@@ -13,6 +13,7 @@
 package crud
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -84,6 +85,14 @@ func RunImport(cmdCtx *cmdcontext.CmdCtx, crudImportFlags *ImportOpts, uri strin
 	}
 
 	if crudImportFlags.Progress {
+		if _, err := os.Stat(".progress.json"); !errors.Is(err, os.ErrNotExist) {
+			// If there is a shadow file ./.progress.json from the previous failed launch,
+			// then its contents will be used.
+			if err := os.Rename(".progress.json", "progress.json"); err != nil {
+				return fmt.Errorf("cannot replace shadow ./.progress.json to "+
+					"./progress.json: %v", err)
+			}
+		}
 		if err := progressCtx.setPrevLaunchData(dumpSubsystemFiles); err != nil {
 			return err
 		}

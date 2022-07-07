@@ -4,8 +4,10 @@
 package crud
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"time"
@@ -81,15 +83,70 @@ func dumpSuccessFile(csvRowRec string, dumpSubsystemFiles *DumpSubsystemFiles) e
 
 // dumpProgressFile implements the dumping of current progress file information to disk.
 func dumpProgressFile(dumpSubsystemFiles *DumpSubsystemFiles, progressCtx *ProgressCtx) error {
-	dumpSubsystemFiles.Progress.Truncate(0)
-	dumpSubsystemFiles.Progress.Seek(0, 0)
 	progressCtx.LastDumpTimestamp = time.Now().String()
 	if progressCtxBytes, err := json.Marshal(progressCtx); err != nil {
 		return nil
 	} else {
-		dumpSubsystemFiles.Progress.Write(progressCtxBytes)
+		if err := rewriteProgressAtomically(bytes.NewReader(progressCtxBytes)); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+// rewriteProgressAtomically atomically rewrites the contents of the progress file.
+// If an error occurs, the target file is guaranteed to be either fully rewritten, or
+// not rewritten at all. This function overwrites any files named progress.json
+// and .progress.json that exist at the CWD.
+// The implementation of this function is based on module github.com/natefinch/atomic.
+func rewriteProgressAtomically(r io.Reader) (err error) {
+	shadowFile, err := os.OpenFile(".progress.json", os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		return fmt.Errorf("cannot create temp file: %v", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = os.Remove(shadowFile.Name())
+		}
+	}()
+	// Ensure we always close shadowFile. Note that this does not conflict with the
+	// close below, as close is idempotent.
+	defer shadowFile.Close()
+
+	if _, err := io.Copy(shadowFile, r); err != nil {
+		return fmt.Errorf("cannot write data to tempfile %q: %v", shadowFile.Name(), err)
+	}
+	// Fsync is important, otherwise os.Rename could rename a zero-length file.
+	if err := shadowFile.Sync(); err != nil {
+		return fmt.Errorf("can't flush tempfile %q: %v", shadowFile.Name(), err)
+	}
+	if err := shadowFile.Close(); err != nil {
+		return fmt.Errorf("can't close tempfile %q: %v", shadowFile.Name(), err)
+	}
+
+	// Get the file mode from the original file and use that for the replacement file.
+	destInfo, err := os.Stat("progress.json")
+	if os.IsNotExist(err) {
+		// No original file.
+	} else if err != nil {
+		return err
+	} else {
+		sourceInfo, err := os.Stat(shadowFile.Name())
+		if err != nil {
+			return err
+		}
+		if sourceInfo.Mode() != destInfo.Mode() {
+			if err := os.Chmod(shadowFile.Name(), destInfo.Mode()); err != nil {
+				return fmt.Errorf("can't set filemode on tempfile %q: %v", shadowFile.Name(), err)
+			}
+		}
+	}
+
+	if err := os.Rename(shadowFile.Name(), "progress.json"); err != nil {
+		return fmt.Errorf("cannot replace shadow ./.progress.json to "+
+			"./progress.json: %v", err)
+	}
 	return nil
 }
 
@@ -170,9 +227,9 @@ func initDumpSubsystemFiles(logFileName string, errorFileName string, successFil
 		Progress: new(os.File),
 	}
 
-	// Opening for appending, file mode is -rw-r--r--.
+	// Opening for appending, file mode is -rw-------.
 	dumpSubsystemFiles.Log, err = os.OpenFile(logFileName,
-		os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+		os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -189,23 +246,23 @@ func initDumpSubsystemFiles(logFileName string, errorFileName string, successFil
 		return nil, err
 	}
 
-	// Open with overwriting, file mode is -rw-r--r--.
+	// Open with overwriting, file mode is -rw-------.
 	dumpSubsystemFiles.Error, err = os.OpenFile(errorFileName,
-		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, err
 	}
 
-	// Open with overwriting, file mode is -rw-r--r--.
+	// Open with overwriting, file mode is -rw-------.
 	dumpSubsystemFiles.Success, err = os.OpenFile(successFileName,
-		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, err
 	}
 
-	// Open without affecting the current file content, file mode is -rw-r--r--.
+	// Open without affecting the current file content, file mode is -rw-------.
 	dumpSubsystemFiles.Progress, err = os.OpenFile("progress.json",
-		os.O_RDWR|os.O_CREATE, 0644)
+		os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}
