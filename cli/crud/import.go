@@ -37,7 +37,8 @@ func RunImport(cmdCtx *cmdcontext.CmdCtx, crudImportFlags *ImportOpts, uri strin
 	sigInterceptor(func() {}, syscall.SIGINT, syscall.SIGTERM)
 
 	// Init csv readers.
-	csvReader, unparsedCsvReaderCtx, csvReaderFile, rawReaderFile, err := initReaders(inputFileName)
+	csvReader, unparsedCsvReaderCtx, csvReaderFile, rawReaderFile, err :=
+		initReaders(inputFileName, crudImportFlags)
 	if err != nil {
 		return err
 	}
@@ -123,8 +124,8 @@ func sigInterceptor(sigHandler func(), signals ...os.Signal) {
 
 // initReaders init csv reader (main parser for getting parsed records) and
 // raw reader (auxiliary parser for getting unparsed records and their positions).
-func initReaders(inputFileName string) (*ttcsv.Reader, *UnparsedCsvReaderCtx,
-	*os.File, *os.File, error) {
+func initReaders(inputFileName string, crudImportFlags *ImportOpts) (*ttcsv.Reader,
+	*UnparsedCsvReaderCtx, *os.File, *os.File, error) {
 	// Init csv reader (main parser for getting parsed records).
 	csvReaderFile, err := os.Open(inputFileName)
 	if err != nil {
@@ -133,6 +134,13 @@ func initReaders(inputFileName string) (*ttcsv.Reader, *UnparsedCsvReaderCtx,
 	csvReader := ttcsv.NewReader(csvReaderFile)
 	csvReader.FieldsPerRecord = -1
 	csvReader.ReuseRecord = true
+	if crudImportFlags.Delimiter == "tab" {
+		csvReader.Comma = rune('\u0009')
+	} else if len(crudImportFlags.Delimiter) != 1 {
+		return nil, nil, nil, nil, fmt.Errorf("Delimiter must be one character.")
+	} else {
+		csvReader.Comma = rune(crudImportFlags.Delimiter[0])
+	}
 
 	// Init raw reader (auxiliary parser for getting unparsed records and their positions).
 	rawReaderFile, err := os.Open(inputFileName)

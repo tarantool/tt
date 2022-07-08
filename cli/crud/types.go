@@ -37,6 +37,8 @@ type ImportOpts struct {
 	OnError string
 	// NullVal sets null interpretation for input data.
 	NullVal string
+	// Delimiter is the field delimiter in input data.
+	Delimiter string
 }
 
 // Record contains information that related to the parsing process and crud working.
