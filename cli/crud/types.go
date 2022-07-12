@@ -39,6 +39,8 @@ type ImportOpts struct {
 	NullVal string
 	// Delimiter is the field delimiter in input data.
 	Delimiter string
+	// Quote is the quote character in input data.
+	Quote string
 }
 
 // Record contains information that related to the parsing process and crud working.

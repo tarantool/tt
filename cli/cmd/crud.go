@@ -38,6 +38,7 @@ var crudImportFlags = crud.ImportOpts{
 	OnError:         "stop",
 	NullVal:         "",
 	Delimiter:       ",",
+	Quote:           `"`,
 }
 
 // NewImportCmd creates a new import subcommand for crud command.
@@ -103,6 +104,10 @@ func NewImportCmd() *cobra.Command {
 			"For csv by default is comma like RFC 4180. Cannot be <\\r>, <\\n>, "+
 			"or the unicode replacement character (0xFFFD). To use a tab character as delimiter, "+
 			"set this value as <tab>")
+	importCmd.Flags().StringVarP(&crudImportFlags.Quote, "quote", "",
+		crudImportFlags.Quote, "sets the symbol that will be defined as quote. "+
+			"For csv by default is double quotes like RFC 4180. "+
+			"Double symbol of this option acts as the escaping symbol within input data")
 
 	return importCmd
 }

@@ -141,6 +141,11 @@ func initReaders(inputFileName string, crudImportFlags *ImportOpts) (*ttcsv.Read
 	} else {
 		csvReader.Comma = rune(crudImportFlags.Delimiter[0])
 	}
+	if len(crudImportFlags.Quote) != 1 {
+		return nil, nil, nil, nil, fmt.Errorf("Quote must be one character.")
+	} else {
+		csvReader.Quote = rune(crudImportFlags.Quote[0])
+	}
 
 	// Init raw reader (auxiliary parser for getting unparsed records and their positions).
 	rawReaderFile, err := os.Open(inputFileName)
