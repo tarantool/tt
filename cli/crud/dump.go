@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -207,8 +208,18 @@ func runDumpSubsystem(dumpArgs *DumpSubsystemArgs) error {
 	for _, tuple := range dumpArgs.batch.Tuples {
 		// Checking received from router batch for any errors.
 		if !tuple.Record.ImportSuccess && tuple.Number != 0 {
-			if dumpArgs.crudImportFlags.OnError == "stop" {
+			// Checking received from router batch for any errors except duplicate key errors.
+			if dumpArgs.crudImportFlags.OnError == "stop" &&
+				!(dumpArgs.crudImportFlags.OnExist == "skip" &&
+					strings.Contains(tuple.Record.CrudErr,
+						"Duplicate key exists in unique index \"primary_index\"")) {
 				stopOnError(dumpArgs.crudImportFlags)
+			}
+			// Checking received from router batch for duplicate key errors.
+			if dumpArgs.crudImportFlags.OnExist == "stop" &&
+				strings.Contains(tuple.Record.CrudErr,
+					"Duplicate key exists in unique index \"primary_index\"") {
+				stopOnExist(dumpArgs.crudImportFlags)
 			}
 		}
 	}
@@ -296,6 +307,18 @@ func stopOnError(crudImportFlags *ImportOpts) {
 	fmt.Printf("\n")
 	fmt.Println("\033[0;31m" +
 		"[on-error]: An error has occurred, the import has been stopped. " +
+		"See the details in the log, error, success and progress files." +
+		"\033[0m")
+	fmt.Printf("\n")
+	printImportSummary(crudImportFlags)
+	os.Exit(1)
+}
+
+// stopOnExist stops the program and displays import summary.
+func stopOnExist(crudImportFlags *ImportOpts) {
+	fmt.Printf("\n")
+	fmt.Println("\033[0;31m" +
+		"[on-exist]: Duplicate primary key error has occurred, the import has been stopped. " +
 		"See the details in the log, error, success and progress files." +
 		"\033[0m")
 	fmt.Printf("\n")

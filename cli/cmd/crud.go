@@ -34,8 +34,8 @@ var crudImportFlags = crud.ImportOpts{
 	Match:           "",
 	BatchSize:       100,
 	Progress:        false,
-	Operation:       "insert",
 	OnError:         "stop",
+	OnExist:         "stop",
 	NullVal:         "",
 	RollbackOnError: false,
 }
@@ -89,12 +89,15 @@ func NewImportCmd() *cobra.Command {
 			"As a result, an attempt will be repeated to insert lines with specified positions, "+
 			"and then work will continue from stop position. "+
 			"At each launch, the content of the progress.json file is completely overwritten")
-	importCmd.Flags().StringVarP(&crudImportFlags.Operation, "operation", "",
-		crudImportFlags.Operation, "specifies which operation will be used to import tuples: "+
-			"<insert> or <replace>")
 	importCmd.Flags().StringVarP(&crudImportFlags.OnError, "on-error", "", crudImportFlags.OnError,
-		"if any error occurs, either skips the problematic line and goes on or stops work. "+
-			"Allows values <stop> or <skip>")
+		"if error occurs, either skips the problematic line and goes on or stops work. "+
+			"Allows values <stop> or <skip>. "+
+			"Errors at the level of the duplicate primary key are handled separately "+
+			"via --on-exist option")
+	importCmd.Flags().StringVarP(&crudImportFlags.OnExist, "on-exist", "", crudImportFlags.OnExist,
+		"defines action when error of duplicate primary key occurs. "+
+			"Allows values <stop>, <skip> or <replace>. "+
+			"All other errors are handled separately via --on-error option")
 	importCmd.Flags().StringVarP(&crudImportFlags.NullVal, "null", "",
 		crudImportFlags.NullVal, "sets value to be interpreted as NULL when importing. "+
 			"By default, an empty value. Example for csv: field1val,,field3val, "+
@@ -124,6 +127,11 @@ func internalImportModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	if crudImportFlags.OnError != "skip" && crudImportFlags.OnError != "stop" {
 		return fmt.Errorf("The option on-error can be <skip> or <stop>.")
+	}
+
+	if crudImportFlags.OnExist != "skip" && crudImportFlags.OnExist != "stop" &&
+		crudImportFlags.OnExist != "replace" {
+		return fmt.Errorf("The option on-exist can be <skip>, <stop> or <replace>.")
 	}
 
 	if (crudImportFlags.Match == "header" && !crudImportFlags.Header) ||

@@ -29,10 +29,12 @@ type ImportOpts struct {
 	BatchSize uint32
 	// Progress is flag for using the progress file from previous launch.
 	Progress bool
-	// Operation sets type of crud stored procedures during import (inser of replace).
-	Operation string
-	// OnError sets the action when an error is detected (stop or skip).
+	// OnError sets the action when an error is detected (except duplicate primary key errors).
+	// Allows stop or skip action.
 	OnError string
+	// OnExist sets the action when an error of the duplicate primary key is detected.
+	// Allows stop, skip or replace action.
+	OnExist string
 	// NullVal sets null interpretation for input data.
 	NullVal string
 	// RollbackOnError is rollback-on-error opts in crud batching operation.

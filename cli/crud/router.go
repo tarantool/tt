@@ -32,8 +32,14 @@ func initRouter(conn *connector.Conn, spaceName string, crudImportFlags *ImportO
 	if err := setTargetSpace(conn, spaceName); err != nil {
 		return err
 	}
-	if err := setCrudOperation(conn, crudImportFlags.Operation); err != nil {
-		return err
+	if crudImportFlags.OnExist == "stop" || crudImportFlags.OnExist == "skip" {
+		if err := setCrudOperation(conn, "insert"); err != nil {
+			return err
+		}
+	} else if crudImportFlags.OnExist == "replace" {
+		if err := setCrudOperation(conn, "replace"); err != nil {
+			return err
+		}
 	}
 	if err := setNullInterpretation(conn, crudImportFlags.NullVal); err != nil {
 		return err

@@ -16,6 +16,7 @@ box.session.storage.batch_insert_res = nil
 box.session.storage.batch_insert_err = nil
 box.session.storage.null_val_interpretation = nil
 box.session.storage.crud_stored_procedure_opts = nil
+box.session.storage.crudimport_batch_stored_procedure = nil
 
 -- Map string to boolean if possible, else return nil.
 local toboolean = function(value)
@@ -48,19 +49,19 @@ local init_eval_set_stored_procedure = function()
         if name == 'insert' then
             init_eval_set_batch_insert_stored_procedure()
             if type(box.session.storage.crudimport_batch_stored_procedure) ~= "function" then
-                return "Function crud.insert_many in not found."
+                return "Function crud.insert_many is not found."
             end
             return true
         end
         if name == 'replace' then
             init_eval_set_batch_replace_stored_procedure()
             if type(box.session.storage.crudimport_batch_stored_procedure) ~= "function" then
-                return "Function crud.replace_many in not found."
+                return "Function crud.replace_many is not found."
             end
             return true
         end
 
-        return "Unknown crud stored procedure, check operation option."
+        return "Unknown crud stored procedure, check available crud operation on the router."
     end
 end
 
