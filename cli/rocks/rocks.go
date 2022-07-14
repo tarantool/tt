@@ -6,20 +6,13 @@ import (
 	"os"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/util"
 	lua "github.com/yuin/gopher-lua"
 )
 
 //go:embed extra/*
 //go:embed third_party/luarocks/src/*
 var luarocks embed.FS
-
-func readEmbedFile(fs embed.FS, path string) (string, error) {
-	content, err := fs.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
-}
 
 // Execute LuaRocks command. All args will be processed by LuaRocks.
 func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
@@ -143,7 +136,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	preload := L.GetField(L.GetField(L.Get(lua.EnvironIndex), "package"), "preload")
 
 	for modname, path := range rocks_preload {
-		ctx, err := readEmbedFile(luarocks, path)
+		ctx, err := util.ReadEmbedFile(luarocks, path)
 		if err != nil {
 			return err
 		}
