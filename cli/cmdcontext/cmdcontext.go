@@ -3,9 +3,15 @@ package cmdcontext
 // CmdCtx is the main structure of the program context.
 // Contains within itself other structures of CLI modules.
 type CmdCtx struct {
-	Cli     CliCtx
+	// Cli - CLI context. Contains flags passed when starting
+	// Tarantool CLI and some other parameters.
+	Cli CliCtx
+	// Running contains information for running an application instance.
 	Running RunningCtx
+	// Connect contains information for connecting to the instance.
 	Connect ConnectCtx
+	// CommandName contains name of the command.
+	CommandName string
 }
 
 // CliCtx - CLI context. Contains flags passed when starting

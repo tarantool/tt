@@ -25,6 +25,7 @@ func NewStartCmd() *cobra.Command {
 		Use:   "start [APPLICATION_NAME]",
 		Short: "Start tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStartModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
