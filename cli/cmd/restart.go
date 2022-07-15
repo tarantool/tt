@@ -13,6 +13,7 @@ func NewRestartCmd() *cobra.Command {
 		Use:   "restart [INSTANCE_NAME]",
 		Short: "restart tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalRestartModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())

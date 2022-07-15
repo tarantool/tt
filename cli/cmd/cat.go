@@ -33,6 +33,7 @@ func NewCatCmd() *cobra.Command {
 		Use:   "cat FILE ..",
 		Short: "Print into stdout the contents of .snap/.xlog files",
 		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalCatModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())

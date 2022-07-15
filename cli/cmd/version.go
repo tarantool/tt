@@ -21,6 +21,7 @@ func NewVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Show Tarantool CLI version information",
 		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
 			args = modules.GetDefaultCmdArgs(cmd.Name())
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalVersionModule, args)
 			if err != nil {

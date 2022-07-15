@@ -25,6 +25,7 @@ func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) err
 	defaultHelp := rootCmd.HelpFunc()
 
 	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		cmdCtx.CommandName = cmd.Name()
 		if len(os.Args) == 1 || util.Find(args, "-h") != -1 || util.Find(args, "--help") != -1 {
 			defaultHelp(cmd, nil)
 			return

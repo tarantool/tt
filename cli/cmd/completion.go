@@ -17,6 +17,7 @@ func NewCompletionCmd() *cobra.Command {
 		Short:     "Generate autocomplete for a specified shell",
 		ValidArgs: []string{"bash", "zsh"},
 		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
 			args = modules.GetDefaultCmdArgs(cmd.Name())
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalCompletionCmd, args)
 			if err != nil {

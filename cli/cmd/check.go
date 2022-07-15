@@ -15,6 +15,7 @@ func NewCheckCmd() *cobra.Command {
 		Use:   "check [APPLICATION_NAME]",
 		Short: "Check an application file for syntax errors",
 		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalCheckModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())

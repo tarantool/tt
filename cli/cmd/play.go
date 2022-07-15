@@ -32,6 +32,7 @@ func NewPlayCmd() *cobra.Command {
 		Use:   "play URI FILE ..",
 		Short: "Play the contents of .snap/.xlog files to another Tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalPlayModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
