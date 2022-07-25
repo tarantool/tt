@@ -21,6 +21,8 @@ type Config struct {
 //     log_maxage: num (Days)
 //     log_maxbackups: num
 //     restart_on_failure: bool
+//     bin_dir: path
+//     inc_dir: path
 //   ee:
 //     credential_path: path
 
@@ -66,6 +68,12 @@ type AppOpts struct {
 	// DataDir is the directory where all the instance artifacts
 	// are stored.
 	DataDir string `mapstructure:"data_dir"`
+	// BinDir is the directory where all the binary files
+	// are stored.
+	BinDir string `mapstructure:"bin_dir"`
+	// IncludeDir is the directory where all the header files
+	// are stored.
+	IncludeDir string `mapstructure:"inc_dir"`
 }
 
 // TemplateOpts contains configuration for applications templates.

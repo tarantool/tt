@@ -28,3 +28,4 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Module ``tt search``, to show available tt/tarantool versions.
 - Module ``tt create``, to create an application from a template.
 - Module ``tt build``, to build an application.
+- Module ``tt install``, to install tarantool/tt.

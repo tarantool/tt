@@ -43,6 +43,10 @@ Dependencies
 * `zip <http://infozip.sourceforge.net/>`_
 * `unzip <http://infozip.sourceforge.net/>`_
 
+**tt install && search runtime dependencies:**
+
+* `Git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_
+
 ~~~~~~~~~
 Run tests
 ~~~~~~~~~
@@ -86,6 +90,8 @@ file format:
         instances_available: path/to/available/applications
         run_dir: path/to/run_dir
         log_dir: path/to/log_dir
+        bin_dir: path/to/bin_dir
+        inc_dir: path/to/inc_dir
         log_maxsize: num (MB)
         log_maxage: num (Days)
         log_maxbackups: num
@@ -104,6 +110,8 @@ file format:
 * ``run_dir`` (string) - path to directory that stores various instance runtime
   artifacts like console socket, PID file, etc.
 * ``log_dir`` (string) - directory that stores log files.
+* ``bin_dir`` (string) - directory that stores binary files.
+* ``inc_dir`` (string) - directory that stores header files.
 * ``log_maxsize`` (number) - the maximum size in MB of the log file before it gets
   rotated. It defaults to 100 MB.
 * ``log_maxage`` (numder) - is the maximum number of days to retain old log files
@@ -223,3 +231,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``clean`` -  clean instance(s) files.
 * ``create`` - create an application from a template.
 * ``build`` - build an application.
+* ``install`` - install tarantool/tt.
