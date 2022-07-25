@@ -58,6 +58,7 @@ type AppOpts struct {
 	// DataDir is the directory where all the instance artifacts
 	// are stored.
 	DataDir string `mapstructure:"data_dir"`
+	BinDir  string `mapstructure:"bin_dir"`
 }
 
 // CliOpts is used to store modules and app options.
