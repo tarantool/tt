@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -167,4 +168,62 @@ func FetchVersions(cliOpts *config.CliOpts) ([]version.Version, error) {
 	}
 
 	return versions, nil
+}
+
+// GetVersionName returns bundle name of given tarantool-ee version.
+func GetVersionName(cliOpts *config.CliOpts, version string) (string, error) {
+	versions, err := FetchVersions(cliOpts)
+	if err != nil {
+		return "", err
+	}
+	bundleName := ""
+	for _, ver := range versions {
+		if ver.Str == version {
+			bundleName = ver.Tarball
+		}
+	}
+	return bundleName, err
+}
+
+// GetTarantoolEE downloads given tarantool-ee bundle into directory.
+func GetTarantoolEE(cliOpts *config.CliOpts, bundleName string, dst string) error {
+	if _, err := os.Stat(dst); os.IsNotExist(err) {
+		return fmt.Errorf("Directory doesn't exist: %s", dst)
+	}
+	if !util.IsDir(dst) {
+		return fmt.Errorf("Incorrect path: %s", dst)
+	}
+	credentials, err := getCreds(cliOpts)
+	if err != nil {
+		return err
+	}
+	eeLink := "https://download.tarantool.io/enterprise/" + bundleName
+	client := http.Client{Timeout: 0}
+	req, err := http.NewRequest(http.MethodGet, eeLink, http.NoBody)
+	if err != nil {
+		return err
+	}
+
+	req.SetBasicAuth(credentials.username, credentials.password)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer res.Body.Close()
+
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(filepath.Join(dst, bundleName))
+	if err != nil {
+		return err
+	}
+	file.Write(resBody)
+	file.Close()
+
+	return nil
 }

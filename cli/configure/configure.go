@@ -42,13 +42,15 @@ func getDefaultCliOpts() *config.CliOpts {
 		LogMaxBackups:      0,
 		Restartable:        false,
 		DataDir:            "data",
+		BinDir:             filepath.Join(defaultConfigPath, "bin"),
+		IncludeDir:         filepath.Join(defaultConfigPath, "include"),
 	}
 	ee := config.EEOpts{
 		CredPath: "",
 	}
 	repo := config.RepoOpts{
 		Rocks:   "",
-		Install: "",
+		Install: filepath.Join(defaultConfigPath, "distfiles"),
 	}
 	return &config.CliOpts{Modules: &modules, App: &app, Repo: &repo, EE: &ee}
 }
@@ -82,6 +84,26 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: missing tt section")
 	}
 
+	if cfg.CliConfig.App == nil {
+		cfg.CliConfig.App = &config.AppOpts{BinDir: filepath.Join(filepath.Dir(configurePath),
+			"bin"), IncludeDir: filepath.Join(filepath.Dir(configurePath), "include")}
+	}
+	if cfg.CliConfig.Repo == nil {
+		cfg.CliConfig.Repo = &config.RepoOpts{Rocks: "",
+			Install: filepath.Join(filepath.Dir(configurePath), "distfiles")}
+	}
+	if cfg.CliConfig.App.BinDir == "" {
+		cfg.CliConfig.App.BinDir = filepath.Join(filepath.Dir(configurePath),
+			"bin")
+	}
+	if cfg.CliConfig.App.IncludeDir == "" {
+		cfg.CliConfig.App.IncludeDir = filepath.Join(filepath.Dir(configurePath),
+			"include")
+	}
+	if cfg.CliConfig.Repo.Install == "" {
+		cfg.CliConfig.Repo.Install = filepath.Join(filepath.Dir(configurePath),
+			"local")
+	}
 	return cfg.CliConfig, nil
 }
 
