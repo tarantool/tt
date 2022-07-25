@@ -44,8 +44,9 @@ func getRunOpts(cmdCtxTemp cmdcontext.CmdCtx) *running.RunOpts {
 // NewRunCmd creates run command.
 func NewRunCmd() *cobra.Command {
 	var runCmd = &cobra.Command{
-		Use: "run [APPLICATION_NAME]",
-		Short: "Run tarantool instance\n" +
+		Use:   "run [APPLICATION_NAME]",
+		Short: "Run tarantool instance",
+		Long: "Run tarantool instance\n" +
 			"Flags processed within the application\n" +
 			"are passed after: '--'",
 		Run: func(cmd *cobra.Command, args []string) {
