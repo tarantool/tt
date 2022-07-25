@@ -475,11 +475,11 @@ func CopyFileChangePerms(src string, dst string, perms int) error {
 
 // ResolveSymlink resolves symlink path.
 func ResolveSymlink(linkPath string) (string, error) {
-	resolvedLink, err := os.Readlink(linkPath)
+	resolvedLink, err := filepath.EvalSymlinks(linkPath)
 	if err != nil {
 		return "", err
 	}
-	// Output of os.Readlink is OS-dependent, so need to check if path is absolute.
+
 	if !filepath.IsAbs(resolvedLink) {
 		resolvedLink = path.Join(path.Dir(linkPath), resolvedLink)
 	}

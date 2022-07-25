@@ -232,3 +232,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``create`` - create an application from a template.
 * ``build`` - build an application.
 * ``install`` - install tarantool/tt.
+* ``remove`` - remove tarantool/tt.
