@@ -181,4 +181,5 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``play`` - play the contents of .snap/.xlog files to another Tarantool instance.
 * ``coredump`` - pack/unpack/inspect tarantool coredump.
 * ``run`` - start a tarantool instance. 
-* ``install`` - install tarantool/tt. 
+* ``install`` - install tarantool/tt.
+* ``remove`` - remove tarantool/tt.
