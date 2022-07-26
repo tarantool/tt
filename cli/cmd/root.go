@@ -59,6 +59,7 @@ func NewCmdRoot() *cobra.Command {
 		NewCartridgeCmd(),
 		NewCoredumpCmd(),
 		NewRunCmd(),
+		NewSearchCmd(),
 	)
 
 	rootCmd.InitDefaultHelpCmd()
