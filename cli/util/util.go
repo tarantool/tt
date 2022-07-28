@@ -7,10 +7,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
@@ -256,4 +259,26 @@ func ReadEmbedFileBinary(fs embed.FS, path string) ([]byte, error) {
 		return nil, err
 	}
 	return content, nil
+}
+
+// GetMissedBinaries returns list of binaries not found in PATH.
+func getMissedBinaries(binaries ...string) []string {
+	var missedBinaries []string
+
+	for _, binary := range binaries {
+		if _, err := exec.LookPath(binary); err != nil {
+			missedBinaries = append(missedBinaries, binary)
+		}
+	}
+
+	return missedBinaries
+}
+
+// CheckRecommendedBinaries warns if some binaries not found in PATH.
+func CheckRecommendedBinaries(binaries ...string) {
+	missedBinaries := getMissedBinaries(binaries...)
+
+	if len(missedBinaries) > 0 {
+		log.Warnf("Missed recommended binaries %s", strings.Join(missedBinaries, ", "))
+	}
 }

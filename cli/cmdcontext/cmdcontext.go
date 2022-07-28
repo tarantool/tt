@@ -12,6 +12,7 @@ type CmdCtx struct {
 	Connect ConnectCtx
 	// CommandName contains name of the command.
 	CommandName string
+	Create      CreateCtx
 }
 
 // CliCtx - CLI context. Contains flags passed when starting
@@ -74,4 +75,14 @@ type ConnectCtx struct {
 	Password string
 	// SrcFile describes the source of code for the evaluation.
 	SrcFile string
+}
+
+// CreateCtx contains information for creating applications from templates
+type CreateCtx struct {
+	AppName      string
+	Paths        []string
+	TemplateName string
+	From         string
+	InstancesDir string
+	VarsFromCli  []string
 }
