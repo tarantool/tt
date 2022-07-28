@@ -60,10 +60,16 @@ type AppOpts struct {
 	DataDir string `mapstructure:"data_dir"`
 }
 
+type TemplateOpts struct {
+	Path string `mapstructure:"path"`
+}
+
 // CliOpts is used to store modules and app options.
 type CliOpts struct {
 	// Modules is a struct that contain module options.
 	Modules *ModulesOpts
 	// App is a struct that contains app options.
 	App *AppOpts
+
+	Templates []TemplateOpts
 }

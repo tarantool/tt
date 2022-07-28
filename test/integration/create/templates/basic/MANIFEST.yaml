@@ -1,0 +1,21 @@
+description: Test template
+vars:
+    - prompt: Cluster cookie
+      var: cluster_cookie
+      default: cookie
+      re: ^\w+$
+
+    - prompt: User name
+      var: user_name
+      default: admin
+
+    - prompt: Password
+      var: password
+      re: ^\w+$
+
+    - prompt: Retry count
+      default: "3"
+      var: retry_count
+      re: ^\d+$
+pre-hook: ./hooks/pre-gen.sh
+post-hook: ./hooks/post-gen.sh

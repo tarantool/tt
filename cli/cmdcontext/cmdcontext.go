@@ -12,6 +12,7 @@ type CmdCtx struct {
 	Connect ConnectCtx
 	// CommandName contains name of the command.
 	CommandName string
+	Create      CreateCtx
 }
 
 // CliCtx - CLI context. Contains flags passed when starting
@@ -74,4 +75,23 @@ type ConnectCtx struct {
 	Password string
 	// SrcFile describes the source of code for the evaluation.
 	SrcFile string
+}
+
+// CreateCtx contains information for creating applications from templates.
+type CreateCtx struct {
+	// AppName is application name to create.
+	AppName string
+	// Paths is a set of path to search for a template.
+	Paths []string
+	// TemplateName is a template to use for application creation.
+	TemplateName string
+	// InstancesDir base directory for instances available.
+	InstancesDir string
+	// VarsFromCli template variables provided by user in command line.
+	VarsFromCli []string
+	// ForceMode - if flag is set, remove application existing application directory.
+	ForceMode bool
+	// SilentMode if set, disables user interaction. All invalid format errors fail
+	// app creation.
+	SilentMode bool
 }
