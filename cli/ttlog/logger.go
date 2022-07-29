@@ -63,3 +63,12 @@ func (logger *Logger) Rotate() error {
 
 	return logger.ljLogger.Rotate()
 }
+
+// Close implements io.Closer, and closes the current logfile.
+func (logger *Logger) Close() error {
+	if logger.ljLogger == nil {
+		return nil
+	}
+
+	return logger.ljLogger.Close()
+}

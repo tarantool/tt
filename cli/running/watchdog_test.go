@@ -1,16 +1,16 @@
 package running
 
 import (
-	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/ttlog"
 )
 
@@ -40,14 +40,15 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	_, err = os.Stat(appPath)
 	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
-	tarantoolBin, err := exec.LookPath("tarantool")
-	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
+	logger := ttlog.NewCustomLogger(os.Stdout, "", 0)
+	cmdCtx := cmdcontext.CmdCtx{}
+	assert.Nil(configure.Cli(&cmdCtx))
+	cmdCtx.Cli.ConfigPath = ""
+	cmdCtx.Running.AppPath = appPath
+	builder := InstBuilderImpl{cmdCtx: &cmdCtx, logger: logger}
 
-	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
-	inst, err := NewInstance(tarantoolBin, appPath, "", os.Environ(), logger, dataDir)
-	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
-
-	wd := NewWatchdog(inst, restartable, wdTestRestartTimeout, logger)
+	wd := newWatchdog(restartable, wdTestRestartTimeout, builder.logger,
+		&builder, cmdCtx.Cli.ConfigPath)
 
 	return wd
 }
