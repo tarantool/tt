@@ -86,6 +86,7 @@ file format:
         instances_available: path/to/available/applications
         run_dir: path/to/run_dir
         log_dir: path/to/log_dir
+        bin_dir: path/to/bin_dir
         log_maxsize: num (MB)
         log_maxage: num (Days)
         log_maxbackups: num
@@ -101,6 +102,7 @@ file format:
 * ``run_dir`` (string) - path to directory that stores various instance runtime
   artifacts like console socket, PID file, etc.
 * ``log_dir`` (string) - directory that stores log files.
+* ``bin_dir`` (string) - directory that stores binary files.
 * ``log_maxsize`` (number) - the maximum size in MB of the log file before it gets
   rotated. It defaults to 100 MB.
 * ``log_maxage`` (numder) - is the maximum number of days to retain old log files
@@ -179,3 +181,5 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``play`` - play the contents of .snap/.xlog files to another Tarantool instance.
 * ``coredump`` - pack/unpack/inspect tarantool coredump.
 * ``run`` - start a tarantool instance. 
+* ``install`` - install tarantool/tt.
+* ``remove`` - remove tarantool/tt.

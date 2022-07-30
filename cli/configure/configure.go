@@ -42,6 +42,7 @@ func getDefaultCliOpts() *config.CliOpts {
 		LogMaxBackups:      0,
 		Restartable:        false,
 		DataDir:            "",
+		BinDir:             "",
 	}
 	return &config.CliOpts{Modules: &modules, App: &app}
 }
