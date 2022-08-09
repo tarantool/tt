@@ -7,7 +7,7 @@ type CmdCtx struct {
 	// Tarantool CLI and some other parameters.
 	Cli CliCtx
 	// Running contains information for running an application instance.
-	Running RunningCtx
+	Running []RunningCtx
 	// Connect contains information for connecting to the instance.
 	Connect ConnectCtx
 	// CommandName contains name of the command.
@@ -37,6 +37,8 @@ type RunningCtx struct {
 	AppPath string
 	// AppName contains the name of the application as it was passed on start.
 	AppName string
+	// Instance name.
+	InstName string
 	// Directory that stores various instance runtime artifacts like
 	// console socket, PID file, etc.
 	RunDir string
@@ -68,6 +70,8 @@ type RunningCtx struct {
 	Restartable bool
 	// Control UNIX socket for started instance.
 	ConsoleSocket string
+	// True if this is a single instance application (no instances.yml).
+	SingleApp bool
 }
 
 // ConnectCtx contains information for connecting to the instance.

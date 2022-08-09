@@ -37,10 +37,28 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if err := running.Check(cmdCtx); err != nil {
-		return err
+	// Сollect a list of instances with unique scripts.
+	uniqueInst := []cmdcontext.RunningCtx{}
+	for _, inst := range cmdCtx.Running {
+		found := false
+		for _, unique := range uniqueInst {
+			if inst.AppPath == unique.AppPath {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			uniqueInst = append(uniqueInst, inst)
+		}
 	}
-	log.Infof("Result of check: syntax of file '%s' is OK", cmdCtx.Running.AppPath)
+
+	for _, inst := range uniqueInst {
+		if err := running.Check(cmdCtx, &inst); err != nil {
+			return err
+		}
+		log.Infof("Result of check: syntax of file '%s' is OK", inst.AppPath)
+	}
 
 	return nil
 }

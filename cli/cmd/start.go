@@ -23,7 +23,7 @@ var (
 func NewStartCmd() *cobra.Command {
 	var startCmd = &cobra.Command{
 		Use:   "start <APPLICATION_NAME>",
-		Short: "Start tarantool instance",
+		Short: "Start tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStartModule, args)
@@ -55,22 +55,32 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		newArgs := append([]string{"start", "--watchdog"}, args...)
+		for _, run := range cmdCtx.Running {
+			log.Infof("Starting an instance [%s]...", run.InstName)
 
-		wdCmd := exec.Command(ttBin, newArgs...)
-		wdCmd.Stdout = os.Stdout
-		wdCmd.Stderr = os.Stderr
-		if err := wdCmd.Start(); err != nil {
-			return err
+			appName := ""
+			if run.SingleApp {
+				appName = run.AppName
+			} else {
+				appName = run.AppName + ":" + run.InstName
+			}
+
+			newArgs := []string{"start", "--watchdog", appName}
+
+			wdCmd := exec.Command(ttBin, newArgs...)
+			wdCmd.Stdout = os.Stdout
+			wdCmd.Stderr = os.Stderr
+
+			if err := wdCmd.Start(); err != nil {
+				return err
+			}
 		}
 
 		return nil
 	}
 
-	log.Info("Starting an instance...")
-	if err = running.Start(cmdCtx); err != nil {
+	if err := running.Start(cmdCtx, &cmdCtx.Running[0]); err != nil {
 		return err
 	}
-
 	return nil
 }

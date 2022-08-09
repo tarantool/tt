@@ -36,7 +36,7 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 	tarantoolBin, err := exec.LookPath("tarantool")
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
-	inst, err := NewInstance(tarantoolBin, appPath, consoleSock, os.Environ(),
+	inst, err := NewInstance(tarantoolBin, appPath, "", "", consoleSock, os.Environ(),
 		logger, instTestDataDir)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 

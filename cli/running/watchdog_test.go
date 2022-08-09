@@ -37,7 +37,7 @@ type providerTestImpl struct {
 
 // createInstance reads config and creates an Instance.
 func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (*Instance, error) {
-	return NewInstance(provider.tarantool, provider.appPath, "",
+	return NewInstance(provider.tarantool, provider.appPath, "", "", "",
 		os.Environ(), logger, provider.dataDir)
 }
 

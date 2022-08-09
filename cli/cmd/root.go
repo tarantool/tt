@@ -145,6 +145,12 @@ func InitRoot() {
 		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
 	}
 
+	// Setup TT_INST_AVAILABLE with instances_available path.
+	// Required for cartridge.
+	if cliOpts.App != nil {
+		os.Setenv("TT_INST_AVAILABLE", cliOpts.App.InstancesAvailable)
+	}
+
 	// Getting modules information.
 	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd.Commands(), cliOpts)
 	if err != nil {

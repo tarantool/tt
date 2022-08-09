@@ -24,6 +24,8 @@ def test_running_base_functionality(tt_cmd, tmpdir):
     assert re.search(r"Starting an instance", start_output)
 
     # Check status.
+    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    assert file != ""
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
@@ -58,6 +60,8 @@ def test_restart(tt_cmd, tmpdir):
     assert re.search(r"Starting an instance", start_output)
 
     # Check status.
+    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    assert file != ""
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
@@ -82,6 +86,8 @@ def test_restart(tt_cmd, tmpdir):
     assert instance_process_rc == 0
 
     # Check status of the new Instance.
+    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    assert file != ""
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
@@ -115,6 +121,9 @@ def test_logrotate(tt_cmd, tmpdir):
     assert re.search(r"Starting an instance", start_output)
 
     # Check logrotate.
+
+    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    assert file != ""
     logrotate_cmd = [tt_cmd, "logrotate", "test_app"]
 
     # We use the first "logrotate" call to create the first log file (the problem is that the log
@@ -126,7 +135,7 @@ def test_logrotate(tt_cmd, tmpdir):
         assert logrotate_rc == 0
         assert re.search(r"Logs has been rotated. PID: \d+.", logrotate_out)
 
-        file = wait_file(tmpdir, 'test_app.*.log', exists_log_files)
+        file = wait_file(tmpdir + "/log/test_app/", 'test_app.*.log', exists_log_files)
         assert file != ""
         exists_log_files.append(file)
 
