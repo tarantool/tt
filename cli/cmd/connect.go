@@ -2,9 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"syscall"
 
 	"github.com/apex/log"
@@ -14,6 +11,7 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/running"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -53,24 +51,16 @@ func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	var err error
 	newArgs := args
 
-	runDir := cliOpts.App.RunDir
-	if runDir == "" {
-		if runDir, err = os.Getwd(); err != nil {
-			return newArgs, err
-		}
-	}
-
-	files, err := ioutil.ReadDir(runDir)
-	if err != nil {
+	// FillCtx returns error if no instances found.
+	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
 		return newArgs, err
 	}
 
-	for _, file := range files {
-		if file.Name() == newArgs[0]+".pid" {
-			newArgs[0] = filepath.Join(runDir, newArgs[0]+".control")
-			break
-		}
+	if len(cmdCtx.Running) > 1 {
+		return newArgs, fmt.Errorf("specify instance name")
 	}
+
+	newArgs[0] = cmdCtx.Running[0].ConsoleSocket
 
 	return newArgs, nil
 }
@@ -91,7 +81,10 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	cmdCtx.Connect.Password = connectPassword
 	cmdCtx.Connect.SrcFile = connectFile
 
-	newArgs, _ := resolveInstAddr(cmdCtx, cliOpts, args)
+	newArgs, err := resolveInstAddr(cmdCtx, cliOpts, args)
+	if err != nil {
+		return err
+	}
 
 	if connectFile == "" {
 		if terminal.IsTerminal(syscall.Stdin) {

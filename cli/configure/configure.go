@@ -35,13 +35,13 @@ func getDefaultCliOpts() *config.CliOpts {
 	}
 	app := config.AppOpts{
 		InstancesAvailable: "",
-		RunDir:             "",
-		LogDir:             "",
+		RunDir:             "run",
+		LogDir:             "log",
 		LogMaxSize:         0,
 		LogMaxAge:          0,
 		LogMaxBackups:      0,
 		Restartable:        false,
-		DataDir:            "",
+		DataDir:            "data",
 	}
 	return &config.CliOpts{Modules: &modules, App: &app}
 }

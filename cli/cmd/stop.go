@@ -13,7 +13,7 @@ import (
 func NewStopCmd() *cobra.Command {
 	var stopCmd = &cobra.Command{
 		Use:   "stop <INSTANCE_NAME>",
-		Short: "Stop tarantool instance",
+		Short: "Stop tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStopModule, args)
@@ -37,8 +37,10 @@ func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if err = running.Stop(cmdCtx); err != nil {
-		return err
+	for _, run := range cmdCtx.Running {
+		if err = running.Stop(cmdCtx, &run); err != nil {
+			log.Infof(err.Error())
+		}
 	}
 
 	return nil

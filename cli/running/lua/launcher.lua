@@ -139,6 +139,12 @@ local function start_instance()
         ffi.C.dup2(tonumber(os.getenv("TT_CLI_RUN_STDIN_FD")), 0)
     end
     -- Start the Instance.
+
+    -- Cartridge takes instance path from arg[0] and use this path
+    -- for a workaround for rocks loading in tarantool 1.10.
+    -- This can be removed when tarantool 1.10 is no longer supported.
+    arg[0] = instance_path
+
     local success, data = pcall(dofile, instance_path)
     if not success then
         log.error('Failed to run instance: %s', instance_path)

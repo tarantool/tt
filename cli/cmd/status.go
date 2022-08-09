@@ -13,7 +13,7 @@ import (
 func NewStatusCmd() *cobra.Command {
 	var statusCmd = &cobra.Command{
 		Use:   "status <INSTANCE_NAME>",
-		Short: "Status of the tarantool instance",
+		Short: "Status of the tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStatusModule, args)
@@ -37,7 +37,9 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	log.Info(running.Status(cmdCtx))
+	for _, run := range cmdCtx.Running {
+		log.Infof("%s: %s", run.InstName, running.Status(cmdCtx, &run))
+	}
 
 	return nil
 }

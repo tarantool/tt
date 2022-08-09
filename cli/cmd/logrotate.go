@@ -13,7 +13,7 @@ import (
 func NewLogrotateCmd() *cobra.Command {
 	var logrotateCmd = &cobra.Command{
 		Use:   "logrotate <INSTANCE_NAME>",
-		Short: "Rotate logs of a started tarantool instance",
+		Short: "Rotate logs of a started tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalLogrotateModule, args)
@@ -37,11 +37,13 @@ func internalLogrotateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	res, err := running.Logrotate(cmdCtx)
-	if err != nil {
-		return err
+	for _, run := range cmdCtx.Running {
+		res, err := running.Logrotate(cmdCtx, &run)
+		if err != nil {
+			return err
+		}
+		log.Info(res)
 	}
-	log.Info(res)
 
 	return nil
 }

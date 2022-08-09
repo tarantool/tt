@@ -160,18 +160,50 @@ You can generate autocompletion for ``bash`` or ``zsh`` shell:
 Enter ``tt``, press tab and you will see a list of available modules with
 descriptions. Also, autocomplete supports external modules.
 
+Working with a set of instances
+-------------------------------
+
+``tt`` can manage a set of instances based on one source file.
+
+To work with a set of instances, you need:
+a directory where the files will be located:
+``init.lua`` and ``instances.yml``.
+
+* ``init.lua`` - application source file.
+* ``instances.yml`` - description of instances.
+
+Instances are described in ``instances.yml`` with format:
+
+.. code-block:: yaml
+
+    instance_name:
+      parameter: value
+
+The dot and dash characters in instance names are reserved for system use.
+if it is necessary for a certain instance to work on a source file other
+than ``init.lua``, then you need to create a script with a name in the
+format: ``instance_name.init.lua``.
+
+The following environment variables are associated with each instance:
+
+* ``TARANTOOL_APP_NAME`` - application name (the name of the directory
+  where the application files are present).
+* ``TARANTOOL_INSTANCE_NAME`` - instance name.
+
+`Example <https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-a-set-of-instances>`_
+
 Commands
 --------
 Common description. For a detailed description, use ``tt help command`` .
 
-* ``start`` - start a tarantool instance.
-* ``stop`` - stop the tarantool instance.
-* ``status`` - get current status of the instance.
-* ``restart`` - restart the instance.
+* ``start`` - start a tarantool instance(s).
+* ``stop`` - stop the tarantool instance(s).
+* ``status`` - get current status of the instance(s).
+* ``restart`` - restart the instance(s).
 * ``version`` - show Tarantool CLI version information.
 * ``completion`` - generate autocomplete for a specified shell.
 * ``help`` - display help for any command.
-* ``logrotate`` - rotate logs of a started tarantool instance.
+* ``logrotate`` - rotate logs of a started tarantool instance(s).
 * ``check`` - check an application file for syntax errors.
 * ``connect`` -  connect to the tarantool instance.
 * ``rocks`` - LuaRocks package manager.
