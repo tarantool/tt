@@ -212,3 +212,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``coredump`` - pack/unpack/inspect tarantool coredump.
 * ``run`` - start a tarantool instance. 
 * ``search`` - show available tt/tarantool versions. 
+* ``clean`` -  clean instance(s) files.
