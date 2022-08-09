@@ -283,3 +283,26 @@ func ReadEmbedFileBinary(fs embed.FS, path string) ([]byte, error) {
 	}
 	return content, nil
 }
+
+// AskConfirm asks the user for confirmation and returns true if yes.
+func AskConfirm(question string) (bool, error) {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Printf("%s [y/n]: ", question)
+
+		resp, err := reader.ReadString('\n')
+		resp = strings.ToLower(strings.TrimSpace(resp))
+		if err != nil {
+			return false, err
+		}
+
+		if resp == "y" || resp == "yes" {
+			return true, nil
+		}
+
+		if resp == "n" || resp == "no" {
+			return false, nil
+		}
+	}
+}
