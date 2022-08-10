@@ -31,6 +31,8 @@ type Logger struct {
 	// ljLogger is an io.WriteCloser that writes to the specified filename.
 	// Used to add logrotate functionality to log.Logger.
 	ljLogger *lumberjack.Logger
+	// opts describes the parameters that were used to create the logger.
+	opts *LoggerOpts
 }
 
 // NewLogger creates a new object of Logger.
@@ -43,7 +45,7 @@ func NewLogger(opts *LoggerOpts) *Logger {
 		Compress:   false,
 		LocalTime:  true,
 	}
-	return &Logger{Logger: log.New(ljLogger, "", log.Flags()), ljLogger: ljLogger}
+	return &Logger{Logger: log.New(ljLogger, "", log.Flags()), ljLogger: ljLogger, opts: opts}
 }
 
 // NewCustomLogger creates a new logger object with custom `writer`, `prefix`
@@ -62,6 +64,11 @@ func (logger *Logger) Rotate() error {
 	}
 
 	return logger.ljLogger.Rotate()
+}
+
+// GetOpts returns the parameters that were used to create the logger.
+func (logger *Logger) GetOpts() *LoggerOpts {
+	return logger.opts
 }
 
 // Close implements io.Closer, and closes the current logfile.
