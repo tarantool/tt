@@ -22,7 +22,7 @@ var (
 // NewStartCmd creates start command.
 func NewStartCmd() *cobra.Command {
 	var startCmd = &cobra.Command{
-		Use:   "start [APPLICATION_NAME]",
+		Use:   "start <APPLICATION_NAME>",
 		Short: "Start tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()

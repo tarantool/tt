@@ -10,8 +10,8 @@ import (
 // NewRestartCmd creates start command.
 func NewRestartCmd() *cobra.Command {
 	var restartCmd = &cobra.Command{
-		Use:   "restart [INSTANCE_NAME]",
-		Short: "restart tarantool instance",
+		Use:   "restart <INSTANCE_NAME>",
+		Short: "Restart tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalRestartModule, args)

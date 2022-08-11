@@ -29,7 +29,7 @@ var playFlags = checkpoint.Opts{
 // NewPlayCmd creates a new play command.
 func NewPlayCmd() *cobra.Command {
 	var playCmd = &cobra.Command{
-		Use:   "play URI FILE ..",
+		Use:   "play <URI> <FILE>...",
 		Short: "Play the contents of .snap/.xlog files to another Tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()

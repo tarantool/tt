@@ -12,7 +12,7 @@ import (
 // NewStopCmd creates stop command.
 func NewStopCmd() *cobra.Command {
 	var stopCmd = &cobra.Command{
-		Use:   "stop [INSTANCE_NAME]",
+		Use:   "stop <INSTANCE_NAME>",
 		Short: "Stop tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()

@@ -12,7 +12,7 @@ import (
 // NewLogrotateCmd creates logrotate command.
 func NewLogrotateCmd() *cobra.Command {
 	var logrotateCmd = &cobra.Command{
-		Use:   "logrotate [INSTANCE_NAME]",
+		Use:   "logrotate <INSTANCE_NAME>",
 		Short: "Rotate logs of a started tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()

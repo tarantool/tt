@@ -12,7 +12,7 @@ import (
 // NewCheckCmd creates a new check command.
 func NewCheckCmd() *cobra.Command {
 	var checkCmd = &cobra.Command{
-		Use:   "check [APPLICATION_NAME]",
+		Use:   "check <APPLICATION_NAME>",
 		Short: "Check an application file for syntax errors",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
