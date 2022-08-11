@@ -40,6 +40,15 @@ jobs:
         run: |
           sudo apt -y update
           sudo apt -y install git gcc make cmake unzip zip
+          sudo apt-get --allow-releaseinfo-change update
+          sudo apt-get -y -f install \
+          build-essential ninja-build \
+          lua5.1 luarocks lcov \
+          ruby-dev liblz4-dev  autoconf \
+          automake \
+          libtool
+          sudo luarocks install luacheck 0.26.1
+          sudo gem install coveralls-lcov
 
       - name: Install Tarantool
         uses: tarantool/setup-tarantool@v1
