@@ -13,8 +13,8 @@ import (
 // NewCompletionCmd creates a new completion command.
 func NewCompletionCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:       "completion <shell type>",
-		Short:     "Generate autocomplete for a specified shell",
+		Use:       "completion <SHELL_TYPE>",
+		Short:     "Generate autocomplete for a specified shell. Supported shell type: bash | zsh",
 		ValidArgs: []string{"bash", "zsh"},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
@@ -49,6 +49,10 @@ func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 
 // internalCompletionCmd is a default (internal) completion module function.
 func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("It is required to specify shell type.")
+	}
+
 	switch shell := args[0]; shell {
 	case "bash":
 		if err := rootCmd.GenBashCompletion(os.Stdout); err != nil {
@@ -58,6 +62,8 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err := rootCmd.GenZshCompletion(os.Stdout); err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("Specified shell type is not is not supported. Available: bash | zsh")
 	}
 
 	return nil

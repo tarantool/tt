@@ -12,7 +12,7 @@ import (
 // NewStatusCmd creates status command.
 func NewStatusCmd() *cobra.Command {
 	var statusCmd = &cobra.Command{
-		Use:   "status [INSTANCE_NAME]",
+		Use:   "status <INSTANCE_NAME>",
 		Short: "Status of the tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
