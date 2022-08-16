@@ -5,9 +5,23 @@ local function get_cwd()
     return cwd
 end
 
+local function get_tarantool_path()
+    local path = os.getenv('TT_CLI_TARANTOOL_PATH')
+    if path ~= nil then
+        return path
+    end
+
+    return "/usr/bin"
+end
+
+local function get_tarantool_include_path()
+    return "/usr/include/tarantool"
+end
+
 return {
     PREFIX = [[/usr]],
-    LUA_BINDIR = [[/usr/bin]],
+    LUA_BINDIR = get_tarantool_path(),
+    LUA_INCDIR = get_tarantool_include_path(),
     LUA_MODULES_LIB_SUBDIR = [[/lib/tarantool]],
     LUA_MODULES_LUA_SUBDIR = [[/share/tarantool]],
     LUA_INTERPRETER = [[tarantool]],

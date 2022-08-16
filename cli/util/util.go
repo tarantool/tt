@@ -7,11 +7,14 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"gopkg.in/yaml.v2"
 )
 
@@ -241,6 +244,29 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 	}
 
 	return lines, nil
+}
+
+// GetTarantoolVersion returns and caches the tarantool version.
+func GetTarantoolVersion(cli *cmdcontext.CliCtx) (string, error) {
+	if cli.TarantoolVersion != "" {
+		return cli.TarantoolVersion, nil
+	}
+
+	output, err := exec.Command(cli.TarantoolExecutable, "--version").Output()
+	if err != nil {
+		return "", fmt.Errorf("Failed to get tarantool version: %s", err)
+	}
+
+	version := strings.Split(string(output), "\n")
+	version = strings.Split(version[0], " ")
+
+	if len(version) < 2 {
+		return "", fmt.Errorf("Failed to get tarantool version: corrupted data")
+	}
+
+	cli.TarantoolVersion = version[len(version)-1]
+
+	return cli.TarantoolVersion, nil
 }
 
 // ReadEmbedFile reads content of embed file in string mode.

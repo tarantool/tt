@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
@@ -30,6 +31,14 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			cmd += fmt.Sprintf("'%s', ", arg)
 		}
 	}
+
+	version, err := util.GetTarantoolVersion(&cmdCtx.Cli)
+	if err != nil {
+		return err
+	}
+
+	os.Setenv("TT_CLI_TARANTOOL_VERSION", version)
+	os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolExecutable))
 
 	rocks_cmd := fmt.Sprintf("t=require('extra.wrapper').exec('%s', %s)",
 		os.Args[0], cmd)

@@ -27,6 +27,8 @@ type CliCtx struct {
 	ConfigPath string
 	// Path to Tarantool executable (detected if CLI launch is local).
 	TarantoolExecutable string
+	// Tarantool version.
+	TarantoolVersion string
 }
 
 // RunningCtx contain information for running an application instance.

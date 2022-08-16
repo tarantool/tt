@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 
 from utils import create_tt_config, run_command_and_get_output
 
@@ -56,3 +57,11 @@ def test_rocks_module(tt_cmd, tmpdir):
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
     assert "Removal successful.\n" in output
+
+    test_app_path = os.path.join(os.path.dirname(__file__), "files", "testapp-scm-1.rockspec")
+    shutil.copy(test_app_path, tmpdir)
+    rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "make", "testapp-scm-1.rockspec"],
+            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+    assert "testapp scm-1 is now installed" in output
