@@ -74,6 +74,8 @@ type AppOpts struct {
 	// IncludeDir is the directory where all the header files
 	// are stored.
 	IncludeDir string `mapstructure:"inc_dir"`
+	// InstancesEnabled is the directory where all enabled applications are stored.
+	InstancesEnabled string `mapstructure:"instances_enabled"`
 }
 
 // TemplateOpts contains configuration for applications templates.
