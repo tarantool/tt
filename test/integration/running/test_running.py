@@ -3,8 +3,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+import yaml
 
-from utils import run_command_and_get_output, wait_file
+from utils import (kill_child_process, run_command_and_get_output, wait_file,
+                   wait_instance_start, wait_instance_stop)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
@@ -328,3 +330,82 @@ def test_running_multi_inst_app_error_cases(tt_cmd, tmpdir_with_cfg):
         instance_process.wait(1)
         start_output = instance_process.stdout.readline()
         assert re.search(r"Can't find an application init file", start_output)
+
+
+def test_running_reread_config(tt_cmd, tmpdir):
+    # Copy the test application to the "run" directory.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
+    shutil.copy(test_app_path, tmpdir)
+    inst_name = "test_app"
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+
+    # Create test config with restart_on_failure true.
+    with open(config_path, "w") as file:
+        yaml.dump({"tt": {"app": {"restart_on_failure": True,
+            "log_maxsize": 10, "log_maxage": 1}}}, file)
+
+    # Start an instance.
+    start_cmd = [tt_cmd, "start", inst_name, "--cfg", config_path]
+    instance_process = subprocess.Popen(
+        start_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    start_output = instance_process.stdout.readline()
+    assert re.search(r"Starting an instance", start_output)
+    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    assert file != ""
+
+    # Get pid of instance.
+    # This method of getting the "watchdog" PID is used because this process was forked from "start"
+    # and we cannot get the "watchdog" PID from the "Popen" process.
+    status_cmd = [tt_cmd, "status", inst_name]
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    assert re.search(r"RUNNING. PID: \d+.", status_out)
+
+    pid = int(''.join(filter(str.isdigit, status_out)))
+
+    # Wait for child process of instance to start.
+    # We need to wait because watchdog starts first and only after that
+    # instances starts. It is indicated by 'started' in logs.
+    log_path = os.path.join(tmpdir, "log/test_app/"+inst_name + ".log")
+    file = wait_file(tmpdir + "/log/test_app/", 'test_app.log', [])
+    assert file != ""
+    isStarted = wait_instance_start(log_path)
+    assert isStarted is True
+    # Kill instance child process.
+    killed_childrens = 0
+    while killed_childrens == 0:
+        killed_childrens = kill_child_process(pid)
+
+    # Wait for child process of instance to start again.
+    # It is indicated by 'started' in logs last line.
+    isStarted = wait_instance_start(log_path)
+    assert isStarted is True
+
+    # Check status, it should be running, since instance restarts after failure.
+    status_cmd = [tt_cmd, "status", inst_name]
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    assert re.search(r"RUNNING. PID: \d+.", status_out)
+
+    with open(config_path, "w") as file:
+        yaml.dump({"tt": {"app": {"restart_on_failure": False,
+            "log_maxsize": 10, "log_maxage": 1}}}, file)
+
+    # Kill instance child process.
+    killed_childrens = 0
+    while killed_childrens == 0:
+        killed_childrens = kill_child_process(pid)
+    pid_path = os.path.join(tmpdir, "/run/test_app/", "test_app.pid")
+    # Wait for instance to shutdown, since instance now should shutdown after failure.
+    stopped = wait_instance_stop(pid_path)
+    # Check stopped, it should be 1.
+    assert stopped is True
+
+    # Check that the process was terminated correctly.
+    instance_process_rc = instance_process.wait(1)
+    assert instance_process_rc == 0

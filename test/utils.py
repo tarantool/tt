@@ -3,6 +3,7 @@ import re
 import subprocess
 import time
 
+import psutil
 import yaml
 
 
@@ -83,3 +84,56 @@ def wait_file(dir_name, file_pattern, exclude_list, timeout_sec=1):
         iter_count = iter_count + 1
 
     return ""
+
+
+def kill_child_process(pid):
+    parent = psutil.Process(int(pid))
+    procs = parent.children()
+
+    for proc in procs:
+        proc.terminate()
+    _, alive = psutil.wait_procs(procs, timeout=3)
+
+    for proc in alive:
+        proc.kill()
+
+    return len(procs)
+
+
+def wait_instance_start(log_path, timeout_sec=5):
+    started = False
+    iter_timeout_sec = 0.05
+
+    iter_count = 0
+    while not started:
+        if (iter_count * iter_timeout_sec) > timeout_sec:
+            break
+
+        time.sleep(iter_timeout_sec)
+
+        with open(log_path, "r") as log_file:
+            last_line = log_file.readlines()[-1]
+            if "started" in last_line:
+                started = True
+
+        iter_count = iter_count + 1
+
+    return started
+
+
+def wait_instance_stop(pid_path, timeout_sec=5):
+    stopped = False
+    iter_timeout_sec = 0.05
+
+    iter_count = 0
+    while not stopped:
+        if (iter_count * iter_timeout_sec) > timeout_sec:
+            break
+
+        time.sleep(iter_timeout_sec)
+        if os.path.isfile(pid_path) is False:
+            stopped = True
+
+        iter_count = iter_count + 1
+
+    return stopped
