@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/apex/log"
@@ -17,7 +18,54 @@ var (
 	cliOpts     *config.CliOpts
 	modulesInfo modules.ModulesInfo
 	rootCmd     *cobra.Command
+
+	// InjectedCmds is populated with the command to be injected into root.
+	// TT-EE.
+	InjectedCmds []*cobra.Command
 )
+
+// GetCmdCtxPtr returns a pointer to cmdCtx, which can be used to create injected commands.
+// TT-EE.
+func GetCmdCtxPtr() *cmdcontext.CmdCtx {
+	return &cmdCtx
+}
+
+// injectCmds injects additional commands.
+// TT-EE.
+func injectCmds(root *cobra.Command) error {
+	if root == nil {
+		return fmt.Errorf("Can't inject commands. The root is nil.")
+	}
+
+	if InjectedCmds == nil {
+		return nil
+	}
+
+	for i := range InjectedCmds {
+		cmd := InjectedCmds[i]
+
+		// Injected command must override the original one.
+		// So, remove the original from the root.
+		origCmds := root.Commands()
+		for j := range origCmds {
+			if cmd.Name() == origCmds[j].Name() {
+				root.RemoveCommand(origCmds[j])
+				break
+			}
+		}
+
+		root.AddCommand(cmd)
+	}
+
+	return nil
+}
+
+// GetModulesInfoPtr returns a pointer to modulesInfo, which can be used to create
+// injected commands.
+// TT-EE.
+func GetModulesInfoPtr() *modules.ModulesInfo {
+	return &modulesInfo
+}
 
 // NewCmdRoot creates a new root command.
 func NewCmdRoot() *cobra.Command {
@@ -60,6 +108,9 @@ func NewCmdRoot() *cobra.Command {
 		NewCoredumpCmd(),
 		NewRunCmd(),
 	)
+	if err := injectCmds(rootCmd); err != nil {
+		panic(err.Error())
+	}
 
 	rootCmd.InitDefaultHelpCmd()
 
@@ -75,10 +126,10 @@ func Execute() {
 	}
 }
 
-// init initializes global flags, configures CLI, configure
+// InitRoot initializes global flags, configures CLI, configure
 // external modules, collects information about available
 // modules and configure `help` module.
-func init() {
+func InitRoot() {
 	rootCmd = NewCmdRoot()
 	rootCmd.ParseFlags(os.Args)
 
