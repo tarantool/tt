@@ -19,5 +19,6 @@ func main() {
 		}
 	}()
 
+	cmd.InitRoot()
 	cmd.Execute()
 }
