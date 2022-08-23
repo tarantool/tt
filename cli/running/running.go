@@ -297,6 +297,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	if err != nil {
 		return err
 	}
+	cmdCtx.Running.Restartable = cliOpts.App.Restartable
 	return nil
 }
 
