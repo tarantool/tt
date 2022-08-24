@@ -424,3 +424,15 @@ func Chdir(newPath string) (string, error) {
 
 // BitHas32 checks if a bit is set in b.
 func BitHas32(b, flag uint32) bool { return b&flag != 0 }
+
+// IsDeprecated checks whether version of program is below 1.10.0.
+func IsDeprecated(version string) bool {
+	splittedVersion := strings.Split(version, ".")
+	if len(splittedVersion) < 2 {
+		return false
+	}
+	if splittedVersion[0] == "1" && len(splittedVersion[1]) < 2 {
+		return true
+	}
+	return false
+}
