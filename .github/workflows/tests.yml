@@ -81,6 +81,10 @@ jobs:
       - name: Unit tests
         run: mage unit
 
+      # This server starts and listen on 8084 port that is used for tests.
+      - name: Stop Mono server
+        run: sudo systemctl kill mono-xsp4 || true
+
       - name: Integration tests
         run: mage integration
 
@@ -164,6 +168,10 @@ jobs:
 
       - name: Unit tests
         run: mage unit
+
+      # This server starts and listen on 8084 port that is used for tests.
+      - name: Stop Mono server
+        run: sudo systemctl kill mono-xsp4 || true
 
       - name: Integration tests
         run: mage integration
