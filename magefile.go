@@ -103,6 +103,8 @@ func PatchCC() error {
 	patches := []string{
 		"001_make_cmd_public.patch",
 		"002_fix_admin_param.patch",
+		"003_fix_work_paths.patch",
+		"004_fix_warning.patch",
 	}
 
 	// Check that patch has been already applied.
