@@ -74,6 +74,14 @@ type TemplateOpts struct {
 	Path string `mapstructure:"path"`
 }
 
+// RepoOpts is a struct used to store paths to local files.
+type RepoOpts struct {
+	// Rocks is the directory where local rocks files could be found.
+	Rocks string `mapstructure:"rocks"`
+	// Install is the directory where local installation files could be found.
+	Install string `mapstructure:"distfiles"`
+}
+
 // CliOpts is used to store modules and app options.
 type CliOpts struct {
 	// Modules is a struct that contain module options.
@@ -84,4 +92,6 @@ type CliOpts struct {
 	EE *EEOpts
 	// Templates options.
 	Templates []TemplateOpts
+	// Repo is a struct used to store paths to local files.
+	Repo *RepoOpts
 }
