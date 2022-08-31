@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
@@ -435,4 +436,17 @@ func IsDeprecated(version string) bool {
 		return true
 	}
 	return false
+}
+
+// ResolveSymlink resolves symlink path.
+func ResolveSymlink(linkPath string) (string, error) {
+	resolvedLink, err := os.Readlink(linkPath)
+	if err != nil {
+		return "", err
+	}
+	// Output of os.Readlink is OS-dependent, so need to check if path is absolute.
+	if !filepath.IsAbs(resolvedLink) {
+		resolvedLink = path.Join(path.Dir(linkPath), resolvedLink)
+	}
+	return resolvedLink, nil
 }
