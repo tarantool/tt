@@ -90,6 +90,9 @@ file format:
         log_maxage: num (Days)
         log_maxbackups: num
         restart_on_failure: bool
+      repo:
+        rocks: path/to/rocks
+        install: path/to/install
 
 **modules**
 
@@ -112,6 +115,11 @@ file format:
   The default is to retain all old log files (though log_maxage may still cause
   them to get deleted.)
 * ``restart_on_failure`` (bool) - should it restart on failure.
+
+**app**
+
+* ``rocks`` (string) - directory that stores rocks files.
+* ``distfiles`` (string) - directory that stores installation files.
 
 External modules
 ----------------
