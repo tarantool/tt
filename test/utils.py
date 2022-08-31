@@ -65,10 +65,14 @@ def wait_file(dir_name, file_pattern, exclude_list, timeout_sec=1):
     iter_count = 0
 
     while True:
-        files = os.listdir(dir_name)
-        for file in files:
-            if re.match(file_pattern, file) is not None and file not in exclude_list:
-                return file
+        try:
+            files = os.listdir(dir_name)
+        except OSError:
+            pass
+        else:
+            for file in files:
+                if re.match(file_pattern, file) is not None and file not in exclude_list:
+                    return file
 
         if (iter_count * iter_timeout_sec) > timeout_sec:
             break
