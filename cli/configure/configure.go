@@ -89,6 +89,13 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 		}
 	}
 
+	// Current working directory cab changed later, so save the original working directory path.
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("Failed to get working dir info: %s", err)
+	}
+	cmdCtx.Cli.WorkDir = cwd
+
 	switch {
 	case cmdCtx.Cli.IsSystem:
 		return configureSystemCli(cmdCtx)

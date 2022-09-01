@@ -1,0 +1,81 @@
+package steps
+
+import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/otiai10/copy"
+	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
+)
+
+func TestManifestLoad(t *testing.T) {
+	workDir, err := ioutil.TempDir("", testWorkDirName)
+	require.NoError(t, err)
+	defer os.RemoveAll(workDir)
+
+	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
+
+	var createCtx cmdcontext.CreateCtx
+	templateCtx := NewTemplateContext()
+	templateCtx.AppPath = workDir
+	loadManifest := LoadManifest{}
+	require.NoError(t, loadManifest.Run(&createCtx, &templateCtx))
+
+	expectedManifest := app_template.TemplateManifest{
+		Description: "Cartridge template",
+		Vars: []app_template.UserPrompt{
+			{
+				Prompt:  "Cluster cookie",
+				Name:    "cluster_cookie",
+				Default: "cookie",
+				Re:      `^\w+$`,
+			},
+			{
+				Prompt:  "User name",
+				Name:    "user_name",
+				Default: "admin",
+				Re:      "",
+			},
+		},
+		PreHook:  "./hooks/pre-gen.sh",
+		PostHook: "./hooks/post-gen.sh",
+	}
+
+	require.True(t, templateCtx.IsManifestPresent)
+	require.Equal(t, expectedManifest, templateCtx.Manifest)
+}
+
+func TestMissingManifest(t *testing.T) {
+	workDir, err := ioutil.TempDir("", testWorkDirName)
+	require.NoError(t, err)
+	defer os.RemoveAll(workDir)
+
+	var createCtx cmdcontext.CreateCtx
+	templateCtx := NewTemplateContext()
+	templateCtx.AppPath = workDir
+
+	loadManifest := LoadManifest{}
+	require.NoError(t, loadManifest.Run(&createCtx, &templateCtx))
+	require.False(t, templateCtx.IsManifestPresent)
+}
+
+func TestManifestInvalidYaml(t *testing.T) {
+	workDir, err := ioutil.TempDir("", testWorkDirName)
+	require.NoError(t, err)
+	defer os.RemoveAll(workDir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(workDir, app_template.DefaultManifestName),
+		[]byte(`Description: [`), 0644))
+
+	var createCtx cmdcontext.CreateCtx
+	templateCtx := NewTemplateContext()
+	templateCtx.AppPath = workDir
+
+	loadManifest := LoadManifest{}
+	require.EqualError(t, loadManifest.Run(&createCtx, &templateCtx), "Failed to load manifest "+
+		"file: Failed to parse YAML: yaml: line 1: did not find expected node content")
+}

@@ -1,0 +1,7 @@
+#! /usr/bin/env tarantool
+
+cluster_cookie = {{.cluster_cookie}}
+user_name = {{.user_name}}
+conf_path = '/etc/{{.user_name}}/conf.lua'
+password={{.password}}
+attempts={{.retry_count}}

@@ -1,0 +1,2 @@
+cluster_cookie = {{.cluster_cookie}}
+login = {{.user_name}}
