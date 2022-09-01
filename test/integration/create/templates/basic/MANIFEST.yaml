@@ -1,0 +1,26 @@
+description: Test template
+vars:
+  - prompt: Cluster cookie
+    name: cluster_cookie
+    default: cookie
+    re: ^\w+$
+
+  - prompt: User name
+    name: user_name
+    default: admin
+
+  - prompt: Password
+    name: password
+    re: ^\w+$
+
+  - prompt: Retry count
+    default: "3"
+    name: retry_count
+    re: ^\d+$
+pre-hook: ./hooks/pre-gen.sh
+post-hook: ./hooks/post-gen.sh
+include:
+  - '{{.user_name}}.txt'
+  - config.lua
+  - pre-script-invoked
+  - post-script-invoked

@@ -26,3 +26,4 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Module ``tt coredump``, to pack/unpack/inspect tarantool coredump.
 - Module ``tt run``, to start tarantool instance using tt wrapper.
 - Module ``tt search``, to show available tt/tarantool versions.
+- Module ``tt create``, to create an application from a template.

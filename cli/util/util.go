@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"gopkg.in/yaml.v2"
@@ -104,7 +105,7 @@ func ParseYAML(path string) (map[string]interface{}, error) {
 
 	var raw map[string]interface{}
 	if err := yaml.Unmarshal(fileContent, &raw); err != nil {
-		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: %s", err)
+		return nil, fmt.Errorf("Failed to parse YAML: %s", err)
 	}
 
 	return raw, nil
@@ -354,4 +355,47 @@ func Max(x, y int) int {
 	}
 
 	return x
+}
+
+// getMissedBinaries returns list of binaries not found in PATH.
+func getMissedBinaries(binaries ...string) []string {
+	var missedBinaries []string
+
+	for _, binary := range binaries {
+		if _, err := exec.LookPath(binary); err != nil {
+			missedBinaries = append(missedBinaries, binary)
+		}
+	}
+
+	return missedBinaries
+}
+
+// CheckRecommendedBinaries warns if some binaries not found in PATH.
+func CheckRecommendedBinaries(binaries ...string) {
+	missedBinaries := getMissedBinaries(binaries...)
+
+	if len(missedBinaries) > 0 {
+		log.Warnf("Missed recommended binaries %s", strings.Join(missedBinaries, ", "))
+	}
+}
+
+// isRegularFile checks if filePath is a directory. Returns true if the directory exists.
+func IsDir(filePath string) bool {
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return false
+	}
+
+	return fileInfo.IsDir()
+}
+
+// isRegularFile checks if filePath is a regular file. Returns true if the file exists
+// and it is a regular file.
+func IsRegularFile(filePath string) bool {
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return false
+	}
+
+	return fileInfo.Mode().IsRegular()
 }

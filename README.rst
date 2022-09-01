@@ -213,3 +213,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``run`` - start a tarantool instance.
 * ``search`` - show available tt/tarantool versions.
 * ``clean`` -  clean instance(s) files.
+* ``create`` - create an application from a template.

@@ -1,0 +1,2 @@
+user-name=admin
+password=weak_pwd

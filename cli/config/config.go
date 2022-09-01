@@ -68,6 +68,12 @@ type AppOpts struct {
 	DataDir string `mapstructure:"data_dir"`
 }
 
+// TemplateOpts contains configuration for applications templates.
+type TemplateOpts struct {
+	// Path is a directory to search template in.
+	Path string `mapstructure:"path"`
+}
+
 // CliOpts is used to store modules and app options.
 type CliOpts struct {
 	// Modules is a struct that contain module options.
@@ -76,4 +82,6 @@ type CliOpts struct {
 	App *AppOpts
 	// EE is a struct that contains tarantool-ee options.
 	EE *EEOpts
+	// Templates options.
+	Templates []TemplateOpts
 }

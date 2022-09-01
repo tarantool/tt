@@ -1,0 +1,12 @@
+description: Bad template
+vars:
+    - prompt: Cluster cookie
+      default: cookie
+      re: ^\w+$
+
+    - prompt: User name
+      name: user_name
+      default: admin
+
+pre-hook: ./hooks/pre-gen.sh
+post-hook: ./hooks/post-gen.sh
