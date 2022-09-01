@@ -91,13 +91,39 @@ func GenCC() {
 	}
 }
 
+// applyPatch applies the patch if it hasn't already been applied.
+func applyPatch(path string) error {
+	fmt.Printf("* %s", filepath.Base(path))
+
+	err := sh.Run(
+		"patch", "-d", cartridgePath, "-N", "-p1", "--dry-run", "-V", "none", "-i", path,
+	)
+
+	if err != nil {
+		fmt.Println(" [already applied]")
+		return nil
+	}
+
+	err = sh.Run(
+		"patch", "-d", cartridgePath, "-N", "-p1", "-V", "none", "-i", path,
+	)
+
+	if err != nil {
+		fmt.Println(" [error]")
+		return err
+	}
+
+	fmt.Println(" [done]")
+	return nil
+}
+
 // Patch cartridge-cli.
 // Before building tt, we must apply patches for cartridge-cli.
 // These patches contain code specific to cartridge-cli integration into tt
 // and are not subject to commit to the cartridge's upstream.
 func PatchCC() error {
 	mg.Deps(GenCC)
-	fmt.Printf("%s", "Apply cartridge-cli patches... ")
+	fmt.Printf("%s\n", "Apply cartridge-cli patches: ")
 
 	patches_path := "../../extra/"
 	patches := []string{
@@ -107,30 +133,12 @@ func PatchCC() error {
 		"004_fix_warning.patch",
 	}
 
-	// Check that patch has been already applied.
-	err := sh.Run(
-		"patch", "-d", cartridgePath, "-N", "-p1", "--dry-run", "-V", "none",
-		"-i", patches_path+patches[0],
-	)
-
-	if err != nil {
-		fmt.Println("[already applied]")
-		return nil
-	}
-
 	for _, patch := range patches {
-		err = sh.Run(
-			"patch", "-d", cartridgePath, "-N", "-p1", "-V", "none", "-i",
-			patches_path+patch,
-		)
-
+		err := applyPatch(patches_path + patch)
 		if err != nil {
-			fmt.Println("[error]")
 			return err
 		}
 	}
-
-	fmt.Println("[done]")
 
 	return nil
 }
