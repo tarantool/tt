@@ -1,9 +1,12 @@
+import ipaddress
 import os
 import re
 import shutil
+import socket
 import subprocess
 import time
 
+import netifaces
 import psutil
 import tarantool
 import yaml
@@ -92,6 +95,10 @@ def kill_child_process(pid=psutil.Process().pid):
     parent = psutil.Process(int(pid))
     procs = parent.children()
 
+    return kill_procs(procs)
+
+
+def kill_procs(procs):
     for proc in procs:
         proc.terminate()
     _, alive = psutil.wait_procs(procs, timeout=3)
@@ -259,3 +266,55 @@ class TarantoolTestInstance:
                 time.sleep(0.1)
         else:
             raise RuntimeError("PID {} couldn't stop after receiving SIGKILL".format(instance.pid))
+
+
+def is_ipv4_type(address):
+    try:
+        ip = ipaddress.ip_address(address)
+
+        if isinstance(ip, ipaddress.IPv4Address):
+            return True
+    except ValueError:
+        return False
+
+    return False
+
+
+def get_test_iface():
+    ifaces = netifaces.interfaces()
+
+    for iface in ifaces[1:]:
+        addrs = netifaces.ifaddresses(iface)
+        for _, addr in addrs.items():
+            if is_ipv4_type(addr[0]['addr']):
+                return iface
+
+    # loopback
+    return netifaces.interfaces()[0]
+
+
+def proc_by_pidfile(filename):
+    try:
+        with open(filename, "r") as f:
+            pid = int(f.read())
+        return psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return None
+
+
+def get_process_conn(pidfile, port):
+    proc = proc_by_pidfile(pidfile)
+    for conn in proc.connections():
+        if conn.status == 'LISTEN' and conn.laddr.port == port \
+                and is_ipv4_type(conn.laddr.ip):
+            return conn
+
+    return None
+
+
+def find_port(port=8000):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex(("localhost", port)) == 0:
+            return find_port(port=port + 1)
+        else:
+            return port

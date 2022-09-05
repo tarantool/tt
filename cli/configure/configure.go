@@ -27,6 +27,28 @@ const (
 	InstancesEnabledDirName = "instances.enabled"
 )
 
+const (
+	defaultDaemonPort    = 1024
+	defaultDaemonPidFile = "tt_daemon.pid"
+	defaultDaemonLogFile = "tt_daemon.log"
+
+	daemonCfgPath     = "tt_daemon.yaml"
+	configHomeEnvName = "XDG_CONFIG_HOME"
+)
+
+const (
+	varPath  = "var"
+	logPath  = "log"
+	runPath  = "run"
+	dataPath = "lib"
+)
+
+var (
+	varDataPath = filepath.Join(varPath, dataPath)
+	varLogPath  = filepath.Join(varPath, logPath)
+	varRunPath  = filepath.Join(varPath, runPath)
+)
+
 var (
 	// Path to default tarantool.yaml configuration file.
 	// Defined at build time, see magefile.
@@ -58,6 +80,21 @@ func getDefaultCliOpts() *config.CliOpts {
 		Install: filepath.Join(defaultConfigPath, "distfiles"),
 	}
 	return &config.CliOpts{Modules: &modules, App: &app, Repo: &repo, EE: &ee}
+}
+
+// getDefaultDaemonOpts returns `DaemonOpts` filled with default values.
+func getDefaultDaemonOpts() *config.DaemonOpts {
+	return &config.DaemonOpts{
+		Port:            defaultDaemonPort,
+		PIDFile:         defaultDaemonPidFile,
+		RunDir:          varRunPath,
+		LogDir:          varLogPath,
+		LogFile:         defaultDaemonLogFile,
+		LogMaxSize:      0,
+		LogMaxAge:       0,
+		LogMaxBackups:   0,
+		ListenInterface: "",
+	}
 }
 
 // adjustPathWithConfigLocation adjust provided filePath with configDir.
@@ -147,6 +184,57 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 	return cfg.CliConfig, nil
 }
 
+// GetDaemonOpts returns tt daemon options from the config file
+// located at path configurePath.
+func GetDaemonOpts(configurePath string) (*config.DaemonOpts, error) {
+	var cfg config.DaemonCfg
+
+	if configurePath == "" {
+		return getDefaultDaemonOpts(), nil
+	}
+
+	// Config could not be processed.
+	if _, err := os.Stat(configurePath); err != nil {
+		return nil, fmt.Errorf("Failed to get access to daemon configuration file: %s", err)
+	}
+
+	rawConfigOpts, err := util.ParseYAML(configurePath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse daemon configuration: %s", err)
+	}
+
+	if err := mapstructure.Decode(rawConfigOpts, &cfg); err != nil {
+		return nil, fmt.Errorf("Failed to parse daemon configuration: %s", err)
+	}
+
+	if cfg.DaemonConfig == nil {
+		return nil, fmt.Errorf("Failed to parse daemon configuration: missing daemon section")
+	}
+
+	if cfg.DaemonConfig.PIDFile == "" {
+		cfg.DaemonConfig.PIDFile = defaultDaemonPidFile
+	}
+
+	if cfg.DaemonConfig.LogFile == "" {
+		cfg.DaemonConfig.LogFile = defaultDaemonLogFile
+	}
+
+	if cfg.DaemonConfig.Port == 0 {
+		cfg.DaemonConfig.Port = defaultDaemonPort
+	}
+
+	if cfg.DaemonConfig.RunDir == "" {
+		cfg.DaemonConfig.RunDir = filepath.Join(filepath.Dir(configurePath),
+			varRunPath)
+	}
+	if cfg.DaemonConfig.LogDir == "" {
+		cfg.DaemonConfig.LogDir = filepath.Join(filepath.Dir(configurePath),
+			varLogPath)
+	}
+
+	return cfg.DaemonConfig, nil
+}
+
 // ValidateCliOpts checks for ambiguous config options.
 func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 	if cliCtx.LocalLaunchDir != "" {
@@ -174,6 +262,12 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
 			return fmt.Errorf("Specified path to the configuration file is invalid: %s", err)
 		}
+	}
+
+	var err error
+	cmdCtx.Cli.DaemonCfgPath, err = getDaemonCfgPath(daemonCfgPath)
+	if err != nil {
+		return fmt.Errorf("Failed to get tt daemon config: %s", err)
 	}
 
 	// Set default (system) tarantool binary, can be replaced by "local" or "system" later.
@@ -496,6 +590,51 @@ func getConfigPath(configName string) (string, error) {
 		}
 
 		curDir = filepath.Dir(curDir)
+	}
+
+	return "", nil
+}
+
+// getDaemonCfgPath looks for the path to the tt_daemon.yaml configuration file.
+// Tries to locate tt_daemon.cfg in following order:
+// 1) $XDG_CONFIG_HOME/tt/tt_daemon.cfg (if $XDG_CONFIG_HOME is not set,
+// uses $HOME/.config);
+// 2) $HOME/.tt_daemon.cfg;
+// 3) looking in current directory for tt_daemon.cfg.
+// See: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html,
+// https://unix.stackexchange.com/posts/313001/revisions.
+func getDaemonCfgPath(configName string) (string, error) {
+	var xdgConfigDir string
+	xdgConfigHome := os.Getenv(configHomeEnvName)
+	homeDir := os.Getenv("HOME")
+
+	if xdgConfigHome != "" {
+		xdgConfigDir = fmt.Sprintf("%s/tt", xdgConfigHome)
+	} else {
+		xdgConfigDir = fmt.Sprintf("%s/.config/tt", homeDir)
+	}
+
+	// Config in $XDG_CONFIG_HOME.
+	configPath := fmt.Sprintf("%s/%s", xdgConfigDir, configName)
+	if _, err := os.Stat(configPath); err == nil {
+		return configPath, nil
+	}
+
+	// Config in $HOME.
+	configPath = fmt.Sprintf("%s/.%s", homeDir, configName)
+	if _, err := os.Stat(configPath); err == nil {
+		return configPath, nil
+	}
+
+	// Config in current dir.
+	curDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("Failed to detect current directory: %s", err)
+	}
+
+	configPath = fmt.Sprintf("%s/%s", curDir, configName)
+	if _, err := os.Stat(configPath); err == nil {
+		return configPath, nil
 	}
 
 	return "", nil

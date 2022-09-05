@@ -21,6 +21,8 @@ type CliCtx struct {
 	LocalLaunchDir string
 	// Path to Tarantool CLI (tarantool.yaml) config.
 	ConfigPath string
+	// Path to tt daemon (tt_daemon.yaml) config.
+	DaemonCfgPath string
 	// Path to Tarantool executable (detected if CLI launch is local).
 	TarantoolExecutable string
 	// Tarantool version.

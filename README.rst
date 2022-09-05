@@ -293,6 +293,56 @@ use the .rockspec.
 
 `Custom template example <https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-application-templates>`_
 
+Working with tt daemon (experimental)
+-------------------------------------
+
+``tt daemon`` module is used to manage ``tt``
+daemon on a given machine. This way instances
+can be operated remotely.
+Daemon can be configured with ``tt_daemon.yaml`` config.
+
+``tt_daemon.yaml`` file format:
+
+.. code-block:: yaml
+
+  daemon:
+        run_dir: path
+        log_dir: path
+        log_maxsize: num (MB)
+        log_maxage: num (Days)
+        log_maxbackups: num
+        log_file: string (file name)
+        listen_interface: string
+        port: num
+        pidfile: string (file name)
+
+Where:
+
+* ``run_dir`` (string) - path to directory that stores various instance
+  runtime artifacts like console socket, PID file, etc. Default: ``run``.
+* ``log_dir`` (string) - directory that stores log files. Default: ``log``.
+* ``log_maxsize`` (number) - the maximum size in MB of the log file before it gets
+  rotated. Default: 100 MB.
+* ``log_maxage`` (numder) - is the maximum number of days to retain old log files
+  based on the timestamp encoded in their filename. Note that a day is defined
+  as 24 hours and may not exactly correspond to calendar days due to daylight
+  savings, leap seconds, etc. Default: not to remove old log files based
+  on age.
+* ``log_maxbackups`` (number) - the maximum number of old log files to retain.
+  Default: to retain all old log files (though log_maxage may still cause
+  them to get deleted).
+* ``log_file`` (string) - name of file contains log of daemon process.
+  Default: ``tt_daemon.log``.
+* ``listen_interface`` (string) - network interface the IP address
+  should be found on to bind http server socket.
+  Default: loopback (``lo``/``lo0``).
+* ``port`` (number) - port number to be used for daemon http server.
+  Default: 1024.
+* ``pidfile`` (string) - name of file contains pid of daemon process.
+  Default: ``tt_daemon.pid``.
+
+`TT daemon example <https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-tt-daemon>`_
+
 Commands
 --------
 Common description. For a detailed description, use ``tt help command`` .
@@ -319,3 +369,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``install`` - install tarantool/tt.
 * ``remove`` - remove tarantool/tt.
 * ``init`` - create tt environment configuration file.
+* ``daemon (experimental)`` - manage tt daemon.

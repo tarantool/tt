@@ -282,3 +282,67 @@ For packing deb package call:
 
 Now the result package may be distributed and installed using dpkg command.
 The package will be installed in /usr/share/tarantool/package_name directory.
+
+Working with tt daemon (experimental)
+-------------------------------------
+
+``tt daemon`` module is used to manage ``tt`` running
+on the background on a given machine. This way instances
+can be operated remotely.
+Daemon can be configured with ``tt_daemon.yaml`` config.
+
+You can manage TT daemon with following commands:
+
+* ``tt daemon start`` - launch of a daemon
+* ``tt daemon stop`` - terminate of the daemon
+* ``tt daemon status`` - get daemon status
+* ``tt daemon restart`` - daemon restart
+
+Work scenario:
+
+First, TT daemon should be started on the server side:
+
+.. code-block:: bash
+
+   $ tt daemon start
+   • Starting tt daemon...
+
+After daemon launch you can check its status on the server side:
+
+.. code-block:: bash
+
+   $ tt daemon status
+   • RUNNING. PID: 6189.
+
+To send request to daemon you can use CURL. In this example the
+client sends a request to start ``test_app`` instance on the server side.
+Note: directory ``test_app`` (or file ``test_app.lua``) exists
+on the server side.
+
+.. code-block:: bash
+
+   $ curl --header "Content-Type: application/json" --request POST \
+   --data '{"command_name":"start", "params":["test_app"]}' \
+   http://127.0.0.1:1024/tarantool
+   {"res":"   • Starting an instance [test_app]...\n"}
+
+Below is an example of running a command with flags.
+
+Flag with argument:
+
+.. code-block:: bash
+
+   $ curl --header "Content-Type: application/json" --request POST \
+   --data '{"command_name":"version", "params":["-L", "/path/to/local/dir"]}' \
+   http://127.0.0.1:1024/tarantool
+   {"res":"Tarantool CLI version 0.1.0, darwin/amd64. commit: bf83f33\n"}
+
+Flag without argument:
+
+.. code-block:: bash
+
+   $ curl --header "Content-Type: application/json" --request POST \
+   --data '{"command_name":"version", "params":["-V"]}' \
+   http://127.0.0.1:1024/tarantool
+   {"res":"Tarantool CLI version 0.1.0, darwin/amd64. commit: bf83f33\n
+    • Tarantool executable found: '/usr/local/bin/tarantool'\n"}
