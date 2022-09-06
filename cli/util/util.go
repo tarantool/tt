@@ -450,3 +450,13 @@ func ResolveSymlink(linkPath string) (string, error) {
 	}
 	return resolvedLink, nil
 }
+
+// RunCommandAndGetOutput returns output of command.
+func RunCommandAndGetOutput(program string, args ...string) (string, error) {
+	out, err := exec.Command(program, args...).Output()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(out)), nil
+}
