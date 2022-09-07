@@ -29,6 +29,7 @@ func NewSearchCmd() *cobra.Command {
 func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) == 0 {
 		log.Warnf("Avaliable programms: \n" +
+			"tarantool-ee - Enterprise tarantool\n" +
 			"tarantool - OpenSource tarantool\n" +
 			"tt - OpenSource tarantool CLI")
 		return nil
@@ -36,6 +37,6 @@ func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("Incorrect arguments")
 	}
-	err := search.SearchVersions(args[0])
+	err := search.SearchVersions(cmdCtx, args[0])
 	return err
 }
