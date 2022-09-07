@@ -13,7 +13,7 @@ type Config struct {
 // tt:
 //   modules:
 //     directory: path/to
-// app:
+//   app:
 //     available: path
 //     run_dir: path
 //     log_dir: path
