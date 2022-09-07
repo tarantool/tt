@@ -10,7 +10,9 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -305,4 +307,51 @@ func AskConfirm(question string) (bool, error) {
 			return false, nil
 		}
 	}
+}
+
+// GetArch returns Architecture of machine.
+func GetArch() (string, error) {
+	out, err := exec.Command("uname", "-m").Output()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(out)), nil
+}
+
+// AtoiUint64 converts string to uint64.
+func AtoiUint64(str string) (uint64, error) {
+	res, err := strconv.ParseUint(str, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return res, nil
+}
+
+// FindNamedMatches processes regexp with named capture groups
+// and transforms output to a map. If capture group is optional
+// and was not found, map value is empty string.
+func FindNamedMatches(re *regexp.Regexp, str string) map[string]string {
+	match := re.FindStringSubmatch(str)
+	res := map[string]string{}
+
+	for i, value := range match {
+		if i == 0 { // Skip input string.
+			continue
+		}
+
+		res[re.SubexpNames()[i]] = value
+	}
+
+	return res
+}
+
+// Max returns the maximum value.
+func Max(x, y int) int {
+	if x < y {
+		return y
+	}
+
+	return x
 }
