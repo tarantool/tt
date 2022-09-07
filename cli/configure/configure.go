@@ -43,7 +43,10 @@ func getDefaultCliOpts() *config.CliOpts {
 		Restartable:        false,
 		DataDir:            "data",
 	}
-	return &config.CliOpts{Modules: &modules, App: &app}
+	ee := config.EEOpts{
+		CredPath: "",
+	}
+	return &config.CliOpts{Modules: &modules, App: &app, EE: &ee}
 }
 
 // GetCliOpts returns Tarantool CLI options from the config file

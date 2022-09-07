@@ -21,12 +21,20 @@ type Config struct {
 //     log_maxage: num (Days)
 //     log_maxbackups: num
 //     restart_on_failure: bool
+//   ee:
+//     credential_path: path
 
 // ModuleOpts is used to store all module options.
 type ModulesOpts struct {
 	// Directory is a path to directory where the external modules
 	// are stored.
 	Directory string
+}
+
+// EEOpts is used to store tarantool-ee options.
+type EEOpts struct {
+	// CredPath is a path to file with credentials for downloading tarantool-ee.
+	CredPath string `mapstructure:"credential_path"`
 }
 
 // AppOpts is used to store all app options.
@@ -66,4 +74,6 @@ type CliOpts struct {
 	Modules *ModulesOpts
 	// App is a struct that contains app options.
 	App *AppOpts
+	// EE is a struct that contains tarantool-ee options.
+	EE *EEOpts
 }

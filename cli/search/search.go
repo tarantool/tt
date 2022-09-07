@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/apex/log"
+	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/install_ee"
 )
 
 // isDeprecated checks if the program version is lower than 1.10.0.
@@ -24,7 +27,7 @@ func isDeprecated(version string) bool {
 }
 
 // SearchVersions outputs available versions of program.
-func SearchVersions(program string) error {
+func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
 	var cmd *exec.Cmd
 
 	if _, err := exec.LookPath("git"); err != nil {
@@ -37,11 +40,28 @@ func SearchVersions(program string) error {
 	} else if program == "tt" {
 		cmd = exec.Command("git", "-c", "versionsort.suffix=-", "ls-remote", "--tags", "--sort="+
 			"v:refname", "https://github.com/tarantool/tt.git")
+	} else if program == "tarantool-ee" {
+		// Do nothing. Needs for bypass arguments check.
 	} else {
 		return fmt.Errorf("Search supports only tarantool/tt")
 	}
 
 	log.Warn("Available versions of " + program + ":")
+	if program == "tarantool-ee" {
+		cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
+		if err != nil {
+			return err
+		}
+
+		versions, err := install_ee.FetchVersions(cliOpts)
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+		for _, ver := range versions {
+			fmt.Printf("%s\n", ver.Str)
+		}
+		return nil
+	}
 
 	readPipe, writePipe, _ := os.Pipe()
 	cmd.Stdout = writePipe
