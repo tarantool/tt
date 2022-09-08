@@ -1,6 +1,7 @@
 package util
 
 import (
+	"archive/tar"
 	"bufio"
 	"embed"
 	"fmt"
@@ -459,4 +460,69 @@ func RunCommandAndGetOutput(program string, args ...string) (string, error) {
 	}
 
 	return strings.TrimSpace(string(out)), nil
+}
+
+// ExtractTar extracts tar archive.
+func ExtractTar(tarName string) error {
+
+	path, err := filepath.Abs(tarName)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path) + "/"
+	archive, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer archive.Close()
+
+	tarReader := tar.NewReader(archive)
+	if err != nil {
+		return err
+	}
+	for {
+		header, err := tarReader.Next()
+
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			continue
+		case tar.TypeReg:
+			var pos int
+			// Some archives have strange order of objects,
+			// so we check that all folders exist before
+			// creating a file.
+			pos = strings.LastIndex(header.Name, "/")
+			if pos == -1 {
+				pos = 0
+			}
+			if _, err := os.Stat(dir + header.Name[0:pos]); os.IsNotExist(err) {
+				// 0755:
+				//    user:   read/write/execute
+				//    group:  read/execute
+				//    others: read/execute
+				os.MkdirAll(dir+header.Name[0:pos], 0755)
+			}
+			outFile, err := os.Create(dir + header.Name)
+			if err != nil {
+				outFile.Close()
+				return err
+			}
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				return err
+			}
+			outFile.Close()
+
+		default:
+			return fmt.Errorf("Unknown type: %b in %s", header.Typeflag, header.Name)
+		}
+
+	}
+	return nil
 }
