@@ -1,0 +1,4 @@
+[codespell]
+skip = */rocks/third_party,*/cartridge/third_party
+count =
+quiet-level = 3
