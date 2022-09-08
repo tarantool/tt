@@ -72,6 +72,9 @@ jobs:
       - name: Build tt
         run: mage build
 
+      - name: Codespell checks
+        run: mage codespell
+
       - name: Linter
         uses: golangci/golangci-lint-action@v3
         with:
@@ -159,6 +162,9 @@ jobs:
 
       - name: Build tt
         run: mage build
+
+      - name: Codespell checks
+        run: mage codespell
 
       - name: Linter
         uses: golangci/golangci-lint-action@v3

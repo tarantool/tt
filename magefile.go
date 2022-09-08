@@ -206,6 +206,13 @@ func Integration() error {
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "test/integration")
 }
 
+// Run codespell checks.
+func Codespell() error {
+	fmt.Println("Running codespell tests...")
+
+	return sh.RunV("codespell", packagePath, "test", "README.rst", "doc")
+}
+
 // Run all tests together.
 func Test() {
 	mg.SerialDeps(Lint, Unit, Integration)
