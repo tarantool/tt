@@ -28,7 +28,7 @@ func NewSearchCmd() *cobra.Command {
 // internalSearchModule is a default search module.
 func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) == 0 {
-		log.Warnf("Avaliable programms: \n" +
+		log.Warnf("Available programs: \n" +
 			"tarantool-ee - Enterprise tarantool\n" +
 			"tarantool - OpenSource tarantool\n" +
 			"tt - OpenSource tarantool CLI")

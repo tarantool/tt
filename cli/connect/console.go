@@ -351,7 +351,7 @@ func getPromptOptions(console *Console) []prompt.Option {
 
 func appendToHistoryFile(console *Console, in string) error {
 	if console.historyFile == nil {
-		return fmt.Errorf("No hostory file found")
+		return fmt.Errorf("No history file found")
 	}
 
 	if _, err := console.historyFile.WriteString(in + "\n"); err != nil {

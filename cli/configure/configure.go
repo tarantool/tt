@@ -108,7 +108,7 @@ func ExternalCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
 }
 
 // configureExistsCmd configures an external commands
-// that have internal implemetation.
+// that have internal implementation.
 func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo) {
 	for _, cmd := range rootCmd.Commands() {
 		if module, ok := (*modulesInfo)[cmd.Name()]; ok {

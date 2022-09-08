@@ -22,4 +22,4 @@ def test_version_cmd(tt_cmd, tmpdir):
     cmd = [tt_cmd, "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
-    assert re.search(r"Avaliable programms: ", output)
+    assert re.search(r"Available programs: ", output)

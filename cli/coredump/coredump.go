@@ -85,7 +85,7 @@ func ExtractTarGz(tarName string) error {
 			outFile.Close()
 
 		default:
-			return fmt.Errorf("uknown type: %b in %s", header.Typeflag, header.Name)
+			return fmt.Errorf("unknown type: %b in %s", header.Typeflag, header.Name)
 		}
 
 	}
@@ -130,7 +130,7 @@ func Pack(coreName string) error {
 	StdinPipe.Close()
 	err = cmd.Wait()
 	if err == nil {
-		log.Infof("Core was succesfully packed.")
+		log.Infof("Core was successfully packed.")
 	} else {
 		err = fmt.Errorf("There was some problem packing archive. "+
 			"Error: '%v'.", err)
@@ -147,7 +147,7 @@ func Unpack(tarName string) error {
 	}
 	err = ExtractTarGz(tarPath)
 	if err == nil {
-		log.Infof("Archive was succesfully unpacked. \n")
+		log.Infof("Archive was successfully unpacked. \n")
 	} else {
 		err = fmt.Errorf("There was some problem unpacking archive. "+
 			"Error: '%v'.", err)

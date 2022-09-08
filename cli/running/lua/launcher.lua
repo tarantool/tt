@@ -61,7 +61,7 @@ local function cfg_wrapper(cfg)
 end
 
 --- Start an Instance. The "init" file of the Instance passes
--- throught "TT_CLI_INSTANCE".
+-- through "TT_CLI_INSTANCE".
 local function start_instance()
     local instance_path = os.getenv('TT_CLI_INSTANCE')
     if instance_path == nil then

@@ -127,7 +127,7 @@ func (wd *Watchdog) startSignalHandling() {
 				switch sig {
 				case syscall.SIGINT, syscall.SIGTERM:
 					wd.Instance.Stop(30 * time.Second)
-					// If we recive one of the "stop" signals, the
+					// If we receive one of the "stop" signals, the
 					// program should be terminated.
 					wd.stopped = true
 				case syscall.SIGHUP:

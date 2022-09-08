@@ -1,11 +1,11 @@
 -- This is a script that print into stdout the contents of .snap/.xlog files.
--- The files passes throught 'TT_CLI_CAT_FILES'.
--- The --show-system flag passes throught 'TT_CLI_CAT_SHOW_SYS'.
--- The --space flags passes throught 'TT_CLI_CAT_SPACES'.
--- The --from flag passes throught 'TT_CLI_CAT_FROM'.
--- The --to flag passes throught 'TT_CLI_CAT_TO'.
--- The --replica flags passes throught 'TT_CLI_CAT_REPLICAS'.
--- The --format flags passes throught 'TT_CLI_CAT_FORMAT'.
+-- The files passes through 'TT_CLI_CAT_FILES'.
+-- The --show-system flag passes through 'TT_CLI_CAT_SHOW_SYS'.
+-- The --space flags passes through 'TT_CLI_CAT_SPACES'.
+-- The --from flag passes through 'TT_CLI_CAT_FROM'.
+-- The --to flag passes through 'TT_CLI_CAT_TO'.
+-- The --replica flags passes through 'TT_CLI_CAT_REPLICAS'.
+-- The --format flags passes through 'TT_CLI_CAT_FORMAT'.
 
 local log = require('log')
 local xlog = require('xlog')

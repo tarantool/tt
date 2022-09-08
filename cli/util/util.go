@@ -222,7 +222,7 @@ Loop:
 	return lastNewLinePos, nil
 }
 
-// GetLastNLines returns the last N lines fromthe file.
+// GetLastNLines returns the last N lines from the file.
 func GetLastNLines(filepath string, linesN int) ([]string, error) {
 	lastNLinesBeginPos, err := GetLastNLinesBegin(filepath, linesN)
 	if err != nil {

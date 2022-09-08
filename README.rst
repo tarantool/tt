@@ -74,7 +74,7 @@ Configuration file
 ------------------
 
 By default, configuration file is named ``tarantool.yaml``. With the ``--cfg``
-flag you can specify the path to configration file. Example of configuration
+flag you can specify the path to configuration file. Example of configuration
 file format:
 
 .. code-block:: yaml
