@@ -63,7 +63,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("It is required to specify at least one .xlog or .snap file.")
 	}
 
-	// List of files is passed to lua cat scipt via environment variable in json format.
+	// List of files is passed to lua cat script via environment variable in json format.
 	filesJson, err := json.Marshal(args)
 	if err != nil {
 		util.InternalError("Internal error: problem with creating json params with files: %s",
@@ -74,7 +74,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	os.Setenv("TT_CLI_CAT_SHOW_SYS", strconv.FormatBool(catFlags.ShowSystem))
 	os.Setenv("TT_CLI_CAT_FORMAT", string(catFlags.Format))
 
-	// List of spaces is passed to lua cat scipt via environment variable in json format.
+	// List of spaces is passed to lua cat script via environment variable in json format.
 	spacesJson, err := json.Marshal(catFlags.Space)
 	if err != nil {
 		util.InternalError("Internal error: problem with creating json params with spaces: %s",
@@ -87,7 +87,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	os.Setenv("TT_CLI_CAT_FROM", strconv.FormatUint(catFlags.From, 10))
 	os.Setenv("TT_CLI_CAT_TO", strconv.FormatUint(catFlags.To, 10))
 
-	// List of replicas is passed to lua cat scipt via environment variable in json format.
+	// List of replicas is passed to lua cat script via environment variable in json format.
 	replicasJson, err := json.Marshal(catFlags.Replica)
 	if err != nil {
 		util.InternalError("Internal error: problem with creating json params with replicas: %s",

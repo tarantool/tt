@@ -60,7 +60,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("It is required to specify an URI and at least one .xlog or .snap file.")
 	}
 
-	// List of files and URI is passed to lua play scipt via environment variable in json format.
+	// List of files and URI is passed to lua play script via environment variable in json format.
 	filesAndUriJson, err := json.Marshal(args)
 	if err != nil {
 		util.InternalError(
@@ -72,7 +72,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndUriJson))
 	os.Setenv("TT_CLI_PLAY_SHOW_SYS", strconv.FormatBool(playFlags.ShowSystem))
 
-	// List of spaces is passed to lua play scipt via environment variable in json format.
+	// List of spaces is passed to lua play script via environment variable in json format.
 	spacesJson, err := json.Marshal(playFlags.Space)
 	if err != nil {
 		util.InternalError(
@@ -88,7 +88,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	os.Setenv("TT_CLI_PLAY_FROM", strconv.FormatUint(playFlags.From, 10))
 	os.Setenv("TT_CLI_PLAY_TO", strconv.FormatUint(playFlags.To, 10))
 
-	// List of replicas is passed to lua play scipt via environment variable in json format.
+	// List of replicas is passed to lua play script via environment variable in json format.
 	replicasJson, err := json.Marshal(playFlags.Replica)
 	if err != nil {
 		util.InternalError(

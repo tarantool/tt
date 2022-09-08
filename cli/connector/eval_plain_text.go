@@ -150,7 +150,7 @@ func writeToPlainTextConn(conn net.Conn, data string) error {
 // And there are some problems.
 // See https://github.com/tarantool/tarantool/issues/4603
 //
-// Code is read byte by byte to make parsing output simplier
+// Code is read byte by byte to make parsing output simpler
 // (in case of box.session.push() response we need to read 2 yaml-encoded values,
 // it's not enough to catch end of output, we should be sure that only one
 // yaml-encoded value was read).

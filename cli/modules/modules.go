@@ -64,7 +64,7 @@ func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command,
 
 // getExternalModulesDir returns the directory where external modules are located.
 func getExternalModulesDir(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (string, error) {
-	// Configuraion file not detected - ignore and work on.
+	// Configuration file not detected - ignore and work on.
 	// TODO: Add warning in next patches, discussion
 	// what if the file exists, but access is denied, etc.
 	if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {

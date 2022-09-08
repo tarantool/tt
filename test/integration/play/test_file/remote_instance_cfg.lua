@@ -1,5 +1,5 @@
 -- This is a script that configures the remote instance to which .xlog data
--- will be transfered for testing tt play command.
+-- will be transferred for testing tt play command.
 -- A test space 'tester' is being created, the data about which
 -- will be present in the transmitted .xlog file during testing tt play.
 

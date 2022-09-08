@@ -1,5 +1,5 @@
 -- This is a script that check an application file for syntax errors.
--- The application file passes throught "TT_CLI_INSTANCE".
+-- The application file passes through "TT_CLI_INSTANCE".
 
 -- The script is delivered inside the "tt" binary and is launched
 -- to execution via the `-e` flag when starting the application instance.

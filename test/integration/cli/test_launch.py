@@ -92,7 +92,7 @@ def test_launch_local_tt_executable(tt_cmd, tmpdir):
     with open(os.path.join(tmpdir, "tt"), "w") as f:
         f.write(f"#!/bin/sh\necho \"{tt_message}\"")
 
-    # tt found but not exectuable - there should be an error.
+    # tt found but not executable - there should be an error.
     commands = [
         [tt_cmd, "version"],
         [tt_cmd, "-L", tmpdir, "version"]

@@ -1,10 +1,10 @@
 -- This is a script that play the contents of .snap/.xlog files to another Tarantool instance.
--- The files and uri passes throught 'TT_CLI_PLAY_FILES_AND_URI'.
--- The --show-system flag passes throught 'TT_CLI_PLAY_SHOW_SYS'.
--- The --space flags passes throught 'TT_CLI_PLAY_SPACES'.
--- The --from flag passes throught 'TT_CLI_PLAY_FROM'.
--- The --to flag passes throught 'TT_CLI_PLAY_TO'.
--- The --replica flags passes throught 'TT_CLI_PLAY_REPLICAS'.
+-- The files and uri passes through 'TT_CLI_PLAY_FILES_AND_URI'.
+-- The --show-system flag passes through 'TT_CLI_PLAY_SHOW_SYS'.
+-- The --space flags passes through 'TT_CLI_PLAY_SPACES'.
+-- The --from flag passes through 'TT_CLI_PLAY_FROM'.
+-- The --to flag passes through 'TT_CLI_PLAY_TO'.
+-- The --replica flags passes through 'TT_CLI_PLAY_REPLICAS'.
 
 local log = require('log')
 local xlog = require('xlog')
