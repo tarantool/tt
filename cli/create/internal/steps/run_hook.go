@@ -32,6 +32,11 @@ func (hook RunHook) Run(ctx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) err
 		return fmt.Errorf("Invalid hook type %s", hook.HookType)
 	}
 
+	// Check if hook is present.
+	if hookPath == "" {
+		return nil
+	}
+
 	executablePath := filepath.Join(templateCtx.AppPath, hookPath)
 	_, err := os.Stat(executablePath)
 	if err != nil {
