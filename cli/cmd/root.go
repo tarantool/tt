@@ -110,6 +110,7 @@ func NewCmdRoot() *cobra.Command {
 		NewSearchCmd(),
 		NewCleanCmd(),
 		NewCreateCmd(),
+		NewBuildCmd(),
 	)
 	if err := injectCmds(rootCmd); err != nil {
 		panic(err.Error())

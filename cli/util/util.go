@@ -399,3 +399,28 @@ func IsRegularFile(filePath string) bool {
 
 	return fileInfo.Mode().IsRegular()
 }
+
+// Chdir changes current directory and updates PWD environment var accordingly.
+// This can be useful for some scripts, which use getenv('PWD') to get working directory.
+func Chdir(newPath string) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", nil
+	}
+	if err = os.Chdir(newPath); err != nil {
+		return "", fmt.Errorf("failed to change directory: %s", err)
+	}
+
+	// Update PWD environment var.
+	if err = os.Setenv("PWD", newPath); err != nil {
+		if err = os.Chdir(cwd); err != nil {
+			return "", fmt.Errorf("failed to change directory back: %s", err)
+		}
+		return "", fmt.Errorf("failed to change PWD environment variable: %s", err)
+	}
+
+	return cwd, nil
+}
+
+// BitHas32 checks if a bit is set in b.
+func BitHas32(b, flag uint32) bool { return b&flag != 0 }

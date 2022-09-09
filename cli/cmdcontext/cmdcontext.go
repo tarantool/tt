@@ -14,6 +14,8 @@ type CmdCtx struct {
 	CommandName string
 	// Create contains information to create an application.
 	Create CreateCtx
+	// Build contains information to build an application.
+	Build BuildCtx
 }
 
 // CliCtx - CLI context. Contains flags passed when starting
@@ -112,4 +114,12 @@ type CreateCtx struct {
 	VarsFile string
 	// ConfigLocation stores config file location.
 	ConfigLocation string
+}
+
+//BuildCtx contains information for application building.
+type BuildCtx struct {
+	// BuildDir is an application directory.
+	BuildDir string
+	// SpecFile is a rockspec file to be used for build.
+	SpecFile string
 }
