@@ -1,0 +1,2 @@
+#!/bin/sh
+touch "./cartridge-pre-build-invoked"

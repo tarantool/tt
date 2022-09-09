@@ -1,0 +1,2 @@
+#!/bin/sh
+touch "./cartridge-post-build-invoked"
