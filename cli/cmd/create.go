@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -21,13 +23,19 @@ var (
 // NewCreateCmd creates an application from a template.
 func NewCreateCmd() *cobra.Command {
 	var createCmd = &cobra.Command{
-		Use:   "create [TEMPLATE] [flags]",
+		Use:   "create <TEMPLATE_NAME> [flags]",
 		Short: "Create an application from a template",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalCreateModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
+		},
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("requires template name argument")
+			}
+			return nil
 		},
 		Example: `
 # Create an application app1 from a template.
