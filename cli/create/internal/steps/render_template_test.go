@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/otiai10/copy"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 )
@@ -30,16 +31,24 @@ func TestTemplateRender(t *testing.T) {
 	renderTemplate := RenderTemplate{}
 	require.NoError(t, renderTemplate.Run(&createCtx, &templateCtx))
 
+	assert.FileExists(t, filepath.Join(workDir, "app1.yml"))
+
 	configFileName := filepath.Join(workDir, "config.lua")
 	require.FileExists(t, configFileName)
-	require.FileExists(t, filepath.Join(workDir, "app1.yml"))
-
 	buf, err := os.ReadFile(configFileName)
 	require.NoError(t, err)
 	const expectedText = `cluster_cookie = cookie
 login = admin
 `
 	require.Equal(t, expectedText, string(buf))
+
+	userFileName := filepath.Join(workDir, "admin.cfg")
+	require.FileExists(t, userFileName)
+	buf, err = os.ReadFile(userFileName)
+	require.NoError(t, err)
+	const userCfgExpectedText = `user=admin
+`
+	require.Equal(t, userCfgExpectedText, string(buf))
 }
 
 func TestTemplateRenderMissingVar(t *testing.T) {
