@@ -6,12 +6,15 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/install_ee"
+	"github.com/tarantool/tt/cli/version"
 )
 
 // isDeprecated checks if the program version is lower than 1.10.0.
@@ -88,5 +91,97 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
 		os.Stdout.Write([]byte("\n"))
 	}
 	os.Stdout.Write([]byte("master\n"))
+	return err
+}
+
+// RunCommandAndGetOutputInDir returns output of command.
+func RunCommandAndGetOutputInDir(program string, dir string, args ...string) (string, error) {
+	cmd := exec.Command(program, args...)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(out)), nil
+}
+
+// SearchVersionsLocal outputs available versions of program from distfiles directory.
+func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, program string) error {
+	var err error
+	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	if err != nil {
+		return err
+	}
+	if cliOpts.Repo == nil {
+		cliOpts.Repo = &config.RepoOpts{Install: "", Rocks: ""}
+	}
+	localDir := cliOpts.Repo.Install
+	if localDir == "" {
+		configDir := filepath.Dir(cmdCtx.Cli.ConfigPath)
+		localDir = filepath.Join(configDir, "distfiles")
+	}
+
+	localFiles, err := os.ReadDir(localDir)
+	if err != nil {
+		return err
+	}
+
+	if program == "tarantool" {
+		if _, err = os.Stat(localDir + "/tarantool"); !os.IsNotExist(err) {
+			versions, err := RunCommandAndGetOutputInDir("git",
+				localDir+"/tarantool",
+				"-c", "versionsort.suffix=-",
+				"tag", "--sort="+"v:refname")
+			if err != nil {
+				return err
+			}
+			log.Infof("Available versions of " + program + ":")
+			versionsArray := strings.Split(versions, "\n")
+			for _, version := range versionsArray {
+				if isDeprecated(version) {
+					continue
+				}
+				fmt.Println(version)
+			}
+			fmt.Println("master")
+		}
+	} else if program == "tt" {
+		if _, err = os.Stat(localDir + "/tt"); !os.IsNotExist(err) {
+			versions, err := RunCommandAndGetOutputInDir("git",
+				localDir+"/tt", "-c",
+				"versionsort.suffix=-",
+				"tag", "--sort="+"v:refname")
+			if err != nil {
+				return err
+			}
+			log.Infof("Available versions of " + program + ":")
+			fmt.Println(versions)
+			fmt.Println("master")
+		}
+	} else if program == "tarantool-ee" {
+		for _, v := range localFiles {
+			var versions []version.Version
+			if strings.Contains(v.Name(), "tarantool-enterprise-bundle") && !v.IsDir() {
+				name := strings.TrimPrefix(v.Name(), "tarantool-enterprise-bundle-")
+				name = strings.TrimSuffix(name, ".tar.gz")
+				versionLocal, err := version.GetVersionDetails(name)
+				if err != nil {
+					return err
+				}
+				versionLocal.Str = name
+				versions = append(versions, versionLocal)
+
+			}
+			log.Infof("Available versions of " + program + ":")
+			version.SortVersions(versions)
+			for _, version := range versions {
+				fmt.Println("   " + version.Str)
+			}
+		}
+	} else {
+		return fmt.Errorf("Search supports only tarantool/tt")
+	}
+
 	return err
 }
