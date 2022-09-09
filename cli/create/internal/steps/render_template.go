@@ -29,6 +29,7 @@ func render(templateCtx *TemplateCtx, templateFileNamePattern *regexp.Regexp,
 			if err := os.Remove(filePath); err != nil {
 				return fmt.Errorf("Error removing %s: %s", filePath, err)
 			}
+			filePath = resultFilePath
 		}
 		// Render file name.
 		newFileName, err := templateCtx.Engine.RenderText(filePath, templateCtx.Vars)
