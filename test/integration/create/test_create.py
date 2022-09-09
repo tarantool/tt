@@ -397,3 +397,37 @@ def test_create_app_in_specified_path(tt_cmd, tmpdir):
                                       tmpdir, "templates", "basic"), "basic",
                                       os.path.join(tmpdirname, "app1"), "--dst",
                                       tmpdirname, "--name", "app1")
+
+
+def test_app_create_missing_required_args(tt_cmd, tmpdir):
+    create_tnt_env_in_dir(tmpdir)
+
+    create_cmd = [tt_cmd, "create"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 1
+    first_out_line = tt_process.stdout.readline()
+    assert first_out_line.find("Error: requires template name argument") != -1
+
+    create_cmd = [tt_cmd, "create", "basic"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 1
+    first_out_line = tt_process.stdout.readline()
+    assert first_out_line.find('Error: required flag(s) "name" not set') != -1
