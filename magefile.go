@@ -93,27 +93,26 @@ func GenCC() {
 
 // applyPatch applies the patch if it hasn't already been applied.
 func applyPatch(path string) error {
-	fmt.Printf("* %s", filepath.Base(path))
-
-	err := sh.Run(
+	// Run the patch in dry run mode.
+	out, err := sh.Output(
 		"patch", "-d", cartridgePath, "-N", "-p1", "--dry-run", "-V", "none", "-i", path,
 	)
 
+	// If an error is returned, one of two things has happened:
+	// the patch has already been applied or an error has occurred.
 	if err != nil {
-		fmt.Println(" [already applied]")
-		return nil
+		if strings.Contains(out, "Reversed (or previously applied) patch detected!") {
+			return nil
+		}
+		return err
 	}
 
 	err = sh.Run(
 		"patch", "-d", cartridgePath, "-N", "-p1", "-V", "none", "-i", path,
 	)
 
-	if err != nil {
-		fmt.Println(" [error]")
-		return err
-	}
+	fmt.Printf("* %s [done]\n", filepath.Base(path))
 
-	fmt.Println(" [done]")
 	return nil
 }
 
@@ -123,7 +122,7 @@ func applyPatch(path string) error {
 // and are not subject to commit to the cartridge's upstream.
 func PatchCC() error {
 	mg.Deps(GenCC)
-	fmt.Printf("%s\n", "Apply cartridge-cli patches: ")
+	fmt.Printf("%s\n", "Apply cartridge-cli patches...")
 
 	patches_path := "../../extra/"
 	patches := []string{
