@@ -100,7 +100,7 @@ def test_launch_local_tt_executable(tt_cmd, tmpdir):
 
     for cmd in commands:
         rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-        assert rc == 1
+        assert rc == 0
         assert tt_message not in output
 
     # tt found and executable.

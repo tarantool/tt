@@ -2,13 +2,13 @@ package configure
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 
+	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -224,12 +224,10 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
 
 	if _, err := os.Stat(localTarantool); err == nil {
 		if _, err := exec.LookPath(localTarantool); err != nil {
-			return fmt.Errorf(
-				`Found Tarantool binary in local directory "%s" isn't executable: %s`,
-				launchDir, err)
+			log.Warnf(`"%s" isn't executable: %s`, localTarantool, err)
+		} else {
+			cmdCtx.Cli.TarantoolExecutable = localTarantool
 		}
-
-		cmdCtx.Cli.TarantoolExecutable = localTarantool
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("Failed to get access to Tarantool binary file: %s", err)
 	}
@@ -252,16 +250,16 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
 	if localCli != currentCli {
 		if _, err := os.Stat(localCli); err == nil {
 			if _, err := exec.LookPath(localCli); err != nil {
-				return fmt.Errorf(
-					`Found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
-			}
-
-			// We are not using the "RunExec" function because we have no reason to have several
-			// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
-			// which starts tarantool or some external module.
-			err = syscall.Exec(localCli, append([]string{localCli}, os.Args[1:]...), os.Environ())
-			if err != nil {
-				return err
+				log.Warnf(`"%s" isn't executable: %s`, localCli, err)
+			} else {
+				// We are not using the "RunExec" function because we have no reason to have several
+				// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
+				// which starts tarantool or some external module.
+				err = syscall.Exec(localCli, append([]string{localCli}, os.Args[1:]...),
+					os.Environ())
+				if err != nil {
+					return err
+				}
 			}
 		} else if !os.IsNotExist(err) {
 			return fmt.Errorf("Failed to get access to tt binary file: %s", err)
@@ -292,7 +290,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 	// 1) We use the "local" tarantool.
 	// 2) For our purpose, tarantool is not needed at all.
 	if err != nil {
-		log.Println("Can't set the default tarantool from the system")
+		log.Info("Can't set the default tarantool from the system")
 	}
 
 	// If neither the local start nor the system flag is specified,
