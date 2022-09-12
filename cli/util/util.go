@@ -3,9 +3,11 @@ package util
 import (
 	"archive/tar"
 	"bufio"
+	"compress/gzip"
 	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -439,6 +441,22 @@ func IsDeprecated(version string) bool {
 	return false
 }
 
+// CopyFileChangePerms copies file from source to destination with changing perms.
+func CopyFileChangePerms(src string, dst string, perms int) error {
+	// Read all content of src to data.
+	_, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	data, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	// Write data to dst.
+	err = ioutil.WriteFile(dst, data, fs.FileMode(perms))
+	return err
+}
+
 // ResolveSymlink resolves symlink path.
 func ResolveSymlink(linkPath string) (string, error) {
 	resolvedLink, err := os.Readlink(linkPath)
@@ -476,7 +494,12 @@ func ExtractTar(tarName string) error {
 	}
 	defer archive.Close()
 
-	tarReader := tar.NewReader(archive)
+	uncompressedStream, err := gzip.NewReader(archive)
+	if err != nil {
+		return err
+	}
+
+	tarReader := tar.NewReader(uncompressedStream)
 	if err != nil {
 		return err
 	}
