@@ -27,7 +27,7 @@ func TestGetVersions(t *testing.T) {
 	testCases[getVersionsInputValue{data: &inputData0}] =
 		getVersionsOutputValue{
 			result: nil,
-			err:    fmt.Errorf("Cannot parse versions"),
+			err:    fmt.Errorf("No packages for this OS."),
 		}
 
 	inputData1 := []byte(`<a href="/enterprise/tarantool-enterprise-bundle-` +

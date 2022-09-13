@@ -27,6 +27,14 @@ import (
 
 const bufSize int64 = 10000
 
+type OsType uint16
+
+const (
+	OsLinux OsType = iota
+	OsMacos
+	OsUnknown
+)
+
 // VersionFunc is a type of function that return
 // string with current Tarantool CLI version.
 type VersionFunc func(bool, bool) string
@@ -322,6 +330,24 @@ func GetArch() (string, error) {
 	}
 
 	return strings.TrimSpace(string(out)), nil
+}
+
+// GetOs returns the operating system version of the host.
+func GetOs() (OsType, error) {
+	out, err := exec.Command("uname", "-s").Output()
+	if err != nil {
+		return OsUnknown, err
+	}
+
+	osStr := strings.TrimSpace(string(out))
+	switch osStr {
+	case "Linux":
+		return OsLinux, nil
+	case "Darwin":
+		return OsMacos, nil
+	}
+
+	return OsUnknown, nil
 }
 
 // AtoiUint64 converts string to uint64.
