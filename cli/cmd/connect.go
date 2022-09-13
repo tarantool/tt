@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
 	"syscall"
 
 	"github.com/apex/log"
@@ -24,8 +25,9 @@ var (
 // NewConnectCmd creates connect command.
 func NewConnectCmd() *cobra.Command {
 	var connectCmd = &cobra.Command{
-		Use: "connect (<INSTANCE_NAME> | <URI>) [<FILE> | <COMMAND>] [flags]\n" +
-			"  COMMAND | tt connect (<INSTANCE_NAME> | <URI>) [flags]",
+		Use: "connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
+			" [<FILE> | <COMMAND>] [flags]\n" +
+			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]",
 		Short: "Connect to the tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
@@ -44,25 +46,43 @@ func NewConnectCmd() *cobra.Command {
 	return connectCmd
 }
 
+// isURI returns true if a string is a valid URI.
+func isURI(str string) bool {
+	// shema:host:port
+	// shema:/host:port
+	// shema://host:port
+	// host:port
+	uriReStr := "((\\w+):(\\/{0,2})?)?[\\w.-]+:\\d+"
+	// ./path
+	// /path
+	// unix:path
+	// unix/:path
+	// unix://path
+	unixReStr := "((\\./)|(/)|(unix/?:))/*[^/].*"
+
+	uriRe := regexp.MustCompile("^((" + uriReStr + ")|(" + unixReStr + "))$")
+	return uriRe.Match([]byte(str))
+}
+
 // resolveInstAddr checks if the instance name is used as the address and
 // replaces it with a control socket if so.
 func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	args []string) ([]string, error) {
-	var err error
 	newArgs := args
 
 	// FillCtx returns error if no instances found.
-	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
-		return newArgs, err
+	if fillErr := running.FillCtx(cliOpts, cmdCtx, args); fillErr == nil {
+		if len(cmdCtx.Running) > 1 {
+			return newArgs, fmt.Errorf("specify instance name")
+		}
+		newArgs[0] = cmdCtx.Running[0].ConsoleSocket
+		return newArgs, nil
+	} else {
+		if isURI(newArgs[0]) {
+			return newArgs, nil
+		}
+		return newArgs, fillErr
 	}
-
-	if len(cmdCtx.Running) > 1 {
-		return newArgs, fmt.Errorf("specify instance name")
-	}
-
-	newArgs[0] = cmdCtx.Running[0].ConsoleSocket
-
-	return newArgs, nil
 }
 
 // internalConnectModule is a default connect module.
