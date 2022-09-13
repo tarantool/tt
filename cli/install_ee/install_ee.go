@@ -19,7 +19,10 @@ import (
 	"golang.org/x/term"
 )
 
-const eeSource string = "https://download.tarantool.io/enterprise/"
+const (
+	eeSourceLinux string = "https://download.tarantool.io/enterprise/"
+	eeSourceMacos string = "https://download.tarantool.io/enterprise-macos/"
+)
 
 type userCredentials struct {
 	username string
@@ -101,19 +104,36 @@ func getVersions(data *[]byte) ([]version.Version, error) {
 		return nil, err
 	}
 
-	// Bundles without specifying the architecture are all x86_64.
-	if arch == "x86_64" {
-		matchRe = ".*>tarantool-enterprise-bundle-" +
-			"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-x86_64)?\\.tar\\.gz<.*"
-	} else {
-		matchRe = ".*>tarantool-enterprise-bundle-" +
-			"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-" + arch + ")\\.tar\\.gz<.*"
+	osType, err := util.GetOs()
+	if err != nil {
+		return nil, err
+	}
+
+	switch osType {
+	case util.OsLinux:
+		// Bundles without specifying the architecture are all x86_64.
+		if arch == "x86_64" {
+			matchRe = ".*>tarantool-enterprise-bundle-" +
+				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-x86_64)?\\.tar\\.gz<.*"
+		} else {
+			matchRe = ".*>tarantool-enterprise-bundle-" +
+				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-" + arch + ")\\.tar\\.gz<.*"
+		}
+	case util.OsMacos:
+		// Bundles without specifying the architecture are all x86_64.
+		if arch == "x86_64" {
+			matchRe = ".*>tarantool-enterprise-bundle-" +
+				"(.*-g[a-f0-9]+-r[0-9]{3})-macos(?:x-x86_64)?\\.tar\\.gz<.*"
+		} else {
+			matchRe = ".*>tarantool-enterprise-bundle-" +
+				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-macosx-" + arch + ")\\.tar\\.gz<.*"
+		}
 	}
 
 	re := regexp.MustCompile(matchRe)
 	parsedData := re.FindAllStringSubmatch(strings.TrimSpace(string(*data)), -1)
 	if len(parsedData) == 0 {
-		return nil, fmt.Errorf("Cannot parse versions")
+		return nil, fmt.Errorf("No packages for this OS.")
 	}
 
 	for _, entry := range parsedData {
@@ -134,6 +154,23 @@ func getVersions(data *[]byte) ([]version.Version, error) {
 	return versions, nil
 }
 
+// getTarballURL returns a tarball address for the target operating system.
+func getTarballURL() (string, error) {
+	osType, err := util.GetOs()
+	if err != nil {
+		return "", err
+	}
+
+	switch osType {
+	case util.OsLinux:
+		return eeSourceLinux, nil
+	case util.OsMacos:
+		return eeSourceMacos, nil
+	}
+
+	return "", fmt.Errorf("This operating system is not supported.")
+}
+
 // FetchVersions returns all available tarantool-ee versions.
 // The result will be sorted in ascending order.
 func FetchVersions(cliOpts *config.CliOpts) ([]version.Version, error) {
@@ -142,8 +179,13 @@ func FetchVersions(cliOpts *config.CliOpts) ([]version.Version, error) {
 		return nil, err
 	}
 
+	source, err := getTarballURL()
+	if err != nil {
+		return nil, err
+	}
+
 	client := http.Client{Timeout: 5 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, eeSource, http.NoBody)
+	req, err := http.NewRequest(http.MethodGet, source, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +239,11 @@ func GetTarantoolEE(cliOpts *config.CliOpts, bundleName string, dst string) erro
 	if err != nil {
 		return err
 	}
-	eeLink := "https://download.tarantool.io/enterprise/" + bundleName
+	source, err := getTarballURL()
+	if err != nil {
+		return err
+	}
+	eeLink := source + bundleName
 	client := http.Client{Timeout: 0}
 	req, err := http.NewRequest(http.MethodGet, eeLink, http.NoBody)
 	if err != nil {
