@@ -1,0 +1,4 @@
+tt:
+  app:
+    instances_enabled: .
+    bin_dir: bin

@@ -1,5 +1,9 @@
 package cmdcontext
 
+import (
+	"github.com/tarantool/tt/cli/config"
+)
+
 // CmdCtx is the main structure of the program context.
 // Contains within itself other structures of CLI modules.
 type CmdCtx struct {
@@ -16,6 +20,8 @@ type CmdCtx struct {
 	Create CreateCtx
 	// Build contains information to build an application.
 	Build BuildCtx
+	// Pack contains information to pack an application.
+	Pack PackCtx
 }
 
 // CliCtx - CLI context. Contains flags passed when starting
@@ -124,4 +130,40 @@ type BuildCtx struct {
 	BuildDir string
 	// SpecFile is a rockspec file to be used for build.
 	SpecFile string
+}
+
+// PackCtx contains all flags for tt pack command.
+type PackCtx struct {
+	// Type contains a type of packing.
+	Type string
+	// Name contains the name of packing bundle.
+	Name string
+	// Version contains the version of packing bundle.
+	Version string
+	// AppList contains applications to be packed.
+	AppList []string
+	// FileName contains the name of file of result package.
+	FileName string
+	// WithBinaries put binaries into the package regardless if tarantool is system or not.
+	WithBinaries bool
+	// WithoutBinaries ignores binaries regardless if tarantool is system or not.
+	WithoutBinaries bool
+	// TarantoolExecutable is a path to tarantool executable path
+	TarantoolExecutable string
+	// TarantoolIsSystem shows if tarantool is system.
+	TarantoolIsSystem bool
+	// ConfigPath is a full path to tarantool.yaml file.
+	ConfigPath string
+	// App contains info about bundle.
+	App *config.AppOpts
+	// ModulesDirectory contains a path to modules directory.
+	ModulesDirectory string
+	// ArchiveCtx contains flags specific for tgz type.
+	Archive ArchiveCtx
+}
+
+// ArchiveCtx contains flags specific for tgz type.
+type ArchiveCtx struct {
+	// All means pack all artifacts from bundle, including pid files etc.
+	All bool
 }
