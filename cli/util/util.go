@@ -625,3 +625,29 @@ func CreateSymLink(target string, dst string, program string, overwrite bool) er
 	err := os.Symlink(target, path)
 	return err
 }
+
+// IsApp detects if the passed path is an application.
+func IsApp(path string, excludeList []*regexp.Regexp) bool {
+	entry, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	// Check if the current dir is included in black list.
+	for _, item := range excludeList {
+		if item.MatchString(entry.Name()) {
+			return false
+		}
+	}
+	if _, err = os.Stat(filepath.Join(path, "init.lua")); err == nil && entry.IsDir() {
+		return true
+	} else if entry.IsDir() {
+		return false
+	}
+
+	if !entry.IsDir() && filepath.Ext(entry.Name()) != ".lua" {
+		return false
+	} else if !entry.IsDir() && filepath.Ext(entry.Name()) == ".lua" {
+		return true
+	}
+	return true
+}
