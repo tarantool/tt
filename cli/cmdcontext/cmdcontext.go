@@ -160,10 +160,28 @@ type PackCtx struct {
 	ModulesDirectory string
 	// ArchiveCtx contains flags specific for tgz type.
 	Archive ArchiveCtx
+	// RpmDeb contains all information about rpm and deb type of packing.
+	RpmDeb RpmDebCtx
 }
 
 // ArchiveCtx contains flags specific for tgz type.
 type ArchiveCtx struct {
 	// All means pack all artifacts from bundle, including pid files etc.
 	All bool
+}
+
+// RpmDebCtx contains flags specific for RPM/DEB type.
+type RpmDebCtx struct {
+	// WithTarantoolDeps means to add to package dependencies versions
+	// of tt and tarantool from the current environment.
+	WithTarantoolDeps bool
+	// PreInst is a path to pre-install script.
+	PreInst string
+	// PostInst is a path to post-install script.
+	PostInst string
+	// Deps is dependencies list. Format:
+	// dependency_06>=4
+	Deps []string
+	// DepsFile is a path to a file of dependencies.
+	DepsFile string
 }

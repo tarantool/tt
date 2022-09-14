@@ -8,7 +8,7 @@ func CreatePacker(packCtx *cmdcontext.PackCtx) Packer {
 	case Tgz:
 		return &archivePacker{}
 	case Deb:
-		return nil
+		return &debPacker{}
 	case Rpm:
 		return nil
 	case Docker:

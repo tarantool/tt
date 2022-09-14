@@ -282,6 +282,62 @@ def test_pack_tgz_missing_app(tt_cmd, tmpdir):
     assert rc == 1
 
 
+def prepare_deb_test_cases(tt_cmd) -> list:
+    tt_cmd = tt_cmd
+    return [
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "deb",
+            "args": ["--name", "test_package"],
+            "res_file": "test_package.deb",
+        },
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "deb",
+            "args": ["--filename", "test_package"],
+            "res_file": "test_package",
+        },
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "deb",
+            "args": [
+                "--name", "test_package",
+                "--deps", "tarantool>=1.10", "--deps", "tt=2.0"],
+            "res_file": "test_package.deb",
+        },
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "deb",
+            "args": [
+                "--deps", "tarantool>=1.10,tt=2.0"],
+            "res_file": "bundle.deb",
+        },
+    ]
+
+
+def test_pack_deb_table(tt_cmd, tmpdir):
+    test_cases = prepare_deb_test_cases(tt_cmd)
+
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+    for test_case in test_cases:
+        base_dir = os.path.join(tmpdir, test_case["bundle_src"])
+        rc, output = run_command_and_get_output(
+            [test_case["cmd"], "pack", test_case["pack_type"], *test_case["args"]],
+            cwd=base_dir, env=dict(os.environ, PWD=base_dir))
+
+        assert rc == 0
+
+        package_file = os.path.join(base_dir, test_case["res_file"])
+        assert os.path.exists(package_file)
+
+
 def test_pack_tgz_empty_app_directory(tt_cmd, tmpdir):
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
                     tmpdir, symlinks=True, ignore=None,

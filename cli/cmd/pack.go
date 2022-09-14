@@ -48,6 +48,19 @@ func NewPackCmd() *cobra.Command {
 	packCmd.Flags().BoolVar(&packCtx.Archive.All, "all", packCtx.Archive.All,
 		"Pack all included artifacts")
 
+	// RPMDeb flags.
+	packCmd.Flags().StringVar(&packCtx.RpmDeb.PreInst, "preinst", packCtx.RpmDeb.PreInst,
+		"preinst file path. Only for for RPM and Deb packing.")
+	packCmd.Flags().StringVar(&packCtx.RpmDeb.PostInst, "postinst", packCtx.RpmDeb.PostInst,
+		"postinst file path. Only for for RPM and Deb packing.")
+	packCmd.Flags().StringVar(&packCtx.RpmDeb.DepsFile, "deps-file", packCtx.RpmDeb.DepsFile,
+		"Path to the file that contains dependencies for the RPM and DEB packages")
+	packCmd.Flags().BoolVar(&packCtx.RpmDeb.WithTarantoolDeps, "with-tarantool-deps",
+		packCtx.RpmDeb.WithTarantoolDeps,
+		"Add tarantool and tt as dependencies to the result package")
+	packCmd.Flags().StringSliceVar(&packCtx.RpmDeb.Deps, "deps", packCtx.RpmDeb.Deps,
+		"Dependencies for the RPM and DEB packages")
+
 	return packCmd
 }
 
@@ -65,6 +78,8 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
+	checkFlags(packCtx)
+
 	packer := pack.CreatePacker(&cmdCtx.Pack)
 	if packer == nil {
 		return fmt.Errorf("Incorrect type of package")
@@ -75,4 +90,27 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("Failed to pack: %v", err)
 	}
 	return nil
+}
+
+func checkFlags(packCtx *cmdcontext.PackCtx) {
+	switch pack.PackageType(packCtx.Type) {
+	case pack.Tgz:
+		if len(packCtx.RpmDeb.Deps) > 0 {
+			log.Warnf("You specified the --deps flag," +
+				" but you are not packaging RPM or DEB. Flag will be ignored")
+		}
+		if packCtx.RpmDeb.PreInst != "" {
+			log.Warnf("You specified the --preinst flag," +
+				" but you are not packaging RPM or DEB. Flag will be ignored")
+		}
+		if packCtx.RpmDeb.PostInst != "" {
+			log.Warnf("You specified the --postinst flag," +
+				" but you are not packaging RPM or DEB. Flag will be ignored")
+		}
+	case pack.Rpm, pack.Deb:
+		if packCtx.Archive.All == true {
+			log.Warnf("You specified the --all flag," +
+				" but you are not packaging a tarball. Flag will be ignored")
+		}
+	}
 }

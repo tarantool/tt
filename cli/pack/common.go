@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	dirPermissions = 0750
+	dirPermissions  = 0750
+	filePermissions = 0666
 
 	defaultVersion = "0.1.0.0"
 
