@@ -549,3 +549,37 @@ func ExtractTar(tarName string) error {
 	}
 	return nil
 }
+
+// ExecuteCommand executes program with given args in verbose or quiet mode.
+func ExecuteCommand(program string, isVerbose bool, logFile *os.File, workDir string,
+	args ...string) error {
+	cmd := exec.Command(program, args...)
+	if isVerbose {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	}
+	if workDir == "" {
+		workDir, _ = os.Getwd()
+	}
+	cmd.Dir = workDir
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	err = cmd.Wait()
+	return err
+}
+
+// CreateSymLink creates symlink, overwrites existing if flag is set.
+func CreateSymLink(target string, dst string, program string, overwrite bool) error {
+	path := filepath.Join(dst, program)
+	if _, err := os.Stat(path); !os.IsNotExist(err) && !overwrite {
+		return fmt.Errorf("File already exists, overwrite is false")
+	}
+	os.Remove(path)
+	err := os.Symlink(target, path)
+	return err
+}
