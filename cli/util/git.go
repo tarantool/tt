@@ -31,7 +31,7 @@ func CheckVersionFromGit(basePath string) (string, error) {
 		return "", fmt.Errorf("no git version found")
 	}
 
-	res, err := normalizeGitVersion(out.String())
+	res, err := NormalizeGitVersion(out.String())
 	if err != nil {
 		return "", err
 	}
@@ -39,8 +39,8 @@ func CheckVersionFromGit(basePath string) (string, error) {
 	return res, nil
 }
 
-// normalizeGitVersion returns a version string filtered by regular expressions.
-func normalizeGitVersion(versionStr string) (string, error) {
+// NormalizeGitVersion returns a version string filtered by regular expressions.
+func NormalizeGitVersion(versionStr string) (string, error) {
 	expr1 := "\\d+\\.\\d+\\.\\d+"
 	expr2 := "\\-\\d+\\-"
 

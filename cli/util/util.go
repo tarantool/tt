@@ -651,3 +651,14 @@ func IsApp(path string, excludeList []*regexp.Regexp) bool {
 	}
 	return true
 }
+
+// CheckRequiredBinaries returns an error if some binaries not found in PATH
+func CheckRequiredBinaries(binaries ...string) error {
+	missedBinaries := getMissedBinaries(binaries...)
+
+	if len(missedBinaries) > 0 {
+		return fmt.Errorf("Missed required binaries %s", strings.Join(missedBinaries, ", "))
+	}
+
+	return nil
+}
