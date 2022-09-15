@@ -69,8 +69,6 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			newArgs := []string{"start", "--watchdog", appName}
 
 			wdCmd := exec.Command(ttBin, newArgs...)
-			wdCmd.Stdout = os.Stdout
-			wdCmd.Stderr = os.Stderr
 
 			if err := wdCmd.Start(); err != nil {
 				return err
