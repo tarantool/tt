@@ -441,6 +441,22 @@ func IsDeprecated(version string) bool {
 	return false
 }
 
+// CopyFilePreserve copies file from source to destination with perms.
+func CopyFilePreserve(src string, dst string) error {
+	// Read all content of src to data.
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	data, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	// Write data to dst.
+	err = ioutil.WriteFile(dst, data, info.Mode().Perm())
+	return err
+}
+
 // CopyFileChangePerms copies file from source to destination with changing perms.
 func CopyFileChangePerms(src string, dst string, perms int) error {
 	// Read all content of src to data.
