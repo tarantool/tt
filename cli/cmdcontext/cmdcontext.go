@@ -89,6 +89,8 @@ type ConnectCtx struct {
 	Password string
 	// SrcFile describes the source of code for the evaluation.
 	SrcFile string
+	// Language to use for execution.
+	Language string
 }
 
 // CreateCtx contains information for creating applications from templates.

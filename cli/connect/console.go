@@ -49,6 +49,8 @@ type Console struct {
 
 	title string
 
+	language Language
+
 	historyFile     *os.File
 	historyFilePath string
 	historyLines    []string
@@ -70,10 +72,11 @@ type Console struct {
 }
 
 // NewConsole creates a new console connected to the tarantool instance.
-func NewConsole(connOpts *connector.ConnOpts, title string) (*Console, error) {
+func NewConsole(connOpts *connector.ConnOpts, title string, lang Language) (*Console, error) {
 	console := &Console{
 		title:    title,
 		connOpts: connOpts,
+		language: lang,
 		luaState: lua.NewState(),
 	}
 
@@ -88,6 +91,11 @@ func NewConsole(connOpts *connector.ConnOpts, title string) (*Console, error) {
 	console.conn, err = connector.Connect(connOpts.Address, connOpts.Username, connOpts.Password)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect: %s", err)
+	}
+
+	// Change a language.
+	if err := changeLanguage(console.conn, lang); err != nil {
+		return nil, fmt.Errorf("Unable to change a language: %s", err)
 	}
 
 	// Initialize user commands executor.
@@ -177,11 +185,28 @@ func loadHistory(console *Console) error {
 
 func getExecutor(console *Console) prompt.Executor {
 	executor := func(in string) {
+		trimmed := strings.TrimSpace(in)
+		if strings.HasPrefix(trimmed, setLanguagePrefix) {
+			newLang := strings.TrimPrefix(trimmed, setLanguagePrefix)
+			if lang, ok := ParseLanguage(newLang); ok {
+				if err := changeLanguage(console.conn, lang); err != nil {
+					log.Warnf("Failed to change language: %s", err)
+				} else {
+					console.language = lang
+				}
+			} else {
+				log.Warnf("Unsupported language: %s", newLang)
+			}
+			return
+		}
+
 		console.input += in + " "
 
-		if !inputIsCompleted(console.input, console.luaState) {
-			console.livePrefixEnabled = true
-			return
+		if console.language == DefaultLanguage || console.language == LuaLanguage {
+			if !inputIsCompleted(console.input, console.luaState) {
+				console.livePrefixEnabled = true
+				return
+			}
 		}
 
 		if err := appendToHistoryFile(console, strings.TrimSpace(console.input)); err != nil {
@@ -239,6 +264,12 @@ func inputIsCompleted(input string, luaState *lua.LState) bool {
 func getCompleter(console *Console) prompt.Completer {
 	completer := func(in prompt.Document) []prompt.Suggest {
 		if len(in.Text) == 0 {
+			return nil
+		}
+
+		if console.language == SQLLanguage {
+			// Tarantool does not implements auto-completion for SQL:
+			// https://github.com/tarantool/tarantool/issues/2304
 			return nil
 		}
 

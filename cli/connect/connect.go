@@ -56,10 +56,15 @@ func Connect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("Should be specified one connection string")
 	}
 
+	lang, ok := ParseLanguage(cmdCtx.Connect.Language)
+	if !ok {
+		return fmt.Errorf("Unsupported language: %s", cmdCtx.Connect.Language)
+	}
+
 	connString := args[0]
 	connOpts := getConnOpts(connString, cmdCtx)
 
-	if err := runConsole(connOpts, ""); err != nil {
+	if err := runConsole(connOpts, "", lang); err != nil {
 		return fmt.Errorf("Failed to run interactive console: %s", err)
 	}
 
@@ -68,6 +73,11 @@ func Connect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 // Eval executes the command on the remote instance (according to args).
 func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
+	lang, ok := ParseLanguage(cmdCtx.Connect.Language)
+	if !ok {
+		return nil, fmt.Errorf("Unsupported language: %s", cmdCtx.Connect.Language)
+	}
+
 	// Parse the arguments.
 	connString := args[0]
 	connOpts := getConnOpts(connString, cmdCtx)
@@ -80,6 +90,11 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 	conn, err := connector.Connect(connOpts.Address, connOpts.Username, connOpts.Password)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to establish connection: %s", err)
+	}
+
+	// Change a language.
+	if err := changeLanguage(conn, lang); err != nil {
+		return nil, fmt.Errorf("Unable to change a language: %s", err)
 	}
 
 	// Execution of the command.
@@ -102,8 +117,8 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 }
 
 // runConsole run a new console.
-func runConsole(connOpts *connector.ConnOpts, title string) error {
-	console, err := NewConsole(connOpts, title)
+func runConsole(connOpts *connector.ConnOpts, title string, lang Language) error {
+	console, err := NewConsole(connOpts, title, lang)
 	if err != nil {
 		return fmt.Errorf("Failed to create new console: %s", err)
 	}
