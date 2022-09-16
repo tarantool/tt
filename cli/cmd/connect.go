@@ -20,6 +20,7 @@ var (
 	connectUser     string
 	connectPassword string
 	connectFile     string
+	connectLanguage string
 )
 
 // NewConnectCmd creates connect command.
@@ -42,6 +43,8 @@ func NewConnectCmd() *cobra.Command {
 	connectCmd.Flags().StringVarP(&connectPassword, "password", "p", "", "password")
 	connectCmd.Flags().StringVarP(&connectFile, "file", "f", "",
 		`file to read the script for evaluation. "-" - read the script from stdin`)
+	connectCmd.Flags().StringVarP(&connectLanguage, "language", "l",
+		connect.DefaultLanguage.String(), `language: lua or sql`)
 
 	return connectCmd
 }
@@ -100,6 +103,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	cmdCtx.Connect.Username = connectUser
 	cmdCtx.Connect.Password = connectPassword
 	cmdCtx.Connect.SrcFile = connectFile
+	cmdCtx.Connect.Language = connectLanguage
 
 	newArgs, err := resolveInstAddr(cmdCtx, cliOpts, args)
 	if err != nil {
