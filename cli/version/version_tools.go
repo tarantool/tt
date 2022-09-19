@@ -118,9 +118,9 @@ func SortVersions(versions []Version) {
 			verRight.Patch, uint64(verRight.Release.Type),
 			verRight.Release.Num, verRight.Additional, verRight.Revision}
 
-		lagerLen := util.Max(len(left), len(right))
+		largestLen := util.Max(len(left), len(right))
 
-		for i := 0; i < lagerLen; i++ {
+		for i := 0; i < largestLen; i++ {
 			var valLeft, valRight uint64 = 0, 0
 			if i < len(left) {
 				valLeft = left[i]
