@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        tarantool-version: ["1.10", "2.8"]
+        tarantool-version: ["1.10", "2.10"]
       fail-fast: false
     steps:
       - uses: actions/checkout@master
@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        sdk-version: ["2.8.2-0-gfc96d10f5-r421"]
+        sdk-version: ["2.10.2-0-gf4228cb7d-r508-linux-x86_64"]
       fail-fast: false
     steps:
       - uses: actions/checkout@master
