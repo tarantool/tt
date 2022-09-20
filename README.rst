@@ -99,6 +99,9 @@ file format:
       repo:
         rocks: path/to/rocks
         install: path/to/install
+      templates:
+        - path: path/to/templates_dir1
+        - path: path/to/templates_dir2
 
 **modules**
 
@@ -128,6 +131,9 @@ file format:
 
 * ``rocks`` (string) - directory that stores rocks files.
 * ``distfiles`` (string) - directory that stores installation files.
+
+**templates**
+* ``path`` (string) - the path to templates search directory.
 
 External modules
 ----------------
@@ -207,6 +213,72 @@ The following environment variables are associated with each instance:
 * ``TARANTOOL_INSTANCE_NAME`` - instance name.
 
 `Example <https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-a-set-of-instances>`_
+
+Working with application templates
+----------------------------------
+
+``tt`` can create applications from templates.
+
+To work with application template, you need:
+
+* A ``<path>`` where templates directories or archives are located.
+
+* ``tarantool.yaml`` configured to search templates in <path>:
+
+  .. code-block:: yaml
+
+    tt:
+      templates:
+        - path: <path1>
+        - path: <path2>
+
+Application template may contain:
+
+* ``*.tt.template`` - template files, that will be instantiated during application creation.
+
+* ``MANIFEST.yaml`` - template manifest (see details below).
+
+Template manifest ``MANIFEST.yaml`` has the following format:
+
+.. code-block:: yaml
+
+  description: Template description
+  vars:
+      - prompt: User name
+        name: user_name
+        default: admin
+        re: ^\w+$
+
+      - prompt: Retry count
+        default: "3"
+        name: retry_count
+        re: ^\d+$
+  pre-hook: ./hooks/pre-gen.sh
+  post-hook: ./hooks/post-gen.sh
+  include:
+  - init.lua
+  - instances.yml
+
+Where:
+
+* ``description`` (string) - template description.
+* ``vars`` - template variables used for instantiation.
+
+  * ``prompt`` - user prompt for variable value input.
+  * ``name`` - variable name.
+  * ``default`` - default value of the variable.
+  * ``re`` - regular expression used for value validation.
+* ``pre-hook`` (string) - executable to run before template instantiation.
+* ``post-hook`` (string) - executable to run after template instantiation.
+* ``include`` (list) - list of files to keep in application directory after create.
+
+There are pre-defined variables that can be used in template text:
+``name`` - application name. It is set to ``--name`` CLI argument value.
+
+Don't include the .rocks directory in your application template. To specify application dependencies,
+use the .rockspec.
+
+`Custom template example <https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-application-templates>`_
 
 Commands
 --------
