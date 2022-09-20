@@ -208,7 +208,7 @@ func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesI
 
 // configureLocalCli configures Tarantool CLI if the launch is local.
 func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
-	// If tt launch is local: we chdir to a local directory, check for tt
+	// If tt launch is local: we chdir to a bin_dir directory, check for tt
 	// and Tarantool binaries. If tt binary exists, then exec it.
 	// If Tarantool binary is found, use it further, instead of what
 	// is specified in the PATH.
@@ -242,8 +242,18 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
 		}
 	}
 
+	cliOpts, err := GetCliOpts(cmdCtx.Cli.ConfigPath)
+	if err != nil {
+		return err
+	}
+
+	if cliOpts.App == nil || cliOpts.App.BinDir == "" {
+		// No bid_dir specified.
+		return nil
+	}
+
 	// Detect local tarantool.
-	localTarantool, err := util.JoinAbspath(launchDir, "tarantool")
+	localTarantool, err := util.JoinAbspath(cliOpts.App.BinDir, "tarantool")
 	if err != nil {
 		return err
 	}
@@ -261,15 +271,28 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
 	}
 
 	// Detect local tt.
-	localCli, err := util.JoinAbspath(cmdCtx.Cli.LocalLaunchDir, cliExecutableName)
+	localCli, err := util.JoinAbspath(cliOpts.App.BinDir, cliExecutableName)
 	if err != nil {
 		return err
+	}
+	if _, err := os.Stat(localCli); err == nil {
+		localCli, err = filepath.EvalSymlinks(localCli)
+		if err != nil {
+			return err
+		}
+	} else {
+		// No tt symlink found in bin_dir.
+		return nil
 	}
 
 	// We have to use the absolute path to the current binary "tt" for
 	// comparison with "localCli", because the same binary can be started
 	// using a relative path, and we don't want to execute "exec" in this case.
 	currentCli, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	currentCli, err = filepath.EvalSymlinks(currentCli)
 	if err != nil {
 		return err
 	}

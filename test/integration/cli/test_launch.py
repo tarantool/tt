@@ -87,9 +87,10 @@ def test_launch_local_tt_executable(tt_cmd, tmpdir):
     # In the future, the same should be done when checking the
     # local Tarantool executable, but so far this is impossible.
     create_tt_config(tmpdir, tmpdir)
+    os.mkdir(tmpdir + "/bin")
 
     tt_message = "Hello, I'm CLI exec!"
-    with open(os.path.join(tmpdir, "tt"), "w") as f:
+    with open(os.path.join(tmpdir, "bin/tt"), "w") as f:
         f.write(f"#!/bin/sh\necho \"{tt_message}\"")
 
     # tt found but not executable - there should be an error.
@@ -104,7 +105,7 @@ def test_launch_local_tt_executable(tt_cmd, tmpdir):
         assert tt_message not in output
 
     # tt found and executable.
-    os.chmod(os.path.join(tmpdir, "tt"), 0o777)
+    os.chmod(os.path.join(tmpdir, "bin/tt"), 0o777)
     for cmd in commands:
         rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
         assert rc == 0
