@@ -10,7 +10,7 @@ def test_remove_tt(tt_cmd, tmpdir):
     with open(configPath, 'w') as f:
         f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
 
-    # Install latest tarantool.
+    # Install latest tt.
     start_cmd = [tt_cmd, "install", "tt=master", "--cfg", configPath]
     instance_process = subprocess.Popen(
         start_cmd,
@@ -36,7 +36,7 @@ def test_remove_tt(tt_cmd, tmpdir):
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
 
-    remove_cmd = [tt_cmd, "remove", "tt=master"]
+    remove_cmd = [tt_cmd, "-S", "remove", "tt=master", "--cfg", configPath]
     remove_process = subprocess.Popen(
         remove_cmd,
         cwd=tmpdir,

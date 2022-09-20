@@ -47,7 +47,7 @@ func TestConfigureCli(t *testing.T) {
 
 	expectedConfigPath, err := util.JoinAbspath(testDir, "tarantool.yaml")
 	assert.Nil(err)
-	ioutil.WriteFile(expectedConfigPath, []byte("config-file"), 0755)
+	ioutil.WriteFile(expectedConfigPath, []byte("tt:\n  app:\n    bin_dir: \".\""), 0755)
 
 	// Create local tarantool and check that it is found during configuration.
 	expectedTarantoolPath := filepath.Join(cmdCtx.Cli.LocalLaunchDir, "tarantool")
@@ -74,7 +74,7 @@ func TestConfigureCli(t *testing.T) {
 	expectedConfigPath = filepath.Join(filepath.Dir(dir), "tarantool.yaml")
 
 	assert.Nil(ioutil.WriteFile(
-		expectedConfigPath, []byte("Tarantool CLI configuration file"), 0755,
+		expectedConfigPath, []byte("tt:\n  app:"), 0755,
 	))
 
 	defer os.Remove(expectedConfigPath)
