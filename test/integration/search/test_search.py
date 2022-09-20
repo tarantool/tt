@@ -35,12 +35,12 @@ def test_version_cmd_local(tt_cmd, tmpdir):
         f.write('tt:\n  app:\n')
     # Download tt and tarantool repos into distfiles directory.
     cmd_download_tarantool = ["git", "clone",
-                              "https://github.com/tarantool/tarantool.git", "--recursive",
+                              "https://github.com/tarantool/tarantool.git",
                               os.path.join(distfilesPath, "tarantool")]
     rc, _ = run_command_and_get_output(cmd_download_tarantool, cwd=tmpdir)
     assert rc == 0
     cmd_download_tt = ["git", "clone",
-                       "https://github.com/tarantool/tt", "--recursive",
+                       "https://github.com/tarantool/tt",
                        os.path.join(distfilesPath, "tt")]
     rc, _ = run_command_and_get_output(cmd_download_tt, cwd=tmpdir)
     assert rc == 0
