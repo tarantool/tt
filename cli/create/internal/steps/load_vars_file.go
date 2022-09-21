@@ -39,10 +39,8 @@ func (LoadVarsFile) Run(ctx *cmdcontext.CreateCtx,
 		if err != nil {
 			return fmt.Errorf("Failed to load vars from %s: %s", varsDefFileFullPath, err)
 		}
-		if _, found := templateCtx.Vars[varDef.name]; !found {
-			log.Debugf("Setting var from vars file: %s = %s", varDef.name, varDef.value)
-			templateCtx.Vars[varDef.name] = varDef.value
-		}
+		log.Debugf("Setting var from vars file: %s = %s", varDef.name, varDef.value)
+		templateCtx.Vars[varDef.name] = varDef.value
 	}
 
 	if err = scanner.Err(); err != nil {
