@@ -86,6 +86,9 @@ def test_create_basic_functionality(tt_cmd, tmpdir):
         # Check default Dockerfile is created.
         assert os.path.exists(os.path.join(app_path, "Dockerfile.build.tt"))
 
+        # Check "--name" value is used in file name.
+        assert os.path.exists(os.path.join(app_path, "app1.cfg"))
+
         # Check output.
         out_lines = tt_process.stdout.readlines()
 
@@ -431,3 +434,24 @@ def test_app_create_missing_required_args(tt_cmd, tmpdir):
     assert tt_process.returncode == 1
     first_out_line = tt_process.stdout.readline()
     assert first_out_line.find('Error: required flag(s) "name" not set') != -1
+
+
+def test_default_var_can_be_overwritten(tt_cmd, tmpdir):
+    create_tnt_env_in_dir(tmpdir)
+
+    create_cmd = [tt_cmd, "create", "basic", "--var", "password=pwd", "--non-interactive",
+                "--name", "app1", "--var", "name=my_name"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    app_path = os.path.join(tmpdir, "app1")
+    assert os.path.exists(os.path.join(app_path, "my_name.cfg"))

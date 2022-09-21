@@ -48,6 +48,7 @@ func Run(createCtx *cmdcontext.CreateCtx) error {
 	}
 
 	stepsChain := []steps.Step{
+		steps.SetPredefinedVariables{},
 		steps.LoadVarsFile{},
 		steps.FillTemplateVarsFromCli{},
 		steps.CreateAppDirectory{},
