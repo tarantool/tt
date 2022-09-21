@@ -65,11 +65,17 @@ func (provider *providerImpl) updateCtx() error {
 		return err
 	}
 
-	args := []string{provider.instance.AppName}
+	var args []string
+	if provider.instance.SingleApp {
+		args = []string{provider.instance.AppName}
+	} else {
+		args = []string{provider.instance.AppName + ":" + provider.instance.InstName}
+	}
+
 	if err = FillCtx(cliOpts, provider.cmdCtx, args); err != nil {
 		return err
 	}
-
+	provider.instance = &provider.cmdCtx.Running[0]
 	return nil
 }
 
