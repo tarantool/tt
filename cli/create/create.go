@@ -48,8 +48,8 @@ func Run(createCtx *cmdcontext.CreateCtx) error {
 	}
 
 	stepsChain := []steps.Step{
-		steps.FillTemplateVarsFromCli{},
 		steps.LoadVarsFile{},
+		steps.FillTemplateVarsFromCli{},
 		steps.CreateAppDirectory{},
 		steps.CopyAppTemplate{},
 		steps.LoadManifest{},

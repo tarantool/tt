@@ -27,7 +27,7 @@ func TestLoadVarsFileVariablesAlreadySet(t *testing.T) {
 	createCtx.VarsFile = "testdata/vars-file.txt"
 	loadVarsFile := LoadVarsFile{}
 	require.NoError(t, loadVarsFile.Run(&createCtx, &templateCtx))
-	require.Equal(t, map[string]string{"user-name": "root", "password": "weak_pwd"},
+	require.Equal(t, map[string]string{"user-name": "admin", "password": "weak_pwd"},
 		templateCtx.Vars)
 }
 
