@@ -21,6 +21,7 @@ pre-hook: ./hooks/pre-gen.sh
 post-hook: ./hooks/post-gen.sh
 include:
   - '{{.user_name}}.txt'
+  - '{{.name}}.cfg'
   - config.lua
   - pre-script-invoked
   - post-script-invoked
