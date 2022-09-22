@@ -17,7 +17,14 @@ import (
 	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/cli/version"
 )
+
+// defaultDirPermissions is rights used to create folders.
+// 0755 - drwxr-xr-x
+// We need to give permission for all to execute
+// read,write for user and only read for others.
+const defaultDirPermissions = 0755
 
 // InstallationFlag is a struct that contains all install flags.
 type InstallationFlag struct {
@@ -61,18 +68,6 @@ var (
 	IDRe = regexp.MustCompile(`^ID=(.*)$`)
 	// VersionIDRe is a regexp for VersionID in os-release file.
 	VersionIDRe = regexp.MustCompile(`^VERSION_ID=(.*)$`)
-)
-
-const (
-	// TarantoolLink is a link to the git repository of tarantool.
-	TarantoolLink = "https://github.com/tarantool/tarantool.git"
-	// TTLink is a link to the git repository of tt.
-	TTLink = "https://github.com/tarantool/tt"
-	// defaultDirPermissions is rights used to create folders.
-	// 0755 - drwxr-xr-x
-	// We need to give permission for all to execute
-	// read,write for user and only read for others.
-	defaultDirPermissions = 0755
 )
 
 // getDistroInfo collects info about linux distro.
@@ -120,27 +115,40 @@ func detectOsName() (string, error) {
 	return "", fmt.Errorf("Unknown OS")
 }
 
-// getLatestTarantoolTag returns latest tag from tarantool repository.
-func getLatestTarantoolTag() (string, error) {
-	// TODO Use version functions from util/version (will be implemented later)
+// getTarantoolVersions returns all available versions from tarantool repository.
+func getTarantoolVersions(local bool, distfiles string) ([]version.Version, error) {
+	versions := []version.Version{}
+	var err error
 
-	// Get all tags from tarantool git repo.
-	versions, err := util.RunCommandAndGetOutput("git", "ls-remote", "--tags",
-		"--sort="+"v:refname", TarantoolLink)
+	if local {
+		versions, err = search.GetVersionsFromGitLocal(distfiles + "/tarantool")
+	} else {
+		versions, err = search.GetVersionsFromGitRemote(search.GitRepoTarantool)
+	}
+
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	versionsArray := strings.Split(versions, "\n")
-	if len(versionsArray) == 0 {
-		return "", fmt.Errorf("Could not get latest version of tarantool.")
+	return versions, nil
+}
+
+// getTTVersions returns all available versions from tt repository.
+func getTTVersions(local bool, distfiles string) ([]version.Version, error) {
+	versions := []version.Version{}
+	var err error
+
+	if local {
+		versions, err = search.GetVersionsFromGitLocal(distfiles + "/tt")
+	} else {
+		versions, err = search.GetVersionsFromGitRemote(search.GitRepoTT)
 	}
-	// Get last tag.
-	latestTag := versionsArray[len(versionsArray)-2]
-	latestTag = strings.TrimSuffix(latestTag, "^{}")
-	trimpos := strings.LastIndex(latestTag, "/") + 1
-	latestTag = latestTag[trimpos:]
-	return latestTag, nil
+
+	if err != nil {
+		return nil, err
+	}
+
+	return versions, nil
 }
 
 // isProgramInstalled checks if program is installed.
@@ -346,6 +354,37 @@ func copyBuildedTT(binDir, path, version string, flags InstallationFlag,
 
 // installTt installs selected version of tt.
 func installTt(version string, binDir string, flags InstallationFlag, distfiles string) error {
+	versions, err := getTTVersions(flags.Local, distfiles)
+	if err != nil {
+		return err
+	}
+
+	// Get latest version if it was not specified.
+	_, ttVersion, _ := strings.Cut(version, "=")
+	if ttVersion == "" {
+		log.Infof("Getting latest tt version..")
+		if len(versions) == 0 {
+			// TODO Remove after first tt release (must return error: no versions).
+			ttVersion = "master"
+		} else {
+			ttVersion = versions[len(versions)-1].Str
+		}
+	}
+
+	// Check that the version exists.
+	if ttVersion != "master" {
+		versionFound := false
+		for _, ver := range versions {
+			if ttVersion == ver.Str {
+				versionFound = true
+				break
+			}
+		}
+
+		if !versionFound {
+			return fmt.Errorf("%s version of tt doesn't exist", ttVersion)
+		}
+	}
 
 	// Check binary directory.
 	if binDir == "" {
@@ -356,13 +395,8 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 		return err
 	}
 	defer os.Remove(logFile.Name())
-	if version == "tt" {
-		version = "tt=master"
-	}
-	// TODO After tt release remove.
-	if version != "tt=master" {
-		return fmt.Errorf("Currently tt has no versions, only one is master")
-	}
+	log.Infof("Installing tt=" + ttVersion)
+
 	// Check tt dependencies.
 	if !flags.Force {
 		log.Infof("Checking dependencies...")
@@ -371,6 +405,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 		}
 	}
 
+	version = "tt=" + ttVersion
 	// Check if that version is already installed.
 	log.Infof("Checking existing...")
 	if checkExisting(version, binDir) && !flags.Reinstall {
@@ -405,7 +440,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 		}
 	} else {
 		log.Infof("Downloading tt...")
-		err = downloadRepo(TTLink, "master", path, logFile, flags.Verbose)
+		err = downloadRepo(search.GitRepoTT, "master", path, logFile, flags.Verbose)
 	}
 
 	if err != nil {
@@ -540,58 +575,38 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 	return err
 }
 
-// checkTarVersion returns true if version exists.
-func checkTarVersion(version string) (bool, error) {
-	versions, err := util.RunCommandAndGetOutput("git", "-c", "versionsort.suffix=-",
-		"ls-remote", "--tags", "--sort="+"v:refname",
-		"https://github.com/tarantool/tarantool.git")
-	if err != nil {
-		return false, err
-	}
-	versionsArray := strings.Split(versions, "\n")
-	for _, v := range versionsArray {
-		trimPos := strings.LastIndex(v, "/") + 1
-		v = v[trimPos:]
-		if strings.Contains(version, v) {
-			return true, err
-		}
-	}
-	return false, err
-}
-
-// checkTarVersionLocal returns true if version exists locally.
-func checkTarVersionLocal(version string, distfiles string) (bool, error) {
-	versions, err := search.RunCommandAndGetOutputInDir("git",
-		distfiles+"/tarantool",
-		"-c", "versionsort.suffix=-",
-		"tag", "--sort="+"v:refname")
-	if err != nil {
-		return false, err
-	}
-	versionsArray := strings.Split(versions, "\n")
-	for _, v := range versionsArray {
-		if strings.Contains(version, v) {
-			return true, err
-		}
-	}
-	return false, err
-}
-
 // installTarantool installs selected version of tarantool.
 func installTarantool(version string, binDir string, incDir string, flags InstallationFlag,
 	distfiles string) error {
-	var err error
-	// Get latest tarantool tag if needed.
+	versions, err := getTarantoolVersions(flags.Local, distfiles)
+	if err != nil {
+		return err
+	}
+
+	// Get latest version if it was not specified.
 	_, tarVersion, _ := strings.Cut(version, "=")
 	if tarVersion == "" {
-		tarVersion, err = getLatestTarantoolTag()
-		if err != nil {
-			return err
+		log.Infof("Getting latest tarantool version..")
+		if len(versions) == 0 {
+			return fmt.Errorf("no version found")
 		}
-		version += "=" + tarVersion
+
+		tarVersion = versions[len(versions)-1].Str
 	}
-	if util.IsDeprecated(tarVersion) {
-		return fmt.Errorf("Deprecated version of tarantool: %s", tarVersion)
+
+	// Check that the version exists.
+	if tarVersion != "master" {
+		versionFound := false
+		for _, ver := range versions {
+			if tarVersion == ver.Str {
+				versionFound = true
+				break
+			}
+		}
+
+		if !versionFound {
+			return fmt.Errorf("%s version of tarantool doesn't exist", tarVersion)
+		}
 	}
 
 	// Check bin and header dirs.
@@ -617,6 +632,7 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 		}
 	}
 
+	version = "tarantool=" + tarVersion
 	// Check if program is already installed.
 	if !flags.Reinstall {
 		log.Infof("Checking existing...")
@@ -640,29 +656,11 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 	// Download tarantool.
 	if flags.Local {
 		log.Infof("Checking local files...")
-		if tarVersion != "master" {
-			verExists, err := checkTarVersionLocal(tarVersion, distfiles)
-			if !verExists {
-				return fmt.Errorf("%s version of tarantool doesn't exist", tarVersion)
-			}
-			if err != nil {
-				return err
-			}
-		}
 		err = copyLocalTarantool(distfiles, path, tarVersion, flags,
 			logFile)
 	} else {
 		log.Infof("Downloading tarantool...")
-		if tarVersion != "master" {
-			verExists, err := checkTarVersion(tarVersion)
-			if !verExists {
-				return fmt.Errorf("%s version of tarantool doesn't exist", tarVersion)
-			}
-			if err != nil {
-				return err
-			}
-		}
-		err = downloadRepo(TarantoolLink, tarVersion, path, logFile, flags.Verbose)
+		err = downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile, flags.Verbose)
 	}
 	if err != nil {
 		printLog(logFile.Name())
@@ -721,28 +719,69 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 	return nil
 }
 
-// getLatestTarantoolEETag returns latest version of tarantool-ee for user's OS.
-func getLatestTarantoolEETag(cliOpts *config.CliOpts) (string, error) {
-	versions, err := install_ee.FetchVersions(cliOpts)
-	if err != nil {
-		return "", err
+// getTarantoolEEVersions returns all available versions of tarantool-ee for user's OS.
+func getTarantoolEEVersions(cliOpts *config.CliOpts, local bool,
+	files []string) ([]version.Version, error) {
+	versions := []version.Version{}
+	var err error
+
+	if local {
+		versions, err = install_ee.FetchVersionsLocal(files)
+	} else {
+		versions, err = install_ee.FetchVersions(cliOpts)
 	}
-	return versions[len(versions)-1].Str, err
+
+	if err != nil {
+		return nil, err
+	}
+
+	return versions, nil
 }
 
 // installTarantoolEE installs selected version of tarantool-ee.
 func installTarantoolEE(version string, binDir string, includeDir string, flags InstallationFlag,
 	distfiles string, cliOpts *config.CliOpts) error {
-	_, tarVersion, _ := strings.Cut(version, "=")
 	var err error
 
-	// Get latest version if it was not specified.
-	if tarVersion == "" {
-		log.Infof("Getting latest tarantool-ee version..")
-		tarVersion, err = getLatestTarantoolEETag(cliOpts)
+	files := []string{}
+	if flags.Local {
+		localFiles, err := os.ReadDir(cliOpts.Repo.Install)
+		if err != nil {
+			return err
+		}
+
+		for _, file := range localFiles {
+			if strings.Contains(file.Name(), "tarantool-enterprise-bundle") && !file.IsDir() {
+				files = append(files, file.Name())
+			}
+		}
 	}
+	versions, err := getTarantoolEEVersions(cliOpts, flags.Local, files)
 	if err != nil {
 		return err
+	}
+
+	// Get latest version if it was not specified.
+	_, tarVersion, _ := strings.Cut(version, "=")
+	if tarVersion == "" {
+		log.Infof("Getting latest tarantool-ee version..")
+		if len(versions) == 0 {
+			return fmt.Errorf("no version found")
+		}
+
+		tarVersion = versions[len(versions)-1].Str
+	}
+
+	// Check that the version exists.
+	versionFound := false
+	for _, ver := range versions {
+		if tarVersion == ver.Str {
+			versionFound = true
+			break
+		}
+	}
+	if !versionFound {
+		return fmt.Errorf("%s version of tarantool-ee doesn't exist", tarVersion)
 	}
 
 	// Check bin and header dirs.
@@ -771,10 +810,13 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 	// Check if program is already installed.
 	log.Infof("Checking existing...")
 	log.Infof("Getting bundle name for %s", tarVersion)
-	bundleName, err := install_ee.GetVersionName(cliOpts, tarVersion)
-	if err != nil {
-		return err
+	bundleName := ""
+	for _, ver := range versions {
+		if ver.Str == tarVersion {
+			bundleName = ver.Tarball
+		}
 	}
+
 	version = "tarantool-ee=" + tarVersion
 	if !flags.Reinstall {
 		log.Infof("Checking existing...")
@@ -877,18 +919,25 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 func Install(args []string, binDir string, includeDir string, flags InstallationFlag,
 	local string, cliOpts *config.CliOpts) error {
 	var err error
+
 	if len(args) != 1 {
 		return fmt.Errorf("Invalid number of parameters")
 	}
-	if strings.Contains(args[0], "tt") {
-		log.Infof("Installing tt...")
-		err = installTt(args[0], binDir, flags, local)
-	} else if strings.Contains(args[0], "tarantool-ee") {
-		err = installTarantoolEE(args[0], binDir, includeDir, flags, local, cliOpts)
-	} else if strings.Contains(args[0], "tarantool") {
-		err = installTarantool(args[0], binDir, includeDir, flags, local)
-	} else {
-		log.Errorf("Unknown application: " + args[0])
+
+	re := regexp.MustCompile("^(?P<prog>tt|tarantool|tarantool-ee)(?:=.*)?$")
+	matches := util.FindNamedMatches(re, args[0])
+	if len(matches) == 0 {
+		return fmt.Errorf("Unknown application: %s", args[0])
 	}
+
+	switch matches["prog"] {
+	case "tt":
+		err = installTt(args[0], binDir, flags, local)
+	case "tarantool":
+		err = installTarantool(args[0], binDir, includeDir, flags, local)
+	case "tarantool-ee":
+		err = installTarantoolEE(args[0], binDir, includeDir, flags, local, cliOpts)
+	}
+
 	return err
 }

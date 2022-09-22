@@ -1,9 +1,7 @@
 package search
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +13,11 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/version"
+)
+
+const (
+	GitRepoTarantool = "https://github.com/tarantool/tarantool.git"
+	GitRepoTT        = "https://github.com/tarantool/tt.git"
 )
 
 // isDeprecated checks if the program version is lower than 1.10.0.
@@ -29,27 +32,101 @@ func isDeprecated(version string) bool {
 	return false
 }
 
-// SearchVersions outputs available versions of program.
-func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
-	var cmd *exec.Cmd
+// GetVersionsFromGitRemote returns sorted versions list from specified remote git repo.
+func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
+	versions := []version.Version{}
 
 	if _, err := exec.LookPath("git"); err != nil {
-		return fmt.Errorf("'git' is needed for 'tt search' to work")
+		return nil, fmt.Errorf("'git' is required for 'tt search' to work")
 	}
 
+	output, err := exec.Command("git", "ls-remote", "--tags", "--refs", repo).Output()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get versions from %s: %s", repo, err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	// No tags found.
+	if len(lines) == 1 && lines[0] == "" {
+		return versions, nil
+	}
+
+	for _, line := range lines {
+		slashIdx := strings.LastIndex(line, "/")
+		if slashIdx == -1 {
+			return nil, fmt.Errorf("Unexpected Data from %s", repo)
+		} else {
+			slashIdx += 1
+		}
+		ver := line[slashIdx:]
+		if isDeprecated(ver) && repo == GitRepoTarantool {
+			continue
+		}
+		version, err := version.GetVersionDetails(ver)
+		if err != nil {
+			return nil, err
+		}
+		versions = append(versions, version)
+	}
+
+	version.SortVersions(versions)
+
+	return versions, nil
+}
+
+// GetVersionsFromGitLocal returns sorted versions list from specified local git repo.
+func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
+	versions := []version.Version{}
+
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil, fmt.Errorf("'git' is required for 'tt search' to work")
+	}
+
+	output, err := exec.Command("git", "-C", repo, "tag").Output()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get versions from %s: %s", repo, err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	// No tags found.
+	if len(lines) == 1 && lines[0] == "" {
+		return versions, nil
+	}
+
+	for _, line := range lines {
+		if isDeprecated(line) && strings.Contains(repo, "tarantool") {
+			continue
+		}
+		version, err := version.GetVersionDetails(line)
+		if err != nil {
+			return nil, err
+		}
+		versions = append(versions, version)
+	}
+
+	version.SortVersions(versions)
+
+	return versions, nil
+}
+
+// SearchVersions outputs available versions of program.
+func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
+	var repo string
+	versions := []version.Version{}
+
 	if program == "tarantool" {
-		cmd = exec.Command("git", "-c", "versionsort.suffix=-", "ls-remote", "--tags", "--sort="+
-			"v:refname", "https://github.com/tarantool/tarantool.git")
+		repo = GitRepoTarantool
 	} else if program == "tt" {
-		cmd = exec.Command("git", "-c", "versionsort.suffix=-", "ls-remote", "--tags", "--sort="+
-			"v:refname", "https://github.com/tarantool/tt.git")
+		repo = GitRepoTT
 	} else if program == "tarantool-ee" {
 		// Do nothing. Needs for bypass arguments check.
 	} else {
-		return fmt.Errorf("Search supports only tarantool/tt")
+		return fmt.Errorf("Search supports only tarantool/tarantool-ee/tt")
 	}
 
-	log.Warn("Available versions of " + program + ":")
+	log.Infof("Available versions of " + program + ":")
 	if program == "tarantool-ee" {
 		cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
 		if err != nil {
@@ -66,31 +143,16 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
 		return nil
 	}
 
-	readPipe, writePipe, _ := os.Pipe()
-	cmd.Stdout = writePipe
-	cmd.Stderr = os.Stderr
-	cmd.Start()
-	err := cmd.Wait()
-	writePipe.Close()
+	versions, err := GetVersionsFromGitRemote(repo)
 	if err != nil {
-		return err
+		log.Fatalf(err.Error())
 	}
 
-	var buf bytes.Buffer
-	io.Copy(&buf, readPipe)
-	versions := buf.String()
-	versionsArray := strings.Split(versions, "\n")
-	for i := 0; i < len(versionsArray); i++ {
-		trimPos := strings.LastIndex(versionsArray[i], "/") + 1
-		versionsArray[i] = versionsArray[i][trimPos:]
-		if strings.Contains(versionsArray[i], "^{}") ||
-			(isDeprecated(versionsArray[i]) && program == "tarantool") {
-			continue
-		}
-		os.Stdout.Write([]byte(versionsArray[i]))
-		os.Stdout.Write([]byte("\n"))
+	for _, ver := range versions {
+		fmt.Println(ver.Str)
 	}
-	os.Stdout.Write([]byte("master\n"))
+
+	fmt.Println("master")
 	return err
 }
 
@@ -129,58 +191,49 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, program string) error {
 
 	if program == "tarantool" {
 		if _, err = os.Stat(localDir + "/tarantool"); !os.IsNotExist(err) {
-			versions, err := RunCommandAndGetOutputInDir("git",
-				localDir+"/tarantool",
-				"-c", "versionsort.suffix=-",
-				"tag", "--sort="+"v:refname")
-			if err != nil {
-				return err
-			}
 			log.Infof("Available versions of " + program + ":")
-			versionsArray := strings.Split(versions, "\n")
-			for _, version := range versionsArray {
-				if isDeprecated(version) {
-					continue
-				}
-				fmt.Println(version)
+			versions, err := GetVersionsFromGitLocal(localDir + "/tarantool")
+			if err != nil {
+				log.Fatalf(err.Error())
+			}
+
+			for _, ver := range versions {
+				fmt.Println(ver.Str)
 			}
 			fmt.Println("master")
 		}
 	} else if program == "tt" {
 		if _, err = os.Stat(localDir + "/tt"); !os.IsNotExist(err) {
-			versions, err := RunCommandAndGetOutputInDir("git",
-				localDir+"/tt", "-c",
-				"versionsort.suffix=-",
-				"tag", "--sort="+"v:refname")
-			if err != nil {
-				return err
-			}
 			log.Infof("Available versions of " + program + ":")
-			fmt.Println(versions)
+			versions, err := GetVersionsFromGitLocal(localDir + "/tt")
+			if err != nil {
+				log.Fatalf(err.Error())
+			}
+
+			for _, ver := range versions {
+				fmt.Println(ver.Str)
+			}
 			fmt.Println("master")
 		}
 	} else if program == "tarantool-ee" {
+		files := []string{}
 		for _, v := range localFiles {
-			var versions []version.Version
 			if strings.Contains(v.Name(), "tarantool-enterprise-bundle") && !v.IsDir() {
-				name := strings.TrimPrefix(v.Name(), "tarantool-enterprise-bundle-")
-				name = strings.TrimSuffix(name, ".tar.gz")
-				versionLocal, err := version.GetVersionDetails(name)
-				if err != nil {
-					return err
-				}
-				versionLocal.Str = name
-				versions = append(versions, versionLocal)
-
-			}
-			log.Infof("Available versions of " + program + ":")
-			version.SortVersions(versions)
-			for _, version := range versions {
-				fmt.Println("   " + version.Str)
+				files = append(files, v.Name())
 			}
 		}
+
+		log.Infof("Available versions of " + program + ":")
+		versions, err := install_ee.FetchVersionsLocal(files)
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+
+		for _, version := range versions {
+			fmt.Println(version.Str)
+		}
 	} else {
-		return fmt.Errorf("Search supports only tarantool/tt")
+		return fmt.Errorf("Search supports only tarantool/tarantool-ee/tt")
 	}
 
 	return err

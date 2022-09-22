@@ -141,7 +141,6 @@ func getVersions(data *[]byte) ([]version.Version, error) {
 		if err != nil {
 			return nil, err
 		}
-		version.Str = entry[1]
 		version.Tarball, err = getTarballName(entry[0])
 		if err != nil {
 			return nil, err
@@ -169,6 +168,63 @@ func getTarballURL() (string, error) {
 	}
 
 	return "", fmt.Errorf("This operating system is not supported.")
+}
+
+func FetchVersionsLocal(files []string) ([]version.Version, error) {
+	versions := []version.Version{}
+	matchRe := ""
+
+	arch, err := util.GetArch()
+	if err != nil {
+		return nil, err
+	}
+
+	osType, err := util.GetOs()
+	if err != nil {
+		return nil, err
+	}
+
+	switch osType {
+	case util.OsLinux:
+		// Bundles without specifying the architecture are all x86_64.
+		if arch == "x86_64" {
+			matchRe = "^tarantool-enterprise-bundle-" +
+				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-x86_64)?\\.tar\\.gz$"
+		} else {
+			matchRe = "^tarantool-enterprise-bundle-" +
+				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-" + arch + ")\\.tar\\.gz$"
+		}
+	case util.OsMacos:
+		// Bundles without specifying the architecture are all x86_64.
+		if arch == "x86_64" {
+			matchRe = "^tarantool-enterprise-bundle-" +
+				"(.*-g[a-f0-9]+-r[0-9]{3})-macos(?:x-x86_64)?\\.tar\\.gz$"
+		} else {
+			matchRe = "^tarantool-enterprise-bundle-" +
+				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-macosx-" + arch + ")\\.tar\\.gz$"
+		}
+	}
+
+	re := regexp.MustCompile(matchRe)
+
+	for _, file := range files {
+		parsedData := re.FindStringSubmatch(file)
+		if len(parsedData) == 0 {
+			continue
+		}
+
+		version, err := version.GetVersionDetails(parsedData[1])
+		if err != nil {
+			return nil, err
+		}
+
+		version.Tarball = file
+		versions = append(versions, version)
+	}
+
+	version.SortVersions(versions)
+
+	return versions, nil
 }
 
 // FetchVersions returns all available tarantool-ee versions.
@@ -210,21 +266,6 @@ func FetchVersions(cliOpts *config.CliOpts) ([]version.Version, error) {
 	}
 
 	return versions, nil
-}
-
-// GetVersionName returns bundle name of given tarantool-ee version.
-func GetVersionName(cliOpts *config.CliOpts, version string) (string, error) {
-	versions, err := FetchVersions(cliOpts)
-	if err != nil {
-		return "", err
-	}
-	bundleName := ""
-	for _, ver := range versions {
-		if ver.Str == version {
-			bundleName = ver.Tarball
-		}
-	}
-	return bundleName, err
 }
 
 // GetTarantoolEE downloads given tarantool-ee bundle into directory.

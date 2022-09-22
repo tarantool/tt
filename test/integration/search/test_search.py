@@ -18,7 +18,7 @@ def test_version_cmd(tt_cmd, tmpdir):
     cmd = [tt_cmd, "search", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
-    assert re.search(r"Search supports only tarantool/tt", output)
+    assert re.search(r"Search supports only tarantool/tarantool-ee/tt", output)
 
     cmd = [tt_cmd, "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
@@ -44,22 +44,22 @@ def test_version_cmd_local(tt_cmd, tmpdir):
                        os.path.join(distfilesPath, "tt")]
     rc, _ = run_command_and_get_output(cmd_download_tt, cwd=tmpdir)
     assert rc == 0
-    cmd = [tt_cmd, "search", "tarantool", "--local"]
+    cmd = [tt_cmd, "search", "tarantool", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
     assert re.search(r"Available versions of tarantool:", output)
 
-    cmd = [tt_cmd, "search", "tt", "--local"]
+    cmd = [tt_cmd, "search", "tt", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
     assert re.search(r"Available versions of tt:", output)
 
-    cmd = [tt_cmd, "search", "git", "--local"]
+    cmd = [tt_cmd, "search", "git", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
-    assert re.search(r"Search supports only tarantool/tt", output)
+    assert re.search(r"Search supports only tarantool/tarantool-ee/tt", output)
 
-    cmd = [tt_cmd, "search", "--local"]
+    cmd = [tt_cmd, "search", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
     assert re.search(r"Available programs: ", output)
