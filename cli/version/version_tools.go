@@ -102,6 +102,8 @@ func GetVersionDetails(verStr string) (Version, error) {
 		}
 	}
 
+	version.Str = verStr
+
 	return version, nil
 }
 

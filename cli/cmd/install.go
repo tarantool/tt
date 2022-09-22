@@ -34,7 +34,13 @@ func getInstallFlags() install.InstallationFlag {
 func NewInstallCmd() *cobra.Command {
 	var installCmd = &cobra.Command{
 		Use:   "install <PROGRAM> [flags]",
-		Short: "Install tarantool/tt",
+		Short: "Install program",
+		Long: "Install program\n\n" +
+			"Available programs:\n" +
+			"tt - Tarantool CLI\n" +
+			"tarantool - Tarantool\n" +
+			"tarantool-ee - Tarantool enterprise edition\n" +
+			"Example: tt install tarantool | tarantool=version",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalInstallModule, args)
 			if err != nil {
@@ -47,7 +53,7 @@ func NewInstallCmd() *cobra.Command {
 	installCmd.Flags().BoolVarP(&Noclean, "no-clean", "", false,
 		"don't delete temporary files")
 	installCmd.Flags().BoolVarP(&Reinstall, "reinstall", "", false, "reinstall program")
-	installCmd.Flags().BoolVarP(&Local, "local", "", false,
+	installCmd.Flags().BoolVarP(&Local, "local-repo", "", false,
 		"install from local files")
 	return installCmd
 }

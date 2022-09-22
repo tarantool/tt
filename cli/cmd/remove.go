@@ -16,12 +16,13 @@ import (
 func NewRemoveCmd() *cobra.Command {
 	var removeCmd = &cobra.Command{
 		Use:   "remove <PROGRAM>",
-		Short: "Remove tarantool/tt",
-		Long: "Available programs:\n" +
+		Short: "Remove program",
+		Long: "Remove program\n\n" +
+			"Available programs:\n" +
 			"tt - Tarantool CLI\n" +
 			"tarantool - Tarantool\n" +
 			"tarantool-ee - Tarantool enterprise edition\n" +
-			"e.g tt=master",
+			"Example: tt remove tarantool | tarantool=version",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, InternalRemoveModule, args)

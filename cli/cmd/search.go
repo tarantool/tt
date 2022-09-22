@@ -18,7 +18,12 @@ var (
 func NewSearchCmd() *cobra.Command {
 	var searchCmd = &cobra.Command{
 		Use:   "search <PROGRAM>",
-		Short: "Search available versions of tarantool/tt",
+		Short: "Search for available versions for the program",
+		Long: "Search for available versions for the program\n\n" +
+			"Available programs:\n" +
+			"tt - Tarantool CLI\n" +
+			"tarantool - Tarantool\n" +
+			"tarantool-ee - Tarantool enterprise edition",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalSearchModule, args)
 			if err != nil {
@@ -26,7 +31,7 @@ func NewSearchCmd() *cobra.Command {
 			}
 		},
 	}
-	searchCmd.Flags().BoolVarP(&local, "local", "", false,
+	searchCmd.Flags().BoolVarP(&local, "local-repo", "", false,
 		"search in local files")
 	return searchCmd
 }
@@ -46,7 +51,6 @@ func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 	if local {
 		err = search.SearchVersionsLocal(cmdCtx, args[0])
-
 	} else {
 		err = search.SearchVersions(cmdCtx, args[0])
 	}

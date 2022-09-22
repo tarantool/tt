@@ -26,6 +26,7 @@ func TestParseVersion(t *testing.T) {
 			Additional: 91,
 			Hash:       "g08c9b4963",
 			Revision:   482,
+			Str:        "2.10.42-alpha2-91-g08c9b4963-r482",
 		},
 		nil,
 	}
@@ -39,6 +40,7 @@ func TestParseVersion(t *testing.T) {
 			Additional: 48,
 			Hash:       "ga3a42eec7",
 			Revision:   496,
+			Str:        "1.10.13-48-ga3a42eec7-r496",
 		},
 		nil,
 	}
@@ -51,6 +53,7 @@ func TestParseVersion(t *testing.T) {
 			Release:    Release{Type: TypeRC, Num: 1},
 			Additional: 100,
 			Hash:       "g2ba6c0",
+			Str:        "1.10.123-rc1-100-g2ba6c0",
 		},
 		nil,
 	}
@@ -62,6 +65,7 @@ func TestParseVersion(t *testing.T) {
 			Patch:      3,
 			Release:    Release{Type: TypeBeta, Num: 22},
 			Additional: 123,
+			Str:        "1.2.3-beta22-123",
 		},
 		nil,
 	}
@@ -72,6 +76,7 @@ func TestParseVersion(t *testing.T) {
 			Minor:   2,
 			Patch:   3,
 			Release: Release{Type: TypeRC, Num: 12},
+			Str:     "1.2.3-rc12",
 		},
 		nil,
 	}
@@ -82,6 +87,7 @@ func TestParseVersion(t *testing.T) {
 			Minor:   2,
 			Patch:   1,
 			Release: Release{Type: TypeNightly},
+			Str:     "3.2.1-entrypoint",
 		},
 		nil,
 	}
@@ -92,6 +98,7 @@ func TestParseVersion(t *testing.T) {
 			Minor:   10,
 			Patch:   0,
 			Release: Release{Type: TypeRelease},
+			Str:     "2.10.0",
 		},
 		nil,
 	}
