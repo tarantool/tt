@@ -14,7 +14,6 @@ import (
 
 	"github.com/adam-hanna/arrayOperations"
 	"github.com/apex/log"
-	lua "github.com/yuin/gopher-lua"
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/yaml.v2"
 
@@ -65,8 +64,7 @@ type Console struct {
 
 	executor  func(in string)
 	completer func(in prompt.Document) []prompt.Suggest
-
-	luaState *lua.LState
+	validators map[Language]ValidateCloser
 
 	prompt *prompt.Prompt
 }
@@ -77,7 +75,6 @@ func NewConsole(connOpts *connector.ConnOpts, title string, lang Language) (*Con
 		title:    title,
 		connOpts: connOpts,
 		language: lang,
-		luaState: lua.NewState(),
 	}
 
 	var err error
@@ -103,6 +100,14 @@ func NewConsole(connOpts *connector.ConnOpts, title string, lang Language) (*Con
 
 	// Initialize commands completer.
 	console.completer = getCompleter(console)
+
+	// Initialize syntax checkers.
+	luaValidator := NewLuaValidator()
+	sqlValidator := NewSQLValidator()
+	console.validators = make(map[Language]ValidateCloser)
+	console.validators[DefaultLanguage] = luaValidator
+	console.validators[LuaLanguage] = luaValidator
+	console.validators[SQLLanguage] = sqlValidator
 
 	// Set title and prompt prefix.
 	setTitle(console)
@@ -150,7 +155,12 @@ func (console *Console) Run() error {
 func (console *Console) Close() {
 	if console.historyFile != nil {
 		console.historyFile.Close()
+		console.historyFile = nil
 	}
+	for _, v := range console.validators {
+		v.Close()
+	}
+	console.validators = nil
 }
 
 func loadHistory(console *Console) error {
@@ -185,28 +195,29 @@ func loadHistory(console *Console) error {
 
 func getExecutor(console *Console) prompt.Executor {
 	executor := func(in string) {
-		trimmed := strings.TrimSpace(in)
-		if strings.HasPrefix(trimmed, setLanguagePrefix) {
-			newLang := strings.TrimPrefix(trimmed, setLanguagePrefix)
-			if lang, ok := ParseLanguage(newLang); ok {
-				if err := changeLanguage(console.conn, lang); err != nil {
-					log.Warnf("Failed to change language: %s", err)
+		if console.input == "" {
+			trimmed := strings.TrimSpace(in)
+			if strings.HasPrefix(trimmed, setLanguagePrefix) {
+				newLang := strings.TrimPrefix(trimmed, setLanguagePrefix)
+				if lang, ok := ParseLanguage(newLang); ok {
+					if err := changeLanguage(console.conn, lang); err != nil {
+						log.Warnf("Failed to change language: %s", err)
+					} else {
+						console.language = lang
+					}
 				} else {
-					console.language = lang
+					log.Warnf("Unsupported language: %s", newLang)
 				}
-			} else {
-				log.Warnf("Unsupported language: %s", newLang)
-			}
-			return
-		}
-
-		console.input += in + " "
-
-		if console.language == DefaultLanguage || console.language == LuaLanguage {
-			if !inputIsCompleted(console.input, console.luaState) {
-				console.livePrefixEnabled = true
 				return
 			}
+		}
+
+		var completed bool
+		validator := console.validators[console.language]
+		console.input, completed = AddStmtPart(console.input, in, validator)
+		if !completed {
+			console.livePrefixEnabled = true
+			return
 		}
 
 		if err := appendToHistoryFile(console, strings.TrimSpace(console.input)); err != nil {
@@ -243,22 +254,6 @@ func getExecutor(console *Console) prompt.Executor {
 	}
 
 	return executor
-}
-
-func inputIsCompleted(input string, luaState *lua.LState) bool {
-	// See https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/src/box/lua/console.lua#L575
-	if _, err := luaState.LoadString(input); err == nil ||
-		!strings.Contains(err.Error(), "at EOF") {
-		// Valid Lua code or a syntax error not due to an incomplete input.
-		return true
-	}
-
-	if _, err := luaState.LoadString(fmt.Sprintf("return %s", input)); err == nil {
-		// Certain obscure inputs like '(42\n)' yield the same error as incomplete statement.
-		return true
-	}
-
-	return false
 }
 
 func getCompleter(console *Console) prompt.Completer {
