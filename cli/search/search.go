@@ -111,6 +111,15 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 	return versions, nil
 }
 
+// printVersion prints the version and label if the package is installed.
+func printVersion(bindir string, program string, version string) {
+	if _, err := os.Stat(filepath.Join(bindir, program+"="+version)); err == nil {
+		fmt.Printf("%s [installed]\n", version)
+	} else {
+		fmt.Println(version)
+	}
+}
+
 // SearchVersions outputs available versions of program.
 func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
 	var repo string
@@ -126,33 +135,34 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
 		return fmt.Errorf("Search supports only tarantool/tarantool-ee/tt")
 	}
 
+	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	if err != nil {
+		return err
+	}
+
 	log.Infof("Available versions of " + program + ":")
 	if program == "tarantool-ee" {
-		cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-		if err != nil {
-			return err
-		}
-
-		versions, err := install_ee.FetchVersions(cliOpts)
+		versions, err = install_ee.FetchVersions(cliOpts)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
-		for _, ver := range versions {
-			fmt.Printf("%s\n", ver.Str)
+		for _, version := range versions {
+			printVersion(cliOpts.App.BinDir, program, version.Str)
 		}
 		return nil
 	}
 
-	versions, err := GetVersionsFromGitRemote(repo)
+	versions, err = GetVersionsFromGitRemote(repo)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
 
-	for _, ver := range versions {
-		fmt.Println(ver.Str)
+	for _, version := range versions {
+		printVersion(cliOpts.App.BinDir, program, version.Str)
 	}
 
-	fmt.Println("master")
+	printVersion(cliOpts.App.BinDir, program, "master")
+
 	return err
 }
 
@@ -197,10 +207,10 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, program string) error {
 				log.Fatalf(err.Error())
 			}
 
-			for _, ver := range versions {
-				fmt.Println(ver.Str)
+			for _, version := range versions {
+				printVersion(cliOpts.App.BinDir, program, version.Str)
 			}
-			fmt.Println("master")
+			printVersion(cliOpts.App.BinDir, program, "master")
 		}
 	} else if program == "tt" {
 		if _, err = os.Stat(localDir + "/tt"); !os.IsNotExist(err) {
@@ -210,10 +220,10 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, program string) error {
 				log.Fatalf(err.Error())
 			}
 
-			for _, ver := range versions {
-				fmt.Println(ver.Str)
+			for _, version := range versions {
+				printVersion(cliOpts.App.BinDir, program, version.Str)
 			}
-			fmt.Println("master")
+			printVersion(cliOpts.App.BinDir, program, "master")
 		}
 	} else if program == "tarantool-ee" {
 		files := []string{}
@@ -230,7 +240,7 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, program string) error {
 		}
 
 		for _, version := range versions {
-			fmt.Println(version.Str)
+			printVersion(cliOpts.App.BinDir, program, version.Str)
 		}
 	} else {
 		return fmt.Errorf("Search supports only tarantool/tarantool-ee/tt")
