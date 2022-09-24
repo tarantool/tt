@@ -14,7 +14,7 @@ Working with a set of instances
 -------------------------------
 
 For example, we want to launch two instances based on one ``init.lua`` file and one
-connected instance based on the ``router.lua`` file. In order to do this, we create
+instance based on the ``router.init.lua`` file. In order to do this, we create
 a directory called ``demo`` with the content:
 
 ``init.lua``:
