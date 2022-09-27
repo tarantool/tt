@@ -99,11 +99,13 @@ def is_language_supported(tt_cmd, tmpdir, test_app):
 
 def skip_if_language_unsupported(tt_cmd, tmpdir, test_app):
     if not is_language_supported(tt_cmd, tmpdir, test_app):
+        stop_app(tt_cmd, tmpdir, test_app)
         pytest.skip("/set language is unsupported")
 
 
 def skip_if_language_supported(tt_cmd, tmpdir, test_app):
     if is_language_supported(tt_cmd, tmpdir, test_app):
+        stop_app(tt_cmd, tmpdir, test_app)
         pytest.skip("/set language is supported")
 
 
@@ -139,6 +141,38 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
     stop_app(tt_cmd, tmpdir, "test_app")
 
 
+def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_localhost_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect with a wrong credentials.
+    opts = {"-u": "test", "-p": "wrong_password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts)
+    assert not ret
+    assert re.search(r"   ⨯ Unable to establish connection", output)
+
+    # Connect with a valid credentials.
+    opts = {"-u": "test", "-p": "password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts)
+    assert ret
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
 def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
@@ -164,6 +198,41 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     # Connect to the instance.
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
     assert ret
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir + "/run/test_app/", 'test_app.control', [])
+    assert file != ""
+
+    # Connect with a wrong credentials.
+    opts = {"-u": "test", "-p": "wrong_password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, opts=opts)
+    assert not ret
+    assert re.search(r"   ⨯ username and password are not supported with a" +
+                     " connection via a control socket", output)
+
+    # Connect with a valid credentials.
+    opts = {"-u": "test", "-p": "password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, opts=opts)
+    assert not ret
+    assert re.search(r"   ⨯ username and password are not supported with a" +
+                     " connection via a control socket", output)
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
@@ -203,6 +272,47 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
         full_name = app_name + ":" + instance
         ret, _ = try_execute_on_instance(tt_cmd, tmpdir, full_name, empty_file)
         assert ret
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, app_name)
+
+
+def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    app_name = "test_multi_app"
+    empty_file = "empty.lua"
+    # Copy the test application to the "run" directory.
+    test_app_path = os.path.join(os.path.dirname(__file__), app_name)
+    tmp_app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(test_app_path, tmp_app_path)
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [empty_file_path])
+
+    # Start instances.
+    start_app(tt_cmd, tmpdir, app_name)
+
+    # Check for start.
+    master_run_path = os.path.join(tmpdir, "run", app_name, "master")
+    file = wait_file(master_run_path, "master.control", [])
+    assert file != ""
+
+    # Connect with a wrong credentials.
+    full_name = app_name + ":master"
+    opts = {"-u": "test", "-p": "wrong_password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, full_name, empty_file, opts=opts)
+    assert not ret
+    assert re.search(r"   ⨯ username and password are not supported with a" +
+                     " connection via a control socket", output)
+
+    # Connect with a valid credentials.
+    full_name = app_name + ":master"
+    opts = {"-u": "test", "-p": "password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, full_name, empty_file, opts=opts)
+    assert not ret
+    assert re.search(r"   ⨯ username and password are not supported with a" +
+                     " connection via a control socket", output)
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, app_name)
