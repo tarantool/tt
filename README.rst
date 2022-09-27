@@ -124,7 +124,7 @@ file format:
   them to get deleted.)
 * ``restart_on_failure`` (bool) - should it restart on failure.
 
-**app**
+**repo**
 
 * ``rocks`` (string) - directory that stores rocks files.
 * ``distfiles`` (string) - directory that stores installation files.
