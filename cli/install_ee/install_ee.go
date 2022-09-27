@@ -114,10 +114,10 @@ func getVersions(data *[]byte) ([]version.Version, error) {
 		// Bundles without specifying the architecture are all x86_64.
 		if arch == "x86_64" {
 			matchRe = ".*>tarantool-enterprise-bundle-" +
-				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-x86_64)?\\.tar\\.gz<.*"
+				"(.*-g[a-f0-9]+-r[0-9]{3}(?:-nogc64)?)(?:-linux-x86_64)?\\.tar\\.gz<.*"
 		} else {
 			matchRe = ".*>tarantool-enterprise-bundle-" +
-				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-" + arch + ")\\.tar\\.gz<.*"
+				"(.*-g[a-f0-9]+-r[0-9]{3}(?:-nogc64)?)(?:-linux-" + arch + ")\\.tar\\.gz<.*"
 		}
 	case util.OsMacos:
 		// Bundles without specifying the architecture are all x86_64.
@@ -189,10 +189,10 @@ func FetchVersionsLocal(files []string) ([]version.Version, error) {
 		// Bundles without specifying the architecture are all x86_64.
 		if arch == "x86_64" {
 			matchRe = "^tarantool-enterprise-bundle-" +
-				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-x86_64)?\\.tar\\.gz$"
+				"(.*-g[a-f0-9]+-r[0-9]{3}(?:-nogc64)?)(?:-linux-x86_64)?\\.tar\\.gz$"
 		} else {
 			matchRe = "^tarantool-enterprise-bundle-" +
-				"(.*-g[a-f0-9]+-r[0-9]{3})(?:-linux-" + arch + ")\\.tar\\.gz$"
+				"(.*-g[a-f0-9]+-r[0-9]{3}(?:-nogc64)?)(?:-linux-" + arch + ")\\.tar\\.gz$"
 		}
 	case util.OsMacos:
 		// Bundles without specifying the architecture are all x86_64.
