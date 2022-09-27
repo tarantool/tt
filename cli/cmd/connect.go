@@ -17,10 +17,11 @@ import (
 )
 
 var (
-	connectUser     string
-	connectPassword string
-	connectFile     string
-	connectLanguage string
+	connectUser        string
+	connectPassword    string
+	connectFile        string
+	connectLanguage    string
+	connectInteractive bool
 )
 
 // NewConnectCmd creates connect command.
@@ -45,6 +46,8 @@ func NewConnectCmd() *cobra.Command {
 		`file to read the script for evaluation. "-" - read the script from stdin`)
 	connectCmd.Flags().StringVarP(&connectLanguage, "language", "l",
 		connect.DefaultLanguage.String(), `language: lua or sql`)
+	connectCmd.Flags().BoolVarP(&connectInteractive, "interactive", "i",
+		false, `enter interactive mode after executing 'FILE'`)
 
 	return connectCmd
 }
@@ -104,26 +107,31 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	cmdCtx.Connect.Password = connectPassword
 	cmdCtx.Connect.SrcFile = connectFile
 	cmdCtx.Connect.Language = connectLanguage
+	cmdCtx.Connect.Interactive = connectInteractive
 
 	newArgs, err := resolveInstAddr(cmdCtx, cliOpts, args)
 	if err != nil {
 		return err
 	}
 
-	if connectFile == "" {
-		if terminal.IsTerminal(syscall.Stdin) {
-			log.Info("Connecting to the instance...")
-		}
-		if err := connect.Connect(cmdCtx, newArgs); err != nil {
-			return err
-		}
-	} else {
+	if connectFile != "" {
 		res, err := connect.Eval(cmdCtx, newArgs)
 		if err != nil {
 			return err
 		}
-		// "Println" is used instead of "log..." to print the result without any decoration.
+		// "Println" is used instead of "log..." to print the result without
+		// any decoration.
 		fmt.Println(string(res))
+		if !connectInteractive || !terminal.IsTerminal(syscall.Stdin) {
+			return nil
+		}
+	}
+
+	if terminal.IsTerminal(syscall.Stdin) {
+		log.Info("Connecting to the instance...")
+	}
+	if err := connect.Connect(cmdCtx, newArgs); err != nil {
+		return err
 	}
 
 	return nil
