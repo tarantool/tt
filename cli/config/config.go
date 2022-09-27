@@ -23,6 +23,9 @@ type Config struct {
 //     restart_on_failure: bool
 //     bin_dir: path
 //     inc_dir: path
+//   repo:
+//     rocks: path
+//     distfiles: path
 //   ee:
 //     credential_path: path
 
