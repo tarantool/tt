@@ -221,18 +221,8 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]cmdcontext.
 
 // collectInstances searches all instances available in application.
 func collectInstances(appName string, cliOpts *config.CliOpts,
-	basePath string) ([]cmdcontext.RunningCtx, error) {
+	appDir string) ([]cmdcontext.RunningCtx, error) {
 	var err error
-	var appDir string
-
-	if appDir == "" {
-		if appDir, err = os.Getwd(); err != nil {
-			return nil, err
-		}
-	} else if !filepath.IsAbs(appDir) {
-		appDir = filepath.Join(basePath, appDir)
-	}
-
 	var appPath string
 
 	// The user can select a specific instance from the application.
@@ -501,17 +491,16 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	// All relative paths are built from the path of the tarantool.yaml file.
-	// If tarantool.yaml does not exists, current working directory will be used.
+	// If tarantool.yaml does not exists we must return error.
 	basePath := ""
 	if cmdCtx.Cli.ConfigPath != "" {
 		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err == nil {
 			basePath = filepath.Dir(cmdCtx.Cli.ConfigPath)
+		} else {
+			return fmt.Errorf(`tarantool.yaml error: %s"`, err)
 		}
-	}
-	if basePath == "" {
-		if basePath, err = os.Getwd(); err != nil {
-			return fmt.Errorf(`Can't get the "RunDir: %s"`, err)
-		}
+	} else {
+		return fmt.Errorf(`tarantool.yaml not found"`)
 	}
 
 	appName := args[0]
@@ -520,7 +509,18 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 			appName = appName[0 : len(appName)-4]
 		}
 	}
-	instParams, err := collectInstances(appName, cliOpts, basePath)
+
+	instEnabledPath := ""
+	if cliOpts.App != nil && cliOpts.App.InstancesAvailable != "" {
+		instEnabledPath = cliOpts.App.InstancesAvailable
+		if !filepath.IsAbs(instEnabledPath) {
+			instEnabledPath = filepath.Join(basePath, instEnabledPath)
+		}
+	} else {
+		instEnabledPath = basePath
+	}
+
+	instParams, err := collectInstances(appName, cliOpts, instEnabledPath)
 	if err != nil {
 		return fmt.Errorf("Can't find an application init file: %s", err)
 	}
