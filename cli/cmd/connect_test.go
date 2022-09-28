@@ -6,58 +6,157 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsURIValid(t *testing.T) {
-	uris := []string{
-		"localhost:123",
-		"tcp://localhost:11",
-		"host:123",
-		"123:123",
-		"./a",
-		"/1",
-		"unix://path",
-		"unix://path/to/file",
-		"unix:///path/to/file",
-		"unix://../path/to/file",
-	}
+var validBaseUris = []string{
+	"tcp://localhost:11",
+	"localhost:123",
+	"host:123",
+	"123:123",
+	"unix://path",
+	"unix://path/to/file",
+	"unix:///path/to/file",
+	"unix://../path/to/file",
+	"./a",
+	"/1",
+}
 
-	for _, uri := range uris {
+var validCredentialsUris = []string{
+	"tcp://user:password@localhost:11",
+	"user:password@localhost:123",
+	"unix://user:password@path",
+	"unix://user:password@../path/to/file",
+	"user:password@./a",
+	"user:password@/1",
+}
+
+var invalidBaseUris = []string{
+	"tcp:localhost:123123",
+	"tcp:/anyhost:1",
+	"tcp://localhost:asd",
+	"tcp:///localhost:11",
+	"asd://localhost:111",
+	"123://localhost:123",
+	"123asd:localhost:222",
+	"123",
+	"localhost",
+	"localhost:asd",
+	"unix:",
+	"unix:a",
+	"unix:/",
+	"unix:/a",
+	"unix/:",
+	"unix/:2",
+	"unix//:asd",
+	"unix/:/",
+	"unix://",
+	"unix://.",
+	"unix:///",
+	".",
+	".a",
+	"/",
+}
+
+var invalidCredentialsUris = []string{
+	"tcp://user@localhost:11",
+	"user:password@tcp://localhost:11",
+	"user@localhost:123",
+	"unix://user@path",
+	"user:password@unix://path",
+	"unix://user@../path/to/file",
+	"user:password@unix://../path/to/file",
+	"user@./a",
+	"user@/1",
+}
+
+func TestIsBaseURIValid(t *testing.T) {
+	for _, uri := range validBaseUris {
 		t.Run(uri, func(t *testing.T) {
-			assert.True(t, isURI(uri), "URI must be valid")
+			assert.True(t, isBaseURI(uri), "URI must be valid")
 		})
 	}
 }
 
-func TestIsURIInvalid(t *testing.T) {
-	uris := []string{
-		"123",
-		"localhost",
-		"localhost:asd",
-		"tcp:localhost:123123",
-		"tcp:/anyhost:1",
-		"tcp://localhost:asd",
-		"tcp:///localhost:11",
-		"asd://localhost:111",
-		"123://localhost:123",
-		"123asd:localhost:222",
-		".",
-		".a",
-		"/",
-		"unix:",
-		"unix:a",
-		"unix:/",
-		"unix:/a",
-		"unix/:",
-		"unix/:2",
-		"unix//:asd",
-		"unix/:/",
-		"unix://",
-		"unix://.",
-		"unix:///",
+func TestIsBaseURIInvalid(t *testing.T) {
+	invalid := []string{}
+	invalid = append(invalid, invalidBaseUris...)
+	invalid = append(invalid, validCredentialsUris...)
+	invalid = append(invalid, invalidCredentialsUris...)
+
+	for _, uri := range invalid {
+		t.Run(uri, func(t *testing.T) {
+			assert.False(t, isBaseURI(uri), "URI must be invalid")
+		})
+	}
+}
+
+func TestIsCredentialsURIValid(t *testing.T) {
+	for _, uri := range validCredentialsUris {
+		t.Run(uri, func(t *testing.T) {
+			assert.True(t, isCredentialsURI(uri), "URI must be valid")
+		})
+	}
+}
+
+func TestIsCredentialsURIInvalid(t *testing.T) {
+	invalid := []string{}
+	invalid = append(invalid, validBaseUris...)
+	invalid = append(invalid, invalidBaseUris...)
+	invalid = append(invalid, invalidCredentialsUris...)
+
+	for _, uri := range invalid {
+		t.Run(uri, func(t *testing.T) {
+			assert.False(t, isCredentialsURI(uri), "URI must be invalid")
+		})
+	}
+}
+
+func TestParseCredentialsURI(t *testing.T) {
+	const expectedUser = "user"
+	const expectedPass = "pass"
+
+	cases := []struct {
+		srcUri string
+		newUri string
+	}{
+		{"tcp://user:pass@localhost:3013", "tcp://localhost:3013"},
+		{"user:pass@localhost:3013", "localhost:3013"},
+		{"unix://user:pass@/any/path", "unix:///any/path"},
+		{"user:pass@/path", "/path"},
+		{"user:pass@./path", "./path"},
 	}
 
-	for _, uri := range uris {
+	for _, c := range cases {
+		t.Run(c.srcUri, func(t *testing.T) {
+			newUri, user, pass := parseCredentialsURI(c.srcUri)
+			assert.Equal(t, c.newUri, newUri, "a unexpected new URI")
+			assert.Equal(t, expectedUser, user, "a unexpected username")
+			assert.Equal(t, expectedPass, pass, "a unexpected password")
+		})
+	}
+}
+
+func TestParseCredentialsURI_parseValid(t *testing.T) {
+	for _, uri := range validCredentialsUris {
 		t.Run(uri, func(t *testing.T) {
-			assert.False(t, isURI(uri), "URI must be invalid")
+			newUri, user, pass := parseCredentialsURI(uri)
+			assert.NotEqual(t, uri, newUri, "URI must change")
+			assert.NotEqual(t, "", user, "username must not be empty")
+			assert.NotEqual(t, "", pass, "password must not be empty")
+		})
+	}
+}
+
+func TestParseCredentialsURI_notParseInvalid(t *testing.T) {
+	invalid := []string{}
+	invalid = append(invalid, validBaseUris...)
+	invalid = append(invalid, invalidBaseUris...)
+	invalid = append(invalid, invalidCredentialsUris...)
+
+	for _, uri := range invalid {
+		t.Run(uri, func(t *testing.T) {
+			newUri, user, pass := parseCredentialsURI(uri)
+			assert.Equal(t, uri, newUri, "URI must no change")
+			assert.Equal(t, "", user, "username must be empty")
+			assert.Equal(t, "", pass, "password must be empty")
 		})
 	}
 }

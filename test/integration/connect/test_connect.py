@@ -164,10 +164,28 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
     assert not ret
     assert re.search(r"   ⨯ Unable to establish connection", output)
 
+    # Connect with a wrong credentials via URL.
+    uri = "test:wrong_password@localhost:3013"
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file)
+    assert not ret
+    assert re.search(r"   ⨯ Unable to establish connection", output)
+
     # Connect with a valid credentials.
     opts = {"-u": "test", "-p": "password"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts)
     assert ret
+
+    # Connect with a valid credentials via URL.
+    uri = "test:password@localhost:3013"
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file)
+    assert ret
+
+    # Connect with a valid credentials via flags and via URL.
+    opts = {"-u": "test", "-p": "password"}
+    uri = "test:password@localhost:3013"
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file, opts=opts)
+    assert not ret
+    assert re.search(r"   ⨯ username and password are specified with flags and a URI", output)
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
