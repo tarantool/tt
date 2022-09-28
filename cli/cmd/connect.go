@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"syscall"
 
 	"github.com/apex/log"
@@ -52,27 +53,67 @@ func NewConnectCmd() *cobra.Command {
 	return connectCmd
 }
 
-// isURI returns true if a string is a valid URI.
-func isURI(str string) bool {
+// isBaseURI returns true if a string is a valid URI.
+func isBaseURI(str string) bool {
 	// tcp://host:port
 	// host:port
 	tcpReStr := `(tcp://)?([\w\\.-]+:\d+)`
 	// unix://../path
 	// unix:///path
 	// unix://path
-	unixReStr := `unix://[./]*[^\./]+.*`
+	unixReStr := `unix://[./]*[^\./@]+[^@]*`
 	// ./path
 	// /path
 	pathReStr := `\.?/[^\./].*`
 
 	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
-	return uriRe.Match([]byte(str))
+	return uriRe.MatchString(str)
 }
 
-// resolveInstAddr tries to resolve the first passed argument as an instance
-// name to replace it with a control socket or as a URI.
-func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
+// isCredentialsURI returns true if a string is a valid credentials URI.
+func isCredentialsURI(str string) bool {
+	// tcp://user:password@host:port
+	// user:password@host:port
+	tcpReStr := `(tcp://)?\w+:\w+@([\w\.-]+:\d+)`
+	// unix://user:password@../path
+	// unix://user:password@/path
+	// unix://user:password@path
+	unixReStr := `unix://\w+:\w+@[./@]*[^\./@]+.*`
+	// user:password@./path
+	// user:password@/path
+	pathReStr := `\w+:\w+@\.?/[^\./].*`
+
+	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
+	uriRe := regexp.MustCompile(uriReStr)
+	return uriRe.MatchString(str)
+}
+
+// parseCredentialsURI parses a URI with credentials and returns:
+// (URI without credentials, user, password)
+func parseCredentialsURI(str string) (string, string, string) {
+	if !isCredentialsURI(str) {
+		return str, "", ""
+	}
+
+	re := regexp.MustCompile("\\w+:\\w+@")
+	// Split the string into two parts by credentials to create a string
+	// without the credentials.
+	split := re.Split(str, 2)
+	newStr := split[0] + split[1]
+
+	// Parse credentials.
+	credentialsStr := re.FindString(str)
+	credentialsLen := len(credentialsStr) - 1 // We don't need a last '@'.
+	credentialsSlice := strings.Split(credentialsStr[:credentialsLen], ":")
+
+	return newStr, credentialsSlice[0], credentialsSlice[1]
+}
+
+// resolveConnectOpts tries to resolve the first passed argument as an instance
+// name to replace it with a control socket or as a URI with/without
+// credentials.
+func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	args []string) ([]string, error) {
 	newArgs := args
 
@@ -87,10 +128,19 @@ func resolveInstAddr(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		}
 		newArgs[0] = cmdCtx.Running[0].ConsoleSocket
 		return newArgs, nil
-	} else {
-		if isURI(newArgs[0]) {
-			return newArgs, nil
+	} else if isCredentialsURI(newArgs[0]) {
+		if cmdCtx.Connect.Username != "" || cmdCtx.Connect.Password != "" {
+			return newArgs, fmt.Errorf("username and password are specified with" +
+				" flags and a URI")
 		}
+		uri, user, pass := parseCredentialsURI(newArgs[0])
+		newArgs[0] = uri
+		cmdCtx.Connect.Username = user
+		cmdCtx.Connect.Password = pass
+		return newArgs, nil
+	} else if isBaseURI(newArgs[0]) {
+		return newArgs, nil
+	} else {
 		return newArgs, fillErr
 	}
 }
@@ -113,7 +163,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	cmdCtx.Connect.Language = connectLanguage
 	cmdCtx.Connect.Interactive = connectInteractive
 
-	newArgs, err := resolveInstAddr(cmdCtx, cliOpts, args)
+	newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, args)
 	if err != nil {
 		return err
 	}
