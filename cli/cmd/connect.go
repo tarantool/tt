@@ -54,19 +54,19 @@ func NewConnectCmd() *cobra.Command {
 
 // isURI returns true if a string is a valid URI.
 func isURI(str string) bool {
-	// shema:host:port
-	// shema:/host:port
-	// shema://host:port
+	// tcp://host:port
 	// host:port
-	uriReStr := "((\\w+):(\\/{0,2})?)?[\\w.-]+:\\d+"
+	tcpReStr := `(tcp://)?([\w\\.-]+:\d+)`
+	// unix://../path
+	// unix:///path
+	// unix://path
+	unixReStr := `unix://[./]*[^\./]+.*`
 	// ./path
 	// /path
-	// unix:path
-	// unix/:path
-	// unix://path
-	unixReStr := "((\\./)|(/)|(unix/?:))/*[^/].*"
+	pathReStr := `\.?/[^\./].*`
 
-	uriRe := regexp.MustCompile("^((" + uriReStr + ")|(" + unixReStr + "))$")
+	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
+	uriRe := regexp.MustCompile(uriReStr)
 	return uriRe.Match([]byte(str))
 }
 
