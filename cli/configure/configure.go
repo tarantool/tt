@@ -35,6 +35,7 @@ func getDefaultCliOpts() *config.CliOpts {
 	}
 	app := config.AppOpts{
 		InstancesAvailable: "",
+		InstancesEnabled:   ".",
 		RunDir:             "run",
 		LogDir:             "log",
 		LogMaxSize:         0,
@@ -85,12 +86,36 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 	}
 
 	if cfg.CliConfig.App == nil {
-		cfg.CliConfig.App = &config.AppOpts{BinDir: filepath.Join(filepath.Dir(configurePath),
-			"bin"), IncludeDir: filepath.Join(filepath.Dir(configurePath), "include")}
+		cfg.CliConfig.App = &config.AppOpts{
+			InstancesEnabled: ".",
+			RunDir:           "run",
+			LogDir:           "log",
+			Restartable:      false,
+			DataDir:          "data",
+			BinDir:           filepath.Join(filepath.Dir(configurePath), "bin"),
+			IncludeDir:       filepath.Join(filepath.Dir(configurePath), "include"),
+		}
 	}
 	if cfg.CliConfig.Repo == nil {
-		cfg.CliConfig.Repo = &config.RepoOpts{Rocks: "",
-			Install: filepath.Join(filepath.Dir(configurePath), "distfiles")}
+		cfg.CliConfig.Repo = &config.RepoOpts{
+			Rocks:   "",
+			Install: filepath.Join(filepath.Dir(configurePath), "distfiles"),
+		}
+	}
+	if cfg.CliConfig.App.InstancesEnabled == "" {
+		cfg.CliConfig.App.InstancesEnabled = filepath.Dir(configurePath)
+	}
+	if cfg.CliConfig.App.RunDir == "" {
+		cfg.CliConfig.App.RunDir = filepath.Join(filepath.Dir(configurePath),
+			"run")
+	}
+	if cfg.CliConfig.App.LogDir == "" {
+		cfg.CliConfig.App.LogDir = filepath.Join(filepath.Dir(configurePath),
+			"log")
+	}
+	if cfg.CliConfig.App.DataDir == "" {
+		cfg.CliConfig.App.DataDir = filepath.Join(filepath.Dir(configurePath),
+			"data")
 	}
 	if cfg.CliConfig.App.BinDir == "" {
 		cfg.CliConfig.App.BinDir = filepath.Join(filepath.Dir(configurePath),
@@ -102,7 +127,7 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 	}
 	if cfg.CliConfig.Repo.Install == "" {
 		cfg.CliConfig.Repo.Install = filepath.Join(filepath.Dir(configurePath),
-			"local")
+			"distfiles")
 	}
 	return cfg.CliConfig, nil
 }
