@@ -440,7 +440,7 @@ def test_default_var_can_be_overwritten(tt_cmd, tmpdir):
     create_tnt_env_in_dir(tmpdir)
 
     create_cmd = [tt_cmd, "create", "basic", "--var", "password=pwd", "--non-interactive",
-                "--name", "app1", "--var", "name=my_name"]
+                  "--name", "app1", "--var", "name=my_name"]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmpdir,
