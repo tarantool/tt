@@ -5,7 +5,8 @@ import subprocess
 from utils import run_command_and_get_output, wait_file
 
 
-def test_cartridge_base_functionality(tt_cmd, tmpdir):
+def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     cartridge_name = "test_app"
     create_cmd = [tt_cmd, "cartridge", "create", "--name", cartridge_name]
     create_rc, create_out = run_command_and_get_output(create_cmd, cwd=tmpdir)

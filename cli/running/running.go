@@ -494,10 +494,12 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	// If tarantool.yaml does not exists we must return error.
 	basePath := ""
 	if cmdCtx.Cli.ConfigPath != "" {
-		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err == nil {
-			basePath = filepath.Dir(cmdCtx.Cli.ConfigPath)
-		} else {
-			return fmt.Errorf(`tarantool.yaml error: %s"`, err)
+		if cmdCtx.CommandName != "run" {
+			if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err == nil {
+				basePath = filepath.Dir(cmdCtx.Cli.ConfigPath)
+			} else {
+				return fmt.Errorf(`tarantool.yaml error: %s"`, err)
+			}
 		}
 	} else {
 		return fmt.Errorf(`tarantool.yaml not found"`)
@@ -511,8 +513,8 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	instEnabledPath := ""
-	if cliOpts.App != nil && cliOpts.App.InstancesAvailable != "" {
-		instEnabledPath = cliOpts.App.InstancesAvailable
+	if cliOpts.App != nil && cliOpts.App.InstancesEnabled != "" {
+		instEnabledPath = cliOpts.App.InstancesEnabled
 		if !filepath.IsAbs(instEnabledPath) {
 			instEnabledPath = filepath.Join(basePath, instEnabledPath)
 		}
