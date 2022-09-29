@@ -31,7 +31,7 @@ def stop_app(tt_cmd, tmpdir, app_name):
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
 
 
-def try_execute_on_instance(tt_cmd, tmpdir, instance, file_path, opts=None):
+def try_execute_on_instance(tt_cmd, tmpdir, instance, file_path, opts=None, env=None):
     connect_cmd = [tt_cmd, "connect", instance, "-f", file_path]
     if opts is not None:
         for k, v in opts.items():
@@ -43,7 +43,8 @@ def try_execute_on_instance(tt_cmd, tmpdir, instance, file_path, opts=None):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
+        env=env,
     )
     return instance_process.returncode == 0, instance_process.stdout
 
@@ -170,6 +171,12 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
     assert not ret
     assert re.search(r"   ⨯ Unable to establish connection", output)
 
+    # Connect with a wrong credentials via environment variables.
+    env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, env=env)
+    assert not ret
+    assert re.search(r"   ⨯ Unable to establish connection", output)
+
     # Connect with a valid credentials.
     opts = {"-u": "test", "-p": "password"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts)
@@ -178,6 +185,37 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
     # Connect with a valid credentials via URL.
     uri = "test:password@localhost:3013"
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file)
+    assert ret
+
+    # Connect with a valid credentials via environment variables.
+    env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, env=env)
+    assert ret
+
+    # Connect with a valid credentials and wrong environment variables.
+    env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+    opts = {"-u": "test", "-p": "password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013",
+                                          empty_file, opts=opts, env=env)
+    assert ret
+
+    # Connect with a valid credentials via URL and wrong environment variables.
+    env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+    uri = "test:password@localhost:3013"
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file, env=env)
+    assert ret
+
+    # Connect with a valid mixes of credentials and environment variables.
+    env = {"TT_CLI_PASSWORD": "password"}
+    opts = {"-u": "test"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013",
+                                          empty_file, opts=opts, env=env)
+    assert ret
+
+    env = {"TT_CLI_USERNAME": "test"}
+    opts = {"-p": "password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013",
+                                          empty_file, opts=opts, env=env)
     assert ret
 
     # Connect with a valid credentials via flags and via URL.
@@ -251,6 +289,11 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
     assert not ret
     assert re.search(r"   ⨯ username and password are not supported with a" +
                      " connection via a control socket", output)
+
+    # Connect with environment variables.
+    env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, env=env)
+    assert ret
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
@@ -331,6 +374,11 @@ def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
     assert not ret
     assert re.search(r"   ⨯ username and password are not supported with a" +
                      " connection via a control socket", output)
+
+    # Connect with environment variables.
+    env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, full_name, empty_file, env=env)
+    assert ret
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, app_name)

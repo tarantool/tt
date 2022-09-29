@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"syscall"
@@ -15,6 +16,11 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"golang.org/x/crypto/ssh/terminal"
+)
+
+const (
+	usernameEnv = "TT_CLI_USERNAME"
+	passwordEnv = "TT_CLI_PASSWORD"
 )
 
 var (
@@ -32,6 +38,10 @@ func NewConnectCmd() *cobra.Command {
 			" [<FILE> | <COMMAND>] [flags]\n" +
 			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]",
 		Short: "Connect to the tarantool instance",
+		Long: "Connect to the tarantool instance.\n\n" +
+			"The command supports the following environment variables:\n\n" +
+			"* " + usernameEnv + " - specifies a username\n" +
+			"* " + passwordEnv + " - specifies a password\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalConnectModule, args)
@@ -139,6 +149,13 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		cmdCtx.Connect.Password = pass
 		return newArgs, nil
 	} else if isBaseURI(newArgs[0]) {
+		// Environment variables do not overwrite values.
+		if cmdCtx.Connect.Username == "" {
+			cmdCtx.Connect.Username = os.Getenv(usernameEnv)
+		}
+		if cmdCtx.Connect.Password == "" {
+			cmdCtx.Connect.Password = os.Getenv(passwordEnv)
+		}
 		return newArgs, nil
 	} else {
 		return newArgs, fillErr
