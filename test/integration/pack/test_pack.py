@@ -484,3 +484,19 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
 
     shutil.rmtree(extract_path)
     os.remove(package_file)
+
+
+def test_pack_incorrect_pack_type(tt_cmd, tmpdir):
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    expected_output = "Incorrect combination of command parameters: " \
+                      "invalid argument \"de\" for \"tt pack\""
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "de"],
+        cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+
+    assert expected_output in output
