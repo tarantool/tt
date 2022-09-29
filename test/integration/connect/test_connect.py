@@ -12,12 +12,12 @@ def copy_data(dst, file_paths):
         shutil.copy(path, dst)
 
 
-def start_app(tt_cmd, tmpdir, app_name):
+def start_app(tt_cmd, tmpdir_with_cfg, app_name):
     # Start an instance.
     start_cmd = [tt_cmd, "start", app_name]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -107,7 +107,8 @@ def skip_if_language_supported(tt_cmd, tmpdir, test_app):
         pytest.skip("/set language is supported")
 
 
-def test_connect_to_localhost_app(tt_cmd, tmpdir):
+def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_localhost_app", "test_app.lua")
@@ -138,7 +139,8 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir):
     stop_app(tt_cmd, tmpdir, "test_app")
 
 
-def test_connect_to_single_instance_app(tt_cmd, tmpdir):
+def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
@@ -167,7 +169,8 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir):
     stop_app(tt_cmd, tmpdir, "test_app")
 
 
-def test_connect_to_multi_instances_app(tt_cmd, tmpdir):
+def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     instances = ['master', 'replica', 'router']
     app_name = "test_multi_app"
     empty_file = "empty.lua"
@@ -205,7 +208,8 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir):
     stop_app(tt_cmd, tmpdir, app_name)
 
 
-def test_connect_language_default_lua(tt_cmd, tmpdir):
+def test_connect_language_default_lua(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
 
     # Execute Lua-code.
@@ -222,7 +226,8 @@ def test_connect_language_default_lua(tt_cmd, tmpdir):
     stop_app(tt_cmd, tmpdir, test_app)
 
 
-def test_connect_language_lua(tt_cmd, tmpdir):
+def test_connect_language_lua(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
 
     skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
@@ -244,7 +249,8 @@ def test_connect_language_lua(tt_cmd, tmpdir):
     stop_app(tt_cmd, tmpdir, test_app)
 
 
-def test_connect_language_sql(tt_cmd, tmpdir):
+def test_connect_language_sql(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
 
     skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
@@ -266,7 +272,8 @@ def test_connect_language_sql(tt_cmd, tmpdir):
     stop_app(tt_cmd, tmpdir, test_app)
 
 
-def test_connect_language_l_equal_language(tt_cmd, tmpdir):
+def test_connect_language_l_equal_language(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
 
     skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
@@ -288,7 +295,8 @@ def test_connect_language_l_equal_language(tt_cmd, tmpdir):
     stop_app(tt_cmd, tmpdir, test_app)
 
 
-def test_connect_language_invalid(tt_cmd, tmpdir):
+def test_connect_language_invalid(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
 
     # Execute Lua-code.
@@ -307,7 +315,8 @@ def test_connect_language_invalid(tt_cmd, tmpdir):
     stop_app(tt_cmd, tmpdir, test_app)
 
 
-def test_connect_language_set_if_unsupported(tt_cmd, tmpdir):
+def test_connect_language_set_if_unsupported(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
 
     skip_if_language_supported(tt_cmd, tmpdir, test_app)

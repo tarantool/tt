@@ -87,7 +87,7 @@ file format:
       modules:
         directory: path/to/modules/dir
       app:
-        instances_available: path/to/available/applications
+        instances_enabled: path/to/available/applications
         run_dir: path/to/run_dir
         log_dir: path/to/log_dir
         bin_dir: path/to/bin_dir
@@ -111,7 +111,7 @@ file format:
 
 **app**
 
-* ``instances_available`` (string) - path to directory that stores all available applications.
+* ``instances_enabled`` (string) - path to directory that stores all applications.
 * ``run_dir`` (string) - path to directory that stores various instance runtime
   artifacts like console socket, PID file, etc.
 * ``log_dir`` (string) - directory that stores log files.

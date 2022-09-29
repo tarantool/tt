@@ -29,25 +29,25 @@ def test_check_non_existent_file(tt_cmd, tmpdir):
     assert re.search(r"no such file or directory", output)
 
 
-def test_check_incorrect_syntax_file(tt_cmd, tmpdir):
+def test_check_incorrect_syntax_file(tt_cmd, tmpdir_with_cfg):
     # Copy the application file with incorrect syntax to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "incorrect_syntax.lua")
-    shutil.copy(test_app_path, tmpdir)
+    shutil.copy(test_app_path, tmpdir_with_cfg)
 
     # Testing application file with incorrect syntax.
     cmd = [tt_cmd, "check", 'incorrect_syntax']
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
     assert re.search(r"syntax errors detected:", output)
 
 
-def test_check_correct_syntax_file(tt_cmd, tmpdir):
+def test_check_correct_syntax_file(tt_cmd, tmpdir_with_cfg):
     # Copy the application file with incorrect syntax to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "correct_syntax.lua")
-    shutil.copy(test_app_path, tmpdir)
+    shutil.copy(test_app_path, tmpdir_with_cfg)
 
     # Testing application file with correct syntax.
     cmd = [tt_cmd, "check", 'correct_syntax']
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc == 0
     assert re.search(r"is OK", output)

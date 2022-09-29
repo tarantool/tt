@@ -6,7 +6,8 @@ import subprocess
 from utils import run_command_and_get_output, wait_file
 
 
-def test_running_base_functionality(tt_cmd, tmpdir):
+def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
     shutil.copy(test_app_path, tmpdir)
@@ -42,7 +43,8 @@ def test_running_base_functionality(tt_cmd, tmpdir):
     assert instance_process_rc == 0
 
 
-def test_restart(tt_cmd, tmpdir):
+def test_restart(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
     shutil.copy(test_app_path, tmpdir)
@@ -104,7 +106,8 @@ def test_restart(tt_cmd, tmpdir):
     assert instance_process_2_rc == 0
 
 
-def test_logrotate(tt_cmd, tmpdir):
+def test_logrotate(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
     shutil.copy(test_app_path, tmpdir)
 
@@ -150,7 +153,8 @@ def test_logrotate(tt_cmd, tmpdir):
     assert instance_process_rc == 0
 
 
-def test_clean(tt_cmd, tmpdir):
+def test_clean(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
     shutil.copy(test_app_path, tmpdir)
 

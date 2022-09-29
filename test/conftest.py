@@ -6,6 +6,8 @@ import tempfile
 import py
 import pytest
 
+from utils import create_tt_config
+
 
 # ######## #
 # Fixtures #
@@ -43,3 +45,9 @@ def tt_cmd(session_tmpdir):
     assert process.returncode == 0, "Failed to build Tarantool CLI executable"
 
     return tt_path
+
+
+@pytest.fixture()
+def tmpdir_with_cfg(tmpdir):
+    create_tt_config(tmpdir, "")
+    return tmpdir
