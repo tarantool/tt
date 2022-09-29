@@ -51,7 +51,7 @@ func Run(createCtx *cmdcontext.CreateCtx) error {
 		steps.SetPredefinedVariables{},
 		steps.LoadVarsFile{},
 		steps.FillTemplateVarsFromCli{},
-		steps.CreateAppDirectory{},
+		steps.CreateTemporaryAppDirectory{},
 		steps.CopyAppTemplate{},
 		steps.LoadManifest{},
 		steps.CollectTemplateVarsFromUser{Reader: steps.NewConsoleReader()},
@@ -60,6 +60,7 @@ func Run(createCtx *cmdcontext.CreateCtx) error {
 		steps.RunHook{HookType: "post"},
 		steps.Cleanup{},
 		steps.CreateDockerfile{},
+		steps.MoveAppDirectory{},
 	}
 
 	templateCtx := steps.NewTemplateContext()

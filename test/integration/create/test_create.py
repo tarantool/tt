@@ -455,3 +455,28 @@ def test_default_var_can_be_overwritten(tt_cmd, tmpdir):
 
     app_path = os.path.join(tmpdir, "app1")
     assert os.path.exists(os.path.join(app_path, "my_name.cfg"))
+
+
+def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmpdir):
+    create_tnt_env_in_dir(tmpdir)
+
+    app_path = os.path.join(tmpdir, "app1", "subdir")
+    os.makedirs(os.path.join(app_path, "subdir"))
+
+    create_cmd = [tt_cmd, "create", "basic", "--var", "user_name=user2", "--var",
+                  "retry_count=number", "--name", "basic"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.writelines(["\n", "pwd\n"])
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 1
+
+    assert os.path.exists(os.path.join(app_path, "subdir"))
+    assert not os.path.exists(os.path.join(app_path, "hooks"))

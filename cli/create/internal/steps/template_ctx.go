@@ -10,6 +10,9 @@ type TemplateCtx struct {
 	// AppPath is a path to application directory. Application template will be
 	// instantiated in this directory.
 	AppPath string
+	// TargetAppPath is a path directory where an application to be moved to
+	// after instantiation.
+	TargetAppPath string
 	// Manifest is a loaded template manifest.
 	Manifest app_template.TemplateManifest
 	// IsManifestPresent is true is a template manifest is loaded. False - otherwise.
