@@ -16,9 +16,18 @@ var packCtx = &pack.PackCtx{}
 
 func NewPackCmd() *cobra.Command {
 	var packCmd = &cobra.Command{Use: "pack TYPE [flags] ..",
-		Short: "Packs application into a distributable bundle",
+		Short: "Pack application into a distributable bundle",
+		Long: `Pack application into a distributable bundle
+
+The supported types are: tgz, deb, rpm`,
+		ValidArgs: []string{"tgz", "deb", "rpm"},
 		Run: func(cmd *cobra.Command, args []string) {
 			err := cobra.ExactArgs(1)(cmd, args)
+			if err != nil {
+				err = fmt.Errorf("Incorrect combination of command parameters: %s", err.Error())
+				log.Fatalf(err.Error())
+			}
+			err = cobra.OnlyValidArgs(cmd, args)
 			if err != nil {
 				err = fmt.Errorf("Incorrect combination of command parameters: %s", err.Error())
 				log.Fatalf(err.Error())
