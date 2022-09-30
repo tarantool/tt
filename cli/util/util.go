@@ -643,6 +643,9 @@ func ExecuteCommand(program string, isVerbose bool, logFile *os.File, workDir st
 	args ...string) error {
 	cmd := exec.Command(program, args...)
 	if isVerbose {
+		log.Infof("Run: %s\n", cmd)
+	}
+	if isVerbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
