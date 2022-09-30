@@ -98,7 +98,9 @@ file format:
         restart_on_failure: bool
       repo:
         rocks: path/to/rocks
-        install: path/to/install
+        distfiles: path/to/install
+      ee:
+        credential_path: path/to/file
       templates:
         - path: path/to/templates_dir1
         - path: path/to/templates_dir2
@@ -132,6 +134,10 @@ file format:
 
 * ``rocks`` (string) - directory that stores rocks files.
 * ``distfiles`` (string) - directory that stores installation files.
+
+**ee**
+
+* ``credential_path`` (string) - path to file with credentials for downloading tarantool-ee
 
 **templates**
 * ``path`` (string) - the path to templates search directory.
