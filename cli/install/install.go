@@ -290,29 +290,6 @@ func checkExisting(version string, dst string) bool {
 	}
 }
 
-// ExecuteCommand executes program with given args in verbose or quiet mode.
-func ExecuteCommand(program string, isVerbose bool, logFile *os.File, workDir string,
-	args ...string) error {
-	cmd := exec.Command(program, args...)
-	if isVerbose {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	} else {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
-	}
-	if workDir == "" {
-		workDir, _ = os.Getwd()
-	}
-	cmd.Dir = workDir
-	err := cmd.Start()
-	if err != nil {
-		return err
-	}
-	err = cmd.Wait()
-	return err
-}
-
 // downloadRepo downloads git repository.
 func downloadRepo(repoLink string, tag string, dst string,
 	logFile *os.File, verbose bool) error {
