@@ -708,3 +708,13 @@ func CheckRequiredBinaries(binaries ...string) error {
 
 	return nil
 }
+
+// GetAbsPath returns absolute path of filePath.
+// If filePath is absolute, it is returned as is,
+// if filePath is relative, baseDir + filePath is returned.
+func GetAbsPath(baseDir, filePath string) string {
+	if filepath.IsAbs(filePath) {
+		return filePath
+	}
+	return filepath.Join(baseDir, filePath)
+}

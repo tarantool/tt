@@ -191,3 +191,11 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		os.Remove(tntBinPath)
 	}
 }
+
+func TestGetAbsPath(t *testing.T) {
+	require.Equal(t, GetAbsPath("/base/dir", "/abs/path"), "/abs/path")
+	require.Equal(t, GetAbsPath("/base/dir", "./abs/path"),
+		"/base/dir/abs/path")
+	require.Equal(t, GetAbsPath("/base/dir", "abs/path"),
+		"/base/dir/abs/path")
+}

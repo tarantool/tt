@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -86,4 +87,13 @@ func TestConfigureCli(t *testing.T) {
 	}
 
 	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
+}
+
+func TestAdjustPathWithConfigLocation(t *testing.T) {
+	require.Equal(t, adjustPathWithConfigLocation("", "/config/dir", "bin"),
+		"/config/dir/bin")
+	require.Equal(t, adjustPathWithConfigLocation("/bin_dir", "/config/dir", "bin"),
+		"/bin_dir")
+	require.Equal(t, adjustPathWithConfigLocation("./bin_dir", "/config/dir", "bin"),
+		"/config/dir/bin_dir")
 }
