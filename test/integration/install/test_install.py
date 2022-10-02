@@ -1,6 +1,9 @@
+import os
 import re
 import subprocess
-import os
+import tempfile
+
+import yaml
 
 
 def test_install_tt(tt_cmd, tmpdir):
@@ -37,17 +40,18 @@ def test_install_tt(tt_cmd, tmpdir):
 
 
 def test_install_tarantool(tt_cmd, tmpdir):
-
-    configPath = os.path.join(tmpdir, "tarantool.yaml")
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
     # Create test config.
-    with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
+
+    tmpdir_without_config = tempfile.mkdtemp()
 
     # Install latest tarantool.
-    install_cmd = [tt_cmd, "install", "tarantool", "-f", "--cfg", configPath]
+    install_cmd = [tt_cmd, "install", "tarantool", "-f", "--cfg", config_path]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir,
+        cwd=tmpdir_without_config,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -59,7 +63,7 @@ def test_install_tarantool(tt_cmd, tmpdir):
     installed_cmd = [tmpdir + "/bin/tarantool", "-v"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=tmpdir + "/bin",
+        cwd=os.path.join(tmpdir, "/bin"),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -67,3 +71,4 @@ def test_install_tarantool(tt_cmd, tmpdir):
 
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
+    assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))

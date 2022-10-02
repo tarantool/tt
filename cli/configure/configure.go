@@ -56,6 +56,16 @@ func getDefaultCliOpts() *config.CliOpts {
 	return &config.CliOpts{Modules: &modules, App: &app, Repo: &repo, EE: &ee}
 }
 
+// adjustPathWithConfigLocation adjust provided filePath with configDir.
+// Absolute filePath is returned as is. Relative filePath is calculated relative to configDir.
+// If filePath is empty, defaultDirName is appended to configDir.
+func adjustPathWithConfigLocation(filePath string, configDir string, defaultDirName string) string {
+	if filePath == "" {
+		return filepath.Join(configDir, defaultDirName)
+	}
+	return util.GetAbsPath(configDir, filePath)
+}
+
 // GetCliOpts returns Tarantool CLI options from the config file
 // located at path configurePath.
 func GetCliOpts(configurePath string) (*config.CliOpts, error) {
@@ -85,6 +95,7 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: missing tt section")
 	}
 
+	configDir := filepath.Dir(configurePath)
 	if cfg.CliConfig.App == nil {
 		cfg.CliConfig.App = &config.AppOpts{
 			InstancesEnabled: ".",
@@ -92,43 +103,37 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 			LogDir:           "log",
 			Restartable:      false,
 			DataDir:          "data",
-			BinDir:           filepath.Join(filepath.Dir(configurePath), "bin"),
-			IncludeDir:       filepath.Join(filepath.Dir(configurePath), "include"),
+			BinDir:           filepath.Join(configDir, "bin"),
+			IncludeDir:       filepath.Join(configDir, "include"),
 		}
 	}
 	if cfg.CliConfig.Repo == nil {
 		cfg.CliConfig.Repo = &config.RepoOpts{
 			Rocks:   "",
-			Install: filepath.Join(filepath.Dir(configurePath), "distfiles"),
+			Install: filepath.Join(configDir, "distfiles"),
 		}
 	}
 	if cfg.CliConfig.App.InstancesEnabled == "" {
-		cfg.CliConfig.App.InstancesEnabled = filepath.Dir(configurePath)
+		cfg.CliConfig.App.InstancesEnabled = configDir
 	}
-	if cfg.CliConfig.App.RunDir == "" {
-		cfg.CliConfig.App.RunDir = filepath.Join(filepath.Dir(configurePath),
-			"run")
+	cfg.CliConfig.App.RunDir = adjustPathWithConfigLocation(cfg.CliConfig.App.RunDir,
+		configDir, "run")
+	cfg.CliConfig.App.LogDir = adjustPathWithConfigLocation(cfg.CliConfig.App.LogDir,
+		configDir, "log")
+	cfg.CliConfig.App.DataDir = adjustPathWithConfigLocation(cfg.CliConfig.App.DataDir,
+		configDir, "data")
+	cfg.CliConfig.App.BinDir = adjustPathWithConfigLocation(cfg.CliConfig.App.BinDir,
+		configDir, "bin")
+	cfg.CliConfig.App.IncludeDir = adjustPathWithConfigLocation(cfg.CliConfig.App.IncludeDir,
+		configDir, "include")
+	cfg.CliConfig.Repo.Install = adjustPathWithConfigLocation(cfg.CliConfig.Repo.Install,
+		configDir, "local")
+
+	if cfg.CliConfig.Modules != nil {
+		cfg.CliConfig.Modules.Directory = util.GetAbsPath(configDir,
+			cfg.CliConfig.Modules.Directory)
 	}
-	if cfg.CliConfig.App.LogDir == "" {
-		cfg.CliConfig.App.LogDir = filepath.Join(filepath.Dir(configurePath),
-			"log")
-	}
-	if cfg.CliConfig.App.DataDir == "" {
-		cfg.CliConfig.App.DataDir = filepath.Join(filepath.Dir(configurePath),
-			"data")
-	}
-	if cfg.CliConfig.App.BinDir == "" {
-		cfg.CliConfig.App.BinDir = filepath.Join(filepath.Dir(configurePath),
-			"bin")
-	}
-	if cfg.CliConfig.App.IncludeDir == "" {
-		cfg.CliConfig.App.IncludeDir = filepath.Join(filepath.Dir(configurePath),
-			"include")
-	}
-	if cfg.CliConfig.Repo.Install == "" {
-		cfg.CliConfig.Repo.Install = filepath.Join(filepath.Dir(configurePath),
-			"distfiles")
-	}
+
 	return cfg.CliConfig, nil
 }
 
@@ -151,7 +156,7 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 	case cmdCtx.Cli.IsSystem:
 		return configureSystemCli(cmdCtx)
 	case cmdCtx.Cli.LocalLaunchDir != "":
-		return configureLocalCli(cmdCtx, cmdCtx.Cli.LocalLaunchDir)
+		return configureLocalCli(cmdCtx)
 	}
 
 	// No flags specified.
@@ -232,19 +237,22 @@ func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesI
 }
 
 // configureLocalCli configures Tarantool CLI if the launch is local.
-func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
+func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 	// If tt launch is local: we chdir to a bin_dir directory, check for tt
 	// and Tarantool binaries. If tt binary exists, then exec it.
 	// If Tarantool binary is found, use it further, instead of what
 	// is specified in the PATH.
 
-	launchDir, err := filepath.Abs(launchDir)
-	if err != nil {
-		return fmt.Errorf(`Failed to get absolute path to local directory: %s`, err)
-	}
+	var err error
+	launchDir := ""
+	if cmdCtx.Cli.LocalLaunchDir != "" {
+		if launchDir, err = filepath.Abs(cmdCtx.Cli.LocalLaunchDir); err != nil {
+			return fmt.Errorf(`Failed to get absolute path to local directory: %s`, err)
+		}
 
-	if err := os.Chdir(launchDir); err != nil {
-		return fmt.Errorf(`Failed to change working directory: %s`, err)
+		if err = os.Chdir(launchDir); err != nil {
+			return fmt.Errorf(`Failed to change working directory: %s`, err)
+		}
 	}
 
 	if cmdCtx.Cli.ConfigPath == "" {
@@ -384,7 +392,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	if cmdCtx.Cli.ConfigPath != "" {
-		return configureLocalCli(cmdCtx, filepath.Dir(cmdCtx.Cli.ConfigPath))
+		return configureLocalCli(cmdCtx)
 	}
 
 	return configureSystemCli(cmdCtx)

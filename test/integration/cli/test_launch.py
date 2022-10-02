@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 
 import pytest
+import yaml
 from utils import (create_external_module, create_tt_config,
                    run_command_and_get_output)
 
@@ -41,6 +42,23 @@ def test_local_launch_find_cfg(tt_cmd, tmpdir):
     module_message = create_external_module(module, tmpdir)
 
     rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
+    assert rc == 0
+    assert module_message in output
+
+
+def test_local_launch_find_cfg_modules_relative_path(tt_cmd, tmpdir):
+    module = "version"
+
+    # Find tarantool.yaml at cwd parent.
+    tmpdir_without_config = tempfile.mkdtemp(dir=tmpdir)
+    cmd = [tt_cmd, module]
+
+    modules_dir = os.path.join(tmpdir, "ext_modules")
+    os.mkdir(modules_dir)
+    create_tt_config(tmpdir, os.path.join(".", "ext_modules"))
+    module_message = create_external_module(module, modules_dir)
+
+    rc, output = run_command_and_get_output(cmd, cwd=tmpdir_without_config)
     assert rc == 0
     assert module_message in output
 
@@ -108,6 +126,52 @@ def test_launch_local_tt_executable(tt_cmd, tmpdir):
     os.chmod(os.path.join(tmpdir, "bin/tt"), 0o777)
     for cmd in commands:
         rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+        assert rc == 0
+        assert tt_message in output
+
+
+def test_launch_local_tt_executable_in_parent_dir(tt_cmd, tmpdir):
+    create_tt_config(tmpdir, tmpdir)
+    os.mkdir(tmpdir + "/bin")
+
+    tt_message = "Hello, I'm CLI exec!"
+    with open(os.path.join(tmpdir, "bin/tt"), "w") as f:
+        f.write(f"#!/bin/sh\necho \"{tt_message}\"")
+
+    commands = [
+        [tt_cmd, "version"],
+        [tt_cmd, "-L", tmpdir, "version"]
+    ]
+
+    tmpdir_without_config = tempfile.mkdtemp(dir=tmpdir)
+    os.chmod(os.path.join(tmpdir, "bin/tt"), 0o777)
+    for cmd in commands:
+        rc, output = run_command_and_get_output(cmd, cwd=tmpdir_without_config)
+        assert rc == 0
+        assert tt_message in output
+
+
+def test_launch_local_tt_executable_relative_bin_dir(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
+                   "app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+
+    tt_message = "Hello, I'm CLI exec!"
+    with open(os.path.join(tmpdir, "binaries/tt"), "w") as f:
+        f.write(f"#!/bin/sh\necho \"{tt_message}\"")
+    os.chmod(os.path.join(tmpdir, "binaries", "tt"), 0o777)
+
+    commands = [
+        [tt_cmd, "version"],
+        [tt_cmd, "-L", tmpdir, "version"]
+    ]
+
+    tmpdir_without_config = tempfile.mkdtemp(dir=tmpdir)
+    for cmd in commands:
+        rc, output = run_command_and_get_output(cmd, cwd=tmpdir_without_config)
         assert rc == 0
         assert tt_message in output
 
