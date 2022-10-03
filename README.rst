@@ -115,6 +115,7 @@ file format:
 * ``log_dir`` (string) - directory that stores log files.
 * ``bin_dir`` (string) - directory that stores binary files.
 * ``inc_dir`` (string) - directory that stores header files.
+  The path will be padded with a directory named include.
 * ``log_maxsize`` (number) - the maximum size in MB of the log file before it gets
   rotated. It defaults to 100 MB.
 * ``log_maxage`` (numder) - is the maximum number of days to retain old log files
