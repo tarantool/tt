@@ -564,7 +564,7 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 
 	log.Infof("Copying headers...")
 	if _, err := os.Stat(includeDir); os.IsNotExist(err) {
-		err = os.Mkdir(includeDir, defaultDirPermissions)
+		err = os.MkdirAll(includeDir, defaultDirPermissions)
 		if err != nil {
 			return fmt.Errorf("Unable to create %s\n Error: %s", includeDir, err)
 		}
