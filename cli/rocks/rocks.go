@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -37,7 +38,19 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
+	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	if err != nil {
+		return err
+	}
+
+	err = util.SetupTarantoolPrefix(&cmdCtx.Cli, cliOpts)
+	if err != nil {
+		return err
+	}
+
 	os.Setenv("TT_CLI_TARANTOOL_VERSION", version)
+	os.Setenv("TT_CLI_TARANTOOL_PREFIX", cmdCtx.Cli.TarantoolInstallPrefix)
+	os.Setenv("TT_CLI_TARANTOOL_INCLUDE", cmdCtx.Cli.TarantoolIncludeDir)
 	os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolExecutable))
 
 	rocks_cmd := fmt.Sprintf("t=require('extra.wrapper').exec('%s', %s)",

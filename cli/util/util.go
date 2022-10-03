@@ -22,6 +22,7 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"gopkg.in/yaml.v2"
 )
 
@@ -282,6 +283,51 @@ func GetTarantoolVersion(cli *cmdcontext.CliCtx) (string, error) {
 	cli.TarantoolVersion = version[len(version)-1]
 
 	return cli.TarantoolVersion, nil
+}
+
+// SetupTarantoolPrefix defines the installation prefix and the path to the tarantool header files.
+func SetupTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) error {
+	if cli.TarantoolIncludeDir != "" && cli.TarantoolInstallPrefix != "" {
+		return nil
+	}
+
+	if cli.IsTarantoolBinFromRepo {
+		includeDir, err := JoinAbspath(cliOpts.App.IncludeDir, "include/tarantool")
+		if err != nil {
+			return err
+		}
+
+		prefix, err := JoinAbspath(cliOpts.App.IncludeDir)
+		if err != nil {
+			return err
+		}
+
+		cli.TarantoolIncludeDir = includeDir
+		cli.TarantoolInstallPrefix = prefix
+
+		return nil
+	}
+
+	output, err := exec.Command(cli.TarantoolExecutable, "--version").Output()
+	if err != nil {
+		return fmt.Errorf("Failed to get tarantool version: %s", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) < 3 {
+		return fmt.Errorf("Failed to get prefix path: expected more data")
+	}
+
+	re := regexp.MustCompile(`^.*\s-DCMAKE_INSTALL_PREFIX=(?P<prefix>\/.*)\s.*$`)
+	matches := FindNamedMatches(re, lines[2])
+	if len(matches) == 0 {
+		return fmt.Errorf("Failed to get prefix path: regexp does not match")
+	}
+
+	cli.TarantoolInstallPrefix = matches["prefix"]
+	cli.TarantoolIncludeDir = cli.TarantoolInstallPrefix + "/include/tarantool"
+
+	return nil
 }
 
 // ReadEmbedFile reads content of embed file in string mode.

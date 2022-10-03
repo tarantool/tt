@@ -266,6 +266,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
 		}
 
 		cmdCtx.Cli.TarantoolExecutable = localTarantool
+		cmdCtx.Cli.IsTarantoolBinFromRepo = true
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("Failed to get access to Tarantool binary file: %s", err)
 	}

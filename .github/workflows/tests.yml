@@ -147,6 +147,13 @@ jobs:
           rm -f ${ARCHIVE_NAME}
           source tarantool-enterprise/env.sh
 
+      - name: Install tarantool headers
+        run: |
+          INCLUDE_DIR=$(./tarantool-enterprise/tarantool --version | gawk \
+            '/DCMAKE_INSTALL_PREFIX/ {dir=gensub(/.*-DCMAKE_INSTALL_PREFIX=(\/.*) .*/, "\\1", "g", $0);  print dir}')
+          sudo mkdir -p ${INCLUDE_DIR}/include
+          sudo cp -r tarantool-enterprise/include/tarantool ${INCLUDE_DIR}/include
+
       - name: Add SDK to PATH and set TARANTOOL_SDK_PATH variable
         run: |
           SDK_PATH="$(realpath tarantool-enterprise)"

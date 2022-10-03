@@ -15,11 +15,25 @@ local function get_tarantool_path()
 end
 
 local function get_tarantool_include_path()
+    local path = os.getenv('TT_CLI_TARANTOOL_INCLUDE')
+    if path ~= nil then
+        return path
+    end
+
     return "/usr/include/tarantool"
 end
 
+local function get_tarantool_prefix_path()
+    local path = os.getenv('TT_CLI_TARANTOOL_PREFIX')
+    if path ~= nil then
+        return path
+    end
+
+    return "/usr"
+end
+
 return {
-    PREFIX = [[/usr]],
+    PREFIX = get_tarantool_prefix_path(),
     LUA_BINDIR = get_tarantool_path(),
     LUA_INCDIR = get_tarantool_include_path(),
     LUA_MODULES_LIB_SUBDIR = [[/lib/tarantool]],
