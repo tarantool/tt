@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/install"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/search"
 )
 
 var (
@@ -40,7 +41,7 @@ func NewInstallCmd() *cobra.Command {
 			"tt - Tarantool CLI\n" +
 			"tarantool - Tarantool\n" +
 			"tarantool-ee - Tarantool enterprise edition\n" +
-			"Example: tt install tarantool | tarantool=version",
+			"Example: tt install tarantool | tarantool" + search.VersionCliSeparator + "version",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalInstallModule, args)
 			if err != nil {

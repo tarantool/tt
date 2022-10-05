@@ -20,6 +20,13 @@ const (
 	GitRepoTT        = "https://github.com/tarantool/tt.git"
 )
 
+const (
+	// VersionCliSeparator is used in commands to specify version. E.g: program=version.
+	VersionCliSeparator = "="
+	// VersionFsSeparator is used in file names to specify version. E.g: program_version.
+	VersionFsSeparator = "_"
+)
+
 // isDeprecated checks if the program version is lower than 1.10.0.
 func isDeprecated(version string) bool {
 	splitedVersion := strings.Split(version, ".")
@@ -113,7 +120,7 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 
 // printVersion prints the version and label if the package is installed.
 func printVersion(bindir string, program string, version string) {
-	if _, err := os.Stat(filepath.Join(bindir, program+"="+version)); err == nil {
+	if _, err := os.Stat(filepath.Join(bindir, program+VersionFsSeparator+version)); err == nil {
 		fmt.Printf("%s [installed]\n", version)
 	} else {
 		fmt.Println(version)
