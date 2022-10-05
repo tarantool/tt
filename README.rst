@@ -140,6 +140,7 @@ file format:
 * ``credential_path`` (string) - path to file with credentials for downloading tarantool-ee
 
 **templates**
+
 * ``path`` (string) - the path to templates search directory.
 
 External modules
