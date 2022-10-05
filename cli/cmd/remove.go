@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/remove"
+	"github.com/tarantool/tt/cli/search"
 )
 
 // NewRemoveCmd creates remove command.
@@ -40,8 +41,8 @@ func InternalRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(args[0], "=") {
-		return fmt.Errorf("Incorrect usage.\n   e.g program=version")
+	if !strings.Contains(args[0], search.VersionCliSeparator) {
+		return fmt.Errorf("Incorrect usage.\n   e.g program%sversion", search.VersionCliSeparator)
 	}
 	err = remove.RemoveProgram(args[0], cliOpts.App.BinDir,
 		cliOpts.App.IncludeDir+"/include", cmdCtx)

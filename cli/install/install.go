@@ -360,7 +360,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 	}
 
 	// Get latest version if it was not specified.
-	_, ttVersion, _ := strings.Cut(version, "=")
+	_, ttVersion, _ := strings.Cut(version, search.VersionCliSeparator)
 	if ttVersion == "" {
 		log.Infof("Getting latest tt version..")
 		if len(versions) == 0 {
@@ -405,7 +405,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 		}
 	}
 
-	version = "tt=" + ttVersion
+	version = "tt" + search.VersionFsSeparator + ttVersion
 	// Check if that version is already installed.
 	log.Infof("Checking existing...")
 	if checkExisting(version, binDir) && !flags.Reinstall {
@@ -584,7 +584,7 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 	}
 
 	// Get latest version if it was not specified.
-	_, tarVersion, _ := strings.Cut(version, "=")
+	_, tarVersion, _ := strings.Cut(version, search.VersionCliSeparator)
 	if tarVersion == "" {
 		log.Infof("Getting latest tarantool version..")
 		if len(versions) == 0 {
@@ -632,7 +632,7 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 		}
 	}
 
-	version = "tarantool=" + tarVersion
+	version = "tarantool" + search.VersionFsSeparator + tarVersion
 	// Check if program is already installed.
 	if !flags.Reinstall {
 		log.Infof("Checking existing...")
@@ -762,7 +762,7 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 	}
 
 	// Get latest version if it was not specified.
-	_, tarVersion, _ := strings.Cut(version, "=")
+	_, tarVersion, _ := strings.Cut(version, search.VersionCliSeparator)
 	if tarVersion == "" {
 		log.Infof("Getting latest tarantool-ee version..")
 		if len(versions) == 0 {
@@ -817,7 +817,7 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 		}
 	}
 
-	version = "tarantool-ee=" + tarVersion
+	version = "tarantool-ee" + search.VersionFsSeparator + tarVersion
 	if !flags.Reinstall {
 		log.Infof("Checking existing...")
 		versionExists, err := checkExistingTarantool(version,
@@ -924,7 +924,9 @@ func Install(args []string, binDir string, includeDir string, flags Installation
 		return fmt.Errorf("Invalid number of parameters")
 	}
 
-	re := regexp.MustCompile("^(?P<prog>tt|tarantool|tarantool-ee)(?:=.*)?$")
+	re := regexp.MustCompile(
+		"^(?P<prog>tt|tarantool|tarantool-ee)(?:" + search.VersionCliSeparator + ".*)?$",
+	)
 	matches := util.FindNamedMatches(re, args[0])
 	if len(matches) == 0 {
 		return fmt.Errorf("Unknown application: %s", args[0])
