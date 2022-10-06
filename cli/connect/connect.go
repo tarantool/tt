@@ -18,8 +18,10 @@ const (
 	tarantoolWordSeparators = "\t\r\n !\"#$%&'()*+,-/;<=>?@[\\]^`{|}~"
 )
 
-func getConnOpts(connString string, cmdCtx *cmdcontext.CmdCtx) *connector.ConnOpts {
-	return connector.GetConnOpts(connString, cmdCtx.Connect.Username, cmdCtx.Connect.Password)
+func getConnOpts(connString string, connCtx cmdcontext.ConnectCtx) connector.ConnectOpts {
+	username := connCtx.Username
+	password := connCtx.Password
+	return connector.MakeConnectOpts(connString, username, password)
 }
 
 // getEvalCmd returns a command from the input source (file or stdin).
@@ -62,7 +64,7 @@ func Connect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	connString := args[0]
-	connOpts := getConnOpts(connString, cmdCtx)
+	connOpts := getConnOpts(connString, cmdCtx.Connect)
 
 	if err := runConsole(connOpts, "", lang); err != nil {
 		return fmt.Errorf("Failed to run interactive console: %s", err)
@@ -80,17 +82,18 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 
 	// Parse the arguments.
 	connString := args[0]
-	connOpts := getConnOpts(connString, cmdCtx)
+	connOpts := getConnOpts(connString, cmdCtx.Connect)
 	command, err := getEvalCmd(cmdCtx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Connecting to the instance.
-	conn, err := connector.Connect(connOpts.Address, connOpts.Username, connOpts.Password)
+	conn, err := connector.Connect(connOpts)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to establish connection: %s", err)
 	}
+	defer conn.Close()
 
 	// Change a language.
 	if err := changeLanguage(conn, lang); err != nil {
@@ -98,8 +101,10 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 	}
 
 	// Execution of the command.
-	req := connector.EvalReq(evalFuncBody, command)
-	res, err := conn.Exec(req)
+	response, err := conn.Eval(evalFuncBody,
+		[]interface{}{command},
+		connector.RequestOpts{},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +112,7 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 	// Check that the result is encoded in YAML and convert it to bytes,
 	// since the ""gopkg.in/yaml.v2" library handles YAML as an array
 	// of bytes.
-	resYAML := []byte((res[0]).(string))
+	resYAML := []byte((response[0]).(string))
 	var checkMock interface{}
 	if err = yaml.Unmarshal(resYAML, &checkMock); err != nil {
 		return nil, err
@@ -117,7 +122,7 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 }
 
 // runConsole run a new console.
-func runConsole(connOpts *connector.ConnOpts, title string, lang Language) error {
+func runConsole(connOpts connector.ConnectOpts, title string, lang Language) error {
 	console, err := NewConsole(connOpts, title, lang)
 	if err != nil {
 		return fmt.Errorf("Failed to create new console: %s", err)

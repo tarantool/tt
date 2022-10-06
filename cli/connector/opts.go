@@ -9,9 +9,10 @@ const (
 	UnixNetwork = "unix"
 )
 
-// ConnOpts describes the connection to a tarantool instance.
-type ConnOpts struct {
-	// Network is a characteristic of a connection like "type" ("tcp" and "unix" are used).
+// ConnectOpts describes options for a connection to a tarantool instance.
+type ConnectOpts struct {
+	// Network is a characteristic of a connection like "type" ("tcp" and
+	// "unix" are used).
 	Network string
 	// Address of an instance.
 	Address string
@@ -21,9 +22,12 @@ type ConnOpts struct {
 	Password string
 }
 
-// GetConnOpts returns the connection parameters according to the passed arguments.
-func GetConnOpts(connString, username, password string) *ConnOpts {
-	connOpts := ConnOpts{
+// MakeConnectOpts creates a new connection options object according to the
+// arguments passed. An username and a password values from the connection
+// string are used only if the username and password from the arguments are
+// empty.
+func MakeConnectOpts(connString, username, password string) ConnectOpts {
+	connOpts := ConnectOpts{
 		Username: username,
 		Password: password,
 	}
@@ -68,5 +72,5 @@ func GetConnOpts(connString, username, password string) *ConnOpts {
 		connOpts.Address = address
 	}
 
-	return &connOpts
+	return connOpts
 }

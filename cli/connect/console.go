@@ -59,8 +59,8 @@ type Console struct {
 	livePrefix        string
 	livePrefixFunc    func() (string, bool)
 
-	connOpts *connector.ConnOpts
-	conn     *connector.Conn
+	connOpts connector.ConnectOpts
+	conn     connector.Connector
 
 	executor  func(in string)
 	completer func(in prompt.Document) []prompt.Suggest
@@ -70,7 +70,7 @@ type Console struct {
 }
 
 // NewConsole creates a new console connected to the tarantool instance.
-func NewConsole(connOpts *connector.ConnOpts, title string, lang Language) (*Console, error) {
+func NewConsole(connOpts connector.ConnectOpts, title string, lang Language) (*Console, error) {
 	console := &Console{
 		title:    title,
 		connOpts: connOpts,
@@ -85,7 +85,7 @@ func NewConsole(connOpts *connector.ConnOpts, title string, lang Language) (*Con
 	}
 
 	// Connect to specified address.
-	console.conn, err = connector.Connect(connOpts.Address, connOpts.Username, connOpts.Password)
+	console.conn, err = connector.Connect(connOpts)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect: %s", err)
 	}
@@ -161,6 +161,9 @@ func (console *Console) Close() {
 		v.Close()
 	}
 	console.validators = nil
+	if console.conn != nil {
+		console.conn.Close()
+	}
 }
 
 func loadHistory(console *Console) error {
@@ -224,20 +227,23 @@ func getExecutor(console *Console) prompt.Executor {
 			log.Debugf("Failed to append command to history file: %s", err)
 		}
 
-		req := connector.EvalReq(evalFuncBody, console.input)
-		req.SetPushCallback(func(pushedData interface{}) {
-			encodedData, err := yaml.Marshal(pushedData)
-			if err != nil {
-				log.Warnf("Failed to encode pushed data: %s", err)
-				return
-			}
+		var results []string
+		args := []interface{}{console.input}
+		opts := connector.RequestOpts{
+			PushCallback: func(pushedData interface{}) {
+				encodedData, err := yaml.Marshal(pushedData)
+				if err != nil {
+					log.Warnf("Failed to encode pushed data: %s", err)
+					return
+				}
 
-			fmt.Printf("%s\n", encodedData)
-		})
+				fmt.Printf("%s\n", encodedData)
+			},
+			ResData: &results,
+		}
 
 		var data string
-		var results []string
-		if err := console.conn.ExecTyped(req, &results); err != nil {
+		if _, err := console.conn.Eval(evalFuncBody, args, opts); err != nil {
 			if err == io.EOF {
 				log.Fatalf("Connection was closed. Probably instance process isn't running anymore")
 			} else {
@@ -275,11 +281,15 @@ func getCompleter(console *Console) prompt.Completer {
 			return nil
 		}
 
-		req := connector.EvalReq(getSuggestionsFuncBody, lastWord, len(lastWord))
-		req.SetReadTimeout(3 * time.Second)
 
 		var suggestionsTexts []string
-		if err := console.conn.ExecTyped(req, &suggestionsTexts); err != nil {
+		args := []interface{}{lastWord, len(lastWord)}
+		opts := connector.RequestOpts{
+			ReadTimeout: 3 * time.Second,
+			ResData: &suggestionsTexts,
+		}
+
+		if _, err := console.conn.Eval(getSuggestionsFuncBody, args, opts); err != nil {
 			return nil
 		}
 

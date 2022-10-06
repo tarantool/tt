@@ -2,89 +2,93 @@ package connector
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"math"
+	"time"
 
-	"github.com/FZambia/tarantool"
+	"github.com/tarantool/go-tarantool"
 )
 
-func connectBinary(connOpts *ConnOpts) (*tarantool.Connection, error) {
-	connectStr := fmt.Sprintf("%s://%s", connOpts.Network, connOpts.Address)
+// BinaryConnector implements Connector interface for a connection that sends
+// and receives data via IPROTO.
+type BinaryConnector struct {
+	conn tarantool.Connector
+}
 
-	binaryConn, err := tarantool.Connect(connectStr, tarantool.Opts{
-		User:           connOpts.Username,
-		Password:       connOpts.Password,
-		SkipSchema:     true, // see https://github.com/FZambia/tarantool/issues/3
-		RequestTimeout: 0,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("Failed to connect: %s", err)
+// NewBinaryConnector creates a new BinaryConnector object. The object will
+// close the tarantool.Connector argument in Close() call.
+func NewBinaryConnector(conn tarantool.Connector) *BinaryConnector {
+	return &BinaryConnector{
+		conn: conn,
 	}
-
-	return binaryConn, nil
 }
 
-func initBinaryConn(conn *Conn, connOpts *ConnOpts) error {
-	var err error
-
-	if conn.binary, err = connectBinary(connOpts); err != nil {
-		return err
-	}
-
-	conn.evalFunc = evalBinary
-	conn.callFunc = callBinary
-
-	return nil
-}
-
-func evalBinary(conn *Conn, funcBody string, args []interface{},
-	execOpts ExecOpts) ([]interface{}, error) {
-	evalReq := tarantool.Eval(funcBody, args)
-	return processTarantoolReqBinary(conn, evalReq, execOpts)
-}
-
-func callBinary(conn *Conn, funcName string, args []interface{},
-	execOpts ExecOpts) ([]interface{}, error) {
-	callReq := tarantool.Call(funcName, args)
-	return processTarantoolReqBinary(conn, callReq, execOpts)
-}
-
-func processTarantoolReqBinary(conn *Conn, req *tarantool.Request,
-	execOpts ExecOpts) ([]interface{}, error) {
-	if execOpts.PushCallback != nil {
-		req.WithPush(func(r *tarantool.Response) {
-			execOpts.PushCallback(r.Data[0])
-		})
-	}
-
-	ctx := context.Background()
-	var cancel context.CancelFunc
-
-	if execOpts.ReadTimeout != 0 {
-		ctx, cancel = context.WithTimeout(ctx, execOpts.ReadTimeout)
+// Eval sends an eval request.
+func (conn *BinaryConnector) Eval(expr string, args []interface{},
+	opts RequestOpts) ([]interface{}, error) {
+	// Create a request.
+	evalReq := tarantool.NewEvalRequest(expr).Args(args)
+	if opts.ReadTimeout != 0 {
+		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(ctx, opts.ReadTimeout)
 		defer cancel()
+
+		evalReq = evalReq.Context(ctx)
 	}
 
-	return execTarantoolReqBinary(ctx, conn.binary, req, execOpts.ResData)
-}
-
-func execTarantoolReqBinary(ctx context.Context, binaryConn *tarantool.Connection,
-	req *tarantool.Request, resData interface{}) ([]interface{}, error) {
+	// Execute the request.
 	var err error
-	var resp *tarantool.Response
+	var response *tarantool.Response
+	future := conn.conn.Do(evalReq)
+	if opts.PushCallback != nil {
+		var timeout time.Duration
+		if opts.ReadTimeout != 0 {
+			timeout = opts.ReadTimeout
+		} else {
+			timeout = time.Duration(math.MaxInt64)
+		}
+		for it := future.GetIterator().WithTimeout(timeout); it.Next(); {
+			if err := it.Err(); err != nil {
+				return nil, replaceContextDone(err)
+			}
+			response := it.Value()
+			if response.Code != tarantool.PushCode {
+				break
+			}
+			opts.PushCallback(response.Data[0])
+		}
+	}
 
-	if resData != nil {
-		err = binaryConn.ExecTypedContext(ctx, req, resData)
+	// Get responseonse.
+	if opts.ResData != nil {
+		err = future.GetTyped(opts.ResData)
 	} else {
-		resp, err = binaryConn.ExecContext(ctx, req)
+		response, err = future.Get()
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, replaceContextDone(err)
 	}
 
-	if resp == nil {
+	if response == nil {
 		return nil, nil
 	}
 
-	return resp.Data, nil
+	return response.Data, nil
+}
+
+// Close closes the tarantool.Connector created from.
+func (conn *BinaryConnector) Close() error {
+	if conn.conn != nil {
+		return conn.conn.Close()
+	}
+	return nil
+}
+
+// replaceContextDone replaces "context done" error by "i/o timeout" error.
+func replaceContextDone(err error) error {
+	if err == nil || err.Error() != "context is done" {
+		return err
+	}
+	return errors.New("i/o timeout")
 }
