@@ -57,22 +57,24 @@ func (l Language) String() string {
 const setLanguagePrefix = "\\set language "
 
 // changeLanguage changes a language for a connection.
-func changeLanguage(conn *connector.Conn, lang Language) error {
+func changeLanguage(evaler connector.Evaler, lang Language) error {
 	if lang == DefaultLanguage {
 		return nil
 	}
 
 	languageCmd := setLanguagePrefix + lang.String()
-	req := connector.EvalReq(evalFuncBody, languageCmd)
-	res, err := conn.Exec(req)
+	response, err := evaler.Eval(evalFuncBody,
+		[]interface{}{languageCmd},
+		connector.RequestOpts{},
+	)
 	if err != nil {
 		return err
 	}
 
 	var ret string
 	var ok bool
-	if ret, ok = res[0].(string); !ok {
-		return fmt.Errorf("Unexpected response %v", res)
+	if ret, ok = response[0].(string); !ok {
+		return fmt.Errorf("Unexpected response %v", response)
 	}
 
 	var decoded interface{}

@@ -3,17 +3,17 @@ package connector
 import (
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
-	"github.com/FZambia/tarantool"
+	"github.com/tarantool/go-tarantool"
 )
 
-// Protocol describes the type of protocol used (plain text or IPROTO).
-type Protocol string
+const (
+	greetingOperationTimeout = 3 * time.Second
+)
 
-// ExecOpts describes the parameters of the operation to be executed.
-type ExecOpts struct {
+// RequestOpts describes the parameters of a request to be executed.
+type RequestOpts struct {
 	// PushCallback is the cb that will be called when a "push" message is received.
 	PushCallback func(interface{})
 	// ReadTimeout timeout for the operation.
@@ -22,118 +22,58 @@ type ExecOpts struct {
 	ResData interface{}
 }
 
-// Conn describes the connection to the tarantool instance.
-type Conn struct {
-	protocol Protocol
-
-	plainText net.Conn
-	binary    *tarantool.Connection
-
-	evalFunc func(conn *Conn, funcBody string, args []interface{},
-		execOpts ExecOpts) ([]interface{}, error)
-	callFunc func(conn *Conn, funcName string, args []interface{},
-		execOpts ExecOpts) ([]interface{}, error)
+// Eval is an interface that wraps Eval method.
+type Evaler interface {
+	// Eval passes Lua expression for evaluation.
+	Eval(expr string, args []interface{}, opts RequestOpts) ([]interface{}, error)
 }
 
-const (
-	// https://www.tarantool.io/en/doc/1.10/dev_guide/internals_index/#greeting-packet
-	greetingSize = 1024
+// Connector is an interface that wraps all method required for a
+// connector.
+type Connector interface {
+	Evaler
+	Close() error
+}
 
-	PlainTextProtocol Protocol = "plain text"
-	BinaryProtocol    Protocol = "binary"
-
-	SimpleOperationTimeout = 3 * time.Second
-)
-
-// Connect connects to the tarantool instance according to "connString".
-func Connect(connString string, username string, password string) (*Conn, error) {
-	var err error
-
-	conn := &Conn{}
-
-	connOpts := GetConnOpts(connString, username, password)
-
+// Connect connects to the tarantool instance according to options.
+func Connect(opts ConnectOpts) (Connector, error) {
 	// Connect to specified address.
-	plainTextConn, err := net.Dial(connOpts.Network, connOpts.Address)
+	greetingConn, err := net.Dial(opts.Network, opts.Address)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to dial: %s", err)
+		return nil, fmt.Errorf("failed to dial: %s", err)
 	}
+
+	// Set a deadline for the greeting.
+	greetingConn.SetReadDeadline(time.Now().Add(greetingOperationTimeout))
 
 	// Detect protocol.
-	conn.protocol, err = getProtocol(plainTextConn)
+	protocol, err := GetProtocol(greetingConn)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get protocol: %s", err)
+		return nil, fmt.Errorf("failed to get protocol: %s", err)
 	}
+
+	// Reset the deadline. From the SetDeadline doc:
+	// "A zero value for t means I/O operations will not time out."
+	greetingConn.SetDeadline(time.Time{})
 
 	// Initialize connection.
-	switch conn.protocol {
-	case PlainTextProtocol:
-		if err := initPlainTextConn(conn, plainTextConn); err != nil {
+	switch protocol {
+	case TextProtocol:
+		return NewTextConnector(greetingConn), nil
+	case BinaryProtocol:
+		greetingConn.Close()
+
+		addr := fmt.Sprintf("%s://%s", opts.Network, opts.Address)
+		conn, err := tarantool.Connect(addr, tarantool.Opts{
+			User: opts.Username,
+			Pass: opts.Password,
+			SkipSchema: true, // We don't need a schema for eval requests.
+		})
+		if err != nil {
 			return nil, err
 		}
-	case BinaryProtocol:
-		if err := initBinaryConn(conn, connOpts); err != nil {
-			return nil, err
-		}
+		return NewBinaryConnector(conn), nil
 	default:
-		return nil, fmt.Errorf("Unsupported protocol: %s", conn.protocol)
+		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
 	}
-
-	return conn, nil
-}
-
-// Exec executes an operation.
-func (conn *Conn) Exec(req *Request) ([]interface{}, error) {
-	return req.execFunc(conn)
-}
-
-// Eval executes a command.
-func (conn *Conn) Eval(command string) ([]interface{}, error) {
-	evalFuncBody := "return require('console').eval(...)\n"
-	req := EvalReq(evalFuncBody, command)
-	return conn.Exec(req)
-}
-
-// ExecTyped executes an operation and returns the typed result.
-func (conn *Conn) ExecTyped(req *Request, resData interface{}) error {
-	return req.execTypedFunc(conn, resData)
-}
-
-// Close closes the connection.
-func (conn *Conn) Close() error {
-	switch conn.protocol {
-	case PlainTextProtocol:
-		return conn.plainText.Close()
-	case BinaryProtocol:
-		return conn.binary.Close()
-	default:
-		return fmt.Errorf("Unsupported protocol: %s", conn.protocol)
-	}
-}
-
-func getProtocol(conn net.Conn) (Protocol, error) {
-	greeting, err := readGreeting(conn)
-	if err != nil {
-		return "", fmt.Errorf("Failed to read Tarantool greeting: %s", err)
-	}
-
-	switch {
-	case strings.Contains(greeting, "(Lua console)"):
-		return PlainTextProtocol, nil
-	case strings.Contains(greeting, "(Binary)"):
-		return BinaryProtocol, nil
-	default:
-		return "", fmt.Errorf("Unknown protocol: %s", greeting)
-	}
-}
-
-func readGreeting(conn net.Conn) (string, error) {
-	conn.SetReadDeadline(time.Now().Add(SimpleOperationTimeout))
-
-	greeting := make([]byte, greetingSize)
-	if _, err := conn.Read(greeting); err != nil {
-		return "", fmt.Errorf("Failed to read Tarantool greeting: %s", err)
-	}
-
-	return string(greeting), nil
 }
