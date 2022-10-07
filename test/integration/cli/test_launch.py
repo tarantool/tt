@@ -20,7 +20,7 @@ def test_local_launch(tt_cmd, tmpdir):
     cmd = [tt_cmd, module, "-L", tmpdir]
 
     # No configuration file specified.
-    assert subprocess.run(cmd).returncode == 0
+    assert subprocess.run(cmd).returncode == 1
 
     # With the specified config file.
     create_tt_config(tmpdir, tmpdir)
@@ -114,13 +114,14 @@ def test_launch_local_tt_executable(tt_cmd, tmpdir):
     # tt found but not executable - there should be an error.
     commands = [
         [tt_cmd, "version"],
-        [tt_cmd, "-L", tmpdir, "version"]
+        [tt_cmd, "-L", tmpdir, "version"],
+        [tt_cmd, "version", "--cfg", os.path.join(tmpdir, "tarantool.yaml")]
     ]
 
     for cmd in commands:
         rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
         assert rc == 1
-        assert tt_message not in output
+        assert "permission denied" in output
 
     # tt found and executable.
     os.chmod(os.path.join(tmpdir, "bin/tt"), 0o777)
@@ -154,8 +155,7 @@ def test_launch_local_tt_executable_in_parent_dir(tt_cmd, tmpdir):
 def test_launch_local_tt_executable_relative_bin_dir(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, "tarantool.yaml")
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
-                   "app": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
 
@@ -169,11 +169,202 @@ def test_launch_local_tt_executable_relative_bin_dir(tt_cmd, tmpdir):
         [tt_cmd, "-L", tmpdir, "version"]
     ]
 
+    with tempfile.TemporaryDirectory(dir=tmpdir) as tmp_working_dir:
+        for cmd in commands:
+            rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
+            assert rc == 0
+            assert tt_message in output
+
+
+def test_launch_local_tt_missing_executable(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+
+    commands = [
+        [tt_cmd, "version"],
+        [tt_cmd, "-L", tmpdir, "version"],
+        [tt_cmd, "version", "--cfg", config_path]
+    ]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        for cmd in commands:
+            rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
+            # No error. Current tt is executed.
+            assert rc == 0
+            assert "Tarantool CLI version" in output
+
+
+def test_launch_local_tarantool(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+    tarantool_message = "Hello, I'm Tarantool"
+    with open(os.path.join(tmpdir, "binaries/tarantool"), "w") as f:
+        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+    os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
+
+    commands = [
+        [tt_cmd, "run", "-L", tmpdir, "--version"],
+        [tt_cmd, "run", "--cfg", config_path, "--version"]
+    ]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        for cmd in commands:
+            rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
+            assert rc == 0
+            assert tarantool_message in output
+
+
+def test_launch_local_tarantool_missing_in_bin_dir(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+
+    commands = [
+        [tt_cmd, "run", "--version"],
+        [tt_cmd, "run", "-L", tmpdir, "--version"],
+        [tt_cmd, "run", "--cfg", config_path, "--version"]
+    ]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        for cmd in commands:
+            rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
+            # Missing binaries is not a error. Default Tarantool is used.
+            assert rc == 0
+            assert "Tarantool" in output
+
+
+def test_launch_local_launch_tarantool_with_config_in_parent_dir(tt_cmd, tmpdir):
     tmpdir_without_config = tempfile.mkdtemp(dir=tmpdir)
-    for cmd in commands:
-        rc, output = run_command_and_get_output(cmd, cwd=tmpdir_without_config)
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+    tarantool_message = "Hello, I'm Tarantool"
+    with open(os.path.join(tmpdir, "binaries/tarantool"), "w") as f:
+        f.write(f"#!/bin/sh\ntouch file.txt\necho \"{tarantool_message}\"")
+    os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
+
+    commands = [
+        [tt_cmd, "run", "-L", tmpdir_without_config, "--version"],
+    ]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        for cmd in commands:
+            rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
+            assert rc == 0
+            assert tarantool_message in output
+            assert os.path.exists(os.path.join(tmpdir_without_config, "file.txt"))
+
+
+def test_launch_system_tarantool(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
+                   "app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+    tarantool_message = "Hello, I'm Tarantool"
+    with open(os.path.join(tmpdir, "binaries/tarantool"), "w") as f:
+        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+    os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
+
+    command = [tt_cmd, "run", "-S"]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        with open(os.path.join(tmp_working_dir, "tarantool.yaml"), "w") as f:
+            yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
+                       "app": {"bin_dir": ""}}}, f)
+        my_env = os.environ.copy()
+        my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
+        rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
         assert rc == 0
-        assert tt_message in output
+        assert tarantool_message in output
+
+
+def test_launch_system_tarantool_missing_executable(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
+                   "app": {"bin_dir": "./binaries"}}}, f)
+
+    command = [tt_cmd, "run", "-S", "--version"]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        my_env = os.environ.copy()
+        my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
+        rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
+        assert rc == 0
+        assert "Tarantool" in output
+
+
+def test_launch_system_config_not_loaded_if_local_enabled(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+    tarantool_message = "Hello, I'm Tarantool"
+    with open(os.path.join(tmpdir, "binaries/tarantool"), "w") as f:
+        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+    os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        command = [tt_cmd, "run", "-L", tmp_working_dir, "--version"]
+        my_env = os.environ.copy()
+        my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
+        rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
+        assert rc == 1
+        assert "Failed to find Tarantool CLI config for " in output
+
+
+def test_launch_system_config_not_loaded_if_cfg_specified_is_missing(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+    tarantool_message = "Hello, I'm Tarantool"
+    with open(os.path.join(tmpdir, "binaries/tarantool"), "w") as f:
+        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+    os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        command = [tt_cmd, "run", "-c", os.path.join(tmp_working_dir, "tarantool.yaml"),
+                   "--version"]
+        my_env = os.environ.copy()
+        my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
+        rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
+        assert rc == 1
+        assert "Failed to configure Tarantool CLI" in output
+
+
+def test_launch_ambiguous_config_opts(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+
+    commands = [
+        [tt_cmd, "run", "--cfg", config_path, "-L", tmpdir, "--version"],
+        [tt_cmd, "run", "--cfg", config_path, "-S", "--version"],
+        [tt_cmd, "run", "-S", "-L", tmpdir, "--version"],
+    ]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        for cmd in commands:
+            rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
+            assert rc == 1
+            assert "You can specify only one of" in output
 
 
 def test_external_module_without_internal_implementation(tt_cmd, tmpdir):

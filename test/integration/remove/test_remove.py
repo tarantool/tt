@@ -36,7 +36,7 @@ def test_remove_tt(tt_cmd, tmpdir):
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
 
-    remove_cmd = [tt_cmd, "-S", "remove", "tt=master", "--cfg", configPath]
+    remove_cmd = [tt_cmd, "remove", "tt=master", "--cfg", configPath]
     remove_process = subprocess.Popen(
         remove_cmd,
         cwd=tmpdir,

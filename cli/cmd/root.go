@@ -142,6 +142,10 @@ func InitRoot() {
 	rootCmd = NewCmdRoot()
 	rootCmd.ParseFlags(os.Args)
 
+	if err := configure.ValidateCliOpts(&cmdCtx.Cli); err != nil {
+		log.Fatal(err.Error())
+	}
+
 	// Configure Tarantool CLI.
 	if err := configure.Cli(&cmdCtx); err != nil {
 		log.Fatalf("Failed to configure Tarantool CLI: %s", err)
