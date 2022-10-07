@@ -48,6 +48,8 @@ type CliCtx struct {
 	// WorkDir is stores original tt working directory, before making chdir
 	// to local launch directory.
 	WorkDir string
+	// Verbose logging flag. Enables debug log output.
+	Verbose bool
 }
 
 // RunningCtx contain information for running an application instance.

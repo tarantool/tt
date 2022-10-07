@@ -90,6 +90,8 @@ func NewCmdRoot() *cobra.Command {
 		false, "Use internal module")
 	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.ConfigPath, "cfg", "c",
 		"", "Path to configuration file")
+	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.Verbose, "verbose", "V",
+		false, "Verbose output")
 
 	rootCmd.AddCommand(
 		NewVersionCmd(),
