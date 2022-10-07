@@ -2,13 +2,13 @@ package configure
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
 
+	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -139,6 +139,10 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 
 // Cli performs initial CLI configuration.
 func Cli(cmdCtx *cmdcontext.CmdCtx) error {
+	if cmdCtx.Cli.Verbose {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	if cmdCtx.Cli.ConfigPath != "" {
 		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
 			return fmt.Errorf("Specified path to the configuration file is invalid: %s", err)
@@ -375,7 +379,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 	// 1) We use the "local" tarantool.
 	// 2) For our purpose, tarantool is not needed at all.
 	if err != nil {
-		log.Println("Can't set the default tarantool from the system")
+		log.Info("Can't set the default tarantool from the system")
 	}
 
 	// If neither the local start nor the system flag is specified,
