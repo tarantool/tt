@@ -91,7 +91,7 @@ jobs:
           skip-cache: true
 
       - name: Unit tests
-        run: mage unit
+        run: mage unitfull
 
       # This server starts and listen on 8084 port that is used for tests.
       - name: Stop Mono server

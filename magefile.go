@@ -199,6 +199,21 @@ func Unit() error {
 	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath))
 }
 
+// Run unit tests with a Tarantool instance integration.
+func UnitFull() error {
+	fmt.Println("Running full unit tests...")
+
+	mg.Deps(GenerateGoCode)
+
+	if mg.Verbose() {
+		return sh.RunV(goExecutableName, "test", "-v", fmt.Sprintf("%s/...", packagePath),
+			"-tags", "integration")
+	}
+
+	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath),
+		"-tags", "integration")
+}
+
 // Run integration tests.
 func Integration() error {
 	fmt.Println("Running integration tests...")
