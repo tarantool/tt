@@ -501,13 +501,13 @@ def test_connect_language_set_if_unsupported(tt_cmd, tmpdir_with_cfg):
     opts = {"-l": "lua"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
     assert not ret
-    assert re.search(r"   ⨯ Unable to change a language: Unexpected response:", output)
+    assert re.search(r"   ⨯ Unable to change a language: unexpected response:", output)
 
     # Execute SQL-code.
     opts = {"-l": "sql"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
     assert not ret
-    assert re.search(r"   ⨯ Unable to change a language: Unexpected response:", output)
+    assert re.search(r"   ⨯ Unable to change a language: unexpected response:", output)
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, test_app)

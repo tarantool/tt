@@ -56,10 +56,10 @@ func (l Language) String() string {
 // setLanguagePrefix is a prefix for a set language command.
 const setLanguagePrefix = "\\set language "
 
-// changeLanguage changes a language for a connection.
-func changeLanguage(evaler connector.Evaler, lang Language) error {
+// ChangeLanguage changes a language for a connection.
+func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 	if lang == DefaultLanguage {
-		return nil
+		lang = LuaLanguage
 	}
 
 	languageCmd := setLanguagePrefix + lang.String()
@@ -71,25 +71,31 @@ func changeLanguage(evaler connector.Evaler, lang Language) error {
 		return err
 	}
 
+	if len(response) == 0 {
+		return fmt.Errorf("unexpected response: empty")
+	} else if len(response) > 1 {
+		return fmt.Errorf("unexpected response: %v", response)
+	}
+
 	var ret string
 	var ok bool
 	if ret, ok = response[0].(string); !ok {
-		return fmt.Errorf("Unexpected response %v", response)
+		return fmt.Errorf("unexpected response: %v", response)
 	}
 
 	var decoded interface{}
 	if err = yaml.Unmarshal([]byte(ret), &decoded); err != nil {
-		return fmt.Errorf("Unable to decode response: %s", err)
+		return fmt.Errorf("unable to decode response: %w", err)
 	}
 
 	var decodedArray []interface{}
 	if decodedArray, ok = decoded.([]interface{}); !ok || len(decodedArray) != 1 {
-		return fmt.Errorf("Unexpected response: %s", ret)
+		return fmt.Errorf("unexpected response: %s", ret)
 	}
 
 	var value bool
 	if value, ok = decodedArray[0].(bool); !ok {
-		return fmt.Errorf("Unexpected response: %s", ret)
+		return fmt.Errorf("unexpected response: %s", ret)
 	}
 
 	if !value {

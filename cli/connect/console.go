@@ -91,8 +91,10 @@ func NewConsole(connOpts connector.ConnectOpts, title string, lang Language) (*C
 	}
 
 	// Change a language.
-	if err := changeLanguage(console.conn, lang); err != nil {
-		return nil, fmt.Errorf("Unable to change a language: %s", err)
+	if lang != DefaultLanguage {
+		if err := ChangeLanguage(console.conn, lang); err != nil {
+			return nil, fmt.Errorf("Unable to change a language: %s", err)
+		}
 	}
 
 	// Initialize user commands executor.
@@ -203,7 +205,7 @@ func getExecutor(console *Console) prompt.Executor {
 			if strings.HasPrefix(trimmed, setLanguagePrefix) {
 				newLang := strings.TrimPrefix(trimmed, setLanguagePrefix)
 				if lang, ok := ParseLanguage(newLang); ok {
-					if err := changeLanguage(console.conn, lang); err != nil {
+					if err := ChangeLanguage(console.conn, lang); err != nil {
 						log.Warnf("Failed to change language: %s", err)
 					} else {
 						console.language = lang

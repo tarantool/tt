@@ -96,8 +96,10 @@ func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
 	defer conn.Close()
 
 	// Change a language.
-	if err := changeLanguage(conn, lang); err != nil {
-		return nil, fmt.Errorf("Unable to change a language: %s", err)
+	if lang != DefaultLanguage {
+		if err := ChangeLanguage(conn, lang); err != nil {
+			return nil, fmt.Errorf("Unable to change a language: %s", err)
+		}
 	}
 
 	// Execution of the command.
