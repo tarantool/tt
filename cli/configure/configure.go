@@ -20,6 +20,9 @@ import (
 const (
 	configName        = "tarantool.yaml"
 	cliExecutableName = "tt"
+	// systemConfigDirEnvName is an environment variable that contains a path to
+	// search system config.
+	systemConfigDirEnvName = "TT_SYSTEM_CONFIG_DIR"
 )
 
 var (
@@ -43,8 +46,8 @@ func getDefaultCliOpts() *config.CliOpts {
 		LogMaxBackups:      0,
 		Restartable:        false,
 		DataDir:            "data",
-		BinDir:             filepath.Join(defaultConfigPath, "bin"),
-		IncludeDir:         filepath.Join(defaultConfigPath, "include"),
+		BinDir:             "",
+		IncludeDir:         "",
 	}
 	ee := config.EEOpts{
 		CredPath: "",
@@ -137,6 +140,23 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 	return cfg.CliConfig, nil
 }
 
+// ValidateCliOpts checks for ambiguous config options.
+func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
+	if cliCtx.LocalLaunchDir != "" {
+		if cliCtx.IsSystem {
+			return fmt.Errorf("You can specify only one of -L(--local) and -S(--system) options")
+		}
+		if cliCtx.ConfigPath != "" {
+			return fmt.Errorf("You can specify only one of -L(--local) and -с(--cfg) options")
+		}
+	} else {
+		if cliCtx.IsSystem && cliCtx.ConfigPath != "" {
+			return fmt.Errorf("You can specify only one of -S(--system) and -с(--cfg) options")
+		}
+	}
+	return nil
+}
+
 // Cli performs initial CLI configuration.
 func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 	if cmdCtx.Cli.Verbose {
@@ -156,11 +176,14 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 	cmdCtx.Cli.WorkDir = cwd
 
+	// Set default (system) tarantool binary, can be replaced by "local" or "system" later.
+	cmdCtx.Cli.TarantoolExecutable, err = exec.LookPath("tarantool")
+
 	switch {
 	case cmdCtx.Cli.IsSystem:
 		return configureSystemCli(cmdCtx)
 	case cmdCtx.Cli.LocalLaunchDir != "":
-		return configureLocalCli(cmdCtx)
+		return configureLocalLaunch(cmdCtx)
 	}
 
 	// No flags specified.
@@ -240,23 +263,55 @@ func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesI
 	return cmd
 }
 
+// detectLocalTarantool searches for available Tarantool executable.
+func detectLocalTarantool(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
+	localTarantool, err := util.JoinAbspath(cliOpts.App.BinDir, "tarantool")
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(localTarantool); err == nil {
+		if _, err := exec.LookPath(localTarantool); err != nil {
+			return fmt.Errorf(`Found Tarantool binary '%s' isn't executable: %s`,
+				localTarantool, err)
+		}
+
+		cmdCtx.Cli.TarantoolExecutable = localTarantool
+		cmdCtx.Cli.IsTarantoolBinFromRepo = true
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("Failed to get access to Tarantool binary file: %s", err)
+	}
+
+	log.Debugf("Tarantool executable found: '%s'", cmdCtx.Cli.TarantoolExecutable)
+
+	return nil
+}
+
+// detectLocalTt searches for available TT executable.
+func detectLocalTt(cliOpts *config.CliOpts) (string, error) {
+	localCli, err := util.JoinAbspath(cliOpts.App.BinDir, cliExecutableName)
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(localCli); err == nil {
+		localCli, err = filepath.EvalSymlinks(localCli)
+		if err != nil {
+			return "", err
+		}
+	} else if os.IsNotExist(err) {
+		return "", nil
+	}
+
+	log.Debugf("TT executable found: '%s'", localCli)
+
+	return localCli, nil
+}
+
 // configureLocalCli configures Tarantool CLI if the launch is local.
 func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
-	// If tt launch is local: we chdir to a bin_dir directory, check for tt
-	// and Tarantool binaries. If tt binary exists, then exec it.
-	// If Tarantool binary is found, use it further, instead of what
-	// is specified in the PATH.
-
-	var err error
-	launchDir := ""
-	if cmdCtx.Cli.LocalLaunchDir != "" {
-		if launchDir, err = filepath.Abs(cmdCtx.Cli.LocalLaunchDir); err != nil {
-			return fmt.Errorf(`Failed to get absolute path to local directory: %s`, err)
-		}
-
-		if err = os.Chdir(launchDir); err != nil {
-			return fmt.Errorf(`Failed to change working directory: %s`, err)
-		}
+	launchDir, err := os.Getwd()
+	if err != nil {
+		return err
 	}
 
 	if cmdCtx.Cli.ConfigPath == "" {
@@ -274,7 +329,11 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 			}
 
 			if cmdCtx.Cli.ConfigPath == "" {
-				cmdCtx.Cli.ConfigPath = filepath.Join(defaultConfigPath, configName)
+				if cmdCtx.Cli.LocalLaunchDir != "" {
+					return fmt.Errorf("Failed to find Tarantool CLI config for '%s'",
+						cmdCtx.Cli.LocalLaunchDir)
+				}
+				cmdCtx.Cli.ConfigPath = filepath.Join(getSystemConfigPath(), configName)
 			}
 		}
 	}
@@ -289,38 +348,13 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		return nil
 	}
 
-	// Detect local tarantool.
-	localTarantool, err := util.JoinAbspath(cliOpts.App.BinDir, "tarantool")
-	if err != nil {
+	if err = detectLocalTarantool(cmdCtx, cliOpts); err != nil {
 		return err
 	}
 
-	if _, err := os.Stat(localTarantool); err == nil {
-		if _, err := exec.LookPath(localTarantool); err != nil {
-			return fmt.Errorf(
-				`Found Tarantool binary in local directory "%s" isn't executable: %s`,
-				launchDir, err)
-		}
-
-		cmdCtx.Cli.TarantoolExecutable = localTarantool
-		cmdCtx.Cli.IsTarantoolBinFromRepo = true
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("Failed to get access to Tarantool binary file: %s", err)
-	}
-
-	// Detect local tt.
-	localCli, err := util.JoinAbspath(cliOpts.App.BinDir, cliExecutableName)
+	localCli, err := detectLocalTt(cliOpts)
 	if err != nil {
 		return err
-	}
-	if _, err := os.Stat(localCli); err == nil {
-		localCli, err = filepath.EvalSymlinks(localCli)
-		if err != nil {
-			return err
-		}
-	} else {
-		// No tt symlink found in bin_dir.
-		return nil
 	}
 
 	// We have to use the absolute path to the current binary "tt" for
@@ -336,7 +370,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	// This should save us from exec looping.
-	if localCli != currentCli {
+	if localCli != "" && localCli != currentCli {
 		if _, err := os.Stat(localCli); err == nil {
 			if _, err := exec.LookPath(localCli); err != nil {
 				return fmt.Errorf(
@@ -346,7 +380,8 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 			// We are not using the "RunExec" function because we have no reason to have several
 			// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
 			// which starts tarantool or some external module.
-			err = syscall.Exec(localCli, append([]string{localCli}, os.Args[1:]...), os.Environ())
+			err = syscall.Exec(localCli, append([]string{localCli},
+				excludeArgumentsForChildTt(os.Args[1:])...), os.Environ())
 			if err != nil {
 				return err
 			}
@@ -358,22 +393,65 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 	return nil
 }
 
-// configureSystemCli configures Tarantool CLI if the launch is system.
-func configureSystemCli(cmdCtx *cmdcontext.CmdCtx) error {
-	// If tt launch is system: the only thing we do is look for tarantool.yaml
-	// config in the system directory (as opposed to running it locally).
-	if cmdCtx.Cli.ConfigPath == "" {
-		cmdCtx.Cli.ConfigPath = filepath.Join(defaultConfigPath, configName)
+// configureLocalLaunch configures the context using the specified local launch path.
+func configureLocalLaunch(cmdCtx *cmdcontext.CmdCtx) error {
+	var err error
+	launchDir := ""
+	if cmdCtx.Cli.LocalLaunchDir != "" {
+		if launchDir, err = filepath.Abs(cmdCtx.Cli.LocalLaunchDir); err != nil {
+			return fmt.Errorf(`Failed to get absolute path to local directory: %s`, err)
+		}
+
+		log.Debugf("Local launch directory: %s", launchDir)
+
+		if _, err = util.Chdir(launchDir); err != nil {
+			return fmt.Errorf(`Failed to change working directory: %s`, err)
+		}
 	}
 
-	return nil
+	return configureLocalCli(cmdCtx)
+}
+
+// excludeArgumentsForChildTt removes arguments that are not required for child tt.
+func excludeArgumentsForChildTt(args []string) []string {
+	filteredArgs := []string{}
+	skip := 0
+	for _, arg := range args {
+		if skip > 0 {
+			skip = skip - 1
+			continue
+		}
+		switch arg {
+		case "-L", "--local":
+			skip = 1
+			continue
+		}
+		filteredArgs = append(filteredArgs, arg)
+	}
+	return filteredArgs
+}
+
+// getSystemConfigPath returns system config path.
+func getSystemConfigPath() string {
+	if configPathFromEnv := os.Getenv(systemConfigDirEnvName); configPathFromEnv != "" {
+		return filepath.Join(configPathFromEnv, configName)
+	} else {
+		return filepath.Join(defaultConfigPath, configName)
+	}
+}
+
+// configureSystemCli configures Tarantool CLI if the launch is system.
+func configureSystemCli(cmdCtx *cmdcontext.CmdCtx) error {
+	if cmdCtx.Cli.ConfigPath == "" {
+		cmdCtx.Cli.ConfigPath = getSystemConfigPath()
+	}
+
+	return configureLocalCli(cmdCtx)
 }
 
 // configureDefaultCLI configures Tarantool CLI if the launch was without flags (-S or -L).
 func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 	var err error
-	// Set default (system) tarantool binary, can be replaced by "local" later.
-	cmdCtx.Cli.TarantoolExecutable, err = exec.LookPath("tarantool")
 
 	// It may be fine that the system tarantool is absent because:
 	// 1) We use the "local" tarantool.

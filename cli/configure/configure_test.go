@@ -3,6 +3,7 @@ package configure
 import (
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -58,7 +60,11 @@ func TestConfigureCli(t *testing.T) {
 
 	defer os.Remove(expectedTarantoolPath)
 
-	assert.Nil(Cli(&cmdCtx))
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	defer os.Chdir(wd) // Chdir from local launch dir after the Cli call.
+
+	require.NoError(t, Cli(&cmdCtx))
 	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
 	assert.Equal(cmdCtx.Cli.TarantoolExecutable, expectedTarantoolPath)
 
@@ -96,4 +102,86 @@ func TestAdjustPathWithConfigLocation(t *testing.T) {
 		"/bin_dir")
 	require.Equal(t, adjustPathWithConfigLocation("./bin_dir", "/config/dir", "bin"),
 		"/config/dir/bin_dir")
+}
+
+func TestExcludeArgs(t *testing.T) {
+	type argsData struct {
+		input, expected []string
+	}
+	testArgsData := []argsData{
+		{[]string{"a", "b", "c"}, []string{"a", "b", "c"}},
+		{[]string{"a", "b", "-L"}, []string{"a", "b"}},
+		{[]string{"a", "b", "-L", "/dir"}, []string{"a", "b"}},
+		{[]string{"a", "-L", "/dir", "b"}, []string{"a", "b"}},
+		{[]string{"a", "--local", "/dir", "b"}, []string{"a", "b"}},
+	}
+
+	for _, testData := range testArgsData {
+		require.Equal(t, excludeArgumentsForChildTt(testData.input), testData.expected)
+	}
+}
+
+func TestValidateCliOpts(t *testing.T) {
+	type cliCtxTest struct {
+		input     cmdcontext.CliCtx
+		errString string
+	}
+	testData := []cliCtxTest{
+		{cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/tarantool.yaml"},
+			"You can specify only one of -S(--system) and -с(--cfg) options"},
+		{cmdcontext.CliCtx{LocalLaunchDir: "/", ConfigPath: "/tarantool.yaml"},
+			"You can specify only one of -L(--local) and -с(--cfg) options"},
+		{cmdcontext.CliCtx{IsSystem: true, LocalLaunchDir: "."},
+			"You can specify only one of -L(--local) and -S(--system) options"},
+		{cmdcontext.CliCtx{IsSystem: true}, ""},
+		{cmdcontext.CliCtx{LocalLaunchDir: "."}, ""},
+		{cmdcontext.CliCtx{ConfigPath: "tarantool.yaml"}, ""},
+	}
+
+	for _, cliCtxTestData := range testData {
+		if cliCtxTestData.errString != "" {
+			require.EqualError(t, ValidateCliOpts(&cliCtxTestData.input), cliCtxTestData.errString)
+		} else {
+			require.NoError(t, ValidateCliOpts(&cliCtxTestData.input))
+		}
+	}
+}
+
+func TestDetectLocalTarantool(t *testing.T) {
+	// Tarantool executable is in bin_dir.
+	cliOpts := config.CliOpts{App: &config.AppOpts{BinDir: "./testdata/bin_dir"}}
+	cmdCtx := cmdcontext.CmdCtx{}
+	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
+	expected, err := filepath.Abs("./testdata/bin_dir/tarantool")
+	require.NoError(t, err)
+	require.Equal(t, expected, cmdCtx.Cli.TarantoolExecutable)
+
+	// Tarantool executable is in PATH.
+	cliOpts.App.BinDir = "./testdata"
+	Cli(&cmdCtx)
+	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
+	expected, err = exec.LookPath("tarantool")
+	require.NoError(t, err)
+	require.Equal(t, expected, cmdCtx.Cli.TarantoolExecutable)
+}
+
+func TestDetectLocalTt(t *testing.T) {
+	cliOpts := config.CliOpts{App: &config.AppOpts{BinDir: "./testdata/bin_dir"}}
+	localTt, err := detectLocalTt(&cliOpts)
+	require.NoError(t, err)
+	expected, err := filepath.Abs("./testdata/bin_dir/tt")
+	require.NoError(t, err)
+	require.Equal(t, expected, localTt)
+
+	cliOpts.App.BinDir = "./testdata"
+	localTt, err = detectLocalTt(&cliOpts)
+	require.NoError(t, err)
+	require.Equal(t, "", localTt)
+}
+
+func TestGetSystemConfigPath(t *testing.T) {
+	require.Equal(t, filepath.Join(defaultConfigPath, configName), getSystemConfigPath())
+	os.Setenv(systemConfigDirEnvName, "/system_config_dir")
+	defer os.Unsetenv(getSystemConfigPath())
+	require.Equal(t, filepath.Join("/system_config_dir", configName), getSystemConfigPath())
 }
