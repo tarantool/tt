@@ -240,8 +240,15 @@ func collectInstances(appName string, cliOpts *config.CliOpts,
 	// 2) The application starts by `appName/init.lua`
 	// 3) The application starts by `dirName:appName`
 	// 4) Read application list from `appName/instances.yml`
-	luaPath := filepath.Join(appDir, appName+".lua")
-	dirPath := filepath.Join(appDir, appName)
+	// If appName equals to base directory name, current working
+	// directory is considered as application to work with.
+	dirPath, luaPath := "", ""
+	if filepath.Base(appDir) == appName {
+		dirPath = appDir
+	} else {
+		luaPath = filepath.Join(appDir, appName+".lua")
+		dirPath = filepath.Join(appDir, appName)
+	}
 
 	// Check if one or both file and/or directory exist.
 	_, fileStatErr := os.Stat(luaPath)
