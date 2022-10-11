@@ -501,18 +501,6 @@ func Chdir(newPath string) (string, error) {
 // BitHas32 checks if a bit is set in b.
 func BitHas32(b, flag uint32) bool { return b&flag != 0 }
 
-// IsDeprecated checks whether version of program is below 1.10.0.
-func IsDeprecated(version string) bool {
-	splittedVersion := strings.Split(version, ".")
-	if len(splittedVersion) < 2 {
-		return false
-	}
-	if splittedVersion[0] == "1" && len(splittedVersion[1]) < 2 {
-		return true
-	}
-	return false
-}
-
 // CopyFilePreserve copies file from source to destination with perms.
 func CopyFilePreserve(src string, dst string) error {
 	// Read all content of src to data.
@@ -660,6 +648,43 @@ func ExecuteCommand(program string, isVerbose bool, logFile *os.File, workDir st
 	if err != nil {
 		return err
 	}
+	err = cmd.Wait()
+	return err
+}
+
+// ExecuteCommandStdin executes program with given args in verbose or quiet mode
+// and sends stdinData to stdin pipe.
+func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workDir string,
+	stdinData []byte, args ...string) error {
+	cmd := exec.Command(program, args...)
+	if isVerbose {
+		log.Infof("Run: %s\n", cmd)
+	}
+	if isVerbose {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	}
+	if workDir == "" {
+		workDir, _ = os.Getwd()
+	}
+	cmd.Dir = workDir
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	stdin.Write(stdinData)
+	stdin.Close()
+
 	err = cmd.Wait()
 	return err
 }
