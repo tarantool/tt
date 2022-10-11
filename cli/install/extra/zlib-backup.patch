@@ -1,0 +1,13 @@
+diff --git a/static-build/CMakeLists.txt b/static-build/CMakeLists.txt
+index 598c42bbc..a0aef08a4 100644
+--- a/static-build/CMakeLists.txt
++++ b/static-build/CMakeLists.txt
+@@ -89,7 +89,7 @@ ExternalProject_Add(icu
+ # ZLIB
+ #
+ ExternalProject_Add(zlib
+-    URL https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz
++    URL https://distrib.hb.bizmrg.com/zlib/zlib-${ZLIB_VERSION}.tar.gz
+     URL_MD5 ${ZLIB_HASH}
+     CONFIGURE_COMMAND env
+         CC=${CMAKE_C_COMPILER}

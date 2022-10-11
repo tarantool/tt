@@ -27,15 +27,33 @@ const (
 	VersionFsSeparator = "_"
 )
 
-// isDeprecated checks if the program version is lower than 1.10.0.
-func isDeprecated(version string) bool {
-	splitedVersion := strings.Split(version, ".")
-	if len(splitedVersion) < 2 {
-		return false
-	}
-	if splitedVersion[0] == "1" && len(splitedVersion[1]) < 2 {
+// isMasked function checks that the given version of tarantool is masked.
+func isMasked(version version.Version) bool {
+	// Mask all versions below 1.10: deprecated.
+	if version.Major == 1 && version.Minor < 10 {
 		return true
 	}
+
+	// Mask all versions below 1.10.11: static build is not supported.
+	if version.Major == 1 && version.Minor == 10 && version.Patch < 11 {
+		return true
+	}
+
+	// Mask all versions below 2.7: static build is not supported.
+	if version.Major == 2 && version.Minor < 7 {
+		return true
+	}
+
+	// Mask 2.10.1 version: https://github.com/orgs/tarantool/discussions/7646.
+	if version.Major == 2 && version.Minor == 10 && version.Patch == 1 {
+		return true
+	}
+
+	// Mask all 2.X.0 below 2.10.0: technical tags.
+	if version.Major == 2 && version.Minor < 10 && version.Patch == 0 {
+		return true
+	}
+
 	return false
 }
 
@@ -67,12 +85,12 @@ func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
 			slashIdx += 1
 		}
 		ver := line[slashIdx:]
-		if isDeprecated(ver) && repo == GitRepoTarantool {
-			continue
-		}
 		version, err := version.GetVersionDetails(ver)
 		if err != nil {
-			return nil, err
+			continue
+		}
+		if isMasked(version) && repo == GitRepoTarantool {
+			continue
 		}
 		versions = append(versions, version)
 	}
@@ -103,12 +121,12 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 	}
 
 	for _, line := range lines {
-		if isDeprecated(line) && strings.Contains(repo, "tarantool") {
-			continue
-		}
 		version, err := version.GetVersionDetails(line)
 		if err != nil {
-			return nil, err
+			continue
+		}
+		if isMasked(version) && strings.Contains(repo, "tarantool") {
+			continue
 		}
 		versions = append(versions, version)
 	}

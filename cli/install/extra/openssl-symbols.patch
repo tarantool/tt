@@ -1,0 +1,70 @@
+diff --git a/extra/exports b/extra/exports
+index b08cbc771..e131e1653 100644
+--- a/extra/exports
++++ b/extra/exports
+@@ -374,3 +374,5 @@ uri_format
+ uri_parse
+ uuid_nil
+ _say
++tnt_EVP_get_digestbyname
++tnt_EVP_get_cipherbyname
+diff --git a/src/lua/crypto.c b/src/lua/crypto.c
+index 80adaca78..53a6a0254 100644
+--- a/src/lua/crypto.c
++++ b/src/lua/crypto.c
+@@ -71,3 +71,15 @@ void tnt_HMAC_CTX_free(HMAC_CTX *ctx)
+ 	HMAC_CTX_free(ctx);
+ #endif
+ }
++
++const EVP_MD *
++tnt_EVP_get_digestbyname(const char *name)
++{
++	return EVP_get_digestbyname(name);
++}
++
++const EVP_CIPHER *
++tnt_EVP_get_cipherbyname(const char *name)
++{
++    return EVP_get_cipherbyname(name);
++}
+diff --git a/src/lua/crypto.lua b/src/lua/crypto.lua
+index cd1c78541..146926715 100644
+--- a/src/lua/crypto.lua
++++ b/src/lua/crypto.lua
+@@ -19,7 +19,7 @@ ffi.cdef[[
+     int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl);
+     int EVP_DigestUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt);
+     int EVP_DigestFinal_ex(EVP_MD_CTX *ctx, unsigned char *md, unsigned int *s);
+-    const EVP_MD *EVP_get_digestbyname(const char *name);
++    const EVP_MD *tnt_EVP_get_digestbyname(const char *name);
+ 
+     typedef struct {} HMAC_CTX;
+     HMAC_CTX *tnt_HMAC_CTX_new(void);
+@@ -46,7 +46,7 @@ ffi.cdef[[
+     int tnt_EVP_CIPHER_key_length(const EVP_CIPHER *cipher);
+ 
+     int EVP_CIPHER_block_size(const EVP_CIPHER *cipher);
+-    const EVP_CIPHER *EVP_get_cipherbyname(const char *name);
++    const EVP_CIPHER *tnt_EVP_get_cipherbyname(const char *name);
+ ]]
+ 
+ ffi.C.tnt_openssl_init();
+@@ -61,7 +61,7 @@ for class, name in pairs({
+     sha = 'SHA', sha1 = 'SHA1', sha224 = 'SHA224',
+     sha256 = 'SHA256', sha384 = 'SHA384', sha512 = 'SHA512',
+     dss = 'DSS', dss1 = 'DSS1', mdc2 = 'MDC2', ripemd160 = 'RIPEMD160'}) do
+-    local digest = ffi.C.EVP_get_digestbyname(class)
++    local digest = ffi.C.tnt_EVP_get_digestbyname(class)
+     if digest ~= nil then
+         digests[class] = digest
+     end
+@@ -217,7 +217,7 @@ for algo, algo_name in pairs({des = 'DES', aes128 = 'AES-128',
+     for mode, mode_name in pairs({cfb = 'CFB', ofb = 'OFB',
+         cbc = 'CBC', ecb = 'ECB'}) do
+             local cipher =
+-                ffi.C.EVP_get_cipherbyname(algo_name .. '-' .. mode_name)
++                ffi.C.tnt_EVP_get_cipherbyname(algo_name .. '-' .. mode_name)
+             if cipher ~= nil then
+                 algo_api[mode] = cipher
+             end

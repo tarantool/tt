@@ -1,0 +1,19 @@
+diff --git a/test/unit/guard.cc b/test/unit/guard.cc
+index a2953b829..4762d5611 100644
+--- a/test/unit/guard.cc
++++ b/test/unit/guard.cc
+@@ -28,13 +28,11 @@ stack_break_f(char *ptr)
+ 	return sum;
+ }
+ 
+-static char stack_buf[SIGSTKSZ];
+-
+ static int
+ main_f(va_list ap)
+ {
+ 	stack_t stack;
+-	stack.ss_sp = stack_buf;
++	stack.ss_sp = malloc(SIGSTKSZ);
+ 	stack.ss_size = SIGSTKSZ;
+ 	stack.ss_flags = 0;
+ 	sigaltstack(&stack, NULL);

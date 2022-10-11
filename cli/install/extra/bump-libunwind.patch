@@ -1,0 +1,15 @@
+diff --git a/static-build/CMakeLists.txt b/static-build/CMakeLists.txt
+index 598c42bbc..e853f3364 100644
+--- a/static-build/CMakeLists.txt
++++ b/static-build/CMakeLists.txt
+@@ -16,8 +16,8 @@ set(NCURSES_VERSION 6.2)
+ set(NCURSES_HASH e812da327b1c2214ac1aed440ea3ae8d)
+ set(READLINE_VERSION 8.0)
+ set(READLINE_HASH 7e6c1f16aee3244a69aba6e438295ca3)
+-set(UNWIND_VERSION 1.3-rc1)
+-set(UNWIND_HASH f09b670de5db6430a3de666e6aed60e3)
++set(UNWIND_VERSION 1.6.2)
++set(UNWIND_HASH f625b6a98ac1976116c71708a73dc44a)
+ 
+ # Pass -isysroot=<SDK_PATH> option on Mac OS to a preprocessor and a C
+ # compiler to find header files installed with an SDK.
