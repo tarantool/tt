@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/install_ee"
+	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
 
@@ -136,10 +138,23 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 	return versions, nil
 }
 
-// printVersion prints the version and label if the package is installed.
+// printVersion prints the version and labels:
+// * if the package is installed: [installed]
+// * if the package is installed and in use: [active]
 func printVersion(bindir string, program string, version string) {
 	if _, err := os.Stat(filepath.Join(bindir, program+VersionFsSeparator+version)); err == nil {
-		fmt.Printf("%s [installed]\n", version)
+		target := ""
+		if program == "tarantool-ee" {
+			target, _ = util.ResolveSymlink(filepath.Join(bindir, "tarantool"))
+		} else {
+			target, _ = util.ResolveSymlink(filepath.Join(bindir, program))
+		}
+
+		if path.Base(target) == program+VersionFsSeparator+version {
+			fmt.Printf("%s [active]\n", version)
+		} else {
+			fmt.Printf("%s [installed]\n", version)
+		}
 	} else {
 		fmt.Println(version)
 	}
