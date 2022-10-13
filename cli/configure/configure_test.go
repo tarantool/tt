@@ -180,8 +180,8 @@ func TestDetectLocalTt(t *testing.T) {
 }
 
 func TestGetSystemConfigPath(t *testing.T) {
-	require.Equal(t, filepath.Join(defaultConfigPath, configName), getSystemConfigPath())
+	require.Equal(t, filepath.Join(defaultConfigPath, ConfigName), getSystemConfigPath())
 	os.Setenv(systemConfigDirEnvName, "/system_config_dir")
 	defer os.Unsetenv(getSystemConfigPath())
-	require.Equal(t, filepath.Join("/system_config_dir", configName), getSystemConfigPath())
+	require.Equal(t, filepath.Join("/system_config_dir", ConfigName), getSystemConfigPath())
 }
