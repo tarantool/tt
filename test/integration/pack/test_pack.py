@@ -321,8 +321,46 @@ def prepare_deb_test_cases(tt_cmd) -> list:
     ]
 
 
-def test_pack_deb_table(tt_cmd, tmpdir):
+def prepare_rpm_test_cases(tt_cmd) -> list:
+    tt_cmd = tt_cmd
+    return [
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "rpm",
+            "args": ["--name", "test_package"],
+            "res_file": "test_package_0.1.0.0.rpm",
+        },
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "rpm",
+            "args": ["--filename", "test_package"],
+            "res_file": "test_package",
+        },
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "rpm",
+            "args": [
+                "--name", "test_package",
+                "--deps", "tarantool>=1.10", "--deps", "tt=2.0"],
+            "res_file": "test_package_0.1.0.0.rpm",
+        },
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "rpm",
+            "args": [
+                "--deps", "tarantool>=1.10,tt=2.0"],
+            "res_file": "bundle1_0.1.0.0.rpm",
+        },
+    ]
+
+
+def test_pack_rpm_deb_table(tt_cmd, tmpdir):
     test_cases = prepare_deb_test_cases(tt_cmd)
+    test_cases.extend(prepare_rpm_test_cases(tt_cmd))
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
                     tmpdir, symlinks=True, ignore=None,

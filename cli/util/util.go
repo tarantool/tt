@@ -3,6 +3,7 @@ package util
 import (
 	"archive/tar"
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"embed"
 	"fmt"
@@ -811,5 +812,43 @@ func WriteYaml(fileName string, o interface{}) error {
 	if err = yaml.NewEncoder(file).Encode(o); err != nil {
 		return err
 	}
+	return nil
+}
+
+// ConcatBuffers appends sources content to dest.
+func ConcatBuffers(dest *bytes.Buffer, sources ...*bytes.Buffer) error {
+	for _, src := range sources {
+		if _, err := io.Copy(dest, src); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// MergeFiles creates a file that is a concatenation of srcFilePaths.
+func MergeFiles(destFilePath string, srcFilePaths ...string) error {
+	destFile, err := os.Create(destFilePath)
+	if err != nil {
+		_ = os.Remove(destFilePath)
+		return fmt.Errorf("Failed to create result file %s: %s", destFilePath, err)
+	}
+	defer destFile.Close()
+
+	for _, srcFilePath := range srcFilePaths {
+		srcFile, err := os.Open(srcFilePath)
+		if err != nil {
+			_ = os.Remove(destFilePath)
+			return fmt.Errorf("Failed to open source file %s: %s", srcFilePath, err)
+		}
+
+		_, err = io.Copy(destFile, srcFile)
+		srcFile.Close()
+
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
