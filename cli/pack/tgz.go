@@ -81,6 +81,39 @@ func WriteTarArchive(srcDirPath string, compressWriter io.Writer) error {
 	return nil
 }
 
+// CompressGzip compresses specified file with gzip.BestCompression level.
+func CompressGzip(srcFilePath string, destFilePath string) error {
+	// Src file reader.
+	srcFileReader, err := os.Open(srcFilePath)
+	if err != nil {
+		return fmt.Errorf("Failed to open source file %s: %s", srcFilePath, err)
+	}
+	defer srcFileReader.Close()
+
+	// Dest file writer.
+	destFile, err := os.Create(destFilePath)
+	if err != nil {
+		return fmt.Errorf("Failed to create result GZIP file %s: %s", destFilePath, err)
+	}
+	defer destFile.Close()
+
+	// Dest file GZIP writer.
+	gzipWriter, err := gzip.NewWriterLevel(destFile, gzip.BestCompression)
+	if err != nil {
+		_ = os.Remove(destFilePath)
+		return fmt.Errorf("Failed to create GZIP writer %s: %s", destFilePath, err)
+	}
+	defer gzipWriter.Flush()
+
+	// Compressing itself.
+	if _, err := io.Copy(gzipWriter, srcFileReader); err != nil {
+		_ = os.Remove(destFilePath)
+		return err
+	}
+
+	return nil
+}
+
 func writeFileToWriter(filePath string, writer io.Writer) error {
 	file, err := os.Open(filePath)
 	if err != nil {

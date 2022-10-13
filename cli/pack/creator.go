@@ -8,7 +8,7 @@ func CreatePacker(packCtx *PackCtx) Packer {
 	case Deb:
 		return &debPacker{}
 	case Rpm:
-		return nil
+		return &rpmPacker{}
 	case Docker:
 		return nil
 	default:

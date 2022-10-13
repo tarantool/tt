@@ -83,7 +83,7 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	packer := pack.CreatePacker(packCtx)
 	if packer == nil {
-		return fmt.Errorf("Incorrect type of package")
+		return fmt.Errorf("Incorrect type of package. Available types: rpm, deb, tgz")
 	}
 
 	err = packer.Run(cmdCtx, packCtx)
