@@ -29,7 +29,7 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) er
 
 	log.Infof("The passed bundle packed into temporary directory: %s", bundlePath)
 
-	tarName, err := getTarPackageName(packCtx)
+	tarName, err := getPackageName(packCtx, ".tar.gz", true)
 	if err != nil {
 		return err
 	}
@@ -51,24 +51,4 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) er
 	}
 	log.Infof("Bundle is packed successfully to %s.", tarName)
 	return nil
-}
-
-// getTarPackageName returns the result name of the tarball.
-func getTarPackageName(packCtx *PackCtx) (string, error) {
-	var tarName string
-	packageVersion := getVersion(packCtx)
-
-	if packCtx.FileName != "" {
-		tarName = packCtx.FileName
-	} else if packCtx.Name != "" {
-		tarName = packCtx.Name + "_" + packageVersion + ".tar.gz"
-	} else {
-		absPath, err := filepath.Abs(".")
-		if err != nil {
-			return "", err
-		}
-		tarName = filepath.Base(absPath) + "_" + packageVersion + ".tar.gz"
-	}
-
-	return tarName, nil
 }

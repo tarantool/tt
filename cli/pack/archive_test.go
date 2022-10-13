@@ -64,7 +64,7 @@ func TestGetTarPackageName(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			packageName, err := getTarPackageName(testCase.packCtx)
+			packageName, err := getPackageName(testCase.packCtx, ".tar.gz", true)
 			require.ErrorIs(t, err, testCase.expectedError)
 			require.Equalf(t, testCase.expectedName, packageName,
 				"Got wrong package name, expected: %s, got: %s",
