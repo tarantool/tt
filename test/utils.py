@@ -1,9 +1,11 @@
 import os
 import re
+import shutil
 import subprocess
 import time
 
 import psutil
+import tarantool
 import yaml
 
 
@@ -137,3 +139,123 @@ def wait_instance_stop(pid_path, timeout_sec=5):
         iter_count = iter_count + 1
 
     return stopped
+
+
+class TarantoolTestInstance:
+    """Create test tarantool instance via subprocess.Popen with given cfg file.
+
+    Performs this steps for it:
+    1) Copy the instance config files to the run pytest tmp directory.
+       This cfg file should be in /test/integration/foo-module/test_file/instance_cfg_file_name.
+       But you can specify different path by instance_cfg_file_dir arg.
+
+    2) Also copy to pytest tmpdir the lua module utils.lua with the auxiliary functions.
+       This functions is required for using with your instance.
+       As a result, you can use require('utils') inside your instance config file.
+       Arg path_to_lua_utils should specify dir with utils.lua file.
+
+    3) Run tarantool via subprocess.Popen with given cfg file.
+       Gets bound port from tmpdir.
+       Init subprocess object and instance's port as attributes.
+
+    NOTE: Demand require('utils').bind_free_port(arg[0]) inside your instance cfg file.
+
+    Args:
+        instance_cfg_file_name (str): file name of your test instance cfg.
+        instance_cfg_file_dir (str): path to dir that contains instance_cfg_file_name.
+        path_to_lua_utils (str): path to dir that contains utils.lua file.
+        tmpdir (str): expected result of fixture get_tmpdir from conftest.
+
+    Attributes:
+        popen_obj (Popen[bytes]): subprocess.Popen object with tarantool test instance.
+        port (str): port of tarantool test instance.
+
+    Methods:
+        start():
+            Starts tarantool test instance and init self.port attribute.
+        stop():
+            Stops tarantool test instance by SIGKILL signal.
+    """
+
+    def __init__(self, instance_cfg_file_name, instance_cfg_file_dir, path_to_lua_utils, tmpdir):
+        # Copy the instance config files to the run pytest tmpdir directory.
+        shutil.copy(instance_cfg_file_dir + "/" + instance_cfg_file_name, tmpdir)
+        # Copy the lua module with the auxiliary functions required by the instance config file.
+        shutil.copy(path_to_lua_utils + "/" + "utils.lua", tmpdir)
+
+        self._tmpdir = tmpdir
+        self._instance_cfg_file_name = instance_cfg_file_name
+
+    def start(self, connection_test=True,
+              connection_test_user='guest',
+              connection_test_password=None):
+        """Starts tarantool test instance and init self.port attribute.
+
+        Args:
+        connection_test (bool): if this flag is set, then after bound the port, an attempt will be
+            made to connect to the test instance within a three second deadline. (default is True)
+        connection_test_user (str): username for the connection attempt. (default is 'guest')
+        connection_test_password (str): password for the connection attempt. (default is None)
+
+        Raises:
+            RuntimeError:
+                If could not find a file with an instance bound port during 3 seconds deadline.
+                You may have forgotten to use require('utils').bind_free_port(arg[0])
+                inside your cfg instance file.
+                Also, this exception will occur if it is impossible to connect to a started
+                instance within three seconds deadline after port bound (an attempt to connect is
+                made if there is an option connection_test=True that is present by default).
+        """
+        popen_obj = subprocess.Popen(["tarantool", self._instance_cfg_file_name], cwd=self._tmpdir)
+        file_with_port_path = str(self._tmpdir) + '/' + self._instance_cfg_file_name + '.port'
+
+        # Waiting 3 seconds for instance configure itself and dump bound port to temp file.
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if os.path.exists(file_with_port_path) and os.path.getsize(file_with_port_path) > 0:
+                break
+            time.sleep(0.1)
+        else:
+            raise RuntimeError('Could not find a file with an instance bound port or empty file')
+
+        # Read bound port of test instance from file in temp pytest directory.
+        with open(file_with_port_path) as file_with_port:
+            instance_port = file_with_port.read()
+
+        # Tries connect to the started instance during 3 seconds deadline with bound port.
+        if connection_test:
+            deadline = time.time() + 3
+            while time.time() < deadline:
+                try:
+                    conn = tarantool.connect("localhost", int(instance_port),
+                                             user=connection_test_user,
+                                             password=connection_test_password)
+                    conn.close()
+                    break
+                except tarantool.NetworkError:
+                    time.sleep(0.1)
+            else:
+                raise RuntimeError('Could not connect to the started instance with bound port')
+
+        self.popen_obj = popen_obj
+        self.port = instance_port
+
+    def stop(self):
+        """Stops tarantool test instance by SIGKILL signal.
+
+        Raises:
+            RuntimeError:
+                If could not stop instance after receiving SIGKILL during 3 seconds deadline.
+        """
+        self.popen_obj.kill()
+        instance = psutil.Process(self.popen_obj.pid)
+        # Waiting for the completion of the process with 3 second timeout.
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if not psutil.pid_exists(instance.pid) or instance.status() == 'zombie':
+                # There is no more instance process or it is zombie.
+                break
+            else:
+                time.sleep(0.1)
+        else:
+            raise RuntimeError("PID {} couldn't stop after receiving SIGKILL".format(instance.pid))
