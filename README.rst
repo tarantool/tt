@@ -313,3 +313,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``build`` - build an application.
 * ``install`` - install tarantool/tt.
 * ``remove`` - remove tarantool/tt.
+* ``init`` - create tt environment configuration file.

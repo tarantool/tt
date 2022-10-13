@@ -116,6 +116,7 @@ func NewCmdRoot() *cobra.Command {
 		NewInstallCmd(),
 		NewRemoveCmd(),
 		NewPackCmd(),
+		NewInitCmd(),
 	)
 	if err := injectCmds(rootCmd); err != nil {
 		panic(err.Error())
