@@ -6,20 +6,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 )
 
 func TestCreateControlDir(t *testing.T) {
 	testCases := []struct {
 		name         string
-		ctx          *PackCtx
+		packCtx      *PackCtx
+		cmdCtx       *cmdcontext.CmdCtx
 		destPath     string
 		correctError func(err error) bool
 		correctDir   func(controlPath string) bool
 	}{
 		{
 			name: "All correct parameters",
-			ctx: &PackCtx{
+			packCtx: &PackCtx{
 				Name:    "test",
 				Version: "1.0.0",
 				RpmDeb: RpmDebCtx{
@@ -37,7 +39,7 @@ func TestCreateControlDir(t *testing.T) {
 		},
 		{
 			name: "Default case",
-			ctx: &PackCtx{
+			packCtx: &PackCtx{
 				Name:    "",
 				Version: "",
 				RpmDeb: RpmDebCtx{
@@ -58,7 +60,7 @@ func TestCreateControlDir(t *testing.T) {
 		},
 		{
 			name: "Wrong dependency",
-			ctx: &PackCtx{
+			packCtx: &PackCtx{
 				Name:    "",
 				Version: "",
 				RpmDeb: RpmDebCtx{
@@ -79,7 +81,7 @@ func TestCreateControlDir(t *testing.T) {
 		},
 		{
 			name: "Unexisting postinst script passed",
-			ctx: &PackCtx{
+			packCtx: &PackCtx{
 				Name:    "test",
 				Version: "1.0.0",
 				RpmDeb: RpmDebCtx{
@@ -101,7 +103,7 @@ func TestCreateControlDir(t *testing.T) {
 		},
 		{
 			name: "Unexisting preinst script passed",
-			ctx: &PackCtx{
+			packCtx: &PackCtx{
 				Name:    "test",
 				Version: "1.0.0",
 				RpmDeb: RpmDebCtx{
@@ -126,111 +128,9 @@ func TestCreateControlDir(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			path := filepath.Join(testCase.destPath, "control_test_dir")
-			err := createControlDir(testCase.ctx, path)
+			err := createControlDir(testCase.cmdCtx, *testCase.packCtx, path)
 			require.Truef(t, testCase.correctError(err), "wrong error caught: %v", err)
 			require.Truef(t, testCase.correctDir(path), "wrong directory structure")
-		})
-	}
-}
-
-func TestParseDependencies(t *testing.T) {
-	testCases := []struct {
-		name         string
-		deps         []string
-		expectedDeps PackDependencies
-		correctError func(err error) bool
-	}{
-		{
-			name: "Correct dependencies",
-			deps: []string{
-				"tarantool<=1.10",
-				"tarantool==1.10",
-				"tarantool>=1.10",
-				"tarantool=1.10",
-				"tarantool>1.10",
-				"tarantool<1.10",
-			},
-			expectedDeps: []PackDependency{
-				{
-					Name: "tarantool",
-					Relations: []DepRelation{
-						{Relation: "<=", Version: "1.10"},
-					},
-				},
-				{
-					Name: "tarantool",
-					Relations: []DepRelation{
-						{Relation: "==", Version: "1.10"},
-					},
-				},
-				{
-					Name: "tarantool",
-					Relations: []DepRelation{
-						{Relation: ">=", Version: "1.10"},
-					},
-				},
-				{
-					Name: "tarantool",
-					Relations: []DepRelation{
-						{Relation: "=", Version: "1.10"},
-					},
-				},
-				{
-					Name: "tarantool",
-					Relations: []DepRelation{
-						{Relation: ">", Version: "1.10"},
-					},
-				},
-				{
-					Name: "tarantool",
-					Relations: []DepRelation{
-						{Relation: "<", Version: "1.10"},
-					},
-				},
-			},
-			correctError: func(err error) bool {
-				return err == nil
-			},
-		},
-		{
-			name: "Incorrect dependencies",
-			deps: []string{
-				"tt=master",
-				"tt<<1.10",
-			},
-			expectedDeps: []PackDependency{
-				{
-					Name: "tarantool",
-					Relations: []DepRelation{
-						{Relation: "<=", Version: "1.10"},
-					},
-				},
-				{
-					Name: "tarantool",
-					Relations: []DepRelation{
-						{Relation: "==", Version: "1.10"},
-					},
-				},
-			},
-			correctError: func(err error) bool {
-				return strings.Contains(err.Error(), "unexpected token \"master\"")
-			},
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			deps, err := parseDependencies(testCase.deps)
-			require.Truef(t, testCase.correctError(err), "wrong error caught: %v", err)
-
-			for i, _ := range deps {
-				require.Equalf(t, testCase.expectedDeps[i].Name, deps[i].Name,
-					"wrong dependency name, expected: %s, got: %s",
-					testCase.expectedDeps[i].Name, deps[i].Name)
-				require.Equalf(t, testCase.expectedDeps[i].Relations[0], deps[i].Relations[0],
-					"wrong relation, expected: %s, got: %s",
-					testCase.expectedDeps[i].Name, deps[i].Name)
-			}
 		})
 	}
 }

@@ -5,10 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/apex/log"
+	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/cli/version"
 )
 
 const (
@@ -58,7 +62,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 		return err
 	}
 
-	log.Infof("A root for package is located in: %s", packageDir)
+	log.Debugf("A root for package is located in: %s", packageDir)
 
 	// Prepare a bundle.
 	bundlePath, err := prepareBundle(cmdCtx, packCtx)
@@ -67,16 +71,19 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 	}
 	defer os.RemoveAll(bundlePath)
 
+	log.Info("Creating a data directory")
+
 	// Create a data directory.
 	rootPrefixDir := dataDirName
 	rootPrefix := filepath.Join(rootPrefixDir, debBundlePath)
-	if packCtx.Name != "" {
-		rootPrefix = fmt.Sprintf(rootPrefix, packCtx.Name)
-	} else {
-		rootPrefix = fmt.Sprintf(rootPrefix, "bundle")
-	}
 
-	log.Infof("Initialize the app directory for prefix: %s", rootPrefix)
+	packageName, err := getPackageName(packCtx, "", false)
+	if err != nil {
+		return err
+	}
+	rootPrefix = fmt.Sprintf(rootPrefix, packageName)
+
+	log.Debugf("Initialize the app directory for prefix: %s", rootPrefix)
 
 	packagePrefixedPath := filepath.Join(packageDir, rootPrefix)
 	err = os.MkdirAll(filepath.Join(packageDir, rootPrefix), dirPermissions)
@@ -84,11 +91,9 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 		return err
 	}
 	// App directory.
-	if err = copyBundleDir(packagePrefixedPath, bundlePath); err != nil {
+	if err = copy.Copy(bundlePath, packagePrefixedPath); err != nil {
 		return err
 	}
-
-	log.Infof("Create data tgz")
 
 	// Create data.tar.gz.
 	dataArchivePath := filepath.Join(packageDir, dataArchiveName)
@@ -97,14 +102,14 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 		return err
 	}
 
+	log.Info("Creating a control directory")
+
 	// Create a control directory with control file and postinst, preinst scripts inside.
 	controlDirPath := filepath.Join(packageDir, controlDirName)
-	err = createControlDir(packCtx, controlDirPath)
+	err = createControlDir(cmdCtx, *packCtx, controlDirPath)
 	if err != nil {
 		return err
 	}
-
-	log.Debugf("Create deb control directory tgz")
 
 	// Create control.tar.gz.
 	controlArchivePath := filepath.Join(packageDir, controlArchiveName)
@@ -113,7 +118,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 		return err
 	}
 
-	log.Debugf("Create debian-binary file")
+	log.Info("Creating a debian-binary file")
 
 	// Create debian-binary.
 	err = createDebianBinary(packageDir)
@@ -121,11 +126,9 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 		return err
 	}
 
-	packageName := defaultPackageName
-	if packCtx.FileName != "" {
-		packageName = packCtx.FileName
-	} else if packCtx.Name != "" {
-		packageName = packCtx.Name + ".deb"
+	packageName, err = getPackageName(packCtx, ".deb", true)
+	if err != nil {
+		return err
 	}
 
 	// Create result archive.
@@ -142,7 +145,8 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 		return fmt.Errorf("Failed to pack DEB: %s", err)
 	}
 
-	log.Infof("Created result DEB package: %s", bundlePath)
+	log.Infof("Created result DEB package: %s", packageName)
+
 	return err
 }
 
@@ -159,21 +163,31 @@ func createDebianBinary(packageDir string) error {
 	return nil
 }
 
-// getTntTTVersions checks the version of tarantool in bin_dir and returns it.
-func getTntTTVersions(packCtx *PackCtx) (PackDependencies, error) {
-	tntVerBytes, err := exec.Command(filepath.Join(packCtx.App.BinDir, "tarantool"), "--version").
-		Output()
+// getTntTTAsDeps returns tarantool and tt cli from bin_dir as dependencies.
+func getTntTTAsDeps(cmdCtx *cmdcontext.CmdCtx) (PackDependencies, error) {
+	tntVerRaw, err := util.GetTarantoolVersion(&cmdCtx.Cli)
 	if err != nil {
 		return nil, err
 	}
-	tntVer, err := util.NormalizeGitVersion(string(tntVerBytes))
+	tntVerParsed, err := version.GetVersionDetails(tntVerRaw)
 	if err != nil {
 		return nil, err
 	}
+
+	tntVer := strings.Join([]string{
+		strconv.FormatUint(tntVerParsed.Major, 10),
+		strconv.FormatUint(tntVerParsed.Minor, 10),
+		strconv.FormatUint(tntVerParsed.Patch, 10),
+	}, ".")
+
+	ttVer := version.GetVersion(true, false)
 
 	return PackDependencies{
 		PackDependency{
 			Name:      "tarantool",
 			Relations: []DepRelation{{Relation: "==", Version: tntVer}}},
+		PackDependency{
+			Name:      "tt",
+			Relations: []DepRelation{{Relation: "==", Version: ttVer}}},
 	}, nil
 }

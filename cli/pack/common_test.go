@@ -437,13 +437,15 @@ func TestGetVersion(t *testing.T) {
 		name            string
 		packCtx         *PackCtx
 		expectedVersion string
+		defaultVersion  string
 	}{
 		{
 			name: "No parameters in context",
 			packCtx: &PackCtx{
 				App: &config.AppOpts{InstancesEnabled: "../any_dir"},
 			},
-			expectedVersion: "0.1.0.0",
+			expectedVersion: defaultLongVersion,
+			defaultVersion:  defaultLongVersion,
 		},
 		{
 			name: "Set version to pack context",
@@ -452,6 +454,7 @@ func TestGetVersion(t *testing.T) {
 				App:     &config.AppOpts{InstancesEnabled: "."},
 			},
 			expectedVersion: "1.0.0",
+			defaultVersion:  "",
 		},
 		{
 			name: "Set custom version to pack context",
@@ -459,13 +462,14 @@ func TestGetVersion(t *testing.T) {
 				Version: "v2",
 				App:     &config.AppOpts{InstancesEnabled: "."},
 			},
+			defaultVersion:  "",
 			expectedVersion: "v2",
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			version := getVersion(testCase.packCtx)
+			version := getVersion(testCase.packCtx, testCase.defaultVersion)
 			assert.Equalf(t, testCase.expectedVersion, version,
 				"got unexpected version, expected: %s, actual: %s",
 				testCase.expectedVersion, version)

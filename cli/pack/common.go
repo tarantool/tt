@@ -20,7 +20,8 @@ const (
 	dirPermissions  = 0750
 	filePermissions = 0666
 
-	defaultVersion = "0.1.0.0"
+	defaultVersion     = "0.1.0"
+	defaultLongVersion = "0.1.0.0"
 
 	varPath              = "var"
 	logPath              = "log"
@@ -103,7 +104,6 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) 
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
 		err = copyBinaries(packCtx.App.BinDir, packageEnvBinPath)
-		//err = copy.Copy(packCtx.App.BinDir, packageEnvBinPath)
 		if err != nil {
 			return "", err
 		}
@@ -493,7 +493,7 @@ func prepareDefaultPackagePaths(packagePath string) {
 
 // getVersion returns a version of the package.
 // The version depends on passed pack context.
-func getVersion(packCtx *PackCtx) string {
+func getVersion(packCtx *PackCtx, defaultVersion string) string {
 	packageVersion := defaultVersion
 	if packCtx.Version == "" {
 		// Get version from git only if we are packing an application from the current directory.
@@ -534,4 +534,29 @@ func copyBinaries(srcPath, destPath string) error {
 	}
 
 	return nil
+}
+
+// getPackageName returns the result name of the package.
+func getPackageName(packCtx *PackCtx, suffix string, addVersion bool) (string, error) {
+	var packageName string
+
+	if packCtx.FileName != "" {
+		return packCtx.FileName, nil
+	} else if packCtx.Name != "" {
+		packageName = packCtx.Name
+	} else {
+		absPath, err := filepath.Abs(".")
+		if err != nil {
+			return "", err
+		}
+		packageName = filepath.Base(absPath)
+	}
+
+	if addVersion {
+		versionSuffix := getVersion(packCtx, defaultLongVersion)
+		packageName += "_" + versionSuffix
+	}
+
+	packageName += suffix
+	return packageName, nil
 }

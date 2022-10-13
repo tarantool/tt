@@ -154,9 +154,9 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
                 lambda path: os.path.exists(os.path.join(path, "app.lua")),
                 lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                               "tarantool_bin")),
+                                                         "tarantool_bin")),
                 lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                               "tt_bin")),
+                                                         "tt_bin")),
                 lambda path: os.path.exists(os.path.join(path, "env", "modules",
                                                          "test_module.txt")),
                 lambda path: os.path.exists(os.path.join(path, "var", "lib", "app1",
@@ -292,7 +292,7 @@ def prepare_deb_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "deb",
             "args": ["--name", "test_package"],
-            "res_file": "test_package.deb",
+            "res_file": "test_package_0.1.0.0.deb",
         },
         {
             "bundle_src": "bundle1",
@@ -308,7 +308,7 @@ def prepare_deb_test_cases(tt_cmd) -> list:
             "args": [
                 "--name", "test_package",
                 "--deps", "tarantool>=1.10", "--deps", "tt=2.0"],
-            "res_file": "test_package.deb",
+            "res_file": "test_package_0.1.0.0.deb",
         },
         {
             "bundle_src": "bundle1",
@@ -316,7 +316,7 @@ def prepare_deb_test_cases(tt_cmd) -> list:
             "pack_type": "deb",
             "args": [
                 "--deps", "tarantool>=1.10,tt=2.0"],
-            "res_file": "bundle.deb",
+            "res_file": "bundle1_0.1.0.0.deb",
         },
     ]
 

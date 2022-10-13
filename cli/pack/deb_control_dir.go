@@ -8,10 +8,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/alecthomas/participle/v2"
 	"github.com/alecthomas/participle/v2/lexer/stateful"
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -34,8 +34,9 @@ type PackDependency struct {
 type PackDependencies []PackDependency
 
 // createControlDir creates a control directory that contains control file, postinst and preinst.
-func createControlDir(packCtx *PackCtx, destDirPath string) error {
-	log.Debugf("Create DEB control file")
+func createControlDir(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx, destDirPath string) error {
+	log.Debug("Create DEB control file")
+
 	err := os.MkdirAll(destDirPath, dirPermissions)
 	if err != nil {
 		return err
@@ -45,7 +46,7 @@ func createControlDir(packCtx *PackCtx, destDirPath string) error {
 	if packCtx.Name == "" {
 		name = "bundle"
 	}
-	version := getVersion(packCtx)
+	version := getVersion(&packCtx, defaultVersion)
 
 	debControlCtx := map[string]interface{}{
 		"Name":         name,
@@ -55,35 +56,18 @@ func createControlDir(packCtx *PackCtx, destDirPath string) error {
 		"Depends":      "",
 	}
 
-	deps, err := parseDependencies(packCtx.RpmDeb.Deps)
+	deps, err := parseAllDependencies(cmdCtx, &packCtx)
 	if err != nil {
 		return err
 	}
-	if len(deps) > 0 {
-		addDependenciesDeb(&debControlCtx, deps)
-	}
-
-	fileDeps, err := parseDependenciesFromFile(packCtx.RpmDeb.Deps, packCtx.RpmDeb.DepsFile)
-	if err != nil {
-		return err
-	}
-	if len(fileDeps) > 0 {
-		addDependenciesDeb(&debControlCtx, fileDeps)
-	}
-
-	if packCtx.RpmDeb.WithTarantoolDeps {
-		ttBinDeps, err := getTntTTVersions(packCtx)
-		if err != nil {
-			return err
-		}
-		deps = append(deps, ttBinDeps...)
-	}
+	addDependenciesDeb(&debControlCtx, deps)
 
 	err = createControlFile(destDirPath, &debControlCtx)
 	if err != nil {
 		return err
 	}
-	log.Infof("Created control in %s", destDirPath)
+
+	log.Debugf("Created control file in %s", destDirPath)
 
 	// Add postinst and preinst scripts step.
 	if packCtx.RpmDeb.PreInst == "" {
@@ -186,70 +170,6 @@ func getLexer() *stateful.Definition {
 			Action:  nil,
 		},
 	})
-}
-
-// parseDependencies accepts a slice of strings and parses dependencies from it.
-func parseDependencies(rawDeps []string) (PackDependencies, error) {
-	parser := participle.MustBuild(
-		&PackDependency{},
-		participle.Lexer(getLexer()),
-		participle.Elide("Comment", "Whitespace"),
-	)
-
-	deps := PackDependencies{}
-	for _, dep := range rawDeps {
-		dep = strings.TrimSpace(dep)
-
-		// Skip empty lines and comments.
-		if dep == "" || strings.HasPrefix(dep, "//") {
-			continue
-		}
-
-		parsedDep := PackDependency{}
-
-		if err := parser.ParseString("", dep, &parsedDep); err != nil {
-			return nil,
-				fmt.Errorf("Error during parse dependencies file: %s. Trying to parse: %s",
-					err, dep)
-		}
-
-		deps = append(deps, parsedDep)
-	}
-
-	return deps, nil
-}
-
-// parseDependenciesFromFile parses all dependencies from passed file.
-func parseDependenciesFromFile(deps []string, depsFile string) (PackDependencies, error) {
-	var err error
-
-	if depsFile != "" && len(deps) != 0 {
-		return nil, fmt.Errorf("You can't specify --deps and --deps-file flags at the same time")
-	}
-
-	if depsFile == "" && len(deps) == 0 {
-		return nil, nil
-	}
-
-	if depsFile != "" {
-		if _, err := os.Stat(depsFile); os.IsNotExist(err) {
-			return nil, fmt.Errorf("Invalid path to file with dependencies: %s", err)
-		}
-
-		content, err := util.GetFileContent(depsFile)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to get file content: %s", err)
-		}
-
-		deps = strings.Split(content, "\n")
-	}
-
-	parsedDeps, err := parseDependencies(deps)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse dependencies file: %s", err)
-	}
-
-	return parsedDeps, nil
 }
 
 // initScript initializes post- and pre-install script from the passed parameters
