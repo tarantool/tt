@@ -1,0 +1,5 @@
+log-dir: 1.2
+run-dir: my_run_dir
+data-dir: my_data_dir
+
+stateboard: true

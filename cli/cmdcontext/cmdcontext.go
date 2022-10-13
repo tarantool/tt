@@ -22,6 +22,8 @@ type CmdCtx struct {
 	Build BuildCtx
 	// Pack contains information to pack an application.
 	Pack PackCtx
+	// Init contains information to init tt environment.
+	Init InitCtx
 }
 
 // CliCtx - CLI context. Contains flags passed when starting
@@ -194,4 +196,11 @@ type RpmDebCtx struct {
 	Deps []string
 	// DepsFile is a path to a file of dependencies.
 	DepsFile string
+}
+
+// InitCtx contains information for tt config creation.
+type InitCtx struct {
+	// SkipConfig - if set, disables cartridge & tarantoolctl config analysis,
+	// so init does not try to get directories information from exitsting config files.
+	SkipConfig bool
 }
