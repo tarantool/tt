@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	configName        = "tarantool.yaml"
+	ConfigName        = "tarantool.yaml"
 	cliExecutableName = "tt"
 	// systemConfigDirEnvName is an environment variable that contains a path to
 	// search system config.
@@ -315,7 +315,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	if cmdCtx.Cli.ConfigPath == "" {
-		cmdCtx.Cli.ConfigPath = filepath.Join(launchDir, configName)
+		cmdCtx.Cli.ConfigPath = filepath.Join(launchDir, ConfigName)
 		// TODO: Add warning messages, discussion what if the file
 		// exists, but access is denied, etc.
 		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
@@ -324,7 +324,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 			}
 
 			var err error
-			if cmdCtx.Cli.ConfigPath, err = getConfigPath(configName); err != nil {
+			if cmdCtx.Cli.ConfigPath, err = getConfigPath(ConfigName); err != nil {
 				return fmt.Errorf("Failed to get Tarantool CLI config: %s", err)
 			}
 
@@ -333,7 +333,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 					return fmt.Errorf("Failed to find Tarantool CLI config for '%s'",
 						cmdCtx.Cli.LocalLaunchDir)
 				}
-				cmdCtx.Cli.ConfigPath = filepath.Join(getSystemConfigPath(), configName)
+				cmdCtx.Cli.ConfigPath = getSystemConfigPath()
 			}
 		}
 	}
@@ -434,9 +434,9 @@ func excludeArgumentsForChildTt(args []string) []string {
 // getSystemConfigPath returns system config path.
 func getSystemConfigPath() string {
 	if configPathFromEnv := os.Getenv(systemConfigDirEnvName); configPathFromEnv != "" {
-		return filepath.Join(configPathFromEnv, configName)
+		return filepath.Join(configPathFromEnv, ConfigName)
 	} else {
-		return filepath.Join(defaultConfigPath, configName)
+		return filepath.Join(defaultConfigPath, ConfigName)
 	}
 }
 
@@ -468,7 +468,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 		// If the config is found, we assume that it is a local launch in this directory.
 		// If the config is not found, then we take it from the standard place (/etc/tarantool).
 
-		if cmdCtx.Cli.ConfigPath, err = getConfigPath(configName); err != nil {
+		if cmdCtx.Cli.ConfigPath, err = getConfigPath(ConfigName); err != nil {
 			return fmt.Errorf("Failed to get Tarantool CLI config: %s", err)
 		}
 	}
@@ -490,7 +490,7 @@ func getConfigPath(configName string) (string, error) {
 	}
 
 	for curDir != "/" {
-		configPath := filepath.Join(curDir, configName)
+		configPath := filepath.Join(curDir, ConfigName)
 		if _, err := os.Stat(configPath); err == nil {
 			return configPath, nil
 		}
