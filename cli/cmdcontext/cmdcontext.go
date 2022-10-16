@@ -100,13 +100,13 @@ type RunningCtx struct {
 // ConnectCtx contains information for connecting to the instance.
 type ConnectCtx struct {
 	// Username of the tarantool user.
-	Username    string
+	Username string
 	// Password of the tarantool.user.
-	Password    string
+	Password string
 	// SrcFile describes the source of code for the evaluation.
-	SrcFile     string
+	SrcFile string
 	// Language to use for execution.
-	Language    string
+	Language string
 	// Interactive mode is used.
 	Interactive bool
 }
