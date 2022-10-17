@@ -73,16 +73,18 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	cmdCtx.Create.AppName = appName
-	cmdCtx.Create.ForceMode = forceMode
-	cmdCtx.Create.SilentMode = nonInteractiveMode
-	cmdCtx.Create.VarsFromCli = *varsFromCli
-	cmdCtx.Create.VarsFile = varsFile
-	cmdCtx.Create.DestinationDir = dstPath
+	var createCtx cmdcontext.CreateCtx
 
-	if err = create.FillCtx(cliOpts, cmdCtx, args); err != nil {
+	createCtx.AppName = appName
+	createCtx.ForceMode = forceMode
+	createCtx.SilentMode = nonInteractiveMode
+	createCtx.VarsFromCli = *varsFromCli
+	createCtx.VarsFile = varsFile
+	createCtx.DestinationDir = dstPath
+
+	if err = create.FillCtx(cliOpts, &createCtx, args); err != nil {
 		return err
 	}
 
-	return create.Run(&cmdCtx.Create)
+	return create.Run(&createCtx)
 }

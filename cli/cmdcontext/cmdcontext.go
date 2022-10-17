@@ -16,8 +16,6 @@ type CmdCtx struct {
 	Connect ConnectCtx
 	// CommandName contains name of the command.
 	CommandName string
-	// Create contains information to create an application.
-	Create CreateCtx
 	// Init contains information to init tt environment.
 	Init InitCtx
 }
@@ -128,8 +126,6 @@ type CreateCtx struct {
 	SilentMode bool
 	// VarsFile is a file with variables definitions.
 	VarsFile string
-	// ConfigLocation stores config file location.
-	ConfigLocation string
 }
 
 //BuildCtx contains information for application building.

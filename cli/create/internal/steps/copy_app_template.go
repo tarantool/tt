@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 	"time"
 
 	"github.com/apex/log"
@@ -38,13 +37,7 @@ type CopyAppTemplate struct {
 func (CopyAppTemplate) Run(createCtx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
 	templateName := createCtx.TemplateName
 
-	for _, templatesSearchPath := range createCtx.TemplateSearchPaths {
-		var templatesLocation string
-		if filepath.IsAbs(templatesSearchPath) {
-			templatesLocation = templatesSearchPath
-		} else {
-			templatesLocation = filepath.Join(createCtx.ConfigLocation, templatesSearchPath)
-		}
+	for _, templatesLocation := range createCtx.TemplateSearchPaths {
 		templatePath := path.Join(templatesLocation, templateName)
 
 		if util.IsDir(templatePath) {

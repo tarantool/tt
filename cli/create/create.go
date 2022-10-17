@@ -3,7 +3,6 @@ package create
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
@@ -13,20 +12,23 @@ import (
 )
 
 // FillCtx fills create context.
-func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func FillCtx(cliOpts *config.CliOpts, createCtx *cmdcontext.CreateCtx, args []string) error {
 	for _, p := range cliOpts.Templates {
-		cmdCtx.Create.TemplateSearchPaths = append(cmdCtx.Create.TemplateSearchPaths, p.Path)
+		createCtx.TemplateSearchPaths = append(createCtx.TemplateSearchPaths, p.Path)
 	}
 
 	if len(args) >= 1 {
-		cmdCtx.Create.TemplateName = args[0]
+		createCtx.TemplateName = args[0]
 	} else {
 		return fmt.Errorf("Missing template name argument. " +
 			"Try `tt create --help` for more information.")
 	}
 
-	cmdCtx.Create.WorkDir = cmdCtx.Cli.WorkDir
-	cmdCtx.Create.ConfigLocation = filepath.Dir(cmdCtx.Cli.ConfigPath)
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	createCtx.WorkDir = workingDir
 
 	return nil
 }
