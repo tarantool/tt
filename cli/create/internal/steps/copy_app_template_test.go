@@ -103,9 +103,13 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 	var createCtx cmdcontext.CreateCtx
 	createCtx.TemplateName = "basic"
 	createCtx.TemplateSearchPaths = []string{"./templates"}
-	createCtx.ConfigLocation = workDir2
 	templateCtx := NewTemplateContext()
 	templateCtx.AppPath = filepath.Join(dstDir, "app1")
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(workDir2))
+	defer os.Chdir(cwd)
 
 	// CopyAppTemplate must copy "src" template from workdir2 to workdir1 using "app1" as dst name.
 	copyAppTemplate := CopyAppTemplate{}

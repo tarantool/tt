@@ -138,6 +138,11 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 			cfg.CliConfig.Modules.Directory)
 	}
 
+	for i := range cfg.CliConfig.Templates {
+		cfg.CliConfig.Templates[i].Path = adjustPathWithConfigLocation(
+			cfg.CliConfig.Templates[i].Path, configDir, ".")
+	}
+
 	return cfg.CliConfig, nil
 }
 
