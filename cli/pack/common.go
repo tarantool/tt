@@ -2,6 +2,11 @@ package pack
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/cli/build"
@@ -9,10 +14,6 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v2"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 )
 
 const (
@@ -117,35 +118,46 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx) (string, error) {
 		}
 	}
 
+	// Initialize a default list of strings for preparing a black list.
+	ExcludeListExpressions := prepareDefaultExcludeListExpressions()
+	excludeList, err := prepareExcludeList(ExcludeListExpressions)
+	if err != nil {
+		return "", fmt.Errorf("failed to compile regular expressions: %s", err)
+	}
+
 	// Collect app list step.
-	appList := packCtx.AppList
-	if packCtx.AppList == nil && packCtx.App.InstancesEnabled != "." {
-		// Initialize a default list of strings for preparing a black list.
-		ExcludeListExpressions := prepareDefaultExcludeListExpressions()
+	appList := []string{}
+	if packCtx.AppList == nil {
+		if packCtx.App.InstancesEnabled != "." {
+			appList, err = collectAppList(packCtx.App.InstancesEnabled, excludeList)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			// If running tt pack with instances_enabled: .
+			// it supposed to pack a current directory as an application.
+			appPath, err := os.Getwd()
+			if err != nil {
+				return "", err
+			}
+			if util.IsApp(appPath, excludeList) {
+				appList = []string{filepath.Base(appPath)}
+			}
 
-		excludeList, err := prepareExcludeList(ExcludeListExpressions)
-		if err != nil {
-			return "", fmt.Errorf("failed to compile regular expressions: %s", err)
+			newInstancesEnabledPath, err := filepath.Abs("..")
+			if err != nil {
+				return "", err
+			}
+			packCtx.App.InstancesEnabled = newInstancesEnabledPath
 		}
-
-		appList, err = collectAppList(packCtx.App.InstancesEnabled, excludeList)
-		if err != nil {
-			return "", err
+	} else {
+		for _, appName := range packCtx.AppList {
+			if util.IsApp(filepath.Join(packCtx.App.InstancesEnabled, appName), excludeList) {
+				appList = append(appList, appName)
+			} else {
+				log.Warnf("Skip packing of '%s': specified name is not an application.", appName)
+			}
 		}
-	} else if packCtx.App.InstancesEnabled == "." {
-		// If running tt pack with instances_enabled: .
-		// it supposed to pack a current directory as an application.
-		appPath, err := os.Getwd()
-		if err != nil {
-			return "", err
-		}
-		appList = []string{filepath.Base(appPath)}
-
-		newInstancesEnabledPath, err := filepath.Abs("..")
-		if err != nil {
-			return "", err
-		}
-		packCtx.App.InstancesEnabled = newInstancesEnabledPath
 	}
 
 	if len(appList) == 0 {
@@ -213,15 +225,8 @@ func copyAppSrc(packCtx *cmdcontext.PackCtx, appName, packagePath string) error 
 	if err != nil {
 		return err
 	}
-	pathInfo, err := os.Stat(pathToCopy)
-	if err != nil {
+	if _, err = os.Stat(pathToCopy); err != nil {
 		return err
-	}
-	if pathInfo.IsDir() {
-		initInfo, err := os.Stat(filepath.Join(pathToCopy, "init.lua"))
-		if err != nil && !initInfo.IsDir() {
-			return err
-		}
 	}
 
 	// Copying application.
