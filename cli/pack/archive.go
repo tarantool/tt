@@ -1,10 +1,11 @@
 package pack
 
 import (
-	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"os"
 	"path/filepath"
+
+	"github.com/apex/log"
+	"github.com/tarantool/tt/cli/cmdcontext"
 )
 
 // archivePacker is a structure that implements Packer interface

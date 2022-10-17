@@ -2,12 +2,13 @@ package pack
 
 import (
 	"fmt"
-	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/util"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/apex/log"
+	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/util"
 )
 
 const (

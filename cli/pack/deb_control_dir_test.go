@@ -1,12 +1,13 @@
 package pack
 
 import (
-	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 )
 
 func TestCreateControlDir(t *testing.T) {
