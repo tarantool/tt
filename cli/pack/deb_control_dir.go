@@ -12,6 +12,7 @@ import (
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -34,7 +35,8 @@ type PackDependency struct {
 type PackDependencies []PackDependency
 
 // createControlDir creates a control directory that contains control file, postinst and preinst.
-func createControlDir(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx, destDirPath string) error {
+func createControlDir(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
+	opts *config.CliOpts, destDirPath string) error {
 	log.Debug("Create DEB control file")
 
 	err := os.MkdirAll(destDirPath, dirPermissions)
@@ -46,7 +48,7 @@ func createControlDir(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx, destDirPath st
 	if packCtx.Name == "" {
 		name = "bundle"
 	}
-	version := getVersion(&packCtx, defaultVersion)
+	version := getVersion(&packCtx, opts, defaultVersion)
 
 	debControlCtx := map[string]interface{}{
 		"Name":         name,

@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -98,7 +99,7 @@ func addPreAndPostInstallScriptsRPM(rpmHeader *rpmTagSetType, preInst string, po
 
 // genRpmHeader generates rpm headers.
 func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDir string,
-	cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (rpmTagSetType, error) {
+	cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts) (rpmTagSetType, error) {
 	rpmHeader := rpmTagSetType{}
 
 	// Compute payload digest.
@@ -120,13 +121,13 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 		return nil, fmt.Errorf("Failed to get files info: %s", err)
 	}
 
-	versionString := getVersion(packCtx, defaultVersion)
+	versionString := getVersion(packCtx, opts, defaultVersion)
 
 	ver, err := version.GetVersionDetails(versionString)
 	if err != nil {
 		return nil, err
 	}
-	name, err := getPackageName(packCtx, "", false)
+	name, err := getPackageName(packCtx, opts, "", false)
 	if err != nil {
 		return nil, err
 	}

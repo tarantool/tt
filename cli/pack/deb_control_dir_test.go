@@ -15,6 +15,7 @@ func TestCreateControlDir(t *testing.T) {
 		name         string
 		packCtx      *PackCtx
 		cmdCtx       *cmdcontext.CmdCtx
+		opts         *config.CliOpts
 		destPath     string
 		correctError func(err error) bool
 		correctDir   func(controlPath string) bool
@@ -29,6 +30,7 @@ func TestCreateControlDir(t *testing.T) {
 					WithTarantoolDeps: false,
 				},
 			},
+			opts:     &config.CliOpts{},
 			destPath: t.TempDir(),
 			correctError: func(err error) bool {
 				return err == nil
@@ -46,6 +48,8 @@ func TestCreateControlDir(t *testing.T) {
 					Deps:              []string{"tarantool>=1.10"},
 					WithTarantoolDeps: false,
 				},
+			},
+			opts: &config.CliOpts{
 				App: &config.AppOpts{
 					InstancesEnabled: ".",
 				},
@@ -67,6 +71,8 @@ func TestCreateControlDir(t *testing.T) {
 					Deps:              []string{"tarantool==master"},
 					WithTarantoolDeps: false,
 				},
+			},
+			opts: &config.CliOpts{
 				App: &config.AppOpts{
 					InstancesEnabled: ".",
 				},
@@ -89,6 +95,8 @@ func TestCreateControlDir(t *testing.T) {
 					WithTarantoolDeps: false,
 					PostInst:          "nothing",
 				},
+			},
+			opts: &config.CliOpts{
 				App: &config.AppOpts{
 					InstancesEnabled: ".",
 				},
@@ -111,6 +119,8 @@ func TestCreateControlDir(t *testing.T) {
 					WithTarantoolDeps: false,
 					PreInst:           "nothing",
 				},
+			},
+			opts: &config.CliOpts{
 				App: &config.AppOpts{
 					InstancesEnabled: ".",
 				},
@@ -128,7 +138,7 @@ func TestCreateControlDir(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			path := filepath.Join(testCase.destPath, "control_test_dir")
-			err := createControlDir(testCase.cmdCtx, *testCase.packCtx, path)
+			err := createControlDir(testCase.cmdCtx, *testCase.packCtx, testCase.opts, path)
 			require.Truef(t, testCase.correctError(err), "wrong error caught: %v", err)
 			require.Truef(t, testCase.correctDir(path), "wrong directory structure")
 		})

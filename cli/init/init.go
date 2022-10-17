@@ -3,7 +3,6 @@ package init
 import (
 	"fmt"
 	"os"
-	"regexp"
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
@@ -166,7 +165,7 @@ func Run(initCtx *InitCtx) error {
 			}
 		}
 	}
-	if !util.IsApp(".", []*regexp.Regexp{}) {
+	if !util.IsApp(".") {
 		// Current directory is not app dir, so set default instances enabled dir.
 		appDirInfo.instancesEnabled = configure.InstancesEnabledDirName
 	}

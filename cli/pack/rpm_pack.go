@@ -11,6 +11,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -62,7 +63,7 @@ import (
 
 // packRpm creates an RPM archive in resPackagePath
 // that contains files from packageDir.
-func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, packageDir,
+func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, packageDir,
 	resPackagePath string) error {
 	var err error
 
@@ -86,7 +87,7 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, packageDir,
 	log.Info("Generating header section")
 
 	rpmHeader, err := genRpmHeader(relPaths, cpioPath, compresedCpioPath, packageDir,
-		cmdCtx, packCtx)
+		cmdCtx, packCtx, opts)
 	if err != nil {
 		return fmt.Errorf("Failed to gen RPM header: %s", err)
 	}
@@ -131,7 +132,7 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, packageDir,
 	log.Info("Computing lead section")
 
 	// Compute lead.
-	name, err := getPackageName(packCtx, "", false)
+	name, err := getPackageName(packCtx, opts, "", false)
 	if err != nil {
 		return err
 	}

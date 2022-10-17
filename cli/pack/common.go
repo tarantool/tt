@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/apex/log"
@@ -63,19 +62,12 @@ var defaultPaths = []string{
 	envModulesPath,
 }
 
-var defaultExcludeListExpressions = []string{
-	"\\w+\\/.+",   // stops to watching apps inside the directories
-	"^\\.\\w+",    // stops from indexing files starting with . like .rocks
-	"^\\.$",       // excludes a hard link to the current directory.
-	"\\w+.yml",    // excludes all yml files
-	"\\w+.yaml",   // excludes all yaml files
-	"\\w+.tar.gz", // excludes all tarballs
-}
-
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
-func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) {
+func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
+	cliOpts *config.CliOpts) (string, error) {
 	var err error
+	opts := *cliOpts
 
 	// Create temporary directory step.
 	basePath, err := os.MkdirTemp("", "tt_pack")
@@ -100,7 +92,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) 
 	}
 
 	// Copy binaries step.
-	if packCtx.App.BinDir != "" &&
+	if opts.App.BinDir != "" &&
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
 		err = copyBinaries(cmdCtx, packageEnvBinPath)
@@ -110,25 +102,18 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) 
 	}
 
 	// Copy modules step.
-	if packCtx.ModulesDirectory != "" {
-		err = copy.Copy(packCtx.ModulesDirectory, packageEnvModulesPath)
+	if opts.Modules != nil && opts.Modules.Directory != "" {
+		err = copy.Copy(opts.Modules.Directory, packageEnvModulesPath)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	// Initialize a default list of strings for preparing a black list.
-	ExcludeListExpressions := prepareDefaultExcludeListExpressions()
-	excludeList, err := prepareExcludeList(ExcludeListExpressions)
-	if err != nil {
-		return "", fmt.Errorf("failed to compile regular expressions: %s", err)
-	}
-
 	// Collect app list step.
 	appList := []string{}
 	if packCtx.AppList == nil {
-		if packCtx.App.InstancesEnabled != "." {
-			appList, err = collectAppList(packCtx.App.InstancesEnabled, excludeList)
+		if opts.App.InstancesEnabled != "." {
+			appList, err = collectAppList(opts.App.InstancesEnabled)
 			if err != nil {
 				return "", err
 			}
@@ -139,7 +124,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) 
 			if err != nil {
 				return "", err
 			}
-			if util.IsApp(appPath, excludeList) {
+			if util.IsApp(appPath) {
 				appList = []string{filepath.Base(appPath)}
 			}
 
@@ -147,11 +132,15 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) 
 			if err != nil {
 				return "", err
 			}
-			packCtx.App.InstancesEnabled = newInstancesEnabledPath
+
+			// Keep an instance of passed cliOpts immutable.
+			appOpts := *opts.App
+			opts.App = &appOpts
+			opts.App.InstancesEnabled = newInstancesEnabledPath
 		}
 	} else {
 		for _, appName := range packCtx.AppList {
-			if util.IsApp(filepath.Join(packCtx.App.InstancesEnabled, appName), excludeList) {
+			if util.IsApp(filepath.Join(opts.App.InstancesEnabled, appName)) {
 				appList = append(appList, appName)
 			} else {
 				log.Warnf("Skip packing of '%s': specified name is not an application.", appName)
@@ -160,26 +149,26 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) 
 	}
 
 	if len(appList) == 0 {
-		return "", fmt.Errorf("The is no apps found in instance_enabled directory")
+		return "", fmt.Errorf("There are no apps found in instance_enabled directory")
 	}
 
 	log.Infof("Apps to pack: %v", strings.Join(appList, " "))
 
 	// Copy all apps to a temp directory step.
 	for _, appName := range appList {
-		err = copyAppSrc(packCtx, appName, basePath)
+		err = copyAppSrc(&opts, appName, basePath)
 		if err != nil {
 			return "", err
 		}
 
 		if packCtx.Archive.All {
-			err = copyArtifacts(packCtx, appName)
+			err = copyArtifacts(&opts, appName)
 			if err != nil {
 				return "", err
 			}
 		}
 
-		err = createAppSymlink(packCtx, appName)
+		err = createAppSymlink(&opts, appName)
 		if err != nil {
 			return "", err
 		}
@@ -190,7 +179,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) 
 		return "", err
 	}
 
-	err = createEnv(packCtx, basePath)
+	err = createEnv(&opts, basePath)
 	if err != nil {
 		return "", err
 	}
@@ -219,8 +208,8 @@ func createPackageStructure(destPath string) error {
 }
 
 // copyAppSrc copies a source file or directory to the directory, that will be packed.
-func copyAppSrc(packCtx *PackCtx, appName, packagePath string) error {
-	pathToCopy, err := resolveAppName(packCtx.App.InstancesEnabled, appName)
+func copyAppSrc(opts *config.CliOpts, appName, packagePath string) error {
+	pathToCopy, err := resolveAppPath(opts.App.InstancesEnabled, appName)
 	if err != nil {
 		return err
 	}
@@ -250,15 +239,19 @@ func copyAppSrc(packCtx *PackCtx, appName, packagePath string) error {
 
 // copyArtifacts copies all artifacts from the current bundle configuration
 // to the passed package structure from the passed path.
-func copyArtifacts(packCtx *PackCtx, appName string) error {
+func copyArtifacts(opts *config.CliOpts, appName string) error {
 	log.Infof("Copying all artifacts")
 
-	err := copy.Copy(filepath.Join(packCtx.App.DataDir, appName),
+	ext := filepath.Ext(appName)
+	if ext == ".lua" {
+		appName = appName[:len(appName)-len(ext)]
+	}
+	err := copy.Copy(filepath.Join(opts.App.DataDir, appName),
 		filepath.Join(packageVarDataPath, appName))
 	if err != nil {
 		return err
 	}
-	err = copy.Copy(filepath.Join(packCtx.App.LogDir, appName),
+	err = copy.Copy(filepath.Join(opts.App.LogDir, appName),
 		filepath.Join(packageVarLogPath, appName))
 	if err != nil {
 		return err
@@ -268,8 +261,8 @@ func copyArtifacts(packCtx *PackCtx, appName string) error {
 
 // TODO replace by tt enable
 // createAppSymlink creates a relative link for an application that must be packed.
-func createAppSymlink(packCtx *PackCtx, appName string) error {
-	appPath, err := resolveAppName(packCtx.App.InstancesEnabled, appName)
+func createAppSymlink(opts *config.CliOpts, appName string) error {
+	appPath, err := resolveAppPath(opts.App.InstancesEnabled, appName)
 	if err != nil {
 		return err
 	}
@@ -283,7 +276,7 @@ func createAppSymlink(packCtx *PackCtx, appName string) error {
 }
 
 // createEnv generates a tarantool.yaml file.
-func createEnv(packCtx *PackCtx, destPath string) error {
+func createEnv(opts *config.CliOpts, destPath string) error {
 	log.Infof("Generating new tarantool.yaml for the new package")
 
 	appOpts := config.AppOpts{
@@ -292,10 +285,10 @@ func createEnv(packCtx *PackCtx, destPath string) error {
 		RunDir:           filepath.Join(varPath, runPath),
 		DataDir:          filepath.Join(varPath, dataPath),
 		LogDir:           filepath.Join(varPath, logPath),
-		LogMaxSize:       packCtx.App.LogMaxSize,
-		LogMaxAge:        packCtx.App.LogMaxAge,
-		LogMaxBackups:    packCtx.App.LogMaxBackups,
-		Restartable:      packCtx.App.Restartable,
+		LogMaxSize:       opts.App.LogMaxSize,
+		LogMaxAge:        opts.App.LogMaxAge,
+		LogMaxBackups:    opts.App.LogMaxBackups,
+		Restartable:      opts.App.Restartable,
 	}
 	moduleOpts := config.ModulesOpts{
 		Directory: filepath.Join(envPath, modulesPath),
@@ -326,9 +319,9 @@ func createEnv(packCtx *PackCtx, destPath string) error {
 	return nil
 }
 
-// resolveAppName accepts a normalized name of application and its location,
+// resolveAppPath accepts a name of application and its location,
 // detects if it is a file/directory/symlink and returns a path to it.
-func resolveAppName(baseDir, appName string) (string, error) {
+func resolveAppPath(baseDir, appName string) (string, error) {
 	appPath := filepath.Join(baseDir, appName)
 	// Detecting if the application is a file or a directory.
 	_, err := os.Stat(appPath)
@@ -350,27 +343,6 @@ func resolveAppName(baseDir, appName string) (string, error) {
 	}
 
 	return pathToCopy, nil
-}
-
-// prepareDefaultExcludeListExpressions returns a default list of expressions
-// for compiling to regular expressions.
-func prepareDefaultExcludeListExpressions() []string {
-	// Complete the list of black list expressions with default paths.
-	return append(defaultExcludeListExpressions, defaultPaths...)
-}
-
-// prepareExcludeList accepts a slice of expressions to be compiled as regexp.
-func prepareExcludeList(expressions []string) ([]*regexp.Regexp, error) {
-	excludeList := []*regexp.Regexp{}
-
-	for _, expression := range expressions {
-		regex, err := regexp.Compile(expression)
-		if err != nil {
-			return nil, err
-		}
-		excludeList = append(excludeList, regex)
-	}
-	return excludeList, nil
 }
 
 // findRocks tries to find a rockspec file, starting from the passed root directory.
@@ -409,7 +381,7 @@ func findRocks(root string) (string, error) {
 
 // collectAppList collects all the supposed applications from the passed directory,
 // considering the passed slice of exclude regexp items.
-func collectAppList(baseDir string, excludeList []*regexp.Regexp) ([]string, error) {
+func collectAppList(baseDir string) ([]string, error) {
 	dirEnrties, err := os.ReadDir(baseDir)
 	if err != nil {
 		return nil, err
@@ -418,11 +390,8 @@ func collectAppList(baseDir string, excludeList []*regexp.Regexp) ([]string, err
 	apps := make([]string, 0)
 	for _, entry := range dirEnrties {
 		dirItem := filepath.Join(baseDir, entry.Name())
-		if util.IsApp(dirItem, excludeList) {
-			app := appNameFromEntry(entry)
-			if app != "" {
-				apps = append(apps, app)
-			}
+		if util.IsApp(dirItem) {
+			apps = append(apps, entry.Name())
 		} else {
 			log.Warnf("The application %s can't be packed: failed to access the source",
 				entry.Name())
@@ -433,19 +402,6 @@ func collectAppList(baseDir string, excludeList []*regexp.Regexp) ([]string, err
 		return nil, err
 	}
 	return apps, nil
-}
-
-// appNameFromEntry returns a normalized application name.
-// If the application is a lua file, the name of file will be returned
-// without its extension.
-func appNameFromEntry(entry os.DirEntry) string {
-	if filepath.Ext(entry.Name()) == ".lua" {
-		return entry.Name()[:len(entry.Name())-len(".lua")]
-	}
-	if entry.IsDir() || entry.Type() == os.ModeSymlink {
-		return entry.Name()
-	}
-	return ""
 }
 
 // buildAllRocks finds a rockspec file of the application and builds it.
@@ -493,12 +449,12 @@ func prepareDefaultPackagePaths(packagePath string) {
 
 // getVersion returns a version of the package.
 // The version depends on passed pack context.
-func getVersion(packCtx *PackCtx, defaultVersion string) string {
+func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) string {
 	packageVersion := defaultVersion
 	if packCtx.Version == "" {
 		// Get version from git only if we are packing an application from the current directory.
-		if packCtx.App.InstancesEnabled == "." {
-			packageVersion, _ = util.CheckVersionFromGit(packCtx.App.InstancesEnabled)
+		if opts.App.InstancesEnabled == "." {
+			packageVersion, _ = util.CheckVersionFromGit(opts.App.InstancesEnabled)
 		}
 	} else {
 		packageVersion = packCtx.Version
@@ -543,7 +499,8 @@ func copyBinaries(cmdCtx *cmdcontext.CmdCtx, destPath string) error {
 }
 
 // getPackageName returns the result name of the package.
-func getPackageName(packCtx *PackCtx, suffix string, addVersion bool) (string, error) {
+func getPackageName(packCtx *PackCtx, opts *config.CliOpts, suffix string,
+	addVersion bool) (string, error) {
 	var packageName string
 
 	if packCtx.FileName != "" {
@@ -559,7 +516,7 @@ func getPackageName(packCtx *PackCtx, suffix string, addVersion bool) (string, e
 	}
 
 	if addVersion {
-		versionSuffix := getVersion(packCtx, defaultLongVersion)
+		versionSuffix := getVersion(packCtx, opts, defaultLongVersion)
 		packageName += "_" + versionSuffix
 	}
 

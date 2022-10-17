@@ -11,6 +11,7 @@ import (
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -47,7 +48,8 @@ type debPacker struct {
 // control.tar.xz : control files (control, preinst etc.)
 
 // Run packs a bundle into deb package.
-func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error {
+func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
+	opts *config.CliOpts) error {
 	var err error
 
 	// If ar is not installed on the system (e.g. MacOS by default)
@@ -65,7 +67,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 	log.Debugf("A root for package is located in: %s", packageDir)
 
 	// Prepare a bundle.
-	bundlePath, err := prepareBundle(cmdCtx, packCtx)
+	bundlePath, err := prepareBundle(cmdCtx, packCtx, opts)
 	if err != nil {
 		return err
 	}
@@ -77,7 +79,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 	rootPrefixDir := dataDirName
 	rootPrefix := filepath.Join(rootPrefixDir, debBundlePath)
 
-	packageName, err := getPackageName(packCtx, "", false)
+	packageName, err := getPackageName(packCtx, opts, "", false)
 	if err != nil {
 		return err
 	}
@@ -106,7 +108,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 
 	// Create a control directory with control file and postinst, preinst scripts inside.
 	controlDirPath := filepath.Join(packageDir, controlDirName)
-	err = createControlDir(cmdCtx, *packCtx, controlDirPath)
+	err = createControlDir(cmdCtx, *packCtx, opts, controlDirPath)
 	if err != nil {
 		return err
 	}
@@ -126,7 +128,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 		return err
 	}
 
-	packageName, err = getPackageName(packCtx, ".deb", true)
+	packageName, err = getPackageName(packCtx, opts, ".deb", true)
 	if err != nil {
 		return err
 	}
