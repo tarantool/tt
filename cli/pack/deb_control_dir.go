@@ -2,17 +2,18 @@ package pack
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
 	"github.com/alecthomas/participle/v2"
 	"github.com/alecthomas/participle/v2/lexer/stateful"
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 )
 
 // DepRelation tags are false-positive highlighted by golang-ci-linter.

@@ -1,11 +1,12 @@
 package pack
 
 import (
+	"path/filepath"
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"path/filepath"
-	"testing"
 )
 
 func TestGetTarPackageName(t *testing.T) {

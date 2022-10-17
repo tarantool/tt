@@ -1,9 +1,10 @@
 package pack
 
 import (
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateDebianBinary(t *testing.T) {

@@ -1,11 +1,12 @@
 package pack
 
 import (
+	"path/filepath"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
-	"path/filepath"
-	"testing"
 )
 
 func TestCreateAppDir(t *testing.T) {

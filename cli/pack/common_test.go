@@ -1,15 +1,16 @@
 package pack
 
 import (
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
 	"gopkg.in/yaml.v2"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
 func TestCollectAppList(t *testing.T) {
