@@ -18,8 +18,6 @@ type CmdCtx struct {
 	CommandName string
 	// Create contains information to create an application.
 	Create CreateCtx
-	// Build contains information to build an application.
-	Build BuildCtx
 	// Pack contains information to pack an application.
 	Pack PackCtx
 	// Init contains information to init tt environment.

@@ -22,9 +22,9 @@ func getPostBuildScripts() []string {
 }
 
 // runBuildHook runs first existing executable from hookNames list.
-func runBuildHook(cmdCtx *cmdcontext.CmdCtx, hookNames []string) error {
+func runBuildHook(buildCtx *cmdcontext.BuildCtx, hookNames []string) error {
 	for _, hookName := range hookNames {
-		buildHookPath := filepath.Join(cmdCtx.Build.BuildDir, hookName)
+		buildHookPath := filepath.Join(buildCtx.BuildDir, hookName)
 
 		if _, err := os.Stat(buildHookPath); err == nil {
 			log.Infof("Running `%s`", buildHookPath)
@@ -42,9 +42,7 @@ func runBuildHook(cmdCtx *cmdcontext.CmdCtx, hookNames []string) error {
 }
 
 // buildLocal builds an application locally.
-func buildLocal(cmdCtx *cmdcontext.CmdCtx) error {
-	buildCtx := &cmdCtx.Build
-
+func buildLocal(cmdCtx *cmdcontext.CmdCtx, buildCtx *cmdcontext.BuildCtx) error {
 	cwd, err := util.Chdir(buildCtx.BuildDir)
 	if err != nil {
 		return err
@@ -52,7 +50,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx) error {
 	defer util.Chdir(cwd)
 
 	// Run Pre-build.
-	if err := runBuildHook(cmdCtx, getPreBuildScripts()); err != nil {
+	if err := runBuildHook(buildCtx, getPreBuildScripts()); err != nil {
 		return fmt.Errorf("Run pre-build hook failed: %s", err)
 	}
 
@@ -66,7 +64,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	// Run Post-build.
-	if err := runBuildHook(cmdCtx, getPostBuildScripts()); err != nil {
+	if err := runBuildHook(buildCtx, getPostBuildScripts()); err != nil {
 		return fmt.Errorf("Run post-build hook failed: %s", err)
 	}
 
