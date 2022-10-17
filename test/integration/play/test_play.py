@@ -2,11 +2,23 @@ import os
 import re
 import shutil
 
-from utils import TarantoolTestInstance, run_command_and_get_output
+import pytest
+from utils import (TarantoolTestInstance, kill_child_process,
+                   run_command_and_get_output)
 
 # The name of instance config file within this integration tests.
 # This file should be in /test/integration/play/test_file/.
 INSTANCE_NAME = "remote_instance_cfg.lua"
+
+
+# In case of unsuccessful completion of tests, tarantool test instances may remain running.
+# This is autorun wrapper for each test case in this module.
+@pytest.fixture(autouse=True)
+def kill_remain_instance_wrapper():
+    # Run test.
+    yield
+    # Kill a test instance if it was not stopped due to a failed test.
+    kill_child_process()
 
 
 def test_play_unset_arg(tt_cmd, tmpdir):

@@ -88,7 +88,7 @@ def wait_file(dir_name, file_pattern, exclude_list, timeout_sec=1):
     return ""
 
 
-def kill_child_process(pid):
+def kill_child_process(pid=psutil.Process().pid):
     parent = psutil.Process(int(pid))
     procs = parent.children()
 
