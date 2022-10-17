@@ -42,9 +42,8 @@ type debPacker struct {
 // control.tar.xz : control files (control, preinst etc.)
 
 // Run packs a bundle into deb package.
-func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx) error {
+func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *cmdcontext.PackCtx) error {
 	var err error
-	packCtx := cmdCtx.Pack
 
 	// If ar is not installed on the system (e.g. MacOS by default)
 	// we don't build anything.
@@ -61,7 +60,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx) error {
 	log.Infof("A root for package is located in: %s", packageDir)
 
 	// Prepare a bundle.
-	bundlePath, err := prepareBundle(cmdCtx)
+	bundlePath, err := prepareBundle(cmdCtx, packCtx)
 	if err != nil {
 		return err
 	}
@@ -99,7 +98,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx) error {
 
 	// Create a control directory with control file and postinst, preinst scripts inside.
 	controlDirPath := filepath.Join(packageDir, controlDirName)
-	err = createControlDir(&packCtx, controlDirPath)
+	err = createControlDir(packCtx, controlDirPath)
 	if err != nil {
 		return err
 	}

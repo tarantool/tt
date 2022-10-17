@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -80,12 +81,12 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	checkFlags(packCtx)
 
-	packer := pack.CreatePacker(&cmdCtx.Pack)
+	packer := pack.CreatePacker(packCtx)
 	if packer == nil {
 		return fmt.Errorf("Incorrect type of package")
 	}
 
-	err = packer.Run(cmdCtx)
+	err = packer.Run(cmdCtx, packCtx)
 	if err != nil {
 		return fmt.Errorf("Failed to pack: %v", err)
 	}

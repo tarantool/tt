@@ -27,7 +27,5 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, packCtx *cmdcon
 	packCtx.TarantoolExecutable = cmdCtx.Cli.TarantoolExecutable
 	packCtx.Type = args[0]
 
-	cmdCtx.Pack = *packCtx
-
 	return nil
 }

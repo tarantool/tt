@@ -73,9 +73,8 @@ var defaultExcludeListExpressions = []string{
 
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
-func prepareBundle(cmdCtx *cmdcontext.CmdCtx) (string, error) {
+func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *cmdcontext.PackCtx) (string, error) {
 	var err error
-	packCtx := &cmdCtx.Pack
 
 	// Create temporary directory step.
 	basePath, err := os.MkdirTemp("", "tt_pack")

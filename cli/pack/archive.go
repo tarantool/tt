@@ -13,9 +13,8 @@ type archivePacker struct {
 }
 
 // Run of ArchivePacker packs the bundle into tarball.
-func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx) error {
-	packCtx := cmdCtx.Pack
-	bundlePath, err := prepareBundle(cmdCtx)
+func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *cmdcontext.PackCtx) error {
+	bundlePath, err := prepareBundle(cmdCtx, packCtx)
 	if err != nil {
 		return err
 	}
@@ -29,7 +28,7 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx) error {
 
 	log.Infof("The passed bundle packed into temporary directory: %s", bundlePath)
 
-	tarName, err := getTarPackageName(&packCtx)
+	tarName, err := getTarPackageName(packCtx)
 	if err != nil {
 		return err
 	}
