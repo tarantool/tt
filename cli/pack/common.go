@@ -465,8 +465,8 @@ func buildAllRocks(cmdCtx *cmdcontext.CmdCtx, destPath string) error {
 			if err != nil {
 				return err
 			}
-			cmdCtx.Build.BuildDir = filepath.Dir(rockspecPath)
-			err = build.Run(cmdCtx)
+			buildCtx := cmdcontext.BuildCtx{BuildDir: filepath.Dir(rockspecPath)}
+			err = build.Run(cmdCtx, &buildCtx)
 			if err != nil {
 				return err
 			}

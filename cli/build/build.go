@@ -9,14 +9,19 @@ import (
 )
 
 // FillCtx fills build context.
-func FillCtx(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func FillCtx(buildCtx *cmdcontext.BuildCtx, args []string) error {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
 	if len(args) > 1 {
 		return fmt.Errorf("too many args")
 	} else if len(args) == 1 {
 		appPath := args[0]
 		if !filepath.IsAbs(appPath) {
 			var err error
-			appPath, err = filepath.Abs(filepath.Join(cmdCtx.Cli.WorkDir, appPath))
+			appPath, err = filepath.Abs(filepath.Join(workingDir, appPath))
 			if err != nil {
 				return err
 			}
@@ -28,15 +33,15 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if !fileInfo.IsDir() {
 			return fmt.Errorf("%s is not a directory", appPath)
 		}
-		cmdCtx.Build.BuildDir = appPath
+		buildCtx.BuildDir = appPath
 	} else {
-		cmdCtx.Build.BuildDir = cmdCtx.Cli.WorkDir
+		buildCtx.BuildDir = workingDir
 	}
 
 	return nil
 }
 
 // Run builds an application.
-func Run(cmdCtx *cmdcontext.CmdCtx) error {
-	return buildLocal(cmdCtx)
+func Run(cmdCtx *cmdcontext.CmdCtx, buildCtx *cmdcontext.BuildCtx) error {
+	return buildLocal(cmdCtx, buildCtx)
 }

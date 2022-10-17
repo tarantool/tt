@@ -34,11 +34,12 @@ func NewBuildCmd() *cobra.Command {
 
 // internalBuildModule is a default build module.
 func internalBuildModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if err := build.FillCtx(cmdCtx, args); err != nil {
+	var buildCtx cmdcontext.BuildCtx
+	if err := build.FillCtx(&buildCtx, args); err != nil {
 		return err
 	}
 
-	cmdCtx.Build.SpecFile = specFile
+	buildCtx.SpecFile = specFile
 
-	return build.Run(cmdCtx)
+	return build.Run(cmdCtx, &buildCtx)
 }
