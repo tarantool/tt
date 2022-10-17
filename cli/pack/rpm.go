@@ -8,6 +8,7 @@ import (
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -17,7 +18,8 @@ type rpmPacker struct {
 }
 
 // Run packs a bundle into rpm package.
-func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error {
+func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
+	opts *config.CliOpts) error {
 	var err error
 
 	if err := util.CheckRequiredBinaries("cpio"); err != nil {
@@ -34,13 +36,13 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 	log.Debugf("A root for package is located in: %s", packageDir)
 
 	// Prepare a bundle.
-	bundlePath, err := prepareBundle(cmdCtx, packCtx)
+	bundlePath, err := prepareBundle(cmdCtx, packCtx, opts)
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(bundlePath)
 
-	bundleName, err := getPackageName(packCtx, "", false)
+	bundleName, err := getPackageName(packCtx, opts, "", false)
 	if err != nil {
 		return err
 	}
@@ -50,12 +52,12 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error 
 		return err
 	}
 
-	resPackagePath, err := getPackageName(packCtx, ".rpm", true)
+	resPackagePath, err := getPackageName(packCtx, opts, ".rpm", true)
 	if err != nil {
 		return err
 	}
 
-	err = packRpm(cmdCtx, packCtx, packageDir, resPackagePath)
+	err = packRpm(cmdCtx, packCtx, opts, packageDir, resPackagePath)
 
 	if err != nil {
 		return fmt.Errorf("Failed to create RPM package: %s", err)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 )
 
 // archivePacker is a structure that implements Packer interface
@@ -14,8 +15,9 @@ type archivePacker struct {
 }
 
 // Run of ArchivePacker packs the bundle into tarball.
-func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error {
-	bundlePath, err := prepareBundle(cmdCtx, packCtx)
+func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
+	opts *config.CliOpts) error {
+	bundlePath, err := prepareBundle(cmdCtx, packCtx, opts)
 	if err != nil {
 		return err
 	}
@@ -27,9 +29,9 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) er
 		}
 	}()
 
-	log.Infof("The passed bundle packed into temporary directory: %s", bundlePath)
+	log.Debugf("The package structure is created in: %s", bundlePath)
 
-	tarName, err := getPackageName(packCtx, ".tar.gz", true)
+	tarName, err := getPackageName(packCtx, opts, ".tar.gz", true)
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,5 @@
 package pack
 
-import "github.com/tarantool/tt/cli/config"
-
 // PackCtx contains all flags for tt pack command.
 type PackCtx struct {
 	// Type contains a type of packing.
@@ -24,10 +22,6 @@ type PackCtx struct {
 	TarantoolIsSystem bool
 	// ConfigPath is a full path to tarantool.yaml file.
 	ConfigPath string
-	// App contains info about bundle.
-	App *config.AppOpts
-	// ModulesDirectory contains a path to modules directory.
-	ModulesDirectory string
 	// ArchiveCtx contains flags specific for tgz type.
 	Archive ArchiveCtx
 	// RpmDeb contains all information about rpm and deb type of packing.

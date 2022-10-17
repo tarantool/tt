@@ -83,7 +83,7 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	err = pack.FillCtx(cmdCtx, opts, packCtx, args)
+	err = pack.FillCtx(cmdCtx, packCtx, args)
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("Incorrect type of package. Available types: rpm, deb, tgz")
 	}
 
-	err = packer.Run(cmdCtx, packCtx)
+	err = packer.Run(cmdCtx, packCtx, opts)
 	if err != nil {
 		return fmt.Errorf("Failed to pack: %v", err)
 	}

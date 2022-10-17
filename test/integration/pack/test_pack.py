@@ -234,9 +234,9 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "cartridge_app")),
                 lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool_bin")),
+                                                         "tarantool")),
                 lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt_bin")),
+                                                         "tt")),
                 lambda path: os.path.exists(os.path.join(path, "cartridge_app",
                                                          "app", "roles", "custom.lua")),
                 lambda path: os.path.exists(os.path.join(path, "cartridge_app",

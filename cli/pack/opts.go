@@ -2,7 +2,6 @@ package pack
 
 import (
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
 )
 
 type PackageType string
@@ -15,13 +14,9 @@ const (
 )
 
 // FillCtx fills pack context.
-func FillCtx(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, packCtx *PackCtx,
+func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	args []string) error {
 
-	if cliOpts.Modules != nil {
-		packCtx.ModulesDirectory = cliOpts.Modules.Directory
-	}
-	packCtx.App = cliOpts.App
 	packCtx.ConfigPath = cmdCtx.Cli.ConfigPath
 	packCtx.TarantoolIsSystem = cmdCtx.Cli.IsSystem
 	packCtx.TarantoolExecutable = cmdCtx.Cli.TarantoolExecutable

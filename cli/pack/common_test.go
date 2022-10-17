@@ -16,8 +16,8 @@ func TestCollectAppList(t *testing.T) {
 	testDir := t.TempDir()
 
 	apps := map[string]bool{
-		"app1": true,
-		"app2": true,
+		"app1.lua": true,
+		"app2":     true,
 	}
 
 	dirsToCreate := []string{
@@ -38,12 +38,7 @@ func TestCollectAppList(t *testing.T) {
 	err = test_helpers.CreateFiles(testDir, filesToCreate)
 	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
 
-	blackListExpressions := prepareDefaultExcludeListExpressions()
-
-	excludeList, err := prepareExcludeList(blackListExpressions)
-	assert.Nilf(t, err, "failed to prepare a blacklist: %v", err)
-
-	collected, err := collectAppList(testDir, excludeList)
+	collected, err := collectAppList(testDir)
 	assert.Nilf(t, err, "failed to collect an app list: %v", err)
 
 	require.Equalf(t, len(apps), len(collected), "wrong count applications collected,"+
@@ -88,57 +83,6 @@ func TestRocksFinder(t *testing.T) {
 	require.Equalf(t, "", resPath,
 		"expected error to be returned, instead err is %s and result path is %s",
 		err, resPath)
-}
-
-func TestAppName(t *testing.T) {
-	testCases := []struct {
-		name    string
-		entry   test_helpers.EntryMock
-		appName string
-	}{
-		{
-			name: "App is a directory",
-			entry: test_helpers.EntryMock{
-				EntryName:  "app1",
-				EntryIsDir: true,
-			},
-			appName: "app1",
-		},
-		{
-			name: "App is a lua file",
-			entry: test_helpers.EntryMock{
-				EntryName:  "app2.lua",
-				EntryIsDir: false,
-			},
-			appName: "app2",
-		},
-		{
-			name: "Something that is not a directory or lua file",
-			entry: test_helpers.EntryMock{
-				EntryName:  "app3",
-				EntryIsDir: false,
-			},
-			appName: "",
-		},
-		{
-			name: "Symlink app name",
-			entry: test_helpers.EntryMock{
-				EntryName:  "app4",
-				EntryIsDir: false,
-				EntryType:  os.ModeSymlink,
-			},
-			appName: "app4",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			name := appNameFromEntry(testCase.entry)
-			require.Equalf(t, testCase.appName, name,
-				"got wrong app name, expected %s, got %s",
-				name, testCase.appName)
-		})
-	}
 }
 
 func TestResolveAppName(t *testing.T) {
@@ -211,7 +155,7 @@ func TestResolveAppName(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			resolvedPath, err := resolveAppName(".", testCase.AppName)
+			resolvedPath, err := resolveAppPath(".", testCase.AppName)
 			require.Truef(t, testCase.ErrCheck(err), "wrong error caught")
 			require.Equalf(t, testCase.ResolvedPath, resolvedPath,
 				"wrong resolved path, expected: %s, got: %s",
@@ -223,7 +167,7 @@ func TestResolveAppName(t *testing.T) {
 func TestCreateEnv(t *testing.T) {
 	testDir := t.TempDir()
 
-	testCtx := &PackCtx{
+	testOpts := &config.CliOpts{
 		App: &config.AppOpts{
 			LogMaxBackups: 1,
 			LogMaxAge:     1,
@@ -232,7 +176,7 @@ func TestCreateEnv(t *testing.T) {
 		},
 	}
 
-	err := createEnv(testCtx, testDir)
+	err := createEnv(testOpts, testDir)
 	require.NoErrorf(t, err, "failed to create a new tarantool env file: %v", err)
 
 	cfg := &config.Config{}
@@ -244,13 +188,13 @@ func TestCreateEnv(t *testing.T) {
 	err = yaml.NewDecoder(envFile).Decode(cfg)
 	require.NoErrorf(t, err, "failed to decode a new created tarantool.yaml: %v", err)
 
-	assert.Equalf(t, cfg.CliConfig.App.Restartable, testCtx.App.Restartable,
+	assert.Equalf(t, cfg.CliConfig.App.Restartable, testOpts.App.Restartable,
 		"wrong restartable count")
-	assert.Equalf(t, cfg.CliConfig.App.LogMaxAge, testCtx.App.LogMaxSize,
+	assert.Equalf(t, cfg.CliConfig.App.LogMaxAge, testOpts.App.LogMaxSize,
 		"wrong log max age count")
-	assert.Equalf(t, cfg.CliConfig.App.LogMaxSize, testCtx.App.LogMaxAge,
+	assert.Equalf(t, cfg.CliConfig.App.LogMaxSize, testOpts.App.LogMaxAge,
 		"wrong log max size count")
-	assert.Equalf(t, cfg.CliConfig.App.LogMaxBackups, testCtx.App.LogMaxBackups,
+	assert.Equalf(t, cfg.CliConfig.App.LogMaxBackups, testOpts.App.LogMaxBackups,
 		"wrong log max backups count")
 	assert.Equalf(t, cfg.CliConfig.App.InstancesEnabled, instancesEnabledPath,
 		"wrong instances enabled path")
@@ -292,7 +236,7 @@ func TestCopyAppSrc(t *testing.T) {
 	testDir := t.TempDir()
 	testCopyDir := t.TempDir()
 
-	testOpts := &PackCtx{
+	testOpts := &config.CliOpts{
 		App: &config.AppOpts{InstancesEnabled: testDir},
 	}
 
@@ -345,7 +289,7 @@ func TestCopyArtifacts(t *testing.T) {
 	testDir := t.TempDir()
 	testPackageDir := t.TempDir()
 
-	testCtx := &PackCtx{
+	testOpts := &config.CliOpts{
 		App: &config.AppOpts{
 			DataDir: filepath.Join(testDir, varDataPath),
 			LogDir:  filepath.Join(testDir, varLogPath),
@@ -382,7 +326,7 @@ func TestCopyArtifacts(t *testing.T) {
 	err = test_helpers.CreateFiles(testDir, filesToCreate)
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 	prepareDefaultPackagePaths(testPackageDir)
-	err = copyArtifacts(testCtx, appName)
+	err = copyArtifacts(testOpts, appName)
 	require.NoErrorf(t, err, "failed to copy artifacts: %v", err)
 
 	require.FileExists(t, filepath.Join(testPackageDir, varDataPath, appName, dataArtifact))
@@ -393,7 +337,7 @@ func TestCreateAppSymlink(t *testing.T) {
 	testDir := t.TempDir()
 	testPackageDir := t.TempDir()
 
-	testCtx := &PackCtx{
+	testOpts := &config.CliOpts{
 		App: &config.AppOpts{
 			InstancesEnabled: testDir,
 		},
@@ -420,7 +364,7 @@ func TestCreateAppSymlink(t *testing.T) {
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 
 	prepareDefaultPackagePaths(testPackageDir)
-	err = createAppSymlink(testCtx, appName)
+	err = createAppSymlink(testOpts, appName)
 	require.NoErrorf(t, err, "failed to create a symlink: %v", err)
 
 	_, err = os.Lstat(filepath.Join(testPackageDir, instancesEnabledPath, appName))
@@ -436,12 +380,14 @@ func TestGetVersion(t *testing.T) {
 	testCases := []struct {
 		name            string
 		packCtx         *PackCtx
+		opts            *config.CliOpts
 		expectedVersion string
 		defaultVersion  string
 	}{
 		{
-			name: "No parameters in context",
-			packCtx: &PackCtx{
+			name:    "No parameters in context",
+			packCtx: &PackCtx{},
+			opts: &config.CliOpts{
 				App: &config.AppOpts{InstancesEnabled: "../any_dir"},
 			},
 			expectedVersion: defaultLongVersion,
@@ -451,7 +397,9 @@ func TestGetVersion(t *testing.T) {
 			name: "Set version to pack context",
 			packCtx: &PackCtx{
 				Version: "1.0.0",
-				App:     &config.AppOpts{InstancesEnabled: "."},
+			},
+			opts: &config.CliOpts{
+				App: &config.AppOpts{InstancesEnabled: "."},
 			},
 			expectedVersion: "1.0.0",
 			defaultVersion:  "",
@@ -460,7 +408,9 @@ func TestGetVersion(t *testing.T) {
 			name: "Set custom version to pack context",
 			packCtx: &PackCtx{
 				Version: "v2",
-				App:     &config.AppOpts{InstancesEnabled: "."},
+			},
+			opts: &config.CliOpts{
+				App: &config.AppOpts{InstancesEnabled: "."},
 			},
 			defaultVersion:  "",
 			expectedVersion: "v2",
@@ -469,7 +419,7 @@ func TestGetVersion(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			version := getVersion(testCase.packCtx, testCase.defaultVersion)
+			version := getVersion(testCase.packCtx, testCase.opts, testCase.defaultVersion)
 			assert.Equalf(t, testCase.expectedVersion, version,
 				"got unexpected version, expected: %s, actual: %s",
 				testCase.expectedVersion, version)

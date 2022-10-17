@@ -351,3 +351,67 @@ func TestCreateSymlink(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "./tgtFile.txt", targetPath)
 }
+
+func TestIsApp(t *testing.T) {
+	testCases := []struct {
+		testName   string
+		createFunc func() (string, error)
+		isApp      bool
+	}{
+		{
+			testName: "Application is directory",
+			createFunc: func() (string, error) {
+				baseDir := t.TempDir()
+				filePath := filepath.Join(baseDir, "init.lua")
+				_, err := os.Create(filePath)
+				if err != nil {
+					return "", err
+				}
+				return baseDir, nil
+			},
+			isApp: true,
+		},
+		{
+			testName: "Application is file",
+			createFunc: func() (string, error) {
+				baseDir := t.TempDir()
+				filePath := filepath.Join(baseDir, "app.lua")
+				_, err := os.Create(filePath)
+				if err != nil {
+					return "", err
+				}
+				return filePath, nil
+			},
+			isApp: true,
+		},
+		{
+			testName: "Empty directory",
+			createFunc: func() (string, error) {
+				baseDir := t.TempDir()
+				return baseDir, nil
+			},
+			isApp: false,
+		},
+		{
+			testName: "Non lua file",
+			createFunc: func() (string, error) {
+				baseDir := t.TempDir()
+				filePath := filepath.Join(baseDir, "app.py")
+				_, err := os.Create(filePath)
+				if err != nil {
+					return "", err
+				}
+				return filePath, nil
+			},
+			isApp: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.testName, func(t *testing.T) {
+			path, err := testCase.createFunc()
+			require.NoError(t, err, "no error expected")
+			assert.Equal(t, testCase.isApp, IsApp(path), "Unexpected result of application check")
+		})
+	}
+}
