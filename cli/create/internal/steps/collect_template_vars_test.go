@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
@@ -26,8 +26,8 @@ func (reader *mockReader) readLine() (string, error) {
 }
 
 func TestNonInteractiveMode(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.Manifest.Vars = append(templateCtx.Manifest.Vars,
 		app_template.UserPrompt{
 			Prompt:  "User name",
@@ -48,8 +48,8 @@ func TestNonInteractiveMode(t *testing.T) {
 }
 
 func TestNonInteractiveModeReMismatch(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.Manifest.Vars = append(templateCtx.Manifest.Vars,
 		app_template.UserPrompt{
 			Prompt:  "User name",
@@ -66,8 +66,8 @@ func TestNonInteractiveModeReMismatch(t *testing.T) {
 }
 
 func TestInteractiveMode(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.Manifest.Vars = append(templateCtx.Manifest.Vars,
 		app_template.UserPrompt{
 			Prompt:  "User name",

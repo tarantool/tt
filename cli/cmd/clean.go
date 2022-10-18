@@ -53,7 +53,7 @@ func collectFiles(list []string, dirname string) ([]string, error) {
 	return list, nil
 }
 
-func clean(run *cmdcontext.InstanceCtx) error {
+func clean(run *running.InstanceCtx) error {
 	removeList := []string{}
 	confirm := false
 
@@ -105,7 +105,7 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	var runningCtx cmdcontext.RunningCtx
+	var runningCtx running.RunningCtx
 	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err
 	}

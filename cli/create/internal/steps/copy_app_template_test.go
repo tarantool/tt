@@ -13,7 +13,8 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 const subdirName = "subdir"
@@ -75,10 +76,10 @@ func TestCopyTemplateDirectory(t *testing.T) {
 
 	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
 
-	var createCtx cmdcontext.CreateCtx
+	var createCtx create_ctx.CreateCtx
 	createCtx.TemplateName = "basic"
 	createCtx.TemplateSearchPaths = []string{dstDir, filepath.Join(workDir2, "templates")}
-	templateCtx := NewTemplateContext()
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = filepath.Join(dstDir, "app1")
 
 	// CopyAppTemplate must copy "src" template from workdir2 to workdir1 using "app1" as dst name.
@@ -100,10 +101,10 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 
 	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
 
-	var createCtx cmdcontext.CreateCtx
+	var createCtx create_ctx.CreateCtx
 	createCtx.TemplateName = "basic"
 	createCtx.TemplateSearchPaths = []string{"./templates"}
-	templateCtx := NewTemplateContext()
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = filepath.Join(dstDir, "app1")
 
 	cwd, err := os.Getwd()
@@ -120,8 +121,8 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 }
 
 func TestExtractTemplateArchive(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	dstDir, err := ioutil.TempDir("", testWorkDirName)
 	require.NoError(t, err)

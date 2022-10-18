@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
 	"gopkg.in/yaml.v2"
@@ -224,7 +223,7 @@ func TestResolveAppName(t *testing.T) {
 func TestCreateEnv(t *testing.T) {
 	testDir := t.TempDir()
 
-	testCtx := &cmdcontext.PackCtx{
+	testCtx := &PackCtx{
 		App: &config.AppOpts{
 			LogMaxBackups: 1,
 			LogMaxAge:     1,
@@ -293,7 +292,7 @@ func TestCopyAppSrc(t *testing.T) {
 	testDir := t.TempDir()
 	testCopyDir := t.TempDir()
 
-	testOpts := &cmdcontext.PackCtx{
+	testOpts := &PackCtx{
 		App: &config.AppOpts{InstancesEnabled: testDir},
 	}
 
@@ -346,7 +345,7 @@ func TestCopyArtifacts(t *testing.T) {
 	testDir := t.TempDir()
 	testPackageDir := t.TempDir()
 
-	testCtx := &cmdcontext.PackCtx{
+	testCtx := &PackCtx{
 		App: &config.AppOpts{
 			DataDir: filepath.Join(testDir, varDataPath),
 			LogDir:  filepath.Join(testDir, varLogPath),
@@ -394,7 +393,7 @@ func TestCreateAppSymlink(t *testing.T) {
 	testDir := t.TempDir()
 	testPackageDir := t.TempDir()
 
-	testCtx := &cmdcontext.PackCtx{
+	testCtx := &PackCtx{
 		App: &config.AppOpts{
 			InstancesEnabled: testDir,
 		},
@@ -436,19 +435,19 @@ func TestCreateAppSymlink(t *testing.T) {
 func TestGetVersion(t *testing.T) {
 	testCases := []struct {
 		name            string
-		packCtx         *cmdcontext.PackCtx
+		packCtx         *PackCtx
 		expectedVersion string
 	}{
 		{
 			name: "No parameters in context",
-			packCtx: &cmdcontext.PackCtx{
-				App: &config.AppOpts{InstancesEnabled: "./any_dir"},
+			packCtx: &PackCtx{
+				App: &config.AppOpts{InstancesEnabled: "../any_dir"},
 			},
 			expectedVersion: "0.1.0.0",
 		},
 		{
 			name: "Set version to pack context",
-			packCtx: &cmdcontext.PackCtx{
+			packCtx: &PackCtx{
 				Version: "1.0.0",
 				App:     &config.AppOpts{InstancesEnabled: "."},
 			},
@@ -456,7 +455,7 @@ func TestGetVersion(t *testing.T) {
 		},
 		{
 			name: "Set custom version to pack context",
-			packCtx: &cmdcontext.PackCtx{
+			packCtx: &PackCtx{
 				Version: "v2",
 				App:     &config.AppOpts{InstancesEnabled: "."},
 			},

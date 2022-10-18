@@ -12,7 +12,6 @@ import (
 	"github.com/alecthomas/participle/v2/lexer/stateful"
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -35,7 +34,7 @@ type PackDependency struct {
 type PackDependencies []PackDependency
 
 // createControlDir creates a control directory that contains control file, postinst and preinst.
-func createControlDir(packCtx *cmdcontext.PackCtx, destDirPath string) error {
+func createControlDir(packCtx *PackCtx, destDirPath string) error {
 	log.Debugf("Create DEB control file")
 	err := os.MkdirAll(destDirPath, dirPermissions)
 	if err != nil {

@@ -8,8 +8,16 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 )
 
+//BuildCtx contains information for application building.
+type BuildCtx struct {
+	// BuildDir is an application directory.
+	BuildDir string
+	// SpecFile is a rockspec file to be used for build.
+	SpecFile string
+}
+
 // FillCtx fills build context.
-func FillCtx(buildCtx *cmdcontext.BuildCtx, args []string) error {
+func FillCtx(buildCtx *BuildCtx, args []string) error {
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return err
@@ -42,6 +50,6 @@ func FillCtx(buildCtx *cmdcontext.BuildCtx, args []string) error {
 }
 
 // Run builds an application.
-func Run(cmdCtx *cmdcontext.CmdCtx, buildCtx *cmdcontext.BuildCtx) error {
+func Run(cmdCtx *cmdcontext.CmdCtx, buildCtx *BuildCtx) error {
 	return buildLocal(cmdCtx, buildCtx)
 }

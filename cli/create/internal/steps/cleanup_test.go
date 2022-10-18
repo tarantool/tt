@@ -9,7 +9,8 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 func TestCleanUp(t *testing.T) {
@@ -23,8 +24,8 @@ func TestCleanUp(t *testing.T) {
 		filepath.Join(workDir, "subdir", "file2.txt"),
 	}
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 	templateCtx.IsManifestPresent = true
 	templateCtx.Manifest.Include = []string{"keep_it.txt", "{{.user_name}}.txt"}
@@ -57,8 +58,8 @@ func TestCleanUpKeepSubdir(t *testing.T) {
 	}
 	filesToRemove := []string{filepath.Join(workDir, "file1.txt")}
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 	templateCtx.IsManifestPresent = true
 	templateCtx.Manifest.Include = []string{

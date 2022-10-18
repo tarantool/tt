@@ -73,7 +73,7 @@ var defaultExcludeListExpressions = []string{
 
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
-func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *cmdcontext.PackCtx) (string, error) {
+func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) {
 	var err error
 
 	// Create temporary directory step.
@@ -219,7 +219,7 @@ func createPackageStructure(destPath string) error {
 }
 
 // copyAppSrc copies a source file or directory to the directory, that will be packed.
-func copyAppSrc(packCtx *cmdcontext.PackCtx, appName, packagePath string) error {
+func copyAppSrc(packCtx *PackCtx, appName, packagePath string) error {
 	pathToCopy, err := resolveAppName(packCtx.App.InstancesEnabled, appName)
 	if err != nil {
 		return err
@@ -250,7 +250,7 @@ func copyAppSrc(packCtx *cmdcontext.PackCtx, appName, packagePath string) error 
 
 // copyArtifacts copies all artifacts from the current bundle configuration
 // to the passed package structure from the passed path.
-func copyArtifacts(packCtx *cmdcontext.PackCtx, appName string) error {
+func copyArtifacts(packCtx *PackCtx, appName string) error {
 	log.Infof("Copying all artifacts")
 
 	err := copy.Copy(filepath.Join(packCtx.App.DataDir, appName),
@@ -268,7 +268,7 @@ func copyArtifacts(packCtx *cmdcontext.PackCtx, appName string) error {
 
 // TODO replace by tt enable
 // createAppSymlink creates a relative link for an application that must be packed.
-func createAppSymlink(packCtx *cmdcontext.PackCtx, appName string) error {
+func createAppSymlink(packCtx *PackCtx, appName string) error {
 	appPath, err := resolveAppName(packCtx.App.InstancesEnabled, appName)
 	if err != nil {
 		return err
@@ -283,7 +283,7 @@ func createAppSymlink(packCtx *cmdcontext.PackCtx, appName string) error {
 }
 
 // createEnv generates a tarantool.yaml file.
-func createEnv(packCtx *cmdcontext.PackCtx, destPath string) error {
+func createEnv(packCtx *PackCtx, destPath string) error {
 	log.Infof("Generating new tarantool.yaml for the new package")
 
 	appOpts := config.AppOpts{
@@ -464,7 +464,7 @@ func buildAllRocks(cmdCtx *cmdcontext.CmdCtx, destPath string) error {
 			if err != nil {
 				return err
 			}
-			buildCtx := cmdcontext.BuildCtx{BuildDir: filepath.Dir(rockspecPath)}
+			buildCtx := build.BuildCtx{BuildDir: filepath.Dir(rockspecPath)}
 			err = build.Run(cmdCtx, &buildCtx)
 			if err != nil {
 				return err
@@ -493,7 +493,7 @@ func prepareDefaultPackagePaths(packagePath string) {
 
 // getVersion returns a version of the package.
 // The version depends on passed pack context.
-func getVersion(packCtx *cmdcontext.PackCtx) string {
+func getVersion(packCtx *PackCtx) string {
 	packageVersion := defaultVersion
 	if packCtx.Version == "" {
 		// Get version from git only if we are packing an application from the current directory.

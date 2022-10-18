@@ -12,7 +12,7 @@ import (
 )
 
 // packCtx contains information for tt pack command.
-var packCtx = &cmdcontext.PackCtx{}
+var packCtx = &pack.PackCtx{}
 
 func NewPackCmd() *cobra.Command {
 	var packCmd = &cobra.Command{Use: "pack TYPE [flags] ..",
@@ -93,7 +93,7 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return nil
 }
 
-func checkFlags(packCtx *cmdcontext.PackCtx) {
+func checkFlags(packCtx *pack.PackCtx) {
 	switch pack.PackageType(packCtx.Type) {
 	case pack.Tgz:
 		if len(packCtx.RpmDeb.Deps) > 0 {

@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 func TestLoadVarsFile(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	createCtx.VarsFile = "testdata/vars-file.txt"
 	loadVarsFile := LoadVarsFile{}
@@ -20,8 +21,8 @@ func TestLoadVarsFile(t *testing.T) {
 }
 
 func TestLoadVarsFileVariablesAlreadySet(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	templateCtx.Vars["user-name"] = "root"
 	createCtx.VarsFile = "testdata/vars-file.txt"
@@ -32,8 +33,8 @@ func TestLoadVarsFileVariablesAlreadySet(t *testing.T) {
 }
 
 func TestNonExistingVarsFile(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	createCtx.VarsFile = "testdata/non-existing-vars-file.txt"
 	loadVarsFile := LoadVarsFile{}
@@ -43,8 +44,8 @@ func TestNonExistingVarsFile(t *testing.T) {
 }
 
 func TestLoadVarsFileWrongFormat(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	createCtx.VarsFile = "testdata/invalid_vars_file.txt"
 	loadVarsFile := LoadVarsFile{}

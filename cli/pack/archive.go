@@ -14,7 +14,7 @@ type archivePacker struct {
 }
 
 // Run of ArchivePacker packs the bundle into tarball.
-func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *cmdcontext.PackCtx) error {
+func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error {
 	bundlePath, err := prepareBundle(cmdCtx, packCtx)
 	if err != nil {
 		return err
@@ -54,7 +54,7 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *cmdcontext.
 }
 
 // getTarPackageName returns the result name of the tarball.
-func getTarPackageName(packCtx *cmdcontext.PackCtx) (string, error) {
+func getTarPackageName(packCtx *PackCtx) (string, error) {
 	var tarName string
 	packageVersion := getVersion(packCtx)
 

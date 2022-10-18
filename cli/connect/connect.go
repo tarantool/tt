@@ -7,25 +7,38 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/connector"
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/yaml.v2"
 )
+
+// ConnectCtx contains information for connecting to the instance.
+type ConnectCtx struct {
+	// Username of the tarantool user.
+	Username string
+	// Password of the tarantool.user.
+	Password string
+	// SrcFile describes the source of code for the evaluation.
+	SrcFile string
+	// Language to use for execution.
+	Language string
+	// Interactive mode is used.
+	Interactive bool
+}
 
 const (
 	// see https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/src/box/lua/console.c#L265
 	tarantoolWordSeparators = "\t\r\n !\"#$%&'()*+,-/;<=>?@[\\]^`{|}~"
 )
 
-func getConnOpts(connString string, connCtx cmdcontext.ConnectCtx) connector.ConnectOpts {
+func getConnOpts(connString string, connCtx ConnectCtx) connector.ConnectOpts {
 	username := connCtx.Username
 	password := connCtx.Password
 	return connector.MakeConnectOpts(connString, username, password)
 }
 
 // getEvalCmd returns a command from the input source (file or stdin).
-func getEvalCmd(connectCtx cmdcontext.ConnectCtx) (string, error) {
+func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 	var cmd string
 
 	if connectCtx.SrcFile == "-" {
@@ -53,7 +66,7 @@ func getEvalCmd(connectCtx cmdcontext.ConnectCtx) (string, error) {
 }
 
 // Connect establishes a connection to the instance and starts the console.
-func Connect(connectCtx cmdcontext.ConnectCtx, args []string) error {
+func Connect(connectCtx ConnectCtx, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("Should be specified one connection string")
 	}
@@ -74,7 +87,7 @@ func Connect(connectCtx cmdcontext.ConnectCtx, args []string) error {
 }
 
 // Eval executes the command on the remote instance (according to args).
-func Eval(connectCtx cmdcontext.ConnectCtx, args []string) ([]byte, error) {
+func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
 	lang, ok := ParseLanguage(connectCtx.Language)
 	if !ok {
 		return nil, fmt.Errorf("Unsupported language: %s", connectCtx.Language)
