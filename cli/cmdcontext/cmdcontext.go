@@ -37,9 +37,6 @@ type CliCtx struct {
 	TarantoolIncludeDir string
 	// The flag determines if the tarantool binary is from the internal tt repository.
 	IsTarantoolBinFromRepo bool
-	// WorkDir is stores original tt working directory, before making chdir
-	// to local launch directory.
-	WorkDir string
 	// Verbose logging flag. Enables debug log output.
 	Verbose bool
 }
