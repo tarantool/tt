@@ -10,8 +10,6 @@ type CmdCtx struct {
 	// Cli - CLI context. Contains flags passed when starting
 	// Tarantool CLI and some other parameters.
 	Cli CliCtx
-	// Connect contains information for connecting to the instance.
-	Connect ConnectCtx
 	// CommandName contains name of the command.
 	CommandName string
 	// Init contains information to init tt environment.

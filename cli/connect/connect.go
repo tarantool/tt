@@ -25,10 +25,10 @@ func getConnOpts(connString string, connCtx cmdcontext.ConnectCtx) connector.Con
 }
 
 // getEvalCmd returns a command from the input source (file or stdin).
-func getEvalCmd(cmdCtx *cmdcontext.CmdCtx) (string, error) {
+func getEvalCmd(connectCtx cmdcontext.ConnectCtx) (string, error) {
 	var cmd string
 
-	if cmdCtx.Connect.SrcFile == "-" {
+	if connectCtx.SrcFile == "-" {
 		if !terminal.IsTerminal(syscall.Stdin) {
 			cmdByte, err := ioutil.ReadAll(os.Stdin)
 			if err != nil {
@@ -39,7 +39,7 @@ func getEvalCmd(cmdCtx *cmdcontext.CmdCtx) (string, error) {
 			return "", fmt.Errorf("Can't use interactive input as a source file")
 		}
 	} else {
-		cmdPath := path.Clean(cmdCtx.Connect.SrcFile)
+		cmdPath := path.Clean(connectCtx.SrcFile)
 		if _, err := os.Stat(cmdPath); err == nil {
 			cmdByte, err := ioutil.ReadFile(cmdPath)
 			if err != nil {
@@ -53,18 +53,18 @@ func getEvalCmd(cmdCtx *cmdcontext.CmdCtx) (string, error) {
 }
 
 // Connect establishes a connection to the instance and starts the console.
-func Connect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func Connect(connectCtx cmdcontext.ConnectCtx, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("Should be specified one connection string")
 	}
 
-	lang, ok := ParseLanguage(cmdCtx.Connect.Language)
+	lang, ok := ParseLanguage(connectCtx.Language)
 	if !ok {
-		return fmt.Errorf("Unsupported language: %s", cmdCtx.Connect.Language)
+		return fmt.Errorf("Unsupported language: %s", connectCtx.Language)
 	}
 
 	connString := args[0]
-	connOpts := getConnOpts(connString, cmdCtx.Connect)
+	connOpts := getConnOpts(connString, connectCtx)
 
 	if err := runConsole(connOpts, "", lang); err != nil {
 		return fmt.Errorf("Failed to run interactive console: %s", err)
@@ -74,16 +74,16 @@ func Connect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 }
 
 // Eval executes the command on the remote instance (according to args).
-func Eval(cmdCtx *cmdcontext.CmdCtx, args []string) ([]byte, error) {
-	lang, ok := ParseLanguage(cmdCtx.Connect.Language)
+func Eval(connectCtx cmdcontext.ConnectCtx, args []string) ([]byte, error) {
+	lang, ok := ParseLanguage(connectCtx.Language)
 	if !ok {
-		return nil, fmt.Errorf("Unsupported language: %s", cmdCtx.Connect.Language)
+		return nil, fmt.Errorf("Unsupported language: %s", connectCtx.Language)
 	}
 
 	// Parse the arguments.
 	connString := args[0]
-	connOpts := getConnOpts(connString, cmdCtx.Connect)
-	command, err := getEvalCmd(cmdCtx)
+	connOpts := getConnOpts(connString, connectCtx)
+	command, err := getEvalCmd(connectCtx)
 	if err != nil {
 		return nil, err
 	}
