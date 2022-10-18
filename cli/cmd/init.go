@@ -35,7 +35,9 @@ func NewInitCmd() *cobra.Command {
 
 // internalInitModule is a default init module.
 func internalInitModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	cmdCtx.Init.SkipConfig = skipConfig
+	initCtx := init_pkg.InitCtx{
+		SkipConfig: skipConfig,
+	}
 
-	return init_pkg.Run(&cmdCtx.Init)
+	return init_pkg.Run(&initCtx)
 }

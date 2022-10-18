@@ -7,7 +7,6 @@ import (
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -15,6 +14,13 @@ import (
 const (
 	defaultDirPermissions = os.FileMode(0750)
 )
+
+// InitCtx contains information for tt config creation.
+type InitCtx struct {
+	// SkipConfig - if set, disables cartridge & tarantoolctl config analysis,
+	// so init does not try to get directories information from exitsting config files.
+	SkipConfig bool
+}
 
 type cartridgeOpts struct {
 	LogDir  string `mapstructure:"log-dir"`
@@ -137,7 +143,7 @@ func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
 }
 
 // Run creates tt environment config for the application in current dir.
-func Run(initCtx *cmdcontext.InitCtx) error {
+func Run(initCtx *InitCtx) error {
 	configLoaders := []configLoader{
 		{".cartridge.yml", loadCartridgeConfig},
 	}
