@@ -124,7 +124,7 @@ func parseCredentialsURI(str string) (string, string, string) {
 // name to replace it with a control socket or as a URI with/without
 // credentials.
 func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
-	args []string) ([]string, error) {
+	connectCtx *cmdcontext.ConnectCtx, args []string) ([]string, error) {
 	newArgs := args
 
 	// FillCtx returns error if no instances found.
@@ -133,29 +133,29 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		if len(runningCtx.Instances) > 1 {
 			return newArgs, fmt.Errorf("specify instance name")
 		}
-		if cmdCtx.Connect.Username != "" || cmdCtx.Connect.Password != "" {
+		if connectCtx.Username != "" || connectCtx.Password != "" {
 			return newArgs, fmt.Errorf("username and password are not supported" +
 				" with a connection via a control socket")
 		}
 		newArgs[0] = runningCtx.Instances[0].ConsoleSocket
 		return newArgs, nil
 	} else if isCredentialsURI(newArgs[0]) {
-		if cmdCtx.Connect.Username != "" || cmdCtx.Connect.Password != "" {
+		if connectCtx.Username != "" || connectCtx.Password != "" {
 			return newArgs, fmt.Errorf("username and password are specified with" +
 				" flags and a URI")
 		}
 		uri, user, pass := parseCredentialsURI(newArgs[0])
 		newArgs[0] = uri
-		cmdCtx.Connect.Username = user
-		cmdCtx.Connect.Password = pass
+		connectCtx.Username = user
+		connectCtx.Password = pass
 		return newArgs, nil
 	} else if isBaseURI(newArgs[0]) {
 		// Environment variables do not overwrite values.
-		if cmdCtx.Connect.Username == "" {
-			cmdCtx.Connect.Username = os.Getenv(usernameEnv)
+		if connectCtx.Username == "" {
+			connectCtx.Username = os.Getenv(usernameEnv)
 		}
-		if cmdCtx.Connect.Password == "" {
-			cmdCtx.Connect.Password = os.Getenv(passwordEnv)
+		if connectCtx.Password == "" {
+			connectCtx.Password = os.Getenv(passwordEnv)
 		}
 		return newArgs, nil
 	} else {
@@ -175,19 +175,21 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	cmdCtx.Connect.Username = connectUser
-	cmdCtx.Connect.Password = connectPassword
-	cmdCtx.Connect.SrcFile = connectFile
-	cmdCtx.Connect.Language = connectLanguage
-	cmdCtx.Connect.Interactive = connectInteractive
+	connectCtx := cmdcontext.ConnectCtx{
+		Username:    connectUser,
+		Password:    connectPassword,
+		SrcFile:     connectFile,
+		Language:    connectLanguage,
+		Interactive: connectInteractive,
+	}
 
-	newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, args)
+	newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
 	if err != nil {
 		return err
 	}
 
 	if connectFile != "" {
-		res, err := connect.Eval(cmdCtx, newArgs)
+		res, err := connect.Eval(connectCtx, newArgs)
 		if err != nil {
 			return err
 		}
@@ -202,7 +204,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if terminal.IsTerminal(syscall.Stdin) {
 		log.Info("Connecting to the instance...")
 	}
-	if err := connect.Connect(cmdCtx, newArgs); err != nil {
+	if err := connect.Connect(connectCtx, newArgs); err != nil {
 		return err
 	}
 
