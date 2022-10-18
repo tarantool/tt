@@ -7,14 +7,15 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 // RenderTemplate represents template render step.
 type RenderTemplate struct {
 }
 
-func render(templateCtx *TemplateCtx, templateFileNamePattern *regexp.Regexp,
+func render(templateCtx *app_template.TemplateCtx, templateFileNamePattern *regexp.Regexp,
 	filePath string, fileInfo os.FileInfo) error {
 	if !fileInfo.Mode().IsDir() {
 		if matches := templateFileNamePattern.FindStringSubmatch(
@@ -46,7 +47,7 @@ func render(templateCtx *TemplateCtx, templateFileNamePattern *regexp.Regexp,
 }
 
 // Run renders template in application directory.
-func (RenderTemplate) Run(ctx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
+func (RenderTemplate) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {
 	templateFileNamePattern := regexp.MustCompile(`^(.*)\.tt\.template$`)
 	err := filepath.Walk(templateCtx.AppPath,
 		func(filePath string, fileInfo os.FileInfo, err error) error {

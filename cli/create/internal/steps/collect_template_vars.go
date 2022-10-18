@@ -7,7 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 // Reader interface is used for reading user input.
@@ -43,7 +44,7 @@ type CollectTemplateVarsFromUser struct {
 
 // Run collects template variables from user in interactive mode.
 func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
-	createCtx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
+	createCtx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {
 	var err error
 	if templateCtx.IsManifestPresent == false {
 		return nil

@@ -1,7 +1,6 @@
-package steps
+package app_template
 
 import (
-	"github.com/tarantool/tt/cli/create/internal/app_template"
 	"github.com/tarantool/tt/cli/templates/engines"
 )
 
@@ -14,7 +13,7 @@ type TemplateCtx struct {
 	// after instantiation.
 	TargetAppPath string
 	// Manifest is a loaded template manifest.
-	Manifest app_template.TemplateManifest
+	Manifest TemplateManifest
 	// IsManifestPresent is true is a template manifest is loaded. False - otherwise.
 	IsManifestPresent bool
 	// Vars is a map if variables to be used for template rendering.

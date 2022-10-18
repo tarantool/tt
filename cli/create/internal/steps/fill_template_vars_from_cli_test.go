@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 func TestCliVarsParsing(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	createCtx.VarsFromCli = append(createCtx.VarsFromCli, "var1=value1",
 		"var2=value2", "var3=value=value")
@@ -27,8 +28,8 @@ func TestCliVarsParsing(t *testing.T) {
 }
 
 func TestCliVarsParseErrorHandling(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	invalidVarDefinitions := []string{
 		"var=",

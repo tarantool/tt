@@ -2,10 +2,11 @@
 package steps
 
 import (
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 // Step is an interface for single step in create chain.
 type Step interface {
-	Run(ctx *cmdcontext.CreateCtx, appTemplateCtx *TemplateCtx) error
+	Run(ctx *create_ctx.CreateCtx, appTemplateCtx *app_template.TemplateCtx) error
 }

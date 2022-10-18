@@ -1,8 +1,6 @@
 package pack
 
-import "github.com/tarantool/tt/cli/cmdcontext"
-
-func CreatePacker(packCtx *cmdcontext.PackCtx) Packer {
+func CreatePacker(packCtx *PackCtx) Packer {
 	packType := PackageType(packCtx.Type)
 	switch packType {
 	case Tgz:

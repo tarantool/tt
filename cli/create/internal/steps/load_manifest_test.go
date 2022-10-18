@@ -8,7 +8,7 @@ import (
 
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
@@ -19,8 +19,8 @@ func TestManifestLoad(t *testing.T) {
 
 	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 	loadManifest := LoadManifest{}
 	require.NoError(t, loadManifest.Run(&createCtx, &templateCtx))
@@ -54,8 +54,8 @@ func TestMissingManifest(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(workDir)
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 
 	loadManifest := LoadManifest{}
@@ -71,8 +71,8 @@ func TestManifestInvalidYaml(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, app_template.DefaultManifestName),
 		[]byte(`Description: [`), 0644))
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 
 	loadManifest := LoadManifest{}

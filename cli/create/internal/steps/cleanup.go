@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 	"github.com/tarantool/tt/cli/templates/engines"
 )
 
@@ -15,7 +16,8 @@ type Cleanup struct {
 }
 
 // Run removes all files/directories, except files in the include list.
-func (hook Cleanup) Run(createCtx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
+func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
+	templateCtx *app_template.TemplateCtx) error {
 	if !templateCtx.IsManifestPresent {
 		log.Debug("No manifest. Skipping clean up step.")
 		return nil

@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 // LoadVarsFile represents variables file load step.
@@ -15,8 +16,8 @@ type LoadVarsFile struct {
 }
 
 // Run collects variables passed using command line args.
-func (LoadVarsFile) Run(ctx *cmdcontext.CreateCtx,
-	templateCtx *TemplateCtx) error {
+func (LoadVarsFile) Run(ctx *create_ctx.CreateCtx,
+	templateCtx *app_template.TemplateCtx) error {
 	if ctx.VarsFile == "" { // Skip if no file specified.
 		return nil
 	}

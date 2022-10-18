@@ -6,7 +6,7 @@ import (
 	"path"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
@@ -15,7 +15,7 @@ type LoadManifest struct {
 }
 
 // Run loads template manifest. Missing manifest is not an error.
-func (LoadManifest) Run(ctx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
+func (LoadManifest) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {
 	manifestPath := path.Join(templateCtx.AppPath, app_template.DefaultManifestName)
 
 	if _, err := os.Stat(manifestPath); err != nil {

@@ -22,7 +22,7 @@ func getPostBuildScripts() []string {
 }
 
 // runBuildHook runs first existing executable from hookNames list.
-func runBuildHook(buildCtx *cmdcontext.BuildCtx, hookNames []string) error {
+func runBuildHook(buildCtx *BuildCtx, hookNames []string) error {
 	for _, hookName := range hookNames {
 		buildHookPath := filepath.Join(buildCtx.BuildDir, hookName)
 
@@ -42,7 +42,7 @@ func runBuildHook(buildCtx *cmdcontext.BuildCtx, hookNames []string) error {
 }
 
 // buildLocal builds an application locally.
-func buildLocal(cmdCtx *cmdcontext.CmdCtx, buildCtx *cmdcontext.BuildCtx) error {
+func buildLocal(cmdCtx *cmdcontext.CmdCtx, buildCtx *BuildCtx) error {
 	cwd, err := util.Chdir(buildCtx.BuildDir)
 	if err != nil {
 		return err

@@ -19,7 +19,7 @@ func TestRunHooks(t *testing.T) {
 	defer os.RemoveAll(workDir)
 
 	require.NoError(t, copy.Copy("testdata/runhooks", workDir))
-	buildCtx := cmdcontext.BuildCtx{BuildDir: workDir}
+	buildCtx := BuildCtx{BuildDir: workDir}
 
 	require.NoError(t, runBuildHook(&buildCtx, getPreBuildScripts()))
 	assert.FileExists(t, filepath.Join(workDir, "tt-pre-build-invoked"))
@@ -51,7 +51,7 @@ func TestLocalBuild(t *testing.T) {
 	require.NoError(t, copy.Copy("testdata/app1", workDir))
 	var cmdCtx cmdcontext.CmdCtx
 	configure.Cli(&cmdCtx)
-	buildCtx := cmdcontext.BuildCtx{BuildDir: workDir}
+	buildCtx := BuildCtx{BuildDir: workDir}
 
 	require.NoError(t, buildLocal(&cmdCtx, &buildCtx))
 	require.NoDirExists(t, filepath.Join(workDir, ".rocks", "share", "tarantool", "metrics"))
@@ -67,7 +67,7 @@ func TestLocalBuildSpecFileSet(t *testing.T) {
 	require.NoError(t, copy.Copy("testdata/app1", workDir))
 	var cmdCtx cmdcontext.CmdCtx
 	configure.Cli(&cmdCtx)
-	buildCtx := cmdcontext.BuildCtx{BuildDir: workDir, SpecFile: "app1-scm-1.rockspec"}
+	buildCtx := BuildCtx{BuildDir: workDir, SpecFile: "app1-scm-1.rockspec"}
 
 	require.NoError(t, buildLocal(&cmdCtx, &buildCtx))
 	require.DirExists(t, filepath.Join(workDir, ".rocks", "share", "tarantool", "rocks"))

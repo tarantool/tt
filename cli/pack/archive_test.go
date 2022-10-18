@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 )
 
@@ -15,20 +14,20 @@ func TestGetTarPackageName(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		packCtx       *cmdcontext.PackCtx
+		packCtx       *PackCtx
 		expectedName  string
 		expectedError error
 	}{
 		{
 			name: "No parameters in context",
-			packCtx: &cmdcontext.PackCtx{
+			packCtx: &PackCtx{
 				App: &config.AppOpts{InstancesEnabled: testDir},
 			},
 			expectedName: filepath.Base(testDir) + "_0.1.0.0.tar.gz",
 		},
 		{
 			name: "Set package name, without version",
-			packCtx: &cmdcontext.PackCtx{
+			packCtx: &PackCtx{
 				Name: "test",
 				App:  &config.AppOpts{InstancesEnabled: testDir},
 			},
@@ -36,7 +35,7 @@ func TestGetTarPackageName(t *testing.T) {
 		},
 		{
 			name: "Set package name and version",
-			packCtx: &cmdcontext.PackCtx{
+			packCtx: &PackCtx{
 				Name:    "test",
 				Version: "2.1.1",
 				App:     &config.AppOpts{InstancesEnabled: testDir},
@@ -45,7 +44,7 @@ func TestGetTarPackageName(t *testing.T) {
 		},
 		{
 			name: "Set package full filename",
-			packCtx: &cmdcontext.PackCtx{
+			packCtx: &PackCtx{
 				FileName: "test",
 				App:      &config.AppOpts{InstancesEnabled: testDir},
 			},
@@ -53,7 +52,7 @@ func TestGetTarPackageName(t *testing.T) {
 		},
 		{
 			name: "Set package full filename, package name and version",
-			packCtx: &cmdcontext.PackCtx{
+			packCtx: &PackCtx{
 				FileName: "test",
 				Name:     "unused",
 				Version:  "unused",

@@ -7,14 +7,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 const testWorkDirName = "work-dir"
 
 func TestCreateTmpAppDirBasic(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	workDir, err := ioutil.TempDir("", testWorkDirName)
 	require.NoError(t, err)
@@ -31,8 +32,8 @@ func TestCreateTmpAppDirBasic(t *testing.T) {
 }
 
 func TestCreateTmpAppDirMissingAppName(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	createAppDir := CreateTemporaryAppDirectory{}
 	workDir, err := ioutil.TempDir("", testWorkDirName)
@@ -53,8 +54,8 @@ func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 }
 
 func TestCreateTmpAppDirDestinationSet(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	createAppDir := CreateTemporaryAppDirectory{}
 	workDir, err := ioutil.TempDir("", testWorkDirName)

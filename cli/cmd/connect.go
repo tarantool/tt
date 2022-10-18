@@ -124,11 +124,11 @@ func parseCredentialsURI(str string) (string, string, string) {
 // name to replace it with a control socket or as a URI with/without
 // credentials.
 func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
-	connectCtx *cmdcontext.ConnectCtx, args []string) ([]string, error) {
+	connectCtx *connect.ConnectCtx, args []string) ([]string, error) {
 	newArgs := args
 
 	// FillCtx returns error if no instances found.
-	var runningCtx cmdcontext.RunningCtx
+	var runningCtx running.RunningCtx
 	if fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); fillErr == nil {
 		if len(runningCtx.Instances) > 1 {
 			return newArgs, fmt.Errorf("specify instance name")
@@ -175,7 +175,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	connectCtx := cmdcontext.ConnectCtx{
+	connectCtx := connect.ConnectCtx{
 		Username:    connectUser,
 		Password:    connectPassword,
 		SrcFile:     connectFile,

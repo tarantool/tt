@@ -6,24 +6,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 )
 
 func TestCreateControlDir(t *testing.T) {
 	testCases := []struct {
 		name         string
-		ctx          *cmdcontext.PackCtx
+		ctx          *PackCtx
 		destPath     string
 		correctError func(err error) bool
 		correctDir   func(controlPath string) bool
 	}{
 		{
 			name: "All correct parameters",
-			ctx: &cmdcontext.PackCtx{
+			ctx: &PackCtx{
 				Name:    "test",
 				Version: "1.0.0",
-				RpmDeb: cmdcontext.RpmDebCtx{
+				RpmDeb: RpmDebCtx{
 					Deps:              []string{"tarantool>=1.10"},
 					WithTarantoolDeps: false,
 				},
@@ -38,10 +37,10 @@ func TestCreateControlDir(t *testing.T) {
 		},
 		{
 			name: "Default case",
-			ctx: &cmdcontext.PackCtx{
+			ctx: &PackCtx{
 				Name:    "",
 				Version: "",
-				RpmDeb: cmdcontext.RpmDebCtx{
+				RpmDeb: RpmDebCtx{
 					Deps:              []string{"tarantool>=1.10"},
 					WithTarantoolDeps: false,
 				},
@@ -59,10 +58,10 @@ func TestCreateControlDir(t *testing.T) {
 		},
 		{
 			name: "Wrong dependency",
-			ctx: &cmdcontext.PackCtx{
+			ctx: &PackCtx{
 				Name:    "",
 				Version: "",
-				RpmDeb: cmdcontext.RpmDebCtx{
+				RpmDeb: RpmDebCtx{
 					Deps:              []string{"tarantool==master"},
 					WithTarantoolDeps: false,
 				},
@@ -80,10 +79,10 @@ func TestCreateControlDir(t *testing.T) {
 		},
 		{
 			name: "Unexisting postinst script passed",
-			ctx: &cmdcontext.PackCtx{
+			ctx: &PackCtx{
 				Name:    "test",
 				Version: "1.0.0",
-				RpmDeb: cmdcontext.RpmDebCtx{
+				RpmDeb: RpmDebCtx{
 					Deps:              []string{"tarantool>=1.10"},
 					WithTarantoolDeps: false,
 					PostInst:          "nothing",
@@ -102,10 +101,10 @@ func TestCreateControlDir(t *testing.T) {
 		},
 		{
 			name: "Unexisting preinst script passed",
-			ctx: &cmdcontext.PackCtx{
+			ctx: &PackCtx{
 				Name:    "test",
 				Version: "1.0.0",
-				RpmDeb: cmdcontext.RpmDebCtx{
+				RpmDeb: RpmDebCtx{
 					Deps:              []string{"tarantool>=1.10"},
 					WithTarantoolDeps: false,
 					PreInst:           "nothing",

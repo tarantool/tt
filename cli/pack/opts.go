@@ -15,7 +15,7 @@ const (
 )
 
 // FillCtx fills pack context.
-func FillCtx(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, packCtx *cmdcontext.PackCtx,
+func FillCtx(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, packCtx *PackCtx,
 	args []string) error {
 
 	if cliOpts.Modules != nil {

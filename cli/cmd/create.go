@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/create"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/modules"
 )
 
@@ -73,14 +74,14 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	var createCtx cmdcontext.CreateCtx
-
-	createCtx.AppName = appName
-	createCtx.ForceMode = forceMode
-	createCtx.SilentMode = nonInteractiveMode
-	createCtx.VarsFromCli = *varsFromCli
-	createCtx.VarsFile = varsFile
-	createCtx.DestinationDir = dstPath
+	createCtx := create_ctx.CreateCtx{
+		AppName:        appName,
+		ForceMode:      forceMode,
+		SilentMode:     nonInteractiveMode,
+		VarsFromCli:    *varsFromCli,
+		VarsFile:       varsFile,
+		DestinationDir: dstPath,
+	}
 
 	if err = create.FillCtx(cliOpts, &createCtx, args); err != nil {
 		return err

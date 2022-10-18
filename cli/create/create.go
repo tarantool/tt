@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 	"github.com/tarantool/tt/cli/create/internal/steps"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
 
 // FillCtx fills create context.
-func FillCtx(cliOpts *config.CliOpts, createCtx *cmdcontext.CreateCtx, args []string) error {
+func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx, args []string) error {
 	for _, p := range cliOpts.Templates {
 		createCtx.TemplateSearchPaths = append(createCtx.TemplateSearchPaths, p.Path)
 	}
@@ -34,7 +35,7 @@ func FillCtx(cliOpts *config.CliOpts, createCtx *cmdcontext.CreateCtx, args []st
 }
 
 // RollbackOnErr removes temporary application directory.
-func rollbackOnErr(templateCtx *steps.TemplateCtx) {
+func rollbackOnErr(templateCtx *app_template.TemplateCtx) {
 	if templateCtx.AppPath != "" {
 		os.RemoveAll(templateCtx.AppPath)
 	}
@@ -42,7 +43,7 @@ func rollbackOnErr(templateCtx *steps.TemplateCtx) {
 }
 
 // Run creates an application from a template.
-func Run(createCtx *cmdcontext.CreateCtx) error {
+func Run(createCtx *create_ctx.CreateCtx) error {
 	util.CheckRecommendedBinaries("git")
 
 	if err := checkCtx(createCtx); err != nil {
@@ -65,7 +66,7 @@ func Run(createCtx *cmdcontext.CreateCtx) error {
 		steps.MoveAppDirectory{},
 	}
 
-	templateCtx := steps.NewTemplateContext()
+	templateCtx := app_template.NewTemplateContext()
 	for _, step := range stepsChain {
 		if err := step.Run(createCtx, &templateCtx); err != nil {
 			rollbackOnErr(&templateCtx)
@@ -77,7 +78,7 @@ func Run(createCtx *cmdcontext.CreateCtx) error {
 }
 
 // checkCtx checks create context for validity.
-func checkCtx(ctx *cmdcontext.CreateCtx) error {
+func checkCtx(ctx *create_ctx.CreateCtx) error {
 	if ctx.TemplateName == "" {
 		return fmt.Errorf("Template name is missing")
 	}

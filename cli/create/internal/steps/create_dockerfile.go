@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 	"github.com/tarantool/tt/cli/docker"
 )
 
@@ -15,7 +16,8 @@ type CreateDockerfile struct {
 }
 
 // Run creates a docker file in application directory.
-func (CreateDockerfile) Run(createCtx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
+func (CreateDockerfile) Run(createCtx *create_ctx.CreateCtx,
+	templateCtx *app_template.TemplateCtx) error {
 	// Check if base Dockerfile already exists in application.
 	buildDockerfiles := docker.GetDefaultBaseBuildDockerfiles()
 	for _, dockerFile := range buildDockerfiles {

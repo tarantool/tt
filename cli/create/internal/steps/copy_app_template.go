@@ -9,7 +9,8 @@ import (
 	"github.com/apex/log"
 	"github.com/codeclysm/extract/v3"
 	"github.com/otiai10/copy"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/net/context"
 )
@@ -34,7 +35,8 @@ type CopyAppTemplate struct {
 }
 
 // Run copies/extracts application template to target application directory.
-func (CopyAppTemplate) Run(createCtx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
+func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
+	templateCtx *app_template.TemplateCtx) error {
 	templateName := createCtx.TemplateName
 
 	for _, templatesLocation := range createCtx.TemplateSearchPaths {

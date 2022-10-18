@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 // CreateTemporaryAppDirectory represents create temporary application directory step.
@@ -16,8 +17,8 @@ type CreateTemporaryAppDirectory struct {
 }
 
 // Run creates temporary application directory.
-func (CreateTemporaryAppDirectory) Run(createCtx *cmdcontext.CreateCtx,
-	templateCtx *TemplateCtx) error {
+func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
+	templateCtx *app_template.TemplateCtx) error {
 	var appDirectory string
 	var err error
 

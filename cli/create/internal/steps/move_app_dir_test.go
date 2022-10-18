@@ -9,12 +9,13 @@ import (
 
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 func TestMoveAppDirBasic(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir, err := ioutil.TempDir("", testWorkDirName)
 	require.NoError(t, err)
@@ -38,8 +39,8 @@ func TestMoveAppDirBasic(t *testing.T) {
 }
 
 func TestMoveAppDirDstDirExist(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir, err := ioutil.TempDir("", testWorkDirName)
 	require.NoError(t, err)
@@ -57,8 +58,8 @@ func TestMoveAppDirDstDirExist(t *testing.T) {
 }
 
 func TestMoveAppDirSourceDirMissing(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	dstAppDir, err := ioutil.TempDir("", testWorkDirName)
 	require.NoError(t, err)
@@ -72,8 +73,8 @@ func TestMoveAppDirSourceDirMissing(t *testing.T) {
 }
 
 func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir, err := ioutil.TempDir("", testWorkDirName)
 	require.NoError(t, err)
@@ -103,8 +104,8 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 }
 
 func TestMoveAppDirEmptyTargetDir(t *testing.T) {
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir, err := ioutil.TempDir("", testWorkDirName)
 	require.NoError(t, err)

@@ -43,7 +43,7 @@ type debPacker struct {
 // control.tar.xz : control files (control, preinst etc.)
 
 // Run packs a bundle into deb package.
-func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *cmdcontext.PackCtx) error {
+func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error {
 	var err error
 
 	// If ar is not installed on the system (e.g. MacOS by default)
@@ -160,7 +160,7 @@ func createDebianBinary(packageDir string) error {
 }
 
 // getTntTTVersions checks the version of tarantool in bin_dir and returns it.
-func getTntTTVersions(packCtx *cmdcontext.PackCtx) (PackDependencies, error) {
+func getTntTTVersions(packCtx *PackCtx) (PackDependencies, error) {
 	tntVerBytes, err := exec.Command(filepath.Join(packCtx.App.BinDir, "tarantool"), "--version").
 		Output()
 	if err != nil {

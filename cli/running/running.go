@@ -29,6 +29,55 @@ const (
 	InstStateRunning = "RUNNING. PID: %v."
 )
 
+// Running contains information about application instances.
+type RunningCtx struct {
+	// Instances contains information about application instances.
+	Instances []InstanceCtx
+}
+
+// InstanceCtx contains information about application instance.
+type InstanceCtx struct {
+	// Path to an application.
+	AppPath string
+	// AppName contains the name of the application as it was passed on start.
+	AppName string
+	// Instance name.
+	InstName string
+	// Directory that stores various instance runtime artifacts like
+	// console socket, PID file, etc.
+	RunDir string
+	// Directory that stores log files.
+	LogDir string
+	// Log is the name of log file.
+	Log string
+	// DataDir is the directory where all the instance artifacts
+	// are stored.
+	DataDir string
+	// LogMaxSize is the maximum size in megabytes of the log file
+	// before it gets rotated. It defaults to 100 megabytes.
+	LogMaxSize int
+	// LogMaxBackups is the maximum number of old log files to retain.
+	// The default is to retain all old log files (though LogMaxAge may
+	// still cause them to get deleted).
+	LogMaxBackups int
+	// LogMaxAge is the maximum number of days to retain old log files
+	// based on the timestamp encoded in their filename. Note that a
+	// day is defined as 24 hours and may not exactly correspond to
+	// calendar days due to daylight savings, leap seconds, etc. The
+	// default is not to remove old log files based on age.
+	LogMaxAge int
+	// The name of the file with the watchdog PID under which the
+	// instance was started.
+	PIDFile string
+	// If the instance is started under the watchdog it should
+	// restart on if it crashes.
+	Restartable bool
+	// Control UNIX socket for started instance.
+	ConsoleSocket string
+	// True if this is a single instance application (no instances.yml).
+	SingleApp bool
+}
+
 // RunFlags contains flags for tt run.
 type RunFlags struct {
 	// RunEval contains "-e" flag content.
@@ -48,7 +97,7 @@ type RunFlags struct {
 // RunOpts contains information for tt run.
 type RunOpts struct {
 	CmdCtx     cmdcontext.CmdCtx
-	RunningCtx cmdcontext.RunningCtx
+	RunningCtx RunningCtx
 	RunFlags   RunFlags
 }
 
@@ -56,7 +105,7 @@ type RunOpts struct {
 type providerImpl struct {
 	cmdCtx *cmdcontext.CmdCtx
 	// instanceCtx is a pointer to the specific data of the instanceCtx to work with.
-	instanceCtx *cmdcontext.InstanceCtx
+	instanceCtx *InstanceCtx
 }
 
 // updateCtx updates cmdCtx according to the current contents of the cfg file.
@@ -73,7 +122,7 @@ func (provider *providerImpl) updateCtx() error {
 		args = []string{provider.instanceCtx.AppName + ":" + provider.instanceCtx.InstName}
 	}
 
-	var runningCtx cmdcontext.RunningCtx
+	var runningCtx RunningCtx
 	if err = FillCtx(cliOpts, provider.cmdCtx, &runningCtx, args); err != nil {
 		return err
 	}
@@ -97,7 +146,7 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (*Instance, e
 }
 
 // isLoggerChanged checks if any of the logging parameters has been changed.
-func isLoggerChanged(logger *ttlog.Logger, runningCtx *cmdcontext.InstanceCtx) (bool, error) {
+func isLoggerChanged(logger *ttlog.Logger, runningCtx *InstanceCtx) (bool, error) {
 	if runningCtx == nil {
 		return true, fmt.Errorf("RunningCtx, which is used to check if the logger parameters" +
 			" are updated, is nil.")
@@ -170,9 +219,9 @@ func findInstSeparator(inst string) int {
 }
 
 // getInstancesFromYML collects instances from instances.yml.
-func getInstancesFromYML(dirPath string, selectedInstName string) ([]cmdcontext.InstanceCtx,
+func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx,
 	error) {
-	instances := []cmdcontext.InstanceCtx{}
+	instances := []InstanceCtx{}
 	instCfgPath := path.Join(dirPath, "instances.yml")
 	defAppPath := path.Join(dirPath, "init.lua")
 	defAppExist := false
@@ -189,7 +238,7 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]cmdcontext.
 		return nil, err
 	}
 	for inst, _ := range instParams {
-		instance := cmdcontext.InstanceCtx{}
+		instance := InstanceCtx{}
 		instance.AppName = filepath.Base(dirPath)
 		instance.SingleApp = false
 
@@ -230,7 +279,7 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]cmdcontext.
 
 // collectInstances searches all instances available in application.
 func collectInstances(appName string, cliOpts *config.CliOpts,
-	appDir string) ([]cmdcontext.InstanceCtx, error) {
+	appDir string) ([]InstanceCtx, error) {
 	var err error
 	var appPath string
 
@@ -283,13 +332,13 @@ func collectInstances(appName string, cliOpts *config.CliOpts,
 		return nil, fileStatErr
 	}
 
-	return []cmdcontext.InstanceCtx{
+	return []InstanceCtx{
 		{AppPath: appPath, AppName: appName, InstName: appName, SingleApp: true},
 	}, nil
 }
 
 // cleanup removes runtime artifacts.
-func cleanup(cmdCtx *cmdcontext.CmdCtx, run *cmdcontext.InstanceCtx) {
+func cleanup(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) {
 	if _, err := os.Stat(run.PIDFile); err == nil {
 		os.Remove(run.PIDFile)
 	}
@@ -325,7 +374,7 @@ func getPIDFromFile(pidFileName string) (int, error) {
 }
 
 // createLogger prepares a logger for the watchdog and instance.
-func createLogger(run *cmdcontext.InstanceCtx) *ttlog.Logger {
+func createLogger(run *InstanceCtx) *ttlog.Logger {
 	opts := ttlog.LoggerOpts{
 		Filename:   run.Log,
 		MaxSize:    run.LogMaxSize,
@@ -462,7 +511,7 @@ func createPIDFile(pidFileName string) error {
 // * if path is set and it is relative:
 //    * if single instance application: basePath + path + application name.
 //    * else: basePath + path + application name + instance name.
-func makePath(path string, basePath string, inst *cmdcontext.InstanceCtx) string {
+func makePath(path string, basePath string, inst *InstanceCtx) string {
 	res := ""
 
 	if path == "" {
@@ -495,7 +544,7 @@ func makePath(path string, basePath string, inst *cmdcontext.InstanceCtx) string
 
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
-	runningCtx *cmdcontext.RunningCtx, args []string) error {
+	runningCtx *RunningCtx, args []string) error {
 	var err error
 
 	if len(args) != 1 && cmdCtx.CommandName != "run" {
@@ -546,7 +595,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	// Cleanup instances list.
 	runningCtx.Instances = nil
 	for _, inst := range instParams {
-		var instance cmdcontext.InstanceCtx
+		var instance InstanceCtx
 		var runDir string
 		var logDir string
 		var dataDir string
@@ -588,7 +637,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 }
 
 // Start an Instance.
-func Start(cmdCtx *cmdcontext.CmdCtx, run *cmdcontext.InstanceCtx) error {
+func Start(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	if err := createPIDFile(run.PIDFile); err != nil {
 		return err
 	}
@@ -604,7 +653,7 @@ func Start(cmdCtx *cmdcontext.CmdCtx, run *cmdcontext.InstanceCtx) error {
 }
 
 // Stop the Instance.
-func Stop(run *cmdcontext.InstanceCtx) error {
+func Stop(run *InstanceCtx) error {
 	pid, err := getPIDFromFile(run.PIDFile)
 	if err != nil {
 		return err
@@ -652,7 +701,7 @@ func Run(runOpts *RunOpts) error {
 }
 
 // Status returns the status of the Instance.
-func Status(run *cmdcontext.InstanceCtx) string {
+func Status(run *InstanceCtx) string {
 	pid, err := getPIDFromFile(run.PIDFile)
 	if err != nil {
 		return fmt.Sprintf(InstStateStopped)
@@ -667,7 +716,7 @@ func Status(run *cmdcontext.InstanceCtx) string {
 }
 
 // Logrotate rotates logs of a started tarantool instance.
-func Logrotate(run *cmdcontext.InstanceCtx) (string, error) {
+func Logrotate(run *InstanceCtx) (string, error) {
 	pid, err := getPIDFromFile(run.PIDFile)
 	if err != nil {
 		return "", fmt.Errorf(InstStateStopped)
@@ -687,7 +736,7 @@ func Logrotate(run *cmdcontext.InstanceCtx) (string, error) {
 }
 
 // Check returns the result of checking the syntax of the application file.
-func Check(cmdCtx *cmdcontext.CmdCtx, run *cmdcontext.InstanceCtx) error {
+func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	var errbuff bytes.Buffer
 	os.Setenv("TT_CLI_INSTANCE", run.AppPath)
 

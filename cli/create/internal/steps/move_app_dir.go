@@ -6,7 +6,8 @@ import (
 
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 // MoveAppDirectory represents temporary application directory move step.
@@ -14,7 +15,8 @@ type MoveAppDirectory struct {
 }
 
 // Run moves temporary application directory to destination.
-func (MoveAppDirectory) Run(createCtx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
+func (MoveAppDirectory) Run(createCtx *create_ctx.CreateCtx,
+	templateCtx *app_template.TemplateCtx) error {
 	if templateCtx.TargetAppPath == "" {
 		return nil
 	}

@@ -5,7 +5,8 @@ import (
 	"strings"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 const varDefFormatError = `Wrong variable definition format: %s
@@ -25,8 +26,8 @@ type FillTemplateVarsFromCli struct {
 }
 
 // Run collects variables passed using command line args.
-func (FillTemplateVarsFromCli) Run(createCtx *cmdcontext.CreateCtx,
-	templateCtx *TemplateCtx) error {
+func (FillTemplateVarsFromCli) Run(createCtx *create_ctx.CreateCtx,
+	templateCtx *app_template.TemplateCtx) error {
 	for _, varDefiniton := range createCtx.VarsFromCli {
 		varDef, err := parseVarDefinition(varDefiniton)
 		if err != nil {

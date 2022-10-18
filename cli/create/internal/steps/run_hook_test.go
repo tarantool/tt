@@ -10,7 +10,8 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 func TestRunHooks(t *testing.T) {
@@ -18,8 +19,8 @@ func TestRunHooks(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(workDir)
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 	templateCtx.IsManifestPresent = true
 	templateCtx.Manifest.PreHook = "pre-gen.sh"
@@ -44,8 +45,8 @@ func TestRunHooksMissingScript(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(workDir)
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 	templateCtx.IsManifestPresent = true
 	templateCtx.Manifest.PreHook = "pre-gen.sh"

@@ -9,7 +9,8 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 func TestTemplateRender(t *testing.T) {
@@ -19,8 +20,8 @@ func TestTemplateRender(t *testing.T) {
 
 	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 	templateCtx.Vars = map[string]string{
 		"cluster_cookie": "cookie",
@@ -58,8 +59,8 @@ func TestTemplateRenderMissingVar(t *testing.T) {
 
 	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 
 	renderTemplate := RenderTemplate{}
@@ -76,8 +77,8 @@ func TestTemplateRenderMissingVarInFileName(t *testing.T) {
 
 	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 	templateCtx.Vars = map[string]string{
 		"cluster_cookie": "cookie",

@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
 // RunHook represents run hook step.
@@ -16,7 +17,7 @@ type RunHook struct {
 }
 
 // Run executes template hooks.
-func (hook RunHook) Run(ctx *cmdcontext.CreateCtx, templateCtx *TemplateCtx) error {
+func (hook RunHook) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {
 	if !templateCtx.IsManifestPresent {
 		log.Debug("No manifest. Skipping hook step.")
 		return nil

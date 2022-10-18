@@ -8,7 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	create_ctx "github.com/tarantool/tt/cli/create/context"
+	"github.com/tarantool/tt/cli/create/internal/app_template"
 	"github.com/tarantool/tt/cli/docker"
 )
 
@@ -17,8 +18,8 @@ func TestCreateDockerfile(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(workDir)
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 
 	createDockerfile := CreateDockerfile{}
@@ -36,8 +37,8 @@ func TestCreateDockerfileSkipExistingTtFile(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(workDir)
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 
 	existingDockerfile := filepath.Join(workDir, "Dockerfile.build.tt")
@@ -56,8 +57,8 @@ func TestCreateDockerfileSkipExistingCartridgeFile(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(workDir)
 
-	var createCtx cmdcontext.CreateCtx
-	templateCtx := NewTemplateContext()
+	var createCtx create_ctx.CreateCtx
+	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
 
 	existingDockerfile := filepath.Join(workDir, "Dockerfile.build.cartridge")
