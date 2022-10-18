@@ -9,7 +9,6 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
@@ -134,7 +133,7 @@ func TestInitRun(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	require.NoError(t, Run(&cmdcontext.InitCtx{}))
+	require.NoError(t, Run(&InitCtx{}))
 
 	rawConfigOpts, err := util.ParseYAML(configure.ConfigName)
 	require.NoError(t, err)
@@ -167,7 +166,7 @@ func TestInitRunInvalidConfigAppDir(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	require.EqualError(t, Run(&cmdcontext.InitCtx{}), "failed to parse cartridge app "+
+	require.EqualError(t, Run(&InitCtx{}), "failed to parse cartridge app "+
 		"configuration: Failed to parse YAML: yaml: line 5: could not find expected ':'")
 }
 
@@ -180,7 +179,7 @@ func TestInitRunInvalidConfigNoAppDir(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
-	require.EqualError(t, Run(&cmdcontext.InitCtx{}), "failed to parse cartridge app "+
+	require.EqualError(t, Run(&InitCtx{}), "failed to parse cartridge app "+
 		"configuration: Failed to parse YAML: yaml: line 5: could not find expected ':'")
 }
 
@@ -191,7 +190,7 @@ func TestInitRunNoConfig(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
-	require.NoError(t, Run(&cmdcontext.InitCtx{}))
+	require.NoError(t, Run(&InitCtx{}))
 	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
 }
 
@@ -207,7 +206,7 @@ func TestInitRunFailCreateResultFile(t *testing.T) {
 	// Make target file read-only.
 	require.NoError(t, os.Chmod(configure.ConfigName, 0400))
 
-	require.Error(t, Run(&cmdcontext.InitCtx{}))
+	require.Error(t, Run(&InitCtx{}))
 }
 
 func TestInitRunInvalidConfigSkipIt(t *testing.T) {
@@ -219,6 +218,6 @@ func TestInitRunInvalidConfigSkipIt(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
-	require.NoError(t, Run(&cmdcontext.InitCtx{SkipConfig: true}))
+	require.NoError(t, Run(&InitCtx{SkipConfig: true}))
 	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
 }

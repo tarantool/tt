@@ -8,8 +8,6 @@ type CmdCtx struct {
 	Cli CliCtx
 	// CommandName contains name of the command.
 	CommandName string
-	// Init contains information to init tt environment.
-	Init InitCtx
 }
 
 // CliCtx - CLI context. Contains flags passed when starting
@@ -35,11 +33,4 @@ type CliCtx struct {
 	IsTarantoolBinFromRepo bool
 	// Verbose logging flag. Enables debug log output.
 	Verbose bool
-}
-
-// InitCtx contains information for tt config creation.
-type InitCtx struct {
-	// SkipConfig - if set, disables cartridge & tarantoolctl config analysis,
-	// so init does not try to get directories information from exitsting config files.
-	SkipConfig bool
 }
