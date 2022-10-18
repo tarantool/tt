@@ -46,7 +46,8 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
+	var runningCtx cmdcontext.RunningCtx
+	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err
 	}
 
@@ -55,7 +56,7 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		for _, run := range cmdCtx.Running {
+		for _, run := range runningCtx.Instances {
 			log.Infof("Starting an instance [%s]...", run.InstName)
 
 			appName := ""
@@ -79,7 +80,7 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return nil
 	}
 
-	if err := running.Start(cmdCtx, &cmdCtx.Running[0]); err != nil {
+	if err := running.Start(cmdCtx, &runningCtx.Instances[0]); err != nil {
 		return err
 	}
 	return nil

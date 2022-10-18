@@ -15,7 +15,7 @@ import (
 
 // startTestRun starts instance for the test.
 func startTestRun(t *testing.T, app string, consoleSock string,
-	logger *ttlog.Logger, flags *RunFlags) *Instance {
+	logger *ttlog.Logger, flags RunFlags) *Instance {
 
 	assert := assert.New(t)
 	appPath := ""
@@ -51,7 +51,7 @@ func cleanupTestRun(inst *Instance) {
 func TestEvalflag(t *testing.T) {
 	assert := assert.New(t)
 
-	flags := &RunFlags{RunEval: "print('123')", RunLib: "",
+	flags := RunFlags{RunEval: "print('123')", RunLib: "",
 		RunInteractive: false, RunStdin: "", RunVersion: false}
 	old := os.Stdout
 	readPipe, writePipe, _ := os.Pipe()
@@ -70,7 +70,7 @@ func TestEvalflag(t *testing.T) {
 func TestStdinflag(t *testing.T) {
 	assert := assert.New(t)
 
-	flags := &RunFlags{RunEval: "", RunLib: "",
+	flags := RunFlags{RunEval: "", RunLib: "",
 		RunInteractive: false, RunStdin: "print('123')", RunVersion: false}
 	old := os.Stdout
 	readPipe, writePipe, _ := os.Pipe()
@@ -89,7 +89,7 @@ func TestStdinflag(t *testing.T) {
 func TestVersionflag(t *testing.T) {
 	assert := assert.New(t)
 
-	flags := &RunFlags{RunEval: "", RunLib: "",
+	flags := RunFlags{RunEval: "", RunLib: "",
 		RunInteractive: false, RunStdin: "", RunVersion: true}
 	old := os.Stdout
 	readPipe, writePipe, _ := os.Pipe()
@@ -108,7 +108,7 @@ func TestVersionflag(t *testing.T) {
 func TestInteractiveflag(t *testing.T) {
 	assert := assert.New(t)
 
-	flags := &RunFlags{RunEval: "", RunLib: "",
+	flags := RunFlags{RunEval: "", RunLib: "",
 		RunInteractive: true, RunStdin: "", RunVersion: false}
 	old := os.Stdout
 	readPipe, writePipe, _ := os.Pipe()
@@ -128,7 +128,7 @@ func TestInteractiveflag(t *testing.T) {
 func TestLibflag(t *testing.T) {
 	assert := assert.New(t)
 
-	flags := &RunFlags{RunEval: "print('123')", RunLib: "os",
+	flags := RunFlags{RunEval: "print('123')", RunLib: "os",
 		RunInteractive: false, RunStdin: "", RunVersion: false}
 	old := os.Stdout
 	readPipe, writePipe, _ := os.Pipe()

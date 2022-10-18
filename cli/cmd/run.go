@@ -28,17 +28,18 @@ var (
 	runArgs []string
 )
 
-func getRunOpts(cmdCtxTemp cmdcontext.CmdCtx) *running.RunOpts {
-	cmdCtx := cmdCtxTemp
-	runFlags := running.RunFlags{
-		RunEval:        runEval,
-		RunLib:         runLib,
-		RunInteractive: runInteractive,
-		RunStdin:       runStdin,
-		RunVersion:     runVersion,
-		RunArgs:        runArgs,
+func newRunOpts(cmdCtx cmdcontext.CmdCtx) *running.RunOpts {
+	return &running.RunOpts{
+		CmdCtx: cmdCtx,
+		RunFlags: running.RunFlags{
+			RunEval:        runEval,
+			RunLib:         runLib,
+			RunInteractive: runInteractive,
+			RunStdin:       runStdin,
+			RunVersion:     runVersion,
+			RunArgs:        runArgs,
+		},
 	}
-	return &running.RunOpts{CmdCtx: &cmdCtx, RunFlags: &runFlags}
 }
 
 // NewRunCmd creates run command.
@@ -68,8 +69,7 @@ func NewRunCmd() *cobra.Command {
 
 // internalRunModule is a default run module.
 func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	var runOpts *running.RunOpts
-	runOpts = getRunOpts(*cmdCtx)
+	runOpts := newRunOpts(*cmdCtx)
 	if len(args) > 0 {
 		// If '-' flag is specified, then read stdin.
 		if args[0] == "-" {
@@ -92,16 +92,15 @@ func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 					runStdin += args[i]
 				}
 			}
-			runOpts = getRunOpts(*cmdCtx)
 		} else {
 			if len(args) > 1 {
 				for i := 1; i < len(args); i++ {
 					runArgs = append(runArgs, args[i])
 				}
 			}
-			runOpts = getRunOpts(*cmdCtx)
 			// Find app file.
-			if err := running.FillCtx(cliOpts, runOpts.CmdCtx, args); err != nil {
+			if err := running.FillCtx(cliOpts, &runOpts.CmdCtx, &runOpts.RunningCtx,
+				args); err != nil {
 				return err
 			}
 		}

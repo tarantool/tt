@@ -33,13 +33,14 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
+	var runningCtx cmdcontext.RunningCtx
+	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err
 	}
 
 	// Сollect a list of instances with unique scripts.
-	uniqueInst := []cmdcontext.RunningCtx{}
-	for _, inst := range cmdCtx.Running {
+	uniqueInst := []cmdcontext.InstanceCtx{}
+	for _, inst := range runningCtx.Instances {
 		found := false
 		for _, unique := range uniqueInst {
 			if inst.AppPath == unique.AppPath {

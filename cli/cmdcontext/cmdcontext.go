@@ -10,8 +10,6 @@ type CmdCtx struct {
 	// Cli - CLI context. Contains flags passed when starting
 	// Tarantool CLI and some other parameters.
 	Cli CliCtx
-	// Running contains information for running an application instance.
-	Running []RunningCtx
 	// Connect contains information for connecting to the instance.
 	Connect ConnectCtx
 	// CommandName contains name of the command.
@@ -48,8 +46,14 @@ type CliCtx struct {
 	Verbose bool
 }
 
-// RunningCtx contain information for running an application instance.
+// Running contains information about application instances.
 type RunningCtx struct {
+	// Instances contains information about application instances.
+	Instances []InstanceCtx
+}
+
+// InstanceCtx contains information about application instance.
+type InstanceCtx struct {
 	// Path to an application.
 	AppPath string
 	// AppName contains the name of the application as it was passed on start.
