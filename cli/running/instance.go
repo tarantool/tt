@@ -145,7 +145,7 @@ func (inst *Instance) Start() error {
 }
 
 // makeRunCommand turns flags into tarantool command.
-func makeRunCommand(flags *RunFlags) []string {
+func makeRunCommand(flags RunFlags) []string {
 	var command []string
 	if flags.RunEval != "" {
 		command = append(command, "-e")
@@ -165,7 +165,7 @@ func makeRunCommand(flags *RunFlags) []string {
 }
 
 // Run runs tarantool instance.
-func (inst *Instance) Run(flags *RunFlags) error {
+func (inst *Instance) Run(flags RunFlags) error {
 	command := makeRunCommand(flags)
 	// pipeFlag is a flag used to indicate whether stdin
 	// should be moved or not.

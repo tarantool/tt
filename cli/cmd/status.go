@@ -33,12 +33,13 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
+	var runningCtx cmdcontext.RunningCtx
+	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err
 	}
 
-	for _, run := range cmdCtx.Running {
-		log.Infof("%s: %s", run.InstName, running.Status(cmdCtx, &run))
+	for _, run := range runningCtx.Instances {
+		log.Infof("%s: %s", run.InstName, running.Status(&run))
 	}
 
 	return nil

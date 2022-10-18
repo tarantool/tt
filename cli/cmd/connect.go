@@ -128,15 +128,16 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	newArgs := args
 
 	// FillCtx returns error if no instances found.
-	if fillErr := running.FillCtx(cliOpts, cmdCtx, args); fillErr == nil {
-		if len(cmdCtx.Running) > 1 {
+	var runningCtx cmdcontext.RunningCtx
+	if fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); fillErr == nil {
+		if len(runningCtx.Instances) > 1 {
 			return newArgs, fmt.Errorf("specify instance name")
 		}
 		if cmdCtx.Connect.Username != "" || cmdCtx.Connect.Password != "" {
 			return newArgs, fmt.Errorf("username and password are not supported" +
 				" with a connection via a control socket")
 		}
-		newArgs[0] = cmdCtx.Running[0].ConsoleSocket
+		newArgs[0] = runningCtx.Instances[0].ConsoleSocket
 		return newArgs, nil
 	} else if isCredentialsURI(newArgs[0]) {
 		if cmdCtx.Connect.Username != "" || cmdCtx.Connect.Password != "" {

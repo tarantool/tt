@@ -33,12 +33,13 @@ func internalLogrotateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if err = running.FillCtx(cliOpts, cmdCtx, args); err != nil {
+	var runningCtx cmdcontext.RunningCtx
+	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err
 	}
 
-	for _, run := range cmdCtx.Running {
-		res, err := running.Logrotate(cmdCtx, &run)
+	for _, run := range runningCtx.Instances {
+		res, err := running.Logrotate(&run)
 		if err != nil {
 			return err
 		}
