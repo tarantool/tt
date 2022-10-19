@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   Ubuntu 16.04 container.
 - Ability to use the `start/stop/restart/status/check` commands without
   arguments to interact with all instances of the environment simultaneously.
+- Starting from version 2.8.1, we can specify configuration parameters of
+  tarantool via special environment variables.
+  Added support for this feature when running older versions of tarantools via tt.
 
 ### Changed
 

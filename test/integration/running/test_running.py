@@ -524,3 +524,54 @@ def test_no_args_usage(tt_cmd):
             # Check that the process was terminated correctly.
             instance_process_rc = instance_process.wait(1)
             assert instance_process_rc == 0
+
+
+def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # Copy the test application to the "run" directory.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_env_app", "test_env_app.lua")
+    shutil.copy(test_app_path, tmpdir)
+    # Set environmental variable which changes log format to json.
+    my_env = os.environ.copy()
+    my_env["TT_LOG_FORMAT"] = "json"
+    # Start an instance with custom env.
+    start_cmd = [tt_cmd, "start", "test_env_app"]
+    instance_process = subprocess.Popen(
+        start_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+        env=my_env
+    )
+    start_output = instance_process.stdout.readline()
+    assert re.search(r"Starting an instance", start_output)
+
+    # Check status.
+    file = wait_file(os.path.join(tmpdir, run_path, "test_env_app"), 'test_env_app.pid', [])
+    assert file != ""
+    status_cmd = [tt_cmd, "status", "test_env_app"]
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    assert re.search(r"RUNNING. PID: \d+.", status_out)
+
+    # Stop the Instance.
+    stop_cmd = [tt_cmd, "stop", "test_env_app"]
+    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    assert re.search(r"The Instance test_env_app \(PID = \d+\) has been terminated.", stop_out)
+
+    # Check that the process was terminated correctly.
+    instance_process_rc = instance_process.wait(1)
+    assert instance_process_rc == 0
+
+    # Check that log format is in json.
+    isJson = False
+    logPath = os.path.join(tmpdir, "var", "log", "test_env_app", "test_env_app.log")
+    with open(logPath, "r") as file:
+        for _, line in enumerate(file, start=1):
+            if "{" in line:
+                isJson = True
+                break
+
+    assert isJson
