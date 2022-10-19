@@ -156,6 +156,13 @@ func TestDetectLocalTarantool(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, cmdCtx.Cli.TarantoolExecutable)
 
+	// Chdir to temporary directory to avoid loading tarantool.yaml from parent directories.
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	err = os.Chdir(t.TempDir())
+	require.NoError(t, err)
+	defer os.Chdir(wd)
+
 	// Tarantool executable is in PATH.
 	cliOpts.App.BinDir = "./testdata"
 	Cli(&cmdCtx)
