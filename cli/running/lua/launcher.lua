@@ -39,6 +39,160 @@ local function check_version(expected)
     return res
 end
 
+-- Types of available options.
+-- Could be comma separated lua types or 'any' if any type is allowed.
+--
+-- get_option_from_env() leans on the set of types in use: don't
+-- forget to update it when add a new type or a combination of
+-- types here.
+local template_cfg = {
+    listen                          = 'string, number',
+    memtx_memory                    = 'number',
+    strip_core                      = 'boolean',
+    memtx_min_tuple_size            = 'number',
+    memtx_max_tuple_size            = 'number',
+    slab_alloc_granularity          = 'number',
+    slab_alloc_factor               = 'number',
+    iproto_threads                  = 'number',
+    work_dir                        = 'string',
+    memtx_dir                       = 'string',
+    wal_dir                         = 'string',
+    vinyl_dir                       = 'string',
+    vinyl_memory                    = 'number',
+    vinyl_cache                     = 'number',
+    vinyl_max_tuple_size            = 'number',
+    vinyl_read_threads              = 'number',
+    vinyl_write_threads             = 'number',
+    vinyl_timeout                   = 'number',
+    vinyl_run_count_per_level       = 'number',
+    vinyl_run_size_ratio            = 'number',
+    vinyl_range_size                = 'number',
+    vinyl_page_size                 = 'number',
+    vinyl_bloom_fpr                 = 'number',
+
+    log                             = 'module',
+    log_nonblock                    = 'module',
+    log_level                       = 'module',
+    log_format                      = 'module',
+
+    io_collect_interval             = 'number',
+    readahead                       = 'number',
+    snap_io_rate_limit              = 'number',
+    too_long_threshold              = 'number',
+    wal_mode                        = 'string',
+    rows_per_wal                    = 'number',
+    wal_max_size                    = 'number',
+    wal_dir_rescan_delay            = 'number',
+    wal_cleanup_delay               = 'number',
+    force_recovery                  = 'boolean',
+    replication                     = 'string, number, table',
+    instance_uuid                   = 'string',
+    replicaset_uuid                 = 'string',
+    custom_proc_title               = 'string',
+    pid_file                        = 'string',
+    background                      = 'boolean',
+    username                        = 'string',
+    coredump                        = 'boolean',
+    checkpoint_interval             = 'number',
+    checkpoint_wal_threshold        = 'number',
+    wal_queue_max_size              = 'number',
+    checkpoint_count                = 'number',
+    read_only                       = 'boolean',
+    hot_standby                     = 'boolean',
+    memtx_use_mvcc_engine           = 'boolean',
+    worker_pool_threads             = 'number',
+    election_mode                   = 'string',
+    election_timeout                = 'number',
+    replication_timeout             = 'number',
+    replication_sync_lag            = 'number',
+    replication_sync_timeout        = 'number',
+    replication_synchro_quorum      = 'string, number',
+    replication_synchro_timeout     = 'number',
+    replication_connect_timeout     = 'number',
+    replication_connect_quorum      = 'number',
+    replication_skip_conflict       = 'boolean',
+    replication_anon                = 'boolean',
+    feedback_enabled                = 'boolean',
+    feedback_crashinfo              = 'boolean',
+    feedback_host                   = 'string',
+    feedback_interval               = 'number',
+    net_msg_max                     = 'number',
+    sql_cache_size                  = 'number',
+}
+
+local module_cfg_type = {
+    -- Options for logging.
+    log                 = 'string',
+    log_nonblock        = 'boolean',
+    log_level           = 'number, string',
+    log_format          = 'string',
+}
+
+--
+-- Parse TT_* environment variable that corresponds to given
+-- option.
+--
+local function get_option_from_env(option)
+    local param_type = template_cfg[option]
+    assert(type(param_type) == 'string')
+
+    if param_type == 'module' then
+        -- Parameter from module.
+        param_type = module_cfg_type[option]
+    end
+
+    local env_var_name = 'TT_' .. option:upper()
+    local raw_value = os.getenv(env_var_name)
+
+    if raw_value == nil or raw_value == '' then
+        return nil
+    end
+
+    local err_msg_fmt = 'Environment variable %s has ' ..
+        'incorrect value for option "%s": should be %s'
+
+    -- This code leans on the existing set of template_cfg and
+    -- module_cfg_type types for simplicity.
+    if param_type:find('table') and raw_value:find(',') then
+        assert(not param_type:find('boolean'))
+        local res = {}
+        for i, v in ipairs(raw_value:split(',')) do
+            res[i] = tonumber(v) or v
+        end
+        return res
+    elseif param_type:find('boolean') then
+        assert(param_type == 'boolean')
+        if raw_value:lower() == 'false' then
+            return false
+        elseif raw_value:lower() == 'true' then
+            return true
+        end
+        error(err_msg_fmt:format(env_var_name, option, '"true" or "false"'))
+    elseif param_type == 'number' then
+        local res = tonumber(raw_value)
+        if res == nil then
+            error(err_msg_fmt:format(env_var_name, option,
+                'convertible to a number'))
+        end
+        return res
+    elseif param_type:find('number') then
+        assert(not param_type:find('boolean'))
+        return tonumber(raw_value) or raw_value
+    else
+        assert(param_type == 'string')
+        return raw_value
+    end
+end
+
+--- Fills config from environment variables.
+local function get_env_cfg()
+    local res = {}
+    for option, _ in pairs(template_cfg) do
+        res[option] = get_option_from_env(option)
+    end
+    return res
+end
+
 local origin_cfg = box.cfg
 
 --- Wrapper for cfg to push our values over tarantool.
@@ -49,9 +203,7 @@ local function cfg_wrapper(cfg)
     ffi.C.chdir(os.getenv('TT_CLI_CONSOLE_SOCKET_DIR'))
     local cfg = cfg or {}
     local tt_cfg = {}
-    tt_cfg.wal_dir = os.getenv('TT_WAL_DIR')
-    tt_cfg.memtx_dir = os.getenv('TT_MEMTX_DIR')
-    tt_cfg.vinyl_dir = os.getenv('TT_VINYL_DIR')
+    tt_cfg = get_env_cfg()
     for i, v in pairs(tt_cfg) do
         if cfg[i] == nil then
             cfg[i] = v
@@ -60,7 +212,7 @@ local function cfg_wrapper(cfg)
     local success, data = pcall(origin_cfg, cfg)
     ffi.C.chdir(os.getenv('TT_CLI_WORK_DIR'))
     if not success then
-        log.error('Someting wrong happened when tried to set dataDir.')
+        log.error('Someting wrong happened when tried to load environment variables.')
     end
     return data
 end

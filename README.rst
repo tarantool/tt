@@ -393,6 +393,14 @@ Where:
 
 `TT daemon example <https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-tt-daemon-experimental>`_
 
+Setting Tarantool configuration parameters via environment variables
+-------------------------------------
+
+Using ``tt``, you can specify configuration parameters
+via special environment variables even on Tarantool versions that does not natively support it.
+The name of a variable should have the following pattern: ``TT_<NAME>``,
+where ``<NAME>`` is the uppercase name of the corresponding `box.cfg <https://www.tarantool.io/en/doc/latest/reference/configuration/#box-cfg-params-ref>`_ parameter.
+
 Commands
 --------
 Common description. For a detailed description, use ``tt help command`` .
