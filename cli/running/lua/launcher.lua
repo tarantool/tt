@@ -43,6 +43,10 @@ local origin_cfg = box.cfg
 
 --- Wrapper for cfg to push our values over tarantool.
 local function cfg_wrapper(cfg)
+    ffi.cdef([[
+        int chdir(const char *path);
+    ]])
+    ffi.C.chdir(os.getenv('TT_CLI_CONSOLE_SOCKET_DIR'))
     local cfg = cfg or {}
     local tt_cfg = {}
     tt_cfg.wal_dir = os.getenv('TT_WAL_DIR')
@@ -54,7 +58,8 @@ local function cfg_wrapper(cfg)
         end
     end
     local success, data = pcall(origin_cfg, cfg)
-    if not success then 
+    ffi.C.chdir(os.getenv('TT_CLI_WORK_DIR'))
+    if not success then
         log.error('Someting wrong happened when tried to set dataDir.')
     end
     return data
@@ -102,6 +107,19 @@ local function start_instance()
         ffi.C.setlinebuf(ffi.C.stdout)
     end
 
+    ffi.cdef([[
+        int chdir(const char *path);
+    ]])
+
+    -- It became common that console socket path is longer than 108 symbols(sun_path limit).
+	-- To reduce length of path we use relative path with
+    -- chdir into a directory of console socket.
+	-- e.g foo/bar/123.sock -> ./123.sock
+    local console_sock_dir = os.getenv('TT_CLI_CONSOLE_SOCKET_DIR')
+    if console_sock_dir ~= nil and console_sock_dir ~= '' then
+        ffi.C.chdir(console_sock_dir)
+    end
+
     -- If tarantool version is above 2.8.1, then can use environment variables
     -- instead of wrapping cfg.
     if not check_version({2,8,1,0}) then
@@ -125,6 +143,12 @@ local function start_instance()
             end)
         end
 
+    end
+
+    -- After making console socket chdir back to work directory.
+    local work_dir = os.getenv('TT_CLI_WORK_DIR')
+    if work_dir ~= nil and work_dir ~= '' then
+        ffi.C.chdir(work_dir)
     end
 
     -- If stdin of the program was moved by command "tt run" to another fd

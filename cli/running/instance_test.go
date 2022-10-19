@@ -87,8 +87,8 @@ func TestInstanceLogger(t *testing.T) {
 	defer writer.Close()
 	defer reader.Close()
 	logger := ttlog.NewCustomLogger(writer, "", 0)
-
-	inst := startTestInstance(t, "log_check_test_app", "", logger)
+	consoleSock := ""
+	inst := startTestInstance(t, "log_check_test_app", consoleSock, logger)
 	t.Cleanup(func() { cleanupTestInstance(inst) })
 
 	msg := "Check Log.\n"
