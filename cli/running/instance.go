@@ -5,12 +5,18 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/tarantool/tt/cli/ttlog"
 	"golang.org/x/sys/unix"
+)
+
+const (
+	maxSocketPathLinux = 108
+	maxSocketPathMac   = 106
 )
 
 // Instance describes a running process.
@@ -104,9 +110,32 @@ func (inst *Instance) Start() error {
 		return err
 	}
 	inst.Cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
-	inst.Cmd.Env = append(inst.Cmd.Env,
-		"TT_CLI_CONSOLE_SOCKET="+inst.consoleSocket)
 
+	// It became common that console socket path is longer than 108/106 (on linux/macOs).
+	// To reduce length of path we use relative path
+	// with chdir into a directory of console socket.
+	// e.g foo/bar/123.sock -> ./123.sock
+
+	maxSocketPath := maxSocketPathLinux
+	if runtime.GOOS == "darwin" {
+		maxSocketPath = maxSocketPathMac
+	}
+
+	if inst.consoleSocket != "" {
+		if len("./"+filepath.Base(inst.consoleSocket))+1 > maxSocketPath {
+			return fmt.Errorf("socket name is longer than %d symbols: %s",
+				maxSocketPath-3, filepath.Base(inst.consoleSocket))
+		}
+		inst.Cmd.Env = append(inst.Cmd.Env,
+			"TT_CLI_CONSOLE_SOCKET="+"unix/:./"+filepath.Base(inst.consoleSocket))
+		inst.Cmd.Env = append(inst.Cmd.Env,
+			"TT_CLI_CONSOLE_SOCKET_DIR="+filepath.Dir(inst.consoleSocket))
+	}
+	workDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI_WORK_DIR="+workDir)
 	dataDirAbs := ""
 	if dataDirAbs, err = filepath.Abs(inst.dataDir); err != nil {
 		return err
