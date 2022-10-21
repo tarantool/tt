@@ -46,9 +46,8 @@ func TestLoadCartridgeNonExistentConfig(t *testing.T) {
 
 func TestGenerateTtEnvConfigDefault(t *testing.T) {
 	tmpDir := t.TempDir()
-	cliCtx := cmdcontext.CliCtx{TarantoolExecutable: "/usr/bin/tarantool"}
 	configPath := filepath.Join(tmpDir, configure.ConfigName)
-	err := generateTtEnvConfig(&cliCtx, configPath, appDirInfo{})
+	err := generateTtEnvConfig(configPath, appDirInfo{})
 	require.NoError(t, err)
 	require.FileExists(t, configPath)
 
@@ -62,17 +61,20 @@ func TestGenerateTtEnvConfigDefault(t *testing.T) {
 	require.Equal(t, "var/lib", cfg.CliConfig.App.DataDir)
 	require.Equal(t, "var/run", cfg.CliConfig.App.RunDir)
 	require.Equal(t, "var/log", cfg.CliConfig.App.LogDir)
-	require.Equal(t, 64, cfg.CliConfig.App.LogMaxBackups)
-	require.Equal(t, 64, cfg.CliConfig.App.LogMaxSize)
+	require.Equal(t, 10, cfg.CliConfig.App.LogMaxBackups)
+	require.Equal(t, 100, cfg.CliConfig.App.LogMaxSize)
 	require.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
-	require.Equal(t, "/usr/bin", cfg.CliConfig.App.BinDir)
+	require.Equal(t, "bin", cfg.CliConfig.App.BinDir)
+	require.Equal(t, "modules", cfg.CliConfig.Modules.Directory)
+	require.Equal(t, "install", cfg.CliConfig.Repo.Install)
+	require.Equal(t, "include", cfg.CliConfig.App.IncludeDir)
+	require.Equal(t, "templates", cfg.CliConfig.Templates[0].Path)
 }
 
 func TestGenerateTtEnvConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	cliCtx := cmdcontext.CliCtx{TarantoolExecutable: "/usr/bin/tarantool"}
 	configPath := filepath.Join(tmpDir, configure.ConfigName)
-	err := generateTtEnvConfig(&cliCtx, configPath, appDirInfo{
+	err := generateTtEnvConfig(configPath, appDirInfo{
 		runDir:  "run_dir",
 		dataDir: "data_dir",
 		logDir:  "log_dir",
@@ -101,8 +103,7 @@ func TestInitRun(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
-	cliCtx := cmdcontext.CliCtx{TarantoolExecutable: "/usr/bin/tarantool"}
-	require.NoError(t, Run(&cliCtx, &cmdcontext.InitCtx{}))
+	require.NoError(t, Run(&cmdcontext.InitCtx{}))
 
 	rawConfigOpts, err := util.ParseYAML(configure.ConfigName)
 	require.NoError(t, err)
@@ -125,8 +126,7 @@ func TestInitRunInvalidConfig(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
-	cliCtx := cmdcontext.CliCtx{TarantoolExecutable: "/usr/bin/tarantool"}
-	require.EqualError(t, Run(&cliCtx, &cmdcontext.InitCtx{}), "failed to parse cartridge app "+
+	require.EqualError(t, Run(&cmdcontext.InitCtx{}), "failed to parse cartridge app "+
 		"configuration: Failed to parse YAML: yaml: line 5: could not find expected ':'")
 }
 
@@ -137,8 +137,7 @@ func TestInitRunNoConfig(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
-	cliCtx := cmdcontext.CliCtx{TarantoolExecutable: "/usr/bin/tarantool"}
-	require.NoError(t, Run(&cliCtx, &cmdcontext.InitCtx{}))
+	require.NoError(t, Run(&cmdcontext.InitCtx{}))
 
 	rawConfigOpts, err := util.ParseYAML(configure.ConfigName)
 	require.NoError(t, err)
@@ -150,10 +149,14 @@ func TestInitRunNoConfig(t *testing.T) {
 	require.Equal(t, "var/lib", cfg.CliConfig.App.DataDir)
 	require.Equal(t, "var/run", cfg.CliConfig.App.RunDir)
 	require.Equal(t, "var/log", cfg.CliConfig.App.LogDir)
-	require.Equal(t, 64, cfg.CliConfig.App.LogMaxBackups)
-	require.Equal(t, 64, cfg.CliConfig.App.LogMaxSize)
+	require.Equal(t, 10, cfg.CliConfig.App.LogMaxBackups)
+	require.Equal(t, 100, cfg.CliConfig.App.LogMaxSize)
 	require.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
-	require.Equal(t, "/usr/bin", cfg.CliConfig.App.BinDir)
+	require.Equal(t, "bin", cfg.CliConfig.App.BinDir)
+	require.Equal(t, "modules", cfg.CliConfig.Modules.Directory)
+	require.Equal(t, "install", cfg.CliConfig.Repo.Install)
+	require.Equal(t, "include", cfg.CliConfig.App.IncludeDir)
+	require.Equal(t, "templates", cfg.CliConfig.Templates[0].Path)
 }
 
 func TestInitRunFailCreateResultFile(t *testing.T) {
@@ -168,8 +171,7 @@ func TestInitRunFailCreateResultFile(t *testing.T) {
 	// Make target file read-only.
 	require.NoError(t, os.Chmod(configure.ConfigName, 0400))
 
-	cliCtx := cmdcontext.CliCtx{TarantoolExecutable: "/usr/bin/tarantool"}
-	require.Error(t, Run(&cliCtx, &cmdcontext.InitCtx{}))
+	require.Error(t, Run(&cmdcontext.InitCtx{}))
 }
 
 func TestInitRunInvalidConfigSkipIt(t *testing.T) {
@@ -182,8 +184,7 @@ func TestInitRunInvalidConfigSkipIt(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
-	cliCtx := cmdcontext.CliCtx{TarantoolExecutable: "/usr/bin/tarantool"}
-	require.NoError(t, Run(&cliCtx, &cmdcontext.InitCtx{SkipConfig: true}))
+	require.NoError(t, Run(&cmdcontext.InitCtx{SkipConfig: true}))
 
 	rawConfigOpts, err := util.ParseYAML(configPath)
 	require.NoError(t, err)
@@ -195,8 +196,8 @@ func TestInitRunInvalidConfigSkipIt(t *testing.T) {
 	require.Equal(t, "var/lib", cfg.CliConfig.App.DataDir)
 	require.Equal(t, "var/run", cfg.CliConfig.App.RunDir)
 	require.Equal(t, "var/log", cfg.CliConfig.App.LogDir)
-	require.Equal(t, 64, cfg.CliConfig.App.LogMaxBackups)
-	require.Equal(t, 64, cfg.CliConfig.App.LogMaxSize)
+	require.Equal(t, 10, cfg.CliConfig.App.LogMaxBackups)
+	require.Equal(t, 100, cfg.CliConfig.App.LogMaxSize)
 	require.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
-	require.Equal(t, "/usr/bin", cfg.CliConfig.App.BinDir)
+	require.Equal(t, "bin", cfg.CliConfig.App.BinDir)
 }

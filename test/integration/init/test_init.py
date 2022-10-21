@@ -47,11 +47,13 @@ def test_init_missing_configs(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
         assert data_loaded["tt"]["app"]["data_dir"] == "var/lib"
         assert data_loaded["tt"]["app"]["instances_enabled"] == "."
-        assert data_loaded["tt"]["app"]["log_maxsize"] == 64
+        assert data_loaded["tt"]["app"]["log_maxsize"] == 100
         assert data_loaded["tt"]["app"]["log_maxage"] == 8
-        assert data_loaded["tt"]["app"]["log_maxbackups"] == 64
-        assert data_loaded["tt"]["modules"]["directory"] == "env/modules"
-        assert data_loaded["tt"]["app"]["bin_dir"] == os.path.dirname(shutil.which("tarantool"))
+        assert data_loaded["tt"]["app"]["log_maxbackups"] == 10
+        assert data_loaded["tt"]["modules"]["directory"] == "modules"
+        assert data_loaded["tt"]["app"]["bin_dir"] == "bin"
+        assert data_loaded["tt"]["templates"][0]["path"] == "templates"
+        assert data_loaded["tt"]["repo"]["distfiles"] == "install"
 
 
 def test_init_invalid_config_file(tt_cmd, tmpdir):

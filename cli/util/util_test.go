@@ -201,14 +201,16 @@ func TestGetAbsPath(t *testing.T) {
 }
 
 func TestGenerateDefaultTtConfig(t *testing.T) {
-	var cliCtx cmdcontext.CliCtx
-	cliCtx.TarantoolExecutable = "/usr/bin/tarantool"
-	cfg := GenerateDefaulTtEnvConfig(&cliCtx)
-	require.Equal(t, cfg.CliConfig.App.BinDir, "/usr/bin")
+	cfg := GenerateDefaulTtEnvConfig()
+	require.Equal(t, cfg.CliConfig.App.BinDir, "bin")
 	require.Equal(t, cfg.CliConfig.App.LogMaxAge, 8)
-	require.Equal(t, cfg.CliConfig.App.LogMaxBackups, 64)
-	require.Equal(t, cfg.CliConfig.App.LogMaxSize, 64)
+	require.Equal(t, cfg.CliConfig.App.LogMaxBackups, 10)
+	require.Equal(t, cfg.CliConfig.App.LogMaxSize, 100)
 	require.Equal(t, cfg.CliConfig.App.DataDir, "var/lib")
 	require.Equal(t, cfg.CliConfig.App.LogDir, "var/log")
 	require.Equal(t, cfg.CliConfig.App.RunDir, "var/run")
+	require.Equal(t, cfg.CliConfig.App.IncludeDir, "include")
+	require.Equal(t, cfg.CliConfig.Modules.Directory, "modules")
+	require.Equal(t, cfg.CliConfig.Templates[0].Path, "templates")
+	require.Equal(t, cfg.CliConfig.Repo.Install, "install")
 }

@@ -52,9 +52,8 @@ func loadCartridgeConfig(configPath string) (appDirInfo, error) {
 
 // generateTtEnvConfig generates environment config in configPath using directories info from
 // appDirInfo.
-func generateTtEnvConfig(cliCtx *cmdcontext.CliCtx,
-	configPath string, appDirInfo appDirInfo) error {
-	cfg := util.GenerateDefaulTtEnvConfig(cliCtx)
+func generateTtEnvConfig(configPath string, appDirInfo appDirInfo) error {
+	cfg := util.GenerateDefaulTtEnvConfig()
 	if appDirInfo.runDir != "" {
 		cfg.CliConfig.App.RunDir = appDirInfo.runDir
 	}
@@ -83,7 +82,7 @@ func generateTtEnvConfig(cliCtx *cmdcontext.CliCtx,
 }
 
 // Run creates tt environment config for the application in current dir.
-func Run(cliCtx *cmdcontext.CliCtx, initCtx *cmdcontext.InitCtx) error {
+func Run(initCtx *cmdcontext.InitCtx) error {
 	configLoaders := []configLoader{
 		{".cartridge.yml", loadCartridgeConfig},
 	}
@@ -107,7 +106,7 @@ func Run(cliCtx *cmdcontext.CliCtx, initCtx *cmdcontext.InitCtx) error {
 		}
 	}
 
-	if err := generateTtEnvConfig(cliCtx, configure.ConfigName, appDirInfo); err != nil {
+	if err := generateTtEnvConfig(configure.ConfigName, appDirInfo); err != nil {
 		return err
 	}
 
