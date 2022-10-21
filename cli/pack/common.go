@@ -103,7 +103,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (string, error) 
 	if packCtx.App.BinDir != "" &&
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
-		err = copyBinaries(packCtx.App.BinDir, packageEnvBinPath)
+		err = copyBinaries(cmdCtx, packageEnvBinPath)
 		if err != nil {
 			return "", err
 		}
@@ -506,31 +506,37 @@ func getVersion(packCtx *PackCtx, defaultVersion string) string {
 	return packageVersion
 }
 
-// copyBinaries copies tarantool and tt binaries from passed source path
-// to the passed destination path.
-func copyBinaries(srcPath, destPath string) error {
-	entries, err := os.ReadDir(srcPath)
+// copyBinaries copies tarantool and tt binaries from the current
+// tt environment to the passed destination path.
+func copyBinaries(cmdCtx *cmdcontext.CmdCtx, destPath string) error {
+	ttBin, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	for _, binary := range entries {
-		if binary.IsDir() {
-			log.Warnf("Cannot copy %s from binary directory.", binary.Name())
-			continue
-		}
+	realPath, err := filepath.EvalSymlinks(ttBin)
+	if err != nil {
+		log.Warnf("Failed to access %s: %s", ttBin, err)
+	}
+	if realPath != "" {
+		ttBin = realPath
+	}
 
-		pathToCopy := filepath.Join(srcPath, binary.Name())
-		realPath, err := filepath.EvalSymlinks(filepath.Join(srcPath, binary.Name()))
-		if err != nil {
-			log.Warnf("Failed to access %s: %s", binary, err)
-		}
-		if realPath != "" {
-			pathToCopy = realPath
-		}
-		err = copy.Copy(pathToCopy, filepath.Join(destPath, binary.Name()))
-		if err != nil {
-			log.Warnf("Failed to copy %s: %s", binary, err)
-		}
+	err = copy.Copy(ttBin, filepath.Join(destPath, filepath.Base(ttBin)))
+	if err != nil {
+		return err
+	}
+
+	tntBin, err := filepath.EvalSymlinks(cmdCtx.Cli.TarantoolExecutable)
+	if err != nil {
+		log.Warnf("Failed to access %s: %s", tntBin, err)
+	}
+	if tntBin == "" {
+		tntBin = cmdCtx.Cli.TarantoolExecutable
+	}
+
+	err = copy.Copy(tntBin, filepath.Join(destPath, filepath.Base(tntBin)))
+	if err != nil {
+		return err
 	}
 
 	return nil
