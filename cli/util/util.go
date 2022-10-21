@@ -746,3 +746,25 @@ func GetAbsPath(baseDir, filePath string) string {
 	}
 	return filepath.Join(baseDir, filePath)
 }
+
+// generateDefaulTtEnvConfig creates default tt config.
+func GenerateDefaulTtEnvConfig(cliCtx *cmdcontext.CliCtx) config.Config {
+	cfg := config.Config{
+		CliConfig: &config.CliOpts{
+			Modules: &config.ModulesOpts{
+				Directory: "env/modules",
+			},
+			App: &config.AppOpts{
+				InstancesEnabled: ".",
+				RunDir:           "var/run",
+				DataDir:          "var/lib",
+				LogDir:           "var/log",
+				BinDir:           filepath.Dir(cliCtx.TarantoolExecutable),
+				LogMaxSize:       64,
+				LogMaxAge:        8,
+				LogMaxBackups:    64,
+			},
+		},
+	}
+	return cfg
+}

@@ -7,7 +7,6 @@ import (
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v2"
@@ -53,16 +52,17 @@ func loadCartridgeConfig(configPath string) (appDirInfo, error) {
 
 // generateTtEnvConfig generates environment config in configPath using directories info from
 // appDirInfo.
-func generateTtEnvConfig(configPath string, appDirInfo appDirInfo) error {
-	cfg := config.Config{
-		CliConfig: &config.CliOpts{
-			App: &config.AppOpts{
-				InstancesEnabled: ".",
-				RunDir:           appDirInfo.runDir,
-				DataDir:          appDirInfo.dataDir,
-				LogDir:           appDirInfo.logDir,
-			},
-		},
+func generateTtEnvConfig(cliCtx *cmdcontext.CliCtx,
+	configPath string, appDirInfo appDirInfo) error {
+	cfg := util.GenerateDefaulTtEnvConfig(cliCtx)
+	if appDirInfo.runDir != "" {
+		cfg.CliConfig.App.RunDir = appDirInfo.runDir
+	}
+	if appDirInfo.dataDir != "" {
+		cfg.CliConfig.App.DataDir = appDirInfo.dataDir
+	}
+	if appDirInfo.logDir != "" {
+		cfg.CliConfig.App.LogDir = appDirInfo.logDir
 	}
 
 	file, err := os.Create(configPath)
@@ -83,7 +83,7 @@ func generateTtEnvConfig(configPath string, appDirInfo appDirInfo) error {
 }
 
 // Run creates tt environment config for the application in current dir.
-func Run(initCtx *cmdcontext.InitCtx) error {
+func Run(cliCtx *cmdcontext.CliCtx, initCtx *cmdcontext.InitCtx) error {
 	configLoaders := []configLoader{
 		{".cartridge.yml", loadCartridgeConfig},
 	}
@@ -107,7 +107,7 @@ func Run(initCtx *cmdcontext.InitCtx) error {
 		}
 	}
 
-	if err := generateTtEnvConfig(configure.ConfigName, appDirInfo); err != nil {
+	if err := generateTtEnvConfig(cliCtx, configure.ConfigName, appDirInfo); err != nil {
 		return err
 	}
 

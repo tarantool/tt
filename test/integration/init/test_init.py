@@ -43,9 +43,15 @@ def test_init_missing_configs(tt_cmd, tmpdir):
 
     with open(os.path.join(tmpdir, "tarantool.yaml"), 'r') as stream:
         data_loaded = yaml.safe_load(stream)
-        assert data_loaded["tt"]["app"]["run_dir"] == ""
-        assert data_loaded["tt"]["app"]["log_dir"] == ""
-        assert data_loaded["tt"]["app"]["data_dir"] == ""
+        assert data_loaded["tt"]["app"]["run_dir"] == "var/run"
+        assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
+        assert data_loaded["tt"]["app"]["data_dir"] == "var/lib"
+        assert data_loaded["tt"]["app"]["instances_enabled"] == "."
+        assert data_loaded["tt"]["app"]["log_maxsize"] == 64
+        assert data_loaded["tt"]["app"]["log_maxage"] == 8
+        assert data_loaded["tt"]["app"]["log_maxbackups"] == 64
+        assert data_loaded["tt"]["modules"]["directory"] == "env/modules"
+        assert data_loaded["tt"]["app"]["bin_dir"] == os.path.dirname(shutil.which("tarantool"))
 
 
 def test_init_invalid_config_file(tt_cmd, tmpdir):
@@ -83,6 +89,6 @@ def test_init_skip_config(tt_cmd, tmpdir):
 
     with open(os.path.join(tmpdir, "tarantool.yaml"), 'r') as stream:
         data_loaded = yaml.safe_load(stream)
-        assert data_loaded["tt"]["app"]["run_dir"] == ""
-        assert data_loaded["tt"]["app"]["log_dir"] == ""
-        assert data_loaded["tt"]["app"]["data_dir"] == ""
+        assert data_loaded["tt"]["app"]["run_dir"] == "var/run"
+        assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
+        assert data_loaded["tt"]["app"]["data_dir"] == "var/lib"
