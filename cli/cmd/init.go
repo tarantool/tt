@@ -37,5 +37,5 @@ func NewInitCmd() *cobra.Command {
 func internalInitModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	cmdCtx.Init.SkipConfig = skipConfig
 
-	return init_pkg.Run(&cmdCtx.Init)
+	return init_pkg.Run(&cmdCtx.Cli, &cmdCtx.Init)
 }
