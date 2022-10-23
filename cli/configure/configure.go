@@ -37,17 +37,16 @@ func getDefaultCliOpts() *config.CliOpts {
 		Directory: "",
 	}
 	app := config.AppOpts{
-		InstancesAvailable: "",
-		InstancesEnabled:   ".",
-		RunDir:             "run",
-		LogDir:             "log",
-		LogMaxSize:         0,
-		LogMaxAge:          0,
-		LogMaxBackups:      0,
-		Restartable:        false,
-		DataDir:            "data",
-		BinDir:             "",
-		IncludeDir:         "",
+		InstancesEnabled: ".",
+		RunDir:           "run",
+		LogDir:           "log",
+		LogMaxSize:       0,
+		LogMaxAge:        0,
+		LogMaxBackups:    0,
+		Restartable:      false,
+		DataDir:          "data",
+		BinDir:           "",
+		IncludeDir:       "",
 	}
 	ee := config.EEOpts{
 		CredPath: "",

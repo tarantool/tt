@@ -288,16 +288,15 @@ func createEnv(packCtx *cmdcontext.PackCtx, destPath string) error {
 	log.Infof("Generating new tarantool.yaml for the new package")
 
 	appOpts := config.AppOpts{
-		InstancesEnabled:   instancesEnabledPath,
-		InstancesAvailable: ".",
-		BinDir:             filepath.Join(envPath, binPath),
-		RunDir:             filepath.Join(varPath, runPath),
-		DataDir:            filepath.Join(varPath, dataPath),
-		LogDir:             filepath.Join(varPath, logPath),
-		LogMaxSize:         packCtx.App.LogMaxSize,
-		LogMaxAge:          packCtx.App.LogMaxAge,
-		LogMaxBackups:      packCtx.App.LogMaxBackups,
-		Restartable:        packCtx.App.Restartable,
+		InstancesEnabled: instancesEnabledPath,
+		BinDir:           filepath.Join(envPath, binPath),
+		RunDir:           filepath.Join(varPath, runPath),
+		DataDir:          filepath.Join(varPath, dataPath),
+		LogDir:           filepath.Join(varPath, logPath),
+		LogMaxSize:       packCtx.App.LogMaxSize,
+		LogMaxAge:        packCtx.App.LogMaxAge,
+		LogMaxBackups:    packCtx.App.LogMaxBackups,
+		Restartable:      packCtx.App.Restartable,
 	}
 	moduleOpts := config.ModulesOpts{
 		Directory: filepath.Join(envPath, modulesPath),
@@ -496,13 +495,11 @@ func prepareDefaultPackagePaths(packagePath string) {
 // getVersion returns a version of the package.
 // The version depends on passed pack context.
 func getVersion(packCtx *cmdcontext.PackCtx) string {
-	var packageVersion string
-	var err error
+	packageVersion := defaultVersion
 	if packCtx.Version == "" {
-		packageVersion, err =
-			util.CheckVersionFromGit(packCtx.App.InstancesAvailable)
-		if err != nil {
-			packageVersion = defaultVersion
+		// Get version from git only if we are packing an application from the current directory.
+		if packCtx.App.InstancesEnabled == "." {
+			packageVersion, _ = util.CheckVersionFromGit(packCtx.App.InstancesEnabled)
 		}
 	} else {
 		packageVersion = packCtx.Version

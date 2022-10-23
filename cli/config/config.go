@@ -44,9 +44,6 @@ type EEOpts struct {
 
 // AppOpts is used to store all app options.
 type AppOpts struct {
-	// InstancesAvailable is a path to directory that stores all
-	// available applications.
-	InstancesAvailable string `mapstructure:"instances_available" yaml:"instances_available"`
 	// RunDir is a path to directory that stores various instance
 	// runtime artifacts like console socket, PID file, etc.
 	RunDir string `mapstructure:"run_dir" yaml:"run_dir"`

@@ -5,7 +5,6 @@ import tempfile
 
 tt_config_text = '''tt:
   app:
-    instances_available: {}
     run_dir: .
     log_dir: .
   templates:
@@ -306,7 +305,7 @@ def test_template_search_paths(tt_cmd, tmpdir):
     with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
         tnt_env_file.write('''tt:
   app:
-    instances_available: ./any-dir
+    instances_enabled: ./any-dir
     run_dir: .
     log_dir: .
   templates:

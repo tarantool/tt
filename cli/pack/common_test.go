@@ -441,7 +441,7 @@ func TestGetVersion(t *testing.T) {
 		{
 			name: "No parameters in context",
 			packCtx: &cmdcontext.PackCtx{
-				App: &config.AppOpts{InstancesEnabled: "."},
+				App: &config.AppOpts{InstancesEnabled: "./any_dir"},
 			},
 			expectedVersion: "0.1.0.0",
 		},
