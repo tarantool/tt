@@ -3,6 +3,7 @@ package util
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -275,4 +276,38 @@ func TestWriteYaml(t *testing.T) {
 	require.Equal(t, scanner.Text(), "  author: author2")
 	scanner.Scan()
 	require.Equal(t, scanner.Text(), "  pages: 200")
+}
+
+func TestAskConfirm(t *testing.T) {
+	// Confirmed.
+	confirmed, err := AskConfirm(strings.NewReader("Y\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, true)
+	confirmed, err = AskConfirm(strings.NewReader("y\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, true)
+	confirmed, err = AskConfirm(strings.NewReader("yes\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, true)
+	confirmed, err = AskConfirm(strings.NewReader("YES\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, true)
+
+	// Negative.
+	confirmed, err = AskConfirm(strings.NewReader("N\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, false)
+	confirmed, err = AskConfirm(strings.NewReader("n\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, false)
+	confirmed, err = AskConfirm(strings.NewReader("No\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, false)
+	confirmed, err = AskConfirm(strings.NewReader("NO\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, false)
+
+	// Unknown.
+	_, err = AskConfirm(strings.NewReader("Wat?\n"), "Yes?")
+	require.ErrorIs(t, err, io.EOF)
 }
