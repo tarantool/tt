@@ -2,9 +2,11 @@ package util
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -211,4 +213,38 @@ func TestGenerateDefaultTtConfig(t *testing.T) {
 	require.Equal(t, cfg.CliConfig.App.DataDir, "var/lib")
 	require.Equal(t, cfg.CliConfig.App.LogDir, "var/log")
 	require.Equal(t, cfg.CliConfig.App.RunDir, "var/run")
+}
+
+func TestAskConfirm(t *testing.T) {
+	// Confirmed.
+	confirmed, err := AskConfirm(strings.NewReader("Y\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, true)
+	confirmed, err = AskConfirm(strings.NewReader("y\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, true)
+	confirmed, err = AskConfirm(strings.NewReader("yes\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, true)
+	confirmed, err = AskConfirm(strings.NewReader("YES\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, true)
+
+	// Negative.
+	confirmed, err = AskConfirm(strings.NewReader("N\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, false)
+	confirmed, err = AskConfirm(strings.NewReader("n\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, false)
+	confirmed, err = AskConfirm(strings.NewReader("No\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, false)
+	confirmed, err = AskConfirm(strings.NewReader("NO\n"), "Yes?")
+	require.NoError(t, err)
+	require.Equal(t, confirmed, false)
+
+	// Unknown.
+	_, err = AskConfirm(strings.NewReader("Wat?\n"), "Yes?")
+	require.ErrorIs(t, err, io.EOF)
 }

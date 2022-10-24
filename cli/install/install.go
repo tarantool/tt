@@ -254,8 +254,8 @@ func programDependenciesInstalled(program string) bool {
 				{"gcc", "gcc"}, {"g++", "gcc-c++ "}}
 			packages = []string{"libstdc++-static", "perl"}
 		} else {
-			answer, err := util.AskConfirm("Unknown OS, can't check if dependencies" +
-				" are installed.\n" +
+			answer, err := util.AskConfirm(os.Stdin, "Unknown OS, can't check if dependencies"+
+				" are installed.\n"+
 				"Procced, without checking?")
 			if !answer || err != nil {
 				return false

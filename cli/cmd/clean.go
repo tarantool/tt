@@ -78,7 +78,7 @@ func clean(run *cmdcontext.RunningCtx) error {
 	}
 
 	if !forceRemove {
-		confirm, err = util.AskConfirm("\nConfirm")
+		confirm, err = util.AskConfirm(os.Stdin, "\nConfirm")
 		if err != nil {
 			return err
 		}
