@@ -776,3 +776,40 @@ func GenerateDefaulTtEnvConfig() config.Config {
 	}
 	return cfg
 }
+
+// CreateDirectory create a directory with existence and error checks.
+func CreateDirectory(dirName string, fileMode os.FileMode) error {
+	stat, err := os.Stat(dirName)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else {
+		if !stat.IsDir() {
+			return fmt.Errorf("'%s' already exists and is not a directory", dirName)
+		}
+		return nil
+	}
+	if err = os.MkdirAll(dirName, fileMode); err != nil {
+		return err
+	}
+	return nil
+}
+
+// writeYaml writes YAML encoding of object o to fileName.
+func WriteYaml(fileName string, o interface{}) error {
+	file, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Warnf("Failed to close a file '%s': %s", file.Name(), err)
+		}
+	}()
+
+	if err = yaml.NewEncoder(file).Encode(o); err != nil {
+		return err
+	}
+	return nil
+}

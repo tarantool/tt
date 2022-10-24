@@ -5,6 +5,15 @@ import subprocess
 import yaml
 
 
+def check_env_dirs(dir, instances_enabled):
+    assert os.path.isdir(os.path.join(dir, "bin"))
+    assert os.path.isdir(os.path.join(dir, "modules"))
+    assert os.path.isdir(os.path.join(dir, "install"))
+    assert os.path.isdir(os.path.join(dir, "include"))
+    assert os.path.isdir(os.path.join(dir, "templates"))
+    assert os.path.isdir(os.path.join(dir, instances_enabled))
+
+
 def test_init_basic_functionality(tt_cmd, tmpdir):
     shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
                 os.path.join(tmpdir, ".cartridge.yml"))
@@ -26,6 +35,9 @@ def test_init_basic_functionality(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["run_dir"] == "my_run_dir"
         assert data_loaded["tt"]["app"]["log_dir"] == "my_log_dir"
         assert data_loaded["tt"]["app"]["data_dir"] == "my_data_dir"
+        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
+
+    check_env_dirs(tmpdir, "instances.enabled")
 
 
 def test_init_missing_configs(tt_cmd, tmpdir):
@@ -46,7 +58,7 @@ def test_init_missing_configs(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["run_dir"] == "var/run"
         assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
         assert data_loaded["tt"]["app"]["data_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "."
+        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
         assert data_loaded["tt"]["app"]["log_maxsize"] == 100
         assert data_loaded["tt"]["app"]["log_maxage"] == 8
         assert data_loaded["tt"]["app"]["log_maxbackups"] == 10
@@ -54,6 +66,7 @@ def test_init_missing_configs(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["bin_dir"] == "bin"
         assert data_loaded["tt"]["templates"][0]["path"] == "templates"
         assert data_loaded["tt"]["repo"]["distfiles"] == "install"
+    check_env_dirs(tmpdir, "instances.enabled")
 
 
 def test_init_invalid_config_file(tt_cmd, tmpdir):
@@ -94,3 +107,33 @@ def test_init_skip_config(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["run_dir"] == "var/run"
         assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
         assert data_loaded["tt"]["app"]["data_dir"] == "var/lib"
+        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
+    check_env_dirs(tmpdir, "instances.enabled")
+
+
+def test_init_in_app_dir(tt_cmd, tmpdir):
+    app_dir = os.path.join(tmpdir, "app1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "apps", "multi_inst_app"),
+                    app_dir)
+
+    tt_process = subprocess.Popen(
+        [tt_cmd, "init"],
+        cwd=app_dir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+    assert "Environment config is written to 'tarantool.yaml'" in tt_process.stdout.readline()
+
+    with open(os.path.join(app_dir, "tarantool.yaml"), 'r') as stream:
+        data_loaded = yaml.safe_load(stream)
+        assert data_loaded["tt"]["app"]["run_dir"] == "var/run"
+        assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
+        assert data_loaded["tt"]["app"]["data_dir"] == "var/lib"
+        assert data_loaded["tt"]["app"]["instances_enabled"] == "."
+
+    assert not os.path.exists(os.path.join(app_dir, "instances.enabled"))
+    check_env_dirs(app_dir, ".")

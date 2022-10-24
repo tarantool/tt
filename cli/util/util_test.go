@@ -1,10 +1,13 @@
 package util
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -213,4 +216,63 @@ func TestGenerateDefaultTtConfig(t *testing.T) {
 	require.Equal(t, cfg.CliConfig.Modules.Directory, "modules")
 	require.Equal(t, cfg.CliConfig.Templates[0].Path, "templates")
 	require.Equal(t, cfg.CliConfig.Repo.Install, "install")
+}
+
+func TestCreateDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(tempDir, "dir1"), 0750))
+
+	// Existing dir.
+	assert.NoError(t, CreateDirectory(filepath.Join(tempDir, "dir1"), 0750))
+	// Non-existent dir.
+	assert.NoError(t, CreateDirectory(filepath.Join(tempDir, "dir2"), 0750))
+
+	f, err := os.Create(filepath.Join(tempDir, "file"))
+	require.NoError(t, err)
+	defer f.Close()
+	assert.Error(t, CreateDirectory(f.Name(), 0750))
+
+	// Permissions denied.
+	require.NoError(t, os.Chmod(tempDir, 0444))
+	defer os.Chmod(tempDir, 0777)
+	assert.Error(t, CreateDirectory(filepath.Join(tempDir, "dir3"), 0750))
+}
+
+func TestWriteYaml(t *testing.T) {
+	type book struct {
+		Title  string
+		Author string
+		Pages  int
+	}
+
+	type library struct {
+		Books []*book
+	}
+
+	lib := library{Books: []*book{
+		{"title1", "author1", 100},
+		{"title2", "author2", 200},
+	}}
+
+	tempDir := t.TempDir()
+	require.NoError(t, WriteYaml(filepath.Join(tempDir, "library"), &lib))
+	f, err := os.Open(filepath.Join(tempDir, "library"))
+	require.NoError(t, err)
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Scan()
+	require.True(t, strings.Contains(scanner.Text(), "books:"))
+	scanner.Scan()
+	require.Equal(t, scanner.Text(), "- title: title1")
+	scanner.Scan()
+	require.Equal(t, scanner.Text(), "  author: author1")
+	scanner.Scan()
+	require.Equal(t, scanner.Text(), "  pages: 100")
+	scanner.Scan()
+	require.Equal(t, scanner.Text(), "- title: title2")
+	scanner.Scan()
+	require.Equal(t, scanner.Text(), "  author: author2")
+	scanner.Scan()
+	require.Equal(t, scanner.Text(), "  pages: 200")
 }

@@ -23,6 +23,8 @@ const (
 	// systemConfigDirEnvName is an environment variable that contains a path to
 	// search system config.
 	systemConfigDirEnvName = "TT_SYSTEM_CONFIG_DIR"
+	// instancesEnabledDirName is a default instances enabled directory name.
+	InstancesEnabledDirName = "instances.enabled"
 )
 
 var (

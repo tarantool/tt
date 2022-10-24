@@ -3,13 +3,17 @@ package init
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
-	"gopkg.in/yaml.v2"
+)
+
+const (
+	defaultDirPermissions = os.FileMode(0750)
 )
 
 type cartridgeOpts struct {
@@ -20,9 +24,10 @@ type cartridgeOpts struct {
 
 // appDirInfo contains directories config info loaded from existing config.
 type appDirInfo struct {
-	logDir  string
-	runDir  string
-	dataDir string
+	instancesEnabled string
+	logDir           string
+	runDir           string
+	dataDir          string
 }
 
 // configLoader binds config name with load functor.
@@ -50,9 +55,9 @@ func loadCartridgeConfig(configPath string) (appDirInfo, error) {
 	}, nil
 }
 
-// generateTtEnvConfig generates environment config in configPath using directories info from
+// generateTtEnv generates environment config in configPath using directories info from
 // appDirInfo.
-func generateTtEnvConfig(configPath string, appDirInfo appDirInfo) error {
+func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
 	cfg := util.GenerateDefaulTtEnvConfig()
 	if appDirInfo.runDir != "" {
 		cfg.CliConfig.App.RunDir = appDirInfo.runDir
@@ -63,19 +68,69 @@ func generateTtEnvConfig(configPath string, appDirInfo appDirInfo) error {
 	if appDirInfo.logDir != "" {
 		cfg.CliConfig.App.LogDir = appDirInfo.logDir
 	}
+	if appDirInfo.instancesEnabled != "" {
+		cfg.CliConfig.App.InstancesEnabled = appDirInfo.instancesEnabled
+	}
 
-	file, err := os.Create(configPath)
-	if err != nil {
+	if err := util.WriteYaml(configPath, cfg); err != nil {
 		return err
 	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Warnf("Failed to close a file '%s': %s", file.Name(), err)
-		}
-	}()
 
-	if err = yaml.NewEncoder(file).Encode(&cfg); err != nil {
-		return err
+	// Create instances enabled directory if required.
+	if appDirInfo.instancesEnabled != "" {
+		cfg.CliConfig.App.InstancesEnabled = appDirInfo.instancesEnabled
+		if err := util.CreateDirectory(appDirInfo.instancesEnabled,
+			defaultDirPermissions); err != nil {
+			return err
+		}
+		log.Debugf("'%s' directory is created.", appDirInfo.instancesEnabled)
+	}
+
+	// Create modules directory.
+	if cfg.CliConfig.Modules.Directory != "" {
+		if err := util.CreateDirectory(cfg.CliConfig.Modules.Directory,
+			defaultDirPermissions); err != nil {
+			return err
+		}
+		log.Debugf("'%s' directory is created.", cfg.CliConfig.Modules.Directory)
+	}
+
+	// Create include directory.
+	if cfg.CliConfig.App.IncludeDir != "" {
+		if err := util.CreateDirectory(cfg.CliConfig.App.IncludeDir,
+			defaultDirPermissions); err != nil {
+			return err
+		}
+		log.Debugf("'%s' directory is created.", cfg.CliConfig.App.IncludeDir)
+	}
+
+	// Create binary directory.
+	if cfg.CliConfig.App.BinDir != "" {
+		if err := util.CreateDirectory(cfg.CliConfig.App.BinDir,
+			defaultDirPermissions); err != nil {
+			return err
+		}
+		log.Debugf("'%s' directory is created.", cfg.CliConfig.App.BinDir)
+	}
+
+	// Create install directory.
+	if cfg.CliConfig.App.BinDir != "" {
+		if err := util.CreateDirectory(cfg.CliConfig.Repo.Install,
+			defaultDirPermissions); err != nil {
+			return err
+		}
+		log.Debugf("'%s' directory is created.", cfg.CliConfig.Repo.Install)
+	}
+
+	// Create templates directories.
+	if cfg.CliConfig.App.BinDir != "" {
+		for _, templatesPathOpts := range cfg.CliConfig.Templates {
+			if err := util.CreateDirectory(templatesPathOpts.Path,
+				defaultDirPermissions); err != nil {
+				return err
+			}
+			log.Debugf("'%s' directory is created.", templatesPathOpts)
+		}
 	}
 
 	return nil
@@ -105,8 +160,12 @@ func Run(initCtx *cmdcontext.InitCtx) error {
 			}
 		}
 	}
+	if !util.IsApp(".", []*regexp.Regexp{}) {
+		// Current directory is not app dir, so set default instances enabled dir.
+		appDirInfo.instancesEnabled = configure.InstancesEnabledDirName
+	}
 
-	if err := generateTtEnvConfig(configure.ConfigName, appDirInfo); err != nil {
+	if err := generateTtEnv(configure.ConfigName, appDirInfo); err != nil {
 		return err
 	}
 
