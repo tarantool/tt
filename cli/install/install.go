@@ -448,13 +448,13 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 			if err != nil {
 				return err
 			}
-			util.ExecuteCommand("git", flags.Verbose, logFile, path, "checkout", "master")
+			util.ExecuteCommand("git", flags.Verbose, logFile, path, "checkout", ttVersion)
 		} else {
 			return fmt.Errorf("Can't find distfiles directory.")
 		}
 	} else {
 		log.Infof("Downloading tt...")
-		err = downloadRepo(search.GitRepoTT, "master", path, logFile, flags.Verbose)
+		err = downloadRepo(search.GitRepoTT, ttVersion, path, logFile, flags.Verbose)
 	}
 
 	if err != nil {

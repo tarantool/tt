@@ -14,7 +14,7 @@ def test_install_tt(tt_cmd, tmpdir):
         f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
 
     # Install latest tt.
-    install_cmd = [tt_cmd, "install", "tt=master", "--cfg", configPath]
+    install_cmd = [tt_cmd, "install", "tt=0.1.0", "--cfg", configPath]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir,
@@ -27,7 +27,7 @@ def test_install_tt(tt_cmd, tmpdir):
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
 
-    installed_cmd = [tmpdir + "/bin/tt", "-h"]
+    installed_cmd = [tmpdir + "/bin/tt", "version"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
         cwd=tmpdir + "/bin",
@@ -36,7 +36,7 @@ def test_install_tt(tt_cmd, tmpdir):
         text=True
     )
     start_output = installed_program_process.stdout.readline()
-    assert re.search(r"Utility for managing Tarantool", start_output)
+    assert re.search(r"commit: ccd9c0c", start_output)
 
 
 def test_install_tarantool(tt_cmd, tmpdir):
