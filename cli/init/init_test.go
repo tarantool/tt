@@ -7,6 +7,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/otiai10/copy"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
@@ -44,37 +45,61 @@ func TestLoadCartridgeNonExistentConfig(t *testing.T) {
 	require.Equal(t, appDirInfo{}, actualDirInfo)
 }
 
-func TestGenerateTtEnvConfigDefault(t *testing.T) {
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, configure.ConfigName)
-	err := generateTtEnvConfig(configPath, appDirInfo{})
-	require.NoError(t, err)
-	require.FileExists(t, configPath)
-
-	rawConfigOpts, err := util.ParseYAML(configPath)
+func checkDefaultEnv(t *testing.T, configName string, instancesEnabled string) {
+	rawConfigOpts, err := util.ParseYAML(configName)
 	require.NoError(t, err)
 
 	var cfg config.Config
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
-	require.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
-	require.Equal(t, "var/lib", cfg.CliConfig.App.DataDir)
-	require.Equal(t, "var/run", cfg.CliConfig.App.RunDir)
-	require.Equal(t, "var/log", cfg.CliConfig.App.LogDir)
-	require.Equal(t, 10, cfg.CliConfig.App.LogMaxBackups)
-	require.Equal(t, 100, cfg.CliConfig.App.LogMaxSize)
-	require.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
-	require.Equal(t, "bin", cfg.CliConfig.App.BinDir)
-	require.Equal(t, "modules", cfg.CliConfig.Modules.Directory)
-	require.Equal(t, "install", cfg.CliConfig.Repo.Install)
-	require.Equal(t, "include", cfg.CliConfig.App.IncludeDir)
-	require.Equal(t, "templates", cfg.CliConfig.Templates[0].Path)
+	assert.Equal(t, instancesEnabled, cfg.CliConfig.App.InstancesEnabled)
+	assert.Equal(t, "var/lib", cfg.CliConfig.App.DataDir)
+	assert.Equal(t, "var/run", cfg.CliConfig.App.RunDir)
+	assert.Equal(t, "var/log", cfg.CliConfig.App.LogDir)
+	assert.Equal(t, 10, cfg.CliConfig.App.LogMaxBackups)
+	assert.Equal(t, 100, cfg.CliConfig.App.LogMaxSize)
+	assert.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
+	assert.Equal(t, "bin", cfg.CliConfig.App.BinDir)
+	assert.Equal(t, "modules", cfg.CliConfig.Modules.Directory)
+	assert.Equal(t, "install", cfg.CliConfig.Repo.Install)
+	assert.Equal(t, "include", cfg.CliConfig.App.IncludeDir)
+	assert.Equal(t, "templates", cfg.CliConfig.Templates[0].Path)
+	assert.Equal(t, instancesEnabled, cfg.CliConfig.App.InstancesEnabled)
+
+	assert.DirExists(t, instancesEnabled)
+	assert.DirExists(t, "modules")
+	assert.DirExists(t, "include")
+	assert.DirExists(t, "bin")
+	assert.DirExists(t, "install")
+	assert.DirExists(t, "templates")
 }
 
-func TestGenerateTtEnvConfig(t *testing.T) {
+func TestGenerateTtEnvDefault(t *testing.T) {
 	tmpDir := t.TempDir()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+	defer os.Chdir(wd)
+
+	err = generateTtEnv(configure.ConfigName, appDirInfo{
+		instancesEnabled: configure.InstancesEnabledDirName,
+	})
+	require.NoError(t, err)
+	require.FileExists(t, configure.ConfigName)
+	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
+}
+
+func TestGenerateTtEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+	defer os.Chdir(wd)
+
 	configPath := filepath.Join(tmpDir, configure.ConfigName)
-	err := generateTtEnvConfig(configPath, appDirInfo{
+	err = generateTtEnv(configPath, appDirInfo{
 		runDir:  "run_dir",
 		dataDir: "data_dir",
 		logDir:  "log_dir",
@@ -88,10 +113,12 @@ func TestGenerateTtEnvConfig(t *testing.T) {
 	var cfg config.Config
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
-	require.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
-	require.Equal(t, "data_dir", cfg.CliConfig.App.DataDir)
-	require.Equal(t, "run_dir", cfg.CliConfig.App.RunDir)
-	require.Equal(t, "log_dir", cfg.CliConfig.App.LogDir)
+	// Instances enabled directory must be "." if there is an app in current directory.
+	assert.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
+	assert.Equal(t, "data_dir", cfg.CliConfig.App.DataDir)
+	assert.Equal(t, "run_dir", cfg.CliConfig.App.RunDir)
+	assert.Equal(t, "log_dir", cfg.CliConfig.App.LogDir)
+	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 }
 
 func TestInitRun(t *testing.T) {
@@ -103,6 +130,10 @@ func TestInitRun(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
+	f, err := os.Create("init.lua") // Simulate application existence.
+	require.NoError(t, err)
+	f.Close()
+
 	require.NoError(t, Run(&cmdcontext.InitCtx{}))
 
 	rawConfigOpts, err := util.ParseYAML(configure.ConfigName)
@@ -111,13 +142,36 @@ func TestInitRun(t *testing.T) {
 	var cfg config.Config
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
-	require.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
-	require.Equal(t, "my_data_dir", cfg.CliConfig.App.DataDir)
-	require.Equal(t, "my_run_dir", cfg.CliConfig.App.RunDir)
-	require.Equal(t, "my_log_dir", cfg.CliConfig.App.LogDir)
+	assert.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
+	assert.Equal(t, "my_data_dir", cfg.CliConfig.App.DataDir)
+	assert.Equal(t, "my_run_dir", cfg.CliConfig.App.RunDir)
+	assert.Equal(t, "my_log_dir", cfg.CliConfig.App.LogDir)
+	assert.NoDirExists(t, configure.InstancesEnabledDirName)
+	assert.DirExists(t, "modules")
+	assert.DirExists(t, "include")
+	assert.DirExists(t, "bin")
+	assert.DirExists(t, "install")
+	assert.DirExists(t, "templates")
 }
 
-func TestInitRunInvalidConfig(t *testing.T) {
+func TestInitRunInvalidConfigAppDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	copy.Copy(filepath.Join("testdata", "invalid_cartridge.yml"),
+		filepath.Join(tmpDir, ".cartridge.yml"))
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer os.Chdir(wd)
+
+	f, err := os.Create("init.lua") // Simulate application existence.
+	require.NoError(t, err)
+	f.Close()
+
+	require.EqualError(t, Run(&cmdcontext.InitCtx{}), "failed to parse cartridge app "+
+		"configuration: Failed to parse YAML: yaml: line 5: could not find expected ':'")
+}
+
+func TestInitRunInvalidConfigNoAppDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	copy.Copy(filepath.Join("testdata", "invalid_cartridge.yml"),
 		filepath.Join(tmpDir, ".cartridge.yml"))
@@ -138,25 +192,7 @@ func TestInitRunNoConfig(t *testing.T) {
 	defer os.Chdir(wd)
 
 	require.NoError(t, Run(&cmdcontext.InitCtx{}))
-
-	rawConfigOpts, err := util.ParseYAML(configure.ConfigName)
-	require.NoError(t, err)
-
-	var cfg config.Config
-	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
-
-	require.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
-	require.Equal(t, "var/lib", cfg.CliConfig.App.DataDir)
-	require.Equal(t, "var/run", cfg.CliConfig.App.RunDir)
-	require.Equal(t, "var/log", cfg.CliConfig.App.LogDir)
-	require.Equal(t, 10, cfg.CliConfig.App.LogMaxBackups)
-	require.Equal(t, 100, cfg.CliConfig.App.LogMaxSize)
-	require.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
-	require.Equal(t, "bin", cfg.CliConfig.App.BinDir)
-	require.Equal(t, "modules", cfg.CliConfig.Modules.Directory)
-	require.Equal(t, "install", cfg.CliConfig.Repo.Install)
-	require.Equal(t, "include", cfg.CliConfig.App.IncludeDir)
-	require.Equal(t, "templates", cfg.CliConfig.Templates[0].Path)
+	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
 }
 
 func TestInitRunFailCreateResultFile(t *testing.T) {
@@ -176,7 +212,6 @@ func TestInitRunFailCreateResultFile(t *testing.T) {
 
 func TestInitRunInvalidConfigSkipIt(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, configure.ConfigName)
 	copy.Copy(filepath.Join("testdata", "invalid_cartridge.yml"),
 		filepath.Join(tmpDir, ".cartridge.yml"))
 	wd, err := os.Getwd()
@@ -185,19 +220,5 @@ func TestInitRunInvalidConfigSkipIt(t *testing.T) {
 	defer os.Chdir(wd)
 
 	require.NoError(t, Run(&cmdcontext.InitCtx{SkipConfig: true}))
-
-	rawConfigOpts, err := util.ParseYAML(configPath)
-	require.NoError(t, err)
-
-	var cfg config.Config
-	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
-
-	require.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
-	require.Equal(t, "var/lib", cfg.CliConfig.App.DataDir)
-	require.Equal(t, "var/run", cfg.CliConfig.App.RunDir)
-	require.Equal(t, "var/log", cfg.CliConfig.App.LogDir)
-	require.Equal(t, 10, cfg.CliConfig.App.LogMaxBackups)
-	require.Equal(t, 100, cfg.CliConfig.App.LogMaxSize)
-	require.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
-	require.Equal(t, "bin", cfg.CliConfig.App.BinDir)
+	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
 }
