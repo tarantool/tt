@@ -503,14 +503,16 @@ func createPIDFile(pidFileName string) error {
 
 // makePath make application path with rules:
 // * if path is not set:
-//     * if single instance application: baseBath + application name.
-//     * else : baseBath + application name + instance name.
+//   - if single instance application: baseBath + application name.
+//   - else : baseBath + application name + instance name.
+//
 // * if path is set and it is absolute:
-//    * if single instance application: path + application name
-//    * else: path + application name + instance name.
+//   - if single instance application: path + application name
+//   - else: path + application name + instance name.
+//
 // * if path is set and it is relative:
-//    * if single instance application: basePath + path + application name.
-//    * else: basePath + path + application name + instance name.
+//   - if single instance application: basePath + path + application name.
+//   - else: basePath + path + application name + instance name.
 func makePath(path string, basePath string, inst *InstanceCtx) string {
 	res := ""
 

@@ -23,10 +23,12 @@ import (
 
 // Backported cmake rules for static build.
 // Static build has appeared since version 2.6.1.
+//
 //go:embed extra/tarantool-static-build.patch
 var staticBuildPatch []byte
 
 // Fix missing OpenSSL symbols.
+//
 //go:embed extra/openssl-symbols.patch
 var opensslSymbolsPatch []byte
 
@@ -35,11 +37,13 @@ var opensslSymbolsPatch14 []byte
 
 // Necessary for building with >= glibc-2.34.
 // Not actual for >= (1.10.11, 2.8.3).
+//
 //go:embed extra/gh-6686-fix-build-with-glibc-2-34.patch
 var glibcPatch []byte
 
 // zlib version 1.2.11 is no longer available for download.
 // Not actual for >= 2.10.0-rc1, 2.8.4.
+//
 //go:embed extra/zlib-backup-old.patch
 var zlibPatchOld []byte
 
@@ -48,6 +52,7 @@ var zlibPatch []byte
 
 // Old version of the libunwind doesn't compile under GCC 10.
 // Not actual for >= 2.10.0-rc1.
+//
 //go:embed extra/bump-libunwind-old.patch
 var unwindPatchOld []byte
 

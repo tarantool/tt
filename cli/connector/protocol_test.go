@@ -89,4 +89,3 @@ func TestGetProtocol(t *testing.T) {
 		})
 	}
 }
-

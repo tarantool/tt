@@ -65,8 +65,8 @@ func Connect(opts ConnectOpts) (Connector, error) {
 
 		addr := fmt.Sprintf("%s://%s", opts.Network, opts.Address)
 		conn, err := tarantool.Connect(addr, tarantool.Opts{
-			User: opts.Username,
-			Pass: opts.Password,
+			User:       opts.Username,
+			Pass:       opts.Password,
 			SkipSchema: true, // We don't need a schema for eval requests.
 		})
 		if err != nil {
