@@ -3,8 +3,10 @@ package steps
 import (
 	"archive/tar"
 	"compress/gzip"
+	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -152,4 +154,23 @@ func TestExtractTemplateArchive(t *testing.T) {
 	require.NoError(t, copyAppTemplate.Run(&createCtx, &templateCtx))
 	assert.DirExists(t, templateCtx.AppPath)
 	assert.FileExists(t, filepath.Join(templateCtx.AppPath, "file1.txt"))
+}
+
+//go:embed testdata/copy_template/templates/basic
+var templateTestFs embed.FS
+
+func TestCopyEmbeddedFs(t *testing.T) {
+	tmpDir := t.TempDir()
+	templateFs, err := fs.Sub(templateTestFs, "testdata/copy_template/templates/basic")
+	require.NoError(t, err)
+	require.NoError(t, copyEmbedFs(templateFs, tmpDir, map[string]int{
+		"init.lua": 0600,
+		"echo.sh":  0755,
+	}))
+	assert.FileExists(t, filepath.Join(tmpDir, "init.lua"))
+	assert.FileExists(t, filepath.Join(tmpDir, "subdir", "file.txt"))
+	assert.FileExists(t, filepath.Join(tmpDir, "echo.sh"))
+	stat, err := os.Stat(filepath.Join(tmpDir, "echo.sh"))
+	require.NoError(t, err)
+	assert.True(t, stat.Mode().Perm()&0110 != 0)
 }
