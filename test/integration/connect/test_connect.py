@@ -4,6 +4,7 @@ import shutil
 import subprocess
 
 import pytest
+
 from utils import run_command_and_get_output, wait_file
 
 

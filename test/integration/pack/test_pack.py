@@ -1,13 +1,15 @@
 import os
 import shutil
 import tarfile
-import yaml
-from utils import run_command_and_get_output
 
+import yaml
+
+from utils import run_command_and_get_output
 
 # ##### #
 # Tests #
 # ##### #
+
 
 def assert_bundle_structure(path):
     assert os.path.isfile(os.path.join(path, "tarantool.yaml"))
