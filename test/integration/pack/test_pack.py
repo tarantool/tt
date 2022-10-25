@@ -225,6 +225,40 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                                                          ".rocks")),
             ]
         },
+        {
+            "bundle_src": "cartridge_app",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
+            "args": ["--name", "cartridge_app", "--version", "v2"],
+            "res_file": "cartridge_app_v2.tar.gz",
+            "check_func": [
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app")),
+                lambda path: os.path.exists(os.path.join(path, "env", "bin",
+                                                         "tarantool_bin")),
+                lambda path: os.path.exists(os.path.join(path, "env", "bin",
+                                                         "tt_bin")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "app", "roles", "custom.lua")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "app", "admin.lua")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "cartridge.post-build")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "cartridge.pre-build")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "init.lua")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "instances.yml")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "replicasets.yml")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "failover.yml")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         "myapp-scm-1.rockspec")),
+                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
+                                                         ".rocks")),
+            ]
+        },
     ]
 
 
