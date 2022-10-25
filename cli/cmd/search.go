@@ -21,9 +21,9 @@ func NewSearchCmd() *cobra.Command {
 		Short: "Search for available versions for the program",
 		Long: "Search for available versions for the program\n\n" +
 			"Available programs:\n" +
-			"tt - Tarantool CLI\n" +
-			"tarantool - Tarantool\n" +
-			"tarantool-ee - Tarantool enterprise edition",
+			"tt - tarantool CLI Community Edition\n" +
+			"tarantool - tarantool Community Edition\n" +
+			"tarantool-ee - tarantool Enterprise Edition",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalSearchModule, args)
 			if err != nil {
@@ -41,9 +41,9 @@ func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
 	if len(args) == 0 {
 		log.Warnf("Available programs: \n" +
-			"tarantool-ee - Enterprise tarantool\n" +
-			"tarantool - OpenSource tarantool\n" +
-			"tt - OpenSource tarantool CLI")
+			"tt - tarantool CLI Community Edition\n" +
+			"tarantool - tarantool Community Edition\n" +
+			"tarantool-ee - tarantool Enterprise Edition")
 		return nil
 	}
 	if len(args) != 1 {
