@@ -2,6 +2,8 @@ package main
 
 import (
 	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/apex/log"
 	"github.com/dave/jennifer/jen"
@@ -69,8 +71,69 @@ func generateLuaCodeVar() error {
 	return nil
 }
 
+// generateFileModeFile generates
+// var FileModes = map[string]int {
+// "filename": filemode,
+// }
+func generateFileModeFile(path string, filename string, varNamePrefix string) error {
+	goFile := jen.NewFile("static")
+	goFile.Comment("This file is generated! DO NOT EDIT\n")
+
+	fileModeMap, err := getFileModes(path)
+	if err != nil {
+		return err
+	}
+
+	varName := varNamePrefix + "FileModes"
+	goFile.Var().Id(varName).Op("=").Map(jen.String()).Int().Values(jen.DictFunc(func(d jen.Dict) {
+		for key, element := range fileModeMap {
+			d[jen.Lit(key)] = jen.Lit(element).Commentf("/* %#o */", element)
+		}
+	}))
+
+	return goFile.Save(filename)
+}
+
+// getFileModes return map with relative file names and modes.
+func getFileModes(root string) (map[string]int, error) {
+	fileModeMap := make(map[string]int)
+
+	err := filepath.Walk(root, func(filePath string, fileInfo os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !fileInfo.IsDir() {
+			rel, err := filepath.Rel(root, filePath)
+
+			if err != nil {
+				return err
+			}
+
+			fileModeMap[rel] = int(fileInfo.Mode())
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return fileModeMap, nil
+}
+
 func main() {
-	if err := generateLuaCodeVar(); err != nil {
+	err := generateFileModeFile(
+		"cli/create/builtin_templates/templates/cartridge",
+		"cli/create/builtin_templates/static/cartridge_template_filemodes_gen.go",
+		"Cartridge",
+	)
+	if err != nil {
+		log.Errorf("Error while generating file modes: %s", err)
+	}
+
+	if err = generateLuaCodeVar(); err != nil {
 		log.Errorf("Error while generating lua code string variables: %s", err)
 	}
 }
