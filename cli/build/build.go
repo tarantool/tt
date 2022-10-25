@@ -8,7 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 )
 
-//BuildCtx contains information for application building.
+// BuildCtx contains information for application building.
 type BuildCtx struct {
 	// BuildDir is an application directory.
 	BuildDir string

@@ -62,8 +62,8 @@ type Console struct {
 	connOpts connector.ConnectOpts
 	conn     connector.Connector
 
-	executor  func(in string)
-	completer func(in prompt.Document) []prompt.Suggest
+	executor   func(in string)
+	completer  func(in prompt.Document) []prompt.Suggest
 	validators map[Language]ValidateCloser
 
 	prompt *prompt.Prompt
@@ -283,12 +283,11 @@ func getCompleter(console *Console) prompt.Completer {
 			return nil
 		}
 
-
 		var suggestionsTexts []string
 		args := []interface{}{lastWord, len(lastWord)}
 		opts := connector.RequestOpts{
 			ReadTimeout: 3 * time.Second,
-			ResData: &suggestionsTexts,
+			ResData:     &suggestionsTexts,
 		}
 
 		if _, err := console.conn.Eval(getSuggestionsFuncBody, args, opts); err != nil {

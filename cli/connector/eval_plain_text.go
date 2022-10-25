@@ -141,9 +141,10 @@ func writeToPlainTextConn(conn net.Conn, data string) error {
 // ---
 // - '
 //
-//   ...
+//	...
 //
-//   '
+//	'
+//
 // ...
 //
 // If Lua output is set, the end of input is just ";".

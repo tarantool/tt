@@ -108,7 +108,7 @@ func (wd *Watchdog) Start() {
 	}
 }
 
-//startSignalHandling starts signal handling in a separate goroutine.
+// startSignalHandling starts signal handling in a separate goroutine.
 func (wd *Watchdog) startSignalHandling() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan)
