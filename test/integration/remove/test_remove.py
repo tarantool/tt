@@ -1,6 +1,6 @@
+import os
 import re
 import subprocess
-import os
 
 
 def test_remove_tt(tt_cmd, tmpdir):

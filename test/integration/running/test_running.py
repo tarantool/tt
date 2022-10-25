@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+
 import yaml
 
 from utils import (kill_child_process, run_command_and_get_output, wait_file,
@@ -201,7 +202,7 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert os.path.exists(logfile) is False
 
 
-def test_running_base_functionality_working_dir_app(tt_cmd, tmpdir_with_cfg):
+def test_running_base_functionality_working_dir_app(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
 
     # Default temporary directory may have very long path. This can cause socket path buffer
@@ -209,7 +210,6 @@ def test_running_base_functionality_working_dir_app(tt_cmd, tmpdir_with_cfg):
     with tempfile.TemporaryDirectory() as tmpdir:
         test_app_path = os.path.join(tmpdir, "app")
         shutil.copytree(test_app_path_src, test_app_path)
-
 
         for subdir in ["", "app"]:
             if subdir != "":
@@ -230,7 +230,7 @@ def test_running_base_functionality_working_dir_app(tt_cmd, tmpdir_with_cfg):
             for instName in ["master", "replica", "router"]:
                 print(os.path.join(test_app_path, "run", "app", instName))
                 file = wait_file(os.path.join(test_app_path, "run", "app", instName),
-                                instName + ".pid", [])
+                                 instName + ".pid", [])
                 assert file != ""
 
             status_cmd = [tt_cmd, "status", "app"]
@@ -249,7 +249,7 @@ def test_running_base_functionality_working_dir_app(tt_cmd, tmpdir_with_cfg):
             assert instance_process_rc == 0
 
 
-def test_running_instance_from_multi_inst_app(tt_cmd, tmpdir_with_cfg):
+def test_running_instance_from_multi_inst_app(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
 
     # Default temporary directory may have very long path. This can cause socket path buffer
@@ -296,7 +296,7 @@ def test_running_instance_from_multi_inst_app(tt_cmd, tmpdir_with_cfg):
         assert instance_process_rc == 0
 
 
-def test_running_multi_inst_app_error_cases(tt_cmd, tmpdir_with_cfg):
+def test_running_multi_inst_app_error_cases(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
 
     # Default temporary directory may have very long path. This can cause socket path buffer
@@ -342,7 +342,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
     # Create test config with restart_on_failure true.
     with open(config_path, "w") as file:
         yaml.dump({"tt": {"app": {"restart_on_failure": True,
-            "log_maxsize": 10, "log_maxage": 1}}}, file)
+                   "log_maxsize": 10, "log_maxage": 1}}}, file)
 
     # Start an instance.
     start_cmd = [tt_cmd, "start", inst_name, "--cfg", config_path]
@@ -394,7 +394,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
 
     with open(config_path, "w") as file:
         yaml.dump({"tt": {"app": {"restart_on_failure": False,
-            "log_maxsize": 10, "log_maxage": 1}}}, file)
+                   "log_maxsize": 10, "log_maxage": 1}}}, file)
 
     # Kill instance child process.
     killed_childrens = 0

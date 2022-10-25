@@ -1,6 +1,6 @@
 import re
-import time
 import subprocess
+import time
 
 from utils import run_command_and_get_output, wait_file
 

@@ -1,4 +1,5 @@
 import pytest
+
 from utils import (create_external_module, create_tt_config,
                    run_command_and_get_output)
 

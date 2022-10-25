@@ -3,6 +3,7 @@ import re
 import shutil
 
 import pytest
+
 from utils import (TarantoolTestInstance, kill_child_process,
                    run_command_and_get_output)
 
