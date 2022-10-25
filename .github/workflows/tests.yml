@@ -84,11 +84,14 @@ jobs:
       - name: Codespell checks
         run: mage codespell
 
-      - name: Linter
+      - name: Go Linter
         uses: golangci/golangci-lint-action@v3
         with:
           args: --config=golangci-lint.yml --out-${NO_FUTURE}format colored-line-number
           skip-cache: true
+
+      - name: Python Linter
+        run: python3 -m flake8 test
 
       - name: Unit tests
         run: mage unitfull
@@ -182,11 +185,14 @@ jobs:
       - name: Codespell checks
         run: mage codespell
 
-      - name: Linter
+      - name: Go Linter
         uses: golangci/golangci-lint-action@v3
         with:
           args: --config=golangci-lint.yml --out-${NO_FUTURE}format colored-line-number
           skip-cache: true
+
+      - name: Python Linter
+        run: python3 -m flake8 test
 
       - name: Unit tests
         run: mage unit
