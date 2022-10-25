@@ -3,11 +3,14 @@ linters:
   enable:
     - lll
     - govet
+    - gofmt
 
 linters-settings:
   lll:
     line-length: 100
     tab-width: 4
+  gofmt:
+    simplify: false
 
 issues:
   exclude-rules:
