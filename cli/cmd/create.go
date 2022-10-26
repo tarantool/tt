@@ -87,5 +87,5 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	return create.Run(&createCtx)
+	return create.Run(cliOpts, &createCtx)
 }

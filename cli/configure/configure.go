@@ -117,8 +117,10 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 			Install: filepath.Join(configDir, "distfiles"),
 		}
 	}
-	if cfg.CliConfig.App.InstancesEnabled == "" {
-		cfg.CliConfig.App.InstancesEnabled = configDir
+
+	if cfg.CliConfig.App.InstancesEnabled != "." {
+		cfg.CliConfig.App.InstancesEnabled =
+			adjustPathWithConfigLocation(cfg.CliConfig.App.InstancesEnabled, configDir, "")
 	}
 	cfg.CliConfig.App.RunDir = adjustPathWithConfigLocation(cfg.CliConfig.App.RunDir,
 		configDir, "run")

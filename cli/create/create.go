@@ -43,7 +43,7 @@ func rollbackOnErr(templateCtx *app_template.TemplateCtx) {
 }
 
 // Run creates an application from a template.
-func Run(createCtx *create_ctx.CreateCtx) error {
+func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 	util.CheckRecommendedBinaries("git")
 
 	if err := checkCtx(createCtx); err != nil {
@@ -64,6 +64,7 @@ func Run(createCtx *create_ctx.CreateCtx) error {
 		steps.Cleanup{},
 		steps.CreateDockerfile{},
 		steps.MoveAppDirectory{},
+		steps.CreateAppSymlink{SymlinkDir: cliOpts.App.InstancesEnabled},
 	}
 
 	templateCtx := app_template.NewTemplateContext()

@@ -5,6 +5,7 @@ import tempfile
 
 tt_config_text = '''tt:
   app:
+    instances_enabled: test.instances.enabled
     run_dir: .
     log_dir: .
   templates:
@@ -30,6 +31,8 @@ def create_tnt_env_in_dir(tmpdir):
     # Create env file.
     with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmpdir))
+
+    os.mkdir(os.path.join(tmpdir, "test.instances.enabled"))
 
     # Copy templates to tmp dir.
     shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"),
@@ -87,6 +90,11 @@ def test_create_basic_functionality(tt_cmd, tmpdir):
 
         # Check "--name" value is used in file name.
         assert os.path.exists(os.path.join(app_path, "app1.cfg"))
+
+        # Check symlink to application is created in instances enabled directory.
+        assert os.path.exists(os.path.join(tmpdir, "test.instances.enabled", "app1"))
+        assert os.readlink(os.path.join(tmpdir, "test.instances.enabled", "app1")) == "../" + \
+            os.path.basename(tmpdirname) + "/app1"
 
         # Check output.
         out_lines = tt_process.stdout.readlines()
