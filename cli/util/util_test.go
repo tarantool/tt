@@ -311,3 +311,43 @@ func TestAskConfirm(t *testing.T) {
 	_, err = AskConfirm(strings.NewReader("Wat?\n"), "Yes?")
 	require.ErrorIs(t, err, io.EOF)
 }
+
+func TestCreateSymlink(t *testing.T) {
+	tempDir := t.TempDir()
+	targetFile, err := os.Create(filepath.Join(tempDir, "tgtFile.txt"))
+	require.NoError(t, err)
+	targetFile.Close()
+
+	// No overwrite.
+	require.NoError(t, CreateSymlink(targetFile.Name(), filepath.Join(tempDir, "first_link"),
+		false))
+	assert.FileExists(t, filepath.Join(tempDir, "first_link"))
+	targetPath, err := os.Readlink(filepath.Join(tempDir, "first_link"))
+	require.NoError(t, err)
+	assert.Equal(t, targetFile.Name(), targetPath)
+
+	// Overwrite flag is set, but symlink does not exist.
+	require.NoError(t, CreateSymlink(targetFile.Name(), filepath.Join(tempDir, "second_link"),
+		true))
+	assert.FileExists(t, filepath.Join(tempDir, "second_link"))
+	targetPath, err = os.Readlink(filepath.Join(tempDir, "second_link"))
+	require.NoError(t, err)
+	assert.Equal(t, targetFile.Name(), targetPath)
+
+	// Overwrite existing symlink.
+	require.NoError(t, CreateSymlink("./tgtFile.txt", filepath.Join(tempDir, "first_link"),
+		true))
+	assert.FileExists(t, filepath.Join(tempDir, "first_link"))
+	targetPath, err = os.Readlink(filepath.Join(tempDir, "first_link"))
+	require.NoError(t, err)
+	assert.Equal(t, "./tgtFile.txt", targetPath)
+
+	// Don't overwrite existing.
+	require.Error(t, CreateSymlink("./some_file", filepath.Join(tempDir, "first_link"),
+		false))
+	// Check existing link is not updated.
+	assert.FileExists(t, filepath.Join(tempDir, "first_link"))
+	targetPath, err = os.Readlink(filepath.Join(tempDir, "first_link"))
+	require.NoError(t, err)
+	assert.Equal(t, "./tgtFile.txt", targetPath)
+}
