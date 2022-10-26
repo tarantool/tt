@@ -429,7 +429,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 	log.Infof("Checking existing...")
 	if checkExisting(version, binDir) && !flags.Reinstall {
 		log.Infof("%s version of tt already exists, updating symlink...", version)
-		err := util.CreateSymLink(version, binDir, "tt", true)
+		err := util.CreateSymlink(version, filepath.Join(binDir, "tt"), true)
 		log.Infof("Done")
 		return err
 	}
@@ -484,7 +484,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 	}
 
 	// Set symlink.
-	err = util.CreateSymLink(version, binDir, "tt", true)
+	err = util.CreateSymlink(version, filepath.Join(binDir, "tt"), true)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
@@ -504,7 +504,7 @@ func checkExistingTarantool(version, binDir, includeDir string,
 	if checkExisting(version, binDir) {
 		if !flags.Reinstall {
 			log.Infof("%s version of tarantool already exists, updating symlink...", version)
-			err = util.CreateSymLink(version, binDir, "tarantool", true)
+			err = util.CreateSymlink(version, filepath.Join(binDir, "tarantool"), true)
 			log.Infof("Done")
 			flag = true
 		}
@@ -778,12 +778,12 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 	}
 	// Set symlinks.
 	log.Infof("Changing symlinks...")
-	err = util.CreateSymLink(version, binDir, "tarantool", true)
+	err = util.CreateSymlink(version, filepath.Join(binDir, "tarantool"), true)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
 	}
-	err = util.CreateSymLink(version, incDir, "tarantool", true)
+	err = util.CreateSymlink(version, filepath.Join(incDir, "tarantool"), true)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
@@ -974,11 +974,11 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 
 	// Set symlinks.
 	log.Infof("Changing symlinks...")
-	err = util.CreateSymLink(version, binDir, "tarantool", true)
+	err = util.CreateSymlink(version, filepath.Join(binDir, "tarantool"), true)
 	if err != nil {
 		return err
 	}
-	err = util.CreateSymLink(version, includeDir, "tarantool", true)
+	err = util.CreateSymlink(version, filepath.Join(includeDir, "tarantool"), true)
 	if err != nil {
 		printLog(logFile.Name())
 		return err

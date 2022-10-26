@@ -690,15 +690,23 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 	return err
 }
 
-// CreateSymLink creates symlink, overwrites existing if flag is set.
-func CreateSymLink(target string, dst string, program string, overwrite bool) error {
-	path := filepath.Join(dst, program)
-	if _, err := os.Stat(path); !os.IsNotExist(err) && !overwrite {
-		return fmt.Errorf("File already exists, overwrite is false")
+// CreateSymlink creates newName as a symbolic link to oldName. Overwrites existing if overwrite
+// flag is set.
+func CreateSymlink(oldName string, newName string, overwrite bool) error {
+	if _, err := os.Stat(newName); err == nil {
+		if !overwrite {
+			return fmt.Errorf("Symbolic link cannot be created: '%s' already exists", newName)
+		} else {
+			log.Debugf("Replace existing '%s' with new symlink.", newName)
+			if err := os.Remove(newName); err != nil {
+				return err
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("Symbolic link cannot be created: %s", err)
 	}
-	os.Remove(path)
-	err := os.Symlink(target, path)
-	return err
+
+	return os.Symlink(oldName, newName)
 }
 
 // IsApp detects if the passed path is an application.
