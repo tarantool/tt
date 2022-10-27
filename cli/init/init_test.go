@@ -277,3 +277,31 @@ func TestInitRunDontOverwriteTtEnv(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "text", string(buf))
 }
+
+func TestCheckExistingConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer os.Chdir(wd)
+
+	f, err := os.Create(configure.ConfigName)
+	require.NoError(t, err)
+	f.Close()
+
+	shouldContinue, err := checkExistingConfig(&InitCtx{reader: strings.NewReader("y\n")})
+	assert.NoError(t, err)
+	assert.True(t, shouldContinue)
+
+	f, err = os.Create(configure.ConfigName)
+	require.NoError(t, err)
+	f.Close()
+	shouldContinue, err = checkExistingConfig(&InitCtx{reader: strings.NewReader("n\n")})
+	assert.NoError(t, err)
+	assert.False(t, shouldContinue)
+
+	shouldContinue, err = checkExistingConfig(&InitCtx{reader: strings.NewReader("n\n"),
+		ForceMode: true})
+	assert.NoError(t, err)
+	assert.True(t, shouldContinue)
+}
