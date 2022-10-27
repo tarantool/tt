@@ -2,6 +2,7 @@ package init
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/apex/log"
@@ -19,6 +20,8 @@ type InitCtx struct {
 	// SkipConfig - if set, disables cartridge & tarantoolctl config analysis,
 	// so init does not try to get directories information from exitsting config files.
 	SkipConfig bool
+	// reader to use for reading user input.
+	reader io.Reader
 }
 
 type cartridgeOpts struct {
@@ -113,10 +116,37 @@ func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
 	return createDirectories(directoriesToCreate)
 }
 
+// FillCtx initializes init context.
+func FillCtx(initCtx *InitCtx) {
+	initCtx.reader = os.Stdin
+}
+
 // Run creates tt environment config for the application in current dir.
 func Run(initCtx *InitCtx) error {
+	if initCtx.reader == nil {
+		initCtx.reader = os.Stdin
+	}
+
 	configLoaders := []configLoader{
 		{".cartridge.yml", loadCartridgeConfig},
+	}
+
+	// Check if config already exists.
+	if _, err := os.Stat(configure.ConfigName); err == nil {
+		confirmed, err := util.AskConfirm(initCtx.reader,
+			fmt.Sprintf("%s already exists. Overwrite?", configure.ConfigName))
+		if err != nil {
+			return err
+		}
+		if confirmed {
+			if err = os.Remove(configure.ConfigName); err != nil {
+				return err
+			}
+		} else {
+			return nil
+		}
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 
 	var appDirInfo appDirInfo

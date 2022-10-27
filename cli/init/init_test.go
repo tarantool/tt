@@ -3,6 +3,7 @@ package init
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mitchellh/mapstructure"
@@ -238,4 +239,41 @@ func TestCreateDirectories(t *testing.T) {
 	assert.DirExists(t, "dir1")
 	assert.DirExists(t, "dir2")
 	assert.DirExists(t, "dir3/subdir")
+}
+
+func TestInitRunOverwriteTtEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer os.Chdir(wd)
+
+	f, err := os.Create("tarantool.yaml")
+	require.NoError(t, err)
+	f.WriteString("text")
+	f.Close()
+
+	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("Y\n")}))
+	// Make sure the file is overwritten.
+	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
+}
+
+func TestInitRunDontOverwriteTtEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer os.Chdir(wd)
+
+	f, err := os.Create(configure.ConfigName)
+	require.NoError(t, err)
+	f.WriteString("text")
+	f.Close()
+
+	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("N\n")}))
+	// Make sure the file has old data.
+	require.NoError(t, err)
+	buf, err := os.ReadFile(configure.ConfigName)
+	require.NoError(t, err)
+	require.Equal(t, "text", string(buf))
 }

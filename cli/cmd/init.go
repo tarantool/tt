@@ -39,5 +39,7 @@ func internalInitModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		SkipConfig: skipConfig,
 	}
 
+	init_pkg.FillCtx(&initCtx)
+
 	return init_pkg.Run(&initCtx)
 }
