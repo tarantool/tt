@@ -228,6 +228,10 @@ func copyAppSrc(opts *config.CliOpts, appName, packagePath string) error {
 			if perm&os.ModeSocket != 0 {
 				return true, nil
 			}
+
+			if strings.HasPrefix(src, ".git") {
+				return true, nil
+			}
 			return false, nil
 		},
 	})
