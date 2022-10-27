@@ -1,16 +1,17 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/configure"
 	init_pkg "github.com/tarantool/tt/cli/init"
 	"github.com/tarantool/tt/cli/modules"
 )
 
-var (
-	skipConfig bool
-)
+var initCtx init_pkg.InitCtx
 
 // NewInitCmd analyses current working directory and generates tarantool.yaml for existing
 // application found in working dir. It there is no app in current directory, default version
@@ -27,19 +28,16 @@ func NewInitCmd() *cobra.Command {
 		},
 	}
 
-	initCmd.Flags().BoolVarP(&skipConfig, "skip-config", "f", false,
+	initCmd.Flags().BoolVarP(&initCtx.SkipConfig, "skip-config", "", false,
 		`Skip loading directories info from tarantoolctl and .cartridge.yml configs`)
+	initCmd.Flags().BoolVarP(&initCtx.ForceMode, "force", "f", false,
+		fmt.Sprintf(`Force re-write existing %s`, configure.ConfigName))
 
 	return initCmd
 }
 
 // internalInitModule is a default init module.
 func internalInitModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	initCtx := init_pkg.InitCtx{
-		SkipConfig: skipConfig,
-	}
-
 	init_pkg.FillCtx(&initCtx)
-
 	return init_pkg.Run(&initCtx)
 }

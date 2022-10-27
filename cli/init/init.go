@@ -20,6 +20,8 @@ type InitCtx struct {
 	// SkipConfig - if set, disables cartridge & tarantoolctl config analysis,
 	// so init does not try to get directories information from exitsting config files.
 	SkipConfig bool
+	// ForceMode, if set, tt config is re-written without a question.
+	ForceMode bool
 	// reader to use for reading user input.
 	reader io.Reader
 }
@@ -121,6 +123,37 @@ func FillCtx(initCtx *InitCtx) {
 	initCtx.reader = os.Stdin
 }
 
+// checkExistingConfig checks tt config for existence and asks for confirmation to overwrite.
+// Returns true if init process can continue, and false otherwise. In case of error, error non-nil
+// error returned as second returned value.
+func checkExistingConfig(initCtx *InitCtx) (bool, error) {
+	// Check if config already exists.
+	if _, err := os.Stat(configure.ConfigName); err == nil {
+		if initCtx.ForceMode {
+			if err = os.Remove(configure.ConfigName); err != nil {
+				return false, err
+			}
+		} else {
+			confirmed, err := util.AskConfirm(initCtx.reader,
+				fmt.Sprintf("%s already exists. Overwrite?", configure.ConfigName))
+			if err != nil {
+				return false, err
+			}
+			if confirmed {
+				if err = os.Remove(configure.ConfigName); err != nil {
+					return false, err
+				}
+			} else {
+				log.Info("Init is cancelled.")
+				return false, nil
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return false, err
+	}
+	return true, nil
+}
+
 // Run creates tt environment config for the application in current dir.
 func Run(initCtx *InitCtx) error {
 	if initCtx.reader == nil {
@@ -131,21 +164,7 @@ func Run(initCtx *InitCtx) error {
 		{".cartridge.yml", loadCartridgeConfig},
 	}
 
-	// Check if config already exists.
-	if _, err := os.Stat(configure.ConfigName); err == nil {
-		confirmed, err := util.AskConfirm(initCtx.reader,
-			fmt.Sprintf("%s already exists. Overwrite?", configure.ConfigName))
-		if err != nil {
-			return err
-		}
-		if confirmed {
-			if err = os.Remove(configure.ConfigName); err != nil {
-				return err
-			}
-		} else {
-			return nil
-		}
-	} else if !os.IsNotExist(err) {
+	if shouldContinue, err := checkExistingConfig(initCtx); !shouldContinue {
 		return err
 	}
 
