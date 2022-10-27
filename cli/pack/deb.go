@@ -59,10 +59,17 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	// Create a package directory, where it will be built.
-	packageDir, err := os.MkdirTemp("", "")
+	packageDir, err := os.MkdirTemp("", "tt_pack")
 	if err != nil {
 		return err
 	}
+	defer func() {
+		err := os.RemoveAll(packageDir)
+		if err != nil {
+			log.Warnf("Failed to remove a temporary directory %s: %s",
+				packageDir, err.Error())
+		}
+	}()
 
 	log.Debugf("A root for package is located in: %s", packageDir)
 
@@ -71,7 +78,13 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(bundlePath)
+	defer func() {
+		err := os.RemoveAll(bundlePath)
+		if err != nil {
+			log.Warnf("Failed to remove a temporary directory %s: %s",
+				bundlePath, err.Error())
+		}
+	}()
 
 	log.Info("Creating a data directory")
 

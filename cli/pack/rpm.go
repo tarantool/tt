@@ -31,7 +31,13 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(packageDir)
+	defer func() {
+		err := os.RemoveAll(packageDir)
+		if err != nil {
+			log.Warnf("Failed to remove a temporary directory %s: %s",
+				packageDir, err.Error())
+		}
+	}()
 
 	log.Debugf("A root for package is located in: %s", packageDir)
 
@@ -40,7 +46,13 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(bundlePath)
+	defer func() {
+		err := os.RemoveAll(bundlePath)
+		if err != nil {
+			log.Warnf("Failed to remove a temporary directory %s: %s",
+				bundlePath, err.Error())
+		}
+	}()
 
 	bundleName, err := getPackageName(packCtx, opts, "", false)
 	if err != nil {
