@@ -137,3 +137,63 @@ def test_init_in_app_dir(tt_cmd, tmpdir):
 
     assert not os.path.exists(os.path.join(app_dir, "instances.enabled"))
     check_env_dirs(app_dir, ".")
+
+
+def test_init_existing_tt_env_conf_overwrite(tt_cmd, tmpdir):
+    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
+                os.path.join(tmpdir, ".cartridge.yml"))
+
+    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as f:
+        f.write('''tt:
+  app:''')
+
+    tt_process = subprocess.Popen(
+        [tt_cmd, "init"],
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.writelines(["yes\n"])
+    tt_process.stdin.close()
+    tt_process.wait()
+
+    assert tt_process.returncode == 0
+    line = tt_process.stdout.readline()
+    assert "tarantool.yaml already exists. Overwrite? [y/n]:" in line and \
+           "Environment config is written to 'tarantool.yaml'" in line
+
+    with open(os.path.join(tmpdir, "tarantool.yaml"), 'r') as stream:
+        data_loaded = yaml.safe_load(stream)
+        assert data_loaded["tt"]["app"]["run_dir"] == "my_run_dir"
+        assert data_loaded["tt"]["app"]["log_dir"] == "my_log_dir"
+        assert data_loaded["tt"]["app"]["data_dir"] == "my_data_dir"
+        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
+
+    check_env_dirs(tmpdir, "instances.enabled")
+
+
+def test_init_existing_tt_env_conf_dont_overwrite(tt_cmd, tmpdir):
+    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as f:
+        f.write('''tt:
+  app:''')
+
+    tt_process = subprocess.Popen(
+        [tt_cmd, "init"],
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.writelines(["no\n"])
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
+    line = tt_process.stdout.readline()
+    assert "tarantool.yaml already exists. Overwrite? [y/n]:" in line and \
+           "Environment config is written to 'tarantool.yaml'" not in line
+
+    with open(os.path.join(tmpdir, "tarantool.yaml"), 'r') as stream:
+        assert len(stream.readlines()) == 2
