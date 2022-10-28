@@ -3,6 +3,9 @@ package connector
 import (
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/tarantool/go-tarantool"
@@ -10,6 +13,8 @@ import (
 
 const (
 	greetingOperationTimeout = 3 * time.Second
+	maxSocketPathLinux       = 108
+	maxSocketPathMac         = 106
 )
 
 // RequestOpts describes the parameters of a request to be executed.
@@ -37,6 +42,29 @@ type Connector interface {
 
 // Connect connects to the tarantool instance according to options.
 func Connect(opts ConnectOpts) (Connector, error) {
+	// It became common that address is longer than 108 symbols(sun_path limit).
+	// To reduce length of address we use relative path
+	// with chdir into a directory of socket.
+	// e.g foo/bar/123.sock -> ./123.sock
+	workDir, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	maxSocketPath := maxSocketPathLinux
+	if runtime.GOOS == "darwin" {
+		maxSocketPath = maxSocketPathMac
+	}
+
+	if _, err := os.Stat(opts.Address); err == nil {
+		os.Chdir(filepath.Dir(opts.Address))
+		opts.Address = "./" + filepath.Base(opts.Address)
+		if len(opts.Address)+1 > maxSocketPath {
+			return nil, fmt.Errorf("socket name is longer than %d symbols: %s",
+				maxSocketPath-3, filepath.Base(opts.Address))
+		}
+		defer os.Chdir(workDir)
+	}
 	// Connect to specified address.
 	greetingConn, err := net.Dial(opts.Network, opts.Address)
 	if err != nil {
