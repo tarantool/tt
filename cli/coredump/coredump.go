@@ -1,15 +1,11 @@
 package coredump
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"embed"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/util"
@@ -17,80 +13,6 @@ import (
 
 //go:embed scripts/*
 var corescripts embed.FS
-
-// MakeTarGzReader makes reader for tar.gz file.
-func MakeTarGzReader(archive *os.File) (*tar.Reader, error) {
-	uncompressedStream, err := gzip.NewReader(archive)
-	if err != nil {
-		return nil, err
-	}
-
-	tarReader := tar.NewReader(uncompressedStream)
-	return tarReader, err
-}
-
-// ExtractTarGz extracts tar.gz archive.
-func ExtractTarGz(tarName string) error {
-
-	path, err := filepath.Abs(tarName)
-	if err != nil {
-		return err
-	}
-	archive, err := os.Open(path)
-	defer archive.Close()
-	if err != nil {
-		return err
-	}
-	tarReader, err := MakeTarGzReader(archive)
-	if err != nil {
-		return err
-	}
-	for {
-		header, err := tarReader.Next()
-
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			continue
-		case tar.TypeReg:
-			var pos int
-			// Some archives have strange order of objects,
-			// so we check that all folders exist before
-			// creating a file.
-			pos = strings.LastIndex(header.Name, "/")
-			if pos == -1 {
-				pos = 0
-			}
-			if _, err := os.Stat(header.Name[0:pos]); os.IsNotExist(err) {
-				// 0755:
-				//    user:   read/write/execute
-				//    group:  read/execute
-				//    others: read/execute
-				os.MkdirAll(header.Name[0:pos], 0755)
-			}
-			outFile, err := os.Create(header.Name)
-			if err != nil {
-				outFile.Close()
-				return err
-			}
-			if _, err := io.Copy(outFile, tarReader); err != nil {
-				outFile.Close()
-				return err
-			}
-			outFile.Close()
-
-		default:
-			return fmt.Errorf("unknown type: %b in %s", header.Typeflag, header.Name)
-		}
-
-	}
-	return nil
-}
 
 // findFile makes absolute path and checks that file exists.
 func findFile(fileName string) (string, error) {
@@ -145,7 +67,7 @@ func Unpack(tarName string) error {
 		return fmt.Errorf("There was some problem unpacking archive. "+
 			"Error: '%v'.", err)
 	}
-	err = ExtractTarGz(tarPath)
+	err = util.ExtractTarGz(tarPath, ".")
 	if err == nil {
 		log.Infof("Archive was successfully unpacked. \n")
 	} else {

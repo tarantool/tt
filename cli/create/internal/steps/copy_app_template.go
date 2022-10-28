@@ -2,33 +2,14 @@ package steps
 
 import (
 	"fmt"
-	"os"
 	"path"
-	"time"
 
 	"github.com/apex/log"
-	"github.com/codeclysm/extract/v3"
 	"github.com/otiai10/copy"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 	"github.com/tarantool/tt/cli/util"
-	"golang.org/x/net/context"
 )
-
-// extractTemplate extract archivePath archive to dstPath.
-func extractTemplate(archivePath string, dstPath string) error {
-	archive, err := os.Open(archivePath)
-	if err != nil {
-		return fmt.Errorf("Error opening %s: %s", archivePath, err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	if err := extract.Gz(ctx, archive, dstPath, func(s string) string { return s }); err != nil {
-		return fmt.Errorf("Template archive extraction failed: %s", err)
-	}
-	return nil
-}
 
 // CopyAppTemplate represents template -> app directory copy step.
 type CopyAppTemplate struct {
@@ -57,7 +38,7 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 		for _, archivePath := range archivesToCheck {
 			if util.IsRegularFile(archivePath) {
 				log.Infof("Using template from %s", archivePath)
-				return extractTemplate(archivePath, templateCtx.AppPath)
+				return util.ExtractTarGz(archivePath, templateCtx.AppPath)
 			}
 		}
 	}
