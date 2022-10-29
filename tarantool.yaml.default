@@ -1,0 +1,49 @@
+tt:
+  modules:
+    # Directory where the external modules are stored.
+    directory: modules
+
+  app:
+    # Directory that stores various instance runtime
+    # artifacts like console socket, PID file, etc.
+    run_dir: /var/run/tarantool
+
+    # Directory that stores log files.
+    log_dir: /var/log/tarantool
+
+    # The maximum size in MB of the log file before it gets rotated.
+    log_maxsize: 100
+
+    # The maximum number of days to retain old log files.
+    log_maxage: 8
+
+    # The maximum number of old log files to retain.
+    log_maxbackups: 10
+
+    # Restart instance on failure.
+    restart_on_failure: false
+
+    # Directory where all the instance artifacts ar stored.
+    data_dir: /var/lib/tarantool
+
+    # Directory that stores binary files.
+    bin_dir: bin
+
+    # Directory that stores Tarantool header files.
+    inc_dir: include
+
+    # Path to directory that stores all applications.
+    # The directory can also contain symbolic links to applications.
+    instances_enabled: /etc/tarantool/instances.enabled
+
+  ee: null
+    # Path to file with credentials for downloading Tarantool Enterprise Edition.
+    # credential_path: /path/to/file
+
+  templates:
+    # The path to templates search directory.
+    - path: templates
+
+  repo:
+    # Directory that stores installation files.
+    distfiles: install
