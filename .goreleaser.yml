@@ -1,0 +1,83 @@
+before:
+  hooks:
+    - go mod download
+
+env:
+  - GO111MODULE=on
+
+builds:
+  -
+    id: tt
+    binary: tt
+    dir: cli
+
+    env:
+      - CGO_ENABLED=0
+
+    flags:
+      - -tags=go_tarantool_ssl_disable
+
+    ldflags:
+      - -s -w
+      - -X github.com/tarantool/tt/cli/version.gitTag={{ .Tag }}
+      - -X github.com/tarantool/tt/cli/version.gitCommit={{ .ShortCommit }}
+
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+    hooks:
+      pre:
+        - mage PatchCC
+        - mage GenerateGoCode
+
+archives:
+  -
+    id: "tt"
+    builds: ['tt']
+    format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.rst
+      - LICENSE
+      - CHANGELOG.md
+
+snapshot:
+  name_template: "{{ .Tag }}-{{ .ShortCommit }}"
+
+changelog:
+  skip: true
+
+release:
+  draft: true
+
+nfpms:
+  -
+    id: "tt"
+    builds: ['tt']
+    formats:
+      - deb
+      - rpm
+    homepage: "https://github.com/tarantool/tt"
+    maintainer: "Leonid Vasiliev <lvasiliev@tarantool.org>"
+    description: "Command-line utility to manage Tarantool applications"
+    license: "BSD-2 MIT Apache-2.0 BSD MPL-2.0"
+    recommends:
+      - git
+      - zip
+      - unzip
+      - curl
+    contents:
+      - src: "tarantool.yaml.default"
+        dst: "/etc/tarantool/tarantool.yaml"
+        type: config
+
+    overrides:
+      rpm:
+        replacements:
+          amd64: x86_64
+        file_name_template: "{{ .ProjectName }}-{{ .Version }}.{{ .Arch }}"
+
+      deb:
+        file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}"
