@@ -487,3 +487,110 @@ def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmpdir):
 
     assert os.path.exists(os.path.join(app_path, "subdir"))
     assert not os.path.exists(os.path.join(app_path, "hooks"))
+
+
+def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmpdir):
+    create_tnt_env_in_dir(tmpdir)
+
+    os.rename(os.path.join(tmpdir, "templates", "basic", "MANIFEST.yaml"),
+              os.path.join(tmpdir, "templates", "basic", "MANIFEST.yml"))
+
+    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
+        create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
+        tt_process = subprocess.Popen(
+            create_cmd,
+            cwd=tmpdirname,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            text=True
+        )
+        tt_process.stdin.writelines(["\n", "\n", "weak_pwd\n", "\n"])
+        tt_process.stdin.close()
+        tt_process.wait()
+        assert tt_process.returncode == 0
+
+        app_path = os.path.join(tmpdirname, "app1")
+        # Read rendered template.
+        check_file_text(os.path.join(app_path, "config.lua"),
+                        rendered_text.format(cookie="cookie", user_name="admin",
+                        pwd="weak_pwd", retry_count=3))
+
+        # Make sure template file is removed.
+        assert os.path.exists(os.path.join(app_path, "config.lua.tt.template")) is False
+
+        # Check pre/post scripts were invoked.
+        assert os.path.exists(os.path.join(app_path, "pre-script-invoked"))
+        assert os.path.exists(os.path.join(app_path, "post-script-invoked"))
+
+        # Check template manifest file is removed.
+        assert os.path.exists(os.path.join(app_path, "MANIFEST.yaml")) is False
+        assert os.path.exists(os.path.join(app_path, "MANIFEST.yml")) is False
+
+        # Check instantiated file name.
+        assert os.path.exists(os.path.join(app_path, "admin.txt"))
+
+        # Check origin file is removed.
+        assert os.path.exists(os.path.join(app_path, "{{.user_name}}.txt")) is False
+
+        # Check hooks directory is removed.
+        assert os.path.exists(os.path.join(app_path, "hooks")) is False
+
+        # Check temporary files is removed.
+        assert os.path.exists(os.path.join(app_path, "tmp_config.cfg")) is False
+
+        # Check default Dockerfile is created.
+        assert os.path.exists(os.path.join(app_path, "Dockerfile.build.tt"))
+
+        # Check "--name" value is used in file name.
+        assert os.path.exists(os.path.join(app_path, "app1.cfg"))
+
+        # Check output.
+        out_lines = tt_process.stdout.readlines()
+
+        expected_lines = [
+            'Creating application in',
+            'Using template from',
+            'Cluster cookie (default: cookie): User name (default: admin): '
+            'Password: Retry count (default: 3):    • Executing pre-hook '
+            './hooks/pre-gen.sh\n',
+            'Executing post-hook ./hooks/post-gen.sh\n'
+        ]
+
+    for i in range(len(expected_lines)):
+        assert out_lines[i].find(expected_lines[i]) != -1
+
+
+def test_create_ambiguous_manifest(tt_cmd, tmpdir):
+    create_tnt_env_in_dir(tmpdir)
+
+    shutil.copy(os.path.join(tmpdir, "templates", "basic", "MANIFEST.yaml"),
+                os.path.join(tmpdir, "templates", "basic", "MANIFEST.yml"))
+
+    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
+        create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
+        tt_process = subprocess.Popen(
+            create_cmd,
+            cwd=tmpdirname,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            stdin=subprocess.PIPE,
+            text=True
+        )
+        tt_process.wait()
+        assert tt_process.returncode == 1
+
+        # Make sure template file is removed.
+        assert os.path.exists(os.path.join(tmpdirname, "app1")) is False
+
+        # Check output.
+        out_lines = tt_process.stdout.readlines()
+
+        expected_lines = [
+            'Creating application in',
+            'Using template from',
+            '⨯ More than one YAML files are found:'
+        ]
+
+    for i in range(len(expected_lines)):
+        assert out_lines[i].find(expected_lines[i]) != -1

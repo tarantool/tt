@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -191,4 +192,30 @@ func TestGetSystemConfigPath(t *testing.T) {
 	os.Setenv(systemConfigDirEnvName, "/system_config_dir")
 	defer os.Unsetenv(getSystemConfigPath())
 	require.Equal(t, filepath.Join("/system_config_dir", ConfigName), getSystemConfigPath())
+}
+
+func TestGetConfigPath(t *testing.T) {
+	tempDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "a", "b"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tarantool.yaml"), []byte("tt:"),
+		0664))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tarantool.yml"), []byte("tt:"),
+		0664))
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tarantool.yaml"), []byte("tt:"),
+		0664))
+
+	if wd, err := os.Getwd(); err == nil {
+		require.NoError(t, os.Chdir(filepath.Join(tempDir, "a", "b")))
+		defer os.Chdir(wd)
+	}
+
+	configName, err := getConfigPath(ConfigName)
+	assert.Equal(t, "", configName)
+	assert.True(t, strings.Contains(err.Error(), "More than one YAML files are found"))
+
+	require.NoError(t, os.Remove(filepath.Join(tempDir, "a", "tarantool.yaml")))
+
+	configName, err = getConfigPath(ConfigName)
+	assert.Equal(t, filepath.Join(tempDir, "a", "tarantool.yml"), configName)
+	assert.NoError(t, err)
 }

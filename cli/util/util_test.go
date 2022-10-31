@@ -415,3 +415,39 @@ func TestIsApp(t *testing.T) {
 		})
 	}
 }
+
+func TestGetYamlFileName(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create tarantool.yaml file.
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tarantool.yaml"), []byte("tt:"),
+		0664))
+	fileName, err := FindYamlFile(filepath.Join(tempDir, "tarantool.yml"))
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(tempDir, "tarantool.yaml"), fileName)
+
+	// Create tarantool.yml file. File selection ambiguity.
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tarantool.yml"), []byte("tt:"),
+		0664))
+	fileName, err = FindYamlFile(filepath.Join(tempDir, "tarantool.yml"))
+	assert.Error(t, err)
+	assert.Equal(t, "", fileName)
+
+	// Remove tarantool.yaml file.
+	require.NoError(t, os.Remove(filepath.Join(tempDir, "tarantool.yaml")))
+	fileName, err = FindYamlFile(filepath.Join(tempDir, "tarantool.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(tempDir, "tarantool.yml"), fileName)
+
+	// Pass file with .txt extension as a parameter.
+	fileName, err = FindYamlFile(filepath.Join(tempDir, "tarantool.txt"))
+	assert.EqualError(t, err, fmt.Sprintf("Provided file '%s' has no .yaml/.yml extension.",
+		filepath.Join(tempDir, "tarantool.txt")))
+	assert.Equal(t, "", fileName)
+
+	// Remove tarantool.yaml file.
+	require.NoError(t, os.Remove(filepath.Join(tempDir, "tarantool.yml")))
+	fileName, err = FindYamlFile(filepath.Join(tempDir, "tarantool.yaml"))
+	assert.ErrorIs(t, os.ErrNotExist, err)
+	assert.Equal(t, "", fileName)
+}

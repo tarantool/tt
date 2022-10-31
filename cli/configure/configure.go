@@ -75,18 +75,17 @@ func adjustPathWithConfigLocation(filePath string, configDir string, defaultDirN
 func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 	var cfg config.Config
 	// Config could not be processed.
-	if _, err := os.Stat(configurePath); err != nil {
+	configPath, err := util.FindYamlFile(configurePath)
+	if err != nil && !os.IsNotExist(err) {
 		// TODO: Add warning in next patches, discussion
 		// what if the file exists, but access is denied, etc.
-		if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("Failed to get access to configuration file: %s", err)
-		}
-
+		return nil, fmt.Errorf("Failed to get access to configuration file: %s", err)
+	} else if os.IsNotExist(err) {
 		cfg.CliConfig = getDefaultCliOpts()
 		return cfg.CliConfig, nil
 	}
 
-	rawConfigOpts, err := util.ParseYAML(configurePath)
+	rawConfigOpts, err := util.ParseYAML(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: %s", err)
 	}
@@ -99,7 +98,7 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: missing tt section")
 	}
 
-	configDir := filepath.Dir(configurePath)
+	configDir := filepath.Dir(configPath)
 	if cfg.CliConfig.App == nil {
 		cfg.CliConfig.App = &config.AppOpts{
 			InstancesEnabled: ".",
@@ -316,19 +315,16 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	if cmdCtx.Cli.ConfigPath == "" {
-		cmdCtx.Cli.ConfigPath = filepath.Join(launchDir, ConfigName)
-		// TODO: Add warning messages, discussion what if the file
-		// exists, but access is denied, etc.
-		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
+		cmdCtx.Cli.ConfigPath, err = util.FindYamlFile(filepath.Join(launchDir, ConfigName))
+		if err != nil {
+			// TODO: Add warning messages, discussion what if the file
+			// exists, but access is denied, etc.
 			if !os.IsNotExist(err) {
 				return fmt.Errorf("Failed to get access to configuration file: %s", err)
 			}
-
-			var err error
 			if cmdCtx.Cli.ConfigPath, err = getConfigPath(ConfigName); err != nil {
 				return fmt.Errorf("Failed to get Tarantool CLI config: %s", err)
 			}
-
 			if cmdCtx.Cli.ConfigPath == "" {
 				if cmdCtx.Cli.LocalLaunchDir != "" {
 					return fmt.Errorf("Failed to find Tarantool CLI config for '%s'",
@@ -491,9 +487,11 @@ func getConfigPath(configName string) (string, error) {
 	}
 
 	for curDir != "/" {
-		configPath := filepath.Join(curDir, ConfigName)
-		if _, err := os.Stat(configPath); err == nil {
+		configPath, err := util.FindYamlFile(filepath.Join(curDir, ConfigName))
+		if err == nil {
 			return configPath, nil
+		} else if !os.IsNotExist(err) {
+			return "", err
 		}
 
 		curDir = filepath.Dir(curDir)

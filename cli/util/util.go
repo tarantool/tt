@@ -856,3 +856,36 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 
 	return nil
 }
+
+// FindYamlFile searches for file with .yaml or .yml extension, based on the file name provided.
+func FindYamlFile(fileName string) (string, error) {
+	fileBaseName := fileName
+	switch filepath.Ext(fileName) {
+	case ".yaml":
+		fileBaseName = strings.TrimSuffix(fileName, ".yaml")
+	case ".yml":
+		fileBaseName = strings.TrimSuffix(fileName, ".yml")
+	default:
+		return "", fmt.Errorf("Provided file '%s' has no .yaml/.yml extension.", fileName)
+	}
+	foundYamlFiles := []string{}
+	if foundFiles, err := filepath.Glob(fmt.Sprintf("%s.y*ml", fileBaseName)); err == nil {
+		for _, fileName := range foundFiles {
+			switch filepath.Ext(fileName) {
+			case ".yaml", ".yml":
+				foundYamlFiles = append(foundYamlFiles, fileName)
+			}
+		}
+	} else {
+		return "", err
+	}
+	yamlFilesCount := len(foundYamlFiles)
+	if yamlFilesCount > 1 {
+		return "", fmt.Errorf("More than one YAML files are found:\n%s\nAmbiguous selection.",
+			strings.Join(foundYamlFiles, ", "))
+	} else if yamlFilesCount == 1 {
+		return foundYamlFiles[0], nil
+	}
+
+	return "", os.ErrNotExist
+}

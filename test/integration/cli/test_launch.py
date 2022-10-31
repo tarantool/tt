@@ -266,6 +266,30 @@ def test_launch_local_launch_tarantool_with_config_in_parent_dir(tt_cmd, tmpdir)
             assert os.path.exists(os.path.join(tmpdir_without_config, "file.txt"))
 
 
+def test_launch_local_launch_tarantool_with_yml_config_in_parent_dir(tt_cmd, tmpdir):
+    tmpdir_without_config = tempfile.mkdtemp(dir=tmpdir)
+    config_path = os.path.join(tmpdir, "tarantool.yml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+    tarantool_message = "Hello, I'm Tarantool"
+    with open(os.path.join(tmpdir, "binaries/tarantool"), "w") as f:
+        f.write(f"#!/bin/sh\ntouch file.txt\necho \"{tarantool_message}\"")
+    os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
+
+    commands = [
+        [tt_cmd, "run", "-L", tmpdir_without_config, "--version"],
+    ]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        for cmd in commands:
+            rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
+            assert rc == 0
+            assert tarantool_message in output
+            assert os.path.exists(os.path.join(tmpdir_without_config, "file.txt"))
+
+
 def test_launch_system_tarantool(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, "tarantool.yaml")
     with open(config_path, "w") as f:
@@ -282,6 +306,31 @@ def test_launch_system_tarantool(tt_cmd, tmpdir):
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         with open(os.path.join(tmp_working_dir, "tarantool.yaml"), "w") as f:
+            yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
+                       "app": {"bin_dir": ""}}}, f)
+        my_env = os.environ.copy()
+        my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
+        rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
+        assert rc == 0
+        assert tarantool_message in output
+
+
+def test_launch_system_tarantool_yml_system_config(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tarantool.yml")
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
+                   "app": {"bin_dir": "./binaries"}}}, f)
+
+    os.mkdir(os.path.join(tmpdir, "binaries"))
+    tarantool_message = "Hello, I'm Tarantool"
+    with open(os.path.join(tmpdir, "binaries/tarantool"), "w") as f:
+        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+    os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
+
+    command = [tt_cmd, "run", "-S"]
+
+    with tempfile.TemporaryDirectory() as tmp_working_dir:
+        with open(os.path.join(tmp_working_dir, "tarantool.yml"), "w") as f:
             yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
                        "app": {"bin_dir": ""}}}, f)
         my_env = os.environ.copy()
