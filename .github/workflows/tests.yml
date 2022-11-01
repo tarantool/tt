@@ -84,6 +84,11 @@ jobs:
       - name: Codespell checks
         run: mage codespell
 
+      - name: License checker
+        run: |
+          go install github.com/uw-labs/lichen@latest
+          mage checklicenses
+
       - name: Go Linter
         uses: golangci/golangci-lint-action@v3
         with:
@@ -184,6 +189,11 @@ jobs:
 
       - name: Codespell checks
         run: mage codespell
+
+      - name: License checker
+        run: |
+          go install github.com/uw-labs/lichen@latest
+          mage checklicenses
 
       - name: Go Linter
         uses: golangci/golangci-lint-action@v3

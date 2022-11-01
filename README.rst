@@ -26,6 +26,7 @@ To run tests:
 * `flake8-isort <https://pypi.org/project/flake8-isort/>`_
 * `flake8-unused-arguments <https://pypi.org/project/flake8-unused-arguments/>`_
 * `golangci-lint <https://golangci-lint.run/usage/install/#local-installation>`_
+* `lichen <https://github.com/uw-labs/lichen#install>`_
 
 ~~~~~
 Build
