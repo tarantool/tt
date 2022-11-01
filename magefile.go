@@ -166,6 +166,22 @@ func Build() error {
 	return nil
 }
 
+// Run license checker.
+func CheckLicenses() error {
+	fmt.Println("Running license checker...")
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	if err := sh.RunV(home+"/go/bin/lichen", "--config", ".lichen.yaml", "tt"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Run golang and python linters.
 func Lint() error {
 	fmt.Println("Running golangci-lint...")
@@ -230,7 +246,7 @@ func Codespell() error {
 
 // Run all tests together.
 func Test() {
-	mg.SerialDeps(Lint, Unit, Integration)
+	mg.SerialDeps(Lint, CheckLicenses, Unit, Integration)
 }
 
 // Cleanup directory.
