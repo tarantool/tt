@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -161,4 +162,39 @@ func PrintFromStart(file *os.File) error {
 	}
 
 	return nil
+}
+
+// ExecuteCommandStdin executes program with given args in verbose or quiet mode
+// and sends stdinData to stdin pipe.
+func ExecuteCommandGetOutput(program string, workDir string, stdinData []byte,
+	args ...string) ([]byte, error) {
+	cmd := exec.Command(program, args...)
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	if workDir == "" {
+		var err error
+		if workDir, err = os.Getwd(); err != nil {
+			return out.Bytes(), err
+		}
+	}
+	cmd.Dir = workDir
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return out.Bytes(), err
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return out.Bytes(), err
+	}
+
+	stdin.Write(stdinData)
+	stdin.Close()
+
+	err = cmd.Wait()
+	return out.Bytes(), err
 }

@@ -2,6 +2,7 @@ package init
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestLoadCartridgeConfig(t *testing.T) {
-	actualDirInfo, err := loadCartridgeConfig("./testdata/valid_cartridge.yml")
+	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/valid_cartridge.yml")
 	require.NoError(t, err)
 	require.Equal(t, appDirInfo{
 		runDir:  "my_run_dir",
@@ -26,21 +27,21 @@ func TestLoadCartridgeConfig(t *testing.T) {
 }
 
 func TestLoadCartridgeInvalidConfig(t *testing.T) {
-	actualDirInfo, err := loadCartridgeConfig("./testdata/invalid_cartridge.yml")
+	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/invalid_cartridge.yml")
 	require.EqualError(t, err, "failed to parse cartridge app configuration: Failed "+
 		"to parse YAML: yaml: line 5: could not find expected ':'")
 	require.Equal(t, appDirInfo{}, actualDirInfo)
 }
 
 func TestLoadCartridgeWrongDataFormat(t *testing.T) {
-	actualDirInfo, err := loadCartridgeConfig("./testdata/wrong_data_format.yml")
+	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/wrong_data_format.yml")
 	require.Contains(t, err.Error(), "'log-dir' expected type 'string', got unconvertible "+
 		"type 'float64', value: '1.2'")
 	require.Equal(t, appDirInfo{}, actualDirInfo)
 }
 
 func TestLoadCartridgeNonExistentConfig(t *testing.T) {
-	actualDirInfo, err := loadCartridgeConfig("./testdata/no_cartridge.yml")
+	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/no_cartridge.yml")
 	require.Error(t, err)
 	require.Equal(t, appDirInfo{}, actualDirInfo)
 }
@@ -331,4 +332,45 @@ func TestCheckExistingConfig(t *testing.T) {
 		ForceMode: true})
 	assert.NoError(t, err)
 	assert.Equal(t, configure.ConfigName, fileName)
+}
+
+func TestInitLoadTarantoolctlConfig(t *testing.T) {
+	var err error
+	var initCtx InitCtx
+	initCtx.TarantoolExecutable, err = exec.LookPath("tarantool")
+	require.NoError(t, err)
+	appDirInfo, err := loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_workdir.lua")
+	require.NoError(t, err)
+	assert.Equal(t, "", appDirInfo.dataDir)
+	assert.Equal(t, "", appDirInfo.logDir)
+	assert.Equal(t, "", appDirInfo.runDir)
+
+	os.Setenv("TEST_WORKDIR", "/tmp/workdir")
+	appDirInfo, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_workdir.lua")
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/workdir", appDirInfo.dataDir)
+	assert.Equal(t, "/tmp/workdir", appDirInfo.logDir)
+	assert.Equal(t, "/tmp/workdir", appDirInfo.runDir)
+
+	os.Unsetenv("TEST_WORKDIR")
+	appDirInfo, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl.lua")
+	require.NoError(t, err)
+	assert.Equal(t, "var/lib", appDirInfo.dataDir)
+	assert.Equal(t, "var/log", appDirInfo.logDir)
+	assert.Equal(t, "var/run", appDirInfo.runDir)
+}
+
+func TestInitLoadTarantoolctlConfigErrorCases(t *testing.T) {
+	var err error
+	var initCtx InitCtx
+	initCtx.TarantoolExecutable, err = exec.LookPath("tarantool")
+	require.NoError(t, err)
+	_, err = loadTarantoolctlConfig(&initCtx,
+		"testdata/tarantoolctl_different_directories.lua")
+	require.EqualError(t, err, "tarantoolctl config loading error: ambiguous data directory")
+
+	_, err = loadTarantoolctlConfig(&initCtx,
+		"testdata/tarantoolctl_invalid.lua")
+	require.True(t, strings.Contains(err.Error(),
+		"tarantoolctl config loading error: LuajitError:"))
 }
