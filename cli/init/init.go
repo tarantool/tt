@@ -1,9 +1,12 @@
 package init
 
 import (
+	// Go embed blank import.
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
@@ -24,6 +27,8 @@ type InitCtx struct {
 	ForceMode bool
 	// reader to use for reading user input.
 	reader io.Reader
+	// Tarantool executable path.
+	TarantoolExecutable string
 }
 
 type cartridgeOpts struct {
@@ -43,11 +48,14 @@ type appDirInfo struct {
 // configLoader binds config name with load functor.
 type configLoader struct {
 	configName string
-	load       func(string) (appDirInfo, error)
+	load       func(*InitCtx, string) (appDirInfo, error)
 }
 
+//go:embed print_tarantoolctl_cfg.lua
+var printTarantoolctlCfgLuaBytes []byte
+
 // loadCartridgeConfig parses configPath as .cartridge.yml and fill directories info structure.
-func loadCartridgeConfig(configPath string) (appDirInfo, error) {
+func loadCartridgeConfig(initCtx *InitCtx, configPath string) (appDirInfo, error) {
 	var cartridgeConf cartridgeOpts
 	rawConfigOpts, err := util.ParseYAML(configPath)
 	if err != nil {
@@ -77,6 +85,44 @@ func createDirectories(dirList []string) error {
 		log.Debugf("'%s' directory is created.", dirName)
 	}
 	return nil
+}
+
+// loadTarantoolctlConfig loads data from configPath which is processed as a lua file, and fills
+// directories info structure.
+func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (appDirInfo, error) {
+	var appDirInfo appDirInfo
+	if initCtx.TarantoolExecutable == "" {
+		return appDirInfo, fmt.Errorf("Tarantool executable is not set")
+	}
+
+	out, err := util.ExecuteCommandGetOutput(initCtx.TarantoolExecutable, "",
+		printTarantoolctlCfgLuaBytes, "-", configPath)
+	if err != nil {
+		return appDirInfo, fmt.Errorf("tarantoolctl config loading error: %s", string(out))
+	}
+	outLines := strings.Split(string(out), "\n")
+
+	for _, dirDefinition := range outLines {
+		if dirDefinition == "" {
+			continue
+		}
+		varName, dirPath, found := strings.Cut(dirDefinition, "=")
+		if !found || varName == "" {
+			log.Warnf("Failed to parse output of tarantoolctl : %s", dirDefinition)
+		}
+		switch varName {
+		case "wal_dir":
+			appDirInfo.dataDir = dirPath
+		case "logger":
+			appDirInfo.logDir = dirPath
+		case "pid_file":
+			appDirInfo.runDir = dirPath
+		default:
+			log.Warnf("Unknown var: %s", varName)
+		}
+	}
+
+	return appDirInfo, nil
 }
 
 // generateTtEnv generates environment config in configPath using directories info from
@@ -166,6 +212,7 @@ func Run(initCtx *InitCtx) error {
 
 	configLoaders := []configLoader{
 		{".cartridge.yml", loadCartridgeConfig},
+		{".tarantoolctl", loadTarantoolctlConfig},
 	}
 
 	configName, err := checkExistingConfig(initCtx)
@@ -184,9 +231,12 @@ func Run(initCtx *InitCtx) error {
 				}
 			}
 
-			appDirInfo, err = confLoader.load(confLoader.configName)
+			log.Infof("Found existing config '%s'", confLoader.configName)
+			appDirInfo, err = confLoader.load(initCtx, confLoader.configName)
 			if err != nil {
 				return err
+			} else {
+				break
 			}
 		}
 	}
