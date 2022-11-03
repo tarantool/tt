@@ -60,6 +60,20 @@ func loadCartridgeConfig(configPath string) (appDirInfo, error) {
 	}, nil
 }
 
+// createDirectories creates directories specified in dirList.
+func createDirectories(dirList []string) error {
+	for _, dirName := range dirList {
+		if dirName == "" {
+			continue
+		}
+		if err := util.CreateDirectory(dirName, defaultDirPermissions); err != nil {
+			return err
+		}
+		log.Debugf("'%s' directory is created.", dirName)
+	}
+	return nil
+}
+
 // generateTtEnv generates environment config in configPath using directories info from
 // appDirInfo.
 func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
@@ -81,64 +95,22 @@ func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
 		return err
 	}
 
-	// Create instances enabled directory if required.
 	if appDirInfo.instancesEnabled != "" {
 		cfg.CliConfig.App.InstancesEnabled = appDirInfo.instancesEnabled
-		if err := util.CreateDirectory(appDirInfo.instancesEnabled,
-			defaultDirPermissions); err != nil {
-			return err
-		}
-		log.Debugf("'%s' directory is created.", appDirInfo.instancesEnabled)
 	}
 
-	// Create modules directory.
-	if cfg.CliConfig.Modules.Directory != "" {
-		if err := util.CreateDirectory(cfg.CliConfig.Modules.Directory,
-			defaultDirPermissions); err != nil {
-			return err
-		}
-		log.Debugf("'%s' directory is created.", cfg.CliConfig.Modules.Directory)
+	directoriesToCreate := []string{
+		cfg.CliConfig.App.InstancesEnabled,
+		cfg.CliConfig.Modules.Directory,
+		cfg.CliConfig.App.IncludeDir,
+		cfg.CliConfig.App.BinDir,
+		cfg.CliConfig.Repo.Install,
+	}
+	for _, templatesPathOpts := range cfg.CliConfig.Templates {
+		directoriesToCreate = append(directoriesToCreate, templatesPathOpts.Path)
 	}
 
-	// Create include directory.
-	if cfg.CliConfig.App.IncludeDir != "" {
-		if err := util.CreateDirectory(cfg.CliConfig.App.IncludeDir,
-			defaultDirPermissions); err != nil {
-			return err
-		}
-		log.Debugf("'%s' directory is created.", cfg.CliConfig.App.IncludeDir)
-	}
-
-	// Create binary directory.
-	if cfg.CliConfig.App.BinDir != "" {
-		if err := util.CreateDirectory(cfg.CliConfig.App.BinDir,
-			defaultDirPermissions); err != nil {
-			return err
-		}
-		log.Debugf("'%s' directory is created.", cfg.CliConfig.App.BinDir)
-	}
-
-	// Create install directory.
-	if cfg.CliConfig.App.BinDir != "" {
-		if err := util.CreateDirectory(cfg.CliConfig.Repo.Install,
-			defaultDirPermissions); err != nil {
-			return err
-		}
-		log.Debugf("'%s' directory is created.", cfg.CliConfig.Repo.Install)
-	}
-
-	// Create templates directories.
-	if cfg.CliConfig.App.BinDir != "" {
-		for _, templatesPathOpts := range cfg.CliConfig.Templates {
-			if err := util.CreateDirectory(templatesPathOpts.Path,
-				defaultDirPermissions); err != nil {
-				return err
-			}
-			log.Debugf("'%s' directory is created.", templatesPathOpts)
-		}
-	}
-
-	return nil
+	return createDirectories(directoriesToCreate)
 }
 
 // Run creates tt environment config for the application in current dir.

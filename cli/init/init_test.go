@@ -221,3 +221,21 @@ func TestInitRunInvalidConfigSkipIt(t *testing.T) {
 	require.NoError(t, Run(&InitCtx{SkipConfig: true}))
 	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
 }
+
+func TestCreateDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer os.Chdir(wd)
+
+	require.NoError(t, createDirectories([]string{
+		"dir1",
+		"dir2",
+		"",
+		"dir3/subdir",
+	}))
+	assert.DirExists(t, "dir1")
+	assert.DirExists(t, "dir2")
+	assert.DirExists(t, "dir3/subdir")
+}
