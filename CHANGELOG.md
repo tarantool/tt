@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Module ``tt daemon``, to manage the ``tt`` daemon.
 - Built-in application templates support. Cartridge application template is added.
 
+### Changed
+
+- Modules ``tt start``, ``tt connect`` and ``tt catridge`` now use relative paths for unix sockets.
+  It allows to use socket paths longer than sun_path limit.(108/106 on linux/macOS)
+  e.g foo/bar.sock -> ./bar.sock
+
 ## [0.1.0] - 2022-10-12
 
 ### Added
