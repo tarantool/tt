@@ -18,7 +18,7 @@ require (
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.1
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
-	github.com/tarantool/go-tarantool v1.8.1-0.20220921082001-d4905f5de830
+	github.com/tarantool/go-tarantool v1.9.0
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5

@@ -818,8 +818,8 @@ github.com/tarantool/go-openssl v0.0.8-0.20220711094538-d93c1eff4f49 h1:rZYYi1cI
 github.com/tarantool/go-openssl v0.0.8-0.20220711094538-d93c1eff4f49/go.mod h1:M7H4xYSbzqpW/ZRBMyH0eyqQBsnhAMfsYk5mv0yid7A=
 github.com/tarantool/go-prompt v0.2.6-tarantool h1:/dYMRBuM5nE3mleka/mqJWPf8SrJ151U+OqDlTzvES0=
 github.com/tarantool/go-prompt v0.2.6-tarantool/go.mod h1:8enZKIgoGFEQu2XPBK79TguJG2XF3SR4QU2iYI28NSo=
-github.com/tarantool/go-tarantool v1.8.1-0.20220921082001-d4905f5de830 h1:ZSjzK9NPl6OW/WsqieMYmVXCXbapztZTI+HI9bi9uhI=
-github.com/tarantool/go-tarantool v1.8.1-0.20220921082001-d4905f5de830/go.mod h1:oPjvZNKaN4iKbf8YPo3pGpxzk6cRZF1neAxgq8WcBh8=
+github.com/tarantool/go-tarantool v1.9.0 h1:qUotwiMNZhi9AvogF3uyswEN2NAFcKJOhcvXiE/P+Rs=
+github.com/tarantool/go-tarantool v1.9.0/go.mod h1:oPjvZNKaN4iKbf8YPo3pGpxzk6cRZF1neAxgq8WcBh8=
 github.com/tchap/go-patricia v2.2.6+incompatible/go.mod h1:bmLyhP68RS6kStMGxByiQ23RP/odRBOTVjwp2cDyi6I=
 github.com/tj/assert v0.0.0-20171129193455-018094318fb0/go.mod h1:mZ9/Rh9oLWpLLDRpvE+3b7gP/C2YyLFYxNmcLnPTMe0=
 github.com/tj/assert v0.0.3 h1:Df/BlaZ20mq6kuai7f5z2TvPFiwC3xaWJSDQNiIS3Rk=
