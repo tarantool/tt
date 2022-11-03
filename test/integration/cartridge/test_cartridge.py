@@ -82,7 +82,7 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
                  "--run-dir", str(tmpdir) + "/run/" + cartridge_name]
     setup_rc, setup_out = run_command_and_get_output(setup_cmd, cwd=tmpdir)
     assert setup_rc == 0
-    assert re.search(r'Vshard is bootstrapped successfully', setup_out)
+    assert re.search(r'Bootstrap vshard task completed successfully', setup_out)
 
     admin_cmd = [tt_cmd, "cartridge", "admin", "probe",
                  "--name", cartridge_name,
