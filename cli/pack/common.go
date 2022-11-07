@@ -149,7 +149,8 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	if len(appList) == 0 {
-		return "", fmt.Errorf("There are no apps found in instance_enabled directory")
+		err = fmt.Errorf("There are no apps found in instance_enabled directory")
+		return "", err
 	}
 
 	log.Infof("Apps to pack: %v", strings.Join(appList, " "))
