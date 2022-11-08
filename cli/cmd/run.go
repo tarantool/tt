@@ -106,7 +106,6 @@ func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 	}
 
-	log.Info("Running an instance...")
 	if err := running.Run(runOpts); err != nil {
 		return err
 	}
