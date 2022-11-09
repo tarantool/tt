@@ -71,8 +71,8 @@ def prepare_test_app_languages(tt_cmd, tmpdir):
     return "test_app", lua_file, sql_file
 
 
-def get_version(tt_cmd, tmpdir, app_name):
-    run_cmd = [tt_cmd, "run", app_name, "-v"]
+def get_version(tt_cmd, tmpdir):
+    run_cmd = [tt_cmd, "run", "-v"]
     instance_process = subprocess.run(
         run_cmd,
         cwd=tmpdir,
@@ -82,7 +82,7 @@ def get_version(tt_cmd, tmpdir, app_name):
     )
     if instance_process.returncode == 0:
         stdout = instance_process.stdout
-        full = stdout.splitlines()[1]
+        full = stdout.splitlines()[0]
         for word in re.split(r'\s', full):
             matched = re.match(r'^\d+\.\d+\.\d+', word)
             if matched:
@@ -93,20 +93,20 @@ def get_version(tt_cmd, tmpdir, app_name):
     return False, 0, 0, 0
 
 
-def is_language_supported(tt_cmd, tmpdir, test_app):
-    ok, major, minor, patch = get_version(tt_cmd, tmpdir, test_app)
+def is_language_supported(tt_cmd, tmpdir):
+    ok, major, minor, patch = get_version(tt_cmd, tmpdir)
     assert ok
     return major >= 2
 
 
 def skip_if_language_unsupported(tt_cmd, tmpdir, test_app):
-    if not is_language_supported(tt_cmd, tmpdir, test_app):
+    if not is_language_supported(tt_cmd, tmpdir):
         stop_app(tt_cmd, tmpdir, test_app)
         pytest.skip("/set language is unsupported")
 
 
 def skip_if_language_supported(tt_cmd, tmpdir, test_app):
-    if is_language_supported(tt_cmd, tmpdir, test_app):
+    if is_language_supported(tt_cmd, tmpdir):
         stop_app(tt_cmd, tmpdir, test_app)
         pytest.skip("/set language is supported")
 
