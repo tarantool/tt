@@ -75,7 +75,7 @@ func adjustPathWithConfigLocation(filePath string, configDir string, defaultDirN
 func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 	var cfg config.Config
 	// Config could not be processed.
-	configPath, err := util.FindYamlFile(configurePath)
+	configPath, err := util.GetYamlFileName(configurePath, true)
 	if err != nil && !os.IsNotExist(err) {
 		// TODO: Add warning in next patches, discussion
 		// what if the file exists, but access is denied, etc.
@@ -315,7 +315,8 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	if cmdCtx.Cli.ConfigPath == "" {
-		cmdCtx.Cli.ConfigPath, err = util.FindYamlFile(filepath.Join(launchDir, ConfigName))
+		cmdCtx.Cli.ConfigPath, err = util.GetYamlFileName(filepath.Join(launchDir, ConfigName),
+			true)
 		if err != nil {
 			// TODO: Add warning messages, discussion what if the file
 			// exists, but access is denied, etc.
@@ -487,7 +488,7 @@ func getConfigPath(configName string) (string, error) {
 	}
 
 	for curDir != "/" {
-		configPath, err := util.FindYamlFile(filepath.Join(curDir, ConfigName))
+		configPath, err := util.GetYamlFileName(filepath.Join(curDir, ConfigName), true)
 		if err == nil {
 			return configPath, nil
 		} else if !os.IsNotExist(err) {

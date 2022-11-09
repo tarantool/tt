@@ -17,8 +17,8 @@ type LoadManifest struct {
 
 // Run loads template manifest. Missing manifest is not an error.
 func (LoadManifest) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {
-	manifestPath, err := util.FindYamlFile(path.Join(templateCtx.AppPath,
-		app_template.DefaultManifestName))
+	manifestPath, err := util.GetYamlFileName(path.Join(templateCtx.AppPath,
+		app_template.DefaultManifestName), true)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	} else if os.IsNotExist(err) {
