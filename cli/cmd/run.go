@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/apex/log"
@@ -70,6 +72,19 @@ func NewRunCmd() *cobra.Command {
 // internalRunModule is a default run module.
 func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	runOpts := newRunOpts(*cmdCtx)
+	scriptPath := ""
+	startIndex := 0
+	if len(args) > 0 {
+		if strings.HasSuffix(args[0], ".lua") {
+			scriptPath = args[0]
+			if _, err := os.Stat(scriptPath); err != nil {
+				return fmt.Errorf("there was some problem locating script: %s", err)
+			}
+			startIndex = 1
+		} else {
+			return fmt.Errorf("specify script : %s", args[0])
+		}
+	}
 	if len(args) > 0 {
 		// If '-' flag is specified, then read stdin.
 		if args[0] == "-" {
@@ -93,20 +108,16 @@ func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 				}
 			}
 		} else {
-			if len(args) > 1 {
-				for i := 1; i < len(args); i++ {
+			if len(args) > 0 {
+				for i := startIndex; i < len(args); i++ {
 					runArgs = append(runArgs, args[i])
 				}
-			}
-			// Find app file.
-			if err := running.FillCtx(cliOpts, &runOpts.CmdCtx, &runOpts.RunningCtx,
-				args); err != nil {
-				return err
+				runOpts.RunFlags.RunArgs = runArgs
 			}
 		}
 	}
 
-	if err := running.Run(runOpts); err != nil {
+	if err := running.Run(runOpts, scriptPath); err != nil {
 		return err
 	}
 

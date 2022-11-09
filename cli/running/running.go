@@ -461,7 +461,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	instEnabledPath := ""
-	if cliOpts.App != nil && cliOpts.App.InstancesEnabled != "" {
+	if cliOpts.App != nil && cliOpts.App.InstancesEnabled != "" && cmdCtx.CommandName != "run" {
 		instEnabledPath = cliOpts.App.InstancesEnabled
 		if !filepath.IsAbs(instEnabledPath) {
 			instEnabledPath = filepath.Join(basePath, instEnabledPath)
@@ -555,16 +555,9 @@ func Stop(run *InstanceCtx) error {
 }
 
 // Run runs an Instance.
-func Run(runOpts *RunOpts) error {
-	appPath := ""
-	if len(runOpts.RunningCtx.Instances) != 0 {
-		appPath = runOpts.RunningCtx.Instances[0].AppPath
-	}
-	if len(runOpts.RunningCtx.Instances) > 1 {
-		return fmt.Errorf("specify instance name")
-	}
+func Run(runOpts *RunOpts, scriptPath string) error {
 	inst := Instance{tarantoolPath: runOpts.CmdCtx.Cli.TarantoolExecutable,
-		appPath: appPath,
+		appPath: scriptPath,
 		env:     os.Environ()}
 	err := inst.Run(runOpts.RunFlags)
 	return err
