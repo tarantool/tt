@@ -255,7 +255,22 @@ func TestInitRunOverwriteTtEnv(t *testing.T) {
 
 	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("Y\n")}))
 	// Make sure the file is overwritten.
-	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
+	checkDefaultEnv(t, "tarantool.yaml", configure.InstancesEnabledDirName)
+
+	// Test overwrite of existing tarantool.yml file.
+	require.NoError(t, os.Remove("tarantool.yaml"))
+	f, err = os.Create("tarantool.yml")
+	require.NoError(t, err)
+	f.WriteString("text")
+	f.Close()
+
+	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("Y\n")}))
+	// Make sure the file is overwritten.
+	checkDefaultEnv(t, "tarantool.yml", configure.InstancesEnabledDirName)
+
+	// Multiple configs - error.
+	require.NoError(t, copy.Copy("tarantool.yml", "tarantool.yaml"))
+	require.Error(t, Run(&InitCtx{reader: strings.NewReader("\n")}))
 }
 
 func TestInitRunDontOverwriteTtEnv(t *testing.T) {
@@ -276,6 +291,18 @@ func TestInitRunDontOverwriteTtEnv(t *testing.T) {
 	buf, err := os.ReadFile(configure.ConfigName)
 	require.NoError(t, err)
 	require.Equal(t, "text", string(buf))
+
+	// Test the same but with .yml file.
+	err = os.Rename(configure.ConfigName, "tarantool.yml")
+	require.NoError(t, err)
+
+	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("N\n")}))
+	// Make sure the file has old data.
+	require.NoError(t, err)
+	assert.NoFileExists(t, "tarantool.yaml")
+	buf, err = os.ReadFile("tarantool.yml")
+	require.NoError(t, err)
+	require.Equal(t, "text", string(buf))
 }
 
 func TestCheckExistingConfig(t *testing.T) {
@@ -289,19 +316,19 @@ func TestCheckExistingConfig(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	shouldContinue, err := checkExistingConfig(&InitCtx{reader: strings.NewReader("y\n")})
+	fileName, err := checkExistingConfig(&InitCtx{reader: strings.NewReader("y\n")})
 	assert.NoError(t, err)
-	assert.True(t, shouldContinue)
+	assert.Equal(t, configure.ConfigName, fileName)
 
 	f, err = os.Create(configure.ConfigName)
 	require.NoError(t, err)
 	f.Close()
-	shouldContinue, err = checkExistingConfig(&InitCtx{reader: strings.NewReader("n\n")})
+	fileName, err = checkExistingConfig(&InitCtx{reader: strings.NewReader("n\n")})
 	assert.NoError(t, err)
-	assert.False(t, shouldContinue)
+	assert.Equal(t, "", fileName)
 
-	shouldContinue, err = checkExistingConfig(&InitCtx{reader: strings.NewReader("n\n"),
+	fileName, err = checkExistingConfig(&InitCtx{reader: strings.NewReader("n\n"),
 		ForceMode: true})
 	assert.NoError(t, err)
-	assert.True(t, shouldContinue)
+	assert.Equal(t, configure.ConfigName, fileName)
 }
