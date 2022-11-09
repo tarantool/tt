@@ -124,34 +124,38 @@ func FillCtx(initCtx *InitCtx) {
 }
 
 // checkExistingConfig checks tt config for existence and asks for confirmation to overwrite.
-// Returns true if init process can continue, and false otherwise. In case of error, error non-nil
+// Returns file name if init process can continue, and false otherwise. In case of error, non-nil
 // error returned as second returned value.
-func checkExistingConfig(initCtx *InitCtx) (bool, error) {
-	// Check if config already exists.
-	if _, err := os.Stat(configure.ConfigName); err == nil {
+func checkExistingConfig(initCtx *InitCtx) (string, error) {
+	configName, err := util.GetYamlFileName(configure.ConfigName, false)
+	if configName == "" {
+		return "", err
+	}
+
+	if _, err := os.Stat(configName); err == nil {
 		if initCtx.ForceMode {
-			if err = os.Remove(configure.ConfigName); err != nil {
-				return false, err
+			if err = os.Remove(configName); err != nil {
+				return "", err
 			}
 		} else {
 			confirmed, err := util.AskConfirm(initCtx.reader,
-				fmt.Sprintf("%s already exists. Overwrite?", configure.ConfigName))
+				fmt.Sprintf("%s already exists. Overwrite?", configName))
 			if err != nil {
-				return false, err
+				return "", err
 			}
 			if confirmed {
-				if err = os.Remove(configure.ConfigName); err != nil {
-					return false, err
+				if err = os.Remove(configName); err != nil {
+					return "", err
 				}
 			} else {
-				log.Info("Init is cancelled.")
-				return false, nil
+				log.Info("Init is cancelled by user.")
+				return "", nil
 			}
 		}
 	} else if !os.IsNotExist(err) {
-		return false, err
+		return "", err
 	}
-	return true, nil
+	return configName, nil
 }
 
 // Run creates tt environment config for the application in current dir.
@@ -164,12 +168,12 @@ func Run(initCtx *InitCtx) error {
 		{".cartridge.yml", loadCartridgeConfig},
 	}
 
-	if shouldContinue, err := checkExistingConfig(initCtx); !shouldContinue {
+	configName, err := checkExistingConfig(initCtx)
+	if configName == "" {
 		return err
 	}
 
 	var appDirInfo appDirInfo
-	var err error
 	if !initCtx.SkipConfig {
 		for _, confLoader := range configLoaders {
 			if _, err = os.Stat(confLoader.configName); err != nil {
@@ -191,7 +195,7 @@ func Run(initCtx *InitCtx) error {
 		appDirInfo.instancesEnabled = configure.InstancesEnabledDirName
 	}
 
-	if err := generateTtEnv(configure.ConfigName, appDirInfo); err != nil {
+	if err := generateTtEnv(configName, appDirInfo); err != nil {
 		return err
 	}
 
