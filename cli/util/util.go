@@ -857,8 +857,10 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 	return nil
 }
 
-// FindYamlFile searches for file with .yaml or .yml extension, based on the file name provided.
-func FindYamlFile(fileName string) (string, error) {
+// GetYamlFileName searches for file with .yaml or .yml extension, based on the file name provided.
+// If mustExist flag is set and no yaml files are found, ErrNotExists error is returned,
+// passed fileName is returned otherwise.
+func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	fileBaseName := fileName
 	switch filepath.Ext(fileName) {
 	case ".yaml":
@@ -885,6 +887,8 @@ func FindYamlFile(fileName string) (string, error) {
 			strings.Join(foundYamlFiles, ", "))
 	} else if yamlFilesCount == 1 {
 		return foundYamlFiles[0], nil
+	} else if !mustExist {
+		return fileName, nil
 	}
 
 	return "", os.ErrNotExist
