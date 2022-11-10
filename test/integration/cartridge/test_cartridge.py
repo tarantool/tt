@@ -2,12 +2,29 @@ import re
 import subprocess
 import time
 
+import pytest
+
 from utils import run_command_and_get_output, wait_file
+
+cartridge_name = "test_app"
+
+
+@pytest.fixture(autouse=True)
+def stop_cartridge_app(tt_cmd, tmpdir):
+    # Run test.
+    yield
+    # Stop instance if it is still running.
+    status_cmd = [tt_cmd, "status", cartridge_name]
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    if re.search(": RUNNING.", status_out):
+        stop_cmd = [tt_cmd, "stop", cartridge_name]
+        stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+        assert stop_rc == 0
 
 
 def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    cartridge_name = "test_app"
     create_cmd = [tt_cmd, "cartridge", "create", "--name", cartridge_name]
     create_rc, create_out = run_command_and_get_output(create_cmd, cwd=tmpdir)
     assert create_rc == 0
