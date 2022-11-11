@@ -231,9 +231,16 @@ func UnitFull() error {
 		"-tags", "integration")
 }
 
-// Run integration tests.
+// Run integration tests, excluding slow tests.
 func Integration() error {
 	fmt.Println("Running integration tests...")
+
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow", "test/integration")
+}
+
+// Run full set of integration tests.
+func IntegrationFull() error {
+	fmt.Println("Running all integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "test/integration")
 }
