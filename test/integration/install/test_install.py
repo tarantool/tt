@@ -3,9 +3,11 @@ import re
 import subprocess
 import tempfile
 
+import pytest
 import yaml
 
 
+@pytest.mark.slow
 def test_install_tt(tt_cmd, tmpdir):
 
     configPath = os.path.join(tmpdir, "tarantool.yaml")
@@ -39,6 +41,7 @@ def test_install_tt(tt_cmd, tmpdir):
     assert re.search(r"commit: ccd9c0c", start_output)
 
 
+@pytest.mark.slow
 def test_install_tarantool(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, "tarantool.yaml")
     # Create test config.

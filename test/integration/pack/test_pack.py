@@ -2,6 +2,7 @@ import os
 import shutil
 import tarfile
 
+import pytest
 import yaml
 
 from utils import run_command_and_get_output
@@ -262,6 +263,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
     ]
 
 
+@pytest.mark.slow
 def test_pack_tgz_table(tt_cmd, tmpdir):
     test_cases = prepare_tgz_test_cases(tt_cmd)
 
@@ -392,6 +394,7 @@ def prepare_rpm_test_cases(tt_cmd) -> list:
     ]
 
 
+@pytest.mark.slow
 def test_pack_rpm_deb_table(tt_cmd, tmpdir):
     test_cases = prepare_deb_test_cases(tt_cmd)
     test_cases.extend(prepare_rpm_test_cases(tt_cmd))
