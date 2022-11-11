@@ -25,78 +25,13 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Setup Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: '${{ env.GO_VERSION }}'
-
-      - name: Setup Mage
-        run: |
-          git clone https://github.com/magefile/mage
-          cd mage
-          go run bootstrap.go
-
-      - name: Install build requirements
-        run: |
-          sudo apt -y update
-          sudo apt -y install git gcc make cmake unzip zip
-          sudo apt-get --allow-releaseinfo-change update
-          sudo apt-get -y -f install \
-          build-essential ninja-build \
-          lua5.1 luarocks lcov \
-          ruby-dev liblz4-dev  autoconf \
-          automake \
-          libtool
-          sudo luarocks install luacheck 0.26.1
-          sudo gem install coveralls-lcov
-
-      - name: Install Tarantool
-        uses: tarantool/setup-tarantool@v1
+      - name: Prepare CE env
+        uses: ./.github/actions/prepare-ce-test-env
         with:
           tarantool-version: '${{ matrix.tarantool-version }}'
 
-      - name: Stop and disable Taranool 1.10 example service
-        if: matrix.tarantool-version == '1.10'
-        run: |
-          sudo systemctl stop tarantool@example || true
-          sudo systemctl disable tarantool@example || true
-          sudo rm -rf /lib/systemd/system/tarantool@.service
-
-      - name: Setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-
-      - name: Install tests requirements
-        run: |
-          pip3 install -r test/requirements.txt
-
-      - name: Log versions
-        run: |
-          go version
-          mage --version
-          tarantool --version
-          rpm --version
-
-      - name: Build tt
-        run: mage build
-
-      - name: Codespell checks
-        run: mage codespell
-
-      - name: License checker
-        run: |
-          go install github.com/uw-labs/lichen@latest
-          mage checklicenses
-
-      - name: Go Linter
-        uses: golangci/golangci-lint-action@v3
-        with:
-          args: --config=golangci-lint.yml --out-${NO_FUTURE}format colored-line-number
-          skip-cache: true
-
-      - name: Python Linter
-        run: python3 -m flake8 test
+      - name: Static code check
+        uses: ./.github/actions/static-code-check
 
       - name: Unit tests
         run: mage unitfull
@@ -122,87 +57,14 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Setup Go
-        uses: actions/setup-go@v2
+      - name: Prepare EE env
+        uses: ./.github/actions/prepare-ee-test-env
         with:
-          go-version: '${{ env.GO_VERSION }}'
+          sdk-version: '${{ matrix.sdk-version }}'
+          sdk-download-token: '${{ secrets.SDK_DOWNLOAD_TOKEN }}'
 
-      - name: Setup Mage
-        run: |
-          git clone https://github.com/magefile/mage
-          cd mage
-          go run bootstrap.go
-
-      - name: Install build requirements
-        run: |
-          sudo apt -y update
-          sudo apt -y install git gcc make cmake unzip zip
-
-      - name: Cache Tarantool SDK
-        id: cache-sdk
-        uses: actions/cache@v2
-        with:
-          path: tarantool-enterprise
-          key: ${{ matrix.sdk-version }}
-
-      - name: Download Tarantool SDK
-        if: steps.cache-sdk.outputs.cache-hit != 'true'
-        run: |
-          ARCHIVE_NAME=tarantool-enterprise-bundle-${{ matrix.sdk-version }}.tar.gz
-          curl -O -L \
-            https://tarantool:${{ secrets.SDK_DOWNLOAD_TOKEN }}@download.tarantool.io/enterprise/${ARCHIVE_NAME}
-          tar -xzf ${ARCHIVE_NAME}
-          rm -f ${ARCHIVE_NAME}
-          source tarantool-enterprise/env.sh
-
-      - name: Install tarantool headers
-        run: |
-          INCLUDE_DIR=$(./tarantool-enterprise/tarantool --version | gawk \
-            '/DCMAKE_INSTALL_PREFIX/ {dir=gensub(/.*-DCMAKE_INSTALL_PREFIX=(\/.*) .*/, "\\1", "g", $0);  print dir}')
-          sudo mkdir -p ${INCLUDE_DIR}/include
-          sudo cp -r tarantool-enterprise/include/tarantool ${INCLUDE_DIR}/include
-
-      - name: Add SDK to PATH and set TARANTOOL_SDK_PATH variable
-        run: |
-          SDK_PATH="$(realpath tarantool-enterprise)"
-          echo "${SDK_PATH}" >> ${GITHUB_PATH}
-          echo "TARANTOOL_SDK_PATH=${SDK_PATH}" >> ${GITHUB_ENV}
-
-      - name: Setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
-
-      - name: Install tests requirements
-        run: |
-          pip3 install -r test/requirements.txt
-
-      - name: Log versions
-        run: |
-          go version
-          mage --version
-          tarantool --version
-          rpm --version
-
-      - name: Build tt
-        run: mage build
-
-      - name: Codespell checks
-        run: mage codespell
-
-      - name: License checker
-        run: |
-          go install github.com/uw-labs/lichen@latest
-          mage checklicenses
-
-      - name: Go Linter
-        uses: golangci/golangci-lint-action@v3
-        with:
-          args: --config=golangci-lint.yml --out-${NO_FUTURE}format colored-line-number
-          skip-cache: true
-
-      - name: Python Linter
-        run: python3 -m flake8 test
+      - name: Static code check
+        uses: ./.github/actions/static-code-check
 
       - name: Unit tests
         run: mage unit

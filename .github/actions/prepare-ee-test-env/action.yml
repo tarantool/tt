@@ -1,0 +1,86 @@
+name: "Prepare test environment with Tarantool EE"
+description: "Prepares test environment with Tarantool EE"
+
+inputs:
+  sdk-version:
+    required: true
+    type: string
+  sdk-download-token:
+    required: true
+    type: string
+
+runs:
+  using: "composite"
+  steps:
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+
+      - name: Setup Mage
+        run: |
+          git clone https://github.com/magefile/mage
+          cd mage
+          go run bootstrap.go
+        shell: bash
+
+      - name: Install build requirements
+        run: |
+          sudo apt -y update
+          sudo apt -y install git gcc make cmake unzip zip
+        shell: bash
+
+      - name: Cache Tarantool SDK
+        id: cache-sdk
+        uses: actions/cache@v2
+        with:
+          path: tarantool-enterprise
+          key: ${{ matrix.sdk-version }}
+
+      - name: Download Tarantool SDK
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
+        run: |
+          ARCHIVE_NAME=tarantool-enterprise-bundle-${{ matrix.sdk-version }}.tar.gz
+          curl -O -L \
+            https://tarantool:${{ inputs.sdk-download-token }}@download.tarantool.io/enterprise/${ARCHIVE_NAME}
+          tar -xzf ${ARCHIVE_NAME}
+          rm -f ${ARCHIVE_NAME}
+          source tarantool-enterprise/env.sh
+        shell: bash
+
+      - name: Install tarantool headers
+        run: |
+          INCLUDE_DIR=$(./tarantool-enterprise/tarantool --version | gawk \
+            '/DCMAKE_INSTALL_PREFIX/ {dir=gensub(/.*-DCMAKE_INSTALL_PREFIX=(\/.*) .*/, "\\1", "g", $0);  print dir}')
+          sudo mkdir -p ${INCLUDE_DIR}/include
+          sudo cp -r tarantool-enterprise/include/tarantool ${INCLUDE_DIR}/include
+        shell: bash
+
+      - name: Add SDK to PATH and set TARANTOOL_SDK_PATH variable
+        run: |
+          SDK_PATH="$(realpath tarantool-enterprise)"
+          echo "${SDK_PATH}" >> ${GITHUB_PATH}
+          echo "TARANTOOL_SDK_PATH=${SDK_PATH}" >> ${GITHUB_ENV}
+        shell: bash
+
+      - name: Setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install tests requirements
+        run: |
+          pip3 install -r test/requirements.txt
+        shell: bash
+
+      - name: Log versions
+        run: |
+          go version
+          mage --version
+          tarantool --version
+          rpm --version
+        shell: bash
+
+      - name: Build tt
+        run: mage build
+        shell: bash
