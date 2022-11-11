@@ -1,0 +1,26 @@
+name: "Run static code check"
+description: "Performs static code checks."
+
+runs:
+  using: "composite"
+  steps:
+      - name: Codespell checks
+        run: mage codespell
+        shell: bash
+
+      - name: License checker
+        run: |
+          go install github.com/uw-labs/lichen@latest
+          mage checklicenses
+        shell: bash
+
+      - name: Go Linter
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --config=golangci-lint.yml --out-${NO_FUTURE}format colored-line-number
+          skip-cache: true
+
+      - name: Python Linter
+        run: python3 -m flake8 test
+        shell: bash
+
