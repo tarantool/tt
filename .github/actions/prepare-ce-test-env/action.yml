@@ -49,24 +49,6 @@ runs:
         sudo rm -rf /lib/systemd/system/tarantool@.service
       shell: bash
 
-    - name: Setup python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '${{ env.PYTHON_VERSION }}'
-
-    - name: Install tests requirements
-      run: |
-        pip3 install -r test/requirements.txt
-      shell: bash
-
-    - name: Log versions
-      run: |
-        go version
-        mage --version
-        tarantool --version
-        rpm --version
-      shell: bash
-
     - name: Build tt
       run: mage build
       shell: bash
