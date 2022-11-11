@@ -32,7 +32,7 @@ runs:
 
       - name: Cache Tarantool SDK
         id: cache-sdk
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: tarantool-enterprise
           key: ${{ matrix.sdk-version }}
@@ -61,24 +61,6 @@ runs:
           SDK_PATH="$(realpath tarantool-enterprise)"
           echo "${SDK_PATH}" >> ${GITHUB_PATH}
           echo "TARANTOOL_SDK_PATH=${SDK_PATH}" >> ${GITHUB_ENV}
-        shell: bash
-
-      - name: Setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
-
-      - name: Install tests requirements
-        run: |
-          pip3 install -r test/requirements.txt
-        shell: bash
-
-      - name: Log versions
-        run: |
-          go version
-          mage --version
-          tarantool --version
-          rpm --version
         shell: bash
 
       - name: Build tt

@@ -1,22 +1,19 @@
----
-name: Tests
+name: Full CI
 
 on:
-  push:
-    branches-ignore:
-      - 'master'
   pull_request:
+    types: [synchronize, labeled, closed]
 
 env:
   GO_VERSION: 1.18
   PYTHON_VERSION: '3.x'
 
 jobs:
-  tests-ce:
+  full-ci-ce:
     if: |
-      github.event_name == 'push' ||
-      github.event_name == 'pull_request' && github.event.pull_request.head.repo.owner.login != 'tarantool' &&
-      !contains(github.event.pull_request.labels.*.name, 'full-ci')
+      github.event.pull_request.merged == true ||
+      github.event.action == 'labeled' && github.event.label.name == 'full-ci' ||
+      github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -37,18 +34,17 @@ jobs:
         uses: ./.github/actions/static-code-check
 
       - name: Unit tests
-        run: mage unit
+        run: mage unitfull
 
       # This server starts and listen on 8084 port that is used for tests.
       - name: Stop Mono server
         run: sudo systemctl kill mono-xsp4 || true
 
       - name: Integration tests
-        run: mage integration
+        run: mage integrationfull
 
-  tests-ee:
-    if: |
-      github.event_name == 'push'
+  full-ci-ee:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -70,11 +66,11 @@ jobs:
         uses: ./.github/actions/static-code-check
 
       - name: Unit tests
-        run: mage unit
+        run: mage unitfull
 
       # This server starts and listen on 8084 port that is used for tests.
       - name: Stop Mono server
         run: sudo systemctl kill mono-xsp4 || true
 
       - name: Integration tests
-        run: mage integration
+        run: mage integrationfull
