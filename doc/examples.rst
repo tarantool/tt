@@ -77,6 +77,30 @@ Or just one of them:
    $ tt start demo:master
    • Starting an instance [master]...
 
+Creating Cartridge application
+----------------------------------
+
+Create new tt environment, if it is not exist:
+
+.. code-block:: bash
+
+    $ tt init
+
+Create Cartridge application:
+
+.. code-block:: bash
+
+    $ tt create cartridge --name myapp
+
+Build and start the application:
+
+.. code-block:: bash
+
+    $ tt build myapp
+    $ tt start myapp
+
+Now open http://localhost:8081/ and see your application's Admin Web UI.
+
 Working with application templates
 ----------------------------------
 
