@@ -5,3 +5,6 @@ allow:
   - "BSD-2-Clause"
   - "MPL-2.0"
   - "CC-BY-SA-4.0"
+override:
+  - path: "github.com/robfig/config"
+    licenses: ["MPL-2.0"]
