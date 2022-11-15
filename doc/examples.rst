@@ -99,6 +99,12 @@ Build and start the application:
     $ tt build myapp
     $ tt start myapp
 
+Bootstrap vshard:
+
+.. code-block:: bash
+
+    $ tt cartridge replicasets setup --bootstrap-vshard --name myapp --run-dir ./var/run/myapp/
+
 Now open http://localhost:8081/ and see your application's Admin Web UI.
 
 Working with application templates
