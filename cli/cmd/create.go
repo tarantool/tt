@@ -38,17 +38,20 @@ func NewCreateCmd() *cobra.Command {
 			}
 			return nil
 		},
+		Long: `Create an application from a template.
+
+Built-in templates:
+	cartridge: a simple Cartridge application.`,
 		Example: `
 # Create an application app1 from a template.
 
     $ tt create <template name> --name app1
 
-# Create cartridge_app application in /opt/tt/apps/, set user_name value,
-# force replacing of application directory (cartridge_app) if it exists. ` +
+# Create cartridge_app application in /opt/tt/apps/, force replacing of application directory
+# (cartridge_app) if it exists. ` +
 			`User interaction is disabled.
 
-    $ tt create <template name> --name cartridge_app --var user_name=admin -f ` +
-			`--non-interactive -dst /opt/tt/apps/`,
+    $ tt create cartridge --name cartridge_app -f --non-interactive -dst /opt/tt/apps/`,
 	}
 
 	createCmd.Flags().StringVarP(&appName, "name", "n", "", "Application name")
