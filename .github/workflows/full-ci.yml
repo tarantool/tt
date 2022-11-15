@@ -1,8 +1,11 @@
 name: Full CI
 
 on:
+  push:
+    branches:
+      - master
   pull_request:
-    types: [synchronize, labeled, closed]
+    types: [synchronize, labeled]
 
 env:
   GO_VERSION: 1.18
@@ -11,7 +14,7 @@ env:
 jobs:
   full-ci-ce:
     if: |
-      github.event.pull_request.merged == true ||
+      github.event_name == 'push' ||
       github.event.action == 'labeled' && github.event.label.name == 'full-ci' ||
       github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-20.04
@@ -44,7 +47,7 @@ jobs:
         run: mage integrationfull
 
   full-ci-ee:
-    if: github.event.pull_request.merged == true
+    if: github.event_name == 'push'
     runs-on: ubuntu-20.04
     strategy:
       matrix:
