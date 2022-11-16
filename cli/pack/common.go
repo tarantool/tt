@@ -459,7 +459,10 @@ func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) s
 	if packCtx.Version == "" {
 		// Get version from git only if we are packing an application from the current directory.
 		if opts.App.InstancesEnabled == "." {
-			packageVersion, _ = util.CheckVersionFromGit(opts.App.InstancesEnabled)
+			version, err := util.CheckVersionFromGit(opts.App.InstancesEnabled)
+			if err == nil || version != "" {
+				packageVersion = version
+			}
 		}
 	} else {
 		packageVersion = packCtx.Version
