@@ -1,0 +1,26 @@
+[Unit]
+Description=Tarantool app pack.default
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/path/to/cfg/env/bin/tt -L /path/to/cfg/tarantool.yaml start
+Restart=on-failure
+RestartSec=2
+User=tarantool
+Group=tarantool
+
+LimitCORE=infinity
+# Disable OOM killer
+OOMScoreAdjust=-1000
+# Increase fd limit for Vinyl
+LimitNOFILE=2048
+
+# Systemd waits until all xlogs are recovered
+TimeoutStartSec=86400s
+# Give a reasonable amount of time to close xlogs
+TimeoutStopSec=10s
+
+[Install]
+WantedBy=multi-user.target
+Alias=pack

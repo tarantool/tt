@@ -48,4 +48,6 @@ type RpmDebCtx struct {
 	Deps []string
 	// DepsFile is a path to a file of dependencies.
 	DepsFile string
+	// SystemdUnitParamsFile is a path to file with systemd unit parameters.
+	SystemdUnitParamsFile string
 }
