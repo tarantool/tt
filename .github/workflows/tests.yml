@@ -6,6 +6,8 @@ on:
     branches-ignore:
       - 'master'
   pull_request:
+  pull_request_target:
+    types: [labeled]
 
 env:
   GO_VERSION: 1.18
@@ -14,9 +16,10 @@ env:
 jobs:
   tests-ce:
     if: |
-      github.event_name == 'push' ||
-      github.event_name == 'pull_request' && github.event.pull_request.head.repo.owner.login != 'tarantool' &&
-      !contains(github.event.pull_request.labels.*.name, 'full-ci')
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.owner.login != 'tarantool' &&
+        !contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -47,8 +50,19 @@ jobs:
         run: mage integration
 
   tests-ee:
+    # The same as for tests-ce, but it does not run on pull requests from
+    # forks by default. Tests will run only when the pull request is labeled
+    # with `ee-ci`. To avoid security problems, the label must be reset
+    # manually for every run.
+    #
+    # We need to use `pull_request_target` because it has access to base
+    # repository secrets unlike `pull_request`.
     if: |
-      github.event_name == 'push'
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.owner.login != 'tarantool' &&
+        !contains(github.event.pull_request.labels.*.name, 'full-ci') &&
+        github.event.label.name == 'ee-ci')
     runs-on: ubuntu-20.04
     strategy:
       matrix:

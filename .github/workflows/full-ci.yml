@@ -6,6 +6,8 @@ on:
       - master
   pull_request:
     types: [synchronize, labeled]
+  pull_request_target:
+    types: [labeled]
 
 env:
   GO_VERSION: 1.18
@@ -14,9 +16,13 @@ env:
 jobs:
   full-ci-ce:
     if: |
-      github.event_name == 'push' ||
-      github.event.action == 'labeled' && github.event.label.name == 'full-ci' ||
-      github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'full-ci')
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'full-ci') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'synchronize' &&
+        contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -47,7 +53,15 @@ jobs:
         run: mage integrationfull
 
   full-ci-ee:
-    if: github.event_name == 'push'
+    # Tests will run only when the pull request is labeled with `full-ci`. To
+    # avoid security problems, the label must be reset manually for every run.
+    #
+    # We need to use `pull_request_target` because it has access to base
+    # repository secrets unlike `pull_request`.
+    if: (github.event_name == 'push') ||
+      (github.event_name == 'pull_request_target' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'full-ci')
     runs-on: ubuntu-20.04
     strategy:
       matrix:
