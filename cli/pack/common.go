@@ -30,6 +30,7 @@ const (
 	binPath              = "bin"
 	modulesPath          = "modules"
 	instancesEnabledPath = "instances_enabled"
+	envFileName          = "tarantool.yaml"
 )
 
 var (
