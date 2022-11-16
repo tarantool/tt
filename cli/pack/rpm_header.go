@@ -9,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
@@ -138,6 +139,7 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 		strconv.FormatUint(ver.Patch, 10),
 	}, ".")
 	releaseStr := strconv.FormatUint(ver.Release.Num, 10)
+	arch := getArch()
 
 	rpmHeader.addTags([]rpmTagType{
 		{ID: tagName, Type: rpmTypeString, Value: name},
@@ -149,7 +151,7 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 		{ID: tagLicense, Type: rpmTypeString, Value: "N/A"},
 		{ID: tagGroup, Type: rpmTypeString, Value: "None"},
 		{ID: tagOs, Type: rpmTypeString, Value: "linux"},
-		{ID: tagArch, Type: rpmTypeString, Value: runtime.GOARCH},
+		{ID: tagArch, Type: rpmTypeString, Value: arch},
 
 		{ID: tagPayloadFormat, Type: rpmTypeString, Value: "cpio"},
 		{ID: tagPayloadCompressor, Type: rpmTypeString, Value: "gzip"},
@@ -258,4 +260,17 @@ func addDirAndGetIndex(dirNames *[]string, fileDir string) int {
 
 	*dirNames = append(*dirNames, fileDir)
 	return len(*dirNames) - 1
+}
+
+// getArch returns the architecture for an RPM package.
+// Depends on runtime.GOARCH constant.
+func getArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+	case "386":
+		return "i386"
+	}
+	log.Warn("The RPM package is going to be built with no architecture specified.")
+	return "noarch"
 }
