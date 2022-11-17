@@ -31,8 +31,6 @@ def test_remove_tt(tt_cmd, tmpdir):
         stdout=subprocess.PIPE,
         text=True
     )
-    start_output = installed_program_process.stdout.readline()
-    assert re.search(r"   • Running an instance...   \n", start_output)
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
 
