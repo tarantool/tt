@@ -341,7 +341,7 @@ Where:
 * ``pidfile`` (string) - name of file contains pid of daemon process.
   Default: ``tt_daemon.pid``.
 
-`TT daemon example <https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-tt-daemon>`_
+`TT daemon example <https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-tt-daemon-experimental>`_
 
 Commands
 --------
