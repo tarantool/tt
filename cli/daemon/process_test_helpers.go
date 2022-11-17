@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-
-	ps "github.com/mitchellh/go-ps"
 )
 
 const (
@@ -74,15 +72,6 @@ func IsDaemonAlive(pid int) (bool, error) {
 	err = proc.Signal(syscall.Signal(0))
 	if err != nil {
 		return false, err
-	}
-
-	pr, err := ps.FindProcess(pid)
-	if err != nil {
-		return false, err
-	}
-
-	if pr.PPid() != 1 {
-		return false, fmt.Errorf("Process is not daemonized")
 	}
 
 	return true, nil
