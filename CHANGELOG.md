@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Module ``tt init``, to create tt environment configuration file.
 - Module ``tt daemon``, to manage the ``tt`` daemon.
+- Built-in application templates support. Cartridge application template is added.
 
 ## [0.1.0] - 2022-10-12
 
