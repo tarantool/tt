@@ -25,6 +25,12 @@ func TestProcessBase(t *testing.T) {
 	pid, err := readPID(TestProcessPidFile)
 	require.Nilf(t, err, `Can't read daemon PID. Error: "%v".`, err)
 
+	// Kill daemon if test fails.
+	defer func() {
+		syscall.Kill(pid, syscall.SIGINT)
+		waitProcessChanges()
+	}()
+
 	alive, err := IsDaemonAlive(pid)
 	require.Nilf(t, err, `Daemon is not alive. Error: "%v".`, err)
 	require.True(t, alive, "Can't start daemon.")
