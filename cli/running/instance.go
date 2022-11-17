@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -233,6 +234,11 @@ func (inst *Instance) Run(flags RunFlags) error {
 	inst.Cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
 	// Set the sign that the program is running under "tt".
 	inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI=true")
+
+	// It is necessary to ignore the INT and TERM signals so that
+	// they correctly reach the tarantool process.
+	signal.Ignore(syscall.SIGINT)
+	signal.Ignore(syscall.SIGTERM)
 
 	if pipeFlag {
 		inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI_RUN_STDIN_FD="+fmt.Sprint(stdinFdNum))
