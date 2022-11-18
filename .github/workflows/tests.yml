@@ -69,7 +69,17 @@ jobs:
         sdk-version: ["2.10.2-0-gf4228cb7d-r508-linux-x86_64"]
       fail-fast: false
     steps:
+        # `ref` as merge request is needed for pull_request_target because this
+        # target runs in the context of the base commit of the pull request.
       - uses: actions/checkout@master
+        if: github.event_name == 'pull_request_target'
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
+      - uses: actions/checkout@master
+        if: github.event_name != 'pull_request_target'
         with:
           fetch-depth: 0
           submodules: recursive
