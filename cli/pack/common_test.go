@@ -88,7 +88,11 @@ func TestRocksFinder(t *testing.T) {
 func TestResolveAppName(t *testing.T) {
 	testDir := t.TempDir()
 
-	err := os.Chdir(testDir)
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer os.Chdir(currentDir)
+
+	err = os.Chdir(testDir)
 	require.NoErrorf(t, err, "failed to enter a test directory: %s", err)
 
 	dirsToCreate := []string{
