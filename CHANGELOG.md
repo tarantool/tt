@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - ``tt restart`` confirmation prompt. ``-y`` option is added to accept restart without prompting.
 - ``tt pack`` will generate systemd unit for rpm and deb packages.
+- ``--use-docker`` option for ``tt install`` to build Tarantool in Ubuntu 16.04 container.
 
 ### Changed
 
