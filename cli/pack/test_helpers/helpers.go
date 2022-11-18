@@ -28,7 +28,12 @@ func CreateDirs(destPath string, paths []string) error {
 }
 
 func CreateSymlink(srcPath, destPath string) error {
-	err := os.Chdir(filepath.Dir(srcPath))
+	currentPath, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	defer os.Chdir(currentPath)
+	err = os.Chdir(filepath.Dir(srcPath))
 	if err != nil {
 		return err
 	}
