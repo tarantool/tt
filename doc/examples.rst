@@ -186,7 +186,7 @@ Packing environments
 ----------------------------------
 
 For example, we want to pack a single application. Here is the content of the sample application::
-      single_environment/
+      single_app/
       ├── tarantool.yaml
       └── init.lua
 
@@ -211,13 +211,13 @@ The result directory structure::
 
       unpacked_dir/
       ├── tarantool.yaml
-      ├── single_environment
+      ├── single_app
       │   └── init.lua
       ├── env
       │   ├── bin
       │   └── modules
       ├── instances_enabled
-      │   └── single_environment -> ../single_environment
+      │   └── single_app -> ../single_app
       └── var
           ├── lib
           ├── log
@@ -308,7 +308,7 @@ For packing deb package call:
       • Initialize the app directory for prefix: data/usr/share/tarantool/bundle
       • Create data tgz
       • Created control in /var/folders/***/control_dir
-      • Created result DEB package: /var/folders/***/T/tt_pack4173588242
+      • Created result DEB package: dev_bundle_1.0.0.deb
 
 Now the result package may be distributed and installed using dpkg command.
 The package will be installed in /usr/share/tarantool/package_name directory.
