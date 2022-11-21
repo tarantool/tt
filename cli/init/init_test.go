@@ -62,7 +62,7 @@ func checkDefaultEnv(t *testing.T, configName string, instancesEnabled string) {
 	assert.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
 	assert.Equal(t, "bin", cfg.CliConfig.App.BinDir)
 	assert.Equal(t, "modules", cfg.CliConfig.Modules.Directory)
-	assert.Equal(t, "install", cfg.CliConfig.Repo.Install)
+	assert.Equal(t, "distfiles", cfg.CliConfig.Repo.Install)
 	assert.Equal(t, "include", cfg.CliConfig.App.IncludeDir)
 	assert.Equal(t, "templates", cfg.CliConfig.Templates[0].Path)
 	assert.Equal(t, instancesEnabled, cfg.CliConfig.App.InstancesEnabled)
@@ -71,7 +71,7 @@ func checkDefaultEnv(t *testing.T, configName string, instancesEnabled string) {
 	assert.DirExists(t, "modules")
 	assert.DirExists(t, "include")
 	assert.DirExists(t, "bin")
-	assert.DirExists(t, "install")
+	assert.DirExists(t, "distfiles")
 	assert.DirExists(t, "templates")
 }
 
@@ -151,7 +151,7 @@ func TestInitRun(t *testing.T) {
 	assert.DirExists(t, "modules")
 	assert.DirExists(t, "include")
 	assert.DirExists(t, "bin")
-	assert.DirExists(t, "install")
+	assert.DirExists(t, "distfiles")
 	assert.DirExists(t, "templates")
 }
 

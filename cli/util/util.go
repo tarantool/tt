@@ -752,36 +752,6 @@ func GetAbsPath(baseDir, filePath string) string {
 	return filepath.Join(baseDir, filePath)
 }
 
-// generateDefaulTtEnvConfig creates default tt config.
-func GenerateDefaulTtEnvConfig() config.Config {
-	cfg := config.Config{
-		CliConfig: &config.CliOpts{
-			Modules: &config.ModulesOpts{
-				Directory: "modules",
-			},
-			App: &config.AppOpts{
-				InstancesEnabled: ".",
-				RunDir:           "var/run",
-				DataDir:          "var/lib",
-				LogDir:           "var/log",
-				BinDir:           "bin",
-				LogMaxSize:       100,
-				LogMaxAge:        8,
-				LogMaxBackups:    10,
-				Restartable:      false,
-				IncludeDir:       "include",
-			},
-			Templates: []config.TemplateOpts{
-				{Path: "templates"},
-			},
-			Repo: &config.RepoOpts{
-				Install: "install",
-			},
-		},
-	}
-	return cfg
-}
-
 // CreateDirectory create a directory with existence and error checks.
 func CreateDirectory(dirName string, fileMode os.FileMode) error {
 	stat, err := os.Stat(dirName)

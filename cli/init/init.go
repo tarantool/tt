@@ -10,6 +10,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -128,7 +129,9 @@ func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (appDirInfo, er
 // generateTtEnv generates environment config in configPath using directories info from
 // appDirInfo.
 func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
-	cfg := util.GenerateDefaulTtEnvConfig()
+	cfg := config.Config{
+		CliConfig: configure.GetDefaultCliOpts(),
+	}
 	if appDirInfo.runDir != "" {
 		cfg.CliConfig.App.RunDir = appDirInfo.runDir
 	}
@@ -241,7 +244,7 @@ func Run(initCtx *InitCtx) error {
 		}
 	}
 	if !util.IsApp(".") {
-		// Current directory is not app dir, so set default instances enabled dir.
+		// Current directory is not app dir, instances enabled dir will be used.
 		appDirInfo.instancesEnabled = configure.InstancesEnabledDirName
 	}
 
