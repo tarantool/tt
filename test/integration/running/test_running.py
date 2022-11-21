@@ -6,8 +6,9 @@ import tempfile
 
 import yaml
 
-from utils import (kill_child_process, run_command_and_get_output, wait_file,
-                   wait_instance_start, wait_instance_stop)
+from utils import (kill_child_process, log_path, run_command_and_get_output,
+                   run_path, wait_file, wait_instance_start,
+                   wait_instance_stop)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
@@ -29,7 +30,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Check status.
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -66,7 +67,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Check status.
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -92,7 +93,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     assert instance_process_rc == 0
 
     # Check status of the new Instance.
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -129,7 +130,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
 
     # Check logrotate.
 
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
     assert file != ""
     logrotate_cmd = [tt_cmd, "logrotate", "test_app"]
 
@@ -142,7 +143,8 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
         assert logrotate_rc == 0
         assert re.search(r"Logs has been rotated. PID: \d+.", logrotate_out)
 
-        file = wait_file(tmpdir + "/log/test_app/", 'test_app.*.log', exists_log_files)
+        file = wait_file(os.path.join(tmpdir, log_path, "test_app"), 'test_app.*.log',
+                         exists_log_files)
         assert file != ""
         exists_log_files.append(file)
 
@@ -175,7 +177,7 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Check that clean warns about application is running.
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
     assert file != ""
 
     clean_cmd = [tt_cmd, "clean", "test_app", "--force"]
@@ -194,7 +196,7 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert instance_process_rc == 0
 
     # Check that clean is working.
-    logfile = tmpdir + "/log/test_app/test_app.log"
+    logfile = os.path.join(tmpdir, log_path, "test_app", "test_app.log")
     clean_rc, clean_out = run_command_and_get_output(clean_cmd, cwd=tmpdir)
     assert clean_rc == 0
     assert re.search(r"• " + str(logfile), clean_out)
@@ -229,7 +231,7 @@ def test_running_base_functionality_working_dir_app(tt_cmd):
             # Check status.
             for instName in ["master", "replica", "router"]:
                 print(os.path.join(test_app_path, "run", "app", instName))
-                file = wait_file(os.path.join(test_app_path, "run", "app", instName),
+                file = wait_file(os.path.join(test_app_path, run_path, "app", instName),
                                  instName + ".pid", [])
                 assert file != ""
 
@@ -271,7 +273,7 @@ def test_running_instance_from_multi_inst_app(tt_cmd):
         assert re.search(r"Starting an instance \[router\]", start_output)
 
         # Check status.
-        file = wait_file(os.path.join(test_app_path, "run", "app", "router"), "router.pid", [])
+        file = wait_file(os.path.join(test_app_path, run_path, "app", "router"), "router.pid", [])
         assert file != ""
 
         status_cmd = [tt_cmd, "status", "app:router"]
@@ -355,7 +357,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
     assert file != ""
 
     # Get pid of instance.
@@ -371,10 +373,10 @@ def test_running_reread_config(tt_cmd, tmpdir):
     # Wait for child process of instance to start.
     # We need to wait because watchdog starts first and only after that
     # instances starts. It is indicated by 'started' in logs.
-    log_path = os.path.join(tmpdir, "log/test_app/"+inst_name + ".log")
-    file = wait_file(tmpdir + "/log/test_app/", 'test_app.log', [])
+    log_file_path = os.path.join(tmpdir, log_path, "test_app", inst_name + ".log")
+    file = wait_file(os.path.join(tmpdir, log_path, "test_app"), 'test_app.log', [])
     assert file != ""
-    isStarted = wait_instance_start(log_path)
+    isStarted = wait_instance_start(log_file_path)
     assert isStarted is True
     # Kill instance child process.
     killed_childrens = 0
@@ -383,7 +385,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
 
     # Wait for child process of instance to start again.
     # It is indicated by 'started' in logs last line.
-    isStarted = wait_instance_start(log_path)
+    isStarted = wait_instance_start(log_file_path)
     assert isStarted is True
 
     # Check status, it should be running, since instance restarts after failure.
@@ -400,7 +402,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
     killed_childrens = 0
     while killed_childrens == 0:
         killed_childrens = kill_child_process(pid)
-    pid_path = os.path.join(tmpdir, "/run/test_app/", "test_app.pid")
+    pid_path = os.path.join(tmpdir, run_path, "test_app", "test_app.pid")
     # Wait for instance to shutdown, since instance now should shutdown after failure.
     stopped = wait_instance_stop(pid_path)
     # Check stopped, it should be 1.

@@ -44,9 +44,13 @@ const (
 )
 
 var (
-	varDataPath = filepath.Join(varPath, dataPath)
-	varLogPath  = filepath.Join(varPath, logPath)
-	varRunPath  = filepath.Join(varPath, runPath)
+	varDataPath   = filepath.Join(varPath, dataPath)
+	varLogPath    = filepath.Join(varPath, logPath)
+	varRunPath    = filepath.Join(varPath, runPath)
+	binPath       = "bin"
+	includePath   = "include"
+	modulesPath   = "modules"
+	distfilesPath = "distfiles"
 )
 
 var (
@@ -55,31 +59,44 @@ var (
 	defaultConfigPath string
 )
 
-// getDefaultCliOpts returns `CliOpts`filled with default values.
-func getDefaultCliOpts() *config.CliOpts {
-	modules := config.ModulesOpts{
-		Directory: "",
-	}
-	app := config.AppOpts{
+// getDefaultAppOpts generates default app config.
+func getDefaultAppOpts() *config.AppOpts {
+	return &config.AppOpts{
 		InstancesEnabled: ".",
-		RunDir:           "run",
-		LogDir:           "log",
-		LogMaxSize:       0,
-		LogMaxAge:        0,
-		LogMaxBackups:    0,
+		RunDir:           varRunPath,
+		LogDir:           varLogPath,
+		LogMaxSize:       100,
+		LogMaxAge:        8,
+		LogMaxBackups:    10,
 		Restartable:      false,
-		DataDir:          "data",
-		BinDir:           "",
-		IncludeDir:       "",
+		DataDir:          varDataPath,
+		BinDir:           binPath,
+		IncludeDir:       includePath,
+	}
+}
+
+// GetDefaultCliOpts returns `CliOpts`filled with default values.
+func GetDefaultCliOpts() *config.CliOpts {
+	modules := config.ModulesOpts{
+		Directory: modulesPath,
 	}
 	ee := config.EEOpts{
 		CredPath: "",
 	}
 	repo := config.RepoOpts{
 		Rocks:   "",
-		Install: filepath.Join(defaultConfigPath, "distfiles"),
+		Install: distfilesPath,
 	}
-	return &config.CliOpts{Modules: &modules, App: &app, Repo: &repo, EE: &ee}
+	templates := []config.TemplateOpts{
+		{Path: "templates"},
+	}
+	return &config.CliOpts{
+		Modules:   &modules,
+		App:       getDefaultAppOpts(),
+		Repo:      &repo,
+		EE:        &ee,
+		Templates: templates,
+	}
 }
 
 // getDefaultDaemonOpts returns `DaemonOpts` filled with default values.
@@ -118,7 +135,7 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 		// what if the file exists, but access is denied, etc.
 		return nil, fmt.Errorf("Failed to get access to configuration file: %s", err)
 	} else if os.IsNotExist(err) {
-		cfg.CliConfig = getDefaultCliOpts()
+		cfg.CliConfig = GetDefaultCliOpts()
 		return cfg.CliConfig, nil
 	}
 
@@ -137,20 +154,12 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 
 	configDir := filepath.Dir(configPath)
 	if cfg.CliConfig.App == nil {
-		cfg.CliConfig.App = &config.AppOpts{
-			InstancesEnabled: ".",
-			RunDir:           "run",
-			LogDir:           "log",
-			Restartable:      false,
-			DataDir:          "data",
-			BinDir:           filepath.Join(configDir, "bin"),
-			IncludeDir:       filepath.Join(configDir, "include"),
-		}
+		cfg.CliConfig.App = getDefaultAppOpts()
 	}
 	if cfg.CliConfig.Repo == nil {
 		cfg.CliConfig.Repo = &config.RepoOpts{
 			Rocks:   "",
-			Install: filepath.Join(configDir, "distfiles"),
+			Install: distfilesPath,
 		}
 	}
 
@@ -159,17 +168,17 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 			adjustPathWithConfigLocation(cfg.CliConfig.App.InstancesEnabled, configDir, "")
 	}
 	cfg.CliConfig.App.RunDir = adjustPathWithConfigLocation(cfg.CliConfig.App.RunDir,
-		configDir, "run")
+		configDir, varRunPath)
 	cfg.CliConfig.App.LogDir = adjustPathWithConfigLocation(cfg.CliConfig.App.LogDir,
-		configDir, "log")
+		configDir, varLogPath)
 	cfg.CliConfig.App.DataDir = adjustPathWithConfigLocation(cfg.CliConfig.App.DataDir,
-		configDir, "data")
+		configDir, varDataPath)
 	cfg.CliConfig.App.BinDir = adjustPathWithConfigLocation(cfg.CliConfig.App.BinDir,
-		configDir, "bin")
+		configDir, binPath)
 	cfg.CliConfig.App.IncludeDir = adjustPathWithConfigLocation(cfg.CliConfig.App.IncludeDir,
-		configDir, "include")
+		configDir, includePath)
 	cfg.CliConfig.Repo.Install = adjustPathWithConfigLocation(cfg.CliConfig.Repo.Install,
-		configDir, "local")
+		configDir, distfilesPath)
 
 	if cfg.CliConfig.Modules != nil {
 		cfg.CliConfig.Modules.Directory = util.GetAbsPath(configDir,

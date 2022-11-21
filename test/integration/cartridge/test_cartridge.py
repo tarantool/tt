@@ -1,9 +1,11 @@
+import os
 import re
 import subprocess
 import time
 
 import pytest
 
+import utils
 from utils import run_command_and_get_output, wait_file
 
 cartridge_name = "test_app"
@@ -48,8 +50,9 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
 
     # Wait for the full start of the cartridge.
     for inst in instances:
-        run_dir = str(tmpdir) + "/run/" + cartridge_name + "/" + inst + "/"
-        log_dir = str(tmpdir) + "/log/" + cartridge_name + "/" + inst + "/"
+        run_dir = os.path.join(tmpdir, utils.run_path, cartridge_name, inst)
+        log_dir = os.path.join(tmpdir, utils.log_path, cartridge_name, inst)
+
         file = wait_file(run_dir, inst + '.pid', [], 10)
         assert file != ""
         file = wait_file(log_dir, inst + '.log', [], 10)
@@ -63,7 +66,7 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
                 break
             if trying == 200:
                 break
-            with open(log_dir + inst + '.log', "r") as fp:
+            with open(os.path.join(log_dir, inst + '.log'), "r") as fp:
                 lines = fp.readlines()
                 lines = [line.rstrip() for line in lines]
             for line in lines:
@@ -79,7 +82,7 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     setup_cmd = [tt_cmd, "cartridge", "replicasets", "setup",
                  "--bootstrap-vshard",
                  "--name", cartridge_name,
-                 "--run-dir", str(tmpdir) + "/run/" + cartridge_name]
+                 "--run-dir", os.path.join(tmpdir, "var", "run", cartridge_name)]
     setup_rc, setup_out = run_command_and_get_output(setup_cmd, cwd=tmpdir)
     assert setup_rc == 0
     assert re.search(r'Bootstrap vshard task completed successfully', setup_out)
@@ -87,7 +90,7 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     admin_cmd = [tt_cmd, "cartridge", "admin", "probe",
                  "--name", cartridge_name,
                  "--uri", "localhost:3301",
-                 "--run-dir", str(tmpdir) + "/run/" + cartridge_name]
+                 "--run-dir", os.path.join(tmpdir, utils.run_path, cartridge_name)]
     admin_rc, admin_out = run_command_and_get_output(admin_cmd, cwd=tmpdir)
     assert admin_rc == 0
     assert re.search(r'Probe "localhost:3301": OK', admin_out)

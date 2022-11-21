@@ -10,9 +10,6 @@ import requests
 import utils
 
 default_url = "http://127.0.0.1:1024/tarantool"
-var_dir = "var"
-run_dir = "run"
-default_run_path = os.path.join(var_dir, run_dir)
 
 
 # In case of unsuccessful completion of tests, tarantool test
@@ -49,7 +46,7 @@ def test_daemon_base_functionality(tt_cmd, tmpdir):
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmpdir, default_run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path), 'tt_daemon.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -68,7 +65,7 @@ def test_daemon_base_functionality(tt_cmd, tmpdir):
     assert re.search(r"The process is already exists. PID: \d+.", start_again_out)
 
     # Check status. PID has not been changed after second start.
-    file = utils.wait_file(os.path.join(tmpdir, default_run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path), 'tt_daemon.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out2 = utils.run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -100,7 +97,7 @@ def test_restart(tt_cmd, tmpdir):
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmpdir, default_run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path), 'tt_daemon.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -122,7 +119,7 @@ def test_restart(tt_cmd, tmpdir):
     assert re.search(r"Starting tt daemon...", restart_out)
 
     # Check status of the new daemon.
-    file = utils.wait_file(os.path.join(tmpdir, default_run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path), 'tt_daemon.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -162,7 +159,7 @@ def test_daemon_with_cfg(tt_cmd, tmpdir):
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status of the daemon.
-    file = utils.wait_file(os.path.join(tmpdir, default_run_path), 'daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path), 'daemon.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -199,7 +196,7 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmpdir, default_run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path), 'tt_daemon.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -211,7 +208,7 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
 
-    file = utils.wait_file(os.path.join(tmpdir, run_dir, "test_app"), 'test_app.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path, "test_app"), 'test_app.pid', [])
     assert file != ""
 
     body = {"command_name": "status", "params": ["test_app"]}
@@ -265,14 +262,14 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmpdir, default_run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path), 'tt_daemon.pid', [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
     assert re.search(r"RUNNING. PID: \d+.", status_out)
 
-    conn = utils.get_process_conn(os.path.join(tmpdir, default_run_path, file), port)
+    conn = utils.get_process_conn(os.path.join(tmpdir, utils.run_path, file), port)
     assert conn is not None
 
     url = "http://" + conn.laddr.ip + ":" + str(port) + "/tarantool"
@@ -282,7 +279,7 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
 
-    file = utils.wait_file(os.path.join(tmpdir, run_dir, "test_app"), 'test_app.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, utils.run_path, "test_app"), 'test_app.pid', [])
     assert file != ""
 
     body = {"command_name": "status", "params": ["test_app"]}

@@ -11,6 +11,9 @@ import psutil
 import tarantool
 import yaml
 
+run_path = os.path.join("var", "run")
+log_path = os.path.join("var", "log")
+
 
 def run_command_and_get_output(
     cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=None, env=None

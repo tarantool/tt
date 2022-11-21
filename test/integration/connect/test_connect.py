@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from utils import run_command_and_get_output, wait_file
+from utils import run_command_and_get_output, run_path, wait_file
 
 
 def copy_data(dst, file_paths):
@@ -66,7 +66,7 @@ def prepare_test_app_languages(tt_cmd, tmpdir):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.control', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.control', [])
     assert file != ""
     return "test_app", lua_file, sql_file
 
@@ -244,7 +244,7 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.control', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.control', [])
     assert file != ""
 
     # Connect to a wrong instance.
@@ -274,7 +274,7 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir + "/run/test_app/", 'test_app.control', [])
+    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.control', [])
     assert file != ""
 
     # Connect with a wrong credentials.
@@ -319,7 +319,7 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
 
     # Check for start.
     for instance in instances:
-        master_run_path = os.path.join(tmpdir, "run", app_name, instance)
+        master_run_path = os.path.join(tmpdir, run_path, app_name, instance)
         file = wait_file(master_run_path, instance + ".control", [])
         assert file != ""
 
@@ -356,7 +356,7 @@ def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, app_name)
 
     # Check for start.
-    master_run_path = os.path.join(tmpdir, "run", app_name, "master")
+    master_run_path = os.path.join(tmpdir, run_path, app_name, "master")
     file = wait_file(master_run_path, "master.control", [])
     assert file != ""
 
