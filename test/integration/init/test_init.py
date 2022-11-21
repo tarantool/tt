@@ -8,7 +8,7 @@ import yaml
 def check_env_dirs(dir, instances_enabled):
     assert os.path.isdir(os.path.join(dir, "bin"))
     assert os.path.isdir(os.path.join(dir, "modules"))
-    assert os.path.isdir(os.path.join(dir, "install"))
+    assert os.path.isdir(os.path.join(dir, "distfiles"))
     assert os.path.isdir(os.path.join(dir, "include"))
     assert os.path.isdir(os.path.join(dir, "templates"))
     assert os.path.isdir(os.path.join(dir, instances_enabled))
@@ -66,7 +66,7 @@ def test_init_missing_configs(tt_cmd, tmpdir):
         assert data_loaded["tt"]["modules"]["directory"] == "modules"
         assert data_loaded["tt"]["app"]["bin_dir"] == "bin"
         assert data_loaded["tt"]["templates"][0]["path"] == "templates"
-        assert data_loaded["tt"]["repo"]["distfiles"] == "install"
+        assert data_loaded["tt"]["repo"]["distfiles"] == "distfiles"
     check_env_dirs(tmpdir, "instances.enabled")
 
 
