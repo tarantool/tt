@@ -169,9 +169,9 @@ local function start_instance()
     -- This can be removed when tarantool 1.10 is no longer supported.
     arg[0] = instance_path
 
-    local success, data = pcall(dofile, instance_path)
-    if not success then
-        log.error('Failed to run instance: %s', instance_path)
+    local ok, err = pcall(dofile, instance_path)
+    if not ok then
+        log.error('Failed to run instance: %s, error: "%s"', instance_path, err)
         os.exit(1)
     end
     return 0
