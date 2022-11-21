@@ -391,11 +391,14 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 	}
 
 	// Check that the version exists.
+	// The tag format in tt is vX.Y.Z, but the user can use the X.Y.Z format
+	// and this option needs to be supported.
 	if ttVersion != "master" {
 		versionFound := false
 		for _, ver := range versions {
-			if ttVersion == ver.Str {
+			if ttVersion == ver.Str || (ttVersion[0:1] != "v" && "v"+ttVersion == ver.Str) {
 				versionFound = true
+				ttVersion = ver.Str
 				break
 			}
 		}

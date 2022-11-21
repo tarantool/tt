@@ -103,6 +103,17 @@ func TestParseVersion(t *testing.T) {
 		nil,
 	}
 
+	testCases["v1.2.3"] = returnValueParseVersion{
+		Version{
+			Major:   1,
+			Minor:   2,
+			Patch:   3,
+			Release: Release{Type: TypeRelease},
+			Str:     "v1.2.3",
+		},
+		nil,
+	}
+
 	testCases["2.8"] = returnValueParseVersion{
 		Version{},
 		fmt.Errorf("Failed to parse version: format is not valid"),
