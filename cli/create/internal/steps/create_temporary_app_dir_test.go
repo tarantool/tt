@@ -42,7 +42,7 @@ func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 
 	createCtx.WorkDir = workDir
 	require.EqualError(t, createAppDir.Run(&createCtx, &templateCtx),
-		"Application name cannot be empty")
+		"application name cannot be empty")
 
 	// Set template name.
 	createCtx.AppName = "cartridge"

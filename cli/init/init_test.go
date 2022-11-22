@@ -28,7 +28,7 @@ func TestLoadCartridgeConfig(t *testing.T) {
 
 func TestLoadCartridgeInvalidConfig(t *testing.T) {
 	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/invalid_cartridge.yml")
-	require.EqualError(t, err, "failed to parse cartridge app configuration: Failed "+
+	require.EqualError(t, err, "failed to parse cartridge app configuration: failed "+
 		"to parse YAML: yaml: line 5: could not find expected ':'")
 	require.Equal(t, appDirInfo{}, actualDirInfo)
 }
@@ -169,7 +169,7 @@ func TestInitRunInvalidConfigAppDir(t *testing.T) {
 	f.Close()
 
 	require.EqualError(t, Run(&InitCtx{}), "failed to parse cartridge app "+
-		"configuration: Failed to parse YAML: yaml: line 5: could not find expected ':'")
+		"configuration: failed to parse YAML: yaml: line 5: could not find expected ':'")
 }
 
 func TestInitRunInvalidConfigNoAppDir(t *testing.T) {
@@ -182,7 +182,7 @@ func TestInitRunInvalidConfigNoAppDir(t *testing.T) {
 	defer os.Chdir(wd)
 
 	require.EqualError(t, Run(&InitCtx{}), "failed to parse cartridge app "+
-		"configuration: Failed to parse YAML: yaml: line 5: could not find expected ':'")
+		"configuration: failed to parse YAML: yaml: line 5: could not find expected ':'")
 }
 
 func TestInitRunNoConfig(t *testing.T) {

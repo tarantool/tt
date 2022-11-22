@@ -18,7 +18,7 @@ def test_version_cmd(tt_cmd, tmpdir):
     cmd = [tt_cmd, "search", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
-    assert re.search(r"Search supports only tarantool/tarantool-ee/tt", output)
+    assert re.search(r"search supports only tarantool/tarantool-ee/tt", output)
 
     cmd = [tt_cmd, "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
@@ -57,7 +57,7 @@ def test_version_cmd_local(tt_cmd, tmpdir):
     cmd = [tt_cmd, "search", "git", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
-    assert re.search(r"Search supports only tarantool/tarantool-ee/tt", output)
+    assert re.search(r"search supports only tarantool/tarantool-ee/tt", output)
 
     cmd = [tt_cmd, "search", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)

@@ -64,8 +64,8 @@ func TestTemplateRenderMissingVar(t *testing.T) {
 	templateCtx.AppPath = workDir
 
 	renderTemplate := RenderTemplate{}
-	require.EqualError(t, renderTemplate.Run(&createCtx, &templateCtx), "Template instantiation "+
-		"error: Template execution failed: template: "+
+	require.EqualError(t, renderTemplate.Run(&createCtx, &templateCtx), "template instantiation "+
+		"error: template execution failed: template: "+
 		"config.lua.tt.template:1:19: executing \"config.lua.tt.template\" "+
 		"at <.cluster_cookie>: map has no entry for key \"cluster_cookie\"")
 }

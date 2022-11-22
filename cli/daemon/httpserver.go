@@ -46,7 +46,7 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 	}
 
 	if iface.Flags&net.FlagUp == 0 {
-		return "", fmt.Errorf("Interface down")
+		return "", fmt.Errorf("interface down")
 	}
 
 	addrs, err := iface.Addrs()
@@ -134,7 +134,7 @@ func (httpServer *HTTPServer) Stop() error {
 	var err error
 
 	if httpServer.srv == nil {
-		return fmt.Errorf("Server is not started")
+		return fmt.Errorf("server is not started")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), httpServer.timeout)

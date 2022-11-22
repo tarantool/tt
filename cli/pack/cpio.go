@@ -32,7 +32,7 @@ func packCpio(relPaths []string, resFileName, packageFilesDir string) error {
 	cmd.Dir = packageFilesDir
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Failed to run \n%s\n\nStderr: %s", cmd.String(), stderrBuf.String())
+		return fmt.Errorf("failed to run \n%s\n\nStderr: %s", cmd.String(), stderrBuf.String())
 	}
 
 	return nil

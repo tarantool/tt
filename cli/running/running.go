@@ -148,8 +148,8 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (*Instance, e
 // isLoggerChanged checks if any of the logging parameters has been changed.
 func isLoggerChanged(logger *ttlog.Logger, runningCtx *InstanceCtx) (bool, error) {
 	if runningCtx == nil {
-		return true, fmt.Errorf("RunningCtx, which is used to check if the logger parameters" +
-			" are updated, is nil.")
+		return true, fmt.Errorf("runningCtx, which is used to check if the logger parameters" +
+			" are updated, is nil")
 	}
 	if logger == nil || runningCtx == nil {
 		return true, nil
@@ -366,8 +366,8 @@ func createDataDir(dataDirPath string) error {
 	if err == nil {
 		return err
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf(`Something went wrong while trying to create the DataDir folder.
-			 Error: "%v".`, err)
+		return fmt.Errorf(`something went wrong while trying to create the DataDir folder.
+			 Error: "%v"`, err)
 	}
 	// Create a new DataDirfolder.
 	// 0770:
@@ -376,8 +376,8 @@ func createDataDir(dataDirPath string) error {
 	//    others: nil
 	err = os.MkdirAll(dataDirPath, defaultDirPerms)
 	if err != nil {
-		return fmt.Errorf(`Something went wrong while trying to create the DataDir folder.
-			 Error: "%v".`, err)
+		return fmt.Errorf(`something went wrong while trying to create the DataDir folder.
+			 Error: "%v"`, err)
 	}
 	return err
 }
@@ -432,9 +432,9 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	if len(args) != 1 && cmdCtx.CommandName != "run" {
 		if len(args) > 1 {
-			return fmt.Errorf("Currently, you can specify only one instance at a time.")
+			return fmt.Errorf("currently, you can specify only one instance at a time")
 		} else {
-			return fmt.Errorf("Please specify the name of the application.")
+			return fmt.Errorf("please specify the name of the application")
 		}
 	}
 
@@ -472,7 +472,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	instParams, err := collectInstances(appName, cliOpts, instEnabledPath)
 	if err != nil {
-		return fmt.Errorf("Can't find an application init file: %s", err)
+		return fmt.Errorf("can't find an application init file: %s", err)
 	}
 
 	// Cleanup instances list.
@@ -581,7 +581,7 @@ func Logrotate(run *InstanceCtx) (string, error) {
 	}
 
 	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {
-		return "", fmt.Errorf(`Can't rotate logs: "%v".`, err)
+		return "", fmt.Errorf(`can't rotate logs: "%v"`, err)
 	}
 
 	// Rotates logs [instance name pid]

@@ -70,7 +70,7 @@ def test_local_launch_non_existent_dir(tt_cmd, tmpdir):
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
 
     assert rc == 1
-    assert "Failed to change working directory" in output
+    assert "failed to change working directory" in output
 
 
 # This test looking for tarantool.yaml from cwd to root (without -L flag).
@@ -373,7 +373,7 @@ def test_launch_system_config_not_loaded_if_local_enabled(tt_cmd, tmpdir):
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
         assert rc == 1
-        assert "Failed to find Tarantool CLI config for " in output
+        assert "failed to find Tarantool CLI config for " in output
 
 
 def test_launch_system_config_not_loaded_if_cfg_specified_is_missing(tt_cmd, tmpdir):
@@ -414,7 +414,7 @@ def test_launch_ambiguous_config_opts(tt_cmd, tmpdir):
         for cmd in commands:
             rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
             assert rc == 1
-            assert "You can specify only one of" in output
+            assert "you can specify only one of" in output
 
 
 def test_external_module_without_internal_implementation(tt_cmd, tmpdir):
@@ -446,7 +446,7 @@ def test_launch_with_cfg_flag(tt_cmd, tmpdir):
     cmd = [tt_cmd, module, "--cfg", "non-exists-path"]
     rc, output = run_command_and_get_output(cmd, cwd=non_exist_cfg_tmpdir)
     assert rc == 1
-    assert "Specified path to the configuration file is invalid" in output
+    assert "specified path to the configuration file is invalid" in output
 
     # Create one more temporary directory
     exists_cfg_tmpdir = tempfile.mkdtemp(dir=tmpdir)

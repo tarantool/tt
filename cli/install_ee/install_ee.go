@@ -63,7 +63,7 @@ func getCredsFromFile(path string) (userCredentials, error) {
 	matches := util.FindNamedMatches(re, strings.TrimSpace(string(data)))
 
 	if len(matches) == 0 {
-		return res, fmt.Errorf("Corrupted credentials.")
+		return res, fmt.Errorf("corrupted credentials")
 	}
 
 	res.username = matches["user"]
@@ -87,7 +87,7 @@ func getTarballName(data string) (string, error) {
 
 	parsedData := re.FindStringSubmatch(data)
 	if len(parsedData) == 0 {
-		return "", fmt.Errorf("Cannot parse tarball name")
+		return "", fmt.Errorf("cannot parse tarball name")
 	}
 
 	return parsedData[1], nil
@@ -133,7 +133,7 @@ func getVersions(data *[]byte) ([]version.Version, error) {
 	re := regexp.MustCompile(matchRe)
 	parsedData := re.FindAllStringSubmatch(strings.TrimSpace(string(*data)), -1)
 	if len(parsedData) == 0 {
-		return nil, fmt.Errorf("No packages for this OS.")
+		return nil, fmt.Errorf("no packages for this OS")
 	}
 
 	for _, entry := range parsedData {
@@ -167,7 +167,7 @@ func getTarballURL() (string, error) {
 		return eeSourceMacos, nil
 	}
 
-	return "", fmt.Errorf("This operating system is not supported.")
+	return "", fmt.Errorf("this operating system is not supported")
 }
 
 func FetchVersionsLocal(files []string) ([]version.Version, error) {
@@ -271,10 +271,10 @@ func FetchVersions(cliOpts *config.CliOpts) ([]version.Version, error) {
 // GetTarantoolEE downloads given tarantool-ee bundle into directory.
 func GetTarantoolEE(cliOpts *config.CliOpts, bundleName string, dst string) error {
 	if _, err := os.Stat(dst); os.IsNotExist(err) {
-		return fmt.Errorf("Directory doesn't exist: %s", dst)
+		return fmt.Errorf("directory doesn't exist: %s", dst)
 	}
 	if !util.IsDir(dst) {
-		return fmt.Errorf("Incorrect path: %s", dst)
+		return fmt.Errorf("incorrect path: %s", dst)
 	}
 	credentials, err := getCreds(cliOpts)
 	if err != nil {

@@ -49,7 +49,7 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 			}
 			cmd = string(cmdByte)
 		} else {
-			return "", fmt.Errorf("Can't use interactive input as a source file")
+			return "", fmt.Errorf("can't use interactive input as a source file")
 		}
 	} else {
 		cmdPath := path.Clean(connectCtx.SrcFile)
@@ -68,19 +68,19 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 // Connect establishes a connection to the instance and starts the console.
 func Connect(connectCtx ConnectCtx, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("Should be specified one connection string")
+		return fmt.Errorf("should be specified one connection string")
 	}
 
 	lang, ok := ParseLanguage(connectCtx.Language)
 	if !ok {
-		return fmt.Errorf("Unsupported language: %s", connectCtx.Language)
+		return fmt.Errorf("unsupported language: %s", connectCtx.Language)
 	}
 
 	connString := args[0]
 	connOpts := getConnOpts(connString, connectCtx)
 
 	if err := runConsole(connOpts, "", lang); err != nil {
-		return fmt.Errorf("Failed to run interactive console: %s", err)
+		return fmt.Errorf("failed to run interactive console: %s", err)
 	}
 
 	return nil
@@ -90,7 +90,7 @@ func Connect(connectCtx ConnectCtx, args []string) error {
 func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
 	lang, ok := ParseLanguage(connectCtx.Language)
 	if !ok {
-		return nil, fmt.Errorf("Unsupported language: %s", connectCtx.Language)
+		return nil, fmt.Errorf("unsupported language: %s", connectCtx.Language)
 	}
 
 	// Parse the arguments.
@@ -104,14 +104,14 @@ func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
 	// Connecting to the instance.
 	conn, err := connector.Connect(connOpts)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to establish connection: %s", err)
+		return nil, fmt.Errorf("unable to establish connection: %s", err)
 	}
 	defer conn.Close()
 
 	// Change a language.
 	if lang != DefaultLanguage {
 		if err := ChangeLanguage(conn, lang); err != nil {
-			return nil, fmt.Errorf("Unable to change a language: %s", err)
+			return nil, fmt.Errorf("unable to change a language: %s", err)
 		}
 	}
 
@@ -140,12 +140,12 @@ func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
 func runConsole(connOpts connector.ConnectOpts, title string, lang Language) error {
 	console, err := NewConsole(connOpts, title, lang)
 	if err != nil {
-		return fmt.Errorf("Failed to create new console: %s", err)
+		return fmt.Errorf("failed to create new console: %s", err)
 	}
 	defer console.Close()
 
 	if err := console.Run(); err != nil {
-		return fmt.Errorf("Failed to start new console: %s", err)
+		return fmt.Errorf("failed to start new console: %s", err)
 	}
 
 	return nil

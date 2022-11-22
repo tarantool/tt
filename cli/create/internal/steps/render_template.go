@@ -28,18 +28,18 @@ func render(templateCtx *app_template.TemplateCtx, templateFileNamePattern *rege
 			}
 			// Remove original template file.
 			if err := os.Remove(filePath); err != nil {
-				return fmt.Errorf("Error removing %s: %s", filePath, err)
+				return fmt.Errorf("error removing %s: %s", filePath, err)
 			}
 			filePath = resultFilePath
 		}
 		// Render file name.
 		newFileName, err := templateCtx.Engine.RenderText(filePath, templateCtx.Vars)
 		if err != nil {
-			return fmt.Errorf("Failed file name processing %s: %s", filePath, err)
+			return fmt.Errorf("failed file name processing %s: %s", filePath, err)
 		}
 		if newFileName != filePath {
 			if err = os.Rename(filePath, newFileName); err != nil {
-				return fmt.Errorf("Error renaming %s to %s: %s", filePath, newFileName, err)
+				return fmt.Errorf("error renaming %s to %s: %s", filePath, newFileName, err)
 			}
 		}
 	}
@@ -57,7 +57,7 @@ func (RenderTemplate) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.T
 			return render(templateCtx, templateFileNamePattern, filePath, fileInfo)
 		})
 	if err != nil {
-		return fmt.Errorf("Template instantiation error: %s", err)
+		return fmt.Errorf("template instantiation error: %s", err)
 	}
 	return nil
 }

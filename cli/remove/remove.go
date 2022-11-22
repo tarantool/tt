@@ -24,7 +24,7 @@ func Remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 
 	matches := util.FindNamedMatches(re, program)
 	if len(matches) == 0 {
-		return fmt.Errorf("Unknown program: %s", program)
+		return fmt.Errorf("unknown program: %s", program)
 	}
 
 	if matches["prog"] == "tarantool" || matches["prog"] == "tarantool-ee" {
@@ -34,25 +34,25 @@ func Remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
-		return fmt.Errorf("Couldn't find %s directory", directory)
+		return fmt.Errorf("couldn't find %s directory", directory)
 	} else if err != nil {
-		return fmt.Errorf("There was some problem with %s directory", directory)
+		return fmt.Errorf("there was some problem with %s directory", directory)
 	}
 
 	fileName := matches["prog"] + search.VersionFsSeparator + matches["ver"]
 	path := filepath.Join(directory, fileName)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return fmt.Errorf("There is no %s installed.", program)
+		return fmt.Errorf("there is no %s installed", program)
 	} else if err != nil {
-		return fmt.Errorf("There was some problem locating %s", path)
+		return fmt.Errorf("there was some problem locating %s", path)
 	} else {
 		log.Infof("%s found, removing...", program)
 	}
 	// Get path where symlink point.
 	resolvedPath, err := util.ResolveSymlink(linkPath)
 	if err != nil {
-		return fmt.Errorf("Failed to resolve symlink %s: %s", linkPath, err)
+		return fmt.Errorf("failed to resolve symlink %s: %s", linkPath, err)
 	}
 	// Remove symlink if it points to program.
 	if strings.Contains(resolvedPath, fileName) {

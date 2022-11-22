@@ -69,19 +69,19 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, 
 
 	relPaths, err := getSortedRelPaths(packageDir)
 	if err != nil {
-		return fmt.Errorf("Failed to get sorted package files list: %s", err)
+		return fmt.Errorf("failed to get sorted package files list: %s", err)
 	}
 
 	log.Info("Creating data section")
 
 	cpioPath := filepath.Join(packageDir, "cpio")
 	if err := packCpio(relPaths, cpioPath, packageDir); err != nil {
-		return fmt.Errorf("Failed to pack CPIO: %s", err)
+		return fmt.Errorf("failed to pack CPIO: %s", err)
 	}
 
 	compresedCpioPath := filepath.Join(packageDir, "cpio.gz")
 	if err := CompressGzip(cpioPath, compresedCpioPath); err != nil {
-		return fmt.Errorf("Failed to compress CPIO: %s", err)
+		return fmt.Errorf("failed to compress CPIO: %s", err)
 	}
 
 	log.Info("Generating header section")
@@ -89,30 +89,30 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, 
 	rpmHeader, err := genRpmHeader(relPaths, cpioPath, compresedCpioPath, packageDir,
 		cmdCtx, packCtx, opts)
 	if err != nil {
-		return fmt.Errorf("Failed to gen RPM header: %s", err)
+		return fmt.Errorf("failed to gen RPM header: %s", err)
 	}
 
 	packedHeader, err := packTagSet(rpmHeader, headerImmutable)
 	if err != nil {
-		return fmt.Errorf("Failed to pack RPM header: %s", err)
+		return fmt.Errorf("failed to pack RPM header: %s", err)
 	}
 
 	// Write header to file.
 	rpmHeaderFilePath := filepath.Join(packageDir, "header")
 	rpmHeaderFile, err := os.Create(rpmHeaderFilePath)
 	if err != nil {
-		return fmt.Errorf("Failed to create RPM body file: %s", err)
+		return fmt.Errorf("failed to create RPM body file: %s", err)
 	}
 	defer rpmHeaderFile.Close()
 
 	if _, err := io.Copy(rpmHeaderFile, packedHeader); err != nil {
-		return fmt.Errorf("Failed to write RPM lead to file: %s", err)
+		return fmt.Errorf("failed to write RPM lead to file: %s", err)
 	}
 
 	// Create body file = header + compressedCpio.
 	rpmBodyFilePath := filepath.Join(packageDir, "body")
 	if err := util.MergeFiles(rpmBodyFilePath, rpmHeaderFilePath, compresedCpioPath); err != nil {
-		return fmt.Errorf("Failed to concat RPM header with compressed payload: %s", err)
+		return fmt.Errorf("failed to concat RPM header with compressed payload: %s", err)
 	}
 
 	log.Info("Computing a signature")
@@ -120,12 +120,12 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, 
 	// Compute signature.
 	signature, err := genSignature(rpmBodyFilePath, rpmHeaderFilePath, cpioPath)
 	if err != nil {
-		return fmt.Errorf("Failed to gen RPM signature: %s", err)
+		return fmt.Errorf("failed to gen RPM signature: %s", err)
 	}
 
 	packedSignature, err := packTagSet(*signature, headerSignatures)
 	if err != nil {
-		return fmt.Errorf("Failed to pack RPM header: %s", err)
+		return fmt.Errorf("failed to pack RPM header: %s", err)
 	}
 	alignData(packedSignature, 8)
 
@@ -145,11 +145,11 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, 
 	leadFilePath := filepath.Join(packageDir, "lead")
 	leadFile, err := os.Create(leadFilePath)
 	if err != nil {
-		return fmt.Errorf("Failed to create RPM lead file: %s", err)
+		return fmt.Errorf("failed to create RPM lead file: %s", err)
 	}
 
 	if _, err := io.Copy(leadFile, lead); err != nil {
-		return fmt.Errorf("Failed to write RPM lead to file: %s", err)
+		return fmt.Errorf("failed to write RPM lead to file: %s", err)
 	}
 
 	// Create RPM file.
@@ -158,7 +158,7 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, 
 		rpmBodyFilePath,
 	)
 	if err != nil {
-		return fmt.Errorf("Failed to write result RPM file: %s", err)
+		return fmt.Errorf("failed to write result RPM file: %s", err)
 	}
 
 	return nil

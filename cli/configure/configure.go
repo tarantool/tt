@@ -133,7 +133,7 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 	if err != nil && !os.IsNotExist(err) {
 		// TODO: Add warning in next patches, discussion
 		// what if the file exists, but access is denied, etc.
-		return nil, fmt.Errorf("Failed to get access to configuration file: %s", err)
+		return nil, fmt.Errorf("failed to get access to configuration file: %s", err)
 	} else if os.IsNotExist(err) {
 		cfg.CliConfig = GetDefaultCliOpts()
 		return cfg.CliConfig, nil
@@ -141,15 +141,15 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 
 	rawConfigOpts, err := util.ParseYAML(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: %s", err)
+		return nil, fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
 	}
 
 	if err := mapstructure.Decode(rawConfigOpts, &cfg); err != nil {
-		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: %s", err)
+		return nil, fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
 	}
 
 	if cfg.CliConfig == nil {
-		return nil, fmt.Errorf("Failed to parse Tarantool CLI configuration: missing tt section")
+		return nil, fmt.Errorf("failed to parse Tarantool CLI configuration: missing tt section")
 	}
 
 	configDir := filepath.Dir(configPath)
@@ -204,20 +204,20 @@ func GetDaemonOpts(configurePath string) (*config.DaemonOpts, error) {
 
 	// Config could not be processed.
 	if _, err := os.Stat(configurePath); err != nil {
-		return nil, fmt.Errorf("Failed to get access to daemon configuration file: %s", err)
+		return nil, fmt.Errorf("failed to get access to daemon configuration file: %s", err)
 	}
 
 	rawConfigOpts, err := util.ParseYAML(configurePath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse daemon configuration: %s", err)
+		return nil, fmt.Errorf("failed to parse daemon configuration: %s", err)
 	}
 
 	if err := mapstructure.Decode(rawConfigOpts, &cfg); err != nil {
-		return nil, fmt.Errorf("Failed to parse daemon configuration: %s", err)
+		return nil, fmt.Errorf("failed to parse daemon configuration: %s", err)
 	}
 
 	if cfg.DaemonConfig == nil {
-		return nil, fmt.Errorf("Failed to parse daemon configuration: missing daemon section")
+		return nil, fmt.Errorf("failed to parse daemon configuration: missing daemon section")
 	}
 
 	if cfg.DaemonConfig.PIDFile == "" {
@@ -248,14 +248,14 @@ func GetDaemonOpts(configurePath string) (*config.DaemonOpts, error) {
 func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 	if cliCtx.LocalLaunchDir != "" {
 		if cliCtx.IsSystem {
-			return fmt.Errorf("You can specify only one of -L(--local) and -S(--system) options")
+			return fmt.Errorf("you can specify only one of -L(--local) and -S(--system) options")
 		}
 		if cliCtx.ConfigPath != "" {
-			return fmt.Errorf("You can specify only one of -L(--local) and -с(--cfg) options")
+			return fmt.Errorf("you can specify only one of -L(--local) and -с(--cfg) options")
 		}
 	} else {
 		if cliCtx.IsSystem && cliCtx.ConfigPath != "" {
-			return fmt.Errorf("You can specify only one of -S(--system) and -с(--cfg) options")
+			return fmt.Errorf("you can specify only one of -S(--system) and -с(--cfg) options")
 		}
 	}
 	return nil
@@ -269,14 +269,14 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 
 	if cmdCtx.Cli.ConfigPath != "" {
 		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
-			return fmt.Errorf("Specified path to the configuration file is invalid: %s", err)
+			return fmt.Errorf("specified path to the configuration file is invalid: %s", err)
 		}
 	}
 
 	var err error
 	cmdCtx.Cli.DaemonCfgPath, err = getDaemonCfgPath(daemonCfgPath)
 	if err != nil {
-		return fmt.Errorf("Failed to get tt daemon config: %s", err)
+		return fmt.Errorf("failed to get tt daemon config: %s", err)
 	}
 
 	// Set default (system) tarantool binary, can be replaced by "local" or "system" later.
@@ -375,14 +375,14 @@ func detectLocalTarantool(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) er
 
 	if _, err := os.Stat(localTarantool); err == nil {
 		if _, err := exec.LookPath(localTarantool); err != nil {
-			return fmt.Errorf(`Found Tarantool binary '%s' isn't executable: %s`,
+			return fmt.Errorf(`found Tarantool binary '%s' isn't executable: %s`,
 				localTarantool, err)
 		}
 
 		cmdCtx.Cli.TarantoolExecutable = localTarantool
 		cmdCtx.Cli.IsTarantoolBinFromRepo = true
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("Failed to get access to Tarantool binary file: %s", err)
+		return fmt.Errorf("failed to get access to Tarantool binary file: %s", err)
 	}
 
 	log.Debugf("Tarantool executable found: '%s'", cmdCtx.Cli.TarantoolExecutable)
@@ -424,14 +424,14 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 			// TODO: Add warning messages, discussion what if the file
 			// exists, but access is denied, etc.
 			if !os.IsNotExist(err) {
-				return fmt.Errorf("Failed to get access to configuration file: %s", err)
+				return fmt.Errorf("failed to get access to configuration file: %s", err)
 			}
 			if cmdCtx.Cli.ConfigPath, err = getConfigPath(ConfigName); err != nil {
-				return fmt.Errorf("Failed to get Tarantool CLI config: %s", err)
+				return fmt.Errorf("failed to get Tarantool CLI config: %s", err)
 			}
 			if cmdCtx.Cli.ConfigPath == "" {
 				if cmdCtx.Cli.LocalLaunchDir != "" {
-					return fmt.Errorf("Failed to find Tarantool CLI config for '%s'",
+					return fmt.Errorf("failed to find Tarantool CLI config for '%s'",
 						cmdCtx.Cli.LocalLaunchDir)
 				}
 				cmdCtx.Cli.ConfigPath = getSystemConfigPath()
@@ -475,7 +475,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		if _, err := os.Stat(localCli); err == nil {
 			if _, err := exec.LookPath(localCli); err != nil {
 				return fmt.Errorf(
-					`Found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
+					`found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
 			}
 
 			// We are not using the "RunExec" function because we have no reason to have several
@@ -487,7 +487,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 				return err
 			}
 		} else if !os.IsNotExist(err) {
-			return fmt.Errorf("Failed to get access to tt binary file: %s", err)
+			return fmt.Errorf("failed to get access to tt binary file: %s", err)
 		}
 	}
 
@@ -500,13 +500,13 @@ func configureLocalLaunch(cmdCtx *cmdcontext.CmdCtx) error {
 	launchDir := ""
 	if cmdCtx.Cli.LocalLaunchDir != "" {
 		if launchDir, err = filepath.Abs(cmdCtx.Cli.LocalLaunchDir); err != nil {
-			return fmt.Errorf(`Failed to get absolute path to local directory: %s`, err)
+			return fmt.Errorf(`failed to get absolute path to local directory: %s`, err)
 		}
 
 		log.Debugf("Local launch directory: %s", launchDir)
 
 		if _, err = util.Chdir(launchDir); err != nil {
-			return fmt.Errorf(`Failed to change working directory: %s`, err)
+			return fmt.Errorf(`failed to change working directory: %s`, err)
 		}
 	}
 
@@ -570,7 +570,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 		// If the config is not found, then we take it from the standard place (/etc/tarantool).
 
 		if cmdCtx.Cli.ConfigPath, err = getConfigPath(ConfigName); err != nil {
-			return fmt.Errorf("Failed to get Tarantool CLI config: %s", err)
+			return fmt.Errorf("failed to get Tarantool CLI config: %s", err)
 		}
 	}
 
@@ -587,7 +587,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 func getConfigPath(configName string) (string, error) {
 	curDir, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("Failed to detect current directory: %s", err)
+		return "", fmt.Errorf("failed to detect current directory: %s", err)
 	}
 
 	for curDir != "/" {
@@ -638,7 +638,7 @@ func getDaemonCfgPath(configName string) (string, error) {
 	// Config in current dir.
 	curDir, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("Failed to detect current directory: %s", err)
+		return "", fmt.Errorf("failed to detect current directory: %s", err)
 	}
 
 	configPath = fmt.Sprintf("%s/%s", curDir, configName)

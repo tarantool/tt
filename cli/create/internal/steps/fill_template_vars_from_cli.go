@@ -9,7 +9,7 @@ import (
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
-const varDefFormatError = `Wrong variable definition format: %s
+const varDefFormatError = `wrong variable definition format: %s
 Format: var-name=value`
 
 func parseVarDefinition(varDefText string) (struct{ name, value string }, error) {

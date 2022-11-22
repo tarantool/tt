@@ -26,7 +26,7 @@ type consoleReader struct {
 func (consoleReader consoleReader) readLine() (string, error) {
 	input, err := consoleReader.stdinReader.ReadString('\n')
 	if err != nil {
-		return "", fmt.Errorf("Error getting user input: %s", err)
+		return "", fmt.Errorf("error getting user input: %s", err)
 	}
 	return strings.TrimSuffix(input, "\n"), nil
 }
@@ -57,11 +57,11 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 			if varInfo.Re != "" {
 				matched, err := regexp.MatchString(varInfo.Re, existingValue)
 				if err != nil {
-					return fmt.Errorf("Failed to validate user input: %s", err)
+					return fmt.Errorf("failed to validate user input: %s", err)
 				}
 				if matched == false {
 					if createCtx.SilentMode {
-						return fmt.Errorf("Invalid format of %s variable.", varInfo.Name)
+						return fmt.Errorf("invalid format of %s variable", varInfo.Name)
 					} else {
 						fmt.Printf("Invalid format of %s variable.\n", varInfo.Name)
 					}
@@ -78,7 +78,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 		for matched == false {
 			if varInfo.Default == "" {
 				if createCtx.SilentMode {
-					return fmt.Errorf("%s variable value is not set.", varInfo.Name)
+					return fmt.Errorf("%s variable value is not set", varInfo.Name)
 				}
 				fmt.Printf("%s: ", varInfo.Prompt)
 			} else {
@@ -93,7 +93,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 			if !createCtx.SilentMode {
 				input, err = collectTemplateVarsFromUser.Reader.readLine()
 				if err != nil {
-					return fmt.Errorf("Error reading user input: %s", err)
+					return fmt.Errorf("error reading user input: %s", err)
 				}
 			}
 
@@ -108,11 +108,11 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 				if varInfo.Re != "" {
 					matched, err = regexp.MatchString(varInfo.Re, input)
 					if err != nil {
-						return fmt.Errorf("Failed to validate user input: %s", err)
+						return fmt.Errorf("failed to validate user input: %s", err)
 					}
 					if matched == false {
 						if createCtx.SilentMode {
-							return fmt.Errorf("Invalid format of %s variable.", varInfo.Name)
+							return fmt.Errorf("invalid format of %s variable", varInfo.Name)
 						} else {
 							fmt.Println("Invalid format. Try again.")
 						}

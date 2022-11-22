@@ -39,7 +39,7 @@ func Cat(cmdCtx *cmdcontext.CmdCtx) error {
 	stdinPipe.Close()
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Result of cat: %s", errbuff.String())
+		return fmt.Errorf("result of cat: %s", errbuff.String())
 	}
 
 	scanner := bufio.NewScanner(stdoutPipe)
@@ -50,7 +50,7 @@ func Cat(cmdCtx *cmdcontext.CmdCtx) error {
 	cmd.Wait()
 
 	if len(errbuff.String()) > 0 {
-		return fmt.Errorf("Result of cat: %s", errbuff.String())
+		return fmt.Errorf("result of cat: %s", errbuff.String())
 	}
 
 	return nil
@@ -75,7 +75,7 @@ func Play(cmdCtx *cmdcontext.CmdCtx) error {
 	stdinPipe.Close()
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("Result of play: %s", errbuff.String())
+		return fmt.Errorf("result of play: %s", errbuff.String())
 	}
 
 	scanner := bufio.NewScanner(stdoutPipe)
@@ -86,7 +86,7 @@ func Play(cmdCtx *cmdcontext.CmdCtx) error {
 	cmd.Wait()
 
 	if len(errbuff.String()) > 0 {
-		return fmt.Errorf("Result of play: %s", errbuff.String())
+		return fmt.Errorf("result of play: %s", errbuff.String())
 	}
 
 	return nil

@@ -34,7 +34,7 @@ func GetCmdCtxPtr() *cmdcontext.CmdCtx {
 // TT-EE.
 func injectCmds(root *cobra.Command) error {
 	if root == nil {
-		return fmt.Errorf("Can't inject commands. The root is nil.")
+		return fmt.Errorf("can't inject commands. The root is nil")
 	}
 
 	if InjectedCmds == nil {

@@ -17,7 +17,7 @@ type mockReader struct {
 func (reader *mockReader) readLine() (string, error) {
 	linesLeft := len(reader.lines)
 	if linesLeft <= 0 {
-		return "", fmt.Errorf("User input is empty.")
+		return "", fmt.Errorf("user input is empty")
 	}
 
 	line := reader.lines[0]
@@ -62,7 +62,7 @@ func TestNonInteractiveModeReMismatch(t *testing.T) {
 	createCtx.SilentMode = true
 	collectVars := CollectTemplateVarsFromUser{Reader: &mockReader{}}
 	err := collectVars.Run(&createCtx, &templateCtx)
-	assert.EqualError(t, err, "Invalid format of user_name variable.")
+	assert.EqualError(t, err, "invalid format of user_name variable")
 }
 
 func TestInteractiveMode(t *testing.T) {

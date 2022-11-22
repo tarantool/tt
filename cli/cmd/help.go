@@ -94,7 +94,7 @@ func helpFlagError(cmd *cobra.Command, errMsg error) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("Failed to get templated string: %s", err)
+		return fmt.Errorf("failed to get templated string: %s", err)
 	}
 
 	cmd.Printf(templatedStr, errMsg)

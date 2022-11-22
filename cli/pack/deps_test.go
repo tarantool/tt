@@ -44,16 +44,16 @@ func TestParseDependenciesFromFile(t *testing.T) {
 			depsFilePath:    filepath.Join(testDir, "deps_file.txt"),
 			depsFileContent: "tarantool<=1.10tt==0.1.0\n",
 			expectedDeps:    nil,
-			expectedError: fmt.Errorf("Failed to parse dependencies file: " +
-				"Error during parse dependencies file:"),
+			expectedError: fmt.Errorf("failed to parse dependencies file: " +
+				"error during parse dependencies file:"),
 		},
 		{
 			name:            "File doesn't exist",
 			depsFilePath:    filepath.Join(testDir, "fake_deps_file.txt"),
 			depsFileContent: "tarantool<=1.10tt==0.1.0\n",
 			expectedDeps:    nil,
-			expectedError: fmt.Errorf("Failed to parse dependencies file: " +
-				"Error during parse dependencies file:"),
+			expectedError: fmt.Errorf("failed to parse dependencies file: " +
+				"error during parse dependencies file:"),
 		},
 	}
 
@@ -66,7 +66,7 @@ func TestParseDependenciesFromFile(t *testing.T) {
 
 		deps, err := parseDependenciesFromFile(testCase.depsFilePath)
 		if testCase.expectedError == nil {
-			require.NoErrorf(t, err, "Failed to write content to test file.")
+			require.NoErrorf(t, err, "failed to write content to test file.")
 		} else {
 			require.Contains(t, err.Error(), testCase.expectedError.Error())
 		}

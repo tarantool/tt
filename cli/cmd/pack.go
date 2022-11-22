@@ -24,12 +24,12 @@ The supported types are: tgz, deb, rpm`,
 		Run: func(cmd *cobra.Command, args []string) {
 			err := cobra.ExactArgs(1)(cmd, args)
 			if err != nil {
-				err = fmt.Errorf("Incorrect combination of command parameters: %s", err.Error())
+				err = fmt.Errorf("incorrect combination of command parameters: %s", err.Error())
 				log.Fatalf(err.Error())
 			}
 			err = cobra.OnlyValidArgs(cmd, args)
 			if err != nil {
-				err = fmt.Errorf("Incorrect combination of command parameters: %s", err.Error())
+				err = fmt.Errorf("incorrect combination of command parameters: %s", err.Error())
 				log.Fatalf(err.Error())
 			}
 			cmdCtx.CommandName = cmd.Name()
@@ -92,12 +92,12 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	packer := pack.CreatePacker(packCtx)
 	if packer == nil {
-		return fmt.Errorf("Incorrect type of package. Available types: rpm, deb, tgz")
+		return fmt.Errorf("incorrect type of package. Available types: rpm, deb, tgz")
 	}
 
 	err = packer.Run(cmdCtx, packCtx, opts)
 	if err != nil {
-		return fmt.Errorf("Failed to pack: %v", err)
+		return fmt.Errorf("failed to pack: %v", err)
 	}
 	return nil
 }

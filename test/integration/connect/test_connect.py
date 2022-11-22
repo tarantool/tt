@@ -131,7 +131,7 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
     # Connect to a wrong instance.
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:6666", empty_file)
     assert not ret
-    assert re.search(r"   ⨯ Unable to establish connection", output)
+    assert re.search(r"   ⨯ unable to establish connection", output)
 
     # Connect to the instance.
     uris = ["localhost:3013", "tcp://localhost:3013"]
@@ -164,19 +164,19 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
     opts = {"-u": "test", "-p": "wrong_password"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts)
     assert not ret
-    assert re.search(r"   ⨯ Unable to establish connection", output)
+    assert re.search(r"   ⨯ unable to establish connection", output)
 
     # Connect with a wrong credentials via URL.
     uri = "test:wrong_password@localhost:3013"
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file)
     assert not ret
-    assert re.search(r"   ⨯ Unable to establish connection", output)
+    assert re.search(r"   ⨯ unable to establish connection", output)
 
     # Connect with a wrong credentials via environment variables.
     env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, env=env)
     assert not ret
-    assert re.search(r"   ⨯ Unable to establish connection", output)
+    assert re.search(r"   ⨯ unable to establish connection", output)
 
     # Connect with a valid credentials.
     opts = {"-u": "test", "-p": "password"}
@@ -250,7 +250,7 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     # Connect to a wrong instance.
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "any_app", empty_file)
     assert not ret
-    assert re.search(r"   ⨯ Can't find an application init file", output)
+    assert re.search(r"   ⨯ can't find an application init file", output)
 
     # Connect to the instance.
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
@@ -327,7 +327,7 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
     non_exist = app_name + ":" + "any_name"
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, non_exist, empty_file)
     assert not ret
-    assert re.search(r"   ⨯ Can't find an application init file: instance\(s\) not found", output)
+    assert re.search(r"   ⨯ can't find an application init file: instance\(s\) not found", output)
 
     # Connect to instances.
     for instance in instances:
@@ -480,13 +480,13 @@ def test_connect_language_invalid(tt_cmd, tmpdir_with_cfg):
     opts = {"-l": "invalid"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
     assert not ret
-    assert re.search(r"   ⨯ Unsupported language: invalid", output)
+    assert re.search(r"   ⨯ unsupported language: invalid", output)
 
     # Execute SQL-code.
     opts = {"-l": "invalid"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
     assert not ret
-    assert re.search(r"   ⨯ Unsupported language: invalid", output)
+    assert re.search(r"   ⨯ unsupported language: invalid", output)
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, test_app)
@@ -502,13 +502,13 @@ def test_connect_language_set_if_unsupported(tt_cmd, tmpdir_with_cfg):
     opts = {"-l": "lua"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
     assert not ret
-    assert re.search(r"   ⨯ Unable to change a language: unexpected response:", output)
+    assert re.search(r"   ⨯ unable to change a language: unexpected response:", output)
 
     # Execute SQL-code.
     opts = {"-l": "sql"}
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
     assert not ret
-    assert re.search(r"   ⨯ Unable to change a language: unexpected response:", output)
+    assert re.search(r"   ⨯ unable to change a language: unexpected response:", output)
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, test_app)

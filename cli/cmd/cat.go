@@ -60,7 +60,7 @@ func NewCatCmd() *cobra.Command {
 // internalCatModule is a default cat module.
 func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("It is required to specify at least one .xlog or .snap file.")
+		return fmt.Errorf("it is required to specify at least one .xlog or .snap file")
 	}
 
 	// List of files is passed to lua cat script via environment variable in json format.

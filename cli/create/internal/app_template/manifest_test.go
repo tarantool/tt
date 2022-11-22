@@ -46,15 +46,15 @@ func TestLoadManifest(t *testing.T) {
 		},
 		"missing_var_name.yaml": {
 			TemplateManifest{},
-			"Invalid manifest format: Missing variable name.",
+			"invalid manifest format: missing variable name",
 		},
 		"missing_var_prompt.yaml": {
 			TemplateManifest{},
-			"Invalid manifest format: Missing user prompt.",
+			"invalid manifest format: missing user prompt",
 		},
 		"non_existing.yaml": {
 			TemplateManifest{},
-			"Failed to get access to manifest file: " +
+			"failed to get access to manifest file: " +
 				"stat testdata/non_existing.yaml: no such file or directory",
 		},
 	}

@@ -52,7 +52,7 @@ func GetVersionDetails(verStr string) (Version, error) {
 
 	matches := util.FindNamedMatches(re, verStr)
 	if len(matches) == 0 {
-		return version, fmt.Errorf("Failed to parse version: format is not valid")
+		return version, fmt.Errorf("failed to parse version: format is not valid")
 	}
 
 	if matches["release"] != "" {

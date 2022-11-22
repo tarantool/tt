@@ -86,14 +86,14 @@ func CompressGzip(srcFilePath string, destFilePath string) error {
 	// Src file reader.
 	srcFileReader, err := os.Open(srcFilePath)
 	if err != nil {
-		return fmt.Errorf("Failed to open source file %s: %s", srcFilePath, err)
+		return fmt.Errorf("failed to open source file %s: %s", srcFilePath, err)
 	}
 	defer srcFileReader.Close()
 
 	// Dest file writer.
 	destFile, err := os.Create(destFilePath)
 	if err != nil {
-		return fmt.Errorf("Failed to create result GZIP file %s: %s", destFilePath, err)
+		return fmt.Errorf("failed to create result GZIP file %s: %s", destFilePath, err)
 	}
 	defer destFile.Close()
 
@@ -101,7 +101,7 @@ func CompressGzip(srcFilePath string, destFilePath string) error {
 	gzipWriter, err := gzip.NewWriterLevel(destFile, gzip.BestCompression)
 	if err != nil {
 		_ = os.Remove(destFilePath)
-		return fmt.Errorf("Failed to create GZIP writer %s: %s", destFilePath, err)
+		return fmt.Errorf("failed to create GZIP writer %s: %s", destFilePath, err)
 	}
 	defer gzipWriter.Flush()
 

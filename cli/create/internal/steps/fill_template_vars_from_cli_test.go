@@ -42,7 +42,7 @@ func TestCliVarsParseErrorHandling(t *testing.T) {
 	for _, def := range invalidVarDefinitions {
 		createCtx.VarsFromCli = []string{def}
 		require.EqualError(t, fillTemplateVarsFromCli.Run(&createCtx, &templateCtx),
-			fmt.Sprintf("Wrong variable definition format: %s\nFormat: var-name=value", def))
+			fmt.Sprintf("wrong variable definition format: %s\nFormat: var-name=value", def))
 	}
 }
 
@@ -52,7 +52,7 @@ func TestCliParseVars(t *testing.T) {
 	for _, varDef := range wrongFormatStrings {
 		_, err := parseVarDefinition(varDef)
 		require.EqualError(t, err,
-			fmt.Sprintf("Wrong variable definition format: %s\nFormat: var-name=value", varDef))
+			fmt.Sprintf("wrong variable definition format: %s\nFormat: var-name=value", varDef))
 	}
 
 	v, err := parseVarDefinition("var=val")

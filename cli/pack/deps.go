@@ -65,7 +65,7 @@ func parseDependencies(rawDeps []string) (PackDependencies, error) {
 
 		if err := parser.ParseString("", dep, &parsedDep); err != nil {
 			return nil,
-				fmt.Errorf("Error during parse dependencies file: %s. Trying to parse: %s",
+				fmt.Errorf("error during parse dependencies file: %s. Trying to parse: %s",
 					err, dep)
 		}
 
@@ -81,19 +81,19 @@ func parseDependenciesFromFile(depsFile string) (PackDependencies, error) {
 	var deps []string
 
 	if _, err := os.Stat(depsFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("Invalid path to file with dependencies: %s", err)
+		return nil, fmt.Errorf("invalid path to file with dependencies: %s", err)
 	}
 
 	content, err := util.GetFileContent(depsFile)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get file content: %s", err)
+		return nil, fmt.Errorf("failed to get file content: %s", err)
 	}
 
 	deps = strings.Split(content, "\n")
 
 	parsedDeps, err := parseDependencies(deps)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse dependencies file: %s", err)
+		return nil, fmt.Errorf("failed to parse dependencies file: %s", err)
 	}
 
 	return parsedDeps, nil

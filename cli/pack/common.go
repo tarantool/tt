@@ -149,7 +149,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	if len(appList) == 0 {
-		err = fmt.Errorf("There are no apps found in instance_enabled directory")
+		err = fmt.Errorf("there are no apps found in instance_enabled directory")
 		return "", err
 	}
 
@@ -223,7 +223,7 @@ func copyAppSrc(opts *config.CliOpts, appName, packagePath string) error {
 		Skip: func(src string) (bool, error) {
 			fileInfo, err := os.Stat(src)
 			if err != nil {
-				return false, fmt.Errorf("Failed to check the source: %s", src)
+				return false, fmt.Errorf("failed to check the source: %s", src)
 			}
 			perm := fileInfo.Mode()
 			if perm&os.ModeSocket != 0 {

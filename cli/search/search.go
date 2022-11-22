@@ -69,7 +69,7 @@ func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
 
 	output, err := exec.Command("git", "ls-remote", "--tags", "--refs", repo).Output()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get versions from %s: %s", repo, err)
+		return nil, fmt.Errorf("failed to get versions from %s: %s", repo, err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -82,7 +82,7 @@ func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
 	for _, line := range lines {
 		slashIdx := strings.LastIndex(line, "/")
 		if slashIdx == -1 {
-			return nil, fmt.Errorf("Unexpected Data from %s", repo)
+			return nil, fmt.Errorf("unexpected Data from %s", repo)
 		} else {
 			slashIdx += 1
 		}
@@ -112,7 +112,7 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 
 	output, err := exec.Command("git", "-C", repo, "tag").Output()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get versions from %s: %s", repo, err)
+		return nil, fmt.Errorf("failed to get versions from %s: %s", repo, err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -172,7 +172,7 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
 	} else if program == "tarantool-ee" {
 		// Do nothing. Needs for bypass arguments check.
 	} else {
-		return fmt.Errorf("Search supports only tarantool/tarantool-ee/tt")
+		return fmt.Errorf("search supports only tarantool/tarantool-ee/tt")
 	}
 
 	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
@@ -283,7 +283,7 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, program string) error {
 			printVersion(cliOpts.App.BinDir, program, version.Str)
 		}
 	} else {
-		return fmt.Errorf("Search supports only tarantool/tarantool-ee/tt")
+		return fmt.Errorf("search supports only tarantool/tarantool-ee/tt")
 	}
 
 	return err

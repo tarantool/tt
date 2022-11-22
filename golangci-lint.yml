@@ -4,6 +4,7 @@ linters:
     - lll
     - govet
     - gofmt
+    - stylecheck
 
 linters-settings:
   lll:
@@ -11,6 +12,9 @@ linters-settings:
     tab-width: 4
   gofmt:
     simplify: false
+  stylecheck:
+# Temporary disable "Poorly chosen identifier" check.
+    checks: ["all", "-ST1003"]
 
 issues:
   exclude-rules:

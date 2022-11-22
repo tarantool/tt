@@ -42,7 +42,7 @@ func InternalRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 	if !strings.Contains(args[0], search.VersionCliSeparator) {
-		return fmt.Errorf("Incorrect usage.\n   e.g program%sversion", search.VersionCliSeparator)
+		return fmt.Errorf("incorrect usage.\n   e.g program%sversion", search.VersionCliSeparator)
 	}
 	err = remove.RemoveProgram(args[0], cliOpts.App.BinDir,
 		cliOpts.App.IncludeDir+"/include", cmdCtx)

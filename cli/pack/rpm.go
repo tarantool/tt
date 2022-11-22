@@ -72,7 +72,7 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	err = packRpm(cmdCtx, packCtx, opts, packageDir, resPackagePath)
 
 	if err != nil {
-		return fmt.Errorf("Failed to create RPM package: %s", err)
+		return fmt.Errorf("failed to create RPM package: %s", err)
 	}
 
 	log.Infof("Created result RPM package: %s", resPackagePath)

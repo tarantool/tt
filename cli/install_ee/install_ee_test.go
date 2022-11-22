@@ -27,7 +27,7 @@ func TestGetVersions(t *testing.T) {
 	testCases[getVersionsInputValue{data: &inputData0}] =
 		getVersionsOutputValue{
 			result: nil,
-			err:    fmt.Errorf("No packages for this OS."),
+			err:    fmt.Errorf("no packages for this OS"),
 		}
 
 	inputData1 := []byte(`<a href="/enterprise/tarantool-enterprise-bundle-` +
@@ -97,7 +97,7 @@ func TestGetCredsFromFile(t *testing.T) {
 	testCases[getCredsFromFileInputValue{path: "./testdata/creds_bad"}] =
 		getCredsFromFileOutputValue{
 			result: userCredentials{},
-			err:    fmt.Errorf("Corrupted credentials."),
+			err:    fmt.Errorf("corrupted credentials"),
 		}
 
 	for input, output := range testCases {

@@ -27,7 +27,7 @@ def test_play_unset_arg(tt_cmd, tmpdir):
     cmd = [tt_cmd, "play"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
-    assert re.search(r"required to specify an URI and at least one .xlog or .snap file.", output)
+    assert re.search(r"required to specify an URI and at least one .xlog or .snap file", output)
 
 
 def test_play_non_existent_uri(tt_cmd, tmpdir):

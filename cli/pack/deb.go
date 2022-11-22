@@ -157,7 +157,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	err = packDebCmd.Run()
 	if err != nil {
-		return fmt.Errorf("Failed to pack DEB: %s", err)
+		return fmt.Errorf("failed to pack DEB: %s", err)
 	}
 
 	log.Infof("Created result DEB package: %s", packageName)

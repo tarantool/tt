@@ -10,7 +10,7 @@ def test_cat_unset_arg(tt_cmd, tmpdir):
     cmd = [tt_cmd, "cat"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
-    assert re.search(r"It is required to specify at least one .xlog or .snap file.", output)
+    assert re.search(r"it is required to specify at least one .xlog or .snap file", output)
 
 
 def test_cat_non_existent_file(tt_cmd, tmpdir):

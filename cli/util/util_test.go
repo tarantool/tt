@@ -144,7 +144,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		TarantoolExecutable:    tntBinPath,
 	}, data: &tntBadData0}] =
 		prefixOutput{
-			err: fmt.Errorf("Failed to get prefix path: regexp does not match"),
+			err: fmt.Errorf("failed to get prefix path: regexp does not match"),
 		}
 
 	tntBadData1 := []byte("#!/bin/sh\n" +
@@ -156,7 +156,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		TarantoolExecutable:    tntBinPath,
 	}, data: &tntBadData1}] =
 		prefixOutput{
-			err: fmt.Errorf("Failed to get prefix path: expected more data"),
+			err: fmt.Errorf("failed to get prefix path: expected more data"),
 		}
 
 	appOpts := config.AppOpts{IncludeDir: "hdr"}
@@ -426,7 +426,7 @@ func TestGetYamlFileName(t *testing.T) {
 
 	// Pass file with .txt extension as a parameter.
 	fileName, err = GetYamlFileName(filepath.Join(tempDir, "tarantool.txt"), true)
-	assert.EqualError(t, err, fmt.Sprintf("Provided file '%s' has no .yaml/.yml extension.",
+	assert.EqualError(t, err, fmt.Sprintf("provided file '%s' has no .yaml/.yml extension",
 		filepath.Join(tempDir, "tarantool.txt")))
 	assert.Equal(t, "", fileName)
 

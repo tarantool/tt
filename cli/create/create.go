@@ -21,8 +21,8 @@ func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx, args []st
 	if len(args) >= 1 {
 		createCtx.TemplateName = args[0]
 	} else {
-		return fmt.Errorf("Missing template name argument. " +
-			"Try `tt create --help` for more information.")
+		return fmt.Errorf("missing template name argument. " +
+			"Try `tt create --help` for more information")
 	}
 
 	workingDir, err := os.Getwd()
@@ -81,7 +81,7 @@ func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 // checkCtx checks create context for validity.
 func checkCtx(ctx *create_ctx.CreateCtx) error {
 	if ctx.TemplateName == "" {
-		return fmt.Errorf("Template name is missing")
+		return fmt.Errorf("template name is missing")
 	}
 
 	return nil

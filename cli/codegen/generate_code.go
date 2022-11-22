@@ -130,10 +130,10 @@ func main() {
 		"Cartridge",
 	)
 	if err != nil {
-		log.Errorf("Error while generating file modes: %s", err)
+		log.Errorf("error while generating file modes: %s", err)
 	}
 
 	if err = generateLuaCodeVar(); err != nil {
-		log.Errorf("Error while generating lua code string variables: %s", err)
+		log.Errorf("error while generating lua code string variables: %s", err)
 	}
 }

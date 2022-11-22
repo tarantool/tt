@@ -25,7 +25,7 @@ func (CreateDockerfile) Run(createCtx *create_ctx.CreateCtx,
 		fileInfo, err := os.Stat(fullPath)
 		if err != nil {
 			if !os.IsNotExist(err) {
-				return fmt.Errorf("Failed to get info of %s: %s", fullPath, err)
+				return fmt.Errorf("failed to get info of %s: %s", fullPath, err)
 			}
 		} else {
 			if !fileInfo.Mode().IsRegular() {
@@ -40,7 +40,7 @@ func (CreateDockerfile) Run(createCtx *create_ctx.CreateCtx,
 	buildDockerfile := filepath.Join(templateCtx.AppPath, buildDockerfiles[0])
 	if err := os.WriteFile(buildDockerfile, docker.DefaultBuildDockerfileContent,
 		0644); err != nil {
-		return fmt.Errorf("Error writing %s: %s", buildDockerfile, err)
+		return fmt.Errorf("error writing %s: %s", buildDockerfile, err)
 	}
 
 	return nil

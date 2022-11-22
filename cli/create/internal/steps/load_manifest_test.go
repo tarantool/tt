@@ -76,6 +76,6 @@ func TestManifestInvalidYaml(t *testing.T) {
 	templateCtx.AppPath = workDir
 
 	loadManifest := LoadManifest{}
-	require.EqualError(t, loadManifest.Run(&createCtx, &templateCtx), "Failed to load manifest "+
-		"file: Failed to parse YAML: yaml: line 1: did not find expected node content")
+	require.EqualError(t, loadManifest.Run(&createCtx, &templateCtx), "failed to load manifest "+
+		"file: failed to parse YAML: yaml: line 1: did not find expected node content")
 }

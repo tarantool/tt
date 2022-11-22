@@ -191,7 +191,7 @@ func packTagSet(tagSet rpmTagSetType, regionTagID int) (*bytes.Buffer, error) {
 			return nil, err
 		}
 		if boundaries, ok := boundariesByType[tag.Type]; !ok {
-			return nil, fmt.Errorf("Boundaries for type %d is not set", tag.Type)
+			return nil, fmt.Errorf("boundaries for type %d is not set", tag.Type)
 		} else if boundaries > 1 {
 			alignData(tagsData, boundaries)
 		}
@@ -383,7 +383,7 @@ func packTag(tag rpmTagType) (*packedTagType, error) {
 		}
 
 	default:
-		return nil, fmt.Errorf("Unknown tag type: %d", tag.Type)
+		return nil, fmt.Errorf("unknown tag type: %d", tag.Type)
 	}
 
 	return &packed, nil
