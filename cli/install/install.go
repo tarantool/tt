@@ -154,7 +154,7 @@ func detectOsName() (string, error) {
 		distroInfo, err := getDistroInfo()
 		return distroInfo.Name, err
 	}
-	return "", fmt.Errorf("Unknown OS")
+	return "", fmt.Errorf("unknown OS")
 }
 
 // getTarantoolVersions returns all available versions from tarantool repository.
@@ -356,10 +356,10 @@ func copyBuildedTT(binDir, path, version string, flags InstallationFlag,
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
 		err = os.Mkdir(binDir, defaultDirPermissions)
 		if err != nil {
-			return fmt.Errorf("Unable to create %s\n Error: %s", binDir, err)
+			return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("Unable to create %s\n Error: %s", binDir, err)
+		return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
 	}
 	if flags.Reinstall {
 		err = os.Remove(filepath.Join(binDir, version))
@@ -410,7 +410,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 
 	// Check binary directory.
 	if binDir == "" {
-		return fmt.Errorf("BinDir is not set, check tarantool.yaml")
+		return fmt.Errorf("binDir is not set, check tarantool.yaml")
 	}
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {
@@ -458,7 +458,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 			}
 			util.ExecuteCommand("git", flags.Verbose, logFile, path, "checkout", ttVersion)
 		} else {
-			return fmt.Errorf("Can't find distfiles directory.")
+			return fmt.Errorf("can't find distfiles directory")
 		}
 	} else {
 		log.Infof("Downloading tt...")
@@ -609,7 +609,7 @@ func copyLocalTarantool(distfiles string, path string, tarVersion string,
 		}
 		err = util.ExecuteCommand("git", flags.Verbose, logFile, path, "checkout", tarVersion)
 	} else {
-		return fmt.Errorf("Can't find distfiles directory.")
+		return fmt.Errorf("can't find distfiles directory")
 	}
 	return err
 }
@@ -622,10 +622,10 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
 		err = os.Mkdir(binDir, defaultDirPermissions)
 		if err != nil {
-			return fmt.Errorf("Unable to create %s\n Error: %s", binDir, err)
+			return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("Unable to create %s\n Error: %s", binDir, err)
+		return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
 	}
 
 	err = util.CopyFileChangePerms(binPath, filepath.Join(binDir, version),
@@ -638,10 +638,10 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 	if _, err := os.Stat(includeDir); os.IsNotExist(err) {
 		err = os.MkdirAll(includeDir, defaultDirPermissions)
 		if err != nil {
-			return fmt.Errorf("Unable to create %s\n Error: %s", includeDir, err)
+			return fmt.Errorf("unable to create %s\n Error: %s", includeDir, err)
 		}
 	} else if err != nil {
-		return fmt.Errorf("Unable to create %s\n Error: %s", includeDir, err)
+		return fmt.Errorf("unable to create %s\n Error: %s", includeDir, err)
 	}
 	err = copy.Copy(incPath, filepath.Join(includeDir, version)+"/")
 	return err
@@ -683,10 +683,10 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 
 	// Check bin and header dirs.
 	if binDir == "" {
-		return fmt.Errorf("BinDir is not set, check tarantool.yaml ")
+		return fmt.Errorf("binDir is not set, check tarantool.yaml ")
 	}
 	if incDir == "" {
-		return fmt.Errorf("IncludeDir is not set, check tarantool.yaml")
+		return fmt.Errorf("includeDir is not set, check tarantool.yaml")
 	}
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {
@@ -865,10 +865,10 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 
 	// Check bin and header dirs.
 	if binDir == "" {
-		return fmt.Errorf("BinDir is not set, check tarantool.yaml")
+		return fmt.Errorf("binDir is not set, check tarantool.yaml")
 	}
 	if includeDir == "" {
-		return fmt.Errorf("IncludeDir is not set, check tarantool.yaml")
+		return fmt.Errorf("includeDir is not set, check tarantool.yaml")
 	}
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {
@@ -930,7 +930,7 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 				return err
 			}
 		} else {
-			return fmt.Errorf("Can't find distfiles directory.")
+			return fmt.Errorf("can't find distfiles directory")
 		}
 	} else {
 		log.Infof("Downloading tarantool-ee...")
@@ -1000,7 +1000,7 @@ func Install(args []string, binDir string, includeDir string, flags Installation
 	var err error
 
 	if len(args) != 1 {
-		return fmt.Errorf("Invalid number of parameters")
+		return fmt.Errorf("invalid number of parameters")
 	}
 
 	re := regexp.MustCompile(
@@ -1008,7 +1008,7 @@ func Install(args []string, binDir string, includeDir string, flags Installation
 	)
 	matches := util.FindNamedMatches(re, args[0])
 	if len(matches) == 0 {
-		return fmt.Errorf("Unknown application: %s", args[0])
+		return fmt.Errorf("unknown application: %s", args[0])
 	}
 
 	switch matches["prog"] {

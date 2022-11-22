@@ -114,7 +114,7 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 		}
 
 		return fmt.Errorf(
-			"Failed to run \n%s\n\n%s", cmd.String(), err,
+			"failed to run \n%s\n\n%s", cmd.String(), err,
 		)
 	}
 
@@ -128,15 +128,15 @@ func RunHook(hookPath string, showOutput bool) error {
 	hookDir := filepath.Dir(hookPath)
 
 	if isExec, err := IsExecOwner(hookPath); err != nil {
-		return fmt.Errorf("Failed go check hook file `%s`: %s", hookName, err)
+		return fmt.Errorf("failed go check hook file `%s`: %s", hookName, err)
 	} else if !isExec {
-		return fmt.Errorf("Hook `%s` should be executable", hookName)
+		return fmt.Errorf("hook `%s` should be executable", hookName)
 	}
 
 	hookCmd := exec.Command(hookPath)
 	err := RunCommand(hookCmd, hookDir, showOutput)
 	if err != nil {
-		return fmt.Errorf("Failed to run hook `%s`: %s", hookName, err)
+		return fmt.Errorf("failed to run hook `%s`: %s", hookName, err)
 	}
 
 	return nil
@@ -155,7 +155,7 @@ func IsExecOwner(path string) (bool, error) {
 
 func PrintFromStart(file *os.File) error {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("Failed to seek file begin: %s", err)
+		return fmt.Errorf("failed to seek file begin: %s", err)
 	}
 	if _, err := io.Copy(os.Stdout, file); err != nil {
 		log.Warnf("Failed to print file content: %s", err)

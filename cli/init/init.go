@@ -93,7 +93,7 @@ func createDirectories(dirList []string) error {
 func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (appDirInfo, error) {
 	var appDirInfo appDirInfo
 	if initCtx.TarantoolExecutable == "" {
-		return appDirInfo, fmt.Errorf("Tarantool executable is not set")
+		return appDirInfo, fmt.Errorf("tarantool executable is not set")
 	}
 
 	out, err := util.ExecuteCommandGetOutput(initCtx.TarantoolExecutable, "",

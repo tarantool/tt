@@ -62,7 +62,7 @@ def test_daemon_base_functionality(tt_cmd, tmpdir):
         text=True
     )
     start_again_out = daemon_process_2.stdout.readline()
-    assert re.search(r"The process is already exists. PID: \d+.", start_again_out)
+    assert re.search(r"the process already exists. PID: \d+.", start_again_out)
 
     # Check status. PID has not been changed after second start.
     file = utils.wait_file(os.path.join(tmpdir, utils.run_path), 'tt_daemon.pid', [])

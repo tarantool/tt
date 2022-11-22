@@ -87,13 +87,13 @@ func NewConsole(connOpts connector.ConnectOpts, title string, lang Language) (*C
 	// Connect to specified address.
 	console.conn, err = connector.Connect(connOpts)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to connect: %s", err)
+		return nil, fmt.Errorf("failed to connect: %s", err)
 	}
 
 	// Change a language.
 	if lang != DefaultLanguage {
 		if err := ChangeLanguage(console.conn, lang); err != nil {
-			return nil, fmt.Errorf("Unable to change a language: %s", err)
+			return nil, fmt.Errorf("unable to change a language: %s", err)
 		}
 	}
 
@@ -173,14 +173,14 @@ func loadHistory(console *Console) error {
 
 	homeDir, err := util.GetHomeDir()
 	if err != nil {
-		return fmt.Errorf("Failed to get home directory: %s", err)
+		return fmt.Errorf("failed to get home directory: %s", err)
 	}
 
 	console.historyFilePath = filepath.Join(homeDir, HistoryFileName)
 
 	console.historyLines, err = util.GetLastNLines(console.historyFilePath, MaxHistoryLines)
 	if err != nil {
-		return fmt.Errorf("Failed to read history from file: %s", err)
+		return fmt.Errorf("failed to read history from file: %s", err)
 	}
 
 	// Open history file for appending.
@@ -388,15 +388,15 @@ func getPromptOptions(console *Console) []prompt.Option {
 
 func appendToHistoryFile(console *Console, in string) error {
 	if console.historyFile == nil {
-		return fmt.Errorf("No history file found")
+		return fmt.Errorf("no history file found")
 	}
 
 	if _, err := console.historyFile.WriteString(in + "\n"); err != nil {
-		return fmt.Errorf("Failed to append to history file: %s", err)
+		return fmt.Errorf("failed to append to history file: %s", err)
 	}
 
 	if err := console.historyFile.Sync(); err != nil {
-		return fmt.Errorf("Failed to sync history file: %s", err)
+		return fmt.Errorf("failed to sync history file: %s", err)
 	}
 
 	return nil

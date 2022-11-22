@@ -95,7 +95,7 @@ func clean(run *running.InstanceCtx) error {
 		return nil
 	}
 
-	return fmt.Errorf("Canceled by user")
+	return fmt.Errorf("canceled by user")
 }
 
 // internalCleanModule is a default clean module.

@@ -80,7 +80,7 @@ func JoinAbspath(paths ...string) (string, error) {
 
 	path := filepath.Join(paths...)
 	if path, err = filepath.Abs(path); err != nil {
-		return "", fmt.Errorf("Failed to get absolute path: %s", err)
+		return "", fmt.Errorf("failed to get absolute path: %s", err)
 	}
 
 	return path, nil
@@ -100,12 +100,11 @@ func Find(src []string, find string) int {
 // InternalError shows error information, version of tt and call stack.
 func InternalError(format string, f VersionFunc, err ...interface{}) error {
 	internalErrorFmt :=
-		`Whoops! It looks like something is wrong with this version of Tarantool CLI.
+		`whoops! It looks like something is wrong with this version of Tarantool CLI.
 Error: %s
 Version: %s
 Stacktrace:
-%s
-`
+%s`
 	version := f(false, false)
 	return fmt.Errorf(internalErrorFmt, fmt.Sprintf(format, err...), version, debug.Stack())
 }
@@ -114,12 +113,12 @@ Stacktrace:
 func ParseYAML(path string) (map[string]interface{}, error) {
 	fileContent, err := GetFileContentBytes(path)
 	if err != nil {
-		return nil, fmt.Errorf(`Failed to read "%s" file: %s`, path, err)
+		return nil, fmt.Errorf(`failed to read "%s" file: %s`, path, err)
 	}
 
 	var raw map[string]interface{}
 	if err := yaml.Unmarshal(fileContent, &raw); err != nil {
-		return nil, fmt.Errorf("Failed to parse YAML: %s", err)
+		return nil, fmt.Errorf("failed to parse YAML: %s", err)
 	}
 
 	return raw, nil
@@ -147,12 +146,12 @@ func GetHomeDir() (string, error) {
 
 func readFromPos(f *os.File, pos int64, buf *[]byte) (int, error) {
 	if _, err := f.Seek(pos, io.SeekStart); err != nil {
-		return 0, fmt.Errorf("Failed to seek: %s", err)
+		return 0, fmt.Errorf("failed to seek: %s", err)
 	}
 
 	n, err := f.Read(*buf)
 	if err != nil {
-		return n, fmt.Errorf("Failed to read: %s", err)
+		return n, fmt.Errorf("failed to read: %s", err)
 	}
 
 	return n, nil
@@ -170,13 +169,13 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 
 	f, err := os.Open(filepath)
 	if err != nil {
-		return 0, fmt.Errorf("Failed to open file: %s", err)
+		return 0, fmt.Errorf("failed to open file: %s", err)
 	}
 	defer f.Close()
 
 	var fileSize int64
 	if fileInfo, err := os.Stat(filepath); err != nil {
-		return 0, fmt.Errorf("Failed to get fileinfo: %s", err)
+		return 0, fmt.Errorf("failed to get fileinfo: %s", err)
 	} else {
 		fileSize = fileInfo.Size()
 	}
@@ -187,9 +186,9 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 
 	buf := make([]byte, bufSize)
 
-	var filePos int64 = fileSize - bufSize
+	var filePos = fileSize - bufSize
 	var lastNewLinePos int64 = 0
-	var newLinesN int = 0
+	var newLinesN = 0
 
 	// Check last symbol of the last line.
 
@@ -246,11 +245,11 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 
 	file, err := os.Open(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open file: %s", err)
+		return nil, fmt.Errorf("failed to open file: %s", err)
 	}
 
 	if _, err := file.Seek(lastNLinesBeginPos, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("Failed to seek in file: %s", err)
+		return nil, fmt.Errorf("failed to seek in file: %s", err)
 	}
 
 	lines := []string{}
@@ -271,14 +270,14 @@ func GetTarantoolVersion(cli *cmdcontext.CliCtx) (string, error) {
 
 	output, err := exec.Command(cli.TarantoolExecutable, "--version").Output()
 	if err != nil {
-		return "", fmt.Errorf("Failed to get tarantool version: %s", err)
+		return "", fmt.Errorf("failed to get tarantool version: %s", err)
 	}
 
 	version := strings.Split(string(output), "\n")
 	version = strings.Split(version[0], " ")
 
 	if len(version) < 2 {
-		return "", fmt.Errorf("Failed to get tarantool version: corrupted data")
+		return "", fmt.Errorf("failed to get tarantool version: corrupted data")
 	}
 
 	cli.TarantoolVersion = version[len(version)-1]
@@ -311,18 +310,18 @@ func SetupTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) error
 
 	output, err := exec.Command(cli.TarantoolExecutable, "--version").Output()
 	if err != nil {
-		return fmt.Errorf("Failed to get tarantool version: %s", err)
+		return fmt.Errorf("failed to get tarantool version: %s", err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) < 3 {
-		return fmt.Errorf("Failed to get prefix path: expected more data")
+		return fmt.Errorf("failed to get prefix path: expected more data")
 	}
 
 	re := regexp.MustCompile(`^.*\s-DCMAKE_INSTALL_PREFIX=(?P<prefix>\/.*)\s.*$`)
 	matches := FindNamedMatches(re, lines[2])
 	if len(matches) == 0 {
-		return fmt.Errorf("Failed to get prefix path: regexp does not match")
+		return fmt.Errorf("failed to get prefix path: regexp does not match")
 	}
 
 	cli.TarantoolInstallPrefix = matches["prefix"]
@@ -620,7 +619,7 @@ func ExtractTar(tarName string) error {
 			outFile.Close()
 
 		default:
-			return fmt.Errorf("Unknown type: %b in %s", header.Typeflag, header.Name)
+			return fmt.Errorf("unknown type: %b in %s", header.Typeflag, header.Name)
 		}
 
 	}
@@ -695,7 +694,7 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 func CreateSymlink(oldName string, newName string, overwrite bool) error {
 	if _, err := os.Stat(newName); err == nil {
 		if !overwrite {
-			return fmt.Errorf("Symbolic link cannot be created: '%s' already exists", newName)
+			return fmt.Errorf("symbolic link cannot be created: '%s' already exists", newName)
 		} else {
 			log.Debugf("Replace existing '%s' with new symlink.", newName)
 			if err := os.Remove(newName); err != nil {
@@ -703,7 +702,7 @@ func CreateSymlink(oldName string, newName string, overwrite bool) error {
 			}
 		}
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("Symbolic link cannot be created: %s", err)
+		return fmt.Errorf("symbolic link cannot be created: %s", err)
 	}
 
 	return os.Symlink(oldName, newName)
@@ -736,7 +735,7 @@ func CheckRequiredBinaries(binaries ...string) error {
 	missedBinaries := getMissedBinaries(binaries...)
 
 	if len(missedBinaries) > 0 {
-		return fmt.Errorf("Missed required binaries %s", strings.Join(missedBinaries, ", "))
+		return fmt.Errorf("missed required binaries %s", strings.Join(missedBinaries, ", "))
 	}
 
 	return nil
@@ -805,7 +804,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 	destFile, err := os.Create(destFilePath)
 	if err != nil {
 		_ = os.Remove(destFilePath)
-		return fmt.Errorf("Failed to create result file %s: %s", destFilePath, err)
+		return fmt.Errorf("failed to create result file %s: %s", destFilePath, err)
 	}
 	defer destFile.Close()
 
@@ -813,7 +812,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 		srcFile, err := os.Open(srcFilePath)
 		if err != nil {
 			_ = os.Remove(destFilePath)
-			return fmt.Errorf("Failed to open source file %s: %s", srcFilePath, err)
+			return fmt.Errorf("failed to open source file %s: %s", srcFilePath, err)
 		}
 
 		_, err = io.Copy(destFile, srcFile)
@@ -838,7 +837,7 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	case ".yml":
 		fileBaseName = strings.TrimSuffix(fileName, ".yml")
 	default:
-		return "", fmt.Errorf("Provided file '%s' has no .yaml/.yml extension.", fileName)
+		return "", fmt.Errorf("provided file '%s' has no .yaml/.yml extension", fileName)
 	}
 	foundYamlFiles := []string{}
 	if foundFiles, err := filepath.Glob(fmt.Sprintf("%s.y*ml", fileBaseName)); err == nil {
@@ -853,7 +852,7 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	}
 	yamlFilesCount := len(foundYamlFiles)
 	if yamlFilesCount > 1 {
-		return "", fmt.Errorf("More than one YAML files are found:\n%s\nAmbiguous selection.",
+		return "", fmt.Errorf("more than one YAML files are found:\n%s\nAmbiguous selection",
 			strings.Join(foundYamlFiles, ", "))
 	} else if yamlFilesCount == 1 {
 		return foundYamlFiles[0], nil

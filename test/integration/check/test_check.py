@@ -10,7 +10,7 @@ def test_check_unset_arg(tt_cmd, tmpdir):
     cmd = [tt_cmd, "check"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
-    assert re.search(r"Please specify the name of the application.", output)
+    assert re.search(r"please specify the name of the application", output)
 
 
 def test_check_too_many_args(tt_cmd, tmpdir):
@@ -18,7 +18,7 @@ def test_check_too_many_args(tt_cmd, tmpdir):
     cmd = [tt_cmd, "check", "file1", "file2"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
-    assert re.search(r"Currently, you can specify only one instance at a time.", output)
+    assert re.search(r"currently, you can specify only one instance at a time", output)
 
 
 def test_check_non_existent_file(tt_cmd, tmpdir):

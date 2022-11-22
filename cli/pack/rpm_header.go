@@ -107,19 +107,19 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 	payloadDigestAlgo := hashAlgoSHA256
 	payloadDigest, err := util.FileSHA256Hex(compresedCpioPath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get payload digest: %s", err)
+		return nil, fmt.Errorf("failed to get payload digest: %s", err)
 	}
 
 	cpioFileInfo, err := os.Stat(cpioPath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get payload size: %s", err)
+		return nil, fmt.Errorf("failed to get payload size: %s", err)
 	}
 	payloadSize := cpioFileInfo.Size()
 
 	// Generate fileinfo.
 	filesInfo, err := getFilesInfo(relPaths, packageFilesDir)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get files info: %s", err)
+		return nil, fmt.Errorf("failed to get files info: %s", err)
 	}
 
 	versionString := getVersion(packCtx, opts, defaultVersion)
@@ -211,7 +211,7 @@ func getFilesInfo(relPaths []string, dirPath string) (filesInfo, error) {
 
 			fileDigest, err := util.FileMD5Hex(fullFilePath)
 			if err != nil {
-				return info, fmt.Errorf("Failed to get file MD5 hex: %s", err)
+				return info, fmt.Errorf("failed to get file MD5 hex: %s", err)
 			}
 
 			info.FileDigests = append(info.FileDigests, fileDigest)
@@ -235,7 +235,7 @@ func getFilesInfo(relPaths []string, dirPath string) (filesInfo, error) {
 
 		sysFileInfo, ok := fileInfo.Sys().(*syscall.Stat_t)
 		if !ok {
-			return info, fmt.Errorf("Failed to get file info")
+			return info, fmt.Errorf("failed to get file info")
 		}
 
 		info.FileSizes = append(info.FileSizes, int32(sysFileInfo.Size))

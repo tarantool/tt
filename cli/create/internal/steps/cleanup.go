@@ -34,7 +34,7 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 	for _, fileName := range templateCtx.Manifest.Include {
 		// File name may contain template vars.
 		if fileName, err = templateEngine.RenderText(fileName, templateCtx.Vars); err != nil {
-			return fmt.Errorf("File name rendering error: %s", err)
+			return fmt.Errorf("file name rendering error: %s", err)
 		}
 		fullPath := filepath.Join(templateCtx.AppPath, fileName)
 		filesToKeep[fullPath] = true
@@ -56,7 +56,7 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 				} else if fileInfo.Mode().IsRegular() {
 					log.Debugf("Removing %s", filePath)
 					if err := os.Remove(filePath); err != nil {
-						log.Errorf("Failed to remove %s: %s", filePath, err)
+						log.Errorf("failed to remove %s: %s", filePath, err)
 					}
 				}
 			}
@@ -64,7 +64,7 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 			return nil
 		})
 	if err != nil {
-		return fmt.Errorf("Cleanup failed: %s", err)
+		return fmt.Errorf("cleanup failed: %s", err)
 	}
 
 	// Remove empty directories.

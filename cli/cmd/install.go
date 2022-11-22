@@ -67,7 +67,7 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 	flags := getInstallFlags()
 	if _, err := os.Stat(cmdCtx.Cli.ConfigPath); os.IsNotExist(err) {
-		return fmt.Errorf("There is no tarantool.yaml found, please create one")
+		return fmt.Errorf("there is no tarantool.yaml found, please create one")
 	}
 	err = install.Install(args, cliOpts.App.BinDir, cliOpts.App.IncludeDir+"/include", flags,
 		cliOpts.Repo.Install, cliOpts)

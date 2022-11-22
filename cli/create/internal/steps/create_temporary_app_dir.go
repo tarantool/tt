@@ -23,7 +23,7 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 	var err error
 
 	if createCtx.AppName == "" {
-		return fmt.Errorf("Application name cannot be empty")
+		return fmt.Errorf("application name cannot be empty")
 	}
 
 	if createCtx.DestinationDir != "" {
@@ -34,7 +34,7 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 
 	if _, err = os.Stat(appDirectory); err == nil {
 		if !createCtx.ForceMode {
-			return fmt.Errorf("Application %s already exists: %s", createCtx.AppName, appDirectory)
+			return fmt.Errorf("application %s already exists: %s", createCtx.AppName, appDirectory)
 		}
 	}
 
@@ -43,7 +43,7 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 
 	templateCtx.AppPath, err = ioutil.TempDir("", createCtx.AppName+"*")
 	if err != nil {
-		return fmt.Errorf("Failed to create temporary application directory: %s", err)
+		return fmt.Errorf("failed to create temporary application directory: %s", err)
 	}
 
 	return nil

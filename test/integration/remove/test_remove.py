@@ -72,7 +72,7 @@ def test_remove_missing(tt_cmd, tmpdir):
     remove_output = remove_process.stdout.readline()
     assert re.search(r"Removing binary...", remove_output)
     remove_output = remove_process.stdout.readline()
-    assert re.search(r"There is no", remove_output)
+    assert re.search(r"there is no", remove_output)
 
 
 def test_remove_foreign_program(tt_cmd, tmpdir):
@@ -89,4 +89,4 @@ def test_remove_foreign_program(tt_cmd, tmpdir):
     remove_output = remove_process.stdout.readline()
     assert re.search(r"Removing binary...", remove_output)
     remove_output = remove_process.stdout.readline()
-    assert re.search(r"Unknown program:", remove_output)
+    assert re.search(r"unknown program:", remove_output)

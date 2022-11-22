@@ -57,7 +57,7 @@ func NewPlayCmd() *cobra.Command {
 // internalPlayModule is a default play module.
 func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("It is required to specify an URI and at least one .xlog or .snap file.")
+		return fmt.Errorf("it is required to specify an URI and at least one .xlog or .snap file")
 	}
 
 	// List of files and URI is passed to lua play script via environment variable in json format.

@@ -50,7 +50,7 @@ func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 // internalCompletionCmd is a default (internal) completion module function.
 func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("It is required to specify shell type.")
+		return fmt.Errorf("it is required to specify shell type")
 	}
 
 	switch shell := args[0]; shell {
@@ -63,7 +63,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("Specified shell type is not is not supported. Available: bash | zsh")
+		return fmt.Errorf("specified shell type is not is not supported. Available: bash | zsh")
 	}
 
 	return nil

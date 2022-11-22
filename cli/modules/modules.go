@@ -39,7 +39,7 @@ func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command,
 	externalModules, err := getExternalModules(modulesDir)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"Failed to get available external modules information: %s", err)
+			"failed to get available external modules information: %s", err)
 	}
 
 	// External modules have a higher priority than internal.
@@ -69,7 +69,7 @@ func getExternalModulesDir(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (
 	// what if the file exists, but access is denied, etc.
 	if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
 		if !os.IsNotExist(err) {
-			return "", fmt.Errorf("Failed to get access to configuration file: %s", err)
+			return "", fmt.Errorf("failed to get access to configuration file: %s", err)
 		}
 
 		return "", nil
@@ -89,7 +89,7 @@ func getExternalModulesDir(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (
 		// TODO: Add warning in next patches, discussion
 		// what if the file exists, but access is denied, etc.
 		if !info.IsDir() {
-			return "", fmt.Errorf("Specified path in configuration file is not a directory")
+			return "", fmt.Errorf("specified path in configuration file is not a directory")
 		}
 	}
 
@@ -106,7 +106,7 @@ func getExternalModules(path string) (map[string]string, error) {
 	// what if the file exists, but access is denied, etc.
 	if _, err := os.Stat(path); err != nil {
 		if !os.IsNotExist(err) {
-			return nil, fmt.Errorf(`Failed to read "%s" directory: %s`, path, err)
+			return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
 		}
 
 		return nil, nil
@@ -114,7 +114,7 @@ func getExternalModules(path string) (map[string]string, error) {
 
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
-		return nil, fmt.Errorf(`Failed to read "%s" directory: %s`, path, err)
+		return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
 	}
 
 	for _, f := range files {

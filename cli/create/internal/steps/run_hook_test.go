@@ -55,11 +55,11 @@ func TestRunHooksMissingScript(t *testing.T) {
 	runPreHook := RunHook{HookType: "pre"}
 	runPostHook := RunHook{HookType: "post"}
 	require.EqualError(t, runPreHook.Run(&createCtx, &templateCtx),
-		fmt.Sprintf("Error access to %[1]s: stat %[1]s: no such file or directory",
+		fmt.Sprintf("error access to %[1]s: stat %[1]s: no such file or directory",
 			filepath.Join(workDir, "pre-gen.sh")))
 
 	require.EqualError(t, runPostHook.Run(&createCtx, &templateCtx),
-		fmt.Sprintf("Error access to %[1]s: stat %[1]s: no such file or directory",
+		fmt.Sprintf("error access to %[1]s: stat %[1]s: no such file or directory",
 			filepath.Join(workDir, "post-gen.sh")))
 
 	// Emulate missing scripts in manifest file.

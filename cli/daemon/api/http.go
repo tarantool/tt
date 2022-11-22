@@ -107,7 +107,7 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 		return req.RemoteAddr, nil
 	}
 
-	return "", fmt.Errorf("No valid IP found")
+	return "", fmt.Errorf("no valid IP found")
 }
 
 // ServeHTTP handles requests to the tt daemon.

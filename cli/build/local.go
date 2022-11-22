@@ -30,11 +30,11 @@ func runBuildHook(buildCtx *BuildCtx, hookNames []string) error {
 			log.Infof("Running `%s`", buildHookPath)
 			err = util.RunHook(buildHookPath, false)
 			if err != nil {
-				return fmt.Errorf("Failed to run build hook: %s", err)
+				return fmt.Errorf("failed to run build hook: %s", err)
 			}
 			break
 		} else if !os.IsNotExist(err) {
-			return fmt.Errorf("Failed to run build hook: %s", err)
+			return fmt.Errorf("failed to run build hook: %s", err)
 		}
 	}
 
@@ -51,7 +51,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, buildCtx *BuildCtx) error {
 
 	// Run Pre-build.
 	if err := runBuildHook(buildCtx, getPreBuildScripts()); err != nil {
-		return fmt.Errorf("Run pre-build hook failed: %s", err)
+		return fmt.Errorf("run pre-build hook failed: %s", err)
 	}
 
 	// Run rocks make.
@@ -65,7 +65,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, buildCtx *BuildCtx) error {
 
 	// Run Post-build.
 	if err := runBuildHook(buildCtx, getPostBuildScripts()); err != nil {
-		return fmt.Errorf("Run post-build hook failed: %s", err)
+		return fmt.Errorf("run post-build hook failed: %s", err)
 	}
 
 	return nil

@@ -167,7 +167,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	argsLen := len(args)
 	if argsLen != 1 {
-		return fmt.Errorf("Incorrect combination of command parameters")
+		return fmt.Errorf("incorrect combination of command parameters")
 	}
 
 	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)

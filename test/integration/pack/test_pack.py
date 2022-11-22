@@ -495,7 +495,7 @@ def test_pack_incorrect_pack_type(tt_cmd, tmpdir):
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    expected_output = "Incorrect combination of command parameters: " \
+    expected_output = "incorrect combination of command parameters: " \
                       "invalid argument \"de\" for \"tt pack\""
 
     rc, output = run_command_and_get_output(

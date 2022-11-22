@@ -54,7 +54,7 @@ func TestMoveAppDirDstDirExist(t *testing.T) {
 	templateCtx.AppPath = srcAppDir
 	moveAppDir := MoveAppDirectory{}
 	require.EqualError(t, moveAppDir.Run(&createCtx, &templateCtx),
-		fmt.Sprintf("'%s' already exists.", dstAppDir))
+		fmt.Sprintf("'%s' already exists", dstAppDir))
 }
 
 func TestMoveAppDirSourceDirMissing(t *testing.T) {

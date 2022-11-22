@@ -39,7 +39,7 @@ func TestNonExistingVarsFile(t *testing.T) {
 	createCtx.VarsFile = "testdata/non-existing-vars-file.txt"
 	loadVarsFile := LoadVarsFile{}
 	require.EqualError(t, loadVarsFile.Run(&createCtx, &templateCtx),
-		fmt.Sprintf("Vars file loading error: stat %s: no such file or directory",
+		fmt.Sprintf("vars file loading error: stat %s: no such file or directory",
 			createCtx.VarsFile))
 }
 
@@ -50,6 +50,6 @@ func TestLoadVarsFileWrongFormat(t *testing.T) {
 	createCtx.VarsFile = "testdata/invalid_vars_file.txt"
 	loadVarsFile := LoadVarsFile{}
 	require.EqualError(t, loadVarsFile.Run(&createCtx, &templateCtx),
-		fmt.Sprintf("Failed to load vars from %s: Wrong variable definition "+
+		fmt.Sprintf("failed to load vars from %s: wrong variable definition "+
 			"format: user-name=\nFormat: var-name=value", createCtx.VarsFile))
 }

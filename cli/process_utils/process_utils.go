@@ -19,31 +19,31 @@ import (
 const defaultDirPerms = 0770
 
 const (
-	ProcStateStopped = "NOT RUNNING."
-	ProcStateDead    = "ERROR. The process is dead."
+	ProcStateStopped = "NOT RUNNING"
+	ProcStateDead    = "ERROR. The process is dead"
 	ProcStateRunning = "RUNNING. PID: %v."
 )
 
 // GetPIDFromFile returns PID from the PIDFile.
 func GetPIDFromFile(pidFileName string) (int, error) {
 	if _, err := os.Stat(pidFileName); err != nil {
-		return 0, fmt.Errorf(`Can't "stat" the PID file. Error: "%v".`, err)
+		return 0, fmt.Errorf(`can't "stat" the PID file. Error: "%v"`, err)
 	}
 
 	pidFile, err := os.Open(pidFileName)
 	if err != nil {
-		return 0, fmt.Errorf(`Can't open the PID file. Error: "%v".`, err)
+		return 0, fmt.Errorf(`can't open the PID file. Error: "%v"`, err)
 	}
 
 	pidBytes, err := ioutil.ReadAll(pidFile)
 	if err != nil {
-		return 0, fmt.Errorf(`Can't read the PID file. Error: "%v".`, err)
+		return 0, fmt.Errorf(`can't read the PID file. Error: "%v"`, err)
 	}
 
 	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
 	if err != nil {
 		return 0,
-			fmt.Errorf(`PID file exists with unknown format. Error: "%s"`, err)
+			fmt.Errorf(`pID file exists with unknown format. Error: "%s"`, err)
 	}
 
 	return pid, nil
@@ -57,15 +57,15 @@ func CheckPIDFile(pidFileName string) error {
 		// The PID file already exists. We have to check if the process is alive.
 		pid, err := GetPIDFromFile(pidFileName)
 		if err != nil {
-			return fmt.Errorf(`PID file exists, but PID can't be read. Error: "%v".`, err)
+			return fmt.Errorf(`pID file exists, but PID can't be read. Error: "%v"`, err)
 		}
 		if res, _ := IsProcessAlive(pid); res {
-			return fmt.Errorf("The process is already exists. PID: %d", pid)
+			return fmt.Errorf("the process already exists. PID: %d", pid)
 		} else {
 			os.Remove(pidFileName)
 		}
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf(`Something went wrong while trying to read the PID file. Error: "%v".`,
+		return fmt.Errorf(`something went wrong while trying to read the PID file. Error: "%v"`,
 			err)
 	}
 
@@ -84,10 +84,10 @@ func CreatePIDFile(pidFileName string) error {
 		if os.IsNotExist(err) {
 			err = os.MkdirAll(pidAbsDir, defaultDirPerms)
 			if err != nil {
-				return fmt.Errorf(`can't crete PID file directory. Error: "%v".`, err)
+				return fmt.Errorf(`can't crete PID file directory. Error: "%v"`, err)
 			}
 		} else {
-			return fmt.Errorf(`can't stat PID file directory. Error: "%v".`, err)
+			return fmt.Errorf(`can't stat PID file directory. Error: "%v"`, err)
 		}
 	}
 
@@ -99,7 +99,7 @@ func CreatePIDFile(pidFileName string) error {
 	pidFile, err := os.OpenFile(pidFileName,
 		syscall.O_EXCL|syscall.O_CREAT|syscall.O_RDWR, 0644)
 	if err != nil {
-		return fmt.Errorf(`Can't create a new PID file. Error: "%v".`, err)
+		return fmt.Errorf(`can't create a new PID file. Error: "%v"`, err)
 	}
 	defer pidFile.Close()
 
@@ -119,15 +119,15 @@ func StopProcess(pidFile string) (int, error) {
 
 	alive, err := IsProcessAlive(pid)
 	if !alive {
-		return 0, fmt.Errorf(`The process is already dead. Error: "%v".`, err)
+		return 0, fmt.Errorf(`the process is already dead. Error: "%v"`, err)
 	}
 
 	if err = syscall.Kill(pid, syscall.SIGINT); err != nil {
-		return 0, fmt.Errorf(`Can't terminate the process. Error: "%v".`, err)
+		return 0, fmt.Errorf(`can't terminate the process. Error: "%v"`, err)
 	}
 
 	if res := waitProcessTermination(pid, 30*time.Second, 100*time.Millisecond); !res {
-		return 0, fmt.Errorf("Can't terminate the process.")
+		return 0, fmt.Errorf("can't terminate the process")
 	}
 
 	return pid, nil

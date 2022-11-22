@@ -129,11 +129,11 @@ func TestValidateCliOpts(t *testing.T) {
 	}
 	testData := []cliCtxTest{
 		{cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/tarantool.yaml"},
-			"You can specify only one of -S(--system) and -с(--cfg) options"},
+			"you can specify only one of -S(--system) and -с(--cfg) options"},
 		{cmdcontext.CliCtx{LocalLaunchDir: "/", ConfigPath: "/tarantool.yaml"},
-			"You can specify only one of -L(--local) and -с(--cfg) options"},
+			"you can specify only one of -L(--local) and -с(--cfg) options"},
 		{cmdcontext.CliCtx{IsSystem: true, LocalLaunchDir: "."},
-			"You can specify only one of -L(--local) and -S(--system) options"},
+			"you can specify only one of -L(--local) and -S(--system) options"},
 		{cmdcontext.CliCtx{IsSystem: true}, ""},
 		{cmdcontext.CliCtx{LocalLaunchDir: "."}, ""},
 		{cmdcontext.CliCtx{ConfigPath: "tarantool.yaml"}, ""},
@@ -211,7 +211,7 @@ func TestGetConfigPath(t *testing.T) {
 
 	configName, err := getConfigPath(ConfigName)
 	assert.Equal(t, "", configName)
-	assert.True(t, strings.Contains(err.Error(), "More than one YAML files are found"))
+	assert.True(t, strings.Contains(err.Error(), "more than one YAML files are found"))
 
 	require.NoError(t, os.Remove(filepath.Join(tempDir, "a", "tarantool.yaml")))
 

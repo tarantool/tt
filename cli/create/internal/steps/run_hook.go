@@ -30,7 +30,7 @@ func (hook RunHook) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 	case "post":
 		hookPath = templateCtx.Manifest.PostHook
 	default:
-		return fmt.Errorf("Invalid hook type %s", hook.HookType)
+		return fmt.Errorf("invalid hook type %s", hook.HookType)
 	}
 
 	// Check if hook is present.
@@ -41,15 +41,15 @@ func (hook RunHook) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 	executablePath := filepath.Join(templateCtx.AppPath, hookPath)
 	_, err := os.Stat(executablePath)
 	if err != nil {
-		return fmt.Errorf("Error access to %s: %s", executablePath, err)
+		return fmt.Errorf("error access to %s: %s", executablePath, err)
 	}
 	log.Infof("Executing %s-hook %s", hook.HookType, hookPath)
 	if err = exec.Command(executablePath, templateCtx.AppPath).Run(); err != nil {
-		return fmt.Errorf("Error executing %s: %s", executablePath, err)
+		return fmt.Errorf("error executing %s: %s", executablePath, err)
 	}
 	// Remove pre/post executable.
 	if err = os.Remove(executablePath); err != nil {
-		log.Errorf("Failed to remove %s: %s", executablePath, err)
+		log.Errorf("failed to remove %s: %s", executablePath, err)
 	}
 
 	return nil

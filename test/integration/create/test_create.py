@@ -227,7 +227,7 @@ def test_app_already_exist(tt_cmd, tmpdir):
     tt_process.wait()
     assert tt_process.returncode == 1
     out_lines = tt_process.stdout.readline()
-    assert out_lines.find("⨯ Application app1 already exists: ") != -1
+    assert out_lines.find("⨯ application app1 already exists: ") != -1
 
     # Check file is still there.
     assert os.path.exists(file_in_app)
@@ -591,7 +591,7 @@ def test_create_ambiguous_manifest(tt_cmd, tmpdir):
         expected_lines = [
             'Creating application in',
             'Using template from',
-            '⨯ More than one YAML files are found:'
+            '⨯ more than one YAML files are found:'
         ]
 
     for i in range(len(expected_lines)):

@@ -74,7 +74,7 @@ func NewInstance(tarantoolPath string, appPath string, appName string, instName 
 // SendSignal sends a signal to the Instance.
 func (inst *Instance) SendSignal(sig os.Signal) error {
 	if inst.Cmd == nil {
-		return fmt.Errorf("The instance hasn't started yet.")
+		return fmt.Errorf("the instance hasn't started yet")
 	}
 	return inst.Cmd.Process.Signal(sig)
 }
@@ -288,7 +288,7 @@ func (inst *Instance) Stop(timeout time.Duration) error {
 	// Trying to terminate the process by using a "SIGINT" signal.
 	// In case of failure a "SIGKILL" signal will be used.
 	if err := inst.SendSignal(os.Interrupt); err != nil {
-		return fmt.Errorf("Failed to send SIGINT to instance: %s", err)
+		return fmt.Errorf("failed to send SIGINT to instance: %s", err)
 	}
 
 	// Terminate the Instance at any cost.
@@ -296,7 +296,7 @@ func (inst *Instance) Stop(timeout time.Duration) error {
 	case <-time.After(timeout):
 		// Send "SIGKILL" signal
 		if err := inst.Cmd.Process.Kill(); err != nil {
-			return fmt.Errorf("Failed to send SIGKILL to instance: %s", err)
+			return fmt.Errorf("failed to send SIGKILL to instance: %s", err)
 		} else {
 			// Wait for the process to terminate.
 			_ = <-waitDone

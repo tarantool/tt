@@ -29,7 +29,7 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdName string, modulesInfo *ModulesInfo,
 	internal InternalFunc, args []string) error {
 	info, found := (*modulesInfo)[cmdName]
 	if !found {
-		return fmt.Errorf("Module with specified name %s isn't found", cmdName)
+		return fmt.Errorf("module with specified name %s isn't found", cmdName)
 	}
 
 	if info.IsInternal || cmdCtx.Cli.ForceInternal {
@@ -64,7 +64,7 @@ func RunExec(command string, args []string) int {
 			return exitError.ExitCode()
 		}
 
-		log.Errorf("Failed to exec external module: %s", err)
+		log.Errorf("failed to exec external module: %s", err)
 		return 1
 	}
 
