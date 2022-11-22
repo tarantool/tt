@@ -1,0 +1,27 @@
+name: macos
+
+on:
+  pull_request:
+    types: [ opened, reopened, synchronize ]
+  workflow_dispatch:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+
+jobs:
+  macosx_build:
+    runs-on: macos-12
+
+    steps:
+      - name: Get sources
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew install --overwrite go mage
+
+      - name: Build
+        run: mage build
