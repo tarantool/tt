@@ -81,7 +81,7 @@ index c3b5730..1282c47 100644
  	// get project path
  	basePath := cmd.Flags().Arg(0)
 -	ctx.Project.Path, err = getNewProjectPath(basePath)
-+	ctx.Project.Path, err = getNewProjectPath(basePath, os.Getenv(project.EnvInstEnabled))
++	ctx.Project.Path, err = getNewProjectPath(basePath, os.Getenv(project.EnvInstAvailable))
  	if err != nil {
  		return err
  	}
@@ -93,7 +93,7 @@ index c3b5730..1282c47 100644
 +func getNewProjectPath(basePath string, instPath string) (string, error) {
  	var err error
  
-+	// Instances path from tarantool.yaml has a priority.
++	// Parameter `instances_available` from tarantool.yaml has a priority.
 +	if instPath != "" {
 +		basePath = instPath
 +	}
@@ -122,7 +122,7 @@ index d06ad10..551e56a 100644
  	"github.com/tarantool/cartridge-cli/cli/version"
  )
  
-+const EnvInstEnabled = "TT_INST_ENABLED"
++const EnvInstAvailable = "TT_INST_AVAILABLE"
 +
  func FillCtx(ctx *context.Ctx) error {
  	var err error
@@ -134,7 +134,7 @@ index d06ad10..551e56a 100644
 +		ctx.Running.AppDir = filepath.Join(ctx.Running.AppDir, ctx.Project.Name)
 +	}
 +
-+	instAvail := os.Getenv(EnvInstEnabled)
++	instAvail := os.Getenv(EnvInstAvailable)
 +	if instAvail != "" {
 +		ctx.Running.AppDir = filepath.Join(instAvail, ctx.Project.Name)
  	}
