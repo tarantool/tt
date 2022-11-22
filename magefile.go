@@ -101,7 +101,7 @@ func applyPatch(path string) error {
 	// If an error is returned, one of two things has happened:
 	// the patch has already been applied or an error has occurred.
 	if err != nil {
-		if strings.Contains(out, "Reversed (or previously applied) patch detected!") {
+		if strings.Contains(out, "previously applied") {
 			return nil
 		}
 		return err
