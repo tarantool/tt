@@ -75,7 +75,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"RUNNING. PID: \d+.", status_out)
 
     # Restart the Instance.
-    restart_cmd = [tt_cmd, "restart", "test_app"]
+    restart_cmd = [tt_cmd, "restart", "-y", "test_app"]
     instance_process_2 = subprocess.Popen(
         restart_cmd,
         cwd=tmpdir,
