@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -14,9 +15,13 @@ import (
 
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/docker"
 	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/search"
+	"github.com/tarantool/tt/cli/templates/engines"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -68,23 +73,26 @@ var unwindPatchNew []byte
 // read,write for user and only read for others.
 const defaultDirPermissions = 0755
 
-// InstallationFlag is a struct that contains all install flags.
-type InstallationFlag struct {
+// InstallCtx contains information for program installation.
+type InstallCtx struct {
 	// Reinstall is a flag. If it is set,
 	// target application will be reinstalled if already exists.
 	Reinstall bool
 	// Force is a flag. If it is set, install will force
 	// requirements errors.
 	Force bool
-	// Verbose is a flag.
-	// If it is set, install will print log to stderr.
-	Verbose bool
 	// Noclean is a flag. If it is set,
 	// install will don't remove tmp files.
 	Noclean bool
 	// Local is a flag. If it is set,
 	// install will do local installation.
 	Local bool
+	// BuildInDocker is set if tarantool must be built in docker container.
+	BuildInDocker bool
+	// programName is a program name to install.
+	programName string
+	// verbose flag enables verbose logging.
+	verbose bool
 }
 
 // Package is a struct containing sys and install name of the package.
@@ -337,12 +345,11 @@ func downloadRepo(repoLink string, tag string, dst string,
 	logFile *os.File, verbose bool) error {
 	var err error
 	if tag == "master" {
-		err = util.ExecuteCommand("git", verbose, logFile, dst, "clone",
-			"-j", "18", repoLink,
+		err = util.ExecuteCommand("git", verbose, logFile, dst, "clone", repoLink,
 			"--recursive", dst)
 	} else {
 		err = util.ExecuteCommand("git", verbose, logFile, dst, "clone", "-b", tag,
-			"--depth=1", "-j", "18", repoLink,
+			"--depth=1", repoLink,
 			"--recursive", dst)
 	}
 
@@ -350,7 +357,7 @@ func downloadRepo(repoLink string, tag string, dst string,
 }
 
 // copyBuildedTT copies tt binary.
-func copyBuildedTT(binDir, path, version string, flags InstallationFlag,
+func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
 	logFile *os.File) error {
 	var err error
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
@@ -361,7 +368,7 @@ func copyBuildedTT(binDir, path, version string, flags InstallationFlag,
 	} else if err != nil {
 		return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
 	}
-	if flags.Reinstall {
+	if installCtx.Reinstall {
 		err = os.Remove(filepath.Join(binDir, version))
 		if err != nil {
 			return err
@@ -372,8 +379,8 @@ func copyBuildedTT(binDir, path, version string, flags InstallationFlag,
 }
 
 // installTt installs selected version of tt.
-func installTt(version string, binDir string, flags InstallationFlag, distfiles string) error {
-	versions, err := getTTVersions(flags.Local, distfiles)
+func installTt(version string, binDir string, installCtx InstallCtx, distfiles string) error {
+	versions, err := getTTVersions(installCtx.Local, distfiles)
 	if err != nil {
 		return err
 	}
@@ -420,7 +427,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 	log.Infof("Installing tt=" + ttVersion)
 
 	// Check tt dependencies.
-	if !flags.Force {
+	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
 		if !programDependenciesInstalled("tt") {
 			return nil
@@ -430,7 +437,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 	version = "tt" + search.VersionFsSeparator + ttVersion
 	// Check if that version is already installed.
 	log.Infof("Checking existing...")
-	if checkExisting(version, binDir) && !flags.Reinstall {
+	if checkExisting(version, binDir) && !installCtx.Reinstall {
 		log.Infof("%s version of tt already exists, updating symlink...", version)
 		err := util.CreateSymlink(version, filepath.Join(binDir, "tt"), true)
 		log.Infof("Done")
@@ -443,12 +450,12 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 	}
 	os.Chmod(path, defaultDirPermissions)
 
-	if !flags.Noclean {
+	if !installCtx.Noclean {
 		defer os.RemoveAll(path)
 	}
 
 	// Download tt.
-	if flags.Local {
+	if installCtx.Local {
 		if checkExisting("tt", distfiles) {
 			log.Infof("Local files found, installing from them...")
 			localPath, _ := util.JoinAbspath(distfiles, "tt")
@@ -456,13 +463,13 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 			if err != nil {
 				return err
 			}
-			util.ExecuteCommand("git", flags.Verbose, logFile, path, "checkout", ttVersion)
+			util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout", ttVersion)
 		} else {
 			return fmt.Errorf("can't find distfiles directory")
 		}
 	} else {
 		log.Infof("Downloading tt...")
-		err = downloadRepo(search.GitRepoTT, ttVersion, path, logFile, flags.Verbose)
+		err = downloadRepo(search.GitRepoTT, ttVersion, path, logFile, installCtx.verbose)
 	}
 
 	if err != nil {
@@ -471,7 +478,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 	}
 	// Build tt.
 	log.Infof("Building tt...")
-	err = util.ExecuteCommand("mage", flags.Verbose, logFile, path,
+	err = util.ExecuteCommand("mage", installCtx.verbose, logFile, path,
 		"build")
 	if err != nil {
 		printLog(logFile.Name())
@@ -480,7 +487,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 
 	// Copy binary.
 	log.Infof("Copying executable...")
-	err = copyBuildedTT(binDir, path, version, flags, logFile)
+	err = copyBuildedTT(binDir, path, version, installCtx, logFile)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
@@ -493,7 +500,7 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 		return err
 	}
 	log.Infof("Done.")
-	if flags.Noclean {
+	if installCtx.Noclean {
 		log.Infof("Artifacts can be found at: %s", path)
 	}
 	return nil
@@ -501,11 +508,11 @@ func installTt(version string, binDir string, flags InstallationFlag, distfiles 
 
 // checkExistingTarantool
 func checkExistingTarantool(version, binDir, includeDir string,
-	flags InstallationFlag) (bool, error) {
+	installCtx InstallCtx) (bool, error) {
 	var err error
 	flag := false
 	if checkExisting(version, binDir) {
-		if !flags.Reinstall {
+		if !installCtx.Reinstall {
 			log.Infof("%s version of tarantool already exists, updating symlink...", version)
 			err = util.CreateSymlink(version, filepath.Join(binDir, "tarantool"), true)
 			log.Infof("Done")
@@ -516,7 +523,7 @@ func checkExistingTarantool(version, binDir, includeDir string,
 }
 
 func patchTarantool(srcPath string, tarVersion string,
-	flags InstallationFlag, logFile *os.File) error {
+	installCtx InstallCtx, logFile *os.File) error {
 	log.Infof("Patching tarantool...")
 
 	if tarVersion == "master" {
@@ -549,7 +556,7 @@ func patchTarantool(srcPath string, tarVersion string,
 
 	for _, patch := range patches {
 		if patch.isApplicable(ver) {
-			err = patch.apply(srcPath, flags.Verbose, logFile)
+			err = patch.apply(srcPath, installCtx.verbose, logFile)
 			if err != nil {
 				return err
 			}
@@ -561,7 +568,7 @@ func patchTarantool(srcPath string, tarVersion string,
 
 // buildTarantool builds tarantool from source.
 func buildTarantool(srcPath string, tarVersion string,
-	flags InstallationFlag, logFile *os.File) error {
+	installCtx InstallCtx, logFile *os.File) error {
 
 	buildPath := filepath.Join(srcPath, "/static-build/build")
 	err := os.MkdirAll(buildPath, defaultDirPermissions)
@@ -583,7 +590,7 @@ func buildTarantool(srcPath string, tarVersion string,
 	}
 
 	maxThreads := fmt.Sprint(runtime.NumCPU())
-	err = util.ExecuteCommand("cmake", flags.Verbose, logFile, buildPath,
+	err = util.ExecuteCommand("cmake", installCtx.verbose, logFile, buildPath,
 		"..", `-DCMAKE_TARANTOOL_ARGS="-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
 			`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=`+btFlag,
 		"-DCMAKE_INSTALL_PREFIX="+buildPath)
@@ -591,14 +598,14 @@ func buildTarantool(srcPath string, tarVersion string,
 		return err
 	}
 
-	err = util.ExecuteCommand("make", flags.Verbose, logFile, buildPath,
+	err = util.ExecuteCommand("make", installCtx.verbose, logFile, buildPath,
 		"-j"+maxThreads)
 	return err
 }
 
 // copyLocalTarantool finds and copies local tarantool folder to tmp folder.
 func copyLocalTarantool(distfiles string, path string, tarVersion string,
-	flags InstallationFlag, logFile *os.File) error {
+	installCtx InstallCtx, logFile *os.File) error {
 	var err error
 	if checkExisting("tarantool", distfiles) {
 		log.Infof("Local files found, installing from them...")
@@ -607,7 +614,7 @@ func copyLocalTarantool(distfiles string, path string, tarVersion string,
 		if err != nil {
 			return err
 		}
-		err = util.ExecuteCommand("git", flags.Verbose, logFile, path, "checkout", tarVersion)
+		err = util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout", tarVersion)
 	} else {
 		return fmt.Errorf("can't find distfiles directory")
 	}
@@ -616,7 +623,7 @@ func copyLocalTarantool(distfiles string, path string, tarVersion string,
 
 // copyBuildedTarantool copies binary and include dir.
 func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
-	flags InstallationFlag, logFile *os.File) error {
+	installCtx InstallCtx, logFile *os.File) error {
 	var err error
 	log.Infof("Copying executable...")
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
@@ -647,10 +654,100 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 	return err
 }
 
-// installTarantool installs selected version of tarantool.
-func installTarantool(version string, binDir string, incDir string, flags InstallationFlag,
+//go:embed Dockerfile.tnt.build
+var tarantoolBuildDockerfile []byte
+
+func installTarantoolInDocker(binDir string, incDir string, installCtx InstallCtx,
 	distfiles string) error {
-	versions, err := getTarantoolVersions(flags.Local, distfiles)
+	tmpDir, err := ioutil.TempDir("", "docker_build_ctx")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	currentUser, err := user.Current()
+	if err != nil {
+		return err
+	}
+
+	goTextEngine := engines.NewDefaultEngine()
+	dockerfileText, err := goTextEngine.RenderText(string(tarantoolBuildDockerfile),
+		map[string]string{"uid": currentUser.Uid})
+	if err != nil {
+		return err
+	}
+
+	// Write docker file (rw-rw-r-- permissions).
+	if err = ioutil.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfileText),
+		0664); err != nil {
+		return err
+	}
+
+	// Copy tt executable.
+	if currentExecutable, err := os.Executable(); err != nil {
+		return err
+	} else {
+		if err = copy.Copy(currentExecutable, filepath.Join(tmpDir, "tt")); err != nil {
+			return nil
+		}
+	}
+
+	// Generate tt config for tt process in the container.
+	ttCfg := config.Config{
+		CliConfig: configure.GetDefaultCliOpts(),
+	}
+	ttCfg.CliConfig.App.BinDir = "/tt_bin"
+	ttCfg.CliConfig.App.IncludeDir = "/tt_include"
+	ttCfg.CliConfig.Repo.Install = "/tt_distfiles"
+	if err = util.WriteYaml(filepath.Join(tmpDir, configure.ConfigName), ttCfg); err != nil {
+		return err
+	}
+
+	// Generate install command line for tt in container.
+	tntInstallCommandLine := []string{"./tt"}
+	if installCtx.verbose {
+		tntInstallCommandLine = append(tntInstallCommandLine, "-V")
+	}
+	tntInstallCommandLine = append(tntInstallCommandLine, "install", "tarantool", "-f")
+	if installCtx.Reinstall {
+		tntInstallCommandLine = append(tntInstallCommandLine, "--reinstall")
+	}
+	if installCtx.Local {
+		tntInstallCommandLine = append(tntInstallCommandLine, "--local-repo")
+	}
+
+	// Exclude last element from incDir path, because it already has "include" subdir appended.
+	// So we get the parent of incDir to get original include path.
+	dockerRunOptions := docker.RunOptions{
+		BuildCtxDir: tmpDir,
+		ImageTag:    "ubuntu:tt_tarantool_build",
+		Command:     tntInstallCommandLine,
+		Binds: []string{
+			fmt.Sprintf("%s:%s", binDir, ttCfg.CliConfig.App.BinDir),
+			fmt.Sprintf("%s:%s", filepath.Dir(incDir), ttCfg.CliConfig.App.IncludeDir),
+			fmt.Sprintf("%s:%s", distfiles, ttCfg.CliConfig.Repo.Install),
+		},
+		Verbose: installCtx.verbose,
+	}
+	if err = docker.RunContainer(dockerRunOptions, os.Stdout); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// installTarantool installs selected version of tarantool.
+func installTarantool(version string, binDir string, incDir string,
+	installCtx InstallCtx, distfiles string) error {
+	// Check bin and header dirs.
+	if binDir == "" {
+		return fmt.Errorf("BinDir is not set, check tarantool.yaml ")
+	}
+	if incDir == "" {
+		return fmt.Errorf("IncludeDir is not set, check tarantool.yaml")
+	}
+
+	versions, err := getTarantoolVersions(installCtx.Local, distfiles)
 	if err != nil {
 		return err
 	}
@@ -681,13 +778,21 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 		}
 	}
 
-	// Check bin and header dirs.
-	if binDir == "" {
-		return fmt.Errorf("binDir is not set, check tarantool.yaml ")
+	version = "tarantool" + search.VersionFsSeparator + tarVersion
+	// Check if program is already installed.
+	if !installCtx.Reinstall {
+		log.Infof("Checking existing...")
+		versionExists, err := checkExistingTarantool(version,
+			binDir, incDir, installCtx)
+		if err != nil || versionExists {
+			return err
+		}
 	}
-	if incDir == "" {
-		return fmt.Errorf("includeDir is not set, check tarantool.yaml")
+
+	if installCtx.BuildInDocker {
+		return installTarantoolInDocker(binDir, incDir, installCtx, distfiles)
 	}
+
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {
 		return err
@@ -697,21 +802,10 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 	log.Infof("Installing tarantool=" + tarVersion)
 
 	// Check dependencies.
-	if !flags.Force {
+	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
 		if !programDependenciesInstalled("tarantool") {
 			return nil
-		}
-	}
-
-	version = "tarantool" + search.VersionFsSeparator + tarVersion
-	// Check if program is already installed.
-	if !flags.Reinstall {
-		log.Infof("Checking existing...")
-		versionExists, err := checkExistingTarantool(version,
-			binDir, incDir, flags)
-		if err != nil || versionExists {
-			return err
 		}
 	}
 
@@ -721,18 +815,18 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 	}
 	os.Chmod(path, defaultDirPermissions)
 
-	if !flags.Noclean {
+	if !installCtx.Noclean {
 		defer os.RemoveAll(path)
 	}
 
 	// Download tarantool.
-	if flags.Local {
+	if installCtx.Local {
 		log.Infof("Checking local files...")
-		err = copyLocalTarantool(distfiles, path, tarVersion, flags,
+		err = copyLocalTarantool(distfiles, path, tarVersion, installCtx,
 			logFile)
 	} else {
 		log.Infof("Downloading tarantool...")
-		err = downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile, flags.Verbose)
+		err = downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile, installCtx.verbose)
 	}
 	if err != nil {
 		printLog(logFile.Name())
@@ -740,7 +834,7 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 	}
 
 	// Patch tarantool.
-	err = patchTarantool(path, tarVersion, flags, logFile)
+	err = patchTarantool(path, tarVersion, installCtx, logFile)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
@@ -748,13 +842,13 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 
 	// Build tarantool.
 	log.Infof("Building tarantool...")
-	err = buildTarantool(path, tarVersion, flags, logFile)
+	err = buildTarantool(path, tarVersion, installCtx, logFile)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
 	}
 	// Copy binary and headers.
-	if flags.Reinstall {
+	if installCtx.Reinstall {
 		if checkExisting(version, binDir) {
 			log.Infof("%s version of tarantool already exists, removing files...",
 				version)
@@ -773,7 +867,7 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 	buildPath := filepath.Join(path, "/static-build/build")
 	binPath := filepath.Join(buildPath, "/tarantool-prefix/bin/tarantool")
 	incPath := filepath.Join(buildPath, "/tarantool-prefix/include/tarantool") + "/"
-	err = copyBuildedTarantool(binPath, incPath, binDir, incDir, version, flags,
+	err = copyBuildedTarantool(binPath, incPath, binDir, incDir, version, installCtx,
 		logFile)
 	if err != nil {
 		printLog(logFile.Name())
@@ -792,7 +886,7 @@ func installTarantool(version string, binDir string, incDir string, flags Instal
 		return err
 	}
 	log.Infof("Done.")
-	if flags.Noclean {
+	if installCtx.Noclean {
 		log.Infof("Artifacts can be found at: %s", path)
 	}
 	return nil
@@ -818,12 +912,12 @@ func getTarantoolEEVersions(cliOpts *config.CliOpts, local bool,
 }
 
 // installTarantoolEE installs selected version of tarantool-ee.
-func installTarantoolEE(version string, binDir string, includeDir string, flags InstallationFlag,
+func installTarantoolEE(version string, binDir string, includeDir string, installCtx InstallCtx,
 	distfiles string, cliOpts *config.CliOpts) error {
 	var err error
 
 	files := []string{}
-	if flags.Local {
+	if installCtx.Local {
 		localFiles, err := os.ReadDir(cliOpts.Repo.Install)
 		if err != nil {
 			return err
@@ -835,7 +929,7 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 			}
 		}
 	}
-	versions, err := getTarantoolEEVersions(cliOpts, flags.Local, files)
+	versions, err := getTarantoolEEVersions(cliOpts, installCtx.Local, files)
 	if err != nil {
 		return err
 	}
@@ -879,7 +973,7 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 	log.Infof("Installing tarantool-ee=" + tarVersion)
 
 	// Check dependencies.
-	if !flags.Force {
+	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
 		if !programDependenciesInstalled("tarantool") {
 			return nil
@@ -897,10 +991,10 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 	}
 
 	version = "tarantool-ee" + search.VersionFsSeparator + tarVersion
-	if !flags.Reinstall {
+	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
 		versionExists, err := checkExistingTarantool(version,
-			binDir, includeDir, flags)
+			binDir, includeDir, installCtx)
 		if err != nil || versionExists {
 			return err
 		}
@@ -912,12 +1006,12 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 	}
 	os.Chmod(path, defaultDirPermissions)
 
-	if !flags.Noclean {
+	if !installCtx.Noclean {
 		defer os.RemoveAll(path)
 	}
 
 	// Download tarantool.
-	if flags.Local {
+	if installCtx.Local {
 		log.Infof("Checking local files...")
 		if checkExisting(bundleName, distfiles) {
 			log.Infof("Local files found, installing from them...")
@@ -950,7 +1044,7 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 	}
 
 	// Copy binary and headers.
-	if flags.Reinstall {
+	if installCtx.Reinstall {
 		if checkExisting(version, binDir) {
 			log.Infof("%s version of tarantool-ee already exists, removing files...",
 				version)
@@ -968,7 +1062,7 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 	}
 	binPath := filepath.Join(path, "/tarantool-enterprise/tarantool")
 	incPath := filepath.Join(path, "/tarantool-enterprise/include/tarantool") + "/"
-	err = copyBuildedTarantool(binPath, incPath, binDir, includeDir, version, flags,
+	err = copyBuildedTarantool(binPath, incPath, binDir, includeDir, version, installCtx,
 		logFile)
 	if err != nil {
 		printLog(logFile.Name())
@@ -988,16 +1082,33 @@ func installTarantoolEE(version string, binDir string, includeDir string, flags 
 	}
 
 	log.Infof("Done.")
-	if flags.Noclean {
+	if installCtx.Noclean {
 		log.Infof("Artifacts can be found at: %s", path)
 	}
 	return nil
 }
 
 // Install installs program.
-func Install(args []string, binDir string, includeDir string, flags InstallationFlag,
+func Install(args []string, binDir string, includeDir string, installCtx InstallCtx,
 	local string, cliOpts *config.CliOpts) error {
 	var err error
+
+	switch installCtx.programName {
+	case "tt":
+		err = installTt(args[0], binDir, installCtx, local)
+	case "tarantool":
+		err = installTarantool(args[0], binDir, includeDir, installCtx, local)
+	case "tarantool-ee":
+		err = installTarantoolEE(args[0], binDir, includeDir, installCtx, local, cliOpts)
+	default:
+		return fmt.Errorf("unknown application: %s", installCtx.programName)
+	}
+
+	return err
+}
+
+func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
+	installCtx.verbose = cmdCtx.Cli.Verbose
 
 	if len(args) != 1 {
 		return fmt.Errorf("invalid number of parameters")
@@ -1010,15 +1121,11 @@ func Install(args []string, binDir string, includeDir string, flags Installation
 	if len(matches) == 0 {
 		return fmt.Errorf("unknown application: %s", args[0])
 	}
+	installCtx.programName = matches["prog"]
 
-	switch matches["prog"] {
-	case "tt":
-		err = installTt(args[0], binDir, flags, local)
-	case "tarantool":
-		err = installTarantool(args[0], binDir, includeDir, flags, local)
-	case "tarantool-ee":
-		err = installTarantoolEE(args[0], binDir, includeDir, flags, local, cliOpts)
+	if installCtx.BuildInDocker && installCtx.programName != "tarantool" {
+		return fmt.Errorf("--use-docker can be used only for 'tarantool' program")
 	}
 
-	return err
+	return nil
 }
