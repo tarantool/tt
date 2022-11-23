@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
+	"path/filepath"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -14,22 +13,12 @@ import (
 )
 
 var (
-	Reinstall bool
-	Force     bool
-	Verbose   bool
-	Noclean   bool
-	Local     bool
+	reinstall     bool
+	force         bool
+	noclean       bool
+	localRepo     bool
+	buildInDocker bool
 )
-
-func getInstallFlags() install.InstallationFlag {
-	return install.InstallationFlag{
-		Reinstall: Reinstall,
-		Force:     Force,
-		Verbose:   Verbose,
-		Noclean:   Noclean,
-		Local:     Local,
-	}
-}
 
 // NewInstallCmd creates install command.
 func NewInstallCmd() *cobra.Command {
@@ -51,13 +40,14 @@ func NewInstallCmd() *cobra.Command {
 		},
 		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
 	}
-	installCmd.Flags().BoolVarP(&Verbose, "verbose", "V", false, "print log to stderr")
-	installCmd.Flags().BoolVarP(&Force, "force", "f", false, "force requirements errors")
-	installCmd.Flags().BoolVarP(&Noclean, "no-clean", "", false,
+	installCmd.Flags().BoolVarP(&force, "force", "f", false, "force requirements errors")
+	installCmd.Flags().BoolVarP(&noclean, "no-clean", "", false,
 		"don't delete temporary files")
-	installCmd.Flags().BoolVarP(&Reinstall, "reinstall", "", false, "reinstall program")
-	installCmd.Flags().BoolVarP(&Local, "local-repo", "", false,
+	installCmd.Flags().BoolVarP(&reinstall, "reinstall", "", false, "reinstall program")
+	installCmd.Flags().BoolVarP(&localRepo, "local-repo", "", false,
 		"install from local files")
+	installCmd.Flags().BoolVarP(&buildInDocker, "use-docker", "", false,
+		"build tarantool in Ubuntu 16.04 docker container")
 	return installCmd
 }
 
@@ -67,11 +57,20 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return err
 	}
-	flags := getInstallFlags()
-	if _, err := os.Stat(cmdCtx.Cli.ConfigPath); os.IsNotExist(err) {
-		return fmt.Errorf("there is no tarantool.yaml found, please create one")
+
+	installCtx := install.InstallCtx{
+		Force:         force,
+		Noclean:       noclean,
+		Reinstall:     reinstall,
+		Local:         localRepo,
+		BuildInDocker: buildInDocker,
 	}
-	err = install.Install(args, cliOpts.App.BinDir, cliOpts.App.IncludeDir+"/include", flags,
-		cliOpts.Repo.Install, cliOpts)
+
+	if err = install.FillCtx(cmdCtx, &installCtx, args); err != nil {
+		return err
+	}
+
+	err = install.Install(args, cliOpts.App.BinDir, filepath.Join(cliOpts.App.IncludeDir,
+		"include"), installCtx, cliOpts.Repo.Install, cliOpts)
 	return err
 }
