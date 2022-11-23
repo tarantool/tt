@@ -38,5 +38,7 @@ func (MoveAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 		log.Warnf("Failed to remove temporary directory: %s", err)
 	}
 
+	log.Infof("Application '%s' created successfully", createCtx.AppName)
+
 	return nil
 }

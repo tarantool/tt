@@ -13,9 +13,6 @@ func NewCartridgeCmd() *cobra.Command {
 	}
 
 	cartCliCmds := []*cobra.Command{
-		cc.CartridgeCliPack,
-		cc.CartridgeCliCreate,
-		cc.CartridgeCliBuild,
 		cc.CartridgeCliAdmin,
 		cc.CartridgeCliBench,
 		cc.CartridgeCliFailover,

@@ -68,5 +68,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, buildCtx *BuildCtx) error {
 		return fmt.Errorf("run post-build hook failed: %s", err)
 	}
 
+	log.Info("Application was successfully built")
+
 	return nil
 }
