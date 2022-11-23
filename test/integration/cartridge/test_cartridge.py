@@ -27,12 +27,12 @@ def stop_cartridge_app(tt_cmd, tmpdir):
 
 def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    create_cmd = [tt_cmd, "cartridge", "create", "--name", cartridge_name]
+    create_cmd = [tt_cmd, "create", "cartridge", "--name", cartridge_name]
     create_rc, create_out = run_command_and_get_output(create_cmd, cwd=tmpdir)
     assert create_rc == 0
-    assert re.search(r'Application "' + cartridge_name + '" created successfully', create_out)
+    assert re.search(r"Application '" + cartridge_name + "' created successfully", create_out)
 
-    build_cmd = [tt_cmd, "cartridge", "build", cartridge_name]
+    build_cmd = [tt_cmd, "build", cartridge_name]
     build_rc, build_out = run_command_and_get_output(build_cmd, cwd=tmpdir)
     assert build_rc == 0
     assert re.search(r'Application was successfully built', build_out)
