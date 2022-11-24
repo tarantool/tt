@@ -114,7 +114,7 @@ func NewCmdRoot() *cobra.Command {
 		NewCreateCmd(),
 		NewBuildCmd(),
 		NewInstallCmd(),
-		NewRemoveCmd(),
+		NewUninstallCmd(),
 		NewPackCmd(),
 		NewInitCmd(),
 		NewDaemonCmd(),
