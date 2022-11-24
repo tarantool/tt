@@ -1,4 +1,4 @@
-package remove
+package uninstall
 
 import (
 	"fmt"
@@ -13,8 +13,8 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-// Remove removes binary/directory and symlinks from directory.
-func Remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
+// remove removes binary/directory and symlinks from directory.
+func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 	var linkPath string
 	var err error
 
@@ -46,8 +46,6 @@ func Remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 		return fmt.Errorf("there is no %s installed", program)
 	} else if err != nil {
 		return fmt.Errorf("there was some problem locating %s", path)
-	} else {
-		log.Infof("%s found, removing...", program)
 	}
 	// Get path where symlink point.
 	resolvedPath, err := util.ResolveSymlink(linkPath)
@@ -65,21 +63,22 @@ func Remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("%s was removed!", program)
+
 	return err
 }
 
-// RemoveProgram removes program and symlinks.
-func RemoveProgram(program string, binDst string, headerDst string,
+// UninstallProgram uninstalls program and symlinks.
+func UninstallProgram(program string, binDst string, headerDst string,
 	cmdCtx *cmdcontext.CmdCtx) error {
 	log.Infof("Removing binary...")
-	err := Remove(program, binDst, cmdCtx)
+	err := remove(program, binDst, cmdCtx)
 	if err != nil {
 		return err
 	}
 	if strings.Contains(program, "tarantool") {
 		log.Infof("Removing headers...")
-		err = Remove(program, headerDst, cmdCtx)
+		err = remove(program, headerDst, cmdCtx)
 	}
+	log.Infof("%s is uninstalled.", program)
 	return err
 }
