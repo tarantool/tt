@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - ``tt restart`` confirmation prompt. ``-y`` option is added to accept restart without prompting.
+- ``tt pack`` will generate systemd unit for rpm and deb packages.
 
 ### Changed
 
