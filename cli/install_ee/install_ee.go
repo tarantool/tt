@@ -47,6 +47,7 @@ func getCredsInteractive() (userCredentials, error) {
 		return res, err
 	}
 	res.password = strings.TrimSpace(string(bytePass))
+	fmt.Println("")
 
 	return res, nil
 }
@@ -251,6 +252,8 @@ func FetchVersions(cliOpts *config.CliOpts) ([]version.Version, error) {
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, err
+	} else if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP request error: %s", http.StatusText(res.StatusCode))
 	}
 
 	defer res.Body.Close()
@@ -296,6 +299,8 @@ func GetTarantoolEE(cliOpts *config.CliOpts, bundleName string, dst string) erro
 	res, err := client.Do(req)
 	if err != nil {
 		return err
+	} else if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP request error: %s", http.StatusText(res.StatusCode))
 	}
 
 	defer res.Body.Close()
