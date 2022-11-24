@@ -19,6 +19,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -861,4 +862,40 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	}
 
 	return "", os.ErrNotExist
+}
+
+// InstantiateFileFromTemplate accepts the path to file,
+// template content and parameters for its filling.
+func InstantiateFileFromTemplate(templatePath string, templateContent string,
+	params map[string]interface{}) error {
+	file, err := os.Create(templatePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	unitContent, err := GetTextTemplatedStr(&templateContent, params)
+	if err != nil {
+		removeErr := os.Remove(templatePath)
+		if removeErr != nil {
+			log.Warnf("Failed to remove a file %s", templatePath)
+		}
+		return err
+	}
+
+	parsedTemplate, err := template.New(templatePath).Parse(unitContent)
+	if err != nil {
+		return fmt.Errorf("error parsing %s: %s", templatePath, err)
+	}
+	parsedTemplate.Option("missingkey=error") // Treat missing variable as error.
+
+	_, err = file.WriteString(unitContent)
+	if err != nil {
+		removeErr := os.Remove(templatePath)
+		if removeErr != nil {
+			log.Warnf("Failed to remove a file %s", templatePath)
+		}
+		return err
+	}
+	return nil
 }
