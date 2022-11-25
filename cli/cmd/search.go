@@ -30,6 +30,7 @@ func NewSearchCmd() *cobra.Command {
 				log.Fatalf(err.Error())
 			}
 		},
+		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
 	}
 	searchCmd.Flags().BoolVarP(&local, "local-repo", "", false,
 		"search in local files")

@@ -48,6 +48,7 @@ func NewInstallCmd() *cobra.Command {
 				log.Fatalf(err.Error())
 			}
 		},
+		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
 	}
 	installCmd.Flags().BoolVarP(&Verbose, "verbose", "V", false, "print log to stderr")
 	installCmd.Flags().BoolVarP(&Force, "force", "f", false, "force requirements errors")
