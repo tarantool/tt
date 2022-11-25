@@ -55,7 +55,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	switch shell := args[0]; shell {
 	case "bash":
-		if err := rootCmd.GenBashCompletion(os.Stdout); err != nil {
+		if err := rootCmd.GenBashCompletionV2(os.Stdout, true); err != nil {
 			return err
 		}
 	case "zsh":
