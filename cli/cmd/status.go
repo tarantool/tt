@@ -39,7 +39,8 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	for _, run := range runningCtx.Instances {
 		fullInstanceName := running.GetAppInstanceName(run)
-		log.Infof("%s: %s", fullInstanceName, running.Status(&run))
+		procStatus := running.Status(&run)
+		log.Infof("%s: %s", procStatus.ColorSprint(fullInstanceName), procStatus.Text)
 	}
 
 	return nil

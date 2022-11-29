@@ -24,10 +24,9 @@ import (
 
 const defaultDirPerms = 0770
 
-const (
-	InstStateStopped = process_utils.ProcStateStopped
-	InstStateDead    = process_utils.ProcStateDead
-	InstStateRunning = process_utils.ProcStateRunning
+var (
+	instStateStopped = process_utils.ProcStateStopped
+	instStateDead    = process_utils.ProcStateDead
 )
 
 // Running contains information about application instances.
@@ -569,7 +568,7 @@ func Run(runOpts *RunOpts, scriptPath string) error {
 }
 
 // Status returns the status of the Instance.
-func Status(run *InstanceCtx) string {
+func Status(run *InstanceCtx) process_utils.ProcessState {
 	return process_utils.ProcessStatus(run.PIDFile)
 }
 
@@ -577,12 +576,12 @@ func Status(run *InstanceCtx) string {
 func Logrotate(run *InstanceCtx) (string, error) {
 	pid, err := process_utils.GetPIDFromFile(run.PIDFile)
 	if err != nil {
-		return "", fmt.Errorf(InstStateStopped)
+		return "", fmt.Errorf(instStateStopped.Text)
 	}
 
 	alive, err := process_utils.IsProcessAlive(pid)
 	if !alive {
-		return "", fmt.Errorf(InstStateDead)
+		return "", fmt.Errorf(instStateDead.Text)
 	}
 
 	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -111,7 +112,7 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	for _, run := range runningCtx.Instances {
 		status := running.Status(&run)
-		if status == running.InstStateStopped {
+		if status.Code == process_utils.ProcessStoppedCode {
 			var statusMsg string
 
 			err = clean(&run)

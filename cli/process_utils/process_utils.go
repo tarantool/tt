@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 // Create a new directory.
@@ -18,10 +20,29 @@ import (
 // others: nil
 const defaultDirPerms = 0770
 
+type ProcessState struct {
+	Code        int
+	ColorSprint func(a ...interface{}) string
+	Text        string
+}
+
 const (
-	ProcStateStopped = "NOT RUNNING"
-	ProcStateDead    = "ERROR. The process is dead"
-	ProcStateRunning = "RUNNING. PID: %v."
+	ProcessRunningCode = iota
+	ProcessStoppedCode
+	ProcessDeadCode
+)
+
+var (
+	ProcStateRunning = ProcessState{
+		ProcessRunningCode,
+		color.New(color.FgGreen).SprintFunc(),
+		"RUNNING. PID: %v."}
+	ProcStateStopped = ProcessState{ProcessStoppedCode,
+		color.New(color.FgYellow).SprintFunc(),
+		"NOT RUNNING"}
+	ProcStateDead = ProcessState{ProcessDeadCode,
+		color.New(color.FgRed).SprintFunc(),
+		"ERROR. The process is dead"}
 )
 
 // GetPIDFromFile returns PID from the PIDFile.
@@ -134,18 +155,20 @@ func StopProcess(pidFile string) (int, error) {
 }
 
 // ProcessStatus returns the status of the process.
-func ProcessStatus(pidFile string) string {
+func ProcessStatus(pidFile string) ProcessState {
 	pid, err := GetPIDFromFile(pidFile)
 	if err != nil {
-		return fmt.Sprintf(ProcStateStopped)
+		return ProcStateStopped
 	}
 
-	alive, err := IsProcessAlive(pid)
+	alive, _ := IsProcessAlive(pid)
 	if !alive {
-		return fmt.Sprintf(ProcStateDead)
+		return ProcStateDead
 	}
 
-	return fmt.Sprintf(ProcStateRunning, pid)
+	procState := ProcStateRunning
+	procState.Text = fmt.Sprintf(procState.Text, pid)
+	return procState
 }
 
 // IsProcessAlive checks if the process is alive.
