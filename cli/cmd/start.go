@@ -22,7 +22,7 @@ var (
 // NewStartCmd creates start command.
 func NewStartCmd() *cobra.Command {
 	var startCmd = &cobra.Command{
-		Use:   "start <APPLICATION_NAME>",
+		Use:   "start [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Start tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
@@ -58,14 +58,9 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			return err
 		}
 		for _, run := range runningCtx.Instances {
-			log.Infof("Starting an instance [%s]...", run.InstName)
+			appName := running.GetAppInstanceName(run)
 
-			appName := ""
-			if run.SingleApp {
-				appName = run.AppName
-			} else {
-				appName = run.AppName + ":" + run.InstName
-			}
+			log.Infof("Starting an instance [%s]...", appName)
 
 			newArgs := []string{"start", "--watchdog", appName}
 

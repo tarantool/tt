@@ -18,6 +18,7 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v2"
 )
 
@@ -278,8 +279,7 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx
 }
 
 // collectInstances searches all instances available in application.
-func collectInstances(appName string, cliOpts *config.CliOpts,
-	appDir string) ([]InstanceCtx, error) {
+func collectInstances(appName string, appDir string) ([]InstanceCtx, error) {
 	var err error
 	var appPath string
 
@@ -430,12 +430,8 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	runningCtx *RunningCtx, args []string) error {
 	var err error
 
-	if len(args) != 1 && cmdCtx.CommandName != "run" {
-		if len(args) > 1 {
-			return fmt.Errorf("currently, you can specify only one instance at a time")
-		} else {
-			return fmt.Errorf("please specify the name of the application")
-		}
+	if len(args) > 1 && cmdCtx.CommandName != "run" {
+		return fmt.Errorf("currently, you can specify only one instance at a time")
 	}
 
 	// All relative paths are built from the path of the tarantool.yaml file.
@@ -453,13 +449,6 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		return fmt.Errorf(`tarantool.yaml not found"`)
 	}
 
-	appName := args[0]
-	if cmdCtx.CommandName == "run" {
-		if strings.HasSuffix(appName, ".lua") {
-			appName = appName[0 : len(appName)-4]
-		}
-	}
-
 	instEnabledPath := ""
 	if cliOpts.App != nil && cliOpts.App.InstancesEnabled != "" && cmdCtx.CommandName != "run" {
 		instEnabledPath = cliOpts.App.InstancesEnabled
@@ -470,50 +459,65 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		instEnabledPath = basePath
 	}
 
-	instParams, err := collectInstances(appName, cliOpts, instEnabledPath)
-	if err != nil {
-		return fmt.Errorf("can't find an application init file: %s", err)
+	var appList []string
+	if len(args) == 0 {
+		appList, err = util.CollectAppList(instEnabledPath)
+		if err != nil {
+			return fmt.Errorf("can't collect an application list "+
+				"from instances enabled path %s: %s", instEnabledPath, err)
+		}
+	} else {
+		appList = append(appList, args[0])
 	}
 
 	// Cleanup instances list.
 	runningCtx.Instances = nil
-	for _, inst := range instParams {
-		var instance InstanceCtx
-		var runDir string
-		var logDir string
-		var dataDir string
-
-		instance.AppPath = inst.AppPath
-		instance.AppName = inst.AppName
-		instance.InstName = inst.InstName
-
-		if cliOpts.App != nil {
-			runDir = cliOpts.App.RunDir
-			logDir = cliOpts.App.LogDir
-			dataDir = cliOpts.App.DataDir
-			instance.LogMaxSize = cliOpts.App.LogMaxSize
-			instance.LogMaxAge = cliOpts.App.LogMaxAge
-			instance.LogMaxBackups = cliOpts.App.LogMaxBackups
-			instance.Restartable = cliOpts.App.Restartable
+	for _, appName := range appList {
+		if strings.HasSuffix(appName, ".lua") {
+			appName = appName[:len(appName)-4]
+		}
+		instances, err := collectInstances(appName, instEnabledPath)
+		if err != nil {
+			return fmt.Errorf("%s: can't find an application init file: %s", appName, err)
 		}
 
-		instance.RunDir = makePath(runDir, basePath, &inst)
-		instance.ConsoleSocket = filepath.Join(instance.RunDir, instance.InstName+".control")
-		instance.PIDFile = filepath.Join(instance.RunDir, instance.InstName+".pid")
+		for _, inst := range instances {
+			var instance InstanceCtx
+			var runDir string
+			var logDir string
+			var dataDir string
 
-		instance.LogDir = makePath(logDir, basePath, &inst)
-		instance.Log = filepath.Join(instance.LogDir, instance.InstName+".log")
+			instance.AppPath = inst.AppPath
+			instance.AppName = inst.AppName
+			instance.InstName = inst.InstName
 
-		instance.DataDir = makePath(dataDir, basePath, &inst)
-
-		if cmdCtx.CommandName != "run" {
-			err = createDataDir(instance.DataDir)
-			if err != nil {
-				return err
+			if cliOpts.App != nil {
+				runDir = cliOpts.App.RunDir
+				logDir = cliOpts.App.LogDir
+				dataDir = cliOpts.App.DataDir
+				instance.LogMaxSize = cliOpts.App.LogMaxSize
+				instance.LogMaxAge = cliOpts.App.LogMaxAge
+				instance.LogMaxBackups = cliOpts.App.LogMaxBackups
+				instance.Restartable = cliOpts.App.Restartable
 			}
-		}
 
-		runningCtx.Instances = append(runningCtx.Instances, instance)
+			instance.RunDir = makePath(runDir, basePath, &inst)
+			instance.ConsoleSocket = filepath.Join(instance.RunDir, instance.InstName+".control")
+			instance.PIDFile = filepath.Join(instance.RunDir, instance.InstName+".pid")
+			instance.LogDir = makePath(logDir, basePath, &inst)
+			instance.Log = filepath.Join(instance.LogDir, instance.InstName+".log")
+			instance.DataDir = makePath(dataDir, basePath, &inst)
+			instance.SingleApp = inst.SingleApp
+
+			if cmdCtx.CommandName == "start" || cmdCtx.CommandName == "restart" {
+				err = createDataDir(instance.DataDir)
+				if err != nil {
+					return err
+				}
+			}
+
+			runningCtx.Instances = append(runningCtx.Instances, instance)
+		}
 	}
 
 	return nil
@@ -549,7 +553,8 @@ func Stop(run *InstanceCtx) error {
 		os.Remove(run.ConsoleSocket)
 	}
 
-	log.Printf("The Instance (PID = %v) has been terminated.\n", pid)
+	fullInstanceName := GetAppInstanceName(*run)
+	log.Printf("The Instance %s (PID = %v) has been terminated.\n", fullInstanceName, pid)
 
 	return nil
 }
@@ -585,7 +590,8 @@ func Logrotate(run *InstanceCtx) (string, error) {
 	}
 
 	// Rotates logs [instance name pid]
-	return fmt.Sprintf("Logs has been rotated. PID: %v.", pid), nil
+	fullInstanceName := GetAppInstanceName(*run)
+	return fmt.Sprintf("%s: logs has been rotated. PID: %v.", fullInstanceName, pid), nil
 }
 
 // Check returns the result of checking the syntax of the application file.
@@ -600,4 +606,17 @@ func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	}
 
 	return nil
+}
+
+// GetAppInstanceName returns the full instance name for the passed context.
+// If an application is multi-instance, the format will be AppName:InstName.
+// Otherwise, the format is AppName.
+func GetAppInstanceName(instance InstanceCtx) string {
+	fullInstanceName := ""
+	if instance.SingleApp {
+		fullInstanceName = instance.AppName
+	} else {
+		fullInstanceName = instance.AppName + ":" + instance.InstName
+	}
+	return fullInstanceName
 }
