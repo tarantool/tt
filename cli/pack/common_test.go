@@ -12,43 +12,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func TestCollectAppList(t *testing.T) {
-	testDir := t.TempDir()
-
-	apps := map[string]bool{
-		"app1.lua": true,
-		"app2":     true,
-	}
-
-	dirsToCreate := []string{
-		"app2",
-		".rocks",
-	}
-	dirsToCreate = append(dirsToCreate, defaultPaths...)
-
-	filesToCreate := []string{
-		"app1.lua",
-		"somefile",
-		"app2/init.lua",
-	}
-
-	err := test_helpers.CreateDirs(testDir, dirsToCreate)
-	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
-
-	err = test_helpers.CreateFiles(testDir, filesToCreate)
-	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
-
-	collected, err := collectAppList(testDir)
-	assert.Nilf(t, err, "failed to collect an app list: %v", err)
-
-	require.Equalf(t, len(apps), len(collected), "wrong count applications collected,"+
-		" expected: %d, got %d", len(apps), len(collected))
-
-	for _, item := range collected {
-		require.Truef(t, apps[item], "wrong item got collected in app list: %s", item)
-	}
-}
-
 func TestRocksFinder(t *testing.T) {
 	testDir := t.TempDir()
 	badDir := "dir1/dir2/dir4"
