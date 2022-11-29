@@ -899,3 +899,24 @@ func InstantiateFileFromTemplate(templatePath string, templateContent string,
 	}
 	return nil
 }
+
+// CollectAppList collects all the supposed applications from the passed directory.
+func CollectAppList(baseDir string) ([]string, error) {
+	dirEnrties, err := os.ReadDir(baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	apps := make([]string, 0)
+	for _, entry := range dirEnrties {
+		dirItem := filepath.Join(baseDir, entry.Name())
+		if IsApp(dirItem) {
+			apps = append(apps, entry.Name())
+		} else {
+			log.Warnf("Skipping %s: the source is not an application.",
+				entry.Name())
+		}
+	}
+
+	return apps, nil
+}

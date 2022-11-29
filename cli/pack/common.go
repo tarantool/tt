@@ -114,7 +114,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	appList := []string{}
 	if packCtx.AppList == nil {
 		if opts.App.InstancesEnabled != "." {
-			appList, err = collectAppList(opts.App.InstancesEnabled)
+			appList, err = util.CollectAppList(opts.App.InstancesEnabled)
 			if err != nil {
 				return "", err
 			}
@@ -383,31 +383,6 @@ func findRocks(root string) (string, error) {
 		return "", fmt.Errorf("rockspec not found")
 	}
 	return res, nil
-}
-
-// collectAppList collects all the supposed applications from the passed directory,
-// considering the passed slice of exclude regexp items.
-func collectAppList(baseDir string) ([]string, error) {
-	dirEnrties, err := os.ReadDir(baseDir)
-	if err != nil {
-		return nil, err
-	}
-
-	apps := make([]string, 0)
-	for _, entry := range dirEnrties {
-		dirItem := filepath.Join(baseDir, entry.Name())
-		if util.IsApp(dirItem) {
-			apps = append(apps, entry.Name())
-		} else {
-			log.Warnf("The application %s can't be packed: failed to access the source",
-				entry.Name())
-		}
-	}
-
-	if err != nil {
-		return nil, err
-	}
-	return apps, nil
 }
 
 // buildAllRocks finds a rockspec file of the application and builds it.
