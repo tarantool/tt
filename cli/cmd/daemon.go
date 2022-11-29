@@ -146,7 +146,7 @@ func internalDaemonStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error 
 	}
 
 	daemonCtx := daemon.NewDaemonCtx(opts)
-	log.Info(process_utils.ProcessStatus(daemonCtx.PIDFile))
+	log.Info(process_utils.ProcessStatus(daemonCtx.PIDFile).Text)
 
 	return nil
 }
