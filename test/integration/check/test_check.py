@@ -5,14 +5,6 @@ import shutil
 from utils import run_command_and_get_output
 
 
-def test_check_unset_arg(tt_cmd, tmpdir):
-    # Testing with unset application file.
-    cmd = [tt_cmd, "check"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    assert rc == 1
-    assert re.search(r"please specify the name of the application", output)
-
-
 def test_check_too_many_args(tt_cmd, tmpdir):
     # Testing with more than one specified files.
     cmd = [tt_cmd, "check", "file1", "file2"]

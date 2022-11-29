@@ -70,3 +70,21 @@ def test_restart_with_auto_yes(tt_cmd, tmpdir_with_cfg):
 
     finally:
         app_cmd(tt_cmd, tmpdir_with_cfg, ["stop", app_name], [])
+
+
+def test_restart_no_args(tt_cmd, tmpdir):
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
+
+    test_app_path = os.path.join(tmpdir, "multi_app")
+    shutil.copytree(test_app_path_src, test_app_path)
+
+    start_output = app_cmd(tt_cmd, test_app_path, ["start"], [])
+    assert "Starting an instance" in start_output[0]
+
+    try:
+        # Test confirmed restart.
+        restart_output = app_cmd(tt_cmd, test_app_path, ["restart"], ["y\n"])
+        assert "Confirm restart of all instances [y/n]" in restart_output[0]
+
+    finally:
+        app_cmd(tt_cmd, test_app_path, ["stop"], [])

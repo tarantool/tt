@@ -41,7 +41,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     stop_cmd = [tt_cmd, "stop", "test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"The Instance \(PID = \d+\) has been terminated.", stop_out)
+    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
@@ -84,7 +84,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
         text=True
     )
     restart_output = instance_process_2.stdout.readline()
-    assert re.search(r"The Instance \(PID = \d+\) has been terminated.", restart_output)
+    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", restart_output)
     restart_output = instance_process_2.stdout.readline()
     assert re.search(r"Starting an instance", restart_output)
 
@@ -104,7 +104,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     stop_cmd = [tt_cmd, "stop", "test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"The Instance \(PID = \d+\) has been terminated.", stop_out)
+    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process of new Instance was terminated correctly.
     instance_process_2_rc = instance_process_2.wait(1)
@@ -141,7 +141,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     for _ in range(2):
         logrotate_rc, logrotate_out = run_command_and_get_output(logrotate_cmd, cwd=tmpdir)
         assert logrotate_rc == 0
-        assert re.search(r"Logs has been rotated. PID: \d+.", logrotate_out)
+        assert re.search(r"test_app: logs has been rotated. PID: \d+.", logrotate_out)
 
         file = wait_file(os.path.join(tmpdir, log_path, "test_app"), 'test_app.*.log',
                          exists_log_files)
@@ -152,7 +152,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     stop_cmd = [tt_cmd, "stop", "test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
     assert stop_rc == 0
-    assert re.search(r"The Instance \(PID = \d+\) has been terminated.", stop_out)
+    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
@@ -189,7 +189,7 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     stop_cmd = [tt_cmd, "stop", "test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
     assert stop_rc == 0
-    assert re.search(r"The Instance \(PID = \d+\) has been terminated.", stop_out)
+    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
@@ -226,7 +226,7 @@ def test_running_base_functionality_working_dir_app(tt_cmd):
                 text=True
             )
             start_output = instance_process.stdout.readline()
-            assert re.search(r"Starting an instance \[(router|master|replica)\]", start_output)
+            assert re.search(r"Starting an instance \[app:(router|master|replica)\]", start_output)
 
             # Check status.
             for instName in ["master", "replica", "router"]:
@@ -244,7 +244,8 @@ def test_running_base_functionality_working_dir_app(tt_cmd):
             stop_cmd = [tt_cmd, "stop", "app"]
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(r"The Instance \(PID = \d+\) has been terminated.", stop_out)
+            assert re.search(r"The Instance app:(router|master|replica) \(PID = \d+\) "
+                             r"has been terminated.", stop_out)
 
             # Check that the process was terminated correctly.
             instance_process_rc = instance_process.wait(1)
@@ -270,7 +271,7 @@ def test_running_instance_from_multi_inst_app(tt_cmd):
             text=True
         )
         start_output = instance_process.stdout.readline()
-        assert re.search(r"Starting an instance \[router\]", start_output)
+        assert re.search(r"Starting an instance \[app:router\]", start_output)
 
         # Check status.
         file = wait_file(os.path.join(test_app_path, run_path, "app", "router"), "router.pid", [])
@@ -291,7 +292,7 @@ def test_running_instance_from_multi_inst_app(tt_cmd):
         stop_cmd = [tt_cmd, "stop", "app:router"]
         stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
         assert status_rc == 0
-        assert re.search(r"The Instance \(PID = \d+\) has been terminated.", stop_out)
+        assert re.search(r"The Instance app:router \(PID = \d+\) has been terminated.", stop_out)
 
         # Check that the process was terminated correctly.
         instance_process_rc = instance_process.wait(1)
@@ -411,3 +412,67 @@ def test_running_reread_config(tt_cmd, tmpdir):
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
     assert instance_process_rc == 0
+
+
+def test_no_args_usage(tt_cmd):
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_app_path = os.path.join(tmpdir, "multi_app")
+        shutil.copytree(test_app_path_src, test_app_path)
+
+        for subdir in ["", "multi_app"]:
+            if subdir != "":
+                os.mkdir(os.path.join(test_app_path, "multi_app"))
+            # Start all instances.
+            start_cmd = [tt_cmd, "start"]
+            instance_process = subprocess.Popen(
+                start_cmd,
+                cwd=test_app_path,
+                stderr=subprocess.STDOUT,
+                stdout=subprocess.PIPE,
+                text=True
+            )
+            for i in range(0, 3):
+                start_output = instance_process.stdout.readline()
+                assert re.search(r"Starting an instance \[app1:(router|master|replica)\]",
+                                 start_output)
+
+            start_output = instance_process.stdout.readline()
+            assert re.search(r"Starting an instance \[app2\]", start_output)
+
+            # Check status.
+            for instName in ["master", "replica", "router"]:
+                file = wait_file(os.path.join(test_app_path, run_path, "app1", instName),
+                                 instName + ".pid", [])
+                assert file != ""
+
+            file = wait_file(os.path.join(test_app_path, run_path, "app2"),
+                             "app2" + ".pid", [])
+            assert file != ""
+
+            status_cmd = [tt_cmd, "status"]
+            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            assert re.search(r"app1:(router|master|replica): RUNNING. PID: \d+.", status_out)
+            assert re.search(r"app2: RUNNING. PID: \d+.", status_out)
+
+            status_cmd = [tt_cmd, "logrotate"]
+            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            assert re.search(r"app1:(router|master|replica): logs has been rotated. PID: \d+.",
+                             status_out)
+            assert re.search(r"app2: logs has been rotated. PID: \d+.", status_out)
+
+            # Stop all applications.
+            stop_cmd = [tt_cmd, "stop"]
+            stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            assert re.search(r"The Instance app1:(router|master|replica) \(PID = \d+\) "
+                             r"has been terminated.", stop_out)
+            assert re.search(r"The Instance app2 \(PID = \d+\) "
+                             r"has been terminated.", stop_out)
+
+            # Check that the process was terminated correctly.
+            instance_process_rc = instance_process.wait(1)
+            assert instance_process_rc == 0

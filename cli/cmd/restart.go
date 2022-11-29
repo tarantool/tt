@@ -18,7 +18,7 @@ var (
 // NewRestartCmd creates start command.
 func NewRestartCmd() *cobra.Command {
 	var restartCmd = &cobra.Command{
-		Use:   "restart <INSTANCE_NAME>",
+		Use:   "restart [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Restart tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
@@ -27,7 +27,7 @@ func NewRestartCmd() *cobra.Command {
 				log.Fatalf(err.Error())
 			}
 		},
-		Args: cobra.ExactArgs(1),
+		Args: cobra.RangeArgs(0, 1),
 	}
 
 	restartCmd.Flags().BoolVarP(&autoYes, "yes", "y", false,
@@ -38,12 +38,15 @@ func NewRestartCmd() *cobra.Command {
 
 // internalRestartModule is a default restart module.
 func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("restart accepts only 1 arg, received %d", len(args))
-	}
-
 	if !autoYes {
-		confirmed, err := util.AskConfirm(os.Stdin, fmt.Sprintf("Confirm restart of '%s'", args[0]))
+		instancesToConfirm := ""
+		if len(args) == 0 {
+			instancesToConfirm = "all instances"
+		} else {
+			instancesToConfirm = fmt.Sprintf("'%s'", args[0])
+		}
+		confirmed, err := util.AskConfirm(os.Stdin, fmt.Sprintf("Confirm restart of %s",
+			instancesToConfirm))
 		if err != nil {
 			return err
 		}
