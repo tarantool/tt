@@ -21,7 +21,8 @@ func NewInitCmd() *cobra.Command {
 		Use:   "init [flags]",
 		Short: "Create tt environment config for application in current directory",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalInitModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalInitModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

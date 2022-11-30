@@ -16,7 +16,8 @@ func NewStopCmd() *cobra.Command {
 		Short: "Stop tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStopModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalStopModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

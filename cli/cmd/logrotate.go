@@ -16,7 +16,8 @@ func NewLogrotateCmd() *cobra.Command {
 		Short: "Rotate logs of a started tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalLogrotateModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalLogrotateModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

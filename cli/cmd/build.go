@@ -19,7 +19,8 @@ func NewBuildCmd() *cobra.Command {
 		Use:   "build [PATH] [flags]",
 		Short: `Build an application in specified PATH (default ".")`,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalBuildModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalBuildModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

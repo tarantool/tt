@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - ``tt cartridge`` sub-commands ``create``, ``build``, ``pack`` are removed.
 - ``remove`` command is renamed to ``uninstall``.
 
+### Fixed
+
+- Fixed internal collection of information about long commands.
+
 ## [0.2.1] - 2022-11-24
 
 ### Fixed

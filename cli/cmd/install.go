@@ -43,7 +43,8 @@ func NewInstallCmd() *cobra.Command {
 			"tarantool-ee - Tarantool enterprise edition\n" +
 			"Example: tt install tarantool | tarantool" + search.VersionCliSeparator + "version",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalInstallModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalInstallModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

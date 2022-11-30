@@ -166,7 +166,7 @@ func InitRoot() {
 	}
 
 	// Getting modules information.
-	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd.Commands(), cliOpts)
+	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd, cliOpts)
 	if err != nil {
 		log.Fatalf("Failed to configure Tarantool CLI command: %s", err)
 	}

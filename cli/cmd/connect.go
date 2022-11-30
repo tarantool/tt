@@ -44,7 +44,8 @@ func NewConnectCmd() *cobra.Command {
 			"* " + passwordEnv + " - specifies a password\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalConnectModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalConnectModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

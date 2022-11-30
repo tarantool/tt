@@ -25,11 +25,11 @@ type InternalFunc func(*cmdcontext.CmdCtx, []string) error
 //
 // If the external module returns an error code,
 // then tt exit with this code.
-func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdName string, modulesInfo *ModulesInfo,
+func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 	internal InternalFunc, args []string) error {
-	info, found := (*modulesInfo)[cmdName]
+	info, found := (*modulesInfo)[cmdPath]
 	if !found {
-		return fmt.Errorf("module with specified name %s isn't found", cmdName)
+		return fmt.Errorf("module with specified name %s isn't found", cmdPath)
 	}
 
 	if info.IsInternal || cmdCtx.Cli.ForceInternal {

@@ -33,7 +33,7 @@ The supported types are: tgz, deb, rpm`,
 				log.Fatalf(err.Error())
 			}
 			cmdCtx.CommandName = cmd.Name()
-			err = modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalPackModule, args)
+			err = modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalPackModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
