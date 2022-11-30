@@ -304,7 +304,7 @@ func ExternalCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
 // that have internal implementation.
 func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo) {
 	for _, cmd := range rootCmd.Commands() {
-		if module, ok := (*modulesInfo)[cmd.Name()]; ok {
+		if module, ok := (*modulesInfo)[cmd.CommandPath()]; ok {
 			if !module.IsInternal {
 				cmd.DisableFlagParsing = true
 			}
@@ -335,10 +335,12 @@ func configureNonExistentCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	helpCmd := util.GetHelpCommand(rootCmd)
-	if module, ok := (*modulesInfo)[externalCmd]; ok {
+	externalCmdPath := rootCmd.Name() + " " + externalCmd
+	if module, ok := (*modulesInfo)[externalCmdPath]; ok {
 		if !module.IsInternal {
-			rootCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, nil))
-			helpCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd,
+			rootCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd,
+				externalCmdPath, nil))
+			helpCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, externalCmdPath,
 				[]string{"--help"}))
 		}
 	}
@@ -347,7 +349,7 @@ func configureNonExistentCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
 // newExternalCommand returns a pointer to a new external
 // command that will call modules.RunCmd.
 func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesInfo,
-	cmdName string, addArgs []string) *cobra.Command {
+	cmdName, cmdPath string, addArgs []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: cmdName,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -356,7 +358,7 @@ func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesI
 			}
 
 			cmdCtx.Cli.ForceInternal = false
-			if err := modules.RunCmd(cmdCtx, cmdName, modulesInfo, nil, args); err != nil {
+			if err := modules.RunCmd(cmdCtx, cmdPath, modulesInfo, nil, args); err != nil {
 				log.Fatalf(err.Error())
 			}
 		},

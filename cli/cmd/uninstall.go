@@ -25,7 +25,8 @@ func NewUninstallCmd() *cobra.Command {
 			"tarantool-ee - Tarantool enterprise edition",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, InternalUninstallModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				InternalUninstallModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

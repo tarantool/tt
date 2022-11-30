@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -32,7 +33,7 @@ func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) err
 		}
 
 		args = modules.GetDefaultCmdArgs("help")
-		err := modules.RunCmd(cmdCtx, "help", &modulesInfo,
+		err := modules.RunCmd(cmdCtx, "tt help", &modulesInfo,
 			getInternalHelpFunc(cmd, defaultHelp), args)
 		if err != nil {
 			log.Fatalf(err.Error())
@@ -53,12 +54,7 @@ func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) err
 // getInternalHelpFunc returns a internal implementation of help module.
 func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.InternalFunc {
 	return func(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-		switch module := modulesInfo[cmd.Name()]; {
-		// FIXME Some long commands from cartridge cli do not fall into modulesInfo.
-		// We are going to interpret them as internal:
-		// https://github.com/tarantool/tt/issues/82
-		case module == nil:
-			fallthrough
+		switch module := modulesInfo[cmd.CommandPath()]; {
 		// Cases when we have to run the "default" help:
 		// - `tt help` and no external help module.
 		// 	It looks strange: if we type the command `tt help`,
@@ -105,13 +101,14 @@ func helpFlagError(cmd *cobra.Command, errMsg error) error {
 // of descriptions for external modules.
 func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	str := ""
-	for name, info := range *modulesInfo {
+	for path, info := range *modulesInfo {
 		if !info.IsInternal {
 			helpMsg, err := modules.GetExternalModuleDescription(info.ExternalPath)
 			if err != nil {
 				helpMsg = "description is absent"
 			}
 
+			name := strings.Split(path, " ")[1]
 			str = fmt.Sprintf("%s  %s\t%s\n", str, name, helpMsg)
 		}
 	}

@@ -28,8 +28,24 @@ type ModuleInfo struct {
 // ModulesInfo stores information about all CLI modules.
 type ModulesInfo map[string]*ModuleInfo
 
+// fillSubCommandsInfo collects information about subcommands.
+func fillSubCommandsInfo(cmd *cobra.Command, modulesInfo *ModulesInfo) {
+	for _, subCmd := range cmd.Commands() {
+		commandPath := subCmd.CommandPath()
+		if _, found := (*modulesInfo)[commandPath]; !found {
+			(*modulesInfo)[commandPath] = &ModuleInfo{
+				IsInternal: true,
+			}
+
+			if subCmd.HasSubCommands() {
+				fillSubCommandsInfo(subCmd, modulesInfo)
+			}
+		}
+	}
+}
+
 // GetModulesInfo collects information about available modules (both external and internal).
-func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command,
+func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command,
 	cliOpts *config.CliOpts) (ModulesInfo, error) {
 	modulesDir, err := getExternalModulesDir(cmdCtx, cliOpts)
 	if err != nil {
@@ -45,19 +61,14 @@ func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, subCommands []*cobra.Command,
 	// External modules have a higher priority than internal.
 	modulesInfo := ModulesInfo{}
 	for name, path := range externalModules {
-		modulesInfo[name] = &ModuleInfo{
+		commandPath := rootCmd.Name() + " " + name
+		modulesInfo[commandPath] = &ModuleInfo{
 			IsInternal:   false,
 			ExternalPath: path,
 		}
 	}
 
-	for _, cmd := range subCommands {
-		if _, found := modulesInfo[cmd.Name()]; !found {
-			modulesInfo[cmd.Name()] = &ModuleInfo{
-				IsInternal: true,
-			}
-		}
-	}
+	fillSubCommandsInfo(rootCmd, &modulesInfo)
 
 	return modulesInfo, nil
 }

@@ -19,7 +19,8 @@ func NewCompletionCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			args = modules.GetDefaultCmdArgs(cmd.Name())
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalCompletionCmd, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalCompletionCmd, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

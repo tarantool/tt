@@ -16,7 +16,8 @@ func NewStatusCmd() *cobra.Command {
 		Short: "Status of the tarantool instance(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalStatusModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalStatusModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

@@ -25,7 +25,7 @@ func NewDaemonCmd() *cobra.Command {
 				log.Fatalf("Wrong number of arguments")
 			}
 
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo,
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStartModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
@@ -41,7 +41,7 @@ func NewDaemonCmd() *cobra.Command {
 				log.Fatalf("Wrong number of arguments")
 			}
 
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo,
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStopModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
@@ -57,7 +57,7 @@ func NewDaemonCmd() *cobra.Command {
 				log.Fatalf("Wrong number of arguments")
 			}
 
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo,
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStatusModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
@@ -73,7 +73,7 @@ func NewDaemonCmd() *cobra.Command {
 				log.Fatalf("Wrong number of arguments")
 			}
 
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo,
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonRestartModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())

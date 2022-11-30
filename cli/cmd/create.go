@@ -27,7 +27,8 @@ func NewCreateCmd() *cobra.Command {
 		Use:   "create <TEMPLATE_NAME> [flags]",
 		Short: "Create an application from a template",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalCreateModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalCreateModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}

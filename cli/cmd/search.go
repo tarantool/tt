@@ -25,7 +25,8 @@ func NewSearchCmd() *cobra.Command {
 			"tarantool - tarantool Community Edition\n" +
 			"tarantool-ee - tarantool Enterprise Edition",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.Name(), &modulesInfo, internalSearchModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalSearchModule, args)
 			if err != nil {
 				log.Fatalf(err.Error())
 			}
