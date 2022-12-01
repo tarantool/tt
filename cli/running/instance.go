@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/ttlog"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -174,8 +174,8 @@ func (inst *Instance) Start() error {
 	return nil
 }
 
-// makeRunCommand turns flags into tarantool command.
-func makeRunCommand(flags RunFlags) []string {
+// convertFlagsToTarantoolOpts turns flags into tarantool command.
+func convertFlagsToTarantoolOpts(flags RunFlags) []string {
 	var command []string
 	if flags.RunEval != "" {
 		command = append(command, "-e")
@@ -196,76 +196,36 @@ func makeRunCommand(flags RunFlags) []string {
 
 // Run runs tarantool instance.
 func (inst *Instance) Run(flags RunFlags) error {
-	command := makeRunCommand(flags)
-	// pipeFlag is a flag used to indicate whether stdin
-	// should be moved or not.
-	// It is used in cases when calling tarantool with "-" flag to hide input
-	// for example from ps|ax.
-	// e.g ./tt run - ... or test.lua | ./tt run -
-	pipeFlag := false
-	stdinFdNum := 0
-	inst.Cmd = exec.Command(inst.tarantoolPath)
-	if inst.appPath == "" && flags.RunStdin == "" {
-		if len(command) != 0 {
-			inst.Cmd.Args = append(inst.Cmd.Args, command...)
-		}
-	} else {
-		if len(command) == 0 && flags.RunStdin == "" {
-			inst.Cmd.Args = append(inst.Cmd.Args, "-")
-		} else {
-			inst.Cmd.Args = append(inst.Cmd.Args, command...)
-			inst.Cmd.Args = append(inst.Cmd.Args, "-")
-		}
-		// Move stdin to different Fd to write data
-		// passed through "-" flag or pipe.
-		stdinFdNum, _ = unix.FcntlInt(os.Stdin.Fd(), unix.F_DUPFD, 0)
-		pipeFlag = true
+	newInstanceEnv := os.Environ()
+	newInstanceEnv = append(newInstanceEnv,
+		"TT_CLI_INSTANCE="+inst.appPath,
+		"TT_CLI=true",
+	)
+	args := []string{inst.tarantoolPath}
+	args = append(args, convertFlagsToTarantoolOpts(flags)...)
+	if inst.appPath != "" {
+		log.Debugf("Script to run: %s", inst.appPath)
+
+		// Save current stdin file descriptor. It will be used in launcher lua
+		// script to restore original stdin.
+		stdinFd, _ := syscall.Dup(int(os.Stdin.Fd()))
+		newInstanceEnv = append(newInstanceEnv, fmt.Sprintf("TT_CLI_RUN_STDIN_FD=%d", stdinFd))
+
+		// Replace current stdin with pipe descriptor, and write launcher code to this pipe.
+		// Tarantool will read from pipe after exec.
+		stdinReader, stdinWriter, _ := os.Pipe()
+		syscall.Dup2(int(stdinReader.Fd()), int(os.Stdin.Fd()))
+		stdinWriter.Write([]byte(instanceLauncher))
+
+		// Enable reading from input for Tarantool.
+		args = append(args, "-")
 	}
-
-	if len(flags.RunArgs) != 0 {
-		for i := 0; i < len(flags.RunArgs); i++ {
-			inst.Cmd.Args = append(inst.Cmd.Args, flags.RunArgs[i])
-		}
+	args = append(args, flags.RunArgs...)
+	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
+	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)
+	if execErr != nil {
+		return execErr
 	}
-
-	inst.Cmd.Stdout = os.Stdout
-	inst.Cmd.Stderr = os.Stderr
-
-	inst.Cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
-	// Set the sign that the program is running under "tt".
-	inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI=true")
-
-	// It is necessary to ignore the INT and TERM signals so that
-	// they correctly reach the tarantool process.
-	signal.Ignore(syscall.SIGINT)
-	signal.Ignore(syscall.SIGTERM)
-
-	if pipeFlag {
-		inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI_RUN_STDIN_FD="+fmt.Sprint(stdinFdNum))
-		StdinPipe, err := inst.Cmd.StdinPipe()
-		if err != nil {
-			return err
-		}
-		if inst.appPath == "" {
-			StdinPipe.Write([]byte(flags.RunStdin))
-		} else {
-			StdinPipe.Write([]byte(instanceLauncher))
-		}
-		StdinPipe.Close()
-	} else {
-		inst.Cmd.Stdin = os.Stdin
-	}
-
-	// Start an Instance.
-	if err := inst.Cmd.Start(); err != nil {
-		return err
-	}
-
-	err := inst.Cmd.Wait()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 

@@ -93,4 +93,38 @@ def test_running_multi_instance(tt_cmd, tmpdir):
         text=True
     )
     run_output = instance_process.stdout.readline()
-    assert re.search(r"specify script", run_output)
+    assert re.search(r"Can't open script foo/bar/: No such file or directory", run_output)
+
+
+def test_run_from_input(tt_cmd, tmpdir):
+    process = subprocess.Popen(f"echo 'print(42)'| {tt_cmd} run -",
+                               shell=True,
+                               cwd=tmpdir,
+                               stderr=subprocess.STDOUT,
+                               stdout=subprocess.PIPE,
+                               text=True
+                               )
+    run_output = process.stdout.readline()
+    assert "42\n" == run_output
+
+    process = subprocess.Popen(f"echo 'print(...) print(unpack(arg))' | {tt_cmd} run -- - a b c",
+                               shell=True,
+                               cwd=tmpdir,
+                               stderr=subprocess.STDOUT,
+                               stdout=subprocess.PIPE,
+                               text=True
+                               )
+    run_output = process.stdout.readlines()
+    assert re.search(r"a\s+b\s+c", run_output[0])
+    assert re.search(r"a\s+b\s+c", run_output[0])
+
+    process = subprocess.Popen(f"echo 'print(...) print(unpack(arg))' | {tt_cmd} run - a b c",
+                               shell=True,
+                               cwd=tmpdir,
+                               stderr=subprocess.STDOUT,
+                               stdout=subprocess.PIPE,
+                               text=True
+                               )
+    run_output = process.stdout.readlines()
+    assert re.search(r"a\s+b\s+c", run_output[0])
+    assert re.search(r"a\s+b\s+c", run_output[0])
