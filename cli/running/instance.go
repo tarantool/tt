@@ -1,6 +1,7 @@
 package running
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -50,6 +51,9 @@ type Instance struct {
 	// done represent whether the instance was stopped.
 	done bool
 }
+
+//go:embed lua/launcher.lua
+var instanceLauncher []byte
 
 // NewInstance creates an Instance.
 func NewInstance(tarantoolPath string, appPath string, appName string, instName string,
