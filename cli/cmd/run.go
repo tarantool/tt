@@ -2,17 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
-	"syscall"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
 var (
@@ -81,42 +78,9 @@ func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 				return fmt.Errorf("there was some problem locating script: %s", err)
 			}
 			startIndex = 1
-		} else {
-			return fmt.Errorf("specify script : %s", args[0])
 		}
 	}
-	if len(args) > 0 {
-		// If '-' flag is specified, then read stdin.
-		if args[0] == "-" {
-			// Code below reads input when run is called
-			// with input through pipe e.g "test.lua | ./tt run -".
-			if !terminal.IsTerminal(syscall.Stdin) {
-				cmdByte, err := ioutil.ReadAll(os.Stdin)
-				if err != nil {
-					return err
-				}
-				runStdin = string(cmdByte)
-				if len(args) > 1 {
-					for i := 1; i < len(args); i++ {
-						runArgs = append(runArgs, args[i])
-					}
-				}
-			} else {
-				runStdin = ""
-				for i := 1; i < len(args); i++ {
-					runStdin += args[i]
-				}
-			}
-		} else {
-			if len(args) > 0 {
-				for i := startIndex; i < len(args); i++ {
-					runArgs = append(runArgs, args[i])
-				}
-				runOpts.RunFlags.RunArgs = runArgs
-			}
-		}
-	}
-
+	runOpts.RunFlags.RunArgs = args[startIndex:]
 	if err := running.Run(runOpts, scriptPath); err != nil {
 		return err
 	}
