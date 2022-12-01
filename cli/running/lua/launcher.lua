@@ -27,7 +27,7 @@ local function split_version(version_string)
     return version_table
 end
 
---- Returns true if version of tarantool is greater then expected
+--- Returns true if version of tarantool is greater than expected
 --- else false.
 local function check_version(expected)
     local version = _TARANTOOL
