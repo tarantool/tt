@@ -21,6 +21,7 @@ builds:
       - -s -w
       - -X github.com/tarantool/tt/cli/version.gitTag={{ .Tag }}
       - -X github.com/tarantool/tt/cli/version.gitCommit={{ .ShortCommit }}
+      - -X github.com/tarantool/tt/cli/configure.defaultConfigPath=/etc/tarantool
 
     goos:
       - linux
