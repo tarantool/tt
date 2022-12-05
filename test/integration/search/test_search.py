@@ -1,6 +1,8 @@
 import os
 import re
 
+import pytest
+
 from utils import run_command_and_get_output
 
 
@@ -26,6 +28,7 @@ def test_version_cmd(tt_cmd, tmpdir):
     assert re.search(r"Available programs: ", output)
 
 
+@pytest.mark.slow
 def test_version_cmd_local(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, "tarantool.yaml")
     # Create test config
