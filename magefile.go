@@ -252,9 +252,14 @@ func Codespell() error {
 	return sh.RunV("codespell", packagePath, "test", "README.rst", "doc")
 }
 
-// Run all tests together.
+// Run all tests together, excluding slow and unit integration tests.
 func Test() {
 	mg.SerialDeps(Lint, CheckLicenses, Unit, Integration)
+}
+
+// Run all tests together.
+func TestFull() {
+	mg.SerialDeps(Lint, CheckLicenses, UnitFull, IntegrationFull)
 }
 
 // Cleanup directory.
