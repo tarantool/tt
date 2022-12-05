@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
@@ -21,10 +20,9 @@ func NewCompletionCmd() *cobra.Command {
 			args = modules.GetDefaultCmdArgs(cmd.Name())
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalCompletionCmd, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
+		Args: cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	}
 
 	return cmd
@@ -50,10 +48,6 @@ func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 
 // internalCompletionCmd is a default (internal) completion module function.
 func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("it is required to specify shell type")
-	}
-
 	switch shell := args[0]; shell {
 	case "bash":
 		if err := rootCmd.GenBashCompletionV2(os.Stdout, true); err != nil {

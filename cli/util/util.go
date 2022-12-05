@@ -38,6 +38,21 @@ const (
 	OsUnknown
 )
 
+// ArgError represents command line arguments error.
+type ArgError struct {
+	msg string
+}
+
+// Error returns error message.
+func (e ArgError) Error() string {
+	return e.msg
+}
+
+// NewArgError creates and returns new argument error.
+func NewArgError(text string) error {
+	return &ArgError{text}
+}
+
 // VersionFunc is a type of function that return
 // string with current Tarantool CLI version.
 type VersionFunc func(bool, bool) string

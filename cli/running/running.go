@@ -431,7 +431,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	var err error
 
 	if len(args) > 1 && cmdCtx.CommandName != "run" {
-		return fmt.Errorf("currently, you can specify only one instance at a time")
+		return util.NewArgError("currently, you can specify only one instance at a time")
 	}
 
 	// All relative paths are built from the path of the tarantool.yaml file.

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
@@ -27,9 +26,7 @@ func NewUninstallCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				InternalUninstallModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string,
 			toComplete string) ([]string, cobra.ShellCompDirective) {

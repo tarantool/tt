@@ -24,8 +24,8 @@ def test_version_cmd(tt_cmd, tmpdir):
 
     cmd = [tt_cmd, "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    assert rc == 0
-    assert re.search(r"Available programs: ", output)
+    assert rc == 1
+    assert re.search(r"missing program name", output)
 
 
 @pytest.mark.slow
@@ -64,5 +64,5 @@ def test_version_cmd_local(tt_cmd, tmpdir):
 
     cmd = [tt_cmd, "search", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    assert rc == 0
-    assert re.search(r"Available programs: ", output)
+    assert rc == 1
+    assert re.search(r"missing program name", output)

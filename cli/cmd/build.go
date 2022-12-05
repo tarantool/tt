@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/build"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -21,9 +20,7 @@ func NewBuildCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalBuildModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 		Args: cobra.MaximumNArgs(1),
 	}

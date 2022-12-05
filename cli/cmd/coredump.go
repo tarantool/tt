@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/coredump"
 )
@@ -17,39 +16,33 @@ func NewCoredumpCmd() *cobra.Command {
 		Use:   "pack <COREDUMP>",
 		Short: "pack tarantool coredump into tar.gz archive",
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				log.Fatalf("Wrong number of arguments, please specify <COREDUMP> arg.")
-			}
 			if err := runCoredumpCommand(coredump.Pack, args[0]); err != nil {
-				log.Fatalf(err.Error())
+				handleCmdErr(cmd, err)
 			}
 		},
+		Args: cobra.ExactArgs(1),
 	}
 
 	var unpackCmd = &cobra.Command{
 		Use:   "unpack <ARCHIVE>",
 		Short: "unpack tarantool coredump tar.gz archive",
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				log.Fatalf("Wrong number of arguments, please specify <ARCHIVE> arg.")
-			}
 			if err := runCoredumpCommand(coredump.Unpack, args[0]); err != nil {
-				log.Fatalf(err.Error())
+				handleCmdErr(cmd, err)
 			}
 		},
+		Args: cobra.ExactArgs(1),
 	}
 
 	var inspectCmd = &cobra.Command{
 		Use:   "inspect <FOLDER>",
 		Short: "inspect tarantool coredump folder",
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) != 1 {
-				log.Fatalf("Wrong number of arguments, please specify <FOLDER> arg.")
-			}
 			if err := runCoredumpCommand(coredump.Inspect, args[0]); err != nil {
-				log.Fatalf(err.Error())
+				handleCmdErr(cmd, err)
 			}
 		},
+		Args: cobra.ExactArgs(1),
 	}
 
 	replicasetsSubCommands := []*cobra.Command{

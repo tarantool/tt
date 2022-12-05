@@ -27,9 +27,7 @@ func NewDaemonCmd() *cobra.Command {
 
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStartModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 	}
 
@@ -43,9 +41,7 @@ func NewDaemonCmd() *cobra.Command {
 
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStopModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 	}
 
@@ -59,9 +55,7 @@ func NewDaemonCmd() *cobra.Command {
 
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStatusModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 	}
 
@@ -75,9 +69,7 @@ func NewDaemonCmd() *cobra.Command {
 
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonRestartModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 	}
 
