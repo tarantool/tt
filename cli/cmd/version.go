@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
@@ -25,9 +24,7 @@ func NewVersionCmd() *cobra.Command {
 			args = modules.GetDefaultCmdArgs(cmd.Name())
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalVersionModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 	}
 

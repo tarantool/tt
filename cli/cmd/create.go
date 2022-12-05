@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
@@ -29,9 +28,7 @@ func NewCreateCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalCreateModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {

@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"fmt"
-
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/search"
+	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -27,9 +25,7 @@ func NewSearchCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalSearchModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
 	}
@@ -42,14 +38,13 @@ func NewSearchCmd() *cobra.Command {
 func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
 	if len(args) == 0 {
-		log.Warnf("Available programs: \n" +
+		return util.NewArgError("missing program name\n\nAvailable programs:\n" +
 			"tt - tarantool CLI Community Edition\n" +
 			"tarantool - tarantool Community Edition\n" +
-			"tarantool-ee - tarantool Enterprise Edition")
-		return nil
+			"tarantool-ee - tarantool Enterprise Edition\n")
 	}
 	if len(args) != 1 {
-		return fmt.Errorf("incorrect arguments")
+		return util.NewArgError("incorrect arguments")
 	}
 	if local {
 		err = search.SearchVersionsLocal(cmdCtx, args[0])

@@ -21,7 +21,7 @@ type ConnectCtx struct {
 	// SrcFile describes the source of code for the evaluation.
 	SrcFile string
 	// Language to use for execution.
-	Language string
+	Language Language
 	// Interactive mode is used.
 	Interactive bool
 }
@@ -71,15 +71,10 @@ func Connect(connectCtx ConnectCtx, args []string) error {
 		return fmt.Errorf("should be specified one connection string")
 	}
 
-	lang, ok := ParseLanguage(connectCtx.Language)
-	if !ok {
-		return fmt.Errorf("unsupported language: %s", connectCtx.Language)
-	}
-
 	connString := args[0]
 	connOpts := getConnOpts(connString, connectCtx)
 
-	if err := runConsole(connOpts, "", lang); err != nil {
+	if err := runConsole(connOpts, "", connectCtx.Language); err != nil {
 		return fmt.Errorf("failed to run interactive console: %s", err)
 	}
 
@@ -88,11 +83,6 @@ func Connect(connectCtx ConnectCtx, args []string) error {
 
 // Eval executes the command on the remote instance (according to args).
 func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
-	lang, ok := ParseLanguage(connectCtx.Language)
-	if !ok {
-		return nil, fmt.Errorf("unsupported language: %s", connectCtx.Language)
-	}
-
 	// Parse the arguments.
 	connString := args[0]
 	connOpts := getConnOpts(connString, connectCtx)
@@ -109,8 +99,8 @@ func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
 	defer conn.Close()
 
 	// Change a language.
-	if lang != DefaultLanguage {
-		if err := ChangeLanguage(conn, lang); err != nil {
+	if connectCtx.Language != DefaultLanguage {
+		if err := ChangeLanguage(conn, connectCtx.Language); err != nil {
 			return nil, fmt.Errorf("unable to change a language: %s", err)
 		}
 	}

@@ -3,7 +3,6 @@ package cmd
 import (
 	"path/filepath"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
@@ -34,9 +33,7 @@ func NewInstallCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
 	}

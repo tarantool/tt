@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -46,10 +47,9 @@ func NewConnectCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalConnectModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
+		Args: cobra.ExactArgs(1),
 	}
 
 	connectCmd.Flags().StringVarP(&connectUser, "username", "u", "", "username")
@@ -166,11 +166,6 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 
 // internalConnectModule is a default connect module.
 func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	argsLen := len(args)
-	if argsLen != 1 {
-		return fmt.Errorf("incorrect combination of command parameters")
-	}
-
 	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		return err
@@ -180,8 +175,12 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		Username:    connectUser,
 		Password:    connectPassword,
 		SrcFile:     connectFile,
-		Language:    connectLanguage,
 		Interactive: connectInteractive,
+	}
+
+	var ok bool
+	if connectCtx.Language, ok = connect.ParseLanguage(connectLanguage); !ok {
+		return util.NewArgError(fmt.Sprintf("unsupported language: %s", connectLanguage))
 	}
 
 	newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)

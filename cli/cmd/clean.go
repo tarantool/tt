@@ -22,11 +22,9 @@ func NewCleanCmd() *cobra.Command {
 		Use:   "clean [INSTANCE_NAME]",
 		Short: "Clean instance(s) files",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalCleanModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalCleanModule,
+				args)
+			handleCmdErr(cmd, err)
 		},
 	}
 

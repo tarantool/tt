@@ -34,9 +34,7 @@ The supported types are: tgz, deb, rpm`,
 			}
 			cmdCtx.CommandName = cmd.Name()
 			err = modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalPackModule, args)
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
+			handleCmdErr(cmd, err)
 		},
 	}
 
