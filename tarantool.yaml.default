@@ -46,4 +46,4 @@ tt:
 
   repo:
     # Directory that stores installation files.
-    distfiles: install
+    distfiles: /var/cache/tarantool/distfiles
