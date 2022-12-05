@@ -9,18 +9,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- ``tt restart`` confirmation prompt. ``-y`` option is added to accept restart without prompting.
+- ``tt restart`` confirmation prompt. ``-y`` option is added to accept restart
+  without prompting.
 - ``tt pack`` will generate systemd unit for rpm and deb packages.
-- ``--use-docker`` option for ``tt install`` to build Tarantool in Ubuntu 16.04 container.
+- ``--use-docker`` option for ``tt install`` to build Tarantool in
+  Ubuntu 16.04 container.
+- Ability to use the `start/stop/restart/status/check` commands without
+  arguments to interact with all instances of the environment simultaneously.
 
 ### Changed
 
 - ``tt cartridge`` sub-commands ``create``, ``build``, ``pack`` are removed.
 - ``remove`` command is renamed to ``uninstall``.
+- Updated values in system ``tarantool.yaml`` for ``bin_dir``, ``inc_dir``
+  and ``repo: distfiles``.
 
 ### Fixed
 
-- Fixed internal collection of information about long commands.
+- Working of the ``help`` module with multi-level commands (commands with
+  several subcommands).
+- Using the system ``tarantool.yaml`` when installing from the repository.
 
 ## [0.2.1] - 2022-11-24
 
