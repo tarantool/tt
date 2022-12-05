@@ -262,6 +262,8 @@ func TestGetConfigPath(t *testing.T) {
 		require.NoError(t, os.Chdir(filepath.Join(tempDir, "a", "b")))
 		defer os.Chdir(wd)
 	}
+	workdir, _ := os.Getwd()
+	workdir = strings.TrimSuffix(workdir, "/a/b")
 
 	configName, err := getConfigPath(ConfigName)
 	assert.Equal(t, "", configName)
@@ -270,7 +272,8 @@ func TestGetConfigPath(t *testing.T) {
 	require.NoError(t, os.Remove(filepath.Join(tempDir, "a", "tarantool.yaml")))
 
 	configName, err = getConfigPath(ConfigName)
-	assert.Equal(t, filepath.Join(tempDir, "a", "tarantool.yml"), configName)
+
+	assert.Equal(t, filepath.Join(workdir, "a", "tarantool.yml"), configName)
 	assert.NoError(t, err)
 }
 

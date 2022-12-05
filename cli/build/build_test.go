@@ -24,17 +24,23 @@ func TestFillCtx(t *testing.T) {
 	require.NoError(t, os.Chdir(workDir))
 	defer os.Chdir(wd)
 	var buildCtx BuildCtx
+
+	workDir, _ = os.Getwd()
+
+	appDir := filepath.Join(workDir, "app1")
+	appDir2 := filepath.Join(workDir, "app2")
+
 	require.NoError(t, FillCtx(&buildCtx, []string{"app1"}))
-	assert.Equal(t, buildCtx.BuildDir, filepath.Join(workDir, "app1"))
+	assert.Equal(t, buildCtx.BuildDir, appDir)
 	require.NoError(t, FillCtx(&buildCtx, []string{"./app1"}))
-	assert.Equal(t, buildCtx.BuildDir, filepath.Join(workDir, "app1"))
+	assert.Equal(t, buildCtx.BuildDir, appDir)
 
 	require.NoError(t, FillCtx(&buildCtx, []string{}))
 	assert.Equal(t, buildCtx.BuildDir, workDir)
 
 	require.EqualError(t, FillCtx(&buildCtx, []string{"app1", "app2"}), "too many args")
 	require.EqualError(t, FillCtx(&buildCtx, []string{"app2"}),
-		fmt.Sprintf("stat %s: no such file or directory", filepath.Join(workDir, "app2")))
+		fmt.Sprintf("stat %s: no such file or directory", appDir2))
 
 	require.NoError(t, FillCtx(&buildCtx, []string{filepath.Join(workDir, "app1")}))
 	assert.Equal(t, buildCtx.BuildDir, filepath.Join(workDir, "app1"))
@@ -62,8 +68,12 @@ func TestFillCtxAppPathIsFile(t *testing.T) {
 	require.NoError(t, os.Chdir(workDir))
 	defer os.Chdir(wd)
 	var buildCtx BuildCtx
+	workDir, _ = os.Getwd()
+
+	appDir := filepath.Join(workDir, "app1")
+
 	require.EqualError(t, FillCtx(&buildCtx, []string{"app1"}),
-		fmt.Sprintf("%s is not a directory", filepath.Join(workDir, "app1")))
+		fmt.Sprintf("%s is not a directory", appDir))
 }
 
 func TestFillCtxMultipleArgs(t *testing.T) {

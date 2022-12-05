@@ -680,8 +680,14 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
+		if logFile != nil {
+			cmd.Stdout = logFile
+			cmd.Stderr = logFile
+		} else {
+			cmd.Stdout = ioutil.Discard
+			cmd.Stderr = ioutil.Discard
+		}
+
 	}
 	if workDir == "" {
 		workDir, _ = os.Getwd()
