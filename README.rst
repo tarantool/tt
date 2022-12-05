@@ -27,6 +27,7 @@ To run tests:
 * `flake8-unused-arguments <https://pypi.org/project/flake8-unused-arguments/>`_
 * `golangci-lint <https://golangci-lint.run/usage/install/#local-installation>`_
 * `lichen <https://github.com/uw-labs/lichen#install>`_
+* `docker <https://docs.docker.com/engine/install/>`_
 
 ~~~~~
 Build
@@ -56,9 +57,17 @@ Dependencies
 Run tests
 ~~~~~~~~~
 
-.. code-block:: bash
+To run default set of tests (excluding slow tests):
+
+.. code-block::
 
    mage test
+
+To run full set of tests:
+
+.. code-block::
+
+   mage testfull
 
 Configuration
 -------------
