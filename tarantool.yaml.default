@@ -27,10 +27,10 @@ tt:
     data_dir: /var/lib/tarantool
 
     # Directory that stores binary files.
-    bin_dir: bin
+    bin_dir: /opt/tarantool/bin
 
     # Directory that stores Tarantool header files.
-    inc_dir: include
+    inc_dir: /opt/tarantool/include
 
     # Path to directory that stores all applications.
     # The directory can also contain symbolic links to applications.
