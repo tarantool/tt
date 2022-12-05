@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
 
@@ -30,9 +31,27 @@ func TestGetVersions(t *testing.T) {
 			err:    fmt.Errorf("no packages for this OS"),
 		}
 
-	inputData1 := []byte(`<a href="/enterprise/tarantool-enterprise-bundle-` +
-		`1.10.10-52-g0df29b137-r419.tar.gz">tarantool-enterprise-bundle-1.10.10-` +
-		`52-g0df29b137-r419.tar.gz</a>                                      2021-08-18 ` +
+	arch, err := util.GetArch()
+	assert.NoError(err)
+
+	osType, err := util.GetOs()
+	assert.NoError(err)
+	inputData1 := []byte(``)
+	osName := ""
+	switch osType {
+	case util.OsLinux:
+		if arch == "x86_64" {
+			arch = ""
+		}
+	case util.OsMacos:
+		osName = "-macosx-"
+	}
+
+	inputData1 = []byte(`<a href="/enterprise/tarantool-enterprise-bundle-` +
+		`1.10.10-52-g0df29b137-r419` + osName + arch +
+		`.tar.gz">tarantool-enterprise-bundle-1.10.10-` +
+		`52-g0df29b137-r419` + osName + arch + `.tar.gz</a>` +
+		`                                      2021-08-18 ` +
 		`15:56:04                   260136444`)
 
 	testCases[getVersionsInputValue{data: &inputData1}] =
@@ -47,7 +66,8 @@ func TestGetVersions(t *testing.T) {
 					Release:    version.Release{Type: version.TypeRelease},
 					Hash:       "g0df29b137",
 					Str:        "1.10.10-52-g0df29b137-r419",
-					Tarball:    "tarantool-enterprise-bundle-1.10.10-52-g0df29b137-r419.tar.gz",
+					Tarball: "tarantool-enterprise-bundle-1.10.10-52-g0df29b137-r419" +
+						osName + arch + ".tar.gz",
 				},
 			},
 			err: nil,
