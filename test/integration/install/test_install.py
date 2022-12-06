@@ -52,7 +52,7 @@ def test_install_tarantool(tt_cmd, tmpdir):
     tmpdir_without_config = tempfile.mkdtemp()
 
     # Install latest tarantool.
-    install_cmd = [tt_cmd, "--cfg", config_path, "install", "tarantool", "-f"]
+    install_cmd = [tt_cmd, "--cfg", config_path, "install", "tarantool=2.10.4", "-f"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir_without_config,
