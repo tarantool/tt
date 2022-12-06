@@ -257,7 +257,7 @@ func programDependenciesInstalled(program string) bool {
 	} else if program == "tarantool" {
 		if osName == "darwin" {
 			programs = []Package{{"cmake", "cmake"}, {"git", "git"},
-				{"make", "make"}, {"clang", "clang"}}
+				{"make", "make"}, {"clang", "clang"}, {"openssl", "openssl"}}
 		} else if strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian") {
 			programs = []Package{{"cmake", "cmake"}, {"git", "git"}, {"make", "make"},
 				{"gcc", " build-essential"}}
