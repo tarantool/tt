@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // CheckVersionFromGit enters the passed path, tries to get a git version
@@ -30,5 +31,6 @@ func CheckVersionFromGit(basePath string) (string, error) {
 		return "", fmt.Errorf("no git version found")
 	}
 
-	return out.String(), nil
+	version := strings.TrimSpace(out.String())
+	return version, nil
 }
