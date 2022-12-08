@@ -106,7 +106,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if opts.Modules != nil && opts.Modules.Directory != "" {
 		err = copy.Copy(opts.Modules.Directory, packageEnvModulesPath)
 		if err != nil {
-			return "", err
+			log.Warnf("Failed to copy modules from %s: %s", opts.Modules.Directory, err)
 		}
 	}
 

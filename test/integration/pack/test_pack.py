@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import tarfile
 
@@ -503,3 +504,18 @@ def test_pack_incorrect_pack_type(tt_cmd, tmpdir):
         cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
 
     assert expected_output in output
+
+
+def test_pack_nonexistent_modules_directory(tt_cmd, tmpdir):
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle5"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "tgz"],
+        cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+
+    assert re.search(r"Failed to copy modules from",
+                     output)
+    assert rc == 0
