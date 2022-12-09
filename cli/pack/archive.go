@@ -3,10 +3,12 @@ package pack
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/util"
 )
 
 // archivePacker is a structure that implements Packer interface
@@ -31,7 +33,11 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	log.Debugf("The package structure is created in: %s", bundlePath)
 
-	tarName, err := getPackageName(packCtx, opts, ".tar.gz", true)
+	tgzSuffix, err := getTgzSuffix()
+	if err != nil {
+		return err
+	}
+	tarName, err := getPackageName(packCtx, opts, tgzSuffix, true)
 	if err != nil {
 		return err
 	}
@@ -53,4 +59,14 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 	log.Infof("Bundle is packed successfully to %s.", tarName)
 	return nil
+}
+
+// getTgzSuffix returns suffix for a tarball.
+func getTgzSuffix() (string, error) {
+	arch, err := util.GetArch()
+	if err != nil {
+		return "", err
+	}
+	tgzSuffix := strings.Join([]string{"", arch, "tar", "gz"}, ".")
+	return tgzSuffix, nil
 }

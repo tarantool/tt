@@ -7,10 +7,10 @@ import (
 type PackageType string
 
 const (
-	Tgz    PackageType = "tgz"
-	Rpm                = "rpm"
-	Deb                = "deb"
-	Docker             = "docker"
+	Tgz    = "tgz"
+	Rpm    = "rpm"
+	Deb    = "deb"
+	Docker = "docker"
 )
 
 // FillCtx fills pack context.
