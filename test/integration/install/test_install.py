@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 import subprocess
 import tempfile
@@ -79,6 +80,9 @@ def test_install_tarantool(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 def test_install_tarantool_in_docker(tt_cmd, tmpdir):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported")
+
     config_path = os.path.join(tmpdir, "tarantool.yaml")
     # Create test config.
     with open(config_path, "w") as f:
@@ -119,6 +123,9 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
 
 
 def test_install_tt_in_docker(tt_cmd, tmpdir):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported")
+
     config_path = os.path.join(tmpdir, "tarantool.yaml")
     with open(config_path, "w") as f:
         yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)

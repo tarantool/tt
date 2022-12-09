@@ -1,6 +1,9 @@
 import os
+import platform
 import re
 import shutil
+
+import pytest
 
 from utils import create_tt_config, run_command_and_get_output
 
@@ -80,6 +83,9 @@ def test_rocks_install_remote(tt_cmd, tmpdir):
 
 
 def test_rocks_install_local(tt_cmd, tmpdir):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported")
+
     with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
         tnt_env_file.write('''tt:
   repo:
