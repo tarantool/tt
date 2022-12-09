@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import subprocess
 import tarfile
 
 import pytest
@@ -11,6 +12,13 @@ from utils import run_command_and_get_output
 # ##### #
 # Tests #
 # ##### #
+
+
+def get_arch():
+    process = subprocess.Popen(["uname", "-m"],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = process.communicate()
+    return result[0][:-1]
 
 
 def assert_bundle_structure(path):
@@ -44,7 +52,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--name", "test_package"],
-            "res_file": "test_package_0.1.0.0.tar.gz",
+            "res_file": "test_package_0.1.0.0." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
                 lambda path: os.path.exists(os.path.join(path, "app.lua")),
@@ -61,7 +69,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--version", "1.0.0"],
-            "res_file": "bundle1_1.0.0.tar.gz",
+            "res_file": "bundle1_1.0.0." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
                 lambda path: os.path.exists(os.path.join(path, "app.lua")),
@@ -78,7 +86,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--version", "1.0.0", "--name", "test_package"],
-            "res_file": "test_package_1.0.0.tar.gz",
+            "res_file": "test_package_1.0.0." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
                 lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
@@ -114,7 +122,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--with-binaries"],
-            "res_file": "bundle1_0.1.0.0.tar.gz",
+            "res_file": "bundle1_0.1.0.0." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
                 lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
@@ -132,7 +140,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--without-binaries"],
-            "res_file": "bundle1_0.1.0.0.tar.gz",
+            "res_file": "bundle1_0.1.0.0." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
                 lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
@@ -150,7 +158,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--all"],
-            "res_file": "bundle1_0.1.0.0.tar.gz",
+            "res_file": "bundle1_0.1.0.0." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
                 lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
@@ -180,7 +188,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--app-list", "app2"],
-            "res_file": "bundle1_0.1.0.0.tar.gz",
+            "res_file": "bundle1_0.1.0.0." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
                 lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
@@ -198,7 +206,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--name", "cartridge_app", "--version", "v2"],
-            "res_file": "cartridge_app_v2.tar.gz",
+            "res_file": "cartridge_app_v2." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "cartridge_app")),
                 lambda path: os.path.exists(os.path.join(path, "env", "bin",
@@ -232,7 +240,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "tgz",
             "args": ["--name", "cartridge_app", "--version", "v2"],
-            "res_file": "cartridge_app_v2.tar.gz",
+            "res_file": "cartridge_app_v2." + get_arch() + ".tar.gz",
             "check_func": [
                 lambda path: os.path.exists(os.path.join(path, "cartridge_app")),
                 lambda path: os.path.exists(os.path.join(path, "env", "bin",
@@ -329,7 +337,7 @@ def prepare_deb_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "deb",
             "args": ["--name", "test_package"],
-            "res_file": "test_package_0.1.0.0.deb",
+            "res_file": "test_package_0.1.0.0-1_" + get_arch() + ".deb",
         },
         {
             "bundle_src": "bundle1",
@@ -345,7 +353,7 @@ def prepare_deb_test_cases(tt_cmd) -> list:
             "args": [
                 "--name", "test_package",
                 "--deps", "tarantool>=1.10", "--deps", "tt=2.0"],
-            "res_file": "test_package_0.1.0.0.deb",
+            "res_file": "test_package_0.1.0.0-1_" + get_arch() + ".deb",
         },
         {
             "bundle_src": "bundle1",
@@ -353,7 +361,7 @@ def prepare_deb_test_cases(tt_cmd) -> list:
             "pack_type": "deb",
             "args": [
                 "--deps", "tarantool>=1.10,tt=2.0"],
-            "res_file": "bundle1_0.1.0.0.deb",
+            "res_file": "bundle1_0.1.0.0-1_ " + get_arch() + ".deb",
         },
     ]
 
@@ -366,7 +374,7 @@ def prepare_rpm_test_cases(tt_cmd) -> list:
             "cmd": tt_cmd,
             "pack_type": "rpm",
             "args": ["--name", "test_package"],
-            "res_file": "test_package_0.1.0.0.rpm",
+            "res_file": "test_package_0.1.0.0-1." + get_arch() + ".rpm",
         },
         {
             "bundle_src": "bundle1",
@@ -382,7 +390,7 @@ def prepare_rpm_test_cases(tt_cmd) -> list:
             "args": [
                 "--name", "test_package",
                 "--deps", "tarantool>=1.10", "--deps", "tt=2.0"],
-            "res_file": "test_package_0.1.0.0.rpm",
+            "res_file": "test_package_0.1.0.0-1." + get_arch() + ".rpm",
         },
         {
             "bundle_src": "bundle1",
@@ -390,7 +398,7 @@ def prepare_rpm_test_cases(tt_cmd) -> list:
             "pack_type": "rpm",
             "args": [
                 "--deps", "tarantool>=1.10,tt=2.0"],
-            "res_file": "bundle1_0.1.0.0.rpm",
+            "res_file": "bundle1_0.1.0.0-1." + get_arch() + ".rpm",
         },
     ]
 
@@ -468,7 +476,7 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
 
     assert rc == 0
 
-    package_file = os.path.join(base_dir, "bundle4_0.1.0.0.tar.gz")
+    package_file = os.path.join(base_dir, "bundle4-0.1.0.0." + get_arch() + ".tar.gz")
     assert os.path.isfile(package_file)
 
     extract_path = os.path.join(base_dir, "tmp")

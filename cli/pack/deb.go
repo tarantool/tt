@@ -145,7 +145,11 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
-	packageName, err = getPackageName(packCtx, opts, ".deb", true)
+	debSuffix, err := getDebSuffix()
+	if err != nil {
+		return err
+	}
+	packageName, err = getPackageName(packCtx, opts, debSuffix, true)
 	if err != nil {
 		return err
 	}
@@ -209,4 +213,14 @@ func getTntTTAsDeps(cmdCtx *cmdcontext.CmdCtx) (PackDependencies, error) {
 			Name:      "tt",
 			Relations: []DepRelation{{Relation: "==", Version: ttVer}}},
 	}, nil
+}
+
+// getDebSuffix returns suffix for a Deb package.
+func getDebSuffix() (string, error) {
+	arch, err := util.GetArch()
+	if err != nil {
+		return "", err
+	}
+	debSuffix := "-1" + "_" + arch + ".deb"
+	return debSuffix, nil
 }

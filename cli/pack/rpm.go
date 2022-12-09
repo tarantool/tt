@@ -64,7 +64,11 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
-	resPackagePath, err := getPackageName(packCtx, opts, ".rpm", true)
+	rpmSuffix, err := getRPMSuffix()
+	if err != nil {
+		return err
+	}
+	resPackagePath, err := getPackageName(packCtx, opts, rpmSuffix, true)
 	if err != nil {
 		return err
 	}
@@ -84,4 +88,14 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	log.Infof("Created result RPM package: %s", resPackagePath)
 
 	return nil
+}
+
+// getRPMSuffix returns suffix for an RPM package.
+func getRPMSuffix() (string, error) {
+	arch, err := util.GetArch()
+	if err != nil {
+		return "", err
+	}
+	debSuffix := "-1" + "." + arch + ".rpm"
+	return debSuffix, nil
 }

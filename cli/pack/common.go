@@ -500,8 +500,15 @@ func getPackageName(packCtx *PackCtx, opts *config.CliOpts, suffix string,
 	}
 
 	if addVersion {
+		var separator string
+		switch packCtx.Type {
+		case Tgz, Deb:
+			separator = "-"
+		case Rpm:
+			separator = "_"
+		}
 		versionSuffix := getVersion(packCtx, opts, defaultLongVersion)
-		packageName += "_" + versionSuffix
+		packageName += separator + versionSuffix
 	}
 
 	packageName += suffix
