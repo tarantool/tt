@@ -1,0 +1,16 @@
+commands = {}
+modules = {}
+repository = {
+   stat = {
+      ["0.3.1-1"] = {
+         {
+            arch = "all"
+         }
+      },
+      ["0.3.2-1"] = {
+         {
+            arch = "all"
+         }
+      }
+   }
+}
