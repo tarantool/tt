@@ -65,3 +65,48 @@ def test_rocks_module(tt_cmd, tmpdir):
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
     assert "testapp scm-1 is now installed" in output
+
+
+def test_rocks_install_remote(tt_cmd, tmpdir):
+    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+        tnt_env_file.write('''tt:
+  repo:
+    rocks: "repo"''')
+    rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "install", "stat"],
+            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+    assert "Installing http://rocks.tarantool.org/stat" in output
+
+
+def test_rocks_install_local(tt_cmd, tmpdir):
+    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+        tnt_env_file.write('''tt:
+  repo:
+    rocks: "repo"''')
+
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
+                    os.path.join(tmpdir, "repo"))
+
+    # Disable network with unshare.
+    rc, output = run_command_and_get_output(
+            ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
+            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+    assert "Installing repo/stat-0.3.2-1.all.rock" in output
+
+
+def test_rocks_install_local_specific_version(tt_cmd, tmpdir):
+    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+        tnt_env_file.write('''tt:
+  repo:
+    rocks: "repo"''')
+
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
+                    os.path.join(tmpdir, "repo"))
+
+    rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "install", "stat", "0.3.1-1"],
+            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+    assert "Installing repo/stat-0.3.1-1.all.rock" in output
