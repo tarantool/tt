@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	lua "github.com/yuin/gopher-lua"
@@ -16,6 +17,24 @@ import (
 //go:embed third_party/luarocks/src/*
 var luarocks embed.FS
 
+// addLuarocksRepoOpts adds --server option to luarocks command line if rocks repository
+// info is specified in tt config. Return updated args slice.
+func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) ([]string, error) {
+	// Make sure there is no --only-server option is specified.
+	for _, opt := range args {
+		if opt == "--only-server" {
+			return args, nil // If --only-server is specified, no need to add --server option.
+		}
+	}
+
+	// Check whether rocks repository is specified in tt config.
+	if cliOpts.Repo != nil && cliOpts.Repo.Rocks != "" {
+		args = append(args, "--server", cliOpts.Repo.Rocks)
+	}
+
+	return args, nil
+}
+
 // Execute LuaRocks command. All args will be processed by LuaRocks.
 func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var cmd string
@@ -23,6 +42,15 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// Print rocks help if no arguments given.
 	if len(args) == 0 {
 		cmd = "help"
+	}
+
+	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	if err != nil {
+		return err
+	}
+
+	if args, err = addLuarocksRepoOpts(cliOpts, args); err != nil {
+		return err
 	}
 
 	for idx, arg := range args {
@@ -34,11 +62,6 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	version, err := util.GetTarantoolVersion(&cmdCtx.Cli)
-	if err != nil {
-		return err
-	}
-
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		return err
 	}
