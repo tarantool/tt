@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -67,6 +68,9 @@ The supported types are: tgz, deb, rpm`,
 		"Add tarantool and tt as dependencies to the result package")
 	packCmd.Flags().StringSliceVar(&packCtx.RpmDeb.Deps, "deps", packCtx.RpmDeb.Deps,
 		"Dependencies for the RPM and DEB packages")
+	packCmd.Flags().BoolVar(&packCtx.UseDocker, "use-docker",
+		packCtx.UseDocker,
+		"Use docker for building a package.")
 
 	return packCmd
 }
@@ -79,6 +83,10 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	checkFlags(packCtx)
+
+	if packCtx.UseDocker {
+		return pack.PackInDocker(cmdCtx, packCtx, *cliOpts, os.Args)
+	}
 
 	packer := pack.CreatePacker(packCtx)
 	if packer == nil {

@@ -19,7 +19,7 @@ type archivePacker struct {
 // Run of ArchivePacker packs the bundle into tarball.
 func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	opts *config.CliOpts) error {
-	bundlePath, err := prepareBundle(cmdCtx, packCtx, opts)
+	bundlePath, err := prepareBundle(cmdCtx, packCtx, opts, true)
 	if err != nil {
 		return err
 	}

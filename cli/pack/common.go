@@ -66,7 +66,7 @@ var defaultPaths = []string{
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
 func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
-	cliOpts *config.CliOpts) (string, error) {
+	cliOpts *config.CliOpts, buildRocks bool) (string, error) {
 	var err error
 
 	// Create temporary directory step.
@@ -162,9 +162,11 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 	}
 
-	err = buildAllRocks(cmdCtx, cliOpts, basePath)
-	if err != nil && !os.IsNotExist(err) {
-		return "", err
+	if buildRocks {
+		err = buildAllRocks(cmdCtx, cliOpts, basePath)
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
 	}
 
 	err = createEnv(cliOpts, basePath)

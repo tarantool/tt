@@ -24,6 +24,8 @@ type PackCtx struct {
 	Archive ArchiveCtx
 	// RpmDeb contains all information about rpm and deb type of packing.
 	RpmDeb RpmDebCtx
+	// UseDocker is set if a package must be built in docker container.
+	UseDocker bool
 }
 
 // ArchiveCtx contains flags specific for tgz type.
