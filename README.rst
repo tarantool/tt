@@ -421,3 +421,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``init`` - create tt environment configuration file.
 * ``daemon (experimental)`` - manage tt daemon.
 * ``cfg dump`` - print tt environment configuration.
+* ``pack`` - pack an environment into a tarball/RPM/Deb.
