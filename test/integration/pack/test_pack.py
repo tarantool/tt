@@ -527,3 +527,97 @@ def test_pack_nonexistent_modules_directory(tt_cmd, tmpdir):
     assert re.search(r"Failed to copy modules from",
                      output)
     assert rc == 0
+
+
+@pytest.mark.slow
+def test_pack_deb(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = os.path.join(tmpdir, "bundle1")
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "deb"],
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+
+    package_file_name = "bundle1_0.1.0.0-1_" + get_arch() + ".deb"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-w', '/usr/src',
+                                             'ubuntu',
+                                             '/bin/bash', '-c',
+                                             '/bin/dpkg -i {0} && '
+                                             'ls /usr/share/tarantool/bundle1 '
+                                             '&& ls /etc/systemd/system'
+                                            .format(package_file_name)])
+
+    assert re.search(r'Preparing to unpack {0}'.format(package_file_name), output)
+    assert re.search(r'Unpacking bundle \(0\.1\.0\)', output)
+    assert re.search(r'Setting up bundle \(0\.1\.0\)', output)
+    installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
+                               'tarantool.yaml', 'var']
+    systemd_paths = ['bundle1%.service', 'bundle1.service']
+
+    for path in installed_package_paths:
+        re.search(path, output)
+    for path in systemd_paths:
+        re.search(path, output)
+    assert rc == 0
+
+
+@pytest.mark.slow
+def test_pack_rpm(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = os.path.join(tmpdir, "bundle1")
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "rpm"],
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+
+    package_file_name = "bundle1-0.1.0.0-1." + get_arch() + ".rpm"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-w', '/usr/src',
+                                             'centos:7',
+                                             '/bin/bash', '-c',
+                                             'rpm -i {0} && ls /usr/share/tarantool/bundle1 '
+                                             '&& ls /etc/systemd/system'
+                                            .format(package_file_name)])
+    installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
+                               'tarantool.yaml', 'var']
+    systemd_paths = ['bundle1%.service', 'bundle1.service']
+
+    for path in installed_package_paths:
+        re.search(path, output)
+    for path in systemd_paths:
+        re.search(path, output)
+
+    assert rc == 0
