@@ -20,8 +20,6 @@ type PackCtx struct {
 	TarantoolExecutable string
 	// TarantoolIsSystem shows if tarantool is system.
 	TarantoolIsSystem bool
-	// ConfigPath is a full path to tarantool.yaml file.
-	ConfigPath string
 	// ArchiveCtx contains flags specific for tgz type.
 	Archive ArchiveCtx
 	// RpmDeb contains all information about rpm and deb type of packing.

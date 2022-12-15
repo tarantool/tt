@@ -21,6 +21,9 @@ type CliCtx struct {
 	LocalLaunchDir string
 	// Path to Tarantool CLI (tarantool.yaml) config.
 	ConfigPath string
+	// ConfigDir is tt configuration file directory.
+	// And current working directory, if there is no config.
+	ConfigDir string
 	// Path to tt daemon (tt_daemon.yaml) config.
 	DaemonCfgPath string
 	// Path to Tarantool executable (detected if CLI launch is local).

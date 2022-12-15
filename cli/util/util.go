@@ -915,18 +915,39 @@ func InstantiateFileFromTemplate(templatePath string, templateContent string,
 	return nil
 }
 
-// CollectAppList collects all the supposed applications from the passed directory.
-func CollectAppList(baseDir string) ([]string, error) {
-	dirEnrties, err := os.ReadDir(baseDir)
+// AppListEntry contains information about found application.
+type AppListEntry struct {
+	// Name is application name.
+	Name string
+	// Location is application source file or directory.
+	Location string
+}
+
+// CollectAppList collects all the supposed applications in passed appsPath directory.
+func CollectAppList(baseDir string, appsPath string) ([]AppListEntry, error) {
+	if appsPath == "." {
+		// Check whether base directory is application.
+		if IsApp(baseDir) {
+			return []AppListEntry{
+				{
+					filepath.Base(baseDir),
+					baseDir,
+				}}, nil
+		}
+		// Instances enabled is '.', if base directory is not an application,
+		// consider base directory as directory containing a set of applications.
+		appsPath = baseDir
+	}
+	dirEntries, err := os.ReadDir(appsPath)
 	if err != nil {
 		return nil, err
 	}
 
-	apps := make([]string, 0)
-	for _, entry := range dirEnrties {
-		dirItem := filepath.Join(baseDir, entry.Name())
+	apps := make([]AppListEntry, 0)
+	for _, entry := range dirEntries {
+		dirItem := filepath.Join(appsPath, entry.Name())
 		if IsApp(dirItem) {
-			apps = append(apps, entry.Name())
+			apps = append(apps, AppListEntry{entry.Name(), dirItem})
 		} else {
 			log.Warnf("Skipping %s: the source is not an application.",
 				entry.Name())

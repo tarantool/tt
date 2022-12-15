@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/install"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/search"
@@ -50,11 +49,6 @@ func NewInstallCmd() *cobra.Command {
 
 // internalInstallModule is a default install module.
 func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
-
 	installCtx := install.InstallCtx{
 		Force:         force,
 		Noclean:       noclean,
@@ -63,6 +57,7 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		BuildInDocker: buildInDocker,
 	}
 
+	var err error
 	if err = install.FillCtx(cmdCtx, &installCtx, args); err != nil {
 		return err
 	}

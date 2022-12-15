@@ -289,6 +289,8 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
 
         assert rc == 0
         package_file = os.path.join(base_dir, test_case["res_file"])
+        print("PACKAGE FILE " + package_file)
+        os.system("ls -l "+package_file)
         assert os.path.isfile(package_file)
 
         # if the bundle was packed with option --filename,

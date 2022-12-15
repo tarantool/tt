@@ -9,7 +9,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -85,18 +85,13 @@ func UninstallProgram(program string, binDst string, headerDst string,
 }
 
 // GetList generates a list of options to uninstall.
-func GetList(cmdCtx *cmdcontext.CmdCtx) []string {
+func GetList(cliOpts *config.CliOpts) []string {
 	list := []string{}
 	re := regexp.MustCompile(
 		"^(?P<prog>(?:tarantool)|(?:tarantool-ee)|(?:tt))" +
 			search.VersionFsSeparator +
 			"(?P<ver>.*)$",
 	)
-
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return nil
-	}
 
 	if cliOpts.App.BinDir == "" {
 		return nil

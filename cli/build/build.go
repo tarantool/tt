@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 )
 
 // BuildCtx contains information for application building.
@@ -50,6 +51,6 @@ func FillCtx(buildCtx *BuildCtx, args []string) error {
 }
 
 // Run builds an application.
-func Run(cmdCtx *cmdcontext.CmdCtx, buildCtx *BuildCtx) error {
-	return buildLocal(cmdCtx, buildCtx)
+func Run(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *BuildCtx) error {
+	return buildLocal(cmdCtx, cliOpts, buildCtx)
 }

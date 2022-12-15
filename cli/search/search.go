@@ -11,7 +11,6 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
@@ -161,7 +160,7 @@ func printVersion(bindir string, program string, version string) {
 }
 
 // SearchVersions outputs available versions of program.
-func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
+func SearchVersions(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, program string) error {
 	var repo string
 	versions := []version.Version{}
 
@@ -175,11 +174,7 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, program string) error {
 		return fmt.Errorf("search supports only tarantool/tarantool-ee/tt")
 	}
 
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
-
+	var err error
 	log.Infof("Available versions of " + program + ":")
 	if program == "tarantool-ee" {
 		versions, err = install_ee.FetchVersions(cliOpts)
@@ -219,12 +214,8 @@ func RunCommandAndGetOutputInDir(program string, dir string, args ...string) (st
 }
 
 // SearchVersionsLocal outputs available versions of program from distfiles directory.
-func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, program string) error {
+func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, program string) error {
 	var err error
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
 	if cliOpts.Repo == nil {
 		cliOpts.Repo = &config.RepoOpts{Install: "", Rocks: ""}
 	}

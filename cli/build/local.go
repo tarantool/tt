@@ -7,6 +7,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/rocks"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -42,7 +43,7 @@ func runBuildHook(buildCtx *BuildCtx, hookNames []string) error {
 }
 
 // buildLocal builds an application locally.
-func buildLocal(cmdCtx *cmdcontext.CmdCtx, buildCtx *BuildCtx) error {
+func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *BuildCtx) error {
 	cwd, err := util.Chdir(buildCtx.BuildDir)
 	if err != nil {
 		return err
@@ -59,7 +60,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, buildCtx *BuildCtx) error {
 	if buildCtx.SpecFile != "" {
 		rocksMakeCmd = append(rocksMakeCmd, buildCtx.SpecFile)
 	}
-	if err := rocks.Exec(cmdCtx, rocksMakeCmd); err != nil {
+	if err := rocks.Exec(cmdCtx, cliOpts, rocksMakeCmd); err != nil {
 		return err
 	}
 

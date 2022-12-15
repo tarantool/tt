@@ -21,7 +21,7 @@ def test_uninstall_tt(tt_cmd, tmpdir):
     os.makedirs(os.path.join(tmpdir, "include", "include", "tarantool_master"))
     os.symlink("./tarantool_master", os.path.join(tmpdir, "include", "include", "tarantool"))
 
-    uninstall_cmd = [tt_cmd, "uninstall", "tarantool=master", "--cfg", configPath]
+    uninstall_cmd = [tt_cmd,  "--cfg", configPath, "uninstall", "tarantool=master"]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=tmpdir,

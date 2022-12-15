@@ -13,10 +13,10 @@ def test_check_too_many_args(tt_cmd, tmpdir):
     assert re.search(r"currently, you can specify only one instance at a time", output)
 
 
-def test_check_non_existent_file(tt_cmd, tmpdir):
+def test_check_non_existent_file(tt_cmd, tmpdir_with_cfg):
     # Testing with non-existent application file.
     cmd = [tt_cmd, "check", "path-to-non-existent-file"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
     assert re.search(r"no such file or directory", output)
 

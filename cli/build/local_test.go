@@ -53,7 +53,8 @@ func TestLocalBuild(t *testing.T) {
 	configure.Cli(&cmdCtx)
 	buildCtx := BuildCtx{BuildDir: workDir}
 
-	require.NoError(t, buildLocal(&cmdCtx, &buildCtx))
+	cliOpts := configure.GetDefaultCliOpts()
+	require.NoError(t, buildLocal(&cmdCtx, cliOpts, &buildCtx))
 	require.NoDirExists(t, filepath.Join(workDir, ".rocks", "share", "tarantool", "metrics"))
 	require.DirExists(t, filepath.Join(workDir, ".rocks", "share", "tarantool", "rocks"))
 	require.FileExists(t, filepath.Join(workDir, ".rocks", "share", "tarantool", "checks.lua"))
@@ -69,7 +70,8 @@ func TestLocalBuildSpecFileSet(t *testing.T) {
 	configure.Cli(&cmdCtx)
 	buildCtx := BuildCtx{BuildDir: workDir, SpecFile: "app1-scm-1.rockspec"}
 
-	require.NoError(t, buildLocal(&cmdCtx, &buildCtx))
+	cliOpts := configure.GetDefaultCliOpts()
+	require.NoError(t, buildLocal(&cmdCtx, cliOpts, &buildCtx))
 	require.DirExists(t, filepath.Join(workDir, ".rocks", "share", "tarantool", "rocks"))
 	require.DirExists(t, filepath.Join(workDir, ".rocks", "share", "tarantool", "metrics"))
 	require.FileExists(t, filepath.Join(workDir, ".rocks", "share", "tarantool", "checks.lua"))

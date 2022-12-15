@@ -16,7 +16,7 @@ def test_install_tt(tt_cmd, tmpdir):
         f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
 
     # Install latest tt.
-    install_cmd = [tt_cmd, "install", "tt=0.1.0", "--cfg", configPath]
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt=0.1.0"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir,
@@ -51,7 +51,7 @@ def test_install_tarantool(tt_cmd, tmpdir):
     tmpdir_without_config = tempfile.mkdtemp()
 
     # Install latest tarantool.
-    install_cmd = [tt_cmd, "install", "tarantool", "-f", "--cfg", config_path]
+    install_cmd = [tt_cmd, "--cfg", config_path, "install", "tarantool", "-f"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir_without_config,
@@ -87,7 +87,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     tmpdir_without_config = tempfile.mkdtemp()
 
     # Install latest tarantool.
-    install_cmd = [tt_cmd, "install", "tarantool", "-f", "--cfg", config_path, "--use-docker"]
+    install_cmd = [tt_cmd, "--cfg", config_path, "install", "tarantool", "-f", "--use-docker"]
     tt_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir_without_config,
@@ -125,7 +125,7 @@ def test_install_tt_in_docker(tt_cmd, tmpdir):
 
     tmpdir_without_config = tempfile.mkdtemp()
 
-    install_cmd = [tt_cmd, "install", "tt", "--cfg", config_path, "--use-docker"]
+    install_cmd = [tt_cmd, "--cfg", config_path, "install", "tt", "--use-docker"]
     tt_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir_without_config,

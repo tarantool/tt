@@ -187,7 +187,7 @@ def test_launch_local_tt_missing_executable(tt_cmd, tmpdir):
     commands = [
         [tt_cmd, "version"],
         [tt_cmd, "-L", tmpdir, "version"],
-        [tt_cmd, "version", "--cfg", config_path]
+        [tt_cmd, "--cfg", config_path, "version"]
     ]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -210,8 +210,8 @@ def test_launch_local_tarantool(tt_cmd, tmpdir):
     os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
 
     commands = [
-        [tt_cmd, "run", "-L", tmpdir, "--version"],
-        [tt_cmd, "run", "--cfg", config_path, "--version"]
+        [tt_cmd, "-L", tmpdir, "run", "--version"],
+        [tt_cmd, "--cfg", config_path, "run", "--version"]
     ]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -230,8 +230,8 @@ def test_launch_local_tarantool_missing_in_bin_dir(tt_cmd, tmpdir):
 
     commands = [
         [tt_cmd, "run", "--version"],
-        [tt_cmd, "run", "-L", tmpdir, "--version"],
-        [tt_cmd, "run", "--cfg", config_path, "--version"]
+        [tt_cmd, "-L", tmpdir, "run", "--version"],
+        [tt_cmd, "--cfg", config_path, "run", "--version"]
     ]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -255,7 +255,7 @@ def test_launch_local_launch_tarantool_with_config_in_parent_dir(tt_cmd, tmpdir)
     os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
 
     commands = [
-        [tt_cmd, "run", "-L", tmpdir_without_config, "--version"],
+        [tt_cmd, "-L", tmpdir_without_config, "run", "--version"],
     ]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -279,7 +279,7 @@ def test_launch_local_launch_tarantool_with_yml_config_in_parent_dir(tt_cmd, tmp
     os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
 
     commands = [
-        [tt_cmd, "run", "-L", tmpdir_without_config, "--version"],
+        [tt_cmd, "-L", tmpdir_without_config, "run", "--version"],
     ]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -302,7 +302,7 @@ def test_launch_system_tarantool(tt_cmd, tmpdir):
         f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
     os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
 
-    command = [tt_cmd, "run", "-S"]
+    command = [tt_cmd, "-S", "run"]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         with open(os.path.join(tmp_working_dir, "tarantool.yaml"), "w") as f:
@@ -327,7 +327,7 @@ def test_launch_system_tarantool_yml_system_config(tt_cmd, tmpdir):
         f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
     os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
 
-    command = [tt_cmd, "run", "-S"]
+    command = [tt_cmd, "-S", "run"]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         with open(os.path.join(tmp_working_dir, "tarantool.yml"), "w") as f:
@@ -346,7 +346,7 @@ def test_launch_system_tarantool_missing_executable(tt_cmd, tmpdir):
         yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
                    "app": {"bin_dir": "./binaries"}}}, f)
 
-    command = [tt_cmd, "run", "-S", "--version"]
+    command = [tt_cmd, "-S", "run", "--version"]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         my_env = os.environ.copy()
@@ -368,7 +368,7 @@ def test_launch_system_config_not_loaded_if_local_enabled(tt_cmd, tmpdir):
     os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
-        command = [tt_cmd, "run", "-L", tmp_working_dir, "--version"]
+        command = [tt_cmd, "-L", tmp_working_dir, "run", "--version"]
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
@@ -388,7 +388,7 @@ def test_launch_system_config_not_loaded_if_cfg_specified_is_missing(tt_cmd, tmp
     os.chmod(os.path.join(tmpdir, "binaries/tarantool"), 0o777)
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
-        command = [tt_cmd, "run", "-c", os.path.join(tmp_working_dir, "tarantool.yaml"),
+        command = [tt_cmd, "-c", os.path.join(tmp_working_dir, "tarantool.yaml"), "run",
                    "--version"]
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
@@ -405,9 +405,9 @@ def test_launch_ambiguous_config_opts(tt_cmd, tmpdir):
     os.mkdir(os.path.join(tmpdir, "binaries"))
 
     commands = [
-        [tt_cmd, "run", "--cfg", config_path, "-L", tmpdir, "--version"],
-        [tt_cmd, "run", "--cfg", config_path, "-S", "--version"],
-        [tt_cmd, "run", "-S", "-L", tmpdir, "--version"],
+        [tt_cmd, "--cfg", config_path, "-L", tmpdir, "run", "--version"],
+        [tt_cmd, "--cfg", config_path, "-S", "run", "--version"],
+        [tt_cmd, "-S", "-L", tmpdir, "run", "--version"],
     ]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -432,7 +432,7 @@ def test_external_module_without_internal_implementation(tt_cmd, tmpdir):
     # Trying to start external module with -I flag.
     # In this case, tt should ignore this flag and just
     # start module.
-    cmd = [tt_cmd, module, "-I"]
+    cmd = [tt_cmd, "-I", module]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
     assert module_message in output
@@ -443,7 +443,7 @@ def test_launch_with_cfg_flag(tt_cmd, tmpdir):
 
     # Send non existent config path.
     non_exist_cfg_tmpdir = tempfile.mkdtemp(dir=tmpdir)
-    cmd = [tt_cmd, module, "--cfg", "non-exists-path"]
+    cmd = [tt_cmd, "--cfg", "non-exists-path", module]
     rc, output = run_command_and_get_output(cmd, cwd=non_exist_cfg_tmpdir)
     assert rc == 1
     assert "specified path to the configuration file is invalid" in output
@@ -453,7 +453,7 @@ def test_launch_with_cfg_flag(tt_cmd, tmpdir):
     module_message = create_external_module(module, exists_cfg_tmpdir)
     config_path = create_tt_config(exists_cfg_tmpdir, exists_cfg_tmpdir)
 
-    cmd = [tt_cmd, module, "--cfg", config_path]
+    cmd = [tt_cmd, "--cfg", config_path, module]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
     assert module_message in output

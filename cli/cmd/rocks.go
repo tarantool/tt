@@ -28,5 +28,5 @@ func NewRocksCmd() *cobra.Command {
 
 // internalRocksModule is a default rocks module.
 func internalRocksModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	return rocks.Exec(cmdCtx, args)
+	return rocks.Exec(cmdCtx, cliOpts, args)
 }

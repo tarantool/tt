@@ -48,89 +48,6 @@ func TestRocksFinder(t *testing.T) {
 		err, resPath)
 }
 
-func TestResolveAppName(t *testing.T) {
-	testDir := t.TempDir()
-
-	currentDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(currentDir)
-
-	err = os.Chdir(testDir)
-	require.NoErrorf(t, err, "failed to enter a test directory: %s", err)
-
-	dirsToCreate := []string{
-		"app2",
-	}
-	dirsToCreate = append(dirsToCreate, defaultPaths...)
-
-	filesToCreate := []string{
-		"app1.lua",
-		"app2/init.lua",
-	}
-
-	err = test_helpers.CreateDirs(testDir, dirsToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-
-	err = test_helpers.CreateFiles(testDir, filesToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-
-	err = test_helpers.CreateSymlink("app1.lua", "app3.lua")
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-
-	testCases := []struct {
-		name         string
-		AppName      string
-		ErrCheck     func(err error) bool
-		ResolvedPath string
-	}{
-		{
-			name:    "Lua file symlink",
-			AppName: "app1.lua",
-			ErrCheck: func(err error) bool {
-				return err == nil
-			},
-			ResolvedPath: "app1.lua",
-		},
-		{
-			name:    "Directory symlink",
-			AppName: "app2",
-			ErrCheck: func(err error) bool {
-				return err == nil
-			},
-			ResolvedPath: "app2",
-		},
-		{
-			name:    "Lua file symlink without extension",
-			AppName: "app3",
-			ErrCheck: func(err error) bool {
-				return err == nil
-			},
-			ResolvedPath: "app1.lua",
-		},
-		{
-			name:    "Unexisting file",
-			AppName: "app4",
-			ErrCheck: func(err error) bool {
-				if err == nil {
-					return false
-				}
-				return err.Error() == "stat app4.lua: no such file or directory"
-			},
-			ResolvedPath: "",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			resolvedPath, err := resolveAppPath(".", testCase.AppName)
-			require.Truef(t, testCase.ErrCheck(err), "wrong error caught")
-			require.Equalf(t, testCase.ResolvedPath, resolvedPath,
-				"wrong resolved path, expected: %s, got: %s",
-				testCase.ResolvedPath, resolvedPath)
-		})
-	}
-}
-
 func TestCreateEnv(t *testing.T) {
 	testDir := t.TempDir()
 
@@ -203,10 +120,6 @@ func TestCopyAppSrc(t *testing.T) {
 	testDir := t.TempDir()
 	testCopyDir := t.TempDir()
 
-	testOpts := &config.CliOpts{
-		App: &config.AppOpts{InstancesEnabled: testDir},
-	}
-
 	filesToCreate := []string{
 		"app1.lua",
 		"app2/init.lua",
@@ -214,10 +127,10 @@ func TestCopyAppSrc(t *testing.T) {
 	dirsToCreate := []string{
 		"app2",
 	}
-	appNames := []string{
-		"app1",
+	appLocations := []string{
+		"app1.lua",
 		"app2",
-		"app3",
+		"app3.lua",
 	}
 
 	expectedToExist := []string{
@@ -237,8 +150,8 @@ func TestCopyAppSrc(t *testing.T) {
 	err = test_helpers.CreateSymlink(filepath.Join(testDir, "app1.lua"), "app3.lua")
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 
-	for _, name := range appNames {
-		err = copyAppSrc(testOpts, name, testCopyDir)
+	for _, name := range appLocations {
+		err = copyAppSrc(filepath.Join(testDir, name), testCopyDir)
 		require.NoErrorf(t, err, "failed to copy an app: %v", err)
 	}
 
@@ -304,12 +217,6 @@ func TestCreateAppSymlink(t *testing.T) {
 	testDir := t.TempDir()
 	testPackageDir := t.TempDir()
 
-	testOpts := &config.CliOpts{
-		App: &config.AppOpts{
-			InstancesEnabled: testDir,
-		},
-	}
-
 	var (
 		srcApp  = "app1.lua"
 		appName = "app1_link"
@@ -331,7 +238,7 @@ func TestCreateAppSymlink(t *testing.T) {
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 
 	prepareDefaultPackagePaths(testPackageDir)
-	err = createAppSymlink(testOpts, appName)
+	err = createAppSymlink(filepath.Join(testDir, srcApp), appName)
 	require.NoErrorf(t, err, "failed to create a symlink: %v", err)
 
 	_, err = os.Lstat(filepath.Join(testPackageDir, instancesEnabledPath, appName))

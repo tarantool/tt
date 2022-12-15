@@ -17,7 +17,6 @@ const (
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	args []string) error {
 
-	packCtx.ConfigPath = cmdCtx.Cli.ConfigPath
 	packCtx.TarantoolIsSystem = cmdCtx.Cli.IsSystem
 	packCtx.TarantoolExecutable = cmdCtx.Cli.TarantoolExecutable
 	packCtx.Type = args[0]

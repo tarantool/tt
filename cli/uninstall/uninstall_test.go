@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/search"
 )
 
@@ -47,8 +47,9 @@ func TestGetList(t *testing.T) {
 		"tarantool-ee" + search.VersionCliSeparator + "master",
 	}
 
-	cmdCtx := cmdcontext.CmdCtx{Cli: cmdcontext.CliCtx{ConfigPath: cfgPath}}
-	result := GetList(&cmdCtx)
+	cliOpts, _, err := configure.GetCliOpts(cfgPath)
+	require.NoError(t, err)
+	result := GetList(cliOpts)
 
 	assert.ElementsMatch(result, expected)
 }

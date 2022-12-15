@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
@@ -166,11 +165,6 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 
 // internalConnectModule is a default connect module.
 func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
-
 	connectCtx := connect.ConnectCtx{
 		Username:    connectUser,
 		Password:    connectPassword,

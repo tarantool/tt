@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/uninstall"
@@ -33,7 +32,7 @@ func NewUninstallCmd() *cobra.Command {
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
-			return uninstall.GetList(&cmdCtx), cobra.ShellCompDirectiveNoFileComp
+			return uninstall.GetList(cliOpts), cobra.ShellCompDirectiveNoFileComp
 		},
 		Example: `
 # To uninstall Tarantool:
@@ -45,14 +44,10 @@ func NewUninstallCmd() *cobra.Command {
 
 // InternalUninstallModule is a default uninstall module.
 func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
 	if !strings.Contains(args[0], search.VersionCliSeparator) {
 		return fmt.Errorf("incorrect usage.\n   e.g program%sversion", search.VersionCliSeparator)
 	}
-	err = uninstall.UninstallProgram(args[0], cliOpts.App.BinDir,
+	err := uninstall.UninstallProgram(args[0], cliOpts.App.BinDir,
 		cliOpts.App.IncludeDir+"/include", cmdCtx)
 	return err
 }
