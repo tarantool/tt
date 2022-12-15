@@ -126,33 +126,44 @@ func adjustPathWithConfigLocation(filePath string, configDir string, defaultDirN
 
 // GetCliOpts returns Tarantool CLI options from the config file
 // located at path configurePath.
-func GetCliOpts(configurePath string) (*config.CliOpts, error) {
+func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
 	var cfg config.Config
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)
-	if err != nil && !os.IsNotExist(err) {
+	if err == nil {
+		// Config file is found, load it.
+		rawConfigOpts, err := util.ParseYAML(configPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
+		}
+
+		if err := mapstructure.Decode(rawConfigOpts, &cfg); err != nil {
+			return nil, "", fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
+		}
+
+		if cfg.CliConfig == nil {
+			return nil, "",
+				fmt.Errorf("failed to parse Tarantool CLI configuration: missing tt section")
+		}
+	} else if err != nil && !os.IsNotExist(err) {
 		// TODO: Add warning in next patches, discussion
 		// what if the file exists, but access is denied, etc.
-		return nil, fmt.Errorf("failed to get access to configuration file: %s", err)
+		return nil, "", fmt.Errorf("failed to get access to configuration file: %s", err)
 	} else if os.IsNotExist(err) {
 		cfg.CliConfig = GetDefaultCliOpts()
-		return cfg.CliConfig, nil
+		configPath = ""
 	}
 
-	rawConfigOpts, err := util.ParseYAML(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
+	configDir := ""
+	if configPath == "" {
+		configDir, err = os.Getwd()
+		if err != nil {
+			return cfg.CliConfig, "", err
+		}
+	} else {
+		configDir = filepath.Dir(configPath)
 	}
 
-	if err := mapstructure.Decode(rawConfigOpts, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
-	}
-
-	if cfg.CliConfig == nil {
-		return nil, fmt.Errorf("failed to parse Tarantool CLI configuration: missing tt section")
-	}
-
-	configDir := filepath.Dir(configPath)
 	if cfg.CliConfig.App == nil {
 		cfg.CliConfig.App = getDefaultAppOpts()
 	}
@@ -190,7 +201,7 @@ func GetCliOpts(configurePath string) (*config.CliOpts, error) {
 			cfg.CliConfig.Templates[i].Path, configDir, ".")
 	}
 
-	return cfg.CliConfig, nil
+	return cfg.CliConfig, configPath, nil
 }
 
 // GetDaemonOpts returns tt daemon options from the config file
@@ -441,7 +452,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		}
 	}
 
-	cliOpts, err := GetCliOpts(cmdCtx.Cli.ConfigPath)
+	cliOpts, _, err := GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		return err
 	}

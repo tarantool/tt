@@ -6,7 +6,6 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/pack"
 )
@@ -74,14 +73,7 @@ The supported types are: tgz, deb, rpm`,
 
 // internalPackModule is a default pack module.
 func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	log.Debugf("Config path is located here: %s", cmdCtx.Cli.ConfigPath)
-
-	opts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
-
-	err = pack.FillCtx(cmdCtx, packCtx, args)
+	err := pack.FillCtx(cmdCtx, packCtx, args)
 	if err != nil {
 		return err
 	}
@@ -93,7 +85,7 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("incorrect type of package. Available types: rpm, deb, tgz")
 	}
 
-	err = packer.Run(cmdCtx, packCtx, opts)
+	err = packer.Run(cmdCtx, packCtx, cliOpts)
 	if err != nil {
 		return fmt.Errorf("failed to pack: %v", err)
 	}

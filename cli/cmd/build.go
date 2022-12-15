@@ -39,5 +39,5 @@ func internalBuildModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	buildCtx.SpecFile = specFile
 
-	return build.Run(cmdCtx, &buildCtx)
+	return build.Run(cmdCtx, cliOpts, &buildCtx)
 }

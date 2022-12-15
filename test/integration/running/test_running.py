@@ -252,6 +252,54 @@ def test_running_base_functionality_working_dir_app(tt_cmd):
             assert instance_process_rc == 0
 
 
+def test_running_base_functionality_working_dir_app_no_app_name(tt_cmd):
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
+
+    # Default temporary directory may have very long path. This can cause socket path buffer
+    # overflow. Create our own temporary directory.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_app_path = os.path.join(tmpdir, "app")
+        shutil.copytree(test_app_path_src, test_app_path)
+
+        for subdir in ["", "app"]:
+            if subdir != "":
+                os.mkdir(os.path.join(test_app_path, "app"))
+            # Start an instance.
+            start_cmd = [tt_cmd, "start"]
+            instance_process = subprocess.Popen(
+                start_cmd,
+                cwd=test_app_path,
+                stderr=subprocess.STDOUT,
+                stdout=subprocess.PIPE,
+                text=True
+            )
+            start_output = instance_process.stdout.readline()
+            assert re.search(r"Starting an instance \[app:(router|master|replica)\]", start_output)
+
+            # Check status.
+            for instName in ["master", "replica", "router"]:
+                print(os.path.join(test_app_path, "run", "app", instName))
+                file = wait_file(os.path.join(test_app_path, run_path, "app", instName),
+                                 instName + ".pid", [])
+                assert file != ""
+
+            status_cmd = [tt_cmd, "status"]
+            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            assert re.search(r"RUNNING. PID: \d+.", status_out)
+
+            # Stop the application.
+            stop_cmd = [tt_cmd, "stop"]
+            stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            assert re.search(r"The Instance app:(router|master|replica) \(PID = \d+\) "
+                             r"has been terminated.", stop_out)
+
+            # Check that the process was terminated correctly.
+            instance_process_rc = instance_process.wait(1)
+            assert instance_process_rc == 0
+
+
 def test_running_instance_from_multi_inst_app(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
 
@@ -348,7 +396,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
                    "log_maxsize": 10, "log_maxage": 1}}}, file)
 
     # Start an instance.
-    start_cmd = [tt_cmd, "start", inst_name, "--cfg", config_path]
+    start_cmd = [tt_cmd, "--cfg", config_path, "start", inst_name]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=tmpdir,

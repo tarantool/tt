@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/create"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/modules"
@@ -70,11 +69,6 @@ Built-in templates:
 
 // internalCreateModule is a default create module.
 func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
-
 	createCtx := create_ctx.CreateCtx{
 		AppName:        appName,
 		ForceMode:      forceMode,
@@ -84,7 +78,7 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		DestinationDir: dstPath,
 	}
 
-	if err = create.FillCtx(cliOpts, &createCtx, args); err != nil {
+	if err := create.FillCtx(cliOpts, &createCtx, args); err != nil {
 		return err
 	}
 

@@ -522,13 +522,13 @@ func TestCollectAppList(t *testing.T) {
 	err = test_helpers.CreateFiles(testDir, filesToCreate)
 	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
 
-	collected, err := CollectAppList(testDir)
+	collected, err := CollectAppList("", testDir)
 	assert.Nilf(t, err, "failed to collect an app list: %v", err)
 
 	require.Equalf(t, len(apps), len(collected), "wrong count applications collected,"+
 		" expected: %d, got %d", len(apps), len(collected))
 
 	for _, item := range collected {
-		require.Truef(t, apps[item], "wrong item got collected in app list: %s", item)
+		require.Truef(t, apps[item.Name], "wrong item got collected in app list: %s", item)
 	}
 }

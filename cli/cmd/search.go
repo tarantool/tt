@@ -47,9 +47,9 @@ func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return util.NewArgError("incorrect arguments")
 	}
 	if local {
-		err = search.SearchVersionsLocal(cmdCtx, args[0])
+		err = search.SearchVersionsLocal(cmdCtx, cliOpts, args[0])
 	} else {
-		err = search.SearchVersions(cmdCtx, args[0])
+		err = search.SearchVersions(cmdCtx, cliOpts, args[0])
 	}
 	return err
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -36,7 +35,7 @@ func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) ([]string, erro
 }
 
 // Execute LuaRocks command. All args will be processed by LuaRocks.
-func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) error {
 	var cmd string
 
 	// Print rocks help if no arguments given.
@@ -44,11 +43,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		cmd = "help"
 	}
 
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
-
+	var err error
 	if args, err = addLuarocksRepoOpts(cliOpts, args); err != nil {
 		return err
 	}

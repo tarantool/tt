@@ -8,7 +8,6 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
@@ -100,13 +99,8 @@ func clean(run *running.InstanceCtx) error {
 
 // internalCleanModule is a default clean module.
 func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	cliOpts, err := configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
-	if err != nil {
-		return err
-	}
-
 	var runningCtx running.RunningCtx
-	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
+	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err
 	}
 
@@ -115,7 +109,7 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if status.Code == process_utils.ProcessStoppedCode {
 			var statusMsg string
 
-			err = clean(&run)
+			err := clean(&run)
 			if err != nil {
 				statusMsg = "[ERR] " + err.Error()
 			} else {

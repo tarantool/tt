@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
@@ -80,17 +81,18 @@ func NewCmdRoot() *cobra.Command {
 			cmd.Help()
 		},
 		ValidArgsFunction: RootShellCompletionCommands,
+		TraverseChildren:  true,
 	}
 
-	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.IsSystem, "system", "S",
+	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.IsSystem, "system", "S",
 		false, "System launch")
-	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.LocalLaunchDir, "local", "L",
+	rootCmd.Flags().StringVarP(&cmdCtx.Cli.LocalLaunchDir, "local", "L",
 		"", "Local launch")
-	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.ForceInternal, "internal", "I",
+	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.ForceInternal, "internal", "I",
 		false, "Use internal module")
-	rootCmd.PersistentFlags().StringVarP(&cmdCtx.Cli.ConfigPath, "cfg", "c",
+	rootCmd.Flags().StringVarP(&cmdCtx.Cli.ConfigPath, "cfg", "c",
 		"", "Path to configuration file")
-	rootCmd.PersistentFlags().BoolVarP(&cmdCtx.Cli.Verbose, "verbose", "V",
+	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.Verbose, "verbose", "V",
 		false, "Verbose output")
 
 	rootCmd.AddCommand(
@@ -154,9 +156,17 @@ func InitRoot() {
 	}
 
 	var err error
-	cliOpts, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	cliOpts, cmdCtx.Cli.ConfigPath, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
+	}
+	if cmdCtx.Cli.ConfigPath == "" {
+		// Config is not found, use current dir as base dir.
+		if cmdCtx.Cli.ConfigDir, err = os.Getwd(); err != nil {
+			log.Fatal(err.Error())
+		}
+	} else {
+		cmdCtx.Cli.ConfigDir = filepath.Dir(cmdCtx.Cli.ConfigPath)
 	}
 
 	// Setup TT_INST_ENABLED with instances_enabled path.

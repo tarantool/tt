@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -13,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
@@ -110,7 +110,7 @@ type providerImpl struct {
 
 // updateCtx updates cmdCtx according to the current contents of the cfg file.
 func (provider *providerImpl) updateCtx() error {
-	cliOpts, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath)
+	cliOpts, _, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		return err
 	}
@@ -435,46 +435,30 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	// All relative paths are built from the path of the tarantool.yaml file.
 	// If tarantool.yaml does not exists we must return error.
-	basePath := ""
-	if cmdCtx.Cli.ConfigPath != "" {
-		if cmdCtx.CommandName != "run" {
-			if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err == nil {
-				basePath = filepath.Dir(cmdCtx.Cli.ConfigPath)
-			} else {
-				return fmt.Errorf(`tarantool.yaml error: %s"`, err)
-			}
-		}
-	} else {
-		return fmt.Errorf(`tarantool.yaml not found"`)
+	if cmdCtx.Cli.ConfigPath == "" {
+		return fmt.Errorf(`%s not found`, configure.ConfigName)
 	}
 
-	instEnabledPath := ""
-	if cliOpts.App != nil && cliOpts.App.InstancesEnabled != "" && cmdCtx.CommandName != "run" {
-		instEnabledPath = cliOpts.App.InstancesEnabled
-		if !filepath.IsAbs(instEnabledPath) {
-			instEnabledPath = filepath.Join(basePath, instEnabledPath)
-		}
-	} else {
-		instEnabledPath = basePath
+	instEnabledPath := cliOpts.App.InstancesEnabled
+	if cliOpts.App.InstancesEnabled == "." {
+		instEnabledPath = cmdCtx.Cli.ConfigDir
 	}
 
-	var appList []string
+	var appList []util.AppListEntry
 	if len(args) == 0 {
-		appList, err = util.CollectAppList(instEnabledPath)
+		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.App.InstancesEnabled)
 		if err != nil {
 			return fmt.Errorf("can't collect an application list "+
 				"from instances enabled path %s: %s", instEnabledPath, err)
 		}
 	} else {
-		appList = append(appList, args[0])
+		appList = append(appList, util.AppListEntry{Name: args[0], Location: ""})
 	}
 
 	// Cleanup instances list.
 	runningCtx.Instances = nil
-	for _, appName := range appList {
-		if strings.HasSuffix(appName, ".lua") {
-			appName = appName[:len(appName)-4]
-		}
+	for _, appInfo := range appList {
+		appName := strings.TrimSuffix(appInfo.Name, ".lua")
 		instances, err := collectInstances(appName, instEnabledPath)
 		if err != nil {
 			return fmt.Errorf("%s: can't find an application init file: %s", appName, err)
@@ -500,12 +484,12 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 				instance.Restartable = cliOpts.App.Restartable
 			}
 
-			instance.RunDir = makePath(runDir, basePath, &inst)
+			instance.RunDir = makePath(runDir, cmdCtx.Cli.ConfigDir, &inst)
 			instance.ConsoleSocket = filepath.Join(instance.RunDir, instance.InstName+".control")
 			instance.PIDFile = filepath.Join(instance.RunDir, instance.InstName+".pid")
-			instance.LogDir = makePath(logDir, basePath, &inst)
+			instance.LogDir = makePath(logDir, cmdCtx.Cli.ConfigDir, &inst)
 			instance.Log = filepath.Join(instance.LogDir, instance.InstName+".log")
-			instance.DataDir = makePath(dataDir, basePath, &inst)
+			instance.DataDir = makePath(dataDir, cmdCtx.Cli.ConfigDir, &inst)
 			instance.SingleApp = inst.SingleApp
 
 			if cmdCtx.CommandName == "start" || cmdCtx.CommandName == "restart" {
@@ -553,7 +537,7 @@ func Stop(run *InstanceCtx) error {
 	}
 
 	fullInstanceName := GetAppInstanceName(*run)
-	log.Printf("The Instance %s (PID = %v) has been terminated.\n", fullInstanceName, pid)
+	log.Infof("The Instance %s (PID = %v) has been terminated.", fullInstanceName, pid)
 
 	return nil
 }
