@@ -193,12 +193,13 @@ Instantiated ``init.lua`` content:
     require("fiber").sleep(1)
 
 Packing environments
-----------------------------------
+--------------------
 
 For example, we want to pack a single application. Here is the content of the sample application::
-      single_environment/
-      ├── tarantool.yaml
-      └── init.lua
+
+    single_environment/
+    ├── tarantool.yaml
+    └── init.lua
 
 ``tarantool.yaml``:
 
