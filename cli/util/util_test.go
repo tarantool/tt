@@ -197,14 +197,6 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	}
 }
 
-func TestGetAbsPath(t *testing.T) {
-	require.Equal(t, GetAbsPath("/base/dir", "/abs/path"), "/abs/path")
-	require.Equal(t, GetAbsPath("/base/dir", "./abs/path"),
-		"/base/dir/abs/path")
-	require.Equal(t, GetAbsPath("/base/dir", "abs/path"),
-		"/base/dir/abs/path")
-}
-
 func TestCreateDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(tempDir, "dir1"), 0750))

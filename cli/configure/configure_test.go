@@ -97,12 +97,66 @@ func TestConfigureCli(t *testing.T) {
 }
 
 func TestAdjustPathWithConfigLocation(t *testing.T) {
-	require.Equal(t, adjustPathWithConfigLocation("", "/config/dir", "bin"),
-		"/config/dir/bin")
-	require.Equal(t, adjustPathWithConfigLocation("/bin_dir", "/config/dir", "bin"),
-		"/bin_dir")
-	require.Equal(t, adjustPathWithConfigLocation("./bin_dir", "/config/dir", "bin"),
-		"/config/dir/bin_dir")
+	type args struct {
+		filePath    string
+		baseDir     string
+		defaultPath string
+	}
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		args     args
+		wantPath string
+		wantErr  bool
+	}{
+		{
+			name:     "Test empty file path",
+			args:     args{"", "/abs/path", "bin"},
+			wantPath: "/abs/path/bin",
+			wantErr:  false,
+		},
+		{
+			name:     "Test absolute file path",
+			args:     args{"/abs/my_bin", "/base/dir", "bin"},
+			wantPath: "/abs/my_bin",
+			wantErr:  false,
+		},
+		{
+			name:     "Test relative file path",
+			args:     args{"./rel/my_bin", "/base/dir", "bin"},
+			wantPath: "/base/dir/rel/my_bin",
+			wantErr:  false,
+		},
+		{
+			name:     "Test relative file path without dot",
+			args:     args{"rel/my_bin", "/base/dir", "bin"},
+			wantPath: "/base/dir/rel/my_bin",
+			wantErr:  false,
+		},
+		{
+			name:     "Test relative base dir",
+			args:     args{"my_bin", "rel/path", "bin"},
+			wantPath: filepath.Join(cwd, "rel/path/my_bin"),
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			str, err := adjustPathWithConfigLocation(tt.args.filePath, tt.args.baseDir,
+				tt.args.defaultPath)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			} else {
+				require.NoError(t, err)
+			}
+			require.EqualValues(t, tt.wantPath, str)
+		})
+	}
 }
 
 func TestExcludeArgs(t *testing.T) {
@@ -218,4 +272,29 @@ func TestGetConfigPath(t *testing.T) {
 	configName, err = getConfigPath(ConfigName)
 	assert.Equal(t, filepath.Join(tempDir, "a", "tarantool.yml"), configName)
 	assert.NoError(t, err)
+}
+
+func TestUpdateCliOpts(t *testing.T) {
+	cliOpts := config.CliOpts{
+		App: &config.AppOpts{
+			RunDir:     "/var/run",
+			LogDir:     "var/log",
+			DataDir:    "./var/lib",
+			IncludeDir: "../include_dir",
+			LogMaxAge:  42,
+		},
+	}
+	configDir := "/etc/tarantool"
+
+	err := updateCliOpts(&cliOpts, configDir)
+	require.NoError(t, err)
+	assert.Equal(t, "/var/run", cliOpts.App.RunDir)
+	assert.Equal(t, filepath.Join(configDir, "var", "log"), cliOpts.App.LogDir)
+	assert.Equal(t, filepath.Join(configDir, "var", "lib"), cliOpts.App.DataDir)
+	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.App.IncludeDir)
+	assert.Equal(t, filepath.Join(configDir, modulesPath), cliOpts.Modules.Directory)
+	assert.Equal(t, ".", cliOpts.App.InstancesEnabled)
+	assert.Equal(t, 42, cliOpts.App.LogMaxAge)
+	assert.Equal(t, logMaxBackups, cliOpts.App.LogMaxBackups)
+	assert.Equal(t, logMaxSize, cliOpts.App.LogMaxSize)
 }
