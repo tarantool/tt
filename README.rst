@@ -420,3 +420,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``uninstall`` - uninstall tarantool/tt.
 * ``init`` - create tt environment configuration file.
 * ``daemon (experimental)`` - manage tt daemon.
+* ``cfg dump`` - print tt environment configuration.
