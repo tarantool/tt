@@ -14,7 +14,7 @@ type CreateCtx struct {
 	TemplateSearchPaths []string
 	// TemplateName is a template to use for application creation.
 	TemplateName string
-	// VarsFromCli base directory for instances available.
+	// VarsFromCli template variables definitions provided in command line.
 	VarsFromCli []string
 	// ForceMode - if flag is set, remove application existing application directory.
 	ForceMode bool
