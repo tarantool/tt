@@ -37,7 +37,7 @@ type TemplateManifest struct {
 	// PostHook is a path to the executable to run after template instantiation.
 	// Application path is passed as a first parameter.
 	PostHook string `mapstructure:"post-hook"`
-	// Include contains a list of files to keep after template instantiaion.
+	// Include contains a list of files to keep after template instantiation.
 	Include []string
 	// FollowUpMessage is a message to print to console after application creation.
 	FollowUpMessage string `mapstructure:"follow-up-message"`
