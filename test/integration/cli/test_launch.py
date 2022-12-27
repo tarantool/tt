@@ -468,3 +468,21 @@ def test_launch_external_cmd_with_flags(tt_cmd, tmpdir, module):
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
     assert module_message in output
+
+
+def test_std_err_stream_local_launch_non_existent_dir(tt_cmd, tmpdir):
+    module = "version"
+    cmd = [tt_cmd, module, "-L", "non-exists-dir"]
+    tt_process = subprocess.Popen(
+        cmd,
+        cwd=tmpdir,
+        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 1
+    assert "failed to change working directory" not in tt_process.stdout.readline()
+    assert "failed to change working directory" in tt_process.stderr.readline()
