@@ -54,7 +54,7 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	// Generate pack command line for tt in container.
-	ttPackCommandLine := cmdArgs
+	ttPackCommandLine := append([]string{"tt"}, cmdArgs[1:]...)
 
 	// If bin_dir is not empty, we need to pack binaries built in container.
 	relEnvBinPath := envBinPath
