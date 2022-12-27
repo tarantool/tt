@@ -68,6 +68,33 @@ func GetModulesInfoPtr() *modules.ModulesInfo {
 	return &modulesInfo
 }
 
+// LogHandler is custom log handler implementation. It is used to send log entries to
+// different streams: stdout and stderr. This is a decorator for the cli.Handler.
+type LogHandler struct {
+	stdoutHandler log.Handler
+	stderrHandler log.Handler
+}
+
+// HandleLog performs log handling in accordance with log entry level.
+func (handler *LogHandler) HandleLog(logEntry *log.Entry) error {
+	switch logEntry.Level {
+	case log.ErrorLevel, log.WarnLevel, log.FatalLevel:
+		return handler.stderrHandler.HandleLog(logEntry)
+	default:
+		return handler.stdoutHandler.HandleLog(logEntry)
+	}
+}
+
+// NewLogHandler creates a new log handler.
+func NewLogHandler() *LogHandler {
+	return &LogHandler{
+		cli.New(os.Stdout),
+		cli.New(os.Stderr),
+	}
+}
+
+var defaultLogHandler = NewLogHandler()
+
 // NewCmdRoot creates a new root command.
 func NewCmdRoot() *cobra.Command {
 	rootCmd := &cobra.Command{
@@ -128,7 +155,7 @@ func NewCmdRoot() *cobra.Command {
 
 	rootCmd.InitDefaultHelpCmd()
 
-	log.SetHandler(cli.Default)
+	log.SetHandler(defaultLogHandler)
 
 	return rootCmd
 }
