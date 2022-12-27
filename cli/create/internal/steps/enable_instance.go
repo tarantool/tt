@@ -30,7 +30,7 @@ func (createSymlinkStep CreateAppSymlink) Run(createCtx *create_ctx.CreateCtx,
 	}
 	if err = util.CreateSymlink(relativeAppPath,
 		filepath.Join(createSymlinkStep.SymlinkDir, createCtx.AppName),
-		false); err != nil {
+		createCtx.ForceMode); err != nil {
 		log.Warnf("Failed to enable %s application: %s", createCtx.AppName, err)
 	}
 
