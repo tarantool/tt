@@ -1,7 +1,7 @@
 package steps
 
 import (
-	"fmt"
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,21 +9,6 @@ import (
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
-
-type mockReader struct {
-	lines []string
-}
-
-func (reader *mockReader) readLine() (string, error) {
-	linesLeft := len(reader.lines)
-	if linesLeft <= 0 {
-		return "", fmt.Errorf("user input is empty")
-	}
-
-	line := reader.lines[0]
-	reader.lines = reader.lines[1:]
-	return line, nil
-}
 
 func TestNonInteractiveMode(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
@@ -38,8 +23,8 @@ func TestNonInteractiveMode(t *testing.T) {
 
 	templateCtx.IsManifestPresent = true
 	createCtx.SilentMode = true
-	collectVars := CollectTemplateVarsFromUser{Reader: &mockReader{}}
-	require.Nil(t, collectVars.Run(&createCtx, &templateCtx), "Collecting vars failed")
+	collectVars := CollectTemplateVarsFromUser{&bytes.Buffer{}}
+	require.NoError(t, collectVars.Run(&createCtx, &templateCtx), "Collecting vars failed")
 
 	expected := map[string]string{
 		"user_name": "admin",
@@ -60,7 +45,7 @@ func TestNonInteractiveModeReMismatch(t *testing.T) {
 
 	templateCtx.IsManifestPresent = true
 	createCtx.SilentMode = true
-	collectVars := CollectTemplateVarsFromUser{Reader: &mockReader{}}
+	collectVars := CollectTemplateVarsFromUser{&bytes.Buffer{}}
 	err := collectVars.Run(&createCtx, &templateCtx)
 	assert.EqualError(t, err, "invalid format of user_name variable")
 }
@@ -110,18 +95,17 @@ func TestInteractiveMode(t *testing.T) {
 	templateCtx.Vars["first_name"] = "John"
 
 	templateCtx.IsManifestPresent = true
-	mockReader := mockReader{lines: []string{
-		"user2", // Invalid input.
-		"",      // Empty input. Will take the Default value.
-
-		"@)(#*(sd[f[",            // Invalid pwd input.
-		"",                       // Empty input. Invalid if Default is not set.
-		"pwd with space",         // This line does not match the regex.
-		"weak",                   // Valid input.
-		`^(*&\/..zxzc.>))!@(*)(`, // Valid input: no Re check, no Default value.
-		"cluster-cookie",         // Valid cookie value.
-		"5",                      // Valid retry count value.
-	}}
+	var mockReader bytes.Buffer
+	mockReader.Write([]byte("user2\n" + // Invalid input.
+		"\n" + // Empty input. Will take the Default value.
+		"@)(#*(sd[f[\n" + // Invalid pwd input.
+		"\n" + // Empty input. Invalid if Default is not set.
+		"pwd with space\n" + // This line does not match the regex.
+		"weak\n" + // Valid input.
+		"^(*&\\/..zxzc.>))!@(*)(\n" + // Valid input: no Re check, no Default value.
+		"cluster-cookie\n" + // Valid cookie value.
+		"5\n", // Valid retry count value.
+	))
 	collectVars := CollectTemplateVarsFromUser{Reader: &mockReader}
 	require.NoError(t, collectVars.Run(&createCtx, &templateCtx))
 

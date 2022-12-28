@@ -1,9 +1,7 @@
 package steps
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -11,35 +9,15 @@ import (
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
-// Reader interface is used for reading user input.
-type Reader interface {
-	// readLine reads a single line of text and returns it.
-	readLine() (string, error)
-}
-
-// consoleReader implements reading from console.
-type consoleReader struct {
-	stdinReader *bufio.Reader
-}
-
-// readLine reads a single line from the console. New-line symbol is trimmed.
-func (consoleReader consoleReader) readLine() (string, error) {
-	input, err := consoleReader.stdinReader.ReadString('\n')
-	if err != nil {
-		return "", fmt.Errorf("error getting user input: %s", err)
-	}
-	return strings.TrimSuffix(input, "\n"), nil
-}
-
-// NewConsoleReader creates new console reader.
-func NewConsoleReader() consoleReader {
-	return consoleReader{bufio.NewReader(os.Stdin)}
+// stringReader is the interface that wraps the ReadString method.
+type stringReader interface {
+	ReadString(delim byte) (line string, err error)
 }
 
 // CollectTemplateVarsFromUser represents interactive variables collecting step.
 type CollectTemplateVarsFromUser struct {
 	// Reader is used to get user input.
-	Reader Reader
+	Reader stringReader
 }
 
 // Run collects template variables from user in interactive mode.
@@ -91,10 +69,10 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 
 			// User input.
 			if !createCtx.SilentMode {
-				input, err = collectTemplateVarsFromUser.Reader.readLine()
-				if err != nil {
+				if input, err = collectTemplateVarsFromUser.Reader.ReadString('\n'); err != nil {
 					return fmt.Errorf("error reading user input: %s", err)
 				}
+				input = strings.TrimSuffix(input, "\n")
 			}
 
 			if input == "" {
