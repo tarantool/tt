@@ -299,7 +299,7 @@ func programDependenciesInstalled(program string) bool {
 	}
 
 	if len(missing_pack) != 0 || len(missing_pack_src) != 0 {
-		log.Infof("The operation requires some dependencies.")
+		log.Error("The operation requires some dependencies.")
 		fmt.Println("Missing packages: " + strings.Join(missing_pack, " ") + " " +
 			strings.Join(missing_pack_src, " "))
 		if osName == "darwin" {
