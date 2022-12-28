@@ -8,7 +8,6 @@ import (
 	"github.com/apex/log"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
-	"github.com/tarantool/tt/cli/templates/engines"
 )
 
 // Cleanup represents application directory cleanup step.
@@ -24,7 +23,6 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 	}
 
 	var err error
-	templateEngine := engines.NewDefaultEngine()
 	filesToKeepCount := len(templateCtx.Manifest.Include)
 	if filesToKeepCount == 0 {
 		return nil
@@ -33,7 +31,7 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 	filesToKeep := make(map[string]bool, filesToKeepCount)
 	for _, fileName := range templateCtx.Manifest.Include {
 		// File name may contain template vars.
-		if fileName, err = templateEngine.RenderText(fileName, templateCtx.Vars); err != nil {
+		if fileName, err = templateCtx.Engine.RenderText(fileName, templateCtx.Vars); err != nil {
 			return fmt.Errorf("file name rendering error: %s", err)
 		}
 		fullPath := filepath.Join(templateCtx.AppPath, fileName)

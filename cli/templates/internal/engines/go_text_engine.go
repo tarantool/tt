@@ -7,11 +7,11 @@ import (
 	"text/template"
 )
 
-type goTextEngine struct {
+type GoTextEngine struct {
 }
 
 // RenderFile renders srcPath template to dstPath using go text/template engine.
-func (goTextEngine) RenderFile(srcPath string, dstPath string, data interface{}) error {
+func (GoTextEngine) RenderFile(srcPath string, dstPath string, data interface{}) error {
 	stat, err := os.Stat(srcPath)
 	if err != nil {
 		return fmt.Errorf("error getting file info %s: %s", srcPath, err)
@@ -40,7 +40,7 @@ func (goTextEngine) RenderFile(srcPath string, dstPath string, data interface{})
 }
 
 // RenderText renders in text using go tex/template engine.
-func (goTextEngine) RenderText(in string, data interface{}) (string, error) {
+func (GoTextEngine) RenderText(in string, data interface{}) (string, error) {
 	parsedTemplate, err := template.New("file").Parse(in)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse %s: %s", in, err)

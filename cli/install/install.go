@@ -21,7 +21,7 @@ import (
 	"github.com/tarantool/tt/cli/docker"
 	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/templates/engines"
+	"github.com/tarantool/tt/cli/templates"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -670,7 +670,7 @@ func installTarantoolInDocker(binDir string, incDir string, installCtx InstallCt
 		return err
 	}
 
-	goTextEngine := engines.NewDefaultEngine()
+	goTextEngine := templates.NewDefaultEngine()
 	dockerfileText, err := goTextEngine.RenderText(string(tarantoolBuildDockerfile),
 		map[string]string{"uid": currentUser.Uid})
 	if err != nil {

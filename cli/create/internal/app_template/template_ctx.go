@@ -1,8 +1,6 @@
 package app_template
 
-import (
-	"github.com/tarantool/tt/cli/templates/engines"
-)
+import "github.com/tarantool/tt/cli/templates"
 
 // TemplateCtx contains an information required for application template rendering.
 type TemplateCtx struct {
@@ -19,13 +17,13 @@ type TemplateCtx struct {
 	// Vars is a map if variables to be used for template rendering.
 	Vars map[string]string
 	// Engine is a template engine to use for template rendering.
-	Engine engines.TemplateEngine
+	Engine templates.TemplateEngine
 }
 
 // NewTemplateContext creates new application template context.
 func NewTemplateContext() TemplateCtx {
 	var ctx TemplateCtx
 	ctx.Vars = make(map[string]string)
-	ctx.Engine = engines.NewDefaultEngine()
+	ctx.Engine = templates.NewDefaultEngine()
 	return ctx
 }
