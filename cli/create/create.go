@@ -1,6 +1,7 @@
 package create
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 
@@ -57,7 +58,7 @@ func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 		steps.CreateTemporaryAppDirectory{},
 		steps.CopyAppTemplate{},
 		steps.LoadManifest{},
-		steps.CollectTemplateVarsFromUser{Reader: steps.NewConsoleReader()},
+		steps.CollectTemplateVarsFromUser{Reader: bufio.NewReader(os.Stdin)},
 		steps.RunHook{HookType: "pre"},
 		steps.RenderTemplate{},
 		steps.RunHook{HookType: "post"},
