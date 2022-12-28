@@ -45,7 +45,7 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 			if err != nil {
 				return err
 			}
-			found, _ := filesToKeep[filePath]
+			found := filesToKeep[filePath]
 			if !found {
 				if fileInfo.IsDir() {
 					if filePath != templateCtx.AppPath {

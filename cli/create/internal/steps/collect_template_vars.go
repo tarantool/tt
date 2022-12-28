@@ -24,7 +24,7 @@ type CollectTemplateVarsFromUser struct {
 func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 	createCtx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {
 	var err error
-	if templateCtx.IsManifestPresent == false {
+	if !templateCtx.IsManifestPresent {
 		return nil
 	}
 
@@ -37,7 +37,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 				if err != nil {
 					return fmt.Errorf("failed to validate user input: %s", err)
 				}
-				if matched == false {
+				if !matched {
 					if createCtx.SilentMode {
 						return fmt.Errorf("invalid format of %s variable", varInfo.Name)
 					} else {
@@ -53,7 +53,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 
 		matched := false
 		var input string
-		for matched == false {
+		for !matched {
 			if varInfo.Default == "" {
 				if createCtx.SilentMode {
 					return fmt.Errorf("%s variable value is not set", varInfo.Name)
@@ -88,7 +88,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 					if err != nil {
 						return fmt.Errorf("failed to validate user input: %s", err)
 					}
-					if matched == false {
+					if !matched {
 						if createCtx.SilentMode {
 							return fmt.Errorf("invalid format of %s variable", varInfo.Name)
 						} else {
