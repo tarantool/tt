@@ -58,8 +58,8 @@ func NewArgError(text string) error {
 type VersionFunc func(bool, bool) string
 
 // FileLinesScanner returns scanner for file.
-func FileLinesScanner(file *os.File) *bufio.Scanner {
-	scanner := bufio.NewScanner(file)
+func FileLinesScanner(reader io.Reader) *bufio.Scanner {
+	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanLines)
 	return scanner
 }
@@ -160,12 +160,12 @@ func GetHomeDir() (string, error) {
 	return usr.HomeDir, nil
 }
 
-func readFromPos(f *os.File, pos int64, buf *[]byte) (int, error) {
-	if _, err := f.Seek(pos, io.SeekStart); err != nil {
+func readFromPos(readSeeker io.ReadSeeker, pos int64, buf *[]byte) (int, error) {
+	if _, err := readSeeker.Seek(pos, io.SeekStart); err != nil {
 		return 0, fmt.Errorf("failed to seek: %s", err)
 	}
 
-	n, err := f.Read(*buf)
+	n, err := readSeeker.Read(*buf)
 	if err != nil {
 		return n, fmt.Errorf("failed to read: %s", err)
 	}
@@ -643,7 +643,7 @@ func ExtractTar(tarName string) error {
 }
 
 // ExecuteCommand executes program with given args in verbose or quiet mode.
-func ExecuteCommand(program string, isVerbose bool, logFile *os.File, workDir string,
+func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir string,
 	args ...string) error {
 	cmd := exec.Command(program, args...)
 	if isVerbose {
@@ -653,8 +653,8 @@ func ExecuteCommand(program string, isVerbose bool, logFile *os.File, workDir st
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
+		cmd.Stdout = writer
+		cmd.Stderr = writer
 	}
 	if workDir == "" {
 		workDir, _ = os.Getwd()
