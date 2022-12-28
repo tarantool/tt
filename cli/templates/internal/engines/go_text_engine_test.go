@@ -35,7 +35,7 @@ func TestTemplateFileRender(t *testing.T) {
 		"password":       "pwd",
 	}
 
-	engine := goTextEngine{}
+	engine := GoTextEngine{}
 	require.NoError(t, engine.RenderFile(srcFileName, dstFileName, data))
 
 	// Check generated file permissions equal to origin.
@@ -69,7 +69,7 @@ func TestTemplateFileRenderMissingValues(t *testing.T) {
 
 	dstFileName := filepath.Join(workDir, resultFileName)
 	data := map[string]string{"cluster_cookie": "test_cookie"} // login & password are missing
-	engine := goTextEngine{}
+	engine := GoTextEngine{}
 	require.EqualError(t, engine.RenderFile(srcFileName, dstFileName, data), "template execution "+
 		"failed: template: origin.lua.tt.template:2:9: executing \"origin.lua.tt.template\" at "+
 		"<.login>: map has no entry for key \"login\"")
@@ -80,7 +80,7 @@ func TestTextRendering(t *testing.T) {
 	expectedText := `Hello world!`
 	data := map[string]string{"hello": "Hello",
 		"world": "world"}
-	engine := goTextEngine{}
+	engine := GoTextEngine{}
 	actualText, err := engine.RenderText(templateText, data)
 	require.NoError(t, err)
 	assert.Equal(t, expectedText, actualText)

@@ -12,7 +12,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/docker"
-	"github.com/tarantool/tt/cli/templates/engines"
+	"github.com/tarantool/tt/cli/templates"
 )
 
 //go:embed templates/Dockerfile.pack.build
@@ -29,7 +29,7 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	envDir := filepath.Dir(cmdCtx.Cli.ConfigPath)
 
-	goTextEngine := engines.NewDefaultEngine()
+	goTextEngine := templates.NewDefaultEngine()
 	dockerfileText, err := goTextEngine.RenderText(string(buildDockerfile),
 		map[string]string{
 			"tnt_version": cmdCtx.Cli.TarantoolVersion,

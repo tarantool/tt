@@ -1,5 +1,8 @@
-// Package engines provides template engine interface and implementations.
-package engines
+package templates
+
+import (
+	"github.com/tarantool/tt/cli/templates/internal/engines"
+)
 
 // TemplateEngine is an interface to support to use for application template instantiation.
 type TemplateEngine interface {
@@ -7,11 +10,11 @@ type TemplateEngine interface {
 	// Instantiated template is saved as dstPath.
 	RenderFile(srcPath string, dstPath string, data interface{}) error
 
-	// RenderFile applies data to the template text. Returns instantiated text.
+	// RenderText applies data to the template text. Returns instantiated text.
 	RenderText(in string, data interface{}) (string, error)
 }
 
 // NewDefaultEngine creates and returns default template engine.
 func NewDefaultEngine() TemplateEngine {
-	return goTextEngine{}
+	return engines.GoTextEngine{}
 }
