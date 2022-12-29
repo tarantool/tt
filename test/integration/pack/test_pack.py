@@ -674,6 +674,7 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
     assert rc == 0
 
 
+@pytest.mark.slow
 def test_pack_deb_use_docker(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
