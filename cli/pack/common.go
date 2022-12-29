@@ -65,7 +65,7 @@ var defaultPaths = []string{
 
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
-func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
+func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 	cliOpts *config.CliOpts, buildRocks bool) (string, error) {
 	var err error
 

@@ -73,7 +73,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	log.Debugf("A root for package is located in: %s", packageDir)
 
 	// Prepare a bundle.
-	bundlePath, err := prepareBundle(cmdCtx, packCtx, opts, true)
+	bundlePath, err := prepareBundle(cmdCtx, *packCtx, opts, true)
 	if err != nil {
 		return err
 	}

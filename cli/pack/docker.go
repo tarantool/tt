@@ -62,9 +62,15 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		fmt.Sprintf("cp $(which tarantool) %s && cp $(which tt) %s && %s",
 			relEnvBinPath, relEnvBinPath, strings.Join(ttPackCommandLine, " "))})
 
+	// Get a pack context for preparing a bundle without binaries.
+	// All binary files will be taken from the docker image.
+	dockerPackCtx := *packCtx
+	dockerPackCtx.WithoutBinaries = true
+	dockerPackCtx.WithBinaries = false
+
 	// Create a temporary directory with environment files for mapping it into container.
 	// That is needed to avoid files mutation and binaries replacing in source directory.
-	tempEnvDir, err := prepareBundle(cmdCtx, packCtx, &opts, false)
+	tempEnvDir, err := prepareBundle(cmdCtx, dockerPackCtx, &opts, false)
 	if err != nil {
 		return err
 	}
