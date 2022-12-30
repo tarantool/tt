@@ -17,7 +17,7 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/mitchellh/mapstructure v1.4.3
 	github.com/moby/term v0.0.0-20221105221325-4eb28fa6025c
-	github.com/otiai10/copy v1.2.0
+	github.com/otiai10/copy v1.7.1
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.1
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61

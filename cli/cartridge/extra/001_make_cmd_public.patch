@@ -90,8 +90,8 @@ index 02c9c4d..ca58ad1 100644
  )
  
  var (
--	failoverModes = []string{"stateful", "eventual", "disabled"}
-+	failoverModes        = []string{"stateful", "eventual", "disabled"}
+-	failoverModes = []string{"stateful", "eventual", "disabled", "raft"}
++	failoverModes        = []string{"stateful", "eventual", "disabled", "raft"}
 +	CartridgeCliFailover *cobra.Command
  )
  

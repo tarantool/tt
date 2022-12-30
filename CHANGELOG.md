@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - ``cfg dump`` module. It prints tt environment configuration.
 - ``--use-docker`` option for ``tt pack`` for packing environments in docker container.
 
+### Changed
+
+- Updated cartridge-cli version to 2.12.4.
+
 ## [0.3.0] - 2022-12-05
 
 ### Added
