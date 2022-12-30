@@ -96,7 +96,7 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 	templateCtx.AppPath = srcAppDir
 	moveAppDir := MoveAppDirectory{}
 	require.EqualError(t, moveAppDir.Run(&createCtx, &templateCtx),
-		fmt.Sprintf("mkdir %[1]s: permission denied", templateCtx.TargetAppPath))
+		fmt.Sprintf("stat %[1]s: permission denied", templateCtx.TargetAppPath))
 
 	// Check subdir is still there.
 	os.Chmod(filepath.Join(dstAppDir, "parent"), 0755)
