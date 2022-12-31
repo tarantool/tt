@@ -5,13 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2022-12-31
 
 ### Added
 
 - Support of rocks repository specified in tt config.
 - ``cfg dump`` module. It prints tt environment configuration.
 - ``--use-docker`` option for ``tt pack`` for packing environments in docker container.
+- Support of MacOS.
 
 ### Changed
 
