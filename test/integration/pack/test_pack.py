@@ -650,7 +650,7 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
         cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
 
-    package_file_name = "bundle1_0.1.0.0.rpm"
+    package_file_name = "bundle1-0.1.0.0-1." + get_arch() + ".rpm"
     package_file = os.path.join(base_dir, package_file_name)
     assert os.path.isfile(package_file)
 
@@ -695,7 +695,7 @@ def test_pack_deb_use_docker(tt_cmd, tmpdir):
         cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
 
-    package_file_name = "bundle1_0.1.0.0.deb"
+    package_file_name = "bundle1_0.1.0.0-1_" + get_arch() + ".deb"
     package_file = os.path.join(base_dir, package_file_name)
     assert os.path.isfile(package_file)
 
