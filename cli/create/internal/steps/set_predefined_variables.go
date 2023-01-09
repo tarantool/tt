@@ -13,5 +13,8 @@ type SetPredefinedVariables struct {
 func (SetPredefinedVariables) Run(createCtx *create_ctx.CreateCtx,
 	templateCtx *app_template.TemplateCtx) error {
 	templateCtx.Vars["name"] = createCtx.AppName
+	if createCtx.CliOpts != nil && createCtx.CliOpts.App != nil {
+		templateCtx.Vars["rundir"] = createCtx.CliOpts.App.RunDir
+	}
 	return nil
 }

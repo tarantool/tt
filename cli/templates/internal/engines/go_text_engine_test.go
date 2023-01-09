@@ -91,3 +91,19 @@ func TestTextRendering(t *testing.T) {
 	require.EqualError(t, err, "template execution failed: template: file:1:2: "+
 		"executing \"file\" at <.hello>: map has no entry for key \"hello\"")
 }
+
+func TestTextRenderingRelPath(t *testing.T) {
+	templateText := `{{ cwdRelative .fullpath }}`
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	parentDir, err := filepath.Abs(filepath.Dir(cwd))
+	require.NoError(t, err)
+
+	expectedText := `../var/run`
+	data := map[string]string{"fullpath": filepath.Join(parentDir, "var", "run")}
+	engine := GoTextEngine{}
+	actualText, err := engine.RenderText(templateText, data)
+	require.NoError(t, err)
+	assert.Equal(t, expectedText, actualText)
+}

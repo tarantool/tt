@@ -39,6 +39,8 @@ type TemplateManifest struct {
 	PostHook string `mapstructure:"post-hook"`
 	// Include contains a list of files to keep after template instantiaion.
 	Include []string
+	// FollowUpMessage is a message to print to console after application creation.
+	FollowUpMessage string `mapstructure:"follow-up-message"`
 }
 
 func validateManifest(manifest *TemplateManifest) error {
