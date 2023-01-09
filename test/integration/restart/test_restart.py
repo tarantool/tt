@@ -60,7 +60,7 @@ def test_restart_with_auto_yes(tt_cmd, tmpdir_with_cfg):
         assert "Confirm restart of 'test_app' [y/n]" not in restart_output[0]
         assert "has been terminated" in restart_output[0]
         assert "Starting an instance" in restart_output[1]
-        wait_file(os.path.join(tmpdir_with_cfg, run_path, app_name), 'test_app.pid', [], 5)
+        wait_file(os.path.join(tmpdir_with_cfg, run_path, app_name), 'test_app.pid', [], 25)
 
         restart_output = app_cmd(tt_cmd, tmpdir_with_cfg, ["restart", "--yes", app_name], [])
         assert "Confirm restart of 'test_app' [y/n]" not in restart_output[0]

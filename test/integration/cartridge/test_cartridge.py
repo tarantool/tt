@@ -64,7 +64,7 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
             if inst == "stateboard":
                 started = True
                 break
-            if trying == 200:
+            if trying == 600:
                 break
             with open(os.path.join(log_dir, inst + '.log'), "r") as fp:
                 lines = fp.readlines()

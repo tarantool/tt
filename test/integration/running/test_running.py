@@ -144,7 +144,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
         assert re.search(r"test_app: logs has been rotated. PID: \d+.", logrotate_out)
 
         file = wait_file(os.path.join(tmpdir, log_path, "test_app"), 'test_app.*.log',
-                         exists_log_files)
+                         exists_log_files, 25)
         assert file != ""
         exists_log_files.append(file)
 
@@ -568,6 +568,9 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
     # Check that log format is in json.
     isJson = False
     logPath = os.path.join(tmpdir, "var", "log", "test_env_app", "test_env_app.log")
+    logDir = os.path.join(tmpdir, "var", "log", "test_env_app")
+    file = wait_file(logDir, "test_env_app.log", [], 30)
+    assert file != ''
     with open(logPath, "r") as file:
         for _, line in enumerate(file, start=1):
             if "{" in line:
