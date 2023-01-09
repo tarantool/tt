@@ -1,1 +1,9 @@
 description: Cartridge template
+follow-up-message: |
+  What's next?
+  Build and start '{{ .name }}' application:
+      $ tt build {{.name}}
+      $ tt start {{.name}}
+
+  To bootstrap vshard run the following command:
+      $ tt cartridge replicasets setup --bootstrap-vshard --name {{ .name }} --run-dir {{ cwdRelative .rundir }}/{{ .name }}

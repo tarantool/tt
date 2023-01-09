@@ -66,6 +66,7 @@ func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 		steps.CreateDockerfile{},
 		steps.MoveAppDirectory{},
 		steps.CreateAppSymlink{SymlinkDir: cliOpts.App.InstancesEnabled},
+		steps.PrintFollowUpMessage{Writer: os.Stdout},
 	}
 
 	templateCtx := app_template.NewTemplateContext()

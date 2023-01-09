@@ -4,10 +4,32 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"text/template"
 )
 
 type GoTextEngine struct {
+}
+
+var commonTemplateFuncs map[string]interface{}
+
+// relativeToCurrentWorkingDir returns a path relative to current working dir.
+// In case of error, fullpath is returned.
+func relativeToCurrentWorkingDir(fullpath string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fullpath
+	}
+	relPath, err := filepath.Rel(cwd, fullpath)
+	if err != nil {
+		return fullpath
+	}
+	return relPath
+}
+
+func init() {
+	commonTemplateFuncs = make(map[string]interface{}, 0)
+	commonTemplateFuncs["cwdRelative"] = relativeToCurrentWorkingDir
 }
 
 // RenderFile renders srcPath template to dstPath using go text/template engine.
@@ -23,6 +45,7 @@ func (GoTextEngine) RenderFile(srcPath string, dstPath string, data interface{})
 		return fmt.Errorf("error parsing %s: %s", srcPath, err)
 	}
 	parsedTemplate.Option("missingkey=error") // Treat missing variable as error.
+	parsedTemplate.Funcs(commonTemplateFuncs)
 
 	outFile, err := os.Create(dstPath)
 	if err != nil {
@@ -41,7 +64,7 @@ func (GoTextEngine) RenderFile(srcPath string, dstPath string, data interface{})
 
 // RenderText renders in text using go tex/template engine.
 func (GoTextEngine) RenderText(in string, data interface{}) (string, error) {
-	parsedTemplate, err := template.New("file").Parse(in)
+	parsedTemplate, err := template.New("file").Funcs(commonTemplateFuncs).Parse(in)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse %s: %s", in, err)
 	}

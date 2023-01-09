@@ -76,6 +76,7 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		VarsFromCli:    *varsFromCli,
 		VarsFile:       varsFile,
 		DestinationDir: dstPath,
+		CliOpts:        cliOpts,
 	}
 
 	if err := create.FillCtx(cliOpts, &createCtx, args); err != nil {

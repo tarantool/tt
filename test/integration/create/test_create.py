@@ -602,7 +602,7 @@ def test_create_app_from_builtin_cartridge_template(tt_cmd, tmpdir):
     with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmpdir))
 
-    create_cmd = [tt_cmd, "create", "cartridge", "--non-interactive", "--name", "app1"]
+    create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1"]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmpdir,
@@ -614,6 +614,11 @@ def test_create_app_from_builtin_cartridge_template(tt_cmd, tmpdir):
     tt_process.stdin.close()
     tt_process.wait()
     assert tt_process.returncode == 0
+
+    output = tt_process.stdout.read()
+    assert output.find("Build and start 'app1' application") != -1
+    assert output.find("./app1") != -1
+    assert output.find("tt cartridge replicasets setup --bootstrap-vshard") != -1
 
     app_path = os.path.join(tmpdir, "app1")
     assert os.path.exists(os.path.join(app_path, "init.lua"))

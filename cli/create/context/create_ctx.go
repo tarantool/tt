@@ -1,5 +1,7 @@
 package create_ctx
 
+import "github.com/tarantool/tt/cli/config"
+
 // CreateCtx contains information for creating applications from templates.
 type CreateCtx struct {
 	// AppName is application name to create.
@@ -21,4 +23,6 @@ type CreateCtx struct {
 	SilentMode bool
 	// VarsFile is a file with variables definitions.
 	VarsFile string
+	// CliOpts is loaded tt environment config.
+	CliOpts *config.CliOpts
 }
