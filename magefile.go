@@ -210,10 +210,11 @@ func Unit() error {
 	mg.Deps(GenerateGoCode)
 
 	if mg.Verbose() {
-		return sh.RunV(goExecutableName, "test", "-v", fmt.Sprintf("%s/...", packagePath))
+		return sh.RunV(goExecutableName, "test", "-v", "-tags", "go_tarantool_ssl_disable",
+			fmt.Sprintf("%s/...", packagePath))
 	}
 
-	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath))
+	return sh.RunV(goExecutableName, "test", "-tags", "go_tarantool_ssl_disable", fmt.Sprintf("%s/...", packagePath))
 }
 
 // Run unit tests with a Tarantool instance integration.
@@ -224,11 +225,11 @@ func UnitFull() error {
 
 	if mg.Verbose() {
 		return sh.RunV(goExecutableName, "test", "-v", fmt.Sprintf("%s/...", packagePath),
-			"-tags", "integration")
+			"-tags", "integration,go_tarantool_ssl_disable")
 	}
 
 	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath),
-		"-tags", "integration")
+		"-tags", "integration,go_tarantool_ssl_disable")
 }
 
 // Run integration tests, excluding slow tests.

@@ -1,5 +1,7 @@
 run:
   timeout: 3m
+  build-tags:
+    - go_tarantool_ssl_disable
 
 linters:
   disable-all: true
