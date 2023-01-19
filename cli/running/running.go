@@ -503,6 +503,12 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		}
 	}
 
+	if cmdCtx.CommandName != "connect" {
+		if cmdCtx.Cli.TarantoolExecutable == "" {
+			return fmt.Errorf("tarantool binary not found")
+		}
+	}
+
 	return nil
 }
 
