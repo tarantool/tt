@@ -337,7 +337,7 @@ func collectInstances(appName string, appDir string) ([]InstanceCtx, error) {
 }
 
 // cleanup removes runtime artifacts.
-func cleanup(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) {
+func cleanup(run *InstanceCtx) {
 	if _, err := os.Stat(run.PIDFile); err == nil {
 		os.Remove(run.PIDFile)
 	}
@@ -518,7 +518,7 @@ func Start(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 		return err
 	}
 
-	defer cleanup(cmdCtx, run)
+	defer cleanup(run)
 
 	logger := createLogger(run)
 	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: run}
