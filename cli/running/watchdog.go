@@ -37,6 +37,8 @@ type Watchdog struct {
 	restartTimeout time.Duration
 	// stopped indicates whether Watchdog was stopped.
 	stopped bool
+	// stopMutex used to avoid a race condition under stopped field.
+	stopMutex sync.Mutex
 	// done channel used to inform the signal handle goroutine
 	// about termination of the Instance.
 	done chan bool
@@ -71,11 +73,16 @@ func (wd *Watchdog) Start() {
 		}
 		wd.logger = wd.Instance.logger
 		// Start the Instance and forwarding signals (except  SIGINT and SIGTERM)
-		if err := wd.Instance.Start(); err != nil {
-			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
-			break
-		}
 		wd.startSignalHandling()
+		wd.stopMutex.Lock()
+		if !wd.stopped {
+			if err := wd.Instance.Start(); err != nil {
+				wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+				wd.stopMutex.Unlock()
+				break
+			}
+		}
+		wd.stopMutex.Unlock()
 
 		// Wait while the Instance will be terminated.
 		if err := wd.Instance.Wait(); err != nil {
@@ -111,6 +118,9 @@ func (wd *Watchdog) Start() {
 // startSignalHandling starts signal handling in a separate goroutine.
 func (wd *Watchdog) startSignalHandling() {
 	sigChan := make(chan os.Signal, 1)
+	// Reset unregisters all previous handlers for interrupt signals.
+	signal.Reset(syscall.SIGINT,
+		syscall.SIGTERM, syscall.SIGHUP)
 	signal.Notify(sigChan)
 
 	// Set barrier to synchronize with the main loop when the Instance stops.
@@ -126,10 +136,12 @@ func (wd *Watchdog) startSignalHandling() {
 			case sig := <-sigChan:
 				switch sig {
 				case syscall.SIGINT, syscall.SIGTERM:
+					wd.stopMutex.Lock()
 					wd.Instance.Stop(30 * time.Second)
 					// If we receive one of the "stop" signals, the
 					// program should be terminated.
 					wd.stopped = true
+					wd.stopMutex.Unlock()
 				case syscall.SIGHUP:
 					// Rotate the log files.
 					wd.logger.Rotate()

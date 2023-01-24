@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
+	"golang.org/x/net/context"
 	"gopkg.in/yaml.v2"
 )
 
@@ -514,17 +516,32 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 // Start an Instance.
 func Start(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
+	// Register a context, related with a signal handler that
+	// removes a pid file if interrupt signals were sent before starting
+	// an instance and watchdog signal handlers.
+	sigCtx, stop := signal.NotifyContext(context.Background(),
+		syscall.SIGINT, syscall.SIGTERM)
 	if err := process_utils.CreatePIDFile(run.PIDFile); err != nil {
 		return err
 	}
 
-	defer cleanup(run)
+	defer func() {
+		cleanup(run)
+		stop()
+	}()
 
 	logger := createLogger(run)
 	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: run}
 	wd := NewWatchdog(run.Restartable, 5*time.Second, logger, &provider)
-	wd.Start()
 
+	// The Done() state of the context means that the process received
+	// an interrupt signal and there is a need to clean up the resources.
+	select {
+	case <-sigCtx.Done():
+		return nil
+	default:
+		wd.Start()
+	}
 	return nil
 }
 
