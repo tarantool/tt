@@ -11,6 +11,7 @@ import (
 	"github.com/tarantool/tt/cli/build"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v2"
 )
@@ -30,7 +31,6 @@ const (
 	binPath              = "bin"
 	modulesPath          = "modules"
 	instancesEnabledPath = "instances_enabled"
-	envFileName          = "tarantool.yaml"
 )
 
 var (
@@ -271,9 +271,9 @@ func createAppSymlink(appPath string, appName string) error {
 	return nil
 }
 
-// createEnv generates a tarantool.yaml file.
+// createEnv generates a tt.yaml file.
 func createEnv(opts *config.CliOpts, destPath string) error {
-	log.Infof("Generating new tarantool.yaml for the new package")
+	log.Infof("Generating new %s for the new package", configure.ConfigName)
 
 	appOpts := config.AppOpts{
 		InstancesEnabled: instancesEnabledPath,
@@ -297,7 +297,7 @@ func createEnv(opts *config.CliOpts, destPath string) error {
 		CliConfig: &cliOptsNew,
 	}
 
-	file, err := os.Create(filepath.Join(destPath, "tarantool.yaml"))
+	file, err := os.Create(filepath.Join(destPath, configure.ConfigName))
 	if err != nil {
 		return err
 	}

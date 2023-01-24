@@ -433,8 +433,8 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		return util.NewArgError("currently, you can specify only one instance at a time")
 	}
 
-	// All relative paths are built from the path of the tarantool.yaml file.
-	// If tarantool.yaml does not exists we must return error.
+	// All relative paths are built from the path of the tt.yaml file.
+	// If tt.yaml does not exists we must return error.
 	if cmdCtx.Cli.ConfigPath == "" {
 		return fmt.Errorf(`%s not found`, configure.ConfigName)
 	}

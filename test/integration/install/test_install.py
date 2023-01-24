@@ -7,11 +7,13 @@ import tempfile
 import pytest
 import yaml
 
+from utils import config_name
+
 
 @pytest.mark.slow
 def test_install_tt(tt_cmd, tmpdir):
 
-    configPath = os.path.join(tmpdir, "tarantool.yaml")
+    configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
         f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
@@ -44,7 +46,7 @@ def test_install_tt(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 def test_install_tarantool(tt_cmd, tmpdir):
-    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    config_path = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(config_path, "w") as f:
         yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
@@ -83,7 +85,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    config_path = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(config_path, "w") as f:
         yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
@@ -126,7 +128,7 @@ def test_install_tt_in_docker(tt_cmd, tmpdir):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
         yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
 

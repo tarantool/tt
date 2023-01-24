@@ -249,28 +249,28 @@ func TestInitRunOverwriteTtEnv(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer os.Chdir(wd)
 
-	f, err := os.Create("tarantool.yaml")
+	f, err := os.Create(configure.ConfigName)
 	require.NoError(t, err)
 	f.WriteString("text")
 	f.Close()
 
 	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("Y\n")}))
 	// Make sure the file is overwritten.
-	checkDefaultEnv(t, "tarantool.yaml", configure.InstancesEnabledDirName)
+	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
 
-	// Test overwrite of existing tarantool.yml file.
-	require.NoError(t, os.Remove("tarantool.yaml"))
-	f, err = os.Create("tarantool.yml")
+	// Test overwrite of existing tt.yml file.
+	require.NoError(t, os.Remove(configure.ConfigName))
+	f, err = os.Create("tt.yml")
 	require.NoError(t, err)
 	f.WriteString("text")
 	f.Close()
 
 	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("Y\n")}))
 	// Make sure the file is overwritten.
-	checkDefaultEnv(t, "tarantool.yml", configure.InstancesEnabledDirName)
+	checkDefaultEnv(t, "tt.yml", configure.InstancesEnabledDirName)
 
 	// Multiple configs - error.
-	require.NoError(t, copy.Copy("tarantool.yml", "tarantool.yaml"))
+	require.NoError(t, copy.Copy("tt.yml", configure.ConfigName))
 	require.Error(t, Run(&InitCtx{reader: strings.NewReader("\n")}))
 }
 
@@ -294,14 +294,14 @@ func TestInitRunDontOverwriteTtEnv(t *testing.T) {
 	require.Equal(t, "text", string(buf))
 
 	// Test the same but with .yml file.
-	err = os.Rename(configure.ConfigName, "tarantool.yml")
+	err = os.Rename(configure.ConfigName, "tt.yml")
 	require.NoError(t, err)
 
 	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("N\n")}))
 	// Make sure the file has old data.
 	require.NoError(t, err)
-	assert.NoFileExists(t, "tarantool.yaml")
-	buf, err = os.ReadFile("tarantool.yml")
+	assert.NoFileExists(t, configure.ConfigName)
+	buf, err = os.ReadFile("tt.yml")
 	require.NoError(t, err)
 	require.Equal(t, "text", string(buf))
 }

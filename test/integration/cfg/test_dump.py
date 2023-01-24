@@ -2,10 +2,12 @@ import os
 import shutil
 import subprocess
 
+from utils import config_name
+
 
 def test_cfg_dump_default(tt_cmd, tmpdir):
     shutil.copy(os.path.join(os.path.dirname(__file__), "tt_cfg.yaml"),
-                os.path.join(tmpdir, "tarantool.yaml"))
+                os.path.join(tmpdir, config_name))
 
     buid_cmd = [tt_cmd, "cfg", "dump"]
     tt_process = subprocess.Popen(
@@ -37,7 +39,7 @@ def test_cfg_dump_default(tt_cmd, tmpdir):
 
 def test_cfg_dump_raw(tt_cmd, tmpdir):
     shutil.copy(os.path.join(os.path.dirname(__file__), "tt_cfg.yaml"),
-                os.path.join(tmpdir, "tarantool.yaml"))
+                os.path.join(tmpdir, config_name))
 
     buid_cmd = [tt_cmd, "cfg", "dump", "--raw"]
     tt_process = subprocess.Popen(
@@ -53,7 +55,7 @@ def test_cfg_dump_raw(tt_cmd, tmpdir):
     assert tt_process.returncode == 0
 
     output = tt_process.stdout.read()
-    assert output == f"""{os.path.join(tmpdir, "tarantool.yaml")}:
+    assert output == f"""{os.path.join(tmpdir, config_name)}:
 tt:
   modules:
     directory: new_modules

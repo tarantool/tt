@@ -1,15 +1,15 @@
 package config
 
 // Config used to store all information from the
-// tarantool.yaml configuration file.
+// tt.yaml configuration file.
 type Config struct {
 	CliConfig *CliOpts `mapstructure:"tt" yaml:"tt"`
 }
 
 // CliOpts stores information about Tarantool CLI configuration.
-// Filled in when parsing the tarantool.yaml configuration file.
+// Filled in when parsing the tt.yaml configuration file.
 //
-// tarantool.yaml file format:
+// tt.yaml file format:
 // tt:
 //   modules:
 //     directory: path/to

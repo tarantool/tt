@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
 	"gopkg.in/yaml.v2"
 )
@@ -64,13 +65,13 @@ func TestCreateEnv(t *testing.T) {
 	require.NoErrorf(t, err, "failed to create a new tarantool env file: %v", err)
 
 	cfg := &config.Config{}
-	envFile, err := os.Open(filepath.Join(testDir, "tarantool.yaml"))
-	require.NoErrorf(t, err, "failed to find a new created tarantool.yaml: %v", err)
+	envFile, err := os.Open(filepath.Join(testDir, configure.ConfigName))
+	require.NoErrorf(t, err, "failed to find a new created %s: %v", configure.ConfigName, err)
 
 	defer envFile.Close()
 
 	err = yaml.NewDecoder(envFile).Decode(cfg)
-	require.NoErrorf(t, err, "failed to decode a new created tarantool.yaml: %v", err)
+	require.NoErrorf(t, err, "failed to decode a new created %s: %v", configure.ConfigName, err)
 
 	assert.Equalf(t, cfg.CliConfig.App.Restartable, testOpts.App.Restartable,
 		"wrong restartable count")

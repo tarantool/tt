@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Follow-up message support for application templates.
 
+### Changed
+
+- tt config is renamed to tt.yaml.
+
 ## [0.4.0] - 2022-12-31
 
 ### Added

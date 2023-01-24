@@ -6,9 +6,9 @@ import tempfile
 
 import yaml
 
-from utils import (kill_child_process, log_path, run_command_and_get_output,
-                   run_path, wait_file, wait_instance_start,
-                   wait_instance_stop)
+from utils import (config_name, kill_child_process, log_path,
+                   run_command_and_get_output, run_path, wait_file,
+                   wait_instance_start, wait_instance_stop)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
@@ -388,7 +388,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
     shutil.copy(test_app_path, tmpdir)
     inst_name = "test_app"
-    config_path = os.path.join(tmpdir, "tarantool.yaml")
+    config_path = os.path.join(tmpdir, config_name)
 
     # Create test config with restart_on_failure true.
     with open(config_path, "w") as file:

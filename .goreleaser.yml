@@ -70,8 +70,8 @@ nfpms:
       - unzip
       - curl
     contents:
-      - src: "tarantool.yaml.default"
-        dst: "/etc/tarantool/tarantool.yaml"
+      - src: "tt.yaml.default"
+        dst: "/etc/tarantool/tt.yaml"
         type: config
 
     overrides:
