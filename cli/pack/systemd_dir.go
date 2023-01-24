@@ -8,6 +8,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v2"
 )
@@ -69,7 +70,7 @@ func initSystemdDir(packCtx *PackCtx, opts *config.CliOpts,
 // returns its content. Otherwise, it returns the default params.
 func getUnitParams(packCtx *PackCtx, pathToEnv,
 	envName string) (map[string]interface{}, error) {
-	pathToEnvFile := filepath.Join(pathToEnv, envFileName)
+	pathToEnvFile := filepath.Join(pathToEnv, configure.ConfigName)
 	ttBinary := getTTBinary(packCtx, pathToEnv)
 
 	referenceParams := map[string]interface{}{

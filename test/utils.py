@@ -13,6 +13,7 @@ import yaml
 
 run_path = os.path.join("var", "run")
 log_path = os.path.join("var", "log")
+config_name = "tt.yaml"
 
 
 def run_command_and_get_output(
@@ -36,7 +37,7 @@ def run_command_and_get_output(
 
 
 def create_tt_config(config_path, modules_path):
-    config_path = os.path.join(config_path, "tarantool.yaml")
+    config_path = os.path.join(config_path, config_name)
     with open(config_path, "w") as f:
         yaml.dump({"tt": {"modules": {"directory": f"{modules_path}"}}}, f)
 

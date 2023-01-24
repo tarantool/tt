@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=forking
-ExecStart=/usr/bin/tt -L /path/cfg/tarantool.yaml start
+ExecStart=/usr/bin/tt -L /path/cfg/tt.yaml start
 Restart=on-failure
 RestartSec=2
 User=tarantool

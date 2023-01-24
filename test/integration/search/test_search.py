@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from utils import run_command_and_get_output
+from utils import config_name, run_command_and_get_output
 
 
 def test_version_cmd(tt_cmd, tmpdir):
@@ -30,7 +30,7 @@ def test_version_cmd(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 def test_version_cmd_local(tt_cmd, tmpdir):
-    configPath = os.path.join(tmpdir, "tarantool.yaml")
+    configPath = os.path.join(tmpdir, config_name)
     # Create test config
     distfilesPath = os.path.join(tmpdir, "distfiles")
     os.mkdir(distfilesPath)

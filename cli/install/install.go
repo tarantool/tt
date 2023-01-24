@@ -417,7 +417,7 @@ func installTt(version string, binDir string, installCtx InstallCtx, distfiles s
 
 	// Check binary directory.
 	if binDir == "" {
-		return fmt.Errorf("binDir is not set, check tarantool.yaml")
+		return fmt.Errorf("binDir is not set, check %s", configure.ConfigName)
 	}
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {
@@ -741,10 +741,10 @@ func installTarantool(version string, binDir string, incDir string,
 	installCtx InstallCtx, distfiles string) error {
 	// Check bin and header dirs.
 	if binDir == "" {
-		return fmt.Errorf("BinDir is not set, check tarantool.yaml ")
+		return fmt.Errorf("BinDir is not set, check %s", configure.ConfigName)
 	}
 	if incDir == "" {
-		return fmt.Errorf("IncludeDir is not set, check tarantool.yaml")
+		return fmt.Errorf("IncludeDir is not set, check %s", configure.ConfigName)
 	}
 
 	versions, err := getTarantoolVersions(installCtx.Local, distfiles)
@@ -959,10 +959,10 @@ func installTarantoolEE(version string, binDir string, includeDir string, instal
 
 	// Check bin and header dirs.
 	if binDir == "" {
-		return fmt.Errorf("binDir is not set, check tarantool.yaml")
+		return fmt.Errorf("binDir is not set, check %s", configure.ConfigName)
 	}
 	if includeDir == "" {
-		return fmt.Errorf("includeDir is not set, check tarantool.yaml")
+		return fmt.Errorf("includeDir is not set, check %s", configure.ConfigName)
 	}
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {

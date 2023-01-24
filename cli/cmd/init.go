@@ -12,9 +12,9 @@ import (
 
 var initCtx init_pkg.InitCtx
 
-// NewInitCmd analyses current working directory and generates tarantool.yaml for existing
+// NewInitCmd analyses current working directory and generates tt.yaml for existing
 // application found in working dir. It there is no app in current directory, default version
-// of tarantool.yaml will be generated.
+// of tt.yaml will be generated.
 func NewInitCmd() *cobra.Command {
 	var initCmd = &cobra.Command{
 		Use:   "init [flags]",

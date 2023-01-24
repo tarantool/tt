@@ -2,9 +2,11 @@ import os
 import re
 import subprocess
 
+from utils import config_name
+
 
 def test_uninstall_tt(tt_cmd, tmpdir):
-    configPath = os.path.join(tmpdir, "tarantool.yaml")
+    configPath = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(configPath, 'w') as f:
         f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
@@ -41,7 +43,7 @@ def test_uninstall_tt(tt_cmd, tmpdir):
 
 
 def test_uninstall_missing(tt_cmd, tmpdir):
-    configPath = os.path.join(tmpdir, "tarantool.yaml")
+    configPath = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(configPath, 'w') as f:
         f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')

@@ -5,6 +5,8 @@ import tempfile
 
 import yaml
 
+from utils import config_name
+
 tt_config_text = '''tt:
   app:
     instances_enabled: test.instances.enabled
@@ -31,7 +33,7 @@ def check_file_text(filepath, text):
 
 def create_tnt_env_in_dir(tmpdir):
     # Create env file.
-    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmpdir))
 
     os.mkdir(os.path.join(tmpdir, "test.instances.enabled"))
@@ -312,7 +314,7 @@ def test_template_as_archive(tt_cmd, tmpdir):
 
 def test_template_search_paths(tt_cmd, tmpdir):
     # Create env file.
-    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''tt:
   app:
     instances_enabled: ./any-dir
@@ -599,7 +601,7 @@ def test_create_ambiguous_manifest(tt_cmd, tmpdir):
 
 
 def test_create_app_from_builtin_cartridge_template(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmpdir))
 
     create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1"]

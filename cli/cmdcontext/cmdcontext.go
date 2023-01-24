@@ -19,7 +19,7 @@ type CliCtx struct {
 	ForceInternal bool
 	// Path to local directory (or empty string if CLI launch is system).
 	LocalLaunchDir string
-	// Path to Tarantool CLI (tarantool.yaml) config.
+	// Path to Tarantool CLI (tt.yaml) config.
 	ConfigPath string
 	// ConfigDir is tt configuration file directory.
 	// And current working directory, if there is no config.

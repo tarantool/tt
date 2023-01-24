@@ -5,7 +5,7 @@ import shutil
 
 import pytest
 
-from utils import create_tt_config, run_command_and_get_output
+from utils import config_name, create_tt_config, run_command_and_get_output
 
 # ##### #
 # Tests #
@@ -71,7 +71,7 @@ def test_rocks_module(tt_cmd, tmpdir):
 
 
 def test_rocks_install_remote(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''tt:
   repo:
     rocks: "repo"''')
@@ -86,7 +86,7 @@ def test_rocks_install_local(tt_cmd, tmpdir):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''tt:
   repo:
     rocks: "repo"''')
@@ -103,7 +103,7 @@ def test_rocks_install_local(tt_cmd, tmpdir):
 
 
 def test_rocks_install_local_specific_version(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, "tarantool.yaml"), "w") as tnt_env_file:
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''tt:
   repo:
     rocks: "repo"''')

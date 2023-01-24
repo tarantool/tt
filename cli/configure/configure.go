@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	ConfigName        = "tarantool.yaml"
+	ConfigName        = "tt.yaml"
 	cliExecutableName = "tt"
 	// systemConfigDirEnvName is an environment variable that contains a path to
 	// search system config.
@@ -57,7 +57,7 @@ var (
 )
 
 var (
-	// Path to default tarantool.yaml configuration file.
+	// Path to default tt.yaml configuration file.
 	// Defined at build time, see magefile.
 	defaultConfigPath string
 )
@@ -655,7 +655,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 	return configureSystemCli(cmdCtx)
 }
 
-// getConfigPath looks for the path to the tarantool.yaml configuration file,
+// getConfigPath looks for the path to the tt.yaml configuration file,
 // looking through all directories from the current one to the root.
 // This search pattern is chosen for the convenience of the user.
 func getConfigPath(configName string) (string, error) {

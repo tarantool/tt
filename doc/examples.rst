@@ -150,7 +150,7 @@ with the content:
 
 ``init.lua.tt.template`` in this example contains an application code. After instantiation, ``.tt.template`` suffix is removed from the file name.
 
-Create ``./tarantool.yaml`` and add templates search path to it:
+Create ``./tt.yaml`` and add templates search path to it:
 
 .. code-block:: yaml
 
@@ -161,7 +161,7 @@ Create ``./tarantool.yaml`` and add templates search path to it:
 Here is how the current directory structure looks like::
 
     ./
-    ├── tarantool.yaml
+    ├── tt.yaml
     └── templates
         └── simple
             ├── init.lua.tt.template
@@ -198,10 +198,10 @@ Packing environments
 For example, we want to pack a single application. Here is the content of the sample application::
 
     single_environment/
-    ├── tarantool.yaml
+    ├── tt.yaml
     └── init.lua
 
-``tarantool.yaml``:
+``tt.yaml``:
 
 .. code-block:: yaml
 
@@ -214,14 +214,14 @@ For packing it into tarball, call:
 
    $ tt pack tgz
       • Apps to pack: single_environment
-      • Generating new tarantool.yaml for the new package.
+      • Generating new tt.yaml for the new package.
       • Creating tarball.
       • Bundle is packed successfully to /Users/dev/tt_demo/single_environment/single_environment_0.1.0.0.tar.gz.
 
 The result directory structure::
 
       unpacked_dir/
-      ├── tarantool.yaml
+      ├── tt.yaml
       ├── single_environment
       │   └── init.lua
       ├── env
@@ -237,7 +237,7 @@ The result directory structure::
 Example of packing a multi-app environment. The source tree::
 
      bundle/
-     ├── tarantool.yaml
+     ├── tt.yaml
      ├── env
      │   ├── bin
      │   │   ├── tt
@@ -259,7 +259,7 @@ Example of packing a multi-app environment. The source tree::
      │   ├── replicasets.yml
      │   ├── stateboard.init.lua
      │   ├── systemd-unit-params.yml
-     │   ├── tarantool.yaml
+     │   ├── tt.yaml
      │   ├── test
      │   └── tmp
      ├── myapp2
@@ -283,7 +283,7 @@ Example of packing a multi-app environment. The source tree::
          ├── log
          └── run
 
-``tarantool.yaml``:
+``tt.yaml``:
 
 .. code-block:: yaml
 
@@ -315,7 +315,7 @@ For packing deb package call:
    myapp scm-1 is now installed in /var/folders/c6/jv1r5h211dn1280d75pmdqy80000gp/T/tt_pack4173588242/myapp/.rocks
 
       • myapp rocks are built successfully
-      • Generating new tarantool.yaml for the new package
+      • Generating new tt.yaml for the new package
       • Initialize the app directory for prefix: data/usr/share/tarantool/bundle
       • Create data tgz
       • Created control in /var/folders/***/control_dir

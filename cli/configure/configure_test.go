@@ -34,12 +34,12 @@ func TestConfigureCli(t *testing.T) {
 	assert.Nil(Cli(&cmdCtx))
 
 	// In fact, cmdCtx.Cli.ConfigPath must contain the path, for example
-	// /etc/tarantool/tarantool.yaml on Linux, to the standard configuration file.
+	// /etc/tarantool/tt.yaml on Linux, to the standard configuration file.
 	// But, the path to the system configuration file is set at the compilation
-	// stage of the application (therefore, we get only the file name `tarantool.yaml`,
+	// stage of the application (therefore, we get only the file name `tt.yaml`,
 	// not the entire path). We cannot set the path to the file at build time because
 	// we run `go test`, which compiles the functions again.
-	assert.Equal(cmdCtx.Cli.ConfigPath, "tarantool.yaml")
+	assert.Equal(cmdCtx.Cli.ConfigPath, ConfigName)
 
 	testDir, err := ioutil.TempDir(os.TempDir(), "tarantool_tt_")
 	t.Cleanup(func() { cleanupTempDir(testDir) })
@@ -49,7 +49,7 @@ func TestConfigureCli(t *testing.T) {
 	cmdCtx.Cli.LocalLaunchDir = testDir
 	cmdCtx.Cli.ConfigPath = ""
 
-	expectedConfigPath, err := util.JoinAbspath(testDir, "tarantool.yaml")
+	expectedConfigPath, err := util.JoinAbspath(testDir, ConfigName)
 	assert.Nil(err)
 	ioutil.WriteFile(expectedConfigPath, []byte("tt:\n  app:\n    bin_dir: \".\""), 0755)
 
@@ -76,10 +76,10 @@ func TestConfigureCli(t *testing.T) {
 	assert.Nil(err)
 
 	// Check if it will go down to the bottom of the directory looking
-	// for the tarantool.yaml configuration file, specifically skip a file
+	// for the tt.yaml configuration file, specifically skip a file
 	// in the working directory.
 	os.Chdir(dir)
-	expectedConfigPath = filepath.Join(filepath.Dir(dir), "tarantool.yaml")
+	expectedConfigPath = filepath.Join(filepath.Dir(dir), ConfigName)
 
 	assert.Nil(ioutil.WriteFile(
 		expectedConfigPath, []byte("tt:\n  app:"), 0755,
@@ -182,15 +182,15 @@ func TestValidateCliOpts(t *testing.T) {
 		errString string
 	}
 	testData := []cliCtxTest{
-		{cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/tarantool.yaml"},
+		{cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/" + ConfigName},
 			"you can specify only one of -S(--system) and -с(--cfg) options"},
-		{cmdcontext.CliCtx{LocalLaunchDir: "/", ConfigPath: "/tarantool.yaml"},
+		{cmdcontext.CliCtx{LocalLaunchDir: "/", ConfigPath: "/" + ConfigName},
 			"you can specify only one of -L(--local) and -с(--cfg) options"},
 		{cmdcontext.CliCtx{IsSystem: true, LocalLaunchDir: "."},
 			"you can specify only one of -L(--local) and -S(--system) options"},
 		{cmdcontext.CliCtx{IsSystem: true}, ""},
 		{cmdcontext.CliCtx{LocalLaunchDir: "."}, ""},
-		{cmdcontext.CliCtx{ConfigPath: "tarantool.yaml"}, ""},
+		{cmdcontext.CliCtx{ConfigPath: ConfigName}, ""},
 	}
 
 	for _, cliCtxTestData := range testData {
@@ -211,7 +211,7 @@ func TestDetectLocalTarantool(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, cmdCtx.Cli.TarantoolExecutable)
 
-	// Chdir to temporary directory to avoid loading tarantool.yaml from parent directories.
+	// Chdir to temporary directory to avoid loading tt.yaml from parent directories.
 	wd, err := os.Getwd()
 	require.NoError(t, err)
 	err = os.Chdir(t.TempDir())
@@ -251,11 +251,11 @@ func TestGetSystemConfigPath(t *testing.T) {
 func TestGetConfigPath(t *testing.T) {
 	tempDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "a", "b"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tarantool.yaml"), []byte("tt:"),
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", ConfigName), []byte("tt:"),
 		0664))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tarantool.yml"), []byte("tt:"),
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tt.yml"), []byte("tt:"),
 		0664))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tarantool.yaml"), []byte("tt:"),
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tt.yaml"), []byte("tt:"),
 		0664))
 
 	if wd, err := os.Getwd(); err == nil {
@@ -269,11 +269,11 @@ func TestGetConfigPath(t *testing.T) {
 	assert.Equal(t, "", configName)
 	assert.True(t, strings.Contains(err.Error(), "more than one YAML files are found"))
 
-	require.NoError(t, os.Remove(filepath.Join(tempDir, "a", "tarantool.yaml")))
+	require.NoError(t, os.Remove(filepath.Join(tempDir, "a", ConfigName)))
 
 	configName, err = getConfigPath(ConfigName)
 
-	assert.Equal(t, filepath.Join(workdir, "a", "tarantool.yml"), configName)
+	assert.Equal(t, filepath.Join(workdir, "a", "tt.yml"), configName)
 	assert.NoError(t, err)
 }
 

@@ -1,4 +1,4 @@
 TT: /usr/bin/tt
-ConfigPath: /path/cfg/tarantool.yaml
+ConfigPath: /path/cfg/tt.yaml
 EnvName: customEnvName
 FdLimit: 2048

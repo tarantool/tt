@@ -93,7 +93,7 @@ index c3b5730..1282c47 100644
 +func getNewProjectPath(basePath string, instPath string) (string, error) {
  	var err error
  
-+	// Parameter `instances_available` from tarantool.yaml has a priority.
++	// Parameter `instances_available` from tt.yaml has a priority.
 +	if instPath != "" {
 +		basePath = instPath
 +	}

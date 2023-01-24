@@ -7,7 +7,7 @@ import tarfile
 import pytest
 import yaml
 
-from utils import run_command_and_get_output
+from utils import config_name, run_command_and_get_output
 
 # ##### #
 # Tests #
@@ -22,7 +22,7 @@ def get_arch():
 
 
 def assert_bundle_structure(path):
-    assert os.path.isfile(os.path.join(path, "tarantool.yaml"))
+    assert os.path.isfile(os.path.join(path, config_name))
     assert os.path.isdir(os.path.join(path, "var"))
     assert os.path.isdir(os.path.join(path, "var/run"))
     assert os.path.isdir(os.path.join(path, "var/lib"))
@@ -32,7 +32,7 @@ def assert_bundle_structure(path):
 
 
 def assert_env(path):
-    with open(os.path.join(path, 'tarantool.yaml')) as f:
+    with open(os.path.join(path, config_name)) as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
         assert data["tt"]["app"]["instances_enabled"] == "instances_enabled"
         assert data["tt"]["app"]["data_dir"] == "var/lib"
@@ -572,7 +572,7 @@ def test_pack_deb(tt_cmd, tmpdir):
     assert re.search(r'Unpacking bundle \(0\.1\.0\)', output)
     assert re.search(r'Setting up bundle \(0\.1\.0\)', output)
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
-                               'tarantool.yaml', 'var']
+                               config_name, 'var']
     systemd_paths = ['bundle1%.service', 'bundle1.service']
 
     for path in installed_package_paths:
@@ -618,7 +618,7 @@ def test_pack_rpm(tt_cmd, tmpdir):
                                              '&& ls /etc/systemd/system'
                                             .format(package_file_name)])
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
-                               'tarantool.yaml', 'var']
+                               config_name, 'var']
     systemd_paths = ['bundle1%.service', 'bundle1.service']
 
     for path in installed_package_paths:
@@ -663,7 +663,7 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
                                              '&& ls /etc/systemd/system'
                                             .format(package_file_name)])
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
-                               'tarantool.yaml', 'var']
+                               config_name, 'var']
     systemd_paths = ['bundle1%.service', 'bundle1.service']
 
     for path in installed_package_paths:
@@ -709,7 +709,7 @@ def test_pack_deb_use_docker(tt_cmd, tmpdir):
                                              '&& ls /etc/systemd/system'
                                             .format(package_file_name)])
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
-                               'tarantool.yaml', 'var']
+                               config_name, 'var']
     systemd_paths = ['bundle1%.service', 'bundle1.service']
 
     for path in installed_package_paths:
