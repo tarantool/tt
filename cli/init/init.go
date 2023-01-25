@@ -112,12 +112,14 @@ func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (appDirInfo, er
 			log.Warnf("Failed to parse output of tarantoolctl : %s", dirDefinition)
 		}
 		switch varName {
-		case "wal_dir":
+		case "data_dir":
 			appDirInfo.dataDir = dirPath
-		case "logger":
+		case "log_dir":
 			appDirInfo.logDir = dirPath
 		case "pid_file":
 			appDirInfo.runDir = dirPath
+		case "instance_dir":
+			appDirInfo.instancesEnabled = dirPath
 		default:
 			log.Warnf("Unknown var: %s", varName)
 		}
@@ -147,10 +149,6 @@ func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
 
 	if err := util.WriteYaml(configPath, cfg); err != nil {
 		return err
-	}
-
-	if appDirInfo.instancesEnabled != "" {
-		cfg.CliConfig.App.InstancesEnabled = appDirInfo.instancesEnabled
 	}
 
 	directoriesToCreate := []string{
@@ -243,7 +241,7 @@ func Run(initCtx *InitCtx) error {
 			}
 		}
 	}
-	if !util.IsApp(".") {
+	if !util.IsApp(".") && appDirInfo.instancesEnabled == "" {
 		// Current directory is not app dir, instances enabled dir will be used.
 		appDirInfo.instancesEnabled = configure.InstancesEnabledDirName
 	}

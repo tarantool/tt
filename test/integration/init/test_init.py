@@ -237,7 +237,7 @@ def test_init_existing_tt_env_conf_overwrite_force(tt_cmd, tmpdir):
     check_env_dirs(tmpdir, "instances.enabled")
 
 
-def test_init_basic_tarantoolctl_app(tt_cmd, tmpdir):
+def test_init_basic_tarantoolctl_cfg(tt_cmd, tmpdir):
     shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "tarantoolctl.lua"),
                 os.path.join(tmpdir, ".tarantoolctl"))
 
@@ -262,6 +262,33 @@ def test_init_basic_tarantoolctl_app(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
 
     check_env_dirs(tmpdir, "instances.enabled")
+
+
+def test_tarantoolctl_cfg_from_doc(tt_cmd, tmpdir):
+    shutil.copy(os.path.join(os.path.dirname(__file__), "configs",
+                "default_ttctl_cfg_from_doc.lua"), os.path.join(tmpdir, ".tarantoolctl"))
+
+    tt_process = subprocess.Popen(
+        [tt_cmd, "init"],
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+    assert "Found existing config '.tarantoolctl'" in tt_process.stdout.readline()
+    assert f"Environment config is written to '{config_name}'" in tt_process.stdout.readline()
+
+    with open(os.path.join(tmpdir, config_name), 'r') as stream:
+        data_loaded = yaml.safe_load(stream)
+        assert data_loaded["tt"]["app"]["run_dir"] == "./run/tarantool"
+        assert data_loaded["tt"]["app"]["log_dir"] == "./log/tarantool"
+        assert data_loaded["tt"]["app"]["data_dir"] == "./lib/tarantool"
+        assert data_loaded["tt"]["app"]["instances_enabled"] == "./instances"
+
+    check_env_dirs(tmpdir, "instances")
 
 
 def test_init_tarantoolctl_app_no_read_permissions(tt_cmd, tmpdir):
