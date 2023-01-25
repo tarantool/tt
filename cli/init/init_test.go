@@ -122,7 +122,7 @@ func TestGenerateTtEnv(t *testing.T) {
 	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 }
 
-func TestInitRun(t *testing.T) {
+func TestInitRunCartridgeApp(t *testing.T) {
 	tmpDir := t.TempDir()
 	copy.Copy(filepath.Join("testdata", "valid_cartridge.yml"),
 		filepath.Join(tmpDir, ".cartridge.yml"))
@@ -148,6 +148,63 @@ func TestInitRun(t *testing.T) {
 	assert.Equal(t, "my_run_dir", cfg.CliConfig.App.RunDir)
 	assert.Equal(t, "my_log_dir", cfg.CliConfig.App.LogDir)
 	assert.NoDirExists(t, configure.InstancesEnabledDirName)
+	assert.DirExists(t, "modules")
+	assert.DirExists(t, "include")
+	assert.DirExists(t, "bin")
+	assert.DirExists(t, "distfiles")
+	assert.DirExists(t, "templates")
+}
+
+func TestInitRunTarantoolctlCfg(t *testing.T) {
+	tmpDir := t.TempDir()
+	copy.Copy(filepath.Join("testdata", "tarantoolctl_no_snap_dir.lua"),
+		filepath.Join(tmpDir, ".tarantoolctl"))
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer os.Chdir(wd)
+
+	tarantoolExecutable, err := exec.LookPath("tarantool")
+	require.NoError(t, err)
+	require.NoError(t, Run(&InitCtx{TarantoolExecutable: tarantoolExecutable}))
+
+	rawConfigOpts, err := util.ParseYAML(configure.ConfigName)
+	require.NoError(t, err)
+
+	var cfg config.Config
+	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
+
+	assert.Equal(t, "./instances", cfg.CliConfig.App.InstancesEnabled)
+	assert.Equal(t, "./lib", cfg.CliConfig.App.DataDir)
+	assert.Equal(t, "./run", cfg.CliConfig.App.RunDir)
+	assert.Equal(t, "./log", cfg.CliConfig.App.LogDir)
+	assert.DirExists(t, cfg.CliConfig.App.InstancesEnabled)
+	assert.DirExists(t, "modules")
+	assert.DirExists(t, "include")
+	assert.DirExists(t, "bin")
+	assert.DirExists(t, "distfiles")
+	assert.DirExists(t, "templates")
+
+	// Simulate application existence.
+	f, err := os.Create("init.lua")
+	require.NoError(t, err)
+	f.Close()
+
+	require.NoError(t, Run(&InitCtx{
+		TarantoolExecutable: tarantoolExecutable,
+		ForceMode:           true,
+	}))
+
+	rawConfigOpts, err = util.ParseYAML(configure.ConfigName)
+	require.NoError(t, err)
+
+	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
+
+	assert.Equal(t, "./instances", cfg.CliConfig.App.InstancesEnabled)
+	assert.Equal(t, "./lib", cfg.CliConfig.App.DataDir)
+	assert.Equal(t, "./run", cfg.CliConfig.App.RunDir)
+	assert.Equal(t, "./log", cfg.CliConfig.App.LogDir)
+	assert.DirExists(t, cfg.CliConfig.App.InstancesEnabled)
 	assert.DirExists(t, "modules")
 	assert.DirExists(t, "include")
 	assert.DirExists(t, "bin")
@@ -358,6 +415,13 @@ func TestInitLoadTarantoolctlConfig(t *testing.T) {
 	assert.Equal(t, "var/lib", appDirInfo.dataDir)
 	assert.Equal(t, "var/log", appDirInfo.logDir)
 	assert.Equal(t, "var/run", appDirInfo.runDir)
+
+	appDirInfo, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_no_snap_dir.lua")
+	require.NoError(t, err)
+	assert.Equal(t, "./lib", appDirInfo.dataDir)
+	assert.Equal(t, "./log", appDirInfo.logDir)
+	assert.Equal(t, "./run", appDirInfo.runDir)
+	assert.Equal(t, "./instances", appDirInfo.instancesEnabled)
 }
 
 func TestInitLoadTarantoolctlConfigErrorCases(t *testing.T) {
@@ -367,7 +431,8 @@ func TestInitLoadTarantoolctlConfigErrorCases(t *testing.T) {
 	require.NoError(t, err)
 	_, err = loadTarantoolctlConfig(&initCtx,
 		"testdata/tarantoolctl_different_directories.lua")
-	require.EqualError(t, err, "tarantoolctl config loading error: ambiguous data directory")
+	require.EqualError(t, err, "tarantoolctl config loading error: Unable to identify data "+
+		"directory from taractoolctl config. There is uncertainty between var/val and var/vinyl\n")
 
 	_, err = loadTarantoolctlConfig(&initCtx,
 		"testdata/tarantoolctl_invalid.lua")
