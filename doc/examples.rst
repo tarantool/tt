@@ -389,3 +389,244 @@ Flag without argument:
    http://127.0.0.1:1024/tarantool
    {"res":"Tarantool CLI version 0.1.0, darwin/amd64. commit: bf83f33\n
     • Tarantool executable found: '/usr/local/bin/tarantool'\n"}
+
+Transition from tarantoolctl to tt
+----------------------------------
+
+System-wide configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~
+``tt`` packages come with a system-wide environment configuration which supports ``tarantoolctl``
+configuration defaults. So, after installation from repository ``tt`` can be used along with
+``tarantoolctl`` for managing applications instances. Here is an example:
+
+.. code-block::
+
+    $ sudo tt instances
+    List of enabled applications:
+    • example
+
+    $ tarantoolctl start example
+    Starting instance example...
+    Forwarding to 'systemctl start tarantool@example'
+
+    $ tarantoolctl status example
+    Forwarding to 'systemctl status tarantool@example'
+    ● tarantool@example.service - Tarantool Database Server
+        Loaded: loaded (/lib/systemd/system/tarantool@.service; enabled; vendor preset: enabled)
+        Active: active (running)
+        Docs: man:tarantool(1)
+        Main PID: 6698 (tarantool)
+    . . .
+
+    $ sudo tt status
+    • example: RUNNING. PID: 6698.
+
+    $ sudo tt connect example
+    • Connecting to the instance...
+    • Connected to /var/run/tarantool/example.control
+
+    /var/run/tarantool/example.control> 
+
+    $ sudo tt stop example
+    • The Instance example (PID = 6698) has been terminated.
+
+    $ tarantoolctl status example
+    Forwarding to 'systemctl status tarantool@example'
+    ○ tarantool@example.service - Tarantool Database Server
+        Loaded: loaded (/lib/systemd/system/tarantool@.service; enabled; vendor preset: enabled)
+        Active: inactive (dead)
+
+Local configuration
+~~~~~~~~~~~~~~~~~~~
+
+Suppose we have a set of Tarantool instances managed by ``tarantoolctl`` utility in local directory.
+In order for the tt to work with these instances run ``tt init`` command in the directory where
+``tarantoolctl`` configuration file (``.tarantoolctl``) is located. For example:
+
+.. code-block:: bash
+
+    $ cat .tarantoolctl 
+    default_cfg = {
+        pid_file  = "./run/tarantool",
+        wal_dir   = "./lib/tarantool",
+        memtx_dir = "./lib/tarantool",
+        vinyl_dir = "./lib/tarantool",
+        log       = "./log/tarantool",
+        language  = "Lua",
+    }
+    instance_dir = "./instances.enabled"
+
+    $ tt init
+    • Found existing config '.tarantoolctl'
+    • Environment config is written to 'tt.yaml'
+
+``tt init`` takes directories paths from the existing ``tarantoolctl`` config. Generated ``tt.yaml``
+will look like:
+
+.. code-block:: yaml
+
+    tt:
+    modules:
+        directory: modules
+    app:
+        run_dir: ./run/tarantool
+        log_dir: ./log/tarantool
+        log_maxsize: 100
+        log_maxage: 8
+        log_maxbackups: 10
+        restart_on_failure: false
+        wal_dir: ./lib/tarantool
+        memtx_dir: ./lib/tarantool
+        vinyl_dir: ./lib/tarantool
+        bin_dir: bin
+        inc_dir: include
+        instances_enabled: ./instances.enabled
+        tarantoolctl_layout: true
+    ee:
+        credential_path: ""
+    templates:
+    - path: templates
+    repo:
+        rocks: ""
+        distfiles: distfiles
+
+After that we can use ``tt`` for managing Tarantool instances, checkpoint files and modules. Most of
+``tt`` commands correspond to the same in ``tarantoolctl``:
+
+::
+
+    $ tt start app1
+    • Starting an instance [app1]...
+
+    $ tt status app1
+    • app1: RUNNING. PID: 33837.
+
+    $ tt stop app1
+    • The Instance app1 (PID = 33837) has been terminated.
+
+    $ tt check app1
+    • Result of check: syntax of file '/home/user/instances.enabled/app1.lua' is OK
+
+Commands difference:
+~~~~~~~~~~~~~~~~~~~~
+
+``tarantoolctl enter/connect/eval`` functionality is covered by ``tt connect`` command.
+
+``tarantoolctl``:
+
+::
+
+    $ tarantoolctl enter app1
+    connected to unix/:./run/tarantool/app1.control
+    unix/:./run/tarantool/app1.control>
+
+    $ tarantoolctl connect localhost:3301
+    connected to localhost:3301
+    localhost:3301>
+
+    $ tarantoolctl eval app1 eval.lua
+    connected to unix/:./run/tarantool/app1.control
+    ---
+    - 42
+    ...
+
+    $ cat eval.lua | tarantoolctl eval app1
+    connected to unix/:./run/tarantool/app1.control
+    ---
+    - 42
+    ...
+
+``tt`` analog:
+
+::
+
+    $ tt connect app1
+    • Connecting to the instance...
+    • Connected to /home/user/run/tarantool/app1/app1.control
+
+    /home/user/run/tarantool/app1/app1.control>
+
+    $ tt connect localhost:3301
+    • Connecting to the instance...
+    • Connected to localhost:3301
+
+    localhost:3301>
+
+    $ tt connect app1 -f eval.lua
+    ---
+    - 42
+    ...
+
+    $ cat eval.lua | tt connect app1 -f -
+    ---
+    - 42
+    ...
+
+Transition from Cartridge CLI to tt
+-----------------------------------
+To start using ``tt`` for an existing Cartridge application run ``tt init`` command in
+application's directory:
+
+::
+
+   $ tt init
+   • Found existing config '.cartridge.yml'
+   • Environment config is written to 'tt.yaml'
+
+``tt init`` searches for ``.cartridge.yml`` and uses configured paths from it in ``tt.yaml``. After
+``tt.yaml`` config is generated, ``tt`` can be used to manage cartridge application. Most of
+``cartridge`` commands have their counterparts in ``tt``: build, start, stop, status, etc.:
+
+::
+
+    $ tt start
+    • Starting an instance [app:s1-master]...
+    • Starting an instance [app:s1-replica]...
+    • Starting an instance [app:s2-master]...
+    • Starting an instance [app:s2-replica]...
+    • Starting an instance [app:stateboard]...
+    • Starting an instance [app:router]...
+    $ tt status
+    • app:router: RUNNING. PID: 13188.
+    • app:s1-master: RUNNING. PID: 13177.
+    • app:s1-replica: RUNNING. PID: 13178.
+    • app:s2-master: RUNNING. PID: 13179.
+    • app:s2-replica: RUNNING. PID: 13180.
+    • app:stateboard: RUNNING. PID: 13182.
+
+Commands difference:
+~~~~~~~~~~~~~~~~~~~~
+
+* Some of cartridge application management commands are subcommands of ``tt cartridge``:
+
+::
+
+    USAGE
+      tt cartridge [flags] <command> [command flags]
+
+    COMMANDS
+      admin       Call admin function
+      bench       Util for running benchmarks for Tarantool
+      failover    Manage application failover
+      repair      Patch cluster configuration files
+      replicasets Manage application replica sets
+
+* ``cartridge enter`` and ``cartridge connect`` functionality is covered by ``tt connect``:
+
+::
+
+    $ tt connect app:router
+    • Connecting to the instance...
+    • Connected to /home/user/app/var/run/app/router/router.control
+
+    /home/user/app/var/run/app/router/router.control>
+
+    $ tt connect localhost:3302
+    • Connecting to the instance...
+    • Connected to localhost:3302
+
+    localhost:3302>
+
+* ``cartridge log`` and ``cartridge pack docker`` functionality is not supported in ``tt`` yet.
+* Shell autocompletion scripts generation command ``cartridge gen completion`` is ``tt completion``
+  in ``tt``.
