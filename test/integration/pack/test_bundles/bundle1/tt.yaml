@@ -9,4 +9,6 @@ tt:
     log_maxage: 1
     log_maxbackups: 1
     restart_on_failure: true
-    data_dir: var/lib
+    wal_dir: var/lib
+    memtx_dir: var/lib
+    vinyl_dir: var/lib

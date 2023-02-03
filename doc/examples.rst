@@ -298,7 +298,9 @@ Example of packing a multi-app environment. The source tree::
         log_maxage: 1
         log_maxbackups: 1
         restart_on_failure: true
-        data_dir: var/lib
+        wal_dir: var/lib
+        vinyl_dir: var/lib
+        memtx_dir: var/lib
         bin_dir: env/bin
 
 Pay attention, that all absolute symlinks from `instances_enabled` will be resolved, all sources will be copied

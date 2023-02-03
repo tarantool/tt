@@ -66,9 +66,12 @@ type AppOpts struct {
 	// If the instance is started under the watchdog it should
 	// restart on if it crashes.
 	Restartable bool `mapstructure:"restart_on_failure" yaml:"restart_on_failure"`
-	// DataDir is the directory where all the instance artifacts
-	// are stored.
-	DataDir string `mapstructure:"data_dir" yaml:"data_dir"`
+	// WalDir is a directory where write-ahead log (.xlog) files are stored.
+	WalDir string `mapstructure:"wal_dir" yaml:"wal_dir"`
+	// MemtxDir is a directory where memtx stores snapshot (.snap) files.
+	MemtxDir string `mapstructure:"memtx_dir" yaml:"memtx_dir"`
+	// VinylDir is a directory where vinyl files or subdirectories will be stored.
+	VinylDir string `mapstructure:"vinyl_dir" yaml:"vinyl_dir"`
 	// BinDir is the directory where all the binary files
 	// are stored.
 	BinDir string `mapstructure:"bin_dir" yaml:"bin_dir"`

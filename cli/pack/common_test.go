@@ -89,7 +89,11 @@ func TestCreateEnv(t *testing.T) {
 		"wrong log path")
 	assert.Equalf(t, cfg.CliConfig.App.BinDir, filepath.Join(envPath, binPath),
 		"wrong bin path")
-	assert.Equalf(t, cfg.CliConfig.App.DataDir, filepath.Join(varPath, dataPath),
+	assert.Equalf(t, cfg.CliConfig.App.WalDir, filepath.Join(varPath, dataPath),
+		"wrong data path")
+	assert.Equalf(t, cfg.CliConfig.App.VinylDir, filepath.Join(varPath, dataPath),
+		"wrong data path")
+	assert.Equalf(t, cfg.CliConfig.App.MemtxDir, filepath.Join(varPath, dataPath),
 		"wrong data path")
 	assert.Equalf(t, cfg.CliConfig.Modules.Directory, filepath.Join(envPath, modulesPath),
 		"wrong modules path")
@@ -172,9 +176,11 @@ func TestCopyArtifacts(t *testing.T) {
 
 	testOpts := &config.CliOpts{
 		App: &config.AppOpts{
-			DataDir: filepath.Join(testDir, varDataPath),
-			LogDir:  filepath.Join(testDir, varLogPath),
-			RunDir:  filepath.Join(testDir, varRunPath),
+			WalDir:   filepath.Join(testDir, varDataPath),
+			VinylDir: filepath.Join(testDir, varDataPath),
+			MemtxDir: filepath.Join(testDir, varDataPath),
+			LogDir:   filepath.Join(testDir, varLogPath),
+			RunDir:   filepath.Join(testDir, varRunPath),
 		},
 	}
 

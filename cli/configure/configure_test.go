@@ -282,7 +282,9 @@ func TestUpdateCliOpts(t *testing.T) {
 		App: &config.AppOpts{
 			RunDir:     "/var/run",
 			LogDir:     "var/log",
-			DataDir:    "./var/lib",
+			WalDir:     "./var/lib/wal",
+			VinylDir:   "./var/lib/vinyl",
+			MemtxDir:   "./var/lib/snap",
 			IncludeDir: "../include_dir",
 			LogMaxAge:  42,
 		},
@@ -293,7 +295,9 @@ func TestUpdateCliOpts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/var/run", cliOpts.App.RunDir)
 	assert.Equal(t, filepath.Join(configDir, "var", "log"), cliOpts.App.LogDir)
-	assert.Equal(t, filepath.Join(configDir, "var", "lib"), cliOpts.App.DataDir)
+	assert.Equal(t, filepath.Join(configDir, "var", "lib", "wal"), cliOpts.App.WalDir)
+	assert.Equal(t, filepath.Join(configDir, "var", "lib", "vinyl"), cliOpts.App.VinylDir)
+	assert.Equal(t, filepath.Join(configDir, "var", "lib", "snap"), cliOpts.App.MemtxDir)
 	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.App.IncludeDir)
 	assert.Equal(t, filepath.Join(configDir, modulesPath), cliOpts.Modules.Directory)
 	assert.Equal(t, ".", cliOpts.App.InstancesEnabled)

@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -43,7 +43,9 @@ type appDirInfo struct {
 	instancesEnabled string
 	logDir           string
 	runDir           string
-	dataDir          string
+	walDir           string
+	vinylDir         string
+	memtxDir         string
 }
 
 // configLoader binds config name with load functor.
@@ -68,9 +70,11 @@ func loadCartridgeConfig(initCtx *InitCtx, configPath string) (appDirInfo, error
 	}
 
 	return appDirInfo{
-		runDir:  cartridgeConf.RunDir,
-		logDir:  cartridgeConf.LogDir,
-		dataDir: cartridgeConf.DataDir,
+		runDir:   cartridgeConf.RunDir,
+		logDir:   cartridgeConf.LogDir,
+		walDir:   cartridgeConf.DataDir,
+		vinylDir: cartridgeConf.DataDir,
+		memtxDir: cartridgeConf.DataDir,
 	}, nil
 }
 
@@ -101,30 +105,26 @@ func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (appDirInfo, er
 	if err != nil {
 		return appDirInfo, fmt.Errorf("tarantoolctl config loading error: %s", string(out))
 	}
-	outLines := strings.Split(string(out), "\n")
-
-	for _, dirDefinition := range outLines {
-		if dirDefinition == "" {
-			continue
-		}
-		varName, dirPath, found := strings.Cut(dirDefinition, "=")
-		if !found || varName == "" {
-			log.Warnf("Failed to parse output of tarantoolctl : %s", dirDefinition)
-		}
-		switch varName {
-		case "data_dir":
-			appDirInfo.dataDir = dirPath
-		case "log_dir":
-			appDirInfo.logDir = dirPath
-		case "pid_file":
-			appDirInfo.runDir = dirPath
-		case "instance_dir":
-			appDirInfo.instancesEnabled = dirPath
-		default:
-			log.Warnf("Unknown var: %s", varName)
-		}
+	var raw map[string]interface{}
+	if err := yaml.Unmarshal(out, &raw); err != nil {
+		return appDirInfo, fmt.Errorf("failed to parse YAML: %s", err)
 	}
 
+	for _, dir := range []struct {
+		path    *string
+		varName string
+	}{
+		{&appDirInfo.walDir, "wal_dir"},
+		{&appDirInfo.vinylDir, "vinyl_dir"},
+		{&appDirInfo.memtxDir, "memtx_dir"},
+		{&appDirInfo.logDir, "log_dir"},
+		{&appDirInfo.runDir, "pid_file"},
+		{&appDirInfo.instancesEnabled, "instance_dir"},
+	} {
+		if val, ok := raw[dir.varName]; ok && val != nil {
+			*dir.path = val.(string)
+		}
+	}
 	return appDirInfo, nil
 }
 
@@ -137,8 +137,14 @@ func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
 	if appDirInfo.runDir != "" {
 		cfg.CliConfig.App.RunDir = appDirInfo.runDir
 	}
-	if appDirInfo.dataDir != "" {
-		cfg.CliConfig.App.DataDir = appDirInfo.dataDir
+	if appDirInfo.walDir != "" {
+		cfg.CliConfig.App.WalDir = appDirInfo.walDir
+	}
+	if appDirInfo.vinylDir != "" {
+		cfg.CliConfig.App.VinylDir = appDirInfo.vinylDir
+	}
+	if appDirInfo.memtxDir != "" {
+		cfg.CliConfig.App.MemtxDir = appDirInfo.memtxDir
 	}
 	if appDirInfo.logDir != "" {
 		cfg.CliConfig.App.LogDir = appDirInfo.logDir

@@ -241,10 +241,24 @@ func copyArtifacts(opts *config.CliOpts, appName string) error {
 	if ext == ".lua" {
 		appName = appName[:len(appName)-len(ext)]
 	}
-	err := copy.Copy(filepath.Join(opts.App.DataDir, appName),
+	err := copy.Copy(filepath.Join(opts.App.WalDir, appName),
 		filepath.Join(packageVarDataPath, appName))
 	if err != nil {
 		return err
+	}
+	if opts.App.VinylDir != opts.App.WalDir {
+		err := copy.Copy(filepath.Join(opts.App.VinylDir, appName),
+			filepath.Join(packageVarDataPath, appName))
+		if err != nil {
+			return err
+		}
+	}
+	if opts.App.MemtxDir != opts.App.WalDir && opts.App.MemtxDir != opts.App.VinylDir {
+		err := copy.Copy(filepath.Join(opts.App.MemtxDir, appName),
+			filepath.Join(packageVarDataPath, appName))
+		if err != nil {
+			return err
+		}
 	}
 	err = copy.Copy(filepath.Join(opts.App.LogDir, appName),
 		filepath.Join(packageVarLogPath, appName))
@@ -279,7 +293,9 @@ func createEnv(opts *config.CliOpts, destPath string) error {
 		InstancesEnabled: instancesEnabledPath,
 		BinDir:           filepath.Join(envPath, binPath),
 		RunDir:           filepath.Join(varPath, runPath),
-		DataDir:          filepath.Join(varPath, dataPath),
+		WalDir:           filepath.Join(varPath, dataPath),
+		VinylDir:         filepath.Join(varPath, dataPath),
+		MemtxDir:         filepath.Join(varPath, dataPath),
 		LogDir:           filepath.Join(varPath, logPath),
 		LogMaxSize:       opts.App.LogMaxSize,
 		LogMaxAge:        opts.App.LogMaxAge,
