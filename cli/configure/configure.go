@@ -72,7 +72,9 @@ func getDefaultAppOpts() *config.AppOpts {
 		LogMaxAge:          logMaxAge,
 		LogMaxBackups:      logMaxBackups,
 		Restartable:        false,
-		DataDir:            varDataPath,
+		WalDir:             varDataPath,
+		VinylDir:           varDataPath,
+		MemtxDir:           varDataPath,
 		BinDir:             binPath,
 		IncludeDir:         includePath,
 		TarantoolctlLayout: false,
@@ -165,29 +167,24 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 			return err
 		}
 	}
-	if cliOpts.App.RunDir, err = adjustPathWithConfigLocation(cliOpts.App.RunDir,
-		configDir, varRunPath); err != nil {
-		return err
-	}
-	if cliOpts.App.LogDir, err = adjustPathWithConfigLocation(cliOpts.App.LogDir,
-		configDir, varLogPath); err != nil {
-		return err
-	}
-	if cliOpts.App.DataDir, err = adjustPathWithConfigLocation(cliOpts.App.DataDir,
-		configDir, varDataPath); err != nil {
-		return err
-	}
-	if cliOpts.App.BinDir, err = adjustPathWithConfigLocation(cliOpts.App.BinDir,
-		configDir, binPath); err != nil {
-		return err
-	}
-	if cliOpts.App.IncludeDir, err = adjustPathWithConfigLocation(cliOpts.App.IncludeDir,
-		configDir, includePath); err != nil {
-		return err
-	}
-	if cliOpts.Repo.Install, err = adjustPathWithConfigLocation(cliOpts.Repo.Install,
-		configDir, distfilesPath); err != nil {
-		return err
+
+	for _, dir := range []struct {
+		path       *string
+		defaultDir string
+	}{
+		{&cliOpts.App.RunDir, varRunPath},
+		{&cliOpts.App.LogDir, varLogPath},
+		{&cliOpts.App.WalDir, varDataPath},
+		{&cliOpts.App.VinylDir, varDataPath},
+		{&cliOpts.App.MemtxDir, varDataPath},
+		{&cliOpts.App.BinDir, binPath},
+		{&cliOpts.App.IncludeDir, includePath},
+		{&cliOpts.Repo.Install, distfilesPath},
+	} {
+		if *dir.path, err = adjustPathWithConfigLocation(*dir.path, configDir,
+			dir.defaultDir); err != nil {
+			return err
+		}
 	}
 
 	if cliOpts.Modules != nil {

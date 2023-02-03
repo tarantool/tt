@@ -77,7 +77,9 @@ tt:
     log_maxage: 8
     log_maxbackups: 10
     restart_on_failure: false
-    data_dir: %[1]s/var/lib
+    wal_dir: %[1]s/var/lib
+    memtx_dir: %[1]s/var/lib
+    vinyl_dir: %[1]s/var/lib
     bin_dir: %[1]s/bin
     inc_dir: %[1]s/test_inc
     instances_enabled: .

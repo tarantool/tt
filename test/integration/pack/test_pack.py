@@ -35,7 +35,9 @@ def assert_env(path):
     with open(os.path.join(path, config_name)) as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
         assert data["tt"]["app"]["instances_enabled"] == "instances_enabled"
-        assert data["tt"]["app"]["data_dir"] == "var/lib"
+        assert data["tt"]["app"]["wal_dir"] == "var/lib"
+        assert data["tt"]["app"]["vinyl_dir"] == "var/lib"
+        assert data["tt"]["app"]["memtx_dir"] == "var/lib"
         assert data["tt"]["app"]["bin_dir"] == "env/bin"
         assert data["tt"]["app"]["log_dir"] == "var/log"
         assert data["tt"]["app"]["run_dir"] == "var/run"
@@ -53,16 +55,14 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--name", "test_package"],
             "res_file": "test_package-0.1.0.0." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "app.lua")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "env", "modules",
-                                                         "test_module.txt")),
-            ]
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app.lua"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("env", "modules", "test_module.txt"),
+            ],
+            "check_not_exist": [],
         },
         {
             "bundle_src": "bundle1",
@@ -70,16 +70,14 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--version", "1.0.0"],
             "res_file": "bundle1-1.0.0." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "app.lua")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "env", "modules",
-                                                         "test_module.txt")),
-            ]
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app.lua"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("env", "modules", "test_module.txt"),
+            ],
+            "check_not_exist": [],
         },
         {
             "bundle_src": "bundle1",
@@ -87,17 +85,15 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--version", "1.0.0", "--name", "test_package"],
             "res_file": "test_package-1.0.0." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
-                lambda path: os.path.exists(os.path.join(path, "app.lua")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "env", "modules",
-                                                         "test_module.txt")),
-            ]
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
+                os.path.join("app.lua"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("env", "modules", "test_module.txt"),
+            ],
+            "check_not_exist": [],
         },
         {
             "bundle_src": "bundle1",
@@ -105,17 +101,15 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--filename", "test_package"],
             "res_file": "test_package",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
-                lambda path: os.path.exists(os.path.join(path, "app.lua")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "env", "modules",
-                                                         "test_module.txt")),
-            ]
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
+                os.path.join("app.lua"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("env", "modules", "test_module.txt"),
+            ],
+            "check_not_exist": [],
         },
         {
             "bundle_src": "bundle1",
@@ -123,17 +117,15 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--with-binaries"],
             "res_file": "bundle1-0.1.0.0." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
-                lambda path: os.path.exists(os.path.join(path, "app.lua")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "env", "modules",
-                                                         "test_module.txt")),
-            ]
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
+                os.path.join("app.lua"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("env", "modules", "test_module.txt"),
+            ],
+            "check_not_exist": [],
         },
         {
             "bundle_src": "bundle1",
@@ -141,17 +133,16 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--without-binaries"],
             "res_file": "bundle1-0.1.0.0." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
-                lambda path: os.path.exists(os.path.join(path, "app.lua")),
-                lambda path: not os.path.exists(os.path.join(path, "env", "bin",
-                                                             "tarantool")),
-                lambda path: not os.path.exists(os.path.join(path, "env", "bin",
-                                                             "tt")),
-                lambda path: os.path.exists(os.path.join(path, "env", "modules",
-                                                         "test_module.txt")),
-            ]
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
+                os.path.join("app.lua"),
+                os.path.join("env", "modules", "test_module.txt"),
+            ],
+            "check_not_exist": [
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+            ],
         },
         {
             "bundle_src": "bundle1",
@@ -159,29 +150,55 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--all"],
             "res_file": "bundle1-0.1.0.0." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
-                lambda path: os.path.exists(os.path.join(path, "app.lua")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "env", "modules",
-                                                         "test_module.txt")),
-                lambda path: os.path.exists(os.path.join(path, "var", "lib", "app1",
-                                                         "test.snap")),
-                lambda path: os.path.exists(os.path.join(path, "var", "lib", "app1",
-                                                         "test.xlog")),
-                lambda path: os.path.exists(os.path.join(path, "var", "lib", "app2",
-                                                         "test.snap")),
-                lambda path: os.path.exists(os.path.join(path, "var", "lib", "app2",
-                                                         "test.xlog")),
-                lambda path: os.path.exists(os.path.join(path, "var", "log", "app1",
-                                                         "test.log")),
-                lambda path: os.path.exists(os.path.join(path, "var", "log", "app2",
-                                                         "test.log")),
-            ]
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
+                os.path.join("app.lua"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("env", "modules", "test_module.txt"),
+                os.path.join("var", "lib", "app1", "test.snap"),
+                os.path.join("var", "lib", "app1", "test.xlog"),
+                os.path.join("var", "lib", "app1", "test.vylog"),
+                os.path.join("var", "lib", "app2", "test.snap"),
+                os.path.join("var", "lib", "app2", "test.xlog"),
+                os.path.join("var", "log", "app1", "test.log"),
+                os.path.join("var", "log", "app2", "test.log"),
+            ],
+            "check_not_exist": [
+                os.path.join("var", "lib", "app2", "test.vylog"),
+            ],
+        },
+        {
+            "bundle_src": "bundle_with_different_data_dirs",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
+            "args": ["--all"],
+            "res_file": "bundle_with_different_data_dirs-0.1.0.0." + get_arch() + ".tar.gz",
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
+                os.path.join("app.lua"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("env", "modules", "test_module.txt"),
+                os.path.join("var", "lib", "app1", "test.snap"),
+                os.path.join("var", "lib", "app1", "test.xlog"),
+                os.path.join("var", "lib", "app1", "test.vylog"),
+                os.path.join("var", "lib", "app2", "test.snap"),
+                os.path.join("var", "lib", "app2", "test.xlog"),
+                os.path.join("var", "lib", "app2", "test.vylog"),
+                os.path.join("var", "log", "app1", "test.log"),
+                os.path.join("var", "log", "app2", "test.log"),
+            ],
+            "check_not_exist": [
+                os.path.join("var", "lib", "memtx", "app1", "test.snap"),
+                os.path.join("var", "lib", "wal", "app1", "test.xlog"),
+                os.path.join("var", "lib", "vinyl", "app1", "test.vylog"),
+                os.path.join("var", "lib", "memtx", "app2", "test.snap"),
+                os.path.join("var", "lib", "wal", "app2", "test.xlog"),
+                os.path.join("var", "lib", "vinyl", "app2", "test.vylog"),
+            ],
         },
         {
             "bundle_src": "bundle1",
@@ -189,17 +206,17 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--app-list", "app2"],
             "res_file": "bundle1-0.1.0.0." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "app2", "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "app2", ".rocks")),
-                lambda path: not os.path.exists(os.path.join(path, "app.lua")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "env", "modules",
-                                                         "test_module.txt")),
-            ]
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
+
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("env", "modules", "test_module.txt"),
+            ],
+            "check_not_exist": [
+                os.path.join("app.lua"),
+            ],
         },
         {
             "bundle_src": "cartridge_app",
@@ -207,33 +224,22 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--name", "cartridge_app", "--version", "v2"],
             "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "app", "roles", "custom.lua")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "app", "admin.lua")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "cartridge.post-build")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "cartridge.pre-build")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "instances.yml")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "replicasets.yml")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "failover.yml")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "myapp-scm-1.rockspec")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         ".rocks")),
-            ]
+            "check_exist": [
+                os.path.join("cartridge_app"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("cartridge_app", "app", "roles", "custom.lua"),
+                os.path.join("cartridge_app", "app", "admin.lua"),
+                os.path.join("cartridge_app", "cartridge.post-build"),
+                os.path.join("cartridge_app", "cartridge.pre-build"),
+                os.path.join("cartridge_app", "init.lua"),
+                os.path.join("cartridge_app", "instances.yml"),
+                os.path.join("cartridge_app", "replicasets.yml"),
+                os.path.join("cartridge_app", "failover.yml"),
+                os.path.join("cartridge_app", "myapp-scm-1.rockspec"),
+                os.path.join("cartridge_app", ".rocks"),
+            ],
+            "check_not_exist": [],
         },
         {
             "bundle_src": "cartridge_app",
@@ -241,33 +247,22 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "pack_type": "tgz",
             "args": ["--name", "cartridge_app", "--version", "v2"],
             "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
-            "check_func": [
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tarantool")),
-                lambda path: os.path.exists(os.path.join(path, "env", "bin",
-                                                         "tt")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "app", "roles", "custom.lua")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "app", "admin.lua")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "cartridge.post-build")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "cartridge.pre-build")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "init.lua")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "instances.yml")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "replicasets.yml")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "failover.yml")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         "myapp-scm-1.rockspec")),
-                lambda path: os.path.exists(os.path.join(path, "cartridge_app",
-                                                         ".rocks")),
-            ]
+            "check_exist": [
+                os.path.join("cartridge_app"),
+                os.path.join("env", "bin", "tarantool"),
+                os.path.join("env", "bin", "tt"),
+                os.path.join("cartridge_app", "app", "roles", "custom.lua"),
+                os.path.join("cartridge_app", "app", "admin.lua"),
+                os.path.join("cartridge_app", "cartridge.post-build"),
+                os.path.join("cartridge_app", "cartridge.pre-build"),
+                os.path.join("cartridge_app", "init.lua"),
+                os.path.join("cartridge_app", "instances.yml"),
+                os.path.join("cartridge_app", "replicasets.yml"),
+                os.path.join("cartridge_app", "failover.yml"),
+                os.path.join("cartridge_app", "myapp-scm-1.rockspec"),
+                os.path.join("cartridge_app", ".rocks"),
+            ],
+            "check_not_exist": [],
         },
     ]
 
@@ -310,8 +305,11 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
         assert_bundle_structure(extract_path)
         assert_env(extract_path)
 
-        for check_f in test_case["check_func"]:
-            assert check_f(extract_path), test_case["args"]
+        for file_path in test_case["check_exist"]:
+            assert os.path.exists(os.path.join(extract_path, file_path))
+
+        for file_path in test_case["check_not_exist"]:
+            assert not os.path.exists(os.path.join(extract_path, file_path))
 
         shutil.rmtree(extract_path)
         os.remove(package_file)

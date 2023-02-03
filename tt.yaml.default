@@ -23,8 +23,14 @@ tt:
     # Restart instance on failure.
     restart_on_failure: false
 
-    # Directory where all the instance artifacts ar stored.
-    data_dir: /var/lib/tarantool
+    # Directory where write-ahead log (.xlog) files are stored.
+    wal_dir: /var/lib/tarantool
+
+    # Directory where memtx stores snapshot (.snap) files.
+    memtx_dir: /var/lib/tarantool
+
+    # Directory where vinyl files or subdirectories will be stored.
+    vinyl_dir: /var/lib/tarantool
 
     # Directory that stores binary files.
     bin_dir: /opt/tarantool/bin

@@ -1,0 +1,14 @@
+tt:
+  modules:
+    directory: modules
+  app:
+    instances_enabled: instances_enabled
+    run_dir: var/run
+    log_dir: var/log
+    log_maxsize: 1
+    log_maxage: 1
+    log_maxbackups: 1
+    restart_on_failure: true
+    wal_dir: var/lib/wal
+    vinyl_dir: var/lib/vinyl
+    memtx_dir: var/lib/memtx

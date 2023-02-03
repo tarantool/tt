@@ -50,9 +50,12 @@ type InstanceCtx struct {
 	LogDir string
 	// Log is the name of log file.
 	Log string
-	// DataDir is the directory where all the instance artifacts
-	// are stored.
-	DataDir string
+	// WalDir is a directory where write-ahead log (.xlog) files are stored.
+	WalDir string `mapstructure:"wal_dir" yaml:"wal_dir"`
+	// MemtxDir is a directory where memtx stores snapshot (.snap) files.
+	MemtxDir string `mapstructure:"memtx_dir" yaml:"memtx_dir"`
+	// VinylDir is a directory where vinyl files or subdirectories will be stored.
+	VinylDir string `mapstructure:"vinyl_dir" yaml:"vinyl_dir"`
 	// LogMaxSize is the maximum size in megabytes of the log file
 	// before it gets rotated. It defaults to 100 megabytes.
 	LogMaxSize int
@@ -137,8 +140,7 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (*Instance, e
 	}
 
 	inst, err := NewInstance(provider.cmdCtx.Cli.TarantoolExecutable,
-		provider.instanceCtx.AppPath, provider.instanceCtx.AppName, provider.instanceCtx.InstName,
-		provider.instanceCtx.ConsoleSocket, os.Environ(), logger, provider.instanceCtx.DataDir)
+		provider.instanceCtx, os.Environ(), logger)
 	if err != nil {
 		return nil, err
 	}
@@ -359,28 +361,6 @@ func createLogger(run *InstanceCtx) *ttlog.Logger {
 	return ttlog.NewLogger(&opts)
 }
 
-// createDataDir checks if DataDir folder exists, if not creates it.
-func createDataDir(dataDirPath string) error {
-	_, err := os.Stat(dataDirPath)
-	if err == nil {
-		return err
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf(`something went wrong while trying to create the DataDir folder.
-			 Error: "%v"`, err)
-	}
-	// Create a new DataDirfolder.
-	// 0770:
-	//    user:   read/write/execute
-	//    group:  read/write/execute
-	//    others: nil
-	err = os.MkdirAll(dataDirPath, defaultDirPerms)
-	if err != nil {
-		return fmt.Errorf(`something went wrong while trying to create the DataDir folder.
-			 Error: "%v"`, err)
-	}
-	return err
-}
-
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	runningCtx *RunningCtx, args []string) error {
@@ -425,7 +405,6 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 			var instance InstanceCtx
 			var runDir string
 			var logDir string
-			var dataDir string
 
 			instance.AppPath = inst.AppPath
 			instance.AppName = inst.AppName
@@ -439,7 +418,6 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 			if cliOpts.App != nil {
 				runDir = cliOpts.App.RunDir
 				logDir = cliOpts.App.LogDir
-				dataDir = cliOpts.App.DataDir
 				instance.LogMaxSize = cliOpts.App.LogMaxSize
 				instance.LogMaxAge = cliOpts.App.LogMaxAge
 				instance.LogMaxBackups = cliOpts.App.LogMaxBackups
@@ -451,13 +429,18 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 			instance.PIDFile = filepath.Join(instance.RunDir, instance.InstName+".pid")
 			instance.LogDir = pathBuilder.WithPath(logDir).Make()
 			instance.Log = filepath.Join(instance.LogDir, instance.InstName+".log")
-			instance.DataDir = pathBuilder.WithPath(dataDir).WithTarantoolctlLayout(false).Make()
+			pathBuilder = pathBuilder.WithTarantoolctlLayout(false)
+			instance.WalDir = pathBuilder.WithPath(cliOpts.App.WalDir).Make()
+			instance.VinylDir = pathBuilder.WithPath(cliOpts.App.VinylDir).Make()
+			instance.MemtxDir = pathBuilder.WithPath(cliOpts.App.MemtxDir).Make()
 			instance.SingleApp = inst.SingleApp
 
 			if cmdCtx.CommandName == "start" || cmdCtx.CommandName == "restart" {
-				err = createDataDir(instance.DataDir)
-				if err != nil {
-					return err
+				for _, dataDir := range [...]string{instance.WalDir, instance.VinylDir,
+					instance.MemtxDir} {
+					if err = util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
+						return err
+					}
 				}
 			}
 

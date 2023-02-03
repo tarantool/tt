@@ -55,15 +55,13 @@ func collectFiles(list []string, dirname string) ([]string, error) {
 func clean(run *running.InstanceCtx) error {
 	removeList := []string{}
 	confirm := false
+	var err error
 
-	removeList, err := collectFiles(removeList, run.LogDir)
-	if err != nil {
-		return err
-	}
-
-	removeList, err = collectFiles(removeList, run.DataDir)
-	if err != nil {
-		return err
+	for _, dir := range [...]string{run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir} {
+		removeList, err = collectFiles(removeList, dir)
+		if err != nil {
+			return err
+		}
 	}
 
 	if len(removeList) == 0 {

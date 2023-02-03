@@ -37,9 +37,12 @@ type Instance struct {
 	appName string
 	// instName describes the instance name.
 	instName string
-	// dataDir describes the path to the directory
-	// where wal, vinyl and memtx files are stored.
-	dataDir string
+	// walDir is a directory where write-ahead log (.xlog) files are stored.
+	walDir string
+	// memtxDir is a directory where memtx stores snapshot (.snap) files.
+	memtxDir string `mapstructure:"memtx_dir" yaml:"memtx_dir"`
+	// vinylDir is a directory where vinyl files or subdirectories will be stored.
+	vinylDir string `mapstructure:"vinyl_dir" yaml:"vinyl_dir"`
 	// env describes the environment settled by a client.
 	env []string
 	// consoleSocket is a Unix domain socket to be used as "admin port".
@@ -56,23 +59,30 @@ type Instance struct {
 var instanceLauncher []byte
 
 // NewInstance creates an Instance.
-func NewInstance(tarantoolPath string, appPath string, appName string, instName string,
-	console_sock string, env []string, logger *ttlog.Logger, dataDir string) (*Instance, error) {
+func NewInstance(tarantoolPath string, instanceCtx *InstanceCtx, env []string,
+	logger *ttlog.Logger) (*Instance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {
 		return nil, err
 	}
 
 	// Check if Application exists.
-	if _, err := os.Stat(appPath); err != nil {
+	if _, err := os.Stat(instanceCtx.AppPath); err != nil {
 		return nil, err
 	}
 
-	inst := Instance{tarantoolPath: tarantoolPath, appPath: appPath,
-		appName: appName, instName: instName,
-		consoleSocket: console_sock, env: env, logger: logger,
-		dataDir: dataDir}
-	return &inst, nil
+	return &Instance{
+		tarantoolPath: tarantoolPath,
+		appPath:       instanceCtx.AppPath,
+		appName:       instanceCtx.AppName,
+		instName:      instanceCtx.InstName,
+		consoleSocket: instanceCtx.ConsoleSocket,
+		env:           env,
+		logger:        logger,
+		walDir:        instanceCtx.WalDir,
+		vinylDir:      instanceCtx.VinylDir,
+		memtxDir:      instanceCtx.MemtxDir,
+	}, nil
 }
 
 // SendSignal sends a signal to the Instance.
@@ -141,18 +151,14 @@ func (inst *Instance) Start() error {
 		return err
 	}
 	inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI_WORK_DIR="+workDir)
-	dataDirAbs := ""
-	if dataDirAbs, err = filepath.Abs(inst.dataDir); err != nil {
-		return err
-	}
 	// Imitate the "tarantoolctl".
 	inst.Cmd.Env = append(inst.Cmd.Env, "TARANTOOLCTL=true")
 	// Set the sign that the program is running under "tt".
 	inst.Cmd.Env = append(inst.Cmd.Env, "TT_CLI=true")
 	// Set the wal, memtx and vinyls dirs.
-	inst.Cmd.Env = append(inst.Cmd.Env, "TT_VINYL_DIR="+dataDirAbs)
-	inst.Cmd.Env = append(inst.Cmd.Env, "TT_WAL_DIR="+dataDirAbs)
-	inst.Cmd.Env = append(inst.Cmd.Env, "TT_MEMTX_DIR="+dataDirAbs)
+	inst.Cmd.Env = append(inst.Cmd.Env, "TT_VINYL_DIR="+inst.vinylDir)
+	inst.Cmd.Env = append(inst.Cmd.Env, "TT_WAL_DIR="+inst.walDir)
+	inst.Cmd.Env = append(inst.Cmd.Env, "TT_MEMTX_DIR="+inst.memtxDir)
 
 	// Setup variables for the cartridge application compatibility.
 	if inst.instName != "stateboard" {
@@ -165,7 +171,7 @@ func (inst *Instance) Start() error {
 		inst.Cmd.Env = append(inst.Cmd.Env,
 			"TARANTOOL_CFG="+filepath.Dir(inst.appPath)+"/instances.yml")
 	}
-	inst.Cmd.Env = append(inst.Cmd.Env, "TARANTOOL_WORKDIR="+dataDirAbs)
+	inst.Cmd.Env = append(inst.Cmd.Env, "TARANTOOL_WORKDIR="+inst.walDir)
 
 	// Start an Instance.
 	if err := inst.Cmd.Start(); err != nil {

@@ -106,6 +106,9 @@ file format:
         log_dir: path/to/log_dir
         bin_dir: path/to/bin_dir
         inc_dir: path/to/inc_dir
+        wal_dir: var/lib
+        vinyl_dir: var/lib
+        memtx_dir: var/lib
         log_maxsize: num (MB)
         log_maxage: num (Days)
         log_maxbackups: num
@@ -133,6 +136,9 @@ file format:
 * ``bin_dir`` (string) - directory that stores binary files.
 * ``inc_dir`` (string) - directory that stores header files.
   The path will be padded with a directory named include.
+* ``wal_dir`` (string) - directory where write-ahead log (.xlog) files are stored.
+* ``memtx_dir`` (string) - directory where memtx stores snapshot (.snap) files.
+* ``vinyl_dir`` (string) - directory where vinyl files or subdirectories will be stored.
 * ``log_maxsize`` (number) - the maximum size in MB of the log file before it gets
   rotated. It defaults to 100 MB.
 * ``log_maxage`` (numder) - is the maximum number of days to retain old log files
