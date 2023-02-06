@@ -361,7 +361,7 @@ func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
 	logFile *os.File) error {
 	var err error
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
-		err = os.Mkdir(binDir, defaultDirPermissions)
+		err = os.MkdirAll(binDir, defaultDirPermissions)
 		if err != nil {
 			return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
 		}
@@ -627,7 +627,7 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 	var err error
 	log.Infof("Copying executable...")
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
-		err = os.Mkdir(binDir, defaultDirPermissions)
+		err = os.MkdirAll(binDir, defaultDirPermissions)
 		if err != nil {
 			return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
 		}
