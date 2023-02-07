@@ -1,4 +1,4 @@
 TT: /usr/bin/tt
-ConfigPath: /path/cfg/tt.yaml
+ConfigPath: /path/cfg
 EnvName: customEnvName
 FdLimit: 2048
