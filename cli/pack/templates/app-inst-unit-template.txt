@@ -5,6 +5,7 @@ After=network.target
 [Service]
 Type=forking
 ExecStart={{ .TT }} -L {{ .ConfigPath }} start %i
+ExecStop={{ .TT }} -L {{ .ConfigPath }} stop %i
 Restart=on-failure
 RestartSec=2
 User=tarantool
