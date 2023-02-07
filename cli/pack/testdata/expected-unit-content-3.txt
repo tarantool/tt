@@ -5,6 +5,7 @@ After=network.target
 [Service]
 Type=forking
 ExecStart=/usr/bin/tt -L /path/cfg start
+ExecStop=/usr/bin/tt -L /path/cfg stop
 Restart=on-failure
 RestartSec=2
 User=tarantool
