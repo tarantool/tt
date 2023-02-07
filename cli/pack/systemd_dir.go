@@ -56,7 +56,7 @@ func initSystemdDir(packCtx *PackCtx, opts *config.CliOpts,
 		return err
 	}
 
-	appInstUnitPath := fmt.Sprintf("%s%%.service", packageName)
+	appInstUnitPath := fmt.Sprintf("%s@.service", packageName)
 	appInstUnitPath = filepath.Join(systemdBaseDir, appInstUnitPath)
 	err = util.InstantiateFileFromTemplate(appInstUnitPath, appInstUnitTemplate, contentParams)
 	if err != nil {

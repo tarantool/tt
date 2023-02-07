@@ -561,24 +561,25 @@ def test_pack_deb(tt_cmd, tmpdir):
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
                                              '{0}:/usr/src/'.format(base_dir),
                                              '-w', '/usr/src',
-                                             'ubuntu',
+                                             'jrei/systemd-ubuntu',
                                              '/bin/bash', '-c',
                                              '/bin/dpkg -i {0} && '
                                              'ls /usr/share/tarantool/bundle1 '
-                                             '&& ls /etc/systemd/system'
+                                             '&& systemctl list-unit-files | grep bundle1'
                                             .format(package_file_name)])
 
     assert re.search(r'Preparing to unpack {0}'.format(package_file_name), output)
     assert re.search(r'Unpacking bundle \(0\.1\.0\)', output)
     assert re.search(r'Setting up bundle \(0\.1\.0\)', output)
+
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
                                config_name, 'var']
-    systemd_paths = ['bundle1%.service', 'bundle1.service']
+    systemd_units = ['bundle1@.service', 'bundle1.service']
 
     for path in installed_package_paths:
-        re.search(path, output)
-    for path in systemd_paths:
-        re.search(path, output)
+        assert re.search(path, output)
+    for unit in systemd_units:
+        assert re.search(unit, output)
     assert rc == 0
 
 
@@ -619,12 +620,12 @@ def test_pack_rpm(tt_cmd, tmpdir):
                                             .format(package_file_name)])
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
                                config_name, 'var']
-    systemd_paths = ['bundle1%.service', 'bundle1.service']
+    systemd_paths = ['bundle1@.service', 'bundle1.service']
 
     for path in installed_package_paths:
-        re.search(path, output)
+        assert re.search(path, output)
     for path in systemd_paths:
-        re.search(path, output)
+        assert re.search(path, output)
 
     assert rc == 0
 
