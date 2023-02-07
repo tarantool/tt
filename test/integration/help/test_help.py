@@ -11,7 +11,7 @@ from utils import (create_external_module, create_tt_config,
 def test_help_without_external_modules(tt_cmd, help_cmd):
     rc, output = run_command_and_get_output([tt_cmd, help_cmd])
     assert rc == 0
-    assert "No available external commands" in output
+    assert "EXTERNAL COMMANDS" not in output
 
 
 def test_external_help_module(tt_cmd, tmpdir):

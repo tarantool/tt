@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - tt config is renamed to tt.yaml.
 
+### Fixed
+
+- Output of the ``help`` with all commands.
+
 ## [0.4.0] - 2022-12-31
 
 ### Added

@@ -114,15 +114,12 @@ func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	}
 
 	if str != "" {
-		return str[:len(str)-1]
+		str = util.Bold("\nEXTERNAL COMMANDS\n") + str
+		return strings.Trim(str, "\n")
 	}
 
-	return fmt.Sprintf("  %s", noAvailableExternalCmdMsg)
+	return ""
 }
-
-const (
-	noAvailableExternalCmdMsg = `No available external commands`
-)
 
 var (
 	errorUsageTemplate = `%s
@@ -141,6 +138,12 @@ Usage: {{ .Cmd }}
   {{.CommandPath}} [flags] <command> [command flags]
 {{end -}}
 
+{{if not .HasAvailableSubCommands}}
+{{- if .Runnable}}
+  {{.UseLine}}
+{{end -}}
+{{end}}
+
 {{- if gt (len .Aliases) 0}}` + util.Bold("\nALIASES") + `
   {{.NameAndAliases}}
 {{end -}}
@@ -155,8 +158,7 @@ Usage: {{ .Cmd }}
 {{end}}
 {{end -}}
 
-{{- if not .HasAvailableInheritedFlags}}` + util.Bold("\nEXTERNAL COMMANDS") + `
-%s
+{{- if not .HasAvailableInheritedFlags}} %s
 {{end -}}
 
 {{- if .HasAvailableLocalFlags}}` + util.Bold("\nFLAGS") + `
