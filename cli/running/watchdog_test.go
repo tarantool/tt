@@ -77,8 +77,8 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 
 	provider := providerTestImpl{tarantool: tarantoolBin, appPath: appPath, logger: logger,
 		dataDir: dataDir, restartable: restartable}
-
-	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider)
+	testPreAction := func() error { return nil }
+	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider, testPreAction)
 
 	return wd
 }
