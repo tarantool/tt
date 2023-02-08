@@ -35,10 +35,6 @@ type Watchdog struct {
 	// restartTimeout describes the timeout between
 	// restarting the Instance.
 	restartTimeout time.Duration
-	// stopped indicates whether Watchdog was stopped.
-	stopped bool
-	// stopMutex used to avoid a race condition under stopped field.
-	stopMutex sync.Mutex
 	// done channel used to inform the signal handle goroutine
 	// about termination of the Instance.
 	done chan bool
@@ -46,41 +42,63 @@ type Watchdog struct {
 	// and updating may depend on changing external parameters
 	// (such as configuration file).
 	provider Provider
+	// stopMutex used to avoid a race condition under shouldStop field.
+	stopMutex sync.Mutex
+	// shouldStop indicates whether the Watchdog should be stopped.
+	shouldStop bool
+	// preStartAction is a hook that is to be run before the start of a new Instance.
+	preStartAction func() error
 }
 
 // NewWatchdog creates a new instance of Watchdog.
 func NewWatchdog(restartable bool, restartTimeout time.Duration, logger *ttlog.Logger,
-	provider Provider) *Watchdog {
+	provider Provider, preStartAction func() error) *Watchdog {
 	wd := Watchdog{Instance: nil, logger: logger, restartTimeout: restartTimeout,
-		provider: provider}
+		provider: provider, preStartAction: preStartAction}
 
 	wd.done = make(chan bool, 1)
-	wd.stopped = false
 
 	return &wd
 }
 
 // Start starts the Instance and signal handling.
-func (wd *Watchdog) Start() {
+func (wd *Watchdog) Start() error {
+	var err error
+	// Create Instance.
+	if wd.Instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
+		wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+		return err
+	}
+	wd.logger = wd.Instance.logger
+	// The signal handling loop must be started before the instance
+	// get started for avoiding a race condition between tt start
+	// and tt stop. This way we avoid a situation when we receive
+	// a signal before starting a handler for it.
+	wd.startSignalHandling()
+
+	if err = wd.preStartAction(); err != nil {
+		wd.logger.Printf(`Pre-start action error: %v`, err)
+		// Finish the signal handling goroutine.
+		wd.done <- true
+		return err
+	}
+
 	// The Instance must be restarted on completion if the "restartable"
 	// parameter is set to "true".
 	for {
 		var err error
-		// Create Instance.
-		if wd.Instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
-			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
-			break
-		}
-		wd.logger = wd.Instance.logger
-		// Start the Instance and forwarding signals (except  SIGINT and SIGTERM)
-		wd.startSignalHandling()
+
 		wd.stopMutex.Lock()
-		if !wd.stopped {
-			if err := wd.Instance.Start(); err != nil {
-				wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
-				wd.stopMutex.Unlock()
-				break
-			}
+		if wd.shouldStop {
+			wd.logger.Printf(`Watchdog(ERROR): terminated before instance start.`)
+			wd.stopMutex.Unlock()
+			return nil
+		}
+		// Start the Instance.
+		if err := wd.Instance.Start(); err != nil {
+			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+			wd.stopMutex.Unlock()
+			break
 		}
 		wd.stopMutex.Unlock()
 
@@ -100,7 +118,7 @@ func (wd *Watchdog) Start() {
 			wd.logger.Println("Watchdog(ERROR): can't check if the instance is restartable.")
 			break
 		}
-		if wd.stopped || !restartable {
+		if wd.shouldStop || !restartable {
 			wd.logger.Println("Watchdog(INFO): the Instance has shutdown.")
 			break
 		}
@@ -112,15 +130,26 @@ func (wd *Watchdog) Start() {
 			wd.logger = logger
 		}
 		time.Sleep(wd.restartTimeout)
+
+		wd.shouldStop = false
+
+		// Recreate Instance.
+		if wd.Instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
+			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+			return err
+		}
+		wd.logger = wd.Instance.logger
+		// Before the restart of an instance start a new signal handling loop.
+		wd.startSignalHandling()
 	}
+	return nil
 }
 
 // startSignalHandling starts signal handling in a separate goroutine.
 func (wd *Watchdog) startSignalHandling() {
 	sigChan := make(chan os.Signal, 1)
-	// Reset unregisters all previous handlers for interrupt signals.
-	signal.Reset(syscall.SIGINT,
-		syscall.SIGTERM, syscall.SIGHUP)
+	// Reset the signal mask before starting of the new loop.
+	signal.Reset()
 	signal.Notify(sigChan)
 
 	// Set barrier to synchronize with the main loop when the Instance stops.
@@ -137,19 +166,22 @@ func (wd *Watchdog) startSignalHandling() {
 				switch sig {
 				case syscall.SIGINT, syscall.SIGTERM:
 					wd.stopMutex.Lock()
-					wd.Instance.Stop(30 * time.Second)
 					// If we receive one of the "stop" signals, the
 					// program should be terminated.
-					wd.stopped = true
+					wd.shouldStop = true
 					wd.stopMutex.Unlock()
+					if wd.Instance.IsAlive() {
+						wd.Instance.Stop(30 * time.Second)
+					}
 				case syscall.SIGHUP:
 					// Rotate the log files.
 					wd.logger.Rotate()
 				default:
-					wd.Instance.SendSignal(sig)
+					if wd.Instance.IsAlive() {
+						wd.Instance.SendSignal(sig)
+					}
 				}
 			case _ = <-wd.done:
-				signal.Reset()
 				return
 			}
 		}
