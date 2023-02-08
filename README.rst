@@ -110,6 +110,7 @@ file format:
         log_maxage: num (Days)
         log_maxbackups: num
         restart_on_failure: bool
+        tarantoolctl_layout: bool
       repo:
         rocks: path/to/rocks
         distfiles: path/to/install
@@ -143,6 +144,9 @@ file format:
   The default is to retain all old log files (though log_maxage may still cause
   them to get deleted.)
 * ``restart_on_failure`` (bool) - should it restart on failure.
+* ``tarantoolctl_layout`` (bool) - enable/disable tarantoolctl layout compatible mode for
+  artifact files: control socket, pid, log files. Data files (wal, vinyl, snapshots) and
+  multi-instance applications are not affected by this option.
 
 **repo**
 

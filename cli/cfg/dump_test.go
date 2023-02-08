@@ -81,6 +81,7 @@ tt:
     bin_dir: %[1]s/bin
     inc_dir: %[1]s/test_inc
     instances_enabled: .
+    tarantoolctl_layout: false
   ee:
     credential_path: ""
   templates: []

@@ -65,16 +65,17 @@ var (
 // getDefaultAppOpts generates default app config.
 func getDefaultAppOpts() *config.AppOpts {
 	return &config.AppOpts{
-		InstancesEnabled: ".",
-		RunDir:           varRunPath,
-		LogDir:           varLogPath,
-		LogMaxSize:       logMaxSize,
-		LogMaxAge:        logMaxAge,
-		LogMaxBackups:    logMaxBackups,
-		Restartable:      false,
-		DataDir:          varDataPath,
-		BinDir:           binPath,
-		IncludeDir:       includePath,
+		InstancesEnabled:   ".",
+		RunDir:             varRunPath,
+		LogDir:             varLogPath,
+		LogMaxSize:         logMaxSize,
+		LogMaxAge:          logMaxAge,
+		LogMaxBackups:      logMaxBackups,
+		Restartable:        false,
+		DataDir:            varDataPath,
+		BinDir:             binPath,
+		IncludeDir:         includePath,
+		TarantoolctlLayout: false,
 	}
 }
 
