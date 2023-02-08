@@ -36,6 +36,11 @@ tt:
     # The directory can also contain symbolic links to applications.
     instances_enabled: /etc/tarantool/instances.enabled
 
+    # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
+    # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl, 
+    # snap) and multi-instance applications are not affected by this option.
+    tarantoolctl_layout: true
+
   ee: null
     # Path to file with credentials for downloading Tarantool Enterprise Edition.
     # credential_path: /path/to/file

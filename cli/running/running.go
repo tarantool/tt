@@ -381,49 +381,6 @@ func createDataDir(dataDirPath string) error {
 	return err
 }
 
-// makePath make application path with rules:
-// * if path is not set:
-//   - if single instance application: baseBath + application name.
-//   - else : baseBath + application name + instance name.
-//
-// * if path is set and it is absolute:
-//   - if single instance application: path + application name
-//   - else: path + application name + instance name.
-//
-// * if path is set and it is relative:
-//   - if single instance application: basePath + path + application name.
-//   - else: basePath + path + application name + instance name.
-func makePath(path string, basePath string, inst *InstanceCtx) string {
-	res := ""
-
-	if path == "" {
-		if inst.SingleApp {
-			return filepath.Join(basePath, inst.AppName)
-		} else {
-			res = filepath.Join(basePath, inst.AppName)
-			return filepath.Join(res, inst.InstName)
-		}
-	}
-
-	if filepath.IsAbs(path) {
-		if inst.SingleApp {
-			return filepath.Join(path, inst.AppName)
-		} else {
-			res = filepath.Join(path, inst.AppName)
-			return filepath.Join(res, inst.InstName)
-		}
-	}
-
-	res = filepath.Join(basePath, path)
-	res = filepath.Join(res, inst.AppName)
-
-	if !inst.SingleApp {
-		return filepath.Join(res, inst.InstName)
-	}
-
-	return res
-}
-
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	runningCtx *RunningCtx, args []string) error {
@@ -473,6 +430,11 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 			instance.AppPath = inst.AppPath
 			instance.AppName = inst.AppName
 			instance.InstName = inst.InstName
+			pathBuilder := NewArtifactsPathBuilder(cmdCtx.Cli.ConfigDir, instance.AppName).
+				WithTarantoolctlLayout(cliOpts.App.TarantoolctlLayout)
+			if !inst.SingleApp {
+				pathBuilder = pathBuilder.ForInstance(instance.InstName)
+			}
 
 			if cliOpts.App != nil {
 				runDir = cliOpts.App.RunDir
@@ -484,12 +446,12 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 				instance.Restartable = cliOpts.App.Restartable
 			}
 
-			instance.RunDir = makePath(runDir, cmdCtx.Cli.ConfigDir, &inst)
+			instance.RunDir = pathBuilder.WithPath(runDir).Make()
 			instance.ConsoleSocket = filepath.Join(instance.RunDir, instance.InstName+".control")
 			instance.PIDFile = filepath.Join(instance.RunDir, instance.InstName+".pid")
-			instance.LogDir = makePath(logDir, cmdCtx.Cli.ConfigDir, &inst)
+			instance.LogDir = pathBuilder.WithPath(logDir).Make()
 			instance.Log = filepath.Join(instance.LogDir, instance.InstName+".log")
-			instance.DataDir = makePath(dataDir, cmdCtx.Cli.ConfigDir, &inst)
+			instance.DataDir = pathBuilder.WithPath(dataDir).WithTarantoolctlLayout(false).Make()
 			instance.SingleApp = inst.SingleApp
 
 			if cmdCtx.CommandName == "start" || cmdCtx.CommandName == "restart" {

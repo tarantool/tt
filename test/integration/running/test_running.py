@@ -575,3 +575,49 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
                 break
 
     assert isJson
+
+
+def test_running_tarantoolctl_layout(tt_cmd, tmpdir):
+    # Copy the test application to the "run" directory.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
+    shutil.copy(test_app_path, tmpdir)
+
+    config_path = os.path.join(tmpdir, config_name)
+    with open(config_path, "w") as file:
+        yaml.dump({"tt": {"app": {"tarantoolctl_layout": True}}}, file)
+
+    # Start an instance.
+    start_cmd = [tt_cmd, "start", "test_app"]
+    instance_process = subprocess.Popen(
+        start_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    start_output = instance_process.stdout.readline()
+    assert re.search(r"Starting an instance", start_output)
+
+    # Check files locations.
+    file = wait_file(os.path.join(tmpdir, run_path), 'test_app.pid', [], 5)
+    assert file != ""
+    file = wait_file(os.path.join(tmpdir, run_path), 'test_app.control', [], 5)
+    assert file != ""
+    file = wait_file(os.path.join(tmpdir, log_path), 'test_app.log', [], 5)
+    assert file != ""
+
+    # Check status.
+    status_cmd = [tt_cmd, "status", "test_app"]
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    assert re.search(r"RUNNING. PID: \d+.", status_out)
+
+    # Stop the Instance.
+    stop_cmd = [tt_cmd, "stop", "test_app"]
+    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
+
+    # Check that the process was terminated correctly.
+    instance_process_rc = instance_process.wait(1)
+    assert instance_process_rc == 0

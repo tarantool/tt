@@ -23,6 +23,7 @@ type Config struct {
 //     restart_on_failure: bool
 //     bin_dir: path
 //     inc_dir: path
+//     tarantoolctl_layout: false
 //   repo:
 //     rocks: path
 //     distfiles: path
@@ -76,6 +77,10 @@ type AppOpts struct {
 	IncludeDir string `mapstructure:"inc_dir" yaml:"inc_dir"`
 	// InstancesEnabled is the directory where all enabled applications are stored.
 	InstancesEnabled string `mapstructure:"instances_enabled" yaml:"instances_enabled"`
+	// TarantoolctlLayout enables artifact files layout compatibility with tarantoolctl:
+	// application sub-directories are not created for runtime artifacts like
+	// control socket, pid files and logs.
+	TarantoolctlLayout bool `mapstructure:"tarantoolctl_layout" yaml:"tarantoolctl_layout"`
 }
 
 // TemplateOpts contains configuration for applications templates.
