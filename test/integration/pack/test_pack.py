@@ -615,8 +615,9 @@ def test_pack_rpm(tt_cmd, tmpdir):
                                              '-w', '/usr/src',
                                              'centos:7',
                                              '/bin/bash', '-c',
-                                             'rpm -i {0} && ls /usr/share/tarantool/bundle1 '
-                                             '&& ls /etc/systemd/system'
+                                             'rpm -i --force {0} '
+                                             '&& ls /usr/share/tarantool/bundle1 '
+                                             '&& ls /usr/lib/systemd/system'
                                             .format(package_file_name)])
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
                                config_name, 'var']
@@ -661,7 +662,7 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
                                              'centos:7',
                                              '/bin/bash', '-c',
                                              'rpm -i {0} && ls /usr/share/tarantool/bundle1 '
-                                             '&& ls /etc/systemd/system'
+                                             '&& ls /usr/lib/systemd/system'
                                             .format(package_file_name)])
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
                                config_name, 'var']
@@ -707,7 +708,7 @@ def test_pack_deb_use_docker(tt_cmd, tmpdir):
                                              '/bin/bash', '-c',
                                              '/bin/dpkg -i {0} && '
                                              'ls /usr/share/tarantool/bundle1 '
-                                             '&& ls /etc/systemd/system'
+                                             '&& ls /usr/lib/systemd/system'
                                             .format(package_file_name)])
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
                                config_name, 'var']
