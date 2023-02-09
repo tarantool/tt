@@ -34,7 +34,7 @@ func initSystemdDir(packCtx *PackCtx, opts *config.CliOpts,
 		return err
 	}
 
-	systemdBaseDir := filepath.Join(baseDirPath, "etc", "systemd", "system")
+	systemdBaseDir := filepath.Join(baseDirPath, "usr", "lib", "systemd", "system")
 	err = os.MkdirAll(systemdBaseDir, dirPermissions)
 	if err != nil {
 		return err

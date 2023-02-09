@@ -16,7 +16,7 @@ import (
 func Test_initSystemdDir(t *testing.T) {
 	baseTestDir := t.TempDir()
 
-	prefixToUnit := filepath.Join("etc", "systemd", "system")
+	prefixToUnit := filepath.Join("usr", "lib", "systemd", "system")
 	fakeCfgPath := "/path/to/cfg"
 
 	var (
