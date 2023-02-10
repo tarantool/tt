@@ -152,6 +152,13 @@ func (wd *Watchdog) startSignalHandling() {
 	signal.Reset()
 	signal.Notify(sigChan)
 
+	// This call is needed to ignore SIGURG signals which are part of
+	// preemptive multitasking implementation in go. See:
+	// https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md.
+	// Also, there is no way to detect if a signal is related to the runtime or not:
+	// https://github.com/golang/go/issues/37942.
+	signal.Ignore(syscall.SIGURG)
+
 	// Set barrier to synchronize with the main loop when the Instance stops.
 	wd.doneBarrier.Add(1)
 
