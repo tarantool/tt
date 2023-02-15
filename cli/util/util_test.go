@@ -514,7 +514,7 @@ func TestCollectAppList(t *testing.T) {
 	err = test_helpers.CreateFiles(testDir, filesToCreate)
 	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
 
-	collected, err := CollectAppList("", testDir)
+	collected, err := CollectAppList("", testDir, true)
 	assert.Nilf(t, err, "failed to collect an app list: %v", err)
 
 	require.Equalf(t, len(apps), len(collected), "wrong count applications collected,"+

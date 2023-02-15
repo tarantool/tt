@@ -920,7 +920,7 @@ type AppListEntry struct {
 }
 
 // CollectAppList collects all the supposed applications in passed appsPath directory.
-func CollectAppList(baseDir string, appsPath string) ([]AppListEntry, error) {
+func CollectAppList(baseDir string, appsPath string, verbose bool) ([]AppListEntry, error) {
 	if appsPath == "." {
 		// Check whether base directory is application.
 		if IsApp(baseDir) {
@@ -944,7 +944,7 @@ func CollectAppList(baseDir string, appsPath string) ([]AppListEntry, error) {
 		dirItem := filepath.Join(appsPath, entry.Name())
 		if IsApp(dirItem) {
 			apps = append(apps, AppListEntry{entry.Name(), dirItem})
-		} else {
+		} else if verbose {
 			log.Warnf("Skipping %s: the source is not an application.",
 				entry.Name())
 		}

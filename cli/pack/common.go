@@ -112,7 +112,8 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 	// Collect app list step.
 	appList := []util.AppListEntry{}
 	if packCtx.AppList == nil {
-		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.App.InstancesEnabled)
+		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.App.InstancesEnabled,
+			true)
 		if err != nil {
 			return "", err
 		}
