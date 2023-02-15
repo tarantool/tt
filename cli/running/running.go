@@ -279,8 +279,8 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx
 	return instances, nil
 }
 
-// collectInstances searches all instances available in application.
-func collectInstances(appName string, appDir string) ([]InstanceCtx, error) {
+// CollectInstances searches all instances available in application.
+func CollectInstances(appName string, appDir string) ([]InstanceCtx, error) {
 	var err error
 	var appPath string
 
@@ -383,7 +383,8 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	var appList []util.AppListEntry
 	if len(args) == 0 {
-		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.App.InstancesEnabled)
+		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.App.InstancesEnabled,
+			true)
 		if err != nil {
 			return fmt.Errorf("can't collect an application list "+
 				"from instances enabled path %s: %s", instEnabledPath, err)
@@ -396,7 +397,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	runningCtx.Instances = nil
 	for _, appInfo := range appList {
 		appName := strings.TrimSuffix(appInfo.Name, ".lua")
-		instances, err := collectInstances(appName, instEnabledPath)
+		instances, err := CollectInstances(appName, instEnabledPath)
 		if err != nil {
 			return fmt.Errorf("%s: can't find an application init file: %s", appName, err)
 		}
