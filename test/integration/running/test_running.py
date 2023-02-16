@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 
 import yaml
 
@@ -571,11 +572,15 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
     logDir = os.path.join(tmpdir, "var", "log", "test_env_app")
     file = wait_file(logDir, "test_env_app.log", [], 30)
     assert file != ''
-    with open(logPath, "r") as file:
-        for _, line in enumerate(file, start=1):
-            if "{" in line:
-                isJson = True
-                break
+    tries = 100
+    while tries != 0:
+        with open(logPath, "r") as file:
+            for _, line in enumerate(file, start=1):
+                if "{" in line:
+                    isJson = True
+                    break
+        time.sleep(0.1)
+        tries = tries - 1
 
     assert isJson
 
