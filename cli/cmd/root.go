@@ -149,6 +149,7 @@ func NewCmdRoot() *cobra.Command {
 		NewDaemonCmd(),
 		NewCfgCmd(),
 		NewInstancesCmd(),
+		NewBinariesCmd(),
 	)
 	if err := injectCmds(rootCmd); err != nil {
 		panic(err.Error())

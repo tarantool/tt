@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - ``tt instances`` command to print a list of enabled applications.
 - SSL options for ``tt connect`` command.
 - An ability to pass arguments to a connect command.
+- ``tt binaries`` command. It shows a list of installed binaries and their versions.
 
 ### Changed
 
