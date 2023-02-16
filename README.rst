@@ -462,3 +462,4 @@ Common description. For a detailed description, use ``tt help command`` .
 * ``cfg dump`` - print tt environment configuration.
 * ``pack`` - pack an environment into a tarball/RPM/Deb.
 * ``instances`` - show enabled applications.
+* ``binaries`` - show a list of installed binaries and their versions.
