@@ -134,6 +134,8 @@ jobs:
         uses: docker-practice/actions-setup-docker@master
 
       - name: Build tt
+        env:
+          TT_CLI_BUILD_SSL: 'static'
         run: mage build
 
       - name: Install tarantool

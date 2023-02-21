@@ -22,7 +22,7 @@ require (
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.1
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
-	github.com/tarantool/go-tarantool v1.9.0
+	github.com/tarantool/go-tarantool v1.10.1-0.20230309143354-e257ff30dd4d
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
@@ -78,8 +78,8 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/tarantool/go-openssl v0.0.8-0.20220711094538-d93c1eff4f49 // indirect
-	github.com/temoto/robotstxt v1.1.1 // indirect
+	github.com/tarantool/go-openssl v0.0.8-0.20230307065445-720eeb389195 // indirect
+	github.com/temoto/robotstxt v1.1.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
 	github.com/tklauser/numcpus v0.2.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect

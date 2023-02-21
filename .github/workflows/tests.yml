@@ -124,6 +124,8 @@ jobs:
           pip3 install pytest tarantool requests psutil pyyaml netifaces
 
       - name: Build tt
+        env:
+          TT_CLI_BUILD_SSL: 'static'
         run: mage build
 
       - name: Install tarantool

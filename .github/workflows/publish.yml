@@ -28,6 +28,14 @@ jobs:
           cd mage
           go run bootstrap.go
 
+      - name: Build OpenSSL 3.0
+        run: |
+          wget https://github.com/openssl/openssl/releases/download/openssl-3.0.8/openssl-3.0.8.tar.gz
+          tar -xvf openssl-3.0.8.tar.gz
+          cd openssl-3.0.8/
+          ./Configure --prefix=${GITHUB_WORKSPACE}/openssl no-shared
+          make && make install
+
       - name: Setup GoReleaser
         run: |
           curl -O -L https://github.com/goreleaser/goreleaser/releases/download/v1.12.3/goreleaser_1.12.3_amd64.deb
@@ -45,6 +53,8 @@ jobs:
 
       - name: Build packages
         env:
+          CGO_LDFLAGS: "-L${{ env.GITHUB_WORKSPACE }}/openssl/lib64"
+          CGO_CFLAGS: "-I${{ env.GITHUB_WORKSPACE }}/openssl/include"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }}

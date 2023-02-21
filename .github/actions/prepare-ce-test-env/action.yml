@@ -42,5 +42,7 @@ runs:
         tarantool-version: '${{ inputs.tarantool-version }}'
 
     - name: Build tt
+      env:
+        TT_CLI_BUILD_SSL: 'static'
       run: mage build
       shell: bash
