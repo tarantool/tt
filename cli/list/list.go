@@ -15,13 +15,14 @@ import (
 
 // ListInstances shows enabled applications.
 func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
-	if _, err := os.Stat(cliOpts.App.InstancesEnabled); os.IsNotExist(err) {
+	instanceDir := cliOpts.App.InstancesEnabled
+	if _, err := os.Stat(instanceDir); os.IsNotExist(err) {
 		return fmt.Errorf("instances enabled directory doesn't exist: %s",
-			cliOpts.App.InstancesEnabled)
+			instanceDir)
 	}
 
 	appList, err := util.CollectAppList(cmdCtx.Cli.ConfigDir,
-		cliOpts.App.InstancesEnabled, false)
+		instanceDir, false)
 	if err != nil {
 		return fmt.Errorf("can't collect an application list: %s", err)
 	}
@@ -31,15 +32,22 @@ func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 	}
 
 	fmt.Println("List of enabled applications:")
+	fmt.Printf("instances enabled directory: %s\n", instanceDir)
 
 	for _, app := range appList {
-		log.Infof("%s", color.GreenString(strings.TrimSuffix(app.Name, ".lua")))
-		instances, _ := running.CollectInstances(app.Name, cliOpts.App.InstancesEnabled)
+		appLocation := strings.TrimPrefix(app.Location, instanceDir+string(os.PathSeparator))
+		if !strings.HasSuffix(appLocation, ".lua") {
+			appLocation = appLocation + string(os.PathSeparator)
+		}
+		log.Infof("%s (%s)", color.GreenString(strings.TrimSuffix(app.Name, ".lua")),
+			appLocation)
+		instances, _ := running.CollectInstances(app.Name, instanceDir)
 		for _, inst := range instances {
 			fullInstanceName := running.GetAppInstanceName(inst)
 			if fullInstanceName != app.Name {
-				fmt.Printf("	%s\n",
-					color.YellowString(strings.TrimPrefix(fullInstanceName, app.Name+":")))
+				fmt.Printf("	%s (%s)\n",
+					color.YellowString(strings.TrimPrefix(fullInstanceName, app.Name+":")),
+					strings.TrimPrefix(inst.AppPath, app.Location+string(os.PathSeparator)))
 			}
 		}
 	}
