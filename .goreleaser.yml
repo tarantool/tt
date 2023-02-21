@@ -12,12 +12,15 @@ builds:
     dir: cli
 
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
 
-    flags:
-      - -tags=go_tarantool_ssl_disable
+    tags:
+      - netgo
+      - osusergo
+      - openssl_static
 
     ldflags:
+      - -linkmode=external -extldflags -static
       - -s -w
       - -X github.com/tarantool/tt/cli/version.gitTag={{ .Tag }}
       - -X github.com/tarantool/tt/cli/version.gitCommit={{ .ShortCommit }}

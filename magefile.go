@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	buildTypeEnv = "TT_CLI_BUILD_SSL"
 	goPackageName = "github.com/tarantool/tt/cli"
 
 	asmflags = "all=-trimpath=${PWD}"
@@ -38,12 +39,23 @@ var (
 		"-X ${PACKAGE}/version.versionLabel=${VERSION_LABEL}",
 		"-X ${PACKAGE}/configure.defaultConfigPath=${CONFIG_PATH}",
 	}
-
+	staticLdflags = []string{
+		"-linkmode=external", "-extldflags", "-static",
+	}
 	goExecutableName     = "go"
 	pythonExecutableName = "python3"
 	ttExecutableName     = "tt"
 
 	generateModePath = filepath.Join(packagePath, "codegen", "generate_code.go")
+)
+
+type BuildType string
+
+const (
+	BuildTypeDefault BuildType = ""
+	BuildTypeNoCgo   BuildType = "no"
+	BuildTypeShared  BuildType = "shared"
+	BuildTypeStatic  BuildType = "static"
 )
 
 func init() {
@@ -60,7 +72,6 @@ func init() {
 			panic(err)
 		}
 	}
-
 	// We want to use Go 1.11 modules even if the source lives inside GOPATH.
 	// The default is "auto".
 	os.Setenv("GO111MODULE", "on")
@@ -143,18 +154,41 @@ func PatchCC() error {
 	return nil
 }
 
-// Building tt executable.
+// Building tt executable. Supported environment variables:
+// TT_CLI_BUILD_SSL=(no|static|shared)
 func Build() error {
 	fmt.Println("Building tt...")
 
 	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)
 
+	buildLdflags := make([]string, len(ldflags))
+	copy(buildLdflags, ldflags)
+	tags := "-tags=netgo,osusergo"
+
+	buildType := os.Getenv(buildTypeEnv)
+	switch BuildType(buildType) {
+	case BuildTypeDefault:
+		fallthrough
+	case BuildTypeNoCgo:
+		tags = tags + ",go_tarantool_ssl_disable"
+	case BuildTypeStatic:
+		if runtime.GOOS != "darwin" {
+			buildLdflags = append(buildLdflags, staticLdflags...)
+		}
+		tags = tags + ",openssl_static"
+	case BuildTypeShared:
+	default:
+		return fmt.Errorf("Unsupported build type: %s, supported: "+
+			"%s, %s, %s\n",
+			buildType, BuildTypeNoCgo, BuildTypeStatic, BuildTypeShared)
+	}
+
 	err := sh.RunWith(
 		getBuildEnvironment(), goExecutableName, "build",
 		"-o", ttExecutableName,
-		"-tags=go_tarantool_ssl_disable",
-		"-ldflags", strings.Join(ldflags, " "),
+		tags,
+		"-ldflags", strings.Join(buildLdflags, " "),
 		"-asmflags", asmflags,
 		"-gcflags", gcflags,
 		packagePath,
@@ -210,11 +244,11 @@ func Unit() error {
 	mg.Deps(GenerateGoCode)
 
 	if mg.Verbose() {
-		return sh.RunV(goExecutableName, "test", "-v", "-tags", "go_tarantool_ssl_disable",
+		return sh.RunV(goExecutableName, "test", "-v",
 			fmt.Sprintf("%s/...", packagePath))
 	}
 
-	return sh.RunV(goExecutableName, "test", "-tags", "go_tarantool_ssl_disable", fmt.Sprintf("%s/...", packagePath))
+	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath))
 }
 
 // Run unit tests with a Tarantool instance integration.
@@ -225,11 +259,11 @@ func UnitFull() error {
 
 	if mg.Verbose() {
 		return sh.RunV(goExecutableName, "test", "-v", fmt.Sprintf("%s/...", packagePath),
-			"-tags", "integration,go_tarantool_ssl_disable")
+			"-tags", "integration")
 	}
 
 	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath),
-		"-tags", "integration,go_tarantool_ssl_disable")
+		"-tags", "integration")
 }
 
 // Run integration tests, excluding slow tests.
@@ -320,6 +354,6 @@ func getBuildEnvironment() map[string]string {
 		"VERSION_LABEL": os.Getenv("VERSION_LABEL"),
 		"PWD":           currentDir,
 		"CONFIG_PATH":   getDefaultConfigPath(),
-		"CGO_ENABLED":   "0",
+		"CGO_ENABLED":   "1",
 	}
 }

@@ -37,7 +37,28 @@ Build
 
    git clone https://github.com/tarantool/tt --recursive
    cd tt
+
+You can build a binary without OpenSSL and TLS support for development
+purposes:
+
+.. code-block:: bash
+
+   TT_CLI_BUILD_SSL=no mage build
    mage build
+
+You can build a binary with statically linked OpenSSL. This build type is used
+for releases:
+
+.. code-block:: bash
+
+   TT_CLI_BUILD_SSL=static mage build
+
+Finally, you can build a binary with dynamically linked OpenSSL for development
+purposes:
+
+.. code-block:: bash
+
+   TT_CLI_BUILD_SSL=shared mage build
 
 ~~~~~~~~~~~~
 Dependencies
