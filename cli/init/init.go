@@ -38,43 +38,45 @@ type cartridgeOpts struct {
 	DataDir string `mapstructure:"data-dir"`
 }
 
-// appDirInfo contains directories config info loaded from existing config.
-type appDirInfo struct {
-	instancesEnabled string
-	logDir           string
-	runDir           string
-	walDir           string
-	vinylDir         string
-	memtxDir         string
+// configData is a configuration data loaded from an existing config.
+type configData struct {
+	instancesEnabled   string
+	logDir             string
+	runDir             string
+	walDir             string
+	vinylDir           string
+	memtxDir           string
+	tarantoolctlLayout bool
 }
 
 // configLoader binds config name with load functor.
 type configLoader struct {
 	configName string
-	load       func(*InitCtx, string) (appDirInfo, error)
+	load       func(*InitCtx, string) (configData, error)
 }
 
 //go:embed print_tarantoolctl_cfg.lua
 var printTarantoolctlCfgLuaBytes []byte
 
 // loadCartridgeConfig parses configPath as .cartridge.yml and fill directories info structure.
-func loadCartridgeConfig(initCtx *InitCtx, configPath string) (appDirInfo, error) {
+func loadCartridgeConfig(initCtx *InitCtx, configPath string) (configData, error) {
 	var cartridgeConf cartridgeOpts
 	rawConfigOpts, err := util.ParseYAML(configPath)
 	if err != nil {
-		return appDirInfo{}, fmt.Errorf("failed to parse cartridge app configuration: %s", err)
+		return configData{}, fmt.Errorf("failed to parse cartridge app configuration: %s", err)
 	}
 
 	if err := mapstructure.Decode(rawConfigOpts, &cartridgeConf); err != nil {
-		return appDirInfo{}, fmt.Errorf("failed to parse cartridge app configuration: %s", err)
+		return configData{}, fmt.Errorf("failed to parse cartridge app configuration: %s", err)
 	}
 
-	return appDirInfo{
-		runDir:   cartridgeConf.RunDir,
-		logDir:   cartridgeConf.LogDir,
-		walDir:   cartridgeConf.DataDir,
-		vinylDir: cartridgeConf.DataDir,
-		memtxDir: cartridgeConf.DataDir,
+	return configData{
+		runDir:             cartridgeConf.RunDir,
+		logDir:             cartridgeConf.LogDir,
+		walDir:             cartridgeConf.DataDir,
+		vinylDir:           cartridgeConf.DataDir,
+		memtxDir:           cartridgeConf.DataDir,
+		tarantoolctlLayout: false,
 	}, nil
 }
 
@@ -94,64 +96,65 @@ func createDirectories(dirList []string) error {
 
 // loadTarantoolctlConfig loads data from configPath which is processed as a lua file, and fills
 // directories info structure.
-func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (appDirInfo, error) {
-	var appDirInfo appDirInfo
+func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (configData, error) {
+	var existingCfg configData
 	if initCtx.TarantoolExecutable == "" {
-		return appDirInfo, fmt.Errorf("tarantool executable is not set")
+		return existingCfg, fmt.Errorf("tarantool executable is not set")
 	}
 
 	out, err := util.ExecuteCommandGetOutput(initCtx.TarantoolExecutable, "",
 		printTarantoolctlCfgLuaBytes, "-", configPath)
 	if err != nil {
-		return appDirInfo, fmt.Errorf("tarantoolctl config loading error: %s", string(out))
+		return existingCfg, fmt.Errorf("tarantoolctl config loading error: %s", string(out))
 	}
 	var raw map[string]interface{}
 	if err := yaml.Unmarshal(out, &raw); err != nil {
-		return appDirInfo, fmt.Errorf("failed to parse YAML: %s", err)
+		return existingCfg, fmt.Errorf("failed to parse YAML: %s", err)
 	}
 
 	for _, dir := range []struct {
 		path    *string
 		varName string
 	}{
-		{&appDirInfo.walDir, "wal_dir"},
-		{&appDirInfo.vinylDir, "vinyl_dir"},
-		{&appDirInfo.memtxDir, "memtx_dir"},
-		{&appDirInfo.logDir, "log_dir"},
-		{&appDirInfo.runDir, "pid_file"},
-		{&appDirInfo.instancesEnabled, "instance_dir"},
+		{&existingCfg.walDir, "wal_dir"},
+		{&existingCfg.vinylDir, "vinyl_dir"},
+		{&existingCfg.memtxDir, "memtx_dir"},
+		{&existingCfg.logDir, "log_dir"},
+		{&existingCfg.runDir, "pid_file"},
+		{&existingCfg.instancesEnabled, "instance_dir"},
 	} {
 		if val, ok := raw[dir.varName]; ok && val != nil {
 			*dir.path = val.(string)
 		}
 	}
-	return appDirInfo, nil
+	existingCfg.tarantoolctlLayout = true
+	return existingCfg, nil
 }
 
-// generateTtEnv generates environment config in configPath using directories info from
-// appDirInfo.
-func generateTtEnv(configPath string, appDirInfo appDirInfo) error {
+// generateTtEnv generates environment config in configPath using configuration data provided.
+func generateTtEnv(configPath string, sourceCfg configData) error {
 	cfg := config.Config{
 		CliConfig: configure.GetDefaultCliOpts(),
 	}
-	if appDirInfo.runDir != "" {
-		cfg.CliConfig.App.RunDir = appDirInfo.runDir
+	if sourceCfg.runDir != "" {
+		cfg.CliConfig.App.RunDir = sourceCfg.runDir
 	}
-	if appDirInfo.walDir != "" {
-		cfg.CliConfig.App.WalDir = appDirInfo.walDir
+	if sourceCfg.walDir != "" {
+		cfg.CliConfig.App.WalDir = sourceCfg.walDir
 	}
-	if appDirInfo.vinylDir != "" {
-		cfg.CliConfig.App.VinylDir = appDirInfo.vinylDir
+	if sourceCfg.vinylDir != "" {
+		cfg.CliConfig.App.VinylDir = sourceCfg.vinylDir
 	}
-	if appDirInfo.memtxDir != "" {
-		cfg.CliConfig.App.MemtxDir = appDirInfo.memtxDir
+	if sourceCfg.memtxDir != "" {
+		cfg.CliConfig.App.MemtxDir = sourceCfg.memtxDir
 	}
-	if appDirInfo.logDir != "" {
-		cfg.CliConfig.App.LogDir = appDirInfo.logDir
+	if sourceCfg.logDir != "" {
+		cfg.CliConfig.App.LogDir = sourceCfg.logDir
 	}
-	if appDirInfo.instancesEnabled != "" {
-		cfg.CliConfig.App.InstancesEnabled = appDirInfo.instancesEnabled
+	if sourceCfg.instancesEnabled != "" {
+		cfg.CliConfig.App.InstancesEnabled = sourceCfg.instancesEnabled
 	}
+	cfg.CliConfig.App.TarantoolctlLayout = sourceCfg.tarantoolctlLayout
 
 	if err := util.WriteYaml(configPath, cfg); err != nil {
 		return err
@@ -227,7 +230,7 @@ func Run(initCtx *InitCtx) error {
 		return err
 	}
 
-	var appDirInfo appDirInfo
+	var sourceCfg configData
 	if !initCtx.SkipConfig {
 		for _, confLoader := range configLoaders {
 			if _, err = os.Stat(confLoader.configName); err != nil {
@@ -239,7 +242,7 @@ func Run(initCtx *InitCtx) error {
 			}
 
 			log.Infof("Found existing config '%s'", confLoader.configName)
-			appDirInfo, err = confLoader.load(initCtx, confLoader.configName)
+			sourceCfg, err = confLoader.load(initCtx, confLoader.configName)
 			if err != nil {
 				return err
 			} else {
@@ -247,12 +250,12 @@ func Run(initCtx *InitCtx) error {
 			}
 		}
 	}
-	if !util.IsApp(".") && appDirInfo.instancesEnabled == "" {
+	if !util.IsApp(".") && sourceCfg.instancesEnabled == "" {
 		// Current directory is not app dir, instances enabled dir will be used.
-		appDirInfo.instancesEnabled = configure.InstancesEnabledDirName
+		sourceCfg.instancesEnabled = configure.InstancesEnabledDirName
 	}
 
-	if err := generateTtEnv(configName, appDirInfo); err != nil {
+	if err := generateTtEnv(configName, sourceCfg); err != nil {
 		return err
 	}
 

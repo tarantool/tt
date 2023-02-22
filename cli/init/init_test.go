@@ -19,12 +19,13 @@ import (
 func TestLoadCartridgeConfig(t *testing.T) {
 	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/valid_cartridge.yml")
 	require.NoError(t, err)
-	require.Equal(t, appDirInfo{
-		runDir:   "my_run_dir",
-		logDir:   "my_log_dir",
-		walDir:   "my_data_dir",
-		vinylDir: "my_data_dir",
-		memtxDir: "my_data_dir",
+	require.Equal(t, configData{
+		runDir:             "my_run_dir",
+		logDir:             "my_log_dir",
+		walDir:             "my_data_dir",
+		vinylDir:           "my_data_dir",
+		memtxDir:           "my_data_dir",
+		tarantoolctlLayout: false,
 	}, actualDirInfo)
 }
 
@@ -32,20 +33,20 @@ func TestLoadCartridgeInvalidConfig(t *testing.T) {
 	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/invalid_cartridge.yml")
 	require.EqualError(t, err, "failed to parse cartridge app configuration: failed "+
 		"to parse YAML: yaml: line 5: could not find expected ':'")
-	require.Equal(t, appDirInfo{}, actualDirInfo)
+	require.Equal(t, configData{}, actualDirInfo)
 }
 
 func TestLoadCartridgeWrongDataFormat(t *testing.T) {
 	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/wrong_data_format.yml")
 	require.Contains(t, err.Error(), "'log-dir' expected type 'string', got unconvertible "+
 		"type 'float64', value: '1.2'")
-	require.Equal(t, appDirInfo{}, actualDirInfo)
+	require.Equal(t, configData{}, actualDirInfo)
 }
 
 func TestLoadCartridgeNonExistentConfig(t *testing.T) {
 	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/no_cartridge.yml")
 	require.Error(t, err)
-	require.Equal(t, appDirInfo{}, actualDirInfo)
+	require.Equal(t, configData{}, actualDirInfo)
 }
 
 func checkDefaultEnv(t *testing.T, configName string, instancesEnabled string) {
@@ -69,7 +70,7 @@ func checkDefaultEnv(t *testing.T, configName string, instancesEnabled string) {
 	assert.Equal(t, "distfiles", cfg.CliConfig.Repo.Install)
 	assert.Equal(t, "include", cfg.CliConfig.App.IncludeDir)
 	assert.Equal(t, "templates", cfg.CliConfig.Templates[0].Path)
-	assert.Equal(t, instancesEnabled, cfg.CliConfig.App.InstancesEnabled)
+	assert.False(t, cfg.CliConfig.App.TarantoolctlLayout)
 
 	assert.DirExists(t, instancesEnabled)
 	assert.DirExists(t, "modules")
@@ -87,7 +88,7 @@ func TestGenerateTtEnvDefault(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Chdir(wd)
 
-	err = generateTtEnv(configure.ConfigName, appDirInfo{
+	err = generateTtEnv(configure.ConfigName, configData{
 		instancesEnabled: configure.InstancesEnabledDirName,
 	})
 	require.NoError(t, err)
@@ -104,7 +105,7 @@ func TestGenerateTtEnv(t *testing.T) {
 	defer os.Chdir(wd)
 
 	configPath := filepath.Join(tmpDir, configure.ConfigName)
-	err = generateTtEnv(configPath, appDirInfo{
+	err = generateTtEnv(configPath, configData{
 		runDir: "run_dir",
 		walDir: "wal_dir",
 		logDir: "log_dir",
@@ -125,6 +126,7 @@ func TestGenerateTtEnv(t *testing.T) {
 	assert.Equal(t, "var/lib", cfg.CliConfig.App.MemtxDir)
 	assert.Equal(t, "run_dir", cfg.CliConfig.App.RunDir)
 	assert.Equal(t, "log_dir", cfg.CliConfig.App.LogDir)
+	assert.False(t, cfg.CliConfig.App.TarantoolctlLayout)
 	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 }
 
@@ -155,6 +157,7 @@ func TestInitRunCartridgeApp(t *testing.T) {
 	assert.Equal(t, "my_data_dir", cfg.CliConfig.App.MemtxDir)
 	assert.Equal(t, "my_run_dir", cfg.CliConfig.App.RunDir)
 	assert.Equal(t, "my_log_dir", cfg.CliConfig.App.LogDir)
+	assert.False(t, cfg.CliConfig.App.TarantoolctlLayout)
 	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 	assert.DirExists(t, "modules")
 	assert.DirExists(t, "include")
@@ -188,6 +191,7 @@ func TestInitRunTarantoolctlCfg(t *testing.T) {
 	assert.Equal(t, "var/lib", cfg.CliConfig.App.MemtxDir)
 	assert.Equal(t, "./run", cfg.CliConfig.App.RunDir)
 	assert.Equal(t, "./log", cfg.CliConfig.App.LogDir)
+	assert.True(t, cfg.CliConfig.App.TarantoolctlLayout)
 	assert.DirExists(t, cfg.CliConfig.App.InstancesEnabled)
 	assert.DirExists(t, "modules")
 	assert.DirExists(t, "include")
@@ -216,6 +220,7 @@ func TestInitRunTarantoolctlCfg(t *testing.T) {
 	assert.Equal(t, "var/lib", cfg.CliConfig.App.MemtxDir)
 	assert.Equal(t, "./run", cfg.CliConfig.App.RunDir)
 	assert.Equal(t, "./log", cfg.CliConfig.App.LogDir)
+	assert.True(t, cfg.CliConfig.App.TarantoolctlLayout)
 	assert.DirExists(t, cfg.CliConfig.App.InstancesEnabled)
 	assert.DirExists(t, "modules")
 	assert.DirExists(t, "include")
@@ -408,50 +413,51 @@ func TestInitLoadTarantoolctlConfig(t *testing.T) {
 	var initCtx InitCtx
 	initCtx.TarantoolExecutable, err = exec.LookPath("tarantool")
 	require.NoError(t, err)
-	appDirInfo, err := loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_workdir.lua")
+	cfg, err := loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_workdir.lua")
 	require.NoError(t, err)
-	assert.Equal(t, "", appDirInfo.walDir)
-	assert.Equal(t, "", appDirInfo.vinylDir)
-	assert.Equal(t, "", appDirInfo.memtxDir)
-	assert.Equal(t, "", appDirInfo.logDir)
-	assert.Equal(t, "", appDirInfo.runDir)
+	assert.Equal(t, "", cfg.walDir)
+	assert.Equal(t, "", cfg.vinylDir)
+	assert.Equal(t, "", cfg.memtxDir)
+	assert.Equal(t, "", cfg.logDir)
+	assert.Equal(t, "", cfg.runDir)
 
 	os.Setenv("TEST_WORKDIR", "/tmp/workdir")
-	appDirInfo, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_workdir.lua")
+	cfg, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_workdir.lua")
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp/workdir", appDirInfo.walDir)
-	assert.Equal(t, "/tmp/workdir", appDirInfo.vinylDir)
-	assert.Equal(t, "/tmp/workdir", appDirInfo.memtxDir)
-	assert.Equal(t, "/tmp/workdir", appDirInfo.logDir)
-	assert.Equal(t, "/tmp/workdir", appDirInfo.runDir)
+	assert.Equal(t, "/tmp/workdir", cfg.walDir)
+	assert.Equal(t, "/tmp/workdir", cfg.vinylDir)
+	assert.Equal(t, "/tmp/workdir", cfg.memtxDir)
+	assert.Equal(t, "/tmp/workdir", cfg.logDir)
+	assert.Equal(t, "/tmp/workdir", cfg.runDir)
 
 	os.Unsetenv("TEST_WORKDIR")
-	appDirInfo, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl.lua")
+	cfg, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl.lua")
 	require.NoError(t, err)
-	assert.Equal(t, "var/lib", appDirInfo.walDir)
-	assert.Equal(t, "var/lib", appDirInfo.vinylDir)
-	assert.Equal(t, "var/snap", appDirInfo.memtxDir)
-	assert.Equal(t, "var/log", appDirInfo.logDir)
-	assert.Equal(t, "var/run", appDirInfo.runDir)
+	assert.Equal(t, "var/lib", cfg.walDir)
+	assert.Equal(t, "var/lib", cfg.vinylDir)
+	assert.Equal(t, "var/snap", cfg.memtxDir)
+	assert.Equal(t, "var/log", cfg.logDir)
+	assert.Equal(t, "var/run", cfg.runDir)
 
-	appDirInfo, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_no_snap_dir.lua")
+	cfg, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_no_snap_dir.lua")
 	require.NoError(t, err)
-	assert.Equal(t, "./lib", appDirInfo.walDir)
-	assert.Equal(t, "./lib", appDirInfo.vinylDir)
-	assert.Equal(t, "", appDirInfo.memtxDir)
-	assert.Equal(t, "./log", appDirInfo.logDir)
-	assert.Equal(t, "./run", appDirInfo.runDir)
-	assert.Equal(t, "./instances", appDirInfo.instancesEnabled)
+	assert.Equal(t, "./lib", cfg.walDir)
+	assert.Equal(t, "./lib", cfg.vinylDir)
+	assert.Equal(t, "", cfg.memtxDir)
+	assert.Equal(t, "./log", cfg.logDir)
+	assert.Equal(t, "./run", cfg.runDir)
+	assert.Equal(t, "./instances", cfg.instancesEnabled)
 
-	appDirInfo, err = loadTarantoolctlConfig(&initCtx,
+	cfg, err = loadTarantoolctlConfig(&initCtx,
 		"testdata/tarantoolctl_different_directories.lua")
 	require.NoError(t, err)
-	assert.Equal(t, "var/wal", appDirInfo.walDir)
-	assert.Equal(t, "var/vinyl", appDirInfo.vinylDir)
-	assert.Equal(t, "var/snap", appDirInfo.memtxDir)
-	assert.Equal(t, "var/log", appDirInfo.logDir)
-	assert.Equal(t, "var/pid", appDirInfo.runDir)
-	assert.Equal(t, "", appDirInfo.instancesEnabled)
+	assert.Equal(t, "var/wal", cfg.walDir)
+	assert.Equal(t, "var/vinyl", cfg.vinylDir)
+	assert.Equal(t, "var/snap", cfg.memtxDir)
+	assert.Equal(t, "var/log", cfg.logDir)
+	assert.Equal(t, "var/pid", cfg.runDir)
+	assert.Equal(t, "", cfg.instancesEnabled)
+	assert.True(t, cfg.tarantoolctlLayout)
 }
 
 func TestInitLoadTarantoolctlConfigErrorCases(t *testing.T) {
