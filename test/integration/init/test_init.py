@@ -41,6 +41,7 @@ def test_init_basic_functionality(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir"
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
+        assert not data_loaded["tt"]["app"]["tarantoolctl_layout"]
 
     check_env_dirs(tmpdir, "instances.enabled")
 
@@ -69,6 +70,7 @@ def test_init_missing_configs(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["log_maxsize"] == 100
         assert data_loaded["tt"]["app"]["log_maxage"] == 8
         assert data_loaded["tt"]["app"]["log_maxbackups"] == 10
+        assert not data_loaded["tt"]["app"]["tarantoolctl_layout"]
         assert data_loaded["tt"]["modules"]["directory"] == "modules"
         assert data_loaded["tt"]["app"]["bin_dir"] == "bin"
         assert data_loaded["tt"]["templates"][0]["path"] == "templates"
@@ -274,6 +276,7 @@ def test_init_basic_tarantoolctl_cfg(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "/opt/vinyl"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "/opt/snap"
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
+        assert data_loaded["tt"]["app"]["tarantoolctl_layout"]
 
     check_env_dirs(tmpdir, "instances.enabled")
 
@@ -303,6 +306,7 @@ def test_tarantoolctl_cfg_from_doc(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "./lib/tarantool"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "./lib/tarantool"
         assert data_loaded["tt"]["app"]["instances_enabled"] == "./instances"
+        assert data_loaded["tt"]["app"]["tarantoolctl_layout"]
 
     check_env_dirs(tmpdir, "instances")
 
