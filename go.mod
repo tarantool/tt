@@ -90,7 +90,7 @@ require (
 replace (
 	github.com/c-bata/go-prompt => github.com/tarantool/go-prompt v0.2.6-tarantool
 	github.com/tarantool/cartridge-cli => ./cli/cartridge/third_party/cartridge-cli
-	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
+	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b
 	golang.org/x/net => golang.org/x/net v0.7.0
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20210817190340-bfb29a6856f2
 )
