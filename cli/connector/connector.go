@@ -74,10 +74,22 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	// Set a deadline for the greeting.
 	greetingConn.SetReadDeadline(time.Now().Add(greetingOperationTimeout))
 
-	// Detect protocol.
+	// Detect transport and protocol.
+	ssl := opts.Ssl.KeyFile != "" || opts.Ssl.CertFile != "" ||
+		opts.Ssl.CaFile != "" || opts.Ssl.Ciphers != ""
+	transport := ""
 	protocol, err := GetProtocol(greetingConn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get protocol: %s", err)
+		if ssl {
+			protocol = BinaryProtocol
+			transport = "ssl"
+		} else {
+			return nil, fmt.Errorf("failed to get protocol: %s", err)
+		}
+	} else if ssl {
+		greetingConn.Close()
+		errMsg := "unencrypted connection established, but encryption required"
+		return nil, fmt.Errorf(errMsg)
 	}
 
 	// Reset the deadline. From the SetDeadline doc:
@@ -95,6 +107,8 @@ func Connect(opts ConnectOpts) (Connector, error) {
 		conn, err := tarantool.Connect(addr, tarantool.Opts{
 			User:       opts.Username,
 			Pass:       opts.Password,
+			Transport:  transport,
+			Ssl:        tarantool.SslOpts(opts.Ssl),
 			SkipSchema: true, // We don't need a schema for eval requests.
 		})
 		if err != nil {

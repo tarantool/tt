@@ -29,6 +29,10 @@ var (
 	connectPassword    string
 	connectFile        string
 	connectLanguage    string
+	connectSslKeyFile  string
+	connectSslCertFile string
+	connectSslCaFile   string
+	connectSslCiphers  string
 	connectInteractive bool
 )
 
@@ -58,6 +62,16 @@ func NewConnectCmd() *cobra.Command {
 		`file to read the script for evaluation. "-" - read the script from stdin`)
 	connectCmd.Flags().StringVarP(&connectLanguage, "language", "l",
 		connect.DefaultLanguage.String(), `language: lua or sql`)
+	connectCmd.Flags().StringVarP(&connectSslKeyFile, "sslkeyfile", "",
+		connect.DefaultLanguage.String(), `path to a private SSL key file`)
+	connectCmd.Flags().StringVarP(&connectSslCertFile, "sslcertfile", "",
+		connect.DefaultLanguage.String(), `path to an SSL certificate file`)
+	connectCmd.Flags().StringVarP(&connectSslCaFile, "sslcafile", "",
+		connect.DefaultLanguage.String(),
+		`path to a trusted certificate authorities (CA) file`)
+	connectCmd.Flags().StringVarP(&connectSslCiphers, "sslciphers", "",
+		connect.DefaultLanguage.String(),
+		`colon-separated (:) list of SSL cipher suites the connection`)
 	connectCmd.Flags().BoolVarP(&connectInteractive, "interactive", "i",
 		false, `enter interactive mode after executing 'FILE'`)
 
@@ -170,6 +184,10 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		Username:    connectUser,
 		Password:    connectPassword,
 		SrcFile:     connectFile,
+		SslKeyFile:  connectSslKeyFile,
+		SslCertFile: connectSslCertFile,
+		SslCaFile:   connectSslCaFile,
+		SslCiphers:  connectSslCiphers,
 		Interactive: connectInteractive,
 	}
 

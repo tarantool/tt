@@ -99,6 +99,19 @@ def is_language_supported(tt_cmd, tmpdir):
     return major >= 2
 
 
+def is_tarantool_ee():
+    cmd = ["tarantool", "--version"]
+    instance_process = subprocess.run(
+        cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    if instance_process.returncode == 0:
+        return "Tarantool Enterprise" in instance_process.stdout
+    return False
+
+
 def skip_if_language_unsupported(tt_cmd, tmpdir, test_app):
     if not is_language_supported(tt_cmd, tmpdir):
         stop_app(tt_cmd, tmpdir, test_app)
@@ -109,6 +122,11 @@ def skip_if_language_supported(tt_cmd, tmpdir, test_app):
     if is_language_supported(tt_cmd, tmpdir):
         stop_app(tt_cmd, tmpdir, test_app)
         pytest.skip("/set language is supported")
+
+
+def skip_if_tarantool_ce():
+    if not is_tarantool_ee():
+        pytest.skip("Tarantool Enterprise required")
 
 
 def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
@@ -138,6 +156,50 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
     for uri in uris:
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file)
         assert ret
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
+    skip_if_tarantool_ce()
+
+    tmpdir = tmpdir_with_cfg
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_ssl_app", "test_app.lua")
+    # The test ssl files.
+    ssl_key_path = os.path.join(os.path.dirname(__file__), "test_ssl_app", "localhost.key")
+    ssl_cert_path = os.path.join(os.path.dirname(__file__), "test_ssl_app", "localhost.crt")
+    ssl_ca_path = os.path.join(os.path.dirname(__file__), "test_ssl_app", "ca.crt")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+
+    # Copy test data into temporary directory.
+    files = [test_app_path, empty_file_path, ssl_key_path, ssl_cert_path, ssl_ca_path]
+    copy_data(tmpdir, files)
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    server = "localhost:3013"
+    # Connect without SSL options.
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file)
+    assert not ret
+    assert re.search(r"   ⨯ unable to establish connection", output)
+
+    # Connect to the instance.
+    opts = {
+        "--sslkeyfile": "localhost.key",
+        "--sslcertfile": "localhost.crt",
+        "--sslcafile": "ca.crt",
+    }
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file, opts=opts)
+    assert ret
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")

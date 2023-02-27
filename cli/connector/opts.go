@@ -20,16 +20,33 @@ type ConnectOpts struct {
 	Username string
 	// Password of the user.
 	Password string
+	// Ssl options for a connection.
+	Ssl SslOpts
+}
+
+// SslOpts is a way to configure SSL connection.
+type SslOpts struct {
+	// KeyFile is a path to a private SSL key file.
+	KeyFile string
+	// CertFile is a path to an SSL certificate file.
+	CertFile string
+	// CaFile is a path to a trusted certificate authorities (CA) file.
+	CaFile string
+	// Ciphers is a colon-separated (:) list of SSL cipher suites the
+	// connection can use.
+	Ciphers string
 }
 
 // MakeConnectOpts creates a new connection options object according to the
 // arguments passed. An username and a password values from the connection
 // string are used only if the username and password from the arguments are
 // empty.
-func MakeConnectOpts(connString, username, password string) ConnectOpts {
+func MakeConnectOpts(connString, username, password string,
+	ssl SslOpts) ConnectOpts {
 	connOpts := ConnectOpts{
 		Username: username,
 		Password: password,
+		Ssl:      ssl,
 	}
 
 	connStringParts := strings.SplitN(connString, "@", 2)

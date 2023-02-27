@@ -13,146 +13,158 @@ func TestMakeConnectOpts(t *testing.T) {
 		connString string
 		username   string
 		password   string
+		ssl        SslOpts
 		expected   ConnectOpts
 	}{
-		{"", "", "",
+		{"", "", "", SslOpts{},
 			ConnectOpts{
-				"tcp", "", "", "",
+				"tcp", "", "", "", SslOpts{},
 			}},
-		{"localhost:3013", "", "",
+		{"", "a", "b", SslOpts{"c", "d", "e", "f"},
 			ConnectOpts{
-				"tcp", "localhost:3013", "", "",
+				"tcp", "", "a", "b", SslOpts{"c", "d", "e", "f"},
 			}},
-		{"tcp://localhost:3013", "", "",
+		{"localhost:3013", "", "", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost:3013", "", "",
+				"tcp", "localhost:3013", "", "", SslOpts{},
 			}},
-		{"tcp:localhost", "", "",
+		{"tcp://localhost:3013", "", "", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost", "", "",
+				"tcp", "localhost:3013", "", "", SslOpts{},
 			}},
-		{"./path/to/socket", "", "",
+		{"tcp:localhost", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "./path/to/socket", "", "",
+				"tcp", "localhost", "", "", SslOpts{},
 			}},
-		{"/path/to/socket", "", "",
+		{"./path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "", "",
+				"unix", "./path/to/socket", "", "", SslOpts{},
 			}},
-		{"unix:///path/to/socket", "", "",
+		{"/path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "", "",
+				"unix", "/path/to/socket", "", "", SslOpts{},
 			}},
-		{"unix:/path/to/socket", "", "",
+		{"unix:///path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "", "",
+				"unix", "/path/to/socket", "", "", SslOpts{},
 			}},
-		{"unix/:/path/to/socket", "", "",
+		{"unix:/path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "", "",
+				"unix", "/path/to/socket", "", "", SslOpts{},
 			}},
-		{"localhost:3013", "username", "password",
+		{"unix/:/path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost:3013", "username", "password",
+				"unix", "/path/to/socket", "", "", SslOpts{},
 			}},
-		{"tcp://localhost:3013", "username", "password",
+		{"localhost:3013", "username", "password", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost:3013", "username", "password",
+				"tcp", "localhost:3013", "username", "password", SslOpts{},
 			}},
-		{"tcp:localhost", "username", "password",
+		{"tcp://localhost:3013", "username", "password", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost", "username", "password",
+				"tcp", "localhost:3013", "username", "password", SslOpts{},
 			}},
-		{"./path/to/socket", "username", "password",
+		{"tcp:localhost", "username", "password", SslOpts{},
 			ConnectOpts{
-				"unix", "./path/to/socket", "username", "password",
+				"tcp", "localhost", "username", "password", SslOpts{},
 			}},
-		{"/path/to/socket", "username", "password",
+		{"./path/to/socket", "username", "password", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "./path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"unix:///path/to/socket", "username", "password",
+		{"/path/to/socket", "username", "password", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"unix:/path/to/socket", "username", "password",
+		{"unix:///path/to/socket", "username", "password", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"unix/:/path/to/socket", "username", "password",
+		{"unix:/path/to/socket", "username", "password", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"username:password@localhost:3013", "", "",
+		{"unix/:/path/to/socket", "username", "password", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost:3013", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"username:password@tcp://localhost:3013", "", "",
+		{"username:password@localhost:3013", "", "", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost:3013", "username", "password",
+				"tcp", "localhost:3013", "username", "password", SslOpts{},
 			}},
-		{"username:password@tcp:localhost", "", "",
+		{"username:password@tcp://localhost:3013", "", "", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost", "username", "password",
+				"tcp", "localhost:3013", "username", "password", SslOpts{},
 			}},
-		{"username:password@./path/to/socket", "", "",
+		{"username:password@tcp:localhost", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "./path/to/socket", "username", "password",
+				"tcp", "localhost", "username", "password", SslOpts{},
 			}},
-		{"username:password@/path/to/socket", "", "",
+		{"username:password@./path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "./path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"username:password@unix:///path/to/socket", "", "",
+		{"username:password@/path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"username:password@unix:/path/to/socket", "", "",
+		{"username:password@unix:///path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"username:password@unix/:/path/to/socket", "", "",
+		{"username:password@unix:/path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"struser:strpass@localhost:3013", "username", "password",
+		{"username:password@unix/:/path/to/socket", "", "", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost:3013", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
+			}},
+		{"struser:strpass@localhost:3013", "username", "password", SslOpts{},
+			ConnectOpts{
+				"tcp", "localhost:3013", "username", "password", SslOpts{},
 			}},
 		{"struser:strpass@tcp://localhost:3013", "username", "password",
+			SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost:3013", "username", "password",
+				"tcp", "localhost:3013", "username", "password", SslOpts{},
 			}},
-		{"struser:strpass@tcp:localhost", "username", "password",
+		{"struser:strpass@tcp:localhost", "username", "password", SslOpts{},
 			ConnectOpts{
-				"tcp", "localhost", "username", "password",
+				"tcp", "localhost", "username", "password", SslOpts{},
 			}},
-		{"struser:strpass@./path/to/socket", "username", "password",
+		{"struser:strpass@./path/to/socket", "username", "password", SslOpts{},
 			ConnectOpts{
-				"unix", "./path/to/socket", "username", "password",
+				"unix", "./path/to/socket", "username", "password", SslOpts{},
 			}},
-		{"struser:strpass@/path/to/socket", "username", "password",
+		{"struser:strpass@/path/to/socket", "username", "password", SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
 		{"struser:strpass@unix:///path/to/socket", "username", "password",
+			SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
 		{"struser:strpass@unix:/path/to/socket", "username", "password",
+			SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
 		{"struser:strpass@unix/:/path/to/socket", "username", "password",
+			SslOpts{},
 			ConnectOpts{
-				"unix", "/path/to/socket", "username", "password",
+				"unix", "/path/to/socket", "username", "password", SslOpts{},
 			}},
 	}
 
 	for _, c := range cases {
 		caseName := c.connString + "_" + c.username + "_" + c.password
 		t.Run(caseName, func(t *testing.T) {
-			opts := MakeConnectOpts(c.connString, c.username, c.password)
+			opts := MakeConnectOpts(c.connString,
+				c.username,
+				c.password,
+				c.ssl)
 			assert.Equal(t, c.expected, opts)
 		})
 	}
