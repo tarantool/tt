@@ -22,6 +22,15 @@ type ConnectCtx struct {
 	SrcFile string
 	// Language to use for execution.
 	Language Language
+	// SslKeyFile is a path to a private SSL key file.
+	SslKeyFile string
+	// SslCertFile is a path to an SSL certificate file.
+	SslCertFile string
+	// SslCaFile is a path to a trusted certificate authorities (CA) file.
+	SslCaFile string
+	// SslCiphers is a colon-separated (:) list of SSL cipher suites the
+	// connection can use.
+	SslCiphers string
 	// Interactive mode is used.
 	Interactive bool
 }
@@ -34,7 +43,13 @@ const (
 func getConnOpts(connString string, connCtx ConnectCtx) connector.ConnectOpts {
 	username := connCtx.Username
 	password := connCtx.Password
-	return connector.MakeConnectOpts(connString, username, password)
+	ssl := connector.SslOpts{
+		KeyFile:  connCtx.SslKeyFile,
+		CertFile: connCtx.SslCertFile,
+		CaFile:   connCtx.SslCaFile,
+		Ciphers:  connCtx.SslCiphers,
+	}
+	return connector.MakeConnectOpts(connString, username, password, ssl)
 }
 
 // getEvalCmd returns a command from the input source (file or stdin).

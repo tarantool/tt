@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   as control socket, pid file and log file. This option affects only single instance applications.
 - An ability to set different directories for WAL, vinyl and snapshots artifacts.
 - ``tt instances`` command to print a list of enabled applications.
+- SSL options for ``tt connect`` command.
 
 ### Changed
 
