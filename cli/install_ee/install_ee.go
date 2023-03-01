@@ -1,86 +1,24 @@
 package install_ee
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
-	"golang.org/x/term"
 )
 
 const (
 	eeSourceLinux string = "https://download.tarantool.io/enterprise/"
 	eeSourceMacos string = "https://download.tarantool.io/enterprise-macos/"
 )
-
-type userCredentials struct {
-	username string
-	password string
-}
-
-// getCredsInteractive Interactively prompts the user for credentials.
-func getCredsInteractive() (userCredentials, error) {
-	res := userCredentials{}
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Printf("Enter username: ")
-	resp, err := reader.ReadString('\n')
-	if err != nil {
-		return res, err
-	}
-	res.username = strings.TrimSpace(resp)
-
-	fmt.Printf("Enter password: ")
-	bytePass, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return res, err
-	}
-	res.password = strings.TrimSpace(string(bytePass))
-	fmt.Println("")
-
-	return res, nil
-}
-
-// getCredsFromFile gets credentials from file.
-func getCredsFromFile(path string) (userCredentials, error) {
-	res := userCredentials{}
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return res, err
-	}
-
-	re := regexp.MustCompile("(?P<user>.*):(?P<pass>.*)")
-	matches := util.FindNamedMatches(re, strings.TrimSpace(string(data)))
-
-	if len(matches) == 0 {
-		return res, fmt.Errorf("corrupted credentials")
-	}
-
-	res.username = matches["user"]
-	res.password = matches["pass"]
-
-	return res, nil
-}
-
-// getCreds gets credentials for tarantool-ee download.
-func getCreds(cliOpts *config.CliOpts) (userCredentials, error) {
-	if cliOpts.EE == nil || (cliOpts.EE != nil && cliOpts.EE.CredPath == "") {
-		return getCredsInteractive()
-	}
-
-	return getCredsFromFile(cliOpts.EE.CredPath)
-}
 
 // getTarballName extracts tarball name from html data.
 func getTarballName(data string) (string, error) {
