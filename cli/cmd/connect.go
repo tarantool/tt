@@ -21,6 +21,7 @@ import (
 const (
 	usernameEnv = "TT_CLI_USERNAME"
 	passwordEnv = "TT_CLI_PASSWORD"
+	userpassRe  = `[^@:/]+:[^@:/]+`
 )
 
 var (
@@ -85,14 +86,14 @@ func isBaseURI(str string) bool {
 func isCredentialsURI(str string) bool {
 	// tcp://user:password@host:port
 	// user:password@host:port
-	tcpReStr := `(tcp://)?\w+:\w+@([\w\.-]+:\d+)`
+	tcpReStr := `(tcp://)?` + userpassRe + `@([\w\.-]+:\d+)`
 	// unix://user:password@../path
 	// unix://user:password@/path
 	// unix://user:password@path
-	unixReStr := `unix://\w+:\w+@[./@]*[^\./@]+.*`
+	unixReStr := `unix://` + userpassRe + `@[./@]*[^\./@]+.*`
 	// user:password@./path
 	// user:password@/path
-	pathReStr := `\w+:\w+@\.?/[^\./].*`
+	pathReStr := userpassRe + `@\.?/[^\./].*`
 
 	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
@@ -106,7 +107,7 @@ func parseCredentialsURI(str string) (string, string, string) {
 		return str, "", ""
 	}
 
-	re := regexp.MustCompile("\\w+:\\w+@")
+	re := regexp.MustCompile(userpassRe + `@`)
 	// Split the string into two parts by credentials to create a string
 	// without the credentials.
 	split := re.Split(str, 2)

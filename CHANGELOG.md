@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Output of the ``help`` with all commands.
+- Allow more characters for URI credentials.
 
 ## [0.4.0] - 2022-12-31
 
