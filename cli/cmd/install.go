@@ -36,7 +36,8 @@ func NewInstallCmd() *cobra.Command {
 		},
 		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
 	}
-	installCmd.Flags().BoolVarP(&force, "force", "f", false, "force requirements errors")
+	installCmd.Flags().BoolVarP(&force, "force", "f", false,
+		"don't do a dependency check before installing")
 	installCmd.Flags().BoolVarP(&noclean, "no-clean", "", false,
 		"don't delete temporary files")
 	installCmd.Flags().BoolVarP(&reinstall, "reinstall", "", false, "reinstall program")
