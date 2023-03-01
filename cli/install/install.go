@@ -78,8 +78,7 @@ type InstallCtx struct {
 	// Reinstall is a flag. If it is set,
 	// target application will be reinstalled if already exists.
 	Reinstall bool
-	// Force is a flag. If it is set, install will force
-	// requirements errors.
+	// Force is a flag which disables dependency check if enabled.
 	Force bool
 	// Noclean is a flag. If it is set,
 	// install will don't remove tmp files.
