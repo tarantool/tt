@@ -6,6 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	testUser     = "a-фs$d!e%*1#2?3&44"
+	testPass     = "bb-фs$d!e%*1#2?3&666"
+	testUserPass = testUser + ":" + testPass
+)
+
 var validBaseUris = []string{
 	"tcp://localhost:11",
 	"localhost:123",
@@ -20,12 +26,12 @@ var validBaseUris = []string{
 }
 
 var validCredentialsUris = []string{
-	"tcp://user:password@localhost:11",
-	"user:password@localhost:123",
-	"unix://user:password@path",
-	"unix://user:password@../path/to/file",
-	"user:password@./a",
-	"user:password@/1",
+	"tcp://" + testUserPass + "@localhost:11",
+	testUserPass + "@localhost:123",
+	"unix://" + testUserPass + "@path",
+	"unix://" + testUserPass + "@../path/to/file",
+	testUserPass + "@./a",
+	testUserPass + "@/1",
 }
 
 var invalidBaseUris = []string{
@@ -110,26 +116,23 @@ func TestIsCredentialsURIInvalid(t *testing.T) {
 }
 
 func TestParseCredentialsURI(t *testing.T) {
-	const expectedUser = "user"
-	const expectedPass = "pass"
-
 	cases := []struct {
 		srcUri string
 		newUri string
 	}{
-		{"tcp://user:pass@localhost:3013", "tcp://localhost:3013"},
-		{"user:pass@localhost:3013", "localhost:3013"},
-		{"unix://user:pass@/any/path", "unix:///any/path"},
-		{"user:pass@/path", "/path"},
-		{"user:pass@./path", "./path"},
+		{"tcp://" + testUserPass + "@localhost:3013", "tcp://localhost:3013"},
+		{testUserPass + "@localhost:3013", "localhost:3013"},
+		{"unix://" + testUserPass + "@/any/path", "unix:///any/path"},
+		{testUserPass + "@/path", "/path"},
+		{testUserPass + "@./path", "./path"},
 	}
 
 	for _, c := range cases {
 		t.Run(c.srcUri, func(t *testing.T) {
 			newUri, user, pass := parseCredentialsURI(c.srcUri)
 			assert.Equal(t, c.newUri, newUri, "a unexpected new URI")
-			assert.Equal(t, expectedUser, user, "a unexpected username")
-			assert.Equal(t, expectedPass, pass, "a unexpected password")
+			assert.Equal(t, testUser, user, "a unexpected username")
+			assert.Equal(t, testPass, pass, "a unexpected password")
 		})
 	}
 }
