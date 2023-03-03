@@ -1,5 +1,5 @@
 # Install tt
-FROM ubuntu:20.04 as tt-builder
+FROM --platform=linux/amd64 ubuntu:20.04 as tt-builder
 
 RUN apt-get update && apt-get install -y curl
 
@@ -8,7 +8,7 @@ RUN curl -L https://tarantool.io/release/2/installer.sh | bash
 RUN apt-get update && apt-get install -y tt
 
 # Install Tarantool
-FROM ubuntu:18.04 as tarantool-builder
+FROM --platform=linux/amd64 ubuntu:18.04 as tarantool-builder
 
 COPY --from=tt-builder /usr/bin/tt /usr/bin
 
@@ -26,7 +26,7 @@ RUN tt install tarantool={{ .tnt_version }}
 
 RUN cp /usr/src/tarantool/bin/* /usr/bin
 
-FROM ubuntu:20.04
+FROM --platform=linux/amd64 ubuntu:20.04
 
 COPY --from=tt-builder /usr/bin/tt /usr/bin
 
