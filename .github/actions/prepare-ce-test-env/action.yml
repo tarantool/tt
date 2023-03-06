@@ -24,7 +24,7 @@ runs:
     - name: Install build requirements
       run: |
         sudo apt -y update
-        sudo apt -y install git gcc make cmake unzip zip
+        sudo apt -y install git gcc make cmake unzip zip libtool autoconf
         sudo apt-get --allow-releaseinfo-change update
         sudo apt-get -y -f install \
         build-essential ninja-build \

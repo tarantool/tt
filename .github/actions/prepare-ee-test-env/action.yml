@@ -27,7 +27,7 @@ runs:
       - name: Install build requirements
         run: |
           sudo apt -y update
-          sudo apt -y install git gcc make cmake unzip zip
+          sudo apt -y install git gcc make cmake unzip zip libtool autoconf
         shell: bash
 
       - name: Cache Tarantool SDK
