@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - An ability to set different directories for WAL, vinyl and snapshots artifacts.
 - ``tt instances`` command to print a list of enabled applications.
 - SSL options for ``tt connect`` command.
+- An ability to pass arguments to a connect command.
 
 ### Changed
 

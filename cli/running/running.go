@@ -366,7 +366,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	runningCtx *RunningCtx, args []string) error {
 	var err error
 
-	if len(args) > 1 && cmdCtx.CommandName != "run" {
+	if len(args) > 1 && cmdCtx.CommandName != "run" && cmdCtx.CommandName != "connect" {
 		return util.NewArgError("currently, you can specify only one instance at a time")
 	}
 

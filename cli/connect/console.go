@@ -245,7 +245,7 @@ func getExecutor(console *Console) prompt.Executor {
 		}
 
 		var data string
-		if _, err := console.conn.Eval(evalFuncBody, args, opts); err != nil {
+		if _, err := console.conn.Eval(consoleEvalFuncBody, args, opts); err != nil {
 			if err == io.EOF {
 				log.Fatalf("Connection was closed. Probably instance process isn't running anymore")
 			} else {

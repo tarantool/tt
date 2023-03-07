@@ -113,18 +113,25 @@ func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
 	}
 	defer conn.Close()
 
-	// Change a language.
+	var eval string
+	evalArgs := []interface{}{command}
 	if connectCtx.Language != DefaultLanguage {
+		// Change a language.
 		if err := ChangeLanguage(conn, connectCtx.Language); err != nil {
 			return nil, fmt.Errorf("unable to change a language: %s", err)
+		}
+		eval = consoleEvalFuncBody
+	} else {
+		eval = evalFuncBody
+		if len(args) > 1 {
+			for i := range args[1:] {
+				evalArgs = append(evalArgs, args[i+1])
+			}
 		}
 	}
 
 	// Execution of the command.
-	response, err := conn.Eval(evalFuncBody,
-		[]interface{}{command},
-		connector.RequestOpts{},
-	)
+	response, err := conn.Eval(eval, evalArgs, connector.RequestOpts{})
 	if err != nil {
 		return nil, err
 	}
