@@ -40,20 +40,27 @@ var (
 func NewConnectCmd() *cobra.Command {
 	var connectCmd = &cobra.Command{
 		Use: "connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
-			" [<FILE> | <COMMAND>] [flags]\n" +
-			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) [flags]",
+			" [flags] [-f <FILE>] [-- ARGS]\n" +
+			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
+			" [flags]\n" +
+			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
+			" [flags] [-f-] [-- ARGS]",
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
 			"The command supports the following environment variables:\n\n" +
 			"* " + usernameEnv + " - specifies a username\n" +
-			"* " + passwordEnv + " - specifies a password\n",
+			"* " + passwordEnv + " - specifies a password\n" +
+			"\n" +
+			"You could pass command line arguments to the interpreted SCRIPT" +
+			" or COMMAND passed via -f flag:\n\n" +
+			`echo "print(...)" | tt connect user@pass:localhost:3013 -f- 1, 2, 3`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalConnectModule, args)
 			handleCmdErr(cmd, err)
 		},
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MinimumNArgs(1),
 	}
 
 	connectCmd.Flags().StringVarP(&connectUser, "username", "u", "", "username")

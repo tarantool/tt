@@ -32,16 +32,30 @@ def stop_app(tt_cmd, tmpdir, app_name):
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
 
 
-def try_execute_on_instance(tt_cmd, tmpdir, instance, file_path, opts=None, env=None):
-    connect_cmd = [tt_cmd, "connect", instance, "-f", file_path]
+def try_execute_on_instance(tt_cmd, tmpdir, instance,
+                            file_path=None,
+                            stdin=None,
+                            env=None,
+                            opts=None,
+                            args=None):
+    connect_cmd = [tt_cmd, "connect", instance]
+    if file_path is not None:
+        connect_cmd.append("-f")
+        connect_cmd.append(file_path)
+
     if opts is not None:
         for k, v in opts.items():
             connect_cmd.append(k)
             connect_cmd.append(v)
 
+    if args is not None:
+        for arg in args:
+            connect_cmd.append(arg)
+
     instance_process = subprocess.run(
         connect_cmd,
         cwd=tmpdir,
+        input=stdin,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -154,8 +168,15 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
     # Connect to the instance.
     uris = ["localhost:3013", "tcp://localhost:3013"]
     for uri in uris:
+        # Execute a script.
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file)
         assert ret
+        # Execute stdout.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="return ...",
+                                              args=["-f-", "Hello", "World"])
+        assert ret
+        assert output == "---\n- Hello\n- World\n...\n\n"
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
@@ -314,9 +335,17 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     assert not ret
     assert re.search(r"   ⨯ any_app: can't find an application init file", output)
 
-    # Connect to the instance.
+    # Connect to the instance and execute a script.
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
     assert ret
+
+    # Connect to the instance and execute stdout.
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app",
+                                          stdin="return ...",
+                                          args=["-f-", "Hello", "World"])
+    print(output)
+    assert ret
+    assert output == "---\n- Hello\n- World\n...\n\n"
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
