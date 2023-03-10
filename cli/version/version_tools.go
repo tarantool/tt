@@ -33,6 +33,7 @@ type Version struct {
 	Hash       string  // Commit hash.
 	Str        string  // String representation.
 	Tarball    string  // Tarball name.
+	GCSuffix   string  // GC suffix.
 }
 
 // GetVersionDetails collects information about all version details.
@@ -40,12 +41,14 @@ func GetVersionDetails(verStr string) (Version, error) {
 	version := Version{}
 	var err error
 
-	// Part 1            -> major.minor.patch version number,
-	// Part 2 (optional) -> release type and number (e.g: rc2),
-	// Part 3 (optional) -> additional commits,
-	// Part 4 (optional) -> commit hash and revision.
+	// Part 1 (optional) -> gc suffix,
+	// Part 2            -> major.minor.patch version number,
+	// Part 3 (optional) -> release type and number (e.g: rc2),
+	// Part 4 (optional) -> additional commits,
+	// Part 5 (optional) -> commit hash and revision.
 	re := regexp.MustCompile(
-		`^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)` +
+		`^((?P<gc>(?:no)?gc64)-)?` +
+			`v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)` +
 			`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
 			`(?:-(?P<additional>\d+))?` +
 			`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?(?:-nogc64)?$`)
@@ -53,6 +56,10 @@ func GetVersionDetails(verStr string) (Version, error) {
 	matches := util.FindNamedMatches(re, verStr)
 	if len(matches) == 0 {
 		return version, fmt.Errorf("failed to parse version: format is not valid")
+	}
+
+	if matches["gc"] != "" {
+		version.GCSuffix = matches["gc"]
 	}
 
 	if matches["release"] != "" {
@@ -112,31 +119,35 @@ func SortVersions(versions []Version) {
 	sort.SliceStable(versions, func(i, j int) bool {
 		verLeft := versions[i]
 		verRight := versions[j]
+		return Less(verLeft, verRight)
+	})
+}
 
-		left := []uint64{verLeft.Major, verLeft.Minor,
-			verLeft.Patch, uint64(verLeft.Release.Type),
-			verLeft.Release.Num, verLeft.Additional, verLeft.Revision}
-		right := []uint64{verRight.Major, verRight.Minor,
-			verRight.Patch, uint64(verRight.Release.Type),
-			verRight.Release.Num, verRight.Additional, verRight.Revision}
+// Less is a common function-comparator using for the Version type.
+func Less(verLeft, verRight Version) bool {
+	left := []uint64{verLeft.Major, verLeft.Minor,
+		verLeft.Patch, uint64(verLeft.Release.Type),
+		verLeft.Release.Num, verLeft.Additional, verLeft.Revision}
+	right := []uint64{verRight.Major, verRight.Minor,
+		verRight.Patch, uint64(verRight.Release.Type),
+		verRight.Release.Num, verRight.Additional, verRight.Revision}
 
-		largestLen := util.Max(len(left), len(right))
+	largestLen := util.Max(len(left), len(right))
 
-		for i := 0; i < largestLen; i++ {
-			var valLeft, valRight uint64 = 0, 0
-			if i < len(left) {
-				valLeft = left[i]
-			}
-
-			if i < len(right) {
-				valRight = right[i]
-			}
-
-			if valLeft != valRight {
-				return valLeft < valRight
-			}
+	for i := 0; i < largestLen; i++ {
+		var valLeft, valRight uint64 = 0, 0
+		if i < len(left) {
+			valLeft = left[i]
 		}
 
-		return false
-	})
+		if i < len(right) {
+			valRight = right[i]
+		}
+
+		if valLeft != valRight {
+			return valLeft < valRight
+		}
+	}
+
+	return false
 }
