@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/apex/log"
@@ -15,6 +17,14 @@ import (
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
+
+// SearchCtx contains information for programs searching.
+type SearchCtx struct {
+	// Dbg is set if debug builds of tarantool-ee must be included in the result of search.
+	Dbg bool
+	// Dev is set if dev builds of tarantool-ee must be included in the result of search.
+	Dev bool
+}
 
 const (
 	GitRepoTarantool = "https://github.com/tarantool/tarantool.git"
@@ -160,14 +170,23 @@ func printVersion(bindir string, program string, version string) {
 }
 
 // SearchVersions outputs available versions of program.
-func SearchVersions(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, program string) error {
+func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
+	cliOpts *config.CliOpts, program string) error {
 	var repo string
 	versions := []version.Version{}
 
 	if program == "tarantool" {
 		repo = GitRepoTarantool
+		if searchCtx.Dev || searchCtx.Dbg {
+			log.Warnf("--dbg and --dev options can be used only for" +
+				" tarantool-ee packages searching.")
+		}
 	} else if program == "tt" {
 		repo = GitRepoTT
+		if searchCtx.Dev || searchCtx.Dbg {
+			log.Warnf("--dbg and --dev options can be used only for" +
+				" tarantool-ee packages searching.")
+		}
 	} else if program == "tarantool-ee" {
 		// Do nothing. Needs for bypass arguments check.
 	} else {
@@ -177,12 +196,12 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, program 
 	var err error
 	log.Infof("Available versions of " + program + ":")
 	if program == "tarantool-ee" {
-		versions, err = install_ee.FetchVersions(cliOpts)
+		bundles, err := FetchBundlesInfo(searchCtx, cliOpts)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
-		for _, version := range versions {
-			printVersion(cliOpts.App.BinDir, program, version.Str)
+		for _, bundle := range bundles {
+			printVersion(cliOpts.App.BinDir, program, bundle.Version.Str)
 		}
 		return nil
 	}
@@ -265,17 +284,222 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 		}
 
 		log.Infof("Available versions of " + program + ":")
-		versions, err := install_ee.FetchVersionsLocal(files)
+		bundles, err := FetchBundlesInfoLocal(files)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
 
-		for _, version := range versions {
-			printVersion(cliOpts.App.BinDir, program, version.Str)
+		for _, bundle := range bundles {
+			printVersion(cliOpts.App.BinDir, program, bundle.Version.Str)
 		}
 	} else {
 		return fmt.Errorf("search supports only tarantool/tarantool-ee/tt")
 	}
 
 	return err
+}
+
+// compileVersionRegexp compiles a regular expression for SDK bundle names.
+func compileVersionRegexp() ([]*regexp.Regexp, error) {
+	matchReNew := ""
+	matchReOld := ""
+
+	versionRegexpList := make([]*regexp.Regexp, 2)
+
+	arch, err := util.GetArch()
+	if err != nil {
+		return nil, err
+	}
+
+	osType, err := util.GetOs()
+	if err != nil {
+		return nil, err
+	}
+
+	switch osType {
+	case util.OsLinux:
+		// Regexp for bundles from the new layout.
+		matchReNew = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-sdk-" +
+			"(?P<version>.*r[0-9]{3})?(?:.linux.)?" +
+			arch + "\\.tar\\.gz))"
+
+		// Regexp for bundles from the old layout.
+		if arch == "x86_64" {
+			matchReOld = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-bundle-" +
+				"(?P<version>.*-g[a-f0-9]+-r[0-9]{3}(?:-nogc64)?)(?:-linux-x86_64)?\\.tar\\.gz))"
+		} else {
+			matchReOld = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-bundle-" +
+				"(?P<version>.*-g[a-f0-9]+-r[0-9]{3}(?:-nogc64)?)(?:-linux-" + arch +
+				")\\.tar\\.gz))"
+		}
+	case util.OsMacos:
+		matchReNew = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-sdk-" +
+			"(?P<version>.*r[0-9]{3})?(?:.macos.)?" +
+			arch + "\\.tar\\.gz))"
+
+		if arch == "x86_64" {
+			matchReOld = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-bundle-" +
+				"(?P<version>.*-g[a-f0-9]+-r[0-9]{3})-macos(?:x-x86_64)?\\.tar\\.gz))"
+		} else {
+			matchReOld = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-bundle-" +
+				"(?P<version>.*-g[a-f0-9]+-r[0-9]{3})(?:-macosx-" + arch + ")\\.tar\\.gz))"
+		}
+	}
+
+	reNew := regexp.MustCompile(matchReNew)
+	reOld := regexp.MustCompile(matchReOld)
+
+	versionRegexpList[0] = reNew
+	versionRegexpList[1] = reOld
+
+	return versionRegexpList, nil
+}
+
+// getBundles collects a list of information about all available tarantool-ee
+// bundles for the host architecture.
+func getBundles(rawBundleInfoList []string) (BundleInfoSlice, error) {
+	bundles := BundleInfoSlice{}
+
+	regexpList, err := compileVersionRegexp()
+	if err != nil {
+		return nil, err
+	}
+
+	parsedBundleInfo := make([]map[string]string, 0)
+	for _, rawBundleInfo := range rawBundleInfoList {
+		newStrategyMatch := util.FindNamedMatches(regexpList[0], rawBundleInfo)
+		oldStrategyMatch := util.FindNamedMatches(regexpList[1], rawBundleInfo)
+		if newStrategyMatch["version"] != "" {
+			parsedBundleInfo = append(parsedBundleInfo, newStrategyMatch)
+			continue
+		}
+		if oldStrategyMatch["version"] != "" {
+			parsedBundleInfo = append(parsedBundleInfo, oldStrategyMatch)
+		}
+	}
+
+	if len(parsedBundleInfo) == 0 {
+		return nil, fmt.Errorf("no packages for this OS")
+	}
+
+	for _, bundleInfo := range parsedBundleInfo {
+		ver, err := version.GetVersionDetails(bundleInfo["version"])
+		if err != nil {
+			return nil, err
+		}
+		eeVersion := BundleInfo{Version: ver}
+		eeVersion.Version.Tarball = bundleInfo["tarball"]
+		eeVersion.Prefix = bundleInfo["prefix"]
+		bundles = append(bundles, eeVersion)
+	}
+
+	sort.Sort(bundles)
+
+	return bundles, nil
+}
+
+// FetchBundlesInfoLocal returns slice of information about all tarantool-ee
+// bundles available locally. The result will be sorted in ascending order.
+func FetchBundlesInfoLocal(files []string) ([]BundleInfo, error) {
+	versions := BundleInfoSlice{}
+
+	regexpList, err := compileVersionRegexp()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		parsedData := regexpList[0].FindStringSubmatch(file)
+		parsedData = append(parsedData, regexpList[1].FindStringSubmatch(file)...)
+		if len(parsedData) == 0 {
+			continue
+		}
+
+		version, err := version.GetVersionDetails(parsedData[4])
+		if err != nil {
+			return nil, err
+		}
+
+		version.Tarball = file
+		eeVer := BundleInfo{Version: version}
+		versions = append(versions, eeVer)
+	}
+
+	sort.Sort(versions)
+
+	return versions, nil
+}
+
+// FetchBundlesInfo returns slice of information about all available tarantool-ee bundles.
+// The result will be sorted in ascending order.
+func FetchBundlesInfo(searchCtx SearchCtx, cliOpts *config.CliOpts) ([]BundleInfo,
+	error) {
+	credentials, err := install_ee.GetCreds(cliOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	bundleReferences, err := collectBundleReferences(&searchCtx, install_ee.EESource, credentials)
+	if err != nil {
+		return nil, err
+	}
+
+	bundles, err := getBundles(bundleReferences)
+	if err != nil {
+		return nil, err
+	}
+
+	return bundles, nil
+}
+
+// GetTarantoolBundleInfo returns the available EE SDK bundle for user's OS,
+// corresponding to the passed expected version argument. If the passed expected version
+// is an empty string, it will return the latest release version.
+func GetTarantoolBundleInfo(cliOpts *config.CliOpts, local bool,
+	files []string, expectedVersion string) (BundleInfo, error) {
+	bundles := BundleInfoSlice{}
+	var err error
+
+	if local {
+		bundles, err = FetchBundlesInfoLocal(files)
+		if expectedVersion == "" {
+			return bundles[bundles.Len()-1], nil
+		}
+		for _, bundle := range bundles {
+			if bundle.Version.Str == expectedVersion {
+				return bundle, nil
+			}
+		}
+	} else {
+		if expectedVersion == "" {
+			searchCtx := SearchCtx{Dbg: false, Dev: false}
+			bundles, err = FetchBundlesInfo(searchCtx, cliOpts)
+			if err != nil {
+				return BundleInfo{}, err
+			}
+			if bundles.Len() == 0 {
+				return BundleInfo{}, fmt.Errorf("no version found")
+			}
+			return bundles[bundles.Len()-1], nil
+		} else {
+			searchContexts := []SearchCtx{
+				{Dbg: false, Dev: false},
+				{Dbg: false, Dev: true},
+				{Dbg: true, Dev: true},
+			}
+			for _, searchCtx := range searchContexts {
+				bundles, err = FetchBundlesInfo(searchCtx, cliOpts)
+				if err != nil {
+					return BundleInfo{}, err
+				}
+				for _, bundle := range bundles {
+					if bundle.Version.Str == expectedVersion {
+						return bundle, nil
+					}
+				}
+			}
+		}
+	}
+
+	return BundleInfo{}, fmt.Errorf("%s version of tarantool-ee doesn't exist", expectedVersion)
 }

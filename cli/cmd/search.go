@@ -9,7 +9,9 @@ import (
 )
 
 var (
-	local bool
+	local        bool
+	includeDev   bool
+	includeDebug bool
 )
 
 // NewSearchCmd creates search command.
@@ -31,6 +33,10 @@ func NewSearchCmd() *cobra.Command {
 	}
 	searchCmd.Flags().BoolVarP(&local, "local-repo", "", false,
 		"search in local files")
+	searchCmd.Flags().BoolVarP(&includeDev, "dev", "", false,
+		"include dev builds of tarantool-ee SDK")
+	searchCmd.Flags().BoolVarP(&includeDebug, "dbg", "", false,
+		"include debug builds of tarantool-ee SDK")
 	return searchCmd
 }
 
@@ -46,10 +52,11 @@ func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) != 1 {
 		return util.NewArgError("incorrect arguments")
 	}
+	searchCtx := search.SearchCtx{Dbg: includeDebug, Dev: includeDev}
 	if local {
 		err = search.SearchVersionsLocal(cmdCtx, cliOpts, args[0])
 	} else {
-		err = search.SearchVersions(cmdCtx, cliOpts, args[0])
+		err = search.SearchVersions(cmdCtx, searchCtx, cliOpts, args[0])
 	}
 	return err
 }

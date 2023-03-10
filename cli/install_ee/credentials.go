@@ -14,37 +14,37 @@ import (
 	"golang.org/x/term"
 )
 
-type userCredentials struct {
-	username string
-	password string
+type UserCredentials struct {
+	Username string
+	Password string
 }
 
 // getCredsInteractive Interactively prompts the user for credentials.
-func getCredsInteractive() (userCredentials, error) {
-	res := userCredentials{}
+func getCredsInteractive() (UserCredentials, error) {
+	res := UserCredentials{}
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Printf("Enter username: ")
+	fmt.Printf("Enter Username: ")
 	resp, err := reader.ReadString('\n')
 	if err != nil {
 		return res, err
 	}
-	res.username = strings.TrimSpace(resp)
+	res.Username = strings.TrimSpace(resp)
 
-	fmt.Printf("Enter password: ")
+	fmt.Printf("Enter Password: ")
 	bytePass, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		return res, err
 	}
-	res.password = strings.TrimSpace(string(bytePass))
+	res.Password = strings.TrimSpace(string(bytePass))
 	fmt.Println("")
 
 	return res, nil
 }
 
 // getCredsFromFile gets credentials from file.
-func getCredsFromFile(path string) (userCredentials, error) {
-	res := userCredentials{}
+func getCredsFromFile(path string) (UserCredentials, error) {
+	res := UserCredentials{}
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return res, err
@@ -57,25 +57,25 @@ func getCredsFromFile(path string) (userCredentials, error) {
 		return res, fmt.Errorf("corrupted credentials")
 	}
 
-	res.username = matches["user"]
-	res.password = matches["pass"]
+	res.Username = matches["user"]
+	res.Password = matches["pass"]
 
 	return res, nil
 }
 
 // getCredsFromFile gets credentials from environment variables.
-func getCredsFromEnvVars() (userCredentials, error) {
-	res := userCredentials{}
-	res.username = os.Getenv("TT_EE_USERNAME")
-	res.password = os.Getenv("TT_EE_PASSWORD")
-	if res.username == "" || res.password == "" {
+func getCredsFromEnvVars() (UserCredentials, error) {
+	res := UserCredentials{}
+	res.Username = os.Getenv("TT_EE_Username")
+	res.Password = os.Getenv("TT_EE_Password")
+	if res.Username == "" || res.Password == "" {
 		return res, fmt.Errorf("no credentials in environment variables were found")
 	}
 	return res, nil
 }
 
 // getCreds gets credentials for tarantool-ee download.
-func getCreds(cliOpts *config.CliOpts) (userCredentials, error) {
+func GetCreds(cliOpts *config.CliOpts) (UserCredentials, error) {
 	if cliOpts.EE == nil || (cliOpts.EE != nil && cliOpts.EE.CredPath == "") {
 		creds, err := getCredsFromEnvVars()
 		if err == nil {
