@@ -24,7 +24,5 @@ func NewBinariesCmd() *cobra.Command {
 
 // internalBinariesModule is a default binaries module.
 func internalBinariesModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	err := list.ListBinaries(cmdCtx, cliOpts)
-
-	return err
+	return list.ListBinaries(cmdCtx, cliOpts)
 }
