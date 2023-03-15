@@ -124,7 +124,7 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 
 	versionString := getVersion(packCtx, opts, defaultVersion)
 
-	ver, err := version.GetVersionDetails(versionString)
+	ver, err := version.Parse(versionString)
 	if err != nil {
 		return nil, err
 	}

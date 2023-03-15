@@ -116,16 +116,16 @@ func TestParseVersion(t *testing.T) {
 
 	testCases["2.8"] = returnValueParseVersion{
 		Version{},
-		fmt.Errorf("failed to parse version: format is not valid"),
+		fmt.Errorf("failed to parse version \"2.8\": format is not valid"),
 	}
 
 	testCases["42"] = returnValueParseVersion{
 		Version{},
-		fmt.Errorf("failed to parse version: format is not valid"),
+		fmt.Errorf("failed to parse version \"42\": format is not valid"),
 	}
 
 	for input, output := range testCases {
-		version, err := GetVersionDetails(input)
+		version, err := Parse(input)
 
 		if output.err == nil {
 			assert.Nil(err)

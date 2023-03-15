@@ -3,7 +3,6 @@ package version
 import (
 	"fmt"
 	"regexp"
-	"sort"
 
 	"github.com/tarantool/tt/cli/util"
 )
@@ -16,6 +15,11 @@ const (
 	TypeBeta
 	TypeRC
 	TypeRelease
+
+	// CliSeparator is used in commands to specify version. E.g: program=version.
+	CliSeparator = "="
+	// FsSeparator is used in file names to specify version. E.g: program_version.
+	FsSeparator = "_"
 )
 
 type Release struct {
@@ -36,8 +40,8 @@ type Version struct {
 	GCSuffix   string  // GC suffix.
 }
 
-// GetVersionDetails collects information about all version details.
-func GetVersionDetails(verStr string) (Version, error) {
+// Parse parses a version string and return the version value it represents.
+func Parse(verStr string) (Version, error) {
 	version := Version{}
 	var err error
 
@@ -55,7 +59,7 @@ func GetVersionDetails(verStr string) (Version, error) {
 
 	matches := util.FindNamedMatches(re, verStr)
 	if len(matches) == 0 {
-		return version, fmt.Errorf("failed to parse version: format is not valid")
+		return version, fmt.Errorf("failed to parse version %q: format is not valid", verStr)
 	}
 
 	if matches["gc"] != "" {
@@ -114,17 +118,19 @@ func GetVersionDetails(verStr string) (Version, error) {
 	return version, nil
 }
 
-// SortVersions sorts versions from oldest to newest.
-func SortVersions(versions []Version) {
-	sort.SliceStable(versions, func(i, j int) bool {
-		verLeft := versions[i]
-		verRight := versions[j]
-		return Less(verLeft, verRight)
-	})
+// VersionSlice attaches the methods of sort.Interface to []Version, sorting from oldest to newest.
+type VersionSlice []Version
+
+// sort.Interface Len implementation
+func (v VersionSlice) Len() int {
+	return len(v)
 }
 
-// Less is a common function-comparator using for the Version type.
-func Less(verLeft, verRight Version) bool {
+// sort.Interface Less implementation, sorts from oldest to newest
+func (v VersionSlice) Less(i, j int) bool {
+	verLeft := v[i]
+	verRight := v[j]
+
 	left := []uint64{verLeft.Major, verLeft.Minor,
 		verLeft.Patch, uint64(verLeft.Release.Type),
 		verLeft.Release.Num, verLeft.Additional, verLeft.Revision}
@@ -150,4 +156,9 @@ func Less(verLeft, verRight Version) bool {
 	}
 
 	return false
+}
+
+// sort.Interface Swap implementation
+func (v VersionSlice) Swap(i, j int) {
+	v[i], v[j] = v[j], v[i]
 }
