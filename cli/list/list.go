@@ -3,10 +3,10 @@ package list
 import (
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/apex/log"
@@ -61,106 +61,55 @@ func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 }
 
 // printBinaries outputs installed versions of the program.
-func printBinaries(program string, binList []string) {
-	if len(binList) > 0 {
-		log.Infof(program + ":")
-		for _, bin := range binList {
-			if strings.HasSuffix(bin, "[active]") {
-				fmt.Printf("	%s\n", util.Bold(color.GreenString(bin)))
-			} else {
-				fmt.Printf("	%s\n", color.YellowString(bin))
-			}
-		}
+func printVersion(versionString string) {
+	if strings.HasSuffix(versionString, "[active]") {
+		fmt.Printf("	%s\n", util.Bold(color.GreenString(versionString)))
+	} else {
+		fmt.Printf("	%s\n", color.YellowString(versionString))
 	}
-}
-
-// sortBinaryVersions sorts versions of binary.
-func sortBinaryVersions(binList []string) ([]string, error) {
-	var versions []version.Version
-	var sortedVersions []string
-	var err error
-
-	// Convert string to version (struct).
-	for _, ver := range binList {
-		if strings.HasPrefix(ver, "master") {
-			sortedVersions = append(sortedVersions, ver)
-		}
-		var versionInt [3]int
-		var version version.Version
-		verString := strings.Split(ver, ".")
-		if len(verString) != 3 {
-			continue
-		}
-		verPatch := strings.Split(verString[2], "")
-		verString[2] = verPatch[0]
-		for i, ch := range verString {
-			versionInt[i], err = strconv.Atoi(ch)
-			if err != nil {
-				return nil, err
-			}
-		}
-		version.Major = uint64(versionInt[0])
-		version.Minor = uint64(versionInt[1])
-		version.Patch = uint64(versionInt[2])
-		version.Str = ver
-
-		versions = append(versions, version)
-	}
-
-	// Sort versions.
-	sort.Stable(version.VersionSlice(versions))
-	for i, j := 0, len(versions)-1; i < j; i, j = i+1, j-1 {
-		versions[i], versions[j] = versions[j], versions[i]
-	}
-
-	for _, version := range versions {
-		sortedVersions = append(sortedVersions, version.Str)
-	}
-	return sortedVersions, err
 }
 
 // parseBinaries seeks through fileList returning array of found versions of program.
 func parseBinaries(fileList []fs.DirEntry, programName string,
-	binDir string) ([]string, error) {
-	var err error
-	var binaryVersion []string
-	binActive := ""
-
-	// Files w/o version in name are symlinks to the active binaries.
-	if util.ContainsFile(fileList, programName) {
-		binActive, err = util.ResolveSymlink(filepath.Join(binDir, programName))
-		if err != nil {
-			return nil, err
-		}
-		binActive = strings.TrimPrefix(filepath.Base(binActive), programName+"_")
+	binDir string) ([]version.Version, error) {
+	var binaryVersions []version.Version
+	binActive, err := util.ResolveSymlink(filepath.Join(binDir, programName))
+	if err != nil && !os.IsNotExist(err) {
+		return binaryVersions, err
 	}
+	binActive = filepath.Base(binActive)
 
+	versionPrefix := programName + version.FsSeparator
 	for _, f := range fileList {
-		if f.IsDir() {
-			continue
-		}
-		if strings.HasPrefix(f.Name(), programName) && f.Name() != programName {
-			binVersion := strings.TrimPrefix(f.Name(), programName+"_")
-			binVersion = strings.TrimPrefix(binVersion, "v")
-			if binVersion == binActive {
-				binaryVersion = append(binaryVersion, binVersion+" [active]")
+		if strings.HasPrefix(f.Name(), versionPrefix) {
+			versionStr := strings.TrimPrefix(strings.TrimPrefix(f.Name(), versionPrefix), "v")
+			if versionStr == "master" {
+				binaryVersions = append(binaryVersions, version.Version{
+					Major: math.MaxUint, // Small hack to make master the newest version.
+					Str:   "master",
+				})
 			} else {
-				binaryVersion = append(binaryVersion, binVersion)
+				ver, err := version.Parse(versionStr)
+				if err != nil {
+					return binaryVersions, err
+				}
+				if binActive == f.Name() {
+					ver.Str += " [active]"
+				}
+				binaryVersions = append(binaryVersions, ver)
 			}
 		}
 	}
 
-	return binaryVersion, err
+	return binaryVersions, nil
 }
 
 // ListBinaries outputs installed versions of programs from bin_dir.
-func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
-	var err error
-
+func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error) {
 	binDir := cliOpts.App.BinDir
-	binDirFilesList, err := os.ReadDir(cliOpts.App.BinDir)
+	binDirFilesList, err := os.ReadDir(binDir)
 	if err != nil {
-		return fmt.Errorf("there was some problem reading bin_dir: %s", err)
+		return fmt.Errorf("error reading directory %q: %s", binDir, err)
 	}
 
 	if len(binDirFilesList) == 0 {
@@ -169,20 +118,18 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 
 	programs := [...]string{"tt", "tarantool"}
 	fmt.Println("List of installed binaries:")
-	for _, prog := range programs {
-		binaryVersion, err := parseBinaries(binDirFilesList, prog, binDir)
+	for _, programName := range programs {
+		binaryVersions, err := parseBinaries(binDirFilesList, programName, binDir)
 		if err != nil {
 			return err
 		}
 
-		if len(binaryVersion) > 0 {
-			// Sort version array.
-			sorted, err := sortBinaryVersions(binaryVersion)
-			if err != nil {
-				return err
+		if len(binaryVersions) > 0 {
+			sort.Stable(sort.Reverse(version.VersionSlice(binaryVersions)))
+			log.Infof(programName + ":")
+			for _, binVersion := range binaryVersions {
+				printVersion(binVersion.Str)
 			}
-			// Print the output.
-			printBinaries(prog, sorted)
 		}
 
 	}
