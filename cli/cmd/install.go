@@ -7,7 +7,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/install"
 	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/search"
+	"github.com/tarantool/tt/cli/version"
 )
 
 var (
@@ -40,7 +40,7 @@ func NewInstallCmd() *cobra.Command {
 
 # Install Tarantool 2.10.5 with limit number of simultaneous jobs for make.
 
-    $ MAKEFLAGS="-j2" tt install tarantool` + search.VersionCliSeparator + "2.10.5",
+    $ MAKEFLAGS="-j2" tt install tarantool` + version.CliSeparator + "2.10.5",
 		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
 	}
 	installCmd.Flags().BoolVarP(&force, "force", "f", false,

@@ -31,13 +31,6 @@ const (
 	GitRepoTT        = "https://github.com/tarantool/tt.git"
 )
 
-const (
-	// VersionCliSeparator is used in commands to specify version. E.g: program=version.
-	VersionCliSeparator = "="
-	// VersionFsSeparator is used in file names to specify version. E.g: program_version.
-	VersionFsSeparator = "_"
-)
-
 // isMasked function checks that the given version of tarantool is masked.
 func isMasked(version version.Version) bool {
 	// Mask all versions below 1.10: deprecated.
@@ -96,7 +89,7 @@ func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
 			slashIdx += 1
 		}
 		ver := line[slashIdx:]
-		version, err := version.GetVersionDetails(ver)
+		version, err := version.Parse(ver)
 		if err != nil {
 			continue
 		}
@@ -106,7 +99,7 @@ func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
 		versions = append(versions, version)
 	}
 
-	version.SortVersions(versions)
+	sort.Stable(version.VersionSlice(versions))
 
 	return versions, nil
 }
@@ -132,7 +125,7 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 	}
 
 	for _, line := range lines {
-		version, err := version.GetVersionDetails(line)
+		version, err := version.Parse(line)
 		if err != nil {
 			continue
 		}
@@ -142,7 +135,7 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 		versions = append(versions, version)
 	}
 
-	version.SortVersions(versions)
+	sort.Stable(version.VersionSlice(versions))
 
 	return versions, nil
 }
@@ -150,8 +143,9 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 // printVersion prints the version and labels:
 // * if the package is installed: [installed]
 // * if the package is installed and in use: [active]
-func printVersion(bindir string, program string, version string) {
-	if _, err := os.Stat(filepath.Join(bindir, program+VersionFsSeparator+version)); err == nil {
+func printVersion(bindir string, program string, versionStr string) {
+	if _, err := os.Stat(filepath.Join(bindir,
+		program+version.FsSeparator+versionStr)); err == nil {
 		target := ""
 		if program == "tarantool-ee" {
 			target, _ = util.ResolveSymlink(filepath.Join(bindir, "tarantool"))
@@ -159,13 +153,13 @@ func printVersion(bindir string, program string, version string) {
 			target, _ = util.ResolveSymlink(filepath.Join(bindir, program))
 		}
 
-		if path.Base(target) == program+VersionFsSeparator+version {
-			fmt.Printf("%s [active]\n", version)
+		if path.Base(target) == program+version.FsSeparator+versionStr {
+			fmt.Printf("%s [active]\n", versionStr)
 		} else {
-			fmt.Printf("%s [installed]\n", version)
+			fmt.Printf("%s [installed]\n", versionStr)
 		}
 	} else {
-		fmt.Println(version)
+		fmt.Println(versionStr)
 	}
 }
 
@@ -383,7 +377,7 @@ func getBundles(rawBundleInfoList []string) (BundleInfoSlice, error) {
 	}
 
 	for _, bundleInfo := range parsedBundleInfo {
-		ver, err := version.GetVersionDetails(bundleInfo["version"])
+		ver, err := version.Parse(bundleInfo["version"])
 		if err != nil {
 			return nil, err
 		}
@@ -415,7 +409,7 @@ func FetchBundlesInfoLocal(files []string) ([]BundleInfo, error) {
 			continue
 		}
 
-		version, err := version.GetVersionDetails(parsedData[4])
+		version, err := version.Parse(parsedData[4])
 		if err != nil {
 			return nil, err
 		}

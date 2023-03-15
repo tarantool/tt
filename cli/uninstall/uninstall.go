@@ -10,8 +10,8 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/cli/version"
 )
 
 // remove removes binary/directory and symlinks from directory.
@@ -20,7 +20,7 @@ func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 	var err error
 
 	re := regexp.MustCompile(
-		"^(?P<prog>tt|tarantool|tarantool-ee)(?:" + search.VersionCliSeparator + "(?P<ver>.*))?$",
+		"^(?P<prog>tt|tarantool|tarantool-ee)(?:" + version.CliSeparator + "(?P<ver>.*))?$",
 	)
 
 	matches := util.FindNamedMatches(re, program)
@@ -40,7 +40,7 @@ func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 		return fmt.Errorf("there was some problem with %s directory", directory)
 	}
 
-	fileName := matches["prog"] + search.VersionFsSeparator + matches["ver"]
+	fileName := matches["prog"] + version.FsSeparator + matches["ver"]
 	path := filepath.Join(directory, fileName)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -89,7 +89,7 @@ func GetList(cliOpts *config.CliOpts) []string {
 	list := []string{}
 	re := regexp.MustCompile(
 		"^(?P<prog>(?:tarantool)|(?:tarantool-ee)|(?:tt))" +
-			search.VersionFsSeparator +
+			version.FsSeparator +
 			"(?P<ver>.*)$",
 	)
 
@@ -105,7 +105,7 @@ func GetList(cliOpts *config.CliOpts) []string {
 	for _, file := range installedPrograms {
 		matches := util.FindNamedMatches(re, file.Name())
 		if len(matches) != 0 {
-			list = append(list, matches["prog"]+search.VersionCliSeparator+matches["ver"])
+			list = append(list, matches["prog"]+version.CliSeparator+matches["ver"])
 		}
 	}
 

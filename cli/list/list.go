@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -107,7 +108,7 @@ func sortBinaryVersions(binList []string) ([]string, error) {
 	}
 
 	// Sort versions.
-	version.SortVersions(versions)
+	sort.Stable(version.VersionSlice(versions))
 	for i, j := 0, len(versions)-1; i < j; i, j = i+1, j-1 {
 		versions[i], versions[j] = versions[j], versions[i]
 	}

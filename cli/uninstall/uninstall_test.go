@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/search"
+	"github.com/tarantool/tt/cli/version"
 )
 
 const testDirName = "uninstall-test-dir"
@@ -31,9 +31,9 @@ func TestGetList(t *testing.T) {
 	require.NoError(t, err)
 
 	files := []string{
-		"tt" + search.VersionFsSeparator + "1.2.3",
-		"tarantool" + search.VersionFsSeparator + "1.2.10",
-		"tarantool-ee" + search.VersionFsSeparator + "master",
+		"tt" + version.FsSeparator + "1.2.3",
+		"tarantool" + version.FsSeparator + "1.2.10",
+		"tarantool-ee" + version.FsSeparator + "master",
 	}
 	for _, file := range files {
 		f, err := os.Create(filepath.Join(binDir, file))
@@ -42,9 +42,9 @@ func TestGetList(t *testing.T) {
 	}
 
 	expected := []string{
-		"tt" + search.VersionCliSeparator + "1.2.3",
-		"tarantool" + search.VersionCliSeparator + "1.2.10",
-		"tarantool-ee" + search.VersionCliSeparator + "master",
+		"tt" + version.CliSeparator + "1.2.3",
+		"tarantool" + version.CliSeparator + "1.2.10",
+		"tarantool-ee" + version.CliSeparator + "master",
 	}
 
 	cliOpts, _, err := configure.GetCliOpts(cfgPath)

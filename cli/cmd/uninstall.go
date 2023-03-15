@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/uninstall"
+	"github.com/tarantool/tt/cli/version"
 )
 
 // NewUninstallCmd creates uninstall command.
@@ -44,8 +44,8 @@ func NewUninstallCmd() *cobra.Command {
 
 // InternalUninstallModule is a default uninstall module.
 func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if !strings.Contains(args[0], search.VersionCliSeparator) {
-		return fmt.Errorf("incorrect usage.\n   e.g program%sversion", search.VersionCliSeparator)
+	if !strings.Contains(args[0], version.CliSeparator) {
+		return fmt.Errorf("incorrect usage.\n   e.g program%sversion", version.CliSeparator)
 	}
 	err := uninstall.UninstallProgram(args[0], cliOpts.App.BinDir,
 		cliOpts.App.IncludeDir+"/include", cmdCtx)

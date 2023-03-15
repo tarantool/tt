@@ -192,7 +192,7 @@ func getTntTTAsDeps(cmdCtx *cmdcontext.CmdCtx) (PackDependencies, error) {
 	if err != nil {
 		return nil, err
 	}
-	tntVerParsed, err := version.GetVersionDetails(tntVerRaw)
+	tntVerParsed, err := version.Parse(tntVerRaw)
 	if err != nil {
 		return nil, err
 	}
