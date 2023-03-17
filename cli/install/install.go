@@ -656,7 +656,7 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 //go:embed Dockerfile.tnt.build
 var tarantoolBuildDockerfile []byte
 
-func installTarantoolInDocker(binDir string, incDir string, installCtx InstallCtx,
+func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx InstallCtx,
 	distfiles string) error {
 	tmpDir, err := ioutil.TempDir("", "docker_build_ctx")
 	if err != nil {
@@ -707,7 +707,8 @@ func installTarantoolInDocker(binDir string, incDir string, installCtx InstallCt
 	if installCtx.verbose {
 		tntInstallCommandLine = append(tntInstallCommandLine, "-V")
 	}
-	tntInstallCommandLine = append(tntInstallCommandLine, "install", "tarantool", "-f")
+	tntInstallCommandLine = append(tntInstallCommandLine, "install",
+		"tarantool"+search.VersionCliSeparator+tntVersion, "-f")
 	if installCtx.Reinstall {
 		tntInstallCommandLine = append(tntInstallCommandLine, "--reinstall")
 	}
@@ -789,7 +790,7 @@ func installTarantool(version string, binDir string, incDir string,
 	}
 
 	if installCtx.BuildInDocker {
-		return installTarantoolInDocker(binDir, incDir, installCtx, distfiles)
+		return installTarantoolInDocker(tarVersion, binDir, incDir, installCtx, distfiles)
 	}
 
 	logFile, err := ioutil.TempFile("", "tarantool_install")
