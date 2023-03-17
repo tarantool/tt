@@ -122,7 +122,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     # Check tarantool glibc version.
     out = subprocess.getoutput("objdump -T " + os.path.join(tmpdir, "bin", "tarantool") +
                                " | grep -o -E 'GLIBC_[.0-9]+' | sort -V | tail -n1")
-    assert out == "GLIBC_2.18"
+    assert out == "GLIBC_2.27"
 
     assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
 
