@@ -66,7 +66,7 @@ def prepare_test_app_languages(tt_cmd, tmpdir):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.control', [])
+    file = wait_file(tmpdir, 'configured', [])
     assert file != ""
     return "test_app", lua_file, sql_file
 
