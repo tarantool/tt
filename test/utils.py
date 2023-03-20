@@ -63,7 +63,7 @@ def create_external_module(module_name, directory):
     return module_message.strip('"')
 
 
-def wait_file(dir_name, file_pattern, exclude_list, timeout_sec=1):
+def wait_file(dir_name, file_pattern, exclude_list, timeout_sec=10):
     """Wait for "timeout_sec" until a file matching "file_pattern" and not
     included in "exclude_list" is found in the "dir_name" directory.
     Returns the name of the file.

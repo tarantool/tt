@@ -53,9 +53,9 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
         run_dir = os.path.join(tmpdir, utils.run_path, cartridge_name, inst)
         log_dir = os.path.join(tmpdir, utils.log_path, cartridge_name, inst)
 
-        file = wait_file(run_dir, inst + '.pid', [], 10)
+        file = wait_file(run_dir, inst + '.pid', [])
         assert file != ""
-        file = wait_file(log_dir, inst + '.log', [], 10)
+        file = wait_file(log_dir, inst + '.log', [])
         assert file != ""
 
         started = False
