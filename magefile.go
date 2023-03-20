@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	buildTypeEnv = "TT_CLI_BUILD_SSL"
+	buildTypeEnv  = "TT_CLI_BUILD_SSL"
 	goPackageName = "github.com/tarantool/tt/cli"
 
 	asmflags = "all=-trimpath=${PWD}"
@@ -46,7 +46,10 @@ var (
 	pythonExecutableName = "python3"
 	ttExecutableName     = "tt"
 
-	generateModePath = filepath.Join(packagePath, "codegen", "generate_code.go")
+	// 'filepath.Join()' calls 'filepath.Clean()' and removes "./".
+	// We need to add it back.
+	// That caused errors while running "mage build" in homebrew formula and github ci.
+	generateModePath = "./" + filepath.Join(packagePath, "codegen", "generate_code.go")
 )
 
 type BuildType string
