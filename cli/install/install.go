@@ -340,19 +340,21 @@ func checkExisting(version string, dst string) bool {
 }
 
 // downloadRepo downloads git repository.
-func downloadRepo(repoLink string, tag string, dst string,
-	logFile *os.File, verbose bool) error {
-	var err error
+func downloadRepo(repoLink string, tag string, dst string, logFile *os.File, verbose bool) error {
+	gitCloneArgs := make([]string, 0, 10)
 	if tag == "master" {
-		err = util.ExecuteCommand("git", verbose, logFile, dst, "clone", repoLink,
+		gitCloneArgs = append(gitCloneArgs, "clone", repoLink,
 			"--recursive", dst)
 	} else {
-		err = util.ExecuteCommand("git", verbose, logFile, dst, "clone", "-b", tag,
-			"--depth=1", repoLink,
+		gitCloneArgs = append(gitCloneArgs, "clone", "-b", tag, "--depth=1", repoLink,
 			"--recursive", dst)
 	}
 
-	return err
+	if util.IsGitFetchJobsSupported() {
+		gitCloneArgs = append(gitCloneArgs, "-j", "19") // 19 - Tarantool submodules count.
+	}
+
+	return util.ExecuteCommand("git", verbose, logFile, dst, gitCloneArgs...)
 }
 
 // copyBuildedTT copies tt binary.
