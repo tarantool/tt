@@ -65,6 +65,6 @@ runs:
 
       - name: Build tt
         env:
-          TT_CLI_BUILD: 'static'
+          TT_CLI_BUILD_SSL: 'static'
         run: mage build
         shell: bash
