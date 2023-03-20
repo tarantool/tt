@@ -588,7 +588,12 @@ func buildTarantool(srcPath string, tarVersion string,
 		}
 	}
 
-	maxThreads := fmt.Sprint(runtime.NumCPU())
+	makeOpts := []string{}
+	if _, isMakeFlagsSet := os.LookupEnv("MAKEFLAGS"); !isMakeFlagsSet {
+		maxThreads := fmt.Sprint(runtime.NumCPU())
+		makeOpts = append(makeOpts, "-j", maxThreads)
+	}
+
 	err = util.ExecuteCommand("cmake", installCtx.verbose, logFile, buildPath,
 		"..", `-DCMAKE_TARANTOOL_ARGS="-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
 			`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=`+btFlag,
@@ -597,9 +602,7 @@ func buildTarantool(srcPath string, tarVersion string,
 		return err
 	}
 
-	err = util.ExecuteCommand("make", installCtx.verbose, logFile, buildPath,
-		"-j"+maxThreads)
-	return err
+	return util.ExecuteCommand("make", installCtx.verbose, logFile, buildPath, makeOpts...)
 }
 
 // copyLocalTarantool finds and copies local tarantool folder to tmp folder.
