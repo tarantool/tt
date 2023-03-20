@@ -599,11 +599,11 @@ def test_running_tarantoolctl_layout(tt_cmd, tmpdir):
     assert re.search(r"Starting an instance", start_output)
 
     # Check files locations.
-    file = wait_file(os.path.join(tmpdir, run_path), 'test_app.pid', [], 5)
+    file = wait_file(os.path.join(tmpdir, run_path), 'test_app.pid', [])
     assert file != ""
-    file = wait_file(os.path.join(tmpdir, run_path), 'test_app.control', [], 5)
+    file = wait_file(os.path.join(tmpdir, run_path), 'test_app.control', [])
     assert file != ""
-    file = wait_file(os.path.join(tmpdir, log_path), 'test_app.log', [], 5)
+    file = wait_file(os.path.join(tmpdir, log_path), 'test_app.log', [])
     assert file != ""
 
     # Check status.
