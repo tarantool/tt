@@ -27,13 +27,20 @@ func NewInstallCmd() *cobra.Command {
 			"Available programs:\n" +
 			"tt - Tarantool CLI\n" +
 			"tarantool - Tarantool\n" +
-			"tarantool-ee - Tarantool enterprise edition\n" +
-			"Example: tt install tarantool | tarantool" + search.VersionCliSeparator + "version",
+			"tarantool-ee - Tarantool enterprise edition\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
 			handleCmdErr(cmd, err)
 		},
+		Example: `
+# Install latest Tarantool version.
+
+    $ tt install tarantool
+
+# Install Tarantool 2.10.5 with limit number of simultaneous jobs for make.
+
+    $ MAKEFLAGS="-j2" tt install tarantool` + search.VersionCliSeparator + "2.10.5",
 		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
 	}
 	installCmd.Flags().BoolVarP(&force, "force", "f", false,
@@ -44,7 +51,7 @@ func NewInstallCmd() *cobra.Command {
 	installCmd.Flags().BoolVarP(&localRepo, "local-repo", "", false,
 		"install from local files")
 	installCmd.Flags().BoolVarP(&buildInDocker, "use-docker", "", false,
-		"build tarantool in Ubuntu 16.04 docker container")
+		"build tarantool in Ubuntu 18.04 docker container")
 	return installCmd
 }
 
