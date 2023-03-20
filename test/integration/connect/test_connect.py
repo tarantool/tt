@@ -115,13 +115,13 @@ def is_tarantool_ee():
 def skip_if_language_unsupported(tt_cmd, tmpdir, test_app):
     if not is_language_supported(tt_cmd, tmpdir):
         stop_app(tt_cmd, tmpdir, test_app)
-        pytest.skip("/set language is unsupported")
+        pytest.skip("\\set language is unsupported")
 
 
 def skip_if_language_supported(tt_cmd, tmpdir, test_app):
     if is_language_supported(tt_cmd, tmpdir):
         stop_app(tt_cmd, tmpdir, test_app)
-        pytest.skip("/set language is supported")
+        pytest.skip("\\set language is supported")
 
 
 def skip_if_tarantool_ce():
