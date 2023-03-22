@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
@@ -21,7 +22,7 @@ var luarocks embed.FS
 func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) ([]string, error) {
 	// Make sure there is no --only-server option is specified.
 	for _, opt := range args {
-		if opt == "--only-server" {
+		if opt == "--only-server" || strings.HasPrefix(opt, "--only-server=") {
 			return args, nil // If --only-server is specified, no need to add --server option.
 		}
 	}
