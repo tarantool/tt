@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"io/fs"
 	"path/filepath"
 
 	"github.com/apex/log"
@@ -28,6 +29,12 @@ func (createSymlinkStep CreateAppSymlink) Run(createCtx *create_ctx.CreateCtx,
 	if err != nil {
 		return err
 	}
+
+	// drwxr-x--- permissions.
+	if err = util.CreateDirectory(createSymlinkStep.SymlinkDir, fs.FileMode(0750)); err != nil {
+		return nil
+	}
+
 	if err = util.CreateSymlink(relativeAppPath,
 		filepath.Join(createSymlinkStep.SymlinkDir, createCtx.AppName),
 		createCtx.ForceMode); err != nil {
