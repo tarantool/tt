@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/create/internal/app_template"
+	"github.com/tarantool/tt/cli/util"
 )
 
 func TestEnableInstance(t *testing.T) {
@@ -56,14 +58,19 @@ func TestEnableInstanceMissingInstanceEnabledDir(t *testing.T) {
 
 	tempDir := t.TempDir()
 	appPath := filepath.Join(tempDir, "app")
+	require.NoError(t, util.CreateDirectory(appPath, fs.FileMode(0750)))
 	instEnabledPath := filepath.Join(tempDir, "instances.enabled")
 
 	createCtx.AppName = "app"
 	templateCtx.TargetAppPath = appPath
 	var enableInstance = CreateAppSymlink{instEnabledPath}
-	// Failed symlink creation is not an error, because it only affects app enabling in
-	// current environment.
 	require.NoError(t, enableInstance.Run(&createCtx, &templateCtx))
+	// Check instances enabled directory is created.
+	require.DirExists(t, instEnabledPath)
+	require.FileExists(t, filepath.Join(instEnabledPath, createCtx.AppName))
+	targetPath, err := os.Readlink(filepath.Join(instEnabledPath, createCtx.AppName))
+	require.NoError(t, err)
+	require.Equal(t, "../app", targetPath)
 }
 
 func TestEnableInstanceCurrentDirApp(t *testing.T) {
