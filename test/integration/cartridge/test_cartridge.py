@@ -28,8 +28,20 @@ def stop_cartridge_app(tt_cmd, tmpdir):
 def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     create_cmd = [tt_cmd, "create", "cartridge", "--name", cartridge_name]
-    create_rc, create_out = run_command_and_get_output(create_cmd, cwd=tmpdir)
-    assert create_rc == 0
+    create_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    create_process.stdin.writelines(["foo\n"])
+    create_process.stdin.close()
+    create_process.wait()
+
+    assert create_process.returncode == 0
+    create_out = create_process.stdout.read()
     assert re.search(r"Application '" + cartridge_name + "' created successfully", create_out)
 
     build_cmd = [tt_cmd, "build", cartridge_name]
@@ -88,7 +100,7 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     assert re.search(r'Bootstrap vshard task completed successfully', setup_out)
 
     admin_cmd = [tt_cmd, "cartridge", "admin", "probe",
-                 "--name", cartridge_name,
+                 "--conn", "admin:foo@localhost:3301",
                  "--uri", "localhost:3301",
                  "--run-dir", os.path.join(tmpdir, utils.run_path, cartridge_name)]
     admin_rc, admin_out = run_command_and_get_output(admin_cmd, cwd=tmpdir)

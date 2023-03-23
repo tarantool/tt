@@ -31,6 +31,11 @@ def check_file_text(filepath, text):
         assert f.read() == text
 
 
+def check_file_contains(filepath, text):
+    with open(filepath) as f:
+        assert text in f.read()
+
+
 def create_tnt_env_in_dir(tmpdir):
     # Create env file.
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
@@ -309,7 +314,7 @@ def test_template_as_archive(tt_cmd, tmpdir):
     run_and_check_non_interactive(tt_cmd, tmpdir, os.path.join(tmpdir, "templates", "luakit"),
                                   "luakit", os.path.join(tmpdir, "app1"), "--name", "app1")
     run_and_check_non_interactive(tt_cmd, tmpdir, os.path.join(tmpdir, "templates", "cartridge"),
-                                  "cartridge", os.path.join(tmpdir, "app2"), "--name", "app2")
+                                  "cartridge", os.path.join(tmpdir, "app2"), "--name", "app2", "-s")
 
 
 def test_template_search_paths(tt_cmd, tmpdir):
@@ -613,18 +618,19 @@ def test_create_app_from_builtin_cartridge_template(tt_cmd, tmpdir):
         stdin=subprocess.PIPE,
         text=True
     )
+    tt_process.stdin.writelines(["foo\n"])
     tt_process.stdin.close()
     tt_process.wait()
     assert tt_process.returncode == 0
 
     output = tt_process.stdout.read()
-    assert output.find("Build and start 'app1' application") != -1
-    assert output.find("./app1") != -1
-    assert output.find("tt cartridge replicasets setup --bootstrap-vshard") != -1
+    assert output.find("Application 'app1' created successfully") != -1
 
     app_path = os.path.join(tmpdir, "app1")
     assert os.path.exists(os.path.join(app_path, "init.lua"))
     assert os.access(os.path.join(app_path, "init.lua"), os.X_OK)
+    cluster_cookie = "cluster_cookie = 'foo'"
+    check_file_contains(os.path.join(app_path, "init.lua"), cluster_cookie)
 
     assert os.path.exists(os.path.join(app_path, "app1-scm-1.rockspec"))
 
@@ -642,3 +648,28 @@ def test_create_app_from_builtin_cartridge_template(tt_cmd, tmpdir):
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app1-stateboard"]["password"] == "passwd"
         assert data_loaded["app1.router"]["http_port"] == 8081
+
+
+def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmpdir):
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmpdir))
+
+    create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1", "-s"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    output = tt_process.stdout.read()
+    assert output.find("Application 'app1' created successfully") != -1
+
+    app_path = os.path.join(tmpdir, "app1")
+    cluster_cookie = "cluster_cookie = 'secret-cluster-cookie'"
+    check_file_contains(os.path.join(app_path, "init.lua"), cluster_cookie)
