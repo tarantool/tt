@@ -2,6 +2,7 @@ package pack
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -201,7 +202,7 @@ func getFilesInfo(relPaths []string, dirPath string) (filesInfo, error) {
 
 	for _, relPath := range relPaths {
 		fullFilePath := filepath.Join(dirPath, relPath)
-		fileInfo, err := os.Stat(fullFilePath)
+		fileInfo, err := os.Lstat(fullFilePath)
 		if err != nil {
 			return info, err
 		}
@@ -231,13 +232,29 @@ func getFilesInfo(relPaths []string, dirPath string) (filesInfo, error) {
 		info.FileUserNames = append(info.FileUserNames, defaultFileUser)
 		info.FileGroupNames = append(info.FileGroupNames, defaultFileGroup)
 		info.FileLangs = append(info.FileLangs, defaultFileLang)
-		info.FileLinkTos = append(info.FileLinkTos, defaultFileLinkTo)
 
 		sysFileInfo, ok := fileInfo.Sys().(*syscall.Stat_t)
 		if !ok {
 			return info, fmt.Errorf("failed to get file info")
 		}
 
+		// If file is a symlink, it is needed to be the relative one.
+		if fileInfo.Mode().Type() == fs.ModeSymlink {
+			currentDir, err := os.Getwd()
+			if err != nil {
+				return filesInfo{}, err
+			}
+			os.Chdir(filepath.Dir(fullFilePath))
+			path, err := filepath.EvalSymlinks(filepath.Base(fullFilePath))
+			if err != nil {
+				os.Chdir(currentDir)
+				return filesInfo{}, err
+			}
+			info.FileLinkTos = append(info.FileLinkTos, path)
+			os.Chdir(currentDir)
+		} else {
+			info.FileLinkTos = append(info.FileLinkTos, defaultFileLinkTo)
+		}
 		info.FileSizes = append(info.FileSizes, int32(sysFileInfo.Size))
 		info.FileModes = append(info.FileModes, int16(sysFileInfo.Mode))
 		info.FileInodes = append(info.FileInodes, int32(sysFileInfo.Ino))
