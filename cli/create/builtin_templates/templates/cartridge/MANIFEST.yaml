@@ -7,3 +7,8 @@ follow-up-message: |
 
   To bootstrap vshard run the following command:
       $ tt cartridge replicasets setup --bootstrap-vshard --name {{ .name }} --run-dir {{ cwdRelative .rundir }}/{{ .name }}
+vars:
+  - prompt: Cluster cookie
+    name: cluster_cookie
+    default: secret-cluster-cookie
+    re: ^[\w-]+$

@@ -38,6 +38,7 @@ local ok, err = cartridge.cfg({
         'cartridge.roles.metrics',
         'app.roles.custom',
     },
+    cluster_cookie = '{{.cluster_cookie}}',
 })
 
 assert(ok, tostring(err))
