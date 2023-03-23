@@ -611,20 +611,20 @@ def test_pack_rpm(tt_cmd, tmpdir):
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
                                              '{0}:/usr/src/'.format(base_dir),
                                              '-w', '/usr/src',
-                                             'centos:7',
+                                             'jrei/systemd-fedora',
                                              '/bin/bash', '-c',
-                                             'rpm -i --force {0} '
+                                             'rpm -i {0} '
                                              '&& ls /usr/share/tarantool/bundle1 '
-                                             '&& ls /usr/lib/systemd/system'
+                                             '&& systemctl list-unit-files | grep bundle1'
                                             .format(package_file_name)])
     installed_package_paths = ['app.lua', 'app2', 'env', 'instances_enabled',
                                config_name, 'var']
-    systemd_paths = ['bundle1@.service', 'bundle1.service']
+    systemd_units = ['bundle1@.service', 'bundle1.service']
 
     for path in installed_package_paths:
         assert re.search(path, output)
-    for path in systemd_paths:
-        assert re.search(path, output)
+    for unit in systemd_units:
+        assert re.search(unit, output)
 
     assert rc == 0
 
