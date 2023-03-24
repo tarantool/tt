@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - A configurable variable `cluster_cookie` for `tt create cartridge` teamplate.
 
+### Fixed
+
+- Packing symlinks into RPM package.
+
 ## [1.0.0] - 2023-03-23
 
 ### Added
