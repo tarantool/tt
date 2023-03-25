@@ -1,0 +1,47 @@
+[tool.ruff]
+select = [
+    "A",
+    "ARG",
+    "B",
+    "C4",
+    "C9",
+    "DTZ",
+    "E",
+    "EM",
+    "EXE",
+    "F",
+    "G",
+    "I",
+    "ICN",
+    "PGH",
+    "PIE",
+    "PL",
+    "RSE",
+    "SIM",
+    "SLF",
+    "TCH",
+    "TID",
+    "W",
+]
+exclude = ["bin/www/olsystem.py"]
+ignore = ["PLC1901", "PLR2004"]
+line-length = 100
+target-version = "py37"
+
+[tool.ruff.isort]
+known-local-folder = ["utils"]
+
+[tool.ruff.mccabe]
+max-complexity = 10
+
+[tool.ruff.pylint]
+max-args = 8
+max-branches = 12
+max-returns = 6
+max-statements = 52
+
+[tool.ruff.per-file-ignores]
+"test/integration/init/test_init.py" = ["A002"]
+"test/integration/restart/test_restart.py" = ["A002"]
+"test/integration/running/test_running.py" = ["B007"]
+"test/utils.py" = ["B008", "EM"]

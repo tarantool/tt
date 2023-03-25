@@ -4,8 +4,7 @@ import shutil
 
 import pytest
 
-from utils import (TarantoolTestInstance, kill_child_process,
-                   run_command_and_get_output)
+from utils import TarantoolTestInstance, kill_child_process, run_command_and_get_output
 
 # The name of instance config file within this integration tests.
 # This file should be in /test/integration/play/test_file/.

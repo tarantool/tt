@@ -1,7 +1,6 @@
 import pytest
 
-from utils import (create_external_module, create_tt_config,
-                   run_command_and_get_output)
+from utils import create_external_module, create_tt_config, run_command_and_get_output
 
 
 # ##### #
@@ -51,13 +50,13 @@ def test_internal_help_with_external_module(tt_cmd, tmpdir):
     # In this case, the external module version should be called with the --help flag.
     rc, output = run_command_and_get_output([tt_cmd, "help", "version"], cwd=tmpdir)
     assert rc == 0
-    assert "Help for external version module\nList of passed args: --help\n" == output
+    assert output == "Help for external version module\nList of passed args: --help\n"
 
     create_external_module("abc", tmpdir)
     # External modules without internal implementation.
     rc, output = run_command_and_get_output([tt_cmd, "help", "abc"], cwd=tmpdir)
     assert rc == 0
-    assert "Help for external abc module\nList of passed args: --help\n" == output
+    assert output == "Help for external abc module\nList of passed args: --help\n"
 
     # If the external module help and version exist at the same time,
     # then the external module help should be called with the <version>

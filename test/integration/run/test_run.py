@@ -105,7 +105,7 @@ def test_run_from_input(tt_cmd, tmpdir):
                                text=True
                                )
     run_output = process.stdout.readline()
-    assert "42\n" == run_output
+    assert run_output == "42\n"
 
     process = subprocess.Popen(f"echo 'print(...) print(unpack(arg))' | {tt_cmd} run -- - a b c",
                                shell=True,

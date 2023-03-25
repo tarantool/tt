@@ -228,9 +228,9 @@ func Lint() error {
 		return err
 	}
 
-	fmt.Println("Running flake8...")
+	fmt.Println("Running ruff...")
 
-	if err := sh.RunV(pythonExecutableName, "-m", "flake8", "test"); err != nil {
+	if err := sh.RunV(pythonExecutableName, "-m", "ruff", "."); err != nil {
 		return err
 	}
 

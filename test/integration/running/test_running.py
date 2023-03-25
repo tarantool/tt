@@ -6,9 +6,16 @@ import tempfile
 
 import yaml
 
-from utils import (config_name, kill_child_process, log_path,
-                   run_command_and_get_output, run_path, wait_file,
-                   wait_instance_start, wait_instance_stop)
+from utils import (
+    config_name,
+    kill_child_process,
+    log_path,
+    run_command_and_get_output,
+    run_path,
+    wait_file,
+    wait_instance_start,
+    wait_instance_stop,
+)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):

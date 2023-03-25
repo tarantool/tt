@@ -22,9 +22,7 @@ To run tests:
 
 * `Python3 <https://www.python.org/downloads/>`_
 * `pytest <https://docs.pytest.org/en/7.2.x/getting-started.html#get-started>`_
-* `flake8 <https://pypi.org/project/flake8/>`_
-* `flake8-isort <https://pypi.org/project/flake8-isort/>`_
-* `flake8-unused-arguments <https://pypi.org/project/flake8-unused-arguments/>`_
+* `ruff <https://beta.ruff.rs>`_
 * `golangci-lint <https://golangci-lint.run/usage/install/#local-installation>`_
 * `lichen <https://github.com/uw-labs/lichen#install>`_
 * `docker <https://docs.docker.com/engine/install/>`_

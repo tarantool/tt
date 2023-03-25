@@ -39,6 +39,5 @@ runs:
           skip-cache: true
 
       - name: Python Linter
-        run: python3 -m flake8 test
+        run: python3 -m ruff .
         shell: bash
-

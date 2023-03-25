@@ -5,8 +5,7 @@ import tempfile
 import pytest
 import yaml
 
-from utils import (config_name, create_external_module, create_tt_config,
-                   run_command_and_get_output)
+from utils import config_name, create_external_module, create_tt_config, run_command_and_get_output
 
 # Some of the tests below should check the behavior
 # of modules that have an internal implementation.
