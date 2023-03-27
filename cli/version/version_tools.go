@@ -37,7 +37,7 @@ type Version struct {
 	Hash       string  // Commit hash.
 	Str        string  // String representation.
 	Tarball    string  // Tarball name.
-	GCSuffix   string  // GC suffix.
+	BuildName  string  // Custom build name.
 }
 
 // Parse parses a version string and return the version value it represents.
@@ -45,13 +45,14 @@ func Parse(verStr string) (Version, error) {
 	version := Version{}
 	var err error
 
-	// Part 1 (optional) -> gc suffix,
-	// Part 2            -> major.minor.patch version number,
-	// Part 3 (optional) -> release type and number (e.g: rc2),
-	// Part 4 (optional) -> additional commits,
-	// Part 5 (optional) -> commit hash and revision.
+	// Part 1 (optional) -> custom build name,
+	// Part 2 (optional) -> gc suffix,
+	// Part 3            -> major.minor.patch version number,
+	// Part 4 (optional) -> release type and number (e.g: rc2),
+	// Part 5 (optional) -> additional commits,
+	// Part 6 (optional) -> commit hash and revision.
 	re := regexp.MustCompile(
-		`^((?P<gc>(?:no)?gc64)-)?` +
+		`^((?P<buildname>.+)-)?` +
 			`v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)` +
 			`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
 			`(?:-(?P<additional>\d+))?` +
@@ -62,8 +63,8 @@ func Parse(verStr string) (Version, error) {
 		return version, fmt.Errorf("failed to parse version %q: format is not valid", verStr)
 	}
 
-	if matches["gc"] != "" {
-		version.GCSuffix = matches["gc"]
+	if matches["buildname"] != "" {
+		version.BuildName = matches["buildname"]
 	}
 
 	if matches["release"] != "" {

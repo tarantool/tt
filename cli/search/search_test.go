@@ -63,7 +63,7 @@ func TestGetVersions(t *testing.T) {
 					Str:        "gc64-1.10.10-52-r419",
 					Tarball: "tarantool-enterprise-sdk-gc64-1.10.10-52-r419" +
 						osName + arch + ".tar.gz",
-					GCSuffix: "gc64",
+					BuildName: "gc64",
 				}, Prefix: "/enterprise/"},
 			},
 			err: nil,
@@ -95,7 +95,7 @@ func TestGetVersions(t *testing.T) {
 					Str:        "5.5.5-0-g32e3bd111-r100",
 					Tarball: "tarantool-enterprise-bundle-5.5.5-0-g32e3bd111-r100" +
 						osNameOld + arch + ".tar.gz",
-					GCSuffix: "",
+					BuildName: "",
 				}, Prefix: "/enterprise/"},
 			},
 			err: nil,
