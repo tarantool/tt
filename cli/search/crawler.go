@@ -2,11 +2,14 @@ package search
 
 import (
 	"encoding/base64"
-	"github.com/tarantool/tt/cli/install_ee"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/apex/log"
+	"github.com/tarantool/tt/cli/install_ee"
 
 	"github.com/gocolly/colly"
 	"github.com/tarantool/tt/cli/util"
@@ -65,8 +68,23 @@ func collectBundleReferences(searchCtx *SearchCtx, baseUrl string,
 		r.Headers.Add("Authorization", "Basic "+authEncoded)
 	})
 
+	var responseCode int
+	c.OnError(func(response *colly.Response, error error) {
+		err = error
+		responseCode = response.StatusCode
+	})
+
 	c.Visit(eeUrl.String())
 	c.Wait()
+
+	if responseCode == http.StatusUnauthorized {
+		warnMsg := "tarantool.io login credentials cannot be used for tarantool-ee installation." +
+			" Contact your system administrator for the right credentials."
+		log.Warn(warnMsg)
+	}
+	if err != nil {
+		return nil, err
+	}
 
 	return refs, nil
 }
