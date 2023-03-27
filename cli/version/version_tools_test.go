@@ -114,6 +114,54 @@ func TestParseVersion(t *testing.T) {
 		nil,
 	}
 
+	testCases["nogc64-debug-1.2.3"] = returnValueParseVersion{
+		Version{
+			Major:     1,
+			Minor:     2,
+			Patch:     3,
+			Release:   Release{Type: TypeRelease},
+			Str:       "nogc64-debug-1.2.3",
+			BuildName: "nogc64-debug",
+		},
+		nil,
+	}
+
+	testCases["gc64-debug-1.2.3"] = returnValueParseVersion{
+		Version{
+			Major:     1,
+			Minor:     2,
+			Patch:     3,
+			Release:   Release{Type: TypeRelease},
+			Str:       "gc64-debug-1.2.3",
+			BuildName: "gc64-debug",
+		},
+		nil,
+	}
+
+	testCases["debug-gc64-1.2.3"] = returnValueParseVersion{
+		Version{
+			Major:     1,
+			Minor:     2,
+			Patch:     3,
+			Release:   Release{Type: TypeRelease},
+			Str:       "debug-gc64-1.2.3",
+			BuildName: "debug-gc64",
+		},
+		nil,
+	}
+
+	testCases["debug-test-gc64-test-test-1.2.3"] = returnValueParseVersion{
+		Version{
+			Major:     1,
+			Minor:     2,
+			Patch:     3,
+			Release:   Release{Type: TypeRelease},
+			Str:       "debug-test-gc64-test-test-1.2.3",
+			BuildName: "debug-test-gc64-test-test",
+		},
+		nil,
+	}
+
 	testCases["2.8"] = returnValueParseVersion{
 		Version{},
 		fmt.Errorf("failed to parse version \"2.8\": format is not valid"),
