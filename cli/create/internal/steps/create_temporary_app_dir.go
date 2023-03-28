@@ -38,7 +38,12 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 		}
 	}
 
-	log.Infof("Creating application in %s", appDirectory)
+	appDirectory, err = filepath.Abs(appDirectory)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Creating application in %q", appDirectory)
 	templateCtx.TargetAppPath = appDirectory
 
 	templateCtx.AppPath, err = ioutil.TempDir("", createCtx.AppName+"*")

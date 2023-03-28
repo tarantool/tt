@@ -24,6 +24,8 @@ func (createSymlinkStep CreateAppSymlink) Run(createCtx *create_ctx.CreateCtx,
 		return nil
 	}
 
+	log.Debugf("Creating symlink to %q in %q", templateCtx.TargetAppPath,
+		createSymlinkStep.SymlinkDir)
 	relativeAppPath, err := filepath.Rel(createSymlinkStep.SymlinkDir,
 		templateCtx.TargetAppPath)
 	if err != nil {
@@ -38,7 +40,10 @@ func (createSymlinkStep CreateAppSymlink) Run(createCtx *create_ctx.CreateCtx,
 	if err = util.CreateSymlink(relativeAppPath,
 		filepath.Join(createSymlinkStep.SymlinkDir, createCtx.AppName),
 		createCtx.ForceMode); err != nil {
-		log.Warnf("Failed to enable %s application: %s", createCtx.AppName, err)
+		log.Warnf(`Failed to enable %q application: %s.
+Further actions with %q application may not work correctly. Update symbolic link in %q `+
+			`directory, or use -f flag to overwrite it.`,
+			createCtx.AppName, err, templateCtx.TargetAppPath, createSymlinkStep.SymlinkDir)
 	}
 
 	return nil
