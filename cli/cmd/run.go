@@ -63,7 +63,7 @@ are passed after '--'.
 
 # Run a script (which print passed arguments) with 3 arguments and 2 options:
 
-    $ run script.lua a b c -- -a -b
+    $ tt run script.lua a b c -- -a -b
     a	b	c	-a	-b
 
 # Run a script, pass '-i' argument to it, and enter interactive mode after script execution:
