@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - A configurable variable `cluster_cookie` for `tt create cartridge` teamplate.
+- ``tt build`` accepts application name for building.
 
 ### Fixed
 

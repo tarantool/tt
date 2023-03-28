@@ -15,8 +15,8 @@ var (
 // NewBuildCmd builds an application.
 func NewBuildCmd() *cobra.Command {
 	var buildCmd = &cobra.Command{
-		Use:   "build [PATH] [flags]",
-		Short: `Build an application in specified PATH (default ".")`,
+		Use:   "build [<PATH> | <APP_NAME>] [flags]",
+		Short: `Build an application (default ".")`,
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalBuildModule, args)
@@ -33,7 +33,7 @@ func NewBuildCmd() *cobra.Command {
 // internalBuildModule is a default build module.
 func internalBuildModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var buildCtx build.BuildCtx
-	if err := build.FillCtx(&buildCtx, args); err != nil {
+	if err := build.FillCtx(&buildCtx, cliOpts, args); err != nil {
 		return err
 	}
 
