@@ -15,13 +15,21 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+const (
+	progRegexp = "(?P<prog>" +
+		search.ProgramTt + "|" +
+		search.ProgramCe + "|" +
+		search.ProgramEe + ")"
+	verRegexp = "(?P<ver>.*)"
+)
+
 // remove removes binary/directory and symlinks from directory.
 func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 	var linkPath string
 	var err error
 
 	re := regexp.MustCompile(
-		"^(?P<prog>tt|tarantool|tarantool-ee)(?:" + version.CliSeparator + "(?P<ver>.*))?$",
+		"^" + progRegexp + "(?:" + version.CliSeparator + verRegexp + ")?$",
 	)
 
 	matches := util.FindNamedMatches(re, program)
@@ -73,6 +81,18 @@ func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 func UninstallProgram(program string, binDst string, headerDst string,
 	cmdCtx *cmdcontext.CmdCtx) error {
 	log.Infof("Removing binary...")
+	re := regexp.MustCompile("^" + progRegexp + "$")
+
+	if re.Match([]byte(program)) {
+		if ver, err := getDefault(program, binDst); err != nil {
+			return err
+		} else {
+			program = program + version.CliSeparator + ver
+		}
+	} else if !strings.Contains(program, version.CliSeparator) {
+		return fmt.Errorf("unknown program: %s", program)
+	}
+
 	err := remove(program, binDst, cmdCtx)
 	if err != nil {
 		return err
@@ -85,13 +105,40 @@ func UninstallProgram(program string, binDst string, headerDst string,
 	return err
 }
 
+// getDefault returns a default version of an installed program.
+func getDefault(program, dir string) (string, error) {
+	var ver string
+
+	re := regexp.MustCompile(
+		"^" + program + version.FsSeparator + verRegexp + "$",
+	)
+
+	installedPrograms, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range installedPrograms {
+		matches := util.FindNamedMatches(re, file.Name())
+		if ver != "" {
+			return "", fmt.Errorf("%s has more than one installed version, "+
+				"please specify the version to uninstall", program)
+		} else {
+			ver = matches["ver"]
+		}
+	}
+
+	if ver == "" {
+		return "", fmt.Errorf("%s has no installed version", program)
+	}
+	return ver, nil
+}
+
 // GetList generates a list of options to uninstall.
 func GetList(cliOpts *config.CliOpts) []string {
 	list := []string{}
 	re := regexp.MustCompile(
-		"^(?P<prog>(?:tarantool)|(?:tarantool-ee)|(?:tt))" +
-			version.FsSeparator +
-			"(?P<ver>.*)$",
+		"^" + progRegexp + version.FsSeparator + verRegexp + "$",
 	)
 
 	if cliOpts.App.BinDir == "" {
