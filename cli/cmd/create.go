@@ -48,7 +48,7 @@ Built-in templates:
 # (cartridge_app) if it exists. ` +
 			`User interaction is disabled.
 
-    $ tt create cartridge --name cartridge_app -f --non-interactive -dst /opt/tt/apps/`,
+    $ tt create cartridge --name cartridge_app -f --non-interactive --dst /opt/tt/apps/`,
 	}
 
 	createCmd.Flags().StringVarP(&appName, "name", "n", "", "Application name")
