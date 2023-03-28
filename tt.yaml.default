@@ -1,7 +1,7 @@
 tt:
   modules:
     # Directory where the external modules are stored.
-    directory: modules
+    directory: /opt/tarantool/modules
 
   app:
     # Directory that stores various instance runtime
@@ -53,7 +53,7 @@ tt:
 
   templates:
     # The path to templates search directory.
-    - path: templates
+    - path: /opt/tarantool/templates
 
   repo:
     # Directory that stores installation files.
