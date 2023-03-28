@@ -952,3 +952,17 @@ func CollectAppList(baseDir string, appsPath string, verbose bool) ([]AppListEnt
 
 	return apps, nil
 }
+
+// RelativeToCurrentWorkingDir returns a path relative to current working dir.
+// In case of error, fullpath is returned.
+func RelativeToCurrentWorkingDir(fullpath string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fullpath
+	}
+	relPath, err := filepath.Rel(cwd, fullpath)
+	if err != nil {
+		return fullpath
+	}
+	return relPath
+}
