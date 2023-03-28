@@ -1,6 +1,7 @@
 package list
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"math"
@@ -109,12 +110,11 @@ func parseBinaries(fileList []fs.DirEntry, programName string,
 func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error) {
 	binDir := cliOpts.App.BinDir
 	binDirFilesList, err := os.ReadDir(binDir)
-	if err != nil {
-		return fmt.Errorf("error reading directory %q: %s", binDir, err)
-	}
 
-	if len(binDirFilesList) == 0 {
-		return fmt.Errorf("there are no installed binaries")
+	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("there are no binaries installed in this environment of 'tt'")
+	} else if err != nil {
+		return fmt.Errorf("error reading directory %q: %s", binDir, err)
 	}
 
 	programs := [...]string{search.ProgramTt, search.ProgramCe}

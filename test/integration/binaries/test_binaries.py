@@ -54,7 +54,7 @@ def test_binaries_no_directory(tt_cmd, tmpdir):
     binaries_process.wait()
     output = binaries_process.stdout.read()
 
-    assert "error reading directory" in output
+    assert "there are no binaries installed in this environment of 'tt'" in output
 
 
 def test_binaries_empty_directory(tt_cmd, tmpdir):
@@ -77,4 +77,4 @@ def test_binaries_empty_directory(tt_cmd, tmpdir):
     binaries_process.wait()
     output = binaries_process.stdout.read()
 
-    assert "there are no installed binaries" in output
+    assert "there are no binaries installed in this environment of 'tt'" in output
