@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Packing symlinks into RPM package.
 
+### Changed
+
+- ``tt uninstall`` does not ask version if only one version of a program is installed.
+
 ## [1.0.0] - 2023-03-23
 
 ### Added
