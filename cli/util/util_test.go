@@ -524,3 +524,14 @@ func TestCollectAppList(t *testing.T) {
 		require.Truef(t, apps[item.Name], "wrong item got collected in app list: %s", item)
 	}
 }
+
+func TestRelativeToCurrentWorkingDir(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	relDir := RelativeToCurrentWorkingDir(filepath.Join(cwd, "dir1", "subdir"))
+	assert.Equal(t, filepath.Join("dir1", "subdir"), relDir)
+	relDir = RelativeToCurrentWorkingDir(filepath.Join(cwd, "..", "dir1"))
+	assert.Equal(t, filepath.Join("..", "dir1"), relDir)
+	relDir = RelativeToCurrentWorkingDir("dir1/subdir")
+	assert.Equal(t, filepath.Join("dir1", "subdir"), relDir)
+}
