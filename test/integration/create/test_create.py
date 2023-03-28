@@ -1,11 +1,13 @@
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 
+import pytest
 import yaml
 
-from utils import config_name
+from utils import config_name, run_command_and_get_output, wait_file
 
 tt_config_text = '''tt:
   app:
@@ -673,3 +675,101 @@ def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmpdi
     app_path = os.path.join(tmpdir, "app1")
     cluster_cookie = "cluster_cookie = 'secret-cluster-cookie'"
     check_file_contains(os.path.join(app_path, "init.lua"), cluster_cookie)
+
+
+@pytest.mark.slow
+def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, tmpdir):
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmpdir))
+
+    create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1", "--dst", "appdir"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.writelines(["\n"])
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    output = tt_process.stdout.read()
+    assert output.find("Build and start 'app1' application") != -1
+    assert output.find("$ tt build app1") != -1
+    assert output.find("$ tt start app1") != -1
+    assert output.find("tt cartridge replicasets setup --bootstrap-vshard --name app1 " +
+                       "--run-dir ./app1") != -1
+
+    assert os.path.exists(os.path.join(tmpdir, "appdir"))
+
+    app_path = os.path.join(tmpdir, "appdir", "app1")
+    assert os.path.exists(os.path.join(app_path, "init.lua"))
+    assert os.access(os.path.join(app_path, "init.lua"), os.X_OK)
+
+    assert os.path.exists(os.path.join(app_path, "app1-scm-1.rockspec"))
+
+    assert os.path.exists(os.path.join(app_path, "tt.pre-build"))
+    assert os.access(os.path.join(app_path, "tt.pre-build"), os.X_OK)
+    assert os.path.exists(os.path.join(app_path, "tt.post-build"))
+    assert os.access(os.path.join(app_path, "tt.post-build"), os.X_OK)
+
+    assert os.path.exists(os.path.join(app_path, "app", "roles", "custom.lua"))
+
+    assert os.path.exists(os.path.join(app_path, "instances.yml"))
+    assert not os.access(os.path.join(app_path, "instances.yml"), os.X_OK)
+    assert os.access(os.path.join(app_path, "instances.yml"), os.W_OK)
+    with open(os.path.join(app_path, "instances.yml"), 'r') as stream:
+        data_loaded = yaml.safe_load(stream)
+        assert data_loaded["app1-stateboard"]["password"] == "passwd"
+        assert data_loaded["app1.router"]["http_port"] == 8081
+
+    target = os.readlink(os.path.join(tmpdir, "test.instances.enabled", "app1"))
+    assert target == "../appdir/app1"
+
+    create_cmd = [tt_cmd, "build", "app1"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+    build_output = tt_process.stdout.readlines()
+    assert "Application was successfully built" in build_output[len(build_output)-1]
+
+    # Start cartridge app.
+    start_cmd = [tt_cmd, "start", "app1"]
+    instance_process = subprocess.Popen(
+        start_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    start_output = instance_process.stdout.readlines()
+    for line in start_output:
+        assert "Starting an instance" in line
+    for pid_file in ["router", "s1-master", "s1-replica", "s2-master", "s2-replica"]:
+        file = wait_file(os.path.join(tmpdir, "app1", pid_file), pid_file + ".pid", [])
+        assert file != ""
+
+    # Check status.
+    status_cmd = [tt_cmd, "status", "app1"]
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    assert "RUNNING. PID: " in status_out
+
+    # Stop the cartridge app.
+    stop_cmd = [tt_cmd, "stop", "app1"]
+    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    assert re.search(r"The Instance app1:\w+ \(PID = \d+\) has been terminated.", stop_out)
+
+    # Check that the process was terminated correctly.
+    instance_process_rc = instance_process.wait(1)
+    assert instance_process_rc == 0

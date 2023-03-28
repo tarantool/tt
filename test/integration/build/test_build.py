@@ -192,3 +192,36 @@ def test_build_spec_file_set(tt_cmd, tmpdir):
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "rocks"))
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "metrics"))
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "cartridge"))
+
+
+def test_build_app_by_name(tt_cmd, tmpdir):
+    init_cmd = [tt_cmd, "init"]
+    tt_process = subprocess.Popen(
+        init_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    os.mkdir(os.path.join(tmpdir, "appdir"))
+    app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
+                              os.path.join(tmpdir, "appdir", "app1"))
+
+    os.symlink("../appdir/app1", os.path.join(tmpdir, "instances.enabled", "app1"), True)
+    build_cmd = [tt_cmd, "build", "app1"]
+    tt_process = subprocess.Popen(
+        build_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    build_output = tt_process.stdout.readlines()
+    assert "Application was successfully built" in build_output[len(build_output)-1]
+    assert os.path.exists(os.path.join(app_dir, ".rocks"))

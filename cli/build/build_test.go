@@ -5,10 +5,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 )
 
 const testDirName = "build-test-dir"
@@ -28,22 +31,72 @@ func TestFillCtx(t *testing.T) {
 	workDir, _ = os.Getwd()
 
 	appDir := filepath.Join(workDir, "app1")
-	appDir2 := filepath.Join(workDir, "app2")
 
-	require.NoError(t, FillCtx(&buildCtx, []string{"app1"}))
+	require.NoError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},
+		[]string{"app1"}))
 	assert.Equal(t, buildCtx.BuildDir, appDir)
-	require.NoError(t, FillCtx(&buildCtx, []string{"./app1"}))
+	require.NoError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},
+		[]string{"./app1"}))
 	assert.Equal(t, buildCtx.BuildDir, appDir)
 
-	require.NoError(t, FillCtx(&buildCtx, []string{}))
+	require.NoError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},
+		[]string{}))
 	assert.Equal(t, buildCtx.BuildDir, workDir)
 
-	require.EqualError(t, FillCtx(&buildCtx, []string{"app1", "app2"}), "too many args")
-	require.EqualError(t, FillCtx(&buildCtx, []string{"app2"}),
-		fmt.Sprintf("stat %s: no such file or directory", appDir2))
+	require.EqualError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},
+		[]string{"app1", "app2"}), "too many args")
 
-	require.NoError(t, FillCtx(&buildCtx, []string{filepath.Join(workDir, "app1")}))
+	require.NoError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},
+		[]string{filepath.Join(workDir, "app1")}))
 	assert.Equal(t, buildCtx.BuildDir, filepath.Join(workDir, "app1"))
+}
+
+func TestFillCtxInstancesEnabledSupport(t *testing.T) {
+	workDir, err := ioutil.TempDir("", testDirName)
+	require.NoError(t, err)
+	defer os.RemoveAll(workDir)
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(workDir))
+	defer os.Chdir(wd)
+	var buildCtx BuildCtx
+
+	instancesEnabled, err := filepath.Abs(configure.InstancesEnabledDirName)
+	require.NoError(t, err)
+	require.EqualError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: instancesEnabled}},
+		[]string{"app2"}),
+		fmt.Sprintf("lstat %s: no such file or directory", instancesEnabled))
+	require.NoError(t, os.Mkdir(instancesEnabled, 0750))
+	require.EqualError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: instancesEnabled}},
+		[]string{"app2"}),
+		fmt.Sprintf("lstat %s/app2: no such file or directory", instancesEnabled))
+
+	require.NoError(t, os.MkdirAll(filepath.Join(workDir, "subdir", "app2"), 0750))
+	require.NoError(t, os.Symlink("../subdir/app2",
+		filepath.Join(instancesEnabled, "app2")))
+	require.NoError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: instancesEnabled}},
+		[]string{filepath.Join(workDir, "app2")}))
+	assert.True(t, strings.HasSuffix(buildCtx.BuildDir, filepath.Join(workDir, "subdir", "app2")))
+	require.NoError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: instancesEnabled}},
+		[]string{"app2"}))
+	assert.True(t, strings.HasSuffix(buildCtx.BuildDir, filepath.Join(workDir, "subdir", "app2")))
+
+	// Create ./app2 directory. It has a priority over app2 from instances enabled.
+	require.NoError(t, os.MkdirAll(filepath.Join(workDir, "app2"), 0750))
+	require.NoError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: instancesEnabled}},
+		[]string{"app2"}))
+	assert.True(t, strings.HasSuffix(buildCtx.BuildDir, filepath.Join(workDir, "app2")))
 }
 
 func TestFillCtxAbsoluteAppPath(t *testing.T) {
@@ -53,7 +106,9 @@ func TestFillCtxAbsoluteAppPath(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(workDir, "app1"), 0750))
 
 	var buildCtx BuildCtx
-	require.NoError(t, FillCtx(&buildCtx, []string{filepath.Join(workDir, "app1")}))
+	require.NoError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},
+		[]string{filepath.Join(workDir, "app1")}))
 	assert.Equal(t, buildCtx.BuildDir, filepath.Join(workDir, "app1"))
 }
 
@@ -72,7 +127,9 @@ func TestFillCtxAppPathIsFile(t *testing.T) {
 
 	appDir := filepath.Join(workDir, "app1")
 
-	require.EqualError(t, FillCtx(&buildCtx, []string{"app1"}),
+	require.EqualError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},
+		[]string{"app1"}),
 		fmt.Sprintf("%s is not a directory", appDir))
 }
 
@@ -82,5 +139,7 @@ func TestFillCtxMultipleArgs(t *testing.T) {
 	defer os.RemoveAll(workDir)
 
 	var buildCtx BuildCtx
-	require.EqualError(t, FillCtx(&buildCtx, []string{"app1", "app2"}), "too many args")
+	require.EqualError(t, FillCtx(&buildCtx,
+		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},
+		[]string{"app1", "app2"}), "too many args")
 }
