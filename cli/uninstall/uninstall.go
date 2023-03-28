@@ -10,6 +10,7 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -28,7 +29,7 @@ func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 		return fmt.Errorf("unknown program: %s", program)
 	}
 
-	if matches["prog"] == "tarantool" || matches["prog"] == "tarantool-ee" {
+	if matches["prog"] == search.ProgramCe || matches["prog"] == search.ProgramEe {
 		linkPath, err = util.JoinAbspath(directory, "tarantool")
 	} else {
 		linkPath, err = util.JoinAbspath(directory, matches["prog"])
