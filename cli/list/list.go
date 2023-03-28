@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -116,7 +117,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error
 		return fmt.Errorf("there are no installed binaries")
 	}
 
-	programs := [...]string{"tt", "tarantool"}
+	programs := [...]string{search.ProgramTt, search.ProgramCe}
 	fmt.Println("List of installed binaries:")
 	for _, programName := range programs {
 		binaryVersions, err := parseBinaries(binDirFilesList, programName, binDir)

@@ -147,7 +147,7 @@ func printVersion(bindir string, program string, versionStr string) {
 	if _, err := os.Stat(filepath.Join(bindir,
 		program+version.FsSeparator+versionStr)); err == nil {
 		target := ""
-		if program == "tarantool-ee" {
+		if program == ProgramEe {
 			target, _ = util.ResolveSymlink(filepath.Join(bindir, "tarantool"))
 		} else {
 			target, _ = util.ResolveSymlink(filepath.Join(bindir, program))
@@ -169,19 +169,19 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
 	var repo string
 	versions := []version.Version{}
 
-	if program == "tarantool" {
+	if program == ProgramCe {
 		repo = GitRepoTarantool
 		if searchCtx.Dev || searchCtx.Dbg {
 			log.Warnf("--dbg and --dev options can be used only for" +
 				" tarantool-ee packages searching.")
 		}
-	} else if program == "tt" {
+	} else if program == ProgramTt {
 		repo = GitRepoTT
 		if searchCtx.Dev || searchCtx.Dbg {
 			log.Warnf("--dbg and --dev options can be used only for" +
 				" tarantool-ee packages searching.")
 		}
-	} else if program == "tarantool-ee" {
+	} else if program == ProgramEe {
 		// Do nothing. Needs for bypass arguments check.
 	} else {
 		return fmt.Errorf("search supports only tarantool/tarantool-ee/tt")
@@ -189,7 +189,7 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
 
 	var err error
 	log.Infof("Available versions of " + program + ":")
-	if program == "tarantool-ee" {
+	if program == ProgramEe {
 		bundles, err := FetchBundlesInfo(searchCtx, cliOpts)
 		if err != nil {
 			log.Fatalf(err.Error())
@@ -243,7 +243,7 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 		return err
 	}
 
-	if program == "tarantool" {
+	if program == ProgramCe {
 		if _, err = os.Stat(localDir + "/tarantool"); !os.IsNotExist(err) {
 			log.Infof("Available versions of " + program + ":")
 			versions, err := GetVersionsFromGitLocal(localDir + "/tarantool")
@@ -256,7 +256,7 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 			}
 			printVersion(cliOpts.App.BinDir, program, "master")
 		}
-	} else if program == "tt" {
+	} else if program == ProgramTt {
 		if _, err = os.Stat(localDir + "/tt"); !os.IsNotExist(err) {
 			log.Infof("Available versions of " + program + ":")
 			versions, err := GetVersionsFromGitLocal(localDir + "/tt")
@@ -269,7 +269,7 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 			}
 			printVersion(cliOpts.App.BinDir, program, "master")
 		}
-	} else if program == "tarantool-ee" {
+	} else if program == ProgramEe {
 		files := []string{}
 		for _, v := range localFiles {
 			if strings.Contains(v.Name(), "tarantool-enterprise-bundle") && !v.IsDir() {
