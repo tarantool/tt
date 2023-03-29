@@ -228,23 +228,14 @@ def test_launch_local_tarantool_missing_in_bin_dir(tt_cmd, tmpdir):
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
 
-    commands_intmp = [
+    commands = [
         [tt_cmd, "run", "--version"],
-    ]
-
-    commands_external = [
         [tt_cmd, "-L", tmpdir, "run", "--version"],
         [tt_cmd, "--cfg", config_path, "run", "--version"]
     ]
 
-    for cmd in commands_intmp:
-        rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-        # Missing binaries is not a error. Default Tarantool is used.
-        assert rc == 0
-        assert "Tarantool" in output
-
     with tempfile.TemporaryDirectory() as tmp_working_dir:
-        for cmd in commands_external:
+        for cmd in commands:
             rc, output = run_command_and_get_output(cmd, cwd=tmp_working_dir)
             # Missing binaries is not a error. Default Tarantool is used.
             assert rc == 0

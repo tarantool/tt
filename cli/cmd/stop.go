@@ -26,10 +26,6 @@ func NewStopCmd() *cobra.Command {
 
 // internalStopModule is a default stop module.
 func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if err := checkConfig(cmdCtx); err != nil {
-		return err
-	}
-
 	var runningCtx running.RunningCtx
 	var err error
 	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
