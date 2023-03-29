@@ -103,13 +103,13 @@ def test_uninstall_missing(tt_cmd, tmpdir):
     assert re.search(r"there is no", uninstall_output)
 
 
-def test_uninstall_foreign_program(tt_cmd, tmpdir):
+def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
     # Remove bash.
     for prog in ["bash", "bash=123"]:
         uninstall_cmd = [tt_cmd, "uninstall", prog]
         uninstall_process = subprocess.Popen(
             uninstall_cmd,
-            cwd=tmpdir,
+            cwd=tmpdir_with_cfg,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True

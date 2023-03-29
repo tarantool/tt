@@ -14,6 +14,10 @@ def test_instances_enabled_apps(tt_cmd):
         test_app_path = os.path.join(tmpdir, "multi_app")
         shutil.copytree(test_app_path_src, test_app_path)
 
+        config_path = os.path.join(test_app_path, "tt.yaml")
+        with open(config_path, "w") as f:
+            yaml.dump({"tt": {"app": {"instances_enabled": "."}}}, f)
+
         # List all instances.
         start_cmd = [tt_cmd, "instances"]
         instance_process = subprocess.Popen(
@@ -34,6 +38,10 @@ def test_instances_enabled_apps(tt_cmd):
 def test_instances_no_apps(tt_cmd):
     with tempfile.TemporaryDirectory() as tmpdir:
         test_app_path = os.path.join(tmpdir)
+
+        config_path = os.path.join(test_app_path, "tt.yaml")
+        with open(config_path, "w") as f:
+            yaml.dump({"tt": {"app": {"instances_enabled": "."}}}, f)
 
         # List all instances.
         start_cmd = [tt_cmd, "instances"]

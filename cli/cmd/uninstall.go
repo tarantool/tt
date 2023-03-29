@@ -40,6 +40,10 @@ func NewUninstallCmd() *cobra.Command {
 
 // InternalUninstallModule is a default uninstall module.
 func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if err := checkConfig(cmdCtx); err != nil {
+		return err
+	}
+
 	err := uninstall.UninstallProgram(args[0], cliOpts.App.BinDir,
 		cliOpts.App.IncludeDir+"/include", cmdCtx)
 	return err
