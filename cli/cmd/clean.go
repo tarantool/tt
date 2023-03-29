@@ -97,6 +97,10 @@ func clean(run *running.InstanceCtx) error {
 
 // internalCleanModule is a default clean module.
 func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if err := checkConfig(cmdCtx); err != nil {
+		return err
+	}
+
 	var runningCtx running.RunningCtx
 	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err
