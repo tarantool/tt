@@ -97,6 +97,10 @@ is after '--', so passed to script.lua as is.
 
 // internalRunModule is a default run module.
 func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
 	runOpts := newRunOpts(*cmdCtx)
 	scriptPath := ""
 	startIndex := 0

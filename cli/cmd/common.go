@@ -6,6 +6,8 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -21,4 +23,14 @@ func handleCmdErr(cmd *cobra.Command, err error) {
 		}
 		log.Fatalf(err.Error())
 	}
+}
+
+// errNoConfig is returned if environment config file tt.yaml not found.
+var errNoConfig = errors.New(configure.ConfigName +
+	" not found, you need to create tt environment config with 'tt init'" +
+	" or provide exact config location with --cfg option")
+
+// isConfigExist returns `true` if environment config file tt.yaml exist.
+func isConfigExist(cmdCtx *cmdcontext.CmdCtx) bool {
+	return cmdCtx.Cli.ConfigPath != ""
 }

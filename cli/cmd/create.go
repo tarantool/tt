@@ -69,6 +69,10 @@ Built-in templates:
 
 // internalCreateModule is a default create module.
 func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
 	createCtx := create_ctx.CreateCtx{
 		AppName:        appName,
 		ForceMode:      forceMode,
