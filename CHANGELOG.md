@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - tt config is renamed to tt.yaml.
 - Do not use `make` command options for `tarantool` build if `MAKEFLAGS` environment variable
 is set.
+- `binaries`, `build`, `check`, `clean`, `create`, `install`, `instances`, `logrotate`, `pack`,
+  `restart`, `run`, `start`, `status`, `stop`, `uninstall` require environment configuration file.
 
 ### Fixed
 

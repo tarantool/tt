@@ -37,6 +37,10 @@ func NewRestartCmd() *cobra.Command {
 
 // internalRestartModule is a default restart module.
 func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
 	if !autoYes {
 		instancesToConfirm := ""
 		if len(args) == 0 {

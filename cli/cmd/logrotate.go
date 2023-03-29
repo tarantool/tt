@@ -26,6 +26,10 @@ func NewLogrotateCmd() *cobra.Command {
 
 // internalLogrotateModule is a default logrotate module.
 func internalLogrotateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
 	var runningCtx running.RunningCtx
 	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err

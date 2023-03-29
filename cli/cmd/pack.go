@@ -77,6 +77,10 @@ The supported types are: tgz, deb, rpm`,
 
 // internalPackModule is a default pack module.
 func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
 	err := pack.FillCtx(cmdCtx, packCtx, args)
 	if err != nil {
 		return err

@@ -57,6 +57,10 @@ func NewInstallCmd() *cobra.Command {
 
 // internalInstallModule is a default install module.
 func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
 	installCtx := install.InstallCtx{
 		Force:         force,
 		Noclean:       noclean,

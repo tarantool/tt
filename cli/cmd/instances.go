@@ -26,6 +26,9 @@ func NewInstancesCmd() *cobra.Command {
 
 // internalInstancesModule is a default instances module.
 func internalInstancesModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
 
 	err := list.ListInstances(cmdCtx, cliOpts)
 

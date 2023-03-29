@@ -39,6 +39,10 @@ func NewStartCmd() *cobra.Command {
 
 // internalStartModule is a default start module.
 func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
 	var runningCtx running.RunningCtx
 	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
 		return err
