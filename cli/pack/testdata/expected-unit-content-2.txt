@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=forking
-ExecStart=/path/to/cfg/env/bin/tt -L /path/to/cfg start
-ExecStop=/path/to/cfg/env/bin/tt -L /path/to/cfg stop
+ExecStart=/path/to/cfg/bin/tt -L /path/to/cfg start
+ExecStop=/path/to/cfg/bin/tt -L /path/to/cfg stop
 Restart=on-failure
 RestartSec=2
 User=tarantool

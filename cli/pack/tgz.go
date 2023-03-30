@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/tarantool/tt/cli/configure"
 )
 
 // WriteTgzArchive creates TGZ archive of specified path.
@@ -41,7 +43,7 @@ func WriteTarArchive(srcDirPath string, compressWriter io.Writer) error {
 
 		var tarHeader *tar.Header
 		if fileInfo.Mode().Type() == os.ModeSymlink &&
-			strings.Contains(filePath, "instances_enabled") {
+			strings.Contains(filePath, configure.InstancesEnabledDirName) {
 			// If we have found a symlink while making tarball
 			// we should make it relative. Apriori it is known,
 			// that the source path of the link will be located

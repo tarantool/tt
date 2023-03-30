@@ -22,46 +22,18 @@ const (
 
 	defaultVersion     = "0.1.0"
 	defaultLongVersion = "0.1.0.0"
-
-	varPath              = "var"
-	logPath              = "log"
-	runPath              = "run"
-	dataPath             = "lib"
-	envPath              = "env"
-	binPath              = "bin"
-	modulesPath          = "modules"
-	instancesEnabledPath = "instances_enabled"
 )
 
 var (
-	varDataPath = filepath.Join(varPath, dataPath)
-	varLogPath  = filepath.Join(varPath, logPath)
-	varRunPath  = filepath.Join(varPath, runPath)
-
-	envBinPath     = filepath.Join(envPath, binPath)
-	envModulesPath = filepath.Join(envPath, modulesPath)
-
-	packageVarPath     = ""
 	packageVarRunPath  = ""
 	packageVarLogPath  = ""
 	packageVarDataPath = ""
 
-	packageEnvPath        = ""
-	packageEnvBinPath     = ""
-	packageEnvModulesPath = ""
+	packageBinPath     = ""
+	packageModulesPath = ""
 
 	packageInstancesEnabledPath = ""
 )
-
-var defaultPaths = []string{
-	varPath,
-	logPath,
-	runPath,
-	dataPath,
-	envPath,
-	envBinPath,
-	envModulesPath,
-}
 
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
@@ -95,7 +67,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 	if cliOpts.App.BinDir != "" &&
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
-		err = copyBinaries(cmdCtx, packageEnvBinPath)
+		err = copyBinaries(cmdCtx, packageBinPath)
 		if err != nil {
 			return "", err
 		}
@@ -103,7 +75,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 
 	// Copy modules step.
 	if cliOpts.Modules != nil && cliOpts.Modules.Directory != "" {
-		err = copy.Copy(cliOpts.Modules.Directory, packageEnvModulesPath)
+		err = copy.Copy(cliOpts.Modules.Directory, packageModulesPath)
 		if err != nil {
 			log.Warnf("Failed to copy modules from %s: %s", cliOpts.Modules.Directory, err)
 		}
@@ -184,8 +156,8 @@ func createPackageStructure(destPath string) error {
 		packageVarRunPath,
 		packageVarLogPath,
 		packageVarDataPath,
-		packageEnvBinPath,
-		packageEnvModulesPath,
+		packageBinPath,
+		packageModulesPath,
 		packageInstancesEnabledPath,
 	}
 
@@ -289,29 +261,16 @@ func createAppSymlink(appPath string, appName string) error {
 // createEnv generates a tt.yaml file.
 func createEnv(opts *config.CliOpts, destPath string) error {
 	log.Infof("Generating new %s for the new package", configure.ConfigName)
+	cliOptsNew := configure.GetDefaultCliOpts()
+	cliOptsNew.App.InstancesEnabled = configure.InstancesEnabledDirName
+	cliOptsNew.App.Restartable = opts.App.Restartable
+	cliOptsNew.App.LogMaxAge = opts.App.LogMaxAge
+	cliOptsNew.App.LogMaxSize = opts.App.LogMaxSize
+	cliOptsNew.App.LogMaxBackups = opts.App.LogMaxBackups
+	cliOptsNew.App.TarantoolctlLayout = opts.App.TarantoolctlLayout
 
-	appOpts := config.AppOpts{
-		InstancesEnabled: instancesEnabledPath,
-		BinDir:           filepath.Join(envPath, binPath),
-		RunDir:           filepath.Join(varPath, runPath),
-		WalDir:           filepath.Join(varPath, dataPath),
-		VinylDir:         filepath.Join(varPath, dataPath),
-		MemtxDir:         filepath.Join(varPath, dataPath),
-		LogDir:           filepath.Join(varPath, logPath),
-		LogMaxSize:       opts.App.LogMaxSize,
-		LogMaxAge:        opts.App.LogMaxAge,
-		LogMaxBackups:    opts.App.LogMaxBackups,
-		Restartable:      opts.App.Restartable,
-	}
-	moduleOpts := config.ModulesOpts{
-		Directory: filepath.Join(envPath, modulesPath),
-	}
-	cliOptsNew := config.CliOpts{
-		App:     &appOpts,
-		Modules: &moduleOpts,
-	}
 	cfg := config.Config{
-		CliConfig: &cliOptsNew,
+		CliConfig: cliOptsNew,
 	}
 
 	file, err := os.Create(filepath.Join(destPath, configure.ConfigName))
@@ -397,16 +356,14 @@ func buildAllRocks(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, destPath 
 // prepareDefaultPackagePaths defines all default paths for the directory, where
 // the package will be built.
 func prepareDefaultPackagePaths(packagePath string) {
-	packageVarPath = filepath.Join(packagePath, varPath)
-	packageVarRunPath = filepath.Join(packageVarPath, runPath)
-	packageVarLogPath = filepath.Join(packageVarPath, logPath)
-	packageVarDataPath = filepath.Join(packageVarPath, dataPath)
+	packageVarRunPath = filepath.Join(packagePath, configure.VarRunPath)
+	packageVarLogPath = filepath.Join(packagePath, configure.VarLogPath)
+	packageVarDataPath = filepath.Join(packagePath, configure.VarDataPath)
 
-	packageEnvPath = filepath.Join(packagePath, envPath)
-	packageEnvBinPath = filepath.Join(packageEnvPath, binPath)
-	packageEnvModulesPath = filepath.Join(packageEnvPath, modulesPath)
+	packageBinPath = filepath.Join(packagePath, configure.BinPath)
+	packageModulesPath = filepath.Join(packagePath, configure.ModulesPath)
 
-	packageInstancesEnabledPath = filepath.Join(packagePath, instancesEnabledPath)
+	packageInstancesEnabledPath = filepath.Join(packagePath, configure.InstancesEnabledDirName)
 }
 
 // getVersion returns a version of the package.
