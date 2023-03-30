@@ -299,7 +299,7 @@ func TestUpdateCliOpts(t *testing.T) {
 	assert.Equal(t, filepath.Join(configDir, "var", "lib", "vinyl"), cliOpts.App.VinylDir)
 	assert.Equal(t, filepath.Join(configDir, "var", "lib", "snap"), cliOpts.App.MemtxDir)
 	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.App.IncludeDir)
-	assert.Equal(t, filepath.Join(configDir, modulesPath), cliOpts.Modules.Directory)
+	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directory)
 	assert.Equal(t, ".", cliOpts.App.InstancesEnabled)
 	assert.Equal(t, 42, cliOpts.App.LogMaxAge)
 	assert.Equal(t, logMaxBackups, cliOpts.App.LogMaxBackups)
