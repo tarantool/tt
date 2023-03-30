@@ -81,21 +81,21 @@ func TestCreateEnv(t *testing.T) {
 		"wrong log max size count")
 	assert.Equalf(t, cfg.CliConfig.App.LogMaxBackups, testOpts.App.LogMaxBackups,
 		"wrong log max backups count")
-	assert.Equalf(t, cfg.CliConfig.App.InstancesEnabled, instancesEnabledPath,
+	assert.Equalf(t, cfg.CliConfig.App.InstancesEnabled, configure.InstancesEnabledDirName,
 		"wrong instances enabled path")
-	assert.Equalf(t, cfg.CliConfig.App.RunDir, filepath.Join(varPath, runPath),
+	assert.Equalf(t, cfg.CliConfig.App.RunDir, configure.VarRunPath,
 		"wrong run path")
-	assert.Equalf(t, cfg.CliConfig.App.LogDir, filepath.Join(varPath, logPath),
+	assert.Equalf(t, cfg.CliConfig.App.LogDir, configure.VarLogPath,
 		"wrong log path")
-	assert.Equalf(t, cfg.CliConfig.App.BinDir, filepath.Join(envPath, binPath),
+	assert.Equalf(t, cfg.CliConfig.App.BinDir, configure.BinPath,
 		"wrong bin path")
-	assert.Equalf(t, cfg.CliConfig.App.WalDir, filepath.Join(varPath, dataPath),
+	assert.Equalf(t, cfg.CliConfig.App.WalDir, configure.VarDataPath,
 		"wrong data path")
-	assert.Equalf(t, cfg.CliConfig.App.VinylDir, filepath.Join(varPath, dataPath),
+	assert.Equalf(t, cfg.CliConfig.App.VinylDir, configure.VarDataPath,
 		"wrong data path")
-	assert.Equalf(t, cfg.CliConfig.App.MemtxDir, filepath.Join(varPath, dataPath),
+	assert.Equalf(t, cfg.CliConfig.App.MemtxDir, configure.VarDataPath,
 		"wrong data path")
-	assert.Equalf(t, cfg.CliConfig.Modules.Directory, filepath.Join(envPath, modulesPath),
+	assert.Equalf(t, cfg.CliConfig.Modules.Directory, configure.ModulesPath,
 		"wrong modules path")
 }
 
@@ -106,14 +106,13 @@ func TestCreatePackageStructure(t *testing.T) {
 	require.NoErrorf(t, err, "failed to create package structure: %v", err)
 
 	expectedToExist := []string{
-		varPath,
-		varLogPath,
-		varRunPath,
-		varDataPath,
+		configure.VarPath,
+		configure.VarLogPath,
+		configure.VarRunPath,
+		configure.VarDataPath,
 
-		envPath,
-		envBinPath,
-		envModulesPath,
+		configure.BinPath,
+		configure.ModulesPath,
 	}
 
 	for _, path := range expectedToExist {
@@ -176,11 +175,11 @@ func TestCopyArtifacts(t *testing.T) {
 
 	testOpts := &config.CliOpts{
 		App: &config.AppOpts{
-			WalDir:   filepath.Join(testDir, varDataPath),
-			VinylDir: filepath.Join(testDir, varDataPath),
-			MemtxDir: filepath.Join(testDir, varDataPath),
-			LogDir:   filepath.Join(testDir, varLogPath),
-			RunDir:   filepath.Join(testDir, varRunPath),
+			WalDir:   filepath.Join(testDir, configure.VarDataPath),
+			VinylDir: filepath.Join(testDir, configure.VarDataPath),
+			MemtxDir: filepath.Join(testDir, configure.VarDataPath),
+			LogDir:   filepath.Join(testDir, configure.VarLogPath),
+			RunDir:   filepath.Join(testDir, configure.VarRunPath),
 		},
 	}
 
@@ -191,19 +190,19 @@ func TestCopyArtifacts(t *testing.T) {
 	)
 
 	dirsToCreate := []string{
-		filepath.Join(varDataPath, appName),
-		filepath.Join(varRunPath, appName),
-		filepath.Join(varLogPath, appName),
+		filepath.Join(configure.VarDataPath, appName),
+		filepath.Join(configure.VarRunPath, appName),
+		filepath.Join(configure.VarLogPath, appName),
 	}
 	filesToCreate := []string{
-		filepath.Join(varDataPath, appName, dataArtifact),
-		filepath.Join(varLogPath, appName, logArtifact),
+		filepath.Join(configure.VarDataPath, appName, dataArtifact),
+		filepath.Join(configure.VarLogPath, appName, logArtifact),
 	}
 
 	packageDirsToCreate := []string{
-		filepath.Join(varDataPath, appName),
-		filepath.Join(varRunPath, appName),
-		filepath.Join(varLogPath, appName),
+		filepath.Join(configure.VarDataPath, appName),
+		filepath.Join(configure.VarRunPath, appName),
+		filepath.Join(configure.VarLogPath, appName),
 	}
 	err := test_helpers.CreateDirs(testPackageDir, packageDirsToCreate)
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
@@ -216,8 +215,9 @@ func TestCopyArtifacts(t *testing.T) {
 	err = copyArtifacts(testOpts, appName)
 	require.NoErrorf(t, err, "failed to copy artifacts: %v", err)
 
-	require.FileExists(t, filepath.Join(testPackageDir, varDataPath, appName, dataArtifact))
-	require.FileExists(t, filepath.Join(testPackageDir, varLogPath, appName, logArtifact))
+	require.FileExists(t, filepath.Join(testPackageDir, configure.VarDataPath, appName,
+		dataArtifact))
+	require.FileExists(t, filepath.Join(testPackageDir, configure.VarLogPath, appName, logArtifact))
 }
 
 func TestCreateAppSymlink(t *testing.T) {
@@ -232,7 +232,7 @@ func TestCreateAppSymlink(t *testing.T) {
 		srcApp,
 	}
 	dirsToCreate := []string{
-		instancesEnabledPath,
+		configure.InstancesEnabledDirName,
 	}
 
 	err := test_helpers.CreateDirs(testPackageDir, dirsToCreate)
@@ -248,10 +248,10 @@ func TestCreateAppSymlink(t *testing.T) {
 	err = createAppSymlink(filepath.Join(testDir, srcApp), appName)
 	require.NoErrorf(t, err, "failed to create a symlink: %v", err)
 
-	_, err = os.Lstat(filepath.Join(testPackageDir, instancesEnabledPath, appName))
+	_, err = os.Lstat(filepath.Join(testPackageDir, configure.InstancesEnabledDirName, appName))
 	require.NoErrorf(t, err, "failed to find a symlink: %v", err)
 	resolvedPath, err := filepath.EvalSymlinks(filepath.Join(testPackageDir,
-		instancesEnabledPath, appName))
+		configure.InstancesEnabledDirName, appName))
 	require.NoErrorf(t, err, "failed to resolve a symlink: %v", err)
 	require.Equalf(t, srcApp, filepath.Base(resolvedPath),
 		"wrong created symlink: points to %s", srcApp)

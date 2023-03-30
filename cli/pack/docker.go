@@ -11,6 +11,7 @@ import (
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/docker"
 	"github.com/tarantool/tt/cli/templates"
 )
@@ -57,7 +58,7 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	ttPackCommandLine := append([]string{"tt"}, cmdArgs[1:]...)
 
 	// If bin_dir is not empty, we need to pack binaries built in container.
-	relEnvBinPath := envBinPath
+	relEnvBinPath := configure.BinPath
 	ttPackCommandLine = append([]string{"/bin/bash", "-c",
 		fmt.Sprintf("cp $(which tarantool) %s && cp $(which tt) %s && %s",
 			relEnvBinPath, relEnvBinPath, strings.Join(ttPackCommandLine, " "))})

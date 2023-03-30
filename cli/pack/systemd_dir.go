@@ -8,6 +8,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v2"
 )
@@ -105,7 +106,7 @@ func getUnitParams(packCtx *PackCtx, pathToEnv,
 func getTTBinary(packCtx *PackCtx, packagePath string) string {
 	if (!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 		packCtx.WithBinaries {
-		return filepath.Join(packagePath, envBinPath, "tt")
+		return filepath.Join(packagePath, configure.BinPath, "tt")
 	}
 	return "tt"
 }
