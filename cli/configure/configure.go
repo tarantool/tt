@@ -45,15 +45,21 @@ const (
 	IncludePath   = "include"
 	ModulesPath   = "modules"
 	DistfilesPath = "distfiles"
+	SnapPath      = "snap"
+	VinylPath     = "vinyl"
+	WalPath       = "wal"
 	logMaxSize    = 100
 	logMaxAge     = 8
 	logMaxBackups = 10
 )
 
 var (
-	VarDataPath = filepath.Join(VarPath, DataPath)
-	VarLogPath  = filepath.Join(VarPath, LogPath)
-	VarRunPath  = filepath.Join(VarPath, RunPath)
+	VarDataPath  = filepath.Join(VarPath, DataPath)
+	VarWalPath   = filepath.Join(VarPath, WalPath)
+	VarMemtxPath = filepath.Join(VarPath, SnapPath)
+	VarVinylPath = filepath.Join(VarPath, VinylPath)
+	VarLogPath   = filepath.Join(VarPath, LogPath)
+	VarRunPath   = filepath.Join(VarPath, RunPath)
 )
 
 var (

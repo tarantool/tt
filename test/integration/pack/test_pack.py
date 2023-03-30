@@ -31,13 +31,18 @@ def assert_bundle_structure(path):
     assert os.path.isdir(os.path.join(path, "modules"))
 
 
-def assert_env(path):
+def assert_env(path, artifacts_in_separated_dirs):
     with open(os.path.join(path, config_name)) as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
         assert data["tt"]["app"]["instances_enabled"] == "instances.enabled"
-        assert data["tt"]["app"]["wal_dir"] == "var/lib"
-        assert data["tt"]["app"]["vinyl_dir"] == "var/lib"
-        assert data["tt"]["app"]["memtx_dir"] == "var/lib"
+        if artifacts_in_separated_dirs:
+            assert data["tt"]["app"]["wal_dir"] == "var/wal"
+            assert data["tt"]["app"]["vinyl_dir"] == "var/vinyl"
+            assert data["tt"]["app"]["memtx_dir"] == "var/snap"
+        else:
+            assert data["tt"]["app"]["wal_dir"] == "var/lib"
+            assert data["tt"]["app"]["vinyl_dir"] == "var/lib"
+            assert data["tt"]["app"]["memtx_dir"] == "var/lib"
         assert data["tt"]["app"]["bin_dir"] == "bin"
         assert data["tt"]["app"]["log_dir"] == "var/log"
         assert data["tt"]["app"]["run_dir"] == "var/run"
@@ -63,6 +68,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "bundle1",
@@ -78,6 +84,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "bundle1",
@@ -94,6 +101,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "bundle1",
@@ -110,6 +118,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "bundle1",
@@ -126,6 +135,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "bundle1",
@@ -143,6 +153,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
             ],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "bundle1",
@@ -168,6 +179,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_not_exist": [
                 os.path.join("var", "lib", "app2", "test.vylog"),
             ],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "bundle_with_different_data_dirs",
@@ -182,12 +194,12 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
-                os.path.join("var", "lib", "app1", "test.snap"),
-                os.path.join("var", "lib", "app1", "test.xlog"),
-                os.path.join("var", "lib", "app1", "test.vylog"),
-                os.path.join("var", "lib", "app2", "test.snap"),
-                os.path.join("var", "lib", "app2", "test.xlog"),
-                os.path.join("var", "lib", "app2", "test.vylog"),
+                os.path.join("var", "snap", "app1", "test.snap"),
+                os.path.join("var", "wal", "app1", "test.xlog"),
+                os.path.join("var", "vinyl", "app1", "test.vylog"),
+                os.path.join("var", "snap", "app2", "test.snap"),
+                os.path.join("var", "wal", "app2", "test.xlog"),
+                os.path.join("var", "vinyl", "app2", "test.vylog"),
                 os.path.join("var", "log", "app1", "test.log"),
                 os.path.join("var", "log", "app2", "test.log"),
             ],
@@ -199,6 +211,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("var", "lib", "wal", "app2", "test.xlog"),
                 os.path.join("var", "lib", "vinyl", "app2", "test.vylog"),
             ],
+            "artifacts_in_separated_dir": True,
         },
         {
             "bundle_src": "bundle1",
@@ -217,6 +230,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_not_exist": [
                 os.path.join("app.lua"),
             ],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "cartridge_app",
@@ -240,6 +254,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("cartridge_app", ".rocks"),
             ],
             "check_not_exist": [],
+            "artifacts_in_separated_dir": False,
         },
         {
             "bundle_src": "cartridge_app",
@@ -263,6 +278,43 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("cartridge_app", ".rocks"),
             ],
             "check_not_exist": [],
+            "artifacts_in_separated_dir": False,
+        },
+        {
+            "bundle_src": "bundle6",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
+            "args": ["--name", "bundle6", "--version", "v1", "--all"],
+            "res_file": "bundle6-v1." + get_arch() + ".tar.gz",
+            "check_exist": [
+                os.path.join("app.lua"),
+                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tt"),
+                os.path.join("instances.enabled", "app.lua"),
+                os.path.join("var", "wal", "app", "artifact_wal"),
+                os.path.join("var", "vinyl", "app", "artifact_vinyl"),
+                os.path.join("var", "snap", "app", "artifact_memtx"),
+            ],
+            "check_not_exist": [],
+            "artifacts_in_separated_dir": True,
+        },
+        {
+            "bundle_src": "bundle7",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
+            "args": ["--name", "bundle7", "--version", "v1", "--all"],
+            "res_file": "bundle7-v1." + get_arch() + ".tar.gz",
+            "check_exist": [
+                os.path.join("app.lua"),
+                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tt"),
+                os.path.join("instances.enabled", "app.lua"),
+                os.path.join("var", "wal", "app", "artifact_wal"),
+                os.path.join("var", "vinyl", "app", "artifact_vinyl"),
+                os.path.join("var", "snap", "app", "artifact_memtx"),
+            ],
+            "check_not_exist": [],
+            "artifacts_in_separated_dir": True,
         },
     ]
 
@@ -303,7 +355,7 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
         tar.close()
 
         assert_bundle_structure(extract_path)
-        assert_env(extract_path)
+        assert_env(extract_path, test_case["artifacts_in_separated_dir"])
 
         for file_path in test_case["check_exist"]:
             assert os.path.exists(os.path.join(extract_path, file_path))
@@ -487,7 +539,7 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
     tar.close()
 
     assert_bundle_structure(extract_path)
-    assert_env(extract_path)
+    assert_env(extract_path, False)
 
     tt_is_link = os.path.islink(os.path.join(extract_path, "bin", "tt"))
     tnt_is_link = os.path.islink(os.path.join(extract_path, "bin", "tarantool"))

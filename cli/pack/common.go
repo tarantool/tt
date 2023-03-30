@@ -25,9 +25,12 @@ const (
 )
 
 var (
-	packageVarRunPath  = ""
-	packageVarLogPath  = ""
-	packageVarDataPath = ""
+	packageVarRunPath   = ""
+	packageVarLogPath   = ""
+	packageVarDataPath  = ""
+	packageVarVinylPath = ""
+	packageVarWalPath   = ""
+	packageVarMemtxPath = ""
 
 	packageBinPath     = ""
 	packageModulesPath = ""
@@ -56,7 +59,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 		}
 	}()
 
-	prepareDefaultPackagePaths(basePath)
+	prepareDefaultPackagePaths(cliOpts, basePath)
 
 	err = createPackageStructure(basePath)
 	if err != nil {
@@ -159,6 +162,9 @@ func createPackageStructure(destPath string) error {
 		packageBinPath,
 		packageModulesPath,
 		packageInstancesEnabledPath,
+		packageVarVinylPath,
+		packageVarWalPath,
+		packageVarMemtxPath,
 	}
 
 	for _, path := range basePaths {
@@ -215,28 +221,25 @@ func copyArtifacts(opts *config.CliOpts, appName string) error {
 		appName = appName[:len(appName)-len(ext)]
 	}
 	err := copy.Copy(filepath.Join(opts.App.WalDir, appName),
-		filepath.Join(packageVarDataPath, appName))
+		filepath.Join(packageVarWalPath, appName))
 	if err != nil {
-		return err
+		log.Warnf("Failed to copy wal artifacts.")
 	}
-	if opts.App.VinylDir != opts.App.WalDir {
-		err := copy.Copy(filepath.Join(opts.App.VinylDir, appName),
-			filepath.Join(packageVarDataPath, appName))
-		if err != nil {
-			return err
-		}
+	err = copy.Copy(filepath.Join(opts.App.VinylDir, appName),
+		filepath.Join(packageVarVinylPath, appName))
+	if err != nil {
+		log.Warnf("Failed to copy vinyl artifacts.")
 	}
-	if opts.App.MemtxDir != opts.App.WalDir && opts.App.MemtxDir != opts.App.VinylDir {
-		err := copy.Copy(filepath.Join(opts.App.MemtxDir, appName),
-			filepath.Join(packageVarDataPath, appName))
-		if err != nil {
-			return err
-		}
+	err = copy.Copy(filepath.Join(opts.App.MemtxDir, appName),
+		filepath.Join(packageVarMemtxPath, appName))
+	if err != nil {
+		log.Warnf("Failed to copy memtx artifacts.")
 	}
+
 	err = copy.Copy(filepath.Join(opts.App.LogDir, appName),
 		filepath.Join(packageVarLogPath, appName))
 	if err != nil {
-		return err
+		log.Warnf("Failed to copy logs.")
 	}
 	return nil
 }
@@ -268,6 +271,15 @@ func createEnv(opts *config.CliOpts, destPath string) error {
 	cliOptsNew.App.LogMaxSize = opts.App.LogMaxSize
 	cliOptsNew.App.LogMaxBackups = opts.App.LogMaxBackups
 	cliOptsNew.App.TarantoolctlLayout = opts.App.TarantoolctlLayout
+
+	// In case the user separates one of the directories for storing memtx, vinyl or wal artifacts
+	// the new environment will be also configured with separated standard directories for all
+	// of them.
+	if !((opts.App.VinylDir == opts.App.WalDir) && (opts.App.WalDir == opts.App.MemtxDir)) {
+		cliOptsNew.App.VinylDir = configure.VarVinylPath
+		cliOptsNew.App.MemtxDir = configure.VarMemtxPath
+		cliOptsNew.App.WalDir = configure.VarWalPath
+	}
 
 	cfg := config.Config{
 		CliConfig: cliOptsNew,
@@ -355,10 +367,20 @@ func buildAllRocks(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, destPath 
 
 // prepareDefaultPackagePaths defines all default paths for the directory, where
 // the package will be built.
-func prepareDefaultPackagePaths(packagePath string) {
+func prepareDefaultPackagePaths(opts *config.CliOpts, packagePath string) {
 	packageVarRunPath = filepath.Join(packagePath, configure.VarRunPath)
 	packageVarLogPath = filepath.Join(packagePath, configure.VarLogPath)
 	packageVarDataPath = filepath.Join(packagePath, configure.VarDataPath)
+
+	if !(opts.App.MemtxDir == opts.App.WalDir && opts.App.WalDir == opts.App.VinylDir) {
+		packageVarVinylPath = filepath.Join(packagePath, configure.VarVinylPath)
+		packageVarWalPath = filepath.Join(packagePath, configure.VarWalPath)
+		packageVarMemtxPath = filepath.Join(packagePath, configure.VarMemtxPath)
+	} else {
+		packageVarVinylPath = packageVarDataPath
+		packageVarWalPath = packageVarDataPath
+		packageVarMemtxPath = packageVarDataPath
+	}
 
 	packageBinPath = filepath.Join(packagePath, configure.BinPath)
 	packageModulesPath = filepath.Join(packagePath, configure.ModulesPath)

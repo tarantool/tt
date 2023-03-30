@@ -1,0 +1,6 @@
+tt:
+  app:
+    wal_dir: var/lib/wal_custom
+    memtx_dir: var/lib/memtx_custom
+    vinyl_dir: var/lib/vinyl_custom
+    instances_enabled: instances.enabled
