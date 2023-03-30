@@ -1,6 +1,7 @@
 package pack
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -47,77 +48,6 @@ func TestRocksFinder(t *testing.T) {
 	require.Equalf(t, "", resPath,
 		"expected error to be returned, instead err is %s and result path is %s",
 		err, resPath)
-}
-
-func TestCreateEnv(t *testing.T) {
-	testDir := t.TempDir()
-
-	testOpts := &config.CliOpts{
-		App: &config.AppOpts{
-			LogMaxBackups: 1,
-			LogMaxAge:     1,
-			LogMaxSize:    1,
-			Restartable:   true,
-		},
-	}
-
-	err := createEnv(testOpts, testDir)
-	require.NoErrorf(t, err, "failed to create a new tarantool env file: %v", err)
-
-	cfg := &config.Config{}
-	envFile, err := os.Open(filepath.Join(testDir, configure.ConfigName))
-	require.NoErrorf(t, err, "failed to find a new created %s: %v", configure.ConfigName, err)
-
-	defer envFile.Close()
-
-	err = yaml.NewDecoder(envFile).Decode(cfg)
-	require.NoErrorf(t, err, "failed to decode a new created %s: %v", configure.ConfigName, err)
-
-	assert.Equalf(t, cfg.CliConfig.App.Restartable, testOpts.App.Restartable,
-		"wrong restartable count")
-	assert.Equalf(t, cfg.CliConfig.App.LogMaxAge, testOpts.App.LogMaxSize,
-		"wrong log max age count")
-	assert.Equalf(t, cfg.CliConfig.App.LogMaxSize, testOpts.App.LogMaxAge,
-		"wrong log max size count")
-	assert.Equalf(t, cfg.CliConfig.App.LogMaxBackups, testOpts.App.LogMaxBackups,
-		"wrong log max backups count")
-	assert.Equalf(t, cfg.CliConfig.App.InstancesEnabled, configure.InstancesEnabledDirName,
-		"wrong instances enabled path")
-	assert.Equalf(t, cfg.CliConfig.App.RunDir, configure.VarRunPath,
-		"wrong run path")
-	assert.Equalf(t, cfg.CliConfig.App.LogDir, configure.VarLogPath,
-		"wrong log path")
-	assert.Equalf(t, cfg.CliConfig.App.BinDir, configure.BinPath,
-		"wrong bin path")
-	assert.Equalf(t, cfg.CliConfig.App.WalDir, configure.VarDataPath,
-		"wrong data path")
-	assert.Equalf(t, cfg.CliConfig.App.VinylDir, configure.VarDataPath,
-		"wrong data path")
-	assert.Equalf(t, cfg.CliConfig.App.MemtxDir, configure.VarDataPath,
-		"wrong data path")
-	assert.Equalf(t, cfg.CliConfig.Modules.Directory, configure.ModulesPath,
-		"wrong modules path")
-}
-
-func TestCreatePackageStructure(t *testing.T) {
-	testDir := t.TempDir()
-	prepareDefaultPackagePaths(testDir)
-	err := createPackageStructure(testDir)
-	require.NoErrorf(t, err, "failed to create package structure: %v", err)
-
-	expectedToExist := []string{
-		configure.VarPath,
-		configure.VarLogPath,
-		configure.VarRunPath,
-		configure.VarDataPath,
-
-		configure.BinPath,
-		configure.ModulesPath,
-	}
-
-	for _, path := range expectedToExist {
-		require.DirExistsf(t, filepath.Join(testDir, path), "the path not found: %s", path)
-	}
 }
 
 func TestCopyAppSrc(t *testing.T) {
@@ -211,7 +141,7 @@ func TestCopyArtifacts(t *testing.T) {
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 	err = test_helpers.CreateFiles(testDir, filesToCreate)
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-	prepareDefaultPackagePaths(testPackageDir)
+	prepareDefaultPackagePaths(testOpts, testPackageDir)
 	err = copyArtifacts(testOpts, appName)
 	require.NoErrorf(t, err, "failed to copy artifacts: %v", err)
 
@@ -220,10 +150,72 @@ func TestCopyArtifacts(t *testing.T) {
 	require.FileExists(t, filepath.Join(testPackageDir, configure.VarLogPath, appName, logArtifact))
 }
 
-func TestCreateAppSymlink(t *testing.T) {
+func TestCopyArtifactsCustomWalVinylMemtx(t *testing.T) {
 	testDir := t.TempDir()
 	testPackageDir := t.TempDir()
 
+	testOpts := &config.CliOpts{
+		App: &config.AppOpts{
+			WalDir:   filepath.Join(testDir, configure.VarWalPath),
+			VinylDir: filepath.Join(testDir, configure.VarVinylPath),
+			MemtxDir: filepath.Join(testDir, configure.VarMemtxPath),
+			LogDir:   filepath.Join(testDir, configure.VarLogPath),
+			RunDir:   filepath.Join(testDir, configure.VarRunPath),
+		},
+	}
+
+	var (
+		appName      = "app1"
+		dataArtifact = "test_file.data"
+		logArtifact  = "test_file.log"
+	)
+
+	dirsToCreate := []string{
+		filepath.Join(configure.VarWalPath, appName),
+		filepath.Join(configure.VarVinylPath, appName),
+		filepath.Join(configure.VarMemtxPath, appName),
+		filepath.Join(configure.VarRunPath, appName),
+		filepath.Join(configure.VarLogPath, appName),
+	}
+	filesToCreate := []string{
+		filepath.Join(configure.VarWalPath, appName, dataArtifact),
+		filepath.Join(configure.VarVinylPath, appName, dataArtifact),
+		filepath.Join(configure.VarMemtxPath, appName, dataArtifact),
+		filepath.Join(configure.VarLogPath, appName, logArtifact),
+	}
+
+	packageDirsToCreate := []string{
+		filepath.Join(configure.VarWalPath, appName),
+		filepath.Join(configure.VarVinylPath, appName),
+		filepath.Join(configure.VarMemtxPath, appName),
+		filepath.Join(configure.VarRunPath, appName),
+		filepath.Join(configure.VarLogPath, appName),
+	}
+	err := test_helpers.CreateDirs(testPackageDir, packageDirsToCreate)
+	require.NoErrorf(t, err, "failed to create test directories: %v", err)
+
+	err = test_helpers.CreateDirs(testDir, dirsToCreate)
+	require.NoErrorf(t, err, "failed to create test directories: %v", err)
+	err = test_helpers.CreateFiles(testDir, filesToCreate)
+	require.NoErrorf(t, err, "failed to create test directories: %v", err)
+	prepareDefaultPackagePaths(testOpts, testPackageDir)
+	err = copyArtifacts(testOpts, appName)
+	require.NoErrorf(t, err, "failed to copy artifacts: %v", err)
+
+	require.FileExists(t, filepath.Join(testPackageDir, configure.VarVinylPath, appName,
+		dataArtifact))
+	require.FileExists(t, filepath.Join(testPackageDir, configure.VarWalPath, appName,
+		dataArtifact))
+	require.FileExists(t, filepath.Join(testPackageDir, configure.VarMemtxPath, appName,
+		dataArtifact))
+	require.FileExists(t, filepath.Join(testPackageDir, configure.VarLogPath, appName, logArtifact))
+}
+
+func TestCreateAppSymlink(t *testing.T) {
+	testDir := t.TempDir()
+	testPackageDir := t.TempDir()
+	testOpts := &config.CliOpts{
+		App: &config.AppOpts{}}
 	var (
 		srcApp  = "app1.lua"
 		appName = "app1_link"
@@ -244,7 +236,7 @@ func TestCreateAppSymlink(t *testing.T) {
 	err = test_helpers.CreateSymlink(filepath.Join(testDir, srcApp), appName+".lua")
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 
-	prepareDefaultPackagePaths(testPackageDir)
+	prepareDefaultPackagePaths(testOpts, testPackageDir)
 	err = createAppSymlink(filepath.Join(testDir, srcApp), appName)
 	require.NoErrorf(t, err, "failed to create a symlink: %v", err)
 
@@ -304,6 +296,153 @@ func TestGetVersion(t *testing.T) {
 			assert.Equalf(t, testCase.expectedVersion, version,
 				"got unexpected version, expected: %s, actual: %s",
 				testCase.expectedVersion, version)
+		})
+	}
+}
+
+func Test_createEnv(t *testing.T) {
+	type args struct {
+		opts     *config.CliOpts
+		destPath string
+	}
+
+	testOptsStd := &config.CliOpts{
+		App: &config.AppOpts{
+			LogMaxBackups: 1,
+			LogMaxAge:     1,
+			LogMaxSize:    1,
+			Restartable:   true,
+			WalDir:        "test",
+			VinylDir:      "test",
+			MemtxDir:      "test",
+		},
+	}
+
+	testOptsCustom := &config.CliOpts{
+		App: &config.AppOpts{
+			LogMaxBackups: 1,
+			LogMaxAge:     1,
+			LogMaxSize:    1,
+			Restartable:   true,
+			WalDir:        "test_wal",
+			VinylDir:      "test_vinyl",
+			MemtxDir:      "test_memtx",
+		},
+	}
+
+	testDirStd := t.TempDir()
+	testDirCustom := t.TempDir()
+
+	tests := []struct {
+		name      string
+		testDir   string
+		args      args
+		wantErr   assert.ErrorAssertionFunc
+		checkFunc func()
+	}{
+		{
+			name: "Wal, Vinyl and Memtx directories are not separated",
+			args: args{
+				opts:     testOptsStd,
+				destPath: testDirStd,
+			},
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return err == nil
+			},
+			checkFunc: func() {
+				cfg := &config.Config{}
+				envFile, err := os.Open(filepath.Join(testDirStd, configure.ConfigName))
+				require.NoErrorf(t, err, "failed to find a new created %s: %v",
+					configure.ConfigName, err)
+
+				defer envFile.Close()
+
+				err = yaml.NewDecoder(envFile).Decode(cfg)
+				require.NoErrorf(t, err, "failed to decode a new created %s: %v",
+					configure.ConfigName, err)
+
+				assert.Equalf(t, cfg.CliConfig.App.Restartable, testOptsStd.App.Restartable,
+					"wrong restartable count")
+				assert.Equalf(t, cfg.CliConfig.App.LogMaxAge, testOptsStd.App.LogMaxSize,
+					"wrong log max age count")
+				assert.Equalf(t, cfg.CliConfig.App.LogMaxSize, testOptsStd.App.LogMaxAge,
+					"wrong log max size count")
+				assert.Equalf(t, cfg.CliConfig.App.LogMaxBackups, testOptsStd.App.LogMaxBackups,
+					"wrong log max backups count")
+				assert.Equalf(t, cfg.CliConfig.App.InstancesEnabled,
+					configure.InstancesEnabledDirName,
+					"wrong instances enabled path")
+				assert.Equalf(t, cfg.CliConfig.App.RunDir, configure.VarRunPath,
+					"wrong run path")
+				assert.Equalf(t, cfg.CliConfig.App.LogDir, configure.VarLogPath,
+					"wrong log path")
+				assert.Equalf(t, cfg.CliConfig.App.BinDir, configure.BinPath,
+					"wrong bin path")
+				assert.Equalf(t, cfg.CliConfig.App.WalDir, configure.VarDataPath,
+					"wrong data path")
+				assert.Equalf(t, cfg.CliConfig.App.VinylDir, configure.VarDataPath,
+					"wrong data path")
+				assert.Equalf(t, cfg.CliConfig.App.MemtxDir, configure.VarDataPath,
+					"wrong data path")
+				assert.Equalf(t, cfg.CliConfig.Modules.Directory, configure.ModulesPath,
+					"wrong modules path")
+			},
+		},
+		{
+			name: "Wal, Vinyl and Memtx directories are separated",
+			args: args{
+				opts:     testOptsCustom,
+				destPath: testDirCustom,
+			},
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return err == nil
+			},
+			checkFunc: func() {
+				cfg := &config.Config{}
+				envFile, err := os.Open(filepath.Join(testDirCustom, configure.ConfigName))
+				require.NoErrorf(t, err, "failed to find a new created %s: %v",
+					configure.ConfigName, err)
+
+				defer envFile.Close()
+
+				err = yaml.NewDecoder(envFile).Decode(cfg)
+				require.NoErrorf(t, err, "failed to decode a new created %s: %v",
+					configure.ConfigName, err)
+
+				assert.Equalf(t, cfg.CliConfig.App.Restartable, testOptsCustom.App.Restartable,
+					"wrong restartable count")
+				assert.Equalf(t, cfg.CliConfig.App.LogMaxAge, testOptsCustom.App.LogMaxSize,
+					"wrong log max age count")
+				assert.Equalf(t, cfg.CliConfig.App.LogMaxSize, testOptsCustom.App.LogMaxAge,
+					"wrong log max size count")
+				assert.Equalf(t, cfg.CliConfig.App.LogMaxBackups,
+					testOptsCustom.App.LogMaxBackups,
+					"wrong log max backups count")
+				assert.Equalf(t, cfg.CliConfig.App.InstancesEnabled,
+					configure.InstancesEnabledDirName,
+					"wrong instances enabled path")
+				assert.Equalf(t, cfg.CliConfig.App.RunDir, configure.VarRunPath,
+					"wrong run path")
+				assert.Equalf(t, cfg.CliConfig.App.LogDir, configure.VarLogPath,
+					"wrong log path")
+				assert.Equalf(t, cfg.CliConfig.App.BinDir, configure.BinPath,
+					"wrong bin path")
+				assert.Equalf(t, cfg.CliConfig.App.WalDir, configure.VarWalPath,
+					"wrong data path")
+				assert.Equalf(t, cfg.CliConfig.App.VinylDir, configure.VarVinylPath,
+					"wrong data path")
+				assert.Equalf(t, cfg.CliConfig.App.MemtxDir, configure.VarMemtxPath,
+					"wrong data path")
+				assert.Equalf(t, cfg.CliConfig.Modules.Directory, configure.ModulesPath,
+					"wrong modules path")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.wantErr(t, createEnv(tt.args.opts, tt.args.destPath),
+				fmt.Sprintf("createEnv(%v, %v)", tt.args.opts, tt.args.destPath))
+			tt.checkFunc()
 		})
 	}
 }
