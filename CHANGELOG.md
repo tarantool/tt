@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - ``tt uninstall`` does not ask version if only one version of a program is installed.
+- ``tt rocks init`` is disabled.
 
 ## [1.0.0] - 2023-03-23
 
