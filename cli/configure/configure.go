@@ -37,23 +37,23 @@ const (
 )
 
 const (
-	varPath       = "var"
-	logPath       = "log"
-	runPath       = "run"
-	dataPath      = "lib"
-	binPath       = "bin"
-	includePath   = "include"
-	modulesPath   = "modules"
-	distfilesPath = "distfiles"
+	VarPath       = "var"
+	LogPath       = "log"
+	RunPath       = "run"
+	DataPath      = "lib"
+	BinPath       = "bin"
+	IncludePath   = "include"
+	ModulesPath   = "modules"
+	DistfilesPath = "distfiles"
 	logMaxSize    = 100
 	logMaxAge     = 8
 	logMaxBackups = 10
 )
 
 var (
-	varDataPath = filepath.Join(varPath, dataPath)
-	varLogPath  = filepath.Join(varPath, logPath)
-	varRunPath  = filepath.Join(varPath, runPath)
+	VarDataPath = filepath.Join(VarPath, DataPath)
+	VarLogPath  = filepath.Join(VarPath, LogPath)
+	VarRunPath  = filepath.Join(VarPath, RunPath)
 )
 
 var (
@@ -66,17 +66,17 @@ var (
 func getDefaultAppOpts() *config.AppOpts {
 	return &config.AppOpts{
 		InstancesEnabled:   ".",
-		RunDir:             varRunPath,
-		LogDir:             varLogPath,
+		RunDir:             VarRunPath,
+		LogDir:             VarLogPath,
 		LogMaxSize:         logMaxSize,
 		LogMaxAge:          logMaxAge,
 		LogMaxBackups:      logMaxBackups,
 		Restartable:        false,
-		WalDir:             varDataPath,
-		VinylDir:           varDataPath,
-		MemtxDir:           varDataPath,
-		BinDir:             binPath,
-		IncludeDir:         includePath,
+		WalDir:             VarDataPath,
+		VinylDir:           VarDataPath,
+		MemtxDir:           VarDataPath,
+		BinDir:             BinPath,
+		IncludeDir:         IncludePath,
 		TarantoolctlLayout: false,
 	}
 }
@@ -84,14 +84,14 @@ func getDefaultAppOpts() *config.AppOpts {
 // GetDefaultCliOpts returns `CliOpts` filled with default values.
 func GetDefaultCliOpts() *config.CliOpts {
 	modules := config.ModulesOpts{
-		Directory: modulesPath,
+		Directory: ModulesPath,
 	}
 	ee := config.EEOpts{
 		CredPath: "",
 	}
 	repo := config.RepoOpts{
 		Rocks:   "",
-		Install: distfilesPath,
+		Install: DistfilesPath,
 	}
 	templates := []config.TemplateOpts{
 		{Path: "templates"},
@@ -110,8 +110,8 @@ func getDefaultDaemonOpts() *config.DaemonOpts {
 	return &config.DaemonOpts{
 		Port:            defaultDaemonPort,
 		PIDFile:         defaultDaemonPidFile,
-		RunDir:          varRunPath,
-		LogDir:          varLogPath,
+		RunDir:          VarRunPath,
+		LogDir:          VarLogPath,
 		LogFile:         defaultDaemonLogFile,
 		LogMaxSize:      0,
 		LogMaxAge:       0,
@@ -145,12 +145,12 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	if cliOpts.Repo == nil {
 		cliOpts.Repo = &config.RepoOpts{
 			Rocks:   "",
-			Install: distfilesPath,
+			Install: DistfilesPath,
 		}
 	}
 	if cliOpts.Modules == nil {
 		cliOpts.Modules = &config.ModulesOpts{
-			Directory: modulesPath,
+			Directory: ModulesPath,
 		}
 	}
 	if cliOpts.EE == nil {
@@ -172,14 +172,14 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 		path       *string
 		defaultDir string
 	}{
-		{&cliOpts.App.RunDir, varRunPath},
-		{&cliOpts.App.LogDir, varLogPath},
-		{&cliOpts.App.WalDir, varDataPath},
-		{&cliOpts.App.VinylDir, varDataPath},
-		{&cliOpts.App.MemtxDir, varDataPath},
-		{&cliOpts.App.BinDir, binPath},
-		{&cliOpts.App.IncludeDir, includePath},
-		{&cliOpts.Repo.Install, distfilesPath},
+		{&cliOpts.App.RunDir, VarRunPath},
+		{&cliOpts.App.LogDir, VarLogPath},
+		{&cliOpts.App.WalDir, VarDataPath},
+		{&cliOpts.App.VinylDir, VarDataPath},
+		{&cliOpts.App.MemtxDir, VarDataPath},
+		{&cliOpts.App.BinDir, BinPath},
+		{&cliOpts.App.IncludeDir, IncludePath},
+		{&cliOpts.Repo.Install, DistfilesPath},
 	} {
 		if *dir.path, err = adjustPathWithConfigLocation(*dir.path, configDir,
 			dir.defaultDir); err != nil {
@@ -189,7 +189,7 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 
 	if cliOpts.Modules != nil {
 		if cliOpts.Modules.Directory, err = adjustPathWithConfigLocation(cliOpts.Modules.Directory,
-			configDir, modulesPath); err != nil {
+			configDir, ModulesPath); err != nil {
 			return err
 		}
 	}
@@ -304,11 +304,11 @@ func GetDaemonOpts(configurePath string) (*config.DaemonOpts, error) {
 
 	if cfg.DaemonConfig.RunDir == "" {
 		cfg.DaemonConfig.RunDir = filepath.Join(filepath.Dir(configurePath),
-			varRunPath)
+			VarRunPath)
 	}
 	if cfg.DaemonConfig.LogDir == "" {
 		cfg.DaemonConfig.LogDir = filepath.Join(filepath.Dir(configurePath),
-			varLogPath)
+			VarLogPath)
 	}
 
 	return cfg.DaemonConfig, nil
