@@ -7,6 +7,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
@@ -23,6 +24,8 @@ var (
 	// InjectedCmds is populated with the command to be injected into root.
 	// TT-EE.
 	InjectedCmds []*cobra.Command
+
+	bold = color.New(color.Bold)
 )
 
 // GetCmdCtxPtr returns a pointer to cmdCtx, which can be used to create injected commands.
@@ -71,29 +74,35 @@ func GetModulesInfoPtr() *modules.ModulesInfo {
 // LogHandler is custom log handler implementation. It is used to send log entries to
 // different streams: stdout and stderr. This is a decorator for the cli.Handler.
 type LogHandler struct {
-	stdoutHandler log.Handler
-	stderrHandler log.Handler
+	stdoutHandler *cli.Handler
+	stderrHandler *cli.Handler
+}
+
+var defaultLogHandler = &LogHandler{
+	cli.New(os.Stdout),
+	cli.New(os.Stderr),
+}
+
+// printLogEntryColored prints log entry message using level specific colors.
+func printLogEntryColored(logHandler *cli.Handler, logEntry *log.Entry) error {
+	color := cli.Colors[logEntry.Level]
+	level := cli.Strings[logEntry.Level]
+
+	color.Fprintf(logHandler.Writer, "%s ", bold.Sprintf("%*s", logHandler.Padding+1, level))
+	color.Fprintf(logHandler.Writer, "%s\n", logEntry.Message)
+
+	return nil
 }
 
 // HandleLog performs log handling in accordance with log entry level.
 func (handler *LogHandler) HandleLog(logEntry *log.Entry) error {
 	switch logEntry.Level {
 	case log.ErrorLevel, log.WarnLevel, log.FatalLevel:
-		return handler.stderrHandler.HandleLog(logEntry)
+		return printLogEntryColored(handler.stderrHandler, logEntry)
 	default:
 		return handler.stdoutHandler.HandleLog(logEntry)
 	}
 }
-
-// NewLogHandler creates a new log handler.
-func NewLogHandler() *LogHandler {
-	return &LogHandler{
-		cli.New(os.Stdout),
-		cli.New(os.Stderr),
-	}
-}
-
-var defaultLogHandler = NewLogHandler()
 
 // NewCmdRoot creates a new root command.
 func NewCmdRoot() *cobra.Command {
