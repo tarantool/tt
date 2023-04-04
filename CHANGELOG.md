@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.0.1] - 2023-04-04
+
 ### Added
 
 - A configurable variable `cluster_cookie` for `tt create cartridge` teamplate.
