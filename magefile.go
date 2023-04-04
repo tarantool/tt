@@ -284,7 +284,7 @@ func IntegrationFull() error {
 func Codespell() error {
 	fmt.Println("Running codespell tests...")
 
-	return sh.RunV("codespell", packagePath, "test", "README.rst", "doc")
+	return sh.RunV("codespell", packagePath, "test", "README.rst", "doc", "CHANGELOG.md")
 }
 
 // Run all tests together, excluding slow and unit integration tests.
