@@ -25,7 +25,7 @@ require (
 	github.com/tarantool/go-tarantool v1.10.1-0.20230309143354-e257ff30dd4d
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
-	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
+	golang.org/x/crypto v0.7.0
 	golang.org/x/term v0.6.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -101,5 +101,4 @@ require (
 replace (
 	github.com/c-bata/go-prompt => github.com/tarantool/go-prompt v0.2.6-tarantool
 	github.com/tarantool/cartridge-cli => ./cli/cartridge/third_party/cartridge-cli
-	golang.org/x/crypto => golang.org/x/crypto v0.0.0-20220314234659-1baeb1ce4c0b
 )
