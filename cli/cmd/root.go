@@ -212,6 +212,7 @@ func InitRoot() {
 	// Required for cartridge.
 	if cliOpts.App != nil {
 		os.Setenv("TT_INST_ENABLED", cliOpts.App.InstancesEnabled)
+		os.Setenv("TT_RUN_DIR", cliOpts.App.RunDir)
 	}
 
 	// Getting modules information.

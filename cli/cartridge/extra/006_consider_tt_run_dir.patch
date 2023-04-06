@@ -1,0 +1,66 @@
+diff --git a/cli/commands/admin.go b/cli/commands/admin.go
+index 71b8f4f..e83efc0 100644
+--- a/cli/commands/admin.go
++++ b/cli/commands/admin.go
+@@ -1,6 +1,7 @@
+ package commands
+ 
+ import (
++	"os"
+ 	"path/filepath"
+ 	"strings"
+ 
+@@ -8,6 +9,7 @@ import (
+ 	"github.com/spf13/cobra"
+ 	"github.com/spf13/pflag"
+ 	"github.com/tarantool/cartridge-cli/cli/admin"
++	"github.com/tarantool/cartridge-cli/cli/project"
+ )
+ 
+ var CartridgeCliAdmin *cobra.Command
+@@ -74,6 +76,11 @@ func runAdminCommand(cmd *cobra.Command, args []string) error {
+ 			return err
+ 		}
+ 		ctx.Running.RunDir = abspath
++	} else {
++		runDir := os.Getenv(project.EnvRunDir)
++		if runDir != "" {
++			ctx.Running.RunDir = filepath.Join(runDir, ctx.Project.Name)
++		}
+ 	}
+ 
+ 	// log level is usually set in rootCmd.PersistentPreRun
+diff --git a/cli/project/project.go b/cli/project/project.go
+index 2eed9cb..3d3a995 100644
+--- a/cli/project/project.go
++++ b/cli/project/project.go
+@@ -12,6 +12,7 @@ import (
+ )
+ 
+ const EnvInstEnabled = "TT_INST_ENABLED"
++const EnvRunDir = "TT_RUN_DIR"
+ 
+ func FillCtx(ctx *context.Ctx) error {
+ 	var err error
+@@ -30,7 +31,20 @@ func FillCtx(ctx *context.Ctx) error {
+ 
+ 	instEnabled := os.Getenv(EnvInstEnabled)
+ 	if instEnabled != "" {
+-		ctx.Running.AppDir = filepath.Join(instEnabled, ctx.Project.Name)
++		if instEnabled == "." {
++			ctx.Running.AppDir, err = os.Getwd()
++			if err != nil {
++				return fmt.Errorf("Failed to get current directory: %s", err)
++			}
++		} else {
++			ctx.Running.AppDir = filepath.Join(instEnabled, ctx.Project.Name)
++		}
++	}
++
++	runDir := os.Getenv(EnvRunDir)
++	if runDir != "" {
++		appName := filepath.Base(ctx.Running.AppDir)
++		ctx.Running.RunDir = filepath.Join(runDir, appName)
+ 	}
+ 
+ 	ctx.Replicasets.File = filepath.Join(ctx.Running.AppDir, "replicasets.yml")

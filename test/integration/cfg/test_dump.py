@@ -91,9 +91,45 @@ def test_cfg_dump_no_config(tt_cmd, tmpdir):
 
 
 def test_cfg_dump_default_no_config(tt_cmd, tmpdir):
-    buid_cmd = [tt_cmd, "cfg", "dump"]
+    dump_cmd = [tt_cmd, "cfg", "dump"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        dump_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    output = tt_process.stdout.read()
+    print(output)
+    assert f"bin_dir: {os.path.join(tmpdir, 'bin')}" in output
+    assert f"run_dir: {os.path.join(tmpdir, 'var', 'run')}" in output
+    assert f"wal_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
+    assert f"vinyl_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
+    assert f"memtx_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
+    assert f"log_dir: {os.path.join(tmpdir, 'var', 'log')}" in output
+    assert f"inc_dir: {os.path.join(tmpdir, 'include')}" in output
+    assert f"directory: {os.path.join(tmpdir, 'modules')}" in output
+    assert f"distfiles: {os.path.join(tmpdir, 'distfiles')}" in output
+    assert "log_maxsize: 100" in output
+    assert "log_maxbackups: 10" in output
+    assert f"instances_enabled: {tmpdir}" in output
+    assert f"templates:\n  - path: {os.path.join(tmpdir, 'templates')}" in output
+    assert 'credential_path: ""' in output
+
+    # Create init.lua in current dir making it an application.
+
+    script_path = os.path.join(tmpdir, "init.lua")
+    with open(script_path, "w") as f:
+        f.write('print("hello")')
+
+    dump_cmd = [tt_cmd, "cfg", "dump"]
+    tt_process = subprocess.Popen(
+        dump_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- ``tt cartridge`` command takes into account run dir path from the `tt` environment. So most
+  of the `tt cartridge` sub-commands are able to work without specifying `--run-dir` option.
+
 ## [1.0.1] - 2023-04-04
 
 ### Added
