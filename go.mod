@@ -9,7 +9,7 @@ require (
 	github.com/briandowns/spinner v1.11.1
 	github.com/c-bata/go-prompt v0.2.6
 	github.com/dave/jennifer v1.5.0
-	github.com/docker/docker v20.10.7+incompatible
+	github.com/docker/docker v20.10.24+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/gocolly/colly v1.2.0
 	github.com/hashicorp/go-version v1.4.0
@@ -88,8 +88,6 @@ require (
 	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect
-	google.golang.org/grpc v1.47.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
