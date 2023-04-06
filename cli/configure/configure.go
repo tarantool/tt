@@ -167,7 +167,8 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 
 	if cliOpts.App.InstancesEnabled == "" {
 		cliOpts.App.InstancesEnabled = "."
-	} else if cliOpts.App.InstancesEnabled != "." {
+	} else if cliOpts.App.InstancesEnabled != "." || (cliOpts.App.InstancesEnabled == "." &&
+		!util.IsApp(configDir)) {
 		if cliOpts.App.InstancesEnabled, err =
 			adjustPathWithConfigLocation(cliOpts.App.InstancesEnabled, configDir, ""); err != nil {
 			return err
