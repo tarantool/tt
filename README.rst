@@ -4,6 +4,15 @@
 Tarantool CLI
 =============
 
+..  image:: https://img.shields.io/github/v/release/tarantool/tt?include_prereleases&label=Release&labelColor=2d3532
+    :alt: TT CLI latest release on GitHub
+    :target: https://github.com/tarantool/tt/releases
+
+..  image:: https://github.com/tarantool/tt/workflows/Tests/badge.svg
+    :alt: TT CLI build status on GitHub Actions
+    :target: https://github.com/tarantool/tt/actions/workflows/full-ci.yml
+
+
 Tarantool CLI - command line utility for managing Tarantool packages and Tarantool-based applications.
 
 -----------------
