@@ -55,7 +55,7 @@ jobs:
       - name: Integration tests
         run: mage integrationfull
 
-  full-ci-ee:
+  full-ci-sdk:
     # Tests will run only when the pull request is labeled with `full-ci`. To
     # avoid security problems, the label must be reset manually for every run.
     #
@@ -144,5 +144,125 @@ jobs:
       - name: Run unit tests
         run: mage unitfull
 
-      - name: Run integration tests
+      - name: Integration tests
         run: mage integrationfull
+
+  # ee suffix means that the job runs ee integration tests.
+  full-ci-macOS-ee:
+    if: |
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'full-ci') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'synchronize' &&
+        contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: macos-12
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          brew install --overwrite go mage
+          brew install python3
+          pip3 install pytest tarantool requests psutil pyyaml netifaces
+
+      - name: Build tt
+        env:
+          TT_CLI_BUILD_SSL: 'static'
+        run: mage build
+
+      - name: Integration tests
+        env:
+          TT_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
+          TT_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
+        run: mage integrationee
+
+  # sdk suffix means the tests will be run on tarantool from EE SDK package.
+  # ee suffix means that the job runs EE integration tests.
+  full-ci-sdk-ee:
+    # Tests will run only when the pull request is labeled with `full-ci`. To
+    # avoid security problems, the label must be reset manually for every run.
+    #
+    # We need to use `pull_request_target` because it has access to base
+    # repository secrets unlike `pull_request`.
+    if: (github.event_name == 'push') ||
+      (github.event_name == 'pull_request_target' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'full-ci')
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        sdk-version: [ "2.10.2-0-gf4228cb7d-r508-linux-x86_64" ]
+      fail-fast: false
+    steps:
+      # `ref` as merge request is needed for pull_request_target because this
+      # target runs in the context of the base commit of the pull request.
+      - uses: actions/checkout@master
+        if: github.event_name == 'pull_request_target'
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
+      - uses: actions/checkout@master
+        if: github.event_name != 'pull_request_target'
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Prepare EE env
+        uses: ./.github/actions/prepare-ee-test-env
+        with:
+          sdk-version: '${{ matrix.sdk-version }}'
+          sdk-download-token: '${{ secrets.SDK_DOWNLOAD_TOKEN }}'
+
+      - name: Install dependencies
+        run: |
+          pip3 install pytest tarantool requests psutil pyyaml netifaces
+
+      - name: Integration tests
+        env:
+          TT_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
+          TT_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
+        run: mage integrationee
+
+  # ce suffix means that the job will be run on CE tarantool.
+  # ee suffix means that the job runs EE integration tests.
+  full-ci-ce-ee:
+    if: |
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'full-ci') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'synchronize' &&
+        contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        tarantool-version: ["1.10", "2.10"]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Prepare CE env
+        uses: ./.github/actions/prepare-ce-test-env
+        with:
+          tarantool-version: '${{ matrix.tarantool-version }}'
+
+      - name: Install dependencies
+        run: |
+          pip3 install pytest tarantool requests psutil pyyaml netifaces
+
+      - name: Integration tests
+        env:
+          TT_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
+          TT_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
+        run: mage integrationee

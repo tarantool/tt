@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	buildTypeEnv = "TT_CLI_BUILD_SSL"
+	buildTypeEnv  = "TT_CLI_BUILD_SSL"
 	goPackageName = "github.com/tarantool/tt/cli"
 
 	asmflags = "all=-trimpath=${PWD}"
@@ -270,14 +270,23 @@ func UnitFull() error {
 func Integration() error {
 	fmt.Println("Running integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow", "test/integration")
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow", "-m", "not slow_ee",
+		"test/integration")
 }
 
 // Run full set of integration tests.
 func IntegrationFull() error {
 	fmt.Println("Running all integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "test/integration")
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow_ee",
+		"test/integration")
+}
+
+// Run set of ee integration tests.
+func IntegrationEE() error {
+	fmt.Println("Running all EE integration tests...")
+
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "test/integration/ee")
 }
 
 // Run codespell checks.
