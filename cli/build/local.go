@@ -12,6 +12,11 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+const (
+	// List of directories specifying a search path for cmake find_file and find_path commands.
+	cmakeIncludePathEnvVar = "CMAKE_INCLUDE_PATH"
+)
+
 // getPreBuildScripts returns a slice of supported pre-build executables.
 func getPreBuildScripts() []string {
 	return []string{"tt.pre-build", "cartridge.pre-build"}
@@ -53,6 +58,13 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 	// Run Pre-build.
 	if err := runBuildHook(buildCtx, getPreBuildScripts()); err != nil {
 		return fmt.Errorf("run pre-build hook failed: %s", err)
+	}
+
+	// Setting env var for luarocks to make cmake to find tarantool includes.
+	includeDir := filepath.Join(cliOpts.App.IncludeDir, "include")
+	if util.IsDir(includeDir) {
+		log.Debugf("Setting Tarantool include path: %q", cliOpts.App.IncludeDir)
+		os.Setenv(cmakeIncludePathEnvVar, cliOpts.App.IncludeDir)
 	}
 
 	// Run rocks make.
