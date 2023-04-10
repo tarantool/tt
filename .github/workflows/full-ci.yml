@@ -266,3 +266,29 @@ jobs:
           TT_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
           TT_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
         run: mage integrationee
+
+  # Integration tests on the system without Tarantool installed.
+  full-ci-ce-no-tarantool:
+    if: |
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'full-ci') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'synchronize' &&
+        contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Prepare CE env
+        uses: ./.github/actions/prepare-ce-test-env
+        with:
+          tarantool-version: '2.10.6'
+          skip-tarantool-install: true
+
+      - name: Integration tests
+        run: mage integrationnotarantool

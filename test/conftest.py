@@ -52,3 +52,31 @@ def tt_cmd(session_tmpdir):
 def tmpdir_with_cfg(tmpdir):
     create_tt_config(tmpdir, "")
     return tmpdir
+
+
+@pytest.fixture(scope="session")
+def tmpdir_with_tarantool(tt_cmd, request):
+    tmpdir = get_tmpdir(request)
+    init_cmd = [tt_cmd, "init"]
+    tt_process = subprocess.Popen(
+        init_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    init_cmd = [tt_cmd, "install", "tarantool"]
+    tt_process = subprocess.Popen(
+        init_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    return tmpdir
