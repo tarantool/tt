@@ -76,6 +76,16 @@ nfpms:
       - src: "tt.yaml.default"
         dst: "/etc/tarantool/tt.yaml"
         type: config
+      # ZSH and Bash autocompletion scripts get placed in appropriate directories
+      # and get activated automatically with restarting corresponding shell after
+      # the package installation.
+      # Sources:
+      # https://github.com/scop/bash-completion/blob/master/README.md#faq
+      # https://github.com/zsh-users/zsh-completions/blob/master/zsh-completions-howto.org#intro
+      - src: "tt-completion.bash"
+        dst: "/usr/share/bash-completion/completions/tt"
+      - src: "tt-completion.zsh"
+        dst: "/usr/share/zsh/vendor-completions/_tt"
 
     overrides:
       rpm:

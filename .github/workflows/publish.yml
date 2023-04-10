@@ -36,6 +36,13 @@ jobs:
           ./Configure --prefix=${GITHUB_WORKSPACE}/openssl no-shared
           make && make install
 
+      # These scripts will be picked up while building packages with goreleaser.
+      - name: Generate ZSH and Bash completion scripts
+        run: |
+          mage build
+          ./tt completion bash > tt-completion.bash
+          ./tt completion zsh > tt-completion.zsh
+
       - name: Setup GoReleaser
         run: |
           curl -O -L https://github.com/goreleaser/goreleaser/releases/download/v1.12.3/goreleaser_1.12.3_amd64.deb
