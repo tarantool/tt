@@ -5,10 +5,12 @@ import tempfile
 
 import pytest
 
+from utils import config_name
 
-def test_build_no_options(tt_cmd, tmpdir):
+
+def test_build_no_options(tt_cmd, tmpdir_with_cfg):
     app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
-                              os.path.join(tmpdir, "app1"))
+                              os.path.join(tmpdir_with_cfg, "app1"))
 
     buid_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
@@ -21,17 +23,18 @@ def test_build_no_options(tt_cmd, tmpdir):
     )
     tt_process.stdin.close()
     tt_process.wait()
+    print(tt_process.stdout.read())
     assert tt_process.returncode == 0
 
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "checks.lua"))
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "rocks"))
 
 
-def test_build_with_tt_hooks(tt_cmd, tmpdir):
+def test_build_with_tt_hooks(tt_cmd, tmpdir_with_cfg):
     app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
-                              os.path.join(tmpdir, "app1"))
+                              os.path.join(tmpdir_with_cfg, "app1"))
     shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/tt_hooks"),
-                    os.path.join(tmpdir, "app1"), dirs_exist_ok=True)
+                    os.path.join(tmpdir_with_cfg, "app1"), dirs_exist_ok=True)
 
     buid_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
@@ -52,11 +55,11 @@ def test_build_with_tt_hooks(tt_cmd, tmpdir):
     assert os.path.exists(os.path.join(app_dir, "tt-post-build-invoked"))
 
 
-def test_build_with_cartridge_hooks(tt_cmd, tmpdir):
+def test_build_with_cartridge_hooks(tt_cmd, tmpdir_with_cfg):
     app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
-                              os.path.join(tmpdir, "app1"))
+                              os.path.join(tmpdir_with_cfg, "app1"))
     shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/cartridge_hooks"),
-                    os.path.join(tmpdir, "app1"), dirs_exist_ok=True)
+                    os.path.join(tmpdir_with_cfg, "app1"), dirs_exist_ok=True)
 
     buid_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
@@ -77,14 +80,14 @@ def test_build_with_cartridge_hooks(tt_cmd, tmpdir):
     assert os.path.exists(os.path.join(app_dir, "cartridge-post-build-invoked"))
 
 
-def test_build_app_name_set(tt_cmd, tmpdir):
+def test_build_app_name_set(tt_cmd, tmpdir_with_cfg):
     app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
-                              os.path.join(tmpdir, "app1"))
+                              os.path.join(tmpdir_with_cfg, "app1"))
 
     buid_cmd = [tt_cmd, "build", "app1"]
     tt_process = subprocess.Popen(
         buid_cmd,
-        cwd=tmpdir,
+        cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -98,12 +101,13 @@ def test_build_app_name_set(tt_cmd, tmpdir):
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "rocks"))
 
 
-def test_build_absolute_path(tt_cmd, tmpdir):
+def test_build_absolute_path(tt_cmd, tmpdir_with_cfg):
     app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
-                              os.path.join(tmpdir, "app1"))
+                              os.path.join(tmpdir_with_cfg, "app1"))
 
     with tempfile.TemporaryDirectory() as tmpWorkDir:
-        buid_cmd = [tt_cmd, "build", app_dir]
+        buid_cmd = [tt_cmd, "--cfg",  os.path.join(tmpdir_with_cfg, config_name),
+                    "build", app_dir]
         tt_process = subprocess.Popen(
             buid_cmd,
             cwd=tmpWorkDir,
@@ -120,11 +124,11 @@ def test_build_absolute_path(tt_cmd, tmpdir):
         assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "rocks"))
 
 
-def test_build_missing_rockspec(tt_cmd, tmpdir):
+def test_build_missing_rockspec(tt_cmd, tmpdir_with_cfg):
     buid_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
         buid_cmd,
-        cwd=tmpdir,
+        cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -139,11 +143,11 @@ def test_build_missing_rockspec(tt_cmd, tmpdir):
         "please specify a rockspec to use on current directory") != -1
 
 
-def test_build_missing_app_dir(tt_cmd, tmpdir):
+def test_build_missing_app_dir(tt_cmd, tmpdir_with_cfg):
     buid_cmd = [tt_cmd, "build", "app1"]
     tt_process = subprocess.Popen(
         buid_cmd,
-        cwd=tmpdir,
+        cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -156,11 +160,11 @@ def test_build_missing_app_dir(tt_cmd, tmpdir):
     assert tt_process.stdout.readline().find("app1: no such file or directory") != -1
 
 
-def test_build_multiple_paths(tt_cmd, tmpdir):
+def test_build_multiple_paths(tt_cmd, tmpdir_with_cfg):
     buid_cmd = [tt_cmd, "build", "app1", "app2"]
     tt_process = subprocess.Popen(
         buid_cmd,
-        cwd=tmpdir,
+        cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -173,14 +177,14 @@ def test_build_multiple_paths(tt_cmd, tmpdir):
     assert tt_process.stdout.readline().find("Error: accepts at most 1 arg(s), received 2") != -1
 
 
-def test_build_spec_file_set(tt_cmd, tmpdir):
+def test_build_spec_file_set(tt_cmd, tmpdir_with_cfg):
     app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
-                              os.path.join(tmpdir, "app1"))
+                              os.path.join(tmpdir_with_cfg, "app1"))
 
     buid_cmd = [tt_cmd, "build", "app1", "--spec", "app1-scm-1.rockspec"]
     tt_process = subprocess.Popen(
         buid_cmd,
-        cwd=tmpdir,
+        cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
