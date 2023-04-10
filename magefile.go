@@ -271,15 +271,15 @@ func UnitFull() error {
 func Integration() error {
 	fmt.Println("Running integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow", "-m", "not slow_ee",
-		"test/integration")
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow and not slow_ee "+
+		"and not notarantool", "test/integration")
 }
 
 // Run full set of integration tests.
 func IntegrationFull() error {
 	fmt.Println("Running all integration tests...")
 
-	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow_ee",
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow_ee and not notarantool",
 		"test/integration")
 }
 
@@ -288,6 +288,14 @@ func IntegrationEE() error {
 	fmt.Println("Running all EE integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "test/integration/ee")
+}
+
+// Run integration tests without system-wide installed Tarantool.
+func IntegrationNoTarantool() error {
+	fmt.Println("Running integration tests without Tarantool...")
+
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "notarantool",
+		"test/integration")
 }
 
 // Run codespell checks.

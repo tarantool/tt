@@ -3,6 +3,8 @@ import shutil
 import subprocess
 import tempfile
 
+import pytest
+
 
 def test_build_no_options(tt_cmd, tmpdir):
     app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
@@ -215,6 +217,40 @@ def test_build_app_by_name(tt_cmd, tmpdir):
     tt_process = subprocess.Popen(
         build_cmd,
         cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    build_output = tt_process.stdout.readlines()
+    assert "Application was successfully built" in build_output[len(build_output)-1]
+    assert os.path.exists(os.path.join(app_dir, ".rocks"))
+
+
+@pytest.mark.notarantool
+@pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
+def test_build_app_local_tarantool(tt_cmd, tmpdir_with_tarantool):
+    build_cmd = [tt_cmd, "create", "cartridge", "--name", "app1", "--non-interactive"]
+    tt_process = subprocess.Popen(
+        build_cmd,
+        cwd=tmpdir_with_tarantool,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    app_dir = os.path.join(tmpdir_with_tarantool, "app1")
+
+    assert os.path.exists(app_dir)
+
+    build_cmd = [tt_cmd, "build", "app1"]
+    tt_process = subprocess.Popen(
+        build_cmd,
+        cwd=tmpdir_with_tarantool,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
