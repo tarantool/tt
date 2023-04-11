@@ -88,10 +88,12 @@ type InstallCtx struct {
 	Local bool
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
-	// programName is a program name to install.
-	programName string
+	// ProgramName is a program name to install.
+	ProgramName string
 	// verbose flag enables verbose logging.
 	verbose bool
+	// Version of the program to install.
+	version string
 }
 
 // Package is a struct containing sys and install name of the package.
@@ -380,14 +382,14 @@ func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
 }
 
 // installTt installs selected version of tt.
-func installTt(versionStr string, binDir string, installCtx InstallCtx, distfiles string) error {
+func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	versions, err := getTTVersions(installCtx.Local, distfiles)
 	if err != nil {
 		return err
 	}
 
 	// Get latest version if it was not specified.
-	_, ttVersion, _ := strings.Cut(versionStr, version.CliSeparator)
+	ttVersion := installCtx.version
 	if ttVersion == "" {
 		log.Infof("Getting latest tt version..")
 		if len(versions) == 0 {
@@ -435,7 +437,7 @@ func installTt(versionStr string, binDir string, installCtx InstallCtx, distfile
 		}
 	}
 
-	versionStr = search.ProgramTt + version.FsSeparator + ttVersion
+	versionStr := search.ProgramTt + version.FsSeparator + ttVersion
 	// Check if that version is already installed.
 	log.Infof("Checking existing...")
 	if checkExisting(versionStr, binDir) && !installCtx.Reinstall {
@@ -712,8 +714,8 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 	if installCtx.verbose {
 		tntInstallCommandLine = append(tntInstallCommandLine, "-V")
 	}
-	tntInstallCommandLine = append(tntInstallCommandLine, "install",
-		search.ProgramCe+version.CliSeparator+tntVersion, "-f")
+	tntInstallCommandLine = append(tntInstallCommandLine, "install", "-f", search.ProgramCe,
+		tntVersion)
 	if installCtx.Reinstall {
 		tntInstallCommandLine = append(tntInstallCommandLine, "--reinstall")
 	}
@@ -742,8 +744,8 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 }
 
 // installTarantool installs selected version of tarantool.
-func installTarantool(versionStr string, binDir string, incDir string,
-	installCtx InstallCtx, distfiles string) error {
+func installTarantool(binDir string, incDir string, installCtx InstallCtx,
+	distfiles string) error {
 	// Check bin and header dirs.
 	if binDir == "" {
 		return fmt.Errorf("BinDir is not set, check %s", configure.ConfigName)
@@ -758,7 +760,7 @@ func installTarantool(versionStr string, binDir string, incDir string,
 	}
 
 	// Get latest version if it was not specified.
-	_, tarVersion, _ := strings.Cut(versionStr, version.CliSeparator)
+	tarVersion := installCtx.version
 	if tarVersion == "" {
 		log.Infof("Getting latest tarantool version..")
 		if len(versions) == 0 {
@@ -783,7 +785,7 @@ func installTarantool(versionStr string, binDir string, incDir string,
 		}
 	}
 
-	versionStr = search.ProgramCe + version.FsSeparator + tarVersion
+	versionStr := search.ProgramCe + version.FsSeparator + tarVersion
 	// Check if program is already installed.
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
@@ -898,7 +900,7 @@ func installTarantool(versionStr string, binDir string, incDir string,
 }
 
 // installTarantoolEE installs selected version of tarantool-ee.
-func installTarantoolEE(versionStr string, binDir string, includeDir string, installCtx InstallCtx,
+func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	distfiles string, cliOpts *config.CliOpts) error {
 	var err error
 
@@ -917,7 +919,7 @@ func installTarantoolEE(versionStr string, binDir string, includeDir string, ins
 	}
 
 	// Get latest version if it was not specified.
-	_, tarVersion, _ := strings.Cut(versionStr, version.CliSeparator)
+	tarVersion := installCtx.version
 	if tarVersion == "" {
 		log.Infof("Getting latest tarantool-ee version..")
 	}
@@ -956,7 +958,7 @@ func installTarantoolEE(versionStr string, binDir string, includeDir string, ins
 	bundleName := ver.Version.Tarball
 	bundleSource := ver.Prefix
 
-	versionStr = search.ProgramEe + version.FsSeparator + tarVersion
+	versionStr := search.ProgramEe + version.FsSeparator + tarVersion
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
 		versionExists, err := checkExistingTarantool(versionStr,
@@ -1055,19 +1057,19 @@ func installTarantoolEE(versionStr string, binDir string, includeDir string, ins
 }
 
 // Install installs program.
-func Install(args []string, binDir string, includeDir string, installCtx InstallCtx,
+func Install(binDir string, includeDir string, installCtx InstallCtx,
 	local string, cliOpts *config.CliOpts) error {
 	var err error
 
-	switch installCtx.programName {
+	switch installCtx.ProgramName {
 	case search.ProgramTt:
-		err = installTt(args[0], binDir, installCtx, local)
+		err = installTt(binDir, installCtx, local)
 	case search.ProgramCe:
-		err = installTarantool(args[0], binDir, includeDir, installCtx, local)
+		err = installTarantool(binDir, includeDir, installCtx, local)
 	case search.ProgramEe:
-		err = installTarantoolEE(args[0], binDir, includeDir, installCtx, local, cliOpts)
+		err = installTarantoolEE(binDir, includeDir, installCtx, local, cliOpts)
 	default:
-		return fmt.Errorf("unknown application: %s", installCtx.programName)
+		return fmt.Errorf("unknown application: %s", installCtx.ProgramName)
 	}
 
 	return err
@@ -1076,21 +1078,10 @@ func Install(args []string, binDir string, includeDir string, installCtx Install
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
 	installCtx.verbose = cmdCtx.Cli.Verbose
 
-	if len(args) != 1 {
+	if len(args) == 1 {
+		installCtx.version = args[0]
+	} else if len(args) > 1 {
 		return fmt.Errorf("invalid number of parameters")
-	}
-
-	re := regexp.MustCompile(
-		"^(?P<prog>tt|tarantool|tarantool-ee)(?:" + version.CliSeparator + ".*)?$",
-	)
-	matches := util.FindNamedMatches(re, args[0])
-	if len(matches) == 0 {
-		return fmt.Errorf("unknown application: %s", args[0])
-	}
-	installCtx.programName = matches["prog"]
-
-	if installCtx.BuildInDocker && installCtx.programName != search.ProgramCe {
-		return fmt.Errorf("--use-docker can be used only for 'tarantool' program")
 	}
 
 	return nil
