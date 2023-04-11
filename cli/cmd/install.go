@@ -7,32 +7,69 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/install"
 	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/version"
 )
 
-var (
-	reinstall     bool
-	force         bool
-	noclean       bool
-	localRepo     bool
-	buildInDocker bool
-)
+var installCtx install.InstallCtx
 
-// NewInstallCmd creates install command.
-func NewInstallCmd() *cobra.Command {
-	var installCmd = &cobra.Command{
-		Use:   "install <PROGRAM> [flags]",
-		Short: "Install program",
-		Long: "Install program\n\n" +
-			"Available programs:\n" +
-			"tt - Tarantool CLI\n" +
-			"tarantool - Tarantool\n" +
-			"tarantool-ee - Tarantool enterprise edition\n",
+// newInstallTtCmd creates a command to install tt.
+func newInstallTtCmd() *cobra.Command {
+	var tntCmd = &cobra.Command{
+		Use:   "tt [version]",
+		Short: "Install tt",
 		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
 			handleCmdErr(cmd, err)
 		},
+	}
+
+	return tntCmd
+}
+
+// newInstallTarantoolCmd creates a command to install tarantool.
+func newInstallTarantoolCmd() *cobra.Command {
+	var tntCmd = &cobra.Command{
+		Use:   "tarantool [version]",
+		Short: "Install tarantool community edition",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			installCtx.ProgramName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalInstallModule, args)
+			handleCmdErr(cmd, err)
+		},
+	}
+
+	tntCmd.Flags().BoolVarP(&installCtx.BuildInDocker, "use-docker", "", false,
+		"build tarantool in Ubuntu 18.04 docker container")
+
+	return tntCmd
+}
+
+// newInstallTarantoolEeCmd creates a command to install tarantool-ee.
+func newInstallTarantoolEeCmd() *cobra.Command {
+	var tntCmd = &cobra.Command{
+		Use:   "tarantool-ee [version]",
+		Short: "Install tarantool enterprise edition",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			installCtx.ProgramName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalInstallModule, args)
+			handleCmdErr(cmd, err)
+		},
+	}
+
+	return tntCmd
+}
+
+// NewInstallCmd creates install command.
+func NewInstallCmd() *cobra.Command {
+	var installCmd = &cobra.Command{
+		Use:   "install",
+		Short: "Install program",
 		Example: `
 # Install latest Tarantool version.
 
@@ -40,18 +77,22 @@ func NewInstallCmd() *cobra.Command {
 
 # Install Tarantool 2.10.5 with limit number of simultaneous jobs for make.
 
-    $ MAKEFLAGS="-j2" tt install tarantool` + version.CliSeparator + "2.10.5",
-		ValidArgs: []string{"tt", "tarantool", "tarantool-ee"},
+    $ MAKEFLAGS="-j2" tt install tarantool 2.10.5`,
 	}
-	installCmd.Flags().BoolVarP(&force, "force", "f", false,
+	installCmd.Flags().BoolVarP(&installCtx.Force, "force", "f", false,
 		"don't do a dependency check before installing")
-	installCmd.Flags().BoolVarP(&noclean, "no-clean", "", false,
+	installCmd.Flags().BoolVarP(&installCtx.Noclean, "no-clean", "", false,
 		"don't delete temporary files")
-	installCmd.Flags().BoolVarP(&reinstall, "reinstall", "", false, "reinstall program")
-	installCmd.Flags().BoolVarP(&localRepo, "local-repo", "", false,
+	installCmd.Flags().BoolVarP(&installCtx.Reinstall, "reinstall", "", false, "reinstall program")
+	installCmd.Flags().BoolVarP(&installCtx.Local, "local-repo", "", false,
 		"install from local files")
-	installCmd.Flags().BoolVarP(&buildInDocker, "use-docker", "", false,
-		"build tarantool in Ubuntu 18.04 docker container")
+
+	installCmd.AddCommand(
+		newInstallTtCmd(),
+		newInstallTarantoolCmd(),
+		newInstallTarantoolEeCmd(),
+	)
+
 	return installCmd
 }
 
@@ -61,20 +102,12 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
-	installCtx := install.InstallCtx{
-		Force:         force,
-		Noclean:       noclean,
-		Reinstall:     reinstall,
-		Local:         localRepo,
-		BuildInDocker: buildInDocker,
-	}
-
 	var err error
 	if err = install.FillCtx(cmdCtx, &installCtx, args); err != nil {
 		return err
 	}
 
-	err = install.Install(args, cliOpts.App.BinDir, filepath.Join(cliOpts.App.IncludeDir,
-		"include"), installCtx, cliOpts.Repo.Install, cliOpts)
+	err = install.Install(cliOpts.App.BinDir, filepath.Join(cliOpts.App.IncludeDir, "include"),
+		installCtx, cliOpts.Repo.Install, cliOpts)
 	return err
 }
