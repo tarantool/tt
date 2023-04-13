@@ -13,8 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   of the `tt cartridge` sub-commands are able to work without specifying `--run-dir` option.
 
 ### Changed
-  - ``tt install`` command line interface is updated. Program names have become sub-commands with
-  their own options.
+  - ``tt install/uninstall`` command line interface is updated. Program names have become
+  sub-commands with their own options.
 
 ## [1.0.1] - 2023-04-04
 

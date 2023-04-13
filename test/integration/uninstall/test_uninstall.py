@@ -11,7 +11,7 @@ def test_uninstall_tt(tt_cmd, tmpdir):
     with open(configPath, 'w') as f:
         f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
 
-    for prog in ["tarantool", "tarantool=master"]:
+    for prog in [["tarantool"], ["tarantool", "master"]]:
         # Do not test uninstall through installing tt. Because installed tt will be invoked by
         # current tt. As a result the test will run for the installed tt and not the current.
         # Creating fake tarantool instead.
@@ -24,7 +24,7 @@ def test_uninstall_tt(tt_cmd, tmpdir):
         os.makedirs(os.path.join(tmpdir, "include", "include", "tarantool_master"))
         os.symlink("./tarantool_master", os.path.join(tmpdir, "include", "include", "tarantool"))
 
-        uninstall_cmd = [tt_cmd,  "--cfg", configPath, "uninstall", prog]
+        uninstall_cmd = [tt_cmd,  "--cfg", configPath, "uninstall", *prog]
         uninstall_process = subprocess.Popen(
             uninstall_cmd,
             cwd=tmpdir,
@@ -88,7 +88,7 @@ def test_uninstall_missing(tt_cmd, tmpdir):
     os.mkdir(os.path.join(tmpdir, "bin"))
     os.mkdir(os.path.join(tmpdir, "include"))
     # Remove not installed program.
-    uninstall_cmd = [tt_cmd, "uninstall", "tt=1.2.3"]
+    uninstall_cmd = [tt_cmd, "uninstall", "tt", "1.2.3"]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=tmpdir,
@@ -105,8 +105,8 @@ def test_uninstall_missing(tt_cmd, tmpdir):
 
 def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
     # Remove bash.
-    for prog in ["bash", "bash=123"]:
-        uninstall_cmd = [tt_cmd, "uninstall", prog]
+    for prog in [["bash"], ["bash", "123"]]:
+        uninstall_cmd = [tt_cmd, "uninstall", *prog]
         uninstall_process = subprocess.Popen(
             uninstall_cmd,
             cwd=tmpdir_with_cfg,
@@ -116,6 +116,4 @@ def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
         )
         uninstall_process.wait()
         uninstall_output = uninstall_process.stdout.readline()
-        assert re.search(r"Removing binary...", uninstall_output)
-        uninstall_output = uninstall_process.stdout.readline()
-        assert re.search(r"unknown program:", uninstall_output)
+        assert re.search(r"Uninstalls a program", uninstall_output)
