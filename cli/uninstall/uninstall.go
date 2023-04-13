@@ -24,23 +24,19 @@ const (
 )
 
 // remove removes binary/directory and symlinks from directory.
-func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
+func remove(program string, programVersion string, directory string,
+	cmdCtx *cmdcontext.CmdCtx) error {
 	var linkPath string
 	var err error
 
-	re := regexp.MustCompile(
-		"^" + progRegexp + "(?:" + version.CliSeparator + verRegexp + ")?$",
-	)
-
-	matches := util.FindNamedMatches(re, program)
-	if len(matches) == 0 {
-		return fmt.Errorf("unknown program: %s", program)
-	}
-
-	if matches["prog"] == search.ProgramCe || matches["prog"] == search.ProgramEe {
-		linkPath, err = util.JoinAbspath(directory, "tarantool")
+	if program == search.ProgramCe || program == search.ProgramEe {
+		if linkPath, err = util.JoinAbspath(directory, "tarantool"); err != nil {
+			return err
+		}
 	} else {
-		linkPath, err = util.JoinAbspath(directory, matches["prog"])
+		if linkPath, err = util.JoinAbspath(directory, program); err != nil {
+			return err
+		}
 	}
 
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
@@ -49,7 +45,7 @@ func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 		return fmt.Errorf("there was some problem with %s directory", directory)
 	}
 
-	fileName := matches["prog"] + version.FsSeparator + matches["ver"]
+	fileName := program + version.FsSeparator + programVersion
 	path := filepath.Join(directory, fileName)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -78,30 +74,25 @@ func remove(program string, directory string, cmdCtx *cmdcontext.CmdCtx) error {
 }
 
 // UninstallProgram uninstalls program and symlinks.
-func UninstallProgram(program string, binDst string, headerDst string,
+func UninstallProgram(program string, programVersion string, binDst string, headerDst string,
 	cmdCtx *cmdcontext.CmdCtx) error {
 	log.Infof("Removing binary...")
-	re := regexp.MustCompile("^" + progRegexp + "$")
+	var err error
 
-	if re.Match([]byte(program)) {
-		if ver, err := getDefault(program, binDst); err != nil {
+	if programVersion == "" {
+		if programVersion, err = getDefault(program, binDst); err != nil {
 			return err
-		} else {
-			program = program + version.CliSeparator + ver
 		}
-	} else if !strings.Contains(program, version.CliSeparator) {
-		return fmt.Errorf("unknown program: %s", program)
 	}
 
-	err := remove(program, binDst, cmdCtx)
-	if err != nil {
+	if err = remove(program, programVersion, binDst, cmdCtx); err != nil {
 		return err
 	}
 	if strings.Contains(program, "tarantool") {
 		log.Infof("Removing headers...")
-		err = remove(program, headerDst, cmdCtx)
+		err = remove(program, programVersion, headerDst, cmdCtx)
 	}
-	log.Infof("%s is uninstalled.", program)
+	log.Infof("%s%s%s is uninstalled.", program, version.CliSeparator, programVersion)
 	return err
 }
 
