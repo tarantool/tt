@@ -24,6 +24,7 @@ import (
 	"github.com/tarantool/tt/cli/templates"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
+	"golang.org/x/sys/unix"
 )
 
 // Backported cmake rules for static build.
@@ -899,6 +900,10 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	return nil
 }
 
+func dirsIsWriteable(dir string) bool {
+	return unix.Access(dir, unix.W_OK) == nil
+}
+
 // installTarantoolEE installs selected version of tarantool-ee.
 func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	distfiles string, cliOpts *config.CliOpts) error {
@@ -1060,6 +1065,16 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 func Install(binDir string, includeDir string, installCtx InstallCtx,
 	local string, cliOpts *config.CliOpts) error {
 	var err error
+
+	// This check is needed for knowing that we will be able to copy
+	// recently built binaries to the corresponding bin and include directories.
+	for _, dir := range []string{binDir, includeDir} {
+		if !dirsIsWriteable(dir) {
+			return fmt.Errorf("the directory %s is not writeable for the current user.\n"+
+				"     Please, update rights to the directory or use 'sudo' for successful install",
+				dir)
+		}
+	}
 
 	switch installCtx.ProgramName {
 	case search.ProgramTt:
