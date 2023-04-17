@@ -8,7 +8,7 @@ Tarantool CLI
     :alt: TT CLI latest release on GitHub
     :target: https://github.com/tarantool/tt/releases
 
-..  image:: https://github.com/tarantool/tt/workflows/Tests/badge.svg
+..  image:: https://github.com/tarantool/tt/workflows/Full%20CI/badge.svg
     :alt: TT CLI build status on GitHub Actions
     :target: https://github.com/tarantool/tt/actions/workflows/full-ci.yml
 
