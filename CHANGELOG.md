@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - ``tt cartridge`` command takes into account run dir path from the `tt` environment. So most
   of the `tt cartridge` sub-commands are able to work without specifying `--run-dir` option.
+- ``tt install`` command checks it's write rights to binary and include directories before
+  installing binaries.
 
 ### Changed
   - ``tt install/uninstall`` command line interface is updated. Program names have become
