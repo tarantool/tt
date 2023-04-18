@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"path/filepath"
-
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/install"
@@ -107,7 +105,7 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	err = install.Install(cliOpts.App.BinDir, filepath.Join(cliOpts.App.IncludeDir, "include"),
+	err = install.Install(cliOpts.App.BinDir, cliOpts.App.IncludeDir,
 		installCtx, cliOpts.Repo.Install, cliOpts)
 	return err
 }
