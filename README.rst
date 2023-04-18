@@ -23,9 +23,41 @@ Tarantool CLI - command line utility for managing Tarantool packages and Taranto
 Getting started
 ---------------
 
+Installation
+~~~~~~~~~~~~
+
+TT can be installed from the deb / rpm repository "tarantool/modules".
+
+Install the tarantool repositories:
+
+https://www.tarantool.io/en/download/os-installation/
+
+Install TT:
+
+* Deb based distributions:
+
+.. code-block:: bash
+
+   apt-get install tt
+
+* Rpm based distributions:
+
+.. code-block:: bash
+
+   yum install tt
+   dnf install tt
+
+On MacOS, the TT can be installed from brew:
+
+.. code-block:: bash
+
+   brew install tt
+
+Build from source
+~~~~~~~~~~~~~~~~~
 
 Prerequisites
-~~~~~~~~~~~~~
+"""""""""""""
 
 * `Go (version 1.18+) <https://golang.org/doc/install>`_
 * `Mage <https://magefile.org/>`_
@@ -44,7 +76,7 @@ To run tests:
 
 
 Build
-~~~~~
+"""""
 
 .. code-block:: bash
 
@@ -74,7 +106,7 @@ purposes:
    TT_CLI_BUILD_SSL=shared mage build
 
 Dependencies
-~~~~~~~~~~~~
+""""""""""""
 
 **tt rocks runtime dependencies:**
 
@@ -87,7 +119,7 @@ Dependencies
 * `Git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_
 
 Run tests
-~~~~~~~~~
+"""""""""
 
 To run default set of tests (excluding slow tests):
 
