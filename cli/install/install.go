@@ -900,10 +900,6 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	return nil
 }
 
-func dirsIsWriteable(dir string) bool {
-	return unix.Access(dir, unix.W_OK) == nil
-}
-
 // installTarantoolEE installs selected version of tarantool-ee.
 func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	distfiles string, cliOpts *config.CliOpts) error {
@@ -1061,6 +1057,24 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	return nil
 }
 
+// dirsIsWriteable checks if the current user has the write access to the passed directory.
+func dirsIsWriteable(dir string) bool {
+	return unix.Access(dir, unix.W_OK) == nil
+}
+
+// subDirIsWritable checks if the passed dir doesn't exist but can be created.
+func subDirIsWritable(dir string) bool {
+	var err error
+	for {
+		_, err = os.Stat(dir)
+		if os.IsNotExist(err) {
+			dir = filepath.Dir(dir)
+			continue
+		}
+		return dirsIsWriteable(dir)
+	}
+}
+
 // Install installs program.
 func Install(binDir string, includeDir string, installCtx InstallCtx,
 	local string, cliOpts *config.CliOpts) error {
@@ -1069,12 +1083,16 @@ func Install(binDir string, includeDir string, installCtx InstallCtx,
 	// This check is needed for knowing that we will be able to copy
 	// recently built binaries to the corresponding bin and include directories.
 	for _, dir := range []string{binDir, includeDir} {
+		if _, err := os.Stat(dir); os.IsNotExist(err) && subDirIsWritable(dir) {
+			continue
+		}
 		if !dirsIsWriteable(dir) {
 			return fmt.Errorf("the directory %s is not writeable for the current user.\n"+
 				"     Please, update rights to the directory or use 'sudo' for successful install",
 				dir)
 		}
 	}
+	includeDir = filepath.Join(includeDir, "include")
 
 	switch installCtx.ProgramName {
 	case search.ProgramTt:
