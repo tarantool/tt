@@ -47,6 +47,12 @@ Install TT:
    yum install tt
    dnf install tt
 
+On Gentoo Linux, the TT can be installed from the `Tarantool Gentoo Overlay <https://github.com/tarantool/gentoo-overlay>`_:
+
+.. code-block:: bash
+
+   emerge tt
+
 On MacOS, the TT can be installed from brew:
 
 .. code-block:: bash
