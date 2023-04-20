@@ -1,0 +1,51 @@
+before:
+  hooks:
+    - go mod download
+
+env:
+  - GO111MODULE=on
+
+builds:
+  -
+    id: tt
+    binary: tt
+    dir: cli
+
+    env:
+      - CGO_ENABLED=1
+
+    tags:
+      - netgo
+      - osusergo
+      - openssl_static
+
+    ldflags:
+      - -s -w
+      - -X github.com/tarantool/tt/cli/version.gitTag={{ .Tag }}
+      - -X github.com/tarantool/tt/cli/version.gitCommit={{ .ShortCommit }}
+      - -X github.com/tarantool/tt/cli/configure.defaultConfigPath=/etc/tarantool
+
+    goos:
+      - darwin
+    goarch:
+      - amd64
+
+    hooks:
+      pre:
+        - mage PatchCC
+        - mage GenerateGoCode
+
+archives:
+  -
+    id: "tt"
+    builds: ['tt']
+    format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.rst
+      - LICENSE
+      - CHANGELOG.md
+
+snapshot:
+  name_template: "{{ .Tag }}-{{ .ShortCommit }}"
+

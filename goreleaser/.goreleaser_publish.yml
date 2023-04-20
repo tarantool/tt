@@ -1,0 +1,27 @@
+builds:
+  - skip: true
+
+archives:
+  -
+    id: "tt"
+    builds: ['tt']
+    format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.rst
+      - LICENSE
+      - CHANGELOG.md
+
+snapshot:
+  name_template: "{{ .Tag }}-{{ .ShortCommit }}"
+
+changelog:
+  skip: true
+
+release:
+  draft: true
+  mode: append
+  extra_files:
+    - glob: ./dist-prebuilt/**/*
+  header: |
+    # Overview

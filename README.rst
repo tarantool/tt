@@ -53,6 +53,25 @@ On MacOS, the TT can be installed from brew:
 
    brew install tt
 
+You can also install Tarantool CLI by downloading archive with pre-built binary
+for your OS from GitHub's Releases page.
+
+However, on MacOS to run that binary you will need to do additional steps:
+
+1. After first try to run binary, you will encounter an error:
+
+..  image:: doc/images/macOS_error.jpeg
+    :width: 250
+    :alt: MacOS error.
+
+2. To fix it, you should go to 'system settings->privacy and security', then scroll down and find:
+
+..  image:: doc/images/macOS_settings.jpeg
+    :width: 350
+    :alt: MacOS settings.
+
+3. Click on 'Allow Anyway' and you should be able to use Tarantool Cli.
+
 Build from source
 ~~~~~~~~~~~~~~~~~
 

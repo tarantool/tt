@@ -50,12 +50,6 @@ archives:
 snapshot:
   name_template: "{{ .Tag }}-{{ .ShortCommit }}"
 
-changelog:
-  skip: true
-
-release:
-  draft: true
-
 nfpms:
   -
     id: "tt"
