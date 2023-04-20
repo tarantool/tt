@@ -9,7 +9,7 @@ env:
   GO_VERSION: '1.18'
 
 jobs:
-  create-packages:
+  create-packages-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
@@ -36,6 +36,21 @@ jobs:
           ./Configure --prefix=${GITHUB_WORKSPACE}/openssl no-shared
           make && make install
 
+      - name: Setup GoReleaser
+        run: |
+          curl -O -L https://github.com/goreleaser/goreleaser/releases/download/v1.12.3/goreleaser_1.12.3_amd64.deb
+          sudo dpkg -i goreleaser_1.12.3_amd64.deb
+          rm goreleaser_1.12.3_amd64.deb
+
+      - name: Set GoReleaser flags
+        id: set-goreleaser-flags
+        run: |
+          if ${{ startsWith(github.ref, 'refs/tags') }} ; then
+            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --skip-validate"
+          else
+            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --snapshot"
+          fi
+
       # These scripts will be picked up while building packages with goreleaser.
       - name: Generate ZSH and Bash completion scripts
         run: |
@@ -43,11 +58,48 @@ jobs:
           ./tt completion bash > tt-completion.bash
           ./tt completion zsh > tt-completion.zsh
 
+      - name: Build packages
+        env:
+          CGO_LDFLAGS: "-L${{ env.GITHUB_WORKSPACE }}/openssl/lib64"
+          CGO_CFLAGS: "-I${{ env.GITHUB_WORKSPACE }}/openssl/include"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_linux.yml
+
+      - name: Upload packages artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: packages-linux
+          path: dist
+
+  create-packages-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup Mage
+        run: |
+          brew install mage
+
+      - name: Build OpenSSL 3.0
+        run: |
+          wget https://github.com/openssl/openssl/releases/download/openssl-3.0.8/openssl-3.0.8.tar.gz
+          tar -xvf openssl-3.0.8.tar.gz
+          cd openssl-3.0.8/
+          ./Configure --prefix=${GITHUB_WORKSPACE}/openssl no-shared
+          make && make install
+
       - name: Setup GoReleaser
         run: |
-          curl -O -L https://github.com/goreleaser/goreleaser/releases/download/v1.12.3/goreleaser_1.12.3_amd64.deb
-          sudo dpkg -i goreleaser_1.12.3_amd64.deb
-          rm goreleaser_1.12.3_amd64.deb
+          brew install goreleaser
 
       - name: Set GoReleaser flags
         id: set-goreleaser-flags
@@ -64,16 +116,75 @@ jobs:
           CGO_CFLAGS: "-I${{ env.GITHUB_WORKSPACE }}/openssl/include"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }}
+          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_macOS.yml
 
       - name: Upload packages artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
-          name: packages
+          name: packages-macos
           path: dist
 
+  draft-release:
+    needs: [create-packages-linux, create-packages-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Make directories
+        run: |
+          mkdir -p ./dist-prebuilt/packages-linux
+          mkdir -p ./dist-prebuilt/packages-macos
+
+      - name: Download linux binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: packages-linux
+          path: ./dist-prebuilt/packages-linux
+
+      - name: Download macos binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: packages-macos
+          path: ./dist-prebuilt/packages-macos
+
+      - name: Remove not-needed files
+        run: |
+          rm ./dist-prebuilt/packages-linux/artifacts.json
+          rm ./dist-prebuilt/packages-linux/CHANGELOG.md
+          rm ./dist-prebuilt/packages-linux/config.yaml
+          rm ./dist-prebuilt/packages-linux/metadata.json
+          rm ./dist-prebuilt/packages-macos/artifacts.json
+          rm ./dist-prebuilt/packages-macos/CHANGELOG.md
+          rm ./dist-prebuilt/packages-macos/config.yaml
+          rm ./dist-prebuilt/packages-macos/metadata.json
+          rm ./dist-prebuilt/packages-macos/tt_darwin_amd64_v1/tt
+          rm ./dist-prebuilt/packages-linux/tt_linux_amd64_v1/tt
+
+      - name: merge checksum file
+        run: |
+          cd ./dist-prebuilt
+          cat ./packages-linux/tt*checksums.txt >> checksums.txt
+          cat ./packages-macos/tt*checksums.txt >> checksums.txt
+          rm ./packages-linux/tt*checksums.txt
+          rm ./packages-macos/tt*checksums.txt
+          mv checksums.txt ./packages-macos/
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          args: release --config ./goreleaser/.goreleaser_publish.yml --skip-validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   publish-s3:
-    needs: create-packages
+    needs: create-packages-linux
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags')
     steps:
@@ -93,7 +204,7 @@ jobs:
       - name: Download packages artifacts
         uses: actions/download-artifact@v2
         with:
-          name: packages
+          name: packages-linux
           path: dist
 
       - name: Publish packages to RWS
