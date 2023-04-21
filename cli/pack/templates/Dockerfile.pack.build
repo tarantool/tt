@@ -22,7 +22,7 @@ RUN apt install -y git build-essential cmake make zlib1g-dev \
 
 RUN tt init
 
-RUN tt install tarantool={{ .tnt_version }}
+RUN tt install tarantool {{ .tnt_version }}
 
 RUN cp /usr/src/tarantool/bin/* /usr/bin
 
