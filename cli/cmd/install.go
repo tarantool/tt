@@ -42,6 +42,8 @@ func newInstallTarantoolCmd() *cobra.Command {
 
 	tntCmd.Flags().BoolVarP(&installCtx.BuildInDocker, "use-docker", "", false,
 		"build tarantool in Ubuntu 18.04 docker container")
+	tntCmd.Flags().BoolVarP(&installCtx.Dynamic, "dynamic", "", false,
+		"use dynamic linking for building tarantool")
 
 	return tntCmd
 }
