@@ -95,6 +95,8 @@ type InstallCtx struct {
 	verbose bool
 	// Version of the program to install.
 	version string
+	// Dynamic flag enables dynamic linking.
+	Dynamic bool
 }
 
 // Package is a struct containing sys and install name of the package.
@@ -570,44 +572,77 @@ func patchTarantool(srcPath string, tarVersion string,
 	return nil
 }
 
-// buildTarantool builds tarantool from source.
-func buildTarantool(srcPath string, tarVersion string,
-	installCtx InstallCtx, logFile *os.File) error {
-
-	buildPath := filepath.Join(srcPath, "/static-build/build")
-	err := os.MkdirAll(buildPath, defaultDirPermissions)
-	if err != nil {
-		return err
-	}
+// prepareCmakeOpts prepares cmake command line options for tarantool building.
+func prepareCmakeOpts(buildPath string, tntVersion string,
+	installCtx InstallCtx) ([]string, error) {
+	cmakeOpts := []string{".."}
 
 	// Disable backtrace feature for versions 1.10.X.
 	// This feature is not supported by a backported static build.
 	btFlag := "ON"
-	if tarVersion != "master" {
-		version, err := version.Parse(tarVersion)
+	if tntVersion != "master" {
+		version, err := version.Parse(tntVersion)
 		if err != nil {
-			return err
+			return cmakeOpts, err
 		}
 		if version.Major == 1 {
 			btFlag = "OFF"
 		}
 	}
 
+	cmakeOpts = append(cmakeOpts, `-DCMAKE_TARANTOOL_ARGS=-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
+		`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=`+btFlag)
+
+	if installCtx.Dynamic {
+		cmakeOpts = append(cmakeOpts, "-DCMAKE_INSTALL_PREFIX="+filepath.Join(buildPath,
+			"tarantool-prefix"))
+	} else {
+		cmakeOpts = append(cmakeOpts, "-DCMAKE_INSTALL_PREFIX="+buildPath)
+	}
+
+	return cmakeOpts, nil
+}
+
+// prepareMakeOpts prepares make command line options for tarantool building.
+func prepareMakeOpts(installCtx InstallCtx) []string {
 	makeOpts := []string{}
+	if installCtx.Dynamic {
+		makeOpts = append(makeOpts, "install")
+	}
 	if _, isMakeFlagsSet := os.LookupEnv("MAKEFLAGS"); !isMakeFlagsSet {
 		maxThreads := fmt.Sprint(runtime.NumCPU())
 		makeOpts = append(makeOpts, "-j", maxThreads)
 	}
+	return makeOpts
+}
 
-	err = util.ExecuteCommand("cmake", installCtx.verbose, logFile, buildPath,
-		"..", `-DCMAKE_TARANTOOL_ARGS="-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
-			`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=`+btFlag,
-		"-DCMAKE_INSTALL_PREFIX="+buildPath)
+// buildTarantool builds tarantool from source. Returns a path, where build artifacts are placed.
+func buildTarantool(srcPath string, tarVersion string,
+	installCtx InstallCtx, logFile *os.File) (string, error) {
+
+	buildPath := filepath.Join(srcPath, "/static-build/build")
+	if installCtx.Dynamic {
+		buildPath = filepath.Join(srcPath, "/dynamic-build")
+	}
+	err := os.MkdirAll(buildPath, defaultDirPermissions)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return util.ExecuteCommand("make", installCtx.verbose, logFile, buildPath, makeOpts...)
+	cmakeOpts, err := prepareCmakeOpts(buildPath, tarVersion, installCtx)
+	if err != nil {
+		return "", err
+	}
+
+	err = util.ExecuteCommand("cmake", installCtx.verbose, logFile, buildPath, cmakeOpts...)
+	if err != nil {
+		return "", err
+	}
+
+	makeOpts := prepareMakeOpts(installCtx)
+
+	return buildPath, util.ExecuteCommand("make", installCtx.verbose, logFile, buildPath,
+		makeOpts...)
 }
 
 // copyLocalTarantool finds and copies local tarantool folder to tmp folder.
@@ -722,6 +757,9 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 	}
 	if installCtx.Local {
 		tntInstallCommandLine = append(tntInstallCommandLine, "--local-repo")
+	}
+	if installCtx.Dynamic {
+		tntInstallCommandLine = append(tntInstallCommandLine, "--dynamic")
 	}
 
 	// Exclude last element from incDir path, because it already has "include" subdir appended.
@@ -850,7 +888,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 
 	// Build tarantool.
 	log.Infof("Building tarantool...")
-	err = buildTarantool(path, tarVersion, installCtx, logFile)
+	buildPath, err := buildTarantool(path, tarVersion, installCtx, logFile)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
@@ -872,9 +910,8 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		printLog(logFile.Name())
 		return err
 	}
-	buildPath := filepath.Join(path, "/static-build/build")
-	binPath := filepath.Join(buildPath, "/tarantool-prefix/bin/tarantool")
-	incPath := filepath.Join(buildPath, "/tarantool-prefix/include/tarantool") + "/"
+	binPath := filepath.Join(buildPath, "tarantool-prefix", "bin", "tarantool")
+	incPath := filepath.Join(buildPath, "tarantool-prefix", "include", "tarantool") + "/"
 	err = copyBuildedTarantool(binPath, incPath, binDir, incDir, versionStr, installCtx,
 		logFile)
 	if err != nil {

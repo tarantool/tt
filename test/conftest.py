@@ -68,7 +68,7 @@ def tmpdir_with_tarantool(tt_cmd, request):
     tt_process.wait()
     assert tt_process.returncode == 0
 
-    init_cmd = [tt_cmd, "install", "tarantool"]
+    init_cmd = [tt_cmd, "install", "tarantool", "--dynamic"]
     tt_process = subprocess.Popen(
         init_cmd,
         cwd=tmpdir,
