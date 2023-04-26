@@ -56,7 +56,7 @@ func Parse(verStr string) (Version, error) {
 			`v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)` +
 			`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
 			`(?:-(?P<additional>\d+))?` +
-			`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?(?:-nogc64)?$`)
+			`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?$`)
 
 	matches := util.FindNamedMatches(re, verStr)
 	if len(matches) == 0 {

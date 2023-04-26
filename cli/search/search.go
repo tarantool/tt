@@ -13,17 +13,26 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
 
+type SearchFlags int64
+
+const (
+	SearchRelease SearchFlags = iota
+	SearchDebug
+	SearchAll
+)
+
 // SearchCtx contains information for programs searching.
 type SearchCtx struct {
-	// Dbg is set if debug builds of tarantool-ee must be included in the result of search.
-	Dbg bool
-	// Dev is set if dev builds of tarantool-ee must be included in the result of search.
-	Dev bool
+	// Filter out which builds of tarantool-ee must be included in the result of search.
+	Filter SearchFlags
+	// What package to look for.
+	Package string
+	// Release version to look for.
+	ReleaseVersion string
 }
 
 const (
@@ -171,15 +180,15 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
 
 	if program == ProgramCe {
 		repo = GitRepoTarantool
-		if searchCtx.Dev || searchCtx.Dbg {
-			log.Warnf("--dbg and --dev options can be used only for" +
-				" tarantool-ee packages searching.")
+		if searchCtx.Filter == SearchDebug || (len(searchCtx.ReleaseVersion) > 0) {
+			log.Warnf("--debug and --version options can only be used to" +
+				" search for tarantool-ee packages.")
 		}
 	} else if program == ProgramTt {
 		repo = GitRepoTT
-		if searchCtx.Dev || searchCtx.Dbg {
-			log.Warnf("--dbg and --dev options can be used only for" +
-				" tarantool-ee packages searching.")
+		if searchCtx.Filter == SearchDebug || (len(searchCtx.ReleaseVersion) > 0) {
+			log.Warnf("--debug and --version options can only be used to" +
+				" search for tarantool-ee packages.")
 		}
 	} else if program == ProgramEe {
 		// Do nothing. Needs for bypass arguments check.
@@ -190,10 +199,12 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
 	var err error
 	log.Infof("Available versions of " + program + ":")
 	if program == ProgramEe {
-		bundles, err := FetchBundlesInfo(searchCtx, cliOpts)
+		searchCtx.Package = "enterprise"
+		bundles, _, err := FetchBundlesInfo(searchCtx, cliOpts)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
+
 		for _, bundle := range bundles {
 			printVersion(cliOpts.App.BinDir, program, bundle.Version.Str)
 		}
@@ -272,7 +283,7 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 	} else if program == ProgramEe {
 		files := []string{}
 		for _, v := range localFiles {
-			if strings.Contains(v.Name(), "tarantool-enterprise-bundle") && !v.IsDir() {
+			if strings.Contains(v.Name(), "tarantool-enterprise-sdk") && !v.IsDir() {
 				files = append(files, v.Name())
 			}
 		}
@@ -293,98 +304,62 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 	return err
 }
 
-// compileVersionRegexp compiles a regular expression for SDK bundle names.
-func compileVersionRegexp() ([]*regexp.Regexp, error) {
-	matchReNew := ""
-	matchReOld := ""
+// compileVersionRegexp compiles a regular expression for cutting version from SDK bundle names.
+func compileVersionRegexp() (*regexp.Regexp, error) {
+	matchRe := "^(?P<tarball>tarantool-enterprise-sdk-(?P<version>.*r[0-9]{3}).*\\.tar\\.gz)$"
 
-	versionRegexpList := make([]*regexp.Regexp, 2)
+	re := regexp.MustCompile(matchRe)
 
-	arch, err := util.GetArch()
-	if err != nil {
-		return nil, err
-	}
-
-	osType, err := util.GetOs()
-	if err != nil {
-		return nil, err
-	}
-
-	switch osType {
-	case util.OsLinux:
-		// Regexp for bundles from the new layout.
-		matchReNew = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-sdk-" +
-			"(?P<version>.*r[0-9]{3})?(?:.linux.)?" +
-			arch + "\\.tar\\.gz))"
-
-		// Regexp for bundles from the old layout.
-		if arch == "x86_64" {
-			matchReOld = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-bundle-" +
-				"(?P<version>.*-g[a-f0-9]+-r[0-9]{3}(?:-nogc64)?)(?:-linux-x86_64)?\\.tar\\.gz))"
-		} else {
-			matchReOld = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-bundle-" +
-				"(?P<version>.*-g[a-f0-9]+-r[0-9]{3}(?:-nogc64)?)(?:-linux-" + arch +
-				")\\.tar\\.gz))"
-		}
-	case util.OsMacos:
-		matchReNew = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-sdk-" +
-			"(?P<version>.*r[0-9]{3})?(?:.macos.)?" +
-			arch + "\\.tar\\.gz))"
-
-		if arch == "x86_64" {
-			matchReOld = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-bundle-" +
-				"(?P<version>.*-g[a-f0-9]+-r[0-9]{3})-macos(?:x-x86_64)?\\.tar\\.gz))"
-		} else {
-			matchReOld = "((?P<prefix>.+/)(?P<tarball>tarantool-enterprise-bundle-" +
-				"(?P<version>.*-g[a-f0-9]+-r[0-9]{3})(?:-macosx-" + arch + ")\\.tar\\.gz))"
-		}
-	}
-
-	reNew := regexp.MustCompile(matchReNew)
-	reOld := regexp.MustCompile(matchReOld)
-
-	versionRegexpList[0] = reNew
-	versionRegexpList[1] = reOld
-
-	return versionRegexpList, nil
+	return re, nil
 }
 
 // getBundles collects a list of information about all available tarantool-ee
-// bundles for the host architecture.
-func getBundles(rawBundleInfoList []string) (BundleInfoSlice, error) {
+// bundles from tarantool.io api reply.
+func getBundles(rawBundleInfoList map[string][]string, flags SearchFlags) (BundleInfoSlice,
+	error) {
 	bundles := BundleInfoSlice{}
 
-	regexpList, err := compileVersionRegexp()
+	re, err := compileVersionRegexp()
 	if err != nil {
 		return nil, err
 	}
 
-	parsedBundleInfo := make([]map[string]string, 0)
-	for _, rawBundleInfo := range rawBundleInfoList {
-		newStrategyMatch := util.FindNamedMatches(regexpList[0], rawBundleInfo)
-		oldStrategyMatch := util.FindNamedMatches(regexpList[1], rawBundleInfo)
-		if newStrategyMatch["version"] != "" {
-			parsedBundleInfo = append(parsedBundleInfo, newStrategyMatch)
-			continue
-		}
-		if oldStrategyMatch["version"] != "" {
-			parsedBundleInfo = append(parsedBundleInfo, oldStrategyMatch)
+	for release, pkgs := range rawBundleInfoList {
+		for _, pkg := range pkgs {
+			parsedData := util.FindNamedMatches(re, pkg)
+			if len(parsedData) == 0 {
+				continue
+			}
+
+			version, err := version.Parse(parsedData["version"])
+			if err != nil {
+				return nil, err
+			}
+
+			version.Tarball = pkg
+			eeVer := BundleInfo{
+				Version: version,
+				Package: "enterprise",
+				Release: release,
+			}
+
+			switch flags {
+			case SearchRelease:
+				if strings.Contains(pkg, "-debug-") {
+					continue
+				}
+			case SearchDebug:
+				if !strings.Contains(pkg, "-debug-") {
+					continue
+				}
+			}
+
+			bundles = append(bundles, eeVer)
 		}
 	}
 
-	if len(parsedBundleInfo) == 0 {
-		return nil, fmt.Errorf("no packages for this OS")
-	}
-
-	for _, bundleInfo := range parsedBundleInfo {
-		ver, err := version.Parse(bundleInfo["version"])
-		if err != nil {
-			return nil, err
-		}
-		eeVersion := BundleInfo{Version: ver}
-		eeVersion.Version.Tarball = bundleInfo["tarball"]
-		eeVersion.Prefix = bundleInfo["prefix"]
-		bundles = append(bundles, eeVersion)
+	if len(bundles) == 0 {
+		return nil, fmt.Errorf("no packages found for this OS or release version")
 	}
 
 	sort.Sort(bundles)
@@ -397,19 +372,18 @@ func getBundles(rawBundleInfoList []string) (BundleInfoSlice, error) {
 func FetchBundlesInfoLocal(files []string) ([]BundleInfo, error) {
 	versions := BundleInfoSlice{}
 
-	regexpList, err := compileVersionRegexp()
+	re, err := compileVersionRegexp()
 	if err != nil {
 		return nil, err
 	}
 
 	for _, file := range files {
-		parsedData := regexpList[0].FindStringSubmatch(file)
-		parsedData = append(parsedData, regexpList[1].FindStringSubmatch(file)...)
+		parsedData := util.FindNamedMatches(re, file)
 		if len(parsedData) == 0 {
 			continue
 		}
 
-		version, err := version.Parse(parsedData[4])
+		version, err := version.Parse(parsedData["version"])
 		if err != nil {
 			return nil, err
 		}
@@ -427,28 +401,22 @@ func FetchBundlesInfoLocal(files []string) ([]BundleInfo, error) {
 // FetchBundlesInfo returns slice of information about all available tarantool-ee bundles.
 // The result will be sorted in ascending order.
 func FetchBundlesInfo(searchCtx SearchCtx, cliOpts *config.CliOpts) ([]BundleInfo,
-	error) {
-	credentials, err := install_ee.GetCreds(cliOpts)
+	string, error) {
+	bundleReferences, token, err := tntIoGetPkgVersions(cliOpts, searchCtx)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	bundleReferences, err := collectBundleReferences(&searchCtx, install_ee.EESource, credentials)
+	bundles, err := getBundles(bundleReferences, searchCtx.Filter)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	bundles, err := getBundles(bundleReferences)
-	if err != nil {
-		return nil, err
-	}
-
-	return bundles, nil
+	return bundles, token, nil
 }
 
 // GetTarantoolBundleInfo returns the available EE SDK bundle for user's OS,
-// corresponding to the passed expected version argument. If the passed expected version
-// is an empty string, it will return the latest release version.
+// corresponding to the passed expected version argument.
 func GetTarantoolBundleInfo(cliOpts *config.CliOpts, local bool,
 	files []string, expectedVersion string) (BundleInfo, error) {
 	bundles := BundleInfoSlice{}
@@ -465,32 +433,19 @@ func GetTarantoolBundleInfo(cliOpts *config.CliOpts, local bool,
 			}
 		}
 	} else {
-		if expectedVersion == "" {
-			searchCtx := SearchCtx{Dbg: false, Dev: false}
-			bundles, err = FetchBundlesInfo(searchCtx, cliOpts)
-			if err != nil {
-				return BundleInfo{}, err
-			}
-			if bundles.Len() == 0 {
-				return BundleInfo{}, fmt.Errorf("no version found")
-			}
-			return bundles[bundles.Len()-1], nil
-		} else {
-			searchContexts := []SearchCtx{
-				{Dbg: false, Dev: false},
-				{Dbg: false, Dev: true},
-				{Dbg: true, Dev: true},
-			}
-			for _, searchCtx := range searchContexts {
-				bundles, err = FetchBundlesInfo(searchCtx, cliOpts)
-				if err != nil {
-					return BundleInfo{}, err
-				}
-				for _, bundle := range bundles {
-					if bundle.Version.Str == expectedVersion {
-						return bundle, nil
-					}
-				}
+		var token string
+		searchCtx := SearchCtx{
+			Filter:  SearchAll,
+			Package: "enterprise",
+		}
+		bundles, token, err = FetchBundlesInfo(searchCtx, cliOpts)
+		if err != nil {
+			return BundleInfo{}, err
+		}
+		for _, bundle := range bundles {
+			if bundle.Version.Str == expectedVersion {
+				bundle.Token = token
+				return bundle, nil
 			}
 		}
 	}

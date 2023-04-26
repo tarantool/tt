@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
 - ``tt install tarantool`` without version specification now installs the latest release.
+- ``tt install/search tarantool-ee`` now uses credentials from `tarantool.io` customer zone.
+  Also, installation now requires specifying the version.
+- ``tt search tarantool-ee`` options changed. A new `--version` flag has been added to allow
+  search for a specific release. The `--dev` and `--dbg` options have been merged into a
+  single `--debug` option.
 
 ### Added
 

@@ -3,15 +3,17 @@ package install_ee
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"regexp"
 	"strings"
 	"syscall"
 
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/term"
+)
+
+const (
+	EnvSdkUsername = "TT_CLI_EE_USERNAME"
+	EnvSdkPassword = "TT_CLI_EE_PASSWORD"
 )
 
 type UserCredentials struct {
@@ -45,20 +47,45 @@ func getCredsInteractive() (UserCredentials, error) {
 // getCredsFromFile gets credentials from file.
 func getCredsFromFile(path string) (UserCredentials, error) {
 	res := UserCredentials{}
-	data, err := ioutil.ReadFile(path)
+
+	fh, err := os.Open(path)
+	if err != nil {
+		return res, err
+	}
+	defer fh.Close()
+
+	info, err := fh.Stat()
 	if err != nil {
 		return res, err
 	}
 
-	re := regexp.MustCompile("(?P<user>.*):(?P<pass>.*)")
-	matches := util.FindNamedMatches(re, strings.TrimSpace(string(data)))
-
-	if len(matches) == 0 {
-		return res, fmt.Errorf("corrupted credentials")
+	// Check file permissions. Error if `group` or `other` bits are set.
+	if info.Mode().Perm()&os.FileMode(0077) != 0 {
+		return res, fmt.Errorf("permissions %q for %q are too open.\n\t%s\n\t%s %s'",
+			info.Mode(),
+			path,
+			"It is required that the credential file is NOT accessible by others.",
+			"Can be fixed by running: 'chmod 0600",
+			path,
+		)
 	}
 
-	res.Username = matches["user"]
-	res.Password = matches["pass"]
+	scanner := bufio.NewScanner(fh)
+	scanner.Scan()
+	res.Username = scanner.Text()
+	scanner.Scan()
+	res.Password = scanner.Text()
+
+	if scanner.Err() != nil {
+		return res, scanner.Err()
+	}
+
+	if len(res.Username) == 0 {
+		return res, fmt.Errorf("login not set")
+	}
+	if len(res.Password) == 0 {
+		return res, fmt.Errorf("password not set")
+	}
 
 	return res, nil
 }
@@ -66,8 +93,8 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 // getCredsFromFile gets credentials from environment variables.
 func getCredsFromEnvVars() (UserCredentials, error) {
 	res := UserCredentials{}
-	res.Username = os.Getenv("TT_CLI_EE_USERNAME")
-	res.Password = os.Getenv("TT_CLI_EE_PASSWORD")
+	res.Username = os.Getenv(EnvSdkUsername)
+	res.Password = os.Getenv(EnvSdkPassword)
 	if res.Username == "" || res.Password == "" {
 		return res, fmt.Errorf("no credentials in environment variables were found")
 	}

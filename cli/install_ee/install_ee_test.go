@@ -2,6 +2,8 @@ package install_ee
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,19 +29,40 @@ func TestGetCredsFromFile(t *testing.T) {
 			err:    fmt.Errorf("open ./testdata/nonexisting: no such file or directory"),
 		}
 
-	testCases[getCredsFromFileInputValue{path: "./testdata/creds_ok"}] =
+	file, err := ioutil.TempFile("/tmp", "tt-unittest-*.bat")
+	assert.Nil(err)
+	file.WriteString("user\npass")
+	defer os.Remove(file.Name())
+
+	testCases[getCredsFromFileInputValue{path: file.Name()}] =
 		getCredsFromFileOutputValue{
 			result: UserCredentials{
-				Username: "toor",
-				Password: "1234",
+				Username: "user",
+				Password: "pass",
 			},
 			err: nil,
 		}
 
-	testCases[getCredsFromFileInputValue{path: "./testdata/creds_bad"}] =
+	file, err = ioutil.TempFile("/tmp", "tt-unittest-*.bat")
+	assert.Nil(err)
+	file.WriteString("")
+	defer os.Remove(file.Name())
+
+	testCases[getCredsFromFileInputValue{path: file.Name()}] =
 		getCredsFromFileOutputValue{
 			result: UserCredentials{},
-			err:    fmt.Errorf("corrupted credentials"),
+			err:    fmt.Errorf("login not set"),
+		}
+
+	file, err = ioutil.TempFile("/tmp", "tt-unittest-*.bat")
+	assert.Nil(err)
+	file.WriteString("user")
+	defer os.Remove(file.Name())
+
+	testCases[getCredsFromFileInputValue{path: file.Name()}] =
+		getCredsFromFileOutputValue{
+			result: UserCredentials{},
+			err:    fmt.Errorf("password not set"),
 		}
 
 	for input, output := range testCases {
@@ -75,8 +98,8 @@ func Test_getCredsFromEnvVars(t *testing.T) {
 		{
 			name: "Environment variables are passed",
 			prepare: func() {
-				t.Setenv("TT_CLI_EE_USERNAME", "tt_test")
-				t.Setenv("TT_CLI_EE_PASSWORD", "tt_test")
+				t.Setenv(EnvSdkUsername, "tt_test")
+				t.Setenv(EnvSdkPassword, "tt_test")
 			},
 			want: UserCredentials{Username: "tt_test", Password: "tt_test"},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
@@ -86,8 +109,8 @@ func Test_getCredsFromEnvVars(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("TT_CLI_EE_USERNAME", "")
-			t.Setenv("TT_CLI_EE_PASSWORD", "")
+			t.Setenv(EnvSdkUsername, "")
+			t.Setenv(EnvSdkPassword, "")
 			tt.prepare()
 			got, err := getCredsFromEnvVars()
 			if !tt.wantErr(t, err, fmt.Sprintf("getCredsFromEnvVars()")) {

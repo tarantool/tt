@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 
@@ -12,36 +11,39 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-const (
-	EESource = "https://download.tarantool.io/"
-)
-
 // GetTarantoolEE downloads given tarantool-ee bundle into directory.
-func GetTarantoolEE(cliOpts *config.CliOpts, bundleName, bundleSource string, dst string) error {
+func GetTarantoolEE(cliOpts *config.CliOpts, bundleName, bundleSource string,
+	token string, dst string) error {
+
 	if _, err := os.Stat(dst); os.IsNotExist(err) {
 		return fmt.Errorf("directory doesn't exist: %s", dst)
 	}
 	if !util.IsDir(dst) {
 		return fmt.Errorf("incorrect path: %s", dst)
 	}
-	credentials, err := GetCreds(cliOpts)
+
+	client := http.Client{
+		Timeout: 0,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// API uses signed 'host' header, it must be set explicitly,
+			// because when redirecting it is empty.
+			req.Host = req.URL.Hostname()
+
+			return nil
+		},
+	}
+
+	req, err := http.NewRequest(http.MethodGet, bundleSource, http.NoBody)
 	if err != nil {
 		return err
 	}
 
-	source, err := url.Parse(EESource)
-	if err != nil {
-		return err
+	cookie := &http.Cookie{
+		Name:  "sessionid",
+		Value: token,
 	}
-
-	source.Path = filepath.Join(bundleSource, bundleName)
-	client := http.Client{Timeout: 0}
-	req, err := http.NewRequest(http.MethodGet, source.String(), http.NoBody)
-	if err != nil {
-		return err
-	}
-
-	req.SetBasicAuth(credentials.Username, credentials.Password)
+	req.AddCookie(cookie)
+	req.Header.Set("User-Agent", "tt")
 
 	res, err := client.Do(req)
 	if err != nil {
