@@ -14,7 +14,7 @@ from utils import run_command_and_get_output
 def test_search_ee(tt_cmd, tmpdir):
     cmds = [
         [tt_cmd, "search", "tarantool-ee"],
-        [tt_cmd, "search", "tarantool-ee", "--dev"],
+        [tt_cmd, "search", "tarantool-ee", "--version=2.10"],
     ]
     for cmd in cmds:
         rc, output = run_command_and_get_output(

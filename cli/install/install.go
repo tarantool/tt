@@ -969,10 +969,9 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		}
 	}
 
-	// Get latest version if it was not specified.
 	tarVersion := installCtx.version
 	if tarVersion == "" {
-		log.Infof("Getting latest tarantool-ee version..")
+		return fmt.Errorf("to install tarantool-ee, you need to specify the version")
 	}
 
 	ver, err := search.GetTarantoolBundleInfo(cliOpts, installCtx.Local, files, tarVersion)
@@ -1007,7 +1006,10 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	log.Infof("Checking existing...")
 	log.Infof("Getting bundle name for %s", tarVersion)
 	bundleName := ver.Version.Tarball
-	bundleSource := ver.Prefix
+	bundleSource, err := search.TntIoMakePkgURI(ver.Package, ver.Release, bundleName)
+	if err != nil {
+		return err
+	}
 
 	versionStr := search.ProgramEe + version.FsSeparator + tarVersion
 	if !installCtx.Reinstall {
@@ -1047,7 +1049,7 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		}
 	} else {
 		log.Infof("Downloading tarantool-ee...")
-		err := install_ee.GetTarantoolEE(cliOpts, bundleName, bundleSource, path)
+		err := install_ee.GetTarantoolEE(cliOpts, bundleName, bundleSource, ver.Token, path)
 		if err != nil {
 			printLog(logFile.Name())
 			return err

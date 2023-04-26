@@ -9,8 +9,12 @@ import (
 type BundleInfo struct {
 	// Version represents the info about the bundle's version.
 	Version version.Version
-	// Prefix represents the relative URL of the bundle.
-	Prefix string
+	// Package represents package name.
+	Package string
+	// Release represents the release version (e.g: 2.10).
+	Release string
+	// Download token.
+	Token string
 }
 
 // BundleInfoSlice attaches the methods of sort.Interface to []Version,

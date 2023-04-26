@@ -26,7 +26,7 @@ def test_install_ee(tt_cmd, tmpdir):
                      version)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "install", "tarantool-ee", version],
+        [tt_cmd, "install", "-f", "tarantool-ee", version],
         cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
 
     assert rc == 0
