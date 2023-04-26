@@ -24,8 +24,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - A configurable variable `cluster_cookie` for `tt create cartridge` template.
 - ``tt build`` accepts application name for building.
-- Creating wal, vinyl and memtx directories for `tt pack`. If these directories 
-  are not located in the same directory in the environment for packing, the result package 
+- Creating wal, vinyl and memtx directories for `tt pack`. If these directories
+  are not located in the same directory in the environment for packing, the result package
   will contain separate snap/vinyl/wal directories for corresponding artifacts.
 
 ### Fixed
