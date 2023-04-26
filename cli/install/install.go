@@ -273,7 +273,7 @@ func programDependenciesInstalled(program string) bool {
 		} else {
 			answer, err := util.AskConfirm(os.Stdin, "Unknown OS, can't check if dependencies"+
 				" are installed.\n"+
-				"Procced, without checking?")
+				"Proceed without checking?")
 			if !answer || err != nil {
 				return false
 			}
