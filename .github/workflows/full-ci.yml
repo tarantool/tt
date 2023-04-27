@@ -177,8 +177,8 @@ jobs:
 
       - name: Integration tests
         env:
-          TT_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
-          TT_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
+          TT_CLI_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
+          TT_CLI_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
         run: mage integrationee
 
   # sdk suffix means the tests will be run on tarantool from EE SDK package.
@@ -226,8 +226,8 @@ jobs:
 
       - name: Integration tests
         env:
-          TT_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
-          TT_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
+          TT_CLI_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
+          TT_CLI_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
         run: mage integrationee
 
   # ce suffix means that the job will be run on CE tarantool.
@@ -263,8 +263,8 @@ jobs:
 
       - name: Integration tests
         env:
-          TT_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
-          TT_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
+          TT_CLI_EE_USERNAME: '${{ secrets.TT_EE_USERNAME }}'
+          TT_CLI_EE_PASSWORD: '${{ secrets.TT_EE_PASSWORD }}'
         run: mage integrationee
 
   # Integration tests on the system without Tarantool installed.

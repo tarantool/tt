@@ -252,6 +252,8 @@ file format:
 **ee**
 
 * ``credential_path`` (string) - path to file with credentials for downloading tarantool-ee
+  Alternatively credentials can be set via environment variables:
+  `TT_CLI_EE_USERNAME` and `TT_CLI_EE_PASSWORD`.
 
 **templates**
 

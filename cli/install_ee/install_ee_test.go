@@ -75,8 +75,8 @@ func Test_getCredsFromEnvVars(t *testing.T) {
 		{
 			name: "Environment variables are passed",
 			prepare: func() {
-				t.Setenv("TT_EE_USERNAME", "tt_test")
-				t.Setenv("TT_EE_PASSWORD", "tt_test")
+				t.Setenv("TT_CLI_EE_USERNAME", "tt_test")
+				t.Setenv("TT_CLI_EE_PASSWORD", "tt_test")
 			},
 			want: UserCredentials{Username: "tt_test", Password: "tt_test"},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
@@ -86,6 +86,8 @@ func Test_getCredsFromEnvVars(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TT_CLI_EE_USERNAME", "")
+			t.Setenv("TT_CLI_EE_PASSWORD", "")
 			tt.prepare()
 			got, err := getCredsFromEnvVars()
 			if !tt.wantErr(t, err, fmt.Sprintf("getCredsFromEnvVars()")) {

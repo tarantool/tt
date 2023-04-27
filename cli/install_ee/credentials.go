@@ -66,8 +66,8 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 // getCredsFromFile gets credentials from environment variables.
 func getCredsFromEnvVars() (UserCredentials, error) {
 	res := UserCredentials{}
-	res.Username = os.Getenv("TT_EE_USERNAME")
-	res.Password = os.Getenv("TT_EE_PASSWORD")
+	res.Username = os.Getenv("TT_CLI_EE_USERNAME")
+	res.Password = os.Getenv("TT_CLI_EE_PASSWORD")
 	if res.Username == "" || res.Password == "" {
 		return res, fmt.Errorf("no credentials in environment variables were found")
 	}
