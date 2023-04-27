@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/version"
 )
 
 func Test_dirsAreWriteable(t *testing.T) {
@@ -83,4 +84,30 @@ func Test_subDirIsWritable(t *testing.T) {
 				tt.args.dir)
 		})
 	}
+}
+
+func Test_getLatestRelease(t *testing.T) {
+	getFirst := func(verStr string) version.Version {
+		ver, _ := version.Parse(verStr)
+		return ver
+	}
+
+	versions := []version.Version{
+		getFirst("2.10.6"),
+		getFirst("2.10.7-entrypoint"),
+		getFirst("2.11.0-entrypoint"),
+		getFirst("2.11.0-rc1"),
+		getFirst("2.11.0-rc2"),
+		getFirst("3.0.0-entrypoint"),
+	}
+
+	latestRelease := getLatestRelease(versions)
+	require.Equal(t, "2.10.6", latestRelease)
+
+	versions = append(versions, getFirst("3.0.0"))
+	latestRelease = getLatestRelease(versions)
+	require.Equal(t, "3.0.0", latestRelease)
+
+	latestRelease = getLatestRelease(versions[1:6])
+	require.Equal(t, "", latestRelease)
 }
