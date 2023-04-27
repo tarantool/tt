@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - ``--dynamic`` option for `tt install tarantool` command to build non-static tarantool executable.
 
+### Fixed
+
+- ``tt connect`` command does not break a console after executing `os.exit()` command anymore.
+
 ## [1.0.2] - 2023-04-21
 
 ### Fixed

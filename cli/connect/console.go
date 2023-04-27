@@ -144,12 +144,6 @@ func (console *Console) Run() error {
 
 	console.prompt.Run()
 
-	// Sets the terminal modes to “sane” values to workaround
-	// bug https://github.com/c-bata/go-prompt/issues/228
-	sttySane := exec.Command("stty", "sane")
-	sttySane.Stdin = os.Stdin
-	_ = sttySane.Run()
-
 	return nil
 }
 
@@ -166,6 +160,12 @@ func (console *Console) Close() {
 	if console.conn != nil {
 		console.conn.Close()
 	}
+
+	// Sets the terminal modes to “sane” values to workaround
+	// bug https://github.com/c-bata/go-prompt/issues/228
+	sttySane := exec.Command("stty", "sane")
+	sttySane.Stdin = os.Stdin
+	_ = sttySane.Run()
 }
 
 func loadHistory(console *Console) error {
@@ -247,6 +247,9 @@ func getExecutor(console *Console) prompt.Executor {
 		var data string
 		if _, err := console.conn.Eval(consoleEvalFuncBody, args, opts); err != nil {
 			if err == io.EOF {
+				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
+				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.
+				console.Close()
 				log.Fatalf("Connection was closed. Probably instance process isn't running anymore")
 			} else {
 				log.Fatalf("Failed to execute command: %s", err)
