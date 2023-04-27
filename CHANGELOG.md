@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+- ``tt install tarantool`` without version specification now installs the latest release.
+
 ### Added
 
 - ``--dynamic`` option for `tt install tarantool` command to build non-static tarantool executable.

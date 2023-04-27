@@ -782,6 +782,19 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 	return nil
 }
 
+func getLatestRelease(versions []version.Version) string {
+	latestRelease := ""
+
+	for n := len(versions) - 1; n >= 0; n-- {
+		if versions[n].Release.Type == version.TypeRelease {
+			latestRelease = versions[n].Str
+			break
+		}
+	}
+
+	return latestRelease
+}
+
 // installTarantool installs selected version of tarantool.
 func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	distfiles string) error {
@@ -801,12 +814,12 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	// Get latest version if it was not specified.
 	tarVersion := installCtx.version
 	if tarVersion == "" {
-		log.Infof("Getting latest tarantool version..")
-		if len(versions) == 0 {
+		log.Infof("Getting latest tarantool version...")
+
+		tarVersion = getLatestRelease(versions)
+		if tarVersion == "" {
 			return fmt.Errorf("no version found")
 		}
-
-		tarVersion = versions[len(versions)-1].Str
 	}
 
 	// Check that the version exists.
