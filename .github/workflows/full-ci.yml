@@ -40,7 +40,7 @@ jobs:
           tarantool-version: '${{ matrix.tarantool-version }}'
 
       - name: Setup Docker
-        uses: docker-practice/actions-setup-docker@master
+        uses: better0fdead/actions-setup-docker@master
 
       - name: Static code check
         uses: ./.github/actions/static-code-check
@@ -93,7 +93,7 @@ jobs:
           sdk-download-token: '${{ secrets.SDK_DOWNLOAD_TOKEN }}'
 
       - name: Setup Docker
-        uses: docker-practice/actions-setup-docker@master
+        uses: better0fdead/actions-setup-docker@master
 
       - name: Static code check
         uses: ./.github/actions/static-code-check
@@ -131,7 +131,7 @@ jobs:
           pip3 install pytest tarantool requests psutil pyyaml netifaces
 
       - name: Setup Docker
-        uses: docker-practice/actions-setup-docker@master
+        uses: better0fdead/actions-setup-docker@master
 
       - name: Build tt
         env:
