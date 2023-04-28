@@ -167,6 +167,11 @@ jobs:
           rm ./dist-prebuilt/packages-macos/tt_darwin_amd64_v1/tt
           rm ./dist-prebuilt/packages-linux/tt_linux_amd64_v1/tt
 
+      - name: Pack additional archives
+        run: |
+          ./.gen_tarballs.sh -t ${{ github.ref_name }}
+          mv /tmp/gentoo_tarballs/tt*.tar.* ./dist-prebuilt/packages-linux/
+
       - name: merge checksum file
         run: |
           cd ./dist-prebuilt
