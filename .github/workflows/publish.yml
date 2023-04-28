@@ -157,11 +157,9 @@ jobs:
       - name: Remove not-needed files
         run: |
           rm ./dist-prebuilt/packages-linux/artifacts.json
-          rm ./dist-prebuilt/packages-linux/CHANGELOG.md
           rm ./dist-prebuilt/packages-linux/config.yaml
           rm ./dist-prebuilt/packages-linux/metadata.json
           rm ./dist-prebuilt/packages-macos/artifacts.json
-          rm ./dist-prebuilt/packages-macos/CHANGELOG.md
           rm ./dist-prebuilt/packages-macos/config.yaml
           rm ./dist-prebuilt/packages-macos/metadata.json
           rm ./dist-prebuilt/packages-macos/tt_darwin_amd64_v1/tt
