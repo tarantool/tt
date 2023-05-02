@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.1.0] - 2023-05-02
+
 ### Changed
 - ``tt install tarantool`` without version specification now installs the latest release.
 - ``tt install/search tarantool-ee`` now uses credentials from `tarantool.io` customer zone.
