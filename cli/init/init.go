@@ -131,6 +131,9 @@ func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (configData, er
 	return existingCfg, nil
 }
 
+//go:embed templates/tt.yaml.default
+var ttYamlTemplate string
+
 // generateTtEnv generates environment config in configPath using configuration data provided.
 func generateTtEnv(configPath string, sourceCfg configData) error {
 	cfg := config.Config{
@@ -156,7 +159,13 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 	}
 	cfg.CliConfig.App.TarantoolctlLayout = sourceCfg.tarantoolctlLayout
 
-	if err := util.WriteYaml(configPath, cfg); err != nil {
+	ttYamlContent, err := util.GetTextTemplatedStr(&ttYamlTemplate, cfg)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(configPath, []byte(ttYamlContent), 0644)
+	if err != nil {
 		return err
 	}
 
