@@ -33,6 +33,8 @@ type SearchCtx struct {
 	Package string
 	// Release version to look for.
 	ReleaseVersion string
+	// Program name
+	ProgramName string
 }
 
 const (
@@ -180,20 +182,8 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
 
 	if program == ProgramCe {
 		repo = GitRepoTarantool
-		if searchCtx.Filter == SearchDebug || (len(searchCtx.ReleaseVersion) > 0) {
-			log.Warnf("--debug and --version options can only be used to" +
-				" search for tarantool-ee packages.")
-		}
 	} else if program == ProgramTt {
 		repo = GitRepoTT
-		if searchCtx.Filter == SearchDebug || (len(searchCtx.ReleaseVersion) > 0) {
-			log.Warnf("--debug and --version options can only be used to" +
-				" search for tarantool-ee packages.")
-		}
-	} else if program == ProgramEe {
-		// Do nothing. Needs for bypass arguments check.
-	} else {
-		return fmt.Errorf("search supports only tarantool/tarantool-ee/tt")
 	}
 
 	var err error

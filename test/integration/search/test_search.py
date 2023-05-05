@@ -19,13 +19,13 @@ def test_version_cmd(tt_cmd, tmpdir):
 
     cmd = [tt_cmd, "search", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    assert rc == 1
-    assert re.search(r"search supports only tarantool/tarantool-ee/tt", output)
+    assert rc == 0
+    assert re.search(r"Search for available versions for the program", output)
 
     cmd = [tt_cmd, "search"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    assert rc == 1
-    assert re.search(r"missing program name", output)
+    assert rc == 0
+    assert re.search(r"Search for available versions for the program", output)
 
 
 @pytest.mark.slow
@@ -47,22 +47,22 @@ def test_version_cmd_local(tt_cmd, tmpdir):
                        os.path.join(distfilesPath, "tt")]
     rc, _ = run_command_and_get_output(cmd_download_tt, cwd=tmpdir)
     assert rc == 0
-    cmd = [tt_cmd, "search", "tarantool", "--local-repo"]
+    cmd = [tt_cmd, "search", "--local-repo", "tarantool"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
     assert re.search(r"Available versions of tarantool:", output)
 
-    cmd = [tt_cmd, "search", "tt", "--local-repo"]
+    cmd = [tt_cmd, "search", "--local-repo", "tt"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 0
     assert re.search(r"Available versions of tt:", output)
 
-    cmd = [tt_cmd, "search", "git", "--local-repo"]
+    cmd = [tt_cmd, "search", "--local-repo", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    assert rc == 1
-    assert re.search(r"search supports only tarantool/tarantool-ee/tt", output)
+    assert rc == 0
+    assert re.search(r"Search for available versions for the program", output)
 
     cmd = [tt_cmd, "search", "--local-repo"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    assert rc == 1
-    assert re.search(r"missing program name", output)
+    assert rc == 0
+    assert re.search(r"Search for available versions for the program", output)
