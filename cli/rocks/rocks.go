@@ -70,6 +70,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	os.Setenv("TT_CLI_TARANTOOL_VERSION", version)
 	os.Setenv("TT_CLI_TARANTOOL_PREFIX", cmdCtx.Cli.TarantoolInstallPrefix)
 	os.Setenv("TT_CLI_TARANTOOL_INCLUDE", cmdCtx.Cli.TarantoolIncludeDir)
+	os.Setenv("TARANTOOL_DIR", filepath.Dir(cmdCtx.Cli.TarantoolIncludeDir))
 	os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolExecutable))
 
 	rocks_cmd := fmt.Sprintf("t=require('extra.wrapper').exec('%s', %s)",
