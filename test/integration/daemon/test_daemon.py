@@ -214,7 +214,8 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     body = {"command_name": "status", "params": ["test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
-    assert re.search(r"RUNNING. PID: \d+.", response.json()["res"])
+    status_info = utils.extract_status(response.json()["res"])
+    assert status_info["test_app"]["STATUS"] == "RUNNING"
 
     body = {"command_name": "stop", "params": ["test_app"]}
     response = requests.post(default_url, json=body)
@@ -286,8 +287,8 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     body = {"command_name": "status", "params": ["test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
-    assert re.search(r"RUNNING. PID: \d+.", response.json()["res"])
-
+    status_info = utils.extract_status(response.json()["res"])
+    assert status_info["test_app"]["STATUS"] == "RUNNING"
     body = {"command_name": "stop", "params": ["test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200

@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/status"
 )
 
 // NewStatusCmd creates status command.
@@ -35,11 +35,6 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	for _, run := range runningCtx.Instances {
-		fullInstanceName := running.GetAppInstanceName(run)
-		procStatus := running.Status(&run)
-		log.Infof("%s: %s", procStatus.ColorSprint(fullInstanceName), procStatus.Text)
-	}
-
-	return nil
+	err := status.Status(runningCtx)
+	return err
 }

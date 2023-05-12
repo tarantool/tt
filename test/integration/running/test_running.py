@@ -6,7 +6,7 @@ import tempfile
 
 import yaml
 
-from utils import (config_name, kill_child_process, log_path,
+from utils import (config_name, extract_status, kill_child_process, log_path,
                    run_command_and_get_output, run_path, wait_file,
                    wait_instance_start, wait_instance_stop)
 
@@ -35,7 +35,8 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"RUNNING. PID: \d+.", status_out)
+    status_info = extract_status(status_out)
+    assert status_info["test_app"]["STATUS"] == "RUNNING"
 
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]
@@ -72,7 +73,8 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"RUNNING. PID: \d+.", status_out)
+    status_out = extract_status(status_out)
+    assert status_out["test_app"]["STATUS"] == "RUNNING"
 
     # Restart the Instance.
     restart_cmd = [tt_cmd, "restart", "-y", "test_app"]
@@ -98,7 +100,8 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"RUNNING. PID: \d+.", status_out)
+    status_out = extract_status(status_out)
+    assert status_out["test_app"]["STATUS"] == "RUNNING"
 
     # Stop the new Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]
@@ -238,7 +241,10 @@ def test_running_base_functionality_working_dir_app(tt_cmd):
             status_cmd = [tt_cmd, "status", "app"]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(r"RUNNING. PID: \d+.", status_out)
+            status_out = extract_status(status_out)
+            assert status_out["app:router"]["STATUS"] == "RUNNING"
+            assert status_out["app:master"]["STATUS"] == "RUNNING"
+            assert status_out["app:replica"]["STATUS"] == "RUNNING"
 
             # Stop the application.
             stop_cmd = [tt_cmd, "stop", "app"]
@@ -286,7 +292,8 @@ def test_running_base_functionality_working_dir_app_no_app_name(tt_cmd):
             status_cmd = [tt_cmd, "status"]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(r"RUNNING. PID: \d+.", status_out)
+            status_out = extract_status(status_out)
+            assert status_out[f"app:{instName}"]["STATUS"] == "RUNNING"
 
             # Stop the application.
             stop_cmd = [tt_cmd, "stop"]
@@ -328,18 +335,20 @@ def test_running_instance_from_multi_inst_app(tt_cmd):
         status_cmd = [tt_cmd, "status", "app:router"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
         assert status_rc == 0
-        assert re.search(r"router: RUNNING. PID: \d+.", status_out)
+        status_out = extract_status(status_out)
+        assert status_out["app:router"]["STATUS"] == "RUNNING"
 
         for inst in ["master", "replica"]:
             status_cmd = [tt_cmd, "status", "app:" + inst]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(inst + ": NOT RUNNING.", status_out)
+            status_out = extract_status(status_out)
+            assert status_out[f"app:{inst}"]["STATUS"] == "NOT RUNNING"
 
         # Stop the Instance.
         stop_cmd = [tt_cmd, "stop", "app:router"]
         stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
-        assert status_rc == 0
+        assert stop_rc == 0
         assert re.search(r"The Instance app:router \(PID = \d+\) has been terminated.", stop_out)
 
         # Check that the process was terminated correctly.
@@ -415,9 +424,10 @@ def test_running_reread_config(tt_cmd, tmpdir):
     status_cmd = [tt_cmd, "status", inst_name]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"RUNNING. PID: \d+.", status_out)
+    status_out = extract_status(status_out)
+    assert status_out[inst_name]["STATUS"] == "RUNNING"
 
-    pid = int(''.join(filter(str.isdigit, status_out)))
+    pid = status_out[inst_name]["PID"]
 
     # Wait for child process of instance to start.
     # We need to wait because watchdog starts first and only after that
@@ -441,7 +451,8 @@ def test_running_reread_config(tt_cmd, tmpdir):
     status_cmd = [tt_cmd, "status", inst_name]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"RUNNING. PID: \d+.", status_out)
+    status_out = extract_status(status_out)
+    assert status_out[inst_name]["STATUS"] == "RUNNING"
 
     with open(config_path, "w") as file:
         yaml.dump({"tt": {"app": {"restart_on_failure": False,
@@ -502,8 +513,11 @@ def test_no_args_usage(tt_cmd):
             status_cmd = [tt_cmd, "status"]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(r"app1:(router|master|replica): RUNNING. PID: \d+.", status_out)
-            assert re.search(r"app2: RUNNING. PID: \d+.", status_out)
+            status_out = extract_status(status_out)
+            assert status_out['app1:router']["STATUS"] == "RUNNING"
+            assert status_out['app1:master']["STATUS"] == "RUNNING"
+            assert status_out['app1:replica']["STATUS"] == "RUNNING"
+            assert status_out['app2']["STATUS"] == "RUNNING"
 
             status_cmd = [tt_cmd, "logrotate"]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
@@ -553,7 +567,8 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
     status_cmd = [tt_cmd, "status", "test_env_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"RUNNING. PID: \d+.", status_out)
+    status_out = extract_status(status_out)
+    assert status_out["test_env_app"]["STATUS"] == "RUNNING"
 
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_env_app"]
@@ -610,7 +625,8 @@ def test_running_tarantoolctl_layout(tt_cmd, tmpdir):
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert re.search(r"RUNNING. PID: \d+.", status_out)
+    status_out = extract_status(status_out)
+    assert status_out["test_app"]["STATUS"] == "RUNNING"
 
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]

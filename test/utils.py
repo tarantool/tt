@@ -322,3 +322,20 @@ def find_port(port=8000):
             return find_port(port=port + 1)
         else:
             return port
+
+
+def extract_status(status_output):
+    result = {}
+    statuses = status_output.split("\n")
+    for i in range(1, len(statuses)-1):
+        summary = statuses[i]
+        fields = summary.split()
+        instance = fields[0]
+        info = {}
+        if fields[1] == "RUNNING":
+            info["STATUS"] = fields[1]
+            info["PID"] = int(fields[2])
+        else:
+            info["STATUS"] = " ".join(fields[1:])
+        result[instance] = info
+    return result
