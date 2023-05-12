@@ -516,12 +516,12 @@ func Status(run *InstanceCtx) process_utils.ProcessState {
 func Logrotate(run *InstanceCtx) (string, error) {
 	pid, err := process_utils.GetPIDFromFile(run.PIDFile)
 	if err != nil {
-		return "", fmt.Errorf(instStateStopped.Text)
+		return "", fmt.Errorf(instStateStopped.String())
 	}
 
 	alive, err := process_utils.IsProcessAlive(pid)
 	if !alive {
-		return "", fmt.Errorf(instStateDead.Text)
+		return "", fmt.Errorf(instStateDead.String())
 	}
 
 	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {

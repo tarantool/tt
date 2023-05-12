@@ -23,7 +23,8 @@ const defaultDirPerms = 0770
 type ProcessState struct {
 	Code        int
 	ColorSprint func(a ...interface{}) string
-	Text        string
+	Status      string
+	PID         int
 }
 
 const (
@@ -34,16 +35,26 @@ const (
 
 var (
 	ProcStateRunning = ProcessState{
-		ProcessRunningCode,
-		color.New(color.FgGreen).SprintFunc(),
-		"RUNNING. PID: %v."}
-	ProcStateStopped = ProcessState{ProcessStoppedCode,
-		color.New(color.FgYellow).SprintFunc(),
-		"NOT RUNNING"}
-	ProcStateDead = ProcessState{ProcessDeadCode,
-		color.New(color.FgRed).SprintFunc(),
-		"ERROR. The process is dead"}
+		Code:        ProcessRunningCode,
+		ColorSprint: color.New(color.FgGreen).SprintFunc(),
+		Status:      "RUNNING"}
+	ProcStateStopped = ProcessState{
+		Code:        ProcessStoppedCode,
+		ColorSprint: color.New(color.FgYellow).SprintFunc(),
+		Status:      "NOT RUNNING"}
+	ProcStateDead = ProcessState{
+		Code:        ProcessDeadCode,
+		ColorSprint: color.New(color.FgRed).SprintFunc(),
+		Status:      "ERROR. The process is dead"}
 )
+
+// String makes a string from ProcessState.
+func (procState ProcessState) String() string {
+	if procState.Code == ProcessRunningCode {
+		return fmt.Sprintf("%s. PID: %d.", procState.Status, procState.PID)
+	}
+	return procState.Status
+}
 
 // GetPIDFromFile returns PID from the PIDFile.
 func GetPIDFromFile(pidFileName string) (int, error) {
@@ -167,7 +178,7 @@ func ProcessStatus(pidFile string) ProcessState {
 	}
 
 	procState := ProcStateRunning
-	procState.Text = fmt.Sprintf(procState.Text, pid)
+	procState.PID = pid
 	return procState
 }
 
