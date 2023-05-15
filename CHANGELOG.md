@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - ``tt search tarantool-ee`` options changed. A new `--version` flag has been added to allow
   search for a specific release. The `--dev` and `--dbg` options have been merged into a
   single `--debug` option.
+- ``tt search`` now uses subcommands for searching tarantool/tarantool-ee/tt binaries
 
 ### Added
 
