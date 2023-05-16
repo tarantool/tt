@@ -22,7 +22,7 @@ var header = []string{"INSTANCE", "STATUS", "PID"}
 
 // Status writes the status as a table.
 func Status(runningCtx running.RunningCtx) error {
-	instColWidth := 0
+	instColWidth := len(header[0])
 	sb := strings.Builder{}
 	tw := tabwriter.NewWriter(&sb, 0, 1, padding, ' ', 0)
 
