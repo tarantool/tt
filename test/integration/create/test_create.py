@@ -7,7 +7,8 @@ import tempfile
 import pytest
 import yaml
 
-from utils import config_name, run_command_and_get_output, wait_file
+from utils import (config_name, extract_status, run_command_and_get_output,
+                   wait_file)
 
 tt_config_text = '''tt:
   app:
@@ -762,7 +763,9 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     status_cmd = [tt_cmd, "status", "app1"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
-    assert "RUNNING. PID: " in status_out
+    status_info = extract_status(status_out)
+    for key in status_info.keys():
+        assert status_info[key]["STATUS"] == "RUNNING"
 
     # Stop the cartridge app.
     stop_cmd = [tt_cmd, "stop", "app1"]
