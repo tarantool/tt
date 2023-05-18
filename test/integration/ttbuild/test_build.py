@@ -124,6 +124,24 @@ def test_build_absolute_path(tt_cmd, tmpdir_with_cfg):
         assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "rocks"))
 
 
+def test_build_error_omit_stdout(tt_cmd, tmpdir_with_cfg):
+    build_cmd = [tt_cmd, "build"]
+    tt_process = subprocess.Popen(
+        build_cmd,
+        cwd=tmpdir_with_cfg,
+        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 1
+    tt_process.stderr.readline()  # Skip empty line.
+    assert tt_process.stderr.readline().find(
+        "please specify a rockspec to use on current directory") != -1
+
+
 def test_build_missing_rockspec(tt_cmd, tmpdir_with_cfg):
     buid_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
@@ -139,6 +157,7 @@ def test_build_missing_rockspec(tt_cmd, tmpdir_with_cfg):
     assert tt_process.returncode == 1
 
     tt_process.stdout.readline()  # Skip empty line.
+    tt_process.stdout.readline()  # Skip log line.
     assert tt_process.stdout.readline().find(
         "please specify a rockspec to use on current directory") != -1
 
