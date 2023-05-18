@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -68,11 +69,36 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 	}
 
 	// Run rocks make.
+	log.Infof("Running rocks make")
+
+	var savedStdoutFd = syscall.Stdout
+	if !cmdCtx.Cli.Verbose {
+		// Redirect stdout to /dev/null.
+		if savedStdoutFd, err = syscall.Dup(syscall.Stdout); err != nil {
+			return err
+		}
+		defer syscall.Close(savedStdoutFd)
+
+		var devNull *os.File = nil
+		if devNull, err = os.OpenFile(os.DevNull, os.O_WRONLY, 0666); err != nil {
+			return err
+		}
+		defer devNull.Close()
+
+		if err = syscall.Dup2(int(devNull.Fd()), syscall.Stdout); err != nil {
+			return err
+		}
+		defer syscall.Dup2(savedStdoutFd, syscall.Stdout)
+	}
+
 	rocksMakeCmd := []string{"make"}
 	if buildCtx.SpecFile != "" {
 		rocksMakeCmd = append(rocksMakeCmd, buildCtx.SpecFile)
 	}
 	if err := rocks.Exec(cmdCtx, cliOpts, rocksMakeCmd); err != nil {
+		return err
+	}
+	if err := syscall.Dup2(savedStdoutFd, syscall.Stdout); err != nil {
 		return err
 	}
 
