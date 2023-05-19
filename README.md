@@ -390,7 +390,7 @@ The following environment variables are associated with each instance:
     where the application files are present).
 -   `TARANTOOL_INSTANCE_NAME` - instance name.
 
-[Example](https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-a-set-of-instances)
+[Example](https://github.com/tarantool/tt/blob/master/doc/examples.md#working-with-a-set-of-instances)
 
 ### Working with application templates
 
@@ -458,7 +458,7 @@ Don't include the .rocks directory in your application template. To
 specify application dependencies, use the .rockspec.
 
 [Custom template
-example](https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-application-templates)
+example](https://github.com/tarantool/tt/blob/master/doc/examples.md#working-with-application-templates)
 
 ### Working with tt daemon (experimental)
 
@@ -509,7 +509,7 @@ Where:
     Default: `tt_daemon.pid`.
 
 [TT daemon
-example](https://github.com/tarantool/tt/blob/master/doc/examples.rst#working-with-tt-daemon-experimental)
+example](https://github.com/tarantool/tt/blob/master/doc/examples.md#working-with-tt-daemon-experimental)
 
 ### Setting Tarantool configuration parameters via environment variables
 
