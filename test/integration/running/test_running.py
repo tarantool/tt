@@ -637,3 +637,95 @@ def test_running_tarantoolctl_layout(tt_cmd, tmpdir):
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
     assert instance_process_rc == 0
+
+
+# Test bugfix https://github.com/tarantool/tt/issues/451
+def test_running_start(tt_cmd):
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_app_path = os.path.join(tmpdir, "app")
+        shutil.copytree(test_app_path_src, test_app_path)
+
+        for subdir in ["", "multi_inst_app"]:
+            if subdir != "":
+                os.mkdir(os.path.join(test_app_path, "multi_inst_app"))
+            # Start all instances.
+            start_cmd = [tt_cmd, "start"]
+            instance_process = subprocess.Popen(
+                start_cmd,
+                cwd=test_app_path,
+                stderr=subprocess.STDOUT,
+                stdout=subprocess.PIPE,
+                text=True
+            )
+            for i in range(0, 3):
+                start_output = instance_process.stdout.readline()
+                assert re.search(r"Starting an instance \[app:(router|master|replica)\]",
+                                 start_output)
+
+            # Check status.
+            for instName in ["master", "replica", "router"]:
+                file = wait_file(os.path.join(test_app_path, run_path, "app", instName),
+                                 instName + ".pid", [])
+                assert file != ""
+
+            status_cmd = [tt_cmd, "status"]
+            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            status_out = extract_status(status_out)
+            assert status_out['app:router']["STATUS"] == "RUNNING"
+            assert status_out['app:master']["STATUS"] == "RUNNING"
+            assert status_out['app:replica']["STATUS"] == "RUNNING"
+
+            status_cmd = [tt_cmd, "stop", "app:router"]
+            status_rc, stop_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            assert re.search(r"The Instance app:router \(PID = \d+\) "
+                             r"has been terminated.", stop_out)
+
+            status_cmd = [tt_cmd, "status"]
+            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            status_out = extract_status(status_out)
+            assert status_out['app:router']["STATUS"] == "NOT RUNNING"
+            assert status_out['app:master']["STATUS"] == "RUNNING"
+            assert status_out['app:replica']["STATUS"] == "RUNNING"
+
+            # Start all instances again.
+            start_cmd = [tt_cmd, "start"]
+            start_rc, start_out = run_command_and_get_output(start_cmd, cwd=test_app_path)
+            assert start_rc == 0
+
+            # Check the log output that some instances are already up.
+            for i in range(0, 3):
+                assert re.search(r"The instance app:(master|replica) \(PID = \d+\) "
+                                 r"is already running.",
+                                 start_out)
+
+            # Check the stopped instance is being started.
+            assert re.search(r"Starting an instance \[app:router\]", start_out)
+            for instName in ["master", "replica", "router"]:
+                file = wait_file(os.path.join(test_app_path, run_path, "app", instName),
+                                 instName + ".pid", [])
+            assert file != ""
+
+            # Check that all the instances are running again.
+            status_cmd = [tt_cmd, "status"]
+            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            status_out = extract_status(status_out)
+            assert status_out['app:router']["STATUS"] == "RUNNING"
+            assert status_out['app:master']["STATUS"] == "RUNNING"
+            assert status_out['app:replica']["STATUS"] == "RUNNING"
+
+            # Stop all applications.
+            stop_cmd = [tt_cmd, "stop"]
+            stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
+            assert status_rc == 0
+            assert re.search(r"The Instance app:(router|master|replica) \(PID = \d+\) "
+                             r"has been terminated.", stop_out)
+
+            # Check that the process was terminated correctly.
+            instance_process_rc = instance_process.wait(1)
+            assert instance_process_rc == 0
