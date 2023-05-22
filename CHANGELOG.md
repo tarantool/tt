@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - `tt build` now hides building output if `-V` is not provided.
 
+### Fixed
+
+- ``tt start`` now does not start an instance if it is already running.
+
 ## [1.1.0] - 2023-05-02
 
 ### Changed

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
 )
 
@@ -55,6 +56,15 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 		for _, run := range runningCtx.Instances {
 			appName := running.GetAppInstanceName(run)
+			// If an instance is already running don't try to start it again.
+			// For restarting an instance use tt restart command.
+			procStatus := process_utils.ProcessStatus(run.PIDFile)
+			if procStatus.Code ==
+				process_utils.ProcStateRunning.Code {
+				log.Infof("The instance %s (PID = %d) is already running.",
+					appName, procStatus.PID)
+				continue
+			}
 
 			log.Infof("Starting an instance [%s]...", appName)
 
