@@ -6,8 +6,10 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -27,6 +29,15 @@ func NewRestartCmd() *cobra.Command {
 			handleCmdErr(cmd, err)
 		},
 		Args: cobra.RangeArgs(0, 1),
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string) ([]string, cobra.ShellCompDirective) {
+			return internal.ValidArgsFunction(
+				cliOpts, &cmdCtx, cmd, toComplete,
+				running.ExtractActiveAppNames,
+				running.ExtractActiveInstanceNames)
+		},
 	}
 
 	restartCmd.Flags().BoolVarP(&autoYes, "yes", "y", false,

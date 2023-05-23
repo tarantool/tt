@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
@@ -18,6 +19,15 @@ func NewStatusCmd() *cobra.Command {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalStatusModule, args)
 			handleCmdErr(cmd, err)
+		},
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string) ([]string, cobra.ShellCompDirective) {
+			return internal.ValidArgsFunction(
+				cliOpts, &cmdCtx, cmd, toComplete,
+				running.ExtractAppNames,
+				running.ExtractInstanceNames)
 		},
 	}
 
