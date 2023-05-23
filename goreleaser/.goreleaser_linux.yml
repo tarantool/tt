@@ -43,7 +43,7 @@ archives:
     format: tar.gz
     name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     files:
-      - README.rst
+      - README.md
       - LICENSE
       - CHANGELOG.md
 
