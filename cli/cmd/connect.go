@@ -9,6 +9,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/connect"
@@ -61,6 +62,18 @@ func NewConnectCmd() *cobra.Command {
 			handleCmdErr(cmd, err)
 		},
 		Args: cobra.MinimumNArgs(1),
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) != 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return internal.ValidArgsFunction(
+				cliOpts, &cmdCtx, cmd, toComplete,
+				running.ExtractActiveAppNames,
+				running.ExtractActiveInstanceNames)
+		},
 	}
 
 	connectCmd.Flags().StringVarP(&connectUser, "username", "u", "", "username")

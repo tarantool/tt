@@ -122,7 +122,8 @@ func (provider *providerImpl) updateCtx() error {
 	if provider.instanceCtx.SingleApp {
 		args = []string{provider.instanceCtx.AppName}
 	} else {
-		args = []string{provider.instanceCtx.AppName + ":" + provider.instanceCtx.InstName}
+		args = []string{provider.instanceCtx.AppName + string(InstanceDelimiter) +
+			provider.instanceCtx.InstName}
 	}
 
 	var runningCtx RunningCtx
@@ -287,7 +288,7 @@ func CollectInstances(appName string, appDir string) ([]InstanceCtx, error) {
 	// The user can select a specific instance from the application.
 	// Example: `tt status application:server`.
 	selectedInstName := ""
-	colonIds := strings.Index(appName, ":")
+	colonIds := strings.Index(appName, string(InstanceDelimiter))
 	if colonIds != -1 {
 		appNameTmp := appName
 		appName = appNameTmp[:colonIds]
@@ -555,7 +556,7 @@ func GetAppInstanceName(instance InstanceCtx) string {
 	if instance.SingleApp {
 		fullInstanceName = instance.AppName
 	} else {
-		fullInstanceName = instance.AppName + ":" + instance.InstName
+		fullInstanceName = instance.AppName + string(InstanceDelimiter) + instance.InstName
 	}
 	return fullInstanceName
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/tarantool/tt/cli/build"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/running"
 )
 
 var (
@@ -23,6 +24,17 @@ func NewBuildCmd() *cobra.Command {
 			handleCmdErr(cmd, err)
 		},
 		Args: cobra.MaximumNArgs(1),
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string) ([]string, cobra.ShellCompDirective) {
+			var runningCtx running.RunningCtx
+			if err := running.FillCtx(cliOpts, &cmdCtx, &runningCtx, []string{}); err != nil {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return running.ExtractAppNames(runningCtx.Instances),
+				cobra.ShellCompDirectiveNoFileComp
+		},
 	}
 
 	buildCmd.Flags().StringVarP(&specFile, "spec", "", "", "Rockspec file to use for building")

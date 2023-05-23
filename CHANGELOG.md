@@ -8,12 +8,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
         
 ### Changed
+
 - `tt build` now hides building output if `-V` is not provided.
 
 ### Fixed
 
 - ``tt start`` now does not start an instance if it is already running.
 - ``tt rocks`` uses rocks repo path relative to tt environment config location.
+
+### Added
+
+- smart auto-completion for `tt start`, `tt stop`, `tt restart`, `tt connect`, `tt build`, `tt clean`, `tt logrotate`, `tt status`.   
+It shows suitable apps, in case of the pattern doesn't contain delimiter `:`, and suitable instances otherwise.
 
 ## [1.1.0] - 2023-05-02
 
