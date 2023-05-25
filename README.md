@@ -8,6 +8,7 @@ Tarantool-based applications.
 
 ## Contents
 
+* [Intro](#intro)
 * [Getting started](#getting-started)
   * [Installation](#installation)
   * [Build from source](#build-from-source)
@@ -28,6 +29,60 @@ Tarantool-based applications.
   * [Setting Tarantool configuration parameters via environment variables](#setting-tarantool-configuration-parameters-via-environment-variables)
 * [Commands](#commands)
 
+## Intro
+
+`tt` is tarantool's instance and environment management utility and is used to develop, deploy, run and operate applications.
+
+One of the basic concepts that `tt` introduces is "environment". The "environment" is
+an isolated workspace for the tarantool application suite.
+[`tt.yaml` configuration file](#configuration) defines the root and configuration of
+the *environment*. When `tt` is installed from a repository by a package manager (`apt`,
+`rpm`, ...) a "system" config file (`/etc/tarantool/tt.yaml`) is included which forms
+the "system" environment - the case when `tt` replaces the
+[`tarantoolctl`](https://github.com/tarantool/tt/blob/master/doc/examples.md#transition-from-tarantoolctl-to-tt).
+In case we want to form a local environment (very convenient during development), we
+use a "local" `tt.yaml` generated with the [`tt init`](#creating-tt-environment)
+command. In this way, the user/developer can have a large number of different
+"environments" in the system in which different versions of both `tarantool`/`tt` and
+the applications being developed will be used.
+
+The example of a typical "environment":
+
+```mermaid
+
+    C4Component
+
+    Container_Boundary(env, "Environment") {
+      Component(cfg, "tt.yaml")
+
+      Container(bin, "bin", "tt, tt-ee, tarantool, tarantool-ee")
+      Container(modules, "modules", "ext_module_1, ext_module_2")
+      Container(locrep, "LocalRepos", "distfiles, rocks")
+      Container_Boundary(enabled, "instances.enabled") {
+        Component(app1, "app.lua")
+        Container(app2, "app2", "init.lua, ...")
+        Container(multi_inst_app, "multi instances app", "instances.yml, ...")
+        }
+        Container_Boundary(var, "var") {
+            Container_Boundary(run, "run") {
+                Container(app_run, "app_name", "app_name.pid, app_name.socket")
+            }
+            Container_Boundary(log, "log") {
+                Container(app_log, "app_name", "app_name.log")
+            }
+            Container_Boundary(lib, "lib") {
+                Container(app_lib, "app_name", "xxx.snap, xxx.xlog")
+            }
+        }
+    }
+
+    UpdateElementStyle(env, $borderColor="#6AA3E9")
+    UpdateElementStyle(enabled, $borderColor="#6AA3E9")
+    UpdateElementStyle(var, $borderColor="#6AA3E9")
+    UpdateElementStyle(run, $borderColor="#6AA3E9")
+    UpdateElementStyle(log, $borderColor="#6AA3E9")
+    UpdateElementStyle(lib, $borderColor="#6AA3E9")
+```
 
 ## Getting started
 
