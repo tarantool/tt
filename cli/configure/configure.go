@@ -132,6 +132,9 @@ func getDefaultDaemonOpts() *config.DaemonOpts {
 func adjustPathWithConfigLocation(filePath string, configDir string,
 	defaultDirName string) (string, error) {
 	if filePath == "" {
+		if defaultDirName == "" {
+			return "", nil
+		}
 		return filepath.Abs(filepath.Join(configDir, defaultDirName))
 	}
 	if filepath.IsAbs(filePath) {
@@ -187,6 +190,7 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 		{&cliOpts.App.BinDir, BinPath},
 		{&cliOpts.App.IncludeDir, IncludePath},
 		{&cliOpts.Repo.Install, DistfilesPath},
+		{&cliOpts.Repo.Rocks, ""},
 	} {
 		if *dir.path, err = adjustPathWithConfigLocation(*dir.path, configDir,
 			dir.defaultDir); err != nil {

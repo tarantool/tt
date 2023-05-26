@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - ``tt start`` now does not start an instance if it is already running.
+- ``tt rocks`` uses rocks repo path relative to tt environment config location.
 
 ## [1.1.0] - 2023-05-02
 
