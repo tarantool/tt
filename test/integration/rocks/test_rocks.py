@@ -100,7 +100,7 @@ def test_rocks_install_local(tt_cmd, tmpdir):
             ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
-    assert "Installing repo/stat-0.3.2-1.all.rock" in output
+    assert f"Installing {tmpdir}/repo/stat-0.3.2-1.all.rock" in output
 
 
 def test_rocks_install_local_if_network_is_up(tt_cmd, tmpdir):
@@ -136,7 +136,7 @@ def test_rocks_install_local_specific_version(tt_cmd, tmpdir):
             [tt_cmd, "rocks", "install", "stat", "0.3.1-1"],
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
-    assert "Installing repo/stat-0.3.1-1.all.rock" in output
+    assert f"Installing {tmpdir}/repo/stat-0.3.1-1.all.rock" in output
 
 
 @pytest.mark.notarantool
@@ -158,3 +158,29 @@ def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):
 
     assert os.path.exists(os.path.join(tmpdir_with_tarantool,
                                        ".rocks", "lib", "tarantool", "mysql"))
+
+
+def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmpdir):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported")
+
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+        tnt_env_file.write('''tt:
+  repo:
+    rocks: "repo"''')
+
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
+                    os.path.join(tmpdir, "repo"))
+
+    os.mkdir(os.path.join(tmpdir, "subdir"))
+
+    # Disable network with unshare.
+    rc, output = run_command_and_get_output(
+            ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
+            cwd=os.path.join(tmpdir, "subdir"),
+            env=dict(os.environ, PWD=os.path.join(tmpdir, "subdir")))
+    assert rc == 0
+    print(output)
+    assert f"Installing {tmpdir}/repo/stat-0.3.2-1.all.rock" in output
+    assert "stat 0.3.2-1 is now installed in " + os.path.join(tmpdir, "subdir", ".rocks") in output
+    assert os.path.exists(os.path.join(tmpdir, "subdir", ".rocks"))
