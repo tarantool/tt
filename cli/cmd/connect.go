@@ -54,7 +54,7 @@ func NewConnectCmd() *cobra.Command {
 			"\n" +
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
-			`echo "print(...)" | tt connect user@pass:localhost:3013 -f- 1, 2, 3`,
+			`echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
