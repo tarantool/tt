@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - smart auto-completion for `tt start`, `tt stop`, `tt restart`, `tt connect`, `tt build`, `tt clean`, `tt logrotate`, `tt status`.   
 It shows suitable apps, in case of the pattern doesn't contain delimiter `:`, and suitable instances otherwise.
+- support tt environment directories overriding using environment variables:
+  * TT_CLI_REPO_ROCKS environment variable value is used as rocks repository path if it is set and
+there is no tt.repo.rocks in tt configuration file or tt.repo.rocks directory does not include
+repository manifest file.
+  * TT_CLI_TARANTOOL_PREFIX environment variable value is used for as tarantool installation prefix
+directory for rocks commands if it is set and tarantool executable is found in PATH.
 
 ## [1.1.0] - 2023-05-02
 
