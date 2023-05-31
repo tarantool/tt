@@ -13,3 +13,6 @@ var TemplatesFs embed.FS
 var FileModes = map[string]map[string]int{
 	"cartridge": static.CartridgeFileModes,
 }
+
+// Names contains built-in template names.
+var Names = [...]string{"cartridge"}

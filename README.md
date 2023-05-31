@@ -419,6 +419,9 @@ For commands, which argument is app or instance, autocompletion
 will show suitable apps, in case of the pattern doesn't contain
 delimiter `:`, and suitable instances otherwise.    
 
+For `tt create` command it will show a list of built-in templates and
+templates from the configuration file.
+
 ## TT usage
 
 ### Working with a set of instances

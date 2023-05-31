@@ -452,7 +452,7 @@ def test_app_create_missing_required_args(tt_cmd, tmpdir):
     tt_process.wait()
     assert tt_process.returncode == 1
     first_out_line = tt_process.stdout.readline()
-    assert first_out_line.find('Error: required flag(s) "name" not set') != -1
+    assert first_out_line.find('application name is required') != -1
 
 
 def test_default_var_can_be_overwritten(tt_cmd, tmpdir):

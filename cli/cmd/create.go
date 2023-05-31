@@ -2,12 +2,16 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/create"
+	"github.com/tarantool/tt/cli/create/builtin_templates"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -17,6 +21,10 @@ var (
 	nonInteractiveMode bool
 	varsFromCli        *[]string
 	varsFile           string
+
+	// errNoAppName is returned if -n option was not provided.
+	errNoAppName = util.NewArgError(`application name is required: ` +
+		`specify it with the --name option.`)
 )
 
 // NewCreateCmd creates an application from a template.
@@ -35,6 +43,7 @@ func NewCreateCmd() *cobra.Command {
 			}
 			return nil
 		},
+		ValidArgsFunction: createValidArgsFunction,
 		Long: `Create an application from a template.
 
 Built-in templates:
@@ -52,7 +61,6 @@ Built-in templates:
 	}
 
 	createCmd.Flags().StringVarP(&appName, "name", "n", "", "Application name")
-	createCmd.MarkFlagRequired("name")
 	createCmd.Flags().BoolVarP(&forceMode, "force", "f", false,
 		`Force rewrite application directory if already exists`)
 	createCmd.Flags().BoolVarP(&nonInteractiveMode, "non-interactive", "s", false,
@@ -67,10 +75,50 @@ Built-in templates:
 	return createCmd
 }
 
+// createValidArgsFunction returns valid templates for `create` command.
+func createValidArgsFunction(
+	_ *cobra.Command,
+	args []string,
+	toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) != 0 {
+		return nil, cobra.ShellCompDirectiveDefault
+	}
+	templates := make([]string, 0, len(builtin_templates.Names))
+
+	// Append built-in templates.
+	for _, template := range builtin_templates.Names {
+		templates = append(templates, template)
+	}
+
+	// Append cfg's templates.
+	for _, templateDir := range cliOpts.Templates {
+		path := templateDir.Path
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			eName := entry.Name()
+			ext := filepath.Ext(eName)
+			if entry.IsDir() {
+				templates = append(templates, eName)
+			} else if ext == ".tgz" {
+				templates = append(templates, eName[:len(eName)-4])
+			} else if ext == ".gz" && filepath.Ext(eName[:len(eName)-3]) == ".tar" {
+				templates = append(templates, eName[:len(eName)-7])
+			}
+		}
+	}
+	return templates, cobra.ShellCompDirectiveNoFileComp
+}
+
 // internalCreateModule is a default create module.
 func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
+	}
+	if len(appName) == 0 {
+		return errNoAppName
 	}
 
 	createCtx := create_ctx.CreateCtx{
