@@ -3,6 +3,7 @@ import platform
 import re
 import shutil
 import subprocess
+import tempfile
 
 import pytest
 
@@ -184,3 +185,82 @@ def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmpdir):
     assert f"Installing {tmpdir}/repo/stat-0.3.2-1.all.rock" in output
     assert "stat 0.3.2-1 is now installed in " + os.path.join(tmpdir, "subdir", ".rocks") in output
     assert os.path.exists(os.path.join(tmpdir, "subdir", ".rocks"))
+
+
+def test_rocks_install_from_env_var_repo(tt_cmd, tmpdir):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported")
+
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+        tnt_env_file.write('''tt:
+  repo:
+    distfiles: "distfiles"''')
+
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
+                    os.path.join(tmpdir, "repo"))
+
+    os.mkdir(os.path.join(tmpdir, "subdir"))
+
+    # Without env and network. Must fail.
+    rc, output = run_command_and_get_output(
+        ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
+        cwd=os.path.join(tmpdir, "subdir"),
+        env=dict(
+            os.environ,
+            PWD=os.path.join(tmpdir, "subdir")))
+
+    assert rc == 1
+    assert "Error: No results matching query" in output
+
+    # Tets with env set, no network.
+    rc, output = run_command_and_get_output(
+            ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
+            cwd=os.path.join(tmpdir, "subdir"),
+            env=dict(
+                os.environ,
+                PWD=os.path.join(tmpdir, "subdir"),
+                TT_CLI_REPO_ROCKS=f'{tmpdir}/repo'))  # Env var for rock repo directory.
+    assert rc == 0
+    print(output)
+    assert f"Installing {tmpdir}/repo/stat-0.3.2-1.all.rock" in output
+    assert "stat 0.3.2-1 is now installed in " + os.path.join(tmpdir, "subdir", ".rocks") in output
+    assert os.path.exists(os.path.join(tmpdir, "subdir", ".rocks"))
+
+
+@pytest.mark.notarantool
+@pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
+def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tarantool):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+            tnt_env_file.write('''tt:
+  repo:
+    distfiles: "distfiles"''')
+
+        # Rocks install must fail due to not found tarantool headers.
+        rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
+        rc, output = run_command_and_get_output(
+            rocks_cmd,
+            cwd=tmpdir,
+            env=dict(
+                os.environ,
+                PWD=tmpdir,
+                PATH=os.path.join(tmpdir_with_tarantool, 'bin') + ':' + os.environ['PATH']))
+
+        assert rc == 1  # Tarantool headers are not found.
+        assert 'Error: Failed installing dependency' in output
+
+        # Set env var to find tarantool headers.
+        rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
+        rc, output = run_command_and_get_output(
+            rocks_cmd,
+            cwd=tmpdir,
+            env=dict(
+                os.environ,
+                PWD=tmpdir,
+                PATH=os.path.join(tmpdir_with_tarantool, 'bin') + ':' + os.environ['PATH'],
+                TT_CLI_TARANTOOL_PREFIX=os.path.join(tmpdir_with_tarantool, 'include')))
+
+        assert rc == 0
+        assert 'crud 1.1.1-1 is now installed' in output
+
+        assert os.path.exists(os.path.join(tmpdir, ".rocks", "share", "tarantool", "crud"))

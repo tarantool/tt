@@ -30,10 +30,6 @@ type CliCtx struct {
 	TarantoolExecutable string
 	// Tarantool version.
 	TarantoolVersion string
-	// Tarantool install prefix path.
-	TarantoolInstallPrefix string
-	// Path to header files supplied with tarantool.
-	TarantoolIncludeDir string
 	// The flag determines if the tarantool binary is from the internal tt repository.
 	IsTarantoolBinFromRepo bool
 	// Verbose logging flag. Enables debug log output.
