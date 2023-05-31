@@ -27,6 +27,8 @@ there is no tt.repo.rocks in tt configuration file or tt.repo.rocks directory do
 repository manifest file.
   * TT_CLI_TARANTOOL_PREFIX environment variable value is used for as tarantool installation prefix
 directory for rocks commands if it is set and tarantool executable is found in PATH.
+- smart auto-completion for `tt create`. It shows a list of built-in templates and
+templates from the config.
 
 ## [1.1.0] - 2023-05-02
 
