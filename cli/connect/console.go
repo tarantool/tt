@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/c-bata/go-prompt"
 	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // EvalFunc defines a function type for evaluating an expression via connection.
@@ -50,9 +48,7 @@ type Console struct {
 
 	language Language
 
-	historyFile     *os.File
-	historyFilePath string
-	historyLines    []string
+	history *commandHistory
 
 	prefix            string
 	livePrefixEnabled bool
@@ -79,9 +75,15 @@ func NewConsole(connOpts connector.ConnectOpts, title string, lang Language) (*C
 
 	var err error
 
-	// Load Tarantool console history from file.
-	if err := loadHistory(console); err != nil {
-		log.Debugf("Failed to load Tarantool console history: %s", err)
+	// Initialize console history.
+	console.history, err = newCommandHistory(HistoryFileName, MaxHistoryLines)
+	if err == nil {
+		// Load Tarantool console history from file.
+		if err := console.history.load(); err != nil {
+			log.Debugf("Failed to load Tarantool console history: %s", err)
+		}
+	} else {
+		log.Debugf("Failed to initialize console history: %s", err)
 	}
 
 	// Connect to specified address.
@@ -149,10 +151,6 @@ func (console *Console) Run() error {
 
 // Close frees up resources used by the console.
 func (console *Console) Close() {
-	if console.historyFile != nil {
-		console.historyFile.Close()
-		console.historyFile = nil
-	}
 	for _, v := range console.validators {
 		v.Close()
 	}
@@ -166,36 +164,6 @@ func (console *Console) Close() {
 	sttySane := exec.Command("stty", "sane")
 	sttySane.Stdin = os.Stdin
 	_ = sttySane.Run()
-}
-
-func loadHistory(console *Console) error {
-	var err error
-
-	homeDir, err := util.GetHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %s", err)
-	}
-
-	console.historyFilePath = filepath.Join(homeDir, HistoryFileName)
-
-	console.historyLines, err = util.GetLastNLines(console.historyFilePath, MaxHistoryLines)
-	if err != nil {
-		return fmt.Errorf("failed to read history from file: %s", err)
-	}
-
-	// Open history file for appending.
-	// See https://unix.stackexchange.com/questions/346062/concurrent-writing-to-a-log-file-from-many-processes
-	console.historyFile, err = os.OpenFile(
-		console.historyFilePath,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0644,
-	)
-
-	if err != nil {
-		log.Debugf("Failed to open history file for append: %s", err)
-	}
-
-	return nil
 }
 
 func getExecutor(console *Console) prompt.Executor {
@@ -225,8 +193,11 @@ func getExecutor(console *Console) prompt.Executor {
 			return
 		}
 
-		if err := appendToHistoryFile(console, strings.TrimSpace(console.input)); err != nil {
-			log.Debugf("Failed to append command to history file: %s", err)
+		if console.history != nil {
+			console.history.appendCommand(strings.TrimSpace(console.input))
+			if err := console.history.writeToFile(); err != nil {
+				log.Debug(err.Error())
+			}
 		}
 
 		var results []string
@@ -350,8 +321,6 @@ func getPromptOptions(console *Console) []prompt.Option {
 		prompt.OptionPrefix(console.prefix),
 		prompt.OptionLivePrefix(console.livePrefixFunc),
 
-		prompt.OptionHistory(console.historyLines),
-
 		prompt.OptionSuggestionBGColor(prompt.DarkGray),
 		prompt.OptionPreviewSuggestionTextColor(prompt.DefaultColor),
 
@@ -390,21 +359,9 @@ func getPromptOptions(console *Console) []prompt.Option {
 		),
 	}
 
+	if console.history != nil {
+		options = append(options, prompt.OptionHistory(console.history.commands))
+	}
+
 	return options
-}
-
-func appendToHistoryFile(console *Console, in string) error {
-	if console.historyFile == nil {
-		return fmt.Errorf("no history file found")
-	}
-
-	if _, err := console.historyFile.WriteString(in + "\n"); err != nil {
-		return fmt.Errorf("failed to append to history file: %s", err)
-	}
-
-	if err := console.historyFile.Sync(); err != nil {
-		return fmt.Errorf("failed to sync history file: %s", err)
-	}
-
-	return nil
 }
