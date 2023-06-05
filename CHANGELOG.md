@@ -29,6 +29,7 @@ repository manifest file.
 directory for rocks commands if it is set and tarantool executable is found in PATH.
 - smart auto-completion for `tt create`. It shows a list of built-in templates and
 templates from the config.
+- `tt connect`: support for the timestamp format in the history file.
 
 ## [1.1.0] - 2023-05-02
 
