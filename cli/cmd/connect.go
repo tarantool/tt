@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/connect"
+	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
@@ -23,6 +25,12 @@ const (
 	usernameEnv = "TT_CLI_USERNAME"
 	passwordEnv = "TT_CLI_PASSWORD"
 	userpassRe  = `[^@:/]+:[^@:/]+`
+
+	// uriPathPrefixRe is a regexp for a path prefix in uri, such as `scheme://path``.
+	uriPathPrefixRe = `((~?/+)|((../+)*))?`
+
+	// systemPathPrefixRe is a regexp for a path prefix to use without scheme.
+	systemPathPrefixRe = `(([\.~]?/+)|((../+)+))`
 )
 
 var (
@@ -45,7 +53,11 @@ func NewConnectCmd() *cobra.Command {
 			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
 			" [flags]\n" +
 			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
-			" [flags] [-f-] [-- ARGS]",
+			" [flags] [-f-] [-- ARGS]\n\n" +
+			" The URI can be specified in the following formats:\n" +
+			" * [tcp://][username:password@][host:port]\n" +
+			" * [unix://][username:password@]socketpath\n" +
+			" To specify relative path without `unix://` use `./`.",
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
 			"The command supports the following environment variables:\n\n" +
@@ -104,12 +116,15 @@ func isBaseURI(str string) bool {
 	// host:port
 	tcpReStr := `(tcp://)?([\w\\.-]+:\d+)`
 	// unix://../path
+	// unix://~/path
 	// unix:///path
 	// unix://path
-	unixReStr := `unix://[./]*[^\./@]+[^@]*`
-	// ./path
+	unixReStr := `unix://` + uriPathPrefixRe + `[^\./@]+[^@]*`
+	// ../path
+	// ~/path
 	// /path
-	pathReStr := `\.?/[^\./].*`
+	// ./path
+	pathReStr := systemPathPrefixRe + `[^\./].*`
 
 	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
@@ -122,16 +137,51 @@ func isCredentialsURI(str string) bool {
 	// user:password@host:port
 	tcpReStr := `(tcp://)?` + userpassRe + `@([\w\.-]+:\d+)`
 	// unix://user:password@../path
+	// unix://user:password@~/path
 	// unix://user:password@/path
 	// unix://user:password@path
-	unixReStr := `unix://` + userpassRe + `@[./@]*[^\./@]+.*`
-	// user:password@./path
+	unixReStr := `unix://` + userpassRe + `@` + uriPathPrefixRe + `[^\./@]+.*`
+	// user:password@../path
+	// user:password@~/path
 	// user:password@/path
-	pathReStr := userpassRe + `@\.?/[^\./].*`
+	// user:password@./path
+	pathReStr := userpassRe + `@` + systemPathPrefixRe + `[^\./].*`
 
 	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
 	return uriRe.MatchString(str)
+}
+
+// parseBaseURI parses an URI and returns:
+// (network, address)
+func parseBaseURI(uri string) (string, string) {
+	var network, address string
+	uriLen := len(uri)
+
+	switch {
+	case uriLen > 0 && (uri[0] == '.' || uri[0] == '/' || uri[0] == '~'):
+		network = connector.UnixNetwork
+		address = uri
+	case uriLen >= 7 && uri[0:7] == "unix://":
+		network = connector.UnixNetwork
+		address = uri[7:]
+	case uriLen >= 6 && uri[0:6] == "tcp://":
+		network = connector.TCPNetwork
+		address = uri[6:]
+	default:
+		network = connector.TCPNetwork
+		address = uri
+	}
+
+	// In the case of a complex uri, shell expansion does not occur, so do it manually.
+	if network == connector.UnixNetwork &&
+		strings.HasPrefix(address, "~/") {
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			address = filepath.Join(homeDir, address[2:])
+		}
+	}
+
+	return network, address
 }
 
 // parseCredentialsURI parses a URI with credentials and returns:
@@ -155,36 +205,61 @@ func parseCredentialsURI(str string) (string, string, string) {
 	return newStr, credentialsSlice[0], credentialsSlice[1]
 }
 
+// makeConnOpts makes and returns connect options from the arguments.
+func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector.ConnectOpts {
+	ssl := connector.SslOpts{
+		KeyFile:  connCtx.SslKeyFile,
+		CertFile: connCtx.SslCertFile,
+		CaFile:   connCtx.SslCaFile,
+		Ciphers:  connCtx.SslCiphers,
+	}
+	return connector.ConnectOpts{
+		Network:  network,
+		Address:  address,
+		Username: connCtx.Username,
+		Password: connCtx.Password,
+		Ssl:      ssl,
+	}
+}
+
 // resolveConnectOpts tries to resolve the first passed argument as an instance
 // name to replace it with a control socket or as a URI with/without
 // credentials.
+// It returns connection options and the remaining args.
 func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
-	connectCtx *connect.ConnectCtx, args []string) ([]string, error) {
-	newArgs := args
+	connectCtx connect.ConnectCtx, args []string) (
+	connOpts connector.ConnectOpts, newArgs []string, err error) {
 
+	newArgs = args[1:]
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
 	if fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); fillErr == nil {
 		if len(runningCtx.Instances) > 1 {
-			return newArgs, fmt.Errorf("specify instance name")
+			err = fmt.Errorf("specify instance name")
+			return
 		}
 		if connectCtx.Username != "" || connectCtx.Password != "" {
-			return newArgs, fmt.Errorf("username and password are not supported" +
+			err = fmt.Errorf("username and password are not supported" +
 				" with a connection via a control socket")
+			return
 		}
-		newArgs[0] = runningCtx.Instances[0].ConsoleSocket
-		return newArgs, nil
-	} else if isCredentialsURI(newArgs[0]) {
+		connOpts = makeConnOpts(
+			connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, connectCtx,
+		)
+		return
+	} else if isCredentialsURI(args[0]) {
 		if connectCtx.Username != "" || connectCtx.Password != "" {
-			return newArgs, fmt.Errorf("username and password are specified with" +
+			err = fmt.Errorf("username and password are specified with" +
 				" flags and a URI")
+			return
 		}
-		uri, user, pass := parseCredentialsURI(newArgs[0])
-		newArgs[0] = uri
+		newURI, user, pass := parseCredentialsURI(args[0])
+		network, address := parseBaseURI(newURI)
 		connectCtx.Username = user
 		connectCtx.Password = pass
-		return newArgs, nil
-	} else if isBaseURI(newArgs[0]) {
+		connOpts = makeConnOpts(network, address, connectCtx)
+		return
+	} else if isBaseURI(args[0]) {
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
 			connectCtx.Username = os.Getenv(usernameEnv)
@@ -192,9 +267,12 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		if connectCtx.Password == "" {
 			connectCtx.Password = os.Getenv(passwordEnv)
 		}
-		return newArgs, nil
+		network, address := parseBaseURI(args[0])
+		connOpts = makeConnOpts(network, address, connectCtx)
+		return
 	} else {
-		return newArgs, fillErr
+		err = fillErr
+		return
 	}
 }
 
@@ -216,13 +294,13 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return util.NewArgError(fmt.Sprintf("unsupported language: %s", connectLanguage))
 	}
 
-	newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
+	connOpts, newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, connectCtx, args)
 	if err != nil {
 		return err
 	}
 
 	if connectFile != "" {
-		res, err := connect.Eval(connectCtx, newArgs)
+		res, err := connect.Eval(connectCtx, connOpts, newArgs)
 		if err != nil {
 			return err
 		}
@@ -232,12 +310,14 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if !connectInteractive || !terminal.IsTerminal(syscall.Stdin) {
 			return nil
 		}
+	} else if len(newArgs) != 0 {
+		return fmt.Errorf("should be specified one connection string")
 	}
 
 	if terminal.IsTerminal(syscall.Stdin) {
 		log.Info("Connecting to the instance...")
 	}
-	if err := connect.Connect(connectCtx, newArgs); err != nil {
+	if err := connect.Connect(connectCtx, connOpts); err != nil {
 		return err
 	}
 

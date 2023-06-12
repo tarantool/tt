@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/cli/connector"
 )
 
 const (
@@ -23,6 +25,10 @@ var validBaseUris = []string{
 	"unix://../path/to/file",
 	"./a",
 	"/1",
+	"../a",
+	".//a",
+	"~/a",
+	"..//..//file",
 }
 
 var validCredentialsUris = []string{
@@ -30,8 +36,13 @@ var validCredentialsUris = []string{
 	testUserPass + "@localhost:123",
 	"unix://" + testUserPass + "@path",
 	"unix://" + testUserPass + "@../path/to/file",
+	"unix://" + testUserPass + "@//path",
 	testUserPass + "@./a",
 	testUserPass + "@/1",
+	testUserPass + "@.//a",
+	testUserPass + "@../a",
+	testUserPass + "@~/a",
+	testUserPass + "@//path",
 }
 
 var invalidBaseUris = []string{
@@ -59,6 +70,9 @@ var invalidBaseUris = []string{
 	".",
 	".a",
 	"/",
+	"~.",
+	"~~~~~~/a",
+	".../a",
 }
 
 var invalidCredentialsUris = []string{
@@ -71,6 +85,9 @@ var invalidCredentialsUris = []string{
 	"user:password@unix://../path/to/file",
 	"user@./a",
 	"user@/1",
+	"user:password@~./",
+	"user:password@~~/",
+	"user:password@../",
 }
 
 func TestIsBaseURIValid(t *testing.T) {
@@ -125,6 +142,11 @@ func TestParseCredentialsURI(t *testing.T) {
 		{"unix://" + testUserPass + "@/any/path", "unix:///any/path"},
 		{testUserPass + "@/path", "/path"},
 		{testUserPass + "@./path", "./path"},
+		{testUserPass + "@../path", "../path"},
+		{testUserPass + "@.//a", ".//a"},
+		{testUserPass + "@~/a", "~/a"},
+		{"unix://" + testUserPass + "@~/a/b", "unix://~/a/b"},
+		{"unix://" + testUserPass + "@~/../a", "unix://~/../a"},
 	}
 
 	for _, c := range cases {
@@ -162,4 +184,40 @@ func TestParseCredentialsURI_notParseInvalid(t *testing.T) {
 			assert.Equal(t, "", pass, "password must be empty")
 		})
 	}
+}
+
+func TestParseBaseURI(t *testing.T) {
+	cases := []struct {
+		URI     string
+		network string
+		address string
+	}{
+		{"localhost:3013", connector.TCPNetwork, "localhost:3013"},
+		{"tcp://localhost:3013", connector.TCPNetwork, "localhost:3013"},
+		{"./path/to/socket", connector.UnixNetwork, "./path/to/socket"},
+		{"/path/to/socket", connector.UnixNetwork, "/path/to/socket"},
+		{"unix:///path/to/socket", connector.UnixNetwork, "/path/to/socket"},
+		{"unix://..//path/to/socket", connector.UnixNetwork, "..//path/to/socket"},
+		{"..//path", connector.UnixNetwork, "..//path"},
+		{"some_uri", connector.TCPNetwork, "some_uri"}, // Keeps unchanged
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.URI, func(t *testing.T) {
+			network, address := parseBaseURI(tc.URI)
+			assert.Equal(t, network, tc.network)
+			assert.Equal(t, address, tc.address)
+		})
+	}
+
+	t.Run("starts from ~", func(t *testing.T) {
+		homeDir, _ := os.UserHomeDir()
+		network, address := parseBaseURI("unix://~/a/b")
+		assert.Equal(t, connector.UnixNetwork, network)
+		assert.Equal(t, homeDir+"/a/b", address)
+
+		network, address = parseBaseURI("~/a/b")
+		assert.Equal(t, connector.UnixNetwork, network)
+		assert.Equal(t, homeDir+"/a/b", address)
+	})
 }
