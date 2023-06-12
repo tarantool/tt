@@ -40,18 +40,6 @@ const (
 	tarantoolWordSeparators = "\t\r\n !\"#$%&'()*+,-/;<=>?@[\\]^`{|}~"
 )
 
-func getConnOpts(connString string, connCtx ConnectCtx) connector.ConnectOpts {
-	username := connCtx.Username
-	password := connCtx.Password
-	ssl := connector.SslOpts{
-		KeyFile:  connCtx.SslKeyFile,
-		CertFile: connCtx.SslCertFile,
-		CaFile:   connCtx.SslCaFile,
-		Ciphers:  connCtx.SslCiphers,
-	}
-	return connector.MakeConnectOpts(connString, username, password, ssl)
-}
-
 // getEvalCmd returns a command from the input source (file or stdin).
 func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 	var cmd string
@@ -81,26 +69,15 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 }
 
 // Connect establishes a connection to the instance and starts the console.
-func Connect(connectCtx ConnectCtx, args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("should be specified one connection string")
-	}
-
-	connString := args[0]
-	connOpts := getConnOpts(connString, connectCtx)
-
+func Connect(connectCtx ConnectCtx, connOpts connector.ConnectOpts) error {
 	if err := runConsole(connOpts, "", connectCtx.Language); err != nil {
 		return fmt.Errorf("failed to run interactive console: %s", err)
 	}
-
 	return nil
 }
 
 // Eval executes the command on the remote instance (according to args).
-func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
-	// Parse the arguments.
-	connString := args[0]
-	connOpts := getConnOpts(connString, connectCtx)
+func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) ([]byte, error) {
 	command, err := getEvalCmd(connectCtx)
 	if err != nil {
 		return nil, err
@@ -123,10 +100,8 @@ func Eval(connectCtx ConnectCtx, args []string) ([]byte, error) {
 		eval = consoleEvalFuncBody
 	} else {
 		eval = evalFuncBody
-		if len(args) > 1 {
-			for i := range args[1:] {
-				evalArgs = append(evalArgs, args[i+1])
-			}
+		for i := range args {
+			evalArgs = append(evalArgs, args[i])
 		}
 	}
 
