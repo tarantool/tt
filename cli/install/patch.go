@@ -31,14 +31,6 @@ func (patchRange_1_to_2_6_1) isApplicable(ver version.Version) bool {
 	return (ver.Major == 2 && ver.Minor == 6 && ver.Patch < 1) || ver.Major == 1
 }
 
-type patch_1_10_14 struct {
-	defaultPatchApplier
-}
-
-func (patch_1_10_14) isApplicable(ver version.Version) bool {
-	return ver.Major == 1 && ver.Minor == 10 && ver.Patch == 14
-}
-
 type patch_2_8_4 struct {
 	defaultPatchApplier
 }
@@ -102,6 +94,14 @@ type patchRange_1_to_1_10_14 struct {
 
 func (patchRange_1_to_1_10_14) isApplicable(ver version.Version) bool {
 	return ver.Major == 1 && ver.Minor == 10 && ver.Patch < 14
+}
+
+type patchRange_1_10_14_to_1_10_16 struct {
+	defaultPatchApplier
+}
+
+func (patchRange_1_10_14_to_1_10_16) isApplicable(ver version.Version) bool {
+	return ver.Major == 1 && ver.Minor == 10 && (ver.Patch > 13 && ver.Patch < 16)
 }
 
 type patchRange_2_8_to_2_8_3 struct {
