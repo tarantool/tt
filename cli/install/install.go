@@ -544,7 +544,7 @@ func patchTarantool(srcPath string, tarVersion string,
 	patches := []patcher{
 		patchRange_1_to_2_6_1{defaultPatchApplier{staticBuildPatch}},
 		patchRange_1_to_1_10_14{defaultPatchApplier{opensslSymbolsPatch}},
-		patch_1_10_14{defaultPatchApplier{opensslSymbolsPatch14}},
+		patchRange_1_10_14_to_1_10_16{defaultPatchApplier{opensslSymbolsPatch14}},
 		patchRange_1_to_1_10_12{defaultPatchApplier{glibcPatch}},
 		patchRange_2_to_2_8{defaultPatchApplier{glibcPatch}},
 		patchRange_2_8_to_2_8_3{defaultPatchApplier{glibcPatch}},
