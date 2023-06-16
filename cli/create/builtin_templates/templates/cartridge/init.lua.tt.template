@@ -27,6 +27,11 @@ else
     package.cpath = app_dir .. '/.rocks/lib/tarantool/?.dylib;' .. package.cpath
 end
 
+local has_compat, compat = pcall(require, 'compat')
+if has_compat then
+    compat.fiber_slice_default = 'new'
+end
+
 -- Configure cartridge.
 
 local cartridge = require('cartridge')
