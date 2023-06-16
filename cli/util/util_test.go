@@ -229,10 +229,36 @@ func TestIsApp(t *testing.T) {
 		isApp      bool
 	}{
 		{
-			testName: "Application is directory",
+			testName: "Application is a directory with init.lua",
 			createFunc: func() (string, error) {
 				baseDir := t.TempDir()
 				filePath := filepath.Join(baseDir, "init.lua")
+				_, err := os.Create(filePath)
+				if err != nil {
+					return "", err
+				}
+				return baseDir, nil
+			},
+			isApp: true,
+		},
+		{
+			testName: "Application is a directory, no init.lua, instances.yml exists",
+			createFunc: func() (string, error) {
+				baseDir := t.TempDir()
+				filePath := filepath.Join(baseDir, "instances.yml")
+				_, err := os.Create(filePath)
+				if err != nil {
+					return "", err
+				}
+				return baseDir, nil
+			},
+			isApp: true,
+		},
+		{
+			testName: "Application is a directory, no init.lua, instances.yaml exists",
+			createFunc: func() (string, error) {
+				baseDir := t.TempDir()
+				filePath := filepath.Join(baseDir, "instances.yaml")
 				_, err := os.Create(filePath)
 				if err != nil {
 					return "", err

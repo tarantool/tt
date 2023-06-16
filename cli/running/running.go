@@ -225,13 +225,17 @@ func findInstSeparator(inst string) int {
 func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx,
 	error) {
 	instances := []InstanceCtx{}
-	instCfgPath := path.Join(dirPath, "instances.yml")
+
 	defAppPath := path.Join(dirPath, "init.lua")
 	defAppExist := false
 	if _, err := os.Stat(defAppPath); err == nil {
 		defAppExist = true
 	}
 
+	instCfgPath, err := util.GetYamlFileName(path.Join(dirPath, "instances.yml"), true)
+	if err != nil {
+		return nil, err
+	}
 	ymlData, err := ioutil.ReadFile(instCfgPath)
 	if err != nil {
 		return nil, err
@@ -282,7 +286,6 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx
 
 // CollectInstances searches all instances available in application.
 func CollectInstances(appName string, appDir string) ([]InstanceCtx, error) {
-	var err error
 	var appPath string
 
 	// The user can select a specific instance from the application.
@@ -320,9 +323,8 @@ func CollectInstances(appName string, appDir string) ([]InstanceCtx, error) {
 		}
 		appPath = luaPath
 	} else if dirStatErr == nil && dirInfo.IsDir() {
-		// Search for instances.yml
-		instCfgPath := path.Join(dirPath, "instances.yml")
-		if _, err = os.Stat(instCfgPath); err == nil {
+		// Search for instances.yml.
+		if _, err := util.GetYamlFileName(path.Join(dirPath, "instances.yml"), true); err == nil {
 			return getInstancesFromYML(dirPath, selectedInstName)
 		} else {
 			appPath = path.Join(dirPath, "init.lua")
