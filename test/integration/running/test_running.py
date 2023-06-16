@@ -729,3 +729,63 @@ def test_running_start(tt_cmd):
             # Check that the process was terminated correctly.
             instance_process_rc = instance_process.wait(1)
             assert instance_process_rc == 0
+
+
+def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app_no_init")
+
+    # Default temporary directory may have very long path. This can cause socket path buffer
+    # overflow. Create our own temporary directory.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_env_path = os.path.join(tmpdir, "tt_env")
+        shutil.copytree(test_app_path_src, test_env_path)
+
+        def empty():
+            pass
+
+        def rename():
+            os.rename(os.path.join(test_env_path, "instances.enabled", "mi_app", "instances.yml"),
+                      os.path.join(test_env_path, "instances.enabled", "mi_app", "instances.yaml"))
+
+        for modify_func in [empty, rename]:
+            modify_func()
+
+            # Start the application.
+            start_cmd = [tt_cmd, "start", "mi_app"]
+            instance_process = subprocess.Popen(
+                start_cmd,
+                cwd=test_env_path,
+                stderr=subprocess.STDOUT,
+                stdout=subprocess.PIPE,
+                text=True
+            )
+            start_output = instance_process.stdout.readline()
+            assert "Starting an instance [mi_app:" in start_output
+            assert "Starting an instance [mi_app:" in start_output
+            # Check that the process was terminated correctly.
+            instance_process_rc = instance_process.wait(5)
+            assert instance_process_rc == 0
+
+            # Check status.
+            file = wait_file(os.path.join(test_env_path, run_path, "mi_app", "router"),
+                             "router.pid", [])
+            assert file != ""
+            file = wait_file(os.path.join(test_env_path, run_path, "mi_app", "storage"),
+                             "storage.pid", [])
+            assert file != ""
+
+            for inst in ["router", "storage"]:
+                status_cmd = [tt_cmd, "status", "mi_app:" + inst]
+                status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_env_path)
+                assert status_rc == 0
+                status_out = extract_status(status_out)
+                assert status_out[f"mi_app:{inst}"]["STATUS"] == "RUNNING"
+
+            # Stop the Instance.
+            stop_cmd = [tt_cmd, "stop", "mi_app"]
+            stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_env_path)
+            assert stop_rc == 0
+            assert re.search(r"The Instance mi_app:router \(PID = \d+\) has been terminated.",
+                             stop_out)
+            assert re.search(r"The Instance mi_app:storage \(PID = \d+\) has been terminated.",
+                             stop_out)

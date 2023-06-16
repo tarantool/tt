@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Set `compat.fiber_slice_default` to `new` by default in cartridge application template.
+- Treat the directory containing the instances file (instances.y[a]ml) as an application.
 
 ### Added
 

@@ -691,19 +691,22 @@ func IsApp(path string) bool {
 		return false
 	}
 
-	if !entry.IsDir() && filepath.Ext(entry.Name()) != ".lua" {
-		return false
-	} else if !entry.IsDir() && filepath.Ext(entry.Name()) == ".lua" {
-		return true
+	if entry.IsDir() {
+		// Check if the directory contains init.lua script or instances.yml file.
+		for _, fileTocheck := range [...]string{"init.lua", "instances.yml", "instances.yaml"} {
+			if fileInfo, err := os.Stat(filepath.Join(path, fileTocheck)); err == nil {
+				if !fileInfo.IsDir() {
+					return true
+				}
+			}
+		}
+	} else {
+		if filepath.Ext(entry.Name()) == ".lua" {
+			return true
+		}
 	}
 
-	if _, err = os.Stat(filepath.Join(path, "init.lua")); err == nil && entry.IsDir() {
-		return true
-	} else if entry.IsDir() {
-		return false
-	}
-
-	return true
+	return false
 }
 
 // CheckRequiredBinaries returns an error if some binaries not found in PATH

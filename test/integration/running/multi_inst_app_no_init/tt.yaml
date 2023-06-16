@@ -1,0 +1,3 @@
+tt:
+  app:
+    instances_enabled: instances.enabled
