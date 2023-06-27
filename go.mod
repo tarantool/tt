@@ -7,7 +7,6 @@ require (
 	github.com/alecthomas/participle/v2 v2.0.0-alpha4
 	github.com/apex/log v1.9.0
 	github.com/briandowns/spinner v1.11.1
-	github.com/c-bata/go-prompt v0.2.6
 	github.com/dave/jennifer v1.5.0
 	github.com/docker/docker v20.10.24+incompatible
 	github.com/fatih/color v1.13.0
@@ -21,6 +20,7 @@ require (
 	github.com/spf13/cobra v1.3.0
 	github.com/stretchr/testify v1.7.1
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
+	github.com/tarantool/go-prompt v1.0.0
 	github.com/tarantool/go-tarantool v1.10.1-0.20230309143354-e257ff30dd4d
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
@@ -39,6 +39,7 @@ require (
 	github.com/Microsoft/hcsshim v0.9.6 // indirect
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible // indirect
+	github.com/c-bata/go-prompt v0.2.6 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
 	github.com/containerd/containerd v1.6.18 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

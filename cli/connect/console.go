@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 	"syscall"
@@ -16,7 +15,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/yaml.v2"
 
-	"github.com/c-bata/go-prompt"
+	"github.com/tarantool/go-prompt"
 	"github.com/tarantool/tt/cli/connector"
 )
 
@@ -158,12 +157,6 @@ func (console *Console) Close() {
 	if console.conn != nil {
 		console.conn.Close()
 	}
-
-	// Sets the terminal modes to “sane” values to workaround
-	// bug https://github.com/c-bata/go-prompt/issues/228
-	sttySane := exec.Command("stty", "sane")
-	sttySane.Stdin = os.Stdin
-	_ = sttySane.Run()
 }
 
 func getExecutor(console *Console) prompt.Executor {
@@ -193,11 +186,15 @@ func getExecutor(console *Console) prompt.Executor {
 			return
 		}
 
+		trimmedInput := strings.TrimSpace(console.input)
 		if console.history != nil {
-			console.history.appendCommand(strings.TrimSpace(console.input))
+			console.history.appendCommand(trimmedInput)
 			if err := console.history.writeToFile(); err != nil {
 				log.Debug(err.Error())
 			}
+		}
+		if err := console.prompt.PushToHistory(trimmedInput); err != nil {
+			log.Debug(err.Error())
 		}
 
 		var results []string
@@ -330,20 +327,12 @@ func getPromptOptions(console *Console) []prompt.Option {
 			// Move to one word left.
 			prompt.ASCIICodeBind{
 				ASCIICode: ControlLeftBytes,
-				Fn: func(buf *prompt.Buffer) {
-					d := buf.Document()
-					wordLen := len([]rune(d.GetWordBeforeCursorWithSpace()))
-					buf.CursorLeft(wordLen)
-				},
+				Fn:        prompt.GoLeftWord,
 			},
 			// Move to one word right.
 			prompt.ASCIICodeBind{
 				ASCIICode: ControlRightBytes,
-				Fn: func(buf *prompt.Buffer) {
-					d := buf.Document()
-					wordLen := len([]rune(d.GetWordAfterCursorWithSpace()))
-					buf.CursorRight(wordLen)
-				},
+				Fn:        prompt.GoRightWord,
 			},
 		),
 		// Interrupt current unfinished expression.
@@ -357,6 +346,9 @@ func getPromptOptions(console *Console) []prompt.Option {
 				},
 			},
 		),
+
+		prompt.OptionDisableAutoHistory(),
+		prompt.OptionReverseSearch(),
 	}
 
 	if console.history != nil {
