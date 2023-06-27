@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `tt pack` now skips all `.git` files in packed environment, not only in main directory.
+- `tt connect`: the reverse search function to work consistently with tarantool.
+
 ### Added
 
 - `tt install tarantool-dev`: ability to install tarantool from the local build directory.
@@ -17,11 +19,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt uninstall`: when removing symlinks and an existing installed version, the
   symlink will be switched to the latest installed version, so that `tt` can
   continue working with the program.
+- `tt connect`: support for multi-line commands in the history.
 
 ### Fixed
 
 - `tt install tarantool`: symlink to the directory with tarantool headers is now updated 
 when installing an existing version.
+- `tt connect`: terminal failure after throwing an error.
 
 ## [1.1.2] - 2023-06-16
 

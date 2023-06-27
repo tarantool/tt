@@ -140,7 +140,7 @@ func TestAddStmtPart(t *testing.T) {
 	validator := &ValidatorMock{}
 	const stmt = "1part"
 	const part = "2part"
-	const expected = "1part 2part"
+	const expected = "1part\n2part"
 
 	for _, c := range []bool{false, true} {
 		name := "false"
@@ -168,11 +168,11 @@ func TestAddStmtPart_luaValidator(t *testing.T) {
 	}{
 		{"   ", "", true},
 		{"for i = 1,10 do", "for i = 1,10 do", false},
-		{"    print(x)", "for i = 1,10 do     print(x)", false},
-		{"    local j = 5", "for i = 1,10 do     print(x)     local j = 5", false},
-		{"", "for i = 1,10 do     print(x)     local j = 5 ", false},
-		{" ", "for i = 1,10 do     print(x)     local j = 5   ", false},
-		{"end", "for i = 1,10 do     print(x)     local j = 5    end", true},
+		{"    print(x)", "for i = 1,10 do\n    print(x)", false},
+		{"    local j = 5", "for i = 1,10 do\n    print(x)\n    local j = 5", false},
+		{"", "for i = 1,10 do\n    print(x)\n    local j = 5\n", false},
+		{" ", "for i = 1,10 do\n    print(x)\n    local j = 5\n\n ", false},
+		{"end", "for i = 1,10 do\n    print(x)\n    local j = 5\n\n \nend", true},
 	}
 
 	stmt := ""
