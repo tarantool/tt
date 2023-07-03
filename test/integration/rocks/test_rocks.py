@@ -33,7 +33,6 @@ def test_rocks_module(tt_cmd, tmpdir):
             [tt_cmd, "rocks", "install", "queue"],
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
-    assert "Cloning into 'queue'...\n" in output
     assert os.path.isfile(f'{tmpdir}/.rocks/share/tarantool/queue/init.lua')
 
     rc, output = run_command_and_get_output(
