@@ -54,7 +54,13 @@ def test_rocks_module(tt_cmd, tmpdir):
             [tt_cmd, "rocks", "unpack", rock_file],
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
-    rock_dir = rock_file.split('.', 1)[0]
+
+    rock_dir = ""
+    rock_dir_items = rock_file.split('.')
+    for i in range((len(rock_dir_items) - 2)):
+        rock_dir += rock_dir_items[i] + "."
+    rock_dir = rock_dir[:-1]
+
     assert os.path.isdir(rock_dir)
 
     rc, output = run_command_and_get_output(

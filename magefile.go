@@ -260,6 +260,21 @@ func UnitFull() error {
 
 	if mg.Verbose() {
 		return sh.RunV(goExecutableName, "test", "-v", fmt.Sprintf("%s/...", packagePath),
+			"-tags", "integration", "docker")
+	}
+
+	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath),
+		"-tags", "integration", "docker")
+}
+
+// Run unit tests with a Tarantool instance integration without docker.
+func UnitFullNoDocker() error {
+	fmt.Println("Running full unit tests without docker...")
+
+	mg.Deps(GenerateGoCode)
+
+	if mg.Verbose() {
+		return sh.RunV(goExecutableName, "test", "-v", fmt.Sprintf("%s/...", packagePath),
 			"-tags", "integration")
 	}
 
@@ -280,6 +295,22 @@ func IntegrationFull() error {
 	fmt.Println("Running all integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow_ee and not notarantool",
+		"test/integration")
+}
+
+// Run integration tests without docker.
+func IntegrationFullNoDocker() error {
+	fmt.Println("Running integration tests without docker...")
+
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow_ee and not notarantool and not docker",
+		"test/integration")
+}
+
+// Run integration tests with docker.
+func IntegrationDocker() error {
+	fmt.Println("Running integration tests with docker...")
+
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "docker",
 		"test/integration")
 }
 
