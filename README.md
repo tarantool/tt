@@ -157,6 +157,8 @@ To run tests:
 -   [golangci-lint](https://golangci-lint.run/usage/install/#local-installation)
 -   [lichen](https://github.com/uw-labs/lichen#install)
 -   [docker](https://docs.docker.com/engine/install/)
+-   [NodeJS](https://nodejs.org/en/download)
+-   [CMake](https://cmake.org/download/)
 
 #### Build
 
