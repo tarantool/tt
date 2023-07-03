@@ -109,7 +109,7 @@ jobs:
       (github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.owner.login != 'tarantool' &&
         !contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: macos-12
+    runs-on: [self-hosted, macOS-12-self-hosted, x86_64, regular]
 
     steps:
       - uses: actions/checkout@master
@@ -117,10 +117,14 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
       - name: Install dependencies
         run: |
           brew install --overwrite go mage
-          brew install python3
           pip3 install pytest tarantool requests psutil pyyaml netifaces
 
       - name: Build tt
@@ -129,10 +133,20 @@ jobs:
         run: mage build
 
       - name: Install tarantool
-        run: brew install tarantool
+        run: |
+          ./tt init
+          ./tt -V install tarantool 2.10.7
 
-      - name: Run unit tests
+      - name: Add Tarantool to Path
+        run: |
+          echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
+
+      - name: Unit tests
         run: mage unit
+
+      - name: Set env for integration tests
+        run: |
+          echo "TT_CLI_TARANTOOL_PREFIX=${GITHUB_WORKSPACE}/include/" >> $GITHUB_ENV
 
       - name: Run integration tests
         run: mage integration
