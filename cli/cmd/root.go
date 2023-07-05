@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"github.com/tarantool/tt/cli/util"
 	"os"
 	"path/filepath"
 
@@ -172,9 +174,15 @@ func NewCmdRoot() *cobra.Command {
 }
 
 // Execute root command.
+// If received error is of an ArgError type, usage help is printed.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		log.Fatalf(err.Error())
+		var argError *util.ArgError
+		if errors.As(err, &argError) {
+			log.Error(argError.Error())
+			rootCmd.Usage()
+		}
+		os.Exit(1)
 	}
 }
 
