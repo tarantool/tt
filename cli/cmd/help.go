@@ -40,8 +40,6 @@ func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) err
 		}
 	})
 
-	rootCmd.SetFlagErrorFunc(helpFlagError)
-
 	// Add valid arguments for completion.
 	helpCmd := util.GetHelpCommand(rootCmd)
 	for name := range modulesInfo {
@@ -80,23 +78,6 @@ func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.Inter
 	}
 }
 
-// helpFlagError prints some help information if the user entered an invalid flag.
-func helpFlagError(cmd *cobra.Command, errMsg error) error {
-	templatedStr, err := util.GetHTMLTemplatedStr(&errorUsageTemplate, map[string]interface{}{
-		"ErrorMsg":  errMsg,
-		"Cmd":       cmd.CommandPath(),
-		"HasFlags":  cmd.HasAvailableFlags(),
-		"HasSubCmd": cmd.HasAvailableSubCommands(),
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to get templated string: %s", err)
-	}
-
-	cmd.Printf(templatedStr, errMsg)
-	return nil
-}
-
 // getExternalCommandString returns a pretty string
 // of descriptions for external modules.
 func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
@@ -122,13 +103,6 @@ func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 }
 
 var (
-	errorUsageTemplate = `%s
-
-Usage: {{ .Cmd }}
-{{- if .HasFlags}} [flags] {{end}}
-{{- if .HasSubCmd -}} <command> [command flags] {{end}}
-`
-
 	usageTemplate = util.Bold("USAGE") + `
 {{- if (and .Runnable .HasAvailableInheritedFlags)}}
   {{.UseLine}}
