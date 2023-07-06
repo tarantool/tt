@@ -5,7 +5,7 @@ import (
 	cc "github.com/tarantool/cartridge-cli/cli/commands"
 )
 
-// NewCartridgeCmd chains commands from cartridge-cli to our corba tree.
+// NewCartridgeCmd chains commands from cartridge-cli to our cobra tree.
 func NewCartridgeCmd() *cobra.Command {
 	var cartridgeCmd = &cobra.Command{
 		Use:   "cartridge",

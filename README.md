@@ -218,7 +218,7 @@ mage testfull
 
 ## Configuration
 
-Taratool CLI can be launched in several modes:
+Tarantool CLI can be launched in several modes:
 
 -   System launch (flag `-S`) - the working directory is current,
     configuration file searched in `/etc/tarantool` directory.
@@ -292,7 +292,7 @@ tt:
     will be stored.
 -   `log_maxsize` (number) - the maximum size in MB of the log file
     before it gets rotated. It defaults to 100 MB.
--   `log_maxage` (numder) - is the maximum number of days to retain old
+-   `log_maxage` (number) - is the maximum number of days to retain old
     log files based on the timestamp encoded in their filename. Note
     that a day is defined as 24 hours and may not exactly correspond to
     calendar days due to daylight savings, leap seconds, etc. The
@@ -415,11 +415,11 @@ You can generate autocompletion for `bash` or `zsh` shell:
 ```
 
 Enter `tt`, press tab and you will see a list of available modules with
-descriptions. Also, autocomplete supports external modules.  
-   
+descriptions. Also, autocomplete supports external modules.
+
 For commands, which argument is app or instance, autocompletion
 will show suitable apps, in case of the pattern doesn't contain
-delimiter `:`, and suitable instances otherwise.    
+delimiter `:`, and suitable instances otherwise.
 
 For `tt create` command it will show a list of built-in templates and
 templates from the configuration file.
@@ -554,7 +554,7 @@ Where:
     `log`.
 -   `log_maxsize` (number) - the maximum size in MB of the log file
     before it gets rotated. Default: 100 MB.
--   `log_maxage` (numder) - is the maximum number of days to retain old
+-   `log_maxage` (number) - is the maximum number of days to retain old
     log files based on the timestamp encoded in their filename. Note
     that a day is defined as 24 hours and may not exactly correspond to
     calendar days due to daylight savings, leap seconds, etc. Default:
