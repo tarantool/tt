@@ -1,3 +1,4 @@
+import glob
 import os
 import re
 import shutil
@@ -63,7 +64,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_exist": [
                 os.path.join("app2", "init.lua"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -79,7 +80,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_exist": [
                 os.path.join("app2", "init.lua"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -96,7 +97,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -113,7 +114,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -130,7 +131,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -150,7 +151,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
             ],
             "artifacts_in_separated_dir": False,
@@ -165,7 +166,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
                 os.path.join("var", "lib", "app1", "test.snap"),
@@ -191,7 +192,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
                 os.path.join("var", "snap", "app1", "test.snap"),
@@ -223,7 +224,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app1.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -246,7 +247,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
 
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -263,7 +264,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("cartridge_app"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("cartridge_app", "app", "roles", "custom.lua"),
                 os.path.join("cartridge_app", "app", "admin.lua"),
@@ -287,7 +288,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("cartridge_app"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("cartridge_app", "app", "roles", "custom.lua"),
                 os.path.join("cartridge_app", "app", "admin.lua"),
@@ -311,7 +312,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "bundle6-v1." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("instances.enabled", "app.lua"),
                 os.path.join("var", "wal", "app", "artifact_wal"),
@@ -329,7 +330,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "bundle7-v1." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tarantool*"),
                 os.path.join("bin", "tt"),
                 os.path.join("instances.enabled", "app.lua"),
                 os.path.join("var", "wal", "app", "artifact_wal"),
@@ -382,10 +383,10 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
         assert_env(extract_path, test_case["artifacts_in_separated_dir"])
 
         for file_path in test_case["check_exist"]:
-            assert os.path.exists(os.path.join(extract_path, file_path))
+            assert glob.glob(os.path.join(extract_path, file_path))
 
         for file_path in test_case["check_not_exist"]:
-            assert not os.path.exists(os.path.join(extract_path, file_path))
+            assert not glob.glob(os.path.join(extract_path, file_path))
 
         shutil.rmtree(extract_path)
         os.remove(package_file)
