@@ -117,7 +117,7 @@ jobs:
       (github.event_name == 'pull_request' &&
         github.event.action == 'synchronize' &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: [self-hosted, macOS-12-self-hosted, x86_64, regular]
+    runs-on: [self-hosted, macOS-13-self-hosted, x86_64, regular]
     steps:
       - uses: actions/checkout@master
         with:
