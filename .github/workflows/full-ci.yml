@@ -108,7 +108,7 @@ jobs:
       - name: Integration tests
         run: mage integrationfull
 
-  full-ci-macOS-no-docker:
+  full-ci-macOS:
     if: |
       (github.event_name == 'push') ||
       (github.event_name == 'pull_request' &&
@@ -149,55 +149,14 @@ jobs:
           echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
 
       - name: Run unit tests
-        run: mage unitfullnodocker
+        run: mage unitfull
 
       - name: Set env for integration tests
         run: |
           echo "TT_CLI_TARANTOOL_PREFIX=${GITHUB_WORKSPACE}/include/" >> $GITHUB_ENV
 
       - name: Integration tests
-        run: mage integrationfullnodocker
-
-  full-ci-macOS-docker:
-    if: |
-      (github.event_name == 'push') ||
-      (github.event_name == 'pull_request' &&
-        github.event.action == 'labeled' &&
-        github.event.label.name == 'full-ci') ||
-      (github.event_name == 'pull_request' &&
-        github.event.action == 'synchronize' &&
-        contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: macos-12
-    steps:
-      - uses: actions/checkout@master
-        with:
-          fetch-depth: 0
-          submodules: recursive
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          brew install --overwrite go mage wget
-          pip3 install pytest requests psutil pyyaml netifaces tarantool
-
-      - name: Setup Docker
-        uses: tarantool/actions-setup-docker@main
-
-      - name: Build tt
-        env:
-          TT_CLI_BUILD_SSL: 'static'
-        run: mage build
-
-      - name: Install tarantool
-        run: |
-          brew install tarantool
-
-      - name: Integration tests with docker
-        run: mage integrationdocker
+        run: mage integrationfull
 
   # ee suffix means that the job runs ee integration tests.
   full-ci-macOS-ee:
