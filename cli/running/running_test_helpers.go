@@ -6,5 +6,5 @@ import "time"
 func waitProcessStart() {
 	// We need to wait for the new process (tarantool instance) to set handlers.
 	// It is necessary to update for more correct synchronization.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 }
