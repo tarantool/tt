@@ -1109,8 +1109,8 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	return nil
 }
 
-// dirsIsWriteable checks if the current user has the write access to the passed directory.
-func dirsIsWriteable(dir string) bool {
+// dirIsWritable checks if the current user has the write access to the passed directory.
+func dirIsWritable(dir string) bool {
 	return unix.Access(dir, unix.W_OK) == nil
 }
 
@@ -1123,7 +1123,7 @@ func subDirIsWritable(dir string) bool {
 			dir = filepath.Dir(dir)
 			continue
 		}
-		return dirsIsWriteable(dir)
+		return dirIsWritable(dir)
 	}
 }
 
@@ -1138,7 +1138,7 @@ func Install(binDir string, includeDir string, installCtx InstallCtx,
 		if _, err := os.Stat(dir); os.IsNotExist(err) && subDirIsWritable(dir) {
 			continue
 		}
-		if !dirsIsWriteable(dir) {
+		if !dirIsWritable(dir) {
 			return fmt.Errorf("the directory %s is not writeable for the current user.\n"+
 				"     Please, update rights to the directory or use 'sudo' for successful install",
 				dir)
