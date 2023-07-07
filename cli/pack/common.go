@@ -199,7 +199,7 @@ func copyAppSrc(appPath string, packagePath string) error {
 				return true, nil
 			}
 
-			if strings.HasPrefix(src, ".git") {
+			if strings.HasPrefix(src, ".git") || strings.Contains(src, "/.git") {
 				return true, nil
 			}
 			return false, nil
