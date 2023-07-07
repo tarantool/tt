@@ -87,7 +87,7 @@ def test_install_tarantool(tt_cmd, tmpdir):
     tmpdir_without_config = tempfile.mkdtemp()
 
     # Install latest tarantool.
-    install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", "2.10.4"]
+    install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", "2.10.7"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir_without_config,
@@ -111,7 +111,7 @@ def test_install_tarantool(tt_cmd, tmpdir):
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
     assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
-    assert os.path.exists(os.path.join(tmpdir, "bin", "tarantool_2.10.4"))
+    assert os.path.exists(os.path.join(tmpdir, "bin", "tarantool_2.10.7"))
 
 
 @pytest.mark.slow
