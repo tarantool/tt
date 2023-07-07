@@ -42,7 +42,7 @@ func Test_dirsAreWriteable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, dirsIsWriteable(tt.args.dir),
+			assert.Equalf(t, tt.want, dirIsWritable(tt.args.dir),
 				"dirIsWriteable(%v)", tt.args.dir)
 		})
 	}
