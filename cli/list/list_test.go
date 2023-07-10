@@ -1,8 +1,10 @@
 package list
 
 import (
+	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,5 +22,21 @@ func TestParseBinaries(t *testing.T) {
 	require.Equal(t, len(expectedSortedVersions), len(versions))
 	for i := 0; i < len(expectedSortedVersions); i++ {
 		assert.Equal(t, expectedSortedVersions[i], versions[i].Str)
+	}
+}
+
+func TestParseBinariesTarantoolDev(t *testing.T) {
+	for _, dir := range []string{"bin", "bin_symlink_broken"} {
+		t.Run(dir, func(t *testing.T) {
+			testDir := fmt.Sprintf("./testdata/tarantool_dev/%s", dir)
+			fileList, err := os.ReadDir(testDir)
+			assert.NoError(t, err)
+			versions, err := parseBinaries(fileList, "tarantool-dev", testDir)
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(versions))
+			version := versions[0].Str
+			assert.True(t, strings.HasPrefix(version, "tarantool-dev"))
+			assert.True(t, strings.HasSuffix(version, "[active]"))
+		})
 	}
 }

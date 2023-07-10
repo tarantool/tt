@@ -339,3 +339,41 @@ def extract_status(status_output):
             info["STATUS"] = " ".join(fields[1:])
         result[instance] = info
     return result
+
+
+def is_valid_tarantool_installed(
+        bin_path,
+        inc_path,
+        expected_bin=None,
+        expected_inc=None
+):
+    tarantool_binary_symlink = os.path.join(bin_path, "tarantool")
+    tarantool_include_symlink = os.path.join(inc_path, "tarantool")
+
+    if expected_bin is None:
+        if os.path.exists(tarantool_binary_symlink):
+            tarantool_bin = os.path.realpath(
+                os.path.join(bin_path, "tarantool"))
+            print(f"tarantool binary {tarantool_bin} is unexpected")
+            return False
+    else:
+        tarantool_bin = os.path.realpath(os.path.join(bin_path, "tarantool"))
+        if tarantool_bin != expected_bin:
+            print(f"tarantool binary {tarantool_bin} is unexpected,"
+                  f" expected: {expected_bin}")
+            return False
+
+    if expected_inc is not None:
+        tarantool_inc = os.path.realpath(tarantool_include_symlink)
+        if tarantool_inc != expected_inc:
+            print(f"tarantool include {tarantool_inc} is unexpected,"
+                  f" expected: {expected_bin}")
+            return False
+    else:
+        if os.path.exists(tarantool_include_symlink):
+            tarantool_inc = os.path.realpath(
+                os.path.join(inc_path, "tarantool"))
+            print(f"tarantool include {tarantool_inc} is unexpected")
+            return False
+
+    return True

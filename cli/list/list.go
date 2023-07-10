@@ -3,6 +3,7 @@ package list
 import (
 	"errors"
 	"fmt"
+	"github.com/tarantool/tt/cli/install"
 	"io/fs"
 	"math"
 	"os"
@@ -75,6 +76,22 @@ func printVersion(versionString string) {
 func parseBinaries(fileList []fs.DirEntry, programName string,
 	binDir string) ([]version.Version, error) {
 	var binaryVersions []version.Version
+
+	if programName == search.ProgramDev {
+		binActive, isTarantoolBinary, err := install.IsTarantoolDev(
+			filepath.Join(binDir, "tarantool"),
+			binDir,
+		)
+		if err != nil {
+			return binaryVersions, err
+		}
+		if isTarantoolBinary {
+			binaryVersions = append(binaryVersions,
+				version.Version{Str: programName + " -> " + binActive + " [active]"})
+		}
+		return binaryVersions, nil
+	}
+
 	binActive, err := util.ResolveSymlink(filepath.Join(binDir, programName))
 	if err != nil && !os.IsNotExist(err) {
 		return binaryVersions, err
@@ -117,7 +134,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error
 		return fmt.Errorf("error reading directory %q: %s", binDir, err)
 	}
 
-	programs := [...]string{search.ProgramTt, search.ProgramCe}
+	programs := [...]string{search.ProgramTt, search.ProgramCe, search.ProgramDev}
 	fmt.Println("List of installed binaries:")
 	for _, programName := range programs {
 		binaryVersions, err := parseBinaries(binDirFilesList, programName, binDir)

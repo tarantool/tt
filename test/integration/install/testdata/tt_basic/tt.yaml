@@ -1,0 +1,4 @@
+tt:
+  app:
+    bin_dir: "./bin"
+    inc_dir: "./inc"

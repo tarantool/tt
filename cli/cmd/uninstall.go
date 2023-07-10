@@ -44,9 +44,6 @@ func newUninstallTarantoolCmd() *cobra.Command {
 		},
 	}
 
-	tntCmd.Flags().BoolVarP(&installCtx.BuildInDocker, "use-docker", "", false,
-		"build tarantool in Ubuntu 18.04 docker container")
-
 	return tntCmd
 }
 
@@ -55,6 +52,23 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
 		Use:   "tarantool-ee [version]",
 		Short: "Uninstall tarantool enterprise edition",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			programName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				InternalUninstallModule, args)
+			handleCmdErr(cmd, err)
+		},
+	}
+
+	return tntCmd
+}
+
+// newUninstallTarantoolDevCmd creates a command to uninstall tarantool-dev.
+func newUninstallTarantoolDevCmd() *cobra.Command {
+	tntCmd := &cobra.Command{
+		Use:   "tarantool-dev",
+		Short: "Uninstall tarantool-dev",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			programName = cmd.Name()
@@ -82,6 +96,7 @@ func NewUninstallCmd() *cobra.Command {
 		newUninstallTtCmd(),
 		newUninstallTarantoolCmd(),
 		newUninstallTarantoolEeCmd(),
+		newUninstallTarantoolDevCmd(),
 	)
 
 	return uninstallCmd

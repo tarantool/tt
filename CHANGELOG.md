@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `tt pack` now skips all `.git` files in packed environment, not only in main directory.
+### Added
+
+- `tt install tarantool-dev`: ability to install tarantool from the local build directory.
 
 ## [1.1.2] - 2023-06-16
 
@@ -25,6 +28,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Panic in tarantool 1.10.15 static build by `tt`.
+- Removed `--use-docker` flag from `tt uninstall tarantool` since it was added by mistake.
 
 ## [1.1.1] - 2023-06-08
 
