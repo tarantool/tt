@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Panic in tarantool 1.10.15 static build by `tt`.
+- Removed `--use-docker` flag from `tt uninstall tarantool` since it was added by mistake.
 
 ## [1.1.1] - 2023-06-08
 

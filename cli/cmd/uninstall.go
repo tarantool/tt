@@ -44,9 +44,6 @@ func newUninstallTarantoolCmd() *cobra.Command {
 		},
 	}
 
-	tntCmd.Flags().BoolVarP(&installCtx.BuildInDocker, "use-docker", "", false,
-		"build tarantool in Ubuntu 18.04 docker container")
-
 	return tntCmd
 }
 
