@@ -1,8 +1,11 @@
 import os
 import re
+import shutil
 import subprocess
 
-from utils import config_name
+import pytest
+
+from utils import config_name, is_valid_tarantool_installed
 
 
 def test_uninstall_tt(tt_cmd, tmpdir):
@@ -117,3 +120,73 @@ def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
         uninstall_process.wait()
         uninstall_output = uninstall_process.stdout.readline()
         assert re.search(r"Uninstalls a program", uninstall_output)
+
+
+@pytest.mark.parametrize("is_symlink_broken", [False, True])
+def test_uninstall_tarantool_dev_installed(tt_cmd, tmpdir, is_symlink_broken):
+    # Copy test files.
+    testdata_path = os.path.join(os.path.dirname(__file__),
+                                 "testdata/tarantool_dev")
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    tt_dir = "installed"
+    if is_symlink_broken:
+        os.remove(os.path.join(testdata_path, tt_dir, "tarantool"))
+        shutil.rmtree(os.path.join(testdata_path, tt_dir, "tarantool_inc"))
+
+    uninstall_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(testdata_path, tt_dir, config_name),
+        "uninstall", "tarantool-dev"
+    ]
+    uninstall_process = subprocess.Popen(
+        uninstall_cmd,
+        cwd=testdata_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL
+    )
+    rc = uninstall_process.wait()
+    assert rc == 0
+    assert is_valid_tarantool_installed(
+        os.path.join(testdata_path, tt_dir, "bin"),
+        os.path.join(testdata_path, tt_dir, "inc", "include"),
+        None,
+        None
+    )
+    if not is_symlink_broken:
+        assert os.path.exists(os.path.join(testdata_path, tt_dir, "tarantool"))
+        assert os.path.exists(os.path.join(testdata_path, tt_dir, "tarantool_inc"))
+
+
+def test_uninstall_tarantool_dev_not_installed(tt_cmd, tmpdir):
+    # Copy test files.
+    testdata_path = os.path.join(os.path.dirname(__file__),
+                                 "testdata/tarantool_dev")
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    tt_dir = "not_installed"
+    uninstall_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(testdata_path, tt_dir, config_name),
+        "uninstall", "tarantool-dev"
+    ]
+    uninstall_process = subprocess.Popen(
+        uninstall_cmd,
+        cwd=testdata_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    rc = uninstall_process.wait()
+    output = uninstall_process.stdout.read()
+    assert rc == 1
+    assert "tarantool-dev is not installed" in output
+    assert is_valid_tarantool_installed(
+        os.path.join(testdata_path, tt_dir, "bin"),
+        os.path.join(testdata_path, tt_dir, "inc", "include"),
+        os.path.join(testdata_path, tt_dir, "bin", "tarantool_2.10.8"),
+        os.path.join(testdata_path, tt_dir, "inc", "include",
+                     "tarantool_2.10.8")
+    )

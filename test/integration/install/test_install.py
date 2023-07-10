@@ -1,18 +1,18 @@
 import os
 import platform
 import re
+import shutil
 import subprocess
 import tempfile
 
 import pytest
 import yaml
 
-from utils import config_name
+from utils import config_name, is_valid_tarantool_installed
 
 
 @pytest.mark.slow
 def test_install_tt(tt_cmd, tmpdir):
-
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
@@ -46,7 +46,6 @@ def test_install_tt(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 def test_install_tt_specific_version(tt_cmd, tmpdir):
-
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
@@ -161,3 +160,142 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     assert out == "GLIBC_2.27"
 
     assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
+
+
+def test_install_tarantool_dev_bin_invalid(tt_cmd, tmpdir):
+    # Copy test files.
+    testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    tt_dir = "tt_basic"
+    for build_dir in ["build_invalid", "build_invalid2"]:
+        build_path = os.path.join(testdata_path, build_dir)
+        install_cmd = [
+            tt_cmd,
+            "--cfg", os.path.join(testdata_path, tt_dir, config_name),
+            "install", "tarantool-dev",
+            build_path
+        ]
+        install_process = subprocess.Popen(
+            install_cmd,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        install_process_rc = install_process.wait()
+        output = install_process.stdout.read()
+        assert "tarantool binary was not found" in output
+        assert install_process_rc != 0
+
+        assert is_valid_tarantool_installed(
+            os.path.join(testdata_path, tt_dir, "bin"),
+            os.path.join(testdata_path, tt_dir, "inc", "include"),
+            os.path.join(testdata_path, tt_dir, "bin", "tarantool_2.10.8"),
+            os.path.join(testdata_path, tt_dir, "inc", "include",
+                         "tarantool_2.10.8")
+        )
+
+
+@pytest.mark.parametrize("tt_dir", [
+    "tt_basic",
+    "tt_empty",
+    "tt_invalid"
+])
+@pytest.mark.parametrize("build_dir, exec_rel_path, include_rel_path", [
+    pytest.param(
+        "build_ce",
+        os.path.join("src", "tarantool"),
+        os.path.join("tarantool-prefix", "include", "tarantool")
+    ),
+    pytest.param(
+        "build_ee",
+        os.path.join("tarantool", "src", "tarantool"),
+        None
+    )
+])
+def test_install_tarantool_dev_no_include_option(
+        tt_cmd,
+        tmpdir,
+        build_dir,
+        exec_rel_path,
+        include_rel_path,
+        tt_dir
+):
+    # Copy test files.
+    testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    build_path = os.path.join(testdata_path, build_dir)
+    install_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(testdata_path, tt_dir, config_name),
+        "install", "tarantool-dev",
+        build_path
+    ]
+    install_process = subprocess.Popen(
+        install_cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+    )
+
+    install_process_rc = install_process.wait()
+    assert install_process_rc == 0
+
+    expected_include_symlink = None
+    if include_rel_path is not None:
+        expected_include_symlink = os.path.join(
+            testdata_path, build_dir, include_rel_path
+        )
+
+    assert is_valid_tarantool_installed(
+        os.path.join(testdata_path, tt_dir, "bin"),
+        os.path.join(testdata_path, tt_dir, "inc", "include"),
+        os.path.join(testdata_path, build_dir, exec_rel_path),
+        expected_include_symlink,
+    )
+
+
+@pytest.mark.parametrize("tt_dir", [
+     "tt_basic",
+     "tt_empty",
+     "tt_invalid"
+])
+@pytest.mark.parametrize("rc, include_dir", [
+    pytest.param(0, "custom_include/tarantool", id='dir exists'),
+    pytest.param(1, "include/tarantool", id='dir not exists')
+])
+def test_install_tarantool_dev_include_option(
+        tt_cmd, tmpdir, rc, include_dir, tt_dir
+):
+    # Copy test files.
+    testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    build_dir = "build_ee"
+    build_path = os.path.join(testdata_path, build_dir)
+    install_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(testdata_path, tt_dir, config_name),
+        "install", "tarantool-dev",
+        build_path,
+        "--include-dir", os.path.join(build_path, include_dir)
+    ]
+
+    install_process = subprocess.Popen(
+        install_cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL
+    )
+    install_process_rc = install_process.wait()
+    assert install_process_rc == rc
+
+    if rc == 0:
+        assert is_valid_tarantool_installed(
+            os.path.join(testdata_path, tt_dir, "bin"),
+            os.path.join(testdata_path, tt_dir, "inc", "include"),
+            os.path.join(build_path, "tarantool/src/tarantool"),
+            os.path.join(build_path, include_dir),
+        )

@@ -111,3 +111,133 @@ func Test_getLatestRelease(t *testing.T) {
 	latestRelease = getLatestRelease(versions[1:6])
 	require.Equal(t, "", latestRelease)
 }
+
+func Test_installTarantoolDev(t *testing.T) {
+	ttBinDir := "binDir"
+	ttIncDir := "incDir"
+
+	setupEnv := func() string {
+		//	├── ttBinDir
+		//	├── build_ce
+		//	│   └── src
+		//	│       └── tarantool
+		//	├── build_invalid
+		//	│   └── tarantool
+		//	│       └── src
+		//	│           └── tarantool
+		//	└── ttIncDir
+
+		tempDir := os.TempDir()
+		tempsDir, _ := os.MkdirTemp(tempDir, "install_tarantool_dev_test")
+
+		ttBinDir := filepath.Join(tempsDir, ttBinDir)
+		os.Mkdir(ttBinDir, os.ModePerm)
+
+		ttIncDir := filepath.Join(tempsDir, ttIncDir)
+		os.Mkdir(ttIncDir, os.ModePerm)
+
+		buildDir1 := filepath.Join(tempsDir, "build_ce")
+		os.MkdirAll(filepath.Join(buildDir1, "src"), os.ModePerm)
+		binaryPath1 := filepath.Join(buildDir1, "src/tarantool")
+		os.Create(binaryPath1)
+		os.Chmod(binaryPath1, 0700)
+
+		buildDir2 := filepath.Join(tempsDir, "build_invalid")
+		os.MkdirAll(filepath.Join(buildDir2, "tarantool/src"), os.ModePerm)
+		binaryPath2 := filepath.Join(buildDir2, "tarantool/src/tarantool")
+		os.Create(binaryPath2)
+		os.Chmod(binaryPath2, 0700)
+
+		return tempsDir
+	}
+
+	t.Run("no include-dir", func(t *testing.T) {
+		tempDirectory := setupEnv()
+		defer os.RemoveAll(tempDirectory)
+
+		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
+		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
+
+		cases := []struct {
+			buildDir    string
+			relExecPath string
+		}{
+			{filepath.Join(tempDirectory, "build_ce"), "/src/tarantool"},
+			{filepath.Join(tempDirectory, "build_invalid"), "/tarantool/src/tarantool"},
+		}
+
+		for _, tc := range cases {
+			err := installTarantoolDev(ttBinPath, ttIncPath, tc.buildDir, "")
+			assert.NoError(t, err)
+			link, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
+			assert.NoError(t, err)
+			assert.Equal(t, filepath.Join(tc.buildDir, tc.relExecPath), link)
+
+			// Check that old includeDir was removed.
+			_, err = os.Readlink(filepath.Join(ttIncPath, "tarantool"))
+			assert.Error(t, err)
+		}
+	})
+
+	t.Run("with include-dir", func(t *testing.T) {
+		tempDirectory := setupEnv()
+		defer os.RemoveAll(tempDirectory)
+
+		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
+		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
+
+		// Default include-dir.
+		os.MkdirAll(filepath.Join(tempDirectory, "build_ce", "tarantool-prefix", "include",
+			"tarantool"), os.ModePerm,
+		)
+
+		// Custom include-dir.
+		customIncDirectoryPath := filepath.Join(tempDirectory, "build_invalid", "custom_inc")
+		os.MkdirAll(customIncDirectoryPath, os.ModePerm)
+		cases := []struct {
+			buildDir        string
+			incDir          string
+			relExecPath     string
+			expectedIncLink string
+		}{
+			{
+				filepath.Join(tempDirectory, "build_ce"),
+				"",
+				"/src/tarantool",
+				filepath.Join(tempDirectory, "build_ce", "tarantool-prefix", "include",
+					"tarantool"),
+			},
+			{
+				filepath.Join(tempDirectory, "build_invalid"),
+				customIncDirectoryPath,
+				"/tarantool/src/tarantool",
+				filepath.Join(tempDirectory, "build_invalid", "custom_inc"),
+			},
+		}
+
+		for _, tc := range cases {
+			err := installTarantoolDev(ttBinPath, ttIncPath, tc.buildDir, tc.incDir)
+			assert.NoError(t, err)
+			execLink, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
+			assert.NoError(t, err)
+			assert.Equal(t, execLink, filepath.Join(tc.buildDir, tc.relExecPath))
+
+			incLink, err := os.Readlink(filepath.Join(ttIncPath, "tarantool"))
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedIncLink, incLink)
+		}
+	})
+
+	t.Run("no executable", func(t *testing.T) {
+		tempDirectory := setupEnv()
+		defer os.RemoveAll(tempDirectory)
+
+		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
+		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
+
+		buildDir := filepath.Join(tempDirectory, "build_ee")
+		os.MkdirAll(buildDir, os.ModePerm)
+		err := installTarantoolDev(ttBinPath, ttIncPath, buildDir, "")
+		assert.Error(t, err)
+	})
+}

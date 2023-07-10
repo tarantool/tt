@@ -64,6 +64,23 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 	return tntCmd
 }
 
+// newUninstallTarantoolDevCmd creates a command to uninstall tarantool-dev.
+func newUninstallTarantoolDevCmd() *cobra.Command {
+	tntCmd := &cobra.Command{
+		Use:   "tarantool-dev",
+		Short: "Uninstall tarantool-dev",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			programName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				InternalUninstallModule, args)
+			handleCmdErr(cmd, err)
+		},
+	}
+
+	return tntCmd
+}
+
 // NewUninstallCmd creates uninstall command.
 func NewUninstallCmd() *cobra.Command {
 	var uninstallCmd = &cobra.Command{
@@ -79,6 +96,7 @@ func NewUninstallCmd() *cobra.Command {
 		newUninstallTtCmd(),
 		newUninstallTarantoolCmd(),
 		newUninstallTarantoolEeCmd(),
+		newUninstallTarantoolDevCmd(),
 	)
 
 	return uninstallCmd

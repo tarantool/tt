@@ -1,7 +1,9 @@
 package uninstall
 
 import (
+	"errors"
 	"fmt"
+	"github.com/tarantool/tt/cli/install"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -78,6 +80,27 @@ func UninstallProgram(program string, programVersion string, binDst string, head
 	cmdCtx *cmdcontext.CmdCtx) error {
 	log.Infof("Removing binary...")
 	var err error
+
+	if program == search.ProgramDev {
+		tarantoolBinarySymlink := filepath.Join(binDst, "tarantool")
+		_, isTarantoolDevInstalled, err := install.IsTarantoolDev(tarantoolBinarySymlink, binDst)
+		if err != nil {
+			return err
+		}
+		if !isTarantoolDevInstalled {
+			return fmt.Errorf("%s is not installed", program)
+		}
+		if err := os.Remove(tarantoolBinarySymlink); err != nil {
+			return err
+		}
+		headerDir := filepath.Join(headerDst, "tarantool")
+		log.Infof("Removing headers...")
+		// There can be no headers when `tarantool-dev` is installed.
+		if err := os.Remove(headerDir); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
 
 	if programVersion == "" {
 		if programVersion, err = getDefault(program, binDst); err != nil {

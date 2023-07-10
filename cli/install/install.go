@@ -97,6 +97,11 @@ type InstallCtx struct {
 	version string
 	// Dynamic flag enables dynamic linking.
 	Dynamic bool
+	// buildDir is the directory, where the tarantool executable is searched,
+	// in case of installation from the local build directory.
+	buildDir string
+	// IncDir is the directory, where the tarantool headers are located.
+	IncDir string
 }
 
 // Package is a struct containing sys and install name of the package.
@@ -123,6 +128,18 @@ var (
 	// VersionIDRe is a regexp for VersionID in os-release file.
 	VersionIDRe = regexp.MustCompile(`^VERSION_ID=(.*)$`)
 )
+
+// IsTarantoolDev returns true if tarantoolBinarySymlink is `tarantool-dev` version.
+func IsTarantoolDev(tarantoolBinarySymlink, binDir string) (string, bool, error) {
+	bin, err := os.Readlink(tarantoolBinarySymlink)
+	if err != nil {
+		return "", false, err
+	}
+	if !filepath.IsAbs(bin) {
+		bin = filepath.Join(binDir, bin)
+	}
+	return bin, filepath.Dir(bin) != binDir, nil
+}
 
 // getDistroInfo collects info about linux distro.
 func getDistroInfo() (DistroInfo, error) {
@@ -1114,6 +1131,89 @@ func dirIsWritable(dir string) bool {
 	return unix.Access(dir, unix.W_OK) == nil
 }
 
+// installTarantoolDev installs tarantool from the local build directory.
+func installTarantoolDev(ttBinDir string, ttIncludeDir, buildDir,
+	includeDir string) error {
+	var err error
+
+	// Validate build directory.
+	if buildDir, err = filepath.Abs(buildDir); err != nil {
+		return fmt.Errorf("failed to get absolute path: %v", err)
+	}
+	if !util.IsDir(buildDir) {
+		return fmt.Errorf("directory %v doesn't exist, or isn't directory", buildDir)
+	}
+
+	defaultIncPath := filepath.Join(buildDir, "tarantool-prefix", "include", "tarantool")
+	if includeDir != "" {
+		// Validate headers directory.
+		if includeDir, err = filepath.Abs(includeDir); err != nil {
+			return fmt.Errorf("failed to get absolute path: %v", err)
+		}
+		if !util.IsDir(includeDir) {
+			return fmt.Errorf("directory %v doesn't exist, "+
+				"or isn't directory", includeDir)
+		}
+	} else {
+		// Check for default.
+		if util.IsDir(defaultIncPath) {
+			log.Infof("tarantool headers directory set as %v", defaultIncPath)
+			includeDir = defaultIncPath
+		}
+	}
+
+	if includeDir == "" {
+		log.Warn("Tarantool headers location was not specified and" +
+			fmt.Sprintf(" was not found in %v\n", defaultIncPath) +
+			"`tt build`, `tt rocks` may not work properly.\n" +
+			"  To specify include files location use --include-dir option.")
+	}
+
+	// Check that tt directories exist.
+	if err = util.CreateDirectory(ttBinDir, defaultDirPermissions); err != nil {
+		return err
+	}
+	if err = util.CreateDirectory(ttIncludeDir, defaultDirPermissions); err != nil {
+		return err
+	}
+
+	checkedBinaryPaths := make([]string, 0)
+
+	// Searching for tarantool binary.
+	for _, binaryRelPath := range [...]string{"src/tarantool", "tarantool/src/tarantool"} {
+		binaryPath := filepath.Join(buildDir, binaryRelPath)
+
+		var isExecOwner bool
+		isExecOwner, err = util.IsExecOwner(binaryPath)
+		if err == nil && isExecOwner && !util.IsDir(binaryPath) {
+			log.Infof("Changing symlinks...")
+			err = util.CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
+			if err != nil {
+				return err
+			}
+			tarantoolIncludeSymlink := filepath.Join(ttIncludeDir, "tarantool")
+			// Remove the old symlink to the tarantool headers.
+			// RemoveAll is used to perform deletion even if the file is not a symlink.
+			err = os.RemoveAll(tarantoolIncludeSymlink)
+			if err != nil {
+				return err
+			}
+			if includeDir != "" {
+				err = util.CreateSymlink(includeDir, tarantoolIncludeSymlink, true)
+				if err != nil {
+					return err
+				}
+			}
+			log.Infof("Done.")
+			return nil
+		}
+		checkedBinaryPaths = append(checkedBinaryPaths, binaryPath)
+	}
+
+	return fmt.Errorf("tarantool binary was not found in the paths:\n%s",
+		strings.Join(checkedBinaryPaths, "\n"))
+}
+
 // subDirIsWritable checks if the passed dir doesn't exist but can be created.
 func subDirIsWritable(dir string) bool {
 	var err error
@@ -1153,6 +1253,9 @@ func Install(binDir string, includeDir string, installCtx InstallCtx,
 		err = installTarantool(binDir, includeDir, installCtx, local)
 	case search.ProgramEe:
 		err = installTarantoolEE(binDir, includeDir, installCtx, local, cliOpts)
+	case search.ProgramDev:
+		err = installTarantoolDev(binDir, includeDir, installCtx.buildDir,
+			installCtx.IncDir)
 	default:
 		return fmt.Errorf("unknown application: %s", installCtx.ProgramName)
 	}
@@ -1162,6 +1265,14 @@ func Install(binDir string, includeDir string, installCtx InstallCtx,
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
 	installCtx.verbose = cmdCtx.Cli.Verbose
+
+	if cmdCtx.CommandName == search.ProgramDev {
+		if len(args) != 1 {
+			return fmt.Errorf("exactly one build directory must be specified")
+		}
+		installCtx.buildDir = args[0]
+		return nil
+	}
 
 	if len(args) == 1 {
 		installCtx.version = args[0]

@@ -65,6 +65,31 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 	return tntCmd
 }
 
+// newInstallTarantoolDevCmd creates a command to install tarantool
+// from the local build directory.
+func newInstallTarantoolDevCmd() *cobra.Command {
+	tntCmd := &cobra.Command{
+		Use:   "tarantool-dev <DIRECTORY>",
+		Short: "Install tarantool from the local build directory",
+		Example: "Assume, tarantool build directory is ~/src/tarantool/build\n" +
+			"  Consider the following use case:\n\n" +
+			"  make -j16 -C ~/src/tarantool/build\n" +
+			"  tt install tarantool-dev ~/src/tarantool/build\n" +
+			"  tt run # runs the binary compiled above",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			installCtx.ProgramName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalInstallModule, args)
+			handleCmdErr(cmd, err)
+		},
+	}
+
+	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
+		"tarantool headers directory")
+	return tntCmd
+}
+
 // NewInstallCmd creates install command.
 func NewInstallCmd() *cobra.Command {
 	var installCmd = &cobra.Command{
@@ -91,6 +116,7 @@ func NewInstallCmd() *cobra.Command {
 		newInstallTtCmd(),
 		newInstallTarantoolCmd(),
 		newInstallTarantoolEeCmd(),
+		newInstallTarantoolDevCmd(),
 	)
 
 	return installCmd
