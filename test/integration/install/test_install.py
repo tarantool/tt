@@ -115,7 +115,6 @@ def test_install_tarantool(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.docker
 def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")

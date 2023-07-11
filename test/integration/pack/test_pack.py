@@ -344,7 +344,6 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
 
 
 @pytest.mark.slow
-@pytest.mark.docker
 def test_pack_tgz_table(tt_cmd, tmpdir):
     test_cases = prepare_tgz_test_cases(tt_cmd)
 
@@ -607,7 +606,6 @@ def test_pack_nonexistent_modules_directory(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.docker
 def test_pack_deb(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -660,7 +658,6 @@ def test_pack_deb(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.docker
 def test_pack_rpm(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -709,7 +706,6 @@ def test_pack_rpm(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.docker
 def test_pack_rpm_use_docker(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -755,7 +751,6 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.docker
 def test_pack_deb_use_docker(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
