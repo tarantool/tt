@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt install tarantool-dev`: ability to install tarantool from the local build directory.
 
+### Fixed
+
+- `tt install tarantool`: symlink to the directory with tarantool headers is now updated 
+when installing an existing version.
+
 ## [1.1.2] - 2023-06-16
 
 ### Changed

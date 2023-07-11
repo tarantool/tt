@@ -534,10 +534,17 @@ func checkExistingTarantool(version, binDir, includeDir string,
 	installCtx InstallCtx) (bool, error) {
 	var err error
 	flag := false
-	if checkExisting(version, binDir) {
+	if checkExisting(version, binDir) && checkExisting(version, includeDir) {
 		if !installCtx.Reinstall {
-			log.Infof("%s version of tarantool already exists, updating symlink...", version)
+			log.Infof("%s version of tarantool already exists, updating symlinks...", version)
 			err = util.CreateSymlink(version, filepath.Join(binDir, "tarantool"), true)
+			if err != nil {
+				return true, err
+			}
+			err = util.CreateSymlink(version, filepath.Join(includeDir, "tarantool"), true)
+			if err != nil {
+				return true, err
+			}
 			log.Infof("Done")
 			flag = true
 		}

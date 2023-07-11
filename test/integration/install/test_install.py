@@ -299,3 +299,39 @@ def test_install_tarantool_dev_include_option(
             os.path.join(build_path, "tarantool/src/tarantool"),
             os.path.join(build_path, include_dir),
         )
+
+
+def test_install_tarantool_already_exists(tt_cmd, tmpdir):
+    # Copy test files.
+    testdata_path = os.path.join(
+        os.path.dirname(__file__),
+        "testdata/test_install_tarantool_already_exists"
+    )
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    tt_dir = os.path.join(testdata_path, "tt")
+
+    install_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(tt_dir, config_name),
+        "install", "tarantool", "1.10.13"
+    ]
+
+    install_process = subprocess.Popen(
+        install_cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    install_process_rc = install_process.wait()
+    output = install_process.stdout.read()
+    assert "version of tarantool already exists" in output
+    assert install_process_rc == 0
+
+    assert is_valid_tarantool_installed(
+        os.path.join(tt_dir, "bin"),
+        os.path.join(tt_dir, "inc", "include"),
+        os.path.join(tt_dir, "bin", "tarantool_1.10.13"),
+        os.path.join(tt_dir, "inc", "include", "tarantool_1.10.13"),
+    )
