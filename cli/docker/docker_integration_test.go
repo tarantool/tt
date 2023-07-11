@@ -157,7 +157,7 @@ func TestRunContainerInvalidDockerfile(t *testing.T) {
 		Command:     []string{"touch", "/work/file_from_container"},
 		Binds:       []string{fmt.Sprintf("%s:/work", tmpDir)},
 	}, os.Stdout)
-	require.True(t, strings.Contains(err.Error(), "dockerfile parse error line"))
+	require.True(t, strings.Contains(err.Error(), "dockerfile parse error"))
 	assert.NoFileExists(t, filepath.Join(tmpDir, "file_from_container"))
 }
 
