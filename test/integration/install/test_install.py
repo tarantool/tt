@@ -161,13 +161,29 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
 
 
-def test_install_tarantool_dev_bin_invalid(tt_cmd, tmpdir):
+@pytest.mark.parametrize("tt_dir, expected_bin_path, expected_inc_path", [
+    pytest.param(
+        "tt_basic",
+        os.path.join("bin", "tarantool_2.10.8"),
+        os.path.join("inc", "include", "tarantool_2.10.8")
+    ),
+    pytest.param(
+        "tt_empty",
+        None,
+        None,
+    )
+])
+def test_install_tarantool_dev_bin_invalid(
+        tt_cmd,
+        tmpdir,
+        tt_dir,
+        expected_bin_path,
+        expected_inc_path):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
     shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
     testdata_path = os.path.join(tmpdir, "testdata")
 
-    tt_dir = "tt_basic"
     for build_dir in ["build_invalid", "build_invalid2"]:
         build_path = os.path.join(testdata_path, build_dir)
         install_cmd = [
@@ -187,12 +203,16 @@ def test_install_tarantool_dev_bin_invalid(tt_cmd, tmpdir):
         assert "tarantool binary was not found" in output
         assert install_process_rc != 0
 
+        if expected_bin_path is not None:
+            expected_bin_path = os.path.join(testdata_path, tt_dir, expected_bin_path)
+        if expected_inc_path is not None:
+            expected_inc_path = os.path.join(testdata_path, tt_dir, expected_inc_path)
+
         assert is_valid_tarantool_installed(
             os.path.join(testdata_path, tt_dir, "bin"),
             os.path.join(testdata_path, tt_dir, "inc", "include"),
-            os.path.join(testdata_path, tt_dir, "bin", "tarantool_2.10.8"),
-            os.path.join(testdata_path, tt_dir, "inc", "include",
-                         "tarantool_2.10.8")
+            expected_bin_path,
+            expected_inc_path
         )
 
 
@@ -211,6 +231,11 @@ def test_install_tarantool_dev_bin_invalid(tt_cmd, tmpdir):
         "build_ee",
         os.path.join("tarantool", "src", "tarantool"),
         None
+    ),
+    pytest.param(
+        "build_static",
+        os.path.join("tarantool-prefix", "bin", "tarantool"),
+        os.path.join("tarantool-prefix", "include", "tarantool")
     )
 ])
 def test_install_tarantool_dev_no_include_option(
