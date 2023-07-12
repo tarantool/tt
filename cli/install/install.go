@@ -1138,6 +1138,30 @@ func dirIsWritable(dir string) bool {
 	return unix.Access(dir, unix.W_OK) == nil
 }
 
+// searchTarantoolHeaders searches tarantool headers.
+// First, it checks the specified includeDir,
+// in case of failure, it checks the default one.
+func searchTarantoolHeaders(buildDir, includeDir string) (string, error) {
+	var err error
+	if includeDir != "" {
+		includeDir, err = filepath.Abs(includeDir)
+		if err != nil {
+			return "", err
+		}
+		if !util.IsDir(includeDir) {
+			return "", fmt.Errorf("directory %v doesn't exist, "+
+				"or isn't a directory", includeDir)
+		}
+		return includeDir, nil
+	}
+	// Check the default path.
+	defaultIncPath := filepath.Join(buildDir, "tarantool-prefix", "include", "tarantool")
+	if util.IsDir(defaultIncPath) {
+		return defaultIncPath, nil
+	}
+	return "", nil
+}
+
 // installTarantoolDev installs tarantool from the local build directory.
 func installTarantoolDev(ttBinDir string, ttIncludeDir, buildDir,
 	includeDir string) error {
@@ -1151,65 +1175,51 @@ func installTarantoolDev(ttBinDir string, ttIncludeDir, buildDir,
 		return fmt.Errorf("directory %v doesn't exist, or isn't directory", buildDir)
 	}
 
-	defaultIncPath := filepath.Join(buildDir, "tarantool-prefix", "include", "tarantool")
-	if includeDir != "" {
-		// Validate headers directory.
-		if includeDir, err = filepath.Abs(includeDir); err != nil {
-			return fmt.Errorf("failed to get absolute path: %v", err)
-		}
-		if !util.IsDir(includeDir) {
-			return fmt.Errorf("directory %v doesn't exist, "+
-				"or isn't directory", includeDir)
-		}
-	} else {
-		// Check for default.
-		if util.IsDir(defaultIncPath) {
-			log.Infof("tarantool headers directory set as %v", defaultIncPath)
-			includeDir = defaultIncPath
-		}
-	}
-
-	if includeDir == "" {
-		log.Warn("Tarantool headers location was not specified and" +
-			fmt.Sprintf(" was not found in %v\n", defaultIncPath) +
-			"`tt build`, `tt rocks` may not work properly.\n" +
-			"  To specify include files location use --include-dir option.")
-	}
-
-	// Check that tt directories exist.
-	if err = util.CreateDirectory(ttBinDir, defaultDirPermissions); err != nil {
-		return err
-	}
-	if err = util.CreateDirectory(ttIncludeDir, defaultDirPermissions); err != nil {
-		return err
-	}
-
 	checkedBinaryPaths := make([]string, 0)
 
 	// Searching for tarantool binary.
-	for _, binaryRelPath := range [...]string{"src/tarantool", "tarantool/src/tarantool"} {
+	for _, binaryRelPath := range [...]string{
+		"src/tarantool",
+		"tarantool/src/tarantool",
+		"tarantool-prefix/bin/tarantool",
+	} {
 		binaryPath := filepath.Join(buildDir, binaryRelPath)
 
 		var isExecOwner bool
 		isExecOwner, err = util.IsExecOwner(binaryPath)
 		if err == nil && isExecOwner && !util.IsDir(binaryPath) {
+			// Check that tt directories exist.
+			if err = util.CreateDirectory(ttBinDir, defaultDirPermissions); err != nil {
+				return err
+			}
+			if err = util.CreateDirectory(ttIncludeDir, defaultDirPermissions); err != nil {
+				return err
+			}
+
 			log.Infof("Changing symlinks...")
 			err = util.CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
 			if err != nil {
 				return err
 			}
-			tarantoolIncludeSymlink := filepath.Join(ttIncludeDir, "tarantool")
-			// Remove the old symlink to the tarantool headers.
-			// RemoveAll is used to perform deletion even if the file is not a symlink.
-			err = os.RemoveAll(tarantoolIncludeSymlink)
+
+			includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
 			if err != nil {
 				return err
 			}
-			if includeDir != "" {
+			tarantoolIncludeSymlink := filepath.Join(ttIncludeDir, "tarantool")
+			// Remove old symlink to the tarantool headers.
+			// RemoveAll is used to perform deletion even if the file is not a symlink.
+			err = os.RemoveAll(tarantoolIncludeSymlink)
+			if includeDir == "" {
+				log.Warn("Tarantool headers location was not specified" +
+					"`tt build`, `tt rocks` may not work properly.\n" +
+					"  To specify include files location use --include-dir option.")
+			} else {
 				err = util.CreateSymlink(includeDir, tarantoolIncludeSymlink, true)
 				if err != nil {
 					return err
 				}
+				log.Infof("tarantool headers directory set as %v.", includeDir)
 			}
 			log.Infof("Done.")
 			return nil

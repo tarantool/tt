@@ -241,3 +241,67 @@ func Test_installTarantoolDev(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestSearchTarantoolHeaders(t *testing.T) {
+	tempDir := os.TempDir()
+	tempsDir, _ := os.MkdirTemp(tempDir, "search_tarantool_headers_test")
+	defer os.RemoveAll(tempsDir)
+
+	buildEmptyPath := filepath.Join(tempsDir, "build_empty")
+	os.MkdirAll(buildEmptyPath, os.ModePerm)
+
+	buildBasicPath := filepath.Join(tempsDir, "build_basic")
+	os.MkdirAll(filepath.Join(buildBasicPath, "tarantool-prefix", "include", "tarantool"),
+		os.ModePerm)
+	os.MkdirAll(filepath.Join(buildBasicPath, "custom-prefix", "include", "tarantool"),
+		os.ModePerm)
+
+	buildInvalidPath := filepath.Join(tempsDir, "build_invalid")
+	os.MkdirAll(buildInvalidPath, os.ModePerm)
+	os.MkdirAll(filepath.Join(buildInvalidPath, "tarantool-prefix", "include"),
+		os.ModePerm)
+	os.Create(filepath.Join(buildInvalidPath, "tarantool-prefix", "include", "tarantool"))
+	os.Create(filepath.Join(buildInvalidPath, "invalid_inc"))
+
+	cases := []struct {
+		buildDir           string
+		includeDir         string
+		expectedIncludeDir string
+		isErr              bool
+	}{
+		{
+			buildDir: buildBasicPath,
+			expectedIncludeDir: filepath.Join(buildBasicPath, "tarantool-prefix", "include",
+				"tarantool"),
+		},
+		{
+			buildDir: buildBasicPath,
+			includeDir: filepath.Join(buildBasicPath,
+				"custom-prefix/include/tarantool"),
+			expectedIncludeDir: filepath.Join(buildBasicPath,
+				"custom-prefix/include/tarantool"),
+		},
+		{
+			buildDir:           buildEmptyPath,
+			expectedIncludeDir: "",
+		},
+		{
+			buildDir:           buildInvalidPath,
+			expectedIncludeDir: "",
+		},
+		{
+			buildDir:           buildInvalidPath,
+			includeDir:         filepath.Join(buildInvalidPath, "invalid_inc"),
+			expectedIncludeDir: "",
+			isErr:              true,
+		},
+	}
+
+	for _, tc := range cases {
+		incDir, err := searchTarantoolHeaders(tc.buildDir, tc.includeDir)
+		assert.Equal(t, tc.expectedIncludeDir, incDir)
+		if tc.isErr {
+			assert.Error(t, err)
+		}
+	}
+}
