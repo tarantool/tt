@@ -87,11 +87,15 @@ var defaultLogHandler = &LogHandler{
 
 // printLogEntryColored prints log entry message using level specific colors.
 func printLogEntryColored(logHandler *cli.Handler, logEntry *log.Entry) error {
-	color := cli.Colors[logEntry.Level]
+	printColor := cli.Colors[logEntry.Level]
 	level := cli.Strings[logEntry.Level]
 
-	color.Fprintf(logHandler.Writer, "%s ", bold.Sprintf("%*s", logHandler.Padding+1, level))
-	color.Fprintf(logHandler.Writer, "%s\n", logEntry.Message)
+	if logEntry.Level >= log.ErrorLevel {
+		printColor = color.New(color.Bold, color.FgHiRed)
+	}
+
+	printColor.Fprintf(logHandler.Writer, "%s ", bold.Sprintf("%*s", logHandler.Padding+1, level))
+	printColor.Fprintf(logHandler.Writer, "%s\n", logEntry.Message)
 
 	return nil
 }
