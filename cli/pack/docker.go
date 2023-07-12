@@ -71,7 +71,7 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	// Create a temporary directory with environment files for mapping it into container.
 	// That is needed to avoid files mutation and binaries replacing in source directory.
-	tempEnvDir, err := prepareBundle(cmdCtx, dockerPackCtx, &opts, false)
+	tempEnvDir, err := prepareBundle(cmdCtx, &dockerPackCtx, &opts, false)
 	if err != nil {
 		return err
 	}

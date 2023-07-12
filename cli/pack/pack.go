@@ -26,6 +26,8 @@ type PackCtx struct {
 	RpmDeb RpmDebCtx
 	// UseDocker is set if a package must be built in docker container.
 	UseDocker bool
+	// CartridgeCompat enables backward compatibility with cartridge cli.
+	CartridgeCompat bool
 }
 
 // ArchiveCtx contains flags specific for tgz type.
