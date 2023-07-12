@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   symlink will be switched to the latest installed version, so that `tt` can
   continue working with the program.
 - `tt connect`: support for multi-line commands in the history.
+- New `tt pack` flag `--cartridge-compat` is added to maintain backward compatibility 
+with the cartridge-cli. It is supported only by `tgz` type packing.
 
 ### Fixed
 

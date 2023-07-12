@@ -32,6 +32,10 @@ The supported types are: tgz, deb, rpm`,
 				err = fmt.Errorf("incorrect combination of command parameters: %s", err.Error())
 				log.Fatalf(err.Error())
 			}
+			if packCtx.CartridgeCompat && args[0] != "tgz" {
+				err = fmt.Errorf("cartridge-compat flag can only be used while packing tgz bundle")
+				log.Fatalf(err.Error())
+			}
 			cmdCtx.CommandName = cmd.Name()
 			err = modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalPackModule, args)
 			handleCmdErr(cmd, err)
@@ -51,6 +55,8 @@ The supported types are: tgz, deb, rpm`,
 		packCtx.WithoutBinaries, "Don't include tarantool and tt binaries to the result package")
 	packCmd.Flags().BoolVar(&packCtx.WithBinaries, "with-binaries", packCtx.WithoutBinaries,
 		"Include tarantool and tt binaries to the result package")
+	packCmd.Flags().BoolVar(&packCtx.CartridgeCompat, "cartridge-compat", false,
+		"Pack cartridge cli compatible archive (only for tgz type)")
 
 	// TarGZ flags.
 	packCmd.Flags().BoolVar(&packCtx.Archive.All, "all", packCtx.Archive.All,
