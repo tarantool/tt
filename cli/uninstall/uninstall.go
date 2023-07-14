@@ -149,7 +149,7 @@ func getDefault(program, dir string) (string, error) {
 }
 
 // GetList generates a list of options to uninstall.
-func GetList(cliOpts *config.CliOpts) []string {
+func GetList(cliOpts *config.CliOpts, program string) []string {
 	list := []string{}
 	re := regexp.MustCompile(
 		"^" + progRegexp + version.FsSeparator + verRegexp + "$",
@@ -166,8 +166,8 @@ func GetList(cliOpts *config.CliOpts) []string {
 
 	for _, file := range installedPrograms {
 		matches := util.FindNamedMatches(re, file.Name())
-		if len(matches) != 0 {
-			list = append(list, matches["prog"]+version.CliSeparator+matches["ver"])
+		if len(matches) != 0 && matches["prog"] == program {
+			list = append(list, matches["ver"])
 		}
 	}
 

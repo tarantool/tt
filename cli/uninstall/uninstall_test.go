@@ -41,15 +41,14 @@ func TestGetList(t *testing.T) {
 		f.Close()
 	}
 
-	expected := []string{
-		"tt" + version.CliSeparator + "1.2.3",
-		"tarantool" + version.CliSeparator + "1.2.10",
-		"tarantool-ee" + version.CliSeparator + "master",
-	}
-
 	cliOpts, _, err := configure.GetCliOpts(cfgPath)
 	require.NoError(t, err)
-	result := GetList(cliOpts)
+	result := GetList(cliOpts, "tt")
+	assert.Equal(result, []string{"1.2.3"})
 
-	assert.ElementsMatch(result, expected)
+	result = GetList(cliOpts, "tarantool")
+	assert.Equal(result, []string{"1.2.10"})
+
+	result = GetList(cliOpts, "tarantool-ee")
+	assert.Equal(result, []string{"master"})
 }
