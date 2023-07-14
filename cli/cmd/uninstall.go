@@ -25,6 +25,16 @@ func newUninstallTtCmd() *cobra.Command {
 				InternalUninstallModule, args)
 			handleCmdErr(cmd, err)
 		},
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return []string{}, cobra.ShellCompDirectiveNoFileComp
+			}
+			return uninstall.GetList(cliOpts, cmd.Name()),
+				cobra.ShellCompDirectiveNoFileComp
+		},
 	}
 
 	return tntCmd
@@ -42,6 +52,16 @@ func newUninstallTarantoolCmd() *cobra.Command {
 				InternalUninstallModule, args)
 			handleCmdErr(cmd, err)
 		},
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return []string{}, cobra.ShellCompDirectiveNoFileComp
+			}
+			return uninstall.GetList(cliOpts, cmd.Name()),
+				cobra.ShellCompDirectiveNoFileComp
+		},
 	}
 
 	return tntCmd
@@ -58,6 +78,16 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				InternalUninstallModule, args)
 			handleCmdErr(cmd, err)
+		},
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return []string{}, cobra.ShellCompDirectiveNoFileComp
+			}
+			return uninstall.GetList(cliOpts, cmd.Name()),
+				cobra.ShellCompDirectiveNoFileComp
 		},
 	}
 
