@@ -26,53 +26,56 @@ const (
 )
 
 // remove removes binary/directory and symlinks from directory.
+// It returns true if symlink was removed, error.
 func remove(program string, programVersion string, directory string,
-	cmdCtx *cmdcontext.CmdCtx) error {
+	cmdCtx *cmdcontext.CmdCtx) (bool, error) {
 	var linkPath string
 	var err error
 
 	if program == search.ProgramCe || program == search.ProgramEe {
 		if linkPath, err = util.JoinAbspath(directory, "tarantool"); err != nil {
-			return err
+			return false, err
 		}
 	} else {
 		if linkPath, err = util.JoinAbspath(directory, program); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
-		return fmt.Errorf("couldn't find %s directory", directory)
+		return false, fmt.Errorf("couldn't find %s directory", directory)
 	} else if err != nil {
-		return fmt.Errorf("there was some problem with %s directory", directory)
+		return false, fmt.Errorf("there was some problem with %s directory", directory)
 	}
 
 	fileName := program + version.FsSeparator + programVersion
 	path := filepath.Join(directory, fileName)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return fmt.Errorf("there is no %s installed", program)
+		return false, fmt.Errorf("there is no %s installed", program)
 	} else if err != nil {
-		return fmt.Errorf("there was some problem locating %s", path)
+		return false, fmt.Errorf("there was some problem locating %s", path)
 	}
 	// Get path where symlink point.
 	resolvedPath, err := util.ResolveSymlink(linkPath)
 	if err != nil {
-		return fmt.Errorf("failed to resolve symlink %s: %s", linkPath, err)
+		return false, fmt.Errorf("failed to resolve symlink %s: %s", linkPath, err)
 	}
+	var isSymlinkRemoved bool
 	// Remove symlink if it points to program.
 	if strings.Contains(resolvedPath, fileName) {
 		err = os.Remove(linkPath)
 		if err != nil {
-			return err
+			return false, err
 		}
+		isSymlinkRemoved = true
 	}
 	err = os.RemoveAll(path)
 	if err != nil {
-		return err
+		return isSymlinkRemoved, err
 	}
 
-	return err
+	return isSymlinkRemoved, err
 }
 
 // UninstallProgram uninstalls program and symlinks.
@@ -99,7 +102,8 @@ func UninstallProgram(program string, programVersion string, binDst string, head
 		if err := os.Remove(headerDir); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
-		return nil
+		err = switchProgramToLatestVersion(program, binDst, headerDst)
+		return err
 	}
 
 	if programVersion == "" {
@@ -108,14 +112,23 @@ func UninstallProgram(program string, programVersion string, binDst string, head
 		}
 	}
 
-	if err = remove(program, programVersion, binDst, cmdCtx); err != nil {
+	var isSymlinkRemoved bool
+	isSymlinkRemoved, err = remove(program, programVersion, binDst, cmdCtx)
+	if err != nil {
 		return err
 	}
 	if strings.Contains(program, "tarantool") {
 		log.Infof("Removing headers...")
-		err = remove(program, programVersion, headerDst, cmdCtx)
+		_, err = remove(program, programVersion, headerDst, cmdCtx)
+		if err != nil {
+			return err
+		}
 	}
 	log.Infof("%s%s%s is uninstalled.", program, version.CliSeparator, programVersion)
+
+	if isSymlinkRemoved {
+		err = switchProgramToLatestVersion(program, binDst, headerDst)
+	}
 	return err
 }
 
@@ -172,4 +185,98 @@ func GetList(cliOpts *config.CliOpts, program string) []string {
 	}
 
 	return list
+}
+
+// searchLatestVersion searches for the latest installed version of the program.
+func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
+	var programsToSearch []string
+	if linkName == "tarantool" {
+		programsToSearch = []string{search.ProgramCe, search.ProgramEe}
+	} else {
+		programsToSearch = []string{linkName}
+	}
+
+	programRegex := regexp.MustCompile(
+		"^" + progRegexp + version.FsSeparator + verRegexp + "$",
+	)
+
+	binaries, err := os.ReadDir(binDst)
+	if err != nil {
+		return "", err
+	}
+
+	latestVersionInfo := version.Version{}
+	latestVersion := ""
+
+	for _, binary := range binaries {
+		if binary.IsDir() {
+			continue
+		}
+		binaryName := binary.Name()
+		matches := util.FindNamedMatches(programRegex, binaryName)
+
+		// Need to match for the program and version.
+		if len(matches) != 2 {
+			log.Debugf("%q skipped: unexpected format", binaryName)
+			continue
+		}
+
+		programName := matches["prog"]
+		// Need to find the program in the list of suitable.
+		if util.Find(programsToSearch, programName) == -1 {
+			continue
+		}
+
+		ver, err := version.Parse(matches["ver"])
+		if err != nil {
+			continue
+		}
+		if strings.Contains(programName, "tarantool") {
+			// Check for headers.
+			if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
+				continue
+			}
+		}
+		// Update latest version.
+		if latestVersion == "" || version.IsLess(latestVersionInfo, ver) {
+			latestVersionInfo = ver
+			latestVersion = binaryName
+		}
+	}
+
+	return latestVersion, nil
+}
+
+// switchProgramToLatestVersion switches the active version of the program to the latest installed.
+func switchProgramToLatestVersion(program, binDst, headerDst string) error {
+	linkName := program
+	if program == search.ProgramCe || program == search.ProgramEe || program == search.ProgramDev {
+		linkName = "tarantool"
+	}
+
+	progToSwitch, err := searchLatestVersion(linkName, binDst, headerDst)
+	if err != nil {
+		return err
+	}
+	if progToSwitch == "" {
+		return nil
+	}
+
+	log.Infof("Changing symlinks...")
+	binaryPath := filepath.Join(binDst, linkName)
+	err = util.CreateSymlink(filepath.Join(binDst, progToSwitch), binaryPath, true)
+	if err != nil {
+		return err
+	}
+
+	if linkName == "tarantool" {
+		headerPath := filepath.Join(headerDst, linkName)
+		err = util.CreateSymlink(filepath.Join(headerDst, progToSwitch), headerPath, true)
+		if err != nil {
+			return err
+		}
+	}
+
+	log.Infof("Current %q is set to %q.", linkName, progToSwitch)
+	return nil
 }

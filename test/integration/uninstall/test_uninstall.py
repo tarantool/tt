@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import stat
 import subprocess
 
 import pytest
@@ -144,15 +145,20 @@ def test_uninstall_tarantool_dev_installed(tt_cmd, tmpdir, is_symlink_broken):
         uninstall_cmd,
         cwd=testdata_path,
         stderr=subprocess.STDOUT,
-        stdout=subprocess.DEVNULL
+        stdout=subprocess.PIPE,
+        text=True
     )
     rc = uninstall_process.wait()
     assert rc == 0
+    output = uninstall_process.stdout.read()
+    # Check that the tarantool version has been switched correctly.
+    assert 'Current "tarantool" is set to "tarantool_2.10.4"' in output
     assert is_valid_tarantool_installed(
         os.path.join(testdata_path, tt_dir, "bin"),
         os.path.join(testdata_path, tt_dir, "inc", "include"),
-        None,
-        None
+        os.path.join(testdata_path, tt_dir, "bin", "tarantool_2.10.4"),
+        os.path.join(testdata_path, tt_dir, "inc", "include",
+                     "tarantool_2.10.4")
     )
     if not is_symlink_broken:
         assert os.path.exists(os.path.join(testdata_path, tt_dir, "tarantool"))
@@ -189,4 +195,82 @@ def test_uninstall_tarantool_dev_not_installed(tt_cmd, tmpdir):
         os.path.join(testdata_path, tt_dir, "bin", "tarantool_2.10.8"),
         os.path.join(testdata_path, tt_dir, "inc", "include",
                      "tarantool_2.10.8")
+    )
+
+
+def test_uninstall_tarantool_switch(tt_cmd, tmpdir):
+    # Copy test files.
+    testdata_path = os.path.join(os.path.dirname(__file__),
+                                 "testdata/uninstall_switch")
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    uninstall_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(testdata_path, config_name),
+        "uninstall", "tarantool", "1.10.15"
+    ]
+    uninstall_process = subprocess.Popen(
+        uninstall_cmd,
+        cwd=testdata_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    rc = uninstall_process.wait()
+    assert rc == 0
+    output = uninstall_process.stdout.read()
+    assert 'Current "tarantool" is set to "tarantool_2.10.7-entrypoint"' in output
+    assert is_valid_tarantool_installed(
+        os.path.join(testdata_path, "bin"),
+        os.path.join(testdata_path, "inc", "include"),
+        os.path.join(testdata_path, "bin", "tarantool_2.10.7-entrypoint"),
+        os.path.join(testdata_path, "inc", "include",
+                     "tarantool_2.10.7-entrypoint")
+    )
+
+
+# No symlink changes should be made if the symlink was pointing
+# to some other version.
+def test_uninstall_tarantool_no_switch(tt_cmd, tmpdir):
+    # Copy test files.
+    testdata_path = os.path.join(os.path.dirname(__file__),
+                                 "testdata/uninstall_switch")
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    binary_path = os.path.join(testdata_path, "bin", "tarantool")
+    include_path = os.path.join(testdata_path, "inc", "include", "tarantool")
+
+    # Change symlinks to the version, which will not be uninstalled.
+    os.unlink(binary_path)
+    os.unlink(include_path)
+    os.symlink(
+        os.path.join(testdata_path, "bin", "tarantool_2.10.4"),
+        binary_path
+    )
+    os.chmod(binary_path, stat.S_IEXEC)
+    os.symlink(
+        os.path.join(testdata_path, "inc", "include", "tarantool_2.10.4"),
+        include_path
+    )
+
+    uninstall_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(testdata_path, config_name),
+        "uninstall", "tarantool", "1.10.15"
+    ]
+    uninstall_process = subprocess.Popen(
+        uninstall_cmd,
+        cwd=testdata_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+    )
+    rc = uninstall_process.wait()
+    assert rc == 0
+    assert is_valid_tarantool_installed(
+        os.path.join(testdata_path, "bin"),
+        os.path.join(testdata_path, "inc", "include"),
+        os.path.join(testdata_path, "bin", "tarantool_2.10.4"),
+        os.path.join(testdata_path, "inc", "include", "tarantool_2.10.4")
     )

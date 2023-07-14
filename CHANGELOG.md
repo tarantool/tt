@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt install tarantool-dev`: ability to install tarantool from the local build directory.
 - `tt uninstall`: smart auto-completion. It shows installed versions of programs.
+- `tt uninstall`: when removing symlinks and an existing installed version, the
+  symlink will be switched to the latest installed version, so that `tt` can
+  continue working with the program.
 
 ### Fixed
 
