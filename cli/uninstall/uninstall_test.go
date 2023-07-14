@@ -52,3 +52,72 @@ func TestGetList(t *testing.T) {
 	result = GetList(cliOpts, "tarantool-ee")
 	assert.Equal(result, []string{"master"})
 }
+
+func TestSearchLatestVersion(t *testing.T) {
+	type testCase struct {
+		name        string
+		linkName    string
+		binDst      string
+		headerDst   string
+		expectedVer string
+		isErr       bool
+	}
+
+	cases := []testCase{
+		{
+			name:        "basic",
+			linkName:    "tarantool",
+			binDst:      "./testdata/bin_basic",
+			headerDst:   "./testdata/inc_basic",
+			expectedVer: "tarantool_3.0.0-entrypoint",
+		},
+		{
+			name:        "no includes",
+			linkName:    "tarantool",
+			binDst:      "./testdata/bin_basic",
+			headerDst:   "./testdata/inc_invalid",
+			expectedVer: "tarantool-ee_2.8.4-0-r510",
+		},
+		{
+			name:        "tarantool-dev",
+			linkName:    "tarantool",
+			binDst:      "./testdata/bin_dev",
+			headerDst:   "./testdata/inc_basic",
+			expectedVer: "",
+		},
+		{
+			name:        "tt, include-dir basic",
+			linkName:    "tt",
+			binDst:      "./testdata/bin_basic",
+			headerDst:   "./testdata/inc_basic",
+			expectedVer: "tt_2.0.0",
+		},
+		// Test that include dir doesn't affect the search for `tt`.
+		{
+			name:        "tt, include-dir invalid",
+			linkName:    "tt",
+			binDst:      "./testdata/bin_basic",
+			headerDst:   "./testdata/inc_invalid",
+			expectedVer: "tt_2.0.0",
+		},
+		{
+			name:      "filename as a bin dir",
+			linkName:  "tt",
+			binDst:    "./testdata/bin_basic/tarantool",
+			headerDst: "./testdata/inc_basic",
+			isErr:     true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ver, err := searchLatestVersion(tc.linkName, tc.binDst, tc.headerDst)
+			if !tc.isErr {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedVer, ver)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}

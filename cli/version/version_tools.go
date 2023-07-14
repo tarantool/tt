@@ -127,11 +127,8 @@ func (v VersionSlice) Len() int {
 	return len(v)
 }
 
-// sort.Interface Less implementation, sorts from oldest to newest
-func (v VersionSlice) Less(i, j int) bool {
-	verLeft := v[i]
-	verRight := v[j]
-
+// IsLess returns true if verLeft is less than verRight.
+func IsLess(verLeft Version, verRight Version) bool {
 	left := []uint64{verLeft.Major, verLeft.Minor,
 		verLeft.Patch, uint64(verLeft.Release.Type),
 		verLeft.Release.Num, verLeft.Additional, verLeft.Revision}
@@ -157,6 +154,11 @@ func (v VersionSlice) Less(i, j int) bool {
 	}
 
 	return false
+}
+
+// sort.Interface Less implementation, sorts from oldest to newest
+func (v VersionSlice) Less(i, j int) bool {
+	return IsLess(v[i], v[j])
 }
 
 // sort.Interface Swap implementation
