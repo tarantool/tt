@@ -38,11 +38,11 @@ func textConnectWithValidation(t *testing.T) *TextConnector {
 	t.Helper()
 
 	conn, err := net.Dial("unix", console)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	protocol, err := GetProtocol(conn)
-	assert.NoError(t, err)
-	assert.Equal(t, TextProtocol, protocol)
+	require.NoError(t, err)
+	require.Equal(t, TextProtocol, protocol)
 
 	return NewTextConnector(conn)
 }
