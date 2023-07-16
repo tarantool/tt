@@ -31,7 +31,6 @@ const (
 // read,write for user and only read for others.
 const defaultDirPermissions = 0755
 
-
 // SearchCtx contains information for programs searching.
 type SearchCtx struct {
 	// Filter out which builds of tarantool-ee must be included in the result of search.
@@ -173,7 +172,6 @@ func GetCommitsFromGitRemote(repo string) ([]string, error) {
 	return commits, nil
 }
 
-
 // GetVersionsFromGitLocal returns sorted versions list from specified local git repo.
 func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 	versions := []version.Version{}
@@ -238,7 +236,6 @@ func GetCommitsFromGitLocal(repo string) ([]string, error) {
 
 	return commits, nil
 }
-
 
 // printVersion prints the version and labels:
 // * if the package is installed: [installed]
