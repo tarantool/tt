@@ -25,6 +25,13 @@ const (
 	SearchAll
 )
 
+// defaultDirPermissions is rights used to create folders.
+// 0755 - drwxr-xr-x
+// We need to give permission for all to execute
+// read,write for user and only read for others.
+const defaultDirPermissions = 0755
+
+
 // SearchCtx contains information for programs searching.
 type SearchCtx struct {
 	// Filter out which builds of tarantool-ee must be included in the result of search.
@@ -40,6 +47,11 @@ type SearchCtx struct {
 const (
 	GitRepoTarantool = "https://github.com/tarantool/tarantool.git"
 	GitRepoTT        = "https://github.com/tarantool/tt.git"
+)
+
+const (
+	GitRepoTarantoolToClone = "https://github.com/tarantool/tarantool"
+	GitRepoTTToClone        = "https://github.com/tarantool/tt"
 )
 
 // isMasked function checks that the given version of tarantool is masked.
@@ -115,6 +127,53 @@ func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
 	return versions, nil
 }
 
+// GetCommitsFromGitRemote returns commits list from specified remote git repo.
+func GetCommitsFromGitRemote(repo string) ([]string, error) {
+	commits := []string{}
+
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil, fmt.Errorf("'git' is required for 'tt search' to work")
+	}
+
+	path, err := os.MkdirTemp("", "versions_log")
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commits from %s: %s", repo, err)
+	}
+
+	os.Chmod(path, defaultDirPermissions)
+
+	cmd := exec.Command("git", "clone", "--filter=blob:none", "--no-checkout",
+		"--single-branch", "--branch", "master", repo, path)
+
+	err = cmd.Run()
+
+	if err != nil {
+		return nil, err
+	}
+
+	cmd = exec.Command("git", "log", "--oneline")
+	cmd.Dir = path
+
+	output, _ := cmd.Output()
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	fmt.Println(len(lines))
+	if len(lines) == 1 && lines[0] == "" {
+		return commits, nil
+	}
+
+	for _, line := range lines {
+		commits = append(commits, line[0:7])
+	}
+
+	os.RemoveAll(path)
+
+	return commits, nil
+}
+
+
 // GetVersionsFromGitLocal returns sorted versions list from specified local git repo.
 func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 	versions := []version.Version{}
@@ -150,6 +209,36 @@ func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 
 	return versions, nil
 }
+
+// GetCommitsFromGitLocal returns commits list from specified local git repo.
+func GetCommitsFromGitLocal(repo string) ([]string, error) {
+	commits := []string{}
+
+	_ = repo
+
+	if _, err := exec.LookPath("git"); err != nil {
+		return nil, fmt.Errorf("'git' is required for 'tt search' to work")
+	}
+
+	cmd := exec.Command("git", "log", "--oneline")
+	cmd.Dir = repo
+
+	output, _ := cmd.Output()
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	// No tags found.
+	if len(lines) == 1 && lines[0] == "" {
+		return commits, nil
+	}
+
+	for _, line := range lines {
+		commits = append(commits, line[0:7])
+	}
+
+	return commits, nil
+}
+
 
 // printVersion prints the version and labels:
 // * if the package is installed: [installed]

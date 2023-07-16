@@ -222,6 +222,42 @@ func getTTVersions(local bool, distfiles string) ([]version.Version, error) {
 	return versions, nil
 }
 
+// getTTCommits returns all available commits from tt repository.
+func getTTCommits(local bool, distfiles string) ([]string, error) {
+	commits := []string{}
+	var err error
+
+	if local {
+		commits, err = search.GetCommitsFromGitLocal(distfiles + "/tt")
+	} else {
+		commits, err = search.GetCommitsFromGitRemote(search.GitRepoTTToClone)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return commits, nil
+}
+
+// getTarantoolCommits returns all available commits from tarantool repository.
+func getTarantoolCommits(local bool, distfiles string) ([]string, error) {
+	commits := []string{}
+	var err error
+
+	if local {
+		commits, err = search.GetCommitsFromGitLocal(distfiles + "/tarantool")
+	} else {
+		commits, err = search.GetCommitsFromGitRemote(search.GitRepoTarantoolToClone)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return commits, nil
+}
+
 // isProgramInstalled checks if program is installed.
 func isProgramInstalled(program string) bool {
 	if _, err := exec.LookPath(program); err != nil {
@@ -404,6 +440,8 @@ func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
 // installTt installs selected version of tt.
 func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	versions, err := getTTVersions(installCtx.Local, distfiles)
+	versionFound := false
+	hashFound := false
 	if err != nil {
 		return err
 	}
@@ -424,7 +462,6 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	// The tag format in tt is vX.Y.Z, but the user can use the X.Y.Z format
 	// and this option needs to be supported.
 	if ttVersion != "master" {
-		versionFound := false
 		for _, ver := range versions {
 			if ttVersion == ver.Str || (ttVersion[0:1] != "v" && "v"+ttVersion == ver.Str) {
 				versionFound = true
@@ -434,7 +471,27 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		}
 
 		if !versionFound {
-			return fmt.Errorf("%s version of tt doesn't exist", ttVersion)
+			commits, err_hashes := getTTCommits(installCtx.Local, distfiles)
+
+			if len(ttVersion) < 7 {
+				return fmt.Errorf("the hash must include at least 7 characters")
+			}
+
+			if err_hashes != nil {
+				return err_hashes
+			}
+
+			for _, com := range commits {
+				if ttVersion[0:7] == com {
+					hashFound = true
+					ttVersion = com
+					break
+				}
+			}
+
+			if !hashFound {
+				return fmt.Errorf("%s version or commit of tt doesn't exist", ttVersion)
+			}
 		}
 	}
 
@@ -442,12 +499,14 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	if binDir == "" {
 		return fmt.Errorf("binDir is not set, check %s", configure.ConfigName)
 	}
+
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {
 		return err
 	}
+
 	defer os.Remove(logFile.Name())
-	log.Infof("Installing tt=" + ttVersion)
+	log.Infof("Installing tt = " + ttVersion)
 
 	// Check tt dependencies.
 	if !installCtx.Force {
@@ -472,7 +531,6 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		return err
 	}
 	os.Chmod(path, defaultDirPermissions)
-
 	if !installCtx.Noclean {
 		defer os.RemoveAll(path)
 	}
@@ -492,7 +550,12 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		}
 	} else {
 		log.Infof("Downloading tt...")
-		err = downloadRepo(search.GitRepoTT, ttVersion, path, logFile, installCtx.verbose)
+		if versionFound {
+			err = downloadRepo(search.GitRepoTT, ttVersion, path, logFile, installCtx.verbose)
+		} else {
+			err = downloadRepo(search.GitRepoTT, "master", path, logFile, installCtx.verbose)
+			util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout", ttVersion)
+		}
 	}
 
 	if err != nil {
@@ -501,13 +564,11 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	}
 	// Build tt.
 	log.Infof("Building tt...")
-	err = util.ExecuteCommand("mage", installCtx.verbose, logFile, path,
-		"build")
+	err = util.ExecuteCommand("mage", installCtx.verbose, logFile, path, "build")
 	if err != nil {
 		printLog(logFile.Name())
 		return err
 	}
-
 	// Copy binary.
 	log.Infof("Copying executable...")
 	err = copyBuildedTT(binDir, path, versionStr, installCtx, logFile)
@@ -515,7 +576,6 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		printLog(logFile.Name())
 		return err
 	}
-
 	// Set symlink.
 	err = util.CreateSymlink(versionStr, filepath.Join(binDir, "tt"), true)
 	if err != nil {
@@ -598,13 +658,13 @@ func patchTarantool(srcPath string, tarVersion string,
 
 // prepareCmakeOpts prepares cmake command line options for tarantool building.
 func prepareCmakeOpts(buildPath string, tntVersion string,
-	installCtx InstallCtx) ([]string, error) {
+	installCtx InstallCtx, hashBuild bool) ([]string, error) {
 	cmakeOpts := []string{".."}
 
 	// Disable backtrace feature for versions 1.10.X.
 	// This feature is not supported by a backported static build.
 	btFlag := "ON"
-	if tntVersion != "master" {
+	if tntVersion != "master" && !hashBuild {
 		version, err := version.Parse(tntVersion)
 		if err != nil {
 			return cmakeOpts, err
@@ -613,6 +673,10 @@ func prepareCmakeOpts(buildPath string, tntVersion string,
 			btFlag = "OFF"
 		}
 	}
+
+	// if hashBuild {
+	// 	btFlag = "OFF"
+	// }
 
 	cmakeOpts = append(cmakeOpts, `-DCMAKE_TARANTOOL_ARGS=-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
 		`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=`+btFlag)
@@ -642,7 +706,7 @@ func prepareMakeOpts(installCtx InstallCtx) []string {
 
 // buildTarantool builds tarantool from source. Returns a path, where build artifacts are placed.
 func buildTarantool(srcPath string, tarVersion string,
-	installCtx InstallCtx, logFile *os.File) (string, error) {
+	installCtx InstallCtx, logFile *os.File, hashBuild bool) (string, error) {
 
 	buildPath := filepath.Join(srcPath, "/static-build/build")
 	if installCtx.Dynamic {
@@ -653,7 +717,7 @@ func buildTarantool(srcPath string, tarVersion string,
 		return "", err
 	}
 
-	cmakeOpts, err := prepareCmakeOpts(buildPath, tarVersion, installCtx)
+	cmakeOpts, err := prepareCmakeOpts(buildPath, tarVersion, installCtx, hashBuild)
 	if err != nil {
 		return "", err
 	}
@@ -831,9 +895,13 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	}
 
 	versions, err := getTarantoolVersions(installCtx.Local, distfiles)
+
 	if err != nil {
 		return err
 	}
+
+	versionFound := false
+	hashFound := false
 
 	// Get latest version if it was not specified.
 	tarVersion := installCtx.version
@@ -848,7 +916,6 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 
 	// Check that the version exists.
 	if tarVersion != "master" {
-		versionFound := false
 		for _, ver := range versions {
 			if tarVersion == ver.Str {
 				versionFound = true
@@ -857,7 +924,26 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		}
 
 		if !versionFound {
-			return fmt.Errorf("%s version of tarantool doesn't exist", tarVersion)
+			if len(tarVersion) < 7 {
+				return fmt.Errorf("the hash must include at least 7 characters")
+			}
+			commits, err_hashes := getTarantoolCommits(installCtx.Local, distfiles)
+
+			if err_hashes != nil {
+				return err_hashes
+			}
+
+			for _, com := range commits {
+				if tarVersion[0:7] == com {
+					hashFound = true
+					tarVersion = com
+					break
+				}
+			}
+
+			if !hashFound {
+				return fmt.Errorf("%s version or commit of tarantool doesn't exist", tarVersion)
+			}
 		}
 	}
 
@@ -873,6 +959,9 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	}
 
 	if installCtx.BuildInDocker {
+		// if hashFound {
+		// 	return fmt.Errorf("BuildInDocker does not work when installing using a hash")
+		// }
 		return installTarantoolInDocker(tarVersion, binDir, incDir, installCtx, distfiles)
 	}
 
@@ -882,8 +971,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	}
 	defer os.Remove(logFile.Name())
 
-	log.Infof("Installing tarantool=" + tarVersion)
-
+	log.Infof("Installing tarantool = " + tarVersion)
 	// Check dependencies.
 	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
@@ -909,7 +997,13 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 			logFile)
 	} else {
 		log.Infof("Downloading tarantool...")
-		err = downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile, installCtx.verbose)
+		if versionFound {
+			err = downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile,
+				installCtx.verbose)
+		} else {
+			err = downloadRepo(search.GitRepoTarantool, "master", path, logFile, installCtx.verbose)
+			util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout", tarVersion)
+		}
 	}
 	if err != nil {
 		printLog(logFile.Name())
@@ -917,15 +1011,17 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	}
 
 	// Patch tarantool.
-	err = patchTarantool(path, tarVersion, installCtx, logFile)
-	if err != nil {
-		printLog(logFile.Name())
-		return err
+	if versionFound {
+		err = patchTarantool(path, tarVersion, installCtx, logFile)
+		if err != nil {
+			printLog(logFile.Name())
+			return err
+		}
 	}
 
 	// Build tarantool.
 	log.Infof("Building tarantool...")
-	buildPath, err := buildTarantool(path, tarVersion, installCtx, logFile)
+	buildPath, err := buildTarantool(path, tarVersion, installCtx, logFile, hashFound)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
