@@ -1,5 +1,6 @@
 # Tarantool CLI
 
+[![Go Report][report-badge]][report-url]
 [![Release][release-badge]][release-url]
 [![Full CI][testing-actions-badge]][testing-actions-url]
 
@@ -617,6 +618,9 @@ Common description. For a detailed description, use `tt help command` .
 -   `instances` - show enabled applications.
 -   `binaries` - show a list of installed binaries and their versions.
 
+
+[report-badge]: https://goreportcard.com/badge/github.com/tarantool/tt
+[report-url]: https://goreportcard.com/report/github.com/tarantool/tt
 
 [release-badge]: https://img.shields.io/github/v/release/tarantool/tt?include_prereleases&label=Release&labelColor=2d3532
 [release-url]: https://github.com/tarantool/tt/releases
