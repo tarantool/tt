@@ -453,3 +453,57 @@ func TestRelativeToCurrentWorkingDir(t *testing.T) {
 	relDir = RelativeToCurrentWorkingDir("dir1/subdir")
 	assert.Equal(t, filepath.Join("dir1", "subdir"), relDir)
 }
+
+func TestParseYaml(t *testing.T) {
+	type args struct {
+		yamlFilePath string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    map[string]interface{}
+		wantErr bool
+	}{
+		{
+			name: "Existing file name",
+			args: args{
+				yamlFilePath: "testdata/instances.yml",
+			},
+			want: map[string]any{
+				"router": nil,
+				"master": nil,
+				"replica": map[any]any{
+					"path": "filename",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "File does not exist",
+			args: args{
+				yamlFilePath: "testdata/instance.yml",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "Invalid yaml",
+			args: args{
+				yamlFilePath: "testdata/bad.yml",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseYAML(tt.args.yamlFilePath)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.EqualValues(t, tt.want, got)
+			}
+		})
+	}
+}
