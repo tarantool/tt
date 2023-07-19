@@ -1,6 +1,6 @@
 module github.com/tarantool/tt
 
-go 1.17
+go 1.20
 
 require (
 	github.com/adam-hanna/arrayOperations v0.2.6
@@ -25,6 +25,7 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
 	golang.org/x/crypto v0.7.0
+	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/sys v0.6.0
 	golang.org/x/term v0.6.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
