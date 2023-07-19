@@ -3,7 +3,6 @@ package running
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -19,7 +18,6 @@ import (
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
-	"gopkg.in/yaml.v2"
 )
 
 const defaultDirPerms = 0770
@@ -197,33 +195,8 @@ func (provider *providerImpl) IsRestartable() (bool, error) {
 	return provider.instanceCtx.Restartable, nil
 }
 
-// findInstSeparator returns instance separator index.
-// Cartridge application uses dot and dash sepatator for the application
-// and instance name (dash for stateboard, dot for others).
-func findInstSeparator(inst string) int {
-	sepIdx := -1
-	dotIdx := strings.Index(inst, ".")
-	dashIdx := strings.Index(inst, "-")
-
-	if dotIdx+dashIdx != -2 { // Separator is found.
-		mult := dotIdx * dashIdx
-		if mult < 0 { // Only one separator is found.
-			sepIdx = -mult
-		} else {
-			if dotIdx < dashIdx {
-				sepIdx = dotIdx
-			} else {
-				sepIdx = dashIdx
-			}
-		}
-	}
-
-	return sepIdx
-}
-
 // getInstancesFromYML collects instances from instances.yml.
-func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx,
-	error) {
+func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx, error) {
 	instances := []InstanceCtx{}
 
 	defAppPath := path.Join(dirPath, "init.lua")
@@ -236,27 +209,21 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx
 	if err != nil {
 		return nil, err
 	}
-	ymlData, err := ioutil.ReadFile(instCfgPath)
+	instParams, err := util.ParseYAML(instCfgPath)
 	if err != nil {
 		return nil, err
 	}
-	instParams := make(map[string]interface{})
-	if err = yaml.Unmarshal(ymlData, instParams); err != nil {
-		return nil, err
-	}
-	for inst, _ := range instParams {
+	for inst := range instParams {
 		instance := InstanceCtx{}
 		instance.AppName = filepath.Base(dirPath)
 		instance.SingleApp = false
 
-		sepIdx := findInstSeparator(inst)
-
-		if sepIdx == -1 {
+		sepIndex := strings.IndexAny(inst, ".-")
+		if sepIndex == -1 {
 			instance.InstName = inst
 		} else {
-			instance.InstName = inst[sepIdx+1:]
+			instance.InstName = inst[sepIndex+1:]
 		}
-
 		if selectedInstName != "" && instance.InstName != selectedInstName {
 			continue
 		}
