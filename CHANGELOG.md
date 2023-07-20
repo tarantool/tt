@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt pack` now skips all `.git` files in packed environment, not only in main directory.
 - `tt connect`: the reverse search function to work consistently with tarantool.
+- Now when running `tt start`, if any of the applications names, found in the
+`instances.yml` file will be different from directory name for the current application,
+an error will occur. Starting all other instances and applications will
+also be aborted.
 
 ### Added
 

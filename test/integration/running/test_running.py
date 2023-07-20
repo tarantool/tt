@@ -789,3 +789,20 @@ def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
                              stop_out)
             assert re.search(r"The Instance mi_app:storage \(PID = \d+\) has been terminated.",
                              stop_out)
+
+
+def test_running_app_instances_from_dir_with_different_name(tt_cmd):
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "dir_name")
+
+    # Default temporary directory may have very long path. This can cause socket path buffer
+    # overflow. Create our own temporary directory.
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_app_path = os.path.join(tmpdir, "dir_name")
+        shutil.copytree(test_app_path_src, test_app_path)
+
+        # Start an instance.
+        start_cmd = [tt_cmd, "start"]
+        start_rc, start_out = run_command_and_get_output(start_cmd, cwd=test_app_path)
+        assert start_rc == 1
+        assert re.search(r'Directory name "dir_name" is not equal to the '
+                         r'application name "app_name"', start_out)

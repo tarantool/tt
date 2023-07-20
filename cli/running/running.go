@@ -223,9 +223,20 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx
 			instance.InstName = inst
 		} else {
 			instance.InstName = inst[sepIndex+1:]
+			instance.AppName = inst[:sepIndex]
 		}
 		if selectedInstName != "" && instance.InstName != selectedInstName {
 			continue
+		}
+
+		if filepath.Base(dirPath) != instance.AppName {
+			return nil, fmt.Errorf("names of all applications "+
+				"in instances.yml should be equal to the directory name, "+
+				"in which they are stored. "+
+				"Directory name %q is not equal to the application name %q "+
+				"for instance %q",
+				filepath.Base(dirPath), instance.AppName,
+				instance.AppName+":"+instance.InstName)
 		}
 
 		script := path.Join(dirPath, instance.InstName+".init.lua")
