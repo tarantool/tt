@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/cli/formatter"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
@@ -38,6 +39,7 @@ var (
 	connectPassword    string
 	connectFile        string
 	connectLanguage    string
+	connectFormat      string
 	connectSslKeyFile  string
 	connectSslCertFile string
 	connectSslCaFile   string
@@ -58,7 +60,13 @@ func NewConnectCmd() *cobra.Command {
 			"  * [tcp://][username:password@][host:port]\n" +
 			"  * [unix://][username:password@]socketpath\n" +
 			"  To specify relative path without `unix://` use `./`.\n\n" +
-			"  To see a list of available commands enter `\\help` or `?`",
+			"  Available commands:\n" +
+			"  * \\shortcuts - get the full list of available shortcuts\n" +
+			"  * \\set language <language> - set language (lua or sql)\n" +
+			"  * \\set output <format> - set output format (lua[,line|block] or yaml)\n" +
+			"  * \\set delimiter <delimiter> - set expression delimiter\n" +
+			"  * \\help - show available backslash commands\n" +
+			"  * \\quit - quit interactive console",
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
 			"The command supports the following environment variables:\n\n" +
@@ -95,6 +103,8 @@ func NewConnectCmd() *cobra.Command {
 		`file to read the script for evaluation. "-" - read the script from stdin`)
 	connectCmd.Flags().StringVarP(&connectLanguage, "language", "l",
 		connect.DefaultLanguage.String(), `language: lua or sql`)
+	connectCmd.Flags().StringVarP(&connectFormat, "outputformat", "x",
+		formatter.DefaultFormat.String(), `output format: yaml, lua, table or ttable`)
 	connectCmd.Flags().StringVarP(&connectSslKeyFile, "sslkeyfile", "",
 		connect.DefaultLanguage.String(), `path to a private SSL key file`)
 	connectCmd.Flags().StringVarP(&connectSslCertFile, "sslcertfile", "",
@@ -292,6 +302,9 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ok bool
 	if connectCtx.Language, ok = connect.ParseLanguage(connectLanguage); !ok {
 		return util.NewArgError(fmt.Sprintf("unsupported language: %s", connectLanguage))
+	}
+	if connectCtx.Format, ok = formatter.ParseFormat(connectFormat); !ok {
+		return util.NewArgError(fmt.Sprintf("unsupported output format: %s", connectFormat))
 	}
 
 	connOpts, newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
