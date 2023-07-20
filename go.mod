@@ -11,6 +11,7 @@ require (
 	github.com/docker/docker v20.10.24+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/hashicorp/go-version v1.4.0
+	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/magefile/mage v1.12.1
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
@@ -18,7 +19,7 @@ require (
 	github.com/moby/term v0.0.0-20221105221325-4eb28fa6025c
 	github.com/otiai10/copy v1.7.1
 	github.com/spf13/cobra v1.3.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
 	github.com/tarantool/go-prompt v1.0.0
 	github.com/tarantool/go-tarantool v1.10.1-0.20230309143354-e257ff30dd4d
@@ -60,7 +61,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
-	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mattn/go-tty v0.0.3 // indirect
 	github.com/moby/sys/mount v0.3.3 // indirect
 	github.com/moby/sys/mountinfo v0.6.2 // indirect
@@ -71,6 +72,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.2.0-beta.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/robfig/config v0.0.0-20141207224736-0f78529c8c7e // indirect
 	github.com/shirou/gopsutil v3.21.2+incompatible // indirect
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect

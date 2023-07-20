@@ -17,6 +17,7 @@ import (
 
 	"github.com/tarantool/go-prompt"
 	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/cli/formatter"
 )
 
 // EvalFunc defines a function type for evaluating an expression via connection.
@@ -45,8 +46,11 @@ type Console struct {
 
 	title string
 
-	language Language
-	quit     bool
+	// Console settings.
+	language   Language
+	format     formatter.Format
+	formatOpts formatter.Opts
+	quit       bool
 
 	history *commandHistory
 
@@ -80,7 +84,13 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 		title:    title,
 		connOpts: connOpts,
 		language: connectCtx.Language,
-		quit:     false,
+		format:   connectCtx.Format,
+		formatOpts: formatter.Opts{
+			Graphics:       true,
+			ColumnWidthMax: 0,
+			TableDialect:   formatter.DefaultTableDialect,
+		},
+		quit: false,
 	}
 
 	var err error
@@ -240,7 +250,13 @@ func getExecutor(console *Console) func(string) {
 			data = results[0]
 		}
 
-		fmt.Printf("%s\n", data)
+		output, err := formatter.MakeOutput(console.format, data, console.formatOpts)
+		if err != nil {
+			log.Errorf("Unable to format output: %s", err)
+			log.Infof("Source YAML:\n%s", data)
+		} else {
+			fmt.Print(output)
+		}
 
 		console.input = ""
 		console.livePrefixEnabled = false

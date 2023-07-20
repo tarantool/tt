@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/cli/formatter"
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/yaml.v2"
 )
@@ -22,6 +23,8 @@ type ConnectCtx struct {
 	SrcFile string
 	// Language to use for execution.
 	Language Language
+	// Format to use as an output format.
+	Format formatter.Format
 	// SslKeyFile is a path to a private SSL key file.
 	SslKeyFile string
 	// SslCertFile is a path to an SSL certificate file.

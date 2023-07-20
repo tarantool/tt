@@ -1,11 +1,15 @@
 package connect
 
 import (
+	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/apex/log"
+
+	"github.com/tarantool/tt/cli/formatter"
 )
 
 // cmd is the interface that must be implemented by a console command.
@@ -16,9 +20,19 @@ type cmd interface {
 	Run(console *Console, cmd string, args []string) (string, error)
 }
 
-var _ cmd = baseCmd{}
-var _ cmd = noArgsCmdDecorator{}
-var _ cmd = argSetCmdDecorator{}
+var (
+	_ cmd = baseCmd{}
+	_ cmd = combinedCmd{}
+	_ cmd = noArgsCmdDecorator{}
+	_ cmd = argSetCmdDecorator{}
+	_ cmd = argUnsignedCmdDecorator{}
+	_ cmd = argBooleanCmdDecorator{}
+)
+
+var (
+	errNotUnsigned = errors.New("the command expects one unsigned number")
+	errNotBoolean  = errors.New("the command expects one boolean")
+)
 
 // find returns true if the string is found in the sorted slice.
 func find(sorted []string, str string) bool {
@@ -52,6 +66,43 @@ func (command baseCmd) Aliases() []string {
 func (command baseCmd) Run(console *Console,
 	cmd string, args []string) (string, error) {
 	return command.run(console, cmd, args)
+}
+
+// combinedCmd is a command that combines a slice of commands into one.
+type combinedCmd struct {
+	cmds    map[string]cmd
+	aliases []string
+}
+
+// newCombinedCmd creates a new combined command object.
+func newCombinedCmd(cmds []cmd) combinedCmd {
+	cmdsMap := make(map[string]cmd)
+	for _, cmd := range cmds {
+		for _, alias := range cmd.Aliases() {
+			cmdsMap[alias] = cmd
+		}
+	}
+
+	aliases := make([]string, 0, len(cmdsMap))
+	for k := range cmdsMap {
+		aliases = append(aliases, k)
+	}
+
+	return combinedCmd{
+		cmds:    cmdsMap,
+		aliases: aliases,
+	}
+}
+
+// Aliases returns aliases for all commands.
+func (command combinedCmd) Aliases() []string {
+	return command.aliases
+}
+
+// Run picks a command based on the command string and executes it.
+func (command combinedCmd) Run(console *Console,
+	cmd string, args []string) (string, error) {
+	return command.cmds[cmd].Run(console, cmd, args)
 }
 
 // noArgsCmdDecorator is a decorator for a command that checks that the
@@ -117,6 +168,70 @@ func (command argSetCmdDecorator) Run(console *Console,
 	return command.base.Run(console, cmd, args)
 }
 
+// argUnsignedDecorator is a decorator for a command that checks that a
+// first and only argument is a positive integer.
+type argUnsignedCmdDecorator struct {
+	base cmd
+}
+
+// newArgUnsignedCmdDecorator creates a new argUnsignedCmdDecorator object
+// from a base command.
+func newArgUnsignedCmdDecorator(base cmd) argUnsignedCmdDecorator {
+	return argUnsignedCmdDecorator{
+		base: base,
+	}
+}
+
+// Aliases returns aliases of the base command.
+func (command argUnsignedCmdDecorator) Aliases() []string {
+	return command.base.Aliases()
+}
+
+// Run checks that there is one unsigned number argument and runs the command.
+func (command argUnsignedCmdDecorator) Run(console *Console,
+	cmd string, args []string) (string, error) {
+	if len(args) != 1 {
+		return "", errNotUnsigned
+	}
+	if _, err := strconv.ParseUint(args[0], 10, 64); err != nil {
+		return "", errNotUnsigned
+	}
+
+	return command.base.Run(console, cmd, args)
+}
+
+// argBooleanDecorator is a decorator for a command that checks that a
+// first and only argument is a boolean.
+type argBooleanCmdDecorator struct {
+	base cmd
+}
+
+// newArgBooleanCmdDecorator creates a new argBooleanCmdDecorator object
+// from a base command.
+func newArgBooleanCmdDecorator(base cmd) argBooleanCmdDecorator {
+	return argBooleanCmdDecorator{
+		base: base,
+	}
+}
+
+// Aliases returns aliases of the base command.
+func (command argBooleanCmdDecorator) Aliases() []string {
+	return command.base.Aliases()
+}
+
+// Run checks that there is one boolean argument and runs the command.
+func (command argBooleanCmdDecorator) Run(console *Console,
+	cmd string, args []string) (string, error) {
+	if len(args) != 1 {
+		return "", errNotBoolean
+	}
+	if _, err := strconv.ParseBool(args[0]); err != nil {
+		return "", errNotBoolean
+	}
+
+	return command.base.Run(console, cmd, args)
+}
+
 // cmdInfo describes an additional information about a command.
 type cmdInfo struct {
 	// Short is a short help description for the command.
@@ -136,7 +251,7 @@ type helpCmd struct {
 
 // newHelpCmd creates a new helpCmd object.
 func newHelpCmd(infos []cmdInfo) helpCmd {
-	shorts := []string{"\\help, ?"}
+	shorts := []string{strings.Join(getHelp, ", ")}
 	longs := []string{"show this screen"}
 	msg := `
   To get help, see the Tarantool manual at https://tarantool.io/en/doc/
@@ -173,7 +288,7 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 
 // Aliases returns a list of aliases for the help command.
 func (command helpCmd) Aliases() []string {
-	return []string{"?", "\\help"}
+	return getHelp
 }
 
 // Run runs the help command.
@@ -182,8 +297,8 @@ func (command helpCmd) Run(console *Console,
 	return command.help, nil
 }
 
-// setLanguage sets a language for the console.
-func setLanguage(console *Console, cmd string, args []string) (string, error) {
+// setLanguageFunc sets a language for the console.
+func setLanguageFunc(console *Console, cmd string, args []string) (string, error) {
 	if lang, ok := ParseLanguage(args[0]); ok {
 		if err := ChangeLanguage(console.conn, lang); err != nil {
 			return "", fmt.Errorf("failed to change language: %s", err)
@@ -196,8 +311,84 @@ func setLanguage(console *Console, cmd string, args []string) (string, error) {
 	return "", nil
 }
 
+// setFormatFunc sets the output format for the console.
+func setFormatFunc(console *Console, cmd string, args []string) (string, error) {
+	formatStr := args[0]
+	if newFormat, ok := formatter.ParseFormat(formatStr); ok {
+		console.format = newFormat
+	} else {
+		// It should not happen in practice.
+		return "", fmt.Errorf("unsupported format: %s", formatStr)
+	}
+	return "", nil
+}
+
+// setTableDialectFunc sets the table dialect for the console.
+func setTableDialectFunc(console *Console, cmd string, args []string) (string, error) {
+	dialectStr := args[0]
+	if dialect, ok := formatter.ParseTableDialect(dialectStr); ok {
+		console.formatOpts.TableDialect = dialect
+	} else {
+		// It should not happen in practice.
+		return "", fmt.Errorf("unsupported dialect: %s", dialectStr)
+	}
+	return "", nil
+}
+
+// setGraphicsFunc sets the graphics mode on/off.
+func setGraphicsFunc(console *Console,
+	cmd string, args []string) (string, error) {
+	val, err := strconv.ParseBool(args[0])
+	if err != nil {
+		// It should not happen in practice.
+		return "", fmt.Errorf("parsing error: %w", err)
+	}
+
+	console.formatOpts.Graphics = val
+	return "", nil
+}
+
+// setMaxTableWidthFunc sets the maximum table width for the console.
+func setTableColumnWidthMaxFunc(console *Console,
+	cmd string, args []string) (string, error) {
+	val, err := strconv.ParseUint(args[0], 10, 64)
+	if err != nil {
+		// It should not happen in practice.
+		return "", fmt.Errorf("parsing error: %w", err)
+	}
+
+	console.formatOpts.ColumnWidthMax = int(val)
+	return "", nil
+}
+
+// switchNextFormatFunc switches to a next output format.
+func switchNextFormatFunc(console *Console, cmd string, args []string) (string, error) {
+	console.format = (1 + console.format) % formatter.FormatsAmount
+	return "", nil
+}
+
+// getSetFormatFunc returns a function to set up a specified format.
+func getSetFormatFunc(format formatter.Format) runFunc {
+	return func(console *Console, cmd string, args []string) (string, error) {
+		console.format = format
+		return "", nil
+	}
+}
+
+// enableGraphics enables graphics output.
+func enableGraphicsFunc(console *Console, cmd string, args []string) (string, error) {
+	console.formatOpts.Graphics = true
+	return "", nil
+}
+
+// disableGraphics disables graphics output.
+func disableGraphicsFunc(console *Console, cmd string, args []string) (string, error) {
+	console.formatOpts.Graphics = false
+	return "", nil
+}
+
 // getShortcuts returns a list of allowed shortcuts.
-func getShortcuts(console *Console, cmd string, args []string) (string, error) {
+func getShortcutsFunc(console *Console, cmd string, args []string) (string, error) {
 	return shortcutListText, nil
 }
 
@@ -210,27 +401,140 @@ func setQuitFunc(console *Console, cmd string, arg []string) (string, error) {
 // cmdInfos is a list of allowed commands.
 var cmdInfos = []cmdInfo{
 	cmdInfo{
-		Short: setLanguagePrefix + " <language>",
-		Long:  "set language lua or sql",
+		Short: setLanguage + " <language>",
+		Long:  "set language lua (default) or sql",
 		Cmd: newArgSetCmdDecorator(
-			newBaseCmd([]string{setLanguagePrefix}, setLanguage),
+			newBaseCmd([]string{setLanguage}, setLanguageFunc),
 			[]string{LuaLanguage.String(), SQLLanguage.String()},
 		),
+	},
+	cmdInfo{
+		Short: setFormatLong + " <format>",
+		Long:  "set format lua, table, ttable or yaml (default)",
+		Cmd: newArgSetCmdDecorator(
+			newBaseCmd([]string{setFormatLong}, setFormatFunc),
+			[]string{
+				formatter.LuaFormat.String(),
+				formatter.TableFormat.String(),
+				formatter.TTableFormat.String(),
+				formatter.YamlFormat.String(),
+			},
+		),
+	},
+	cmdInfo{
+		Short: setTableDialect + " <format>",
+		Long:  "set table format default, jira or markdown",
+		Cmd: newArgSetCmdDecorator(
+			newBaseCmd([]string{setTableDialect}, setTableDialectFunc),
+			[]string{
+				formatter.DefaultTableDialect.String(),
+				formatter.JiraTableDialect.String(),
+				formatter.MarkdownTableDialect.String(),
+			},
+		),
+	},
+	cmdInfo{
+		Short: setGraphics + " <false/true>",
+		Long:  "disables/enables pseudographics for table modes",
+		Cmd: newArgBooleanCmdDecorator(
+			newBaseCmd(
+				[]string{setGraphics},
+				setGraphicsFunc,
+			),
+		),
+	},
+	cmdInfo{
+		Short: setTableColumnWidthMaxLong + " <width>",
+		Long:  "set max column width for table/ttable",
+		Cmd: newArgUnsignedCmdDecorator(
+			newBaseCmd(
+				[]string{setTableColumnWidthMaxLong},
+				setTableColumnWidthMaxFunc,
+			),
+		),
+	},
+	cmdInfo{
+		Short: setTableColumnWidthMaxShort + " <width>",
+		Long:  "set max column width for table/ttable",
+		Cmd: newArgUnsignedCmdDecorator(
+			newBaseCmd(
+				[]string{setTableColumnWidthMaxShort},
+				setTableColumnWidthMaxFunc,
+			),
+		),
+	},
+	cmdInfo{
+		Short: setNextFormat,
+		Long:  "switches output format cyclically",
+		Cmd: newNoArgsCmdDecorator(
+			newBaseCmd(
+				[]string{setNextFormat},
+				switchNextFormatFunc,
+			),
+		),
+	},
+	cmdInfo{
+		Short: "\\x[l,t,T,y]",
+		Long:  "set output format lua, table, ttable or yaml",
+		Cmd: newCombinedCmd([]cmd{
+			newNoArgsCmdDecorator(
+				newBaseCmd(
+					[]string{setFormatLua},
+					getSetFormatFunc(formatter.LuaFormat),
+				),
+			),
+			newNoArgsCmdDecorator(
+				newBaseCmd(
+					[]string{setFormatTable},
+					getSetFormatFunc(formatter.TableFormat),
+				),
+			),
+			newNoArgsCmdDecorator(
+				newBaseCmd(
+					[]string{setFormatTTable},
+					getSetFormatFunc(formatter.TTableFormat),
+				),
+			),
+			newNoArgsCmdDecorator(
+				newBaseCmd(
+					[]string{setFormatYaml},
+					getSetFormatFunc(formatter.YamlFormat),
+				),
+			),
+		}),
+	},
+	cmdInfo{
+		Short: "\\x[g,G]",
+		Long:  "disables/enables pseudographics for table modes",
+		Cmd: newCombinedCmd([]cmd{
+			newNoArgsCmdDecorator(
+				newBaseCmd(
+					[]string{setGraphicsEnable},
+					enableGraphicsFunc,
+				),
+			),
+			newNoArgsCmdDecorator(
+				newBaseCmd(
+					[]string{setGraphicsDisable},
+					disableGraphicsFunc,
+				),
+			),
+		}),
 	},
 	cmdInfo{
 		Short: getShortcutsList,
 		Long:  "show available hotkeys and shortcuts",
 		Cmd: newNoArgsCmdDecorator(
-			newBaseCmd([]string{getShortcutsList}, getShortcuts),
+			newBaseCmd([]string{getShortcutsList}, getShortcutsFunc),
 		),
 	},
 	// The Tarantool console has `\quit` command, but it requires execute
 	// access.
 	cmdInfo{
-		Short: "\\quit, \\q",
+		Short: strings.Join(setQuit, ", "),
 		Long:  "quit from the console",
 		Cmd: newNoArgsCmdDecorator(
-			newBaseCmd([]string{"\\quit", "\\q"}, setQuitFunc),
+			newBaseCmd(setQuit, setQuitFunc),
 		),
 	},
 }
@@ -262,8 +566,8 @@ func newCmdExecutor() cmdExecutor {
 	}
 }
 
-// Execute tries to interpret the input string as a command and execute it. It
-// returns true if the input was a command that already executed.
+// Execute attempts to interpret the input string as a command and execute it.
+// It returns true if the input has already been executed as a command.
 func (executor cmdExecutor) Execute(console *Console, in string) bool {
 	dirtyTokens := strings.Split(strings.TrimSpace(in), " ")
 
