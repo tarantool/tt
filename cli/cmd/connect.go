@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/cli/formatter"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
@@ -38,6 +39,7 @@ var (
 	connectPassword    string
 	connectFile        string
 	connectLanguage    string
+	connectFormat      string
 	connectSslKeyFile  string
 	connectSslCertFile string
 	connectSslCaFile   string
@@ -94,6 +96,8 @@ func NewConnectCmd() *cobra.Command {
 		`file to read the script for evaluation. "-" - read the script from stdin`)
 	connectCmd.Flags().StringVarP(&connectLanguage, "language", "l",
 		connect.DefaultLanguage.String(), `language: lua or sql`)
+	connectCmd.Flags().StringVarP(&connectFormat, "outputformat", "x",
+		formatter.DefaultFormat.String(), `output format: yaml, lua, table or ttable`)
 	connectCmd.Flags().StringVarP(&connectSslKeyFile, "sslkeyfile", "",
 		connect.DefaultLanguage.String(), `path to a private SSL key file`)
 	connectCmd.Flags().StringVarP(&connectSslCertFile, "sslcertfile", "",
@@ -292,6 +296,9 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ok bool
 	if connectCtx.Language, ok = connect.ParseLanguage(connectLanguage); !ok {
 		return util.NewArgError(fmt.Sprintf("unsupported language: %s", connectLanguage))
+	}
+	if connectCtx.Format, ok = formatter.ParseFormat(connectFormat); !ok {
+		return util.NewArgError(fmt.Sprintf("unsupported output format: %s", connectFormat))
 	}
 
 	connOpts, newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, connectCtx, args)

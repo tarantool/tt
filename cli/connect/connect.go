@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/cli/formatter"
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/yaml.v2"
 )
@@ -22,6 +23,8 @@ type ConnectCtx struct {
 	SrcFile string
 	// Language to use for execution.
 	Language Language
+	// Format to use as output format.
+	Format formatter.Format
 	// SslKeyFile is a path to a private SSL key file.
 	SslKeyFile string
 	// SslCertFile is a path to an SSL certificate file.
@@ -70,7 +73,7 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 
 // Connect establishes a connection to the instance and starts the console.
 func Connect(connectCtx ConnectCtx, connOpts connector.ConnectOpts) error {
-	if err := runConsole(connOpts, "", connectCtx.Language); err != nil {
+	if err := runConsole(connOpts, "", connectCtx.Language, connectCtx.Format); err != nil {
 		return fmt.Errorf("failed to run interactive console: %s", err)
 	}
 	return nil
@@ -124,8 +127,9 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 }
 
 // runConsole run a new console.
-func runConsole(connOpts connector.ConnectOpts, title string, lang Language) error {
-	console, err := NewConsole(connOpts, title, lang)
+func runConsole(connOpts connector.ConnectOpts, title string,
+	lang Language, outputFormat formatter.Format) error {
+	console, err := NewConsole(connOpts, title, lang, outputFormat)
 	if err != nil {
 		return fmt.Errorf("failed to create new console: %s", err)
 	}

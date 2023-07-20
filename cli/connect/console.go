@@ -18,6 +18,7 @@ import (
 
 	"github.com/c-bata/go-prompt"
 	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/cli/formatter"
 )
 
 // EvalFunc defines a function type for evaluating an expression via connection.
@@ -46,7 +47,8 @@ type Console struct {
 
 	title string
 
-	language Language
+	language     Language
+	outputFormat formatter.Format
 
 	history *commandHistory
 
@@ -66,11 +68,13 @@ type Console struct {
 }
 
 // NewConsole creates a new console connected to the tarantool instance.
-func NewConsole(connOpts connector.ConnectOpts, title string, lang Language) (*Console, error) {
+func NewConsole(connOpts connector.ConnectOpts, title string,
+	lang Language, outputFormat formatter.Format) (*Console, error) {
 	console := &Console{
-		title:    title,
-		connOpts: connOpts,
-		language: lang,
+		title:        title,
+		connOpts:     connOpts,
+		language:     lang,
+		outputFormat: outputFormat,
 	}
 
 	var err error
@@ -166,21 +170,28 @@ func (console *Console) Close() {
 	_ = sttySane.Run()
 }
 
+// getExecutorEval returns executor eval body depending on console output format.
+func getExecutorEval(outputFormat formatter.Format) string {
+	if outputFormat == formatter.TableFormat || outputFormat == formatter.TTableFormat {
+		return consoleEvalFuncBodyTblsFmt
+	}
+
+	return consoleEvalFuncBody
+}
+
 func getExecutor(console *Console) prompt.Executor {
+	var executorEval string = getExecutorEval(console.outputFormat)
+	formatterOpts := &formatter.Opts{
+		TransposeMode: formatter.IsTTableFormat(console.outputFormat),
+		NoGraphics:    false,
+		ColWidthMax:   0,
+		TableDialect:  formatter.DefaultTableDialect,
+	}
+
 	executor := func(in string) {
 		if console.input == "" {
-			trimmed := strings.TrimSpace(in)
-			if strings.HasPrefix(trimmed, setLanguagePrefix) {
-				newLang := strings.TrimPrefix(trimmed, setLanguagePrefix)
-				if lang, ok := ParseLanguage(newLang); ok {
-					if err := ChangeLanguage(console.conn, lang); err != nil {
-						log.Warnf("Failed to change language: %s", err)
-					} else {
-						console.language = lang
-					}
-				} else {
-					log.Warnf("Unsupported language: %s", newLang)
-				}
+			// If there is a slash option, then an early executor return is performed.
+			if handleInteractiveOption(in, &executorEval, console, formatterOpts) {
 				return
 			}
 		}
@@ -216,7 +227,7 @@ func getExecutor(console *Console) prompt.Executor {
 		}
 
 		var data string
-		if _, err := console.conn.Eval(consoleEvalFuncBody, args, opts); err != nil {
+		if _, err := console.conn.Eval(executorEval, args, opts); err != nil {
 			if err == io.EOF {
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
 				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.
@@ -233,7 +244,7 @@ func getExecutor(console *Console) prompt.Executor {
 			data = results[0]
 		}
 
-		fmt.Printf("%s\n", data)
+		fmt.Printf("%s", formatter.MakeOutput(data, console.outputFormat, formatterOpts))
 
 		console.input = ""
 		console.livePrefixEnabled = false
