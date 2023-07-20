@@ -3,9 +3,26 @@ import re
 import shutil
 import subprocess
 
+import psutil
 import pytest
 
-from utils import run_command_and_get_output, run_path, wait_file
+from utils import kill_procs, run_command_and_get_output, run_path, wait_file
+
+
+@pytest.fixture(autouse=True)
+def kill_remain_processes_wrapper(tt_cmd):
+    # Run test.
+    yield
+
+    tt_proc = subprocess.Popen(
+        ['pgrep', '-f', tt_cmd],
+        stdout=subprocess.PIPE,
+        shell=False
+    )
+    response = tt_proc.communicate()[0]
+    procs = [psutil.Process(int(pid)) for pid in response.split()]
+
+    kill_procs(procs)
 
 
 def copy_data(dst, file_paths):
@@ -123,6 +140,19 @@ def is_tarantool_ee():
     )
     if instance_process.returncode == 0:
         return "Tarantool Enterprise" in instance_process.stdout
+    return False
+
+
+def is_tarantool_major_one():
+    cmd = ["tarantool", "--version"]
+    instance_process = subprocess.run(
+        cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    if instance_process.returncode == 0:
+        return "Tarantool 1." in instance_process.stdout
     return False
 
 
@@ -604,3 +634,806 @@ def test_connect_language_set_if_unsupported(tt_cmd, tmpdir_with_cfg):
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, test_app)
+
+
+def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin="2+2",
+            opts={'-x': 'lua'}
+        )
+        assert ret
+        assert output == "4;\n"
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin="\n",
+            opts={'-x': 'lua'}
+        )
+        assert ret
+        assert output == ";\n"
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin="1,2,3",
+            opts={'-x': 'lua'}
+        )
+        assert ret
+        assert output == "1, 2, 3;\n"
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin="{1, 2,   3}",
+            opts={'-x': 'lua'}
+        )
+        assert ret
+        assert output == "{1, 2, 3};\n"
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin='{10,20,box.NULL,30},{},{box.NULL},{data="hello world"}',
+            opts={'-x': 'lua'}
+        )
+        assert ret
+        assert output == '{10, 20, nil, 30}, {}, {nil}, {data = "hello world",};\n'
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin='error("test")',
+            opts={'-x': 'lua'}
+        )
+        assert ret
+        assert output == '{error = "test",};\n'
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_table_output_format(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="2+2", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "| 4    |\n"
+                          "+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="1,2,3", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "| 1    |\n"
+                          "+------+\n"
+                          "| 2    |\n"
+                          "+------+\n"
+                          "| 3    |\n"
+                          "+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{1,2,3}", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+------+\n"
+                          "| col1 | col2 | col3 |\n"
+                          "+------+------+------+\n"
+                          "| 1    | 2    | 3    |\n"
+                          "+------+------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{10,20,30},{40,50,60},{70,80},{box.NULL,90}",
+                                              opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+------+\n"
+                          "| col1 | col2 | col3 |\n"
+                          "+------+------+------+\n"
+                          "| 10   | 20   | 30   |\n"
+                          "+------+------+------+\n"
+                          "| 40   | 50   | 60   |\n"
+                          "+------+------+------+\n"
+                          "| 70   | 80   |      |\n"
+                          "+------+------+------+\n"
+                          "| nil  | 90   |      |\n"
+                          "+------+------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin="box.tuple.new({1,100,'Mike',{data=123,'test'},{10,20}})",
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ('+------+------+------+-------------------------+---------+\n'
+                          '| col1 | col2 | col3 | col4                    | col5    |\n'
+                          '+------+------+------+-------------------------+---------+\n'
+                          '| 1    | 100  | Mike | {"1":"test","data":123} | [10,20] |\n'
+                          '+------+------+------+-------------------------+---------+\n')
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{ {10,20},{30,40} }", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+\n"
+                          "| col1 | col2 |\n"
+                          "+------+------+\n"
+                          "| 10   | 20   |\n"
+                          "+------+------+\n"
+                          "| 30   | 40   |\n"
+                          "+------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{10,20},{30,40}", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+\n"
+                          "| col1 | col2 |\n"
+                          "+------+------+\n"
+                          "| 10   | 20   |\n"
+                          "+------+------+\n"
+                          "| 30   | 40   |\n"
+                          "+------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="box.space.customers:select()",
+                                              opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+-----------+------+\n"
+                          "| col1 | col2      | col3 |\n"
+                          "+------+-----------+------+\n"
+                          "| 1    | Elizabeth | 12   |\n"
+                          "+------+-----------+------+\n"
+                          "| 2    | Mary      | 46   |\n"
+                          "+------+-----------+------+\n"
+                          "| 3    | David     | 33   |\n"
+                          "+------+-----------+------+\n"
+                          "| 4    | William   | 81   |\n"
+                          "+------+-----------+------+\n"
+                          "| 5    | Jack      | 35   |\n"
+                          "+------+-----------+------+\n"
+                          "| 6    | William   | 25   |\n"
+                          "+------+-----------+------+\n"
+                          "| 7    | Elizabeth | 18   |\n"
+                          "+------+-----------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{ {10,20},{30,40},true }",
+                                              opts={'-x': 'table'})
+        assert ret
+        assert output == ("+---------+---------+------+\n"
+                          "| col1    | col2    | col3 |\n"
+                          "+---------+---------+------+\n"
+                          "| [10,20] | [30,40] | true |\n"
+                          "+---------+---------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{10,20},{30,40},true",
+                                              opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+\n"
+                          "| col1 | col2 |\n"
+                          "+------+------+\n"
+                          "| 10   | 20   |\n"
+                          "+------+------+\n"
+                          "| 30   | 40   |\n"
+                          "+------+------+\n"
+                          "+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "| true |\n"
+                          "+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{data=123,'Hi'},{data=321,'My'},{qwe=11}",
+                                              opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+\n"
+                          "| col1 | data |\n"
+                          "+------+------+\n"
+                          "| Hi   | 123  |\n"
+                          "+------+------+\n"
+                          "| My   | 321  |\n"
+                          "+------+------+\n"
+                          "+-----+\n"
+                          "| qwe |\n"
+                          "+-----+\n"
+                          "| 11  |\n"
+                          "+-----+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin="{data=123,'Hi'}, {data=321,'My'}," +
+            "{qwe=11}, true, box.NULL, 2023, false, {10,20}, {30,40}, {50}",
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+\n"
+                          "| col1 | data |\n"
+                          "+------+------+\n"
+                          "| Hi   | 123  |\n"
+                          "+------+------+\n"
+                          "| My   | 321  |\n"
+                          "+------+------+\n"
+                          "+-----+\n"
+                          "| qwe |\n"
+                          "+-----+\n"
+                          "| 11  |\n"
+                          "+-----+\n"
+                          "+-------+\n"
+                          "| col1  |\n"
+                          "+-------+\n"
+                          "| true  |\n"
+                          "+-------+\n"
+                          "| nil   |\n"
+                          "+-------+\n"
+                          "| 2023  |\n"
+                          "+-------+\n"
+                          "| false |\n"
+                          "+-------+\n"
+                          "+------+------+\n"
+                          "| col1 | col2 |\n"
+                          "+------+------+\n"
+                          "| 10   | 20   |\n"
+                          "+------+------+\n"
+                          "| 30   | 40   |\n"
+                          "+------+------+\n"
+                          "| 50   |      |\n"
+                          "+------+------+\n")
+
+        if not is_tarantool_major_one():
+            # Execute stdin.
+            ret, output = try_execute_on_instance(
+                tt_cmd, tmpdir, uri,
+                stdin="box.execute('select 1 as foo, 30, 50, 4+4 as data')",
+                opts={'-x': 'table'})
+            assert ret
+            assert output == ("+----------+----------+------+-----+\n"
+                              "| COLUMN_1 | COLUMN_2 | DATA | FOO |\n"
+                              "+----------+----------+------+-----+\n"
+                              "| 30       | 50       | 8    | 1   |\n"
+                              "+----------+----------+------+-----+\n")
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="box.execute('select * from table1')",
+                                                  opts={'-x': 'table'})
+            assert ret
+            assert output == ("+---------+-------------------+\n"
+                              "| COLUMN1 | COLUMN2           |\n"
+                              "+---------+-------------------+\n"
+                              "| 10      | Hello SQL world!  |\n"
+                              "+---------+-------------------+\n"
+                              "| 20      | Hello LUA world!  |\n"
+                              "+---------+-------------------+\n"
+                              "| 30      | Hello YAML world! |\n"
+                              "+---------+-------------------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="error('test')", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+-------+\n"
+                          "| error |\n"
+                          "+-------+\n"
+                          "| test  |\n"
+                          "+-------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin=" ", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "|      |\n"
+                          "+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="none", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "| nil  |\n"
+                          "+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{{{2+2}}}", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "| [4]  |\n"
+                          "+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{{{{2+2}}}}", opts={'-x': 'table'})
+        assert ret
+        assert output == ("+-------+\n"
+                          "| col1  |\n"
+                          "+-------+\n"
+                          "| [[4]] |\n"
+                          "+-------+\n")
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    print("\n\n")
+    print(tt_cmd)
+    print("\n\n")
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="2+2", opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+---+\n"
+                          "| col1 | 4 |\n"
+                          "+------+---+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="1,2,3", opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+---+---+---+\n"
+                          "| col1 | 1 | 2 | 3 |\n"
+                          "+------+---+---+---+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="{10,20,30},{40,50,60},{70,80},{box.NULL,90}",
+                                              opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+----+----+----+-----+\n"
+                          "| col1 | 10 | 40 | 70 | nil |\n"
+                          "+------+----+----+----+-----+\n"
+                          "| col2 | 20 | 50 | 80 | 90  |\n"
+                          "+------+----+----+----+-----+\n"
+                          "| col3 | 30 | 60 |    |     |\n"
+                          "+------+----+----+----+-----+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin="{data=123,'Hi'},{data=321,'My'}," +
+            "{qwe=11},true,box.NULL,2023,false,{10,20},{30,40},{50}",
+            opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+-----+-----+\n"
+                          "| col1 | Hi  | My  |\n"
+                          "+------+-----+-----+\n"
+                          "| data | 123 | 321 |\n"
+                          "+------+-----+-----+\n"
+                          "+-----+----+\n"
+                          "| qwe | 11 |\n"
+                          "+-----+----+\n"
+                          "+------+------+-----+------+-------+\n"
+                          "| col1 | true | nil | 2023 | false |\n"
+                          "+------+------+-----+------+-------+\n"
+                          "+------+----+----+----+\n"
+                          "| col1 | 10 | 30 | 50 |\n"
+                          "+------+----+----+----+\n"
+                          "| col2 | 20 | 40 |    |\n"
+                          "+------+----+----+----+\n")
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_output_format_round_switching(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="\n \\x \n\n \\x \n\n \\x \n\n \\x \n\n")
+        assert ret
+        assert output == ("---\n"
+                          "...\n"
+                          "\n"
+                          "   • Selected output format: lua\n"
+                          ";\n"
+                          "   • Selected output format: table\n"
+                          "+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "|      |\n"
+                          "+------+\n"
+                          "   • Selected output format: ttable\n"
+                          "+------+--+\n"
+                          "| col1 |  |\n"
+                          "+------+--+\n"
+                          "   • Selected output format: yaml\n"
+                          "---\n"
+                          "...\n"
+                          "\n")
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_output_format_short_named_selecting(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin="\n \\xl \n\n \\xt \n\n \\xT \n\n \\xy \n\n")
+        assert ret
+        assert output == ("---\n"
+                          "...\n"
+                          "\n"
+                          "   • Selected output format: lua\n"
+                          ";\n"
+                          "   • Selected output format: table\n"
+                          "+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "|      |\n"
+                          "+------+\n"
+                          "   • Selected output format: ttable\n"
+                          "+------+--+\n"
+                          "| col1 |  |\n"
+                          "+------+--+\n"
+                          "   • Selected output format: yaml\n"
+                          "---\n"
+                          "...\n"
+                          "\n")
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_output_format_full_named_selecting(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("\n \\set output lua \n\n \\set output table \n\n"
+                   " \\set output ttable \n\n \\set output yaml \n\n"
+                   "\\set output \n"))
+        assert ret
+        assert output == ("---\n"
+                          "...\n"
+                          "\n"
+                          "   • Selected output format: lua\n"
+                          ";\n"
+                          "   • Selected output format: table\n"
+                          "+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "|      |\n"
+                          "+------+\n"
+                          "   • Selected output format: ttable\n"
+                          "+------+--+\n"
+                          "| col1 |  |\n"
+                          "+------+--+\n"
+                          "   • Selected output format: yaml\n"
+                          "---\n"
+                          "...\n"
+                          "\n"
+                          "   ⨯ Specify output format: yaml, lua, table or ttable.\n")
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_output_format_tables_pseudo_graphic_disable(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("\\xg \n \\xt \n \\xg \n"
+                   "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000} \n"
+                   "\\xT \n"
+                   "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000} \n"
+                   "\\xG \n\n")
+                   )
+        assert ret
+        assert output == ("   ⨯ Pseudo graphics enabling/disabling " +
+                          "only allowed for table and ttable output formats\n"
+                          "   • Selected output format: table\n"
+                          "   • Pseudo graphics is disabled now\n"
+                          " col1  col2        col3 \n"
+                          " 10    20          30   \n"
+                          " 40    50          60   \n"
+                          " 70    80               \n"
+                          " nil   1000000000       \n"
+                          "\n"
+                          "   • Selected output format: ttable\n"
+                          " col1  10  40  70  nil        \n"
+                          " col2  20  50  80  1000000000 \n"
+                          " col3  30  60                 \n"
+                          "\n"
+                          "   • Pseudo graphics is enabled now\n"
+                          "+------+--+\n"
+                          "| col1 |  |\n"
+                          "+------+--+\n")
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_output_format_tables_width_option(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=(
+                '\\set table_column_width 0 \n'
+                '{"1234567890","123456","12345","1234"},{"1234567890","123456","12345","1234"}\n'
+                '\\xw 5 \n'
+                '{"1234567890","123456","12345","1234"},{"1234567890","123456","12345","1234"}\n'
+                '\\xT \n'
+                '{"1234567890","123456","12345","1234"},{"1234567890","123456","12345","1234"}\n'
+                '\\xw -1\n'
+                '\\xy \n'
+                '\\set table_column_width 10 \n'
+                ), opts={'-x': 'table'}
+            )
+        assert ret
+        print(output)
+        assert output == ("   • Selected max width: disabled\n"
+                          "+------------+--------+-------+------+\n"
+                          "| col1       | col2   | col3  | col4 |\n"
+                          "+------------+--------+-------+------+\n"
+                          "| 1234567890 | 123456 | 12345 | 1234 |\n"
+                          "+------------+--------+-------+------+\n"
+                          "| 1234567890 | 123456 | 12345 | 1234 |\n"
+                          "+------------+--------+-------+------+\n"
+                          "   • Selected max width: 5    \n"
+                          "+-------+-------+-------+------+\n"
+                          "| col1  | col2  | col3  | col4 |\n"
+                          "+-------+-------+-------+------+\n"
+                          "| 12345 | 12345 | 12345 | 1234 |\n"
+                          "| +6789 | +6    |       |      |\n"
+                          "| +0    |       |       |      |\n"
+                          "+-------+-------+-------+------+\n"
+                          "| 12345 | 12345 | 12345 | 1234 |\n"
+                          "| +6789 | +6    |       |      |\n"
+                          "| +0    |       |       |      |\n"
+                          "+-------+-------+-------+------+\n"
+                          "   • Selected output format: ttable\n"
+                          "+------+-------+-------+\n"
+                          "| col1 | 12345 | 12345 |\n"
+                          "|      | +6789 | +6789 |\n"
+                          "|      | +0    | +0    |\n"
+                          "+------+-------+-------+\n"
+                          "| col2 | 12345 | 12345 |\n"
+                          "|      | +6    | +6    |\n"
+                          "+------+-------+-------+\n"
+                          "| col3 | 12345 | 12345 |\n"
+                          "+------+-------+-------+\n"
+                          "| col4 | 1234  | 1234  |\n"
+                          "+------+-------+-------+\n"
+                          "   ⨯ Max width must be non-negative number, but you gave: -1\n"
+                          "   • Selected output format: yaml\n"
+                          "   ⨯ Max width option only supports for table " +
+                          "and ttable output formats.\n")
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_output_format_tables_dialects(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013"]
+    for uri in uris:
+        # Connect to the instance.
+        uris = ["localhost:3013", "tcp://localhost:3013"]
+        for uri in uris:
+            # Execute stdin.
+            ret, output = try_execute_on_instance(
+                tt_cmd, tmpdir, uri,
+                stdin=('\\xw 5 \n \\set table_format markdown \n'
+                       '{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n'
+                       '\\xw 5 \n'
+                       '\\xT \n'
+                       '{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n'
+                       '\\set table_format jira \n'
+                       '{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n'
+                       '\\xt \n'
+                       '{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n'
+                       '\\xy \n'
+                       '\\set table_format jira \n'
+                       ), opts={'-x': 'table'}
+                )
+            assert ret
+            print(output)
+            assert output == ("   • Selected max width: 5    \n"
+                              "   • Selected max width: disabled\n"
+                              "   • Selected table dialect: markdown\n"
+                              "| | | |\n"
+                              "|-|-|-|\n"
+                              "| col1 | col2 | col3 |\n"
+                              "| 10 | 20 | 30 |\n"
+                              "| 40 | 50 | 60 |\n"
+                              "| 70 | 80 |  |\n"
+                              "| nil | 1000000000 |  |\n"
+                              "\n"
+                              "   ⨯ Max width option only supports for default " +
+                              "table dialect, not for jira or markdown.\n"
+                              "   • Selected output format: ttable\n"
+                              "| | | | | |\n"
+                              "|-|-|-|-|-|\n"
+                              "| col1 | 10 | 40 | 70 | nil |\n"
+                              "| col2 | 20 | 50 | 80 | 1000000000 |\n"
+                              "| col3 | 30 | 60 |  |  |\n"
+                              "\n"
+                              "   • Selected table dialect: jira\n"
+                              "| col1 | 10 | 40 | 70 | nil |\n"
+                              "| col2 | 20 | 50 | 80 | 1000000000 |\n"
+                              "| col3 | 30 | 60 |  |  |\n"
+                              "\n"
+                              "   • Selected output format: table\n"
+                              "| col1 | col2 | col3 |\n"
+                              "| 10 | 20 | 30 |\n"
+                              "| 40 | 50 | 60 |\n"
+                              "| 70 | 80 |  |\n"
+                              "| nil | 1000000000 |  |\n"
+                              "\n"
+                              "   • Selected output format: yaml\n"
+                              "   ⨯ Table dialects supports only for table " +
+                              "and ttable output formats\n"
+                              )
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
