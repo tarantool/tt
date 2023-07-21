@@ -1,10 +1,19 @@
 package running
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
-// waitProcessStart waits for the new process to set signal handlers.
-func waitProcessStart() {
-	// We need to wait for the new process (tarantool instance) to set handlers.
-	// It is necessary to update for more correct synchronization.
-	time.Sleep(1000 * time.Millisecond)
+// waitForFile waits for the file to appear.
+func waitForFile(filePath string) int {
+	retries := 10
+	for retries > 0 {
+		time.Sleep(500 * time.Millisecond)
+		if _, err := os.Stat(filePath); err == nil {
+			break
+		}
+		retries--
+	}
+	return retries
 }
