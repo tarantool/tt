@@ -6,11 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/ttlog"
 )
 
@@ -86,27 +88,32 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 // killAndCheckRestart kills the instance by signal and checks if a
 // new instance has been started.
 func killAndCheckRestart(t *testing.T, wd *Watchdog, signal syscall.Signal) {
-	assert := assert.New(t)
+	// Remove the file. It must be created again by the restarted instance.
+	os.Remove(os.Getenv("started_flag_file"))
+	oldPid := wd.instance.Cmd.Process.Pid
+	wd.instance.SendSignal(signal)
+	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 
-	oldPid := wd.Instance.Cmd.Process.Pid
-	wd.Instance.SendSignal(signal)
-	time.Sleep(wdTestRestartTimeout * 2)
-
-	assert.True(wd.Instance.IsAlive(), "Instance doesn't restart.")
-	assert.NotEqual(oldPid, wd.Instance.Cmd.Process.Pid, "The old Instance is alive.")
+	assert.True(t, wd.instance.IsAlive(), "Instance doesn't restart.")
+	assert.NotEqual(t, oldPid, wd.instance.Cmd.Process.Pid, "The old Instance is alive.")
 }
 
 // cleanupWatchdog kills the instance and stops the watchdog.
 func cleanupWatchdog(wd *Watchdog) {
 	provider := wd.provider.(*providerTestImpl)
 	provider.restartable = false
-	if wd.Instance != nil && wd.Instance.IsAlive() {
-		syscall.Kill(wd.Instance.Cmd.Process.Pid, syscall.SIGKILL)
+	if wd.instance != nil && wd.instance.IsAlive() {
+		syscall.Kill(wd.instance.Cmd.Process.Pid, syscall.SIGKILL)
 	}
+	os.Remove(os.Getenv("started_flag_file"))
 }
 
 func TestWatchdogBase(t *testing.T) {
 	assert := assert.New(t)
+
+	binPath, err := os.Executable()
+	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
+	os.Setenv("started_flag_file", filepath.Join(filepath.Dir(binPath), t.Name()))
 
 	wd := createTestWatchdog(t, true)
 	t.Cleanup(func() { cleanupWatchdog(wd) })
@@ -116,9 +123,10 @@ func TestWatchdogBase(t *testing.T) {
 		wd.Start()
 		wdDoneChan <- true
 	}()
-	waitProcessStart()
 
-	alive := wd.Instance.IsAlive()
+	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+
+	alive := wd.instance.IsAlive()
 	assert.True(alive, "Can't start the instance under watchdog.")
 
 	killAndCheckRestart(t, wd, syscall.SIGINT)
@@ -136,6 +144,10 @@ func TestWatchdogBase(t *testing.T) {
 func TestWatchdogNotRestartable(t *testing.T) {
 	assert := assert.New(t)
 
+	binPath, err := os.Executable()
+	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
+	os.Setenv("started_flag_file", filepath.Join(filepath.Dir(binPath), t.Name()))
+
 	wd := createTestWatchdog(t, false)
 	t.Cleanup(func() { cleanupWatchdog(wd) })
 
@@ -144,12 +156,12 @@ func TestWatchdogNotRestartable(t *testing.T) {
 		wd.Start()
 		wdDoneChan <- true
 	}()
-	waitProcessStart()
+	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 
-	alive := wd.Instance.IsAlive()
+	alive := wd.instance.IsAlive()
 	assert.True(alive, "Can't start the instance under watchdog.")
 
-	wd.Instance.SendSignal(syscall.SIGINT)
+	wd.instance.SendSignal(syscall.SIGINT)
 
 	// The watchdog should stop because the instance was killed and
 	// the "Restartable" flag is false.

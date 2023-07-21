@@ -95,9 +95,7 @@ func AddStmtPart(stmt, part string, validator Validator) (string, bool) {
 			stmt = part
 		}
 	} else {
-		// We can't detect multiline strings. That's why we can't skip an
-		// empty lines.
-		stmt += " " + part
+		stmt += "\n" + part
 	}
 
 	return stmt, validator.Validate(stmt)

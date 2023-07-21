@@ -16,6 +16,8 @@ type PackCtx struct {
 	WithBinaries bool
 	// WithoutBinaries ignores binaries regardless if tarantool is system or not.
 	WithoutBinaries bool
+	// WithoutModules ignores external modules.
+	WithoutModules bool
 	// TarantoolExecutable is a path to tarantool executable path
 	TarantoolExecutable string
 	// TarantoolIsSystem shows if tarantool is system.
@@ -26,6 +28,8 @@ type PackCtx struct {
 	RpmDeb RpmDebCtx
 	// UseDocker is set if a package must be built in docker container.
 	UseDocker bool
+	// CartridgeCompat enables backward compatibility with cartridge cli.
+	CartridgeCompat bool
 }
 
 // ArchiveCtx contains flags specific for tgz type.

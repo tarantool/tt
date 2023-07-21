@@ -87,7 +87,7 @@ func NewInstance(tarantoolPath string, instanceCtx *InstanceCtx, env []string,
 
 // SendSignal sends a signal to the Instance.
 func (inst *Instance) SendSignal(sig os.Signal) error {
-	if inst.Cmd == nil {
+	if inst.Cmd == nil || inst.Cmd.Process == nil {
 		return fmt.Errorf("the instance hasn't started yet")
 	}
 	return inst.Cmd.Process.Signal(sig)

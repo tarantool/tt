@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/apex/log"
@@ -13,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
+	lua "github.com/yuin/gopher-lua"
 	"gopkg.in/yaml.v2"
 )
 
@@ -22,6 +25,11 @@ const (
 
 	defaultVersion     = "0.1.0"
 	defaultLongVersion = "0.1.0.0"
+
+	versionFileName    = "VERSION"
+	versionLuaFileName = "VERSION.lua"
+
+	rocksManifestPath = ".rocks/share/tarantool/rocks/manifest"
 )
 
 var (
@@ -36,11 +44,27 @@ var (
 	packageModulesPath = ""
 
 	packageInstancesEnabledPath = ""
+
+	versionRgxps = []*regexp.Regexp{
+		regexp.MustCompile(`^(?P<Major>\d+)$`),
+		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)$`),
+		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)$`),
+		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)$`),
+		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Hash>g\w+)$`),
+		regexp.MustCompile(
+			`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)-(?P<Hash>g\w+)$`,
+		),
+		regexp.MustCompile(
+			`^v(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)-(?P<Hash>g\w+)$`,
+		),
+	}
 )
+
+type RocksVersions map[string][]string
 
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
-func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
+func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	cliOpts *config.CliOpts, buildRocks bool) (string, error) {
 	var err error
 
@@ -61,13 +85,13 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 
 	prepareDefaultPackagePaths(cliOpts, basePath)
 
-	err = createPackageStructure(basePath)
+	err = createPackageStructure(basePath, packCtx.CartridgeCompat)
 	if err != nil {
 		return "", err
 	}
 
 	// Copy binaries step.
-	if cliOpts.App.BinDir != "" &&
+	if !packCtx.CartridgeCompat && cliOpts.App.BinDir != "" &&
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
 		err = copyBinaries(cmdCtx, packageBinPath)
@@ -77,7 +101,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 	}
 
 	// Copy modules step.
-	if cliOpts.Modules != nil && cliOpts.Modules.Directory != "" {
+	if !packCtx.CartridgeCompat && cliOpts.Modules != nil && cliOpts.Modules.Directory != "" && !packCtx.WithoutModules {
 		err = copy.Copy(cliOpts.Modules.Directory, packageModulesPath)
 		if err != nil {
 			log.Warnf("Failed to copy modules from %s: %s", cliOpts.Modules.Directory, err)
@@ -110,17 +134,36 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 		return "", err
 	}
 
+	if packCtx.CartridgeCompat && len(appList) != 1 {
+		err = fmt.Errorf("cannot pack multiple applications in compat mode")
+		return "", err
+	}
+
 	{
 		appsToPack := ""
 		for _, appInfo := range appList {
 			appsToPack += appInfo.Name + " "
+		}
+		if packCtx.CartridgeCompat {
+			if packCtx.Name != "" {
+				// Need to change application name.
+				appList[0].Name = packCtx.Name
+			} else {
+				// Need to collect application name for
+				// VERSION and VERSION.lua files.
+				packCtx.Name = appList[0].Name
+			}
 		}
 		log.Infof("Apps to pack: %s", appsToPack)
 	}
 
 	// Copy all apps to a temp directory step.
 	for _, appInfo := range appList {
-		err = copyAppSrc(appInfo.Location, basePath)
+		if packCtx.CartridgeCompat {
+			err = copyAppSrc(appInfo.Location, appInfo.Name, basePath)
+		} else {
+			err = copyAppSrc(appInfo.Location, filepath.Base(appInfo.Location), basePath)
+		}
 		if err != nil {
 			return "", err
 		}
@@ -132,9 +175,11 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 			}
 		}
 
-		err = createAppSymlink(appInfo.Location, appInfo.Name)
-		if err != nil {
-			return "", err
+		if !packCtx.CartridgeCompat {
+			err = createAppSymlink(appInfo.Location, appInfo.Name)
+			if err != nil {
+				return "", err
+			}
 		}
 	}
 
@@ -145,7 +190,11 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 		}
 	}
 
-	err = createEnv(cliOpts, basePath)
+	ttYamlPath := basePath
+	if packCtx.CartridgeCompat {
+		ttYamlPath = filepath.Join(ttYamlPath, appList[0].Name)
+	}
+	createEnv(cliOpts, ttYamlPath, packCtx.CartridgeCompat)
 	if err != nil {
 		return "", err
 	}
@@ -153,18 +202,22 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 }
 
 // createPackageStructure initializes a standard package structure in passed directory.
-func createPackageStructure(destPath string) error {
-	basePaths := []string{
-		destPath,
-		packageVarRunPath,
-		packageVarLogPath,
-		packageVarDataPath,
-		packageBinPath,
-		packageModulesPath,
-		packageInstancesEnabledPath,
-		packageVarVinylPath,
-		packageVarWalPath,
-		packageVarMemtxPath,
+func createPackageStructure(destPath string, cartridgeCompat bool) error {
+	basePaths := []string{destPath}
+
+	if !cartridgeCompat {
+		basePaths = append(
+			basePaths,
+			packageVarRunPath,
+			packageVarLogPath,
+			packageVarDataPath,
+			packageBinPath,
+			packageModulesPath,
+			packageInstancesEnabledPath,
+			packageVarVinylPath,
+			packageVarWalPath,
+			packageVarMemtxPath,
+		)
 	}
 
 	for _, path := range basePaths {
@@ -177,10 +230,18 @@ func createPackageStructure(destPath string) error {
 }
 
 // copyAppSrc copies a source file or directory to the directory, that will be packed.
-func copyAppSrc(appPath string, packagePath string) error {
-	appPath, err := filepath.EvalSymlinks(appPath)
+func copyAppSrc(appPath string, appName string, packagePath string) error {
+	// In compat mode there must be only one application, so there will be no symlinks.
+	// However, without the compat flag, encountering symlink must change appName.
+	previousPath := appPath
+	appPath, err := filepath.EvalSymlinks(previousPath)
 	if err != nil {
 		return err
+	}
+
+	// In compat mode will be false.
+	if previousPath != appPath {
+		appName = filepath.Base(appPath)
 	}
 
 	if _, err = os.Stat(appPath); err != nil {
@@ -188,7 +249,7 @@ func copyAppSrc(appPath string, packagePath string) error {
 	}
 
 	// Copying application.
-	err = copy.Copy(appPath, filepath.Join(packagePath, filepath.Base(appPath)), copy.Options{
+	err = copy.Copy(appPath, filepath.Join(packagePath, appName), copy.Options{
 		Skip: func(src string) (bool, error) {
 			fileInfo, err := os.Stat(src)
 			if err != nil {
@@ -262,10 +323,13 @@ func createAppSymlink(appPath string, appName string) error {
 }
 
 // createEnv generates a tt.yaml file.
-func createEnv(opts *config.CliOpts, destPath string) error {
+func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) error {
 	log.Infof("Generating new %s for the new package", configure.ConfigName)
 	cliOptsNew := configure.GetDefaultCliOpts()
 	cliOptsNew.App.InstancesEnabled = configure.InstancesEnabledDirName
+	if cartridgeCompat {
+		cliOptsNew.App.InstancesEnabled = "."
+	}
 	cliOptsNew.App.Restartable = opts.App.Restartable
 	cliOptsNew.App.LogMaxAge = opts.App.LogMaxAge
 	cliOptsNew.App.LogMaxSize = opts.App.LogMaxSize
@@ -393,17 +457,64 @@ func prepareDefaultPackagePaths(opts *config.CliOpts, packagePath string) {
 func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) string {
 	packageVersion := defaultVersion
 	if packCtx.Version == "" {
-		// Get version from git only if we are packing an application from the current directory.
+		// Get version from git only if packing an application from the current directory.
 		if opts.App.InstancesEnabled == "." {
 			version, err := util.CheckVersionFromGit(opts.App.InstancesEnabled)
 			if err == nil || version != "" {
 				packageVersion = version
+				if packCtx.CartridgeCompat {
+					if normalVersion, err := normalizeGitVersion(packageVersion); err == nil {
+						packageVersion = normalVersion
+					}
+				}
 			}
+		}
+		if packCtx.CartridgeCompat {
+			packCtx.Version = packageVersion
 		}
 	} else {
 		packageVersion = packCtx.Version
 	}
 	return packageVersion
+}
+
+// normalizeGitVersion edits raw version from `git describe` command.
+func normalizeGitVersion(packageVersion string) (string, error) {
+	var major = "0"
+	var minor = "0"
+	var patch = "0"
+	var count = ""
+
+	matched := false
+	for _, r := range versionRgxps {
+		matches := r.FindStringSubmatch(packageVersion)
+		if matches != nil {
+			matched = true
+			for i, expName := range r.SubexpNames() {
+				switch expName {
+				case "Major":
+					major = matches[i]
+				case "Minor":
+					minor = matches[i]
+				case "Patch":
+					patch = matches[i]
+				case "Count":
+					count = matches[i]
+				}
+			}
+			break
+		}
+	}
+
+	if !matched {
+		return "", fmt.Errorf("git tag should be semantic (major.minor.patch)")
+	}
+
+	if count == "" {
+		count = "0"
+	}
+
+	return fmt.Sprintf("%s.%s.%s.%s", major, minor, patch, count), nil
 }
 
 // copyBinaries copies tarantool and tt binaries from the current
@@ -448,6 +559,11 @@ func getPackageName(packCtx *PackCtx, opts *config.CliOpts, suffix string,
 	var packageName string
 
 	if packCtx.FileName != "" {
+		if packCtx.CartridgeCompat {
+			// Need to collect info about version
+			// for generating VERSION and VERSION.lua files.
+			getVersion(packCtx, opts, defaultLongVersion)
+		}
 		return packCtx.FileName, nil
 	} else if packCtx.Name != "" {
 		packageName = packCtx.Name
@@ -473,4 +589,48 @@ func getPackageName(packCtx *PackCtx, opts *config.CliOpts, suffix string,
 
 	packageName += suffix
 	return packageName, nil
+}
+
+// LuaGetRocksVersions gets map which contains {name: versions} from rocks manifest.
+func LuaGetRocksVersions(appDirPath string) (RocksVersions, error) {
+	rocksVersionsMap := RocksVersions{}
+
+	manifestFilePath := filepath.Join(appDirPath, rocksManifestPath)
+	if _, err := os.Stat(manifestFilePath); err == nil {
+		L := lua.NewState()
+		defer L.Close()
+
+		if err := L.DoFile(manifestFilePath); err != nil {
+			return nil, fmt.Errorf("failed to read manifest file %s: %s", manifestFilePath, err)
+		}
+
+		depsL := L.Env.RawGetString("dependencies")
+		depsLTable, ok := depsL.(*lua.LTable)
+		if !ok {
+			return nil, fmt.Errorf("failed to read manifest file: dependencies is not a table")
+		}
+
+		depsLTable.ForEach(func(depNameL lua.LValue, depInfoL lua.LValue) {
+			depName := depNameL.String()
+
+			depInfoLTable, ok := depInfoL.(*lua.LTable)
+			if !ok {
+				log.Warnf("Failed to get %s dependency info", depName)
+			} else {
+				depInfoLTable.ForEach(func(depVersionL lua.LValue, _ lua.LValue) {
+					rocksVersionsMap[depName] = append(rocksVersionsMap[depName],
+						depVersionL.String())
+				})
+			}
+		})
+
+		for _, versions := range rocksVersionsMap {
+			sort.Strings(versions)
+		}
+
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to read manifest file %s: %s", manifestFilePath, err)
+	}
+
+	return rocksVersionsMap, nil
 }

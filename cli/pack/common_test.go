@@ -85,7 +85,7 @@ func TestCopyAppSrc(t *testing.T) {
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 
 	for _, name := range appLocations {
-		err = copyAppSrc(filepath.Join(testDir, name), testCopyDir)
+		err = copyAppSrc(filepath.Join(testDir, name), name, testCopyDir)
 		require.NoErrorf(t, err, "failed to copy an app: %v", err)
 	}
 
@@ -300,6 +300,74 @@ func TestGetVersion(t *testing.T) {
 	}
 }
 
+func TestNormalizeGitVersion(t *testing.T) {
+	testCases := []struct {
+		name            string
+		version         string
+		expectedVersion string
+	}{
+		{
+			name:            "Already normal",
+			version:         "1.0.2-6",
+			expectedVersion: "1.0.2.6",
+		},
+		{
+			name:            "Missing count",
+			version:         "1.0.2",
+			expectedVersion: "1.0.2.0",
+		},
+		{
+			name:            "Full version with hash",
+			version:         "1.0.2-6-gc3bcd45",
+			expectedVersion: "1.0.2.6",
+		},
+		{
+			name:            "Full version with `v` symbol",
+			version:         "v1.0.2-6-gc3bcd45",
+			expectedVersion: "1.0.2.6",
+		},
+	}
+
+	testCasesError := []struct {
+		name    string
+		version string
+	}{
+		{
+			name:    "Extra number",
+			version: "1.0.2.3-6",
+		},
+		{
+			name:    "Incorrect count format",
+			version: "1.0.2.3",
+		},
+		{
+			name:    "Extra symbols",
+			version: "vv1.0.2-6",
+		},
+		{
+			name:    "Incorrect hash",
+			version: "v1.0.2-6-1gc3bcd45",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			version, err := normalizeGitVersion(testCase.version)
+			assert.Nil(t, err)
+			assert.Equalf(t, testCase.expectedVersion, version,
+				"got unexpected version, expected: %s, actual: %s",
+				testCase.expectedVersion, version)
+		})
+	}
+	for _, testCase := range testCasesError {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := normalizeGitVersion(testCase.version)
+			assert.NotNilf(t, err, "expected error for input version: %s",
+				testCase.version)
+		})
+	}
+}
+
 func Test_createEnv(t *testing.T) {
 	type args struct {
 		opts     *config.CliOpts
@@ -440,7 +508,7 @@ func Test_createEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.wantErr(t, createEnv(tt.args.opts, tt.args.destPath),
+			tt.wantErr(t, createEnv(tt.args.opts, tt.args.destPath, false),
 				fmt.Sprintf("createEnv(%v, %v)", tt.args.opts, tt.args.destPath))
 			tt.checkFunc()
 		})
