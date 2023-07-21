@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/ttlog"
 )
 
@@ -47,10 +48,14 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 		logger)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
+	binPath, err := os.Executable()
+	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
+	os.Setenv("started_flag_file", filepath.Join(filepath.Dir(binPath), app))
+	defer os.Remove(os.Getenv("started_flag_file"))
 	err = inst.Start()
 	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
 
-	waitProcessStart()
+	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 	alive := inst.IsAlive()
 	assert.True(alive, "Can't start the instance.")
 

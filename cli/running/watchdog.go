@@ -25,8 +25,8 @@ type Provider interface {
 
 // Watchdog is a process that controls an Instance process.
 type Watchdog struct {
-	// Instance describes the controlled Instance.
-	Instance *Instance
+	// instance describes the controlled Instance.
+	instance *Instance
 	// logger represents an active logging object.
 	logger *ttlog.Logger
 	// doneBarrier used to indicate the completion of the
@@ -53,7 +53,7 @@ type Watchdog struct {
 // NewWatchdog creates a new instance of Watchdog.
 func NewWatchdog(restartable bool, restartTimeout time.Duration, logger *ttlog.Logger,
 	provider Provider, preStartAction func() error) *Watchdog {
-	wd := Watchdog{Instance: nil, logger: logger, restartTimeout: restartTimeout,
+	wd := Watchdog{instance: nil, logger: logger, restartTimeout: restartTimeout,
 		provider: provider, preStartAction: preStartAction}
 
 	wd.done = make(chan bool, 1)
@@ -65,11 +65,11 @@ func NewWatchdog(restartable bool, restartTimeout time.Duration, logger *ttlog.L
 func (wd *Watchdog) Start() error {
 	var err error
 	// Create Instance.
-	if wd.Instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
+	if wd.instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
 		wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
 		return err
 	}
-	wd.logger = wd.Instance.logger
+	wd.logger = wd.instance.logger
 	// The signal handling loop must be started before the instance
 	// get started for avoiding a race condition between tt start
 	// and tt stop. This way we avoid a situation when we receive
@@ -95,7 +95,7 @@ func (wd *Watchdog) Start() error {
 			return nil
 		}
 		// Start the Instance.
-		if err := wd.Instance.Start(); err != nil {
+		if err := wd.instance.Start(); err != nil {
 			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
 			wd.stopMutex.Unlock()
 			break
@@ -103,7 +103,7 @@ func (wd *Watchdog) Start() error {
 		wd.stopMutex.Unlock()
 
 		// Wait while the Instance will be terminated.
-		if err := wd.Instance.Wait(); err != nil {
+		if err := wd.instance.Wait(); err != nil {
 			wd.logger.Printf(`Watchdog(WARN): "%v".`, err)
 		}
 
@@ -134,11 +134,11 @@ func (wd *Watchdog) Start() error {
 		wd.shouldStop = false
 
 		// Recreate Instance.
-		if wd.Instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
+		if wd.instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
 			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
 			return err
 		}
-		wd.logger = wd.Instance.logger
+		wd.logger = wd.instance.logger
 		// Before the restart of an instance start a new signal handling loop.
 		wd.startSignalHandling()
 	}
@@ -177,15 +177,15 @@ func (wd *Watchdog) startSignalHandling() {
 					// program should be terminated.
 					wd.shouldStop = true
 					wd.stopMutex.Unlock()
-					if wd.Instance.IsAlive() {
-						wd.Instance.Stop(30 * time.Second)
+					if wd.instance.IsAlive() {
+						wd.instance.Stop(30 * time.Second)
 					}
 				case syscall.SIGHUP:
 					// Rotate the log files.
 					wd.logger.Rotate()
 				default:
-					if wd.Instance.IsAlive() {
-						wd.Instance.SendSignal(sig)
+					if wd.instance.IsAlive() {
+						wd.instance.SendSignal(sig)
 					}
 				}
 			case _ = <-wd.done:
