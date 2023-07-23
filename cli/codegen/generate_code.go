@@ -32,6 +32,18 @@ var luaCodeFiles = []generateLuaCodeOpts{
 			"consoleEvalFuncBodyTblsFmt": "cli/connect/lua/console_eval_func_body_tbls_fmt.lua",
 			"evalFuncBody":               "cli/connect/lua/eval_func_body.lua",
 			"getSuggestionsFuncBody":     "cli/connect/lua/get_suggestions_func_body.lua",
+			"getFuncsListInteractOptBody": "cli/connect/lua/" +
+				"get_func_list_interactive_opt.lua",
+			"getSpaceIndexesListInteractOptBody": "cli/connect/lua/" +
+				"get_space_indexes_list_interactive_opt.lua",
+			"getSpaceIndexInfoInteractOptBody": "cli/connect/lua/" +
+				"get_space_index_info_interactive_opt.lua",
+			"getSpacesListInteractOptBody": "cli/connect/lua/" +
+				"get_spaces_list_interactive_opt.lua",
+			"getSpaceFormatInteractOptBody": "cli/connect/lua/" +
+				"get_space_format_interactive_opt.lua",
+			"getSpaceInfoInteractOptBody": "cli/connect/lua/" +
+				"get_space_info_interactive_opt.lua",
 		},
 	},
 	{

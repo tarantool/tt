@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/apex/log"
+	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/formatter"
 )
 
@@ -32,6 +33,27 @@ const setTableColWidthShortPrefix = "\\xw "
 // setTableColWidthShortPrefix is a prefix for table column width interactive option.
 const setTableColWidthPrefix = "\\set table_column_width "
 
+// getBoxFuncsList is an interactive option for getting a list of the box.func functions.
+const getBoxFuncsList = "\\df"
+
+// getBoxFuncInfoPrefix is an interactive option for getting an info of the box.func function.
+const getBoxFuncInfoPrefix = "\\df "
+
+// getSpaceIdxInfoPrefix is an interactive option for getting a list of the space indexes.
+const getSpaceIdxInfoPrefix = "\\di "
+
+// getSpacesList is an interactive option for getting a list of the spaces.
+const getSpacesList = "\\dt"
+
+// getSpacesListShort is an interactive short option for getting a list of the spaces.
+const getSpacesListShort = "\\d"
+
+// getSpaceFormatPrefix is an interactive option for getting the space format.
+const getSpaceFormatPrefix = "\\d "
+
+// getSpaceInfoPrefix is an interactive option for getting the space info.
+const getSpaceInfoPrefix = "\\dt "
+
 // helpOptionHandler prints help of tt connect interactive option.
 func helpOptionHandler() {
 	var help string = `
@@ -51,6 +73,13 @@ func helpOptionHandler() {
   \set table_column_width <width> -- max column width for table/ttable
   \xw                             -- max column width for table/ttable
   \table_format <format>          -- tables format markdown, jira or default
+  \df                             -- show list of functions
+  \df <func_name>                 -- show info about function by its name
+  \d | \df                        -- show list of spaces
+  \d <space_name>                 -- show space format by space name
+  \dt <space_name>                -- show info about space by its name
+  \di <space_name>                -- show info about indexes by space name
+  \di <space_name> <index_name>   -- show info about certain index
   \help                           -- show this screen
   \quit                           -- quit interactive console
   `
@@ -169,6 +198,138 @@ func handleTableDialectOption(trimmed string, formatterOpts *formatter.Opts) {
 	}
 }
 
+// handleInteraciveOptViaConnect handles an interactive option via connect.
+func handleInteraciveOptViaConnect(console *Console, evalBody string,
+	evalArgs []string) (string, error) {
+	var arg []interface{}
+	if len(evalArgs) == 1 {
+		arg = []interface{}{evalArgs[0]}
+	} else if len(evalArgs) == 2 {
+		arg = []interface{}{[]string{evalArgs[0], evalArgs[1]}}
+	} else {
+		log.Warnf("Unknown eval args amount")
+	}
+	response, err := console.conn.Eval(evalBody, arg, connector.RequestOpts{})
+	if err != nil {
+		return "", err
+	}
+
+	if len(response) == 0 {
+		return "", fmt.Errorf("unexpected response: empty")
+	} else if len(response) > 1 {
+		return "", fmt.Errorf("unexpected response: %v", response)
+	}
+
+	var ret string
+	var ok bool
+	if ret, ok = response[0].(string); !ok {
+		return "", fmt.Errorf("unexpected response: %v", response)
+	}
+
+	return ret, nil
+}
+
+// handleGetBoxFuncsListOption handles an interactive option for getting a list
+// of the box.func functions.
+func handleGetBoxFuncsListOption(trimmed string, console *Console,
+	formatterOpts *formatter.Opts) {
+	var res string
+	res, err := handleInteraciveOptViaConnect(console, consoleEvalFuncBody,
+		[]string{getFuncsListInteractOptBody})
+	if err != nil {
+		log.Errorf("Fail during interactive option handling via connection: %v", err)
+	}
+
+	fmt.Printf("%s", formatter.MakeOutput(res, console.outputFormat, formatterOpts))
+}
+
+// handleGetBoxFuncInfoOption handles an interactive option for getting an info
+// of the box.func function.
+func handleGetBoxFuncInfoOption(trimmed string, console *Console,
+	formatterOpts *formatter.Opts) {
+	funcName := strings.TrimPrefix(trimmed, getBoxFuncInfoPrefix)
+	var res string
+	res, err := handleInteraciveOptViaConnect(console, consoleEvalFuncBody,
+		[]string{"box.func." + funcName})
+	if err != nil {
+		log.Errorf("Fail during interactive option handling via connection: %v", err)
+	}
+
+	fmt.Printf("%s", formatter.MakeOutput(res, console.outputFormat, formatterOpts))
+}
+
+// handleGetSpaceIndexesListOption handles an interactive option for getting a list
+// of the space indexes.
+func handleGetSpaceIndexesListOption(trimmed string, console *Console,
+	formatterOpts *formatter.Opts) {
+	spaceName := strings.TrimPrefix(trimmed, getSpaceIdxInfoPrefix)
+	var res string
+	res, err := handleInteraciveOptViaConnect(console, getSpaceIndexesListInteractOptBody,
+		[]string{spaceName})
+	if err != nil {
+		log.Errorf("Fail during interactive option handling via connection: %v", err)
+	}
+
+	fmt.Printf("%s", formatter.MakeOutput(res, console.outputFormat, formatterOpts))
+}
+
+// handleGetSpaceIndexInfoOption handles an interactive option for getting an info
+// of the space index.
+func handleGetSpaceIndexInfoOption(trimmed string, console *Console,
+	formatterOpts *formatter.Opts) {
+	trimmedSplit := strings.Split(trimmed, " ")
+	spaceName, indexName := trimmedSplit[1], trimmedSplit[2]
+	var res string
+	res, err := handleInteraciveOptViaConnect(console, getSpaceIndexInfoInteractOptBody,
+		[]string{spaceName, indexName})
+	if err != nil {
+		log.Errorf("Fail during interactive option handling via connection: %v", err)
+	}
+
+	fmt.Printf("%s", formatter.MakeOutput(res, console.outputFormat, formatterOpts))
+}
+
+// handleGetSpaceListOption handles an interactive option for getting a list
+// of the spaces.
+func handleGetSpaceListOption(trimmed string, console *Console,
+	formatterOpts *formatter.Opts) {
+	var res string
+	res, err := handleInteraciveOptViaConnect(console, getSpacesListInteractOptBody, []string{""})
+	if err != nil {
+		log.Errorf("Fail during interactive option handling via connection: %v", err)
+	}
+
+	fmt.Printf("%s", formatter.MakeOutput(res, console.outputFormat, formatterOpts))
+}
+
+// handleGetSpaceFormatOption handles an interactive option for getting the space format.
+func handleGetSpaceFormatOption(trimmed string, console *Console,
+	formatterOpts *formatter.Opts) {
+	spaceName := strings.TrimPrefix(trimmed, getSpaceFormatPrefix)
+	var res string
+	res, err := handleInteraciveOptViaConnect(console, getSpaceFormatInteractOptBody,
+		[]string{spaceName})
+	if err != nil {
+		log.Errorf("Fail during interactive option handling via connection: %v", err)
+	}
+
+	fmt.Printf("%s", formatter.MakeOutput(res, console.outputFormat, formatterOpts))
+}
+
+// handleGetSpaceInfoOption handles an interactive option for getting the space info.
+func handleGetSpaceInfoOption(trimmed string, console *Console,
+	formatterOpts *formatter.Opts) {
+	spaceName := strings.TrimPrefix(trimmed, getSpaceInfoPrefix)
+	var res string
+	res, err := handleInteraciveOptViaConnect(console, getSpaceInfoInteractOptBody,
+		[]string{spaceName})
+	if err != nil {
+		log.Errorf("Fail during interactive option handling via connection: %v", err)
+	}
+
+	fmt.Printf("%s", formatter.MakeOutput(res, console.outputFormat, formatterOpts))
+}
+
 // handleInteractiveOption handles slash options for interactive console and returns
 // true if slash options detected in user input.
 func handleInteractiveOption(in string, executorEval *string,
@@ -238,6 +399,61 @@ func handleInteractiveOption(in string, executorEval *string,
 			return true
 		}
 		handleTableDialectOption(trimmed, formatterOpts)
+		return true
+	}
+
+	// Getting functions list case handling.
+	if trimmed == getBoxFuncsList {
+		handleGetBoxFuncsListOption(trimmed, console, formatterOpts)
+		return true
+	}
+
+	// Getting function info case handling.
+	if strings.HasPrefix(trimmed, getBoxFuncInfoPrefix) {
+		handleGetBoxFuncInfoOption(trimmed, console, formatterOpts)
+		return true
+	}
+
+	// Getting space indexes list case handling.
+	if trimmed == strings.TrimSpace(getSpaceIdxInfoPrefix) {
+		log.Error("Specify space name for getting indexes list")
+		return true
+	}
+	if strings.HasPrefix(trimmed, getSpaceIdxInfoPrefix) {
+		trimmedSplit := strings.Split(trimmed, " ")
+		if len(trimmedSplit) == 2 {
+			handleGetSpaceIndexesListOption(trimmed, console, formatterOpts)
+			return true
+		}
+		if len(trimmedSplit) > 2 {
+			handleGetSpaceIndexInfoOption(trimmed, console, formatterOpts)
+			return true
+		}
+	}
+
+	// Getting spaces list case handling.
+	if in == getSpacesList || in == getSpacesListShort {
+		handleGetSpaceListOption(trimmed, console, formatterOpts)
+		return true
+	}
+
+	// Getting space format case handling.
+	if trimmed == strings.TrimSpace(getSpaceFormatPrefix) {
+		log.Error("Specify space name for getting space format")
+		return true
+	}
+	if strings.HasPrefix(trimmed, getSpaceFormatPrefix) {
+		handleGetSpaceFormatOption(trimmed, console, formatterOpts)
+		return true
+	}
+
+	// Getting space info case handling.
+	if trimmed == strings.TrimSpace(getSpaceInfoPrefix) {
+		log.Error("Specify space name for getting space info")
+		return true
+	}
+	if strings.HasPrefix(trimmed, getSpaceInfoPrefix) {
+		handleGetSpaceInfoOption(trimmed, console, formatterOpts)
 		return true
 	}
 
