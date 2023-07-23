@@ -33,6 +33,7 @@ if box.execute ~= nil then
     box.execute([[INSERT INTO table1 VALUES (10,'Hello SQL world!');]])
     box.execute([[INSERT INTO table1 VALUES (20,'Hello LUA world!');]])
     box.execute([[INSERT INTO table1 VALUES (30,'Hello YAML world!');]])
+    box.schema.func.create('sum', {body = [[function(a, b) return a + b end]]})
 end
 
 fh = fio.open('ready', {'O_WRONLY', 'O_CREAT'}, tonumber('644',8))

@@ -1437,3 +1437,138 @@ def test_output_format_tables_dialects(tt_cmd, tmpdir_with_cfg):
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_psg_like_interactive_opts(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        if not is_tarantool_major_one():
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\df", opts={'-x': 'table'})
+            assert ret
+            assert output == ("+-----------+----------+\n"
+                              "| func_name | language |\n"
+                              "+-----------+----------+\n"
+                              "| sum       | LUA      |\n"
+                              "+-----------+----------+\n")
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\df sum", opts={'-x': 'table'})
+            assert ret
+            assert "function(a, b) return a + b end" in output
+            assert '{"lua":true,"sql":false}' in output
+            assert "exports" in output
+            assert "id" in output
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\d\n", opts={'-x': 'table'})
+            assert ret
+            assert output == ("+--------+------------+\n"
+                              "| engine | space_name |\n"
+                              "+--------+------------+\n"
+                              "| memtx  | TABLE1     |\n"
+                              "+--------+------------+\n"
+                              "| memtx  | customers  |\n"
+                              "+--------+------------+\n")
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\dt\n", opts={'-x': 'table'})
+            assert ret
+            assert output == ("+--------+------------+\n"
+                              "| engine | space_name |\n"
+                              "+--------+------------+\n"
+                              "| memtx  | TABLE1     |\n"
+                              "+--------+------------+\n"
+                              "| memtx  | customers  |\n"
+                              "+--------+------------+\n")
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\d TABLE1\n", opts={'-x': 'table'})
+            assert ret
+            assert output == ("+-------------+---------+-----------------+---------+\n"
+                              "| is_nullable | name    | nullable_action | type    |\n"
+                              "+-------------+---------+-----------------+---------+\n"
+                              "| false       | COLUMN1 | abort           | integer |\n"
+                              "+-------------+---------+-----------------+---------+\n"
+                              "| true        | COLUMN2 | none            | string  |\n"
+                              "+-------------+---------+-----------------+---------+\n")
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\dt customers\n", opts={'-x': 'table'})
+            assert ret
+            assert "id" in output
+            assert "name" in output
+            assert "customers" in output
+            assert "temporary" in output
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\di customers\n", opts={'-x': 'table'})
+            assert ret
+            assert output == ("+---------------+------+\n"
+                              "| name          | type |\n"
+                              "+---------------+------+\n"
+                              "| primary_index | TREE |\n"
+                              "+---------------+------+\n")
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\di customers primary_index\n",
+                                                  opts={'-x': 'table'})
+            assert ret
+            assert "name" in output
+            assert "primary_index" in output
+            assert "space_id" in output
+            assert '[{"fieldno":1,"is_nullable":false,"type":"unsigned"}]' in output
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\di qwerty\n",
+                                                  opts={'-x': 'table'})
+            assert ret
+            assert "the specified space does not exist" in output
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\di customers qwerty\n",
+                                                  opts={'-x': 'table'})
+            assert ret
+            assert "the specified index does not exist" in output
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\d qwerty\n",
+                                                  opts={'-x': 'table'})
+            assert ret
+            assert "the specified space does not exist" in output
+
+            # Execute stdin.
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                                  stdin="\\dt qwerty\n",
+                                                  opts={'-x': 'table'})
+            assert ret
+            assert "the specified space does not exist" in output
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
