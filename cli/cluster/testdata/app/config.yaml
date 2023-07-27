@@ -1,0 +1,27 @@
+app:
+  foo: 1
+  bar: 1
+  zoo: 1
+  hoo: 1
+wal:
+  dir: "filedir"
+groups:
+  a:
+    foo: 2
+    bar: 2
+    zoo: 2
+    replicasets:
+      b:
+        foo: 3
+        bar: 3
+        instances:
+          c:
+            foo: 4
+  b:
+    too: 2
+    replicasets:
+      b:
+        too: 3
+        instances:
+          b:
+            too: 3
