@@ -1,0 +1,11 @@
+config:
+  version: 3.0.0
+  hooks:
+    post_cfg: /foo
+    on_state_change: /bar
+etcd:
+  endpoints:
+    - http://foo:4001
+    - bar
+  username: etcd
+  password: not_a_secret
