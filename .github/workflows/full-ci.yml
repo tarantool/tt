@@ -64,7 +64,11 @@ jobs:
     if: (github.event_name == 'push') ||
       (github.event_name == 'pull_request_target' &&
         github.event.action == 'labeled' &&
-        github.event.label.name == 'full-ci')
+        github.event.label.name == 'full-ci') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'synchronize' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -162,11 +166,12 @@ jobs:
   full-ci-macOS-ee:
     if: |
       (github.event_name == 'push') ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
         github.event.action == 'labeled' &&
         github.event.label.name == 'full-ci') ||
       (github.event_name == 'pull_request' &&
         github.event.action == 'synchronize' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: macos-12
     steps:
@@ -202,8 +207,12 @@ jobs:
     # repository secrets unlike `pull_request`.
     if: (github.event_name == 'push') ||
       (github.event_name == 'pull_request_target' &&
-      github.event.action == 'labeled' &&
-      github.event.label.name == 'full-ci')
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'full-ci') ||
+      (github.event_name == 'pull_request' &&
+        github.event.action == 'synchronize' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-20.04
     strategy:
       matrix:
@@ -246,11 +255,12 @@ jobs:
   full-ci-ce-ee:
     if: |
       (github.event_name == 'push') ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
         github.event.action == 'labeled' &&
         github.event.label.name == 'full-ci') ||
       (github.event_name == 'pull_request' &&
         github.event.action == 'synchronize' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-20.04
     strategy:
