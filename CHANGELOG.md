@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt connect`: support for multi-line commands in the history.
 - New `tt pack` flag `--cartridge-compat` is added to maintain backward compatibility 
 with the cartridge-cli. It is supported only by `tgz` type packing.
+- `tt pack`: added option `--without-modules` allowing not to take external 
+  modules into the pack bundle.
 
 ### Fixed
 
