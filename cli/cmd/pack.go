@@ -57,6 +57,8 @@ The supported types are: tgz, deb, rpm`,
 		"Include tarantool and tt binaries to the result package")
 	packCmd.Flags().BoolVar(&packCtx.CartridgeCompat, "cartridge-compat", false,
 		"Pack cartridge cli compatible archive (only for tgz type)")
+	packCmd.Flags().BoolVar(&packCtx.WithoutModules, "without-modules",
+		packCtx.WithoutModules, "Don't include external modules to the result package")
 
 	// TarGZ flags.
 	packCmd.Flags().BoolVar(&packCtx.Archive.All, "all", packCtx.Archive.All,

@@ -152,6 +152,22 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
+            "args": ["--without-modules"],
+            "res_file": "bundle1-0.1.0.0." + get_arch() + ".tar.gz",
+            "check_exist": [
+                os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
+                os.path.join("app.lua"),
+                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tt"),
+            ],
+            "check_not_exist": [],
+            "artifacts_in_separated_dir": False,
+        },
+        {
+            "bundle_src": "bundle1",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
             "args": ["--without-binaries"],
             "res_file": "bundle1-0.1.0.0." + get_arch() + ".tar.gz",
             "check_exist": [
@@ -461,6 +477,9 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
         else:
             assert_bundle_structure(extract_path)
             assert_env(extract_path, test_case["artifacts_in_separated_dir"], "instances.enabled")
+
+        if "--without-modules" in test_case["args"]:
+            assert not os.listdir(os.path.join(extract_path, "modules"))
 
         for file_path in test_case["check_exist"]:
             assert glob.glob(os.path.join(extract_path, file_path))

@@ -101,7 +101,8 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	// Copy modules step.
-	if !packCtx.CartridgeCompat && cliOpts.Modules != nil && cliOpts.Modules.Directory != "" {
+	if !packCtx.CartridgeCompat && cliOpts.Modules != nil && cliOpts.Modules.Directory != "" &&
+		!packCtx.WithoutModules {
 		err = copy.Copy(cliOpts.Modules.Directory, packageModulesPath)
 		if err != nil {
 			log.Warnf("Failed to copy modules from %s: %s", cliOpts.Modules.Directory, err)

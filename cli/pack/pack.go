@@ -16,6 +16,8 @@ type PackCtx struct {
 	WithBinaries bool
 	// WithoutBinaries ignores binaries regardless if tarantool is system or not.
 	WithoutBinaries bool
+	// WithoutModules ignores external modules.
+	WithoutModules bool
 	// TarantoolExecutable is a path to tarantool executable path
 	TarantoolExecutable string
 	// TarantoolIsSystem shows if tarantool is system.
