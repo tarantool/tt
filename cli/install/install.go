@@ -413,8 +413,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	if ttVersion == "" {
 		log.Infof("Getting latest tt version..")
 		if len(versions) == 0 {
-			// TODO Remove after first tt release (must return error: no versions).
-			ttVersion = "master"
+			return fmt.Errorf("no versions were fetched")
 		} else {
 			ttVersion = versions[len(versions)-1].Str
 		}
