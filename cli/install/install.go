@@ -439,8 +439,8 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 
 	versionStr := search.ProgramTt + version.FsSeparator + ttVersion
 	// Check if that version is already installed.
-	log.Infof("Checking existing...")
 	if checkExisting(versionStr, binDir) && !installCtx.Reinstall {
+		log.Infof("Checking existing...")
 		log.Infof("%s version of tt already exists, updating symlink...", versionStr)
 		err := util.CreateSymlink(versionStr, filepath.Join(binDir, "tt"), true)
 		log.Infof("Done")
