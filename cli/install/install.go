@@ -438,6 +438,16 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		}
 	}
 
+	versionStr := search.ProgramTt + version.FsSeparator + ttVersion
+	// Check if that version is already installed.
+	log.Infof("Checking existing...")
+	if checkExisting(versionStr, binDir) && !installCtx.Reinstall {
+		log.Infof("%s version of tt already exists, updating symlink...", versionStr)
+		err := util.CreateSymlink(versionStr, filepath.Join(binDir, "tt"), true)
+		log.Infof("Done")
+		return err
+	}
+
 	// Check binary directory.
 	if binDir == "" {
 		return fmt.Errorf("binDir is not set, check %s", configure.ConfigName)
@@ -455,16 +465,6 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		if !programDependenciesInstalled(search.ProgramTt) {
 			return nil
 		}
-	}
-
-	versionStr := search.ProgramTt + version.FsSeparator + ttVersion
-	// Check if that version is already installed.
-	log.Infof("Checking existing...")
-	if checkExisting(versionStr, binDir) && !installCtx.Reinstall {
-		log.Infof("%s version of tt already exists, updating symlink...", versionStr)
-		err := util.CreateSymlink(versionStr, filepath.Join(binDir, "tt"), true)
-		log.Infof("Done")
-		return err
 	}
 
 	path, err := os.MkdirTemp("", "tt_install")
@@ -998,6 +998,17 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		return fmt.Errorf("to install tarantool-ee, you need to specify the version")
 	}
 
+	// Check if program is already installed.
+	versionStr := search.ProgramEe + version.FsSeparator + tarVersion
+	if !installCtx.Reinstall {
+		log.Infof("Checking existing...")
+		versionExists, err := checkExistingTarantool(versionStr,
+			binDir, includeDir, installCtx)
+		if err != nil || versionExists {
+			return err
+		}
+	}
+
 	ver, err := search.GetTarantoolBundleInfo(cliOpts, installCtx.Local, files, tarVersion)
 	if err != nil {
 		return err
@@ -1031,17 +1042,6 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	bundleSource, err := search.TntIoMakePkgURI(ver.Package, ver.Release, bundleName)
 	if err != nil {
 		return err
-	}
-
-	// Check if program is already installed.
-	versionStr := search.ProgramEe + version.FsSeparator + tarVersion
-	if !installCtx.Reinstall {
-		log.Infof("Checking existing...")
-		versionExists, err := checkExistingTarantool(versionStr,
-			binDir, includeDir, installCtx)
-		if err != nil || versionExists {
-			return err
-		}
 	}
 
 	path, err := os.MkdirTemp("", "tarantool_install")
