@@ -1026,8 +1026,6 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		}
 	}
 
-	// Check if program is already installed.
-	log.Infof("Checking existing...")
 	log.Infof("Getting bundle name for %s", tarVersion)
 	bundleName := ver.Version.Tarball
 	bundleSource, err := search.TntIoMakePkgURI(ver.Package, ver.Release, bundleName)
@@ -1035,6 +1033,7 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		return err
 	}
 
+	// Check if program is already installed.
 	versionStr := search.ProgramEe + version.FsSeparator + tarVersion
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
