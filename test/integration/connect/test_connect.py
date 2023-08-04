@@ -178,6 +178,12 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
         assert ret
         assert output == "---\n- Hello\n- World\n...\n\n"
 
+        # Execute stdout without args.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="2+2")
+        assert ret
+        assert output == "---\n- 4\n...\n\n"
+
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
 
