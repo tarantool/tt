@@ -159,7 +159,8 @@ func (console *Console) Close() {
 	}
 }
 
-func getExecutor(console *Console) prompt.Executor {
+// getExecutor returns command executor.
+func getExecutor(console *Console) func(string) {
 	executor := func(in string) {
 		if console.input == "" {
 			trimmed := strings.TrimSpace(in)
@@ -193,8 +194,11 @@ func getExecutor(console *Console) prompt.Executor {
 				log.Debug(err.Error())
 			}
 		}
-		if err := console.prompt.PushToHistory(trimmedInput); err != nil {
-			log.Debug(err.Error())
+
+		if console.prompt != nil {
+			if err := console.prompt.PushToHistory(trimmedInput); err != nil {
+				log.Debug(err.Error())
+			}
 		}
 
 		var results []string
