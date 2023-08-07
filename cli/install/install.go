@@ -186,33 +186,16 @@ func detectOsName() (string, error) {
 	return "", fmt.Errorf("unknown OS")
 }
 
-// getTarantoolVersions returns all available versions from tarantool repository.
-func getTarantoolVersions(local bool, distfiles string) ([]version.Version, error) {
+// getVersionsFromRepo returns all available versions from github repository.
+func getVersionsFromRepo(local bool, distfiles string, program string,
+	repolink string) ([]version.Version, error) {
 	versions := []version.Version{}
 	var err error
 
 	if local {
-		versions, err = search.GetVersionsFromGitLocal(distfiles + "/tarantool")
+		versions, err = search.GetVersionsFromGitLocal(filepath.Join(distfiles, program))
 	} else {
-		versions, err = search.GetVersionsFromGitRemote(search.GitRepoTarantool)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return versions, nil
-}
-
-// getTTVersions returns all available versions from tt repository.
-func getTTVersions(local bool, distfiles string) ([]version.Version, error) {
-	versions := []version.Version{}
-	var err error
-
-	if local {
-		versions, err = search.GetVersionsFromGitLocal(distfiles + "/tt")
-	} else {
-		versions, err = search.GetVersionsFromGitRemote(search.GitRepoTT)
+		versions, err = search.GetVersionsFromGitRemote(repolink)
 	}
 
 	if err != nil {
@@ -352,8 +335,8 @@ func programDependenciesInstalled(program string) bool {
 	return true
 }
 
-// checkExisting checks if program is already installed in binary directory.
-func checkExisting(version string, dst string) bool {
+// isVersionInstalled checks if version of program is already installed in binary directory.
+func isVersionInstalled(version string, dst string) bool {
 	if _, err := os.Stat(filepath.Join(dst, version)); os.IsNotExist(err) {
 		return false
 	} else {
@@ -403,7 +386,7 @@ func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
 
 // installTt installs selected version of tt.
 func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
-	versions, err := getTTVersions(installCtx.Local, distfiles)
+	versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tt", search.GitRepoTT)
 	if err != nil {
 		return err
 	}
@@ -438,12 +421,15 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	}
 
 	versionStr := search.ProgramTt + version.FsSeparator + ttVersion
+
 	// Check if that version is already installed.
-	if checkExisting(versionStr, binDir) && !installCtx.Reinstall {
+	if isVersionInstalled(versionStr, binDir) && !installCtx.Reinstall {
 		log.Infof("Checking existing...")
 		log.Infof("%s version of tt already exists, updating symlink...", versionStr)
 		err := util.CreateSymlink(versionStr, filepath.Join(binDir, "tt"), true)
-		log.Infof("Done")
+		if err != nil {
+			log.Infof("Done")
+		}
 		return err
 	}
 
@@ -451,10 +437,12 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	if binDir == "" {
 		return fmt.Errorf("binDir is not set, check %s", configure.ConfigName)
 	}
+
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {
 		return err
 	}
+
 	defer os.Remove(logFile.Name())
 	log.Infof("Installing tt=" + ttVersion)
 
@@ -478,7 +466,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 
 	// Download tt.
 	if installCtx.Local {
-		if checkExisting("tt", distfiles) {
+		if isVersionInstalled("tt", distfiles) {
 			log.Infof("Local files found, installing from them...")
 			localPath, _ := util.JoinAbspath(distfiles, "tt")
 			err = copy.Copy(localPath, path)
@@ -528,29 +516,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	return nil
 }
 
-// checkExistingTarantool
-func checkExistingTarantool(version, binDir, includeDir string,
-	installCtx InstallCtx) (bool, error) {
-	var err error
-	flag := false
-	if checkExisting(version, binDir) && checkExisting(version, includeDir) {
-		if !installCtx.Reinstall {
-			log.Infof("%s version of tarantool already exists, updating symlinks...", version)
-			err = util.CreateSymlink(version, filepath.Join(binDir, "tarantool"), true)
-			if err != nil {
-				return true, err
-			}
-			err = util.CreateSymlink(version, filepath.Join(includeDir, "tarantool"), true)
-			if err != nil {
-				return true, err
-			}
-			log.Infof("Done")
-			flag = true
-		}
-	}
-	return flag, err
-}
-
+// patchTarantool applies patches to specific versions of tarantool.
 func patchTarantool(srcPath string, tarVersion string,
 	installCtx InstallCtx, logFile *os.File) error {
 	log.Infof("Patching tarantool...")
@@ -672,7 +638,7 @@ func buildTarantool(srcPath string, tarVersion string,
 func copyLocalTarantool(distfiles string, path string, tarVersion string,
 	installCtx InstallCtx, logFile *os.File) error {
 	var err error
-	if checkExisting("tarantool", distfiles) {
+	if isVersionInstalled("tarantool", distfiles) {
 		log.Infof("Local files found, installing from them...")
 		localPath, _ := util.JoinAbspath(distfiles, "tarantool")
 		err = copy.Copy(localPath, path)
@@ -829,7 +795,8 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		return fmt.Errorf("IncludeDir is not set, check %s", configure.ConfigName)
 	}
 
-	versions, err := getTarantoolVersions(installCtx.Local, distfiles)
+	versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tarantool",
+		search.GitRepoTarantool)
 	if err != nil {
 		return err
 	}
@@ -864,10 +831,17 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	// Check if program is already installed.
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
-		versionExists, err := checkExistingTarantool(versionStr,
-			binDir, incDir, installCtx)
-		if err != nil || versionExists {
-			return err
+		if isVersionInstalled(versionStr, binDir) && isVersionInstalled(versionStr, incDir) {
+			log.Infof("%s version of tarantool already exists, updating symlinks...", versionStr)
+			err = util.CreateSymlink(versionStr, filepath.Join(binDir, "tarantool"), true)
+			if err != nil {
+				return err
+			}
+			err = util.CreateSymlink(versionStr, filepath.Join(incDir, "tarantool"), true)
+			if err != nil {
+				return err
+			}
+			log.Infof("Done")
 		}
 	}
 
@@ -929,9 +903,10 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		printLog(logFile.Name())
 		return err
 	}
+
 	// Copy binary and headers.
 	if installCtx.Reinstall {
-		if checkExisting(versionStr, binDir) {
+		if isVersionInstalled(versionStr, binDir) {
 			log.Infof("%s version of tarantool already exists, removing files...",
 				versionStr)
 			err = os.RemoveAll(filepath.Join(binDir, versionStr))
@@ -954,6 +929,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		printLog(logFile.Name())
 		return err
 	}
+
 	// Set symlinks.
 	log.Infof("Changing symlinks...")
 	err = util.CreateSymlink(versionStr, filepath.Join(binDir, "tarantool"), true)
@@ -966,6 +942,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		printLog(logFile.Name())
 		return err
 	}
+
 	log.Infof("Done.")
 	if installCtx.Noclean {
 		log.Infof("Artifacts can be found at: %s", path)
@@ -977,6 +954,14 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	distfiles string, cliOpts *config.CliOpts) error {
 	var err error
+
+	// Check bin and header directories.
+	if binDir == "" {
+		return fmt.Errorf("binDir is not set, check %s", configure.ConfigName)
+	}
+	if includeDir == "" {
+		return fmt.Errorf("includeDir is not set, check %s", configure.ConfigName)
+	}
 
 	files := []string{}
 	if installCtx.Local {
@@ -1001,10 +986,17 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	versionStr := search.ProgramEe + version.FsSeparator + tarVersion
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
-		versionExists, err := checkExistingTarantool(versionStr,
-			binDir, includeDir, installCtx)
-		if err != nil || versionExists {
-			return err
+		if isVersionInstalled(versionStr, binDir) && isVersionInstalled(versionStr, includeDir) {
+			log.Infof("%s version of tarantool already exists, updating symlinks...", versionStr)
+			err = util.CreateSymlink(versionStr, filepath.Join(binDir, "tarantool"), true)
+			if err != nil {
+				return err
+			}
+			err = util.CreateSymlink(versionStr, filepath.Join(includeDir, "tarantool"), true)
+			if err != nil {
+				return err
+			}
+			log.Infof("Done")
 		}
 	}
 
@@ -1013,13 +1005,6 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		return err
 	}
 
-	// Check bin and header dirs.
-	if binDir == "" {
-		return fmt.Errorf("binDir is not set, check %s", configure.ConfigName)
-	}
-	if includeDir == "" {
-		return fmt.Errorf("includeDir is not set, check %s", configure.ConfigName)
-	}
 	logFile, err := ioutil.TempFile("", "tarantool_install")
 	if err != nil {
 		return err
@@ -1056,7 +1041,7 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	// Download tarantool.
 	if installCtx.Local {
 		log.Infof("Checking local files...")
-		if checkExisting(bundleName, distfiles) {
+		if isVersionInstalled(bundleName, distfiles) {
 			log.Infof("Local files found, installing from them...")
 			localPath, _ := util.JoinAbspath(distfiles,
 				bundleName)
@@ -1088,7 +1073,7 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 
 	// Copy binary and headers.
 	if installCtx.Reinstall {
-		if checkExisting(versionStr, binDir) {
+		if isVersionInstalled(versionStr, binDir) {
 			log.Infof("%s version of tarantool-ee already exists, removing files...",
 				versionStr)
 			err = os.RemoveAll(filepath.Join(binDir, versionStr))
@@ -1208,6 +1193,9 @@ func installTarantoolDev(ttBinDir string, ttIncludeDir, buildDir,
 			// Remove old symlink to the tarantool headers.
 			// RemoveAll is used to perform deletion even if the file is not a symlink.
 			err = os.RemoveAll(tarantoolIncludeSymlink)
+			if err != nil {
+				return err
+			}
 			if includeDir == "" {
 				log.Warn("Tarantool headers location was not specified" +
 					"`tt build`, `tt rocks` may not work properly.\n" +
