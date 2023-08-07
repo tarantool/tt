@@ -38,6 +38,7 @@ jobs:
         uses: ./.github/actions/prepare-ce-test-env
         with:
           tarantool-version: '${{ matrix.tarantool-version }}'
+          skip-etcd-install: false
 
       - name: Static code check
         uses: ./.github/actions/static-code-check
@@ -92,6 +93,7 @@ jobs:
         with:
           sdk-version: '${{ matrix.sdk-version }}'
           sdk-download-token: '${{ secrets.SDK_DOWNLOAD_TOKEN }}'
+          skip-etcd-install: false
 
       - name: Static code check
         uses: ./.github/actions/static-code-check
@@ -131,6 +133,9 @@ jobs:
         run: |
           brew install --overwrite go mage wget
           pip3 install pytest requests psutil pyyaml netifaces tarantool
+
+      - name: Install etcd
+        uses: ./.github/actions/setup-etcd
 
       - name: Build tt
         env:

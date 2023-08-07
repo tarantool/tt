@@ -85,6 +85,58 @@ func TestMakeClusterConfig_instance(t *testing.T) {
 	assert.Equal(t, "bar", value)
 }
 
+func TestMakeClusterConfig_settings(t *testing.T) {
+	config := cluster.NewConfig()
+	expected := cluster.ClusterConfig{}
+	expected.RawConfig = config
+	expected.Groups = nil
+	expected.Config.Etcd.Endpoints = []string{"a", "b"}
+	expected.Config.Etcd.Username = "user"
+	expected.Config.Etcd.Password = "pass"
+	expected.Config.Etcd.Prefix = "/prefix"
+	expected.Config.Etcd.Ssl.KeyFile = "keyfile"
+	expected.Config.Etcd.Ssl.CertFile = "certfile"
+	expected.Config.Etcd.Ssl.CaPath = "cafile"
+	expected.Config.Etcd.Ssl.CaFile = "capath"
+	expected.Config.Etcd.Ssl.VerifyPeer = true
+	expected.Config.Etcd.Ssl.VerifyHost = true
+	expected.Config.Etcd.Http.Request.Timeout = 123
+
+	config.Set([]string{"config", "etcd", "endpoints"},
+		[]any{expected.Config.Etcd.Endpoints[0], expected.Config.Etcd.Endpoints[1]})
+	config.Set([]string{"config", "etcd", "username"},
+		expected.Config.Etcd.Username)
+	config.Set([]string{"config", "etcd", "password"},
+		expected.Config.Etcd.Password)
+	config.Set([]string{"config", "etcd", "prefix"},
+		expected.Config.Etcd.Prefix)
+	config.Set([]string{"config", "etcd", "ssl", "ssl_key"},
+		expected.Config.Etcd.Ssl.KeyFile)
+	config.Set([]string{"config", "etcd", "ssl", "cert_file"},
+		expected.Config.Etcd.Ssl.CertFile)
+	config.Set([]string{"config", "etcd", "ssl", "ca_path"},
+		expected.Config.Etcd.Ssl.CaPath)
+	config.Set([]string{"config", "etcd", "ssl", "ca_file"},
+		expected.Config.Etcd.Ssl.CaFile)
+	config.Set([]string{"config", "etcd", "ssl", "verify_host"},
+		expected.Config.Etcd.Ssl.VerifyHost)
+	config.Set([]string{"config", "etcd", "ssl", "verify_peer"},
+		expected.Config.Etcd.Ssl.VerifyPeer)
+	config.Set([]string{"config", "etcd", "http", "request", "timeout"},
+		int(expected.Config.Etcd.Http.Request.Timeout))
+
+	cconfig, err := cluster.MakeClusterConfig(config)
+	require.NoError(t, err)
+	assert.Equal(t, expected.Config, cconfig.Config)
+	assert.Equal(t, expected.Groups, cconfig.Groups)
+
+	expected.RawConfig.ForEach(nil, func(path []string, value any) {
+		v, err := cconfig.RawConfig.Get(path)
+		assert.NoError(t, err)
+		assert.Equal(t, value, v)
+	})
+}
+
 func TestMakeClusterConfig_empty(t *testing.T) {
 	config := cluster.NewConfig()
 	cconfig, err := cluster.MakeClusterConfig(config)
