@@ -10,6 +10,11 @@ inputs:
     type: boolean
     required: false
     default: false
+  skip-etcd-install:
+    description: Whether to skip etcd installation
+    type: boolean
+    required: false
+    default: true
 
 runs:
   using: "composite"
@@ -47,6 +52,10 @@ runs:
       if: ${{ inputs.skip-tarantool-install == 'false' }}
       with:
         tarantool-version: '${{ inputs.tarantool-version }}'
+
+    - name: Install etcd
+      uses: ./.github/actions/setup-etcd
+      if: ${{ inputs.skip-etcd-install == 'false' }}
 
     - name: Build tt
       env:

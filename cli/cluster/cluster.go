@@ -3,6 +3,7 @@ package cluster
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
@@ -11,6 +12,17 @@ const (
 	groupsLabel      = "groups"
 	replicasetsLabel = "replicasets"
 	instancesLabel   = "instances"
+)
+
+var (
+	mainEnvCollector = NewEnvCollector(func(path []string) string {
+		middle := strings.ToUpper(strings.Join(path, "_"))
+		return fmt.Sprintf("TT_%s", middle)
+	})
+	defaultEnvCollector = NewEnvCollector(func(path []string) string {
+		middle := strings.ToUpper(strings.Join(path, "_"))
+		return fmt.Sprintf("TT_%s_DEFAULT", middle)
+	})
 )
 
 // InstanceConfig describes an instance configuration.
@@ -120,6 +132,27 @@ func (config *GroupConfig) UnmarshalYAML(unmarshal func(any) error) error {
 
 // ClusterConfig describes a cluster configuration.
 type ClusterConfig struct {
+	Config struct {
+		Etcd struct {
+			Endpoints []string `yaml:"endpoints"`
+			Username  string   `yaml:"username"`
+			Password  string   `yaml:"password"`
+			Prefix    string   `yaml:"prefix"`
+			Ssl       struct {
+				KeyFile    string `yaml:"ssl_key"`
+				CertFile   string `yaml:"cert_file"`
+				CaPath     string `yaml:"ca_path"`
+				CaFile     string `yaml:"ca_file"`
+				VerifyPeer bool   `yaml:"verify_peer"`
+				VerifyHost bool   `yaml:"verify_host"`
+			} `yaml:"ssl"`
+			Http struct {
+				Request struct {
+					Timeout float64 `yaml:"timeout"`
+				} `yaml:"request"`
+			} `yaml:"http"`
+		} `yaml:"etcd"`
+	} `yaml:"config"`
 	// RawConfig is a configuration of the global scope.
 	RawConfig *Config `yaml:"-"`
 	// Groups are parsed configurations per a group.
@@ -230,6 +263,46 @@ func Instantiate(cluster ClusterConfig, name string) *Config {
 	return iconfig
 }
 
+// collectEtcdConfig collects a configuration from etcd with options from
+// the cluster configuration.
+func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
+	etcdConfig := clusterConfig.Config.Etcd
+	opts := EtcdOpts{
+		Endpoints: etcdConfig.Endpoints,
+		Prefix:    etcdConfig.Prefix,
+		Username:  etcdConfig.Username,
+		Password:  etcdConfig.Password,
+		KeyFile:   etcdConfig.Ssl.KeyFile,
+		CertFile:  etcdConfig.Ssl.CertFile,
+		CaPath:    etcdConfig.Ssl.CaPath,
+		CaFile:    etcdConfig.Ssl.CaFile,
+	}
+	if !etcdConfig.Ssl.VerifyPeer || !etcdConfig.Ssl.VerifyHost {
+		opts.SkipHostVerify = true
+	}
+	if etcdConfig.Http.Request.Timeout != 0 {
+		var err error
+		timeout := fmt.Sprintf("%fs", etcdConfig.Http.Request.Timeout)
+		opts.Timeout, err = time.ParseDuration(timeout)
+		if err != nil {
+			fmtErr := "unable to parse a etcd request timeout: %w"
+			return nil, fmt.Errorf(fmtErr, err)
+		}
+	}
+
+	etcd, err := ConnectEtcd(opts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to etcd: %w", err)
+	}
+
+	etcdCollector := NewEtcdCollector(etcd, opts.Prefix, opts.Timeout)
+	etcdRawConfig, err := etcdCollector.Collect()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get config from etcd: %w", err)
+	}
+	return etcdRawConfig, err
+}
+
 // GetClusterConfig returns a cluster configuration loaded from a path to
 // a config file. It uses a a config file, etcd and default environment
 // variables as sources. The function returns a cluster config as is, without
@@ -240,17 +313,35 @@ func GetClusterConfig(path string) (ClusterConfig, error) {
 		return ret, fmt.Errorf("a configuration file must be set")
 	}
 
-	collector := NewFileCollector(path)
-	config, err := collector.Collect()
+	config := NewConfig()
+
+	mainEnvConfig, err := mainEnvCollector.Collect()
 	if err != nil {
-		fmtErr := "unable to get cluster config from %q: %s"
+		fmtErr := "failed to collect a config from environment variables: %w"
+		return ret, fmt.Errorf(fmtErr, err)
+	}
+	config.Merge(mainEnvConfig)
+
+	collector := NewFileCollector(path)
+	fileConfig, err := collector.Collect()
+	if err != nil {
+		fmtErr := "unable to get cluster config from %q: %w"
 		return ret, fmt.Errorf(fmtErr, path, err)
 	}
+	config.Merge(fileConfig)
 
-	defaultEnvCollector := NewEnvCollector(func(path []string) string {
-		middle := strings.ToUpper(strings.Join(path, "_"))
-		return fmt.Sprintf("TT_%s_DEFAULT", middle)
-	})
+	clusterConfig, err := MakeClusterConfig(config)
+	if err != nil {
+		return ret, fmt.Errorf("unable to parse cluster config from file: %w", err)
+	}
+	if len(clusterConfig.Config.Etcd.Endpoints) > 0 {
+		etcdConfig, err := collectEtcdConfig(clusterConfig)
+		if err != nil {
+			return ret, err
+		}
+		config.Merge(etcdConfig)
+	}
+
 	defaultEnvConfig, err := defaultEnvCollector.Collect()
 	if err != nil {
 		fmtErr := "failed to collect a config from default environment variables: %w"
@@ -269,10 +360,6 @@ func GetInstanceConfig(cluster ClusterConfig, instance string) (InstanceConfig, 
 		return InstanceConfig{}, fmt.Errorf("an instance %q not found", instance)
 	}
 
-	mainEnvCollector := NewEnvCollector(func(path []string) string {
-		middle := strings.ToUpper(strings.Join(path, "_"))
-		return fmt.Sprintf("TT_%s", middle)
-	})
 	mainEnvConfig, err := mainEnvCollector.Collect()
 	if err != nil {
 		fmtErr := "failed to collect a config from environment variables: %w"

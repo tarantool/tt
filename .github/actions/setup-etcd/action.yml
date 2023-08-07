@@ -1,0 +1,46 @@
+name: 'Setup etcd'
+description: 'Download and extract etcd release archive'
+inputs:
+  etcd-version:
+    description: 'Release name from https://github.com/etcd-io/etcd/releases'
+    required: false
+    default: v3.5.9
+  install-prefix:
+    description: 'Where to extract the archive'
+    default: ${{ github.workspace }}/.etcd/bin/
+runs:
+  using: 'composite'
+  steps:
+    - shell: bash
+      env:
+        BASE_URL: "https://github.com/etcd-io/etcd/releases/download"
+        ETCD_VER: ${{ inputs.etcd-version }}
+        INSTALL_PREFIX: ${{ inputs.install-prefix }}
+      run: |
+        set -eux
+        rm -rf ${INSTALL_PREFIX} && mkdir -p ${INSTALL_PREFIX}
+
+        OS_NAME="$(uname | tr '[:upper:]' '[:lower:]')"
+        FILENAME="etcd-${ETCD_VER}-${OS_NAME}-amd64"
+        if [ "${OS_NAME}" == "linux" ]; then
+          curl -L "${BASE_URL}/${ETCD_VER}/${FILENAME}.tar.gz" -o "${INSTALL_PREFIX}/${FILENAME}.tar.gz"
+          tar xvzf "${INSTALL_PREFIX}/${FILENAME}.tar.gz" -C ${INSTALL_PREFIX} --strip-components=1
+        elif [[ "${OS_NAME}" == "darwin" ]]; then
+          curl -L "${BASE_URL}/${ETCD_VER}/${FILENAME}.zip" -o "${INSTALL_PREFIX}/${FILENAME}.zip"
+          unzip "${INSTALL_PREFIX}/${FILENAME}.zip" -d ${INSTALL_PREFIX}
+          ln -s ${INSTALL_PREFIX}/${FILENAME}/etcd ${INSTALL_PREFIX}/etcd
+          ln -s ${INSTALL_PREFIX}/${FILENAME}/etcdctl ${INSTALL_PREFIX}/etcdctl
+        else
+          echo "Unsupported OS: ${OS_NAME}"
+          exit 1
+        fi
+
+    - shell: bash
+      env:
+        INSTALL_PREFIX: ${{ inputs.install-prefix }}
+      run: |
+        set -eux
+        ${INSTALL_PREFIX}/etcd --version
+        ${INSTALL_PREFIX}/etcdctl version 2>/dev/null || ${INSTALL_PREFIX}/etcdctl --version
+        echo "ETCD_PATH=$(echo $INSTALL_PREFIX)" >> "$GITHUB_ENV"
+        echo "${INSTALL_PREFIX}" >> "$GITHUB_PATH"
