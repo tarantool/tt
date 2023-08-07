@@ -359,3 +359,71 @@ def test_install_tarantool_already_exists(tt_cmd, tmpdir):
         os.path.join(tt_dir, "bin", "tarantool_1.10.13"),
         os.path.join(tt_dir, "inc", "include", "tarantool_1.10.13"),
     )
+
+
+def test_install_tt_already_exists_no_symlink(tt_cmd, tmpdir):
+    # Copy test files.
+    testdata_path = os.path.join(
+        os.path.dirname(__file__),
+        "testdata/test_install_tt_already_exists"
+    )
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    tt_dir = os.path.join(testdata_path, "tt")
+
+    install_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(tt_dir, config_name),
+        "install", "tt", "1.1.2"
+    ]
+
+    install_process = subprocess.Popen(
+        install_cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    install_process_rc = install_process.wait()
+    output = install_process.stdout.read()
+    assert "already exists" in output
+    assert install_process_rc == 0
+
+    bin_path = os.path.join(tt_dir, "bin")
+    expected_bin = os.path.join(bin_path, "tt_v1.1.2")
+    tarantool_bin = os.path.realpath(os.path.join(bin_path, "tt"))
+    assert tarantool_bin == expected_bin
+
+
+def test_install_tt_already_exists_with_symlink(tt_cmd, tmpdir):
+    # Copy test files.
+    testdata_path = os.path.join(
+        os.path.dirname(__file__),
+        "testdata/test_install_tt_already_exists"
+    )
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    tt_dir = os.path.join(testdata_path, "tt")
+    os.symlink(tt_cmd, os.path.join(tt_dir, "bin", "tt"))
+    install_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(tt_dir, config_name),
+        "install", "tt", "1.1.2"
+    ]
+
+    install_process = subprocess.Popen(
+        install_cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    install_process_rc = install_process.wait()
+    output = install_process.stdout.read()
+    assert "already exists" in output
+    assert install_process_rc == 0
+
+    bin_path = os.path.join(tt_dir, "bin")
+    expected_bin = os.path.join(bin_path, "tt_v1.1.2")
+    tarantool_bin = os.path.realpath(os.path.join(bin_path, "tt"))
+    assert tarantool_bin == expected_bin
