@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 with the cartridge-cli. It is supported only by `tgz` type packing.
 - `tt pack`: added option `--without-modules` allowing not to take external 
   modules into the pack bundle.
+- `tt connect`: added command `\shortcuts` listing all available 
+  shortcuts and hotkeys in go-prompt.
 
 ### Fixed
 
