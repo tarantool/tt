@@ -143,6 +143,55 @@ def skip_if_tarantool_ce():
         pytest.skip("Tarantool Enterprise required")
 
 
+def test_connect_and_get_shortcuts(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_localhost_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", stdin="\\shortcuts")
+    assert ret
+
+    assert ret
+    assert output == """---
+- - |
+    Available hotkeys and shortcuts:
+
+       Ctrl + J / Ctrl + M [Enter] -- Enter the command
+       Ctrl + A [Home]             -- Go to the beginning of the command
+       Ctrl + E [End]              -- Go to the end of the command
+       Ctrl + P [Up Arrow]         -- Previous command
+       Ctrl + N [Down Arrow]       -- Next command
+       Ctrl + F [Right Arrow]      -- Forward one character
+       Ctrl + B [Left Arrow]       -- Backward one character
+       Ctrl + H [Backspace]        -- Delete character before the cursor
+       Ctrl + I [Tab]              -- Get next completion
+       BackTab                     -- Get previous completion
+       Ctrl + D                    -- Delete character under the cursor
+       Ctrl + W                    -- Cut the word before the cursor
+       Ctrl + K                    -- Cut the command after the cursor
+       Ctrl + U                    -- Cut the command before the cursor
+       Ctrl + L                    -- Clear the screen
+       Ctrl + R                    -- Enter in the reverse search mode
+       Ctrl + C                    -- Interrupt current unfinished expression
+       Alt + B                     -- Move backwards one word
+       Alt + F                     -- Move forwards one word
+...
+"""
+    stop_app(tt_cmd, tmpdir, "test_app")
+
+
 def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"

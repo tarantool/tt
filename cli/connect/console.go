@@ -176,6 +176,9 @@ func getExecutor(console *Console) func(string) {
 					log.Warnf("Unsupported language: %s", newLang)
 				}
 				return
+			} else if strings.HasPrefix(trimmed, getShortcutsList) {
+				fmt.Println(shortcutListText)
+				return
 			}
 		}
 
