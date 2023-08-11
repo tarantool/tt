@@ -1,9 +1,11 @@
 package search
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
 
@@ -109,6 +111,90 @@ func Test_getBundles(t *testing.T) {
 				return
 			}
 			assert.Equalf(t, tt.want, got, "getBundles()")
+		})
+	}
+}
+
+func Test_GetCommitFromGitLocal(t *testing.T) {
+	tests := []struct {
+		name    string
+		link    string
+		tarlink string
+		hashes  []string
+		wantErr bool
+	}{
+		{
+			name:    "first repo",
+			link:    "./testdata/empty_repo/",
+			tarlink: "./testdata/test_repo.tar/",
+			hashes:  []string{"c779d17", "6a05d6a", "6f05cd1"},
+			wantErr: false,
+		},
+		{
+			name:    "second repo",
+			link:    "./testdata/empty_repo/",
+			tarlink: "./testdata/test_repo.tar/",
+			hashes:  []string{"111111"},
+			wantErr: true,
+		},
+	}
+
+	for _, repo := range tests {
+		t.Run(repo.name, func(t *testing.T) {
+			err := util.ExtractTar(repo.tarlink)
+			defer os.RemoveAll(repo.link)
+			if err != nil {
+				t.Errorf("ExtractTar() error %v", err)
+			}
+			for _, hash := range repo.hashes {
+				_, err := GetCommitFromGitLocal(repo.link, hash)
+				if (err != nil) != repo.wantErr {
+					t.Errorf("GetCommitsFromGitRemote() error = %v, wantErr %v", err, repo.wantErr)
+					return
+				}
+			}
+		})
+	}
+}
+
+func Test_GetCommitFromGitRemote(t *testing.T) {
+	tests := []struct {
+		name    string
+		link    string
+		tarlink string
+		hashes  []string
+		wantErr bool
+	}{
+		{
+			name:    "first repo",
+			link:    "./testdata/empty_repo/",
+			tarlink: "./testdata/test_repo.tar/",
+			hashes:  []string{"c779d17", "6a05d6a", "6f05cd1"},
+			wantErr: false,
+		},
+		{
+			name:    "second repo",
+			link:    "./testdata/empty_repo/",
+			tarlink: "./testdata/test_repo.tar/",
+			hashes:  []string{"111111"},
+			wantErr: true,
+		},
+	}
+
+	for _, repo := range tests {
+		t.Run(repo.name, func(t *testing.T) {
+			err := util.ExtractTar(repo.tarlink)
+			defer os.RemoveAll(repo.link)
+			if err != nil {
+				t.Errorf("ExtractTar() error %v", err)
+			}
+			for _, hash := range repo.hashes {
+				_, err := GetCommitFromGitRemote(repo.link, hash)
+				if (err != nil) != repo.wantErr {
+					t.Errorf("GetCommitsFromGitRemote() error = %v, wantErr %v", err, repo.wantErr)
+					return
+				}
+			}
 		})
 	}
 }

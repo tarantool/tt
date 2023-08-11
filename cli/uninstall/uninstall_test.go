@@ -86,6 +86,20 @@ func TestSearchLatestVersion(t *testing.T) {
 			expectedVer: "",
 		},
 		{
+			name:        "hash version",
+			linkName:    "tarantool",
+			binDst:      "./testdata/bin_hash",
+			headerDst:   "./testdata/inc_hash",
+			expectedVer: "tarantool_aaaaaaa",
+		},
+		{
+			name:        "hash invalid headers",
+			linkName:    "tarantool",
+			binDst:      "./testdata/bin_hash",
+			headerDst:   "./testdata/inc_invalid_hash",
+			expectedVer: "tarantool_bbbbbbb",
+		},
+		{
 			name:        "tt, include-dir basic",
 			linkName:    "tt",
 			binDst:      "./testdata/bin_basic",

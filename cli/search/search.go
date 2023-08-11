@@ -115,6 +115,64 @@ func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
 	return versions, nil
 }
 
+// GetCommitFromGitLocal returns hash or pr/ID info from specified local git repo.
+func GetCommitFromGitLocal(repo string, input string) (string, error) {
+	if _, err := exec.LookPath("git"); err != nil {
+		return "", fmt.Errorf("unable to get commits: `git` command is missing")
+	}
+
+	isPullRequest, pullRequestID := util.IsPullRequest(input)
+
+	if isPullRequest {
+		commandStr := "pull/" + pullRequestID +
+			"/head:" + input
+		cmd := exec.Command("git", "fetch", "origin", commandStr)
+		cmd.Dir = repo
+		err := cmd.Run()
+		if err != nil {
+			return "", err
+		}
+	}
+
+	cmd := exec.Command("git", "show", input, "--quiet")
+	cmd.Dir = repo
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	hash := strings.Split(lines[0], " ")[1]
+
+	return hash, nil
+}
+
+// GetCommitFromGitRemote returns hash or pr/ID info from specified remote git repo.
+func GetCommitFromGitRemote(repo string, input string) (string, error) {
+	if _, err := exec.LookPath("git"); err != nil {
+		return "", fmt.Errorf("unable to get commits: `git` command is missing")
+	}
+
+	tempRepoPath, err := os.MkdirTemp("", "tt_install_repo")
+	if err != nil {
+		return "", fmt.Errorf("failed to get commits from %q: %s", repo, err)
+	}
+
+	defer os.RemoveAll(tempRepoPath)
+
+	cmd := exec.Command("git", "clone", "--filter=blob:none", "--no-checkout",
+		"--single-branch", repo, tempRepoPath)
+
+	err = cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("unable to get commits: git clone failed: %w", err)
+	}
+
+	return GetCommitFromGitLocal(tempRepoPath, input)
+}
+
 // GetVersionsFromGitLocal returns sorted versions list from specified local git repo.
 func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
 	versions := []version.Version{}

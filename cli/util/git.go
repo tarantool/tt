@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"unicode"
 
 	"github.com/hashicorp/go-version"
 )
+
+// MinCommitHashLength is the Git default for a short SHA.
+const MinCommitHashLength = 7
 
 // CheckVersionFromGit enters the passed path, tries to get a git version
 // it is a git repo, parses and returns a normalized string.
@@ -65,4 +69,23 @@ func IsGitFetchJobsSupported() bool {
 		return false
 	}
 	return isGitFetchJobsSupported(out.String())
+}
+
+// IsValidCommitHash checks hash format.
+func IsValidCommitHash(hash string) (bool, error) {
+	if len(hash) < MinCommitHashLength {
+		return false, fmt.Errorf("the hash must contain at least 7 characters")
+	}
+	return regexp.MatchString(`^[0-9a-f]+$`, hash)
+}
+
+// IsPullRequest returns is this pull-request format and pr num.
+func IsPullRequest(input string) (bool, string) {
+	input = strings.ToLower(input)
+	if !strings.HasPrefix(input, "pr/") {
+		return false, ""
+	}
+	_, prNum, _ := strings.Cut(input, "/")
+	isPullRequest, _ := regexp.MatchString(`^[0-9]+$`, prNum)
+	return isPullRequest, prNum
 }
