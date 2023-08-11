@@ -207,6 +207,8 @@ func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 
 	latestVersionInfo := version.Version{}
 	latestVersion := ""
+	hashFound := false
+	latestHash := ""
 
 	for _, binary := range binaries {
 		if binary.IsDir() {
@@ -226,7 +228,22 @@ func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 		if util.Find(programsToSearch, programName) == -1 {
 			continue
 		}
+		isRightFormat, _ := util.IsValidCommitHash(matches["ver"])
 
+		if isRightFormat {
+			if hashFound {
+				continue
+			}
+			if strings.Contains(programName, "tarantool") {
+				// Check for headers.
+				if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
+					continue
+				}
+			}
+			hashFound = true
+			latestHash = binaryName
+			continue
+		}
 		ver, err := version.Parse(matches["ver"])
 		if err != nil {
 			continue
@@ -243,8 +260,10 @@ func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 			latestVersion = binaryName
 		}
 	}
-
-	return latestVersion, nil
+	if latestVersion != "" {
+		return latestVersion, nil
+	}
+	return latestHash, nil
 }
 
 // switchProgramToLatestVersion switches the active version of the program to the latest installed.

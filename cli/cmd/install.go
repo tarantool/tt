@@ -12,7 +12,7 @@ var installCtx install.InstallCtx
 // newInstallTtCmd creates a command to install tt.
 func newInstallTtCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
-		Use:   "tt [version]",
+		Use:   "tt [version|commit hash|pull-request]",
 		Short: "Install tt",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
@@ -29,7 +29,7 @@ func newInstallTtCmd() *cobra.Command {
 // newInstallTarantoolCmd creates a command to install tarantool.
 func newInstallTarantoolCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
-		Use:   "tarantool [version]",
+		Use:   "tarantool [version|commit hash|pull-request]",
 		Short: "Install tarantool community edition",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
@@ -99,6 +99,10 @@ func NewInstallCmd() *cobra.Command {
 # Install latest Tarantool version.
 
     $ tt install tarantool
+
+# Install specific tt pull-request.
+
+    $ tt install tt pr/534
 
 # Install Tarantool 2.10.5 with limit number of simultaneous jobs for make.
 

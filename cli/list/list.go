@@ -108,6 +108,18 @@ func parseBinaries(fileList []fs.DirEntry, programName string,
 					Str:   "master",
 				})
 			} else {
+				isRightFormat, _ := util.IsValidCommitHash(versionStr)
+
+				if isRightFormat {
+					ver := version.Version{}
+					if binActive == f.Name() {
+						ver.Str = versionStr + " [active]"
+					} else {
+						ver.Str = versionStr
+					}
+					binaryVersions = append(binaryVersions, ver)
+					continue
+				}
 				ver, err := version.Parse(versionStr)
 				if err != nil {
 					return binaryVersions, err

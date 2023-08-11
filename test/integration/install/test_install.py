@@ -12,6 +12,47 @@ from utils import config_name, is_valid_tarantool_installed
 
 
 @pytest.mark.slow
+def test_install_tt_unexisted_commit(tt_cmd, tmpdir):
+    configPath = os.path.join(tmpdir, config_name)
+
+    # Create test config
+    tmp_dir = tempfile.mkdtemp(dir=tmpdir)
+    tmp_name = tmp_dir.rpartition('/')[2]
+    with open(configPath, 'w') as f:
+        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n  repo:\n    distfiles: "%s"' % tmp_name)
+
+    os.makedirs(tmp_dir + "/tt")
+
+    install_cmd = ["git", "init"]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmp_dir + "/tt",
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    # Install tt.
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "--local-repo", "tt", "2df3077"]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    # Check that the process shutdowned correctly.
+    instance_process_rc = instance_process.wait()
+    assert instance_process_rc != 0
+
+    first_output = instance_process.stdout.readline()
+    assert re.search(r"Searching in commits", first_output)
+    second_output = instance_process.stdout.readline()
+    assert re.search(r"2df3077: unable to get hash info", second_output)
+
+
+@pytest.mark.slow
 def test_install_tt(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
@@ -45,6 +86,99 @@ def test_install_tt(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
+def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
+    configPath = os.path.join(tmpdir, config_name)
+    # Create test config
+    with open(configPath, 'w') as f:
+        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+
+    # Install specific tt's commit.
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "2df3077"]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    # Check that the process shutdowned correctly.
+    instance_process_rc = instance_process.wait()
+    assert instance_process_rc == 0
+
+    installed_cmd = [tmpdir + "/bin/tt", "version"]
+    installed_program_process = subprocess.Popen(
+        installed_cmd,
+        cwd=tmpdir + "/bin",
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    start_output = installed_program_process.stdout.readline()
+    assert re.search(r"Tarantool CLI version 1.0.1", start_output)
+    assert re.search(r"commit: 2df3077", start_output)
+
+    # Uninstall specific tt's commit.
+    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt=2df3077"]
+    uninstall_instance_process = subprocess.Popen(
+        uninstall_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    first_output = uninstall_instance_process.stdout.readline()
+    assert re.search(r"Removing binary...", first_output)
+    second_output = uninstall_instance_process.stdout.readline()
+    assert re.search(r"tt=2df3077 is uninstalled", second_output)
+    assert not os.path.exists(os.path.join(tmpdir, "bin", "tt_2df3077"))
+
+
+@pytest.mark.slow
+def test_wrong_format_hash(tt_cmd, tmpdir):
+    configPath = os.path.join(tmpdir, config_name)
+    # Create test config
+    with open(configPath, 'w') as f:
+        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+
+    # Install specific tt's commit.
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "111"]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    # Check that the process shutdowned correctly.
+    instance_process_rc = instance_process.wait()
+    assert instance_process_rc != 0
+    first_output = instance_process.stdout.readline()
+    assert re.search(r"Searching in commits...", first_output)
+    second_output = instance_process.stdout.readline()
+    assert re.search(r"the hash must contain at least 7 characters", second_output)
+
+    # Install specific tt's commit.
+    install_cmd_second = [tt_cmd, "--cfg", configPath, "install", "tt", "zzzzzzz"]
+    instance_process_second = subprocess.Popen(
+        install_cmd_second,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    # Check that the process shutdowned correctly.
+    instance_process_rc = instance_process_second.wait()
+    assert instance_process_rc != 0
+    first_output = instance_process_second.stdout.readline()
+    assert re.search(r"Searching in commits...", first_output)
+    second_output = instance_process_second.stdout.readline()
+    assert re.search(r"hash has a wrong format", second_output)
+
+
+@pytest.mark.slow
 def test_install_tt_specific_version(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
@@ -75,6 +209,50 @@ def test_install_tt_specific_version(tt_cmd, tmpdir):
     )
     start_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool CLI version 1.0.0", start_output)
+
+
+@pytest.mark.slow
+def test_install_tarantool_commit(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, config_name)
+    # Create test config.
+    with open(config_path, "w") as f:
+        yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
+
+    tmpdir_without_config = tempfile.mkdtemp()
+
+    # Install specific tarantool's commit.
+    install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", "00a9e59"]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir_without_config,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    # Check that the process was shutdowned correctly.
+    instance_process_rc = instance_process.wait()
+    assert instance_process_rc == 0
+    installed_cmd = [tmpdir + "/bin/tarantool", "-v"]
+    installed_program_process = subprocess.Popen(
+        installed_cmd,
+        cwd=os.path.join(tmpdir, "/bin"),
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    run_output = installed_program_process.stdout.readline()
+    assert re.search(r"Tarantool", run_output)
+    assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
+    assert os.path.exists(os.path.join(tmpdir, "bin", "tarantool_00a9e59"))
+
+    assert is_valid_tarantool_installed(
+        os.path.join(tmpdir, "bin"),
+        os.path.join(tmpdir, "my_inc", "include"),
+        os.path.join(tmpdir, "bin", "tarantool_00a9e59"),
+        os.path.join(tmpdir, "my_inc", "include", "tarantool_00a9e59"),
+    )
 
 
 @pytest.mark.slow

@@ -230,6 +230,38 @@ def test_uninstall_tarantool_switch(tt_cmd, tmpdir):
     )
 
 
+def test_uninstall_tarantool_switch_hash(tt_cmd, tmpdir):
+    # Copy test files.
+    testdata_path = os.path.join(os.path.dirname(__file__),
+                                 "testdata/uninstall_switch_hash")
+    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
+    testdata_path = os.path.join(tmpdir, "testdata")
+
+    uninstall_cmd = [
+        tt_cmd,
+        "--cfg", os.path.join(testdata_path, config_name),
+        "uninstall", "tarantool", "1.10.15"
+    ]
+    uninstall_process = subprocess.Popen(
+        uninstall_cmd,
+        cwd=testdata_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    rc = uninstall_process.wait()
+    assert rc == 0
+    output = uninstall_process.stdout.read()
+    assert 'Current "tarantool" is set to "tarantool_aaaaaaa"' in output
+    assert is_valid_tarantool_installed(
+        os.path.join(testdata_path, "bin"),
+        os.path.join(testdata_path, "inc", "include"),
+        os.path.join(testdata_path, "bin", "tarantool_aaaaaaa"),
+        os.path.join(testdata_path, "inc", "include",
+                     "tarantool_aaaaaaa")
+    )
+
+
 # No symlink changes should be made if the symlink was pointing
 # to some other version.
 def test_uninstall_tarantool_no_switch(tt_cmd, tmpdir):
