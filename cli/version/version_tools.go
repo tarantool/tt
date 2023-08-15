@@ -51,12 +51,13 @@ func Parse(verStr string) (Version, error) {
 	// Part 4 (optional) -> release type and number (e.g: rc2),
 	// Part 5 (optional) -> additional commits,
 	// Part 6 (optional) -> commit hash and revision.
+	// GC suffix is not saved, since it is not part of version.
 	re := regexp.MustCompile(
 		`^((?P<buildname>.+)-)?` +
 			`v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)` +
 			`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
 			`(?:-(?P<additional>\d+))?` +
-			`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?$`)
+			`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?(-gc64|-nogc64)?$`)
 
 	matches := util.FindNamedMatches(re, verStr)
 	if len(matches) == 0 {
