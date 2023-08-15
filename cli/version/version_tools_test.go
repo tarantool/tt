@@ -45,6 +45,34 @@ func TestParseVersion(t *testing.T) {
 		nil,
 	}
 
+	testCases["2.11.0-0-gc9673ebb7-r575-nogc64"] = returnValueParseVersion{
+		Version{
+			Major:      2,
+			Minor:      11,
+			Patch:      0,
+			Release:    Release{Type: TypeRelease},
+			Additional: 0,
+			Hash:       "gc9673ebb7",
+			Revision:   575,
+			Str:        "2.11.0-0-gc9673ebb7-r575-nogc64",
+		},
+		nil,
+	}
+
+	testCases["2.11.0-0-gc9673ebb7-r575-gc64"] = returnValueParseVersion{
+		Version{
+			Major:      2,
+			Minor:      11,
+			Patch:      0,
+			Release:    Release{Type: TypeRelease},
+			Additional: 0,
+			Hash:       "gc9673ebb7",
+			Revision:   575,
+			Str:        "2.11.0-0-gc9673ebb7-r575-gc64",
+		},
+		nil,
+	}
+
 	testCases["1.10.123-rc1-100-g2ba6c0"] = returnValueParseVersion{
 		Version{
 			Major:      1,
@@ -170,6 +198,12 @@ func TestParseVersion(t *testing.T) {
 	testCases["42"] = returnValueParseVersion{
 		Version{},
 		fmt.Errorf("failed to parse version \"42\": format is not valid"),
+	}
+
+	testCases["2.11.0-0-gc9673ebb7-r575-gc32"] = returnValueParseVersion{
+		Version{},
+		fmt.Errorf("failed to parse version \"2.11.0-0-gc9673ebb7-r575-gc32\": " +
+			"format is not valid"),
 	}
 
 	for input, output := range testCases {
