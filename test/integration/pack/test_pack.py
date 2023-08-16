@@ -492,12 +492,13 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
 
 
 def test_pack_tgz_missing_app(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle2")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle2"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle2")
+    base_dir = tmpdir
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--app-list", "unexisting-app"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -507,12 +508,13 @@ def test_pack_tgz_missing_app(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 def test_pack_tgz_files_with_compat(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle8")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle8"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle8")
+    base_dir = tmpdir
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -533,13 +535,13 @@ def test_pack_tgz_files_with_compat(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 def test_pack_tgz_git_version_compat(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle9")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle9"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle9")
-
+    base_dir = tmpdir
     rc, output = run_command_and_get_output(
         ["git", "init"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -628,12 +630,13 @@ def test_pack_tgz_git_version_compat_with_instances(tt_cmd, tmpdir):
 
 
 def test_pack_tgz_multiple_apps_compat(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle1")
+    base_dir = tmpdir
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -642,12 +645,13 @@ def test_pack_tgz_multiple_apps_compat(tt_cmd, tmpdir):
 
 
 def test_pack_deb_compat(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle1")
+    base_dir = tmpdir
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "dep", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -656,12 +660,13 @@ def test_pack_deb_compat(tt_cmd, tmpdir):
 
 
 def test_pack_rpm_compat(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle1")
+    base_dir = tmpdir
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "rpm", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -765,19 +770,20 @@ def test_pack_rpm_deb_table(tt_cmd, tmpdir):
 
 
 def test_pack_tgz_empty_app_directory(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle2")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle2"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle2")
+    base_dir = tmpdir
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--app-list", "empty_app"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
 
     assert rc == 1
 
-    base_dir = os.path.join(tmpdir, "bundle2")
+    base_dir = tmpdir
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -786,12 +792,13 @@ def test_pack_tgz_empty_app_directory(tt_cmd, tmpdir):
 
 
 def test_pack_tgz_empty_enabled(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle3")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle3"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle3")
+    base_dir = tmpdir
 
     os.mkdir(os.path.join(base_dir, "generated_dir"))
 
@@ -803,12 +810,13 @@ def test_pack_tgz_empty_enabled(tt_cmd, tmpdir):
 
 
 def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle4")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle4"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle4")
+    base_dir = tmpdir
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz"],
@@ -839,7 +847,8 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
 
 
 def test_pack_incorrect_pack_type(tt_cmd, tmpdir):
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
@@ -878,12 +887,13 @@ def test_pack_deb(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle1")
+    base_dir = tmpdir
 
     cmd = [tt_cmd, "pack", "deb"]
 
@@ -930,12 +940,13 @@ def test_pack_rpm(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle1")
+    base_dir = tmpdir
 
     cmd = [tt_cmd, "pack", "rpm"]
 
@@ -978,12 +989,13 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle1")
+    base_dir = tmpdir
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "rpm", "--use-docker"],
@@ -1023,12 +1035,13 @@ def test_pack_deb_use_docker(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
                     tmpdir, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = os.path.join(tmpdir, "bundle1")
+    base_dir = tmpdir
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "deb", "--use-docker"],
