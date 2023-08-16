@@ -578,6 +578,55 @@ def test_pack_tgz_git_version_compat(tt_cmd, tmpdir):
     assert os.path.isfile(package_file)
 
 
+@pytest.mark.slow
+def test_pack_tgz_git_version_compat_with_instances(tt_cmd, tmpdir):
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+    app_dir = os.path.join(base_dir, "app2")
+
+    rc, output = run_command_and_get_output(
+        ["git", "init"],
+        cwd=app_dir, env=dict(os.environ, PWD=app_dir))
+    assert rc == 0
+
+    rc, output = run_command_and_get_output(
+        ["git", "add", "*"],
+        cwd=app_dir, env=dict(os.environ, PWD=app_dir))
+    assert rc == 0
+
+    rc, output = run_command_and_get_output(
+        ["git", "config", "user.email", "\"none\""],
+        cwd=app_dir, env=dict(os.environ, PWD=app_dir))
+    assert rc == 0
+    rc, output = run_command_and_get_output(
+        ["git", "config", "user.name", "\"none\""],
+        cwd=app_dir, env=dict(os.environ, PWD=app_dir))
+    assert rc == 0
+
+    rc, output = run_command_and_get_output(
+        ["git", "commit", "-m", "commit"],
+        cwd=app_dir, env=dict(os.environ, PWD=app_dir))
+    assert rc == 0
+
+    rc, output = run_command_and_get_output(
+        ["git", "tag", "1.2.3"],
+        cwd=app_dir, env=dict(os.environ, PWD=app_dir))
+    assert rc == 0
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "tgz", "--app-list", "app2", "--cartridge-compat"],
+        cwd=base_dir, env=dict(os.environ, PWD=base_dir))
+    assert rc == 0
+
+    package_file = os.path.join(base_dir, "app2-1.2.3.0." + get_arch() + ".tar.gz")
+    assert os.path.isfile(package_file)
+
+
 def test_pack_tgz_multiple_apps_compat(tt_cmd, tmpdir):
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
                     tmpdir, symlinks=True, ignore=None,
