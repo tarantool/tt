@@ -458,10 +458,15 @@ func prepareDefaultPackagePaths(opts *config.CliOpts, packagePath string) {
 func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) string {
 	packageVersion := defaultVersion
 	if packCtx.Version == "" {
-		// Get version from git only if packing an application from the current directory.
-		if opts.App.InstancesEnabled == "." {
-			version, err := util.CheckVersionFromGit(opts.App.InstancesEnabled)
-			if err == nil || version != "" {
+		// Get version from git only if packing an application from the current directory,
+		// or packing with cartridge-compat enabled.
+		var appPath = opts.App.InstancesEnabled
+		if opts.App.InstancesEnabled != "." && packCtx.CartridgeCompat {
+			appPath = filepath.Join(appPath, packCtx.Name)
+		}
+		if opts.App.InstancesEnabled == "." || packCtx.CartridgeCompat {
+			version, err := util.CheckVersionFromGit(appPath)
+			if err == nil {
 				packageVersion = version
 				if packCtx.CartridgeCompat {
 					if normalVersion, err := normalizeGitVersion(packageVersion); err == nil {
