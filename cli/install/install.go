@@ -385,7 +385,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	// Get latest version if it was not specified.
 	ttVersion := installCtx.version
 	if ttVersion == "" {
-		log.Infof("Getting latest tt version..")
+		log.Infof("Getting latest tt version...")
 		if len(versions) == 0 {
 			return fmt.Errorf("no versions were fetched")
 		} else {
@@ -1188,7 +1188,7 @@ func installTarantoolDev(ttBinDir string, ttIncludeDir, buildDir,
 				return err
 			}
 			if includeDir == "" {
-				log.Warn("Tarantool headers location was not specified" +
+				log.Warn("Tarantool headers location was not specified. " +
 					"`tt build`, `tt rocks` may not work properly.\n" +
 					"  To specify include files location use --include-dir option.")
 			} else {
