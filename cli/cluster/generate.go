@@ -1,3 +1,4 @@
 package cluster
 
-//go:generate ./env_generate.lua
+//go:generate ./paths_generate.lua
+//go:generate goimports -w paths.go
