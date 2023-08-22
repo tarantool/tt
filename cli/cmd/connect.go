@@ -54,10 +54,17 @@ func NewConnectCmd() *cobra.Command {
 			" [flags]\n" +
 			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
 			" [flags] [-f-] [-- ARGS]\n\n" +
-			" The URI can be specified in the following formats:\n" +
-			" * [tcp://][username:password@][host:port]\n" +
-			" * [unix://][username:password@]socketpath\n" +
-			" To specify relative path without `unix://` use `./`.",
+			"  The URI can be specified in the following formats:\n" +
+			"  * [tcp://][username:password@][host:port]\n" +
+			"  * [unix://][username:password@]socketpath\n" +
+			"  To specify relative path without `unix://` use `./`.\n\n" +
+			"  Available commands:\n" +
+			"  * \\shortcuts - get the full list of available shortcuts\n" +
+			"  * \\set language <language> - set language (lua or sql)\n" +
+			"  * \\set output <format> - set output format (lua[,line|block] or yaml)\n" +
+			"  * \\set delimiter <delimiter> - set expression delimiter\n" +
+			"  * \\help - show available backslash commands\n" +
+			"  * \\quit - quit interactive console",
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
 			"The command supports the following environment variables:\n\n" +
