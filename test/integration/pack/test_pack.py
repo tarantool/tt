@@ -42,10 +42,15 @@ def assert_bundle_structure_compat(path):
     assert not os.path.isdir(os.path.join(path, "modules"))
 
 
-def assert_env(path, artifacts_in_separated_dirs, instances_enabled_dir):
+def assert_env(path, artifacts_in_separated_dirs, compat_mode):
     with open(os.path.join(path, config_name)) as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
-        assert data["tt"]["app"]["instances_enabled"] == instances_enabled_dir
+        if compat_mode:
+            assert data["tt"]["app"]["instances_enabled"] == "."
+            assert data["tt"]["app"]["bin_dir"] == "."
+        else:
+            assert data["tt"]["app"]["instances_enabled"] == "instances.enabled"
+            assert data["tt"]["app"]["bin_dir"] == "bin"
         if artifacts_in_separated_dirs:
             assert data["tt"]["app"]["wal_dir"] == "var/wal"
             assert data["tt"]["app"]["vinyl_dir"] == "var/vinyl"
@@ -54,7 +59,6 @@ def assert_env(path, artifacts_in_separated_dirs, instances_enabled_dir):
             assert data["tt"]["app"]["wal_dir"] == "var/lib"
             assert data["tt"]["app"]["vinyl_dir"] == "var/lib"
             assert data["tt"]["app"]["memtx_dir"] == "var/lib"
-        assert data["tt"]["app"]["bin_dir"] == "bin"
         assert data["tt"]["app"]["log_dir"] == "var/log"
         assert data["tt"]["app"]["run_dir"] == "var/run"
         assert data["tt"]["modules"]["directory"] == "modules"
@@ -74,7 +78,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_exist": [
                 os.path.join("app2", "init.lua"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -90,7 +94,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_exist": [
                 os.path.join("app2", "init.lua"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -107,7 +111,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -124,7 +128,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -141,7 +145,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -158,7 +162,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
             ],
             "check_not_exist": [],
@@ -177,7 +181,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
             ],
             "artifacts_in_separated_dir": False,
@@ -258,7 +262,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
                 os.path.join("var", "lib", "app1", "test.snap"),
@@ -284,7 +288,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
                 os.path.join("var", "snap", "app1", "test.snap"),
@@ -316,7 +320,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app1.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -339,7 +343,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
 
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
@@ -356,7 +360,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("cartridge_app"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("cartridge_app", "app", "roles", "custom.lua"),
                 os.path.join("cartridge_app", "app", "admin.lua"),
@@ -380,7 +384,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("cartridge_app"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("cartridge_app", "app", "roles", "custom.lua"),
                 os.path.join("cartridge_app", "app", "admin.lua"),
@@ -404,7 +408,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "bundle6-v1." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("instances.enabled", "app.lua"),
                 os.path.join("var", "wal", "app", "artifact_wal"),
@@ -422,7 +426,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "bundle7-v1." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("app.lua"),
-                os.path.join("bin", "tarantool*"),
+                os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("instances.enabled", "app.lua"),
                 os.path.join("var", "wal", "app", "artifact_wal"),
@@ -473,10 +477,10 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
         if "--cartridge-compat" in test_case["args"]:
             assert_bundle_structure_compat(extract_path)
             assert_env(os.path.join(extract_path, test_case["app_name"]),
-                       test_case["artifacts_in_separated_dir"], ".")
+                       test_case["artifacts_in_separated_dir"], True)
         else:
             assert_bundle_structure(extract_path)
-            assert_env(extract_path, test_case["artifacts_in_separated_dir"], "instances.enabled")
+            assert_env(extract_path, test_case["artifacts_in_separated_dir"], False)
 
         if "--without-modules" in test_case["args"]:
             assert not os.listdir(os.path.join(extract_path, "modules"))
@@ -627,6 +631,51 @@ def test_pack_tgz_git_version_compat_with_instances(tt_cmd, tmpdir):
 
     package_file = os.path.join(base_dir, "app2-1.2.3.0." + get_arch() + ".tar.gz")
     assert os.path.isfile(package_file)
+
+
+@pytest.mark.slow
+def test_pack_tgz_compat_with_binaries(tt_cmd, tmpdir):
+    tmpdir = os.path.join(tmpdir, "bundle8")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle8"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "tgz", "--with-binaries", "--cartridge-compat"],
+        cwd=base_dir, env=dict(os.environ, PWD=base_dir))
+
+    assert rc == 0
+
+    package_file = os.path.join(base_dir, "app_name-0.1.0.0." + get_arch() + ".tar.gz")
+
+    extract_path = os.path.join(base_dir, "tmp")
+    os.mkdir(extract_path)
+
+    tar = tarfile.open(package_file)
+    tar.extractall(extract_path)
+    tar.close()
+
+    app_path = os.path.join(extract_path, "app_name")
+
+    assert os.path.isfile(os.path.join(app_path, "tt"))
+    assert os.path.isfile(os.path.join(app_path, "tarantool"))
+
+    script = ("cat > tarantool <<EOF\n"
+              "#!/bin/bash\n"
+              "printf 'Hello World'")
+    subprocess.run(script, cwd=app_path, shell=True,
+                   env=dict(os.environ, PWD=app_path))
+    subprocess.run(["chmod", "+x", "tarantool"], cwd=app_path,
+                   env=dict(os.environ, PWD=app_path))
+
+    rc, output = run_command_and_get_output(
+            [tt_cmd, "run"],
+            cwd=app_path, env=dict(os.environ, PWD=app_path))
+
+    assert rc == 0
+    assert output == "Hello World"
 
 
 def test_pack_tgz_multiple_apps_compat(tt_cmd, tmpdir):
@@ -835,7 +884,7 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
     tar.close()
 
     assert_bundle_structure(extract_path)
-    assert_env(extract_path, False, "instances.enabled")
+    assert_env(extract_path, False, False)
 
     tt_is_link = os.path.islink(os.path.join(extract_path, "bin", "tt"))
     tnt_is_link = os.path.islink(os.path.join(extract_path, "bin", "tarantool"))
