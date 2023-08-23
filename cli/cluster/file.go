@@ -19,15 +19,17 @@ func NewFileCollector(path string) FileCollector {
 }
 
 // Collect collects a configuration from a file located at a specified path.
-func (c FileCollector) Collect() (*Config, error) {
-	data, err := os.ReadFile(c.path)
+func (collector FileCollector) Collect() (*Config, error) {
+	data, err := os.ReadFile(collector.path)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read a file %q: %w", c.path, err)
+		return nil, fmt.Errorf("unable to read a file %q: %w",
+			collector.path, err)
 	}
 
 	config, err := NewYamlCollector(data).Collect()
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse a file %q: %w", c.path, err)
+		return nil, fmt.Errorf("unable to parse a file %q: %w",
+			collector.path, err)
 	}
 	return config, nil
 }

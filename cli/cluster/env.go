@@ -21,11 +21,11 @@ func NewEnvCollector(formatter func(path []string) string) EnvCollector {
 }
 
 // Collect collects a configuration from environment variables.
-func (c EnvCollector) Collect() (*Config, error) {
+func (collector EnvCollector) Collect() (*Config, error) {
 	config := NewConfig()
 
 	for _, p := range ConfigEnvPaths {
-		env := c.formatter(p)
+		env := collector.formatter(p)
 		if value, ok := os.LookupEnv(env); ok {
 			if err := config.Set(p, value); err != nil {
 				fmtErr := "unable to create a config from ENV: %w"
