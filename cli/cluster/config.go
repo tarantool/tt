@@ -28,14 +28,14 @@ func NewConfig() *Config {
 
 // createMaps creates or ensures that map[any]any sequence exists for the path.
 // It returns a last map in the path or an error.
-func (c *Config) createMaps(path []string) (map[any]any, error) {
+func (config *Config) createMaps(path []string) (map[any]any, error) {
 	var (
 		prev         map[any]any
 		prevKey      string
 		currentValue any
 	)
 
-	currentValue = c.paths
+	currentValue = config.paths
 	for i := 0; i < len(path)+1; i++ {
 		if currentValue == nil {
 			currentValue = make(map[any]any)
@@ -44,7 +44,7 @@ func (c *Config) createMaps(path []string) (map[any]any, error) {
 		}
 
 		if prev == nil {
-			c.paths = currentValue
+			config.paths = currentValue
 		} else {
 			prev[prevKey] = currentValue
 		}
@@ -59,8 +59,8 @@ func (c *Config) createMaps(path []string) (map[any]any, error) {
 }
 
 // getMap returns a map for the path.
-func (c *Config) getMap(path []string) (map[any]any, error) {
-	currentValue := c.paths
+func (config *Config) getMap(path []string) (map[any]any, error) {
+	currentValue := config.paths
 	for i := 0; i < len(path)+1; i++ {
 		if m, ok := currentValue.(map[any]any); !ok {
 			return nil, fmt.Errorf(fmtPathNotMap, path[0:i])
@@ -77,14 +77,14 @@ func (c *Config) getMap(path []string) (map[any]any, error) {
 }
 
 // Set sets a value to a configuration path.
-func (c *Config) Set(path []string, value any) error {
+func (config *Config) Set(path []string, value any) error {
 	if path == nil || len(path) == 0 {
-		c.paths = value
+		config.paths = value
 		return nil
 	}
 
 	last := len(path) - 1
-	if m, err := c.createMaps(path[0:last]); err != nil {
+	if m, err := config.createMaps(path[0:last]); err != nil {
 		return err
 	} else {
 		m[path[last]] = value
@@ -94,16 +94,16 @@ func (c *Config) Set(path []string, value any) error {
 }
 
 // Get returns a value from a configuration path.
-func (c *Config) Get(path []string) (any, error) {
+func (config *Config) Get(path []string) (any, error) {
 	if path == nil || len(path) == 0 {
-		if c.paths == nil {
+		if config.paths == nil {
 			return nil, fmt.Errorf(fmtPathNotExist, path)
 		}
-		return c.paths, nil
+		return config.paths, nil
 	}
 
 	last := len(path) - 1
-	if m, err := c.getMap(path[0:last]); err != nil {
+	if m, err := config.getMap(path[0:last]); err != nil {
 		return nil, err
 	} else {
 		ret := m[path[last]]
@@ -115,19 +115,19 @@ func (c *Config) Get(path []string) (any, error) {
 }
 
 // Elems returns a list of an elements for a path.
-func (c *Config) Elems(path []string) ([]string, error) {
+func (config *Config) Elems(path []string) ([]string, error) {
 	var target map[any]any
 	if path == nil || len(path) == 0 {
-		if c.paths == nil {
+		if config.paths == nil {
 			return nil, fmt.Errorf(fmtPathNotExist, path)
 		}
 
-		if m, ok := c.paths.(map[any]any); !ok {
+		if m, ok := config.paths.(map[any]any); !ok {
 			return nil, fmt.Errorf(fmtPathNotMap, path)
 		} else {
 			target = m
 		}
-	} else if m, err := c.getMap(path); err != nil {
+	} else if m, err := config.getMap(path); err != nil {
 		return nil, err
 	} else {
 		target = m
@@ -156,17 +156,17 @@ func forEachMap(path []string, dst map[any]any, fun func([]string, any)) {
 }
 
 // ForEach iterates over each value in the configuration.
-func (c *Config) ForEach(path []string, fun func(path []string, value any)) {
+func (config *Config) ForEach(path []string, fun func(path []string, value any)) {
 	var target any
 	if path == nil || len(path) == 0 {
-		if c.paths == nil {
+		if config.paths == nil {
 			return
 		} else {
-			target = c.paths
+			target = config.paths
 		}
 	} else {
 		last := len(path) - 1
-		if m, err := c.getMap(path[0:last]); err != nil {
+		if m, err := config.getMap(path[0:last]); err != nil {
 			return
 		} else {
 			target = m[path[last]]
@@ -182,17 +182,17 @@ func (c *Config) ForEach(path []string, fun func(path []string, value any)) {
 
 // Merge merges a configuration to the current. The outside configuration has
 // a low priority.
-func (c *Config) Merge(low *Config) {
+func (config *Config) Merge(low *Config) {
 	low.ForEach(nil, func(path []string, value any) {
-		if _, err := c.Get(path); err != nil {
-			c.Set(path, value)
+		if _, err := config.Get(path); err != nil {
+			config.Set(path, value)
 		}
 	})
 }
 
 // UnmarshalYAML helps to unmarshal the configuration from a YAML document.
-func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
-	if err := unmarshal(&c.paths); err != nil {
+func (config *Config) UnmarshalYAML(unmarshal func(any) error) error {
+	if err := unmarshal(&config.paths); err != nil {
 		return fmt.Errorf("failed to unmarshal Config: %w", err)
 	}
 	return nil
@@ -200,12 +200,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 
 // String returns a string representation of the configuration. Actually it is
 // a valid YAML.
-func (c *Config) String() string {
-	if c.paths == nil {
+func (config *Config) String() string {
+	if config.paths == nil {
 		return ""
 	}
 
-	decoded, err := yaml.Marshal(c.paths)
+	decoded, err := yaml.Marshal(config.paths)
 	if err != nil {
 		panic(fmt.Sprintf("failed to marshal a config: %s", err))
 	}

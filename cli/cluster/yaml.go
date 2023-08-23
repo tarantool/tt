@@ -20,9 +20,9 @@ func NewYamlCollector(data []byte) YamlCollector {
 }
 
 // Collect collects a configuration from YAML data.
-func (c YamlCollector) Collect() (*Config, error) {
+func (collector YamlCollector) Collect() (*Config, error) {
 	config := NewConfig()
-	if err := yaml.Unmarshal(c.data, config); err != nil {
+	if err := yaml.Unmarshal(collector.data, config); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal YAML: %w", err)
 	}
 

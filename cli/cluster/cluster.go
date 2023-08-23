@@ -28,25 +28,26 @@ func MakeInstanceConfig(config *Config) (InstanceConfig, error) {
 }
 
 // UnmarshalYAML helps to unmarshal an InstanceConfig object from YAML.
-func (c *InstanceConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	c.RawConfig = NewConfig()
+func (config *InstanceConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	config.RawConfig = NewConfig()
 
-	if err := unmarshal(&c.RawConfig); err != nil {
+	if err := unmarshal(&config.RawConfig); err != nil {
 		return fmt.Errorf("failed to unmarshal InstanceConfig: %w", err)
 	}
 
 	// unmarshal(c) leads to recursion:
 	//
-	// c.UnmarshalYAML()->unmarshal()->...->c.UnmarshalYAML()->unmarshal()->...
+	// config.UnmarshalYAML()->unmarshal()->...->
+	//   config.UnmarshalYAML()->unmarshal()->...
 	//
 	// The `parsed` type helps to break the recursion because the type does
 	// not have `UnmarshalYAML` call.
 	type parsed InstanceConfig
-	temp := parsed(*c)
+	temp := parsed(*config)
 	if err := unmarshal(&temp); err != nil {
 		return fmt.Errorf("failed to unmarshal InstanceConfig: %w", err)
 	}
-	*c = InstanceConfig(temp)
+	*config = InstanceConfig(temp)
 
 	return nil
 }
@@ -60,25 +61,26 @@ type ReplicasetConfig struct {
 }
 
 // UnmarshalYAML helps to unmarshal a ReplicasetConfig object from YAML.
-func (c *ReplicasetConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	c.RawConfig = NewConfig()
+func (config *ReplicasetConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	config.RawConfig = NewConfig()
 
-	if err := unmarshal(&c.RawConfig); err != nil {
+	if err := unmarshal(&config.RawConfig); err != nil {
 		return fmt.Errorf("failed to unmarshal ReplicasetConfig: %w", err)
 	}
 
 	// unmarshal(c) leads to recursion:
 	//
-	// c.UnmarshalYAML()->unmarshal()->...->c.UnmarshalYAML()->unmarshal()->...
+	// config.UnmarshalYAML()->unmarshal()->...->
+	//   config.UnmarshalYAML()->unmarshal()->...
 	//
 	// The `parsed` type helps to break the recursion because the type does
 	// not have `UnmarshalYAML` call.
 	type parsed ReplicasetConfig
-	temp := parsed(*c)
+	temp := parsed(*config)
 	if err := unmarshal(&temp); err != nil {
 		return fmt.Errorf("failed to unmarshal ReplicasetConfig: %w", err)
 	}
-	*c = ReplicasetConfig(temp)
+	*config = ReplicasetConfig(temp)
 
 	return nil
 }
@@ -92,25 +94,26 @@ type GroupConfig struct {
 }
 
 // UnmarshalYAML helps to unmarshal a GroupConfig object from YAML.
-func (c *GroupConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	c.RawConfig = NewConfig()
+func (config *GroupConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	config.RawConfig = NewConfig()
 
-	if err := unmarshal(&c.RawConfig); err != nil {
+	if err := unmarshal(&config.RawConfig); err != nil {
 		return fmt.Errorf("failed to unmarshal GroupConfig: %w", err)
 	}
 
 	// unmarshal(c) leads to recursion:
 	//
-	// c.UnmarshalYAML()->unmarshal()->...->c.UnmarshalYAML()->unmarshal()->...
+	// config.UnmarshalYAML()->unmarshal()->...->
+	//   config.UnmarshalYAML()->unmarshal()->...
 	//
 	// The `parsed` type helps to break the recursion because the type does
 	// not have `UnmarshalYAML` call.
 	type parsed GroupConfig
-	temp := parsed(*c)
+	temp := parsed(*config)
 	if err := unmarshal(&temp); err != nil {
 		return fmt.Errorf("failed to unmarshal GroupConfig: %w", err)
 	}
-	*c = GroupConfig(temp)
+	*config = GroupConfig(temp)
 
 	return nil
 }
@@ -124,25 +127,26 @@ type ClusterConfig struct {
 }
 
 // UnmarshalYAML helps to unmarshal a ClusterConfig object from YAML.
-func (c *ClusterConfig) UnmarshalYAML(unmarshal func(any) error) error {
-	c.RawConfig = NewConfig()
+func (config *ClusterConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	config.RawConfig = NewConfig()
 
-	if err := unmarshal(&c.RawConfig); err != nil {
+	if err := unmarshal(&config.RawConfig); err != nil {
 		return fmt.Errorf("failed to unmarshal ClusterConfig: %w", err)
 	}
 
 	// unmarshal(c) leads to recursion:
 	//
-	// c.UnmarshalYAML()->unmarshal()->...->c.UnmarshalYAML()->unmarshal()->...
+	// config.UnmarshalYAML()->unmarshal()->...->
+	//   config.UnmarshalYAML()->unmarshal()->...
 	//
 	// The `parsed` type helps to break the recursion because the type does
 	// not have `UnmarshalYAML` call.
 	type parsed ClusterConfig
-	temp := parsed(*c)
+	temp := parsed(*config)
 	if err := unmarshal(&temp); err != nil {
 		return fmt.Errorf("failed to unmarshal ClusterConfig: %w", err)
 	}
-	*c = ClusterConfig(temp)
+	*config = ClusterConfig(temp)
 
 	return nil
 }
