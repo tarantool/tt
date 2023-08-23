@@ -3,11 +3,14 @@ package pack
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
@@ -87,6 +90,107 @@ func TestCopyAppSrc(t *testing.T) {
 	for _, name := range appLocations {
 		err = copyAppSrc(filepath.Join(testDir, name), name, testCopyDir)
 		require.NoErrorf(t, err, "failed to copy an app: %v", err)
+	}
+
+	for _, path := range expectedToExist {
+		require.FileExists(t, filepath.Join(testCopyDir, path))
+	}
+
+	for _, path := range unExpectedToExist {
+		_, err := os.Stat(filepath.Join(testCopyDir, path))
+		require.NotNilf(t, err, "didn't catch an expected error by checking: %s", path)
+	}
+}
+
+func TestCopyBinaries(t *testing.T) {
+	testDir := t.TempDir()
+	testCopyDir := t.TempDir()
+
+	filesToCreate := []string{
+		"simple/tntExample",
+		"link/tntLink",
+		"brokenLink/tntLink",
+		"missing/tntExample",
+	}
+	dirsToCreate := []string{
+		"simple",
+		"link",
+		"brokenLink",
+		"missing",
+	}
+
+	expectedToExist := []string{
+		"simple/tarantool",
+		"link/tarantool",
+	}
+
+	unExpectedToExist := []string{
+		"missing/tarantool",
+		"brokenLink/tarantool",
+	}
+
+	testCases := []string{
+		"simple",
+		"link",
+		"brokenLink",
+		"missing",
+	}
+
+	err := test_helpers.CreateDirs(testDir, dirsToCreate)
+	require.NoErrorf(t, err, "failed to create test directories: %v", err)
+
+	err = test_helpers.CreateFiles(testDir, filesToCreate)
+	require.NoErrorf(t, err, "failed to create test directories: %v", err)
+
+	for _, testCase := range testCases {
+		t.Run(testCase, func(t *testing.T) {
+			var cmdCtx cmdcontext.CmdCtx
+			if testCase == "link" || testCase == "brokenLink" {
+				err = test_helpers.CreateSymlink(filepath.Join(testDir,
+					testCase, "tntLink"), "tntExample")
+				require.NoErrorf(t, err, "failed to create test directories: %v", err)
+			}
+
+			cmdCtx.Cli.TarantoolExecutable = filepath.Join(testDir, testCase,
+				"tntExample")
+
+			tntPath := filepath.Join(testDir, testCase, "tntExample")
+
+			if testCase == "link" || testCase == "brokenLink" {
+				tntPath = filepath.Join(testDir, testCase, "tntLink")
+			}
+
+			tntScript := []byte("#!/bin/bash\nprintf 'Hello World'")
+			err = os.WriteFile(tntPath, tntScript, 0644)
+			require.NoErrorf(t, err, "failed to write to script: %v", err)
+
+			cmd := exec.Command("sh", "-c",
+				fmt.Sprintf("chmod +x %s", tntPath))
+			err = cmd.Run()
+			require.NoErrorf(t, err, "failed to make an executable: %v", err)
+
+			if testCase == "missing" || testCase == "brokenLink" {
+				err = os.Remove(tntPath)
+				require.NoErrorf(t, err, "failed to remove the file: %v", err)
+			}
+
+			err = copyBinaries(&cmdCtx, filepath.Join(testCopyDir, testCase))
+			if testCase == "missing" {
+				require.Equal(t, true, strings.Contains(err.Error(),
+					"no such file or directory"))
+			} else {
+				require.NoErrorf(t, err, "failed to copy binaries: %v", err)
+			}
+
+			if testCase != "missing" && testCase != "brokenLink" {
+				tntPath = filepath.Join(testCopyDir, testCase, "tarantool")
+
+				out, err := exec.Command(tntPath).Output()
+				require.NoErrorf(t, err, "failed to run tarantool binary: %v", err)
+
+				require.Equal(t, []byte("Hello World"), out)
+			}
+		})
 	}
 
 	for _, path := range expectedToExist {

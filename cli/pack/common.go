@@ -90,16 +90,6 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return "", err
 	}
 
-	// Copy binaries step.
-	if !packCtx.CartridgeCompat && cliOpts.App.BinDir != "" &&
-		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
-			packCtx.WithBinaries) {
-		err = copyBinaries(cmdCtx, packageBinPath)
-		if err != nil {
-			return "", err
-		}
-	}
-
 	// Copy modules step.
 	if !packCtx.CartridgeCompat && cliOpts.Modules != nil && cliOpts.Modules.Directory != "" &&
 		!packCtx.WithoutModules {
@@ -156,6 +146,19 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 			}
 		}
 		log.Infof("Apps to pack: %s", appsToPack)
+	}
+
+	if packCtx.CartridgeCompat {
+		packageBinPath = filepath.Join(basePath, packCtx.Name)
+	}
+	// Copy binaries step.
+	if cliOpts.App.BinDir != "" &&
+		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
+			packCtx.WithBinaries) {
+		err = copyBinaries(cmdCtx, packageBinPath)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// Copy all apps to a temp directory step.
@@ -328,9 +331,6 @@ func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) erro
 	log.Infof("Generating new %s for the new package", configure.ConfigName)
 	cliOptsNew := configure.GetDefaultCliOpts()
 	cliOptsNew.App.InstancesEnabled = configure.InstancesEnabledDirName
-	if cartridgeCompat {
-		cliOptsNew.App.InstancesEnabled = "."
-	}
 	cliOptsNew.App.Restartable = opts.App.Restartable
 	cliOptsNew.App.LogMaxAge = opts.App.LogMaxAge
 	cliOptsNew.App.LogMaxSize = opts.App.LogMaxSize
@@ -344,6 +344,11 @@ func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) erro
 		cliOptsNew.App.VinylDir = configure.VarVinylPath
 		cliOptsNew.App.MemtxDir = configure.VarMemtxPath
 		cliOptsNew.App.WalDir = configure.VarWalPath
+	}
+
+	if cartridgeCompat {
+		cliOptsNew.App.InstancesEnabled = "."
+		cliOptsNew.App.BinDir = "."
 	}
 
 	cfg := config.Config{
@@ -551,7 +556,7 @@ func copyBinaries(cmdCtx *cmdcontext.CmdCtx, destPath string) error {
 		tntBin = cmdCtx.Cli.TarantoolExecutable
 	}
 
-	err = copy.Copy(tntBin, filepath.Join(destPath, filepath.Base(tntBin)))
+	err = copy.Copy(tntBin, filepath.Join(destPath, "tarantool"))
 	if err != nil {
 		return err
 	}
