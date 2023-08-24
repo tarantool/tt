@@ -39,9 +39,6 @@ jobs:
         with:
           tarantool-version: '${{ matrix.tarantool-version }}'
 
-      - name: Setup Docker
-        uses: docker-practice/actions-setup-docker@master
-
       - name: Static code check
         uses: ./.github/actions/static-code-check
 
@@ -95,9 +92,6 @@ jobs:
         with:
           sdk-version: '${{ matrix.sdk-version }}'
           sdk-download-token: '${{ secrets.SDK_DOWNLOAD_TOKEN }}'
-
-      - name: Setup Docker
-        uses: docker-practice/actions-setup-docker@master
 
       - name: Static code check
         uses: ./.github/actions/static-code-check
