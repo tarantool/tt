@@ -472,3 +472,35 @@ func TestGetInstanceConfig_noinstance(t *testing.T) {
 
 	assert.EqualError(t, err, expected)
 }
+
+func TestReplaceInstanceConfig_not_found(t *testing.T) {
+	config := cluster.NewConfig()
+	cconfig, err := cluster.MakeClusterConfig(config)
+	require.NoError(t, err)
+
+	cconfig, err = cluster.ReplaceInstanceConfig(cconfig, "any", cluster.NewConfig())
+	assert.EqualError(t, err, "cluster configuration has not an instance \"any\"")
+}
+
+func TestReplaceInstanceConfig_replcase(t *testing.T) {
+	path := []string{"groups", "a", "replicasets", "b", "instances", "c", "foo"}
+	config := cluster.NewConfig()
+	err := config.Set(path, 1)
+	require.NoError(t, err)
+	old, err := cluster.MakeClusterConfig(config)
+	require.NoError(t, err)
+
+	replace := cluster.NewConfig()
+	err = replace.Set([]string{"foo"}, 2)
+	require.NoError(t, err)
+
+	newConfig, err := cluster.ReplaceInstanceConfig(old, "c", replace)
+	require.NoError(t, err)
+	oldValue, err := old.RawConfig.Get(path)
+	require.NoError(t, err)
+	newValue, err := newConfig.RawConfig.Get(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, oldValue)
+	assert.Equal(t, 2, newValue)
+}

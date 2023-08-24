@@ -54,8 +54,8 @@ func (config *InstanceConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	//
 	// The `parsed` type helps to break the recursion because the type does
 	// not have `UnmarshalYAML` call.
-	type parsed InstanceConfig
-	temp := parsed(*config)
+	type instanceConfig InstanceConfig
+	temp := instanceConfig(*config)
 	if err := unmarshal(&temp); err != nil {
 		return fmt.Errorf("failed to unmarshal InstanceConfig: %w", err)
 	}
@@ -87,8 +87,8 @@ func (config *ReplicasetConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	//
 	// The `parsed` type helps to break the recursion because the type does
 	// not have `UnmarshalYAML` call.
-	type parsed ReplicasetConfig
-	temp := parsed(*config)
+	type replicasetConfig ReplicasetConfig
+	temp := replicasetConfig(*config)
 	if err := unmarshal(&temp); err != nil {
 		return fmt.Errorf("failed to unmarshal ReplicasetConfig: %w", err)
 	}
@@ -120,8 +120,8 @@ func (config *GroupConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	//
 	// The `parsed` type helps to break the recursion because the type does
 	// not have `UnmarshalYAML` call.
-	type parsed GroupConfig
-	temp := parsed(*config)
+	type groupConfig GroupConfig
+	temp := groupConfig(*config)
 	if err := unmarshal(&temp); err != nil {
 		return fmt.Errorf("failed to unmarshal GroupConfig: %w", err)
 	}
@@ -191,7 +191,14 @@ func MakeClusterConfig(config *Config) (ClusterConfig, error) {
 	}
 
 	err := yaml.Unmarshal([]byte(config.String()), &cconfig)
-	return cconfig, err
+	if err != nil {
+		err = fmt.Errorf(
+			"failed to parse a configuration data as a cluster config: %w",
+			err)
+		return cconfig, err
+
+	}
+	return cconfig, nil
 }
 
 // mergeExclude merges a high priority configuration with a low priority
@@ -212,7 +219,9 @@ func findInstance(cluster ClusterConfig, name string) *Config {
 			for iname, instance := range replicaset.Instances {
 				if iname == name {
 					config := NewConfig()
-					config.Merge(instance.RawConfig)
+					if instance.RawConfig != nil {
+						config.Merge(instance.RawConfig)
+					}
 					mergeExclude(config, replicaset.RawConfig,
 						[]string{instancesLabel})
 					mergeExclude(config, group.RawConfig,
@@ -288,6 +297,8 @@ func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
 			fmtErr := "unable to parse a etcd request timeout: %w"
 			return nil, fmt.Errorf(fmtErr, err)
 		}
+	} else {
+		opts.Timeout = DefaultEtcdTimeout
 	}
 
 	etcd, err := ConnectEtcd(opts)
@@ -371,4 +382,31 @@ func GetInstanceConfig(cluster ClusterConfig, instance string) (InstanceConfig, 
 	iconfig.Merge(Instantiate(cluster, instance))
 
 	return MakeInstanceConfig(iconfig)
+}
+
+// ReplaceInstanceConfig replaces an instance configuration.
+func ReplaceInstanceConfig(cconfig ClusterConfig,
+	instance string, iconfig *Config) (ClusterConfig, error) {
+	for gname, group := range cconfig.Groups {
+		for rname, replicaset := range group.Replicasets {
+			for iname, _ := range replicaset.Instances {
+				if instance == iname {
+					path := []string{groupsLabel, gname,
+						replicasetsLabel, rname,
+						instancesLabel, iname,
+					}
+					newConfig := NewConfig()
+					newConfig.Merge(cconfig.RawConfig)
+					if err := newConfig.Set(path, iconfig); err != nil {
+						err = fmt.Errorf("failed to set configuration: %w", err)
+						return cconfig, err
+					}
+					return MakeClusterConfig(newConfig)
+				}
+			}
+		}
+	}
+
+	return cconfig,
+		fmt.Errorf("cluster configuration has not an instance %q", instance)
 }

@@ -18,6 +18,8 @@ prompt line when using 'app:instance' target format.
 The binary has the name tt/tarantool_ + seven-digit hash.
 - New `tt pack` flag `--tarantool-version` is added to specify tarantool
   version for pack in docker. It is supported only with `--use-docker` enabled.
+- Module ``tt cluster``, to show or publish a cluster or an instance
+  configuration.
 
 ### Fixed
 

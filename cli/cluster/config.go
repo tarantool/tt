@@ -25,6 +25,20 @@ func NewConfig() *Config {
 	return &Config{}
 }
 
+// deepCopyMap creates a deep copy of map[any]any object if the value is
+// a map of the type.
+func deepCopyMap(value any) any {
+	if srcMap, ok := value.(map[any]any); ok {
+		copyMap := make(map[any]any)
+		for k, v := range srcMap {
+			copyMap[k] = deepCopyMap(v)
+		}
+		return copyMap
+	} else {
+		return value
+	}
+}
+
 // createMaps creates or ensures that map[any]any sequence exists for the path.
 // It returns a last map in the path or an error.
 func (config *Config) createMaps(path []string) (map[any]any, error) {
@@ -86,7 +100,12 @@ func (config *Config) Set(path []string, value any) error {
 	if m, err := config.createMaps(path[0:last]); err != nil {
 		return err
 	} else {
-		m[path[last]] = value
+		key := path[last]
+		if cfg, ok := value.(*Config); value != nil && ok {
+			m[key] = deepCopyMap(cfg.paths)
+		} else {
+			m[key] = value
+		}
 	}
 
 	return nil
