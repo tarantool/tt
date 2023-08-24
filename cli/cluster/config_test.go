@@ -42,6 +42,33 @@ func TestConfig_Set(t *testing.T) {
 	}
 }
 
+func TestConfig_Set_config(t *testing.T) {
+	base := cluster.NewConfig()
+	err := base.Set([]string{"foo", "bar", "zoo", "foo"}, 1)
+	require.NoError(t, err)
+
+	addPath := []string{"foo", "bar"}
+	addOldValue := 2
+	add := cluster.NewConfig()
+	err = add.Set(addPath, addOldValue)
+	require.NoError(t, err)
+
+	setAddPath := []string{"foo", "bar", "zoo"}
+	err = base.Set(setAddPath, add)
+	require.NoError(t, err)
+
+	addNewValue := 3
+	add.Set(addPath, addNewValue)
+
+	valueAdd, err := add.Get(addPath)
+	require.NoError(t, err)
+	assert.Equal(t, addNewValue, valueAdd)
+
+	valueAdded, err := base.Get(append(setAddPath, addPath...))
+	require.NoError(t, err)
+	assert.Equal(t, addOldValue, valueAdded)
+}
+
 func TestConfig_Set_intersection(t *testing.T) {
 	base := [][]string{
 		nil,

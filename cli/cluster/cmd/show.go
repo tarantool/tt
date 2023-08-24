@@ -1,0 +1,52 @@
+package cmd
+
+import (
+	"fmt"
+	"net/url"
+
+	"github.com/tarantool/tt/cli/cluster"
+)
+
+// ShowCtx contains information about cluster show command execution context.
+type ShowCtx struct {
+	// Validate defines whether the command will check the showed
+	// configuration.
+	Validate bool
+}
+
+// ShowEtcd shows a configuration from etcd.
+func ShowEtcd(showCtx ShowCtx, uri *url.URL) error {
+	etcdOpts, err := cluster.MakeEtcdOptsFromUrl(uri)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", uri, err)
+	}
+
+	etcdcli, err := cluster.ConnectEtcd(etcdOpts)
+	if err != nil {
+		return fmt.Errorf("failed to connect to etcd: %w", err)
+	}
+	defer etcdcli.Close()
+
+	prefix, timeout := etcdOpts.Prefix, etcdOpts.Timeout
+	config, err := cluster.NewEtcdCollector(etcdcli, prefix, timeout).Collect()
+	if err != nil {
+		return fmt.Errorf("failed to collect a configuration from etcd: %w", err)
+	}
+
+	name := uri.Query().Get("name")
+	if showCtx.Validate {
+		err = validateRawConfig(config, name)
+	}
+
+	return printRawClusterConfig(config, uri.Query().Get("name"), showCtx.Validate)
+}
+
+// ShowCluster shows a full cluster configuration for a configuration path.
+func ShowCluster(showCtx ShowCtx, path, name string) error {
+	config, err := cluster.GetClusterConfig(path)
+	if err != nil {
+		return fmt.Errorf("failed to get a cluster configuration: %w", err)
+	}
+
+	return printClusterConfig(config, name, showCtx.Validate)
+}

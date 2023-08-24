@@ -33,3 +33,35 @@ func (collector FileCollector) Collect() (*Config, error) {
 	}
 	return config, nil
 }
+
+// FileDataPublisher publishes a data into a file as is.
+type FileDataPublisher struct {
+	// path is a path to the file.
+	path string
+}
+
+// NewFileDataPublisher creates a new FileDataPublisher object to publish
+// a data into a file for the given path.
+func NewFileDataPublisher(path string) FileDataPublisher {
+	return FileDataPublisher{
+		path: path,
+	}
+}
+
+// Publish publishes the data to a file for the given path.
+func (publisher FileDataPublisher) Publish(data []byte) error {
+	if publisher.path == "" {
+		return fmt.Errorf("file path is empty")
+	}
+	if data == nil {
+		return fmt.Errorf("failed to publish data into %q: data does not exist",
+			publisher.path)
+	}
+
+	err := os.WriteFile(publisher.path, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to publish data into %q: %w",
+			publisher.path, err)
+	}
+	return nil
+}

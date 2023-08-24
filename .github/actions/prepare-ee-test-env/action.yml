@@ -12,7 +12,7 @@ inputs:
     description: Whether to skip etcd installation
     type: boolean
     required: false
-    default: true
+    default: false
 
 runs:
   using: "composite"

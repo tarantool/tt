@@ -6,14 +6,19 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"gopkg.in/yaml.v2"
+)
+
+const (
+	DefaultEtcdTimeout = 3 * time.Second
 )
 
 // EtcdOpts is a way to configure a etcd client.
@@ -42,62 +47,66 @@ type EtcdOpts struct {
 	Timeout time.Duration
 }
 
-// MakeEtcdOpts creates a EtcdOpts object filled from a configuration.
-func MakeEtcdOpts(config *Config) (EtcdOpts, error) {
-	etcdConfig := NewConfig()
-	etcdPath := []string{"config", "etcd"}
-	config.ForEach(etcdPath, func(path []string, value any) {
-		path = path[len(etcdPath):]
-		etcdConfig.Set(path, value)
-	})
-
-	type parsedEtcdConfig struct {
-		Endpoints []string `yaml:"endpoints"`
-		Username  string   `yaml:"username"`
-		Password  string   `yaml:"password"`
-		Prefix    string   `yaml:"prefix"`
-		Ssl       struct {
-			KeyFile    string `yaml:"ssl_key"`
-			CertFile   string `yaml:"cert_file"`
-			CaPath     string `yaml:"ca_path"`
-			CaFile     string `yaml:"ca_file"`
-			VerifyPeer bool   `yaml:"verify_peer"`
-			VerifyHost bool   `yaml:"verify_host"`
-		} `yaml:"ssl"`
-		Http struct {
-			Request struct {
-				Timeout float64 `yaml:"timeout"`
-			} `yaml:"request"`
-		} `yaml:"http"`
+// MakeEtcdOptsFromUrl creates etcd options from a URL.
+func MakeEtcdOptsFromUrl(uri *url.URL) (EtcdOpts, error) {
+	if uri.Scheme == "" || uri.Host == "" {
+		return EtcdOpts{},
+			fmt.Errorf("URL must contain the scheme and the host parts")
 	}
-	var parsed parsedEtcdConfig
-	parsed.Ssl.VerifyPeer = true
-	parsed.Ssl.VerifyHost = true
 
-	if err := yaml.Unmarshal([]byte(etcdConfig.String()), &parsed); err != nil {
-		fmtErr := "unable to parse etcd config: %w"
-		return EtcdOpts{}, fmt.Errorf(fmtErr, err)
+	endpoint := url.URL{
+		Scheme: uri.Scheme,
+		Host:   uri.Host,
 	}
+	values := uri.Query()
 	opts := EtcdOpts{
-		Endpoints: parsed.Endpoints,
-		Prefix:    parsed.Prefix,
-		Username:  parsed.Username,
-		Password:  parsed.Password,
-		KeyFile:   parsed.Ssl.KeyFile,
-		CertFile:  parsed.Ssl.CertFile,
-		CaPath:    parsed.Ssl.CaPath,
-		CaFile:    parsed.Ssl.CaFile,
+		Endpoints: []string{endpoint.String()},
+		Prefix:    uri.Path,
+		Username:  uri.User.Username(),
+		KeyFile:   values.Get("ssl_key_file"),
+		CertFile:  values.Get("ssl_cert_file"),
+		CaPath:    values.Get("ssl_ca_path"),
+		CaFile:    values.Get("ssl_ca_file"),
+		Timeout:   DefaultEtcdTimeout,
 	}
-	if !parsed.Ssl.VerifyPeer || !parsed.Ssl.VerifyHost {
-		opts.SkipHostVerify = true
+	if password, ok := uri.User.Password(); ok {
+		opts.Password = password
 	}
-	if parsed.Http.Request.Timeout != 0 {
-		var err error
-		timeout := fmt.Sprintf("%fs", parsed.Http.Request.Timeout)
-		opts.Timeout, err = time.ParseDuration(timeout)
-		if err != nil {
-			fmtErr := "unable to parse a etcd request timeout: %w"
-			return EtcdOpts{}, fmt.Errorf(fmtErr, err)
+
+	verifyPeerStr := values.Get("verify_peer")
+	verifyHostStr := values.Get("verify_host")
+	timeoutStr := values.Get("timeout")
+
+	if verifyPeerStr != "" {
+		verifyPeerStr = strings.ToLower(verifyPeerStr)
+		if verify, err := strconv.ParseBool(verifyPeerStr); err == nil {
+			if verify == false {
+				opts.SkipHostVerify = true
+			}
+		} else {
+			err = fmt.Errorf("invalid verify_peer, boolean expected: %w", err)
+			return opts, err
+		}
+	}
+
+	if verifyHostStr != "" {
+		verifyHostStr = strings.ToLower(verifyHostStr)
+		if verify, err := strconv.ParseBool(verifyHostStr); err == nil {
+			if verify == false {
+				opts.SkipHostVerify = true
+			}
+		} else {
+			err = fmt.Errorf("invalid verify_host, boolean expected: %w", err)
+			return opts, err
+		}
+	}
+
+	if timeoutStr != "" {
+		if timeout, err := strconv.ParseFloat(timeoutStr, 64); err == nil {
+			opts.Timeout = time.Duration(timeout * float64(time.Second))
+		} else {
+			err = fmt.Errorf("invalid timeout, float expected: %w", err)
+			return opts, err
 		}
 	}
 
@@ -169,8 +178,7 @@ func NewEtcdCollector(getter EtcdGetter, prefix string, timeout time.Duration) E
 // Collect collects a configuration from the specified path with the specified
 // timeout.
 func (collector EtcdCollector) Collect() (*Config, error) {
-	prefix := strings.TrimRight(collector.prefix, "/")
-	key := fmt.Sprintf("%s/%s/", prefix, "config")
+	prefix := getConfigPrefix(collector.prefix)
 	ctx := context.Background()
 	if collector.timeout != 0 {
 		var cancel context.CancelFunc
@@ -178,12 +186,17 @@ func (collector EtcdCollector) Collect() (*Config, error) {
 		defer cancel()
 	}
 
-	resp, err := collector.getter.Get(ctx, key, clientv3.WithPrefix())
+	resp, err := collector.getter.Get(ctx, prefix, clientv3.WithPrefix())
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from etcd: %w", err)
 	}
 
 	cconfig := NewConfig()
+	if len(resp.Kvs) == 0 {
+		return nil, fmt.Errorf("a configuration data not found in prefix %q",
+			prefix)
+	}
+
 	for _, kv := range resp.Kvs {
 		if config, err := NewYamlCollector(kv.Value).Collect(); err != nil {
 			fmtErr := "failed to decode etcd config for key %q: %w"
@@ -194,6 +207,112 @@ func (collector EtcdCollector) Collect() (*Config, error) {
 	}
 
 	return cconfig, nil
+}
+
+// EtcdDataPublisher publishes a data into etcd.
+type EtcdDataPublisher struct {
+	getter  EtcdTxnGetter
+	prefix  string
+	timeout time.Duration
+}
+
+// EtcdUpdater is the interface that adds Txn method to EtcdGetter.
+type EtcdTxnGetter interface {
+	EtcdGetter
+	// Txn creates a transaction.
+	Txn(ctx context.Context) clientv3.Txn
+}
+
+// NewEtcdDataPublisher creates a new EtcdDataPublisher object to publish
+// a data to etcd with the prefix during the timeout.
+func NewEtcdDataPublisher(getter EtcdTxnGetter,
+	prefix string, timeout time.Duration) EtcdDataPublisher {
+	return EtcdDataPublisher{
+		getter:  getter,
+		prefix:  prefix,
+		timeout: timeout,
+	}
+}
+
+// Publish publishes the configuration into etcd to the given prefix.
+func (publisher EtcdDataPublisher) Publish(data []byte) error {
+	if data == nil {
+		return fmt.Errorf("failed to publish data into etcd: data does not exist")
+	}
+
+	prefix := getConfigPrefix(publisher.prefix)
+	key := prefix + "all"
+	ctx := context.Background()
+	if publisher.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, publisher.timeout)
+		defer cancel()
+	}
+
+	for true {
+		// The code tries to put data with the key and remove all other
+		// data with the prefix. We need to remove all other data with the
+		// prefix because actually the cluster config could be split
+		// into several parts with the same prefix.
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// First of all we need to get all paths with the prefix.
+		resp, err := publisher.getter.Get(ctx, prefix, clientv3.WithPrefix())
+		if err != nil {
+			return fmt.Errorf("failed to fetch data from etcd: %w", err)
+		}
+
+		// Then we need to delete all other paths and put the configuration
+		// into the target key. We do it in a single transaction to avoid
+		// concurrent updates and collisions.
+
+		// Fill the delete part of the transaction.
+		var (
+			keys      []string
+			revisions []int64
+		)
+		for _, kv := range resp.Kvs {
+			// We need to skip the target key since etcd transactions do not
+			// support delete + put for the same key on a single transaction.
+			if string(kv.Key) != key {
+				keys = append(keys, string(kv.Key))
+				revisions = append(revisions, kv.ModRevision)
+			}
+		}
+
+		var (
+			cmps []clientv3.Cmp
+			opts []clientv3.Op
+		)
+		for i, key := range keys {
+			cmp := clientv3.Compare(clientv3.ModRevision(key), "=", revisions[i])
+			cmps = append(cmps, cmp)
+			opts = append(opts, clientv3.OpDelete(key))
+		}
+
+		// Fill the put part of the transaction.
+		opts = append(opts, clientv3.OpPut(key, string(data)))
+		txn := publisher.getter.Txn(ctx)
+		if len(cmps) > 0 {
+			txn = txn.If(cmps...)
+		}
+
+		// And try to execute the transaction.
+		tresp, err := txn.Then(opts...).Commit()
+
+		if err != nil {
+			return fmt.Errorf("failed to put data into etcd: %w", err)
+		}
+		if tresp != nil && tresp.Succeeded {
+			return nil
+		}
+	}
+	// Unreachable.
+	return nil
 }
 
 // loadRootCA and the code below is a copy-paste from Go sources. We need an
@@ -252,4 +371,10 @@ func isSameDirSymlink(f fs.DirEntry, dir string) bool {
 
 	target, err := os.Readlink(filepath.Join(dir, f.Name()))
 	return err == nil && !strings.Contains(target, "/")
+}
+
+// getConfigPrefix returns a full configuration prefix.
+func getConfigPrefix(basePrefix string) string {
+	prefix := strings.TrimRight(basePrefix, "/")
+	return fmt.Sprintf("%s/%s/", prefix, "config")
 }
