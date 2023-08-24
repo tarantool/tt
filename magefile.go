@@ -303,7 +303,7 @@ func Codespell() error {
 	fmt.Println("Running codespell tests...")
 
 	return sh.RunV("codespell", packagePath, "test", "README.md", "doc", "CHANGELOG.md",
-		"--skip=./cli/cluster/paths.go")
+		"-L", "ro", "--skip=./cli/cluster/paths.go")
 }
 
 // Run all tests together, excluding slow and unit integration tests.

@@ -166,6 +166,23 @@ func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 	require.NotNil(t, presp)
 }
 
+func etcdGet(t *testing.T, etcd *clientv3.Client, key string) []byte {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	resp, err := etcd.Get(ctx, key)
+	cancel()
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	if len(resp.Kvs) == 0 {
+		return []byte("")
+	}
+
+	require.Len(t, resp.Kvs, 1)
+	return resp.Kvs[0].Value
+}
+
 type connectEtcdOpts struct {
 	ServerEndpoint string
 	ServerOpts     etcdOpts
@@ -344,8 +361,7 @@ func TestEtcdCollector_empty(t *testing.T) {
 	defer etcd.Close()
 
 	config, err := cluster.NewEtcdCollector(etcd, "foo", timeout).Collect()
-	require.NoError(t, err)
-	_, err = config.Get(nil)
+	assert.Nil(t, config)
 	assert.Error(t, err)
 }
 
@@ -496,4 +512,100 @@ wal:
   dir: filedir
   mode: etcdmode
 `, config.RawConfig.String())
+}
+
+func TestEtcdDataPublisher_Publish_simple(t *testing.T) {
+	inst := startEtcd(t, httpEndpoint, etcdOpts{})
+	defer stopEtcd(t, inst)
+
+	endpoints := []string{httpEndpoint}
+	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	require.NoError(t, err)
+	require.NotNil(t, etcd)
+	defer etcd.Close()
+
+	data := []byte("foo bar")
+	err = cluster.NewEtcdDataPublisher(etcd, "/foo/", timeout).Publish(data)
+
+	assert.NoError(t, err)
+	assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/all"))
+}
+
+func TestEtcdDataPublisher_Publish_rewrite(t *testing.T) {
+	inst := startEtcd(t, httpEndpoint, etcdOpts{})
+	defer stopEtcd(t, inst)
+
+	endpoints := []string{httpEndpoint}
+	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	require.NoError(t, err)
+	require.NotNil(t, etcd)
+	defer etcd.Close()
+
+	oldData := []byte("foo bar zoo")
+	err = cluster.NewEtcdDataPublisher(etcd, "/foo/", timeout).Publish(oldData)
+	newData := []byte("zoo bar foo")
+	err = cluster.NewEtcdDataPublisher(etcd, "/foo/", timeout).Publish(newData)
+
+	assert.NoError(t, err)
+	assert.Equal(t, newData, etcdGet(t, etcd, "/foo/config/all"))
+}
+
+func TestEtcdDataPublisher_Publish_rewrite_prefix(t *testing.T) {
+	inst := startEtcd(t, httpEndpoint, etcdOpts{})
+	defer stopEtcd(t, inst)
+
+	endpoints := []string{httpEndpoint}
+	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	require.NoError(t, err)
+	require.NotNil(t, etcd)
+	defer etcd.Close()
+
+	etcdPut(t, etcd, "/foo/config/", "foo")
+	etcdPut(t, etcd, "/foo/config/foo", "zoo")
+
+	data := []byte("zoo bar foo")
+	err = cluster.NewEtcdDataPublisher(etcd, "/foo/", timeout).Publish(data)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(""), etcdGet(t, etcd, "/foo/config/"))
+	assert.Equal(t, []byte(""), etcdGet(t, etcd, "/foo/config/foo"))
+	assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/all"))
+}
+
+func TestEtcdDataPublisher_collect_publish_collect(t *testing.T) {
+	inst := startEtcd(t, httpEndpoint, etcdOpts{})
+	defer stopEtcd(t, inst)
+
+	endpoints := []string{httpEndpoint}
+	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	require.NoError(t, err)
+	require.NotNil(t, etcd)
+	defer etcd.Close()
+
+	etcdPut(t, etcd, "/foo/config/foo", "zoo: bar")
+
+	prefix := "/foo/"
+	dataPublisher := cluster.NewEtcdDataPublisher(etcd, prefix, timeout)
+	publisher := cluster.NewYamlConfigPublisher(dataPublisher)
+	collector := cluster.NewEtcdCollector(etcd, prefix, timeout)
+
+	config, err := collector.Collect()
+	require.NoError(t, err)
+	value, err := config.Get([]string{"zoo"})
+	assert.NoError(t, err)
+	assert.Equal(t, value, "bar")
+
+	config = cluster.NewConfig()
+	config.Set([]string{"foo"}, "bar")
+
+	err = publisher.Publish(config)
+	assert.NoError(t, err)
+	config, err = collector.Collect()
+	require.NoError(t, err)
+
+	value, err = config.Get([]string{"foo"})
+	assert.NoError(t, err)
+	assert.Equal(t, value, "bar")
+	_, err = config.Get([]string{"zoo"})
+	assert.Error(t, err)
 }

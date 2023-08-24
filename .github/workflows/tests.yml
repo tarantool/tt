@@ -127,6 +127,9 @@ jobs:
           brew install --overwrite go mage
           pip3 install -r test/requirements.txt
 
+      - name: Install etcd
+        uses: ./.github/actions/setup-etcd
+
       - name: Build tt
         env:
           TT_CLI_BUILD_SSL: 'static'

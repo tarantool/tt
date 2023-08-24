@@ -191,7 +191,14 @@ func MakeClusterConfig(config *Config) (ClusterConfig, error) {
 	}
 
 	err := yaml.Unmarshal([]byte(config.String()), &cconfig)
-	return cconfig, err
+	if err != nil {
+		err = fmt.Errorf(
+			"failed to parse a configuration data as a cluster config: %w",
+			err)
+		return cconfig, err
+
+	}
+	return cconfig, nil
 }
 
 // mergeExclude merges a high priority configuration with a low priority
@@ -371,4 +378,31 @@ func GetInstanceConfig(cluster ClusterConfig, instance string) (InstanceConfig, 
 	iconfig.Merge(Instantiate(cluster, instance))
 
 	return MakeInstanceConfig(iconfig)
+}
+
+// ReplaceInstanceConfig replaces an instance configuration.
+func ReplaceInstanceConfig(cconfig ClusterConfig,
+	instance string, iconfig *Config) (ClusterConfig, error) {
+	for gname, group := range cconfig.Groups {
+		for rname, replicaset := range group.Replicasets {
+			for iname, _ := range replicaset.Instances {
+				if instance == iname {
+					path := []string{groupsLabel, gname,
+						replicasetsLabel, rname,
+						instancesLabel, iname,
+					}
+					newConfig := NewConfig()
+					newConfig.Merge(cconfig.RawConfig)
+					if err := newConfig.Set(path, iconfig); err != nil {
+						err = fmt.Errorf("failed to set configuration: %w", err)
+						return cconfig, err
+					}
+					return MakeClusterConfig(newConfig)
+				}
+			}
+		}
+	}
+
+	return cconfig,
+		fmt.Errorf("cluster configuration has not an instance %q", instance)
 }

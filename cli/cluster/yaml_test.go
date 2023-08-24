@@ -95,3 +95,65 @@ func TestYamlCollector_unique(t *testing.T) {
 	_, err = config2.Get(path)
 	assert.Error(t, err)
 }
+
+type dataPublishFunc func(data []byte) error
+
+func (f dataPublishFunc) Publish(data []byte) error {
+	return f(data)
+}
+
+func TestNewYamlConfigPublisher(t *testing.T) {
+	var publisher cluster.ConfigPublisher
+	publisher = cluster.NewYamlConfigPublisher(nil)
+	assert.NotNil(t, publisher)
+}
+
+func TestYamlConfigPublisher_Publish_nil_publisher(t *testing.T) {
+	publisher := cluster.NewYamlConfigPublisher(nil)
+	config := cluster.NewConfig()
+
+	assert.Panics(t, func() {
+		publisher.Publish(config)
+	})
+}
+
+func TestYamlConfigPublisher_Publish_nil_config(t *testing.T) {
+	publisher := cluster.NewYamlConfigPublisher(nil)
+	err := publisher.Publish(nil)
+
+	assert.EqualError(t, err, "config does not exist")
+}
+
+func TestYamlConfigPublisher_Publish_publish_data(t *testing.T) {
+	var input []byte
+	publisher := cluster.NewYamlConfigPublisher(dataPublishFunc(
+		func(data []byte) error {
+			input = data
+			return nil
+		}))
+	config := cluster.NewConfig()
+	config.Set([]string{"foo"}, "bar")
+	config.Set([]string{"zoo", "foo"}, []any{1, 2, 3})
+
+	err := publisher.Publish(config)
+	require.NoError(t, err)
+	assert.Equal(t, `foo: bar
+zoo:
+  foo:
+  - 1
+  - 2
+  - 3
+`, string(input))
+}
+
+func TestYamlConfigPublisher_Publish_error(t *testing.T) {
+	err := fmt.Errorf("any")
+	publisher := cluster.NewYamlConfigPublisher(dataPublishFunc(
+		func([]byte) error {
+			return err
+		}))
+	config := cluster.NewConfig()
+
+	errPublish := publisher.Publish(config)
+	assert.ErrorIs(t, errPublish, err)
+}

@@ -92,13 +92,8 @@ func MakeEtcdOpts(config *Config) (EtcdOpts, error) {
 		opts.SkipHostVerify = true
 	}
 	if parsed.Http.Request.Timeout != 0 {
-		var err error
-		timeout := fmt.Sprintf("%fs", parsed.Http.Request.Timeout)
-		opts.Timeout, err = time.ParseDuration(timeout)
-		if err != nil {
-			fmtErr := "unable to parse a etcd request timeout: %w"
-			return EtcdOpts{}, fmt.Errorf(fmtErr, err)
-		}
+		timeoutFloat := parsed.Http.Request.Timeout * float64(time.Second)
+		opts.Timeout = time.Duration(timeoutFloat)
 	}
 
 	return opts, nil
@@ -169,8 +164,7 @@ func NewEtcdCollector(getter EtcdGetter, prefix string, timeout time.Duration) E
 // Collect collects a configuration from the specified path with the specified
 // timeout.
 func (collector EtcdCollector) Collect() (*Config, error) {
-	prefix := strings.TrimRight(collector.prefix, "/")
-	key := fmt.Sprintf("%s/%s/", prefix, "config")
+	prefix := getConfigPrefix(collector.prefix)
 	ctx := context.Background()
 	if collector.timeout != 0 {
 		var cancel context.CancelFunc
@@ -178,12 +172,17 @@ func (collector EtcdCollector) Collect() (*Config, error) {
 		defer cancel()
 	}
 
-	resp, err := collector.getter.Get(ctx, key, clientv3.WithPrefix())
+	resp, err := collector.getter.Get(ctx, prefix, clientv3.WithPrefix())
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from etcd: %w", err)
 	}
 
 	cconfig := NewConfig()
+	if len(resp.Kvs) == 0 {
+		return nil, fmt.Errorf("a configuration data not found in prefix %q",
+			prefix)
+	}
+
 	for _, kv := range resp.Kvs {
 		if config, err := NewYamlCollector(kv.Value).Collect(); err != nil {
 			fmtErr := "failed to decode etcd config for key %q: %w"
@@ -194,6 +193,99 @@ func (collector EtcdCollector) Collect() (*Config, error) {
 	}
 
 	return cconfig, nil
+}
+
+// EtcdDataPublisher publishes a data into etcd.
+type EtcdDataPublisher struct {
+	getter  EtcdTxnGetter
+	prefix  string
+	timeout time.Duration
+}
+
+// EtcdUpdater is the interface that adds Txn method to EtcdGetter.
+type EtcdTxnGetter interface {
+	EtcdGetter
+	// Txn creates a transaction.
+	Txn(ctx context.Context) clientv3.Txn
+}
+
+// NewEtcdDataPublisher creates a new EtcdDataPublisher object to publish
+// a data to etcd with the prefix during the timeout.
+func NewEtcdDataPublisher(getter EtcdTxnGetter,
+	prefix string, timeout time.Duration) EtcdDataPublisher {
+	return EtcdDataPublisher{
+		getter:  getter,
+		prefix:  prefix,
+		timeout: timeout,
+	}
+}
+
+// Publish publishes the configuration into etcd to the given prefix.
+func (publisher EtcdDataPublisher) Publish(data []byte) error {
+	if data == nil {
+		return fmt.Errorf("failed to publish data into etcd: data does not exist")
+	}
+
+	prefix := getConfigPrefix(publisher.prefix)
+	key := prefix + "all"
+	ctx := context.Background()
+	if publisher.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, publisher.timeout)
+		defer cancel()
+	}
+
+	for true {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		resp, err := publisher.getter.Get(ctx, prefix, clientv3.WithPrefix())
+		if err != nil {
+			return fmt.Errorf("failed to fetch data from etcd: %w", err)
+		}
+
+		var (
+			keys      []string
+			revisions []int64
+		)
+		for _, kv := range resp.Kvs {
+			// We need to skip the target key since etcd transactions do not
+			// support delete + put for the same key on a single transaction.
+			if string(kv.Key) != key {
+				keys = append(keys, string(kv.Key))
+				revisions = append(revisions, kv.ModRevision)
+			}
+		}
+
+		var (
+			cmps []clientv3.Cmp
+			opts []clientv3.Op
+		)
+		for i, key := range keys {
+			cmp := clientv3.Compare(clientv3.ModRevision(key), "=", revisions[i])
+			cmps = append(cmps, cmp)
+			opts = append(opts, clientv3.OpDelete(key))
+		}
+
+		opts = append(opts, clientv3.OpPut(key, string(data)))
+		txn := publisher.getter.Txn(ctx)
+		if len(cmps) > 0 {
+			txn = txn.If(cmps...)
+		}
+		tresp, err := txn.Then(opts...).Commit()
+
+		if err != nil {
+			return fmt.Errorf("failed to put data into etcd: %w", err)
+		}
+		if tresp != nil && tresp.Succeeded {
+			return nil
+		}
+	}
+	// Unreachable.
+	return nil
 }
 
 // loadRootCA and the code below is a copy-paste from Go sources. We need an
@@ -252,4 +344,10 @@ func isSameDirSymlink(f fs.DirEntry, dir string) bool {
 
 	target, err := os.Readlink(filepath.Join(dir, f.Name()))
 	return err == nil && !strings.Contains(target, "/")
+}
+
+// getConfigPrefix returns a full configuration prefix.
+func getConfigPrefix(basePrefix string) string {
+	prefix := strings.TrimRight(basePrefix, "/")
+	return fmt.Sprintf("%s/%s/", prefix, "config")
 }

@@ -37,6 +37,47 @@ func (g *MockEtcdGetter) Get(ctx context.Context, key string,
 	}, nil
 }
 
+type MockTxn struct {
+	IfCs    []clientv3.Cmp
+	ThenOps []clientv3.Op
+	ElseOps []clientv3.Op
+	Resp    *clientv3.TxnResponse
+	Err     error
+}
+
+func (txn *MockTxn) If(cs ...clientv3.Cmp) clientv3.Txn {
+	txn.IfCs = cs
+	return txn
+}
+
+func (txn *MockTxn) Then(ops ...clientv3.Op) clientv3.Txn {
+	txn.ThenOps = ops
+	return txn
+}
+
+func (txn *MockTxn) Else(ops ...clientv3.Op) clientv3.Txn {
+	txn.ElseOps = ops
+	return txn
+}
+
+func (txn *MockTxn) Commit() (*clientv3.TxnResponse, error) {
+	return txn.Resp, txn.Err
+}
+
+type MockEtcdTxnGetter struct {
+	MockEtcdGetter
+	TxnRet *MockTxn
+	CtxTxn context.Context
+}
+
+func (getter *MockEtcdTxnGetter) Txn(ctx context.Context) clientv3.Txn {
+	getter.CtxTxn = ctx
+	if getter.TxnRet == nil {
+		getter.TxnRet = &MockTxn{Resp: &clientv3.TxnResponse{Succeeded: true}}
+	}
+	return getter.TxnRet
+}
+
 func TestMakeEtcdOpts_full(t *testing.T) {
 	config := cluster.NewConfig()
 	expected := cluster.EtcdOpts{
@@ -153,31 +194,25 @@ func TestEtcdConfig_Collect_getter_inputs(t *testing.T) {
 	}
 }
 
-func TestEtcdConfig_Collect_no_timeout(t *testing.T) {
-	mock := &MockEtcdGetter{
-		Err: fmt.Errorf("any"),
-	}
+func TestEtcdConfig_Collect_timeout(t *testing.T) {
+	cases := []time.Duration{0, 60 * time.Second}
 
-	cluster.NewEtcdCollector(mock, "/foo", 0).Collect()
-	assert.NotNil(t, mock.Ctx)
-	_, ok := mock.Ctx.Deadline()
-	assert.False(t, ok)
-}
+	for _, tc := range cases {
+		t.Run(fmt.Sprint(tc), func(t *testing.T) {
+			mock := &MockEtcdGetter{
+				Err: fmt.Errorf("any"),
+			}
+			cluster.NewEtcdCollector(mock, "/foo", tc).Collect()
 
-func TestEtcdConfig_Collect_getter_timeout(t *testing.T) {
-	mock := &MockEtcdGetter{
-		Err: fmt.Errorf("any"),
-	}
-	timeout := 2 * time.Second
-
-	cluster.NewEtcdCollector(mock, "/foo", timeout).Collect()
-	assert.NotNil(t, mock.Ctx)
-	select {
-	case <-time.After(timeout - time.Second):
-		t.Errorf("too small timeout")
-	case <-mock.Ctx.Done():
-	case <-time.After(timeout + time.Second):
-		t.Errorf("too long timeout")
+			expected := time.Now().Add(tc)
+			deadline, ok := mock.Ctx.Deadline()
+			if tc == 0 {
+				assert.False(t, ok)
+			} else {
+				assert.True(t, ok)
+				assert.InDelta(t, expected.Unix(), deadline.Unix(), 1)
+			}
+		})
 	}
 }
 
@@ -240,10 +275,8 @@ func TestEtcdConfig_Collect_empty(t *testing.T) {
 	}
 	config, err := cluster.NewEtcdCollector(mock, "foo", 0).Collect()
 
-	assert.NoError(t, err)
-	assert.NotNil(t, config)
-	_, err = config.Get(nil)
 	assert.Error(t, err)
+	assert.Nil(t, config)
 }
 
 func TestEtcdConfig_Collect_decode_error(t *testing.T) {
@@ -268,4 +301,223 @@ func TestEtcdConfig_Collect_decode_error(t *testing.T) {
 			assert.Nil(t, config)
 		})
 	}
+}
+
+func TestNewEtcdDataPublisher(t *testing.T) {
+	var publisher cluster.DataPublisher
+
+	publisher = cluster.NewEtcdDataPublisher(nil, "", 0)
+
+	assert.NotNil(t, publisher)
+}
+
+func TestEtcdDataPublisher_Publish_get_inputs(t *testing.T) {
+	cases := []struct {
+		Prefix string
+		Key    string
+	}{
+		{"", "/config/"},
+		{"////", "/config/"},
+		{"foo", "foo/config/"},
+		{"/foo/bar", "/foo/bar/config/"},
+		{"/foo/bar////", "/foo/bar/config/"},
+	}
+	data := []byte("foo bar")
+
+	for _, tc := range cases {
+		t.Run(tc.Prefix, func(t *testing.T) {
+			mock := &MockEtcdTxnGetter{}
+			cluster.NewEtcdDataPublisher(mock, tc.Prefix, 0).Publish(data)
+
+			assert.NotNil(t, mock.Ctx)
+			assert.Equal(t, tc.Key, mock.Key)
+			require.Len(t, mock.Opts, 1)
+		})
+	}
+}
+
+func TestEtcdDataPublisher_Publish_txn_inputs(t *testing.T) {
+	cases := []struct {
+		Name    string
+		Mock    *MockEtcdTxnGetter
+		IfLen   int
+		ThenLen int
+	}{
+		{
+			Name:    "no get keys",
+			Mock:    &MockEtcdTxnGetter{},
+			IfLen:   0,
+			ThenLen: 1,
+		},
+		{
+			Name: "get keys",
+			Mock: &MockEtcdTxnGetter{
+				MockEtcdGetter: MockEtcdGetter{
+					Kvs: []*mvccpb.KeyValue{
+						&mvccpb.KeyValue{
+							Key: []byte("foo"),
+						},
+						&mvccpb.KeyValue{
+							Key: []byte("foo"),
+						},
+						&mvccpb.KeyValue{
+							Key: []byte("foo"),
+						},
+					},
+				},
+			},
+			IfLen:   3,
+			ThenLen: 4,
+		},
+		{
+			Name: "get keys with target",
+			Mock: &MockEtcdTxnGetter{
+				MockEtcdGetter: MockEtcdGetter{
+					Kvs: []*mvccpb.KeyValue{
+						&mvccpb.KeyValue{
+							Key: []byte("foo"),
+						},
+						&mvccpb.KeyValue{
+							Key: []byte("foo"),
+						},
+						&mvccpb.KeyValue{
+							Key: []byte("/foo/config/all"),
+						},
+					},
+				},
+			},
+			IfLen:   2,
+			ThenLen: 3,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			publisher := cluster.NewEtcdDataPublisher(tc.Mock, "/foo", 0)
+			publisher.Publish([]byte{})
+
+			assert.Len(t, tc.Mock.TxnRet.IfCs, tc.IfLen)
+			assert.Len(t, tc.Mock.TxnRet.ThenOps, tc.ThenLen)
+			assert.Len(t, tc.Mock.TxnRet.ElseOps, 0)
+
+			// Cs and Ops structures have not any public fields. So
+			// we can't check it directly and we need additional integration
+			// tests.
+			for i, op := range tc.Mock.TxnRet.ThenOps {
+				if i == len(tc.Mock.TxnRet.ThenOps)-1 {
+					assert.True(t, op.IsPut())
+				} else {
+					assert.True(t, op.IsDelete())
+				}
+			}
+		})
+	}
+}
+
+func TestEtcdDataPublisher_Publish_data_nil(t *testing.T) {
+	publisher := cluster.NewEtcdDataPublisher(nil, "", 0)
+
+	err := publisher.Publish(nil)
+
+	assert.EqualError(t, err,
+		"failed to publish data into etcd: data does not exist")
+}
+
+func TestEtcdDataPublisher_Publish_publisher_nil(t *testing.T) {
+	publisher := cluster.NewEtcdDataPublisher(nil, "", 0)
+
+	assert.Panics(t, func() {
+		publisher.Publish([]byte{})
+	})
+}
+
+func TestEtcdDataPublisher_Publish_errors(t *testing.T) {
+	cases := []struct {
+		Name     string
+		Mock     cluster.EtcdTxnGetter
+		Expected string
+	}{
+		{
+			Name:     "no error",
+			Mock:     &MockEtcdTxnGetter{},
+			Expected: "",
+		},
+		{
+			Name: "get error",
+			Mock: &MockEtcdTxnGetter{
+				MockEtcdGetter: MockEtcdGetter{
+					Err: fmt.Errorf("get"),
+				},
+			},
+			Expected: "failed to fetch data from etcd: get",
+		},
+		{
+			Name: "txn commit error",
+			Mock: &MockEtcdTxnGetter{
+				TxnRet: &MockTxn{Err: fmt.Errorf("txn commit")},
+			},
+			Expected: "failed to put data into etcd: txn commit",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			publisher := cluster.NewEtcdDataPublisher(tc.Mock, "prefix", 0)
+			err := publisher.Publish([]byte{})
+			if tc.Expected != "" {
+				assert.EqualError(t, err, tc.Expected)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestEtcdDataPublisher_Publish_timeout(t *testing.T) {
+	cases := []time.Duration{0, 60 * time.Second}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprint(tc), func(t *testing.T) {
+			mock := &MockEtcdTxnGetter{}
+			publisher := cluster.NewEtcdDataPublisher(mock, "prefix", tc)
+			err := publisher.Publish([]byte{})
+
+			require.NoError(t, err)
+			require.NotNil(t, mock.Ctx)
+			require.NotNil(t, mock.CtxTxn)
+			assert.Equal(t, mock.Ctx, mock.CtxTxn)
+
+			if tc == 0 {
+				_, ok := mock.Ctx.Deadline()
+				assert.False(t, ok)
+				_, ok = mock.CtxTxn.Deadline()
+				assert.False(t, ok)
+			} else {
+				expected := time.Now().Add(tc)
+				deadline, ok := mock.Ctx.Deadline()
+				assert.True(t, ok)
+				assert.InDelta(t, expected.Unix(), deadline.Unix(), 1)
+				deadline, ok = mock.CtxTxn.Deadline()
+				assert.True(t, ok)
+				assert.InDelta(t, expected.Unix(), deadline.Unix(), 1)
+			}
+		})
+	}
+}
+
+func TestEtcdDataPublisher_Publish_timeout_exit(t *testing.T) {
+	mock := &MockEtcdTxnGetter{
+		TxnRet: &MockTxn{
+			Resp: &clientv3.TxnResponse{Succeeded: false},
+		},
+	}
+
+	// You should increase the values if the test is flaky.
+	before := time.Now()
+	timeout := 100 * time.Millisecond
+	delta := 10 * time.Millisecond
+	publisher := cluster.NewEtcdDataPublisher(mock, "prefix", timeout)
+	err := publisher.Publish([]byte{})
+	assert.EqualError(t, err, "context deadline exceeded")
+	assert.InDelta(t, timeout, time.Since(before), float64(delta))
 }

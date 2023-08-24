@@ -3,9 +3,10 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/tarantool/tt/cli/util"
 	"os"
 	"path/filepath"
+
+	"github.com/tarantool/tt/cli/util"
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
@@ -151,6 +152,7 @@ func NewCmdRoot() *cobra.Command {
 		NewCatCmd(),
 		NewPlayCmd(),
 		NewCartridgeCmd(),
+		NewClusterCmd(),
 		NewCoredumpCmd(),
 		NewRunCmd(),
 		NewSearchCmd(),

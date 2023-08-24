@@ -87,7 +87,12 @@ func (config *Config) Set(path []string, value any) error {
 	if m, err := config.createMaps(path[0:last]); err != nil {
 		return err
 	} else {
-		m[path[last]] = value
+		key := path[last]
+		if cfg, ok := value.(*Config); value != nil && ok {
+			m[key] = cfg.paths
+		} else {
+			m[key] = value
+		}
 	}
 
 	return nil

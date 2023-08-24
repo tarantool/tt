@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt install tarantool/tt`: ability to install tarantool and tt from an arbitrary commit.
 The binary has the name tt/tarantool_ + seven-digit hash.
+- Module ``tt cluster``, to show or publish a cluster or an instance
+  configuration.
 
 ### Fixed
 
