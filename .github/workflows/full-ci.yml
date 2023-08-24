@@ -132,7 +132,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew install --overwrite go mage wget
-          pip3 install pytest requests psutil pyyaml netifaces tarantool
+          pip3 install -r test/requirements.txt
 
       - name: Install etcd
         uses: ./.github/actions/setup-etcd
@@ -183,7 +183,7 @@ jobs:
         run: |
           brew install --overwrite go mage
           brew install python3
-          pip3 install pytest tarantool requests psutil pyyaml netifaces
+          pip3 install -r test/requirements.txt
 
       - name: Build tt
         env:
@@ -241,7 +241,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip3 install pytest tarantool requests psutil pyyaml netifaces
+          pip3 install -r test/requirements.txt
 
       - name: Integration tests
         env:
@@ -279,7 +279,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip3 install pytest tarantool requests psutil pyyaml netifaces
+          pip3 install -r test/requirements.txt
 
       - name: Integration tests
         env:

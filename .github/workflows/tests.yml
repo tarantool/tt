@@ -125,7 +125,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew install --overwrite go mage
-          pip3 install pytest tarantool requests psutil pyyaml netifaces
+          pip3 install -r test/requirements.txt
 
       - name: Build tt
         env:
