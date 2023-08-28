@@ -377,3 +377,23 @@ def is_valid_tarantool_installed(
             return False
 
     return True
+
+
+def get_tarantool_version():
+    try:
+        tt_process = subprocess.Popen(
+            ["tarantool", "--version"],
+            stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True
+        )
+    except FileNotFoundError:
+        return 0, 0
+
+    tt_process.wait()
+    assert tt_process.returncode == 0
+    version_line = tt_process.stdout.readline()
+
+    match = re.match(r"Tarantool\s+(Enterprise\s+)?(?P<major>\d+)\.(?P<minor>\d+)", version_line)
+
+    assert match is not None
+
+    return int(match.group('major')), int(match.group('minor'))

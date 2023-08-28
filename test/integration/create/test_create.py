@@ -7,8 +7,8 @@ import tempfile
 import pytest
 import yaml
 
-from utils import (config_name, extract_status, run_command_and_get_output,
-                   wait_file)
+from utils import (config_name, extract_status, get_tarantool_version,
+                   run_command_and_get_output, wait_file)
 
 tt_config_text = '''tt:
   app:
@@ -27,6 +27,9 @@ conf_path = '/etc/{user_name}/conf.lua'
 password={pwd}
 attempts={retry_count}
 '''
+
+
+tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
 def check_file_text(filepath, text):
@@ -679,6 +682,8 @@ def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmpdi
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(tarantool_major_version >= 3,
+                    reason="skip cartridge app tests for Tarantool 3.0")
 def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, tmpdir):
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmpdir))
@@ -756,6 +761,7 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     for line in start_output:
         assert "Starting an instance" in line
     for pid_file in ["router", "s1-master", "s1-replica", "s2-master", "s2-replica"]:
+        print("Waiting for " + os.path.join(tmpdir, "app1", pid_file))
         file = wait_file(os.path.join(tmpdir, "app1", pid_file), pid_file + ".pid", [])
         assert file != ""
 

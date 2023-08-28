@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/exp/slices"
@@ -167,6 +168,8 @@ func Test_collectInstancesForApps(t *testing.T) {
 			assert.Equal(t, filepath.Join(cfgDir, "var", "run", clusterAppName, "instance-001",
 				"instance-001.control"),
 				inst.ConsoleSocket)
+			assert.Equal(t, "testdata/instances_enabled/cluster_app/config.yml",
+				inst.ClusterConfigPath)
 			comparisonsCount++
 
 		case "instance-002":
@@ -201,4 +204,60 @@ func Test_collectInstancesForApps(t *testing.T) {
 		}
 	}
 	require.Equal(t, 3, comparisonsCount)
+}
+
+func TestIsAbleToStartInstances(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	err := os.WriteFile(filepath.Join(tmpDir, "tnt.sh"),
+		[]byte(`#!/bin/bash
+echo "Tarantool 2.11.0"`),
+		0755)
+	require.NoError(t, err)
+
+	canStart, _ := IsAbleToStartInstances([]InstanceCtx{
+		{
+			InstanceScript: "init.lua",
+		},
+	}, &cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			TarantoolCli: cmdcontext.TarantoolCli{
+				Executable: filepath.Join(tmpDir, "tnt.sh"),
+			},
+		},
+	})
+	assert.True(t, canStart)
+
+	canStart, reason := IsAbleToStartInstances([]InstanceCtx{
+		{
+			InstanceScript:    "init.lua",
+			ClusterConfigPath: "config.yml",
+		},
+	}, &cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			TarantoolCli: cmdcontext.TarantoolCli{
+				Executable: filepath.Join(tmpDir, "tnt.sh"),
+			},
+		},
+	})
+	assert.False(t, canStart)
+	assert.Contains(t, reason, "supported by Tarantool starting from version 3.0")
+
+	err = os.WriteFile(filepath.Join(tmpDir, "tnt_non_executable.sh"),
+		[]byte(`#!/bin/bash
+echo "Tarantool 2.11.0"`), 0644)
+	require.NoError(t, err)
+	canStart, reason = IsAbleToStartInstances([]InstanceCtx{
+		{
+			InstanceScript: "init.lua",
+		},
+	}, &cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			TarantoolCli: cmdcontext.TarantoolCli{
+				Executable: filepath.Join(tmpDir, "tnt_non_executable.sh"),
+			},
+		},
+	})
+	assert.False(t, canStart)
+	assert.Contains(t, reason, "permission denied")
 }

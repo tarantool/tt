@@ -1,0 +1,20 @@
+credentials:
+  users:
+    guest:
+      roles: [super]
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            iproto:
+              listen: '127.0.0.1:3301'
+            database:
+              mode: rw
+          storage:
+            iproto:
+              listen: '127.0.0.1:3302'
+            database:
+              mode: ro
