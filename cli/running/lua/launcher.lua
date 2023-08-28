@@ -286,13 +286,14 @@ local function start_instance()
         -- So the socket will be closed automatically on termination and
         -- deleted from "running.go".
         if box.ctl.on_shutdown ~= nil then
-            local close_sock_tr = box.ctl.on_shutdown(function()
+            local function close_sock_tr()
                 box.ctl.on_shutdown(nil, close_sock_tr)
                 local res, err = pcall(cons_listen_sock.close, cons_listen_sock)
                 if not res then
                     log.error('Failed to close console socket %s: %s', console_sock, err)
                 end
-            end)
+            end
+            box.ctl.on_shutdown(close_sock_tr)
         end
 
     end
