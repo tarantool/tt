@@ -1,0 +1,38 @@
+credentials:
+  users:
+    storage:
+      password: storage
+      roles: [super]
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          storage1:
+            iproto:
+              listen: '127.0.0.1:3301'
+            database:
+              instance_uuid: '8a274925-a26d-47fc-9e1b-af88ce939412'
+              replicaset_uuid: 'cbf06940-0790-498b-948d-042b62cf3d29'
+              mode: rw
+            app:
+              file: 'storage.lua'
+      replicaset-002:
+        instances:
+          storage2:
+            iproto:
+              listen: '127.0.0.1:3302'
+            database:
+              instance_uuid: '1e02ae8a-afc0-4e91-ba34-843a356b8ed7'
+              replicaset_uuid: 'ac522f65-aa94-4134-9f64-51ee384f1a54'
+              mode: rw
+            app:
+              file: 'storage.lua'
+      replicaset-003:
+        instances:
+          router:
+            iproto:
+              listen: '127.0.0.1:3300'
+            app:
+              file: 'router.lua'

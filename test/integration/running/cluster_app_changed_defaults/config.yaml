@@ -1,0 +1,23 @@
+credentials:
+  users:
+    guest:
+      roles: [super]
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            iproto:
+              listen: '127.0.0.1:3301'
+            database:
+              mode: rw
+            wal:
+              dir: ./var/lib/{{ instance_name }}_wal
+            snapshot:
+              dir: ./var/lib/{{ instance_name }}_snapshot
+            console:
+              socket: ./run_{{ instance_name }}.control
+            process:
+              pid_file: ./run_{{ instance_name }}.pid

@@ -7,9 +7,10 @@ import pytest
 import yaml
 
 import utils
-from utils import run_command_and_get_output, wait_file
+from utils import get_tarantool_version, run_command_and_get_output, wait_file
 
 cartridge_name = "test_app"
+tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
 @pytest.fixture(autouse=True)
@@ -26,6 +27,8 @@ def stop_cartridge_app(tt_cmd, tmpdir):
         assert stop_rc == 0
 
 
+@pytest.mark.skipif(tarantool_major_version >= 3,
+                    reason="skip cartridge tests for Tarantool 3.0")
 def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     create_cmd = [tt_cmd, "create", "cartridge", "--name", cartridge_name]
@@ -130,6 +133,8 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
         assert stop_rc == 0
 
 
+@pytest.mark.skipif(tarantool_major_version >= 3,
+                    reason="skip cartridge tests for Tarantool 3.0")
 def test_cartridge_base_functionality_in_app_dir(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     create_cmd = [tt_cmd, "create", "cartridge", "--name", cartridge_name]
