@@ -472,6 +472,12 @@ def test_running_reread_config(tt_cmd, tmpdir):
     instance_process_rc = instance_process.wait(1)
     assert instance_process_rc == 0
 
+    status_cmd = [tt_cmd, "status", inst_name]
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    status_out = extract_status(status_out)
+    assert status_out[inst_name]["STATUS"] == "NOT RUNNING"
+
 
 def test_no_args_usage(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
