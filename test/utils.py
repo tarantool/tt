@@ -113,7 +113,7 @@ def kill_procs(procs):
     return len(procs)
 
 
-def wait_instance_start(log_path, timeout_sec=5):
+def wait_instance_start(log_path, timeout_sec=10):
     started = False
     iter_timeout_sec = 0.05
 

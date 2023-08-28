@@ -129,6 +129,7 @@ func (wd *Watchdog) Start() error {
 		} else {
 			wd.logger = logger
 		}
+		wd.logger.Printf(`Watchdog(INFO): waiting for restart timeout %s.`, wd.restartTimeout)
 		time.Sleep(wd.restartTimeout)
 
 		wd.shouldStop = false
