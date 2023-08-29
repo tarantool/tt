@@ -147,27 +147,26 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (*Instance, e
 }
 
 // isLoggerChanged checks if any of the logging parameters has been changed.
-func isLoggerChanged(logger *ttlog.Logger, runningCtx *InstanceCtx) (bool, error) {
-	if runningCtx == nil {
-		return true, fmt.Errorf("runningCtx, which is used to check if the logger parameters" +
-			" are updated, is nil")
-	}
-	if logger == nil || runningCtx == nil {
+func isLoggerChanged(logger *ttlog.Logger, instanceCtx *InstanceCtx) (bool, error) {
+	if logger == nil {
 		return true, nil
+	}
+	if instanceCtx == nil {
+		return true, fmt.Errorf("logger changed check failed: passing null as an instance context")
 	}
 	loggerOpts := logger.GetOpts()
 
 	// Check if some of the parameters have been changed.
-	if loggerOpts.Filename != runningCtx.Log {
+	if loggerOpts.Filename != instanceCtx.Log {
 		return true, nil
 	}
-	if loggerOpts.MaxAge != runningCtx.LogMaxAge {
+	if loggerOpts.MaxAge != instanceCtx.LogMaxAge {
 		return true, nil
 	}
-	if loggerOpts.MaxBackups != runningCtx.LogMaxBackups {
+	if loggerOpts.MaxBackups != instanceCtx.LogMaxBackups {
 		return true, nil
 	}
-	if loggerOpts.MaxSize != runningCtx.LogMaxSize {
+	if loggerOpts.MaxSize != instanceCtx.LogMaxSize {
 		return true, nil
 	}
 	return false, nil
