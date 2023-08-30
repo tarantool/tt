@@ -182,10 +182,19 @@ jobs:
           rm ./packages-macos/tt*checksums.txt
           mv checksums.txt ./packages-macos/
 
+      - name: Set GoReleaser flags
+        id: set-goreleaser-flags
+        run: |
+          if ${{ startsWith(github.ref, 'refs/tags') }} ; then
+            echo "GORELEASER_FLAGS=--skip-validate" >> $GITHUB_OUTPUT
+          else
+            echo "GORELEASER_FLAGS=--snapshot" >> $GITHUB_OUTPUT
+          fi
+
       - name: Release
         uses: goreleaser/goreleaser-action@v2
         with:
-          args: release --config ./goreleaser/.goreleaser_publish.yml --skip-validate
+          args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --config ./goreleaser/.goreleaser_publish.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

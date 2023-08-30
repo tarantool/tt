@@ -46,6 +46,7 @@ fi
 
 TAG_ORIG=${TAG}
 TAG=${TAG//v}
+TAG=${TAG##*/} # Remove everything before the last / to avoid using / in file names.
 TMPDIR="/tmp/gentoo_tarballs"
 TT_DIR="${TMPDIR}/tt-${TAG}"
 
