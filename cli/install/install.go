@@ -564,7 +564,8 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 			if err != nil {
 				return err
 			}
-			util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout", ttVersion)
+			util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout",
+				"--recurse-submodules", ttVersion)
 		} else {
 			return fmt.Errorf("can't find distfiles directory")
 		}
@@ -589,7 +590,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 				}
 			}
 			err = util.ExecuteCommand("git", installCtx.verbose, logFile, path,
-				"checkout", ttVersion)
+				"checkout", "--recurse-submodules", ttVersion)
 		}
 	}
 
@@ -759,7 +760,8 @@ func copyLocalTarantool(distfiles string, path string, tarVersion string,
 		if err != nil {
 			return err
 		}
-		err = util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout", tarVersion)
+		err = util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout",
+			"--recurse-submodules", tarVersion)
 	} else {
 		return fmt.Errorf("can't find distfiles directory")
 	}
@@ -1061,7 +1063,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 				}
 			}
 			err = util.ExecuteCommand("git", installCtx.verbose, logFile, path,
-				"checkout", tarVersion)
+				"checkout", "--recurse-submodules", tarVersion)
 		}
 	}
 	if err != nil {
