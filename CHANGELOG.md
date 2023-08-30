@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `tt install tarantool/tt`: ability to install tarantool and tt from an arbitrary commit.
+The binary has the name tt/tarantool_ + seven-digit hash.
+
 ## [1.2.0] - 2023-08-18
 
 ### Changed
@@ -15,8 +22,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt install tarantool-dev`: ability to install tarantool from the local build directory.
-- `tt install tarantool/tt`: ability to install tarantool and tt from an arbitrary commit.
-The binary has the name tt/tarantool_ + seven-digit hash.
 - `tt uninstall`: smart auto-completion. It shows installed versions of programs.
 - `tt uninstall`: when removing symlinks and an existing installed version, the
   symlink will be switched to the latest installed version, so that `tt` can
