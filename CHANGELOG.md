@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt install tarantool/tt`: ability to install tarantool and tt from an arbitrary commit.
 The binary has the name tt/tarantool_ + seven-digit hash.
 
+### Fixed
+
+- Installation failure from a commit hash.
+
 ## [1.2.0] - 2023-08-18
 
 ### Changed
