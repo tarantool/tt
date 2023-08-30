@@ -506,7 +506,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 			versionStr = search.ProgramTt + version.FsSeparator + pullRequestHash
 		} else {
 			versionStr = search.ProgramTt + version.FsSeparator +
-				ttVersion[0:util.MinCommitHashLength]
+				ttVersion[0:util.Min(len(ttVersion), util.MinCommitHashLength)]
 		}
 	}
 
@@ -988,7 +988,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 			versionStr = search.ProgramCe + version.FsSeparator + pullRequestHash
 		} else {
 			versionStr = search.ProgramCe + version.FsSeparator +
-				tarVersion[0:util.MinCommitHashLength]
+				tarVersion[0:util.Min(len(tarVersion), util.MinCommitHashLength)]
 		}
 	}
 

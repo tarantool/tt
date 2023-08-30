@@ -24,6 +24,7 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"golang.org/x/exp/constraints"
 	"gopkg.in/yaml.v2"
 )
 
@@ -922,4 +923,12 @@ func RelativeToCurrentWorkingDir(fullpath string) string {
 		return fullpath
 	}
 	return relPath
+}
+
+// Min returns minimal of two values.
+func Min[T constraints.Ordered](a, b T) T {
+	if a < b {
+		return a
+	}
+	return b
 }

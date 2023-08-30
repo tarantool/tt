@@ -15,6 +15,7 @@ The binary has the name tt/tarantool_ + seven-digit hash.
 ### Fixed
 
 - Installation failure from a commit hash.
+- Crash on `tt install <tool> master`.
 
 ## [1.2.0] - 2023-08-18
 
