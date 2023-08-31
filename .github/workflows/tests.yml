@@ -1,14 +1,6 @@
 ---
 name: Tests
 
-on:
-  push:
-    branches-ignore:
-      - 'master'
-  pull_request:
-  pull_request_target:
-    types: [labeled]
-
 env:
   GO_VERSION: '1.20'
   PYTHON_VERSION: '3.x'
