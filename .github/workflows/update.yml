@@ -1,0 +1,51 @@
+name: update
+
+on:
+  schedule:
+    # The job starts every day at 00:00 UTC. See:
+    # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
+    - cron:  '0 0 * * *'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.20'
+
+jobs:
+  update:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@master
+
+    - name: Setup Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '${{ env.GO_VERSION }}'
+
+    - name: Setup Tarantool master
+      run: |
+        curl -L https://tarantool.io/release/2/installer.sh | sudo bash
+        sudo apt install -y tt
+        mkdir /tmp/tt
+        cd /tmp/tt
+        tt init
+        tt install tarantool master
+        echo "/tmp/tt/bin" >> $GITHUB_PATH
+
+    - name: Setup dependencies for the code generation
+      run: |
+        go install github.com/magefile/mage@latest
+        go install golang.org/x/tools/cmd/goimports@latest
+
+    - name: Generate code
+      run: mage generate
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        author: 'TarantoolBot <TarantoolBot@users.noreply.github.com>'
+        body: 'Automated changes by [update](https://github.com/tarantool/tt/blob/master/.github/workflows/update.yml) job.'
+        branch: 'github-actions/update'
+        commit-message: 'generate: autoupdate'
+        committer: 'TarantoolBot <TarantoolBot@users.noreply.github.com>'
+        title: 'generate: autoupdate'
+        token: '${{ secrets.PUBLIC_REPO_ACCESS_TOKEN }}'
