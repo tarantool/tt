@@ -144,12 +144,17 @@ func (config *Config) Elems(path []string) ([]string, error) {
 
 // forEachMap iterates overs maps recursively.
 func forEachMap(path []string, dst map[any]any, fun func([]string, any)) {
-	for k, v := range dst {
-		if str, ok := k.(string); ok {
-			if m, ok := v.(map[any]any); ok {
-				forEachMap(append(path, str), m, fun)
-			} else if v != nil {
-				fun(append(path, str), v)
+	if len(dst) == 0 {
+		// It is a value itself.
+		fun(path, dst)
+	} else {
+		for k, v := range dst {
+			if str, ok := k.(string); ok {
+				if m, ok := v.(map[any]any); ok {
+					forEachMap(append(path, str), m, fun)
+				} else if v != nil {
+					fun(append(path, str), v)
+				}
 			}
 		}
 	}

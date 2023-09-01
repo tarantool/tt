@@ -192,6 +192,41 @@ func TestConfig_ForEach_value(t *testing.T) {
 	require.ElementsMatch(t, expected, foreachPaths)
 }
 
+func TestConfig_ForEach_map_value(t *testing.T) {
+	const (
+		key      = "bar"
+		mapKey   = "foo"
+		mapValue = 1
+	)
+
+	m := map[any]any{mapKey: mapValue}
+	config := cluster.NewConfig()
+	config.Set([]string{key}, m)
+
+	paths := [][]string{}
+	config.ForEach(nil, func(path []string, value any) {
+		paths = append(paths, path)
+		assert.Equal(t, mapValue, value)
+	})
+	require.Len(t, paths, 1)
+	assert.Equal(t, []string{key, mapKey}, paths[0])
+}
+
+func TestConfig_ForEach_map_empty(t *testing.T) {
+	const key = "foo"
+	m := map[any]any{}
+	config := cluster.NewConfig()
+	config.Set([]string{key}, m)
+
+	paths := [][]string{}
+	config.ForEach(nil, func(path []string, value any) {
+		paths = append(paths, path)
+		assert.Equal(t, m, value)
+	})
+	require.Len(t, paths, 1)
+	assert.Equal(t, []string{key}, paths[0])
+}
+
 func TestConfig_ForEach_empty(t *testing.T) {
 	c := cluster.NewConfig()
 	c.ForEach(nil, func(path []string, value any) {
@@ -260,4 +295,59 @@ zoo:
 func TestConfig_String_empty(t *testing.T) {
 	config := cluster.NewConfig()
 	assert.Equal(t, "", config.String())
+}
+
+func TestConfig_merge_empty_instances(t *testing.T) {
+	data := `groups:
+  a:
+    replicasets:
+      b:
+        instances: {}
+`
+	config, err := cluster.NewYamlCollector([]byte(data)).Collect()
+	require.NoError(t, err)
+
+	mergeConfig := cluster.NewConfig()
+	mergeConfig.Merge(config)
+
+	assert.Equal(t, config.String(), mergeConfig.String())
+	assert.Equal(t, data, mergeConfig.String())
+}
+
+func TestConfig_merge_data_and_empty_instances(t *testing.T) {
+	data := `groups:
+  a:
+    replicasets:
+      b:
+        instances:
+          c:
+            foo: bar
+`
+	empty := `groups:
+  a:
+    replicasets:
+      b:
+        instances: {}
+`
+	cases := []struct {
+		Name   string
+		Config string
+		Merge  string
+	}{
+		{"data_and_empty", data, empty},
+		{"empty_and_data", empty, data},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			config, err := cluster.NewYamlCollector([]byte(tc.Config)).Collect()
+			require.NoError(t, err)
+
+			mergeConfig, err := cluster.NewYamlCollector([]byte(tc.Merge)).Collect()
+			require.NoError(t, err)
+
+			config.Merge(mergeConfig)
+			assert.Equal(t, data, config.String())
+		})
+	}
 }
