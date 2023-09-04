@@ -50,11 +50,11 @@ func runBuildHook(buildCtx *BuildCtx, hookNames []string) error {
 
 // buildLocal builds an application locally.
 func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *BuildCtx) error {
-	cwd, err := util.Chdir(buildCtx.BuildDir)
+	cancelChdir, err := util.Chdir(buildCtx.BuildDir)
 	if err != nil {
 		return err
 	}
-	defer util.Chdir(cwd)
+	defer cancelChdir()
 
 	// Run Pre-build.
 	if err := runBuildHook(buildCtx, getPreBuildScripts()); err != nil {

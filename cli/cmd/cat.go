@@ -97,7 +97,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	log.Infof("Running cat with files: %s\n", args)
-	if err := checkpoint.Cat(cmdCtx); err != nil {
+	if err := checkpoint.Cat(cmdCtx.Cli.TarantoolCli); err != nil {
 		return err
 	}
 

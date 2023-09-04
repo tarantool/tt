@@ -25,6 +25,38 @@ const (
 type Release struct {
 	Type ReleaseType
 	Num  uint64
+	str  string
+}
+
+// newRelease create new Release base on passed data.
+func newRelease(release string, releaseNum string) (Release, error) {
+	newRelease := Release{Type: TypeRelease, str: release}
+	if release != "" {
+		switch release {
+		case "rc":
+			newRelease.Type = TypeRC
+		case "alpha":
+			newRelease.Type = TypeAlpha
+		case "beta":
+			newRelease.Type = TypeBeta
+		case "entrypoint":
+			newRelease.Type = TypeNightly
+		default:
+			return newRelease, fmt.Errorf("unknown release type %q", release)
+		}
+		if releaseNum != "" {
+			var err error
+			if newRelease.Num, err = util.AtoiUint64(releaseNum); err != nil {
+				return newRelease, fmt.Errorf("bad release number format %q: %w", releaseNum, err)
+			}
+			newRelease.str += releaseNum
+		}
+	}
+	return newRelease, nil
+}
+
+func (release Release) String() string {
+	return release.str
 }
 
 type Version struct {
@@ -68,21 +100,6 @@ func Parse(verStr string) (Version, error) {
 		version.BuildName = matches["buildname"]
 	}
 
-	if matches["release"] != "" {
-		switch matches["release"] {
-		case "rc":
-			version.Release.Type = TypeRC
-		case "alpha":
-			version.Release.Type = TypeAlpha
-		case "beta":
-			version.Release.Type = TypeBeta
-		case "entrypoint":
-			version.Release.Type = TypeNightly
-		}
-	} else {
-		version.Release.Type = TypeRelease
-	}
-
 	if version.Major, err = util.AtoiUint64(matches["major"]); err != nil {
 		return version, err
 	}
@@ -95,13 +112,11 @@ func Parse(verStr string) (Version, error) {
 		return version, err
 	}
 
-	version.Hash = matches["hash"]
-
-	if matches["releaseNum"] != "" {
-		if version.Release.Num, err = util.AtoiUint64(matches["releaseNum"]); err != nil {
-			return version, err
-		}
+	if version.Release, err = newRelease(matches["release"], matches["releaseNum"]); err != nil {
+		return version, err
 	}
+
+	version.Hash = matches["hash"]
 
 	if matches["additional"] != "" {
 		if version.Additional, err = util.AtoiUint64(matches["additional"]); err != nil {

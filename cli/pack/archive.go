@@ -104,7 +104,11 @@ func generateVersionFile(bundlePath string, cmdCtx *cmdcontext.CmdCtx, packCtx *
 	versionFileLines = append(versionFileLines, appVersionLine)
 
 	// Tarantool version.
-	tarantoolVersionLine := fmt.Sprintf("TARANTOOL=%s", cmdCtx.Cli.TarantoolVersion)
+	tntVersion, err := cmdCtx.Cli.TarantoolCli.GetVersion()
+	if err != nil {
+		return err
+	}
+	tarantoolVersionLine := fmt.Sprintf("TARANTOOL=%s", tntVersion.Str)
 	versionFileLines = append(versionFileLines, tarantoolVersionLine)
 
 	// Rocks versions.

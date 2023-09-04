@@ -74,7 +74,7 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 		return prefixPathFromEnv, nil
 	}
 
-	output, err := exec.Command(cli.TarantoolExecutable, "--version").Output()
+	output, err := exec.Command(cli.TarantoolCli.Executable, "--version").Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get tarantool version: %s", err)
 	}
@@ -126,7 +126,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 		}
 	}
 
-	version, err := util.GetTarantoolVersion(&cmdCtx.Cli)
+	version, err := cmdCtx.Cli.TarantoolCli.GetVersion()
 	if err != nil {
 		return err
 	}
@@ -139,11 +139,11 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 		return err
 	}
 
-	os.Setenv("TT_CLI_TARANTOOL_VERSION", version)
+	os.Setenv("TT_CLI_TARANTOOL_VERSION", version.Str)
 	os.Setenv("TT_CLI_TARANTOOL_PREFIX", tarantoolPrefixDir)
 	os.Setenv("TT_CLI_TARANTOOL_INCLUDE", tarantoolIncludeDir)
 	os.Setenv("TARANTOOL_DIR", filepath.Dir(tarantoolIncludeDir))
-	os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolExecutable))
+	os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolCli.Executable))
 
 	rocks_cmd := fmt.Sprintf("t=require('extra.wrapper').exec('%s', %s)",
 		os.Args[0], cmd)

@@ -193,8 +193,10 @@ func FillCtx(initCtx *InitCtx) {
 // error returned as second returned value.
 func checkExistingConfig(initCtx *InitCtx) (string, error) {
 	configName, err := util.GetYamlFileName(configure.ConfigName, false)
-	if configName == "" {
+	if err != nil {
 		return "", err
+	} else if configName == "" {
+		return configure.ConfigName, err
 	}
 
 	if _, err := os.Stat(configName); err == nil {

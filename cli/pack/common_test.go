@@ -151,7 +151,7 @@ func TestCopyBinaries(t *testing.T) {
 				require.NoErrorf(t, err, "failed to create test directories: %v", err)
 			}
 
-			cmdCtx.Cli.TarantoolExecutable = filepath.Join(testDir, testCase,
+			cmdCtx.Cli.TarantoolCli.Executable = filepath.Join(testDir, testCase,
 				"tntExample")
 
 			tntPath := filepath.Join(testDir, testCase, "tntExample")
@@ -174,7 +174,7 @@ func TestCopyBinaries(t *testing.T) {
 				require.NoErrorf(t, err, "failed to remove the file: %v", err)
 			}
 
-			err = copyBinaries(&cmdCtx, filepath.Join(testCopyDir, testCase))
+			err = copyBinaries(cmdCtx.Cli.TarantoolCli, filepath.Join(testCopyDir, testCase))
 			if testCase == "missing" {
 				require.Equal(t, true, strings.Contains(err.Error(),
 					"no such file or directory"))

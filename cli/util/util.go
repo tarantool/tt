@@ -23,7 +23,6 @@ import (
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"golang.org/x/exp/constraints"
 	"gopkg.in/yaml.v2"
 )
@@ -278,29 +277,6 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 	return lines, nil
 }
 
-// GetTarantoolVersion returns and caches the tarantool version.
-func GetTarantoolVersion(cli *cmdcontext.CliCtx) (string, error) {
-	if cli.TarantoolVersion != "" {
-		return cli.TarantoolVersion, nil
-	}
-
-	output, err := exec.Command(cli.TarantoolExecutable, "--version").Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get tarantool version: %s", err)
-	}
-
-	version := strings.Split(string(output), "\n")
-	version = strings.Split(version[0], " ")
-
-	if len(version) < 2 {
-		return "", fmt.Errorf("failed to get tarantool version: corrupted data")
-	}
-
-	cli.TarantoolVersion = version[len(version)-1]
-
-	return cli.TarantoolVersion, nil
-}
-
 // ReadEmbedFile reads content of embed file in string mode.
 func ReadEmbedFile(fs embed.FS, path string) (string, error) {
 	content, err := ReadEmbedFileBinary(fs, path)
@@ -449,24 +425,33 @@ func IsRegularFile(filePath string) bool {
 
 // Chdir changes current directory and updates PWD environment var accordingly.
 // This can be useful for some scripts, which use getenv('PWD') to get working directory.
-func Chdir(newPath string) (string, error) {
+func Chdir(newPath string) (func() error, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", nil
+		return nil, nil
 	}
 	if err = os.Chdir(newPath); err != nil {
-		return "", fmt.Errorf("failed to change directory: %s", err)
+		return nil, fmt.Errorf("failed to change directory: %s", err)
 	}
 
 	// Update PWD environment var.
 	if err = os.Setenv("PWD", newPath); err != nil {
 		if err = os.Chdir(cwd); err != nil {
-			return "", fmt.Errorf("failed to change directory back: %s", err)
+			return nil, fmt.Errorf("failed to change directory back: %w", err)
 		}
-		return "", fmt.Errorf("failed to change PWD environment variable: %s", err)
+		os.Setenv("PWD", cwd) // Return PWD back.
+		return nil, fmt.Errorf("failed to change PWD environment variable: %w", err)
 	}
 
-	return cwd, nil
+	return func() error {
+		if err = os.Chdir(cwd); err != nil {
+			return fmt.Errorf("failed to change directory back: %w", err)
+		}
+		if err = os.Setenv("PWD", cwd); err != nil {
+			return fmt.Errorf("failed to change PWD environment variable: %w", err)
+		}
+		return nil
+	}, nil
 }
 
 // BitHas32 checks if a bit is set in b.
@@ -827,7 +812,7 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	} else if yamlFilesCount == 1 {
 		return foundYamlFiles[0], nil
 	} else if !mustExist {
-		return fileName, nil
+		return "", nil
 	}
 
 	return "", os.ErrNotExist

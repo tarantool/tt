@@ -36,7 +36,7 @@ func NewInitCmd() *cobra.Command {
 
 // internalInitModule is a default init module.
 func internalInitModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	initCtx.TarantoolExecutable = cmdCtx.Cli.TarantoolExecutable
+	initCtx.TarantoolExecutable = cmdCtx.Cli.TarantoolCli.Executable
 	init_pkg.FillCtx(&initCtx)
 	return init_pkg.Run(&initCtx)
 }

@@ -21,6 +21,31 @@ import (
 //go:embed templates/Dockerfile.pack.build
 var buildDockerfile []byte
 
+// getTarantoolVersionForInstall generates tarantool version string to install in docker image.
+func getVersionStringForInstall(tntVersion version.Version) string {
+	versionStr := fmt.Sprintf("%d.%d.%d", tntVersion.Major, tntVersion.Minor, tntVersion.Patch)
+	if tntVersion.Release.Type != version.TypeRelease {
+		versionStr = fmt.Sprintf("%s-%s", versionStr, tntVersion.Release)
+	}
+	return versionStr
+}
+
+// getTarantoolVersionForInstall returns tarantool version to use for install in docker.
+func getTarantoolVersionForInstall(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (
+	tntVersion version.Version, err error) {
+	if packCtx.TarantoolVersion != "" {
+		tntVersion, err = version.Parse(packCtx.TarantoolVersion)
+		if err != nil {
+			return
+		}
+	} else {
+		if tntVersion, err = cmdCtx.Cli.TarantoolCli.GetVersion(); err != nil {
+			return
+		}
+	}
+	return
+}
+
 // PackInDocker runs tt pack in docker container.
 func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	opts config.CliOpts, cmdArgs []string) error {
@@ -32,24 +57,17 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	envDir := filepath.Dir(cmdCtx.Cli.ConfigPath)
 
-	goTextEngine := templates.NewDefaultEngine()
-
-	tntVersion := cmdCtx.Cli.TarantoolVersion
-
-	if packCtx.TarantoolVersion != "" {
-		tntVerParsed, err := version.Parse(packCtx.TarantoolVersion)
-		if err != nil {
-			return err
-		}
-		tntVersion = fmt.Sprintf("%d.%d.%d",
-			tntVerParsed.Major, tntVerParsed.Minor, tntVerParsed.Patch)
+	tntVersion, err := getTarantoolVersionForInstall(cmdCtx, packCtx)
+	if err != nil {
+		return fmt.Errorf("failed to get tarantool version: %w", err)
 	}
+	tntVersionStr := getVersionStringForInstall(tntVersion)
+	log.Infof("Using tarantool version %s for packing", tntVersionStr)
 
-	log.Infof("Using tarantool version %s for packing", tntVersion)
-
+	goTextEngine := templates.NewDefaultEngine()
 	dockerfileText, err := goTextEngine.RenderText(string(buildDockerfile),
 		map[string]string{
-			"tnt_version": tntVersion,
+			"tnt_version": tntVersionStr,
 			"env_dir":     filepath.Base(envDir),
 		})
 	if err != nil {
