@@ -155,7 +155,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if cliOpts.App.BinDir != "" &&
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
-		err = copyBinaries(cmdCtx, packageBinPath)
+		err = copyBinaries(cmdCtx.Cli.TarantoolCli, packageBinPath)
 		if err != nil {
 			return "", err
 		}
@@ -530,7 +530,7 @@ func normalizeGitVersion(packageVersion string) (string, error) {
 
 // copyBinaries copies tarantool and tt binaries from the current
 // tt environment to the passed destination path.
-func copyBinaries(cmdCtx *cmdcontext.CmdCtx, destPath string) error {
+func copyBinaries(tntCli cmdcontext.TarantoolCli, destPath string) error {
 	ttBin, err := os.Executable()
 	if err != nil {
 		return err
@@ -548,12 +548,12 @@ func copyBinaries(cmdCtx *cmdcontext.CmdCtx, destPath string) error {
 		return err
 	}
 
-	tntBin, err := filepath.EvalSymlinks(cmdCtx.Cli.TarantoolExecutable)
+	tntBin, err := filepath.EvalSymlinks(tntCli.Executable)
 	if err != nil {
 		log.Warnf("Failed to access %s: %s", tntBin, err)
 	}
 	if tntBin == "" {
-		tntBin = cmdCtx.Cli.TarantoolExecutable
+		tntBin = tntCli.Executable
 	}
 
 	err = copy.Copy(tntBin, filepath.Join(destPath, "tarantool"))

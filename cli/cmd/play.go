@@ -101,7 +101,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	log.Infof("Running play with URI=%s and files: %s\n", args[0], args[1:])
-	if err := checkpoint.Play(cmdCtx); err != nil {
+	if err := checkpoint.Play(cmdCtx.Cli.TarantoolCli); err != nil {
 		return err
 	}
 

@@ -136,7 +136,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: false,
-		TarantoolExecutable:    tntBinPath,
+		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntOkData}] =
 		prefixOutput{
 			prefix: "/usr",
@@ -145,7 +145,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: false,
-		TarantoolExecutable:    tntBinPath,
+		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	},
 		data:         &tntOkData,
 		tntPrefixEnv: "/tnt/prefix"}] =
@@ -161,7 +161,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: false,
-		TarantoolExecutable:    tntBinPath,
+		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData0}] =
 		prefixOutput{
 			err: fmt.Errorf("failed to get prefix path: regexp does not match"),
@@ -173,7 +173,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: false,
-		TarantoolExecutable:    tntBinPath,
+		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData1}] =
 		prefixOutput{
 			err: fmt.Errorf("failed to get prefix path: expected more data"),
@@ -184,7 +184,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: true,
-		TarantoolExecutable:    tntBinPath,
+		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	},
 		cliOpts:      &cliOpts,
 		data:         &tntOkData,

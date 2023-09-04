@@ -22,9 +22,9 @@ type Opts struct {
 
 // Cat print the contents of .snap/.xlog files.
 // Returns an error if such occur during reading files.
-func Cat(cmdCtx *cmdcontext.CmdCtx) error {
+func Cat(tntCli cmdcontext.TarantoolCli) error {
 	var errbuff bytes.Buffer
-	cmd := exec.Command(cmdCtx.Cli.TarantoolExecutable, "-")
+	cmd := exec.Command(tntCli.Executable, "-")
 	cmd.Stderr = &errbuff
 
 	stdoutPipe, err := cmd.StdoutPipe()
@@ -58,9 +58,9 @@ func Cat(cmdCtx *cmdcontext.CmdCtx) error {
 
 // Play is playing the contents of .snap/.xlog files to another Tarantool instance.
 // Returns an error if such occur during playing.
-func Play(cmdCtx *cmdcontext.CmdCtx) error {
+func Play(tntCli cmdcontext.TarantoolCli) error {
 	var errbuff bytes.Buffer
-	cmd := exec.Command(cmdCtx.Cli.TarantoolExecutable, "-")
+	cmd := exec.Command(tntCli.Executable, "-")
 	cmd.Stderr = &errbuff
 
 	stdoutPipe, err := cmd.StdoutPipe()

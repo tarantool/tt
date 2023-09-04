@@ -138,7 +138,7 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (*Instance, e
 		return nil, err
 	}
 
-	inst, err := NewInstance(provider.cmdCtx.Cli.TarantoolExecutable,
+	inst, err := NewInstance(provider.cmdCtx.Cli.TarantoolCli.Executable,
 		provider.instanceCtx, os.Environ(), logger)
 	if err != nil {
 		return nil, err
@@ -419,7 +419,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	if cmdCtx.CommandName != "connect" {
-		if cmdCtx.Cli.TarantoolExecutable == "" {
+		if cmdCtx.Cli.TarantoolCli.Executable == "" {
 			return fmt.Errorf("tarantool binary not found")
 		}
 	}
@@ -469,7 +469,7 @@ func Stop(run *InstanceCtx) error {
 
 // Run runs an Instance.
 func Run(runOpts *RunOpts, scriptPath string) error {
-	inst := Instance{tarantoolPath: runOpts.CmdCtx.Cli.TarantoolExecutable,
+	inst := Instance{tarantoolPath: runOpts.CmdCtx.Cli.TarantoolCli.Executable,
 		appPath: scriptPath,
 		env:     os.Environ()}
 	err := inst.Run(runOpts.RunFlags)
@@ -507,7 +507,7 @@ func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	var errbuff bytes.Buffer
 	os.Setenv("TT_CLI_INSTANCE", run.AppPath)
 
-	cmd := exec.Command(cmdCtx.Cli.TarantoolExecutable, "-e", checkSyntax)
+	cmd := exec.Command(cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
 	cmd.Stderr = &errbuff
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf(errbuff.String())

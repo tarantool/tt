@@ -188,11 +188,7 @@ func createDebianBinary(packageDir string) error {
 
 // getTntTTAsDeps returns tarantool and tt cli from bin_dir as dependencies.
 func getTntTTAsDeps(cmdCtx *cmdcontext.CmdCtx) (PackDependencies, error) {
-	tntVerRaw, err := util.GetTarantoolVersion(&cmdCtx.Cli)
-	if err != nil {
-		return nil, err
-	}
-	tntVerParsed, err := version.Parse(tntVerRaw)
+	tntVerParsed, err := cmdCtx.Cli.TarantoolCli.GetVersion()
 	if err != nil {
 		return nil, err
 	}

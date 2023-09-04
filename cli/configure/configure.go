@@ -361,7 +361,7 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	// Set default (system) tarantool binary, can be replaced by "local" or "system" later.
-	cmdCtx.Cli.TarantoolExecutable, _ = exec.LookPath("tarantool")
+	cmdCtx.Cli.TarantoolCli.Executable, _ = exec.LookPath("tarantool")
 
 	switch {
 	case cmdCtx.Cli.IsSystem:
@@ -462,13 +462,13 @@ func detectLocalTarantool(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) er
 				localTarantool, err)
 		}
 
-		cmdCtx.Cli.TarantoolExecutable = localTarantool
+		cmdCtx.Cli.TarantoolCli.Executable = localTarantool
 		cmdCtx.Cli.IsTarantoolBinFromRepo = true
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("failed to get access to Tarantool binary file: %s", err)
 	}
 
-	log.Debugf("Tarantool executable found: '%s'", cmdCtx.Cli.TarantoolExecutable)
+	log.Debugf("Tarantool executable found: '%s'", cmdCtx.Cli.TarantoolCli.Executable)
 
 	return nil
 }

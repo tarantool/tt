@@ -1,5 +1,13 @@
 package cmdcontext
 
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+
+	"github.com/tarantool/tt/cli/version"
+)
+
 // CmdCtx is the main structure of the program context.
 // Contains within itself other structures of CLI modules.
 type CmdCtx struct {
@@ -8,6 +16,46 @@ type CmdCtx struct {
 	Cli CliCtx
 	// CommandName contains name of the command.
 	CommandName string
+}
+
+// TarantoolCli describes tarantool executable.
+type TarantoolCli struct {
+	// Executable is a path to Tarantool executable.
+	Executable string
+	// Tarantool version.
+	version version.Version
+}
+
+// GetVersion returns and caches the tarantool version.
+func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
+	if tntCli.version.Str != "" {
+		return tntCli.version, nil
+	}
+
+	if tntCli.Executable == "" {
+		return tntCli.version, fmt.Errorf(
+			"tarantool executable is not set, unable to get tarantool version")
+	}
+	output, err := exec.Command(tntCli.Executable, "--version").Output()
+	if err != nil {
+		return tntCli.version, fmt.Errorf("failed to get tarantool version: %s", err)
+	}
+
+	versionOut := strings.Split(string(output), "\n")
+	versionLine := strings.Split(versionOut[0], " ")
+
+	if len(versionLine) < 2 {
+		return tntCli.version, fmt.Errorf("failed to get tarantool version: corrupted data")
+	}
+
+	tntVersion, err := version.Parse(versionLine[len(versionLine)-1])
+	if err != nil {
+		return tntCli.version, fmt.Errorf("failed to get tarantool version: %w", err)
+	}
+
+	tntCli.version = tntVersion
+
+	return tntCli.version, nil
 }
 
 // CliCtx - CLI context. Contains flags passed when starting
@@ -26,12 +74,10 @@ type CliCtx struct {
 	ConfigDir string
 	// Path to tt daemon (tt_daemon.yaml) config.
 	DaemonCfgPath string
-	// Path to Tarantool executable (detected if CLI launch is local).
-	TarantoolExecutable string
-	// Tarantool version.
-	TarantoolVersion string
 	// The flag determines if the tarantool binary is from the internal tt repository.
 	IsTarantoolBinFromRepo bool
 	// Verbose logging flag. Enables debug log output.
 	Verbose bool
+	// TarantoolCli is current tarantool cli.
+	TarantoolCli TarantoolCli
 }

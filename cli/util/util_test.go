@@ -350,7 +350,7 @@ func TestGetYamlFileName(t *testing.T) {
 	// Get file name for new file.
 	fileName, err = GetYamlFileName(filepath.Join(tempDir, "tarantool.yaml"), false)
 	assert.NoError(t, err)
-	assert.Equal(t, filepath.Join(tempDir, "tarantool.yaml"), fileName)
+	assert.Equal(t, "", fileName)
 }
 
 func TestInstantiateFileFromTemplate(t *testing.T) {

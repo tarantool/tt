@@ -67,7 +67,7 @@ func TestConfigureCli(t *testing.T) {
 
 	require.NoError(t, Cli(&cmdCtx))
 	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
-	assert.Equal(cmdCtx.Cli.TarantoolExecutable, expectedTarantoolPath)
+	assert.Equal(cmdCtx.Cli.TarantoolCli.Executable, expectedTarantoolPath)
 
 	// Test default configuration (no flags specified).
 	cmdCtx.Cli.LocalLaunchDir = ""
@@ -209,7 +209,7 @@ func TestDetectLocalTarantool(t *testing.T) {
 	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
 	expected, err := filepath.Abs("./testdata/bin_dir/tarantool")
 	require.NoError(t, err)
-	require.Equal(t, expected, cmdCtx.Cli.TarantoolExecutable)
+	require.Equal(t, expected, cmdCtx.Cli.TarantoolCli.Executable)
 
 	// Chdir to temporary directory to avoid loading tt.yaml from parent directories.
 	wd, err := os.Getwd()
@@ -224,7 +224,7 @@ func TestDetectLocalTarantool(t *testing.T) {
 	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
 	expected, err = exec.LookPath("tarantool")
 	require.NoError(t, err)
-	require.Equal(t, expected, cmdCtx.Cli.TarantoolExecutable)
+	require.Equal(t, expected, cmdCtx.Cli.TarantoolCli.Executable)
 }
 
 func TestDetectLocalTt(t *testing.T) {
