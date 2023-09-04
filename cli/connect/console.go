@@ -64,12 +64,21 @@ type Console struct {
 	prompt *prompt.Prompt
 }
 
+// genConsoleTitle generates console title string.
+func genConsoleTitle(connOpts connector.ConnectOpts, connCtx ConnectCtx) string {
+	if connCtx.ConnectTarget != "" {
+		return connCtx.ConnectTarget
+	}
+	return connOpts.Address
+}
+
 // NewConsole creates a new console connected to the tarantool instance.
-func NewConsole(connOpts connector.ConnectOpts, title string, lang Language) (*Console, error) {
+func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title string) (*Console,
+	error) {
 	console := &Console{
 		title:    title,
 		connOpts: connOpts,
-		language: lang,
+		language: connectCtx.Language,
 	}
 
 	var err error
@@ -92,8 +101,8 @@ func NewConsole(connOpts connector.ConnectOpts, title string, lang Language) (*C
 	}
 
 	// Change a language.
-	if lang != DefaultLanguage {
-		if err := ChangeLanguage(console.conn, lang); err != nil {
+	if connectCtx.Language != DefaultLanguage {
+		if err := ChangeLanguage(console.conn, connectCtx.Language); err != nil {
 			return nil, fmt.Errorf("unable to change a language: %s", err)
 		}
 	}
@@ -113,7 +122,7 @@ func NewConsole(connOpts connector.ConnectOpts, title string, lang Language) (*C
 	console.validators[SQLLanguage] = sqlValidator
 
 	// Set title and prompt prefix.
-	setTitle(console)
+	setTitle(console, genConsoleTitle(connOpts, connectCtx))
 	setPrefix(console)
 
 	return console, nil
@@ -296,11 +305,11 @@ func getCompleter(console *Console) prompt.Completer {
 	return completer
 }
 
-func setTitle(console *Console) {
+func setTitle(console *Console, title string) {
 	if console.title != "" {
 		return
 	} else {
-		console.title = console.connOpts.Address
+		console.title = title
 	}
 }
 

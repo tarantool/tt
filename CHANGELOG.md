@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Use CLI arg connect string for the prompt line and the title to avoid too long
+prompt line when using 'app:instance' target format.
+
 ### Added
 
 - `tt install tarantool/tt`: ability to install tarantool and tt from an arbitrary commit.

@@ -234,7 +234,7 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 // credentials.
 // It returns connection options and the remaining args.
 func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
-	connectCtx connect.ConnectCtx, args []string) (
+	connectCtx *connect.ConnectCtx, args []string) (
 	connOpts connector.ConnectOpts, newArgs []string, err error) {
 
 	newArgs = args[1:]
@@ -251,9 +251,8 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 			return
 		}
 		connOpts = makeConnOpts(
-			connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, connectCtx,
+			connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
 		)
-		return
 	} else if isCredentialsURI(args[0]) {
 		if connectCtx.Username != "" || connectCtx.Password != "" {
 			err = fmt.Errorf("username and password are specified with" +
@@ -264,8 +263,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		network, address := parseBaseURI(newURI)
 		connectCtx.Username = user
 		connectCtx.Password = pass
-		connOpts = makeConnOpts(network, address, connectCtx)
-		return
+		connOpts = makeConnOpts(network, address, *connectCtx)
 	} else if isBaseURI(args[0]) {
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
@@ -275,12 +273,13 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 			connectCtx.Password = os.Getenv(passwordEnv)
 		}
 		network, address := parseBaseURI(args[0])
-		connOpts = makeConnOpts(network, address, connectCtx)
-		return
+		connOpts = makeConnOpts(network, address, *connectCtx)
 	} else {
 		err = fillErr
 		return
 	}
+	connectCtx.ConnectTarget = args[0]
+	return
 }
 
 // internalConnectModule is a default connect module.
@@ -301,7 +300,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return util.NewArgError(fmt.Sprintf("unsupported language: %s", connectLanguage))
 	}
 
-	connOpts, newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, connectCtx, args)
+	connOpts, newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
 	if err != nil {
 		return err
 	}
