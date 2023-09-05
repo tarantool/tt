@@ -1,10 +1,12 @@
 package search
 
 import (
-	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -116,6 +118,11 @@ func Test_getBundles(t *testing.T) {
 }
 
 func Test_GetCommitFromGitLocal(t *testing.T) {
+	tmpDir := t.TempDir()
+	tarPath := filepath.Join(tmpDir, "test_repo.tar")
+	require.NoError(t, copy.Copy("./testdata/test_repo.tar", tarPath))
+	extractedRepoPath := filepath.Join(tmpDir, "empty_repo")
+
 	tests := []struct {
 		name    string
 		link    string
@@ -124,16 +131,16 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "first repo",
-			link:    "./testdata/empty_repo/",
-			tarlink: "./testdata/test_repo.tar/",
+			name:    "hash should be found",
+			link:    extractedRepoPath,
+			tarlink: tarPath,
 			hashes:  []string{"c779d17", "6a05d6a", "6f05cd1"},
 			wantErr: false,
 		},
 		{
-			name:    "second repo",
-			link:    "./testdata/empty_repo/",
-			tarlink: "./testdata/test_repo.tar/",
+			name:    "missing hash",
+			link:    extractedRepoPath,
+			tarlink: tarPath,
 			hashes:  []string{"111111"},
 			wantErr: true,
 		},
@@ -141,15 +148,11 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 
 	for _, repo := range tests {
 		t.Run(repo.name, func(t *testing.T) {
-			err := util.ExtractTar(repo.tarlink)
-			defer os.RemoveAll(repo.link)
-			if err != nil {
-				t.Errorf("ExtractTar() error %v", err)
-			}
+			require.NoError(t, util.ExtractTar(repo.tarlink))
 			for _, hash := range repo.hashes {
 				_, err := GetCommitFromGitLocal(repo.link, hash)
 				if (err != nil) != repo.wantErr {
-					t.Errorf("GetCommitsFromGitRemote() error = %v, wantErr %v", err, repo.wantErr)
+					t.Errorf("GetCommitsFromGitLocal() error = %v, wantErr %v", err, repo.wantErr)
 					return
 				}
 			}
@@ -158,6 +161,11 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 }
 
 func Test_GetCommitFromGitRemote(t *testing.T) {
+	tmpDir := t.TempDir()
+	tarPath := filepath.Join(tmpDir, "test_repo.tar")
+	require.NoError(t, copy.Copy("./testdata/test_repo.tar", tarPath))
+	extractedRepoPath := filepath.Join(tmpDir, "empty_repo")
+
 	tests := []struct {
 		name    string
 		link    string
@@ -166,16 +174,16 @@ func Test_GetCommitFromGitRemote(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "first repo",
-			link:    "./testdata/empty_repo/",
-			tarlink: "./testdata/test_repo.tar/",
+			name:    "hash should be found",
+			link:    extractedRepoPath,
+			tarlink: tarPath,
 			hashes:  []string{"c779d17", "6a05d6a", "6f05cd1"},
 			wantErr: false,
 		},
 		{
-			name:    "second repo",
-			link:    "./testdata/empty_repo/",
-			tarlink: "./testdata/test_repo.tar/",
+			name:    "missing hash",
+			link:    extractedRepoPath,
+			tarlink: tarPath,
 			hashes:  []string{"111111"},
 			wantErr: true,
 		},
@@ -183,11 +191,7 @@ func Test_GetCommitFromGitRemote(t *testing.T) {
 
 	for _, repo := range tests {
 		t.Run(repo.name, func(t *testing.T) {
-			err := util.ExtractTar(repo.tarlink)
-			defer os.RemoveAll(repo.link)
-			if err != nil {
-				t.Errorf("ExtractTar() error %v", err)
-			}
+			require.NoError(t, util.ExtractTar(repo.tarlink))
 			for _, hash := range repo.hashes {
 				_, err := GetCommitFromGitRemote(repo.link, hash)
 				if (err != nil) != repo.wantErr {
