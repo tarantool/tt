@@ -1076,6 +1076,95 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
+def test_pack_deb_use_docker_tnt_version(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "deb", "--use-docker", "--tarantool-version", "2.7.3"],
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+
+    package_file_name = "bundle1_0.1.0.0-1_" + get_arch() + ".deb"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-w', '/usr/src',
+                                             'ubuntu',
+                                             '/bin/bash', '-c',
+                                             '/bin/dpkg -i {0} && '
+                                             '/usr/share/tarantool/bundle1/bin/tarantool '
+                                             '--version'
+                                            .format(package_file_name)])
+    assert rc == 0
+    assert re.search("Tarantool 2.7.3", output)
+
+
+@pytest.mark.slow
+def test_pack_rpm_use_docker_wrong_version_format(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "rpm", "--use-docker", "--tarantool-version",
+            "cool.tarantool.version"],
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+
+    assert rc == 1
+
+
+@pytest.mark.slow
+def test_pack_rpm_use_docker_wrong_version(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "rpm", "--use-docker", "--tarantool-version",
+            "1.239.239"],
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+
+    assert rc == 1
+
+
+@pytest.mark.slow
 def test_pack_deb_use_docker(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")

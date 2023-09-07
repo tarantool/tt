@@ -8,12 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/docker"
 	"github.com/tarantool/tt/cli/templates"
+	"github.com/tarantool/tt/cli/version"
 )
 
 //go:embed templates/Dockerfile.pack.build
@@ -31,9 +33,23 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	envDir := filepath.Dir(cmdCtx.Cli.ConfigPath)
 
 	goTextEngine := templates.NewDefaultEngine()
+
+	tntVersion := cmdCtx.Cli.TarantoolVersion
+
+	if packCtx.TarantoolVersion != "" {
+		tntVerParsed, err := version.Parse(packCtx.TarantoolVersion)
+		if err != nil {
+			return err
+		}
+		tntVersion = fmt.Sprintf("%d.%d.%d",
+			tntVerParsed.Major, tntVerParsed.Minor, tntVerParsed.Patch)
+	}
+
+	log.Infof("Using tarantool version %s for packing", tntVersion)
+
 	dockerfileText, err := goTextEngine.RenderText(string(buildDockerfile),
 		map[string]string{
-			"tnt_version": cmdCtx.Cli.TarantoolVersion,
+			"tnt_version": tntVersion,
 			"env_dir":     filepath.Base(envDir),
 		})
 	if err != nil {
@@ -47,11 +63,18 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
-	// Remove --use-docker from args.
-	for i, arg := range cmdArgs {
+	// Remove --use-docker and --tarantool-version from args.
+	for i := 0; i < len(cmdArgs); {
+		arg := cmdArgs[i]
 		if arg == "--use-docker" {
 			cmdArgs = append(cmdArgs[:i], cmdArgs[i+1:]...)
+			continue
 		}
+		if arg == "--tarantool-version" {
+			cmdArgs = append(cmdArgs[:i], cmdArgs[i+2:]...)
+			continue
+		}
+		i++
 	}
 
 	// Generate pack command line for tt in container.

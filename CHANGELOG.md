@@ -16,6 +16,8 @@ prompt line when using 'app:instance' target format.
 
 - `tt install tarantool/tt`: ability to install tarantool and tt from an arbitrary commit.
 The binary has the name tt/tarantool_ + seven-digit hash.
+- New `tt pack` flag `--tarantool-version` is added to specify tarantool 
+  version for pack in docker. It is supported only with `--use-docker` enabled.
 
 ### Fixed
 
