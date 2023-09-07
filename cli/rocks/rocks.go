@@ -95,6 +95,13 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 	return prefixDir, nil
 }
 
+// getwdWrapperForLua is getwd call wrapper.
+func getwdWrapperForLua(L *lua.LState) int {
+	dir, _ := os.Getwd()
+	L.Push(lua.LString(dir))
+	return 1
+}
+
 // Execute LuaRocks command. All args will be processed by LuaRocks.
 func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) error {
 	var cmd string
@@ -240,6 +247,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 
 	L := lua.NewState()
 	defer L.Close()
+	L.SetGlobal("tt_getwd", L.NewFunction(getwdWrapperForLua))
 	preload := L.GetField(L.GetField(L.Get(lua.EnvironIndex), "package"), "preload")
 
 	for modname, path := range rocks_preload {
