@@ -30,6 +30,8 @@ type PackCtx struct {
 	UseDocker bool
 	// CartridgeCompat enables backward compatibility with cartridge cli.
 	CartridgeCompat bool
+	// TarantoolVersion specifies the version of the tarantool for pack in docker.
+	TarantoolVersion string
 }
 
 // ArchiveCtx contains flags specific for tgz type.

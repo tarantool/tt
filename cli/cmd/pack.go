@@ -36,6 +36,11 @@ The supported types are: tgz, deb, rpm`,
 				err = fmt.Errorf("cartridge-compat flag can only be used while packing tgz bundle")
 				log.Fatalf(err.Error())
 			}
+			if packCtx.TarantoolVersion != "" && !packCtx.UseDocker {
+				err = fmt.Errorf("tarantool-version argument can only be " +
+					"used while packing in docker")
+				log.Fatalf(err.Error())
+			}
 			cmdCtx.CommandName = cmd.Name()
 			err = modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalPackModule, args)
 			handleCmdErr(cmd, err)
@@ -79,6 +84,9 @@ The supported types are: tgz, deb, rpm`,
 	packCmd.Flags().BoolVar(&packCtx.UseDocker, "use-docker",
 		packCtx.UseDocker,
 		"Use docker for building a package.")
+	packCmd.Flags().StringVar(&packCtx.TarantoolVersion, "tarantool-version",
+		packCtx.TarantoolVersion,
+		"Version of the tarantool for pack in docker (only with --use-docker flag).")
 
 	return packCmd
 }
