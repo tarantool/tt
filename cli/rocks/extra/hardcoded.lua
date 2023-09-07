@@ -1,10 +1,5 @@
 -- This file contains LuaRocks hardcoded settings.
 
-local function get_cwd()
-    local cwd = os.getenv("PWD") or io.popen("cd"):read()
-    return cwd
-end
-
 local function get_tarantool_path()
     local path = os.getenv('TT_CLI_TARANTOOL_PATH')
     if path ~= nil then
@@ -32,6 +27,8 @@ local function get_tarantool_prefix_path()
     return "/usr"
 end
 
+local cwd = tt_getwd()
+
 return {
     PREFIX = get_tarantool_prefix_path(),
     LUA_BINDIR = get_tarantool_path(),
@@ -43,7 +40,7 @@ return {
     ROCKS_SERVERS = {
         [[http://rocks.tarantool.org/]],
     },
-    LOCALDIR = get_cwd(),
+    LOCALDIR = cwd,
 
     HOME_TREE_SUBDIR = [[/.rocks]],
     EXTERNAL_DEPS_SUBDIRS = {
