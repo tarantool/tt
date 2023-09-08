@@ -54,7 +54,7 @@ func (l Language) String() string {
 }
 
 // setLanguagePrefix is a prefix for a set language command.
-const setLanguagePrefix = "\\set language "
+const setLanguagePrefix = "\\set language"
 
 // ChangeLanguage changes a language for a connection.
 func ChangeLanguage(evaler connector.Evaler, lang Language) error {
@@ -62,7 +62,7 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 		lang = LuaLanguage
 	}
 
-	languageCmd := setLanguagePrefix + lang.String()
+	languageCmd := setLanguagePrefix + " " + lang.String()
 	response, err := evaler.Eval(consoleEvalFuncBody,
 		[]interface{}{languageCmd},
 		connector.RequestOpts{},

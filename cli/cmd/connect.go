@@ -58,13 +58,7 @@ func NewConnectCmd() *cobra.Command {
 			"  * [tcp://][username:password@][host:port]\n" +
 			"  * [unix://][username:password@]socketpath\n" +
 			"  To specify relative path without `unix://` use `./`.\n\n" +
-			"  Available commands:\n" +
-			"  * \\shortcuts - get the full list of available shortcuts\n" +
-			"  * \\set language <language> - set language (lua or sql)\n" +
-			"  * \\set output <format> - set output format (lua[,line|block] or yaml)\n" +
-			"  * \\set delimiter <delimiter> - set expression delimiter\n" +
-			"  * \\help - show available backslash commands\n" +
-			"  * \\quit - quit interactive console",
+			"  To see a list of available commands enter `\\help` or `?`",
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
 			"The command supports the following environment variables:\n\n" +

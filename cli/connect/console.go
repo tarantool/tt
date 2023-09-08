@@ -170,23 +170,10 @@ func (console *Console) Close() {
 
 // getExecutor returns command executor.
 func getExecutor(console *Console) func(string) {
+	commandsExecutor := newCmdExecutor()
 	executor := func(in string) {
 		if console.input == "" {
-			trimmed := strings.TrimSpace(in)
-			if strings.HasPrefix(trimmed, setLanguagePrefix) {
-				newLang := strings.TrimPrefix(trimmed, setLanguagePrefix)
-				if lang, ok := ParseLanguage(newLang); ok {
-					if err := ChangeLanguage(console.conn, lang); err != nil {
-						log.Warnf("Failed to change language: %s", err)
-					} else {
-						console.language = lang
-					}
-				} else {
-					log.Warnf("Unsupported language: %s", newLang)
-				}
-				return
-			} else if strings.HasPrefix(trimmed, getShortcutsList) {
-				fmt.Println(shortcutListText)
+			if commandsExecutor.Execute(console, in) {
 				return
 			}
 		}
