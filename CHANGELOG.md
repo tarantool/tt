@@ -20,6 +20,8 @@ The binary has the name tt/tarantool_ + seven-digit hash.
   version for pack in docker. It is supported only with `--use-docker` enabled.
 - Module ``tt cluster``, to show or publish a cluster or an instance
   configuration.
+- `tt connect`: added command `\help` to show the help with a list of available
+  commands.
 
 ### Fixed
 

@@ -143,7 +143,7 @@ def skip_if_tarantool_ce():
         pytest.skip("Tarantool Enterprise required")
 
 
-def test_connect_and_get_shortcuts(tt_cmd, tmpdir_with_cfg):
+def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
     # The test application file.
@@ -160,11 +160,25 @@ def test_connect_and_get_shortcuts(tt_cmd, tmpdir_with_cfg):
     file = wait_file(tmpdir, 'ready', [])
     assert file != ""
 
-    ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", stdin="\\shortcuts")
-    assert ret
+    commands = {}
+    help_output = """
+  To get help, see the Tarantool manual at https://tarantool.io/en/doc/
+  To start the interactive Tarantool tutorial, type 'tutorial()' here.
 
-    assert ret
-    assert output == """---
+  This help is expanded with additional backslash commands
+  because tt connect is using.
+
+  Available backslash commands:
+
+  \\help, ?                 -- show this screen
+  \\set language <language> -- set language lua or sql
+  \\shortcuts               -- show available hotkeys and shortcuts
+
+"""
+    commands["\\help"] = help_output
+    commands["?"] = help_output
+
+    commands["\\shortcuts"] = """---
 - - |
     Available hotkeys and shortcuts:
 
@@ -189,7 +203,49 @@ def test_connect_and_get_shortcuts(tt_cmd, tmpdir_with_cfg):
        Alt + F                     -- Move forwards one word
 ...
 """
-    stop_app(tt_cmd, tmpdir, "test_app")
+
+    try:
+        for key, value in commands.items():
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", stdin=key)
+            assert ret
+
+            assert output == value
+    finally:
+        stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_localhost_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(tmpdir, 'ready', [])
+    assert file != ""
+
+    commands = {}
+    commands["\\help arg"] = "⨯ the command does not expect arguments"
+    commands["\\shortcuts arg"] = "⨯ the command does not expect arguments"
+    commands["\\set language"] = "⨯ the command expects one of: lua, sql"
+    commands["\\set language arg"] = "⨯ the command expects one of: lua, sql"
+    commands["\\set language arg arg"] = "⨯ the command expects one of: lua, sql"
+
+    try:
+        for key, value in commands.items():
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", stdin=key)
+            assert ret
+
+            assert value in output
+    finally:
+        stop_app(tt_cmd, tmpdir, "test_app")
 
 
 def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
