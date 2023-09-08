@@ -1,6 +1,7 @@
 package configure
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -40,6 +41,8 @@ func TestConfigureCli(t *testing.T) {
 	// not the entire path). We cannot set the path to the file at build time because
 	// we run `go test`, which compiles the functions again.
 	assert.Equal(cmdCtx.Cli.ConfigPath, ConfigName)
+
+	fmt.Println("check test")
 
 	testDir, err := ioutil.TempDir(os.TempDir(), "tarantool_tt_")
 	t.Cleanup(func() { cleanupTempDir(testDir) })
