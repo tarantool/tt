@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 
@@ -48,10 +49,48 @@ func NewStartCmd() *cobra.Command {
 	return startCmd
 }
 
+// startWatchdog starts tarantool instance with watchdog.
+func startWatchdog(ttExecutable string, instance running.InstanceCtx) error {
+	appName := running.GetAppInstanceName(instance)
+	// If an instance is already running don't try to start it again.
+	// For restarting an instance use tt restart command.
+	procStatus := process_utils.ProcessStatus(instance.PIDFile)
+	if procStatus.Code == process_utils.ProcStateRunning.Code {
+		log.Infof("The instance %s (PID = %d) is already running.", appName, procStatus.PID)
+		return nil
+	}
+
+	log.Infof("Starting an instance [%s]...", appName)
+
+	newArgs := []string{"start", "--watchdog", appName}
+
+	wdCmd := exec.Command(ttExecutable, newArgs...)
+	return wdCmd.Start()
+}
+
+// startInstancesUnderWatchdog starts tarantool instances under tt watchdog.
+func startInstancesUnderWatchdog(instances []running.InstanceCtx) error {
+	ttBin, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	for _, instance := range instances {
+		if err := startWatchdog(ttBin, instance); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // internalStartModule is a default start module.
 func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
+	}
+
+	if cmdCtx.Cli.TarantoolCli.Executable == "" {
+		return fmt.Errorf("cannot start: tarantool binary is not found")
 	}
 
 	var runningCtx running.RunningCtx
@@ -59,34 +98,15 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
+	if canStart, reason :=
+		running.IsAbleToStartInstances(runningCtx.Instances, cmdCtx); !canStart {
+		return fmt.Errorf(reason)
+	}
+
 	if !watchdog {
-		ttBin, err := os.Executable()
-		if err != nil {
+		if err := startInstancesUnderWatchdog(runningCtx.Instances); err != nil {
 			return err
 		}
-		for _, run := range runningCtx.Instances {
-			appName := running.GetAppInstanceName(run)
-			// If an instance is already running don't try to start it again.
-			// For restarting an instance use tt restart command.
-			procStatus := process_utils.ProcessStatus(run.PIDFile)
-			if procStatus.Code ==
-				process_utils.ProcStateRunning.Code {
-				log.Infof("The instance %s (PID = %d) is already running.",
-					appName, procStatus.PID)
-				continue
-			}
-
-			log.Infof("Starting an instance [%s]...", appName)
-
-			newArgs := []string{"start", "--watchdog", appName}
-
-			wdCmd := exec.Command(ttBin, newArgs...)
-
-			if err := wdCmd.Start(); err != nil {
-				return err
-			}
-		}
-
 		return nil
 	}
 
