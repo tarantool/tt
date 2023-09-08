@@ -80,6 +80,7 @@ func TestConfig_Get_non_exist(t *testing.T) {
 			_, err := c.Get(p)
 			expected := fmt.Sprintf("path %q does not exist", p)
 			require.EqualError(t, err, expected)
+			require.ErrorAs(t, err, &cluster.NotExistError{})
 		})
 	}
 }

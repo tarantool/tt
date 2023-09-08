@@ -7,8 +7,7 @@ import (
 )
 
 const (
-	fmtPathNotMap   = "path %q is not a map"
-	fmtPathNotExist = "path %q does not exist"
+	fmtPathNotMap = "path %q is not a map"
 )
 
 // Config is a container for deserialized configuration.
@@ -66,7 +65,7 @@ func (config *Config) getMap(path []string) (map[any]any, error) {
 			return nil, fmt.Errorf(fmtPathNotMap, path[0:i])
 		} else if i < len(path) {
 			if _, ok := m[path[i]]; !ok {
-				return nil, fmt.Errorf(fmtPathNotExist, path[0:i+1])
+				return nil, &NotExistError{path[0 : i+1]}
 			} else {
 				currentValue = m[path[i]]
 			}
@@ -97,7 +96,7 @@ func (config *Config) Set(path []string, value any) error {
 func (config *Config) Get(path []string) (any, error) {
 	if path == nil || len(path) == 0 {
 		if config.paths == nil {
-			return nil, fmt.Errorf(fmtPathNotExist, path)
+			return nil, NotExistError{path}
 		}
 		return config.paths, nil
 	}
@@ -108,7 +107,7 @@ func (config *Config) Get(path []string) (any, error) {
 	} else {
 		ret := m[path[last]]
 		if ret == nil {
-			return nil, fmt.Errorf(fmtPathNotExist, path)
+			return nil, NotExistError{path}
 		}
 		return ret, nil
 	}
@@ -119,7 +118,7 @@ func (config *Config) Elems(path []string) ([]string, error) {
 	var target map[any]any
 	if path == nil || len(path) == 0 {
 		if config.paths == nil {
-			return nil, fmt.Errorf(fmtPathNotExist, path)
+			return nil, NotExistError{path}
 		}
 
 		if m, ok := config.paths.(map[any]any); !ok {
