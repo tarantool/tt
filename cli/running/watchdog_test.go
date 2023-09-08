@@ -38,9 +38,9 @@ type providerTestImpl struct {
 }
 
 // createInstance reads config and creates an Instance.
-func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (*Instance, error) {
-	return NewInstance(provider.tarantool, &InstanceCtx{AppPath: provider.appPath},
-		os.Environ(), logger)
+func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (Instance, error) {
+	return newScriptInstance(provider.tarantool, InstanceCtx{InstanceScript: provider.appPath},
+		logger)
 }
 
 // UpdateLogger updates the logger settings or creates a new logger, if passed nil.
@@ -90,12 +90,10 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 func killAndCheckRestart(t *testing.T, wd *Watchdog, signal syscall.Signal) {
 	// Remove the file. It must be created again by the restarted instance.
 	os.Remove(os.Getenv("started_flag_file"))
-	oldPid := wd.instance.Cmd.Process.Pid
 	wd.instance.SendSignal(signal)
+	// No need to check for PID changes. If the file is created again, new process is started.
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
-
 	assert.True(t, wd.instance.IsAlive(), "Instance doesn't restart.")
-	assert.NotEqual(t, oldPid, wd.instance.Cmd.Process.Pid, "The old Instance is alive.")
 }
 
 // cleanupWatchdog kills the instance and stops the watchdog.
@@ -103,7 +101,7 @@ func cleanupWatchdog(wd *Watchdog) {
 	provider := wd.provider.(*providerTestImpl)
 	provider.restartable = false
 	if wd.instance != nil && wd.instance.IsAlive() {
-		syscall.Kill(wd.instance.Cmd.Process.Pid, syscall.SIGKILL)
+		wd.instance.Stop(5 * time.Second)
 	}
 	os.Remove(os.Getenv("started_flag_file"))
 }

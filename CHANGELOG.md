@@ -48,6 +48,7 @@ with the cartridge-cli. It is supported only by `tgz` type packing.
   modules into the pack bundle.
 - `tt connect`: added command `\shortcuts` listing all available
   shortcuts and hotkeys in go-prompt.
+- initial support for Tarantool 3.0 instances running using cluster config.
 
 ### Fixed
 

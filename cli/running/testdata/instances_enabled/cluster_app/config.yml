@@ -1,0 +1,34 @@
+credentials:
+  users:
+    guest:
+      roles: [super]
+
+iproto:
+  listen: 'unix/:./{{ instance_name }}.iproto'
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001:
+            database:
+              mode: rw
+      replicaset-002:
+        instances:
+          instance-002:
+            console:
+              socket: ./{{instance_name}}.control
+            wal:
+              dir: ./{{instance_name}}_wal_dir
+            database:
+              mode: rw
+      replicaset-003:
+        instances:
+          instance-003:
+            snapshot:
+              dir: ./{{         instance_name            }}_snap_dir
+            vinyl:
+              dir: ./{{ instance_name }}_vinyl_dir
+            database:
+              mode: rw

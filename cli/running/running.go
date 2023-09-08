@@ -2,22 +2,24 @@ package running
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/apex/log"
+	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/cli/util/regexputil"
 )
 
 const defaultDirPerms = 0770
@@ -35,8 +37,10 @@ type RunningCtx struct {
 
 // InstanceCtx contains information about application instance.
 type InstanceCtx struct {
-	// Path to an application.
-	AppPath string
+	// AppDir is an application directory.
+	AppDir string
+	// InstanceScript is a script to run if any.
+	InstanceScript string
 	// AppName contains the name of the application as it was passed on start.
 	AppName string
 	// Instance name.
@@ -49,7 +53,7 @@ type InstanceCtx struct {
 	// Log is the name of log file.
 	Log string
 	// WalDir is a directory where write-ahead log (.xlog) files are stored.
-	WalDir string `mapstructure:"wal_dir" yaml:"wal_dir"`
+	WalDir string
 	// MemtxDir is a directory where memtx stores snapshot (.snap) files.
 	MemtxDir string `mapstructure:"memtx_dir" yaml:"memtx_dir"`
 	// VinylDir is a directory where vinyl files or subdirectories will be stored.
@@ -77,6 +81,10 @@ type InstanceCtx struct {
 	ConsoleSocket string
 	// True if this is a single instance application (no instances.yml).
 	SingleApp bool
+	// ClusterConfigPath is a path of cluster configuration.
+	ClusterConfigPath string
+	// Configuration is instance configuration loaded from cluster config.
+	Configuration cluster.InstanceConfig
 }
 
 // RunFlags contains flags for tt run.
@@ -133,17 +141,20 @@ func (provider *providerImpl) updateCtx() error {
 }
 
 // createInstance reads config and creates an Instance.
-func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (*Instance, error) {
-	if err := provider.updateCtx(); err != nil {
-		return nil, err
+func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (inst Instance, err error) {
+	if err = provider.updateCtx(); err != nil {
+		return
 	}
 
-	inst, err := NewInstance(provider.cmdCtx.Cli.TarantoolCli.Executable,
-		provider.instanceCtx, os.Environ(), logger)
-	if err != nil {
-		return nil, err
+	if provider.instanceCtx.ClusterConfigPath != "" {
+		logger.Printf("Watchdog(INFO): using %q cluster config for instance %q",
+			provider.instanceCtx.ClusterConfigPath,
+			provider.instanceCtx.InstName,
+		)
+		return newClusterInstance(provider.cmdCtx.Cli.TarantoolCli, *provider.instanceCtx, logger)
 	}
-	return inst, nil
+	return newScriptInstance(provider.cmdCtx.Cli.TarantoolCli.Executable, *provider.instanceCtx,
+		logger)
 }
 
 // isLoggerChanged checks if any of the logging parameters has been changed.
@@ -194,52 +205,158 @@ func (provider *providerImpl) IsRestartable() (bool, error) {
 	return provider.instanceCtx.Restartable, nil
 }
 
-// getInstancesFromYML collects instances from instances.yml.
-func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx, error) {
-	instances := []InstanceCtx{}
+// searchApplicationScript searches for application script in a directory.
+func searchApplicationScript(applicationsDir string, appName string) (string, error) {
+	luaPath := filepath.Join(applicationsDir, appName+".lua")
 
-	defAppPath := path.Join(dirPath, "init.lua")
-	defAppExist := false
-	if _, err := os.Stat(defAppPath); err == nil {
-		defAppExist = true
+	if _, err := os.Stat(luaPath); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		} else {
+			return "", err
+		}
 	}
 
-	instCfgPath, err := util.GetYamlFileName(path.Join(dirPath, "instances.yml"), true)
+	return luaPath, nil
+}
+
+// appDirCtx describes important files in application directory.
+type appDirCtx struct {
+	// defaultLuaPath - path to the default lua script.
+	defaultLuaPath string
+	// clusterCfgPath is a cluster config file path.
+	clusterCfgPath string
+	// instCfgPath instances configuration file path.
+	instCfgPath string
+}
+
+// collectAppDirFiles searches for config files and default instance script.
+func collectAppDirFiles(appDir string) (appDirCtx appDirCtx, err error) {
+	appDirCtx.defaultLuaPath = filepath.Join(appDir, "init.lua")
+	if _, err = os.Stat(appDirCtx.defaultLuaPath); err != nil && !os.IsNotExist(err) {
+		return
+	} else if os.IsNotExist(err) {
+		appDirCtx.defaultLuaPath = ""
+	}
+
+	if appDirCtx.clusterCfgPath, err = util.GetYamlFileName(
+		filepath.Join(appDir, "config.yml"), false); err != nil {
+		return
+	}
+
+	if appDirCtx.instCfgPath, err = util.GetYamlFileName(
+		filepath.Join(appDir, "instances.yml"), false); err != nil {
+		return
+	}
+
+	if appDirCtx.instCfgPath == "" {
+		if appDirCtx.clusterCfgPath != "" {
+			// Cluster config will work only if instances.yml exists nearby.
+			err = fmt.Errorf(
+				"cluster config %q is found, but instances config (instances.yml) is missing",
+				appDirCtx.clusterCfgPath)
+		} else {
+			if appDirCtx.defaultLuaPath == "" {
+				err = fmt.Errorf("require files are missing in application directory %q: "+
+					"there must be instances config or the default instance script (%q)",
+					appDir, "init.lua")
+			}
+		}
+	}
+	return
+}
+
+// getInstanceName gets instance name from app name + instance name
+func getInstanceName(fullInstanceName string) string {
+	sepIndex := strings.IndexAny(fullInstanceName, ".-")
+	if sepIndex == -1 {
+		return fullInstanceName
+	}
+	return fullInstanceName[sepIndex+1:]
+}
+
+// findInstanceScriptInAppDir searches for instance script.
+func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript string) (
+	string, error) {
+	if clusterCfgPath != "" {
+		// TODO: add searching for app: file: script from instance config.
+		return "", nil
+	}
+	script := filepath.Join(appDir, instName+".init.lua")
+	if _, err := os.Stat(script); err != nil {
+		if defaultScript != "" {
+			return defaultScript, nil
+		} else {
+			return "", fmt.Errorf("init.lua or %s.init.lua is missing", instName)
+		}
+	}
+	return script, nil
+}
+
+// loadInstanceConfig load instance configuration from cluster config.
+func loadInstanceConfig(configPath, instName string) (cluster.InstanceConfig, error) {
+	var instCfg cluster.InstanceConfig
+	if configPath == "" {
+		return instCfg, nil
+	}
+	clusterCfg, err := cluster.GetClusterConfig(configPath)
 	if err != nil {
-		return nil, err
+		return instCfg, err
 	}
-	instParams, err := util.ParseYAML(instCfgPath)
+	if instCfg, err = cluster.GetInstanceConfig(clusterCfg, instName); err != nil {
+		return instCfg, err
+	}
+	return instCfg, nil
+}
+
+// collectInstancesFromAppDir collects instances information from application directory.
+func collectInstancesFromAppDir(appDir string, selectedInstName string) (
+	[]InstanceCtx,
+	error,
+) {
+	instances := []InstanceCtx{}
+	if !util.IsDir(appDir) {
+		return instances, fmt.Errorf("%q doesn't exist or not a directory", appDir)
+	}
+
+	appDirFiles, err := collectAppDirFiles(appDir)
+	if err != nil {
+		return instances, err
+	}
+
+	if appDirFiles.instCfgPath == "" {
+		if appDirFiles.defaultLuaPath != "" {
+			return []InstanceCtx{{
+				InstanceScript: appDirFiles.defaultLuaPath,
+				AppName:        filepath.Base(appDir),
+				InstName:       filepath.Base(appDir),
+				AppDir:         appDir,
+				SingleApp:      true}}, nil
+		}
+	}
+
+	instParams, err := util.ParseYAML(appDirFiles.instCfgPath)
 	if err != nil {
 		return nil, err
 	}
 	for inst := range instParams {
-		instance := InstanceCtx{}
-		instance.AppName = filepath.Base(dirPath)
-		instance.SingleApp = false
-
-		sepIndex := strings.IndexAny(inst, ".-")
-		if sepIndex == -1 {
-			instance.InstName = inst
-		} else {
-			instance.InstName = inst[sepIndex+1:]
-		}
+		instance := InstanceCtx{AppDir: appDir, ClusterConfigPath: appDirFiles.clusterCfgPath}
+		instance.InstName = getInstanceName(inst)
 		if selectedInstName != "" && instance.InstName != selectedInstName {
 			continue
 		}
 
-		script := path.Join(dirPath, instance.InstName+".init.lua")
-		if _, err = os.Stat(script); err != nil {
-			if defAppExist {
-				instance.AppPath = defAppPath
-			} else {
-				return nil, fmt.Errorf(
-					"init.lua or %s.init.lua is missing", instance.InstName,
-				)
-			}
-		} else {
-			instance.AppPath = script
+		if instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
+			instance.InstName); err != nil {
+			return instances, err
 		}
 
+		instance.AppName = filepath.Base(appDir)
+		instance.SingleApp = false
+		if instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
+			appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath); err != nil {
+			return instances, err
+		}
 		instances = append(instances, instance)
 	}
 
@@ -251,9 +368,7 @@ func getInstancesFromYML(dirPath string, selectedInstName string) ([]InstanceCtx
 }
 
 // CollectInstances searches all instances available in application.
-func CollectInstances(appName string, appDir string) ([]InstanceCtx, error) {
-	var appPath string
-
+func CollectInstances(appName string, applicationsDir string) ([]InstanceCtx, error) {
 	// The user can select a specific instance from the application.
 	// Example: `tt status application:server`.
 	selectedInstName := ""
@@ -271,40 +386,20 @@ func CollectInstances(appName string, appDir string) ([]InstanceCtx, error) {
 	// 4) Read application list from `appName/instances.yml`
 	// If appName equals to base directory name, current working
 	// directory is considered as application to work with.
-	dirPath, luaPath := "", ""
-	if filepath.Base(appDir) == appName {
-		dirPath = appDir
-	} else {
-		luaPath = filepath.Join(appDir, appName+".lua")
-		dirPath = filepath.Join(appDir, appName)
+	if luaPath, err := searchApplicationScript(applicationsDir, appName); err != nil {
+		return []InstanceCtx{}, err
+	} else if luaPath != "" {
+		return []InstanceCtx{
+			{InstanceScript: luaPath, AppName: appName, InstName: appName, SingleApp: true},
+		}, nil
 	}
 
-	// Check if one or both file and/or directory exist.
-	_, fileStatErr := os.Stat(luaPath)
-	dirInfo, dirStatErr := os.Stat(dirPath)
-
-	if !os.IsNotExist(fileStatErr) {
-		if fileStatErr != nil {
-			return nil, fileStatErr
-		}
-		appPath = luaPath
-	} else if dirStatErr == nil && dirInfo.IsDir() {
-		// Search for instances.yml.
-		if _, err := util.GetYamlFileName(path.Join(dirPath, "instances.yml"), true); err == nil {
-			return getInstancesFromYML(dirPath, selectedInstName)
-		} else {
-			appPath = path.Join(dirPath, "init.lua")
-			if _, err = os.Stat(appPath); err != nil {
-				return nil, err
-			}
-		}
-	} else {
-		return nil, fileStatErr
+	appDir := filepath.Join(applicationsDir, appName)
+	if filepath.Base(applicationsDir) == appName {
+		appDir = applicationsDir
 	}
 
-	return []InstanceCtx{
-		{AppPath: appPath, AppName: appName, InstName: appName, SingleApp: true},
-	}, nil
+	return collectInstancesFromAppDir(appDir, selectedInstName)
 }
 
 // cleanup removes runtime artifacts.
@@ -330,6 +425,147 @@ func createLogger(run *InstanceCtx) *ttlog.Logger {
 	return ttlog.NewLogger(&opts)
 }
 
+// configMap is a helper structure to bind cluster config path with a pointer to value storage.
+type configMap[T any] struct {
+	// path is a path to the value to get from config.
+	path []string
+	// destination is destination pointer for storing the value.
+	destination *T
+}
+
+// mapValuesFromConfig get values specified by paths from cfg config and stores them by pointers
+// and modifying with mapFunc.
+func mapValuesFromConfig[T any](cfg *cluster.Config, mapFunc func(val T) (T, error),
+	maps ...configMap[T]) error {
+	for _, cfgMapping := range maps {
+		value, err := cfg.Get(cfgMapping.path)
+		if err != nil {
+			var eNotExist *cluster.NotExistError
+			if errors.As(err, &eNotExist) {
+				continue
+			} else {
+				return err
+			}
+		}
+		castedValue, ok := value.(T)
+		if !ok {
+			return fmt.Errorf("cannot get config value at %q as %T", cfgMapping.path, *new(T))
+		}
+		newValue, err := mapFunc(castedValue)
+		if err != nil {
+			return err
+		}
+		*cfgMapping.destination = newValue
+	}
+	return nil
+}
+
+// setInstCtxFromTtConfig sets instance context members from tt config.
+func setInstCtxFromTtConfig(inst *InstanceCtx, ttAppOpts *config.AppOpts, ttConfigDir string) {
+	if ttAppOpts != nil {
+		inst.LogMaxSize = ttAppOpts.LogMaxSize
+		inst.LogMaxAge = ttAppOpts.LogMaxAge
+		inst.LogMaxBackups = ttAppOpts.LogMaxBackups
+		inst.Restartable = ttAppOpts.Restartable
+
+		pathBuilder := NewArtifactsPathBuilder(ttConfigDir, inst.AppName).
+			WithTarantoolctlLayout(ttAppOpts.TarantoolctlLayout)
+		if !inst.SingleApp {
+			pathBuilder = pathBuilder.ForInstance(inst.InstName)
+		}
+		inst.RunDir = pathBuilder.WithPath(ttAppOpts.RunDir).Make()
+		inst.ConsoleSocket = filepath.Join(inst.RunDir, inst.InstName+".control")
+		inst.PIDFile = filepath.Join(inst.RunDir, inst.InstName+".pid")
+		inst.LogDir = pathBuilder.WithPath(ttAppOpts.LogDir).Make()
+		inst.Log = filepath.Join(inst.LogDir, inst.InstName+".log")
+		pathBuilder = pathBuilder.WithTarantoolctlLayout(false)
+		inst.WalDir = pathBuilder.WithPath(ttAppOpts.WalDir).Make()
+		inst.VinylDir = pathBuilder.WithPath(ttAppOpts.VinylDir).Make()
+		inst.MemtxDir = pathBuilder.WithPath(ttAppOpts.MemtxDir).Make()
+	}
+}
+
+// setInstCtxFromClusterConfig set instance context values from loaded configuration.
+func setInstCtxFromClusterConfig(instance *InstanceCtx) error {
+	if instance.Configuration.RawConfig != nil {
+		return mapValuesFromConfig(instance.Configuration.RawConfig,
+			func(val string) (string, error) {
+				return util.JoinAbspath(instance.AppDir, val)
+			},
+			configMap[string]{[]string{"wal", "dir"}, &instance.WalDir},
+			configMap[string]{[]string{"vinyl", "dir"}, &instance.VinylDir},
+			configMap[string]{[]string{"snapshot", "dir"}, &instance.MemtxDir},
+			configMap[string]{[]string{"console", "socket"}, &instance.ConsoleSocket})
+
+	}
+	return nil
+}
+
+// renderInstCtxMembers instantiates some members of instance context.
+func renderInstCtxMembers(instance *InstanceCtx) error {
+	templateData := map[string]string{
+		"instance_name": instance.InstName,
+	}
+	for _, dstString := range []*string{
+		&instance.WalDir, &instance.VinylDir, &instance.MemtxDir, &instance.ConsoleSocket,
+	} {
+		renderedString, err := regexputil.ApplyVars(*dstString, templateData)
+		if err != nil {
+			return fmt.Errorf("error instantiating template: %w", err)
+		}
+		*dstString = renderedString
+	}
+	return nil
+}
+
+// collectInstancesForApps collects instances information for applications in list.
+func collectInstancesForApps(appList []util.AppListEntry, ttAppOpts *config.AppOpts,
+	ttConfigDir string) (
+	[]InstanceCtx, error) {
+	instEnabledPath := ttAppOpts.InstancesEnabled
+	if ttAppOpts.InstancesEnabled == "." {
+		instEnabledPath = ttConfigDir
+	}
+
+	var instances []InstanceCtx
+	for _, appInfo := range appList {
+		appName := strings.TrimSuffix(appInfo.Name, ".lua")
+		collectedInstances, err := CollectInstances(appName, instEnabledPath)
+		if err != nil {
+			return instances, fmt.Errorf("%s: can't find an application init file: %s",
+				appName, err)
+		}
+
+		for _, inst := range collectedInstances {
+			var instance = inst
+
+			setInstCtxFromTtConfig(&instance, ttAppOpts, ttConfigDir)
+
+			if err = setInstCtxFromClusterConfig(&instance); err != nil {
+				return instances, err
+			}
+
+			if err = renderInstCtxMembers(&instance); err != nil {
+				return instances, err
+			}
+
+			instances = append(instances, instance)
+		}
+	}
+	return instances, nil
+}
+
+// createInstanceDataDirectories creates directories for data and runtime artifacts.
+func createInstanceDataDirectories(instance InstanceCtx) error {
+	for _, dataDir := range [...]string{instance.WalDir, instance.VinylDir,
+		instance.MemtxDir, instance.RunDir, instance.LogDir} {
+		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	runningCtx *RunningCtx, args []string) error {
@@ -345,102 +581,44 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		return fmt.Errorf(`%s not found`, configure.ConfigName)
 	}
 
-	instEnabledPath := cliOpts.App.InstancesEnabled
-	if cliOpts.App.InstancesEnabled == "." {
-		instEnabledPath = cmdCtx.Cli.ConfigDir
-	}
-
 	var appList []util.AppListEntry
 	if len(args) == 0 {
 		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.App.InstancesEnabled,
 			true)
 		if err != nil {
 			return fmt.Errorf("can't collect an application list "+
-				"from instances enabled path %s: %s", instEnabledPath, err)
+				"from instances enabled path %s: %s", cliOpts.App.InstancesEnabled, err)
 		}
 	} else {
 		appList = append(appList, util.AppListEntry{Name: args[0], Location: ""})
 	}
 
-	// Cleanup instances list.
-	runningCtx.Instances = nil
-	for _, appInfo := range appList {
-		appName := strings.TrimSuffix(appInfo.Name, ".lua")
-		instances, err := CollectInstances(appName, instEnabledPath)
-		if err != nil {
-			return fmt.Errorf("%s: can't find an application init file: %s", appName, err)
-		}
-
-		for _, inst := range instances {
-			var instance InstanceCtx
-			var runDir string
-			var logDir string
-
-			instance.AppPath = inst.AppPath
-			instance.AppName = inst.AppName
-			instance.InstName = inst.InstName
-			pathBuilder := NewArtifactsPathBuilder(cmdCtx.Cli.ConfigDir, instance.AppName).
-				WithTarantoolctlLayout(cliOpts.App.TarantoolctlLayout)
-			if !inst.SingleApp {
-				pathBuilder = pathBuilder.ForInstance(instance.InstName)
-			}
-
-			if cliOpts.App != nil {
-				runDir = cliOpts.App.RunDir
-				logDir = cliOpts.App.LogDir
-				instance.LogMaxSize = cliOpts.App.LogMaxSize
-				instance.LogMaxAge = cliOpts.App.LogMaxAge
-				instance.LogMaxBackups = cliOpts.App.LogMaxBackups
-				instance.Restartable = cliOpts.App.Restartable
-			}
-
-			instance.RunDir = pathBuilder.WithPath(runDir).Make()
-			instance.ConsoleSocket = filepath.Join(instance.RunDir, instance.InstName+".control")
-			instance.PIDFile = filepath.Join(instance.RunDir, instance.InstName+".pid")
-			instance.LogDir = pathBuilder.WithPath(logDir).Make()
-			instance.Log = filepath.Join(instance.LogDir, instance.InstName+".log")
-			pathBuilder = pathBuilder.WithTarantoolctlLayout(false)
-			instance.WalDir = pathBuilder.WithPath(cliOpts.App.WalDir).Make()
-			instance.VinylDir = pathBuilder.WithPath(cliOpts.App.VinylDir).Make()
-			instance.MemtxDir = pathBuilder.WithPath(cliOpts.App.MemtxDir).Make()
-			instance.SingleApp = inst.SingleApp
-
-			if cmdCtx.CommandName == "start" || cmdCtx.CommandName == "restart" {
-				for _, dataDir := range [...]string{instance.WalDir, instance.VinylDir,
-					instance.MemtxDir} {
-					if err = util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
-						return err
-					}
-				}
-			}
-
-			runningCtx.Instances = append(runningCtx.Instances, instance)
-		}
-	}
-
-	if cmdCtx.CommandName != "connect" {
-		if cmdCtx.Cli.TarantoolCli.Executable == "" {
-			return fmt.Errorf("tarantool binary not found")
-		}
+	if runningCtx.Instances, err = collectInstancesForApps(appList, cliOpts.App,
+		cmdCtx.Cli.ConfigDir); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 // Start an Instance.
-func Start(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
-	logger := createLogger(run)
-	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: run}
+func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
+	if err := createInstanceDataDirectories(*inst); err != nil {
+		return err
+	}
+
+	logger := createLogger(inst)
+	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: inst}
 	preStartAction := func() error {
-		if err := process_utils.CreatePIDFile(run.PIDFile); err != nil {
+		if err := process_utils.CreatePIDFile(inst.PIDFile); err != nil {
 			return err
 		}
 		return nil
 	}
-	wd := NewWatchdog(run.Restartable, 5*time.Second, logger, &provider, preStartAction)
+	wd := NewWatchdog(inst.Restartable, 5*time.Second, logger, &provider, preStartAction)
 
 	defer func() {
-		cleanup(run)
+		cleanup(inst)
 	}()
 
 	wd.Start()
@@ -469,9 +647,8 @@ func Stop(run *InstanceCtx) error {
 
 // Run runs an Instance.
 func Run(runOpts *RunOpts, scriptPath string) error {
-	inst := Instance{tarantoolPath: runOpts.CmdCtx.Cli.TarantoolCli.Executable,
-		appPath: scriptPath,
-		env:     os.Environ()}
+	inst := scriptInstance{tarantoolPath: runOpts.CmdCtx.Cli.TarantoolCli.Executable,
+		appPath: scriptPath}
 	err := inst.Run(runOpts.RunFlags)
 	return err
 }
@@ -505,7 +682,7 @@ func Logrotate(run *InstanceCtx) (string, error) {
 // Check returns the result of checking the syntax of the application file.
 func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	var errbuff bytes.Buffer
-	os.Setenv("TT_CLI_INSTANCE", run.AppPath)
+	os.Setenv("TT_CLI_INSTANCE", run.InstanceScript)
 
 	cmd := exec.Command(cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
 	cmd.Stderr = &errbuff
@@ -527,4 +704,24 @@ func GetAppInstanceName(instance InstanceCtx) string {
 		fullInstanceName = instance.AppName + string(InstanceDelimiter) + instance.InstName
 	}
 	return fullInstanceName
+}
+
+// IsAbleToStartInstances checks if it is possible to start instances.
+func IsAbleToStartInstances(instances []InstanceCtx, cmdCtx *cmdcontext.CmdCtx) (
+	bool, string) {
+	tntVersion, err := cmdCtx.Cli.TarantoolCli.GetVersion()
+	if err != nil {
+		return false, err.Error()
+	}
+	for _, inst := range instances {
+		if inst.ClusterConfigPath != "" {
+			if tntVersion.Major < 3 {
+				return false, fmt.Sprintf(
+					`cluster config is supported by Tarantool starting from version 3.0.
+Current Tarantool version: %s
+Cluster config path: %q`, tntVersion.Str, inst.ClusterConfigPath)
+			}
+		}
+	}
+	return true, ""
 }
