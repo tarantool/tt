@@ -93,7 +93,14 @@ func GetFileContent(path string) (string, error) {
 func JoinAbspath(paths ...string) (string, error) {
 	var err error
 
-	path := filepath.Join(paths...)
+	path := ""
+	for _, pathPart := range paths {
+		if filepath.IsAbs(pathPart) {
+			path = pathPart
+		} else {
+			path = filepath.Join(path, pathPart)
+		}
+	}
 	if path, err = filepath.Abs(path); err != nil {
 		return "", fmt.Errorf("failed to get absolute path: %s", err)
 	}

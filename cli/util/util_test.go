@@ -507,3 +507,59 @@ func TestParseYaml(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinAbspath(t *testing.T) {
+	type args struct {
+		paths []string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			"Absolute path",
+			args{
+				[]string{"/root"},
+			},
+			"/root",
+			false,
+		},
+		{
+			"Absolute path + relative",
+			args{
+				[]string{"/root", "../home/user"},
+			},
+			"/home/user",
+			false,
+		},
+		{
+			"Absolute path + multiple relative",
+			args{
+				[]string{"/root", "../home/user", "./docs"},
+			},
+			"/home/user/docs",
+			false,
+		},
+		{
+			"Absolute path not first",
+			args{
+				[]string{"/root", "../home/user", "/var"},
+			},
+			"/var",
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := JoinAbspath(tt.args.paths...)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
