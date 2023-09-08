@@ -52,6 +52,10 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
+	if cmdCtx.Cli.TarantoolCli.Executable == "" {
+		return fmt.Errorf("tarantool binary is not found")
+	}
+
 	if !autoYes {
 		instancesToConfirm := ""
 		if len(args) == 0 {
