@@ -40,7 +40,7 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	for _, inst := range runningCtx.Instances {
 		found := false
 		for _, unique := range uniqueInst {
-			if inst.AppPath == unique.AppPath {
+			if inst.InstanceScript == unique.InstanceScript {
 				found = true
 				break
 			}
@@ -55,7 +55,7 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err := running.Check(cmdCtx, &inst); err != nil {
 			return err
 		}
-		log.Infof("Result of check: syntax of file '%s' is OK", inst.AppPath)
+		log.Infof("Result of check: syntax of file '%s' is OK", inst.InstanceScript)
 	}
 
 	return nil

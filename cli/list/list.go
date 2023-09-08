@@ -55,7 +55,7 @@ func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 			if fullInstanceName != app.Name {
 				fmt.Printf("	%s (%s)\n",
 					color.YellowString(strings.TrimPrefix(fullInstanceName, app.Name+":")),
-					strings.TrimPrefix(inst.AppPath, app.Location+string(os.PathSeparator)))
+					strings.TrimPrefix(inst.InstanceScript, app.Location+string(os.PathSeparator)))
 			}
 		}
 	}

@@ -15,7 +15,7 @@ import (
 // file).
 type Provider interface {
 	// CreateInstance is used to create a new instance on restart.
-	CreateInstance(logger *ttlog.Logger) (*Instance, error)
+	CreateInstance(logger *ttlog.Logger) (Instance, error)
 	// UpdateLogger updates the logger settings or creates a new logger,
 	// if passed nil.
 	UpdateLogger(logger *ttlog.Logger) (*ttlog.Logger, error)
@@ -26,7 +26,7 @@ type Provider interface {
 // Watchdog is a process that controls an Instance process.
 type Watchdog struct {
 	// instance describes the controlled Instance.
-	instance *Instance
+	instance Instance
 	// logger represents an active logging object.
 	logger *ttlog.Logger
 	// doneBarrier used to indicate the completion of the
@@ -66,10 +66,10 @@ func (wd *Watchdog) Start() error {
 	var err error
 	// Create Instance.
 	if wd.instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
-		wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+		wd.logger.Printf(`Watchdog(ERROR): instance creation failed: %v.`, err)
 		return err
 	}
-	wd.logger = wd.instance.logger
+
 	// The signal handling loop must be started before the instance
 	// get started for avoiding a race condition between tt start
 	// and tt stop. This way we avoid a situation when we receive
@@ -96,7 +96,7 @@ func (wd *Watchdog) Start() error {
 		}
 		// Start the Instance.
 		if err := wd.instance.Start(); err != nil {
-			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+			wd.logger.Printf(`Watchdog(ERROR):  instance start failed: %v.`, err)
 			wd.stopMutex.Unlock()
 			break
 		}
@@ -139,7 +139,7 @@ func (wd *Watchdog) Start() error {
 			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
 			return err
 		}
-		wd.logger = wd.instance.logger
+
 		// Before the restart of an instance start a new signal handling loop.
 		wd.startSignalHandling()
 	}

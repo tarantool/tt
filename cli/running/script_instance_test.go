@@ -9,8 +9,8 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +23,7 @@ const (
 
 // startTestInstance starts instance for the test.
 func startTestInstance(t *testing.T, app string, consoleSock string,
-	logger *ttlog.Logger) *Instance {
+	logger *ttlog.Logger) *scriptInstance {
 	assert := assert.New(t)
 
 	instTestDataDir, err := ioutil.TempDir("", "tarantool_tt_")
@@ -37,14 +37,13 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 	tarantoolBin, err := exec.LookPath("tarantool")
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
-	inst, err := NewInstance(tarantoolBin, &InstanceCtx{
-		AppPath:       appPath,
-		ConsoleSocket: consoleSock,
-		WalDir:        instTestDataDir,
-		VinylDir:      instTestDataDir,
-		MemtxDir:      instTestDataDir,
+	inst, err := newScriptInstance(tarantoolBin, InstanceCtx{
+		InstanceScript: appPath,
+		ConsoleSocket:  consoleSock,
+		WalDir:         instTestDataDir,
+		VinylDir:       instTestDataDir,
+		MemtxDir:       instTestDataDir,
 	},
-		os.Environ(),
 		logger)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
@@ -64,9 +63,10 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 
 // cleanupTestInstance sends a SIGKILL signal to test
 // Instance that remain alive after the test done.
-func cleanupTestInstance(inst *Instance) {
+func cleanupTestInstance(t *testing.T, inst *scriptInstance) {
 	if inst.IsAlive() {
-		inst.Cmd.Process.Kill()
+		err := inst.Stop(stopTimeout)
+		assert.NoError(t, err)
 	}
 	if _, err := os.Stat(inst.consoleSocket); err == nil {
 		os.Remove(inst.consoleSocket)
@@ -82,14 +82,11 @@ func TestInstanceBase(t *testing.T) {
 
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
 	inst := startTestInstance(t, "dumb_test_app", consoleSock, logger)
-	t.Cleanup(func() { cleanupTestInstance(inst) })
+	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	conn, err := net.Dial("unix", consoleSock)
 	assert.Nilf(err, `Can't connect to console socket. Error: "%v".`, err)
 	conn.Close()
-
-	err = inst.Stop(30 * time.Second)
-	assert.Nilf(err, `Can't stop the instance. Error: "%v".`, err)
 }
 
 func TestInstanceLogger(t *testing.T) {
@@ -101,7 +98,7 @@ func TestInstanceLogger(t *testing.T) {
 	logger := ttlog.NewCustomLogger(writer, "", 0)
 	consoleSock := ""
 	inst := startTestInstance(t, "log_check_test_app", consoleSock, logger)
-	t.Cleanup(func() { cleanupTestInstance(inst) })
+	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	msg := "Check Log.\n"
 	msgLen := int64(len(msg))
@@ -109,7 +106,75 @@ func TestInstanceLogger(t *testing.T) {
 	_, err := io.CopyN(buf, reader, msgLen)
 	assert.Equal(msg, buf.String(), "The message in the log is different from what was expected.")
 	assert.Nilf(err, `Can't read log output. Error: "%v".`, err)
+}
 
-	err = inst.Stop(30 * time.Second)
-	assert.Nilf(err, `Can't stop the instance. Error: "%v".`, err)
+func Test_shortenSocketPath(t *testing.T) {
+	type args struct {
+		socketPath string
+		basePath   string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "root base path",
+			args: args{
+				socketPath: "/var/run/app/inst/tarantool.control",
+				basePath:   "/",
+			},
+			want:    "/var/run/app/inst/tarantool.control",
+			wantErr: false,
+		},
+		{
+			name: "/var/run base path",
+			args: args{
+				socketPath: "/var/run/app/inst/tarantool.control",
+				basePath:   "/var/run",
+			},
+			want:    "/var/run/app/inst/tarantool.control",
+			wantErr: false,
+		},
+		{
+			name: "long socket path",
+			args: args{
+				socketPath: "/" + strings.Repeat("aaaaaaaaaa/", 11) + "/tarantool.control",
+				basePath:   "/" + strings.Repeat("aaaaaaaaaa/", 10) + "/",
+			},
+			want:    "aaaaaaaaaa/tarantool.control",
+			wantErr: false,
+		},
+		{
+			name: "long socket path, one level up",
+			args: args{
+				socketPath: "/" + strings.Repeat("aaaaaaaaaa/", 11) + "/tarantool.control",
+				basePath:   "/" + strings.Repeat("aaaaaaaaaa/", 10) + "/bbb/",
+			},
+			want:    "../aaaaaaaaaa/tarantool.control",
+			wantErr: false,
+		},
+		{
+			name: "long socket path, no way to make it shorter",
+			args: args{
+				socketPath: "/" + strings.Repeat("aaaaaaaaaa/", 11) + "/tarantool.control",
+				basePath:   "",
+			},
+			want:    "../aaaaaaaaaa/tarantool.control",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := shortenSocketPath(tt.args.socketPath, tt.args.basePath)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
 }
