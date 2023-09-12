@@ -51,7 +51,7 @@ func getTestRootCmd() *cobra.Command {
 }
 
 func TestModulesInfo(t *testing.T) {
-	cliOpts := config.CliOpts{App: &config.AppOpts{BinDir: "./testdata/bin_dir"}}
+	cliOpts := config.CliOpts{Env: &config.TtEnvOpts{BinDir: "./testdata/bin_dir"}}
 
 	var cmdCtx cmdcontext.CmdCtx
 	testRootCmd := getTestRootCmd()

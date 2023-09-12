@@ -401,7 +401,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
 
     # Create test config with restart_on_failure true.
     with open(config_path, "w") as file:
-        yaml.dump({"tt": {"app": {"restart_on_failure": True,
+        yaml.dump({"tt": {"env": {"restart_on_failure": True,
                    "log_maxsize": 10, "log_maxage": 1}}}, file)
 
     # Start an instance.
@@ -605,7 +605,7 @@ def test_running_tarantoolctl_layout(tt_cmd, tmpdir):
 
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as file:
-        yaml.dump({"tt": {"app": {"tarantoolctl_layout": True}}}, file)
+        yaml.dump({"tt": {"env": {"tarantoolctl_layout": True}}}, file)
 
     # Start an instance.
     start_cmd = [tt_cmd, "start", "test_app"]

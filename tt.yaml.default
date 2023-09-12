@@ -1,4 +1,29 @@
 tt:
+  env:
+    # Path to directory that stores all applications.
+    # The directory can also contain symbolic links to applications.
+    instances_enabled: /etc/tarantool/instances.enabled
+
+    # Directory that stores binary files.
+    bin_dir: /opt/tarantool/bin
+
+    # Directory that stores Tarantool header files.
+    inc_dir: /opt/tarantool/include
+
+    # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
+    # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl,
+    # snap) and multi-instance applications are not affected by this option.
+    tarantoolctl_layout: true
+
+    # The maximum size in MB of the log file before it gets rotated.
+    log_maxsize: 100
+
+    # The maximum number of days to retain old log files.
+    log_maxage: 8
+
+    # The maximum number of old log files to retain.
+    log_maxbackups: 10
+
   modules:
     # Directory where the external modules are stored.
     directory: /opt/tarantool/modules
@@ -11,15 +36,6 @@ tt:
     # Directory that stores log files.
     log_dir: /var/log/tarantool
 
-    # The maximum size in MB of the log file before it gets rotated.
-    log_maxsize: 100
-
-    # The maximum number of days to retain old log files.
-    log_maxage: 8
-
-    # The maximum number of old log files to retain.
-    log_maxbackups: 10
-
     # Restart instance on failure.
     restart_on_failure: false
 
@@ -31,21 +47,6 @@ tt:
 
     # Directory where vinyl files or subdirectories will be stored.
     vinyl_dir: /var/lib/tarantool
-
-    # Directory that stores binary files.
-    bin_dir: /opt/tarantool/bin
-
-    # Directory that stores Tarantool header files.
-    inc_dir: /opt/tarantool/include
-
-    # Path to directory that stores all applications.
-    # The directory can also contain symbolic links to applications.
-    instances_enabled: /etc/tarantool/instances.enabled
-
-    # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
-    # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl,
-    # snap) and multi-instance applications are not affected by this option.
-    tarantoolctl_layout: true
 
   ee: null
     # Path to file with credentials for downloading Tarantool Enterprise Edition.

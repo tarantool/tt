@@ -137,7 +137,7 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	err = install.Install(cliOpts.App.BinDir, cliOpts.App.IncludeDir,
+	err = install.Install(cliOpts.Env.BinDir, cliOpts.Env.IncludeDir,
 		installCtx, cliOpts.Repo.Install, cliOpts)
 	return err
 }

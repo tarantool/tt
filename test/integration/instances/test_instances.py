@@ -16,7 +16,7 @@ def test_instances_enabled_apps(tt_cmd):
 
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
-            yaml.dump({"tt": {"app": {"instances_enabled": "."}}}, f)
+            yaml.dump({"tt": {"env": {"instances_enabled": "."}}}, f)
 
         # List all instances.
         start_cmd = [tt_cmd, "instances"]
@@ -41,7 +41,7 @@ def test_instances_no_apps(tt_cmd):
 
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
-            yaml.dump({"tt": {"app": {"instances_enabled": "."}}}, f)
+            yaml.dump({"tt": {"env": {"instances_enabled": "."}}}, f)
 
         # List all instances.
         start_cmd = [tt_cmd, "instances"]
@@ -61,7 +61,7 @@ def test_instances_missing_directory(tt_cmd):
         test_app_path = os.path.join(tmpdir)
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
-            yaml.dump({"tt": {"app": {"instances_enabled": "foo/bar"}}}, f)
+            yaml.dump({"tt": {"env": {"instances_enabled": "foo/bar"}}}, f)
         # List all instances.
         start_cmd = [tt_cmd, "instances"]
         instance_process = subprocess.Popen(
@@ -83,7 +83,7 @@ def test_instances_dot_directory_with_app(tt_cmd):
         test_app_path = os.path.join(tmpdir)
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
-            yaml.dump({"tt": {"app": {"instances_enabled": "."}}}, f)
+            yaml.dump({"tt": {"env": {"instances_enabled": "."}}}, f)
         # List all instances.
         start_cmd = [tt_cmd, "instances"]
         instance_process = subprocess.Popen(
@@ -104,7 +104,7 @@ def test_instances_dot_directory_with_lua_file(tt_cmd):
         shutil.copyfile(test_app_path_src, os.path.join(test_app_path, "app2.lua"))
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
-            yaml.dump({"tt": {"app": {"instances_enabled": "."}}}, f)
+            yaml.dump({"tt": {"env": {"instances_enabled": "."}}}, f)
         # List all instances.
         start_cmd = [tt_cmd, "instances"]
         instance_process = subprocess.Popen(

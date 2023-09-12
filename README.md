@@ -244,22 +244,23 @@ file format:
 
 ``` yaml
 tt:
-  modules:
-    directory: path/to/modules/dir
-  app:
+  env:
     instances_enabled: path/to/available/applications
-    run_dir: path/to/run_dir
-    log_dir: path/to/log_dir
     bin_dir: path/to/bin_dir
     inc_dir: path/to/inc_dir
-    wal_dir: var/lib
-    vinyl_dir: var/lib
-    memtx_dir: var/lib
     log_maxsize: num (MB)
     log_maxage: num (Days)
     log_maxbackups: num
     restart_on_failure: bool
     tarantoolctl_layout: bool
+  modules:
+    directory: path/to/modules/dir
+  app:
+    run_dir: path/to/run_dir
+    log_dir: path/to/log_dir
+    wal_dir: var/lib
+    vinyl_dir: var/lib
+    memtx_dir: var/lib
   repo:
     rocks: path/to/rocks
     distfiles: path/to/install
@@ -270,27 +271,13 @@ tt:
     - path: path/to/templates_dir2
 ```
 
-**modules**
-
--   `directory` (string) - the path to directory where the external
-    modules are stored.
-
-**app**
+**env**
 
 -   `instances_enabled` (string) - path to directory that stores all
     applications.
--   `run_dir` (string) - path to directory that stores various instance
-    runtime artifacts like console socket, PID file, etc.
--   `log_dir` (string) - directory that stores log files.
 -   `bin_dir` (string) - directory that stores binary files.
 -   `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
--   `wal_dir` (string) - directory where write-ahead log (.xlog) files
-    are stored.
--   `memtx_dir` (string) - directory where memtx stores snapshot (.snap)
-    files.
--   `vinyl_dir` (string) - directory where vinyl files or subdirectories
-    will be stored.
 -   `log_maxsize` (number) - the maximum size in MB of the log file
     before it gets rotated. It defaults to 100 MB.
 -   `log_maxage` (numder) - is the maximum number of days to retain old
@@ -306,6 +293,23 @@ tt:
     compatible mode for artifact files: control socket, pid, log files.
     Data files (wal, vinyl, snapshots) and multi-instance applications
     are not affected by this option.
+
+**modules**
+
+-   `directory` (string) - the path to directory where the external
+    modules are stored.
+
+**app**
+
+-   `run_dir` (string) - path to directory that stores various instance
+    runtime artifacts like console socket, PID file, etc.
+-   `log_dir` (string) - directory that stores log files.
+-   `wal_dir` (string) - directory where write-ahead log (.xlog) files
+    are stored.
+-   `memtx_dir` (string) - directory where memtx stores snapshot (.snap)
+    files.
+-   `vinyl_dir` (string) - directory where vinyl files or subdirectories
+    will be stored.
 
 **repo**
 

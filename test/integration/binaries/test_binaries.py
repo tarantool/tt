@@ -13,7 +13,7 @@ def test_binaries(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir: "./bin"\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir: "./bin"\n    inc_dir:\n')
 
     # Print binaries
     binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries"]
@@ -39,7 +39,7 @@ def test_binaries_no_directory(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir: "./bin"\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir: "./bin"\n    inc_dir:\n')
 
     # Print binaries
     binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries"]
@@ -62,7 +62,7 @@ def test_binaries_empty_directory(tt_cmd, tmpdir):
     os.mkdir(tmpdir+"/bin")
     # Create test config
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir: "./bin"\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir: "./bin"\n    inc_dir:\n')
 
     # Print binaries
     binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries"]
@@ -89,7 +89,7 @@ def test_binaries_tarantool_dev(tt_cmd, tmpdir):
     # Create test config.
     with open(config_path, "w") as f:
         f.write(
-            'tt:\n  app:\n    bin_dir: "./tarantool_dev/bin"\n    inc_dir:\n')
+            'tt:\n  env:\n    bin_dir: "./tarantool_dev/bin"\n    inc_dir:\n')
 
     binaries_cmd = [tt_cmd, "--cfg", config_path, "binaries"]
     binaries_process = subprocess.Popen(

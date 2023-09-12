@@ -42,7 +42,10 @@ func TestConfigureCli(t *testing.T) {
 
 	expectedConfigPath, err := util.JoinAbspath(testDir, ConfigName)
 	assert.Nil(err)
-	os.WriteFile(expectedConfigPath, []byte("tt:\n  app:\n    bin_dir: \".\""), 0755)
+	require.NoError(t, os.WriteFile(expectedConfigPath, []byte(`tt:
+  env:
+    bin_dir: "."
+`), 0644))
 
 	// Create local tarantool and check that it is found during configuration.
 	expectedTarantoolPath := filepath.Join(cmdCtx.Cli.LocalLaunchDir, "tarantool")
@@ -194,7 +197,7 @@ func TestValidateCliOpts(t *testing.T) {
 
 func TestDetectLocalTarantool(t *testing.T) {
 	// Tarantool executable is in bin_dir.
-	cliOpts := config.CliOpts{App: &config.AppOpts{BinDir: "./testdata/bin_dir"}}
+	cliOpts := config.CliOpts{Env: &config.TtEnvOpts{BinDir: "./testdata/bin_dir"}}
 	cmdCtx := cmdcontext.CmdCtx{}
 	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
 	expected, err := filepath.Abs("./testdata/bin_dir/tarantool")
@@ -209,7 +212,7 @@ func TestDetectLocalTarantool(t *testing.T) {
 	defer os.Chdir(wd)
 
 	// Tarantool executable is in PATH.
-	cliOpts.App.BinDir = "./testdata"
+	cliOpts.Env.BinDir = "./testdata"
 	Cli(&cmdCtx)
 	require.NoError(t, detectLocalTarantool(&cmdCtx, &cliOpts))
 	expected, err = exec.LookPath("tarantool")
@@ -218,14 +221,14 @@ func TestDetectLocalTarantool(t *testing.T) {
 }
 
 func TestDetectLocalTt(t *testing.T) {
-	cliOpts := config.CliOpts{App: &config.AppOpts{BinDir: "./testdata/bin_dir"}}
+	cliOpts := config.CliOpts{Env: &config.TtEnvOpts{BinDir: "./testdata/bin_dir"}}
 	localTt, err := detectLocalTt(&cliOpts)
 	require.NoError(t, err)
 	expected, err := filepath.Abs("./testdata/bin_dir/tt")
 	require.NoError(t, err)
 	require.Equal(t, expected, localTt)
 
-	cliOpts.App.BinDir = "./testdata"
+	cliOpts.Env.BinDir = "./testdata"
 	localTt, err = detectLocalTt(&cliOpts)
 	require.NoError(t, err)
 	require.Equal(t, "", localTt)
@@ -270,13 +273,16 @@ func TestGetConfigPath(t *testing.T) {
 func TestUpdateCliOpts(t *testing.T) {
 	cliOpts := config.CliOpts{
 		App: &config.AppOpts{
-			RunDir:     "/var/run",
-			LogDir:     "var/log",
-			WalDir:     "./var/lib/wal",
-			VinylDir:   "./var/lib/vinyl",
-			MemtxDir:   "./var/lib/snap",
+			RunDir:   "/var/run",
+			LogDir:   "var/log",
+			WalDir:   "./var/lib/wal",
+			VinylDir: "./var/lib/vinyl",
+			MemtxDir: "./var/lib/snap",
+		},
+		Env: &config.TtEnvOpts{
 			IncludeDir: "../include_dir",
 			LogMaxAge:  42,
+			LogMaxSize: 200,
 		},
 	}
 	configDir := "/etc/tarantool"
@@ -288,10 +294,10 @@ func TestUpdateCliOpts(t *testing.T) {
 	assert.Equal(t, filepath.Join(configDir, "var", "lib", "wal"), cliOpts.App.WalDir)
 	assert.Equal(t, filepath.Join(configDir, "var", "lib", "vinyl"), cliOpts.App.VinylDir)
 	assert.Equal(t, filepath.Join(configDir, "var", "lib", "snap"), cliOpts.App.MemtxDir)
-	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.App.IncludeDir)
+	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.Env.IncludeDir)
 	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directory)
-	assert.Equal(t, ".", cliOpts.App.InstancesEnabled)
-	assert.Equal(t, 42, cliOpts.App.LogMaxAge)
-	assert.Equal(t, logMaxBackups, cliOpts.App.LogMaxBackups)
-	assert.Equal(t, logMaxSize, cliOpts.App.LogMaxSize)
+	assert.Equal(t, ".", cliOpts.Env.InstancesEnabled)
+	assert.Equal(t, 42, cliOpts.Env.LogMaxAge)
+	assert.Equal(t, logMaxBackups, cliOpts.Env.LogMaxBackups)
+	assert.Equal(t, 200, cliOpts.Env.LogMaxSize)
 }

@@ -46,11 +46,11 @@ def assert_env(path, artifacts_in_separated_dirs, compat_mode):
     with open(os.path.join(path, config_name)) as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
         if compat_mode:
-            assert data["tt"]["app"]["instances_enabled"] == "."
-            assert data["tt"]["app"]["bin_dir"] == "."
+            assert data["tt"]["env"]["instances_enabled"] == "."
+            assert data["tt"]["env"]["bin_dir"] == "."
         else:
-            assert data["tt"]["app"]["instances_enabled"] == "instances.enabled"
-            assert data["tt"]["app"]["bin_dir"] == "bin"
+            assert data["tt"]["env"]["instances_enabled"] == "instances.enabled"
+            assert data["tt"]["env"]["bin_dir"] == "bin"
         if artifacts_in_separated_dirs:
             assert data["tt"]["app"]["wal_dir"] == "var/wal"
             assert data["tt"]["app"]["vinyl_dir"] == "var/vinyl"
@@ -450,6 +450,8 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
 
     for test_case in test_cases:
         base_dir = os.path.join(tmpdir, test_case["bundle_src"])
+        print("BASEDIR: " + base_dir)
+        print("ARGS: " + " ".join(test_case["args"]))
         rc, output = run_command_and_get_output(
             [test_case["cmd"], "pack", test_case["pack_type"], *test_case["args"]],
             cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -486,6 +488,7 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
             assert not os.listdir(os.path.join(extract_path, "modules"))
 
         for file_path in test_case["check_exist"]:
+            print("Check exist " + file_path + " in  "+extract_path)
             assert glob.glob(os.path.join(extract_path, file_path))
 
         for file_path in test_case["check_not_exist"]:

@@ -145,7 +145,7 @@ func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("wrong number of arguments")
 	}
 
-	err := uninstall.UninstallProgram(programName, programVersion, cliOpts.App.BinDir,
-		cliOpts.App.IncludeDir+"/include", cmdCtx)
+	err := uninstall.UninstallProgram(programName, programVersion, cliOpts.Env.BinDir,
+		cliOpts.Env.IncludeDir+"/include", cmdCtx)
 	return err
 }

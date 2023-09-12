@@ -4,8 +4,9 @@ tt:
   app:
     run_dir: /var/run
     log_dir: ./var/log
-    log_maxbackups: 12
     wal_dir: lib/wal
     vinyl_dir: lib/vinyl
     memtx_dir: lib/memtx
+  env:
     bin_dir: /usr/bin
+    log_maxbackups: 12

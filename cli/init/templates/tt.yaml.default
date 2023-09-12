@@ -1,63 +1,64 @@
 tt:
   modules:
     # Directory where the external modules are stored.
-    directory: "{{ .CliConfig.Modules.Directory }}"
+    directory: {{ .CliConfig.Modules.Directory }}
 
-  app:
-    # Directory that stores various instance runtime
-    # artifacts like console socket, PID file, etc.
-    run_dir: "{{ .CliConfig.App.RunDir }}"
-
-    # Directory that stores log files.
-    log_dir: {{ .CliConfig.App.LogDir }}
-
+  env:
     # The maximum size in MB of the log file before it gets rotated.
-    log_maxsize: {{ .CliConfig.App.LogMaxSize }}
+    log_maxsize: {{ .CliConfig.Env.LogMaxSize }}
 
     # The maximum number of days to retain old log files.
-    log_maxage: {{ .CliConfig.App.LogMaxAge }}
+    log_maxage: {{ .CliConfig.Env.LogMaxAge }}
 
     # The maximum number of old log files to retain.
-    log_maxbackups: {{ .CliConfig.App.LogMaxBackups }}
+    log_maxbackups: {{ .CliConfig.Env.LogMaxBackups }}
 
     # Restart instance on failure.
-    restart_on_failure: {{ .CliConfig.App.Restartable }}
-
-    # Directory where write-ahead log (.xlog) files are stored.
-    wal_dir: "{{ .CliConfig.App.WalDir }}"
-
-    # Directory where memtx stores snapshot (.snap) files.
-    memtx_dir: "{{ .CliConfig.App.MemtxDir }}"
-
-    # Directory where vinyl files or subdirectories will be stored.
-    vinyl_dir: "{{ .CliConfig.App.VinylDir }}"
+    restart_on_failure: {{ .CliConfig.Env.Restartable }}
 
     # Directory that stores binary files.
-    bin_dir: "{{ .CliConfig.App.BinDir }}"
+    bin_dir: {{ .CliConfig.Env.BinDir }}
 
     # Directory that stores Tarantool header files.
-    inc_dir: "{{ .CliConfig.App.IncludeDir }}"
+    inc_dir: {{ .CliConfig.Env.IncludeDir }}
 
     # Path to directory that stores all applications.
     # The directory can also contain symbolic links to applications.
-    instances_enabled: "{{ .CliConfig.App.InstancesEnabled }}"
+    instances_enabled: {{ .CliConfig.Env.InstancesEnabled }}
 
     # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
     # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl,
     # snap) and multi-instance applications are not affected by this option.
-    tarantoolctl_layout: {{ .CliConfig.App.TarantoolctlLayout }}
+    tarantoolctl_layout: {{ .CliConfig.Env.TarantoolctlLayout }}
+
+  app:
+    # Directory that stores various instance runtime
+    # artifacts like console socket, PID file, etc.
+    run_dir: {{ .CliConfig.App.RunDir }}
+
+    # Directory that stores log files.
+    log_dir: {{ .CliConfig.App.LogDir }}
+
+    # Directory where write-ahead log (.xlog) files are stored.
+    wal_dir: {{ .CliConfig.App.WalDir }}
+
+    # Directory where memtx stores snapshot (.snap) files.
+    memtx_dir: {{ .CliConfig.App.MemtxDir }}
+
+    # Directory where vinyl files or subdirectories will be stored.
+    vinyl_dir: {{ .CliConfig.App.VinylDir }}
 
   # Path to file with credentials for downloading Tarantool Enterprise Edition.
   # credential_path: /path/to/file
   ee:
-    credential_path: "{{ .CliConfig.EE.CredPath }}"
+    credential_path: {{ .CliConfig.EE.CredPath }}
 
   templates:
     # The path to templates search directory.{{ $templates := .CliConfig.Templates }}{{ range $_, $template := $templates }}
-    - path: "{{ $template.Path }}"{{end}}
+    - path: {{ $template.Path }}{{end}}
 
   repo:
     # Directory where local rocks files could be found.
-    rocks: "{{ .CliConfig.Repo.Rocks }}"
+    rocks: {{ .CliConfig.Repo.Rocks }}
     # Directory that stores installation files.
-    distfiles: "{{ .CliConfig.Repo.Install }}"
+    distfiles: {{ .CliConfig.Repo.Install }}

@@ -19,7 +19,7 @@ def test_install_tt_unexisted_commit(tt_cmd, tmpdir):
     tmp_dir = tempfile.mkdtemp(dir=tmpdir)
     tmp_name = tmp_dir.rpartition('/')[2]
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n  repo:\n    distfiles: "%s"' % tmp_name)
+        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n  repo:\n    distfiles: "%s"' % tmp_name)
 
     os.makedirs(tmp_dir + "/tt")
 
@@ -57,7 +57,7 @@ def test_install_tt(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
 
     # Install latest tt.
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt"]
@@ -90,7 +90,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
 
     # Install specific tt's commit.
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "2df3077"]
@@ -139,7 +139,7 @@ def test_wrong_format_hash(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
 
     # Install specific tt's commit.
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "111"]
@@ -183,7 +183,7 @@ def test_install_tt_specific_version(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
 
     # Install latest tt.
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "1.0.0"]
@@ -216,7 +216,7 @@ def test_install_tarantool_commit(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
+        yaml.dump({"tt": {"env": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
 
     tmpdir_without_config = tempfile.mkdtemp()
 
@@ -263,7 +263,7 @@ def test_install_tarantool(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
+        yaml.dump({"tt": {"env": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
 
     tmpdir_without_config = tempfile.mkdtemp()
 
@@ -306,7 +306,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"app": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
+        yaml.dump({"tt": {"env": {"bin_dir": "", "inc_dir": "./my_inc"}}}, f)
 
     tmpdir_without_config = tempfile.mkdtemp()
 

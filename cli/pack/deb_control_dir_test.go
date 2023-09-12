@@ -50,7 +50,7 @@ func TestCreateControlDir(t *testing.T) {
 				},
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{
+				Env: &config.TtEnvOpts{
 					InstancesEnabled: ".",
 				},
 			},
@@ -73,7 +73,7 @@ func TestCreateControlDir(t *testing.T) {
 				},
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{
+				Env: &config.TtEnvOpts{
 					InstancesEnabled: ".",
 				},
 			},
@@ -97,7 +97,7 @@ func TestCreateControlDir(t *testing.T) {
 				},
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{
+				Env: &config.TtEnvOpts{
 					InstancesEnabled: ".",
 				},
 			},
@@ -121,7 +121,7 @@ func TestCreateControlDir(t *testing.T) {
 				},
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{
+				Env: &config.TtEnvOpts{
 					InstancesEnabled: ".",
 				},
 			},

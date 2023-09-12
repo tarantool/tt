@@ -842,8 +842,8 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 	ttCfg := config.Config{
 		CliConfig: configure.GetDefaultCliOpts(),
 	}
-	ttCfg.CliConfig.App.BinDir = "/tt_bin"
-	ttCfg.CliConfig.App.IncludeDir = "/tt_include"
+	ttCfg.CliConfig.Env.BinDir = "/tt_bin"
+	ttCfg.CliConfig.Env.IncludeDir = "/tt_include"
 	ttCfg.CliConfig.Repo.Install = "/tt_distfiles"
 	if err = util.WriteYaml(filepath.Join(tmpDir, configure.ConfigName), ttCfg); err != nil {
 		return err
@@ -873,8 +873,8 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 		ImageTag:    "ubuntu:tt_tarantool_build",
 		Command:     tntInstallCommandLine,
 		Binds: []string{
-			fmt.Sprintf("%s:%s", binDir, ttCfg.CliConfig.App.BinDir),
-			fmt.Sprintf("%s:%s", filepath.Dir(incDir), ttCfg.CliConfig.App.IncludeDir),
+			fmt.Sprintf("%s:%s", binDir, ttCfg.CliConfig.Env.BinDir),
+			fmt.Sprintf("%s:%s", filepath.Dir(incDir), ttCfg.CliConfig.Env.IncludeDir),
 			fmt.Sprintf("%s:%s", distfiles, ttCfg.CliConfig.Repo.Install),
 		},
 		Verbose: installCtx.verbose,

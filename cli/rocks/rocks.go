@@ -60,7 +60,7 @@ func getRocksRepoPath(rocksRepoPath string) string {
 // GetTarantoolPrefix returns tarantool installation prefix.
 func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string, error) {
 	if cli.IsTarantoolBinFromRepo {
-		prefixDir, err := util.JoinAbspath(cliOpts.App.IncludeDir)
+		prefixDir, err := util.JoinAbspath(cliOpts.Env.IncludeDir)
 		if err != nil {
 			return "", err
 		}

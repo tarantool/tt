@@ -3,11 +3,12 @@ package uninstall
 import (
 	"errors"
 	"fmt"
-	"github.com/tarantool/tt/cli/install"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/tarantool/tt/cli/install"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -168,11 +169,11 @@ func GetList(cliOpts *config.CliOpts, program string) []string {
 		"^" + progRegexp + version.FsSeparator + verRegexp + "$",
 	)
 
-	if cliOpts.App.BinDir == "" {
+	if cliOpts.Env.BinDir == "" {
 		return nil
 	}
 
-	installedPrograms, err := os.ReadDir(cliOpts.App.BinDir)
+	installedPrograms, err := os.ReadDir(cliOpts.Env.BinDir)
 	if err != nil {
 		return nil
 	}

@@ -45,7 +45,7 @@ func FillCtx(buildCtx *BuildCtx, cliOpts *config.CliOpts, args []string) error {
 			}
 			log.Debugf("%q does not exist. Looking for %q in instances enabled directory.",
 				appPath, appName)
-			appLink := filepath.Join(cliOpts.App.InstancesEnabled, appName)
+			appLink := filepath.Join(cliOpts.Env.InstancesEnabled, appName)
 			if appPath, err = util.ResolveSymlink(appLink); err != nil {
 				return err
 			}

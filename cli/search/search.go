@@ -254,7 +254,7 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
 		}
 
 		for _, bundle := range bundles {
-			printVersion(cliOpts.App.BinDir, program, bundle.Version.Str)
+			printVersion(cliOpts.Env.BinDir, program, bundle.Version.Str)
 		}
 		return nil
 	}
@@ -265,10 +265,10 @@ func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
 	}
 
 	for _, version := range versions {
-		printVersion(cliOpts.App.BinDir, program, version.Str)
+		printVersion(cliOpts.Env.BinDir, program, version.Str)
 	}
 
-	printVersion(cliOpts.App.BinDir, program, "master")
+	printVersion(cliOpts.Env.BinDir, program, "master")
 
 	return err
 }
@@ -311,9 +311,9 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 			}
 
 			for _, version := range versions {
-				printVersion(cliOpts.App.BinDir, program, version.Str)
+				printVersion(cliOpts.Env.BinDir, program, version.Str)
 			}
-			printVersion(cliOpts.App.BinDir, program, "master")
+			printVersion(cliOpts.Env.BinDir, program, "master")
 		}
 	} else if program == ProgramTt {
 		if _, err = os.Stat(localDir + "/tt"); !os.IsNotExist(err) {
@@ -324,9 +324,9 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 			}
 
 			for _, version := range versions {
-				printVersion(cliOpts.App.BinDir, program, version.Str)
+				printVersion(cliOpts.Env.BinDir, program, version.Str)
 			}
-			printVersion(cliOpts.App.BinDir, program, "master")
+			printVersion(cliOpts.Env.BinDir, program, "master")
 		}
 	} else if program == ProgramEe {
 		files := []string{}
@@ -343,7 +343,7 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 		}
 
 		for _, bundle := range bundles {
-			printVersion(cliOpts.App.BinDir, program, bundle.Version.Str)
+			printVersion(cliOpts.Env.BinDir, program, bundle.Version.Str)
 		}
 	} else {
 		return fmt.Errorf("search supports only tarantool/tarantool-ee/tt")
