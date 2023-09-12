@@ -1,7 +1,6 @@
 package install
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -36,10 +35,7 @@ type patcherOutput struct {
 
 func TestPatcher(t *testing.T) {
 	assert := assert.New(t)
-	testDir, err := ioutil.TempDir("/tmp", "tt-unit")
-	require.NoError(t, err)
-
-	defer os.RemoveAll(testDir)
+	testDir := t.TempDir()
 
 	targetData := []byte("aaa\n")
 	patchData := []byte("--- testdata.old	2022-10-11 10:32:28.011753821 +0300\n" +

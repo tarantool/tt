@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -68,13 +67,8 @@ func addToArchive(tarWriter *tar.Writer, fileName string) error {
 }
 
 func TestCopyTemplateDirectory(t *testing.T) {
-	dstDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
-
-	workDir2, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir2)
+	dstDir := t.TempDir()
+	workDir2 := t.TempDir()
 
 	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
 
@@ -93,13 +87,8 @@ func TestCopyTemplateDirectory(t *testing.T) {
 }
 
 func TestCopyTemplateDirectoryRelative(t *testing.T) {
-	dstDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
-
-	workDir2, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir2)
+	dstDir := t.TempDir()
+	workDir2 := t.TempDir()
 
 	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
 
@@ -126,13 +115,8 @@ func TestExtractTemplateArchive(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 
-	dstDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
-
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	dstDir := t.TempDir()
+	workDir := t.TempDir()
 
 	srcDir := filepath.Join(workDir, "src")
 	require.NoError(t, os.Mkdir(srcDir, 0755))

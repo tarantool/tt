@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 
 	"github.com/mitchellh/mapstructure"
 )
@@ -31,7 +30,7 @@ type command struct {
 // and parses them to a "command" struct.
 func parseCommand(r io.Reader, cmd *command) (string, error) {
 	// Read data to log raw JSON request.
-	bodyBytes, err := ioutil.ReadAll(r)
+	bodyBytes, err := io.ReadAll(r)
 	if err != nil {
 		return err.Error(), fmt.Errorf(`failed to read request body: %s`, err.Error())
 	}

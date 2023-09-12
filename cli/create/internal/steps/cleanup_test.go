@@ -1,8 +1,6 @@
 package steps
 
 import (
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -14,9 +12,7 @@ import (
 )
 
 func TestCleanUp(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	require.Nil(t, copy.Copy("testdata/cleanup", workDir))
 
@@ -46,9 +42,7 @@ func TestCleanUp(t *testing.T) {
 }
 
 func TestCleanUpKeepSubdir(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	require.Nil(t, copy.Copy("testdata/cleanup", workDir))
 

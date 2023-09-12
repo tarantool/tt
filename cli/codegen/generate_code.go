@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -57,7 +56,7 @@ func generateLuaCodeVar() error {
 		f.Comment("This file is generated! DO NOT EDIT\n")
 
 		for key, val := range opts.VariablesMap {
-			content, err := ioutil.ReadFile(val)
+			content, err := os.ReadFile(val)
 			if err != nil {
 				return err
 			}

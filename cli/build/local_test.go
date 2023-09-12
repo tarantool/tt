@@ -1,7 +1,6 @@
 package build
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,10 +13,7 @@ import (
 )
 
 func TestRunHooks(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/runhooks", workDir))
 	buildCtx := BuildCtx{BuildDir: workDir}
 
@@ -44,10 +40,7 @@ func TestRunHooks(t *testing.T) {
 }
 
 func TestLocalBuild(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/app1", workDir))
 	var cmdCtx cmdcontext.CmdCtx
 	configure.Cli(&cmdCtx)
@@ -61,10 +54,7 @@ func TestLocalBuild(t *testing.T) {
 }
 
 func TestLocalBuildSpecFileSet(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/app1", workDir))
 	var cmdCtx cmdcontext.CmdCtx
 	configure.Cli(&cmdCtx)

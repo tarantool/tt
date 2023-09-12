@@ -2,7 +2,6 @@ package steps
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,16 +16,10 @@ func TestMoveAppDirBasic(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 
-	srcAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(srcAppDir)
-
+	srcAppDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/cartridge", srcAppDir))
 
-	dstAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(dstAppDir)
-
+	dstAppDir := t.TempDir()
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "app")
 	templateCtx.AppPath = srcAppDir
 	moveAppDir := MoveAppDirectory{}
@@ -42,13 +35,8 @@ func TestMoveAppDirDstDirExist(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 
-	srcAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(srcAppDir)
-
-	dstAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(dstAppDir)
+	srcAppDir := t.TempDir()
+	dstAppDir := t.TempDir()
 
 	templateCtx.TargetAppPath = dstAppDir
 	templateCtx.AppPath = srcAppDir
@@ -61,10 +49,7 @@ func TestMoveAppDirSourceDirMissing(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 
-	dstAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(dstAppDir)
-
+	dstAppDir := t.TempDir()
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "app")
 	templateCtx.AppPath = "/non/existing/dir"
 	moveAppDir := MoveAppDirectory{}
@@ -76,16 +61,10 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 
-	srcAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(srcAppDir)
-
+	srcAppDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/cartridge", srcAppDir))
 
-	dstAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(dstAppDir)
-
+	dstAppDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dstAppDir, "parent", "apps"), 0755))
 
 	// Make parent dir read-only.
@@ -107,15 +86,8 @@ func TestMoveAppDirEmptyTargetDir(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 
-	srcAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(srcAppDir)
-
+	srcAppDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/cartridge", srcAppDir))
-
-	dstAppDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(dstAppDir)
 
 	templateCtx.AppPath = srcAppDir
 	moveAppDir := MoveAppDirectory{}

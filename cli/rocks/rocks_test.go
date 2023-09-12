@@ -2,7 +2,6 @@ package rocks
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -114,12 +113,8 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	}
 
 	assert := assert.New(t)
-	testDir, err := ioutil.TempDir("/tmp", "tt-unit")
-	require.NoError(t, err)
-
-	defer os.RemoveAll(testDir)
-
-	err = os.Mkdir(testDir+"/bin", os.ModePerm)
+	testDir := t.TempDir()
+	err := os.Mkdir(testDir+"/bin", os.ModePerm)
 	require.NoError(t, err)
 
 	tntBinPath := testDir + "/bin/tarantool"

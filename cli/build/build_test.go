@@ -2,7 +2,6 @@ package build
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,9 +16,7 @@ import (
 const testDirName = "build-test-dir"
 
 func TestFillCtx(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(workDir, "app1"), 0750))
 
 	wd, err := os.Getwd()
@@ -57,9 +54,7 @@ func TestFillCtx(t *testing.T) {
 }
 
 func TestFillCtxInstancesEnabledSupport(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	wd, err := os.Getwd()
 	require.NoError(t, err)
@@ -100,9 +95,7 @@ func TestFillCtxInstancesEnabledSupport(t *testing.T) {
 }
 
 func TestFillCtxAbsoluteAppPath(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(workDir, "app1"), 0750))
 
 	var buildCtx BuildCtx
@@ -113,9 +106,7 @@ func TestFillCtxAbsoluteAppPath(t *testing.T) {
 }
 
 func TestFillCtxAppPathIsFile(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, "app1"), []byte("text"), 0664))
 
 	wd, err := os.Getwd()
@@ -134,10 +125,6 @@ func TestFillCtxAppPathIsFile(t *testing.T) {
 }
 
 func TestFillCtxMultipleArgs(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
 	var buildCtx BuildCtx
 	require.EqualError(t, FillCtx(&buildCtx,
 		&config.CliOpts{App: &config.AppOpts{InstancesEnabled: configure.InstancesEnabledDirName}},

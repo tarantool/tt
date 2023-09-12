@@ -2,7 +2,7 @@ package pack
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -77,14 +77,14 @@ func Test_initSystemdDir(t *testing.T) {
 				return err == nil
 			},
 			check: func() error {
-				content, err := ioutil.ReadFile(filepath.Join(baseTestDir,
+				content, err := os.ReadFile(filepath.Join(baseTestDir,
 					test1Dir, prefixToUnit, "pack.service"))
 				if err != nil {
 					return err
 				}
 				contentStr := string(content)
 
-				expectedContent, err := ioutil.ReadFile(filepath.Join(baseTestDir,
+				expectedContent, err := os.ReadFile(filepath.Join(baseTestDir,
 					test1Dir, prefixToUnit, "expected-unit-content-1.txt"))
 				if err != nil {
 					return err
@@ -120,14 +120,14 @@ func Test_initSystemdDir(t *testing.T) {
 				return err == nil
 			},
 			check: func() error {
-				content, err := ioutil.ReadFile(filepath.Join(baseTestDir,
+				content, err := os.ReadFile(filepath.Join(baseTestDir,
 					test2Dir, prefixToUnit, "pack.service"))
 				if err != nil {
 					return err
 				}
 				contentStr := string(content)
 
-				expectedContent, err := ioutil.ReadFile(filepath.Join(baseTestDir,
+				expectedContent, err := os.ReadFile(filepath.Join(baseTestDir,
 					test2Dir, prefixToUnit, "expected-unit-content-2.txt"))
 				if err != nil {
 					return err
@@ -163,14 +163,14 @@ func Test_initSystemdDir(t *testing.T) {
 				return err == nil
 			},
 			check: func() error {
-				content, err := ioutil.ReadFile(filepath.Join(baseTestDir,
+				content, err := os.ReadFile(filepath.Join(baseTestDir,
 					test3Dir, prefixToUnit, "pack.service"))
 				if err != nil {
 					return err
 				}
 				contentStr := string(content)
 
-				expectedContent, err := ioutil.ReadFile(filepath.Join(baseTestDir,
+				expectedContent, err := os.ReadFile(filepath.Join(baseTestDir,
 					test3Dir, prefixToUnit, "expected-unit-content-3.txt"))
 				if err != nil {
 					return err
@@ -258,7 +258,7 @@ func Test_getUnitParams(t *testing.T) {
 				return err != nil
 			},
 			prepare: func() error {
-				err := ioutil.WriteFile(filepath.Join(testDir, "partly-params.yaml"),
+				err := os.WriteFile(filepath.Join(testDir, "partly-params.yaml"),
 					[]byte("FdLimit: 1024\n"), 0666)
 				return err
 			},
@@ -285,7 +285,7 @@ func Test_getUnitParams(t *testing.T) {
 				return err != nil
 			},
 			prepare: func() error {
-				err := ioutil.WriteFile(filepath.Join(testDir, "fully-params.yaml"),
+				err := os.WriteFile(filepath.Join(testDir, "fully-params.yaml"),
 					[]byte("FdLimit: 1024\n"+
 						"TT: /usr/bin/tt\n"+
 						"ConfigPath: /test/path\n"+

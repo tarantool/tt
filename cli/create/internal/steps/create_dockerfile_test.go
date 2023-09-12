@@ -1,7 +1,6 @@
 package steps
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,10 +13,7 @@ import (
 )
 
 func TestCreateDockerfile(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
@@ -33,10 +29,7 @@ func TestCreateDockerfile(t *testing.T) {
 }
 
 func TestCreateDockerfileSkipExistingTtFile(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir
@@ -53,10 +46,7 @@ func TestCreateDockerfileSkipExistingTtFile(t *testing.T) {
 }
 
 func TestCreateDockerfileSkipExistingCartridgeFile(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 	templateCtx.AppPath = workDir

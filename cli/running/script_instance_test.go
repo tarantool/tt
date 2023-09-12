@@ -3,7 +3,6 @@ package running
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -26,12 +25,10 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 	logger *ttlog.Logger) *scriptInstance {
 	assert := assert.New(t)
 
-	instTestDataDir, err := ioutil.TempDir("", "tarantool_tt_")
-	t.Cleanup(func() { cleanupTempDir(instTestDataDir) })
-	assert.Nilf(err, `Can't create dataDir: "%v". Error: "%v".`, instTestDataDir, err)
+	instTestDataDir := t.TempDir()
 
 	appPath := path.Join(instTestAppDir, app+".lua")
-	_, err = os.Stat(appPath)
+	_, err := os.Stat(appPath)
 	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")

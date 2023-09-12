@@ -2,7 +2,6 @@ package modules
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -123,7 +122,7 @@ func getExternalModules(path string) (map[string]string, error) {
 		return nil, nil
 	}
 
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
 	}

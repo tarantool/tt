@@ -1,7 +1,6 @@
 package steps
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,10 +12,7 @@ import (
 )
 
 func TestManifestLoad(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
 
 	var createCtx create_ctx.CreateCtx
@@ -50,9 +46,7 @@ func TestManifestLoad(t *testing.T) {
 }
 
 func TestMissingManifest(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
@@ -64,9 +58,7 @@ func TestMissingManifest(t *testing.T) {
 }
 
 func TestManifestInvalidYaml(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, app_template.DefaultManifestName),
 		[]byte(`Description: [`), 0644))

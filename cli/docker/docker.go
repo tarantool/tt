@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"os/user"
@@ -82,7 +81,7 @@ func buildDockerImage(dockerClient *client.Client, imageTag string, buildContext
 		if buildResponse.Body != nil {
 			defer buildResponse.Body.Close()
 			if !verbose {
-				writer = ioutil.Discard
+				writer = io.Discard
 			}
 			termFd, isTerm := term.GetFdInfo(writer)
 			if err = jsonmessage.DisplayJSONMessagesStream(buildResponse.Body,

@@ -1,7 +1,6 @@
 package configure
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,13 +14,6 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 )
-
-// cleanupTempDir cleanups temp directory after test.
-func cleanupTempDir(tempDir string) {
-	if _, err := os.Stat(tempDir); !os.IsNotExist(err) {
-		os.RemoveAll(tempDir)
-	}
-}
 
 // Test Tarantool CLI configuration (system and local).
 func TestConfigureCli(t *testing.T) {
@@ -41,9 +33,8 @@ func TestConfigureCli(t *testing.T) {
 	// we run `go test`, which compiles the functions again.
 	assert.Equal(cmdCtx.Cli.ConfigPath, ConfigName)
 
-	testDir, err := ioutil.TempDir(os.TempDir(), "tarantool_tt_")
-	t.Cleanup(func() { cleanupTempDir(testDir) })
-	assert.Nil(err)
+	testDir := t.TempDir()
+
 	// Test local cofniguration.
 	cmdCtx.Cli.IsSystem = false
 	cmdCtx.Cli.LocalLaunchDir = testDir
@@ -51,11 +42,11 @@ func TestConfigureCli(t *testing.T) {
 
 	expectedConfigPath, err := util.JoinAbspath(testDir, ConfigName)
 	assert.Nil(err)
-	ioutil.WriteFile(expectedConfigPath, []byte("tt:\n  app:\n    bin_dir: \".\""), 0755)
+	os.WriteFile(expectedConfigPath, []byte("tt:\n  app:\n    bin_dir: \".\""), 0755)
 
 	// Create local tarantool and check that it is found during configuration.
 	expectedTarantoolPath := filepath.Join(cmdCtx.Cli.LocalLaunchDir, "tarantool")
-	assert.Nil(ioutil.WriteFile(
+	assert.Nil(os.WriteFile(
 		expectedTarantoolPath, []byte("I am [fake] local Tarantool!"), 0777,
 	))
 
@@ -72,8 +63,7 @@ func TestConfigureCli(t *testing.T) {
 	// Test default configuration (no flags specified).
 	cmdCtx.Cli.LocalLaunchDir = ""
 	cmdCtx.Cli.ConfigPath = ""
-	dir, err := ioutil.TempDir(testDir, "temp")
-	assert.Nil(err)
+	dir := t.TempDir()
 
 	// Check if it will go down to the bottom of the directory looking
 	// for the tt.yaml configuration file, specifically skip a file
@@ -81,7 +71,7 @@ func TestConfigureCli(t *testing.T) {
 	os.Chdir(dir)
 	expectedConfigPath = filepath.Join(filepath.Dir(dir), ConfigName)
 
-	assert.Nil(ioutil.WriteFile(
+	assert.Nil(os.WriteFile(
 		expectedConfigPath, []byte("tt:\n  app:"), 0755,
 	))
 

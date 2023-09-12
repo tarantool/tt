@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -57,14 +56,13 @@ func TestFindNamedMatches(t *testing.T) {
 func TestIsDir(t *testing.T) {
 	assert := assert.New(t)
 
-	workDir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
+	workDir := t.TempDir()
 
 	defer os.RemoveAll(workDir)
 
 	require.True(t, IsDir(workDir))
 
-	tmpFile, err := ioutil.TempFile("", "")
+	tmpFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 
@@ -75,16 +73,13 @@ func TestIsDir(t *testing.T) {
 func TestIsRegularFile(t *testing.T) {
 	assert := assert.New(t)
 
-	tmpFile, err := ioutil.TempFile("", "")
+	tmpFile, err := os.CreateTemp("", "")
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 
 	require.True(t, IsRegularFile(tmpFile.Name()))
 
-	workDir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	assert.False(IsRegularFile(workDir))
 	assert.False(IsRegularFile("./non-existing-file"))
 }
@@ -390,7 +385,7 @@ func TestInstantiateFileFromTemplate(t *testing.T) {
 				fmt.Sprintf("InstantiateFileFromTemplate(%v, %v, %v)",
 					tt.args.unitPath, tt.args.unitTemplate, tt.args.ctx))
 
-			content, err := ioutil.ReadFile(tt.args.unitPath)
+			content, err := os.ReadFile(tt.args.unitPath)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedContent, string(content))
 		})
