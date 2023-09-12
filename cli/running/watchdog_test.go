@@ -2,7 +2,6 @@ package running
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -53,23 +52,14 @@ func (provider *providerTestImpl) IsRestartable() (bool, error) {
 	return provider.restartable, nil
 }
 
-// cleanupTempDir cleanups temp directory after test.
-func cleanupTempDir(tempDir string) {
-	if _, err := os.Stat(tempDir); !os.IsNotExist(err) {
-		os.RemoveAll(tempDir)
-	}
-}
-
 // createTestWatchdog creates an instance and a watchdog for the test.
 func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	assert := assert.New(t)
 
-	dataDir, err := ioutil.TempDir("", "tarantool_tt_")
-	t.Cleanup(func() { cleanupTempDir(dataDir) })
-	assert.Nil(err)
+	dataDir := t.TempDir()
 
 	appPath := path.Join(wdTestAppDir, wdTestAppName+".lua")
-	_, err = os.Stat(appPath)
+	_, err := os.Stat(appPath)
 	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")

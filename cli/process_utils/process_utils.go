@@ -2,7 +2,7 @@ package process_utils
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -67,7 +67,7 @@ func GetPIDFromFile(pidFileName string) (int, error) {
 		return 0, fmt.Errorf(`can't open the PID file. Error: "%v"`, err)
 	}
 
-	pidBytes, err := ioutil.ReadAll(pidFile)
+	pidBytes, err := io.ReadAll(pidFile)
 	if err != nil {
 		return 0, fmt.Errorf(`can't read the PID file. Error: "%v"`, err)
 	}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -87,7 +86,7 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
-		if outputBuf, err = ioutil.TempFile("", "out"); err != nil {
+		if outputBuf, err = os.CreateTemp("", "out"); err != nil {
 			log.Warnf("Failed to create tmp file to store command output: %s", err)
 		}
 		cmd.Stdout = outputBuf

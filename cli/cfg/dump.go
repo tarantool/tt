@@ -3,7 +3,6 @@ package cfg
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -24,7 +23,7 @@ func dumpRaw(writer io.Writer, cmdCtx *cmdcontext.CmdCtx) error {
 		if err != nil {
 			return err
 		}
-		fileContent, err := ioutil.ReadFile(cmdCtx.Cli.ConfigPath)
+		fileContent, err := os.ReadFile(cmdCtx.Cli.ConfigPath)
 		if err != nil {
 			return err
 		}

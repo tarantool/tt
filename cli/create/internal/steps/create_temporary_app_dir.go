@@ -2,7 +2,6 @@ package steps
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -46,7 +45,7 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 	log.Infof("Creating application in %q", appDirectory)
 	templateCtx.TargetAppPath = appDirectory
 
-	templateCtx.AppPath, err = ioutil.TempDir("", createCtx.AppName+"*")
+	templateCtx.AppPath, err = os.MkdirTemp("", createCtx.AppName+"*")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary application directory: %s", err)
 	}

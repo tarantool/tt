@@ -2,7 +2,7 @@ package connect
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path"
 	"syscall"
@@ -48,7 +48,7 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 
 	if connectCtx.SrcFile == "-" {
 		if !terminal.IsTerminal(syscall.Stdin) {
-			cmdByte, err := ioutil.ReadAll(os.Stdin)
+			cmdByte, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				return "", err
 			}
@@ -59,7 +59,7 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 	} else {
 		cmdPath := path.Clean(connectCtx.SrcFile)
 		if _, err := os.Stat(cmdPath); err == nil {
-			cmdByte, err := ioutil.ReadFile(cmdPath)
+			cmdByte, err := os.ReadFile(cmdPath)
 			if err != nil {
 				return "", err
 			}

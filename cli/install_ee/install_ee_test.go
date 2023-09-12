@@ -2,7 +2,6 @@ package install_ee
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -29,7 +28,7 @@ func TestGetCredsFromFile(t *testing.T) {
 			err:    fmt.Errorf("open ./testdata/nonexisting: no such file or directory"),
 		}
 
-	file, err := ioutil.TempFile("/tmp", "tt-unittest-*.bat")
+	file, err := os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
 	file.WriteString("user\npass")
 	defer os.Remove(file.Name())
@@ -43,7 +42,7 @@ func TestGetCredsFromFile(t *testing.T) {
 			err: nil,
 		}
 
-	file, err = ioutil.TempFile("/tmp", "tt-unittest-*.bat")
+	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
 	file.WriteString("")
 	defer os.Remove(file.Name())
@@ -54,7 +53,7 @@ func TestGetCredsFromFile(t *testing.T) {
 			err:    fmt.Errorf("login not set"),
 		}
 
-	file, err = ioutil.TempFile("/tmp", "tt-unittest-*.bat")
+	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
 	file.WriteString("user")
 	defer os.Remove(file.Name())

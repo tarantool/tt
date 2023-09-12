@@ -2,7 +2,6 @@ package pack
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,7 +17,7 @@ import (
 
 // DepRelation tags are false-positive highlighted by golang-ci-linter.
 // Those tags are needed for participle parser package.
-//nolint
+// nolint
 type DepRelation struct {
 	Relation string `@( "=" "=" | "=" | ">" "=" | "<" "=" | ">" | "<" )`
 	Version  string `@Number`
@@ -26,7 +25,7 @@ type DepRelation struct {
 
 // PackDependency tags are false-positive highlighted by golang-ci-linter.
 // Those tags are needed for participle parser package.
-//nolint
+// nolint
 type PackDependency struct {
 	Name      string        `@Ident`
 	Relations []DepRelation `(@@ ( "," @@ )?)?`
@@ -137,7 +136,7 @@ func createControlFile(basePath string, debControlCtx *map[string]interface{}) e
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(filepath.Join(basePath, "control"), []byte(text), filePermissions)
+	err = os.WriteFile(filepath.Join(basePath, "control"), []byte(text), filePermissions)
 	if err != nil {
 		return err
 	}
@@ -188,7 +187,7 @@ func initScript(destDirPath, scriptName string, mp map[string]interface{}) error
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(filepath.Join(destDirPath, scriptName), []byte(text), filePermissions)
+	err = os.WriteFile(filepath.Join(destDirPath, scriptName), []byte(text), filePermissions)
 	if err != nil {
 		return err
 	}

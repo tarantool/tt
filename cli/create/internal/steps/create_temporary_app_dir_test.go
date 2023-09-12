@@ -1,7 +1,6 @@
 package steps
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,10 +16,7 @@ func TestCreateTmpAppDirBasic(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	createCtx.AppName = "app1"
 	createCtx.WorkDir = workDir
 	createAppDir := CreateTemporaryAppDirectory{}
@@ -36,10 +32,7 @@ func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 	templateCtx := app_template.NewTemplateContext()
 
 	createAppDir := CreateTemporaryAppDirectory{}
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	createCtx.WorkDir = workDir
 	require.EqualError(t, createAppDir.Run(&createCtx, &templateCtx),
 		"application name cannot be empty")
@@ -58,10 +51,7 @@ func TestCreateTmpAppDirDestinationSet(t *testing.T) {
 	templateCtx := app_template.NewTemplateContext()
 
 	createAppDir := CreateTemporaryAppDirectory{}
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	createCtx.AppName = "app1"
 	createCtx.DestinationDir = workDir
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))

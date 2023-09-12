@@ -2,8 +2,6 @@ package steps
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,9 +13,7 @@ import (
 )
 
 func TestRunHooks(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
@@ -41,9 +37,7 @@ func TestRunHooks(t *testing.T) {
 }
 
 func TestRunHooksMissingScript(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()

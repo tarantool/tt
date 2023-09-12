@@ -1,7 +1,6 @@
 package steps
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,10 +13,7 @@ import (
 )
 
 func TestTemplateRender(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
 
 	var createCtx create_ctx.CreateCtx
@@ -53,10 +49,7 @@ login = admin
 }
 
 func TestTemplateRenderMissingVar(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
 
 	var createCtx create_ctx.CreateCtx
@@ -71,10 +64,7 @@ func TestTemplateRenderMissingVar(t *testing.T) {
 }
 
 func TestTemplateRenderMissingVarInFileName(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
+	workDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
 
 	var createCtx create_ctx.CreateCtx

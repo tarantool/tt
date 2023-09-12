@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -71,7 +70,7 @@ func GetFileContentBytes(path string) ([]byte, error) {
 	}
 	defer file.Close()
 
-	fileContent, err := ioutil.ReadAll(file)
+	fileContent, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}
@@ -471,12 +470,12 @@ func CopyFilePreserve(src string, dst string) error {
 	if err != nil {
 		return err
 	}
-	data, err := ioutil.ReadFile(src)
+	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
 	// Write data to dst.
-	err = ioutil.WriteFile(dst, data, info.Mode().Perm())
+	err = os.WriteFile(dst, data, info.Mode().Perm())
 	return err
 }
 
@@ -487,12 +486,12 @@ func CopyFileChangePerms(src string, dst string, perms int) error {
 	if err != nil {
 		return err
 	}
-	data, err := ioutil.ReadFile(src)
+	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
 	// Write data to dst.
-	err = ioutil.WriteFile(dst, data, fs.FileMode(perms))
+	err = os.WriteFile(dst, data, fs.FileMode(perms))
 	return err
 }
 
@@ -631,8 +630,8 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 			cmd.Stdout = logFile
 			cmd.Stderr = logFile
 		} else {
-			cmd.Stdout = ioutil.Discard
-			cmd.Stderr = ioutil.Discard
+			cmd.Stdout = io.Discard
+			cmd.Stderr = io.Discard
 		}
 
 	}

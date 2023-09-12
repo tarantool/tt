@@ -3,7 +3,6 @@ package pack
 import (
 	_ "embed"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +48,7 @@ func getTarantoolVersionForInstall(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) 
 // PackInDocker runs tt pack in docker container.
 func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	opts config.CliOpts, cmdArgs []string) error {
-	tmpDir, err := ioutil.TempDir("", "docker_pack_ctx")
+	tmpDir, err := os.MkdirTemp("", "docker_pack_ctx")
 	if err != nil {
 		return err
 	}
@@ -75,7 +74,7 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	// Write docker file (rw-rw-r-- permissions).
-	if err = ioutil.WriteFile(filepath.Join(tmpDir, "Dockerfile"),
+	if err = os.WriteFile(filepath.Join(tmpDir, "Dockerfile"),
 		[]byte(dockerfileText),
 		0664); err != nil {
 		return err

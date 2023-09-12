@@ -1,7 +1,6 @@
 package engines
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,9 +20,7 @@ const fileMode = os.FileMode(0640)
 const testWorkDirName = "work-dir"
 
 func TestTemplateFileRender(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	srcFileName := filepath.Join(workDir, templateFileName)
 	require.NoError(t, os.WriteFile(srcFileName, []byte(templateText), fileMode))
@@ -50,7 +47,7 @@ func TestTemplateFileRender(t *testing.T) {
 
 	// Check file content.
 	var buf []byte
-	buf, err = ioutil.ReadFile(dstFileName)
+	buf, err = os.ReadFile(dstFileName)
 	require.NoError(t, err)
 
 	const expected = `cluster_cookie=test_cookie
@@ -60,9 +57,7 @@ password=pwd`
 }
 
 func TestTemplateFileRenderMissingValues(t *testing.T) {
-	workDir, err := ioutil.TempDir("", testWorkDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	srcFileName := filepath.Join(workDir, templateFileName)
 	require.NoError(t, os.WriteFile(srcFileName, []byte(templateText), 0666))

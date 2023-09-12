@@ -4,7 +4,6 @@ import (
 	"bufio"
 	_ "embed"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -529,7 +528,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		return fmt.Errorf("bin_dir is not set, check %s", configure.ConfigName)
 	}
 
-	logFile, err := ioutil.TempFile("", "tarantool_install")
+	logFile, err := os.CreateTemp("", "tarantool_install")
 	if err != nil {
 		return err
 	}
@@ -806,7 +805,7 @@ var tarantoolBuildDockerfile []byte
 
 func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx InstallCtx,
 	distfiles string) error {
-	tmpDir, err := ioutil.TempDir("", "docker_build_ctx")
+	tmpDir, err := os.MkdirTemp("", "docker_build_ctx")
 	if err != nil {
 		return err
 	}
@@ -825,7 +824,7 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 	}
 
 	// Write docker file (rw-rw-r-- permissions).
-	if err = ioutil.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfileText),
+	if err = os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfileText),
 		0664); err != nil {
 		return err
 	}
@@ -1011,7 +1010,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		return installTarantoolInDocker(tarVersion, binDir, incDir, installCtx, distfiles)
 	}
 
-	logFile, err := ioutil.TempFile("", "tarantool_install")
+	logFile, err := os.CreateTemp("", "tarantool_install")
 	if err != nil {
 		return err
 	}
@@ -1185,7 +1184,7 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		return err
 	}
 
-	logFile, err := ioutil.TempFile("", "tarantool_install")
+	logFile, err := os.CreateTemp("", "tarantool_install")
 	if err != nil {
 		return err
 	}

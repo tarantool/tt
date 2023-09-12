@@ -1,7 +1,6 @@
 package uninstall
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,12 +15,10 @@ const testDirName = "uninstall-test-dir"
 
 func TestGetList(t *testing.T) {
 	assert := assert.New(t)
-	workDir, err := ioutil.TempDir("", testDirName)
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
+	workDir := t.TempDir()
 
 	binDir := filepath.Join(workDir, "bin")
-	err = os.Mkdir(binDir, os.ModePerm)
+	err := os.Mkdir(binDir, os.ModePerm)
 	require.NoError(t, err)
 
 	cfgData := []byte("tt:\n  app:\n    bin_dir: " + binDir)
