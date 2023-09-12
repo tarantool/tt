@@ -16,15 +16,15 @@ prompt line when using 'app:instance' target format.
 
 - `tt install tarantool/tt`: ability to install tarantool and tt from an arbitrary commit.
 The binary has the name tt/tarantool_ + seven-digit hash.
-- New `tt pack` flag `--tarantool-version` is added to specify tarantool 
+- New `tt pack` flag `--tarantool-version` is added to specify tarantool
   version for pack in docker. It is supported only with `--use-docker` enabled.
 
 ### Fixed
 
 - Installation failure from a commit hash.
 - Crash on `tt install <tool> master`.
-- `--with-binaries` flag for `tt pack` not working while packing 
-  with `--cartridge-compat`. 
+- `--with-binaries` flag for `tt pack` not working while packing
+  with `--cartridge-compat`.
 - `tarantool` binary after `pack` now always named `"tarantool"`.
 
 ## [1.2.0] - 2023-08-18
@@ -42,16 +42,16 @@ The binary has the name tt/tarantool_ + seven-digit hash.
   symlink will be switched to the latest installed version, so that `tt` can
   continue working with the program.
 - `tt connect`: support for multi-line commands in the history.
-- New `tt pack` flag `--cartridge-compat` is added to maintain backward compatibility 
+- New `tt pack` flag `--cartridge-compat` is added to maintain backward compatibility
 with the cartridge-cli. It is supported only by `tgz` type packing.
-- `tt pack`: added option `--without-modules` allowing not to take external 
+- `tt pack`: added option `--without-modules` allowing not to take external
   modules into the pack bundle.
-- `tt connect`: added command `\shortcuts` listing all available 
+- `tt connect`: added command `\shortcuts` listing all available
   shortcuts and hotkeys in go-prompt.
 
 ### Fixed
 
-- `tt install tarantool`: symlink to the directory with tarantool headers is now updated 
+- `tt install tarantool`: symlink to the directory with tarantool headers is now updated
 when installing an existing version.
 - `tt connect`: terminal failure after throwing an error.
 

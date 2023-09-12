@@ -416,11 +416,11 @@ You can generate autocompletion for `bash` or `zsh` shell:
 ```
 
 Enter `tt`, press tab and you will see a list of available modules with
-descriptions. Also, autocomplete supports external modules.  
-   
+descriptions. Also, autocomplete supports external modules.
+
 For commands, which argument is app or instance, autocompletion
 will show suitable apps, in case of the pattern doesn't contain
-delimiter `:`, and suitable instances otherwise.    
+delimiter `:`, and suitable instances otherwise.
 
 For `tt create` command it will show a list of built-in templates and
 templates from the configuration file.
