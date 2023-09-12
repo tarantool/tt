@@ -71,16 +71,22 @@ var (
 // getDefaultAppOpts generates default app config.
 func getDefaultAppOpts() *config.AppOpts {
 	return &config.AppOpts{
+		RunDir:   VarRunPath,
+		LogDir:   VarLogPath,
+		WalDir:   VarDataPath,
+		VinylDir: VarDataPath,
+		MemtxDir: VarDataPath,
+	}
+}
+
+// getDefaultAppOpts generates default app config.
+func getDefaultTtEnvOpts() *config.TtEnvOpts {
+	return &config.TtEnvOpts{
 		InstancesEnabled:   ".",
-		RunDir:             VarRunPath,
-		LogDir:             VarLogPath,
 		LogMaxSize:         logMaxSize,
 		LogMaxAge:          logMaxAge,
 		LogMaxBackups:      logMaxBackups,
 		Restartable:        false,
-		WalDir:             VarDataPath,
-		VinylDir:           VarDataPath,
-		MemtxDir:           VarDataPath,
 		BinDir:             BinPath,
 		IncludeDir:         IncludePath,
 		TarantoolctlLayout: false,
@@ -103,6 +109,7 @@ func GetDefaultCliOpts() *config.CliOpts {
 		{Path: "templates"},
 	}
 	return &config.CliOpts{
+		Env:       getDefaultTtEnvOpts(),
 		Modules:   &modules,
 		App:       getDefaultAppOpts(),
 		Repo:      &repo,
@@ -151,6 +158,9 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	if cliOpts.App == nil {
 		cliOpts.App = getDefaultAppOpts()
 	}
+	if cliOpts.Env == nil {
+		cliOpts.Env = getDefaultTtEnvOpts()
+	}
 	if cliOpts.Repo == nil {
 		cliOpts.Repo = &config.RepoOpts{
 			Rocks:   "",
@@ -168,12 +178,12 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 		}
 	}
 
-	if cliOpts.App.InstancesEnabled == "" {
-		cliOpts.App.InstancesEnabled = "."
-	} else if cliOpts.App.InstancesEnabled != "." || (cliOpts.App.InstancesEnabled == "." &&
+	if cliOpts.Env.InstancesEnabled == "" {
+		cliOpts.Env.InstancesEnabled = "."
+	} else if cliOpts.Env.InstancesEnabled != "." || (cliOpts.Env.InstancesEnabled == "." &&
 		!util.IsApp(configDir)) {
-		if cliOpts.App.InstancesEnabled, err =
-			adjustPathWithConfigLocation(cliOpts.App.InstancesEnabled, configDir, ""); err != nil {
+		if cliOpts.Env.InstancesEnabled, err =
+			adjustPathWithConfigLocation(cliOpts.Env.InstancesEnabled, configDir, ""); err != nil {
 			return err
 		}
 	}
@@ -187,8 +197,8 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 		{&cliOpts.App.WalDir, VarDataPath},
 		{&cliOpts.App.VinylDir, VarDataPath},
 		{&cliOpts.App.MemtxDir, VarDataPath},
-		{&cliOpts.App.BinDir, BinPath},
-		{&cliOpts.App.IncludeDir, IncludePath},
+		{&cliOpts.Env.BinDir, BinPath},
+		{&cliOpts.Env.IncludeDir, IncludePath},
 		{&cliOpts.Repo.Install, DistfilesPath},
 		{&cliOpts.Repo.Rocks, ""},
 	} {
@@ -212,14 +222,14 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 		}
 	}
 
-	if cliOpts.App.LogMaxAge == 0 {
-		cliOpts.App.LogMaxAge = logMaxAge
+	if cliOpts.Env.LogMaxAge == 0 {
+		cliOpts.Env.LogMaxAge = logMaxAge
 	}
-	if cliOpts.App.LogMaxSize == 0 {
-		cliOpts.App.LogMaxSize = logMaxSize
+	if cliOpts.Env.LogMaxSize == 0 {
+		cliOpts.Env.LogMaxSize = logMaxSize
 	}
-	if cliOpts.App.LogMaxBackups == 0 {
-		cliOpts.App.LogMaxBackups = logMaxBackups
+	if cliOpts.Env.LogMaxBackups == 0 {
+		cliOpts.Env.LogMaxBackups = logMaxBackups
 	}
 
 	return nil
@@ -451,7 +461,7 @@ func newExternalCommand(cmdCtx *cmdcontext.CmdCtx, modulesInfo *modules.ModulesI
 
 // detectLocalTarantool searches for available Tarantool executable.
 func detectLocalTarantool(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
-	localTarantool, err := util.JoinAbspath(cliOpts.App.BinDir, "tarantool")
+	localTarantool, err := util.JoinAbspath(cliOpts.Env.BinDir, "tarantool")
 	if err != nil {
 		return err
 	}
@@ -475,7 +485,7 @@ func detectLocalTarantool(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) er
 
 // detectLocalTt searches for available TT executable.
 func detectLocalTt(cliOpts *config.CliOpts) (string, error) {
-	localCli, err := util.JoinAbspath(cliOpts.App.BinDir, cliExecutableName)
+	localCli, err := util.JoinAbspath(cliOpts.Env.BinDir, cliExecutableName)
 	if err != nil {
 		return "", err
 	}
@@ -527,7 +537,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		return err
 	}
 
-	if cliOpts.App == nil || cliOpts.App.BinDir == "" {
+	if cliOpts.Env == nil || cliOpts.Env.BinDir == "" {
 		// No bid_dir specified.
 		return nil
 	}

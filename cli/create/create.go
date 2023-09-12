@@ -65,7 +65,7 @@ func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 		steps.Cleanup{},
 		steps.CreateDockerfile{},
 		steps.MoveAppDirectory{},
-		steps.CreateAppSymlink{SymlinkDir: cliOpts.App.InstancesEnabled},
+		steps.CreateAppSymlink{SymlinkDir: cliOpts.Env.InstancesEnabled},
 		steps.PrintFollowUpMessage{Writer: os.Stdout},
 	}
 

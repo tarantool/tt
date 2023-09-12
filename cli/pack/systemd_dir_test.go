@@ -64,7 +64,7 @@ func Test_initSystemdDir(t *testing.T) {
 				baseDirPath: filepath.Join(baseTestDir, test1Dir),
 				pathToEnv:   fakeCfgPath,
 				opts: &config.CliOpts{
-					App: &config.AppOpts{
+					Env: &config.TtEnvOpts{
 						InstancesEnabled: filepath.Join(baseTestDir, test1Dir),
 					},
 				},
@@ -103,7 +103,7 @@ func Test_initSystemdDir(t *testing.T) {
 				baseDirPath: filepath.Join(baseTestDir, test2Dir),
 				pathToEnv:   fakeCfgPath,
 				opts: &config.CliOpts{
-					App: &config.AppOpts{
+					Env: &config.TtEnvOpts{
 						InstancesEnabled: filepath.Join(baseTestDir, test2Dir),
 					},
 				},
@@ -146,7 +146,7 @@ func Test_initSystemdDir(t *testing.T) {
 				baseDirPath: filepath.Join(baseTestDir, test3Dir),
 				pathToEnv:   fakeCfgPath,
 				opts: &config.CliOpts{
-					App: &config.AppOpts{
+					Env: &config.TtEnvOpts{
 						InstancesEnabled: filepath.Join(baseTestDir, test3Dir),
 					},
 				},

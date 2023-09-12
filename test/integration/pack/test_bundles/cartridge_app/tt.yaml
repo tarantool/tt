@@ -1,4 +1,4 @@
 tt:
-  app:
+  env:
     instances_enabled: .
     bin_dir: bin

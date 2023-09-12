@@ -103,17 +103,17 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	// Collect app list step.
 	appList := []util.AppListEntry{}
 	if packCtx.AppList == nil {
-		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.App.InstancesEnabled,
+		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.Env.InstancesEnabled,
 			true)
 		if err != nil {
 			return "", err
 		}
 	} else {
 		for _, appName := range packCtx.AppList {
-			if util.IsApp(filepath.Join(cliOpts.App.InstancesEnabled, appName)) {
+			if util.IsApp(filepath.Join(cliOpts.Env.InstancesEnabled, appName)) {
 				appList = append(appList, util.AppListEntry{
 					Name:     appName,
-					Location: filepath.Join(cliOpts.App.InstancesEnabled, appName),
+					Location: filepath.Join(cliOpts.Env.InstancesEnabled, appName),
 				})
 			} else {
 				log.Warnf("Skip packing of '%s': specified name is not an application.", appName)
@@ -153,7 +153,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		packageBinPath = filepath.Join(basePath, packCtx.Name)
 	}
 	// Copy binaries step.
-	if cliOpts.App.BinDir != "" &&
+	if cliOpts.Env.BinDir != "" &&
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
 		err = copyBinaries(cmdCtx.Cli.TarantoolCli, packageBinPath)
@@ -332,12 +332,12 @@ func createAppSymlink(appPath string, appName string) error {
 func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) error {
 	log.Infof("Generating new %s for the new package", configure.ConfigName)
 	cliOptsNew := configure.GetDefaultCliOpts()
-	cliOptsNew.App.InstancesEnabled = configure.InstancesEnabledDirName
-	cliOptsNew.App.Restartable = opts.App.Restartable
-	cliOptsNew.App.LogMaxAge = opts.App.LogMaxAge
-	cliOptsNew.App.LogMaxSize = opts.App.LogMaxSize
-	cliOptsNew.App.LogMaxBackups = opts.App.LogMaxBackups
-	cliOptsNew.App.TarantoolctlLayout = opts.App.TarantoolctlLayout
+	cliOptsNew.Env.InstancesEnabled = configure.InstancesEnabledDirName
+	cliOptsNew.Env.Restartable = opts.Env.Restartable
+	cliOptsNew.Env.LogMaxAge = opts.Env.LogMaxAge
+	cliOptsNew.Env.LogMaxSize = opts.Env.LogMaxSize
+	cliOptsNew.Env.LogMaxBackups = opts.Env.LogMaxBackups
+	cliOptsNew.Env.TarantoolctlLayout = opts.Env.TarantoolctlLayout
 
 	// In case the user separates one of the directories for storing memtx, vinyl or wal artifacts
 	// the new environment will be also configured with separated standard directories for all
@@ -349,8 +349,8 @@ func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) erro
 	}
 
 	if cartridgeCompat {
-		cliOptsNew.App.InstancesEnabled = "."
-		cliOptsNew.App.BinDir = "."
+		cliOptsNew.Env.InstancesEnabled = "."
+		cliOptsNew.Env.BinDir = "."
 	}
 
 	cfg := config.Config{
@@ -468,11 +468,11 @@ func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) s
 	if packCtx.Version == "" {
 		// Get version from git only if packing an application from the current directory,
 		// or packing with cartridge-compat enabled.
-		var appPath = opts.App.InstancesEnabled
-		if opts.App.InstancesEnabled != "." && packCtx.CartridgeCompat {
+		var appPath = opts.Env.InstancesEnabled
+		if opts.Env.InstancesEnabled != "." && packCtx.CartridgeCompat {
 			appPath = filepath.Join(appPath, packCtx.Name)
 		}
-		if opts.App.InstancesEnabled == "." || packCtx.CartridgeCompat {
+		if opts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
 			version, err := util.CheckVersionFromGit(appPath)
 			if err == nil {
 				packageVersion = version

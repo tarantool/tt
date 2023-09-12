@@ -148,8 +148,8 @@ func Test_collectInstancesForApps(t *testing.T) {
 	}
 	cfgDir := "/etc/tarantool/"
 	cliOpts := configure.GetDefaultCliOpts()
-	cliOpts.App.InstancesEnabled = "./testdata/instances_enabled/"
-	instances, err := collectInstancesForApps(apps, cliOpts.App, "/etc/tarantool/")
+	cliOpts.Env.InstancesEnabled = "./testdata/instances_enabled/"
+	instances, err := collectInstancesForApps(apps, cliOpts, "/etc/tarantool/")
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(instances))
 

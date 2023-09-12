@@ -40,8 +40,8 @@ def test_init_basic_functionality(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir"
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
-        assert not data_loaded["tt"]["app"]["tarantoolctl_layout"]
+        assert data_loaded["tt"]["env"]["instances_enabled"] == "instances.enabled"
+        assert not data_loaded["tt"]["env"]["tarantoolctl_layout"]
 
     check_env_dirs(tmpdir, "instances.enabled")
 
@@ -66,13 +66,13 @@ def test_init_missing_configs(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib"
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
-        assert data_loaded["tt"]["app"]["log_maxsize"] == 100
-        assert data_loaded["tt"]["app"]["log_maxage"] == 8
-        assert data_loaded["tt"]["app"]["log_maxbackups"] == 10
-        assert not data_loaded["tt"]["app"]["tarantoolctl_layout"]
+        assert data_loaded["tt"]["env"]["instances_enabled"] == "instances.enabled"
+        assert data_loaded["tt"]["env"]["log_maxsize"] == 100
+        assert data_loaded["tt"]["env"]["log_maxage"] == 8
+        assert data_loaded["tt"]["env"]["log_maxbackups"] == 10
+        assert not data_loaded["tt"]["env"]["tarantoolctl_layout"]
         assert data_loaded["tt"]["modules"]["directory"] == "modules"
-        assert data_loaded["tt"]["app"]["bin_dir"] == "bin"
+        assert data_loaded["tt"]["env"]["bin_dir"] == "bin"
         assert data_loaded["tt"]["templates"][0]["path"] == "templates"
         assert data_loaded["tt"]["repo"]["distfiles"] == "distfiles"
     check_env_dirs(tmpdir, "instances.enabled")
@@ -119,7 +119,7 @@ def test_init_skip_config(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib"
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
+        assert data_loaded["tt"]["env"]["instances_enabled"] == "instances.enabled"
     check_env_dirs(tmpdir, "instances.enabled")
 
 
@@ -147,7 +147,7 @@ def test_init_in_app_dir(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib"
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "."
+        assert data_loaded["tt"]["env"]["instances_enabled"] == "."
 
     assert not os.path.exists(os.path.join(app_dir, "instances.enabled"))
     check_env_dirs(app_dir, ".")
@@ -186,7 +186,7 @@ def test_init_existing_tt_env_conf_overwrite(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir"
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
+        assert data_loaded["tt"]["env"]["instances_enabled"] == "instances.enabled"
 
     check_env_dirs(tmpdir, "instances.enabled")
 
@@ -246,7 +246,7 @@ def test_init_existing_tt_env_conf_overwrite_force(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir"
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
+        assert data_loaded["tt"]["env"]["instances_enabled"] == "instances.enabled"
 
     check_env_dirs(tmpdir, "instances.enabled")
 
@@ -275,8 +275,8 @@ def test_init_basic_tarantoolctl_cfg(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["wal_dir"] == "/opt/wal"
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "/opt/vinyl"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "/opt/snap"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
-        assert data_loaded["tt"]["app"]["tarantoolctl_layout"]
+        assert data_loaded["tt"]["env"]["instances_enabled"] == "instances.enabled"
+        assert data_loaded["tt"]["env"]["tarantoolctl_layout"]
 
     check_env_dirs(tmpdir, "instances.enabled")
 
@@ -305,8 +305,8 @@ def test_tarantoolctl_cfg_from_doc(tt_cmd, tmpdir):
         assert data_loaded["tt"]["app"]["wal_dir"] == "./lib/tarantool"
         assert data_loaded["tt"]["app"]["vinyl_dir"] == "./lib/tarantool"
         assert data_loaded["tt"]["app"]["memtx_dir"] == "./lib/tarantool"
-        assert data_loaded["tt"]["app"]["instances_enabled"] == "./instances"
-        assert data_loaded["tt"]["app"]["tarantoolctl_layout"]
+        assert data_loaded["tt"]["env"]["instances_enabled"] == "./instances"
+        assert data_loaded["tt"]["env"]["tarantoolctl_layout"]
 
     check_env_dirs(tmpdir, "instances")
 

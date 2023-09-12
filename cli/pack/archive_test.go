@@ -27,7 +27,7 @@ func TestGetTarPackageName(t *testing.T) {
 			name:    "No parameters in context",
 			packCtx: &PackCtx{Type: Tgz},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{InstancesEnabled: testDir},
+				Env: &config.TtEnvOpts{InstancesEnabled: testDir},
 			},
 			expectedName: filepath.Base(testDir) + "-0.1.0.0." + arch + ".tar.gz",
 		},
@@ -38,7 +38,7 @@ func TestGetTarPackageName(t *testing.T) {
 				Name: "test",
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{InstancesEnabled: testDir},
+				Env: &config.TtEnvOpts{InstancesEnabled: testDir},
 			},
 			expectedName: "test-0.1.0.0." + arch + ".tar.gz",
 		},
@@ -50,7 +50,7 @@ func TestGetTarPackageName(t *testing.T) {
 				Version: "2.1.1",
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{InstancesEnabled: testDir},
+				Env: &config.TtEnvOpts{InstancesEnabled: testDir},
 			},
 			expectedName: "test-2.1.1." + arch + ".tar.gz",
 		},
@@ -61,7 +61,7 @@ func TestGetTarPackageName(t *testing.T) {
 				FileName: "test",
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{InstancesEnabled: testDir},
+				Env: &config.TtEnvOpts{InstancesEnabled: testDir},
 			},
 			expectedName: "test",
 		},
@@ -74,7 +74,7 @@ func TestGetTarPackageName(t *testing.T) {
 				Version:  "unused",
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{InstancesEnabled: testDir},
+				Env: &config.TtEnvOpts{InstancesEnabled: testDir},
 			},
 			expectedName: "test",
 		},

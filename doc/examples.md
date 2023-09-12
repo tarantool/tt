@@ -296,20 +296,30 @@ Example of packing a multi-app environment. The source tree:
 
 ``` yaml
 tt:
+  env:
+    bin_dir: bin
+    inc_dir: include
+    instances_enabled: instances.enabled
+    log_maxsize: 100
+    log_maxage: 8
+    log_maxbackups: 10
+    restart_on_failure: false
+    tarantoolctl_layout: false
   modules:
-    directory: env/modules
+    directory: modules
   app:
-    instances_enabled: instances_enabled
     run_dir: var/run
     log_dir: var/log
-    log_maxsize: 1
-    log_maxage: 1
-    log_maxbackups: 1
-    restart_on_failure: true
     wal_dir: var/lib
     vinyl_dir: var/lib
     memtx_dir: var/lib
-    bin_dir: env/bin
+  ee:
+    credential_path: ""
+  templates:
+  - path: templates
+  repo:
+    rocks: ""
+    distfiles: distfiles
 ```
 
 Pay attention, that all absolute symlinks from
@@ -470,32 +480,33 @@ $ tt init
 ```
 
 `tt init` takes directories paths from the existing `tarantoolctl`
-config. Generated `tt.yaml` will look like:
+config. Generated `tt.yaml` will look like (comments omitted):
 
 ``` yaml
 tt:
-modules:
+  modules:
     directory: modules
-app:
-    run_dir: ./run/tarantool
-    log_dir: ./log/tarantool
+  env:
     log_maxsize: 100
     log_maxage: 8
     log_maxbackups: 10
     restart_on_failure: false
-    wal_dir: ./lib/tarantool
-    memtx_dir: ./lib/tarantool
-    vinyl_dir: ./lib/tarantool
     bin_dir: bin
     inc_dir: include
     instances_enabled: ./instances.enabled
     tarantoolctl_layout: true
-ee:
-    credential_path: ""
-templates:
-- path: templates
-repo:
-    rocks: ""
+  app:
+    run_dir: ./run/tarantool
+    log_dir: ./log/tarantool
+    wal_dir: ./lib/tarantool
+    memtx_dir: ./lib/tarantool
+    vinyl_dir: ./lib/tarantool
+  ee:
+    credential_path:
+  templates:
+    - path: templates
+  repo:
+    rocks:
     distfiles: distfiles
 ```
 

@@ -174,8 +174,8 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 			err: fmt.Errorf("failed to get prefix path: expected more data"),
 		}
 
-	appOpts := config.AppOpts{IncludeDir: "hdr"}
-	cliOpts := config.CliOpts{App: &appOpts}
+	appOpts := config.TtEnvOpts{IncludeDir: "hdr"}
+	cliOpts := config.CliOpts{Env: &appOpts}
 
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: true,

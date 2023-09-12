@@ -11,8 +11,9 @@ from utils import (config_name, extract_status, get_tarantool_version,
                    run_command_and_get_output, wait_file)
 
 tt_config_text = '''tt:
-  app:
+  env:
     instances_enabled: test.instances.enabled
+  app:
     run_dir: .
     log_dir: .
   templates:

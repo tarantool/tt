@@ -155,9 +155,9 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 		cfg.CliConfig.App.LogDir = sourceCfg.logDir
 	}
 	if sourceCfg.instancesEnabled != "" {
-		cfg.CliConfig.App.InstancesEnabled = sourceCfg.instancesEnabled
+		cfg.CliConfig.Env.InstancesEnabled = sourceCfg.instancesEnabled
 	}
-	cfg.CliConfig.App.TarantoolctlLayout = sourceCfg.tarantoolctlLayout
+	cfg.CliConfig.Env.TarantoolctlLayout = sourceCfg.tarantoolctlLayout
 
 	ttYamlContent, err := util.GetTextTemplatedStr(&ttYamlTemplate, cfg)
 	if err != nil {
@@ -170,10 +170,10 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 	}
 
 	directoriesToCreate := []string{
-		cfg.CliConfig.App.InstancesEnabled,
+		cfg.CliConfig.Env.InstancesEnabled,
 		cfg.CliConfig.Modules.Directory,
-		cfg.CliConfig.App.IncludeDir,
-		cfg.CliConfig.App.BinDir,
+		cfg.CliConfig.Env.IncludeDir,
+		cfg.CliConfig.Env.BinDir,
 		cfg.CliConfig.Repo.Install,
 	}
 	for _, templatesPathOpts := range cfg.CliConfig.Templates {

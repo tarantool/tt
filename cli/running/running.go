@@ -462,18 +462,20 @@ func mapValuesFromConfig[T any](cfg *cluster.Config, mapFunc func(val T) (T, err
 }
 
 // setInstCtxFromTtConfig sets instance context members from tt config.
-func setInstCtxFromTtConfig(inst *InstanceCtx, ttAppOpts *config.AppOpts,
-	ttConfigDir string) error {
-	if ttAppOpts != nil {
-		inst.LogMaxSize = ttAppOpts.LogMaxSize
-		inst.LogMaxAge = ttAppOpts.LogMaxAge
-		inst.LogMaxBackups = ttAppOpts.LogMaxBackups
-		inst.Restartable = ttAppOpts.Restartable
-
+func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts, ttConfigDir string) error {
+	tarantoolCtlLayout := false
+	if cliOpts.Env != nil {
+		inst.LogMaxSize = cliOpts.Env.LogMaxSize
+		inst.LogMaxAge = cliOpts.Env.LogMaxAge
+		inst.LogMaxBackups = cliOpts.Env.LogMaxBackups
+		inst.Restartable = cliOpts.Env.Restartable
+		tarantoolCtlLayout = cliOpts.Env.TarantoolctlLayout
+	}
+	if cliOpts.App != nil {
 		var envLayout layout.Layout = nil
 		var err error
 		if inst.SingleApp {
-			if ttAppOpts.TarantoolctlLayout {
+			if tarantoolCtlLayout {
 				envLayout, err = layout.NewTntCtlLayout(ttConfigDir, inst.AppName)
 			} else {
 				envLayout, err = layout.NewSingleInstanceLayout(ttConfigDir, inst.AppName)
@@ -485,16 +487,16 @@ func setInstCtxFromTtConfig(inst *InstanceCtx, ttAppOpts *config.AppOpts,
 			return err
 		}
 
-		inst.ConsoleSocket = envLayout.ConsoleSocket(ttAppOpts.RunDir)
-		inst.PIDFile = envLayout.PidFile(ttAppOpts.RunDir)
+		inst.ConsoleSocket = envLayout.ConsoleSocket(cliOpts.App.RunDir)
+		inst.PIDFile = envLayout.PidFile(cliOpts.App.RunDir)
 		inst.RunDir = filepath.Dir(inst.ConsoleSocket)
 
-		inst.Log = envLayout.LogFile(ttAppOpts.LogDir)
+		inst.Log = envLayout.LogFile(cliOpts.App.LogDir)
 		inst.LogDir = filepath.Dir(inst.Log)
 
-		inst.WalDir = envLayout.DataDir(ttAppOpts.WalDir)
-		inst.VinylDir = envLayout.DataDir(ttAppOpts.VinylDir)
-		inst.MemtxDir = envLayout.DataDir(ttAppOpts.MemtxDir)
+		inst.WalDir = envLayout.DataDir(cliOpts.App.WalDir)
+		inst.VinylDir = envLayout.DataDir(cliOpts.App.VinylDir)
+		inst.MemtxDir = envLayout.DataDir(cliOpts.App.MemtxDir)
 	}
 	return nil
 }
@@ -533,11 +535,11 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 }
 
 // collectInstancesForApps collects instances information for applications in list.
-func collectInstancesForApps(appList []util.AppListEntry, ttAppOpts *config.AppOpts,
+func collectInstancesForApps(appList []util.AppListEntry, cliOpts *config.CliOpts,
 	ttConfigDir string) (
 	[]InstanceCtx, error) {
-	instEnabledPath := ttAppOpts.InstancesEnabled
-	if ttAppOpts.InstancesEnabled == "." {
+	instEnabledPath := cliOpts.Env.InstancesEnabled
+	if cliOpts.Env.InstancesEnabled == "." {
 		instEnabledPath = ttConfigDir
 	}
 
@@ -553,7 +555,7 @@ func collectInstancesForApps(appList []util.AppListEntry, ttAppOpts *config.AppO
 		for _, inst := range collectedInstances {
 			var instance = inst
 
-			setInstCtxFromTtConfig(&instance, ttAppOpts, ttConfigDir)
+			setInstCtxFromTtConfig(&instance, cliOpts, ttConfigDir)
 
 			if err = setInstCtxFromClusterConfig(&instance); err != nil {
 				return instances, err
@@ -597,17 +599,17 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	var appList []util.AppListEntry
 	if len(args) == 0 {
-		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.App.InstancesEnabled,
+		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.Env.InstancesEnabled,
 			true)
 		if err != nil {
 			return fmt.Errorf("can't collect an application list "+
-				"from instances enabled path %s: %s", cliOpts.App.InstancesEnabled, err)
+				"from instances enabled path %s: %s", cliOpts.Env.InstancesEnabled, err)
 		}
 	} else {
 		appList = append(appList, util.AppListEntry{Name: args[0], Location: ""})
 	}
 
-	if runningCtx.Instances, err = collectInstancesForApps(appList, cliOpts.App,
+	if runningCtx.Instances, err = collectInstancesForApps(appList, cliOpts,
 		cmdCtx.Cli.ConfigDir); err != nil {
 		return err
 	}

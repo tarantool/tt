@@ -13,7 +13,7 @@ def test_uninstall_tt(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
 
     for prog in [["tarantool"], ["tarantool", "master"]]:
         # Do not test uninstall through installing tt. Because installed tt will be invoked by
@@ -52,7 +52,7 @@ def test_uninstall_default_many(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
 
     # Do not test uninstall through installing tt. Because installed tt will be invoked by
     # current tt. As a result the test will run for the installed tt and not the current.
@@ -87,7 +87,7 @@ def test_uninstall_missing(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config.
     with open(configPath, 'w') as f:
-        f.write('tt:\n  app:\n    bin_dir:\n    inc_dir:\n')
+        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
     # Create bin directory.
     os.mkdir(os.path.join(tmpdir, "bin"))
     os.mkdir(os.path.join(tmpdir, "include"))

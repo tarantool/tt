@@ -365,7 +365,7 @@ func TestGetVersion(t *testing.T) {
 			name:    "No parameters in context",
 			packCtx: &PackCtx{},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{InstancesEnabled: "../any_dir"},
+				Env: &config.TtEnvOpts{InstancesEnabled: "../any_dir"},
 			},
 			expectedVersion: defaultLongVersion,
 			defaultVersion:  defaultLongVersion,
@@ -376,7 +376,7 @@ func TestGetVersion(t *testing.T) {
 				Version: "1.0.0",
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{InstancesEnabled: "."},
+				Env: &config.TtEnvOpts{InstancesEnabled: "."},
 			},
 			expectedVersion: "1.0.0",
 			defaultVersion:  "",
@@ -387,7 +387,7 @@ func TestGetVersion(t *testing.T) {
 				Version: "v2",
 			},
 			opts: &config.CliOpts{
-				App: &config.AppOpts{InstancesEnabled: "."},
+				Env: &config.TtEnvOpts{InstancesEnabled: "."},
 			},
 			defaultVersion:  "",
 			expectedVersion: "v2",
@@ -479,26 +479,30 @@ func Test_createEnv(t *testing.T) {
 	}
 
 	testOptsStd := &config.CliOpts{
-		App: &config.AppOpts{
+		Env: &config.TtEnvOpts{
 			LogMaxBackups: 1,
 			LogMaxAge:     1,
 			LogMaxSize:    1,
 			Restartable:   true,
-			WalDir:        "test",
-			VinylDir:      "test",
-			MemtxDir:      "test",
+		},
+		App: &config.AppOpts{
+			WalDir:   "test",
+			VinylDir: "test",
+			MemtxDir: "test",
 		},
 	}
 
 	testOptsCustom := &config.CliOpts{
-		App: &config.AppOpts{
+		Env: &config.TtEnvOpts{
 			LogMaxBackups: 1,
 			LogMaxAge:     1,
 			LogMaxSize:    1,
 			Restartable:   true,
-			WalDir:        "test_wal",
-			VinylDir:      "test_vinyl",
-			MemtxDir:      "test_memtx",
+		},
+		App: &config.AppOpts{
+			WalDir:   "test_wal",
+			VinylDir: "test_vinyl",
+			MemtxDir: "test_memtx",
 		},
 	}
 
@@ -533,22 +537,22 @@ func Test_createEnv(t *testing.T) {
 				require.NoErrorf(t, err, "failed to decode a new created %s: %v",
 					configure.ConfigName, err)
 
-				assert.Equalf(t, cfg.CliConfig.App.Restartable, testOptsStd.App.Restartable,
+				assert.Equalf(t, cfg.CliConfig.Env.Restartable, testOptsStd.Env.Restartable,
 					"wrong restartable count")
-				assert.Equalf(t, cfg.CliConfig.App.LogMaxAge, testOptsStd.App.LogMaxSize,
+				assert.Equalf(t, cfg.CliConfig.Env.LogMaxAge, testOptsStd.Env.LogMaxSize,
 					"wrong log max age count")
-				assert.Equalf(t, cfg.CliConfig.App.LogMaxSize, testOptsStd.App.LogMaxAge,
+				assert.Equalf(t, cfg.CliConfig.Env.LogMaxSize, testOptsStd.Env.LogMaxAge,
 					"wrong log max size count")
-				assert.Equalf(t, cfg.CliConfig.App.LogMaxBackups, testOptsStd.App.LogMaxBackups,
+				assert.Equalf(t, cfg.CliConfig.Env.LogMaxBackups, testOptsStd.Env.LogMaxBackups,
 					"wrong log max backups count")
-				assert.Equalf(t, cfg.CliConfig.App.InstancesEnabled,
+				assert.Equalf(t, cfg.CliConfig.Env.InstancesEnabled,
 					configure.InstancesEnabledDirName,
 					"wrong instances enabled path")
 				assert.Equalf(t, cfg.CliConfig.App.RunDir, configure.VarRunPath,
 					"wrong run path")
 				assert.Equalf(t, cfg.CliConfig.App.LogDir, configure.VarLogPath,
 					"wrong log path")
-				assert.Equalf(t, cfg.CliConfig.App.BinDir, configure.BinPath,
+				assert.Equalf(t, cfg.CliConfig.Env.BinDir, configure.BinPath,
 					"wrong bin path")
 				assert.Equalf(t, cfg.CliConfig.App.WalDir, configure.VarDataPath,
 					"wrong data path")
@@ -581,23 +585,23 @@ func Test_createEnv(t *testing.T) {
 				require.NoErrorf(t, err, "failed to decode a new created %s: %v",
 					configure.ConfigName, err)
 
-				assert.Equalf(t, cfg.CliConfig.App.Restartable, testOptsCustom.App.Restartable,
+				assert.Equalf(t, cfg.CliConfig.Env.Restartable, testOptsCustom.Env.Restartable,
 					"wrong restartable count")
-				assert.Equalf(t, cfg.CliConfig.App.LogMaxAge, testOptsCustom.App.LogMaxSize,
+				assert.Equalf(t, cfg.CliConfig.Env.LogMaxAge, testOptsCustom.Env.LogMaxSize,
 					"wrong log max age count")
-				assert.Equalf(t, cfg.CliConfig.App.LogMaxSize, testOptsCustom.App.LogMaxAge,
+				assert.Equalf(t, cfg.CliConfig.Env.LogMaxSize, testOptsCustom.Env.LogMaxAge,
 					"wrong log max size count")
-				assert.Equalf(t, cfg.CliConfig.App.LogMaxBackups,
-					testOptsCustom.App.LogMaxBackups,
+				assert.Equalf(t, cfg.CliConfig.Env.LogMaxBackups,
+					testOptsCustom.Env.LogMaxBackups,
 					"wrong log max backups count")
-				assert.Equalf(t, cfg.CliConfig.App.InstancesEnabled,
+				assert.Equalf(t, cfg.CliConfig.Env.InstancesEnabled,
 					configure.InstancesEnabledDirName,
 					"wrong instances enabled path")
 				assert.Equalf(t, cfg.CliConfig.App.RunDir, configure.VarRunPath,
 					"wrong run path")
 				assert.Equalf(t, cfg.CliConfig.App.LogDir, configure.VarLogPath,
 					"wrong log path")
-				assert.Equalf(t, cfg.CliConfig.App.BinDir, configure.BinPath,
+				assert.Equalf(t, cfg.CliConfig.Env.BinDir, configure.BinPath,
 					"wrong bin path")
 				assert.Equalf(t, cfg.CliConfig.App.WalDir, configure.VarWalPath,
 					"wrong data path")

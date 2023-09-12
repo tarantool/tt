@@ -50,6 +50,25 @@ type AppOpts struct {
 	RunDir string `mapstructure:"run_dir" yaml:"run_dir"`
 	// LogDir is a directory that stores log files.
 	LogDir string `mapstructure:"log_dir" yaml:"log_dir"`
+	// WalDir is a directory where write-ahead log (.xlog) files are stored.
+	WalDir string `mapstructure:"wal_dir" yaml:"wal_dir"`
+	// MemtxDir is a directory where memtx stores snapshot (.snap) files.
+	MemtxDir string `mapstructure:"memtx_dir" yaml:"memtx_dir"`
+	// VinylDir is a directory where vinyl files or subdirectories will be stored.
+	VinylDir string `mapstructure:"vinyl_dir" yaml:"vinyl_dir"`
+}
+
+// TtEnvOpts is tt environment configuration. Everything that affects
+// application building/starting, but applicable for all apps.
+type TtEnvOpts struct {
+	// BinDir is the directory where all the binary files
+	// are stored.
+	BinDir string `mapstructure:"bin_dir" yaml:"bin_dir"`
+	// IncludeDir is the directory where all the header files
+	// are stored.
+	IncludeDir string `mapstructure:"inc_dir" yaml:"inc_dir"`
+	// InstancesEnabled is the directory where all enabled applications are stored.
+	InstancesEnabled string `mapstructure:"instances_enabled" yaml:"instances_enabled"`
 	// LogMaxSize is a maximum size in MB of the log file before
 	// it gets rotated.
 	LogMaxSize int `mapstructure:"log_maxsize" yaml:"log_maxsize"`
@@ -63,23 +82,9 @@ type AppOpts struct {
 	// The default is to retain all old log files (though LogMaxAge may
 	// still cause them to get deleted).
 	LogMaxBackups int `mapstructure:"log_maxbackups" yaml:"log_maxbackups"`
-	// If the instance is started under the watchdog it should
+	// Restartable - if set the instance is started under the watchdog it should
 	// restart on if it crashes.
 	Restartable bool `mapstructure:"restart_on_failure" yaml:"restart_on_failure"`
-	// WalDir is a directory where write-ahead log (.xlog) files are stored.
-	WalDir string `mapstructure:"wal_dir" yaml:"wal_dir"`
-	// MemtxDir is a directory where memtx stores snapshot (.snap) files.
-	MemtxDir string `mapstructure:"memtx_dir" yaml:"memtx_dir"`
-	// VinylDir is a directory where vinyl files or subdirectories will be stored.
-	VinylDir string `mapstructure:"vinyl_dir" yaml:"vinyl_dir"`
-	// BinDir is the directory where all the binary files
-	// are stored.
-	BinDir string `mapstructure:"bin_dir" yaml:"bin_dir"`
-	// IncludeDir is the directory where all the header files
-	// are stored.
-	IncludeDir string `mapstructure:"inc_dir" yaml:"inc_dir"`
-	// InstancesEnabled is the directory where all enabled applications are stored.
-	InstancesEnabled string `mapstructure:"instances_enabled" yaml:"instances_enabled"`
 	// TarantoolctlLayout enables artifact files layout compatibility with tarantoolctl:
 	// application sub-directories are not created for runtime artifacts like
 	// control socket, pid files and logs.
@@ -102,6 +107,8 @@ type RepoOpts struct {
 
 // CliOpts is used to store modules and app options.
 type CliOpts struct {
+	// Env is struct describing tt environment options.
+	Env *TtEnvOpts
 	// Modules is a struct that contain module options.
 	Modules *ModulesOpts
 	// App is a struct that contains app options.

@@ -219,7 +219,7 @@ func InitRoot() {
 	// Setup TT_INST_ENABLED with instances_enabled path.
 	// Required for cartridge.
 	if cliOpts.App != nil {
-		os.Setenv("TT_INST_ENABLED", cliOpts.App.InstancesEnabled)
+		os.Setenv("TT_INST_ENABLED", cliOpts.Env.InstancesEnabled)
 		os.Setenv("TT_RUN_DIR", cliOpts.App.RunDir)
 	}
 

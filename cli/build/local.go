@@ -62,10 +62,10 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 	}
 
 	// Setting env var for luarocks to make cmake to find tarantool includes.
-	includeDir := filepath.Join(cliOpts.App.IncludeDir, "include")
+	includeDir := filepath.Join(cliOpts.Env.IncludeDir, "include")
 	if util.IsDir(includeDir) {
-		log.Debugf("Setting Tarantool include path: %q", cliOpts.App.IncludeDir)
-		os.Setenv(cmakeIncludePathEnvVar, cliOpts.App.IncludeDir)
+		log.Debugf("Setting Tarantool include path: %q", cliOpts.Env.IncludeDir)
+		os.Setenv(cmakeIncludePathEnvVar, cliOpts.Env.IncludeDir)
 	}
 
 	// Run rocks make.

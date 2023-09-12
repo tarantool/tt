@@ -23,7 +23,7 @@ import (
 
 // ListInstances shows enabled applications.
 func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
-	instanceDir := cliOpts.App.InstancesEnabled
+	instanceDir := cliOpts.Env.InstancesEnabled
 	if _, err := os.Stat(instanceDir); os.IsNotExist(err) {
 		return fmt.Errorf("instances enabled directory doesn't exist: %s",
 			instanceDir)
@@ -137,7 +137,7 @@ func parseBinaries(fileList []fs.DirEntry, programName string,
 
 // ListBinaries outputs installed versions of programs from bin_dir.
 func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error) {
-	binDir := cliOpts.App.BinDir
+	binDir := cliOpts.Env.BinDir
 	binDirFilesList, err := os.ReadDir(binDir)
 
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
