@@ -43,7 +43,7 @@ tt:
     instances_enabled: /etc/tarantool/instances.enabled
 
     # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
-    # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl, 
+    # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl,
     # snap) and multi-instance applications are not affected by this option.
     tarantoolctl_layout: true
 
