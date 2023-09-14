@@ -173,6 +173,7 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
   \\help, ?                 -- show this screen
   \\set language <language> -- set language lua or sql
   \\shortcuts               -- show available hotkeys and shortcuts
+  \\quit, \\q                -- quit from the console
 
 """
     commands["\\help"] = help_output
@@ -203,6 +204,8 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
        Alt + F                     -- Move forwards one word
 ...
 """
+    commands["\\quit"] = "   • Quit from the console    \n"
+    commands["\\q"] = "   • Quit from the console    \n"
 
     try:
         for key, value in commands.items():
@@ -237,6 +240,8 @@ def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
     commands["\\set language"] = "⨯ the command expects one of: lua, sql"
     commands["\\set language arg"] = "⨯ the command expects one of: lua, sql"
     commands["\\set language arg arg"] = "⨯ the command expects one of: lua, sql"
+    commands["\\quit arg"] = "⨯ the command does not expect arguments"
+    commands["\\q arg"] = "⨯ the command does not expect arguments"
 
     try:
         for key, value in commands.items():

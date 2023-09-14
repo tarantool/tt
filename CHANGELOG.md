@@ -23,6 +23,7 @@ The binary has the name tt/tarantool_ + seven-digit hash.
   configuration.
 - `tt connect`: added command `\help` to show the help with a list of available
   commands.
+- `tt connect`: added command `\quit` to quit from the console.
 
 ### Fixed
 

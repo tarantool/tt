@@ -201,6 +201,12 @@ func getShortcuts(console *Console, cmd string, args []string) (string, error) {
 	return shortcutListText, nil
 }
 
+// setQuitFunc sets the quit flag for the console.
+func setQuitFunc(console *Console, cmd string, arg []string) (string, error) {
+	console.quit = true
+	return "", nil
+}
+
 // cmdInfos is a list of allowed commands.
 var cmdInfos = []cmdInfo{
 	cmdInfo{
@@ -216,6 +222,15 @@ var cmdInfos = []cmdInfo{
 		Long:  "show available hotkeys and shortcuts",
 		Cmd: newNoArgsCmdDecorator(
 			newBaseCmd([]string{getShortcutsList}, getShortcuts),
+		),
+	},
+	// The Tarantool console has `\quit` command, but it requires execute
+	// access.
+	cmdInfo{
+		Short: "\\quit, \\q",
+		Long:  "quit from the console",
+		Cmd: newNoArgsCmdDecorator(
+			newBaseCmd([]string{"\\quit", "\\q"}, setQuitFunc),
 		),
 	},
 }
