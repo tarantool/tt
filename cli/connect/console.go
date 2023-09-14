@@ -46,6 +46,7 @@ type Console struct {
 	title string
 
 	language Language
+	quit     bool
 
 	history *commandHistory
 
@@ -79,6 +80,7 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 		title:    title,
 		connOpts: connOpts,
 		language: connectCtx.Language,
+		quit:     false,
 	}
 
 	var err error
@@ -174,6 +176,11 @@ func getExecutor(console *Console) func(string) {
 	executor := func(in string) {
 		if console.input == "" {
 			if commandsExecutor.Execute(console, in) {
+				if console.quit {
+					console.Close()
+					log.Infof("Quit from the console")
+					os.Exit(0)
+				}
 				return
 			}
 		}
