@@ -26,7 +26,8 @@ func getCredsInteractive() (UserCredentials, error) {
 	res := UserCredentials{}
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Printf("Enter Username: ")
+	fmt.Println("Signing in to Customer zone.")
+	fmt.Printf("Enter Email: ")
 	resp, err := reader.ReadString('\n')
 	if err != nil {
 		return res, err
