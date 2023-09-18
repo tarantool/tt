@@ -2,13 +2,15 @@ package running
 
 import (
 	"bytes"
-	"io"
+	"errors"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,25 +29,28 @@ func TestProcessController(t *testing.T) {
 	err = dpc.Stop(5 * time.Second)
 	assert.NoError(t, err) // Already stopped.
 
+	tmpDir := t.TempDir()
+	require.NoError(t, copy.Copy("./testdata/signal_handling.py",
+		filepath.Join(tmpDir, "signal_handling.py")))
+
+	cmd = exec.Command("python3", filepath.Join(tmpDir, "signal_handling.py"))
 	outBuf := bytes.Buffer{}
-	cmd = exec.Command("bash", "-c", `trap 'echo sigusr1' SIGUSR1; echo read; read`)
-	r, w := io.Pipe()
 	cmd.Stdout = &outBuf
-	cmd.Stdin = r
 	dpc, err = newProcessController(cmd)
 	require.NoError(t, err)
 	assert.True(t, dpc.IsAlive())
 
 	// Test sending signal
-	require.NoError(t, waitForMsgInBuffer(&outBuf, "read", 5*time.Second))
+	require.NoError(t, waitForMsgInBuffer(&outBuf, "started", 5*time.Second))
 	dpc.SendSignal(syscall.SIGUSR1)
 	require.NoError(t, waitForMsgInBuffer(&outBuf, "sigusr1", 5*time.Second))
 	assert.True(t, dpc.IsAlive())
 
-	w.Close()
-	r.Close()
 	err = dpc.Stop(5 * time.Second)
-	assert.ErrorContains(t, err, "signal: interrupt")
+	var exitError *exec.ExitError
+	require.True(t, errors.As(err, &exitError))
+	assert.Equal(t, 10, exitError.ProcessState.ExitCode())
+	require.NoError(t, waitForMsgInBuffer(&outBuf, "interrupted", 5*time.Second))
 	assert.False(t, dpc.IsAlive())
 
 	// Test unknown command.
