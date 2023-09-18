@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Use CLI arg connect string for the prompt line and the title to avoid too long
 prompt line when using 'app:instance' target format.
+- ``tt rocks``: luarocks version has been updated to 3.9.2.
 
 ### Added
 

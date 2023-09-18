@@ -105,11 +105,7 @@ func getwdWrapperForLua(L *lua.LState) int {
 // Execute LuaRocks command. All args will be processed by LuaRocks.
 func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) error {
 	var cmd string
-
-	// Print rocks help if no arguments given.
-	if len(args) == 0 {
-		cmd = "help"
-	}
+	var rocks_cmd string
 
 	cliOpts.Repo.Rocks = getRocksRepoPath(cliOpts.Repo.Rocks)
 
@@ -145,8 +141,12 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	os.Setenv("TARANTOOL_DIR", filepath.Dir(tarantoolIncludeDir))
 	os.Setenv("TT_CLI_TARANTOOL_PATH", filepath.Dir(cmdCtx.Cli.TarantoolCli.Executable))
 
-	rocks_cmd := fmt.Sprintf("t=require('extra.wrapper').exec('%s', %s)",
-		os.Args[0], cmd)
+	if len(args) == 0 {
+		rocks_cmd = fmt.Sprintf("t=require('extra.wrapper').exec('%s')", os.Args[0])
+	} else {
+		rocks_cmd = fmt.Sprintf("t=require('extra.wrapper').exec('%s', %s)",
+			os.Args[0], cmd)
+	}
 	extra_path := "extra/"
 	rocks_path := "third_party/luarocks/src/"
 
@@ -185,7 +185,9 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 		"luarocks.manif":                   rocks_path + "luarocks/manif.lua",
 		"luarocks.build.builtin":           rocks_path + "luarocks/build/builtin.lua",
 		"luarocks.deps":                    rocks_path + "luarocks/deps.lua",
+		"luarocks.deplocks":                rocks_path + "luarocks/deplocks.lua",
 		"luarocks.cmd":                     rocks_path + "luarocks/cmd.lua",
+		"luarocks.argparse":                rocks_path + "luarocks/argparse.lua",
 		"luarocks.test.busted":             rocks_path + "luarocks/test/busted.lua",
 		"luarocks.test.command":            rocks_path + "luarocks/test/command.lua",
 		"luarocks.results":                 rocks_path + "luarocks/results.lua",
@@ -217,7 +219,6 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 		"luarocks.upload.multipart":        rocks_path + "luarocks/upload/multipart.lua",
 		"luarocks.upload.api":              rocks_path + "luarocks/upload/api.lua",
 		"luarocks.cmd.upload":              rocks_path + "luarocks/cmd/upload.lua",
-		"luarocks.cmd.help":                rocks_path + "luarocks/cmd/help.lua",
 		"luarocks.cmd.doc":                 rocks_path + "luarocks/cmd/doc.lua",
 		"luarocks.cmd.unpack":              rocks_path + "luarocks/cmd/unpack.lua",
 		"luarocks.cmd.config":              rocks_path + "luarocks/cmd/config.lua",

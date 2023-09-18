@@ -21,7 +21,7 @@ def test_rocks_module(tt_cmd, tmpdir):
             [tt_cmd, "rocks", "help"],
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
     assert rc == 0
-    assert "rocks - LuaRocks package manager\n" in output
+    assert re.search("^Usage: tt rocks", output)
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "search", "queue"],
@@ -252,7 +252,7 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tara
                 PATH=os.path.join(tmpdir_with_tarantool, 'bin') + ':' + os.environ['PATH']))
 
         assert rc == 1  # Tarantool headers are not found.
-        assert 'Error: Failed installing dependency' in output
+        assert re.search("Error: Failed finding Lua header files", output)
 
         # Set env var to find tarantool headers.
         rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
