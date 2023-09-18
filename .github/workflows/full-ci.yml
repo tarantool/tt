@@ -144,17 +144,19 @@ jobs:
         run: |
           ./tt init
           ./tt install tarantool 2.10.7
+          # Delete the tt config so that it does not affect the test environment.
+          rm -f tt.yaml
 
       - name: Add Tarantool to Path
         run: |
           echo "${GITHUB_WORKSPACE}/bin" >> $GITHUB_PATH
 
-      - name: Run unit tests
-        run: mage unitfull
-
-      - name: Set env for integration tests
+      - name: Set Tarantool include directory to the environment
         run: |
           echo "TT_CLI_TARANTOOL_PREFIX=${GITHUB_WORKSPACE}/include/" >> $GITHUB_ENV
+
+      - name: Run unit tests
+        run: mage unitfull
 
       - name: Integration tests
         run: mage integrationfull

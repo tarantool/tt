@@ -1,16 +1,12 @@
 local function exec(bin, ...)
     local cfg = require("luarocks.core.cfg")
-    cfg.init()
     local util = require("luarocks.util")
-    local cmd = require("luarocks.cmd")
 
     -- Tweak help messages.
-    util.see_help = function(command, program) -- luacheck: no unused args
-        return "\nRun \"" .. bin .. " rocks " .. command .. " --help\" for help."
-    end
     util.this_program = function(default) -- luacheck: no unused args
         return bin .. " rocks"
     end
+    local cmd = require("luarocks.cmd")
 
     --[[ Disabled: path, upload,
     -- init: luarocks init command generates a project, including local
@@ -24,7 +20,6 @@ local function exec(bin, ...)
         config = "luarocks.cmd.config",
         doc = "luarocks.cmd.doc",
         download = "luarocks.cmd.download",
-        help = "luarocks.cmd.help",
         install = "luarocks.cmd.install",
         lint = "luarocks.cmd.lint",
         list = "luarocks.cmd.list",

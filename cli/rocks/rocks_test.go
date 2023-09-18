@@ -190,6 +190,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		}
 
 	for input, output := range testCases {
+		os.Unsetenv(tarantoolPrefixEnvVarName)
 		tntFile, err := os.Create(tntBinPath)
 		require.NoError(t, err)
 
