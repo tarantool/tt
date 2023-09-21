@@ -117,6 +117,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"roles"},
 	[]string{"roles_cfg"},
 	[]string{"security", "auth_delay"},
+	[]string{"security", "auth_retries"},
 	[]string{"security", "auth_type"},
 	[]string{"security", "disable_guest"},
 	[]string{"security", "password_enforce_digits"},
@@ -853,6 +854,10 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"security", "auth_delay"},
 		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"security", "auth_retries"},
+		Validator: IntegerValidator{},
 	},
 	SchemaPath{
 		Path: []string{"security", "auth_type"},
