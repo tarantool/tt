@@ -25,6 +25,8 @@ The binary has the name tt/tarantool_ + seven-digit hash.
   commands.
 - `tt connect`: added command `\quit` to quit from the console.
 - `tt connect`: expanded formatting modes for the interactive console.
+- `tt rocks`: added `admin` commands tree.
+  `tt rocks admin` implements `luarocks-admin` commands tree.
 
 ### Fixed
 

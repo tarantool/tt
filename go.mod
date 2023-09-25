@@ -24,7 +24,7 @@ require (
 	github.com/tarantool/go-prompt v1.0.0
 	github.com/tarantool/go-tarantool v1.10.1-0.20230309143354-e257ff30dd4d
 	github.com/vmihailenco/msgpack/v5 v5.3.5
-	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
+	github.com/yuin/gopher-lua v1.1.1-0.20230219103905-71163b697a8f
 	go.etcd.io/etcd/api/v3 v3.5.9
 	go.etcd.io/etcd/client/pkg/v3 v3.5.9
 	go.etcd.io/etcd/client/v3 v3.5.9

@@ -77,6 +77,32 @@ def test_rocks_module(tt_cmd, tmpdir):
     assert "testapp scm-1 is now installed" in output
 
 
+def test_rocks_admin_module(tt_cmd, tmpdir):
+    repo_path = os.path.join(tmpdir, "rocks_repo")
+    os.mkdir(repo_path)
+
+    rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "admin", "make_manifest", repo_path],
+            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+    assert os.path.isfile(f'{tmpdir}/rocks_repo/index.html')
+    assert os.path.isfile(f'{tmpdir}/rocks_repo/manifest')
+
+    test_app_path = os.path.join(os.path.dirname(__file__), "files", "testapp-scm-1.rockspec")
+    shutil.copy(test_app_path, tmpdir)
+    rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "admin", "add", "testapp-scm-1.rockspec", "--server", repo_path],
+            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+    assert os.path.isfile(f'{tmpdir}/rocks_repo/testapp-scm-1.rockspec')
+
+    rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "admin", "remove", "testapp-scm-1.rockspec", "--server", repo_path],
+            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+    assert not os.path.exists(f'{tmpdir}/rocks_repo/testapp-scm-1.rockspec')
+
+
 def test_rocks_install_remote(tt_cmd, tmpdir):
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''tt:
