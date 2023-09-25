@@ -2,11 +2,36 @@ local function exec(bin, ...)
     local cfg = require("luarocks.core.cfg")
     local util = require("luarocks.util")
 
+    local arg = ...
+
     -- Tweak help messages.
-    util.this_program = function(default) -- luacheck: no unused args
-        return bin .. " rocks"
+    if arg == "admin" then
+        util.this_program = function(default) -- luacheck: no unused args
+            return bin .. " rocks admin"
+        end
+    else
+        util.this_program = function(default) -- luacheck: no unused args
+            return bin .. " rocks"
+        end
     end
     local cmd = require("luarocks.cmd")
+
+    if arg == "admin" then
+        local description = "LuaRocks repository administration interface"
+        local admin_args = {...}
+
+        table.remove(admin_args, 1)
+
+        local commands = {
+           make_manifest = "luarocks.admin.cmd.make_manifest",
+           add = "luarocks.admin.cmd.add",
+           remove = "luarocks.admin.cmd.remove",
+           refresh_cache = "luarocks.admin.cmd.refresh_cache",
+        }
+
+        cmd.run_command(description, commands, "luarocks.admin.cmd.external", unpack(admin_args))
+        return
+    end
 
     --[[ Disabled: path, upload,
     -- init: luarocks init command generates a project, including local
