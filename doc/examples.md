@@ -160,9 +160,8 @@ name.
 Create `./tt.yaml` and add templates search path to it:
 
 ``` yaml
-tt:
-    templates:
-        - path: ./templates
+  templates:
+    - path: ./templates
 ```
 
 Here is how the current directory structure looks like:
@@ -295,31 +294,30 @@ Example of packing a multi-app environment. The source tree:
 `tt.yaml`:
 
 ``` yaml
-tt:
-  env:
-    bin_dir: bin
-    inc_dir: include
-    instances_enabled: instances.enabled
-    log_maxsize: 100
-    log_maxage: 8
-    log_maxbackups: 10
-    restart_on_failure: false
-    tarantoolctl_layout: false
-  modules:
-    directory: modules
-  app:
-    run_dir: var/run
-    log_dir: var/log
-    wal_dir: var/lib
-    vinyl_dir: var/lib
-    memtx_dir: var/lib
-  ee:
-    credential_path: ""
-  templates:
-  - path: templates
-  repo:
-    rocks: ""
-    distfiles: distfiles
+env:
+  bin_dir: bin
+  inc_dir: include
+  instances_enabled: instances.enabled
+  log_maxsize: 100
+  log_maxage: 8
+  log_maxbackups: 10
+  restart_on_failure: false
+  tarantoolctl_layout: false
+modules:
+  directory: modules
+app:
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: var/lib
+  vinyl_dir: var/lib
+  memtx_dir: var/lib
+ee:
+  credential_path: ""
+templates:
+- path: templates
+repo:
+  rocks: ""
+  distfiles: distfiles
 ```
 
 Pay attention, that all absolute symlinks from
@@ -483,31 +481,30 @@ $ tt init
 config. Generated `tt.yaml` will look like (comments omitted):
 
 ``` yaml
-tt:
-  modules:
-    directory: modules
-  env:
-    log_maxsize: 100
-    log_maxage: 8
-    log_maxbackups: 10
-    restart_on_failure: false
-    bin_dir: bin
-    inc_dir: include
-    instances_enabled: ./instances.enabled
-    tarantoolctl_layout: true
-  app:
-    run_dir: ./run/tarantool
-    log_dir: ./log/tarantool
-    wal_dir: ./lib/tarantool
-    memtx_dir: ./lib/tarantool
-    vinyl_dir: ./lib/tarantool
-  ee:
-    credential_path:
-  templates:
-    - path: templates
-  repo:
-    rocks:
-    distfiles: distfiles
+modules:
+  directory: modules
+env:
+  log_maxsize: 100
+  log_maxage: 8
+  log_maxbackups: 10
+  restart_on_failure: false
+  bin_dir: bin
+  inc_dir: include
+  instances_enabled: ./instances.enabled
+  tarantoolctl_layout: true
+app:
+  run_dir: ./run/tarantool
+  log_dir: ./log/tarantool
+  wal_dir: ./lib/tarantool
+  memtx_dir: ./lib/tarantool
+  vinyl_dir: ./lib/tarantool
+ee:
+  credential_path:
+templates:
+  - path: templates
+repo:
+  rocks:
+  distfiles: distfiles
 ```
 
 After that we can use `tt` for managing Tarantool instances, checkpoint

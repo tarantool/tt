@@ -1,8 +1,7 @@
-tt:
-  env:
-    instances_enabled: ./instances.enabled
-  modules:
-    directory: my_modules
-  templates:
-    - path: ./my_templates
-    - path: /tmp/templates
+env:
+  instances_enabled: ./instances.enabled
+modules:
+  directory: my_modules
+templates:
+  - path: ./my_templates
+  - path: /tmp/templates

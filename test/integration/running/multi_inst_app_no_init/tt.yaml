@@ -1,3 +1,2 @@
-tt:
-  env:
-    instances_enabled: instances.enabled
+env:
+  instances_enabled: instances.enabled

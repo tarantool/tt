@@ -156,7 +156,7 @@ def test_launch_local_tt_executable_in_parent_dir(tt_cmd, tmpdir):
 def test_launch_local_tt_executable_relative_bin_dir(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
 
@@ -180,7 +180,7 @@ def test_launch_local_tt_executable_relative_bin_dir(tt_cmd, tmpdir):
 def test_launch_local_tt_missing_executable(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
 
@@ -201,7 +201,7 @@ def test_launch_local_tt_missing_executable(tt_cmd, tmpdir):
 def test_launch_local_tarantool(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
     tarantool_message = "Hello, I'm Tarantool"
@@ -224,7 +224,7 @@ def test_launch_local_tarantool(tt_cmd, tmpdir):
 def test_launch_local_tarantool_missing_in_bin_dir(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
 
@@ -255,7 +255,7 @@ def test_launch_local_launch_tarantool_with_config_in_parent_dir(tt_cmd, tmpdir)
     tmpdir_without_config = tempfile.mkdtemp(dir=tmpdir)
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
     tarantool_message = "Hello, I'm Tarantool"
@@ -279,7 +279,7 @@ def test_launch_local_launch_tarantool_with_yml_config_in_parent_dir(tt_cmd, tmp
     tmpdir_without_config = tempfile.mkdtemp(dir=tmpdir)
     config_path = os.path.join(tmpdir, config_name.replace("yaml", "yml"))
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
     tarantool_message = "Hello, I'm Tarantool"
@@ -302,8 +302,8 @@ def test_launch_local_launch_tarantool_with_yml_config_in_parent_dir(tt_cmd, tmp
 def test_launch_system_tarantool(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
-                   "env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"modules": {"directory": f"{tmpdir}"},
+                   "env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
     tarantool_message = "Hello, I'm Tarantool"
@@ -315,8 +315,8 @@ def test_launch_system_tarantool(tt_cmd, tmpdir):
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         with open(os.path.join(tmp_working_dir, config_name), "w") as f:
-            yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
-                       "env": {"bin_dir": ""}}}, f)
+            yaml.dump({"modules": {"directory": f"{tmpdir}"},
+                       "env": {"bin_dir": ""}}, f)
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmpdir
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
@@ -327,8 +327,8 @@ def test_launch_system_tarantool(tt_cmd, tmpdir):
 def test_launch_system_tarantool_yml_system_config(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name.replace("yaml", "yml"))
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
-                   "env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"modules": {"directory": f"{tmpdir}"},
+                   "env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
     tarantool_message = "Hello, I'm Tarantool"
@@ -352,8 +352,8 @@ def test_launch_system_tarantool_yml_system_config(tt_cmd, tmpdir):
 def test_launch_system_tarantool_missing_executable(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"modules": {"directory": f"{tmpdir}"},
-                   "env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"modules": {"directory": f"{tmpdir}"},
+                   "env": {"bin_dir": "./binaries"}}, f)
 
     command = [tt_cmd, "-S", "run", "--version"]
 
@@ -368,7 +368,7 @@ def test_launch_system_tarantool_missing_executable(tt_cmd, tmpdir):
 def test_launch_system_config_not_loaded_if_local_enabled(tt_cmd, tmpdir):
     config_path = os.path.join(tmpdir, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"env": {"bin_dir": "./binaries"}}}, f)
+        yaml.dump({"env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(os.path.join(tmpdir, "binaries"))
     tarantool_message = "Hello, I'm Tarantool"

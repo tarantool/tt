@@ -44,7 +44,7 @@ func dumpConfiguration(writer io.Writer, cmdCtx *cmdcontext.CmdCtx,
 			writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
 		}
 	}
-	err := yaml.NewEncoder(writer).Encode(config.Config{CliConfig: cliOpts})
+	err := yaml.NewEncoder(writer).Encode(cliOpts)
 	return err
 }
 

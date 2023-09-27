@@ -238,7 +238,7 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 // GetCliOpts returns Tarantool CLI options from the config file
 // located at path configurePath.
 func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
-	var cfg config.Config
+	var cfg *config.CliOpts
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)
 	if err == nil {
@@ -252,7 +252,7 @@ func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
 			return nil, "", fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
 		}
 
-		if cfg.CliConfig == nil {
+		if cfg == nil {
 			return nil, "",
 				fmt.Errorf("failed to parse Tarantool CLI configuration: missing tt section")
 		}
@@ -261,7 +261,7 @@ func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
 		// what if the file exists, but access is denied, etc.
 		return nil, "", fmt.Errorf("failed to get access to configuration file: %s", err)
 	} else if os.IsNotExist(err) {
-		cfg.CliConfig = GetDefaultCliOpts()
+		cfg = GetDefaultCliOpts()
 		configPath = ""
 	}
 
@@ -269,19 +269,19 @@ func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
 	if configPath == "" {
 		configDir, err = os.Getwd()
 		if err != nil {
-			return cfg.CliConfig, configPath, err
+			return cfg, configPath, err
 		}
 	} else {
 		if configDir, err = filepath.Abs(filepath.Dir(configPath)); err != nil {
-			return cfg.CliConfig, configPath, err
+			return cfg, configPath, err
 		}
 	}
 
-	if err = updateCliOpts(cfg.CliConfig, configDir); err != nil {
-		return cfg.CliConfig, "", err
+	if err = updateCliOpts(cfg, configDir); err != nil {
+		return cfg, "", err
 	}
 
-	return cfg.CliConfig, configPath, nil
+	return cfg, configPath, nil
 }
 
 // GetDaemonOpts returns tt daemon options from the config file

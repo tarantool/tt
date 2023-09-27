@@ -1,34 +1,28 @@
 package config
 
-// Config used to store all information from the
-// tt.yaml configuration file.
-type Config struct {
-	CliConfig *CliOpts `mapstructure:"tt" yaml:"tt"`
-}
-
 // CliOpts stores information about Tarantool CLI configuration.
 // Filled in when parsing the tt.yaml configuration file.
 //
 // tt.yaml file format:
-// tt:
-//   modules:
-//     directory: path/to
-//   app:
-//     available: path
-//     run_dir: path
-//     log_dir: path
-//     log_maxsize: num (MB)
-//     log_maxage: num (Days)
-//     log_maxbackups: num
-//     restart_on_failure: bool
-//     bin_dir: path
-//     inc_dir: path
-//     tarantoolctl_layout: false
-//   repo:
-//     rocks: path
-//     distfiles: path
-//   ee:
-//     credential_path: path
+//  env:
+//    instances_enabled: path
+//    log_maxsize: num (MB)
+//    log_maxage: num (Days)
+//    log_maxbackups: num
+//    tarantoolctl_layout: false
+//    restart_on_failure: bool
+//  modules:
+//    directory: path/to
+//  app:
+//    run_dir: path
+//    log_dir: path
+//    bin_dir: path
+//    inc_dir: path
+//  repo:
+//    rocks: path
+//    distfiles: path
+//  ee:
+//    credential_path: path
 
 // ModuleOpts is used to store all module options.
 type ModulesOpts struct {

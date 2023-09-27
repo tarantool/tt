@@ -10,14 +10,13 @@ import yaml
 from utils import (config_name, extract_status, get_tarantool_version,
                    run_command_and_get_output, wait_file)
 
-tt_config_text = '''tt:
-  env:
-    instances_enabled: test.instances.enabled
-  app:
-    run_dir: .
-    log_dir: .
-  templates:
-    - path: ./templates'''
+tt_config_text = '''env:
+  instances_enabled: test.instances.enabled
+app:
+  run_dir: .
+  log_dir: .
+templates:
+  - path: ./templates'''
 
 
 rendered_text = '''#! /usr/bin/env tarantool
@@ -329,15 +328,14 @@ def test_template_as_archive(tt_cmd, tmpdir):
 def test_template_search_paths(tt_cmd, tmpdir):
     # Create env file.
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''tt:
-  app:
-    instances_enabled: ./any-dir
-    run_dir: .
-    log_dir: .
-  templates:
-    - path: ./templates
-    - path: ./templates2
-    - path: ./templates3''')
+        tnt_env_file.write('''app:
+  instances_enabled: ./any-dir
+  run_dir: .
+  log_dir: .
+templates:
+  - path: ./templates
+  - path: ./templates2
+  - path: ./templates3''')
 
     # Copy templates to tmp dir.
     shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"),

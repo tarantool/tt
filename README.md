@@ -243,32 +243,31 @@ you can specify the path to configuration file. Example of configuration
 file format:
 
 ``` yaml
-tt:
-  env:
-    instances_enabled: path/to/available/applications
-    bin_dir: path/to/bin_dir
-    inc_dir: path/to/inc_dir
-    log_maxsize: num (MB)
-    log_maxage: num (Days)
-    log_maxbackups: num
-    restart_on_failure: bool
-    tarantoolctl_layout: bool
-  modules:
-    directory: path/to/modules/dir
-  app:
-    run_dir: path/to/run_dir
-    log_dir: path/to/log_dir
-    wal_dir: var/lib
-    vinyl_dir: var/lib
-    memtx_dir: var/lib
-  repo:
-    rocks: path/to/rocks
-    distfiles: path/to/install
-  ee:
-    credential_path: path/to/file
-  templates:
-    - path: path/to/templates_dir1
-    - path: path/to/templates_dir2
+env:
+  instances_enabled: path/to/available/applications
+  bin_dir: path/to/bin_dir
+  inc_dir: path/to/inc_dir
+  log_maxsize: num (MB)
+  log_maxage: num (Days)
+  log_maxbackups: num
+  restart_on_failure: bool
+  tarantoolctl_layout: bool
+modules:
+  directory: path/to/modules/dir
+app:
+  run_dir: path/to/run_dir
+  log_dir: path/to/log_dir
+  wal_dir: var/lib
+  vinyl_dir: var/lib
+  memtx_dir: var/lib
+repo:
+  rocks: path/to/rocks
+  distfiles: path/to/install
+ee:
+  credential_path: path/to/file
+templates:
+  - path: path/to/templates_dir1
+  - path: path/to/templates_dir2
 ```
 
 **env**
@@ -472,10 +471,9 @@ To work with application template, you need:
 -   `tt.yaml` configured to search templates in \<path\>:
 
     ``` yaml
-    tt:
-      templates:
-        - path: <path1>
-        - path: <path2>
+    templates:
+      - path: <path1>
+      - path: <path2>
     ```
 
 Application template may contain:

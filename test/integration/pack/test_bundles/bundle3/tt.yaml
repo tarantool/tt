@@ -1,3 +1,2 @@
-tt:
-  env:
-    instances_enabled: generated_dir
+env:
+  instances_enabled: generated_dir

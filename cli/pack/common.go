@@ -353,10 +353,6 @@ func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) erro
 		cliOptsNew.Env.BinDir = "."
 	}
 
-	cfg := config.Config{
-		CliConfig: cliOptsNew,
-	}
-
 	file, err := os.Create(filepath.Join(destPath, configure.ConfigName))
 	if err != nil {
 		return err
@@ -368,7 +364,7 @@ func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) erro
 		}
 	}()
 
-	err = yaml.NewEncoder(file).Encode(&cfg)
+	err = yaml.NewEncoder(file).Encode(cliOptsNew)
 	if err != nil {
 		return err
 	}

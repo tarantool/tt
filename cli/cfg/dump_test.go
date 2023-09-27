@@ -49,14 +49,13 @@ func TestRunDump(t *testing.T) {
 				configure.GetDefaultCliOpts(),
 			},
 			wantWriter: `./testdata/tt_cfg.yaml:
-tt:
-  env:
-    inc_dir: ./test_inc
-    log_maxsize: 1024
-  app:
-    wal_dir: ./wal
-  modules:
-    directory: /root/modules
+env:
+  inc_dir: ./test_inc
+  log_maxsize: 1024
+app:
+  wal_dir: ./wal
+modules:
+  directory: /root/modules
 `,
 			wantErr: false,
 		},
@@ -72,30 +71,29 @@ tt:
 				getCliOpts(t, "testdata/tt_cfg.yaml"),
 			},
 			wantWriter: fmt.Sprintf(`./testdata/tt_cfg.yaml:
-tt:
-  env:
-    bin_dir: %[1]s/bin
-    inc_dir: %[1]s/test_inc
-    instances_enabled: .
-    log_maxsize: 1024
-    log_maxage: 8
-    log_maxbackups: 10
-    restart_on_failure: false
-    tarantoolctl_layout: false
-  modules:
-    directory: /root/modules
-  app:
-    run_dir: %[1]s/var/run
-    log_dir: %[1]s/var/log
-    wal_dir: %[1]s/wal
-    memtx_dir: %[1]s/var/lib
-    vinyl_dir: %[1]s/var/lib
-  ee:
-    credential_path: ""
-  templates: []
-  repo:
-    rocks: ""
-    distfiles: %[1]s/distfiles
+env:
+  bin_dir: %[1]s/bin
+  inc_dir: %[1]s/test_inc
+  instances_enabled: .
+  log_maxsize: 1024
+  log_maxage: 8
+  log_maxbackups: 10
+  restart_on_failure: false
+  tarantoolctl_layout: false
+modules:
+  directory: /root/modules
+app:
+  run_dir: %[1]s/var/run
+  log_dir: %[1]s/var/log
+  wal_dir: %[1]s/wal
+  memtx_dir: %[1]s/var/lib
+  vinyl_dir: %[1]s/var/lib
+ee:
+  credential_path: ""
+templates: []
+repo:
+  rocks: ""
+  distfiles: %[1]s/distfiles
 `, configDir),
 			wantErr: false,
 		},
@@ -111,32 +109,31 @@ tt:
 				getCliOpts(t, "testdata/tt_cfg2.yaml"),
 			},
 			wantWriter: fmt.Sprintf(`./testdata/tt_cfg2.yaml:
-tt:
-  env:
-    bin_dir: %[1]s/bin
-    inc_dir: %[1]s/include
-    instances_enabled: %[1]s/instances.enabled
-    log_maxsize: 100
-    log_maxage: 8
-    log_maxbackups: 10
-    restart_on_failure: false
-    tarantoolctl_layout: false
-  modules:
-    directory: %[1]s/my_modules
-  app:
-    run_dir: %[1]s/var/run
-    log_dir: %[1]s/var/log
-    wal_dir: %[1]s/var/lib
-    memtx_dir: %[1]s/var/lib
-    vinyl_dir: %[1]s/var/lib
-  ee:
-    credential_path: ""
-  templates:
-  - path: %[1]s/my_templates
-  - path: /tmp/templates
-  repo:
-    rocks: ""
-    distfiles: %[1]s/distfiles
+env:
+  bin_dir: %[1]s/bin
+  inc_dir: %[1]s/include
+  instances_enabled: %[1]s/instances.enabled
+  log_maxsize: 100
+  log_maxage: 8
+  log_maxbackups: 10
+  restart_on_failure: false
+  tarantoolctl_layout: false
+modules:
+  directory: %[1]s/my_modules
+app:
+  run_dir: %[1]s/var/run
+  log_dir: %[1]s/var/log
+  wal_dir: %[1]s/var/lib
+  memtx_dir: %[1]s/var/lib
+  vinyl_dir: %[1]s/var/lib
+ee:
+  credential_path: ""
+templates:
+- path: %[1]s/my_templates
+- path: /tmp/templates
+repo:
+  rocks: ""
+  distfiles: %[1]s/distfiles
 `, configDir),
 			wantErr: false,
 		},
