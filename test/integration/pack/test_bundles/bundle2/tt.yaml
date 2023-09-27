@@ -1,14 +1,13 @@
-tt:
-  env:
-    log_maxsize: 1
-    log_maxage: 1
-    log_maxbackups: 1
-    restart_on_failure: true
-    instances_enabled: instances_enabled
-    bin_dir: bin
-  app:
-    run_dir: var/run
-    log_dir: var/log
-    wal_dir: var/lib
-    vinyl_dir: var/lib
-    memtx_dir: var/lib
+env:
+  log_maxsize: 1
+  log_maxage: 1
+  log_maxbackups: 1
+  restart_on_failure: true
+  instances_enabled: instances_enabled
+  bin_dir: bin
+app:
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: var/lib
+  vinyl_dir: var/lib
+  memtx_dir: var/lib

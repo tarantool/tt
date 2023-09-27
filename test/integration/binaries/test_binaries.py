@@ -89,7 +89,7 @@ def test_binaries_tarantool_dev(tt_cmd, tmpdir):
     # Create test config.
     with open(config_path, "w") as f:
         f.write(
-            'tt:\n  env:\n    bin_dir: "./tarantool_dev/bin"\n    inc_dir:\n')
+            'env:\n  bin_dir: "./tarantool_dev/bin"\n  inc_dir:\n')
 
     binaries_cmd = [tt_cmd, "--cfg", config_path, "binaries"]
     binaries_process = subprocess.Popen(

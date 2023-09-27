@@ -58,18 +58,17 @@ def test_cfg_dump_raw(tt_cmd, tmpdir):
 
     output = tt_process.stdout.read()
     assert output == f"""{os.path.join(tmpdir, config_name)}:
-tt:
-  modules:
-    directory: new_modules
-  app:
-    run_dir: /var/run
-    log_dir: ./var/log
-    wal_dir: lib/wal
-    vinyl_dir: lib/vinyl
-    memtx_dir: lib/memtx
-  env:
-    bin_dir: /usr/bin
-    log_maxbackups: 12
+modules:
+  directory: new_modules
+app:
+  run_dir: /var/run
+  log_dir: ./var/log
+  wal_dir: lib/wal
+  vinyl_dir: lib/vinyl
+  memtx_dir: lib/memtx
+env:
+  bin_dir: /usr/bin
+  log_maxbackups: 12
 """
 
 
@@ -119,7 +118,7 @@ def test_cfg_dump_default_no_config(tt_cmd, tmpdir):
     assert "log_maxsize: 100" in output
     assert "log_maxbackups: 10" in output
     assert f"instances_enabled: {tmpdir}" in output
-    assert f"templates:\n  - path: {os.path.join(tmpdir, 'templates')}" in output
+    assert f"templates:\n- path: {os.path.join(tmpdir, 'templates')}" in output
     assert 'credential_path: ""' in output
 
     # Create init.lua in current dir making it an application.
@@ -155,5 +154,5 @@ def test_cfg_dump_default_no_config(tt_cmd, tmpdir):
     assert "log_maxsize: 100" in output
     assert "log_maxbackups: 10" in output
     assert "instances_enabled: ." in output
-    assert f"templates:\n  - path: {os.path.join(tmpdir, 'templates')}" in output
+    assert f"templates:\n- path: {os.path.join(tmpdir, 'templates')}" in output
     assert 'credential_path: ""' in output

@@ -105,9 +105,8 @@ def test_rocks_admin_module(tt_cmd, tmpdir):
 
 def test_rocks_install_remote(tt_cmd, tmpdir):
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''tt:
-  repo:
-    rocks: "repo"''')
+        tnt_env_file.write('''repo:
+  rocks: "repo"''')
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "install", "stat"],
             cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
@@ -120,9 +119,8 @@ def test_rocks_install_local(tt_cmd, tmpdir):
         pytest.skip("/set platform is unsupported")
 
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''tt:
-  repo:
-    rocks: "repo"''')
+        tnt_env_file.write('''repo:
+  rocks: "repo"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
                     os.path.join(tmpdir, "repo"))
@@ -140,9 +138,8 @@ def test_rocks_install_local_if_network_is_up(tt_cmd, tmpdir):
         pytest.skip("/set platform is unsupported")
 
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''tt:
-  repo:
-    rocks: "repo"''')
+        tnt_env_file.write('''repo:
+  rocks: "repo"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
                     os.path.join(tmpdir, "repo"))
@@ -157,9 +154,8 @@ def test_rocks_install_local_if_network_is_up(tt_cmd, tmpdir):
 
 def test_rocks_install_local_specific_version(tt_cmd, tmpdir):
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''tt:
-  repo:
-    rocks: "repo"''')
+        tnt_env_file.write('''repo:
+  rocks: "repo"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
                     os.path.join(tmpdir, "repo"))
@@ -197,9 +193,8 @@ def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmpdir):
         pytest.skip("/set platform is unsupported")
 
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''tt:
-  repo:
-    rocks: "repo"''')
+        tnt_env_file.write('''repo:
+  rocks: "repo"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
                     os.path.join(tmpdir, "repo"))
@@ -223,9 +218,8 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmpdir):
         pytest.skip("/set platform is unsupported")
 
     with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''tt:
-  repo:
-    distfiles: "distfiles"''')
+        tnt_env_file.write('''repo:
+  distfiles: "distfiles"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
                     os.path.join(tmpdir, "repo"))
@@ -263,9 +257,8 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmpdir):
 def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tarantool):
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-            tnt_env_file.write('''tt:
-  repo:
-    distfiles: "distfiles"''')
+            tnt_env_file.write('''repo:
+  distfiles: "distfiles"''')
 
         # Rocks install must fail due to not found tarantool headers.
         rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]

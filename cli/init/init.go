@@ -9,7 +9,6 @@ import (
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
-	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v2"
@@ -136,28 +135,26 @@ var ttYamlTemplate string
 
 // generateTtEnv generates environment config in configPath using configuration data provided.
 func generateTtEnv(configPath string, sourceCfg configData) error {
-	cfg := config.Config{
-		CliConfig: configure.GetDefaultCliOpts(),
-	}
+	cfg := configure.GetDefaultCliOpts()
 	if sourceCfg.runDir != "" {
-		cfg.CliConfig.App.RunDir = sourceCfg.runDir
+		cfg.App.RunDir = sourceCfg.runDir
 	}
 	if sourceCfg.walDir != "" {
-		cfg.CliConfig.App.WalDir = sourceCfg.walDir
+		cfg.App.WalDir = sourceCfg.walDir
 	}
 	if sourceCfg.vinylDir != "" {
-		cfg.CliConfig.App.VinylDir = sourceCfg.vinylDir
+		cfg.App.VinylDir = sourceCfg.vinylDir
 	}
 	if sourceCfg.memtxDir != "" {
-		cfg.CliConfig.App.MemtxDir = sourceCfg.memtxDir
+		cfg.App.MemtxDir = sourceCfg.memtxDir
 	}
 	if sourceCfg.logDir != "" {
-		cfg.CliConfig.App.LogDir = sourceCfg.logDir
+		cfg.App.LogDir = sourceCfg.logDir
 	}
 	if sourceCfg.instancesEnabled != "" {
-		cfg.CliConfig.Env.InstancesEnabled = sourceCfg.instancesEnabled
+		cfg.Env.InstancesEnabled = sourceCfg.instancesEnabled
 	}
-	cfg.CliConfig.Env.TarantoolctlLayout = sourceCfg.tarantoolctlLayout
+	cfg.Env.TarantoolctlLayout = sourceCfg.tarantoolctlLayout
 
 	ttYamlContent, err := util.GetTextTemplatedStr(&ttYamlTemplate, cfg)
 	if err != nil {
@@ -170,13 +167,13 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 	}
 
 	directoriesToCreate := []string{
-		cfg.CliConfig.Env.InstancesEnabled,
-		cfg.CliConfig.Modules.Directory,
-		cfg.CliConfig.Env.IncludeDir,
-		cfg.CliConfig.Env.BinDir,
-		cfg.CliConfig.Repo.Install,
+		cfg.Env.InstancesEnabled,
+		cfg.Modules.Directory,
+		cfg.Env.IncludeDir,
+		cfg.Env.BinDir,
+		cfg.Repo.Install,
 	}
-	for _, templatesPathOpts := range cfg.CliConfig.Templates {
+	for _, templatesPathOpts := range cfg.Templates {
 		directoriesToCreate = append(directoriesToCreate, templatesPathOpts.Path)
 	}
 

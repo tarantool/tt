@@ -1,61 +1,60 @@
-tt:
-  env:
-    # Path to directory that stores all applications.
-    # The directory can also contain symbolic links to applications.
-    instances_enabled: /etc/tarantool/instances.enabled
+env:
+  # Path to directory that stores all applications.
+  # The directory can also contain symbolic links to applications.
+  instances_enabled: /etc/tarantool/instances.enabled
 
-    # Directory that stores binary files.
-    bin_dir: /opt/tarantool/bin
+  # Directory that stores binary files.
+  bin_dir: /opt/tarantool/bin
 
-    # Directory that stores Tarantool header files.
-    inc_dir: /opt/tarantool/include
+  # Directory that stores Tarantool header files.
+  inc_dir: /opt/tarantool/include
 
-    # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
-    # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl,
-    # snap) and multi-instance applications are not affected by this option.
-    tarantoolctl_layout: true
+  # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
+  # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl,
+  # snap) and multi-instance applications are not affected by this option.
+  tarantoolctl_layout: true
 
-    # The maximum size in MB of the log file before it gets rotated.
-    log_maxsize: 100
+  # The maximum size in MB of the log file before it gets rotated.
+  log_maxsize: 100
 
-    # The maximum number of days to retain old log files.
-    log_maxage: 8
+  # The maximum number of days to retain old log files.
+  log_maxage: 8
 
-    # The maximum number of old log files to retain.
-    log_maxbackups: 10
+  # The maximum number of old log files to retain.
+  log_maxbackups: 10
 
-  modules:
-    # Directory where the external modules are stored.
-    directory: /opt/tarantool/modules
+modules:
+  # Directory where the external modules are stored.
+  directory: /opt/tarantool/modules
 
-  app:
-    # Directory that stores various instance runtime
-    # artifacts like console socket, PID file, etc.
-    run_dir: /var/run/tarantool
+app:
+  # Directory that stores various instance runtime
+  # artifacts like console socket, PID file, etc.
+  run_dir: /var/run/tarantool
 
-    # Directory that stores log files.
-    log_dir: /var/log/tarantool
+  # Directory that stores log files.
+  log_dir: /var/log/tarantool
 
-    # Restart instance on failure.
-    restart_on_failure: false
+  # Restart instance on failure.
+  restart_on_failure: false
 
-    # Directory where write-ahead log (.xlog) files are stored.
-    wal_dir: /var/lib/tarantool
+  # Directory where write-ahead log (.xlog) files are stored.
+  wal_dir: /var/lib/tarantool
 
-    # Directory where memtx stores snapshot (.snap) files.
-    memtx_dir: /var/lib/tarantool
+  # Directory where memtx stores snapshot (.snap) files.
+  memtx_dir: /var/lib/tarantool
 
-    # Directory where vinyl files or subdirectories will be stored.
-    vinyl_dir: /var/lib/tarantool
+  # Directory where vinyl files or subdirectories will be stored.
+  vinyl_dir: /var/lib/tarantool
 
-  ee: null
-    # Path to file with credentials for downloading Tarantool Enterprise Edition.
-    # credential_path: /path/to/file
+ee: null
+  # Path to file with credentials for downloading Tarantool Enterprise Edition.
+  # credential_path: /path/to/file
 
-  templates:
-    # The path to templates search directory.
-    - path: /opt/tarantool/templates
+templates:
+  # The path to templates search directory.
+  - path: /opt/tarantool/templates
 
-  repo:
-    # Directory that stores installation files.
-    distfiles: /var/cache/tarantool/distfiles
+repo:
+  # Directory that stores installation files.
+  distfiles: /var/cache/tarantool/distfiles

@@ -1,4 +1,3 @@
-tt:
-  env:
-    bin_dir: bin
-    instances_enabled: instances_enabled
+env:
+  bin_dir: bin
+  instances_enabled: instances_enabled

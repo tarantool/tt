@@ -39,7 +39,7 @@ def run_command_and_get_output(
 def create_tt_config(config_path, modules_path):
     config_path = os.path.join(config_path, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"tt": {"modules": {"directory": f"{modules_path}"}}}, f)
+        yaml.dump({"modules": {"directory": f"{modules_path}"}}, f)
 
     return config_path
 

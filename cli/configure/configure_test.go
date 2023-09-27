@@ -42,9 +42,8 @@ func TestConfigureCli(t *testing.T) {
 
 	expectedConfigPath, err := util.JoinAbspath(testDir, ConfigName)
 	assert.Nil(err)
-	require.NoError(t, os.WriteFile(expectedConfigPath, []byte(`tt:
-  env:
-    bin_dir: "."
+	require.NoError(t, os.WriteFile(expectedConfigPath, []byte(`env:
+  bin_dir: "."
 `), 0644))
 
 	// Create local tarantool and check that it is found during configuration.
@@ -75,7 +74,7 @@ func TestConfigureCli(t *testing.T) {
 	expectedConfigPath = filepath.Join(filepath.Dir(dir), ConfigName)
 
 	assert.Nil(os.WriteFile(
-		expectedConfigPath, []byte("tt:\n  app:"), 0755,
+		expectedConfigPath, []byte("app:"), 0755,
 	))
 
 	defer os.Remove(expectedConfigPath)
@@ -244,11 +243,11 @@ func TestGetSystemConfigPath(t *testing.T) {
 func TestGetConfigPath(t *testing.T) {
 	tempDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "a", "b"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", ConfigName), []byte("tt:"),
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", ConfigName), []byte(""),
 		0664))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tt.yml"), []byte("tt:"),
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tt.yml"), []byte(""),
 		0664))
-	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tt.yaml"), []byte("tt:"),
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tt.yaml"), []byte(""),
 		0664))
 
 	if wd, err := os.Getwd(); err == nil {

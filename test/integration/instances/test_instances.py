@@ -61,7 +61,7 @@ def test_instances_missing_directory(tt_cmd):
         test_app_path = os.path.join(tmpdir)
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
-            yaml.dump({"tt": {"env": {"instances_enabled": "foo/bar"}}}, f)
+            yaml.dump({"env": {"instances_enabled": "foo/bar"}}, f)
         # List all instances.
         start_cmd = [tt_cmd, "instances"]
         instance_process = subprocess.Popen(
