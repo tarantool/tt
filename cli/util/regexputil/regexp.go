@@ -31,3 +31,7 @@ func ApplyVars(templateStr string, data map[string]string) (string, error) {
 
 	return renderedStr, nil
 }
+
+func VarTemplateStr(varName string) string {
+	return fmt.Sprintf("{{ %s }}", varName)
+}

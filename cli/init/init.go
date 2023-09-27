@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/cli/util/regexputil"
 	"gopkg.in/yaml.v2"
 )
 
@@ -70,12 +72,19 @@ func loadCartridgeConfig(initCtx *InitCtx, configPath string) (configData, error
 		return configData{}, fmt.Errorf("failed to parse cartridge app configuration: %s", err)
 	}
 
+	instName := regexputil.VarTemplateStr(configure.InstanceNameVar)
+	appendSuffix := func(baseDir string) string {
+		if baseDir != "" {
+			return filepath.Join(baseDir, instName)
+		}
+		return ""
+	}
 	return configData{
-		runDir:             cartridgeConf.RunDir,
-		logDir:             cartridgeConf.LogDir,
-		walDir:             cartridgeConf.DataDir,
-		vinylDir:           cartridgeConf.DataDir,
-		memtxDir:           cartridgeConf.DataDir,
+		runDir:             appendSuffix(cartridgeConf.RunDir),
+		logDir:             appendSuffix(cartridgeConf.LogDir),
+		walDir:             appendSuffix(cartridgeConf.DataDir),
+		vinylDir:           appendSuffix(cartridgeConf.DataDir),
+		memtxDir:           appendSuffix(cartridgeConf.DataDir),
 		tarantoolctlLayout: false,
 	}, nil
 }
@@ -127,6 +136,16 @@ func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (configData, er
 			*dir.path = val.(string)
 		}
 	}
+
+	// Append instance name to data dirs only.
+	instName := regexputil.VarTemplateStr(configure.InstanceNameVar)
+	for _, dir := range []*string{&existingCfg.walDir, &existingCfg.vinylDir,
+		&existingCfg.memtxDir} {
+		if *dir != "" {
+			*dir = filepath.Join(*dir, instName)
+		}
+	}
+
 	existingCfg.tarantoolctlLayout = true
 	return existingCfg, nil
 }
@@ -141,6 +160,8 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 	}
 	if sourceCfg.runDir != "" {
 		cfg.CliConfig.App.RunDir = sourceCfg.runDir
+	} else if sourceCfg.tarantoolctlLayout {
+		cfg.CliConfig.App.RunDir = filepath.Join(configure.VarPath, configure.RunPath)
 	}
 	if sourceCfg.walDir != "" {
 		cfg.CliConfig.App.WalDir = sourceCfg.walDir

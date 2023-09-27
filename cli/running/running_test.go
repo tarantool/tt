@@ -20,6 +20,7 @@ func Test_CollectInstances(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Equal(t, InstanceCtx{
+		AppDir:         filepath.Join(instancesEnabledPath, "script"),
 		AppName:        "script",
 		InstName:       "script",
 		InstanceScript: "testdata/instances_enabled/script.lua",
@@ -139,14 +140,12 @@ func Test_collectAppDirFiles(t *testing.T) {
 }
 
 func Test_collectInstancesForApps(t *testing.T) {
-	clusterAppName := "cluster_app"
 	apps := []util.AppListEntry{
 		{
 			Name:     "cluster_app",
 			Location: "./testdata/instances_enabled/cluster_app",
 		},
 	}
-	cfgDir := "/etc/tarantool/"
 	cliOpts := configure.GetDefaultCliOpts()
 	cliOpts.App.InstancesEnabled = "./testdata/instances_enabled/"
 	instances, err := collectInstancesForApps(apps, cliOpts.App, "/etc/tarantool/")
@@ -154,20 +153,22 @@ func Test_collectInstancesForApps(t *testing.T) {
 	assert.Equal(t, 3, len(instances))
 
 	comparisonsCount := 0
+	appDir := apps[0].Location
 	for _, inst := range instances {
 		switch inst.InstName {
 		case "instance-001":
-			assert.Equal(t, filepath.Join(cfgDir, "var", "lib", clusterAppName, "instance-001"),
-				inst.WalDir)
-			assert.Equal(t, filepath.Join(cfgDir, "var", "lib", clusterAppName, "instance-001"),
-				inst.VinylDir)
-			assert.Equal(t, filepath.Join(cfgDir, "var", "lib", clusterAppName, "instance-001"),
-				inst.MemtxDir)
-			assert.Equal(t, filepath.Join(cfgDir, "var", "run", clusterAppName, "instance-001"),
-				inst.RunDir)
-			assert.Equal(t, filepath.Join(cfgDir, "var", "run", clusterAppName, "instance-001",
+			assert.Equal(t, filepath.Join(appDir, "var", "lib", "instance-001"), inst.WalDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "lib", "instance-001"), inst.VinylDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "lib", "instance-001"), inst.MemtxDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "run", "instance-001"), inst.RunDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "run", "instance-001",
 				"instance-001.control"),
 				inst.ConsoleSocket)
+			assert.Equal(t, filepath.Join(appDir, "var", "log", "instance-001"), inst.LogDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "log", "instance-001",
+				"instance-001.log"), inst.Log)
+			assert.Equal(t, filepath.Join(appDir, "var", "run", "instance-001",
+				"instance-001.pid"), inst.PIDFile)
 			assert.Equal(t, "testdata/instances_enabled/cluster_app/config.yml",
 				inst.ClusterConfigPath)
 			comparisonsCount++
@@ -177,12 +178,11 @@ func Test_collectInstancesForApps(t *testing.T) {
 				"testdata/instances_enabled/cluster_app/instance-002_wal_dir")
 			assert.Contains(t, inst.ConsoleSocket,
 				"testdata/instances_enabled/cluster_app/instance-002.control")
-			assert.Equal(t, filepath.Join(cfgDir, "var", "lib", clusterAppName, "instance-002"),
-				inst.VinylDir)
-			assert.Equal(t, filepath.Join(cfgDir, "var", "lib", clusterAppName, "instance-002"),
-				inst.MemtxDir)
-			assert.Equal(t, filepath.Join(cfgDir, "var", "run", clusterAppName, "instance-002"),
-				inst.RunDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "lib", "instance-002"), inst.VinylDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "lib", "instance-002"), inst.MemtxDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "run", "instance-002"), inst.RunDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "run", "instance-002",
+				"instance-002.pid"), inst.PIDFile)
 			comparisonsCount++
 
 		case "instance-003":
@@ -190,11 +190,9 @@ func Test_collectInstancesForApps(t *testing.T) {
 				"testdata/instances_enabled/cluster_app/instance-003_snap_dir")
 			assert.Contains(t, inst.VinylDir,
 				"testdata/instances_enabled/cluster_app/instance-003_vinyl_dir")
-			assert.Equal(t, filepath.Join(cfgDir, "var", "lib", clusterAppName, "instance-003"),
-				inst.WalDir)
-			assert.Equal(t, filepath.Join(cfgDir, "var", "run", clusterAppName, "instance-003"),
-				inst.RunDir)
-			assert.Equal(t, filepath.Join(cfgDir, "var", "run", clusterAppName, "instance-003",
+			assert.Equal(t, filepath.Join(appDir, "var", "lib", "instance-003"), inst.WalDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "run", "instance-003"), inst.RunDir)
+			assert.Equal(t, filepath.Join(appDir, "var", "run", "instance-003",
 				"instance-003.control"),
 				inst.ConsoleSocket)
 			comparisonsCount++

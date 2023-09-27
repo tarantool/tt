@@ -71,22 +71,23 @@ tt:
   modules:
     directory: /root/modules
   app:
-    run_dir: %[1]s/var/run
-    log_dir: %[1]s/var/log
+    run_dir: var/run/{{ instance_name }}
+    log_dir: var/log/{{ instance_name }}
     log_maxsize: 1024
     log_maxage: 8
     log_maxbackups: 10
     restart_on_failure: false
-    wal_dir: %[1]s/var/lib
-    memtx_dir: %[1]s/var/lib
-    vinyl_dir: %[1]s/var/lib
+    wal_dir: var/lib/{{ instance_name }}
+    memtx_dir: var/lib/{{ instance_name }}
+    vinyl_dir: var/lib/{{ instance_name }}
     bin_dir: %[1]s/bin
     inc_dir: %[1]s/test_inc
-    instances_enabled: .
+    instances_enabled: %[1]s
     tarantoolctl_layout: false
   ee:
     credential_path: ""
-  templates: []
+  templates:
+  - path: /home/psergee/work/tt/cli/cfg/testdata/templates
   repo:
     rocks: ""
     distfiles: %[1]s/distfiles

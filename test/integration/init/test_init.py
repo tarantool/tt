@@ -6,6 +6,7 @@ import yaml
 
 from utils import config_name
 
+inst_dir = "/{{ instance_name }}"
 
 def check_env_dirs(dir, instances_enabled):
     assert os.path.isdir(os.path.join(dir, "bin"))
@@ -35,11 +36,11 @@ def test_init_basic_functionality(tt_cmd, tmpdir):
 
     with open(os.path.join(tmpdir, config_name), 'r') as stream:
         data_loaded = yaml.safe_load(stream)
-        assert data_loaded["tt"]["app"]["run_dir"] == "my_run_dir"
-        assert data_loaded["tt"]["app"]["log_dir"] == "my_log_dir"
-        assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir"
+        assert data_loaded["tt"]["app"]["run_dir"] == "my_run_dir"+inst_dir
+        assert data_loaded["tt"]["app"]["log_dir"] == "my_log_dir"+inst_dir
+        assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir"+inst_dir
+        assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir"+inst_dir
+        assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir"+inst_dir
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
         assert not data_loaded["tt"]["app"]["tarantoolctl_layout"]
 
@@ -61,11 +62,11 @@ def test_init_missing_configs(tt_cmd, tmpdir):
 
     with open(os.path.join(tmpdir, config_name), 'r') as stream:
         data_loaded = yaml.safe_load(stream)
-        assert data_loaded["tt"]["app"]["run_dir"] == "var/run"
-        assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
-        assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib"
+        assert data_loaded["tt"]["app"]["run_dir"] == "var/run" + inst_dir
+        assert data_loaded["tt"]["app"]["log_dir"] == "var/log" + inst_dir
+        assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib" + inst_dir
+        assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib" + inst_dir
+        assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib" + inst_dir
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
         assert data_loaded["tt"]["app"]["log_maxsize"] == 100
         assert data_loaded["tt"]["app"]["log_maxage"] == 8
@@ -114,11 +115,11 @@ def test_init_skip_config(tt_cmd, tmpdir):
 
     with open(os.path.join(tmpdir, config_name), 'r') as stream:
         data_loaded = yaml.safe_load(stream)
-        assert data_loaded["tt"]["app"]["run_dir"] == "var/run"
-        assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
-        assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib"
+        assert data_loaded["tt"]["app"]["run_dir"] == "var/run" + inst_dir
+        assert data_loaded["tt"]["app"]["log_dir"] == "var/log" + inst_dir
+        assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib" + inst_dir
+        assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib" + inst_dir
+        assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib" + inst_dir
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
     check_env_dirs(tmpdir, "instances.enabled")
 
@@ -142,11 +143,11 @@ def test_init_in_app_dir(tt_cmd, tmpdir):
 
     with open(os.path.join(app_dir, config_name), 'r') as stream:
         data_loaded = yaml.safe_load(stream)
-        assert data_loaded["tt"]["app"]["run_dir"] == "var/run"
-        assert data_loaded["tt"]["app"]["log_dir"] == "var/log"
-        assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib"
-        assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib"
+        assert data_loaded["tt"]["app"]["run_dir"] == "var/run" + inst_dir
+        assert data_loaded["tt"]["app"]["log_dir"] == "var/log" + inst_dir
+        assert data_loaded["tt"]["app"]["wal_dir"] == "var/lib" + inst_dir
+        assert data_loaded["tt"]["app"]["vinyl_dir"] == "var/lib" + inst_dir
+        assert data_loaded["tt"]["app"]["memtx_dir"] == "var/lib" + inst_dir
         assert data_loaded["tt"]["app"]["instances_enabled"] == "."
 
     assert not os.path.exists(os.path.join(app_dir, "instances.enabled"))
@@ -181,11 +182,11 @@ def test_init_existing_tt_env_conf_overwrite(tt_cmd, tmpdir):
 
     with open(os.path.join(tmpdir, "tt.yaml"), 'r') as stream:
         data_loaded = yaml.safe_load(stream)
-        assert data_loaded["tt"]["app"]["run_dir"] == "my_run_dir"
-        assert data_loaded["tt"]["app"]["log_dir"] == "my_log_dir"
-        assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir"
+        assert data_loaded["tt"]["app"]["run_dir"] == "my_run_dir" + inst_dir
+        assert data_loaded["tt"]["app"]["log_dir"] == "my_log_dir" + inst_dir
+        assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir" + inst_dir
+        assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir" + inst_dir
+        assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir" + inst_dir
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
 
     check_env_dirs(tmpdir, "instances.enabled")
@@ -241,11 +242,11 @@ def test_init_existing_tt_env_conf_overwrite_force(tt_cmd, tmpdir):
 
     with open(os.path.join(tmpdir, config_name), 'r') as stream:
         data_loaded = yaml.safe_load(stream)
-        assert data_loaded["tt"]["app"]["run_dir"] == "my_run_dir"
-        assert data_loaded["tt"]["app"]["log_dir"] == "my_log_dir"
-        assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir"
-        assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir"
+        assert data_loaded["tt"]["app"]["run_dir"] == "my_run_dir" + inst_dir
+        assert data_loaded["tt"]["app"]["log_dir"] == "my_log_dir" + inst_dir
+        assert data_loaded["tt"]["app"]["wal_dir"] == "my_data_dir" + inst_dir
+        assert data_loaded["tt"]["app"]["vinyl_dir"] == "my_data_dir" + inst_dir
+        assert data_loaded["tt"]["app"]["memtx_dir"] == "my_data_dir" + inst_dir
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
 
     check_env_dirs(tmpdir, "instances.enabled")
@@ -272,9 +273,9 @@ def test_init_basic_tarantoolctl_cfg(tt_cmd, tmpdir):
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["tt"]["app"]["run_dir"] == "/opt/run"
         assert data_loaded["tt"]["app"]["log_dir"] == "/opt/log"
-        assert data_loaded["tt"]["app"]["wal_dir"] == "/opt/wal"
-        assert data_loaded["tt"]["app"]["vinyl_dir"] == "/opt/vinyl"
-        assert data_loaded["tt"]["app"]["memtx_dir"] == "/opt/snap"
+        assert data_loaded["tt"]["app"]["wal_dir"] == "/opt/wal" + inst_dir
+        assert data_loaded["tt"]["app"]["vinyl_dir"] == "/opt/vinyl" + inst_dir
+        assert data_loaded["tt"]["app"]["memtx_dir"] == "/opt/snap" + inst_dir
         assert data_loaded["tt"]["app"]["instances_enabled"] == "instances.enabled"
         assert data_loaded["tt"]["app"]["tarantoolctl_layout"]
 
@@ -302,9 +303,9 @@ def test_tarantoolctl_cfg_from_doc(tt_cmd, tmpdir):
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["tt"]["app"]["run_dir"] == "./run/tarantool"
         assert data_loaded["tt"]["app"]["log_dir"] == "./log/tarantool"
-        assert data_loaded["tt"]["app"]["wal_dir"] == "./lib/tarantool"
-        assert data_loaded["tt"]["app"]["vinyl_dir"] == "./lib/tarantool"
-        assert data_loaded["tt"]["app"]["memtx_dir"] == "./lib/tarantool"
+        assert data_loaded["tt"]["app"]["wal_dir"] == "lib/tarantool" + inst_dir
+        assert data_loaded["tt"]["app"]["vinyl_dir"] == "lib/tarantool" + inst_dir
+        assert data_loaded["tt"]["app"]["memtx_dir"] == "lib/tarantool" + inst_dir
         assert data_loaded["tt"]["app"]["instances_enabled"] == "./instances"
         assert data_loaded["tt"]["app"]["tarantoolctl_layout"]
 

@@ -206,18 +206,25 @@ func (provider *providerImpl) IsRestartable() (bool, error) {
 }
 
 // searchApplicationScript searches for application script in a directory.
-func searchApplicationScript(applicationsDir string, appName string) (string, error) {
-	luaPath := filepath.Join(applicationsDir, appName+".lua")
+func searchApplicationScript(applicationsDir string, appName string) (InstanceCtx, error) {
+	instanceCtx := InstanceCtx{
+		SingleApp: true,
+		AppName:   appName,
+		InstName:  appName,
+	}
 
+	luaPath := filepath.Join(applicationsDir, appName+".lua")
 	if _, err := os.Stat(luaPath); err != nil {
 		if os.IsNotExist(err) {
-			return "", nil
+			return instanceCtx, nil
 		} else {
-			return "", err
+			return instanceCtx, err
 		}
 	}
 
-	return luaPath, nil
+	instanceCtx.InstanceScript = luaPath
+	instanceCtx.AppDir = filepath.Join(applicationsDir, appName)
+	return instanceCtx, nil
 }
 
 // appDirCtx describes important files in application directory.
@@ -386,12 +393,10 @@ func CollectInstances(appName string, applicationsDir string) ([]InstanceCtx, er
 	// 4) Read application list from `appName/instances.yml`
 	// If appName equals to base directory name, current working
 	// directory is considered as application to work with.
-	if luaPath, err := searchApplicationScript(applicationsDir, appName); err != nil {
+	if inst, err := searchApplicationScript(applicationsDir, appName); err != nil {
 		return []InstanceCtx{}, err
-	} else if luaPath != "" {
-		return []InstanceCtx{
-			{InstanceScript: luaPath, AppName: appName, InstName: appName, SingleApp: true},
-		}, nil
+	} else if inst.InstanceScript != "" {
+		return []InstanceCtx{inst}, nil
 	}
 
 	appDir := filepath.Join(applicationsDir, appName)
@@ -460,28 +465,35 @@ func mapValuesFromConfig[T any](cfg *cluster.Config, mapFunc func(val T) (T, err
 	return nil
 }
 
+func genAppPath(baseDir string, suffixPath string) string {
+	if filepath.IsAbs(suffixPath) {
+		return suffixPath
+	}
+	return filepath.Join(baseDir, suffixPath)
+}
+
 // setInstCtxFromTtConfig sets instance context members from tt config.
 func setInstCtxFromTtConfig(inst *InstanceCtx, ttAppOpts *config.AppOpts, ttConfigDir string) {
+	baseDir := ttConfigDir
 	if ttAppOpts != nil {
+		if !ttAppOpts.TarantoolctlLayout {
+			baseDir = inst.AppDir
+		}
 		inst.LogMaxSize = ttAppOpts.LogMaxSize
 		inst.LogMaxAge = ttAppOpts.LogMaxAge
 		inst.LogMaxBackups = ttAppOpts.LogMaxBackups
 		inst.Restartable = ttAppOpts.Restartable
 
-		pathBuilder := NewArtifactsPathBuilder(ttConfigDir, inst.AppName).
-			WithTarantoolctlLayout(ttAppOpts.TarantoolctlLayout)
-		if !inst.SingleApp {
-			pathBuilder = pathBuilder.ForInstance(inst.InstName)
-		}
-		inst.RunDir = pathBuilder.WithPath(ttAppOpts.RunDir).Make()
+		inst.RunDir = genAppPath(baseDir, ttAppOpts.RunDir)
 		inst.ConsoleSocket = filepath.Join(inst.RunDir, inst.InstName+".control")
 		inst.PIDFile = filepath.Join(inst.RunDir, inst.InstName+".pid")
-		inst.LogDir = pathBuilder.WithPath(ttAppOpts.LogDir).Make()
+
+		inst.LogDir = genAppPath(baseDir, ttAppOpts.LogDir)
 		inst.Log = filepath.Join(inst.LogDir, inst.InstName+".log")
-		pathBuilder = pathBuilder.WithTarantoolctlLayout(false)
-		inst.WalDir = pathBuilder.WithPath(ttAppOpts.WalDir).Make()
-		inst.VinylDir = pathBuilder.WithPath(ttAppOpts.VinylDir).Make()
-		inst.MemtxDir = pathBuilder.WithPath(ttAppOpts.MemtxDir).Make()
+
+		inst.WalDir = genAppPath(baseDir, ttAppOpts.WalDir)
+		inst.VinylDir = genAppPath(baseDir, ttAppOpts.VinylDir)
+		inst.MemtxDir = genAppPath(baseDir, ttAppOpts.MemtxDir)
 	}
 }
 
@@ -504,10 +516,18 @@ func setInstCtxFromClusterConfig(instance *InstanceCtx) error {
 // renderInstCtxMembers instantiates some members of instance context.
 func renderInstCtxMembers(instance *InstanceCtx) error {
 	templateData := map[string]string{
-		"instance_name": instance.InstName,
+		configure.InstanceNameVar: instance.InstName,
+		configure.AppNameVar:      instance.AppName,
 	}
 	for _, dstString := range []*string{
-		&instance.WalDir, &instance.VinylDir, &instance.MemtxDir, &instance.ConsoleSocket,
+		&instance.WalDir,
+		&instance.VinylDir,
+		&instance.MemtxDir,
+		&instance.ConsoleSocket,
+		&instance.PIDFile,
+		&instance.RunDir,
+		&instance.LogDir,
+		&instance.Log,
 	} {
 		renderedString, err := regexputil.ApplyVars(*dstString, templateData)
 		if err != nil {
@@ -555,11 +575,11 @@ func collectInstancesForApps(appList []util.AppListEntry, ttAppOpts *config.AppO
 	return instances, nil
 }
 
-// createInstanceDataDirectories creates directories for data and runtime artifacts.
-func createInstanceDataDirectories(instance InstanceCtx) error {
-	for _, dataDir := range [...]string{instance.WalDir, instance.VinylDir,
+// createInstanceDirectories creates directories for data and runtime artifacts.
+func createInstanceDirectories(instance InstanceCtx) error {
+	for _, instDir := range [...]string{instance.WalDir, instance.VinylDir,
 		instance.MemtxDir, instance.RunDir, instance.LogDir} {
-		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
+		if err := util.CreateDirectory(instDir, defaultDirPerms); err != nil {
 			return err
 		}
 	}
@@ -603,7 +623,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 // Start an Instance.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
-	if err := createInstanceDataDirectories(*inst); err != nil {
+	if err := createInstanceDirectories(*inst); err != nil {
 		return err
 	}
 

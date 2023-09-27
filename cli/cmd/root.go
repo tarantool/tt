@@ -3,9 +3,10 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/tarantool/tt/cli/util"
 	"os"
 	"path/filepath"
+
+	"github.com/tarantool/tt/cli/util"
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"
@@ -224,7 +225,7 @@ func InitRoot() {
 	// Required for cartridge.
 	if cliOpts.App != nil {
 		os.Setenv("TT_INST_ENABLED", cliOpts.App.InstancesEnabled)
-		os.Setenv("TT_RUN_DIR", cliOpts.App.RunDir)
+		os.Setenv("TT_RUN_DIR", filepath.Dir(filepath.Dir(cliOpts.App.RunDir)))
 	}
 
 	// Getting modules information.

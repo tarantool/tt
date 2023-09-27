@@ -16,15 +16,19 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+const (
+	testPathSuffix = "/{{ instance_name }}"
+)
+
 func TestLoadCartridgeConfig(t *testing.T) {
 	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/valid_cartridge.yml")
 	require.NoError(t, err)
 	require.Equal(t, configData{
-		runDir:             "my_run_dir",
-		logDir:             "my_log_dir",
-		walDir:             "my_data_dir",
-		vinylDir:           "my_data_dir",
-		memtxDir:           "my_data_dir",
+		runDir:             "my_run_dir" + testPathSuffix,
+		logDir:             "my_log_dir" + testPathSuffix,
+		walDir:             "my_data_dir" + testPathSuffix,
+		vinylDir:           "my_data_dir" + testPathSuffix,
+		memtxDir:           "my_data_dir" + testPathSuffix,
 		tarantoolctlLayout: false,
 	}, actualDirInfo)
 }
@@ -57,11 +61,11 @@ func checkDefaultEnv(t *testing.T, configName string, instancesEnabled string) {
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
 	assert.Equal(t, instancesEnabled, cfg.CliConfig.App.InstancesEnabled)
-	assert.Equal(t, "var/lib", cfg.CliConfig.App.WalDir)
-	assert.Equal(t, "var/lib", cfg.CliConfig.App.VinylDir)
-	assert.Equal(t, "var/lib", cfg.CliConfig.App.MemtxDir)
-	assert.Equal(t, "var/run", cfg.CliConfig.App.RunDir)
-	assert.Equal(t, "var/log", cfg.CliConfig.App.LogDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.WalDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.VinylDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.MemtxDir)
+	assert.Equal(t, "var/run"+testPathSuffix, cfg.CliConfig.App.RunDir)
+	assert.Equal(t, "var/log"+testPathSuffix, cfg.CliConfig.App.LogDir)
 	assert.Equal(t, 10, cfg.CliConfig.App.LogMaxBackups)
 	assert.Equal(t, 100, cfg.CliConfig.App.LogMaxSize)
 	assert.Equal(t, 8, cfg.CliConfig.App.LogMaxAge)
@@ -122,11 +126,33 @@ func TestGenerateTtEnv(t *testing.T) {
 	// Instances enabled directory must be "." if there is an app in current directory.
 	assert.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
 	assert.Equal(t, "wal_dir", cfg.CliConfig.App.WalDir)
-	assert.Equal(t, "var/lib", cfg.CliConfig.App.VinylDir)
-	assert.Equal(t, "var/lib", cfg.CliConfig.App.MemtxDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.VinylDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.MemtxDir)
 	assert.Equal(t, "run_dir", cfg.CliConfig.App.RunDir)
 	assert.Equal(t, "log_dir", cfg.CliConfig.App.LogDir)
 	assert.False(t, cfg.CliConfig.App.TarantoolctlLayout)
+	assert.NoDirExists(t, configure.InstancesEnabledDirName)
+
+	// Set tarantoolctl layout flag.
+	require.NoError(t, os.Remove(configPath))
+	err = generateTtEnv(configPath, configData{
+		tarantoolctlLayout: true,
+	})
+	require.NoError(t, err)
+	require.FileExists(t, configPath)
+
+	rawConfigOpts, err = util.ParseYAML(configPath)
+	require.NoError(t, err)
+	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
+
+	// Instances enabled directory must be "." if there is an app in current directory.
+	assert.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.WalDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.VinylDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.MemtxDir)
+	assert.Equal(t, "var/run", cfg.CliConfig.App.RunDir) // No suffix for tarantoolctl layout.
+	assert.Equal(t, "var/log"+testPathSuffix, cfg.CliConfig.App.LogDir)
+	assert.True(t, cfg.CliConfig.App.TarantoolctlLayout)
 	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 }
 
@@ -152,11 +178,11 @@ func TestInitRunCartridgeApp(t *testing.T) {
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
 	assert.Equal(t, ".", cfg.CliConfig.App.InstancesEnabled)
-	assert.Equal(t, "my_data_dir", cfg.CliConfig.App.WalDir)
-	assert.Equal(t, "my_data_dir", cfg.CliConfig.App.VinylDir)
-	assert.Equal(t, "my_data_dir", cfg.CliConfig.App.MemtxDir)
-	assert.Equal(t, "my_run_dir", cfg.CliConfig.App.RunDir)
-	assert.Equal(t, "my_log_dir", cfg.CliConfig.App.LogDir)
+	assert.Equal(t, "my_data_dir"+testPathSuffix, cfg.CliConfig.App.WalDir)
+	assert.Equal(t, "my_data_dir"+testPathSuffix, cfg.CliConfig.App.VinylDir)
+	assert.Equal(t, "my_data_dir"+testPathSuffix, cfg.CliConfig.App.MemtxDir)
+	assert.Equal(t, "my_run_dir"+testPathSuffix, cfg.CliConfig.App.RunDir)
+	assert.Equal(t, "my_log_dir"+testPathSuffix, cfg.CliConfig.App.LogDir)
 	assert.False(t, cfg.CliConfig.App.TarantoolctlLayout)
 	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 	assert.DirExists(t, "modules")
@@ -186,9 +212,9 @@ func TestInitRunTarantoolctlCfg(t *testing.T) {
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
 	assert.Equal(t, "./instances", cfg.CliConfig.App.InstancesEnabled)
-	assert.Equal(t, "./lib", cfg.CliConfig.App.WalDir)
-	assert.Equal(t, "./lib", cfg.CliConfig.App.VinylDir)
-	assert.Equal(t, "var/lib", cfg.CliConfig.App.MemtxDir)
+	assert.Equal(t, "lib"+testPathSuffix, cfg.CliConfig.App.WalDir)
+	assert.Equal(t, "lib"+testPathSuffix, cfg.CliConfig.App.VinylDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.MemtxDir)
 	assert.Equal(t, "./run", cfg.CliConfig.App.RunDir)
 	assert.Equal(t, "./log", cfg.CliConfig.App.LogDir)
 	assert.True(t, cfg.CliConfig.App.TarantoolctlLayout)
@@ -215,9 +241,9 @@ func TestInitRunTarantoolctlCfg(t *testing.T) {
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
 	assert.Equal(t, "./instances", cfg.CliConfig.App.InstancesEnabled)
-	assert.Equal(t, "./lib", cfg.CliConfig.App.WalDir)
-	assert.Equal(t, "./lib", cfg.CliConfig.App.VinylDir)
-	assert.Equal(t, "var/lib", cfg.CliConfig.App.MemtxDir)
+	assert.Equal(t, "lib"+testPathSuffix, cfg.CliConfig.App.WalDir)
+	assert.Equal(t, "lib"+testPathSuffix, cfg.CliConfig.App.VinylDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.CliConfig.App.MemtxDir)
 	assert.Equal(t, "./run", cfg.CliConfig.App.RunDir)
 	assert.Equal(t, "./log", cfg.CliConfig.App.LogDir)
 	assert.True(t, cfg.CliConfig.App.TarantoolctlLayout)
@@ -424,18 +450,18 @@ func TestInitLoadTarantoolctlConfig(t *testing.T) {
 	os.Setenv("TEST_WORKDIR", "/tmp/workdir")
 	cfg, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl_workdir.lua")
 	require.NoError(t, err)
-	assert.Equal(t, "/tmp/workdir", cfg.walDir)
-	assert.Equal(t, "/tmp/workdir", cfg.vinylDir)
-	assert.Equal(t, "/tmp/workdir", cfg.memtxDir)
+	assert.Equal(t, "/tmp/workdir"+testPathSuffix, cfg.walDir)
+	assert.Equal(t, "/tmp/workdir"+testPathSuffix, cfg.vinylDir)
+	assert.Equal(t, "/tmp/workdir"+testPathSuffix, cfg.memtxDir)
 	assert.Equal(t, "/tmp/workdir", cfg.logDir)
 	assert.Equal(t, "/tmp/workdir", cfg.runDir)
 
 	os.Unsetenv("TEST_WORKDIR")
 	cfg, err = loadTarantoolctlConfig(&initCtx, "testdata/tarantoolctl.lua")
 	require.NoError(t, err)
-	assert.Equal(t, "var/lib", cfg.walDir)
-	assert.Equal(t, "var/lib", cfg.vinylDir)
-	assert.Equal(t, "var/snap", cfg.memtxDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.walDir)
+	assert.Equal(t, "var/lib"+testPathSuffix, cfg.vinylDir)
+	assert.Equal(t, "var/snap"+testPathSuffix, cfg.memtxDir)
 	assert.Equal(t, "var/log", cfg.logDir)
 	assert.Equal(t, "var/run", cfg.runDir)
 

@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/cli/util/regexputil"
 )
 
 const (
@@ -37,29 +38,32 @@ const (
 )
 
 const (
-	VarPath       = "var"
-	LogPath       = "log"
-	RunPath       = "run"
-	DataPath      = "lib"
-	BinPath       = "bin"
-	IncludePath   = "include"
-	ModulesPath   = "modules"
-	DistfilesPath = "distfiles"
-	SnapPath      = "snap"
-	VinylPath     = "vinyl"
-	WalPath       = "wal"
-	logMaxSize    = 100
-	logMaxAge     = 8
-	logMaxBackups = 10
+	VarPath         = "var"
+	LogPath         = "log"
+	RunPath         = "run"
+	DataPath        = "lib"
+	BinPath         = "bin"
+	IncludePath     = "include"
+	ModulesPath     = "modules"
+	DistfilesPath   = "distfiles"
+	SnapPath        = "snap"
+	VinylPath       = "vinyl"
+	WalPath         = "wal"
+	logMaxSize      = 100
+	logMaxAge       = 8
+	logMaxBackups   = 10
+	InstanceNameVar = "instance_name"
+	AppNameVar      = "app_name"
 )
 
 var (
-	VarDataPath  = filepath.Join(VarPath, DataPath)
-	VarWalPath   = filepath.Join(VarPath, WalPath)
-	VarMemtxPath = filepath.Join(VarPath, SnapPath)
-	VarVinylPath = filepath.Join(VarPath, VinylPath)
-	VarLogPath   = filepath.Join(VarPath, LogPath)
-	VarRunPath   = filepath.Join(VarPath, RunPath)
+	suffix       = regexputil.VarTemplateStr(InstanceNameVar)
+	VarDataPath  = filepath.Join(VarPath, DataPath, suffix)
+	VarWalPath   = filepath.Join(VarPath, WalPath, suffix)
+	VarMemtxPath = filepath.Join(VarPath, SnapPath, suffix)
+	VarVinylPath = filepath.Join(VarPath, VinylPath, suffix)
+	VarLogPath   = filepath.Join(VarPath, LogPath, suffix)
+	VarRunPath   = filepath.Join(VarPath, RunPath, suffix)
 )
 
 var (
@@ -148,29 +152,11 @@ func adjustPathWithConfigLocation(filePath string, configDir string,
 func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	var err error
 
-	if cliOpts.App == nil {
-		cliOpts.App = getDefaultAppOpts()
-	}
-	if cliOpts.Repo == nil {
-		cliOpts.Repo = &config.RepoOpts{
-			Rocks:   "",
-			Install: DistfilesPath,
-		}
-	}
-	if cliOpts.Modules == nil {
-		cliOpts.Modules = &config.ModulesOpts{
-			Directory: ModulesPath,
-		}
-	}
-	if cliOpts.EE == nil {
-		cliOpts.EE = &config.EEOpts{
-			CredPath: "",
-		}
-	}
-
 	if cliOpts.App.InstancesEnabled == "" {
 		cliOpts.App.InstancesEnabled = "."
-	} else if cliOpts.App.InstancesEnabled != "." || (cliOpts.App.InstancesEnabled == "." &&
+	}
+	if cliOpts.App.InstancesEnabled != "." || (cliOpts.App.InstancesEnabled == "." &&
+		configDir != "" &&
 		!util.IsApp(configDir)) {
 		if cliOpts.App.InstancesEnabled, err =
 			adjustPathWithConfigLocation(cliOpts.App.InstancesEnabled, configDir, ""); err != nil {
@@ -178,23 +164,32 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 		}
 	}
 
-	for _, dir := range []struct {
-		path       *string
-		defaultDir string
-	}{
-		{&cliOpts.App.RunDir, VarRunPath},
-		{&cliOpts.App.LogDir, VarLogPath},
-		{&cliOpts.App.WalDir, VarDataPath},
-		{&cliOpts.App.VinylDir, VarDataPath},
-		{&cliOpts.App.MemtxDir, VarDataPath},
-		{&cliOpts.App.BinDir, BinPath},
-		{&cliOpts.App.IncludeDir, IncludePath},
-		{&cliOpts.Repo.Install, DistfilesPath},
-		{&cliOpts.Repo.Rocks, ""},
-	} {
-		if *dir.path, err = adjustPathWithConfigLocation(*dir.path, configDir,
-			dir.defaultDir); err != nil {
-			return err
+	if cliOpts.App != nil {
+		for _, dir := range []struct {
+			path       *string
+			defaultDir string
+		}{
+			{&cliOpts.App.BinDir, BinPath},
+			{&cliOpts.App.IncludeDir, IncludePath},
+		} {
+			if *dir.path, err = adjustPathWithConfigLocation(*dir.path, configDir,
+				dir.defaultDir); err != nil {
+				return err
+			}
+		}
+	}
+	if cliOpts.Repo != nil {
+		for _, dir := range []struct {
+			path       *string
+			defaultDir string
+		}{
+			{&cliOpts.Repo.Install, DistfilesPath},
+			{&cliOpts.Repo.Rocks, ""},
+		} {
+			if *dir.path, err = adjustPathWithConfigLocation(*dir.path, configDir,
+				dir.defaultDir); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -229,6 +224,8 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 // located at path configurePath.
 func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
 	var cfg config.Config
+	cfg.CliConfig = GetDefaultCliOpts()
+
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)
 	if err == nil {
@@ -251,7 +248,6 @@ func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
 		// what if the file exists, but access is denied, etc.
 		return nil, "", fmt.Errorf("failed to get access to configuration file: %s", err)
 	} else if os.IsNotExist(err) {
-		cfg.CliConfig = GetDefaultCliOpts()
 		configPath = ""
 	}
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/cli/util"
 )
 
 const (
@@ -44,6 +45,7 @@ type scriptInstance struct {
 	vinylDir string `mapstructure:"vinyl_dir" yaml:"vinyl_dir"`
 	// consoleSocket is a Unix domain socket to be used as "admin port".
 	consoleSocket string
+	appDir        string
 }
 
 //go:embed lua/launcher.lua
@@ -64,6 +66,7 @@ func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx,
 
 	return &scriptInstance{
 		tarantoolPath: tarantoolPath,
+		appDir:        instanceCtx.AppDir,
 		appPath:       instanceCtx.InstanceScript,
 		appName:       instanceCtx.AppName,
 		instName:      instanceCtx.InstName,
@@ -120,10 +123,23 @@ func (inst *scriptInstance) Start() error {
 	}
 
 	cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
-	workDir, err := os.Getwd()
+	if inst.appDir == "" {
+		inst.appDir = filepath.Dir(inst.appPath)
+	}
+	if !util.IsDir(inst.appDir) {
+		if err := os.MkdirAll(inst.appDir, defaultDirPerms); err != nil {
+			return fmt.Errorf("failed to create application dir %q: %w", inst.appDir, err)
+		}
+	}
+	workDir := inst.appDir
+	cmd.Env = append(cmd.Env, "PWD="+workDir)
+	cmd.Dir = workDir
+
+	consoleSocket, err := shortenSocketPath(inst.consoleSocket, workDir)
 	if err != nil {
 		return err
 	}
+	cmd.Env = append(cmd.Env, "TT_CONSOLE_SOCKET_DEFAULT="+consoleSocket)
 	if inst.consoleSocket != "" {
 		consoleSocket, err := shortenSocketPath(inst.consoleSocket, workDir)
 		if err != nil {
