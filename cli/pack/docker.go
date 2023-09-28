@@ -99,9 +99,11 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	// If bin_dir is not empty, we need to pack binaries built in container.
 	relEnvBinPath := configure.BinPath
-	ttPackCommandLine = append([]string{"/bin/bash", "-c",
-		fmt.Sprintf("cp $(which tarantool) %s && cp $(which tt) %s && %s",
-			relEnvBinPath, relEnvBinPath, strings.Join(ttPackCommandLine, " "))})
+	ttPackCommandLine = []string{"/bin/bash", "-c",
+		fmt.Sprintf(`cp $(which tarantool) %s && \
+	cp $(which tt) %s && \
+	cp -r /usr/local/include ./include/ && \
+	%s`, relEnvBinPath, relEnvBinPath, strings.Join(ttPackCommandLine, " "))}
 
 	// Get a pack context for preparing a bundle without binaries.
 	// All binary files will be taken from the docker image.

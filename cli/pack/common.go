@@ -42,6 +42,7 @@ var (
 
 	packageBinPath     = ""
 	packageModulesPath = ""
+	packageIncludePath = ""
 
 	packageInstancesEnabledPath = ""
 
@@ -217,6 +218,7 @@ func createPackageStructure(destPath string, cartridgeCompat bool) error {
 			packageVarDataPath,
 			packageBinPath,
 			packageModulesPath,
+			packageIncludePath,
 			packageInstancesEnabledPath,
 			packageVarVinylPath,
 			packageVarWalPath,
@@ -454,6 +456,7 @@ func prepareDefaultPackagePaths(opts *config.CliOpts, packagePath string) {
 
 	packageBinPath = filepath.Join(packagePath, configure.BinPath)
 	packageModulesPath = filepath.Join(packagePath, configure.ModulesPath)
+	packageIncludePath = filepath.Join(packagePath, configure.IncludePath)
 
 	packageInstancesEnabledPath = filepath.Join(packagePath, configure.InstancesEnabledDirName)
 }
