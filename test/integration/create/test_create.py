@@ -278,7 +278,7 @@ def run_and_check_non_interactive(tt_cmd, tmpdir, template_path, template_name, 
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmpdir,
-        stderr=subprocess.STDOUT,
+        stderr=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
         text=True
@@ -293,7 +293,7 @@ def run_and_check_non_interactive(tt_cmd, tmpdir, template_path, template_name, 
                     pwd="weak_pwd", retry_count=3))
 
     # Check output.
-    out_lines = tt_process.stdout.readlines()
+    out_lines = tt_process.stderr.readlines()
     expected_lines = [
         'Creating application in',
         'Using template from {}'.format(template_path),
@@ -303,6 +303,8 @@ def run_and_check_non_interactive(tt_cmd, tmpdir, template_path, template_name, 
 
     for i in range(len(expected_lines)):
         assert out_lines[i].find(expected_lines[i]) != -1
+
+    assert len(tt_process.stdout.readlines()) == 0
 
 
 def test_template_as_archive(tt_cmd, tmpdir):

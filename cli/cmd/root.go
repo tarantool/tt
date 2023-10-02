@@ -74,18 +74,6 @@ func GetModulesInfoPtr() *modules.ModulesInfo {
 	return &modulesInfo
 }
 
-// LogHandler is custom log handler implementation. It is used to send log entries to
-// different streams: stdout and stderr. This is a decorator for the cli.Handler.
-type LogHandler struct {
-	stdoutHandler *cli.Handler
-	stderrHandler *cli.Handler
-}
-
-var defaultLogHandler = &LogHandler{
-	cli.New(os.Stdout),
-	cli.New(os.Stderr),
-}
-
 // printLogEntryColored prints log entry message using level specific colors.
 func printLogEntryColored(logHandler *cli.Handler, logEntry *log.Entry) error {
 	printColor := cli.Colors[logEntry.Level]
@@ -101,13 +89,19 @@ func printLogEntryColored(logHandler *cli.Handler, logEntry *log.Entry) error {
 	return nil
 }
 
+// LogHandler is a custom log handler implementation used to print formatted error and warning
+// log messages.
+type LogHandler struct{}
+
+var defaultLogHandler = &LogHandler{}
+
 // HandleLog performs log handling in accordance with log entry level.
 func (handler *LogHandler) HandleLog(logEntry *log.Entry) error {
 	switch logEntry.Level {
 	case log.ErrorLevel, log.WarnLevel, log.FatalLevel:
-		return printLogEntryColored(handler.stderrHandler, logEntry)
+		return printLogEntryColored(cli.Default, logEntry)
 	default:
-		return handler.stdoutHandler.HandleLog(logEntry)
+		return cli.Default.HandleLog(logEntry)
 	}
 }
 
