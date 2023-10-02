@@ -137,9 +137,8 @@ def test_build_error_omit_stdout(tt_cmd, tmpdir_with_cfg):
     tt_process.stdin.close()
     tt_process.wait()
     assert tt_process.returncode == 1
-    tt_process.stderr.readline()  # Skip empty line.
-    assert tt_process.stderr.readline().find(
-        "please specify a rockspec to use on current directory") != -1
+    output = tt_process.stderr.read()
+    assert "please specify a rockspec to use on current directory" in output
 
 
 def test_build_missing_rockspec(tt_cmd, tmpdir_with_cfg):
