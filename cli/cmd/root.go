@@ -111,8 +111,8 @@ func NewCmdRoot() *cobra.Command {
 		Use:   "tt",
 		Short: "Tarantool CLI",
 		Long:  "Utility for managing Tarantool packages and Tarantool-based applications",
-		Example: `$ tt version -L /path/to/local/dir
-  $ tt help -S -I
+		Example: `$ tt -L /path/to/local/dir version
+  $ tt -S -I help
   $ tt completion`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()
@@ -131,6 +131,8 @@ func NewCmdRoot() *cobra.Command {
 		"", "Path to configuration file")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.Verbose, "verbose", "V",
 		false, "Verbose output")
+
+	rootCmd.Flags().SetInterspersed(false)
 
 	rootCmd.AddCommand(
 		NewVersionCmd(),
@@ -191,7 +193,7 @@ func Execute() {
 // modules and configure `help` module.
 func InitRoot() {
 	rootCmd = NewCmdRoot()
-	rootCmd.ParseFlags(os.Args)
+	rootCmd.ParseFlags(os.Args[1:])
 
 	if err := configure.ValidateCliOpts(&cmdCtx.Cli); err != nil {
 		log.Fatal(err.Error())

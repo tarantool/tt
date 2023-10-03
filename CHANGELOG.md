@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Print log messages to stderr.
+- Global flags are required to be positioned only before child
+commands. Example: ``tt --cfg tt.yaml install tt``.
 
 ## [1.3.0] - 2023-09-28
 
