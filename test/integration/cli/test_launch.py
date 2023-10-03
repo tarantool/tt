@@ -18,7 +18,7 @@ from utils import (config_name, create_external_module, create_tt_config,
 # ##### #
 def test_local_launch(tt_cmd, tmpdir):
     module = "version"
-    cmd = [tt_cmd, module, "-L", tmpdir]
+    cmd = [tt_cmd, "-L", tmpdir, module]
 
     # No configuration file specified.
     assert subprocess.run(cmd).returncode == 1
@@ -37,7 +37,7 @@ def test_local_launch_find_cfg(tt_cmd, tmpdir):
 
     # Find tt.yaml at cwd parent.
     tmpdir_without_config = tempfile.mkdtemp(dir=tmpdir)
-    cmd = [tt_cmd, module, "-L", tmpdir_without_config]
+    cmd = [tt_cmd, "-L", tmpdir_without_config, module]
 
     create_tt_config(tmpdir, tmpdir)
     module_message = create_external_module(module, tmpdir)
@@ -66,7 +66,7 @@ def test_local_launch_find_cfg_modules_relative_path(tt_cmd, tmpdir):
 
 def test_local_launch_non_existent_dir(tt_cmd, tmpdir):
     module = "version"
-    cmd = [tt_cmd, module, "-L", "non-exists-dir"]
+    cmd = [tt_cmd, "-L", "non-exists-dir", module]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
 
     assert rc == 1
@@ -481,7 +481,7 @@ def test_launch_external_cmd_with_flags(tt_cmd, tmpdir, module):
 
 def test_std_err_stream_local_launch_non_existent_dir(tt_cmd, tmpdir):
     module = "version"
-    cmd = [tt_cmd, module, "-L", "non-exists-dir"]
+    cmd = [tt_cmd, "-L", "non-exists-dir", module]
     tt_process = subprocess.Popen(
         cmd,
         cwd=tmpdir,

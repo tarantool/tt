@@ -14,6 +14,20 @@ def test_help_without_external_modules(tt_cmd, help_cmd):
     assert "EXTERNAL COMMANDS" not in output
 
 
+def test_help_internal_module(tt_cmd, tmpdir):
+    module = "version"
+    commands = [
+        [tt_cmd, "help", module],
+        [tt_cmd, module, "--help"],
+        [tt_cmd, module, "-h"],
+    ]
+
+    for cmd in commands:
+        rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+        assert rc == 0
+        assert "Show Tarantool CLI version information" in output
+
+
 def test_external_help_module(tt_cmd, tmpdir):
     create_tt_config(tmpdir, tmpdir)
     module_message = create_external_module("help", tmpdir)
@@ -28,7 +42,7 @@ def test_external_help_module(tt_cmd, tmpdir):
     commands = [
         [tt_cmd, "-h"],
         [tt_cmd, "--help"],
-        [tt_cmd, "help", "-I"],
+        [tt_cmd, "-I", "help"],
         [tt_cmd],
     ]
 
