@@ -17,6 +17,7 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/process_utils"
+	"github.com/tarantool/tt/cli/running/internal/layout"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/util/regexputil"
@@ -461,28 +462,41 @@ func mapValuesFromConfig[T any](cfg *cluster.Config, mapFunc func(val T) (T, err
 }
 
 // setInstCtxFromTtConfig sets instance context members from tt config.
-func setInstCtxFromTtConfig(inst *InstanceCtx, ttAppOpts *config.AppOpts, ttConfigDir string) {
+func setInstCtxFromTtConfig(inst *InstanceCtx, ttAppOpts *config.AppOpts,
+	ttConfigDir string) error {
 	if ttAppOpts != nil {
 		inst.LogMaxSize = ttAppOpts.LogMaxSize
 		inst.LogMaxAge = ttAppOpts.LogMaxAge
 		inst.LogMaxBackups = ttAppOpts.LogMaxBackups
 		inst.Restartable = ttAppOpts.Restartable
 
-		pathBuilder := NewArtifactsPathBuilder(ttConfigDir, inst.AppName).
-			WithTarantoolctlLayout(ttAppOpts.TarantoolctlLayout)
-		if !inst.SingleApp {
-			pathBuilder = pathBuilder.ForInstance(inst.InstName)
+		var envLayout layout.Layout = nil
+		var err error
+		if inst.SingleApp {
+			if ttAppOpts.TarantoolctlLayout {
+				envLayout, err = layout.NewTntCtlLayout(ttConfigDir, inst.AppName)
+			} else {
+				envLayout, err = layout.NewSingleInstanceLayout(ttConfigDir, inst.AppName)
+			}
+		} else {
+			envLayout, err = layout.NewMultiInstLayout(ttConfigDir, inst.AppName, inst.InstName)
 		}
-		inst.RunDir = pathBuilder.WithPath(ttAppOpts.RunDir).Make()
-		inst.ConsoleSocket = filepath.Join(inst.RunDir, inst.InstName+".control")
-		inst.PIDFile = filepath.Join(inst.RunDir, inst.InstName+".pid")
-		inst.LogDir = pathBuilder.WithPath(ttAppOpts.LogDir).Make()
-		inst.Log = filepath.Join(inst.LogDir, inst.InstName+".log")
-		pathBuilder = pathBuilder.WithTarantoolctlLayout(false)
-		inst.WalDir = pathBuilder.WithPath(ttAppOpts.WalDir).Make()
-		inst.VinylDir = pathBuilder.WithPath(ttAppOpts.VinylDir).Make()
-		inst.MemtxDir = pathBuilder.WithPath(ttAppOpts.MemtxDir).Make()
+		if err != nil {
+			return err
+		}
+
+		inst.ConsoleSocket = envLayout.ConsoleSocket(ttAppOpts.RunDir)
+		inst.PIDFile = envLayout.PidFile(ttAppOpts.RunDir)
+		inst.RunDir = filepath.Dir(inst.ConsoleSocket)
+
+		inst.Log = envLayout.LogFile(ttAppOpts.LogDir)
+		inst.LogDir = filepath.Dir(inst.Log)
+
+		inst.WalDir = envLayout.DataDir(ttAppOpts.WalDir)
+		inst.VinylDir = envLayout.DataDir(ttAppOpts.VinylDir)
+		inst.MemtxDir = envLayout.DataDir(ttAppOpts.MemtxDir)
 	}
+	return nil
 }
 
 // setInstCtxFromClusterConfig set instance context values from loaded configuration.

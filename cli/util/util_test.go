@@ -558,3 +558,63 @@ func TestJoinAbspath(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinPaths(t *testing.T) {
+	type args struct {
+		paths []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			"Absolute path",
+			args{
+				[]string{"/root"},
+			},
+			"/root",
+		},
+		{
+			"Absolute path + relative",
+			args{
+				[]string{"/root", "../home/user"},
+			},
+			"/home/user",
+		},
+		{
+			"Absolute path + multiple relative",
+			args{
+				[]string{"/root", "../home/user", "./docs"},
+			},
+			"/home/user/docs",
+		},
+		{
+			"Absolute path not first",
+			args{
+				[]string{"/root", "../home/user", "/var"},
+			},
+			"/var",
+		},
+		{
+			"Relative",
+			args{
+				[]string{"../home/user"},
+			},
+			"../home/user",
+		},
+		{
+			"Multiple relatives",
+			args{
+				[]string{"../home", "./user"},
+			},
+			"../home/user",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := JoinPaths(tt.args.paths...)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
