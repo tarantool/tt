@@ -88,10 +88,8 @@ func GetFileContent(path string) (string, error) {
 	return string(fileContentBytes), nil
 }
 
-// JoinAbspath concat paths and makes the resulting path absolute.
-func JoinAbspath(paths ...string) (string, error) {
-	var err error
-
+// JoinPaths concat paths.
+func JoinPaths(paths ...string) string {
 	path := ""
 	for _, pathPart := range paths {
 		if filepath.IsAbs(pathPart) {
@@ -100,6 +98,14 @@ func JoinAbspath(paths ...string) (string, error) {
 			path = filepath.Join(path, pathPart)
 		}
 	}
+
+	return path
+}
+
+// JoinAbspath concat paths and makes the resulting path absolute.
+func JoinAbspath(paths ...string) (string, error) {
+	var err error
+	path := JoinPaths(paths...)
 	if path, err = filepath.Abs(path); err != nil {
 		return "", fmt.Errorf("failed to get absolute path: %s", err)
 	}
