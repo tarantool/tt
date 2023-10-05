@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Print log messages to stderr.
 - Global flags are required to be positioned only before child
 commands. Example: ``tt --cfg tt.yaml install tt``.
+- tt config format: separate tt environment options from application options.
 
 ## [1.3.0] - 2023-09-28
 
@@ -20,7 +21,6 @@ commands. Example: ``tt --cfg tt.yaml install tt``.
 - Use CLI arg connect string for the prompt line and the title to avoid too long
 prompt line when using 'app:instance' target format.
 - ``tt rocks``: luarocks version has been updated to 3.9.2.
-- tt config format: separate tt environment options from application options.
 
 ### Added
 
