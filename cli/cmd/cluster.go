@@ -58,10 +58,10 @@ Possible arguments:
 		Short: "Show a cluster configuration",
 		Long: "Show a cluster configuration for an application, instance or" +
 			" from etcd URI.\n\n" + uriHelp,
-		Example: "tt show application_name\n" +
-			"  tt show application_name:instance_name\n" +
-			"  tt show https://user@pass@localhost:2379/?prefix=/tt\n" +
-			"  tt show https://user@pass@localhost:2379/?prefix=/tt&name=instance",
+		Example: "tt cluster show application_name\n" +
+			"  tt cluster show application_name:instance_name\n" +
+			"  tt cluster show https://user@pass@localhost:2379/tt\n" +
+			"  tt cluster show https://user@pass@localhost:2379/tt?name=instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -92,12 +92,12 @@ Possible arguments:
 		Long: "Publish an application or an instance configuration to a cluster " +
 			"configuration file or to a etcd URI.\n\n" +
 			uriHelp,
-		Example: "tt publish application_name cluster.yaml\n" +
-			"  tt publish application_name:instance_name instance.yaml\n" +
-			"  tt publish " +
-			"https://user@pass@localhost:2379/?prefix=/tt cluster.yaml\n" +
-			"  tt publish " +
-			"https://user@pass@localhost:2379/?prefix=/tt&name=instance " +
+		Example: "tt cluster publish application_name cluster.yaml\n" +
+			"  tt cluster publish application_name:instance_name instance.yaml\n" +
+			"  tt cluster publish " +
+			"https://user@pass@localhost:2379/tt cluster.yaml\n" +
+			"  tt cluster publish " +
+			"https://user@pass@localhost:2379/tt?name=instance " +
 			"instance.yaml",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
