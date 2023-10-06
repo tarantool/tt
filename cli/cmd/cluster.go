@@ -89,8 +89,8 @@ Possible arguments:
 	publish := &cobra.Command{
 		Use:   "publish (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) file",
 		Short: "Publish a cluster configuration",
-		Long: "Publish a cluster configuration from the file to an application " +
-			"or instance to a cluster configuration file or to a etcd URI.\n\n" +
+		Long: "Publish an application or an instance configuration to a cluster " +
+			"configuration file or to a etcd URI.\n\n" +
 			uriHelp,
 		Example: "tt publish application_name cluster.yaml\n" +
 			"  tt publish application_name:instance_name instance.yaml\n" +
