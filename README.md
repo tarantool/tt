@@ -619,7 +619,7 @@ Common description. For a detailed description, use `tt help command` .
 -   `pack` - pack an environment into a tarball/RPM/Deb.
 -   `instances` - show enabled applications.
 -   `binaries` - show a list of installed binaries and their versions.
-
+-   `cluster` - manage cluster configuration.
 
 [report-badge]: https://goreportcard.com/badge/github.com/tarantool/tt
 [report-url]: https://goreportcard.com/report/github.com/tarantool/tt
