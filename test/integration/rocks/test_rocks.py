@@ -76,6 +76,12 @@ def test_rocks_module(tt_cmd, tmpdir):
     assert rc == 0
     assert "testapp scm-1 is now installed" in output
 
+    rc, output = run_command_and_get_output(
+            [tt_cmd, "rocks", "--verbose", "list"],
+            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+    assert "fs.current_dir()\n" in output
+
 
 def test_rocks_admin_module(tt_cmd, tmpdir):
     repo_path = os.path.join(tmpdir, "rocks_repo")
