@@ -1,0 +1,15 @@
+    if [[ ${#words[@]} -ge 4 && ${words[2]} = "rocks" && ${words[3]} = "admin" ]]; then
+        shift words
+        shift words
+        (( CURRENT-- ))
+        (( CURRENT-- ))
+        _luarocks-admin
+        return
+    fi
+    if [[ ${#words[@]} -ge 3 && ${words[2]} = "rocks" ]]; then
+        shift words
+        (( CURRENT-- ))
+        _rocks
+        return
+    fi
+

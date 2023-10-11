@@ -1,0 +1,513 @@
+_rocks() {
+  local context state state_descr line
+  typeset -A opt_args
+
+  local -a options=(
+    {-h,--help}"[Show this help message and exit]"
+    "--version[Show version info and exit]"
+    "--dev[Enable the sub-repositories in rocks servers for rockspecs of in-development versions]"
+    {--server,--from}"[Fetch rocks/rockspecs from this server (takes priority over config file)]: :_files"
+    {--only-server,--only-from}"[Fetch rocks/rockspecs from this server only (overrides any entries in the config file)]: :_files"
+    {--only-sources,--only-sources-from}"[Restrict downloads to paths matching the given URL]: :_files"
+    "--namespace[Specify the rocks server namespace to use]: :_files"
+    "--lua-dir[Which Lua installation to use]: :_files"
+    "--lua-version[Which Lua version to use]: :_files"
+    {--tree,--to}"[Which tree to operate on]: :_files"
+    "--local[Use the tree in the user's home directory]"
+    "--global[Use the system tree when \`local_by_default\` is \`true\`]"
+    "--no-project[Do not use project tree even if running from a project folder]"
+    "--verbose[Display verbose output of commands executed]"
+    "--timeout[Timeout on network operations, in seconds]: :_files"
+    "--project-tree: :_files"
+    "--pack-binary-rock"
+    "--branch: :_files"
+    "--sign"
+  )
+  _arguments -s -S \
+    $options \
+    ": :_rocks_cmds" \
+    "*:: :->args" \
+    && return 0
+
+  case $words[1] in
+    help)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :(help build config doc download install lint list make make_manifest make-manifest new_version new-version pack purge remove search show test unpack which write_rockspec write-rockspec)" \
+        && return 0
+      ;;
+
+    build)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        {--only-deps,--deps-only}"[Install only the dependencies of the rock]"
+        "--branch[Override the \`source.branch\` field in the loaded rockspec]: :_files"
+        "--pin[Create a luarocks.lock file listing the exact versions of each dependency found for this rock (recursively), and store it in the rock's directory]"
+        "--no-install[Do not install the rock]"
+        "--no-doc[Install the rock without its documentation]"
+        "--pack-binary-rock[Do not install rock]"
+        "--keep[Do not remove previously installed versions of the rock after building a new one]"
+        "--force[If --keep is not specified, force removal of previously installed versions if it would break dependencies]"
+        "--force-fast[Like --force, but performs a forced removal without reporting dependency issues]"
+        "--verify[Verify signature of the rockspec or src.rock being built]"
+        "--sign[To be used with --pack-binary-rock]"
+        "--check-lua-versions[If the rock can't be found, check repository and report if it is available for another Lua version]"
+        "--pin[Pin the exact dependencies used for the rockspecbeing built into a luarocks.lock file in the current directory]"
+        "--no-manifest[Skip creating/updating the manifest]"
+        {--only-deps,--deps-only}"[Install only the dependencies of the rock]"
+        "--chdir[Specify a source directory of the rock]: :_files"
+        "--deps-mode[How to handle dependencies]: :(all one order none)"
+        "--nodeps"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    config)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--scope[The scope indicates which config file should be rewritten]: :(system user project)"
+        "--unset[Delete the key from the configuration file]"
+        "--json[Output as JSON]"
+        "--lua-incdir"
+        "--lua-libdir"
+        "--lua-ver"
+        "--system-config"
+        "--user-config"
+        "--rock-trees"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    doc)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--home[Open the home page of project]"
+        "--list[List documentation files only]"
+        "--porcelain[Produce machine-friendly output]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    download)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--all[Download all files if there are multiple matches]"
+        "--source[Download .src.rock if available]"
+        "--rockspec[Download .rockspec if available]"
+        "--arch[Download rock for a specific architecture]: :_files"
+        "--check-lua-versions[If the rock can't be found, check repository and report if it is available for another Lua version]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    install)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--keep[Do not remove previously installed versions of the rock after building a new one]"
+        "--force[If --keep is not specified, force removal of previously installed versions if it would break dependencies]"
+        "--force-fast[Like --force, but performs a forced removal without reporting dependency issues]"
+        {--only-deps,--deps-only}"[Install only the dependencies of the rock]"
+        "--no-doc[Install the rock without its documentation]"
+        "--verify[Verify signature of the rockspec or src.rock being built]"
+        "--check-lua-versions[If the rock can't be found, check repository and report if it is available for another Lua version]"
+        "--deps-mode[How to handle dependencies]: :(all one order none)"
+        "--nodeps"
+        "--no-manifest[Skip creating/updating the manifest]"
+        "--pin[If the installed rock is a Lua module, create a luarocks.lock file listing the exact versions of each dependency found for this rock (recursively), and store it in the rock's directory]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    lint)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        && return 0
+      ;;
+
+    list)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--outdated[List only rocks for which there is a higher version available in the rocks server]"
+        "--porcelain[Produce machine-friendly output]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    make)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--no-install[Do not install the rock]"
+        "--no-doc[Install the rock without its documentation]"
+        "--pack-binary-rock[Do not install rock]"
+        "--keep[Do not remove previously installed versions of the rock after building a new one]"
+        "--force[If --keep is not specified, force removal of previously installed versions if it would break dependencies]"
+        "--force-fast[Like --force, but performs a forced removal without reporting dependency issues]"
+        "--verify[Verify signature of the rockspec or src.rock being built]"
+        "--sign[To be used with --pack-binary-rock]"
+        "--check-lua-versions[If the rock can't be found, check repository and report if it is available for another Lua version]"
+        "--pin[Pin the exact dependencies used for the rockspecbeing built into a luarocks.lock file in the current directory]"
+        "--no-manifest[Skip creating/updating the manifest]"
+        {--only-deps,--deps-only}"[Install only the dependencies of the rock]"
+        "--chdir[Specify a source directory of the rock]: :_files"
+        "--deps-mode[How to handle dependencies]: :(all one order none)"
+        "--nodeps"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        && return 0
+      ;;
+
+    make_manifest|make-manifest)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--local-tree[If given, do not write versioned versions of the manifest file]"
+        "--deps-mode[How to handle dependencies]: :(all one order none)"
+        "--nodeps"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        && return 0
+      ;;
+
+    new_version|new-version)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--dir[Output directory for the new rockspec]: :_files"
+        "--tag[New SCM tag]: :_files"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    pack)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--sign[Produce a signature file as well]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    purge)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--old-versions[Keep the highest-numbered version of each rock and remove the other ones]"
+        "--force[If --old-versions is specified, force removal of previously installed versions if it would break dependencies]"
+        "--force-fast[Like --force, but performs a forced removal without reporting dependency issues]"
+      )
+      _arguments -s -S \
+        $options \
+        && return 0
+      ;;
+
+    remove)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--force[Force removal if it would break dependencies]"
+        "--force-fast[Perform a forced removal without reporting dependency issues]"
+        "--deps-mode[How to handle dependencies]: :(all one order none)"
+        "--nodeps"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    search)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--source[Return only rockspecs and source rocks, to be used with the \"build\" command]"
+        "--binary[Return only pure Lua and binary rocks (rocks that can be used with the \"install\" command without requiring a C toolchain)]"
+        "--all[List all contents of the server that are suitable to this platform, do not filter by name]"
+        "--porcelain[Return a machine readable format]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    show)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--home[Show home page of project]"
+        "--modules[Show all modules provided by the package as used by require()]"
+        "--deps[Show packages the package depends on]"
+        "--build-deps[Show build-only dependencies for the package]"
+        "--test-deps[Show dependencies for testing the package]"
+        "--rockspec[Show the full path of the rockspec file]"
+        "--mversion[Show the package version]"
+        "--rock-tree[Show local tree where rock is installed]"
+        "--rock-namespace[Show rock namespace]"
+        "--rock-dir[Show data directory of the installed rock]"
+        "--rock-license[Show rock license]"
+        "--issues[Show URL for project's issue tracker]"
+        "--labels[List the labels of the rock]"
+        "--porcelain[Produce machine-friendly output]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    test)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--prepare[Only install dependencies needed for testing only, but do not run the test]"
+        "--test-type[Specify the test suite type manually if it was not specified in the rockspec and it could not be auto-detected]: :_files"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        "*: :_files" \
+        && return 0
+      ;;
+
+    unpack)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--force[Unpack files even if the output directory already exists]"
+        "--check-lua-versions[If the rock can't be found, check repository and report if it is available for another Lua version]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+    which)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        && return 0
+      ;;
+
+    write_rockspec|write-rockspec)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--output[Write the rockspec with the given filename]: :_files"
+        "--license[A license string, such as \"MIT/X11\" or \"GNU GPL v3\"]: :_files"
+        "--summary[A short one-line description summary]: :_files"
+        "--detailed[A longer description string]: :_files"
+        "--homepage[Project homepage]: :_files"
+        "--lua-versions[Supported Lua versions]: :(5.1 5.2 5.3 5.4 5.1,5.2 5.2,5.3 5.3,5.4 5.1,5.2,5.3 5.2,5.3,5.4 5.1,5.2,5.3,5.4)"
+        "--rockspec-format[Rockspec format version, such as \"1.0\" or \"1.1\"]: :_files"
+        "--tag[Tag to use]: :_files"
+        "--lib[A comma-separated list of libraries that C files need to link to]: :_files"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        ": :_files" \
+        ": :_files" \
+        && return 0
+      ;;
+
+  esac
+
+  return 1
+}
+
+_rocks_cmds() {
+  local -a commands=(
+    "help:Show help for commands"
+    "admin:LuaRocks repository administration interface"
+    "build:Build/compile a rock"
+    "config:Query information about the LuaRocks configuration"
+    "doc:Show documentation for an installed rock"
+    "download:Download a specific rock file from a rocks server"
+    "install:Install a rock"
+    "lint:Check syntax of a rockspec"
+    "list:List currently installed rocks"
+    "make:Compile package in current directory using a rockspec"
+    {make_manifest,make-manifest}":Compile a manifest file for a repository"
+    {new_version,new-version}":Auto-write a rockspec for a new version of a rock"
+    "pack:Create a rock, packing sources or binaries"
+    "purge:Remove all installed rocks from a tree"
+    "remove:Uninstall a rock"
+    "search:Query the LuaRocks servers"
+    "show:Show information about an installed rock"
+    "test:Run the test suite in the current directory"
+    "unpack:Unpack the contents of a rock"
+    "which:Tell which file corresponds to a given module name"
+    {write_rockspec,write-rockspec}":Write a template for a rockspec file"
+  )
+  _describe "command" commands
+}
+
+_luarocks-admin() {
+  local context state state_descr line
+  typeset -A opt_args
+
+  local -a options=(
+    {-h,--help}"[Show this help message and exit]"
+    "--version[Show version info and exit]"
+    "--dev[Enable the sub-repositories in rocks servers for rockspecs of in-development versions]"
+    {--server,--from}"[Fetch rocks/rockspecs from this server (takes priority over config file)]: :_files"
+    {--only-server,--only-from}"[Fetch rocks/rockspecs from this server only (overrides any entries in the config file)]: :_files"
+    {--only-sources,--only-sources-from}"[Restrict downloads to paths matching the given URL]: :_files"
+    "--namespace[Specify the rocks server namespace to use]: :_files"
+    "--lua-dir[Which Lua installation to use]: :_files"
+    "--lua-version[Which Lua version to use]: :_files"
+    {--tree,--to}"[Which tree to operate on]: :_files"
+    "--local[Use the tree in the user's home directory]"
+    "--global[Use the system tree when \`local_by_default\` is \`true\`]"
+    "--no-project[Do not use project tree even if running from a project folder]"
+    "--verbose[Display verbose output of commands executed]"
+    "--timeout[Timeout on network operations, in seconds]: :_files"
+    "--project-tree: :_files"
+  )
+  _arguments -s -S \
+    $options \
+    ": :_luarocks-admin_cmds" \
+    "*:: :->args" \
+    && return 0
+
+  case $words[1] in
+    help)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+      )
+      _arguments -s -S \
+        $options \
+        ": :(help add make_manifest make-manifest refresh_cache refresh-cache remove)" \
+        && return 0
+      ;;
+
+    add)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--server[The server to use]: :_files"
+        "--no-refresh[Do not refresh the local cache prior to generation of the updated manifest]"
+        "--index[Produce an index.html file for the manifest]"
+      )
+      _arguments -s -S \
+        $options \
+        "*: :_files" \
+        && return 0
+      ;;
+
+    make_manifest|make-manifest)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--local-tree[If given, do not write versioned versions of the manifest file]"
+        "--deps-mode[How to handle dependencies]: :(all one order none)"
+        "--nodeps"
+      )
+      _arguments -s -S \
+        $options \
+        ": :_files" \
+        && return 0
+      ;;
+
+    refresh_cache|refresh-cache)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--from[The server to use]: :_files"
+      )
+      _arguments -s -S \
+        $options \
+        && return 0
+      ;;
+
+    remove)
+      options=(
+        $options
+        {-h,--help}"[Show this help message and exit]"
+        "--server[The server to use]: :_files"
+        "--no-refresh[Do not refresh the local cache prior to generation of the updated manifest]"
+      )
+      _arguments -s -S \
+        $options \
+        "*: :_files" \
+        && return 0
+      ;;
+
+  esac
+
+  return 1
+}
+
+_luarocks-admin_cmds() {
+  local -a commands=(
+    "help:Show help for commands"
+    "add:Add a rock or rockspec to a rocks server"
+    {make_manifest,make-manifest}":Compile a manifest file for a repository"
+    {refresh_cache,refresh-cache}":Refresh local cache of a remote rocks server"
+    "remove:Remove a rock or rockspec from a rocks server"
+  )
+  _describe "command" commands
+}
