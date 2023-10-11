@@ -627,5 +627,5 @@ Common description. For a detailed description, use `tt help command` .
 [release-badge]: https://img.shields.io/github/v/release/tarantool/tt?include_prereleases&label=Release&labelColor=2d3532
 [release-url]: https://github.com/tarantool/tt/releases
 
-[testing-actions-badge]: https://github.com/tarantool/tt/workflows/Full%20CI/badge.svg
+[testing-actions-badge]: https://github.com/tarantool/tt/actions/workflows/full-ci.yml/badge.svg?branch=master
 [testing-actions-url]: https://github.com/tarantool/tt/actions/workflows/full-ci.yml
