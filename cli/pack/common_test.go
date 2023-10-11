@@ -2,6 +2,7 @@ package pack
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
-	"gopkg.in/yaml.v2"
 )
 
 func TestRocksFinder(t *testing.T) {
@@ -88,7 +88,8 @@ func TestCopyAppSrc(t *testing.T) {
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 
 	for _, name := range appLocations {
-		err = copyAppSrc(filepath.Join(testDir, name), name, testCopyDir)
+		err = copyAppSrc(filepath.Join(testDir, name), name, testCopyDir,
+			skipArtifacts(&config.CliOpts{}))
 		require.NoErrorf(t, err, "failed to copy an app: %v", err)
 	}
 
@@ -203,123 +204,9 @@ func TestCopyBinaries(t *testing.T) {
 	}
 }
 
-func TestCopyArtifacts(t *testing.T) {
-	testDir := t.TempDir()
-	testPackageDir := t.TempDir()
-
-	testOpts := &config.CliOpts{
-		App: &config.AppOpts{
-			WalDir:   filepath.Join(testDir, configure.VarDataPath),
-			VinylDir: filepath.Join(testDir, configure.VarDataPath),
-			MemtxDir: filepath.Join(testDir, configure.VarDataPath),
-			LogDir:   filepath.Join(testDir, configure.VarLogPath),
-			RunDir:   filepath.Join(testDir, configure.VarRunPath),
-		},
-	}
-
-	var (
-		appName      = "app1"
-		dataArtifact = "test_file.data"
-		logArtifact  = "test_file.log"
-	)
-
-	dirsToCreate := []string{
-		filepath.Join(configure.VarDataPath, appName),
-		filepath.Join(configure.VarRunPath, appName),
-		filepath.Join(configure.VarLogPath, appName),
-	}
-	filesToCreate := []string{
-		filepath.Join(configure.VarDataPath, appName, dataArtifact),
-		filepath.Join(configure.VarLogPath, appName, logArtifact),
-	}
-
-	packageDirsToCreate := []string{
-		filepath.Join(configure.VarDataPath, appName),
-		filepath.Join(configure.VarRunPath, appName),
-		filepath.Join(configure.VarLogPath, appName),
-	}
-	err := test_helpers.CreateDirs(testPackageDir, packageDirsToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-
-	err = test_helpers.CreateDirs(testDir, dirsToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-	err = test_helpers.CreateFiles(testDir, filesToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-	prepareDefaultPackagePaths(testOpts, testPackageDir)
-	err = copyArtifacts(testOpts, appName)
-	require.NoErrorf(t, err, "failed to copy artifacts: %v", err)
-
-	require.FileExists(t, filepath.Join(testPackageDir, configure.VarDataPath, appName,
-		dataArtifact))
-	require.FileExists(t, filepath.Join(testPackageDir, configure.VarLogPath, appName, logArtifact))
-}
-
-func TestCopyArtifactsCustomWalVinylMemtx(t *testing.T) {
-	testDir := t.TempDir()
-	testPackageDir := t.TempDir()
-
-	testOpts := &config.CliOpts{
-		App: &config.AppOpts{
-			WalDir:   filepath.Join(testDir, configure.VarWalPath),
-			VinylDir: filepath.Join(testDir, configure.VarVinylPath),
-			MemtxDir: filepath.Join(testDir, configure.VarMemtxPath),
-			LogDir:   filepath.Join(testDir, configure.VarLogPath),
-			RunDir:   filepath.Join(testDir, configure.VarRunPath),
-		},
-	}
-
-	var (
-		appName      = "app1"
-		dataArtifact = "test_file.data"
-		logArtifact  = "test_file.log"
-	)
-
-	dirsToCreate := []string{
-		filepath.Join(configure.VarWalPath, appName),
-		filepath.Join(configure.VarVinylPath, appName),
-		filepath.Join(configure.VarMemtxPath, appName),
-		filepath.Join(configure.VarRunPath, appName),
-		filepath.Join(configure.VarLogPath, appName),
-	}
-	filesToCreate := []string{
-		filepath.Join(configure.VarWalPath, appName, dataArtifact),
-		filepath.Join(configure.VarVinylPath, appName, dataArtifact),
-		filepath.Join(configure.VarMemtxPath, appName, dataArtifact),
-		filepath.Join(configure.VarLogPath, appName, logArtifact),
-	}
-
-	packageDirsToCreate := []string{
-		filepath.Join(configure.VarWalPath, appName),
-		filepath.Join(configure.VarVinylPath, appName),
-		filepath.Join(configure.VarMemtxPath, appName),
-		filepath.Join(configure.VarRunPath, appName),
-		filepath.Join(configure.VarLogPath, appName),
-	}
-	err := test_helpers.CreateDirs(testPackageDir, packageDirsToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-
-	err = test_helpers.CreateDirs(testDir, dirsToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-	err = test_helpers.CreateFiles(testDir, filesToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-	prepareDefaultPackagePaths(testOpts, testPackageDir)
-	err = copyArtifacts(testOpts, appName)
-	require.NoErrorf(t, err, "failed to copy artifacts: %v", err)
-
-	require.FileExists(t, filepath.Join(testPackageDir, configure.VarVinylPath, appName,
-		dataArtifact))
-	require.FileExists(t, filepath.Join(testPackageDir, configure.VarWalPath, appName,
-		dataArtifact))
-	require.FileExists(t, filepath.Join(testPackageDir, configure.VarMemtxPath, appName,
-		dataArtifact))
-	require.FileExists(t, filepath.Join(testPackageDir, configure.VarLogPath, appName, logArtifact))
-}
-
 func TestCreateAppSymlink(t *testing.T) {
 	testDir := t.TempDir()
 	testPackageDir := t.TempDir()
-	testOpts := &config.CliOpts{
-		App: &config.AppOpts{}}
 	var (
 		srcApp  = "app1.lua"
 		appName = "app1_link"
@@ -340,8 +227,8 @@ func TestCreateAppSymlink(t *testing.T) {
 	err = test_helpers.CreateSymlink(filepath.Join(testDir, srcApp), appName+".lua")
 	require.NoErrorf(t, err, "failed to create test directories: %v", err)
 
-	prepareDefaultPackagePaths(testOpts, testPackageDir)
-	err = createAppSymlink(filepath.Join(testDir, srcApp), appName)
+	err = createAppSymlink(filepath.Join(testDir, srcApp), appName,
+		filepath.Join(testPackageDir, configure.InstancesEnabledDirName))
 	require.NoErrorf(t, err, "failed to create a symlink: %v", err)
 
 	_, err = os.Lstat(filepath.Join(testPackageDir, configure.InstancesEnabledDirName, appName))
@@ -472,10 +359,9 @@ func TestNormalizeGitVersion(t *testing.T) {
 	}
 }
 
-func Test_createEnv(t *testing.T) {
+func Test_createNewOpts(t *testing.T) {
 	type args struct {
-		opts     *config.CliOpts
-		destPath string
+		opts *config.CliOpts
 	}
 
 	testOptsStd := &config.CliOpts{
@@ -494,10 +380,11 @@ func Test_createEnv(t *testing.T) {
 
 	testOptsCustom := &config.CliOpts{
 		Env: &config.TtEnvOpts{
-			LogMaxBackups: 1,
-			LogMaxAge:     1,
-			LogMaxSize:    1,
-			Restartable:   true,
+			LogMaxBackups:      1,
+			LogMaxAge:          1,
+			LogMaxSize:         1,
+			Restartable:        true,
+			TarantoolctlLayout: true,
 		},
 		App: &config.AppOpts{
 			WalDir:   "test_wal",
@@ -506,119 +393,500 @@ func Test_createEnv(t *testing.T) {
 		},
 	}
 
-	testDirStd := t.TempDir()
-	testDirCustom := t.TempDir()
-
 	tests := []struct {
-		name      string
-		testDir   string
-		args      args
-		wantErr   assert.ErrorAssertionFunc
-		checkFunc func()
+		name        string
+		testDir     string
+		args        args
+		wantErr     bool
+		expectedOps *config.CliOpts
 	}{
 		{
 			name: "Wal, Vinyl and Memtx directories are not separated",
 			args: args{
-				opts:     testOptsStd,
-				destPath: testDirStd,
+				opts: testOptsStd,
 			},
-			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
-				return err == nil
-			},
-			checkFunc: func() {
-				cfg := &config.CliOpts{}
-				envFile, err := os.Open(filepath.Join(testDirStd, configure.ConfigName))
-				require.NoErrorf(t, err, "failed to find a new created %s: %v",
-					configure.ConfigName, err)
-
-				defer envFile.Close()
-
-				err = yaml.NewDecoder(envFile).Decode(cfg)
-				require.NoErrorf(t, err, "failed to decode a new created %s: %v",
-					configure.ConfigName, err)
-
-				assert.Equalf(t, cfg.Env.Restartable, testOptsStd.Env.Restartable,
-					"wrong restartable count")
-				assert.Equalf(t, cfg.Env.LogMaxAge, testOptsStd.Env.LogMaxSize,
-					"wrong log max age count")
-				assert.Equalf(t, cfg.Env.LogMaxSize, testOptsStd.Env.LogMaxAge,
-					"wrong log max size count")
-				assert.Equalf(t, cfg.Env.LogMaxBackups, testOptsStd.Env.LogMaxBackups,
-					"wrong log max backups count")
-				assert.Equalf(t, cfg.Env.InstancesEnabled,
-					configure.InstancesEnabledDirName,
-					"wrong instances enabled path")
-				assert.Equalf(t, cfg.App.RunDir, configure.VarRunPath,
-					"wrong run path")
-				assert.Equalf(t, cfg.App.LogDir, configure.VarLogPath,
-					"wrong log path")
-				assert.Equalf(t, cfg.Env.BinDir, configure.BinPath,
-					"wrong bin path")
-				assert.Equalf(t, cfg.App.WalDir, configure.VarDataPath,
-					"wrong data path")
-				assert.Equalf(t, cfg.App.VinylDir, configure.VarDataPath,
-					"wrong data path")
-				assert.Equalf(t, cfg.App.MemtxDir, configure.VarDataPath,
-					"wrong data path")
-				assert.Equalf(t, cfg.Modules.Directory, configure.ModulesPath,
-					"wrong modules path")
+			expectedOps: &config.CliOpts{
+				Env: &config.TtEnvOpts{
+					BinDir:             "bin",
+					IncludeDir:         "include",
+					InstancesEnabled:   configure.InstancesEnabledDirName,
+					LogMaxBackups:      1,
+					LogMaxAge:          1,
+					LogMaxSize:         1,
+					Restartable:        true,
+					TarantoolctlLayout: false,
+				},
+				App: &config.AppOpts{
+					WalDir:   "var/lib",
+					VinylDir: "var/lib",
+					MemtxDir: "var/lib",
+					LogDir:   "var/log",
+					RunDir:   "var/run",
+				},
+				Modules: &config.ModulesOpts{
+					Directory: "modules",
+				},
+				Repo: &config.RepoOpts{
+					Rocks:   "",
+					Install: "distfiles",
+				},
+				EE: &config.EEOpts{},
+				Templates: []config.TemplateOpts{
+					{Path: "templates"},
+				},
 			},
 		},
 		{
 			name: "Wal, Vinyl and Memtx directories are separated",
 			args: args{
-				opts:     testOptsCustom,
-				destPath: testDirCustom,
+				opts: testOptsCustom,
 			},
-			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
-				return err == nil
-			},
-			checkFunc: func() {
-				cfg := &config.CliOpts{}
-				envFile, err := os.Open(filepath.Join(testDirCustom, configure.ConfigName))
-				require.NoErrorf(t, err, "failed to find a new created %s: %v",
-					configure.ConfigName, err)
-
-				defer envFile.Close()
-
-				err = yaml.NewDecoder(envFile).Decode(cfg)
-				require.NoErrorf(t, err, "failed to decode a new created %s: %v",
-					configure.ConfigName, err)
-
-				assert.Equalf(t, cfg.Env.Restartable, testOptsCustom.Env.Restartable,
-					"wrong restartable count")
-				assert.Equalf(t, cfg.Env.LogMaxAge, testOptsCustom.Env.LogMaxSize,
-					"wrong log max age count")
-				assert.Equalf(t, cfg.Env.LogMaxSize, testOptsCustom.Env.LogMaxAge,
-					"wrong log max size count")
-				assert.Equalf(t, cfg.Env.LogMaxBackups,
-					testOptsCustom.Env.LogMaxBackups,
-					"wrong log max backups count")
-				assert.Equalf(t, cfg.Env.InstancesEnabled,
-					configure.InstancesEnabledDirName,
-					"wrong instances enabled path")
-				assert.Equalf(t, cfg.App.RunDir, configure.VarRunPath,
-					"wrong run path")
-				assert.Equalf(t, cfg.App.LogDir, configure.VarLogPath,
-					"wrong log path")
-				assert.Equalf(t, cfg.Env.BinDir, configure.BinPath,
-					"wrong bin path")
-				assert.Equalf(t, cfg.App.WalDir, configure.VarWalPath,
-					"wrong data path")
-				assert.Equalf(t, cfg.App.VinylDir, configure.VarVinylPath,
-					"wrong data path")
-				assert.Equalf(t, cfg.App.MemtxDir, configure.VarMemtxPath,
-					"wrong data path")
-				assert.Equalf(t, cfg.Modules.Directory, configure.ModulesPath,
-					"wrong modules path")
+			expectedOps: &config.CliOpts{
+				Env: &config.TtEnvOpts{
+					BinDir:             "bin",
+					IncludeDir:         "include",
+					InstancesEnabled:   configure.InstancesEnabledDirName,
+					LogMaxBackups:      1,
+					LogMaxAge:          1,
+					LogMaxSize:         1,
+					Restartable:        true,
+					TarantoolctlLayout: true,
+				},
+				App: &config.AppOpts{
+					WalDir:   "var/wal",
+					VinylDir: "var/vinyl",
+					MemtxDir: "var/snap",
+					LogDir:   "var/log",
+					RunDir:   "var/run",
+				},
+				Modules: &config.ModulesOpts{
+					Directory: "modules",
+				},
+				Repo: &config.RepoOpts{
+					Rocks:   "",
+					Install: "distfiles",
+				},
+				EE: &config.EEOpts{},
+				Templates: []config.TemplateOpts{
+					{Path: "templates"},
+				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.wantErr(t, createEnv(tt.args.opts, tt.args.destPath, false),
-				fmt.Sprintf("createEnv(%v, %v)", tt.args.opts, tt.args.destPath))
-			tt.checkFunc()
+			got := createNewOpts(tt.args.opts, false)
+			assert.Equal(t, tt.expectedOps, got)
 		})
+	}
+}
+
+func Test_skipArtifacts(t *testing.T) {
+	cliOpts := config.CliOpts{App: &config.AppOpts{
+		RunDir:   "./var/run",
+		LogDir:   "var/log",
+		MemtxDir: "/var/lib/tarantool",
+		VinylDir: "var/lib/",
+		WalDir:   "./var/lib/",
+	}}
+
+	tmpDir := t.TempDir()
+	for _, dir := range []string{"var/run", "var/lib/tarantool", "var/log", "var/copy"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, dir), 0755))
+	}
+	_, err := net.Listen("unix", filepath.Join(tmpDir, "tt.control"))
+	require.NoError(t, err)
+
+	shouldSkip := skipArtifacts(&cliOpts)
+
+	tests := []struct {
+		path     string
+		wantErr  bool
+		expected bool
+	}{
+		{
+			path:     "var/run",
+			wantErr:  false,
+			expected: true,
+		},
+		{
+			path:     "var/log",
+			wantErr:  false,
+			expected: true,
+		},
+		{
+			path:     "var/lib/tarantool",
+			wantErr:  false,
+			expected: false,
+		},
+		{
+			path:     "/var/lib/tarantool",
+			wantErr:  false,
+			expected: false,
+		},
+		{
+			path:     "var/lib/",
+			wantErr:  false,
+			expected: true,
+		},
+		{
+			path:     "./var/lib/",
+			wantErr:  false,
+			expected: true,
+		},
+		{
+			path:     "./var/lib",
+			wantErr:  false,
+			expected: true,
+		},
+		{
+			path:     "./var/not_exist",
+			wantErr:  true,
+			expected: false,
+		},
+		{
+			path:     "./var/copy",
+			wantErr:  false,
+			expected: false,
+		},
+		{
+			path:     "var/copy",
+			wantErr:  false,
+			expected: false,
+		},
+		{
+			path:     "tt.control",
+			wantErr:  false,
+			expected: true, // Skip unix socket.
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got, err := shouldSkip(filepath.Join(tmpDir, tt.path))
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func Test_prepareBundleBasic(t *testing.T) {
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml")
+	require.NoError(t, err)
+	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			ConfigDir: filepath.Dir(configPath),
+		},
+	}, &PackCtx{}, cliOpts, false)
+	require.NoError(t, err)
+	defer func() {
+		if strings.HasPrefix(bundleDir, "/tmp/") ||
+			strings.HasPrefix(bundleDir, "/private/") {
+			os.RemoveAll(bundleDir)
+		}
+	}()
+
+	checks := []struct {
+		checkFunc func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool
+		path      string
+	}{
+		// Root.
+		{assert.DirExists, "instances.enabled"},
+		{assert.DirExists, "include"},
+		{assert.DirExists, "modules"},
+		{assert.FileExists, "tt.yaml"},
+
+		// Single app.
+		{assert.FileExists, "instances.enabled/single"},
+		{assert.DirExists, "single/var"},
+		{assert.FileExists, "single/init.lua"},
+		{assert.NoDirExists, "single/var/lib"},
+		{assert.NoDirExists, "single/var/log"},
+		{assert.NoDirExists, "single/var/run"},
+
+		// Multi-instance app.
+		{assert.FileExists, "multi/init.lua"},
+		{assert.FileExists, "multi/instances.yaml"},
+		{assert.NoDirExists, "multi/var/lib"},
+		{assert.NoDirExists, "multi/var/log"},
+		{assert.NoDirExists, "multi/var/run"},
+
+		// Script app.
+		{assert.FileExists, "script.lua"},
+		{assert.FileExists, "instances.enabled/script_app.lua"},
+		{assert.NoDirExists, "instances.enabled/script_app"},
+		{assert.NoFileExists, "instances.enabled/script_app/init.lua"},
+		{assert.NoDirExists, "instances.enabled/script_app/var/lib"},
+		{assert.NoDirExists, "instances.enabled/script_app/var/log"},
+		{assert.NoDirExists, "instances.enabled/script_app/var/run"},
+	}
+	for _, check := range checks {
+		check.checkFunc(t, filepath.Join(bundleDir, check.path))
+	}
+
+	cliOpts, _, err = configure.GetCliOpts(filepath.Join(bundleDir, "tt.yaml"))
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(bundleDir, "instances.enabled"), cliOpts.Env.InstancesEnabled)
+	assert.Equal(t, filepath.Join(bundleDir, "include"), cliOpts.Env.IncludeDir)
+	assert.Equal(t, "var/lib", cliOpts.App.WalDir)
+	assert.Equal(t, "var/lib", cliOpts.App.VinylDir)
+	assert.Equal(t, "var/lib", cliOpts.App.MemtxDir)
+	assert.Equal(t, "var/log", cliOpts.App.LogDir)
+	assert.Equal(t, "var/run", cliOpts.App.RunDir)
+}
+
+func Test_prepareBundleWithArtifacts(t *testing.T) {
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml")
+	require.NoError(t, err)
+	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			ConfigDir: filepath.Dir(configPath),
+		},
+	}, &PackCtx{
+		Archive: ArchiveCtx{
+			All: true,
+		},
+	}, cliOpts, false)
+	require.NoError(t, err)
+	defer func() {
+		if strings.HasPrefix(bundleDir, "/tmp/") ||
+			strings.HasPrefix(bundleDir, "/private/") {
+			os.RemoveAll(bundleDir)
+		}
+	}()
+
+	checks := []struct {
+		checkFunc func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool
+		path      string
+	}{
+		// Root.
+		{assert.DirExists, "instances.enabled"},
+		{assert.DirExists, "include"},
+		{assert.DirExists, "modules"},
+		{assert.FileExists, "tt.yaml"},
+
+		// Single app.
+		{assert.FileExists, "instances.enabled/single"},
+		{assert.DirExists, "single/var"},
+		{assert.FileExists, "single/init.lua"},
+		{assert.FileExists, "single/var/lib/single/00000000000000000000.snap"},
+		{assert.FileExists, "single/var/lib/single/00000000000000000000.xlog"},
+		{assert.FileExists, "single/var/log/single/tt.log"},
+		{assert.NoDirExists, "single/var/run"},
+
+		// Multi-instance app.
+		{assert.FileExists, "multi/init.lua"},
+		{assert.FileExists, "multi/instances.yaml"},
+		{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.snap"},
+		{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.xlog"},
+		{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.snap"},
+		{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.xlog"},
+		{assert.FileExists, "multi/var/log/inst1/tt.log"},
+		{assert.FileExists, "multi/var/log/inst2/tt.log"},
+		{assert.NoDirExists, "multi/var/run"},
+
+		// Script app.
+		{assert.FileExists, "script.lua"},
+		{assert.FileExists, "instances.enabled/script_app.lua"},
+		{assert.DirExists, "instances.enabled/script_app"},
+		{assert.FileExists, "instances.enabled/script_app/var/lib/script_app/" +
+			"00000000000000000000.snap"},
+		{assert.FileExists, "instances.enabled/script_app/var/log/script_app/tt.log"},
+		{assert.NoFileExists, "instances.enabled/script_app/init.lua"},
+		{assert.NoDirExists, "instances.enabled/script_app/var/run"},
+	}
+	for _, check := range checks {
+		check.checkFunc(t, filepath.Join(bundleDir, check.path))
+	}
+}
+
+func Test_prepareBundleDifferentDataDirs(t *testing.T) {
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_different_dirs/tt.yaml")
+	require.NoError(t, err)
+	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			ConfigDir: filepath.Dir(configPath),
+		},
+	}, &PackCtx{
+		Archive: ArchiveCtx{
+			All: true,
+		},
+	}, cliOpts, false)
+	require.NoError(t, err)
+	defer func() {
+		if strings.HasPrefix(bundleDir, "/tmp/") ||
+			strings.HasPrefix(bundleDir, "/private/") {
+			os.RemoveAll(bundleDir)
+		}
+	}()
+
+	checks := []struct {
+		checkFunc func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool
+		path      string
+	}{
+		// Root.
+		{assert.DirExists, "instances.enabled"},
+		{assert.DirExists, "include"},
+		{assert.DirExists, "modules"},
+		{assert.FileExists, "tt.yaml"},
+
+		// Single app.
+		{assert.FileExists, "instances.enabled/single"},
+		{assert.FileExists, "single/init.lua"},
+		{assert.FileExists, "single/var/snap/single/00000000000000000000.snap"},
+		{assert.FileExists, "single/var/wal/single/00000000000000000000.xlog"},
+		{assert.DirExists, "single/var/vinyl/single/"},
+		{assert.FileExists, "single/var/log/single/tt.log"},
+		{assert.NoDirExists, "single/var/run"},
+
+		// Multi-instance app.
+		{assert.FileExists, "instances.enabled/multi"},
+		{assert.FileExists, "multi/init.lua"},
+		{assert.FileExists, "multi/instances.yaml"},
+		{assert.FileExists, "multi/var/snap/inst1/00000000000000000000.snap"},
+		{assert.FileExists, "multi/var/snap/inst2/00000000000000000000.snap"},
+		{assert.FileExists, "multi/var/wal/inst1/00000000000000000000.xlog"},
+		{assert.FileExists, "multi/var/wal/inst2/00000000000000000000.xlog"},
+		{assert.FileExists, "multi/var/log/inst1/tt.log"},
+		{assert.FileExists, "multi/var/log/inst2/tt.log"},
+		{assert.NoDirExists, "multi/var/run"},
+
+		// Script app.
+		{assert.FileExists, "script.lua"},
+		{assert.FileExists, "instances.enabled/script_app.lua"},
+		{assert.FileExists, "instances.enabled/script_app/var/snap/script_app/" +
+			"00000000000000000000.snap"},
+		{assert.DirExists, "instances.enabled/script_app/var/wal"},
+		{assert.DirExists, "instances.enabled/script_app/var/vinyl"},
+		{assert.FileExists, "instances.enabled/script_app/var/log/script_app/tt.log"},
+		{assert.NoFileExists, "instances.enabled/script_app/init.lua"},
+		{assert.NoDirExists, "instances.enabled/script_app/var/run"},
+	}
+	for _, check := range checks {
+		check.checkFunc(t, filepath.Join(bundleDir, check.path))
+	}
+}
+
+func Test_prepareBundleTntCtlLayout(t *testing.T) {
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_tntctl_layout/tt.yaml")
+	require.NoError(t, err)
+	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			ConfigDir: filepath.Dir(configPath),
+		},
+	}, &PackCtx{
+		Archive: ArchiveCtx{
+			All: true,
+		},
+	}, cliOpts, false)
+	require.NoError(t, err)
+	defer func() {
+		if strings.HasPrefix(bundleDir, "/tmp/") ||
+			strings.HasPrefix(bundleDir, "/private/") {
+			os.RemoveAll(bundleDir)
+		}
+	}()
+
+	checks := []struct {
+		checkFunc func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool
+		path      string
+	}{
+		// Root.
+		{assert.DirExists, "instances.enabled"},
+		{assert.DirExists, "include"},
+		{assert.DirExists, "modules"},
+		{assert.FileExists, "tt.yaml"},
+
+		// Multi-instance app.
+		{assert.FileExists, "instances.enabled/multi"},
+		{assert.FileExists, "multi/init.lua"},
+		{assert.FileExists, "multi/instances.yaml"},
+		{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.snap"},
+		{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.xlog"},
+		{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.snap"},
+		{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.xlog"},
+		{assert.FileExists, "multi/var/log/inst1/tt.log"},
+		{assert.FileExists, "multi/var/log/inst2/tt.log"},
+		{assert.NoDirExists, "multi/var/run"},
+
+		// Single app.
+		{assert.DirExists, "var/lib/single"},
+		{assert.FileExists, "instances.enabled/single"},
+		{assert.FileExists, "single/init.lua"},
+		{assert.FileExists, "var/lib/single/00000000000000000000.snap"},
+		{assert.FileExists, "var/lib/single/00000000000000000000.xlog"},
+		{assert.FileExists, "var/log/single.log"},
+		{assert.NoDirExists, "var/run"},
+
+		// Script app.
+		{assert.DirExists, "var/lib/script_app"},
+		{assert.FileExists, "script.lua"},
+		{assert.FileExists, "instances.enabled/script_app.lua"},
+		{assert.FileExists, "var/lib/script_app/00000000000000000000.snap"},
+		{assert.FileExists, "var/lib/script_app/00000000000000000000.xlog"},
+		{assert.FileExists, "var/log/script_app.log"},
+		{assert.NoDirExists, "instances.enabled/script_app/"},
+	}
+	for _, check := range checks {
+		check.checkFunc(t, filepath.Join(bundleDir, check.path))
+	}
+}
+
+func Test_prepareBundleCartridgeCompatWithArtifacts(t *testing.T) {
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml")
+	require.NoError(t, err)
+	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+		Cli: cmdcontext.CliCtx{
+			ConfigDir: filepath.Dir(configPath),
+			TarantoolCli: cmdcontext.TarantoolCli{
+				Executable: "testdata/env1/bin/tarantool",
+			},
+		},
+	}, &PackCtx{
+		AppList:         []string{"multi"},
+		CartridgeCompat: true,
+		Archive: ArchiveCtx{
+			All: true,
+		},
+		TarantoolIsSystem: false,
+	}, cliOpts, false)
+	require.NoError(t, err)
+	defer func() {
+		if strings.HasPrefix(bundleDir, "/tmp/") ||
+			strings.HasPrefix(bundleDir, "/private/") {
+			os.RemoveAll(bundleDir)
+		}
+	}()
+
+	checks := []struct {
+		checkFunc func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool
+		path      string
+	}{
+		// Root.
+		{assert.NoDirExists, "instances.enabled"},
+		{assert.NoDirExists, "include"},
+		{assert.NoDirExists, "modules"},
+		{assert.NoDirExists, "var"},
+		{assert.NoFileExists, "tt.yaml"},
+
+		// Multi-inst app.
+		{assert.DirExists, "multi"},
+		{assert.FileExists, "multi/init.lua"},
+		{assert.FileExists, "multi/instances.yaml"},
+		{assert.FileExists, "multi/tt.yaml"},
+		{assert.FileExists, "multi/tarantool"},
+		{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.snap"},
+		{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.xlog"},
+		{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.snap"},
+		{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.xlog"},
+		{assert.FileExists, "multi/var/log/inst1/tt.log"},
+		{assert.FileExists, "multi/var/log/inst2/tt.log"},
+	}
+	for _, check := range checks {
+		check.checkFunc(t, filepath.Join(bundleDir, check.path))
 	}
 }
