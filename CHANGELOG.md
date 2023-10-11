@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 commands. Example: ``tt --cfg tt.yaml install tt``.
 - tt config format: separate tt environment options from application options.
 
+### Added
+
+- tt completion: added luarocks completions.
+
 ### Fixed
 - ``tt rocks``: broken ``--verbose`` option.
 

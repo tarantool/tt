@@ -1,0 +1,436 @@
+_rocks() {
+    local IFS=$' \t\n'
+    local args cur prev cmd opts arg
+    args=("${COMP_WORDS[@]}")
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-h --help --version --dev --server --from --only-server --only-from --only-sources --only-sources-from --namespace --lua-dir --lua-version --tree --to --local --global --no-project --verbose --timeout --project-tree --pack-binary-rock --branch --sign"
+
+    case "$prev" in
+        --server|--from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --only-server|--only-from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --only-sources|--only-sources-from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --namespace)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --lua-dir)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --lua-version)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --tree|--to)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --timeout)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --project-tree)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --branch)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+    esac
+
+    args=("${args[@]:1}")
+    for arg in "${args[@]}"; do
+        case "$arg" in
+            help)
+                cmd="help"
+                opts="$opts -h --help"
+                break
+                ;;
+            build)
+                cmd="build"
+                opts="$opts -h --help --only-deps --deps-only --branch --pin --no-install --no-doc --pack-binary-rock --keep --force --force-fast --verify --sign --check-lua-versions --pin --no-manifest --only-deps --deps-only --chdir --deps-mode --nodeps"
+                break
+                ;;
+            config)
+                cmd="config"
+                opts="$opts -h --help --scope --unset --json --lua-incdir --lua-libdir --lua-ver --system-config --user-config --rock-trees"
+                break
+                ;;
+            doc)
+                cmd="doc"
+                opts="$opts -h --help --home --list --porcelain"
+                break
+                ;;
+            download)
+                cmd="download"
+                opts="$opts -h --help --all --source --rockspec --arch --check-lua-versions"
+                break
+                ;;
+            install)
+                cmd="install"
+                opts="$opts -h --help --keep --force --force-fast --only-deps --deps-only --no-doc --verify --check-lua-versions --deps-mode --nodeps --no-manifest --pin"
+                break
+                ;;
+            lint)
+                cmd="lint"
+                opts="$opts -h --help"
+                break
+                ;;
+            list)
+                cmd="list"
+                opts="$opts -h --help --outdated --porcelain"
+                break
+                ;;
+            make)
+                cmd="make"
+                opts="$opts -h --help --no-install --no-doc --pack-binary-rock --keep --force --force-fast --verify --sign --check-lua-versions --pin --no-manifest --only-deps --deps-only --chdir --deps-mode --nodeps"
+                break
+                ;;
+            make_manifest|make-manifest)
+                cmd="make_manifest"
+                opts="$opts -h --help --local-tree --deps-mode --nodeps"
+                break
+                ;;
+            new_version|new-version)
+                cmd="new_version"
+                opts="$opts -h --help --dir --tag"
+                break
+                ;;
+            pack)
+                cmd="pack"
+                opts="$opts -h --help --sign"
+                break
+                ;;
+            purge)
+                cmd="purge"
+                opts="$opts -h --help --old-versions --force --force-fast"
+                break
+                ;;
+            remove)
+                cmd="remove"
+                opts="$opts -h --help --force --force-fast --deps-mode --nodeps"
+                break
+                ;;
+            search)
+                cmd="search"
+                opts="$opts -h --help --source --binary --all --porcelain"
+                break
+                ;;
+            show)
+                cmd="show"
+                opts="$opts -h --help --home --modules --deps --build-deps --test-deps --rockspec --mversion --rock-tree --rock-namespace --rock-dir --rock-license --issues --labels --porcelain"
+                break
+                ;;
+            test)
+                cmd="test"
+                opts="$opts -h --help --prepare --test-type"
+                break
+                ;;
+            unpack)
+                cmd="unpack"
+                opts="$opts -h --help --force --check-lua-versions"
+                break
+                ;;
+            which)
+                cmd="which"
+                opts="$opts -h --help"
+                break
+                ;;
+            write_rockspec|write-rockspec)
+                cmd="write_rockspec"
+                opts="$opts -h --help --output --license --summary --detailed --homepage --lua-versions --rockspec-format --tag --lib"
+                break
+                ;;
+        esac
+    done
+
+    case "$cmd" in
+        '')
+            COMPREPLY=($(compgen -W "help admin build config doc download install lint list make make_manifest make-manifest new_version new-version pack purge remove search show test unpack which write_rockspec write-rockspec" -- "$cur"))
+            ;;
+        'help')
+            COMPREPLY=($(compgen -W "help admin build config doc download install lint list make make_manifest make-manifest new_version new-version pack purge remove search show test unpack which write_rockspec write-rockspec" -- "$cur"))
+            ;;
+        'build')
+            case "$prev" in
+                --branch)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --chdir)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'config')
+            case "$prev" in
+                --scope)
+                    COMPREPLY=($(compgen -W "system user project" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'download')
+            case "$prev" in
+                --arch)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'install')
+            case "$prev" in
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'make')
+            case "$prev" in
+                --chdir)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'make_manifest')
+            case "$prev" in
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'new_version')
+            case "$prev" in
+                --dir)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --tag)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'remove')
+            case "$prev" in
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'test')
+            case "$prev" in
+                --test-type)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'write_rockspec')
+            case "$prev" in
+                --output)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --license)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --summary)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --detailed)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --homepage)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --lua-versions)
+                    COMPREPLY=($(compgen -W "5.1 5.2 5.3 5.4 5.1,5.2 5.2,5.3 5.3,5.4 5.1,5.2,5.3 5.2,5.3,5.4 5.1,5.2,5.3,5.4" -- "$cur"))
+                    return 0
+                    ;;
+                --rockspec-format)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --tag)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+                --lib)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+    esac
+
+    if [[ "$cur" = -* ]]; then
+        COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+    fi
+}
+
+_luarocks-admin() {
+    local IFS=$' \t\n'
+    local args cur prev cmd opts arg
+    args=("${COMP_WORDS[@]}")
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    opts="-h --help --version --dev --server --from --only-server --only-from --only-sources --only-sources-from --namespace --lua-dir --lua-version --tree --to --local --global --no-project --verbose --timeout --project-tree"
+
+    case "$prev" in
+        --server|--from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --only-server|--only-from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --only-sources|--only-sources-from)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --namespace)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --lua-dir)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --lua-version)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --tree|--to)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --timeout)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+        --project-tree)
+            COMPREPLY=($(compgen -f -- "$cur"))
+            return 0
+            ;;
+    esac
+
+    args=("${args[@]:1}")
+    for arg in "${args[@]}"; do
+        case "$arg" in
+            help)
+                cmd="help"
+                opts="$opts -h --help"
+                break
+                ;;
+            add)
+                cmd="add"
+                opts="$opts -h --help --server --no-refresh --index"
+                break
+                ;;
+            make_manifest|make-manifest)
+                cmd="make_manifest"
+                opts="$opts -h --help --local-tree --deps-mode --nodeps"
+                break
+                ;;
+            refresh_cache|refresh-cache)
+                cmd="refresh_cache"
+                opts="$opts -h --help --from"
+                break
+                ;;
+            remove)
+                cmd="remove"
+                opts="$opts -h --help --server --no-refresh"
+                break
+                ;;
+        esac
+    done
+
+    case "$cmd" in
+        '')
+            COMPREPLY=($(compgen -W "help add make_manifest make-manifest refresh_cache refresh-cache remove" -- "$cur"))
+            ;;
+        'help')
+            COMPREPLY=($(compgen -W "help add make_manifest make-manifest refresh_cache refresh-cache remove" -- "$cur"))
+            ;;
+        'add')
+            case "$prev" in
+                --server)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'make_manifest')
+            case "$prev" in
+                --deps-mode)
+                    COMPREPLY=($(compgen -W "all one order none" -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'refresh_cache')
+            case "$prev" in
+                --from)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+        'remove')
+            case "$prev" in
+                --server)
+                    COMPREPLY=($(compgen -f -- "$cur"))
+                    return 0
+                    ;;
+            esac
+
+            ;;
+    esac
+
+    if [[ "$cur" = -* ]]; then
+        COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+    fi
+}

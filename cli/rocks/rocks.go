@@ -20,6 +20,9 @@ import (
 //go:embed third_party/luarocks/src/*
 var luarocks embed.FS
 
+//go:embed completions/*
+var EmbedCompletions embed.FS
+
 const (
 	rocksRepoManifestName     = "manifest"
 	repoRocksPathEnvVarName   = "TT_CLI_REPO_ROCKS"

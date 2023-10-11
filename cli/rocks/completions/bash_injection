@@ -1,0 +1,10 @@
+    if [[ ${#words[@]} -ge 3 && ${words[1]} = "rocks"  && ${words[2]} = "admin" ]]; then
+        _luarocks-admin
+        return
+    fi
+
+    if [[ ${#words[@]} -ge 2 && ${words[1]} = "rocks" ]]; then
+        _rocks
+        return
+    fi
+
