@@ -531,8 +531,8 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 	return nil
 }
 
-// collectInstancesForApps collects instances information for applications in list.
-func collectInstancesForApps(appList []util.AppListEntry, cliOpts *config.CliOpts,
+// CollectInstancesForApps collects instances information for applications in list.
+func CollectInstancesForApps(appList []util.AppListEntry, cliOpts *config.CliOpts,
 	ttConfigDir string) (
 	[]InstanceCtx, error) {
 	instEnabledPath := cliOpts.Env.InstancesEnabled
@@ -608,7 +608,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		appList = append(appList, util.AppListEntry{Name: args[0], Location: ""})
 	}
 
-	if runningCtx.Instances, err = collectInstancesForApps(appList, cliOpts,
+	if runningCtx.Instances, err = CollectInstancesForApps(appList, cliOpts,
 		cmdCtx.Cli.ConfigDir); err != nil {
 		return err
 	}

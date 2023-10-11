@@ -1,0 +1,11 @@
+env:
+  bin_dir: bin
+  inc_dir: include
+  instances_enabled: instances.enabled
+  tarantoolctl_layout: true
+app:
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: var/lib
+  memtx_dir: var/lib
+  vinyl_dir: var/lib

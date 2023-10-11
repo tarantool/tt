@@ -353,8 +353,7 @@ of the sample application:
 `tt.yaml`:
 
 ``` yaml
-tt:
-    app:
+app:
 ```
 
 For packing it into tarball, call:
@@ -370,67 +369,40 @@ $ tt pack tgz
 The result directory structure:
 
     unpacked_dir/
-    ├── tt.yaml
+    ├── bin
+    ├── include
+    ├── instances.enabled
+    │   └── single_environment -> ../single_environment
+    ├── modules
     ├── single_environment
-    │   └── init.lua
-    ├── env
-    │   ├── bin
-    │   └── modules
-    ├── instances_enabled
-    │   └── single_environment -> ../single_environment
-    └── var
-        ├── lib
-        ├── log
-        └── run
+    │   ├── init.lua
+    │   ├── tt.yaml
+    │   └── var
+    └── tt.yaml
 
 Example of packing a multi-app environment. The source tree:
 
     bundle/
-    ├── tt.yaml
-    ├── env
-    │   ├── bin
-    │   │   ├── tt
-    │   │   └── tarantool
-    │   └── modules
-    ├── myapp
-    │   ├── Dockerfile.build.cartridge
-    │   ├── Dockerfile.cartridge
-    │   ├── README.md
-    │   ├── app
-    │   ├── bin
-    │   ├── deps.sh
-    │   ├── failover.yml
-    │   ├── init.lua
-    │   ├── instances.yml
-    │   ├── myapp-scm-1.rockspec
-    │   ├── pack-cache-config.yml
-    │   ├── package-deps.txt
-    │   ├── replicasets.yml
-    │   ├── stateboard.init.lua
-    │   ├── systemd-unit-params.yml
-    │   ├── tt.yaml
-    │   ├── test
-    │   └── tmp
-    ├── myapp2
-    │   ├── app.lua
-    │   ├── data
-    │   ├── etc
-    │   ├── myapp2
-    │   ├── queue
-    │   ├── queue1.lua
-    │   └── queue2.lua
-    ├── myapp3.lua
-    ├── app4.lua
-    ├── instances_enabled
-    │   ├── app1 -> ../myapp
-    │   ├── app2 -> ../myapp2
-    │   ├── app3.lua -> ../myapp3.lua
-    │   ├── app4.lua -> /Users/dev/tt_demo/bundle1/app4.lua
-    │   └── app5.lua -> ../myapp3.lua
-    └── var
-        ├── lib
-        ├── log
-        └── run
+    ├── bin
+    │   ├── tarantool
+    │   └── tt
+    ├── include
+    ├── instances.enabled
+    │   ├── multi -> ../multi
+    │   ├── script_app.lua -> ../script.lua
+    │   └── single -> ../single
+    ├── modules
+    │   └── test_ext
+    ├── multi
+    │   ├── init.lua
+    │   ├── instances.yaml
+    │   └── var
+    ├── script.lua
+    ├── single
+    │   ├── init.lua
+    │   └── var
+    └── tt.yaml
+
 
 `tt.yaml`:
 

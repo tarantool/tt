@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	lua "github.com/yuin/gopher-lua"
 	"gopkg.in/yaml.v2"
@@ -33,19 +34,6 @@ const (
 )
 
 var (
-	packageVarRunPath   = ""
-	packageVarLogPath   = ""
-	packageVarDataPath  = ""
-	packageVarVinylPath = ""
-	packageVarWalPath   = ""
-	packageVarMemtxPath = ""
-
-	packageBinPath     = ""
-	packageModulesPath = ""
-	packageIncludePath = ""
-
-	packageInstancesEnabledPath = ""
-
 	versionRgxps = []*regexp.Regexp{
 		regexp.MustCompile(`^(?P<Major>\d+)$`),
 		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)$`),
@@ -62,6 +50,63 @@ var (
 )
 
 type RocksVersions map[string][]string
+
+// skipDefaults filters out sockets and git dirs.
+func skipDefaults(src string) (bool, error) {
+	fileInfo, err := os.Stat(src)
+	if err != nil {
+		return false, fmt.Errorf("failed to check the source: %s", src)
+	}
+	perm := fileInfo.Mode()
+	if perm&os.ModeSocket != 0 {
+		return true, nil
+	}
+
+	if strings.HasPrefix(src, ".git") ||
+		strings.Contains(src, "/.git") {
+		return true, nil
+	}
+	return false, nil
+}
+
+// prepeareArtifactFilters prepares a slice of filters for runtime artifacts.
+func prepeareArtifactFilters(cliOpts *config.CliOpts) []func(src string) bool {
+	filters := make([]func(src string) bool, 0)
+	if cliOpts == nil || cliOpts.App == nil {
+		return filters
+	}
+	trim := func(src string) string {
+		return strings.TrimRight(strings.TrimLeft(src, "."), "/")
+	}
+	for _, dataDir := range [...]string{cliOpts.App.LogDir, cliOpts.App.RunDir, cliOpts.App.WalDir,
+		cliOpts.App.MemtxDir, cliOpts.App.VinylDir} {
+		if dataDir != "" && !filepath.IsAbs(dataDir) {
+			artifactSuffix := trim(dataDir)
+			filters = append(filters, func(src string) bool {
+				return strings.HasSuffix(src, artifactSuffix)
+			})
+		}
+	}
+	return filters
+}
+
+// skipArtifacts returns a filter func to filter out artifacts paths.
+func skipArtifacts(cliOpts *config.CliOpts) func(src string) (bool, error) {
+	artifactFilters := prepeareArtifactFilters(cliOpts)
+
+	return func(src string) (bool, error) {
+		if skip, err := skipDefaults(src); err != nil || skip {
+			return skip, err
+		}
+
+		for _, shouldSkip := range artifactFilters {
+			if shouldSkip(src) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+}
 
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
@@ -84,9 +129,9 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 	}()
 
-	prepareDefaultPackagePaths(cliOpts, basePath)
+	newOpts := createNewOpts(cliOpts, packCtx.CartridgeCompat)
 
-	err = createPackageStructure(basePath, packCtx.CartridgeCompat)
+	err = createPackageStructure(basePath, packCtx.CartridgeCompat, newOpts)
 	if err != nil {
 		return "", err
 	}
@@ -94,9 +139,9 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	// Copy modules step.
 	if !packCtx.CartridgeCompat && cliOpts.Modules != nil && cliOpts.Modules.Directory != "" &&
 		!packCtx.WithoutModules {
-		err = copy.Copy(cliOpts.Modules.Directory, packageModulesPath)
-		if err != nil {
-			log.Warnf("Failed to copy modules from %s: %s", cliOpts.Modules.Directory, err)
+		if err = copy.Copy(cliOpts.Modules.Directory,
+			util.JoinPaths(basePath, newOpts.Modules.Directory)); err != nil {
+			log.Warnf("Failed to copy modules from %q: %s", cliOpts.Modules.Directory, err)
 		}
 	}
 
@@ -149,14 +194,16 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		log.Infof("Apps to pack: %s", appsToPack)
 	}
 
+	pkgBin := util.JoinPaths(basePath, newOpts.Env.BinDir)
 	if packCtx.CartridgeCompat {
-		packageBinPath = filepath.Join(basePath, packCtx.Name)
+		pkgBin = util.JoinPaths(basePath, packCtx.Name)
 	}
 	// Copy binaries step.
+	fmt.Println(packCtx.TarantoolIsSystem)
 	if cliOpts.Env.BinDir != "" &&
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
-		err = copyBinaries(cmdCtx.Cli.TarantoolCli, packageBinPath)
+		err = copyBinaries(cmdCtx.Cli.TarantoolCli, pkgBin)
 		if err != nil {
 			return "", err
 		}
@@ -165,26 +212,33 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	// Copy all apps to a temp directory step.
 	for _, appInfo := range appList {
 		if packCtx.CartridgeCompat {
-			err = copyAppSrc(appInfo.Location, appInfo.Name, basePath)
+			err = copyAppSrc(appInfo.Location, appInfo.Name, basePath, skipArtifacts(cliOpts))
 		} else {
-			err = copyAppSrc(appInfo.Location, filepath.Base(appInfo.Location), basePath)
+			err = copyAppSrc(appInfo.Location, filepath.Base(appInfo.Location), basePath,
+				skipArtifacts(cliOpts))
 		}
 		if err != nil {
 			return "", err
 		}
 
-		if packCtx.Archive.All {
-			err = copyArtifacts(cliOpts, appInfo.Name)
+		if !packCtx.CartridgeCompat {
+			err = createAppSymlink(appInfo.Location, appInfo.Name,
+				util.JoinPaths(basePath, newOpts.Env.InstancesEnabled))
 			if err != nil {
 				return "", err
 			}
 		}
+	}
 
-		if !packCtx.CartridgeCompat {
-			err = createAppSymlink(appInfo.Location, appInfo.Name)
-			if err != nil {
-				return "", err
-			}
+	if packCtx.Archive.All {
+		instances, err := running.CollectInstancesForApps(appList, cliOpts,
+			cmdCtx.Cli.ConfigDir)
+		if err != nil {
+			return "", fmt.Errorf("failed to collect instances info: %w", err)
+		}
+		if err = copyArtifacts(*packCtx, basePath, cmdCtx.Cli.ConfigDir,
+			cliOpts, newOpts, instances); err != nil {
+			return "", err
 		}
 	}
 
@@ -199,7 +253,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if packCtx.CartridgeCompat {
 		ttYamlPath = filepath.Join(ttYamlPath, appList[0].Name)
 	}
-	createEnv(cliOpts, ttYamlPath, packCtx.CartridgeCompat)
+	writeEnv(newOpts, ttYamlPath, packCtx.CartridgeCompat)
 	if err != nil {
 		return "", err
 	}
@@ -207,22 +261,17 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 }
 
 // createPackageStructure initializes a standard package structure in passed directory.
-func createPackageStructure(destPath string, cartridgeCompat bool) error {
+func createPackageStructure(destPath string, cartridgeCompat bool,
+	newCliOpts *config.CliOpts) error {
 	basePaths := []string{destPath}
 
 	if !cartridgeCompat {
 		basePaths = append(
 			basePaths,
-			packageVarRunPath,
-			packageVarLogPath,
-			packageVarDataPath,
-			packageBinPath,
-			packageModulesPath,
-			packageIncludePath,
-			packageInstancesEnabledPath,
-			packageVarVinylPath,
-			packageVarWalPath,
-			packageVarMemtxPath,
+			util.JoinPaths(destPath, newCliOpts.Env.BinDir),
+			util.JoinPaths(destPath, newCliOpts.Modules.Directory),
+			util.JoinPaths(destPath, newCliOpts.Env.IncludeDir),
+			util.JoinPaths(destPath, newCliOpts.Env.InstancesEnabled),
 		)
 	}
 
@@ -236,7 +285,8 @@ func createPackageStructure(destPath string, cartridgeCompat bool) error {
 }
 
 // copyAppSrc copies a source file or directory to the directory, that will be packed.
-func copyAppSrc(appPath string, appName string, packagePath string) error {
+func copyAppSrc(appPath string, appName string, basePath string,
+	skipFunc func(src string) (bool, error)) error {
 	// In compat mode there must be only one application, so there will be no symlinks.
 	// However, without the compat flag, encountering symlink must change appName.
 	previousPath := appPath
@@ -255,21 +305,10 @@ func copyAppSrc(appPath string, appName string, packagePath string) error {
 	}
 
 	// Copying application.
-	err = copy.Copy(appPath, filepath.Join(packagePath, appName), copy.Options{
+	log.Debugf("Copying application source %q -> %q", appPath, filepath.Join(basePath, appName))
+	err = copy.Copy(appPath, filepath.Join(basePath, appName), copy.Options{
 		Skip: func(src string) (bool, error) {
-			fileInfo, err := os.Stat(src)
-			if err != nil {
-				return false, fmt.Errorf("failed to check the source: %s", src)
-			}
-			perm := fileInfo.Mode()
-			if perm&os.ModeSocket != 0 {
-				return true, nil
-			}
-
-			if strings.HasPrefix(src, ".git") || strings.Contains(src, "/.git") {
-				return true, nil
-			}
-			return false, nil
+			return skipFunc(src)
 		},
 	})
 	if err != nil {
@@ -280,40 +319,63 @@ func copyAppSrc(appPath string, appName string, packagePath string) error {
 
 // copyArtifacts copies all artifacts from the current bundle configuration
 // to the passed package structure from the passed path.
-func copyArtifacts(opts *config.CliOpts, appName string) error {
-	log.Infof("Copying all artifacts")
+func copyArtifacts(packCtx PackCtx, basePath string,
+	configDir string, currentOpts, newOpts *config.CliOpts,
+	instances []running.InstanceCtx) error {
 
-	ext := filepath.Ext(appName)
-	if ext == ".lua" {
-		appName = appName[:len(appName)-len(ext)]
-	}
-	err := copy.Copy(filepath.Join(opts.App.WalDir, appName),
-		filepath.Join(packageVarWalPath, appName))
-	if err != nil {
-		log.Warnf("Failed to copy wal artifacts.")
-	}
-	err = copy.Copy(filepath.Join(opts.App.VinylDir, appName),
-		filepath.Join(packageVarVinylPath, appName))
-	if err != nil {
-		log.Warnf("Failed to copy vinyl artifacts.")
-	}
-	err = copy.Copy(filepath.Join(opts.App.MemtxDir, appName),
-		filepath.Join(packageVarMemtxPath, appName))
-	if err != nil {
-		log.Warnf("Failed to copy memtx artifacts.")
-	}
+	prevAppName := ""
+	for _, inst := range instances {
+		if inst.AppName != prevAppName {
+			prevAppName = inst.AppName
 
-	err = copy.Copy(filepath.Join(opts.App.LogDir, appName),
-		filepath.Join(packageVarLogPath, appName))
-	if err != nil {
-		log.Warnf("Failed to copy logs.")
+			appDirName := filepath.Base(inst.AppDir)
+			destAppDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled, appDirName)
+			newConfigDir := basePath
+			if packCtx.CartridgeCompat {
+				destAppDir = util.JoinPaths(basePath, packCtx.Name)
+				newConfigDir = destAppDir
+			}
+
+			dstDir := func(dir string) string {
+				if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
+					return util.JoinPaths(newConfigDir, dir)
+				}
+				return util.JoinPaths(destAppDir, dir)
+			}
+			copyInfo := []struct{ src, dest string }{}
+			if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
+				copyInfo = append(copyInfo, struct{ src, dest string }{
+					src:  inst.Log,
+					dest: util.JoinPaths(dstDir(newOpts.App.LogDir), filepath.Base(inst.Log))})
+			} else {
+				copyInfo = append(copyInfo, struct{ src, dest string }{
+					src:  filepath.Dir(inst.LogDir),
+					dest: dstDir(newOpts.App.LogDir)})
+			}
+			copyInfo = append(copyInfo,
+				struct{ src, dest string }{
+					src: filepath.Dir(inst.WalDir), dest: dstDir(newOpts.App.WalDir)},
+				struct{ src, dest string }{
+					src: filepath.Dir(inst.MemtxDir), dest: dstDir(newOpts.App.MemtxDir)},
+				struct{ src, dest string }{
+					src: filepath.Dir(inst.VinylDir), dest: dstDir(newOpts.App.VinylDir)})
+			if newOpts.App.WalDir == newOpts.App.VinylDir {
+				copyInfo = copyInfo[:2]
+			}
+			for _, toCopy := range copyInfo {
+				log.Debugf("Copying %q -> %q", toCopy.src, toCopy.dest)
+				if err := copy.Copy(toCopy.src, toCopy.dest); err != nil {
+					log.Warnf("Failed to copy artifacts: %s", err)
+				}
+			}
+		}
 	}
 	return nil
 }
 
 // TODO replace by tt enable
 // createAppSymlink creates a relative link for an application that must be packed.
-func createAppSymlink(appPath string, appName string) error {
+func createAppSymlink(appPath string, appName string, instancesEnabledDir string) error {
 	var err error
 	appPath, err = filepath.EvalSymlinks(appPath)
 	if err != nil {
@@ -321,15 +383,15 @@ func createAppSymlink(appPath string, appName string) error {
 	}
 
 	err = os.Symlink(filepath.Join("..", filepath.Base(appPath)),
-		filepath.Join(packageInstancesEnabledPath, appName))
+		filepath.Join(instancesEnabledDir, appName))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// createEnv generates a tt.yaml file.
-func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) error {
+// createNewOpts generates new CLI opts using some data from current opts.
+func createNewOpts(opts *config.CliOpts, cartridgeCompat bool) *config.CliOpts {
 	log.Infof("Generating new %s for the new package", configure.ConfigName)
 	cliOptsNew := configure.GetDefaultCliOpts()
 	cliOptsNew.Env.InstancesEnabled = configure.InstancesEnabledDirName
@@ -353,6 +415,11 @@ func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) erro
 		cliOptsNew.Env.BinDir = "."
 	}
 
+	return cliOptsNew
+}
+
+// writeEnv writes CLI options to a tt.yaml file.
+func writeEnv(cliOpts *config.CliOpts, destPath string, cartridgeCompat bool) error {
 	file, err := os.Create(filepath.Join(destPath, configure.ConfigName))
 	if err != nil {
 		return err
@@ -364,7 +431,8 @@ func createEnv(opts *config.CliOpts, destPath string, cartridgeCompat bool) erro
 		}
 	}()
 
-	err = yaml.NewEncoder(file).Encode(cliOptsNew)
+	log.Debugf("Generating new environment config %q", file.Name())
+	err = yaml.NewEncoder(file).Encode(cliOpts)
 	if err != nil {
 		return err
 	}
@@ -431,30 +499,6 @@ func buildAllRocks(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, destPath 
 	}
 
 	return err
-}
-
-// prepareDefaultPackagePaths defines all default paths for the directory, where
-// the package will be built.
-func prepareDefaultPackagePaths(opts *config.CliOpts, packagePath string) {
-	packageVarRunPath = filepath.Join(packagePath, configure.VarRunPath)
-	packageVarLogPath = filepath.Join(packagePath, configure.VarLogPath)
-	packageVarDataPath = filepath.Join(packagePath, configure.VarDataPath)
-
-	if !(opts.App.MemtxDir == opts.App.WalDir && opts.App.WalDir == opts.App.VinylDir) {
-		packageVarVinylPath = filepath.Join(packagePath, configure.VarVinylPath)
-		packageVarWalPath = filepath.Join(packagePath, configure.VarWalPath)
-		packageVarMemtxPath = filepath.Join(packagePath, configure.VarMemtxPath)
-	} else {
-		packageVarVinylPath = packageVarDataPath
-		packageVarWalPath = packageVarDataPath
-		packageVarMemtxPath = packageVarDataPath
-	}
-
-	packageBinPath = filepath.Join(packagePath, configure.BinPath)
-	packageModulesPath = filepath.Join(packagePath, configure.ModulesPath)
-	packageIncludePath = filepath.Join(packagePath, configure.IncludePath)
-
-	packageInstancesEnabledPath = filepath.Join(packagePath, configure.InstancesEnabledDirName)
 }
 
 // getVersion returns a version of the package.

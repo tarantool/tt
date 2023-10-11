@@ -151,7 +151,7 @@ func Test_collectInstancesForApps(t *testing.T) {
 	}
 	cliOpts := configure.GetDefaultCliOpts()
 	cliOpts.Env.InstancesEnabled = instancesEnabled
-	instances, err := collectInstancesForApps(apps, cliOpts, "/etc/tarantool/")
+	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/")
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(instances))
 
@@ -281,7 +281,7 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 	appDir := filepath.Join(instancesEnabled, appName)
 	cliOpts := configure.GetDefaultCliOpts()
 	cliOpts.Env.InstancesEnabled = instancesEnabled
-	instances, err := collectInstancesForApps(apps, cliOpts, "/etc/tarantool/")
+	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/")
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 
@@ -314,7 +314,7 @@ func Test_collectInstancesSingleInstanceTntCtlLayout(t *testing.T) {
 	cliOpts.Env.InstancesEnabled = instancesEnabled
 	cliOpts.Env.TarantoolctlLayout = true
 	cfgDir := "/etc/tarantool/"
-	instances, err := collectInstancesForApps(apps, cliOpts, cfgDir)
+	instances, err := CollectInstancesForApps(apps, cliOpts, cfgDir)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 

@@ -24,10 +24,6 @@ def get_arch():
 
 def assert_bundle_structure(path):
     assert os.path.isfile(os.path.join(path, config_name))
-    assert os.path.isdir(os.path.join(path, "var"))
-    assert os.path.isdir(os.path.join(path, "var/run"))
-    assert os.path.isdir(os.path.join(path, "var/lib"))
-    assert os.path.isdir(os.path.join(path, "var/log"))
     assert os.path.isdir(os.path.join(path, "bin"))
     assert os.path.isdir(os.path.join(path, "modules"))
 
@@ -70,6 +66,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
     tt_cmd = tt_cmd
     return [
         {
+            "name": "Test --name option.",
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -82,10 +79,17 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
             ],
-            "check_not_exist": [],
+            "check_not_exist": [
+                os.path.join("app2", "var", "run"),
+                os.path.join("app2", "var", "log"),
+                os.path.join("app2", "var", "lib"),
+                os.path.join("instances.enabled", "app1"),
+                os.path.join("app1"),
+            ],
             "artifacts_in_separated_dir": False,
         },
         {
+            "name": "Test --version option.",
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -102,6 +106,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "artifacts_in_separated_dir": False,
         },
         {
+            "name": "Test --version and --name options.",
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -119,6 +124,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "artifacts_in_separated_dir": False,
         },
         {
+            "name": "Test --name option.",
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -200,7 +206,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             ],
             "check_not_exist": [
                 os.path.join("bin"),
-                os.path.join("instances_enabled"),
+                os.path.join("instances.enabled"),
                 os.path.join("modules"),
                 os.path.join("var"),
                 os.path.join("tt.yaml"),
@@ -265,16 +271,21 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
-                os.path.join("var", "lib", "app1", "test.snap"),
-                os.path.join("var", "lib", "app1", "test.xlog"),
-                os.path.join("var", "lib", "app1", "test.vylog"),
-                os.path.join("var", "lib", "app2", "test.snap"),
-                os.path.join("var", "lib", "app2", "test.xlog"),
-                os.path.join("var", "log", "app1", "test.log"),
-                os.path.join("var", "log", "app2", "test.log"),
+                os.path.join("instances.enabled", "app1", "var", "lib", "app1", "test.xlog"),
+                os.path.join("instances.enabled", "app1", "var", "log", "app1", "test.log"),
+
+                os.path.join("instances.enabled", "app2", "var", "lib", "inst1", "test.vylog"),
+                os.path.join("instances.enabled", "app2", "var", "lib", "inst1", "test.snap"),
+                os.path.join("instances.enabled", "app2", "var", "lib", "inst1", "test.xlog"),
+
+                os.path.join("instances.enabled", "app2", "var", "lib", "inst2", "test.xlog"),
+                os.path.join("instances.enabled", "app2", "var", "lib", "inst2", "test.snap"),
+
+                os.path.join("instances.enabled", "app2", "var", "log", "inst1", "test.log"),
+                os.path.join("instances.enabled", "app2", "var", "log", "inst2", "test.log"),
             ],
             "check_not_exist": [
-                os.path.join("var", "lib", "app2", "test.vylog"),
+                "var",
             ],
             "artifacts_in_separated_dir": False,
         },
@@ -291,22 +302,23 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
-                os.path.join("var", "snap", "app1", "test.snap"),
-                os.path.join("var", "wal", "app1", "test.xlog"),
-                os.path.join("var", "vinyl", "app1", "test.vylog"),
-                os.path.join("var", "snap", "app2", "test.snap"),
-                os.path.join("var", "wal", "app2", "test.xlog"),
-                os.path.join("var", "vinyl", "app2", "test.vylog"),
-                os.path.join("var", "log", "app1", "test.log"),
-                os.path.join("var", "log", "app2", "test.log"),
+                os.path.join("instances.enabled", "app1", "var", "vinyl", "app1"),
+                os.path.join("instances.enabled", "app1", "var", "snap", "app1"),
+                os.path.join("instances.enabled", "app1", "var", "wal", "app1"),
+                os.path.join("instances.enabled", "app1", "var", "log", "app1", "tt.log"),
+
+                os.path.join("app2", "var", "vinyl", "app2", "test.vylog"),
+                os.path.join("app2", "var", "snap", "app2", "test.snap"),
+                os.path.join("app2", "var", "wal", "app2", "test.xlog"),
+                os.path.join("app2", "var", "log", "app2", "tt.log"),
             ],
             "check_not_exist": [
-                os.path.join("var", "lib", "memtx", "app1", "test.snap"),
-                os.path.join("var", "lib", "wal", "app1", "test.xlog"),
-                os.path.join("var", "lib", "vinyl", "app1", "test.vylog"),
-                os.path.join("var", "lib", "memtx", "app2", "test.snap"),
-                os.path.join("var", "lib", "wal", "app2", "test.xlog"),
-                os.path.join("var", "lib", "vinyl", "app2", "test.vylog"),
+                os.path.join("instances.enabled", "app1", "var", "lib"),
+                os.path.join("instances.enabled", "app1", "var", "memtx"),
+                os.path.join("instances.enabled", "app1", "var", "run"),
+                os.path.join("app2", "var", "lib", "memtx"),
+                os.path.join("app2", "var", "lib", "wal"),
+                os.path.join("var"),
             ],
             "artifacts_in_separated_dir": True,
         },
@@ -411,9 +423,9 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("instances.enabled", "app.lua"),
-                os.path.join("var", "wal", "app", "artifact_wal"),
-                os.path.join("var", "vinyl", "app", "artifact_vinyl"),
-                os.path.join("var", "snap", "app", "artifact_memtx"),
+                os.path.join("instances.enabled", "app", "var", "wal", "app", "artifact_wal"),
+                os.path.join("instances.enabled", "app", "var", "vinyl", "app", "artifact_vinyl"),
+                os.path.join("instances.enabled", "app", "var", "snap", "app", "artifact_memtx"),
             ],
             "check_not_exist": [],
             "artifacts_in_separated_dir": True,
@@ -429,9 +441,9 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("instances.enabled", "app.lua"),
-                os.path.join("var", "wal", "app", "artifact_wal"),
-                os.path.join("var", "vinyl", "app", "artifact_vinyl"),
-                os.path.join("var", "snap", "app", "artifact_memtx"),
+                os.path.join("instances.enabled", "app", "var", "wal", "app", "artifact_wal"),
+                os.path.join("instances.enabled", "app", "var", "vinyl", "app", "artifact_vinyl"),
+                os.path.join("instances.enabled", "app", "var", "snap", "app", "artifact_memtx"),
             ],
             "check_not_exist": [],
             "artifacts_in_separated_dir": True,
@@ -538,6 +550,12 @@ def test_pack_tgz_files_with_compat(tt_cmd, tmpdir):
     tar.close()
 
     assert len([name for name in os.listdir(extract_path)]) == 1
+    assert os.path.exists(os.path.join(extract_path, "app_name", "tt"))
+    assert os.path.exists(os.path.join(extract_path, "app_name", "tarantool"))
+    assert os.path.exists(os.path.join(extract_path, "app_name", "tt.yaml"))
+    assert os.path.exists(os.path.join(extract_path, "app_name", "init.lua"))
+    assert os.path.exists(os.path.join(extract_path, "app_name", "VERSION"))
+    assert os.path.exists(os.path.join(extract_path, "app_name", "VERSION.lua"))
 
 
 @pytest.mark.slow
@@ -972,8 +990,7 @@ def test_pack_deb(tt_cmd, tmpdir):
     assert re.search(r'Unpacking bundle \(0\.1\.0\)', output)
     assert re.search(r'Setting up bundle \(0\.1\.0\)', output)
 
-    installed_package_paths = ['app.lua', 'app2', 'instances.enabled',
-                               config_name, 'var']
+    installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
     systemd_units = ['bundle1@.service', 'bundle1.service']
 
     for path in installed_package_paths:
@@ -1020,8 +1037,7 @@ def test_pack_rpm(tt_cmd, tmpdir):
                                              '&& ls /usr/share/tarantool/bundle1 '
                                              '&& systemctl list-unit-files | grep bundle1'
                                             .format(package_file_name)])
-    installed_package_paths = ['app.lua', 'app2', 'instances.enabled',
-                               config_name, 'var']
+    installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
     systemd_units = ['bundle1@.service', 'bundle1.service']
 
     for path in installed_package_paths:
@@ -1067,8 +1083,7 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
                                              'rpm -i {0} && ls /usr/share/tarantool/bundle1 '
                                              '&& ls /usr/lib/systemd/system'
                                             .format(package_file_name)])
-    installed_package_paths = ['app.lua', 'app2', 'instances.enabled',
-                               config_name, 'var']
+    installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
     systemd_paths = ['bundle1%.service', 'bundle1.service']
 
     for path in installed_package_paths:
