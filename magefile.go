@@ -36,6 +36,7 @@ var (
 		"-s", "-w",
 		"-X ${PACKAGE}/version.gitTag=${GIT_TAG}",
 		"-X ${PACKAGE}/version.gitCommit=${GIT_COMMIT}",
+		"-X ${PACKAGE}/version.gitCommitSinceTag=${GIT_COMMIT_SINCE_TAG}",
 		"-X ${PACKAGE}/version.versionLabel=${VERSION_LABEL}",
 		"-X ${PACKAGE}/configure.defaultConfigPath=${CONFIG_PATH}",
 	}
@@ -366,7 +367,9 @@ func getBuildEnvironment() map[string]string {
 
 	var currentDir string
 	var gitTag string
+	var gitTagShort string
 	var gitCommit string
+	var gitCommitSinceTag string
 
 	if currentDir, err = os.Getwd(); err != nil {
 		log.Warnf("Failed to get current directory: %s", err)
@@ -374,16 +377,19 @@ func getBuildEnvironment() map[string]string {
 
 	if _, err := exec.LookPath("git"); err == nil {
 		gitTag, _ = sh.Output("git", "describe", "--tags")
+		gitTagShort, _ = sh.Output("git", "describe", "--tags", "--abbrev=0")
 		gitCommit, _ = sh.Output("git", "rev-parse", "--short", "HEAD")
+		gitCommitSinceTag, _ = sh.Output("git", "rev-list", gitTagShort+"..", "--count")
 	}
 
 	return map[string]string{
-		"PACKAGE":       goPackageName,
-		"GIT_TAG":       gitTag,
-		"GIT_COMMIT":    gitCommit,
-		"VERSION_LABEL": os.Getenv("VERSION_LABEL"),
-		"PWD":           currentDir,
-		"CONFIG_PATH":   getDefaultConfigPath(),
-		"CGO_ENABLED":   "1",
+		"PACKAGE":              goPackageName,
+		"GIT_TAG":              gitTag,
+		"GIT_COMMIT":           gitCommit,
+		"GIT_COMMIT_SINCE_TAG": gitCommitSinceTag,
+		"VERSION_LABEL":        os.Getenv("VERSION_LABEL"),
+		"PWD":                  currentDir,
+		"CONFIG_PATH":          getDefaultConfigPath(),
+		"CGO_ENABLED":          "1",
 	}
 }

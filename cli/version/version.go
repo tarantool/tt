@@ -17,9 +17,10 @@ const (
 // Get the value of this variables at build time.
 // See magefile for more details.
 var (
-	gitTag       string
-	gitCommit    string
-	versionLabel string
+	gitTag            string
+	gitCommit         string
+	gitCommitSinceTag string
+	versionLabel      string
 )
 
 // GetVersion return string with Tarantool CLI version info.
@@ -51,6 +52,13 @@ func GetVersion(showShort bool, needCommit bool) string {
 		}
 
 		return version
+	}
+
+	if gitCommitSinceTag != "" && gitCommitSinceTag != "0" && gitTag != "" {
+		return fmt.Sprintf(
+			"%s version %s, %s/%s. commit: %s (%s)",
+			cliVersionTitle, version, runtime.GOOS, runtime.GOARCH, gitCommit, gitTag,
+		)
 	}
 
 	return fmt.Sprintf(
