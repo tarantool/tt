@@ -6,7 +6,8 @@ import subprocess
 import psutil
 import pytest
 
-from utils import kill_procs, run_command_and_get_output, run_path, wait_file
+from utils import (control_socket, kill_procs, run_command_and_get_output,
+                   run_path, wait_file)
 
 
 @pytest.fixture(autouse=True)
@@ -97,7 +98,7 @@ def prepare_test_app_languages(tt_cmd, tmpdir):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'configured', [])
+    file = wait_file(os.path.join(tmpdir, "test_app"), 'configured', [])
     assert file != ""
     return "test_app", lua_file, sql_file
 
@@ -187,7 +188,7 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     commands = {}
@@ -265,6 +266,7 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
     try:
         for key, value in commands.items():
             ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", stdin=key)
+            print(output)
             assert ret
 
             assert output == value
@@ -286,7 +288,7 @@ def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     commands = {}
@@ -340,7 +342,7 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to a wrong instance.
@@ -377,23 +379,19 @@ def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_ssl_app", "test_app.lua")
-    # The test ssl files.
-    ssl_key_path = os.path.join(os.path.dirname(__file__), "test_ssl_app", "localhost.key")
-    ssl_cert_path = os.path.join(os.path.dirname(__file__), "test_ssl_app", "localhost.crt")
-    ssl_ca_path = os.path.join(os.path.dirname(__file__), "test_ssl_app", "ca.crt")
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_ssl_app")
     # The test file.
     empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
 
     # Copy test data into temporary directory.
-    files = [test_app_path, empty_file_path, ssl_key_path, ssl_cert_path, ssl_ca_path]
-    copy_data(tmpdir, files)
+    shutil.copytree(test_app_path, os.path.join(tmpdir, "test_ssl_app"))
+    shutil.copy(empty_file_path, os.path.join(tmpdir, "test_ssl_app", empty_file))
 
     # Start an instance.
-    start_app(tt_cmd, tmpdir, "test_app")
+    start_app(tt_cmd, tmpdir, "test_ssl_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_ssl_app'), 'ready', [])
     assert file != ""
 
     server = "localhost:3013"
@@ -404,15 +402,15 @@ def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
 
     # Connect to the instance.
     opts = {
-        "--sslkeyfile": "localhost.key",
-        "--sslcertfile": "localhost.crt",
-        "--sslcafile": "ca.crt",
+        "--sslkeyfile": "test_ssl_app/localhost.key",
+        "--sslcertfile": "test_ssl_app/localhost.crt",
+        "--sslcafile": "test_ssl_app/ca.crt",
     }
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file, opts=opts)
     assert ret
 
     # Stop the Instance.
-    stop_app(tt_cmd, tmpdir, "test_app")
+    stop_app(tt_cmd, tmpdir, "test_ssl_app")
 
 
 def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
@@ -429,7 +427,7 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect with a wrong credentials.
@@ -516,7 +514,8 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.control', [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
+                     control_socket, [])
     assert file != ""
 
     # Connect to a wrong instance.
@@ -554,7 +553,8 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.control', [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
+                     control_socket, [])
     assert file != ""
 
     # Connect with a wrong credentials.
@@ -599,8 +599,8 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
 
     # Check for start.
     for instance in instances:
-        master_run_path = os.path.join(tmpdir, run_path, app_name, instance)
-        file = wait_file(master_run_path, instance + ".control", [])
+        master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
+        file = wait_file(master_run_path, control_socket, [])
         assert file != ""
 
     # Connect to a non-exist instance.
@@ -637,8 +637,8 @@ def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, app_name)
 
     # Check for start.
-    master_run_path = os.path.join(tmpdir, run_path, app_name, "master")
-    file = wait_file(master_run_path, "master.control", [])
+    master_run_path = os.path.join(tmpdir, app_name, run_path, "master")
+    file = wait_file(master_run_path, control_socket, [])
     assert file != ""
 
     # Connect with a wrong credentials.
@@ -807,7 +807,7 @@ def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.
@@ -892,7 +892,7 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.
@@ -1192,7 +1192,7 @@ def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.
@@ -1267,7 +1267,7 @@ def test_output_format_round_switching(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.
@@ -1309,7 +1309,7 @@ def test_output_format_short_named_selecting(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.
@@ -1352,7 +1352,7 @@ def test_output_format_full_named_selecting(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.
@@ -1399,7 +1399,7 @@ def test_output_format_tables_pseudo_graphic_disable(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.
@@ -1445,7 +1445,7 @@ def test_output_format_tables_width_option(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.
@@ -1517,7 +1517,7 @@ def test_output_format_tables_dialects(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(tmpdir, 'ready', [])
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
     assert file != ""
 
     # Connect to the instance.

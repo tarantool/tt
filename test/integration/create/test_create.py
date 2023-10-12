@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from utils import (config_name, extract_status, get_tarantool_version,
-                   run_command_and_get_output, wait_file)
+                   pid_file, run_command_and_get_output, wait_file)
 
 tt_config_text = '''env:
   instances_enabled: test.instances.enabled
@@ -761,9 +761,9 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     start_output = instance_process.stdout.readlines()
     for line in start_output:
         assert "Starting an instance" in line
-    for pid_file in ["router", "s1-master", "s1-replica", "s2-master", "s2-replica"]:
-        print("Waiting for " + os.path.join(tmpdir, "app1", pid_file))
-        file = wait_file(os.path.join(tmpdir, "app1", pid_file), pid_file + ".pid", [])
+    for inst in ["router", "s1-master", "s1-replica", "s2-master", "s2-replica"]:
+        file = wait_file(os.path.join(tmpdir, "test.instances.enabled", "app1", inst),
+                         pid_file, [])
         assert file != ""
 
     # Check status.

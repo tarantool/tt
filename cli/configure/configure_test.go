@@ -283,19 +283,22 @@ func TestUpdateCliOpts(t *testing.T) {
 			LogMaxAge:  42,
 			LogMaxSize: 200,
 		},
+		Modules: &config.ModulesOpts{},
+		EE:      &config.EEOpts{},
+		Repo:    &config.RepoOpts{},
 	}
 	configDir := "/etc/tarantool"
 
 	err := updateCliOpts(&cliOpts, configDir)
 	require.NoError(t, err)
 	assert.Equal(t, "/var/run", cliOpts.App.RunDir)
-	assert.Equal(t, filepath.Join(configDir, "var", "log"), cliOpts.App.LogDir)
-	assert.Equal(t, filepath.Join(configDir, "var", "lib", "wal"), cliOpts.App.WalDir)
-	assert.Equal(t, filepath.Join(configDir, "var", "lib", "vinyl"), cliOpts.App.VinylDir)
-	assert.Equal(t, filepath.Join(configDir, "var", "lib", "snap"), cliOpts.App.MemtxDir)
+	assert.Equal(t, filepath.Join("var", "log"), cliOpts.App.LogDir)
+	assert.Equal(t, "./var/lib/wal", cliOpts.App.WalDir)
+	assert.Equal(t, "./var/lib/vinyl", cliOpts.App.VinylDir)
+	assert.Equal(t, "./var/lib/snap", cliOpts.App.MemtxDir)
 	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.Env.IncludeDir)
 	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directory)
-	assert.Equal(t, ".", cliOpts.Env.InstancesEnabled)
+	assert.Equal(t, configDir, cliOpts.Env.InstancesEnabled)
 	assert.Equal(t, 42, cliOpts.Env.LogMaxAge)
 	assert.Equal(t, logMaxBackups, cliOpts.Env.LogMaxBackups)
 	assert.Equal(t, 200, cliOpts.Env.LogMaxSize)

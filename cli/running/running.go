@@ -207,18 +207,21 @@ func (provider *providerImpl) IsRestartable() (bool, error) {
 }
 
 // searchApplicationScript searches for application script in a directory.
-func searchApplicationScript(applicationsDir string, appName string) (string, error) {
-	luaPath := filepath.Join(applicationsDir, appName+".lua")
+func searchApplicationScript(applicationsDir string, appName string) (InstanceCtx, error) {
+	instCtx := InstanceCtx{AppName: appName, InstName: appName, SingleApp: true,
+		AppDir: util.JoinPaths(applicationsDir, appName)}
 
+	luaPath := filepath.Join(applicationsDir, appName+".lua")
 	if _, err := os.Stat(luaPath); err != nil {
 		if os.IsNotExist(err) {
-			return "", nil
+			return instCtx, nil
 		} else {
-			return "", err
+			return instCtx, err
 		}
 	}
 
-	return luaPath, nil
+	instCtx.InstanceScript = luaPath
+	return instCtx, nil
 }
 
 // appDirCtx describes important files in application directory.
@@ -387,12 +390,9 @@ func CollectInstances(appName string, applicationsDir string) ([]InstanceCtx, er
 	// 4) Read application list from `appName/instances.yml`
 	// If appName equals to base directory name, current working
 	// directory is considered as application to work with.
-	if luaPath, err := searchApplicationScript(applicationsDir, appName); err != nil {
-		return []InstanceCtx{}, err
-	} else if luaPath != "" {
-		return []InstanceCtx{
-			{InstanceScript: luaPath, AppName: appName, InstName: appName, SingleApp: true},
-		}, nil
+	if instCtx, err := searchApplicationScript(applicationsDir, appName); err != nil ||
+		instCtx.InstanceScript != "" {
+		return []InstanceCtx{instCtx}, err
 	}
 
 	appDir := filepath.Join(applicationsDir, appName)
@@ -474,14 +474,11 @@ func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts, ttConfig
 	if cliOpts.App != nil {
 		var envLayout layout.Layout = nil
 		var err error
-		if inst.SingleApp {
-			if tarantoolCtlLayout {
-				envLayout, err = layout.NewTntCtlLayout(ttConfigDir, inst.AppName)
-			} else {
-				envLayout, err = layout.NewSingleInstanceLayout(ttConfigDir, inst.AppName)
-			}
+		if tarantoolCtlLayout && inst.SingleApp {
+			// Tarantoolctl layout is still relative to the configuration file location.
+			envLayout, err = layout.NewTntCtlLayout(ttConfigDir, inst.AppName)
 		} else {
-			envLayout, err = layout.NewMultiInstLayout(ttConfigDir, inst.AppName, inst.InstName)
+			envLayout, err = layout.NewMultiInstLayout(inst.AppDir, inst.AppName, inst.InstName)
 		}
 		if err != nil {
 			return err
@@ -555,7 +552,9 @@ func collectInstancesForApps(appList []util.AppListEntry, cliOpts *config.CliOpt
 		for _, inst := range collectedInstances {
 			var instance = inst
 
-			setInstCtxFromTtConfig(&instance, cliOpts, ttConfigDir)
+			if err = setInstCtxFromTtConfig(&instance, cliOpts, ttConfigDir); err != nil {
+				return instances, err
+			}
 
 			if err = setInstCtxFromClusterConfig(&instance); err != nil {
 				return instances, err

@@ -7,7 +7,8 @@ import pytest
 import yaml
 
 import utils
-from utils import get_tarantool_version, run_command_and_get_output, wait_file
+from utils import (get_tarantool_version, pid_file, run_command_and_get_output,
+                   wait_file)
 
 cartridge_name = "test_app"
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
@@ -66,12 +67,12 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
 
     # Wait for the full start of the cartridge.
     for inst in instances:
-        run_dir = os.path.join(tmpdir, utils.run_path, cartridge_name, inst)
-        log_dir = os.path.join(tmpdir, utils.log_path, cartridge_name, inst)
+        run_dir = os.path.join(tmpdir, cartridge_name, utils.run_path, inst)
+        log_dir = os.path.join(tmpdir, cartridge_name, utils.log_path, inst)
 
-        file = wait_file(run_dir, inst + '.pid', [])
+        file = wait_file(run_dir, pid_file, [])
         assert file != ""
-        file = wait_file(log_dir, inst + '.log', [])
+        file = wait_file(log_dir, 'tt.log', [])
         assert file != ""
 
         started = False
@@ -82,7 +83,7 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
                 break
             if trying == 200:
                 break
-            with open(os.path.join(log_dir, inst + '.log'), "r") as fp:
+            with open(os.path.join(log_dir, 'tt.log'), "r") as fp:
                 lines = fp.readlines()
                 lines = [line.rstrip() for line in lines]
             for line in lines:
@@ -187,12 +188,12 @@ def test_cartridge_base_functionality_in_app_dir(tt_cmd, tmpdir_with_cfg):
     # Wait for the full start of the cartridge.
     try:
         for inst in instances:
-            run_dir = os.path.join(app_dir, utils.run_path, cartridge_name, inst)
-            log_dir = os.path.join(app_dir, utils.log_path, cartridge_name, inst)
+            run_dir = os.path.join(app_dir, utils.run_path, inst)
+            log_dir = os.path.join(app_dir, utils.log_path, inst)
 
-            file = wait_file(run_dir, inst + '.pid', [])
+            file = wait_file(run_dir, pid_file, [])
             assert file != ""
-            file = wait_file(log_dir, inst + '.log', [])
+            file = wait_file(log_dir, 'tt.log', [])
             assert file != ""
 
             started = False
@@ -203,7 +204,7 @@ def test_cartridge_base_functionality_in_app_dir(tt_cmd, tmpdir_with_cfg):
                     break
                 if trying == 200:
                     break
-                with open(os.path.join(log_dir, inst + '.log'), "r") as fp:
+                with open(os.path.join(log_dir, 'tt.log'), "r") as fp:
                     lines = fp.readlines()
                     lines = [line.rstrip() for line in lines]
                 for line in lines:

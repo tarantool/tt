@@ -14,6 +14,9 @@ import yaml
 run_path = os.path.join("var", "run")
 log_path = os.path.join("var", "log")
 config_name = "tt.yaml"
+control_socket = "tarantool.control"
+pid_file = "tt.pid"
+log_file = "tt.log"
 
 
 def run_command_and_get_output(

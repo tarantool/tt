@@ -74,7 +74,7 @@ modules:
 env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
-  instances_enabled: .
+  instances_enabled: %[1]s
   log_maxsize: 1024
   log_maxage: 8
   log_maxbackups: 10
@@ -83,14 +83,15 @@ env:
 modules:
   directory: /root/modules
 app:
-  run_dir: %[1]s/var/run
-  log_dir: %[1]s/var/log
-  wal_dir: %[1]s/wal
-  memtx_dir: %[1]s/var/lib
-  vinyl_dir: %[1]s/var/lib
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: ./wal
+  memtx_dir: var/lib
+  vinyl_dir: var/lib
 ee:
   credential_path: ""
-templates: []
+templates:
+- path: %[1]s/templates
 repo:
   rocks: ""
   distfiles: %[1]s/distfiles
@@ -121,11 +122,11 @@ env:
 modules:
   directory: %[1]s/my_modules
 app:
-  run_dir: %[1]s/var/run
-  log_dir: %[1]s/var/log
-  wal_dir: %[1]s/var/lib
-  memtx_dir: %[1]s/var/lib
-  vinyl_dir: %[1]s/var/lib
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: var/lib
+  memtx_dir: var/lib
+  vinyl_dir: var/lib
 ee:
   credential_path: ""
 templates:
@@ -135,6 +136,45 @@ repo:
   rocks: ""
   distfiles: %[1]s/distfiles
 `, configDir),
+			wantErr: false,
+		},
+		{
+			name: "Config dump, config dir is app dir",
+			args: args{
+				&cmdcontext.CmdCtx{
+					Cli: cmdcontext.CliCtx{
+						ConfigPath: "./testdata/app_dir/tt_cfg.yaml",
+					},
+				},
+				&DumpCtx{RawDump: false},
+				getCliOpts(t, "testdata/app_dir/tt_cfg.yaml"),
+			},
+			wantWriter: fmt.Sprintf(`./testdata/app_dir/tt_cfg.yaml:
+env:
+  bin_dir: %[1]s/bin
+  inc_dir: %[1]s/test_inc
+  instances_enabled: .
+  log_maxsize: 1024
+  log_maxage: 8
+  log_maxbackups: 10
+  restart_on_failure: false
+  tarantoolctl_layout: false
+modules:
+  directory: /root/modules
+app:
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: ./wal
+  memtx_dir: var/lib
+  vinyl_dir: var/lib
+ee:
+  credential_path: ""
+templates:
+- path: %[1]s/templates
+repo:
+  rocks: ""
+  distfiles: %[1]s/distfiles
+`, filepath.Join(cwd, "testdata", "app_dir")),
 			wantErr: false,
 		},
 	}

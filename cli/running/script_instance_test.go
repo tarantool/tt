@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -25,16 +24,19 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 	logger *ttlog.Logger) *scriptInstance {
 	assert := assert.New(t)
 
-	instTestDataDir := t.TempDir()
-
-	appPath := path.Join(instTestAppDir, app+".lua")
-	_, err := os.Stat(appPath)
+	// Need absolute path to the script, because working dir is changed on start.
+	appPath, err := filepath.Abs(filepath.Join(instTestAppDir, app+".lua"))
 	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")
 	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
+	instTestDataDir := t.TempDir()
+	binPath, err := os.Executable()
+	require.NoError(t, err)
+	binDir := filepath.Dir(binPath)
 	inst, err := newScriptInstance(tarantoolBin, InstanceCtx{
+		AppDir:         binDir,
 		InstanceScript: appPath,
 		ConsoleSocket:  consoleSock,
 		WalDir:         instTestDataDir,
@@ -44,9 +46,8 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 		logger)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
-	binPath, err := os.Executable()
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
-	os.Setenv("started_flag_file", filepath.Join(filepath.Dir(binPath), app))
+	os.Setenv("started_flag_file", filepath.Join(binDir, app))
 	defer os.Remove(os.Getenv("started_flag_file"))
 	err = inst.Start()
 	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
