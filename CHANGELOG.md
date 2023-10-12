@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Global flags are required to be positioned only before child
 commands. Example: ``tt --cfg tt.yaml install tt``.
 - tt config format: separate tt environment options from application options.
+- tt version: additional version information for non-release builds.
 
 ### Added
 
