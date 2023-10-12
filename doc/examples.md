@@ -768,9 +768,9 @@ counterparts in `tt`: build, start, stop, status, etc.:
 
     $ tt connect app:router
     • Connecting to the instance...
-    • Connected to /home/user/app/var/run/app/router/router.control
+    • Connected to app:router
 
-    /home/user/app/var/run/app/router/router.control>
+    app:router>
 
     $ tt connect localhost:3302
     • Connecting to the instance...

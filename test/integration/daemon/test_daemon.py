@@ -208,7 +208,8 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
 
-    file = utils.wait_file(os.path.join(tmpdir, utils.run_path, "test_app"), 'test_app.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, "test_app", utils.run_path, "test_app"),
+                           utils.pid_file, [])
     assert file != ""
 
     body = {"command_name": "status", "params": ["test_app"]}
@@ -281,7 +282,8 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
 
-    file = utils.wait_file(os.path.join(tmpdir, utils.run_path, "test_app"), 'test_app.pid', [])
+    file = utils.wait_file(os.path.join(tmpdir, "test_app", utils.run_path, "test_app"),
+                           utils.pid_file, [])
     assert file != ""
 
     body = {"command_name": "status", "params": ["test_app"]}

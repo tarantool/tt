@@ -218,13 +218,6 @@ func InitRoot() {
 		cmdCtx.Cli.ConfigDir = filepath.Dir(cmdCtx.Cli.ConfigPath)
 	}
 
-	// Setup TT_INST_ENABLED with instances_enabled path.
-	// Required for cartridge.
-	if cliOpts.App != nil {
-		os.Setenv("TT_INST_ENABLED", cliOpts.Env.InstancesEnabled)
-		os.Setenv("TT_RUN_DIR", cliOpts.App.RunDir)
-	}
-
 	// Getting modules information.
 	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd, cliOpts)
 	if err != nil {

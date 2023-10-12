@@ -13,6 +13,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/cli/util"
 )
 
 const (
@@ -31,6 +32,8 @@ type scriptInstance struct {
 	tarantoolPath string
 	// appPath describes the path to the "init" file of an application.
 	appPath string
+	// appDir is an application directory.
+	appDir string
 	// appName describes the application name (the name of the directory
 	// where the application files are present).
 	appName string
@@ -66,6 +69,7 @@ func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx,
 		tarantoolPath: tarantoolPath,
 		appPath:       instanceCtx.InstanceScript,
 		appName:       instanceCtx.AppName,
+		appDir:        instanceCtx.AppDir,
 		instName:      instanceCtx.InstName,
 		consoleSocket: instanceCtx.ConsoleSocket,
 		logger:        logger,
@@ -120,10 +124,18 @@ func (inst *scriptInstance) Start() error {
 	}
 
 	cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
-	workDir, err := os.Getwd()
-	if err != nil {
-		return err
+	if inst.appDir == "" {
+		inst.appDir = filepath.Dir(inst.appPath)
 	}
+	if !util.IsDir(inst.appDir) {
+		if err := os.MkdirAll(inst.appDir, defaultDirPerms); err != nil {
+			return fmt.Errorf("failed to create application directory %q: %w", inst.appDir, err)
+		}
+	}
+	workDir := inst.appDir
+	cmd.Env = append(cmd.Env, "PWD="+workDir)
+	cmd.Dir = workDir
+
 	if inst.consoleSocket != "" {
 		consoleSocket, err := shortenSocketPath(inst.consoleSocket, workDir)
 		if err != nil {

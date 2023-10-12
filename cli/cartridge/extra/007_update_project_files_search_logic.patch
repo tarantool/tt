@@ -1,0 +1,71 @@
+diff --git a/cli/project/files.go b/cli/project/files.go
+index bd576d0..4dcae52 100644
+--- a/cli/project/files.go
++++ b/cli/project/files.go
+@@ -70,7 +70,7 @@ func GetStateboardWorkDir(ctx *context.Ctx) string {
+ }
+
+ func GetInstancePidFile(ctx *context.Ctx, instanceName string) string {
+-	pidFileName := fmt.Sprintf("%s.pid", GetInstanceID(ctx, instanceName))
++	pidFileName := fmt.Sprintf("%s/tt.pid", instanceName)
+ 	return filepath.Join(
+ 		ctx.Running.RunDir,
+ 		pidFileName,
+@@ -78,7 +78,7 @@ func GetInstancePidFile(ctx *context.Ctx, instanceName string) string {
+ }
+
+ func GetStateboardPidFile(ctx *context.Ctx) string {
+-	pidFileName := fmt.Sprintf("%s.pid", ctx.Project.StateboardName)
++	pidFileName := fmt.Sprintf("%s/tt.pid", ctx.Project.StateboardName)
+ 	return filepath.Join(
+ 		ctx.Running.RunDir,
+ 		pidFileName,
+@@ -86,7 +86,7 @@ func GetStateboardPidFile(ctx *context.Ctx) string {
+ }
+
+ func GetInstanceConsoleSock(ctx *context.Ctx, instanceName string) string {
+-	consoleSockName := fmt.Sprintf("%s.control", GetInstanceID(ctx, instanceName))
++	consoleSockName := fmt.Sprintf("%s/tarantool.control", instanceName)
+ 	return filepath.Join(
+ 		ctx.Running.RunDir,
+ 		consoleSockName,
+@@ -94,7 +94,7 @@ func GetInstanceConsoleSock(ctx *context.Ctx, instanceName string) string {
+ }
+
+ func GetStateboardConsoleSock(ctx *context.Ctx) string {
+-	consoleSockName := fmt.Sprintf("%s.control", ctx.Project.StateboardName)
++	consoleSockName := fmt.Sprintf("%s/tarantool.control", ctx.Project.StateboardName)
+ 	return filepath.Join(
+ 		ctx.Running.RunDir,
+ 		consoleSockName,
+@@ -120,14 +120,14 @@ func GetStateboardNotifySockPath(ctx *context.Ctx) string {
+ func GetInstanceLogFile(ctx *context.Ctx, instanceName string) string {
+ 	return filepath.Join(
+ 		ctx.Running.LogDir,
+-		fmt.Sprintf("%s.log", GetInstanceID(ctx, instanceName)),
++		fmt.Sprintf("%s/tt.log", instanceName),
+ 	)
+ }
+
+ func GetStateboardLogFile(ctx *context.Ctx) string {
+ 	return filepath.Join(
+ 		ctx.Running.LogDir,
+-		fmt.Sprintf("%s.log", ctx.Project.StateboardName),
++		fmt.Sprintf("%s/tt.log", ctx.Project.StateboardName),
+ 	)
+ }
+
+diff --git a/cli/project/project.go b/cli/project/project.go
+index 3d3a995..395641e 100644
+--- a/cli/project/project.go
++++ b/cli/project/project.go
+@@ -43,8 +43,7 @@ func FillCtx(ctx *context.Ctx) error {
+
+ 	runDir := os.Getenv(EnvRunDir)
+ 	if runDir != "" {
+-		appName := filepath.Base(ctx.Running.AppDir)
+-		ctx.Running.RunDir = filepath.Join(runDir, appName)
++		ctx.Running.RunDir = runDir
+ 	}
+
+ 	ctx.Replicasets.File = filepath.Join(ctx.Running.AppDir, "replicasets.yml")

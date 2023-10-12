@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 commands. Example: ``tt --cfg tt.yaml install tt``.
 - tt config format: separate tt environment options from application options.
 - tt version: additional version information for non-release builds.
+- Working directory is changed to an application source directory.
+If the application is a script, new working directory will be created
+in instances enabled location.
+- Re-worked application runtime artifacts layout: `app` section relative
+paths are considered relative to working directory, which is an application
+source directory. Application name sub-directory no longer used for relative
+paths. Default names are changed for PID-files, control sockets and log files.
 
 ### Added
 

@@ -144,6 +144,7 @@ func PatchCC() error {
 		"004_fix_warning.patch",
 		"005_rename_tt_env.patch",
 		"006_consider_tt_run_dir.patch",
+		"007_update_project_files_search_logic.patch",
 	}
 
 	for _, patch := range patches {

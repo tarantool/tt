@@ -50,39 +50,47 @@ the applications being developed will be used.
 The example of a typical "environment":
 
 ```mermaid
+graph LR
+    %% Colors %%
+    classDef lime fill:#C7EA46,stroke:#000,color:#000
 
-    C4Component
+    subgraph dot[Environment root]
+      config
+      bin
+      modules
+      local_reps
+      inst_enabled[instances.enabled]
+    end
+    subgraph local_reps[Local repositories]
+      dist[distfiles]
+      rocks[rocks]
+    end
+    subgraph app1_files[Application]
+        app_dir[app]
+        app_dir --> init(init.lua):::lime
+        app_dir --> |multi-instance|instances(instances.yaml):::lime
+        app_dir --> |3.0|cluster_config(config.yaml):::lime
+        app_dir --> var[var]
+        var --> run[run] --> inst11[instance]
+        inst11 --> pid1(tt.pid):::lime
+        inst11 --> control1(tarantool.control):::lime
 
-    Container_Boundary(env, "Environment") {
-      Component(cfg, "tt.yaml")
+        var --> log1[log] --> inst12[instance] --> logfile1(tt.log):::lime
 
-      Container(bin, "bin", "tt, tt-ee, tarantool, tarantool-ee")
-      Container(modules, "modules", "ext_module_1, ext_module_2")
-      Container(locrep, "LocalRepos", "distfiles, rocks")
-      Container_Boundary(enabled, "instances.enabled") {
-        Component(app1, "app.lua")
-        Container(app2, "app2", "init.lua, ...")
-        Container(multi_inst_app, "multi instances app", "instances.yml, ...")
-        }
-        Container_Boundary(var, "var") {
-            Container_Boundary(run, "run") {
-                Container(app_run, "app_name", "app_name.pid, app_name.socket")
-            }
-            Container_Boundary(log, "log") {
-                Container(app_log, "app_name", "app_name.log")
-            }
-            Container_Boundary(lib, "lib") {
-                Container(app_lib, "app_name", "xxx.snap, xxx.xlog")
-            }
-        }
-    }
+        var --> lib1[lib] --> inst13[instance]--> xlogs1(*.xlog,*.snap):::lime
+    end
 
-    UpdateElementStyle(env, $borderColor="#6AA3E9")
-    UpdateElementStyle(enabled, $borderColor="#6AA3E9")
-    UpdateElementStyle(var, $borderColor="#6AA3E9")
-    UpdateElementStyle(run, $borderColor="#6AA3E9")
-    UpdateElementStyle(log, $borderColor="#6AA3E9")
-    UpdateElementStyle(lib, $borderColor="#6AA3E9")
+    root[.] --> config(tt.yaml):::lime
+
+    bin --> bin_dir(tarantool<br/>tarantool-ee<br/>tt-ee<br/>tt):::lime
+    root --> bin[bin]
+
+    modules --> modules_dir(ext_module_1<br/>ext_module_2):::lime
+    root --> modules[modules]
+
+    root --> dist
+    root --> rocks
+    inst_enabled --> app_dir
 ```
 
 ## Getting started

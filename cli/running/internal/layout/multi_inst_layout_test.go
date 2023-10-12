@@ -7,20 +7,25 @@ import (
 )
 
 func TestMultiInstLayout(t *testing.T) {
-	tntCtlLayout := &MultiInstLayout{
-		baseDir:      "/home/user",
+	miLayout := &MultiInstLayout{
+		baseDir:      "/home/user/app1",
 		appName:      "app1",
 		instanceName: "master",
 	}
 
-	assert.Equal(t, "/home/user/var/run/app1/master/master.pid",
-		tntCtlLayout.PidFile("var/run"))
-	assert.Equal(t, "/home/user/var/run/app1/master/master.control",
-		tntCtlLayout.ConsoleSocket("var/run"))
-	assert.Equal(t, "/home/user/var/log/app1/master/master.log",
-		tntCtlLayout.LogFile("var/log"))
-	assert.Equal(t, "/home/user/var/lib/app1/master",
-		tntCtlLayout.DataDir("var/lib"))
+	// Relative paths.
+	assert.Equal(t, "/home/user/app1/var/run/master/tt.pid", miLayout.PidFile("var/run"))
+	assert.Equal(t, "/home/user/app1/var/run/master/tarantool.control",
+		miLayout.ConsoleSocket("var/run"))
+	assert.Equal(t, "/home/user/app1/var/log/master/tt.log", miLayout.LogFile("var/log"))
+	assert.Equal(t, "/home/user/app1/var/lib/master", miLayout.DataDir("var/lib"))
+
+	// Absolute paths.
+	assert.Equal(t, "/var/run/app1/master/tt.pid", miLayout.PidFile("/var/run"))
+	assert.Equal(t, "/var/run/app1/master/tarantool.control",
+		miLayout.ConsoleSocket("/var/run"))
+	assert.Equal(t, "/var/log/app1/master/tt.log", miLayout.LogFile("/var/log"))
+	assert.Equal(t, "/var/lib/app1/master", miLayout.DataDir("/var/lib"))
 }
 
 func TestMultiIntLayoutNewErr(t *testing.T) {

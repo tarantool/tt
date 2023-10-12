@@ -900,8 +900,7 @@ func CollectAppList(baseDir string, appsPath string, verbose bool) ([]AppListEnt
 		if IsApp(dirItem) {
 			apps = append(apps, AppListEntry{entry.Name(), dirItem})
 		} else if verbose {
-			log.Warnf("Skipping %s: the source is not an application.",
-				entry.Name())
+			log.Debugf("Skipping %s: the source is not an application.", entry.Name())
 		}
 	}
 

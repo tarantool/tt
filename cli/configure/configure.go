@@ -155,32 +155,10 @@ func adjustPathWithConfigLocation(filePath string, configDir string,
 func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	var err error
 
-	if cliOpts.App == nil {
-		cliOpts.App = getDefaultAppOpts()
-	}
-	if cliOpts.Env == nil {
-		cliOpts.Env = getDefaultTtEnvOpts()
-	}
-	if cliOpts.Repo == nil {
-		cliOpts.Repo = &config.RepoOpts{
-			Rocks:   "",
-			Install: DistfilesPath,
-		}
-	}
-	if cliOpts.Modules == nil {
-		cliOpts.Modules = &config.ModulesOpts{
-			Directory: ModulesPath,
-		}
-	}
-	if cliOpts.EE == nil {
-		cliOpts.EE = &config.EEOpts{
-			CredPath: "",
-		}
-	}
-
 	if cliOpts.Env.InstancesEnabled == "" {
 		cliOpts.Env.InstancesEnabled = "."
-	} else if cliOpts.Env.InstancesEnabled != "." || (cliOpts.Env.InstancesEnabled == "." &&
+	}
+	if cliOpts.Env.InstancesEnabled != "." || (cliOpts.Env.InstancesEnabled == "." &&
 		!util.IsApp(configDir)) {
 		if cliOpts.Env.InstancesEnabled, err =
 			adjustPathWithConfigLocation(cliOpts.Env.InstancesEnabled, configDir, ""); err != nil {
@@ -192,11 +170,6 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 		path       *string
 		defaultDir string
 	}{
-		{&cliOpts.App.RunDir, VarRunPath},
-		{&cliOpts.App.LogDir, VarLogPath},
-		{&cliOpts.App.WalDir, VarDataPath},
-		{&cliOpts.App.VinylDir, VarDataPath},
-		{&cliOpts.App.MemtxDir, VarDataPath},
 		{&cliOpts.Env.BinDir, BinPath},
 		{&cliOpts.Env.IncludeDir, IncludePath},
 		{&cliOpts.Repo.Install, DistfilesPath},
@@ -238,7 +211,7 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 // GetCliOpts returns Tarantool CLI options from the config file
 // located at path configurePath.
 func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
-	var cfg *config.CliOpts
+	var cfg *config.CliOpts = GetDefaultCliOpts()
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)
 	if err == nil {
@@ -261,7 +234,6 @@ func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
 		// what if the file exists, but access is denied, etc.
 		return nil, "", fmt.Errorf("failed to get access to configuration file: %s", err)
 	} else if os.IsNotExist(err) {
-		cfg = GetDefaultCliOpts()
 		configPath = ""
 	}
 

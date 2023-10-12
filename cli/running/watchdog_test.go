@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -58,8 +57,8 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 
 	dataDir := t.TempDir()
 
-	appPath := path.Join(wdTestAppDir, wdTestAppName+".lua")
-	_, err := os.Stat(appPath)
+	// Need absolute path to the script, because working dir is changed on start.
+	appPath, err := filepath.Abs(filepath.Join(wdTestAppDir, wdTestAppName+".lua"))
 	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")

@@ -25,17 +25,17 @@ def test_cfg_dump_default(tt_cmd, tmpdir):
     output = tt_process.stdout.read()
     assert "bin_dir: /usr/bin" in output
     assert "run_dir: /var/run" in output
-    assert f"wal_dir: {os.path.join(tmpdir, 'lib', 'wal')}" in output
-    assert f"memtx_dir: {os.path.join(tmpdir, 'lib', 'memtx')}" in output
-    assert f"vinyl_dir: {os.path.join(tmpdir, 'lib', 'vinyl')}" in output
-    assert f"log_dir: {os.path.join(tmpdir, 'var', 'log')}" in output
+    assert f"wal_dir: {os.path.join('lib', 'wal')}" in output
+    assert f"memtx_dir: {os.path.join('lib', 'memtx')}" in output
+    assert f"vinyl_dir: {os.path.join('lib', 'vinyl')}" in output
+    assert f"log_dir: {os.path.join('./var', 'log')}" in output
     assert f"inc_dir: {os.path.join(tmpdir, 'include')}" in output
     assert f"directory: {os.path.join(tmpdir, 'new_modules')}" in output
     assert f"distfiles: {os.path.join(tmpdir, 'distfiles')}" in output
     assert "log_maxsize: 100" in output
     assert "log_maxbackups: 12" in output
-    assert "instances_enabled: ." in output
-    assert "templates: []" in output
+    assert f"instances_enabled: {tmpdir}" in output
+    assert f"templates:\n- path: {os.path.join(tmpdir, 'templates')}" in output
     assert 'credential_path: ""' in output
 
 
@@ -107,11 +107,11 @@ def test_cfg_dump_default_no_config(tt_cmd, tmpdir):
     output = tt_process.stdout.read()
     print(output)
     assert f"bin_dir: {os.path.join(tmpdir, 'bin')}" in output
-    assert f"run_dir: {os.path.join(tmpdir, 'var', 'run')}" in output
-    assert f"wal_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
-    assert f"vinyl_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
-    assert f"memtx_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
-    assert f"log_dir: {os.path.join(tmpdir, 'var', 'log')}" in output
+    assert f"run_dir: {os.path.join('var', 'run')}" in output
+    assert f"wal_dir: {os.path.join('var', 'lib')}" in output
+    assert f"vinyl_dir: {os.path.join('var', 'lib')}" in output
+    assert f"memtx_dir: {os.path.join('var', 'lib')}" in output
+    assert f"log_dir: {os.path.join('var', 'log')}" in output
     assert f"inc_dir: {os.path.join(tmpdir, 'include')}" in output
     assert f"directory: {os.path.join(tmpdir, 'modules')}" in output
     assert f"distfiles: {os.path.join(tmpdir, 'distfiles')}" in output
@@ -143,11 +143,11 @@ def test_cfg_dump_default_no_config(tt_cmd, tmpdir):
     output = tt_process.stdout.read()
     print(output)
     assert f"bin_dir: {os.path.join(tmpdir, 'bin')}" in output
-    assert f"run_dir: {os.path.join(tmpdir, 'var', 'run')}" in output
-    assert f"wal_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
-    assert f"vinyl_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
-    assert f"memtx_dir: {os.path.join(tmpdir, 'var', 'lib')}" in output
-    assert f"log_dir: {os.path.join(tmpdir, 'var', 'log')}" in output
+    assert f"run_dir: {os.path.join('var', 'run')}" in output
+    assert f"wal_dir: {os.path.join('var', 'lib')}" in output
+    assert f"vinyl_dir: {os.path.join('var', 'lib')}" in output
+    assert f"memtx_dir: {os.path.join('var', 'lib')}" in output
+    assert f"log_dir: {os.path.join('var', 'log')}" in output
     assert f"inc_dir: {os.path.join(tmpdir, 'include')}" in output
     assert f"directory: {os.path.join(tmpdir, 'modules')}" in output
     assert f"distfiles: {os.path.join(tmpdir, 'distfiles')}" in output

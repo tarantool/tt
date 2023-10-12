@@ -35,23 +35,28 @@ func NewMultiInstLayout(baseDir, appName, instanceName string) (*MultiInstLayout
 
 // genFilePath generate file path.
 func (layout MultiInstLayout) genFilePath(subdir, fileName string) string {
-	dstDir := util.JoinPaths(layout.baseDir, subdir, layout.appName, layout.instanceName)
+	var dstDir string
+	if filepath.IsAbs(subdir) {
+		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.appName, layout.instanceName)
+	} else {
+		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.instanceName)
+	}
 	return filepath.Join(dstDir, fileName)
 }
 
 // PidFile returns pid file path.
 func (layout MultiInstLayout) PidFile(dir string) string {
-	return layout.genFilePath(dir, layout.instanceName+".pid")
+	return layout.genFilePath(dir, "tt.pid")
 }
 
 // LogFile returns log file path.
 func (layout MultiInstLayout) LogFile(dir string) string {
-	return layout.genFilePath(dir, layout.instanceName+".log")
+	return layout.genFilePath(dir, "tt.log")
 }
 
 // ConsoleSocket returns console file path.
 func (layout MultiInstLayout) ConsoleSocket(dir string) string {
-	return layout.genFilePath(dir, layout.instanceName+".control")
+	return layout.genFilePath(dir, "tarantool.control")
 }
 
 // DataDir returns data directory path.

@@ -7,7 +7,7 @@ import tempfile
 import yaml
 
 from utils import (config_name, extract_status, kill_child_process, log_path,
-                   run_command_and_get_output, run_path, wait_file,
+                   pid_file, run_command_and_get_output, run_path, wait_file,
                    wait_instance_start, wait_instance_stop)
 
 
@@ -30,8 +30,14 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Check status.
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
     assert file != ""
+
+    # Check working directory. tt creates a working dir for single instance apps using its name
+    # without .lua ext.
+    file = wait_file(os.path.join(tmpdir, "test_app"), 'flag', [])
+    assert file != ""
+
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
     assert status_rc == 0
@@ -68,7 +74,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Check status.
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
     assert file != ""
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -95,7 +101,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     assert instance_process_rc == 0
 
     # Check status of the new Instance.
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
     assert file != ""
     status_cmd = [tt_cmd, "status", "test_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -133,7 +139,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
 
     # Check logrotate.
 
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
     assert file != ""
     logrotate_cmd = [tt_cmd, "logrotate", "test_app"]
 
@@ -146,7 +152,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
         assert logrotate_rc == 0
         assert re.search(r"test_app: logs has been rotated. PID: \d+.", logrotate_out)
 
-        file = wait_file(os.path.join(tmpdir, log_path, "test_app"), 'test_app.*.log',
+        file = wait_file(os.path.join(tmpdir, "test_app", log_path, "test_app"), 'tt.*.log',
                          exists_log_files)
         assert file != ""
         exists_log_files.append(file)
@@ -180,7 +186,7 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Check that clean warns about application is running.
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
     assert file != ""
 
     clean_cmd = [tt_cmd, "clean", "test_app", "--force"]
@@ -199,7 +205,8 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert instance_process_rc == 0
 
     # Check that clean is working.
-    logfile = os.path.join(tmpdir, log_path, "test_app", "test_app.log")
+    logfile = os.path.join(tmpdir, "test_app", log_path, "test_app", "tt.log")
+    assert os.path.exists(logfile)
     clean_rc, clean_out = run_command_and_get_output(clean_cmd, cwd=tmpdir)
     assert clean_rc == 0
     assert re.search(r"• " + str(logfile), clean_out)
@@ -234,8 +241,7 @@ def test_running_base_functionality_working_dir_app(tt_cmd):
             # Check status.
             for instName in ["master", "replica", "router"]:
                 print(os.path.join(test_app_path, "run", "app", instName))
-                file = wait_file(os.path.join(test_app_path, run_path, "app", instName),
-                                 instName + ".pid", [])
+                file = wait_file(os.path.join(test_app_path, run_path, instName), pid_file, [])
                 assert file != ""
 
             status_cmd = [tt_cmd, "status", "app"]
@@ -285,8 +291,7 @@ def test_running_base_functionality_working_dir_app_no_app_name(tt_cmd):
             # Check status.
             for instName in ["master", "replica", "router"]:
                 print(os.path.join(test_app_path, "run", "app", instName))
-                file = wait_file(os.path.join(test_app_path, run_path, "app", instName),
-                                 instName + ".pid", [])
+                file = wait_file(os.path.join(test_app_path, run_path, instName), pid_file, [])
                 assert file != ""
 
             status_cmd = [tt_cmd, "status"]
@@ -329,7 +334,7 @@ def test_running_instance_from_multi_inst_app(tt_cmd):
         assert re.search(r"Starting an instance \[app:router\]", start_output)
 
         # Check status.
-        file = wait_file(os.path.join(test_app_path, run_path, "app", "router"), "router.pid", [])
+        file = wait_file(os.path.join(test_app_path, run_path, "router"), pid_file, [])
         assert file != ""
 
         status_cmd = [tt_cmd, "status", "app:router"]
@@ -415,7 +420,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
-    file = wait_file(os.path.join(tmpdir, run_path, "test_app"), 'test_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
     assert file != ""
 
     # Get pid of instance.
@@ -432,8 +437,8 @@ def test_running_reread_config(tt_cmd, tmpdir):
     # Wait for child process of instance to start.
     # We need to wait because watchdog starts first and only after that
     # instances starts. It is indicated by 'started' in logs.
-    log_file_path = os.path.join(tmpdir, log_path, "test_app", inst_name + ".log")
-    file = wait_file(os.path.join(tmpdir, log_path, "test_app"), 'test_app.log', [])
+    log_file_path = os.path.join(tmpdir, "test_app", log_path, "test_app", "tt.log")
+    file = wait_file(os.path.join(tmpdir, "test_app", log_path, "test_app"), 'tt.log', [])
     assert file != ""
     isStarted = wait_instance_start(log_file_path)
     assert isStarted is True
@@ -462,7 +467,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
     killed_childrens = 0
     while killed_childrens == 0:
         killed_childrens = kill_child_process(pid)
-    pid_path = os.path.join(tmpdir, run_path, "test_app", "test_app.pid")
+    pid_path = os.path.join(tmpdir, "test_app", run_path, "test_app", pid_file)
     # Wait for instance to shutdown, since instance now should shutdown after failure.
     stopped = wait_instance_stop(pid_path)
     # Check stopped, it should be 1.
@@ -507,13 +512,14 @@ def test_no_args_usage(tt_cmd):
             assert re.search(r"Starting an instance \[app2\]", start_output)
 
             # Check status.
+            inst_enabled_dir = os.path.join(test_app_path, "instances_enabled")
             for instName in ["master", "replica", "router"]:
-                file = wait_file(os.path.join(test_app_path, run_path, "app1", instName),
-                                 instName + ".pid", [])
+                file = wait_file(os.path.join(inst_enabled_dir, "app1", run_path, instName),
+                                 pid_file, [])
                 assert file != ""
 
-            file = wait_file(os.path.join(test_app_path, run_path, "app2"),
-                             "app2" + ".pid", [])
+            file = wait_file(os.path.join(inst_enabled_dir, "app2", run_path, "app2"),
+                             pid_file, [])
             assert file != ""
 
             status_cmd = [tt_cmd, "status"]
@@ -568,7 +574,7 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Check status.
-    file = wait_file(os.path.join(tmpdir, run_path, "test_env_app"), 'test_env_app.pid', [])
+    file = wait_file(os.path.join(tmpdir, "test_env_app", run_path, "test_env_app"), pid_file, [])
     assert file != ""
     status_cmd = [tt_cmd, "status", "test_env_app"]
     status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -588,7 +594,7 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
 
     # Check that log format is in json.
     isJson = False
-    logPath = os.path.join(tmpdir, "var", "log", "test_env_app", "test_env_app.log")
+    logPath = os.path.join(tmpdir, "test_env_app", "var", "log", "test_env_app", "tt.log")
     with open(logPath, "r") as file:
         for _, line in enumerate(file, start=1):
             if "{" in line:
@@ -672,8 +678,7 @@ def test_running_start(tt_cmd):
 
             # Check status.
             for instName in ["master", "replica", "router"]:
-                file = wait_file(os.path.join(test_app_path, run_path, "app", instName),
-                                 instName + ".pid", [])
+                file = wait_file(os.path.join(test_app_path, run_path, instName), pid_file, [])
                 assert file != ""
 
             status_cmd = [tt_cmd, "status"]
@@ -712,8 +717,7 @@ def test_running_start(tt_cmd):
             # Check the stopped instance is being started.
             assert re.search(r"Starting an instance \[app:router\]", start_out)
             for instName in ["master", "replica", "router"]:
-                file = wait_file(os.path.join(test_app_path, run_path, "app", instName),
-                                 instName + ".pid", [])
+                file = wait_file(os.path.join(test_app_path, run_path, instName), pid_file, [])
             assert file != ""
 
             # Check that all the instances are running again.
@@ -773,11 +777,12 @@ def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
             assert instance_process_rc == 0
 
             # Check status.
-            file = wait_file(os.path.join(test_env_path, run_path, "mi_app", "router"),
-                             "router.pid", [])
+            inst_enabled_dir = os.path.join(test_env_path, "instances.enabled")
+            file = wait_file(os.path.join(inst_enabled_dir, "mi_app", run_path, "router"),
+                             pid_file, [])
             assert file != ""
-            file = wait_file(os.path.join(test_env_path, run_path, "mi_app", "storage"),
-                             "storage.pid", [])
+            file = wait_file(os.path.join(inst_enabled_dir, "mi_app", run_path, "storage"),
+                             pid_file, [])
             assert file != ""
 
             for inst in ["router", "storage"]:
