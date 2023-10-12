@@ -43,6 +43,11 @@ var ConfigEnvPaths = [][]string{
 	[]string{"database", "txn_isolation"},
 	[]string{"database", "txn_timeout"},
 	[]string{"database", "use_mvcc_engine"},
+	[]string{"failover", "call_timeout"},
+	[]string{"failover", "connect_timeout"},
+	[]string{"failover", "lease_interval"},
+	[]string{"failover", "probe_interval"},
+	[]string{"failover", "renew_interval"},
 	[]string{"feedback", "crashinfo"},
 	[]string{"feedback", "enabled"},
 	[]string{"feedback", "host"},
@@ -127,6 +132,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"security", "password_history_length"},
 	[]string{"security", "password_lifetime_days"},
 	[]string{"security", "password_min_length"},
+	[]string{"security", "secure_erasing"},
 	[]string{"sharding", "bucket_count"},
 	[]string{"sharding", "connection_outdate_delay"},
 	[]string{"sharding", "discovery_mode"},
@@ -351,6 +357,11 @@ var TarantoolSchema = []SchemaPath{
 			MakeRecordValidator(map[string]Validator{
 				"privileges": MakeArrayValidator(
 					MakeRecordValidator(map[string]Validator{
+						"spaces": MakeArrayValidator(
+							StringValidator{}),
+						"universe": BooleanValidator{},
+						"functions": MakeArrayValidator(
+							StringValidator{}),
 						"permissions": MakeArrayValidator(
 							MakeAllowedValidator(
 								StringValidator{},
@@ -364,7 +375,8 @@ var TarantoolSchema = []SchemaPath{
 									"usage",
 									"session",
 								})),
-						"universe": BooleanValidator{},
+						"sequences": MakeArrayValidator(
+							StringValidator{}),
 					})),
 				"roles": MakeArrayValidator(
 					StringValidator{}),
@@ -380,6 +392,11 @@ var TarantoolSchema = []SchemaPath{
 					StringValidator{}),
 				"privileges": MakeArrayValidator(
 					MakeRecordValidator(map[string]Validator{
+						"spaces": MakeArrayValidator(
+							StringValidator{}),
+						"universe": BooleanValidator{},
+						"functions": MakeArrayValidator(
+							StringValidator{}),
 						"permissions": MakeArrayValidator(
 							MakeAllowedValidator(
 								StringValidator{},
@@ -393,7 +410,8 @@ var TarantoolSchema = []SchemaPath{
 									"usage",
 									"session",
 								})),
-						"universe": BooleanValidator{},
+						"sequences": MakeArrayValidator(
+							StringValidator{}),
 					})),
 			})),
 	},
@@ -435,6 +453,26 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"database", "use_mvcc_engine"},
 		Validator: BooleanValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"failover", "call_timeout"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"failover", "connect_timeout"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"failover", "lease_interval"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"failover", "probe_interval"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"failover", "renew_interval"},
+		Validator: NumberValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"feedback", "crashinfo"},
@@ -805,6 +843,7 @@ var TarantoolSchema = []SchemaPath{
 				"off",
 				"manual",
 				"election",
+				"supervised",
 			}),
 	},
 	SchemaPath{
@@ -899,6 +938,10 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"security", "password_min_length"},
 		Validator: IntegerValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"security", "secure_erasing"},
+		Validator: BooleanValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"sharding", "bucket_count"},
