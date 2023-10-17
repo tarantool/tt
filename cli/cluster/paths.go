@@ -10,11 +10,13 @@ var ConfigEnvPaths = [][]string{
 	[]string{"app", "cfg"},
 	[]string{"app", "file"},
 	[]string{"app", "module"},
+	[]string{"audit_log", "extract_key"},
 	[]string{"audit_log", "file"},
 	[]string{"audit_log", "filter"},
 	[]string{"audit_log", "format"},
 	[]string{"audit_log", "nonblock"},
 	[]string{"audit_log", "pipe"},
+	[]string{"audit_log", "spaces"},
 	[]string{"audit_log", "syslog", "facility"},
 	[]string{"audit_log", "syslog", "identity"},
 	[]string{"audit_log", "syslog", "server"},
@@ -193,6 +195,10 @@ var TarantoolSchema = []SchemaPath{
 		Validator: StringValidator{},
 	},
 	SchemaPath{
+		Path:      []string{"audit_log", "extract_key"},
+		Validator: BooleanValidator{},
+	},
+	SchemaPath{
 		Path:      []string{"audit_log", "file"},
 		Validator: StringValidator{},
 	},
@@ -256,6 +262,11 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"audit_log", "pipe"},
 		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path: []string{"audit_log", "spaces"},
+		Validator: MakeArrayValidator(
+			StringValidator{}),
 	},
 	SchemaPath{
 		Path:      []string{"audit_log", "syslog", "facility"},
@@ -357,11 +368,24 @@ var TarantoolSchema = []SchemaPath{
 			MakeRecordValidator(map[string]Validator{
 				"privileges": MakeArrayValidator(
 					MakeRecordValidator(map[string]Validator{
+						"sequences": MakeArrayValidator(
+							StringValidator{}),
 						"spaces": MakeArrayValidator(
 							StringValidator{}),
+						"sql": MakeArrayValidator(
+							MakeAllowedValidator(
+								StringValidator{},
+								[]any{
+									"all",
+								})),
+						"lua_call": MakeArrayValidator(
+							MakeAllowedValidator(
+								StringValidator{},
+								[]any{
+									"all",
+								})),
 						"universe": BooleanValidator{},
-						"functions": MakeArrayValidator(
-							StringValidator{}),
+						"lua_eval": BooleanValidator{},
 						"permissions": MakeArrayValidator(
 							MakeAllowedValidator(
 								StringValidator{},
@@ -375,7 +399,7 @@ var TarantoolSchema = []SchemaPath{
 									"usage",
 									"session",
 								})),
-						"sequences": MakeArrayValidator(
+						"functions": MakeArrayValidator(
 							StringValidator{}),
 					})),
 				"roles": MakeArrayValidator(
@@ -392,11 +416,24 @@ var TarantoolSchema = []SchemaPath{
 					StringValidator{}),
 				"privileges": MakeArrayValidator(
 					MakeRecordValidator(map[string]Validator{
+						"sequences": MakeArrayValidator(
+							StringValidator{}),
 						"spaces": MakeArrayValidator(
 							StringValidator{}),
+						"sql": MakeArrayValidator(
+							MakeAllowedValidator(
+								StringValidator{},
+								[]any{
+									"all",
+								})),
+						"lua_call": MakeArrayValidator(
+							MakeAllowedValidator(
+								StringValidator{},
+								[]any{
+									"all",
+								})),
 						"universe": BooleanValidator{},
-						"functions": MakeArrayValidator(
-							StringValidator{}),
+						"lua_eval": BooleanValidator{},
 						"permissions": MakeArrayValidator(
 							MakeAllowedValidator(
 								StringValidator{},
@@ -410,7 +447,7 @@ var TarantoolSchema = []SchemaPath{
 									"usage",
 									"session",
 								})),
-						"sequences": MakeArrayValidator(
+						"functions": MakeArrayValidator(
 							StringValidator{}),
 					})),
 			})),
