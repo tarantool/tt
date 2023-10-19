@@ -21,6 +21,9 @@ in instances enabled location.
 paths are considered relative to working directory, which is an application
 source directory. Application name sub-directory no longer used for relative
 paths. Default names are changed for PID-files, control sockets and log files.
+- Enable logging to file by default for `tarantool` cluster instances.
+Default log file name for an instance is `tarantool.log`. `tarantool`'s
+stdout/stderr and `tt` logs go to `tt.log` file.
 
 ### Added
 

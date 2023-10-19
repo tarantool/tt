@@ -3,6 +3,10 @@ credentials:
     guest:
       roles: [super]
 
+log:
+  to: file
+  file: tnt_{{ instance_name }}.log
+
 groups:
   group-001:
     replicasets:

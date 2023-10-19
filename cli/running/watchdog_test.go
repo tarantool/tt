@@ -33,11 +33,15 @@ type providerTestImpl struct {
 	dataDir string
 	// restartable indicates the need to restart the instance in case of a crash.
 	restartable bool
+	t           *testing.T
 }
 
 // createInstance reads config and creates an Instance.
 func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (Instance, error) {
-	return newScriptInstance(provider.tarantool, InstanceCtx{InstanceScript: provider.appPath},
+	return newScriptInstance(provider.tarantool, InstanceCtx{
+		InstanceScript: provider.appPath,
+		AppDir:         provider.t.TempDir(),
+	},
 		logger)
 }
 
@@ -67,7 +71,7 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
 
 	provider := providerTestImpl{tarantool: tarantoolBin, appPath: appPath, logger: logger,
-		dataDir: dataDir, restartable: restartable}
+		dataDir: dataDir, restartable: restartable, t: t}
 	testPreAction := func() error { return nil }
 	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider, testPreAction)
 

@@ -594,7 +594,7 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
 
     # Check that log format is in json.
     isJson = False
-    logPath = os.path.join(tmpdir, "test_env_app", "var", "log", "test_env_app", "tt.log")
+    logPath = os.path.join(tmpdir, "test_env_app", "var", "log", "test_env_app", "tarantool.log")
     with open(logPath, "r") as file:
         for _, line in enumerate(file, start=1):
             if "{" in line:

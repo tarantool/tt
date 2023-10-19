@@ -46,6 +46,8 @@ type clusterInstance struct {
 	runDir string
 	// clusterConfigPath is a path of the cluster config.
 	clusterConfigPath string
+	// logDir is log files location.
+	logDir string
 }
 
 // newClusterInstance creates a clusterInstance.
@@ -77,6 +79,7 @@ func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx Instan
 		appDir:            instanceCtx.AppDir,
 		runDir:            instanceCtx.RunDir,
 		clusterConfigPath: instanceCtx.ClusterConfigPath,
+		logDir:            instanceCtx.LogDir,
 	}, nil
 }
 
@@ -86,6 +89,15 @@ func appendEnvIfNotEmpty(env []string, envVarName string, value string) []string
 		env = append(env, fmt.Sprintf("%s=%s", envVarName, value))
 	}
 	return env
+}
+
+// setTarantoolLogFile sets tarantool log file path env var.
+func (inst *clusterInstance) setTarantoolLogFile(cmd *exec.Cmd) {
+	if inst.logDir != "" {
+		cmd.Env = append(cmd.Env,
+			"TT_LOG_FILE_DEFAULT="+filepath.Join(inst.logDir, "tarantool.log"),
+			"TT_LOG_TO_DEFAULT=file")
+	}
 }
 
 // Start starts tarantool instance with cluster config.
@@ -114,6 +126,8 @@ func (inst *clusterInstance) Start() error {
 	} else {
 		return fmt.Errorf("application %q is not a directory", inst.appDir)
 	}
+
+	inst.setTarantoolLogFile(cmd)
 
 	var err error
 	if inst.processController, err = newProcessController(cmd); err != nil {

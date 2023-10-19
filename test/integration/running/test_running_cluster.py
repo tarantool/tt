@@ -6,7 +6,7 @@ import subprocess
 import pytest
 import yaml
 
-from utils import (extract_status, get_tarantool_version,
+from utils import (control_socket, extract_status, get_tarantool_version,
                    run_command_and_get_output, run_path, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
@@ -44,6 +44,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
 
+    run_dir = os.path.join(tmpdir, app_name, run_path)
     try:
         # Start an instance.
         start_cmd = [tt_cmd, "start", app_name]
@@ -52,14 +53,11 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
         # Check status.
         pidByInstanceName = {}
         for inst in ['master', 'storage']:
-            file = wait_file(os.path.join(tmpdir, run_path, app_name, inst),
-                             'tarantool.pid', [])
+            file = wait_file(os.path.join(run_dir, inst), 'tarantool.pid', [])
             assert file != ""
-            file = wait_file(os.path.join(tmpdir, run_path, app_name, inst),
-                             inst + '.control', [])
+            file = wait_file(os.path.join(run_dir, inst), control_socket, [])
             assert file != ""
-            with open(os.path.join(tmpdir, run_path, app_name, inst,
-                                   'tarantool.pid')) as f:
+            with open(os.path.join(run_dir, inst, 'tarantool.pid')) as f:
                 pidByInstanceName[inst] = f.readline()
 
         status_cmd = [tt_cmd, "status", app_name]
@@ -68,9 +66,10 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
         status_info = extract_status(status_out)
         for inst in ['master', 'storage']:
             assert status_info[app_name+":"+inst]["STATUS"] == "RUNNING"
-            assert os.path.exists(os.path.join(tmpdir, "var", "lib", app_name, inst))
-            assert os.path.exists(os.path.join(tmpdir, "var", "log", app_name, inst,
-                                               inst + ".log"))
+            assert os.path.exists(os.path.join(tmpdir, app_name, "var", "lib", inst))
+            assert os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst, "tt.log"))
+            assert os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst,
+                                               "tarantool.log"))
 
         # Test connection.
         for inst in ['master', 'storage']:
@@ -103,15 +102,12 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
 
         # Check status.
         for inst in ['master', 'storage']:
-            file = wait_file(os.path.join(tmpdir, run_path, app_name, inst),
-                             'tarantool.pid', [])
+            file = wait_file(os.path.join(run_dir, inst), 'tarantool.pid', [])
             assert file != ""
-            file = wait_file(os.path.join(tmpdir, run_path, app_name, inst),
-                             inst+'.control', [])
+            file = wait_file(os.path.join(run_dir, inst), control_socket, [])
             assert file != ""
 
-            with open(os.path.join(tmpdir, run_path, app_name, inst,
-                                   'tarantool.pid')) as f:
+            with open(os.path.join(run_dir, inst, 'tarantool.pid')) as f:
                 assert pidByInstanceName[inst] != f.readline()
 
         status_cmd = [tt_cmd, "status", app_name]
@@ -147,6 +143,8 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     assert rc == 0
     assert "Application was successfully built" in instance_process.stdout.read()
 
+    run_dir = os.path.join(tmpdir, app_name, run_path)
+
     try:
         # Start an application.
         start_cmd = [tt_cmd, "start", app_name]
@@ -154,11 +152,9 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
 
         # Check status.
         for inst in ['router', 'storage1', 'storage2']:
-            file = wait_file(os.path.join(tmpdir, run_path, app_name, inst),
-                             'tarantool.pid', [])
+            file = wait_file(os.path.join(run_dir, inst), 'tarantool.pid', [])
             assert file != ""
-            file = wait_file(os.path.join(tmpdir, run_path, app_name, inst),
-                             inst+'.control', [])
+            file = wait_file(os.path.join(run_dir, inst), control_socket, [])
             assert file != ""
 
         status_cmd = [tt_cmd, "status", app_name]
@@ -266,8 +262,8 @@ def test_cluster_cfg_changes_defaults(tt_cmd, tmpdir_with_cfg):
             assert status_info[app_name+":"+inst]["STATUS"] == "RUNNING"
             assert os.path.exists(os.path.join(app_path, "var", "lib", inst + "_wal"))
             assert os.path.exists(os.path.join(app_path, "var", "lib", inst + "_snapshot"))
-            assert os.path.exists(os.path.join(tmpdir, "var", "log", app_name, inst,
-                                               inst + ".log"))
+            assert os.path.exists(os.path.join(app_path, "var", "log", inst, "tt.log"))
+            assert os.path.exists(os.path.join(app_path, "tnt_" + inst + ".log"))
 
         # Test connection.
         for inst in ['master']:
