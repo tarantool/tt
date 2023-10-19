@@ -1,6 +1,7 @@
 package running
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -21,7 +22,8 @@ var tntCli cmdcontext.TarantoolCli
 
 const stopTimeout = 5 * time.Second
 
-func waitForMsgInBuffer(buf *bytes.Buffer, msgToWait string, waitFor time.Duration) error {
+func waitForMsgInBuffer(reader io.Reader, msgToWait string, waitFor time.Duration) error {
+	buf := bufio.NewReader(reader)
 	waitUntil := time.Now().Add(waitFor)
 	var previousLine string
 	for {
@@ -85,6 +87,7 @@ func TestClusterInstance_Start(t *testing.T) {
 	assert.FileExists(t, filepath.Join(tmpDir, "var", "run", "instance-001", "tarantool.control"))
 	assert.FileExists(t, filepath.Join(tmpDir, "var", "run", "instance-001", "tarantool.pid"))
 	assert.FileExists(t, filepath.Join(tmpDir, "instance-001.iproto"))
+	assert.NoFileExists(t, filepath.Join(tmpDir, "var", "log", "instance-001", "tarantool.log"))
 	assert.DirExists(t, filepath.Join(tmpDir, "var", "lib", "instance-001"))
 	assert.NoDirExists(t, filepath.Join(tmpDir, "instance-001"))
 }
@@ -158,6 +161,7 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 		VinylDir:          "vinyl_dir",
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
+		LogDir:            tmpAppDir,
 	}, ttlog.NewCustomLogger(&outputBuf, "test", 0))
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
@@ -167,7 +171,10 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, clusterInstance.Stop(stopTimeout))
 	})
-	require.NoError(t, waitForMsgInBuffer(&outputBuf, "entering the event loop", 10*time.Second))
+	require.NotZero(t, waitForFile(filepath.Join(tmpAppDir, "tarantool.log")))
+	f, err := os.Open(filepath.Join(tmpAppDir, "tarantool.log"))
+	require.NoError(t, err)
+	require.NoError(t, waitForMsgInBuffer(f, "entering the event loop", 10*time.Second))
 
 	assert.NoFileExists(t, filepath.Join(tmpAppDir, "run", "tt.control"))
 	assert.NoFileExists(t, filepath.Join(tmpAppDir, "var", "run",

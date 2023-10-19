@@ -176,3 +176,47 @@ func Test_shortenSocketPath(t *testing.T) {
 		})
 	}
 }
+
+func TestInstanceLogs(t *testing.T) {
+	binPath, err := os.Executable()
+	assert.NoError(t, err)
+	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
+
+	app := "dumb_test_app"
+	// Need absolute path to the script, because working dir is changed on start.
+	appPath, err := filepath.Abs(filepath.Join(instTestAppDir, app+".lua"))
+	assert.NoError(t, err)
+
+	tarantoolBin, err := exec.LookPath("tarantool")
+	require.NoError(t, err)
+	logger := ttlog.NewCustomLogger(os.Stdout, "", 0)
+
+	instTestDataDir := t.TempDir()
+	binDir := filepath.Dir(binPath)
+	inst, err := newScriptInstance(tarantoolBin, InstanceCtx{
+		AppDir:         binDir,
+		InstanceScript: appPath,
+		ConsoleSocket:  consoleSock,
+		WalDir:         instTestDataDir,
+		VinylDir:       instTestDataDir,
+		MemtxDir:       instTestDataDir,
+		LogDir:         instTestDataDir,
+	},
+		logger)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { cleanupTestInstance(t, inst) })
+
+	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
+	os.Setenv("started_flag_file", filepath.Join(binDir, app))
+	defer os.Remove(os.Getenv("started_flag_file"))
+	err = inst.Start()
+	require.NoError(t, err)
+
+	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+	alive := inst.IsAlive()
+	assert.True(t, alive)
+
+	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "test.sock"))
+	assert.FileExists(t, filepath.Join(instTestDataDir, "tarantool.log"))
+}
