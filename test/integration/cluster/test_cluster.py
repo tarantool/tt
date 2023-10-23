@@ -78,6 +78,9 @@ def etcd_start(host, tmpdir):
 
     if not popen.poll():
         return popen
+
+    print(popen.stdout.read())
+
     return None
 
 
