@@ -59,7 +59,6 @@ iproto:
 
 
 def etcd_start(host, tmpdir):
-    print("1")
     popen = subprocess.Popen(
         ["etcd"],
         env={"ETCD_LISTEN_CLIENT_URLS": host,
