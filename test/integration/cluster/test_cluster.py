@@ -3,6 +3,7 @@ import shutil
 import subprocess
 
 import etcd3
+import pytest
 
 test_simple_app_cfg = r"""groups:
   group-001:
@@ -58,6 +59,11 @@ iproto:
 """
 
 
+def copy_app(tmpdir, app_name):
+    app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+
+
 def etcd_start(host, tmpdir):
     popen = subprocess.Popen(
         ["etcd"],
@@ -91,9 +97,6 @@ def etcd_stop(popen):
 
 def test_cluster_show_config_not_exist_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
 
     show_cmd = [tt_cmd, "cluster", "show", "unknown"]
     instance_process = subprocess.Popen(
@@ -109,15 +112,16 @@ def test_cluster_show_config_not_exist_app(tt_cmd, tmpdir_with_cfg):
     assert expected in show_output
 
 
-def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
+    copy_app(tmpdir, app_name)
+
     app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
     cfg_path = os.path.join(app_path, "config.yaml")
     os.remove(cfg_path)
 
-    show_cmd = [tt_cmd, "cluster", "show", f"{app_name}"]
+    show_cmd = [tt_cmd, "cluster", "show", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -131,13 +135,12 @@ def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg):
     assert expected in show_output
 
 
-def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "show", f"{app_name}"]
+    show_cmd = [tt_cmd, "cluster", "show", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -150,13 +153,12 @@ def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg):
     assert test_simple_app_cfg == show_output
 
 
-def test_cluster_show_config_app_validate_no_error(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_show_config_app_validate_no_error(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "show", "--validate", f"{app_name}"]
+    show_cmd = [tt_cmd, "cluster", "show", "--validate", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -172,10 +174,9 @@ def test_cluster_show_config_app_validate_no_error(tt_cmd, tmpdir_with_cfg):
 def test_cluster_show_config_app_validate_error(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_error_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "show", "--validate", f"{app_name}"]
+    show_cmd = [tt_cmd, "cluster", "show", "--validate", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -203,11 +204,10 @@ invalid path "database.txn_timeout": failed to parse value "asd" to type number
     assert expected == show_output
 
 
-def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
 
     show_cmd = [tt_cmd, "cluster", "show", f"{app_name}:unknown"]
     instance_process = subprocess.Popen(
@@ -219,17 +219,16 @@ def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg):
     )
     show_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ test_simple_app:unknown: " +
+    expected = (f"   ⨯ {app_name}:unknown: " +
                 "can't find an application init file: " +
                 "instance(s) not found")
     assert expected in show_output
 
 
-def test_cluster_show_config_app_instance(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_show_config_app_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
 
     show_cmd = [tt_cmd, "cluster", "show", f"{app_name}:storage"]
     instance_process = subprocess.Popen(
@@ -412,13 +411,12 @@ def test_cluster_show_config_etcd_no_instance(tt_cmd, tmpdir_with_cfg):
     assert r'   ⨯ instance "master" not found' in show_output
 
 
-def test_cluster_publish_no_configuration(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_no_configuration(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "test_simple_app", "not_exist.yaml"]
+    show_cmd = [tt_cmd, "cluster", "publish", app_name, "not_exist.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -435,9 +433,7 @@ def test_cluster_publish_no_configuration(tt_cmd, tmpdir_with_cfg):
 
 def test_cluster_publish_no_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(valid_cluster_cfg)
@@ -455,17 +451,19 @@ def test_cluster_publish_no_app(tt_cmd, tmpdir_with_cfg):
     assert "⨯ non_exist: can't find an application init file:" in publish_output
 
 
-def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
-    dst_cfg_path = os.path.join(app_path, "config.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(valid_cluster_cfg)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "test_simple_app", "src.yaml"]
+    app_path = os.path.join(tmpdir, app_name)
+    dst_cfg_path = os.path.join(app_path, "config.yaml")
+
+    show_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -483,18 +481,19 @@ def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg):
     assert valid_cluster_cfg == uploaded
 
 
-def test_cluster_publish_valid_cluster_without_app_config(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_valid_cluster_without_app_config(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
+    with open(src_cfg_path, 'w') as f:
+        f.write(valid_cluster_cfg)
+
+    app_path = os.path.join(tmpdir, app_name)
     dst_cfg_path = os.path.join(app_path, "config.yaml")
     os.remove(dst_cfg_path)
-    with open(src_cfg_path, 'w') as f:
-        f.write(valid_cluster_cfg)
-
-    show_cmd = [tt_cmd, "cluster", "publish", "test_simple_app", "src.yaml"]
+    show_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -512,16 +511,16 @@ def test_cluster_publish_valid_cluster_without_app_config(tt_cmd, tmpdir_with_cf
     assert valid_cluster_cfg == uploaded
 
 
-def test_cluster_publish_invalid_cluster(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_invalid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(invalid_cluster_cfg)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "test_simple_app", "src.yaml"]
+    show_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -537,17 +536,18 @@ def test_cluster_publish_invalid_cluster(tt_cmd, tmpdir_with_cfg):
     assert expected == publish_output
 
 
-def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
-    dst_cfg_path = os.path.join(app_path, "config.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(invalid_cluster_cfg)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "--force", "test_simple_app", "src.yaml"]
+    app_path = os.path.join(tmpdir, app_name)
+    dst_cfg_path = os.path.join(app_path, "config.yaml")
+    show_cmd = [tt_cmd, "cluster", "publish", "--force", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -565,16 +565,16 @@ def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg):
     assert invalid_cluster_cfg == uploaded
 
 
-def test_cluster_publish_no_instance(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_no_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(valid_instance_cfg)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "test_simple_app:non_exist", "src.yaml"]
+    show_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:non_exist", "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -584,22 +584,23 @@ def test_cluster_publish_no_instance(tt_cmd, tmpdir_with_cfg):
     )
     publish_output = instance_process.stdout.read()
 
-    assert ("⨯ test_simple_app:non_exist: can't find an application init file:" +
+    assert (f"⨯ {app_name}:non_exist: can't find an application init file:" +
             " instance(s) not found") in publish_output
 
 
-def test_cluster_publish_instance_without_app_config(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_instance_without_app_config(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
-    cfg_path = os.path.join(app_path, "config.yaml")
-    os.remove(cfg_path)
     with open(src_cfg_path, 'w') as f:
         f.write(valid_instance_cfg)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "test_simple_app:master", "src.yaml"]
+    app_path = os.path.join(tmpdir, app_name)
+    cfg_path = os.path.join(app_path, "config.yaml")
+    os.remove(cfg_path)
+    show_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:master", "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -614,17 +615,18 @@ def test_cluster_publish_instance_without_app_config(tt_cmd, tmpdir_with_cfg):
             " the application") in publish_output
 
 
-def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
-    dst_cfg_path = os.path.join(app_path, "config.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(valid_instance_cfg)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "test_simple_app:master", "src.yaml"]
+    app_path = os.path.join(tmpdir, app_name)
+    cfg_path = os.path.join(app_path, "config.yaml")
+    show_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:master", "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -636,10 +638,9 @@ def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg):
 
     assert "" == publish_output
 
-    with open(dst_cfg_path, 'r') as f:
+    with open(cfg_path, 'r') as f:
         uploaded = f.read()
 
-    print(uploaded)
     assert """groups:
   group-001:
     replicasets:
@@ -657,16 +658,16 @@ def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg):
               listen: 127.0.0.1:3302\n""" == uploaded
 
 
-def test_cluster_publish_invalid_instance(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_invalid_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(invalid_instance_cfg)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "test_simple_app:master",
+    show_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:master",
                 "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
@@ -683,17 +684,18 @@ def test_cluster_publish_invalid_instance(tt_cmd, tmpdir_with_cfg):
     assert expected == publish_output
 
 
-def test_cluster_publish_invalid_instance_force(tt_cmd, tmpdir_with_cfg):
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_invalid_instance_force(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_simple_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    copy_app(tmpdir, app_name)
+
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
-    dst_cfg_path = os.path.join(app_path, "config.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(invalid_instance_cfg)
 
-    show_cmd = [tt_cmd, "cluster", "publish", "--force", "test_simple_app:master",
+    app_path = os.path.join(tmpdir, app_name)
+    dst_cfg_path = os.path.join(app_path, "config.yaml")
+    show_cmd = [tt_cmd, "cluster", "publish", "--force", f"{app_name}:master",
                 "src.yaml"]
     instance_process = subprocess.Popen(
         show_cmd,
