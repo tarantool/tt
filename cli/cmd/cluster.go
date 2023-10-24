@@ -125,7 +125,7 @@ Possible arguments:
 
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if uri, err := url.Parse(args[0]); err == nil && uri.Scheme != "" {
+	if uri, ok := parseUrl(args[0]); ok {
 		return clustercmd.ShowEtcd(showCtx, uri)
 	}
 
@@ -151,7 +151,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	publishCtx.Src = data
 	publishCtx.Config = config
 
-	if uri, err := url.Parse(args[0]); err == nil && uri.Scheme != "" {
+	if uri, ok := parseUrl(args[0]); ok {
 		return clustercmd.PublishEtcd(publishCtx, uri)
 	}
 
@@ -188,6 +188,24 @@ func readSourceFile(path string) ([]byte, *cluster.Config, error) {
 	}
 
 	return data, config, nil
+}
+
+// parseUrl returns a URL, true if string could be recognized as a URL or
+// nil, false otherwise.
+func parseUrl(str string) (*url.URL, bool) {
+	uri, err := url.Parse(str)
+
+	// The URL general form represented is:
+	// [scheme:][//[userinfo@]host][/]path[?query][#fragment]
+	// URLs that do not start with a slash after the scheme are interpreted as:
+	// scheme:opaque[?query][#fragment]
+	//
+	// So it is enough to check scheme, host and opaque to avoid to handle
+	// app:instance as a URL.
+	if err == nil && uri.Scheme != "" && uri.Host != "" && uri.Opaque == "" {
+		return uri, true
+	}
+	return nil, false
 }
 
 // parseAppStr parses a string and returns an application instance context
