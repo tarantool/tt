@@ -23,9 +23,8 @@ import (
 )
 
 const (
-	usernameEnv = "TT_CLI_USERNAME"
-	passwordEnv = "TT_CLI_PASSWORD"
-	userpassRe  = `[^@:/]+:[^@:/]+`
+	// userPathRe is a regexp for a username:password pair.
+	userpassRe = `[^@:/]+:[^@:/]+`
 
 	// uriPathPrefixRe is a regexp for a path prefix in uri, such as `scheme://path``.
 	uriPathPrefixRe = `((~?/+)|((../+)*))?`
@@ -70,8 +69,8 @@ func NewConnectCmd() *cobra.Command {
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
 			"The command supports the following environment variables:\n\n" +
-			"* " + usernameEnv + " - specifies a username\n" +
-			"* " + passwordEnv + " - specifies a password\n" +
+			"* " + connect.TarantoolUsernameEnv + " - specifies a username\n" +
+			"* " + connect.TarantoolPasswordEnv + " - specifies a password\n" +
 			"\n" +
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
@@ -272,10 +271,10 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	} else if isBaseURI(args[0]) {
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
-			connectCtx.Username = os.Getenv(usernameEnv)
+			connectCtx.Username = os.Getenv(connect.TarantoolUsernameEnv)
 		}
 		if connectCtx.Password == "" {
-			connectCtx.Password = os.Getenv(passwordEnv)
+			connectCtx.Password = os.Getenv(connect.TarantoolPasswordEnv)
 		}
 		network, address := parseBaseURI(args[0])
 		connOpts = makeConnOpts(network, address, *connectCtx)

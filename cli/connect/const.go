@@ -1,5 +1,13 @@
 package connect
 
+// TarantoolUsernameEnv is an environment variable with a username for
+// Tarantool.
+const TarantoolUsernameEnv = "TT_CLI_USERNAME"
+
+// TarantoolPasswordEnv is an environment variable with a password for
+// Tarantool.
+const TarantoolPasswordEnv = "TT_CLI_PASSWORD"
+
 // setLanguagePrefix is used to set a language in the Tarantool console.
 const setLanguagePrefix = "\\set language"
 
