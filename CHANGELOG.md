@@ -24,6 +24,7 @@ paths. Default names are changed for PID-files, control sockets and log files.
 - Enable logging to file by default for `tarantool` cluster instances.
 Default log file name for an instance is `tarantool.log`. `tarantool`'s
 stdout/stderr and `tt` logs go to `tt.log` file.
+- Remove URI with creds from console title and prompt.
 
 ### Added
 

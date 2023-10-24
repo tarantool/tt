@@ -268,6 +268,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		connectCtx.Username = user
 		connectCtx.Password = pass
 		connOpts = makeConnOpts(network, address, *connectCtx)
+		connectCtx.ConnectTarget = newURI
 	} else if isBaseURI(args[0]) {
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
@@ -282,7 +283,9 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		err = fillErr
 		return
 	}
-	connectCtx.ConnectTarget = args[0]
+	if connectCtx.ConnectTarget == "" {
+		connectCtx.ConnectTarget = args[0]
+	}
 	return
 }
 
