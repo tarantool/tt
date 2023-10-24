@@ -9,6 +9,10 @@ import (
 
 // ShowCtx contains information about cluster show command execution context.
 type ShowCtx struct {
+	// Username defines an etcd username.
+	Username string
+	// Password defines an etcd password.
+	Password string
 	// Validate defines whether the command will check the showed
 	// configuration.
 	Validate bool
@@ -19,6 +23,10 @@ func ShowEtcd(showCtx ShowCtx, uri *url.URL) error {
 	etcdOpts, err := cluster.MakeEtcdOptsFromUrl(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
+	}
+	if etcdOpts.Username == "" && etcdOpts.Password == "" {
+		etcdOpts.Username = showCtx.Username
+		etcdOpts.Password = showCtx.Password
 	}
 
 	etcdcli, err := cluster.ConnectEtcd(etcdOpts)

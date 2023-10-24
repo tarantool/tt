@@ -14,6 +14,7 @@ import (
 	clustercmd "github.com/tarantool/tt/cli/cluster/cmd"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 )
@@ -23,11 +24,15 @@ const (
 )
 
 var showCtx = clustercmd.ShowCtx{
+	Username: "",
+	Password: "",
 	Validate: false,
 }
 
 var publishCtx = clustercmd.PublishCtx{
-	Force: false,
+	Username: "",
+	Password: "",
+	Force:    false,
 }
 
 func NewClusterCmd() *cobra.Command {
@@ -51,7 +56,15 @@ Possible arguments:
 * ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
 * verify_host - set off (default true) verification of the certificate’s name against the host.
 * verify_peer - set off (default true) verification of the peer’s SSL certificate.
-`, float64(cluster.DefaultEtcdTimeout)/float64(time.Second))
+
+You could also specify etcd username and password with environment variables:
+* %s - specifies an etcd username
+* %s - specidies an etcd password
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+`, float64(cluster.DefaultEtcdTimeout)/float64(time.Second),
+		connect.EtcdUsernameEnv, connect.EtcdPasswordEnv)
 
 	show := &cobra.Command{
 		Use:   "show (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)",
@@ -82,6 +95,10 @@ Possible arguments:
 				running.ExtractActiveInstanceNames)
 		},
 	}
+	show.Flags().StringVarP(&showCtx.Username, "username", "u", "",
+		"username (used as etcd credentials only)")
+	show.Flags().StringVarP(&showCtx.Password, "password", "p", "",
+		"password (used as etcd credentials only)")
 	show.Flags().BoolVar(&showCtx.Validate, "validate", showCtx.Validate,
 		"validate the configuration")
 	clusterCmd.AddCommand(show)
@@ -116,6 +133,10 @@ Possible arguments:
 				running.ExtractActiveInstanceNames)
 		},
 	}
+	publish.Flags().StringVarP(&publishCtx.Username, "username", "u", "",
+		"username (used as etcd credentials only)")
+	publish.Flags().StringVarP(&publishCtx.Password, "password", "p", "",
+		"password (used as etcd credentials only)")
 	publish.Flags().BoolVar(&publishCtx.Force, "force", publishCtx.Force,
 		"force publish and skip validation")
 	clusterCmd.AddCommand(publish)
@@ -126,6 +147,12 @@ Possible arguments:
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if uri, ok := parseUrl(args[0]); ok {
+		if showCtx.Username == "" {
+			showCtx.Username = os.Getenv(connect.EtcdUsernameEnv)
+		}
+		if showCtx.Password == "" {
+			showCtx.Password = os.Getenv(connect.EtcdPasswordEnv)
+		}
 		return clustercmd.ShowEtcd(showCtx, uri)
 	}
 
@@ -152,6 +179,12 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	publishCtx.Config = config
 
 	if uri, ok := parseUrl(args[0]); ok {
+		if publishCtx.Username == "" {
+			publishCtx.Username = os.Getenv(connect.EtcdUsernameEnv)
+		}
+		if publishCtx.Password == "" {
+			publishCtx.Password = os.Getenv(connect.EtcdPasswordEnv)
+		}
 		return clustercmd.PublishEtcd(publishCtx, uri)
 	}
 

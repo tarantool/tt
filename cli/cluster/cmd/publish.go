@@ -10,6 +10,10 @@ import (
 // PublishCtx contains information abould cluster publish command execution
 // context.
 type PublishCtx struct {
+	// Username defines an etcd username.
+	Username string
+	// Password defines an etcd password.
+	Password string
 	// Force defines whether the publish should be forced and a validation step
 	// is omitted.
 	Force bool
@@ -24,6 +28,10 @@ func PublishEtcd(publishCtx PublishCtx, uri *url.URL) error {
 	etcdOpts, err := cluster.MakeEtcdOptsFromUrl(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
+	}
+	if etcdOpts.Username == "" && etcdOpts.Password == "" {
+		etcdOpts.Username = publishCtx.Username
+		etcdOpts.Password = publishCtx.Password
 	}
 
 	instance := uri.Query().Get("name")

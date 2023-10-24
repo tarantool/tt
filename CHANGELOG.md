@@ -32,6 +32,8 @@ stdout/stderr and `tt` logs go to `tt.log` file.
 - tarantool-ee: search and install development builds.
 - ``tt play``: ability to pass username and password via flags and environment
   variables.
+- tt cluster: credentials could be passed via environment variables and command
+flags.
 
 ### Fixed
 - ``tt rocks``: broken ``--verbose`` option.
