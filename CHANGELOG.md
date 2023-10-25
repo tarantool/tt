@@ -32,6 +32,7 @@ stdout/stderr and `tt` logs go to `tt.log` file.
 
 ### Fixed
 - ``tt rocks``: broken ``--verbose`` option.
+- ``tt binaries``: tarantool-ee binaries not shown.
 
 ## [1.3.0] - 2023-09-28
 
