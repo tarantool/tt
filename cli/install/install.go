@@ -107,6 +107,8 @@ type InstallCtx struct {
 	buildDir string
 	// IncDir is the directory, where the tarantool headers are located.
 	IncDir string
+	// Install development build.
+	DevBuild bool
 }
 
 // Package is a struct containing sys and install name of the package.
@@ -1177,7 +1179,8 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		}
 	}
 
-	ver, err := search.GetTarantoolBundleInfo(cliOpts, installCtx.Local, files, tarVersion)
+	ver, err := search.GetTarantoolBundleInfo(cliOpts, installCtx.Local,
+		installCtx.DevBuild, files, tarVersion)
 	if err != nil {
 		return err
 	}
@@ -1200,7 +1203,8 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 
 	log.Infof("Getting bundle name for %s", tarVersion)
 	bundleName := ver.Version.Tarball
-	bundleSource, err := search.TntIoMakePkgURI(ver.Package, ver.Release, bundleName)
+	bundleSource, err := search.TntIoMakePkgURI(ver.Package, ver.Release,
+		bundleName, installCtx.DevBuild)
 	if err != nil {
 		return err
 	}

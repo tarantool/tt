@@ -24,9 +24,15 @@ type apiRequst struct {
 }
 
 // TntIoMakePkgURI generates a URI for downloading a package.
-func TntIoMakePkgURI(Package string, Release string, Tarball string) (string, error) {
+func TntIoMakePkgURI(Package string, Release string,
+	Tarball string, DevBuilds bool) (string, error) {
 	var uri string
 	var osType string
+	buildType := "release"
+
+	if DevBuilds {
+		buildType = "dev"
+	}
 
 	arch, err := util.GetArch()
 	if err != nil {
@@ -47,7 +53,8 @@ func TntIoMakePkgURI(Package string, Release string, Tarball string) (string, er
 		return "", fmt.Errorf("unsupported OS")
 	}
 
-	uri = fmt.Sprintf("%s/%s/release/%s/%s/%s/%s", PkgURI, Package, osType, arch, Release, Tarball)
+	uri = fmt.Sprintf("%s/%s/%s/%s/%s/%s/%s",
+		PkgURI, Package, buildType, osType, arch, Release, Tarball)
 
 	return uri, nil
 }
@@ -57,6 +64,7 @@ func tntIoGetPkgVersions(cliOpts *config.CliOpts,
 	searchCtx SearchCtx) (apiReply map[string][]string, token string, err error) {
 	var query string
 	var osType string
+	buildType := "release"
 
 	arch, err := util.GetArch()
 	if err != nil {
@@ -82,12 +90,16 @@ func tntIoGetPkgVersions(cliOpts *config.CliOpts,
 		return nil, "", err
 	}
 
+	if searchCtx.DevBuilds {
+		buildType = "dev"
+	}
+
 	if len(searchCtx.ReleaseVersion) > 0 {
-		query = fmt.Sprintf("%s/release/%s/%s/%s",
-			searchCtx.Package, osType, arch, searchCtx.ReleaseVersion)
+		query = fmt.Sprintf("%s/%s/%s/%s/%s",
+			searchCtx.Package, buildType, osType, arch, searchCtx.ReleaseVersion)
 	} else {
-		query = fmt.Sprintf("%s/release/%s/%s",
-			searchCtx.Package, osType, arch)
+		query = fmt.Sprintf("%s/%s/%s/%s",
+			searchCtx.Package, buildType, osType, arch)
 	}
 
 	msg := apiRequst{

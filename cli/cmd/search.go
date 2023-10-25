@@ -63,6 +63,8 @@ func newSearchTarantoolEeCmd() *cobra.Command {
 		"search for debug builds of tarantool-ee SDK")
 	tntCmd.Flags().StringVar(&searchCtx.ReleaseVersion, "version", searchCtx.ReleaseVersion,
 		"specify version")
+	tntCmd.Flags().BoolVar(&searchCtx.DevBuilds, "dev", false,
+		"search for development builds of tarantool-ee SDK")
 
 	return tntCmd
 }
