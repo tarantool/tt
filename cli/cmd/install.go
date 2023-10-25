@@ -62,6 +62,8 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 		},
 	}
 
+	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "install development build")
+
 	return tntCmd
 }
 

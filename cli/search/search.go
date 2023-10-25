@@ -35,6 +35,8 @@ type SearchCtx struct {
 	ReleaseVersion string
 	// Program name
 	ProgramName string
+	// Search for development builds.
+	DevBuilds bool
 }
 
 const (
@@ -465,7 +467,7 @@ func FetchBundlesInfo(searchCtx SearchCtx, cliOpts *config.CliOpts) ([]BundleInf
 
 // GetTarantoolBundleInfo returns the available EE SDK bundle for user's OS,
 // corresponding to the passed expected version argument.
-func GetTarantoolBundleInfo(cliOpts *config.CliOpts, local bool,
+func GetTarantoolBundleInfo(cliOpts *config.CliOpts, local bool, devBuild bool,
 	files []string, expectedVersion string) (BundleInfo, error) {
 	bundles := BundleInfoSlice{}
 	var err error
@@ -483,8 +485,9 @@ func GetTarantoolBundleInfo(cliOpts *config.CliOpts, local bool,
 	} else {
 		var token string
 		searchCtx := SearchCtx{
-			Filter:  SearchAll,
-			Package: "enterprise",
+			Filter:    SearchAll,
+			Package:   "enterprise",
+			DevBuilds: devBuild,
 		}
 		bundles, token, err = FetchBundlesInfo(searchCtx, cliOpts)
 		if err != nil {

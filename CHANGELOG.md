@@ -29,6 +29,7 @@ stdout/stderr and `tt` logs go to `tt.log` file.
 ### Added
 
 - tt completion: added luarocks completions.
+- tarantool-ee: search and install development builds.
 
 ### Fixed
 - ``tt rocks``: broken ``--verbose`` option.
