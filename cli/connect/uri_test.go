@@ -1,10 +1,11 @@
-package cmd
+package connect_test
 
 import (
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
 )
 
@@ -93,7 +94,7 @@ var invalidCredentialsUris = []string{
 func TestIsBaseURIValid(t *testing.T) {
 	for _, uri := range validBaseUris {
 		t.Run(uri, func(t *testing.T) {
-			assert.True(t, isBaseURI(uri), "URI must be valid")
+			assert.True(t, connect.IsBaseURI(uri), "URI must be valid")
 		})
 	}
 }
@@ -106,7 +107,7 @@ func TestIsBaseURIInvalid(t *testing.T) {
 
 	for _, uri := range invalid {
 		t.Run(uri, func(t *testing.T) {
-			assert.False(t, isBaseURI(uri), "URI must be invalid")
+			assert.False(t, connect.IsBaseURI(uri), "URI must be invalid")
 		})
 	}
 }
@@ -114,7 +115,7 @@ func TestIsBaseURIInvalid(t *testing.T) {
 func TestIsCredentialsURIValid(t *testing.T) {
 	for _, uri := range validCredentialsUris {
 		t.Run(uri, func(t *testing.T) {
-			assert.True(t, isCredentialsURI(uri), "URI must be valid")
+			assert.True(t, connect.IsCredentialsURI(uri), "URI must be valid")
 		})
 	}
 }
@@ -127,7 +128,7 @@ func TestIsCredentialsURIInvalid(t *testing.T) {
 
 	for _, uri := range invalid {
 		t.Run(uri, func(t *testing.T) {
-			assert.False(t, isCredentialsURI(uri), "URI must be invalid")
+			assert.False(t, connect.IsCredentialsURI(uri), "URI must be invalid")
 		})
 	}
 }
@@ -151,7 +152,7 @@ func TestParseCredentialsURI(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.srcUri, func(t *testing.T) {
-			newUri, user, pass := parseCredentialsURI(c.srcUri)
+			newUri, user, pass := connect.ParseCredentialsURI(c.srcUri)
 			assert.Equal(t, c.newUri, newUri, "a unexpected new URI")
 			assert.Equal(t, testUser, user, "a unexpected username")
 			assert.Equal(t, testPass, pass, "a unexpected password")
@@ -162,7 +163,7 @@ func TestParseCredentialsURI(t *testing.T) {
 func TestParseCredentialsURI_parseValid(t *testing.T) {
 	for _, uri := range validCredentialsUris {
 		t.Run(uri, func(t *testing.T) {
-			newUri, user, pass := parseCredentialsURI(uri)
+			newUri, user, pass := connect.ParseCredentialsURI(uri)
 			assert.NotEqual(t, uri, newUri, "URI must change")
 			assert.NotEqual(t, "", user, "username must not be empty")
 			assert.NotEqual(t, "", pass, "password must not be empty")
@@ -178,7 +179,7 @@ func TestParseCredentialsURI_notParseInvalid(t *testing.T) {
 
 	for _, uri := range invalid {
 		t.Run(uri, func(t *testing.T) {
-			newUri, user, pass := parseCredentialsURI(uri)
+			newUri, user, pass := connect.ParseCredentialsURI(uri)
 			assert.Equal(t, uri, newUri, "URI must no change")
 			assert.Equal(t, "", user, "username must be empty")
 			assert.Equal(t, "", pass, "password must be empty")
@@ -204,7 +205,7 @@ func TestParseBaseURI(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.URI, func(t *testing.T) {
-			network, address := parseBaseURI(tc.URI)
+			network, address := connect.ParseBaseURI(tc.URI)
 			assert.Equal(t, network, tc.network)
 			assert.Equal(t, address, tc.address)
 		})
@@ -212,11 +213,11 @@ func TestParseBaseURI(t *testing.T) {
 
 	t.Run("starts from ~", func(t *testing.T) {
 		homeDir, _ := os.UserHomeDir()
-		network, address := parseBaseURI("unix://~/a/b")
+		network, address := connect.ParseBaseURI("unix://~/a/b")
 		assert.Equal(t, connector.UnixNetwork, network)
 		assert.Equal(t, homeDir+"/a/b", address)
 
-		network, address = parseBaseURI("~/a/b")
+		network, address = connect.ParseBaseURI("~/a/b")
 		assert.Equal(t, connector.UnixNetwork, network)
 		assert.Equal(t, homeDir+"/a/b", address)
 	})
