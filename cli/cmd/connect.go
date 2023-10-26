@@ -3,9 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 	"syscall"
 
 	"github.com/apex/log"
@@ -20,17 +17,6 @@ import (
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/crypto/ssh/terminal"
-)
-
-const (
-	// userPathRe is a regexp for a username:password pair.
-	userpassRe = `[^@:/]+:[^@:/]+`
-
-	// uriPathPrefixRe is a regexp for a path prefix in uri, such as `scheme://path``.
-	uriPathPrefixRe = `((~?/+)|((../+)*))?`
-
-	// systemPathPrefixRe is a regexp for a path prefix to use without scheme.
-	systemPathPrefixRe = `(([\.~]?/+)|((../+)+))`
 )
 
 var (
@@ -120,101 +106,6 @@ func NewConnectCmd() *cobra.Command {
 	return connectCmd
 }
 
-// isBaseURI returns true if a string is a valid URI.
-func isBaseURI(str string) bool {
-	// tcp://host:port
-	// host:port
-	tcpReStr := `(tcp://)?([\w\\.-]+:\d+)`
-	// unix://../path
-	// unix://~/path
-	// unix:///path
-	// unix://path
-	unixReStr := `unix://` + uriPathPrefixRe + `[^\./@]+[^@]*`
-	// ../path
-	// ~/path
-	// /path
-	// ./path
-	pathReStr := systemPathPrefixRe + `[^\./].*`
-
-	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
-	uriRe := regexp.MustCompile(uriReStr)
-	return uriRe.MatchString(str)
-}
-
-// isCredentialsURI returns true if a string is a valid credentials URI.
-func isCredentialsURI(str string) bool {
-	// tcp://user:password@host:port
-	// user:password@host:port
-	tcpReStr := `(tcp://)?` + userpassRe + `@([\w\.-]+:\d+)`
-	// unix://user:password@../path
-	// unix://user:password@~/path
-	// unix://user:password@/path
-	// unix://user:password@path
-	unixReStr := `unix://` + userpassRe + `@` + uriPathPrefixRe + `[^\./@]+.*`
-	// user:password@../path
-	// user:password@~/path
-	// user:password@/path
-	// user:password@./path
-	pathReStr := userpassRe + `@` + systemPathPrefixRe + `[^\./].*`
-
-	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
-	uriRe := regexp.MustCompile(uriReStr)
-	return uriRe.MatchString(str)
-}
-
-// parseBaseURI parses an URI and returns:
-// (network, address)
-func parseBaseURI(uri string) (string, string) {
-	var network, address string
-	uriLen := len(uri)
-
-	switch {
-	case uriLen > 0 && (uri[0] == '.' || uri[0] == '/' || uri[0] == '~'):
-		network = connector.UnixNetwork
-		address = uri
-	case uriLen >= 7 && uri[0:7] == "unix://":
-		network = connector.UnixNetwork
-		address = uri[7:]
-	case uriLen >= 6 && uri[0:6] == "tcp://":
-		network = connector.TCPNetwork
-		address = uri[6:]
-	default:
-		network = connector.TCPNetwork
-		address = uri
-	}
-
-	// In the case of a complex uri, shell expansion does not occur, so do it manually.
-	if network == connector.UnixNetwork &&
-		strings.HasPrefix(address, "~/") {
-		if homeDir, err := os.UserHomeDir(); err == nil {
-			address = filepath.Join(homeDir, address[2:])
-		}
-	}
-
-	return network, address
-}
-
-// parseCredentialsURI parses a URI with credentials and returns:
-// (URI without credentials, user, password)
-func parseCredentialsURI(str string) (string, string, string) {
-	if !isCredentialsURI(str) {
-		return str, "", ""
-	}
-
-	re := regexp.MustCompile(userpassRe + `@`)
-	// Split the string into two parts by credentials to create a string
-	// without the credentials.
-	split := re.Split(str, 2)
-	newStr := split[0] + split[1]
-
-	// Parse credentials.
-	credentialsStr := re.FindString(str)
-	credentialsLen := len(credentialsStr) - 1 // We don't need a last '@'.
-	credentialsSlice := strings.Split(credentialsStr[:credentialsLen], ":")
-
-	return newStr, credentialsSlice[0], credentialsSlice[1]
-}
-
 // makeConnOpts makes and returns connect options from the arguments.
 func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector.ConnectOpts {
 	ssl := connector.SslOpts{
@@ -256,19 +147,19 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		connOpts = makeConnOpts(
 			connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
 		)
-	} else if isCredentialsURI(args[0]) {
+	} else if connect.IsCredentialsURI(args[0]) {
 		if connectCtx.Username != "" || connectCtx.Password != "" {
 			err = fmt.Errorf("username and password are specified with" +
 				" flags and a URI")
 			return
 		}
-		newURI, user, pass := parseCredentialsURI(args[0])
-		network, address := parseBaseURI(newURI)
+		newURI, user, pass := connect.ParseCredentialsURI(args[0])
+		network, address := connect.ParseBaseURI(newURI)
 		connectCtx.Username = user
 		connectCtx.Password = pass
 		connOpts = makeConnOpts(network, address, *connectCtx)
 		connectCtx.ConnectTarget = newURI
-	} else if isBaseURI(args[0]) {
+	} else if connect.IsBaseURI(args[0]) {
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
 			connectCtx.Username = os.Getenv(connect.TarantoolUsernameEnv)
@@ -276,7 +167,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		if connectCtx.Password == "" {
 			connectCtx.Password = os.Getenv(connect.TarantoolPasswordEnv)
 		}
-		network, address := parseBaseURI(args[0])
+		network, address := connect.ParseBaseURI(args[0])
 		connOpts = makeConnOpts(network, address, *connectCtx)
 	} else {
 		err = fillErr
