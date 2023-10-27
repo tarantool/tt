@@ -270,8 +270,12 @@ func collectAppDirFiles(appDir string) (appDirCtx appDirCtx, err error) {
 	return
 }
 
-// getInstanceName gets instance name from app name + instance name
-func getInstanceName(fullInstanceName string) string {
+// getInstanceName gets instance name from app name + instance name.
+func getInstanceName(fullInstanceName string, isClusterInstance bool) string {
+	if isClusterInstance {
+		// If we have a cluster instance, delimiters are ignored.
+		return fullInstanceName
+	}
 	sepIndex := strings.IndexAny(fullInstanceName, ".-")
 	if sepIndex == -1 {
 		return fullInstanceName
@@ -345,7 +349,7 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string) (
 	}
 	for inst := range instParams {
 		instance := InstanceCtx{AppDir: appDir, ClusterConfigPath: appDirFiles.clusterCfgPath}
-		instance.InstName = getInstanceName(inst)
+		instance.InstName = getInstanceName(inst, instance.ClusterConfigPath != "")
 		if selectedInstName != "" && instance.InstName != selectedInstName {
 			continue
 		}

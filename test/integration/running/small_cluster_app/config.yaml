@@ -8,12 +8,12 @@ groups:
     replicasets:
       replicaset-001:
         instances:
-          master:
+          storage-master:
             iproto:
               listen: '127.0.0.1:3301'
             database:
               mode: rw
-          storage:
+          storage-replica:
             iproto:
               listen: '127.0.0.1:3302'
             database:
