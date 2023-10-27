@@ -26,6 +26,8 @@ Default log file name for an instance is `tarantool.log`. `tarantool`'s
 stdout/stderr and `tt` logs go to `tt.log` file.
 - Remove URI with creds from console title and prompt.
 - Ignore app-instance delimiters for Tarantool 3.0 instances.
+- Don't use dash as an app-instance delimiter. At the same time, `cartridge_app-stateboard`
+treated as a special case.
 
 ### Added
 

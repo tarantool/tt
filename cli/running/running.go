@@ -25,6 +25,9 @@ import (
 
 const defaultDirPerms = 0770
 
+// stateBoardInstName is cartridge stateboard instance name.
+const stateBoardInstName = "stateboard"
+
 var (
 	instStateStopped = process_utils.ProcStateStopped
 	instStateDead    = process_utils.ProcStateDead
@@ -276,7 +279,12 @@ func getInstanceName(fullInstanceName string, isClusterInstance bool) string {
 		// If we have a cluster instance, delimiters are ignored.
 		return fullInstanceName
 	}
-	sepIndex := strings.IndexAny(fullInstanceName, ".-")
+	// Consider `-stateboard` suffix for the cartridge application compatibility.
+	if strings.HasSuffix(fullInstanceName, fmt.Sprintf("-%s", stateBoardInstName)) {
+		return stateBoardInstName
+	}
+
+	sepIndex := strings.Index(fullInstanceName, ".")
 	if sepIndex == -1 {
 		return fullInstanceName
 	}
