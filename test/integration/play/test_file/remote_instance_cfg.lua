@@ -21,6 +21,8 @@ local function configure_instance()
     )
     tester:create_index('primary', {type = 'tree', parts = {'id'}})
     box.schema.user.grant('guest', 'read,write', 'space', 'tester')
+    box.schema.user.create('test_user', { password = 'secret' })
+    box.schema.user.grant('test_user', 'super')
 end
 
 configure_instance()

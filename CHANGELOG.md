@@ -30,6 +30,8 @@ stdout/stderr and `tt` logs go to `tt.log` file.
 
 - tt completion: added luarocks completions.
 - tarantool-ee: search and install development builds.
+- ``tt play``: ability to pass username and password via flags and environment
+  variables.
 
 ### Fixed
 - ``tt rocks``: broken ``--verbose`` option.

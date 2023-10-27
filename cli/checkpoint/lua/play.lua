@@ -45,14 +45,14 @@ local function filter_xlog(gen, param, state, opts, cb)
     end
 end
 
-local function play(positional_arguments, keyword_arguments)
-    local opts = keyword_arguments
+local function play(positional_arguments, keyword_arguments, opts)
+    local filter_opts = keyword_arguments
     local uri = table.remove(positional_arguments, 1)
     if uri == nil then
         log.error('Internal error: empty URI is provided')
         os.exit(1)
     end
-    local remote = netbox.new(uri)
+    local remote = netbox.new(uri, opts)
     if not remote:wait_connected() then
         log.error('Fatal error: no connection to the host "%s"', uri)
         os.exit(1)
@@ -61,7 +61,7 @@ local function play(positional_arguments, keyword_arguments)
         print(string.format('• Play is processing file "%s" •', file))
         io.stdout:flush()
         local gen, param, state = xlog.pairs(file)
-        filter_xlog(gen, param, state, opts, function(record)
+        filter_xlog(gen, param, state, filter_opts, function(record)
             local sid = record.BODY and record.BODY.space_id
             if sid ~= nil then
                 local args, so = {}, remote.space[sid]
@@ -137,7 +137,11 @@ local function main()
         end
     end
 
-    play(positional_arguments, keyword_arguments)
+    local opts = {
+        user = os.getenv('TT_CLI_PLAY_USERNAME'),
+        password = os.getenv('TT_CLI_PLAY_PASSWORD'),
+    }
+    play(positional_arguments, keyword_arguments, opts)
 end
 
 main()

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/checkpoint"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
@@ -26,6 +28,13 @@ var playFlags = checkpoint.Opts{
 	ShowSystem: false,
 }
 
+var (
+	// playUsername contains username flag.
+	playUsername string
+	// playPassword contains password flag.
+	playPassword string
+)
+
 // NewPlayCmd creates a new play command.
 func NewPlayCmd() *cobra.Command {
 	var playCmd = &cobra.Command{
@@ -39,6 +48,8 @@ func NewPlayCmd() *cobra.Command {
 		},
 	}
 
+	playCmd.Flags().StringVarP(&playUsername, "username", "u", "", "username")
+	playCmd.Flags().StringVarP(&playPassword, "password", "p", "", "password")
 	playCmd.Flags().Uint64Var(&playFlags.To, "to", playFlags.To,
 		"Show operations ending with the given lsn")
 	playCmd.Flags().Uint64Var(&playFlags.From, "from", playFlags.From,
@@ -68,7 +79,27 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		)
 	}
 
+	if connect.IsCredentialsURI(args[0]) {
+		if playUsername != "" || playPassword != "" {
+			return errors.New("username and password are specified with" +
+				" flags and a URI")
+		}
+	} else {
+		if playUsername == "" {
+			playUsername = os.Getenv(connect.TarantoolUsernameEnv)
+		}
+		if playPassword == "" {
+			playPassword = os.Getenv(connect.TarantoolPasswordEnv)
+		}
+	}
+
 	os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndUriJson))
+	if playUsername != "" {
+		os.Setenv("TT_CLI_PLAY_USERNAME", playUsername)
+	}
+	if playPassword != "" {
+		os.Setenv("TT_CLI_PLAY_PASSWORD", playPassword)
+	}
 	os.Setenv("TT_CLI_PLAY_SHOW_SYS", strconv.FormatBool(playFlags.ShowSystem))
 
 	// List of spaces is passed to lua play script via environment variable in json format.
