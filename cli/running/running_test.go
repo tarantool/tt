@@ -331,3 +331,23 @@ func Test_collectInstancesSingleInstanceTntCtlLayout(t *testing.T) {
 	assert.Equal(t, "", inst.ClusterConfigPath)
 	assert.Equal(t, filepath.Join(instancesEnabled, appName), inst.AppDir)
 }
+
+func Test_getInstanceName(t *testing.T) {
+	for _, tc := range []struct {
+		fullInstanceName  string
+		isClusterInstance bool
+		expected          string
+	}{
+		{"master", false, "master"},
+		{"app.master", false, "master"},
+		{"app-stateboard", false, "stateboard"},
+		{"app-master", false, "app-master"},
+		{"app.inst-001", false, "inst-001"},
+		{"app-master", true, "app-master"},
+		{"app-stateboard", true, "app-stateboard"},
+		{"app.inst-001", true, "app.inst-001"},
+	} {
+		actual := getInstanceName(tc.fullInstanceName, tc.isClusterInstance)
+		assert.Equal(t, tc.expected, actual)
+	}
+}

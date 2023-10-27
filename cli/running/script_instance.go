@@ -172,7 +172,7 @@ func (inst *scriptInstance) Start() error {
 		"TARANTOOL_WORKDIR="+inst.walDir)
 
 	// Setup variables for the cartridge application compatibility.
-	if inst.instName != "stateboard" {
+	if inst.instName != stateBoardInstName {
 		cmd.Env = append(cmd.Env, "TARANTOOL_APP_NAME="+inst.appName)
 		cmd.Env = append(cmd.Env, "TARANTOOL_INSTANCE_NAME="+inst.instName)
 	} else {
