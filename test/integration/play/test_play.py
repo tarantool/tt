@@ -81,3 +81,75 @@ def test_play_test_remote_instance(tt_cmd, tmpdir):
     assert re.search(r"[1, 'Roxette', 1986]", output)
     assert re.search(r"[2, 'Scorpions', 2015]", output)
     assert re.search(r"[3, 'Ace of Base', 1993]", output)
+
+
+@pytest.mark.parametrize("opts", [
+    pytest.param({"flags": ["--username=test_user", "--password=4"]}),
+    pytest.param({"flags": ["--username=fry"]}),
+    pytest.param({"env": {"TT_CLI_USERNAME": "test_user", "TT_CLI_PASSWORD": "4"}}),
+    pytest.param({"env": {"TT_CLI_USERNAME": "fry"}}),
+    pytest.param({"uri": "test_user:4"}),
+])
+def test_play_wrong_creds(tt_cmd, tmpdir, opts):
+    # Testing play using remote instance.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_file")
+    # Copy the .xlog file to the "run" directory.
+    shutil.copy(test_app_path + "/test.xlog", tmpdir)
+
+    # Create tarantool instance for testing and start it.
+    path_to_lua_utils = os.path.join(os.path.dirname(__file__), "test_file/../../../")
+    test_instance = TarantoolTestInstance(INSTANCE_NAME, test_app_path, path_to_lua_utils, tmpdir)
+    test_instance.start()
+
+    # Play .xlog file to the remote instance.
+    uri = "127.0.0.1:" + test_instance.port
+    if "uri" in opts:
+        uri = opts["uri"] + "@" + uri
+    if "env" in opts:
+        env = opts["env"]
+    else:
+        env = None
+    cmd = [tt_cmd, "play", uri, "test.xlog", "--space=999"]
+    if "flags" in opts:
+        cmd.extend(opts["flags"])
+
+    rc, output = run_command_and_get_output(cmd, cwd=tmpdir, env=env)
+    test_instance.stop()
+    assert rc != 0
+
+
+@pytest.mark.parametrize("opts", [
+    pytest.param({"flags": ["--username=test_user", "--password=secret"]}),
+    pytest.param({"env": {
+        "TT_CLI_USERNAME": "test_user",
+        "TT_CLI_PASSWORD": "secret",
+        "PATH": os.getenv("PATH"),
+    }}),
+    pytest.param({"uri": "test_user:secret"}),
+])
+def test_play_creds(tt_cmd, tmpdir, opts):
+    # Testing play using remote instance.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_file")
+    # Copy the .xlog file to the "run" directory.
+    shutil.copy(test_app_path + "/test.xlog", tmpdir)
+
+    # Create tarantool instance for testing and start it.
+    path_to_lua_utils = os.path.join(os.path.dirname(__file__), "test_file/../../../")
+    test_instance = TarantoolTestInstance(INSTANCE_NAME, test_app_path, path_to_lua_utils, tmpdir)
+    test_instance.start()
+
+    # Play .xlog file to the remote instance.
+    uri = "127.0.0.1:" + test_instance.port
+    if "uri" in opts:
+        uri = opts["uri"] + "@" + uri
+    if "env" in opts:
+        env = opts["env"]
+    else:
+        env = None
+    cmd = [tt_cmd, "play", uri, "test.xlog", "--space=999"]
+    if "flags" in opts:
+        cmd.extend(opts["flags"])
+
+    rc, output = run_command_and_get_output(cmd, cwd=tmpdir, env=env)
+    test_instance.stop()
+    assert rc == 0
