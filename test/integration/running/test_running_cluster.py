@@ -45,14 +45,15 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
 
     run_dir = os.path.join(tmpdir, app_name, run_path)
+    instances = ['storage-master', 'storage-replica']
     try:
         # Start an instance.
         start_cmd = [tt_cmd, "start", app_name]
-        start_application(start_cmd, tmpdir, app_name, ['master', 'storage'])
+        start_application(start_cmd, tmpdir, app_name, instances)
 
         # Check status.
         pidByInstanceName = {}
-        for inst in ['master', 'storage']:
+        for inst in instances:
             file = wait_file(os.path.join(run_dir, inst), 'tarantool.pid', [])
             assert file != ""
             file = wait_file(os.path.join(run_dir, inst), control_socket, [])
@@ -64,7 +65,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
         assert status_rc == 0
         status_info = extract_status(status_out)
-        for inst in ['master', 'storage']:
+        for inst in instances:
             assert status_info[app_name+":"+inst]["STATUS"] == "RUNNING"
             assert os.path.exists(os.path.join(tmpdir, app_name, "var", "lib", inst))
             assert os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst, "tt.log"))
@@ -72,7 +73,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
                                                "tarantool.log"))
 
         # Test connection.
-        for inst in ['master', 'storage']:
+        for inst in instances:
             start_cmd = [tt_cmd, "connect", app_name + ":" + inst, "-f", "-"]
             instance_process = subprocess.Popen(
                 start_cmd,
@@ -97,11 +98,12 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
             text=True
         )
         start_output = instance_process.stdout.read()
-        assert f"Starting an instance [{app_name}:master]" in start_output
-        assert f"Starting an instance [{app_name}:storage]" in start_output
+
+        for inst in instances:
+            assert f"Starting an instance [{app_name}:{inst}]" in start_output
 
         # Check status.
-        for inst in ['master', 'storage']:
+        for inst in instances:
             file = wait_file(os.path.join(run_dir, inst), 'tarantool.pid', [])
             assert file != ""
             file = wait_file(os.path.join(run_dir, inst), control_socket, [])
@@ -114,11 +116,11 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
         assert status_rc == 0
         status_info = extract_status(status_out)
-        for inst in ['master', 'storage']:
+        for inst in instances:
             assert status_info[app_name+":"+inst]["STATUS"] == "RUNNING"
 
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, ['master', 'storage'])
+        stop_application(tt_cmd, app_name, tmpdir, instances)
 
 
 @pytest.mark.skipif(tarantool_major_version < 3,
@@ -192,8 +194,8 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
 
     # Remove instances.yml.
     os.remove(os.path.join(app_path, "instances.yml"))
-    # Start master instance.
-    start_cmd = [tt_cmd, "start", f"{app_name}:master"]
+    # Start storage-master instance.
+    start_cmd = [tt_cmd, "start", f"{app_name}:storage-master"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=tmpdir,
@@ -215,8 +217,8 @@ def test_cluster_config_not_supported(tt_cmd, tmpdir_with_cfg):
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
 
-    # Start unknown instance.
-    start_cmd = [tt_cmd, "start", f"{app_name}:master"]
+    # Start storage-master instance.
+    start_cmd = [tt_cmd, "start", f"{app_name}:storage-master"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=tmpdir,
