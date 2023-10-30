@@ -34,6 +34,7 @@ Tarantool-based applications.
   * [Working with application templates](#Working-with-application-templates)
   * [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
   * [Setting Tarantool configuration parameters via environment variables](#setting-tarantool-configuration-parameters-via-environment-variables)
+  * [Add current environment binaries location to the PATH variable](#add-current-environment-binaries-location-to-the-path-variable)
 * [Migration from older TT versions](doc/migration_from_older_versions.md)
 * [Commands](#commands)
 
@@ -578,6 +579,16 @@ support it. The name of a variable should have the following pattern:
 [box.cfg](https://www.tarantool.io/en/doc/latest/reference/configuration/#box-cfg-params-ref)
 parameter.
 
+### Add current environment binaries location to the PATH variable.
+
+You can add current environment binaries location to the PATH variable:
+
+``` console
+. <(tt env)
+```
+
+Also TARANTOOL_DIR variable is set.
+
 ## Commands
 
 Common description. For a detailed description, use `tt help command` .
@@ -611,6 +622,7 @@ Common description. For a detailed description, use `tt help command` .
 -   `instances` - show enabled applications.
 -   `binaries` - show a list of installed binaries and their versions.
 -   `cluster` - manage cluster configuration.
+-   `env` - add current environment binaries location to the PATH variable.
 
 [godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/tt.svg
 [godoc-url]: https://pkg.go.dev/github.com/tarantool/tt

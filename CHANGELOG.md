@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Make cartridge app dependencies less strict.
 
+### Added
+
+- `tt env`: add current environment binaries location to the PATH variable.
+
 ## [2.0.0] - 2023-11-13
 
 ### Changed
