@@ -455,8 +455,10 @@ instance_name:
   parameter: value
 ```
 
-The dot and dash characters in instance names are reserved for system
-use. if it is necessary for a certain instance to work on a source file
+The dot character in instance names is reserved for system use.
+Also, if an instance name ends with `-stateboard`, it will be recognized
+as `stateboard`.
+If it is necessary for a certain instance to work on a source file
 other than `init.lua`, then you need to create a script with a name in
 the format: `instance_name.init.lua`.
 
