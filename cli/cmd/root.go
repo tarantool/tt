@@ -163,6 +163,7 @@ func NewCmdRoot() *cobra.Command {
 		NewCfgCmd(),
 		NewInstancesCmd(),
 		NewBinariesCmd(),
+		NewEnvCmd(),
 	)
 	if err := injectCmds(rootCmd); err != nil {
 		panic(err.Error())
