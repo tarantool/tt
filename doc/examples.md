@@ -56,8 +56,8 @@ while true do
 end
 ```
 
-`instances.yml` (The dot and dash characters in instance names are
-reserved for system use.):
+`instances.yml` (The dot character in instance names is
+reserved for system use):
 
 ``` yaml
 router:
