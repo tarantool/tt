@@ -119,7 +119,6 @@ func checkNoContainers(t *testing.T, imageTag string) {
 	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{
 		Latest: true,
 		Limit:  1,
-		Quiet:  true,
 	})
 	require.NoError(t, err)
 	containerFound := false

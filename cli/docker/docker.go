@@ -187,7 +187,7 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	case err := <-errCh:
 		if ctx.Err() == context.Canceled {
 			if err = dockerClient.ContainerStop(context.Background(), containerId,
-				nil); err != nil {
+				container.StopOptions{}); err != nil {
 				log.Warnf("Failed to stop the container %s", containerId[:12])
 			}
 			return fmt.Errorf("the operation is interrupted")
