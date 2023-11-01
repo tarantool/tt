@@ -141,7 +141,7 @@ local function cat(positional_arguments, keyword_arguments)
     local format_cb = cat_formats[cat_format]
     local is_printed = false
     for _, file in ipairs(positional_arguments) do
-        print(string.format('• Result of cat: the file "%s" is processed below •', file))
+        io.stderr:write(string.format('• Result of cat: the file "%s" is processed below •\n', file))
         io.stdout:flush()
         local gen, param, state = xlog.pairs(file)
         filter_xlog(gen, param, state, opts, function(record)

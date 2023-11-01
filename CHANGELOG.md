@@ -31,6 +31,7 @@ treated as a special case.
 - Log rotation functionality and configuration is removed from `tt`.
 `tt logrotate` command re-opens a log file and sends SIGHUP to the child
 `tarantool` processes.
+- ``tt cat``: all diagnostic messages are printed to stderr.
 
 ### Added
 
