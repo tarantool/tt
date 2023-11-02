@@ -51,7 +51,6 @@ func TestRunDump(t *testing.T) {
 			wantWriter: `./testdata/tt_cfg.yaml:
 env:
   inc_dir: ./test_inc
-  log_maxsize: 1024
 app:
   wal_dir: ./wal
 modules:
@@ -75,9 +74,6 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
   instances_enabled: %[1]s
-  log_maxsize: 1024
-  log_maxage: 8
-  log_maxbackups: 10
   restart_on_failure: false
   tarantoolctl_layout: false
 modules:
@@ -114,9 +110,6 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/include
   instances_enabled: %[1]s/instances.enabled
-  log_maxsize: 100
-  log_maxage: 8
-  log_maxbackups: 10
   restart_on_failure: false
   tarantoolctl_layout: false
 modules:
@@ -154,9 +147,6 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
   instances_enabled: .
-  log_maxsize: 1024
-  log_maxage: 8
-  log_maxbackups: 10
   restart_on_failure: false
   tarantoolctl_layout: false
 modules:

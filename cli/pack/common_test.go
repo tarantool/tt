@@ -366,10 +366,7 @@ func Test_createNewOpts(t *testing.T) {
 
 	testOptsStd := &config.CliOpts{
 		Env: &config.TtEnvOpts{
-			LogMaxBackups: 1,
-			LogMaxAge:     1,
-			LogMaxSize:    1,
-			Restartable:   true,
+			Restartable: true,
 		},
 		App: &config.AppOpts{
 			WalDir:   "test",
@@ -380,9 +377,6 @@ func Test_createNewOpts(t *testing.T) {
 
 	testOptsCustom := &config.CliOpts{
 		Env: &config.TtEnvOpts{
-			LogMaxBackups:      1,
-			LogMaxAge:          1,
-			LogMaxSize:         1,
 			Restartable:        true,
 			TarantoolctlLayout: true,
 		},
@@ -410,9 +404,6 @@ func Test_createNewOpts(t *testing.T) {
 					BinDir:             "bin",
 					IncludeDir:         "include",
 					InstancesEnabled:   configure.InstancesEnabledDirName,
-					LogMaxBackups:      1,
-					LogMaxAge:          1,
-					LogMaxSize:         1,
 					Restartable:        true,
 					TarantoolctlLayout: false,
 				},
@@ -446,9 +437,6 @@ func Test_createNewOpts(t *testing.T) {
 					BinDir:             "bin",
 					IncludeDir:         "include",
 					InstancesEnabled:   configure.InstancesEnabledDirName,
-					LogMaxBackups:      1,
-					LogMaxAge:          1,
-					LogMaxSize:         1,
 					Restartable:        true,
 					TarantoolctlLayout: true,
 				},

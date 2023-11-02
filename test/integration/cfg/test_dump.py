@@ -32,8 +32,6 @@ def test_cfg_dump_default(tt_cmd, tmpdir):
     assert f"inc_dir: {os.path.join(tmpdir, 'include')}" in output
     assert f"directory: {os.path.join(tmpdir, 'new_modules')}" in output
     assert f"distfiles: {os.path.join(tmpdir, 'distfiles')}" in output
-    assert "log_maxsize: 100" in output
-    assert "log_maxbackups: 12" in output
     assert f"instances_enabled: {tmpdir}" in output
     assert f"templates:\n- path: {os.path.join(tmpdir, 'templates')}" in output
     assert 'credential_path: ""' in output
@@ -68,7 +66,6 @@ app:
   memtx_dir: lib/memtx
 env:
   bin_dir: /usr/bin
-  log_maxbackups: 12
 """
 
 
@@ -115,8 +112,6 @@ def test_cfg_dump_default_no_config(tt_cmd, tmpdir):
     assert f"inc_dir: {os.path.join(tmpdir, 'include')}" in output
     assert f"directory: {os.path.join(tmpdir, 'modules')}" in output
     assert f"distfiles: {os.path.join(tmpdir, 'distfiles')}" in output
-    assert "log_maxsize: 100" in output
-    assert "log_maxbackups: 10" in output
     assert f"instances_enabled: {tmpdir}" in output
     assert f"templates:\n- path: {os.path.join(tmpdir, 'templates')}" in output
     assert 'credential_path: ""' in output
@@ -151,8 +146,6 @@ def test_cfg_dump_default_no_config(tt_cmd, tmpdir):
     assert f"inc_dir: {os.path.join(tmpdir, 'include')}" in output
     assert f"directory: {os.path.join(tmpdir, 'modules')}" in output
     assert f"distfiles: {os.path.join(tmpdir, 'distfiles')}" in output
-    assert "log_maxsize: 100" in output
-    assert "log_maxbackups: 10" in output
     assert "instances_enabled: ." in output
     assert f"templates:\n- path: {os.path.join(tmpdir, 'templates')}" in output
     assert 'credential_path: ""' in output

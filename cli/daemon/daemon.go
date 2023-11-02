@@ -18,19 +18,6 @@ type DaemonCtx struct {
 	PIDFile string
 	// LogPath is a path to a file contains log of daemon process.
 	LogPath string
-	// LogMaxSize is the maximum size in megabytes of the log file
-	// before it gets rotated. It defaults to 100 megabytes.
-	LogMaxSize int
-	// LogMaxBackups is the maximum number of old log files to retain.
-	// The default is to retain all old log files (though LogMaxAge may
-	// still cause them to get deleted).
-	LogMaxBackups int
-	// LogMaxAge is the maximum number of days to retain old log files
-	// based on the timestamp encoded in their filename. Note that a
-	// day is defined as 24 hours and may not exactly correspond to
-	// calendar days due to daylight savings, leap seconds, etc. The
-	// default is not to remove old log files based on age.
-	LogMaxAge int
 	// ListenInterface is a network interface the IP address
 	// should be found on to bind http server socket.
 	ListenInterface string
@@ -39,12 +26,9 @@ type DaemonCtx struct {
 // NewDaemonCtx creates the DaemonCtx context.
 func NewDaemonCtx(opts *config.DaemonOpts) *DaemonCtx {
 	return &DaemonCtx{
-		PIDFile:       filepath.Join(opts.RunDir, opts.PIDFile),
-		Port:          opts.Port,
-		LogPath:       filepath.Join(opts.LogDir, opts.LogFile),
-		LogMaxAge:     opts.LogMaxAge,
-		LogMaxBackups: opts.LogMaxBackups,
-		LogMaxSize:    opts.LogMaxSize,
+		PIDFile: filepath.Join(opts.RunDir, opts.PIDFile),
+		Port:    opts.Port,
+		LogPath: filepath.Join(opts.LogDir, opts.LogFile),
 	}
 }
 

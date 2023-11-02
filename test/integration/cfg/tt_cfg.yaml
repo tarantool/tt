@@ -8,4 +8,3 @@ app:
   memtx_dir: lib/memtx
 env:
   bin_dir: /usr/bin
-  log_maxbackups: 12

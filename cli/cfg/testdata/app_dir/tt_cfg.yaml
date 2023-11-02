@@ -1,6 +1,5 @@
 env:
   inc_dir: ./test_inc
-  log_maxsize: 1024
 app:
   wal_dir: ./wal
 modules:

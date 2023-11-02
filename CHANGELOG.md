@@ -28,6 +28,9 @@ stdout/stderr and `tt` logs go to `tt.log` file.
 - Ignore app-instance delimiters for Tarantool 3.0 instances.
 - Don't use dash as an app-instance delimiter. At the same time, `cartridge_app-stateboard`
 treated as a special case.
+- Log rotation functionality and configuration is removed from `tt`.
+`tt logrotate` command re-opens a log file and sends SIGHUP to the child
+`tarantool` processes.
 
 ### Added
 

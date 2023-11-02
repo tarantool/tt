@@ -396,9 +396,6 @@ func createNewOpts(opts *config.CliOpts, cartridgeCompat bool) *config.CliOpts {
 	cliOptsNew := configure.GetDefaultCliOpts()
 	cliOptsNew.Env.InstancesEnabled = configure.InstancesEnabledDirName
 	cliOptsNew.Env.Restartable = opts.Env.Restartable
-	cliOptsNew.Env.LogMaxAge = opts.Env.LogMaxAge
-	cliOptsNew.Env.LogMaxSize = opts.Env.LogMaxSize
-	cliOptsNew.Env.LogMaxBackups = opts.Env.LogMaxBackups
 	cliOptsNew.Env.TarantoolctlLayout = opts.Env.TarantoolctlLayout
 
 	// In case the user separates one of the directories for storing memtx, vinyl or wal artifacts

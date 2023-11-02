@@ -1,8 +1,5 @@
 env:
   instances_enabled: instances_enabled
-  log_maxsize: 1
-  log_maxage: 1
-  log_maxbackups: 1
   restart_on_failure: true
 modules:
   directory: modules
