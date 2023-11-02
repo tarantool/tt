@@ -6,47 +6,50 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// cleanupLog clean all log files with the temporary directory.
-func cleanupLog(logDir string) {
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		return
-	}
-	os.RemoveAll(logDir)
-	return
-}
-
 func TestLoggerBase(t *testing.T) {
-	assert := assert.New(t)
-
 	// Create a temporary directory for the log files.
-	dir, err := os.MkdirTemp("", "test_dir")
-	assert.Nil(err, `Can't create a temporary directory: "%v".`, err)
-	defer os.RemoveAll(dir)
-	t.Cleanup(func() { cleanupLog(dir) })
-
-	fileName := filepath.Join(dir, "test_log")
+	tmpDir := t.TempDir()
+	fileName := filepath.Join(tmpDir, "test_log")
 
 	// Create logger.
-	opts := LoggerOpts{
-		Filename:   fileName,
-		MaxSize:    5,
-		MaxBackups: 5,
-		MaxAge:     1,
-	}
-	logger := NewLogger(&opts)
-
+	opts := LoggerOpts{fileName, "watchdog"}
+	logger := NewLogger(opts)
 	// Write one test message to create a log file.
-	logger.Printf(`Test msg`)
+	logger.Println(`Test msg 1`)
 
 	// Check the count of the log files (must be 1).
-	files, err := os.ReadDir(dir)
-	assert.Equal(len(files), 1)
+	assert.FileExists(t, fileName)
 
 	logger.Rotate()
 
-	// Check the count of the log files after rotation (must be 2).
-	files, err = os.ReadDir(dir)
-	assert.Equal(len(files), 2)
+	// Check that the rotation does not create new file.
+	files, _ := os.ReadDir(tmpDir)
+	assert.Equal(t, len(files), 1)
+
+	os.Rename(fileName, fileName+".old")
+	assert.NoFileExists(t, fileName)
+	logger.Println(`Test msg 2`)
+	logger.Rotate()
+
+	// Check that file is re-created.
+	assert.FileExists(t, fileName)
+	assert.FileExists(t, fileName+".old")
+
+	logger.Println(`Test msg 3`)
+	assert.NoError(t, logger.Close())
+
+	content, err := os.ReadFile(fileName + ".old")
+	require.NoError(t, err)
+	contentStr := string(content)
+	assert.Contains(t, contentStr, "watchdog")
+	assert.Contains(t, contentStr, "Test msg 1")
+	assert.Contains(t, contentStr, "Test msg 2")
+
+	content, err = os.ReadFile(fileName)
+	require.NoError(t, err)
+	contentStr = string(content)
+	assert.Contains(t, contentStr, "Test msg 3")
 }
