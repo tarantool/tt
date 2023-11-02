@@ -465,9 +465,6 @@ func mapValuesFromConfig[T any](cfg *cluster.Config, mapFunc func(val T) (T, err
 func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts, ttConfigDir string) error {
 	tarantoolCtlLayout := false
 	if cliOpts.Env != nil {
-		inst.LogMaxSize = cliOpts.Env.LogMaxSize
-		inst.LogMaxAge = cliOpts.Env.LogMaxAge
-		inst.LogMaxBackups = cliOpts.Env.LogMaxBackups
 		inst.Restartable = cliOpts.Env.Restartable
 		tarantoolCtlLayout = cliOpts.Env.TarantoolctlLayout
 	}

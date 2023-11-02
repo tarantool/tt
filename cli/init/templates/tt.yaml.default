@@ -3,15 +3,6 @@ modules:
   directory: {{ .Modules.Directory }}
 
 env:
-  # The maximum size in MB of the log file before it gets rotated.
-  log_maxsize: {{ .Env.LogMaxSize }}
-
-  # The maximum number of days to retain old log files.
-  log_maxage: {{ .Env.LogMaxAge }}
-
-  # The maximum number of old log files to retain.
-  log_maxbackups: {{ .Env.LogMaxBackups }}
-
   # Restart instance on failure.
   restart_on_failure: {{ .Env.Restartable }}
 

@@ -255,9 +255,6 @@ env:
   instances_enabled: path/to/available/applications
   bin_dir: path/to/bin_dir
   inc_dir: path/to/inc_dir
-  log_maxsize: num (MB)
-  log_maxage: num (Days)
-  log_maxbackups: num
   restart_on_failure: bool
   tarantoolctl_layout: bool
 modules:
@@ -285,16 +282,6 @@ templates:
 -   `bin_dir` (string) - directory that stores binary files.
 -   `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
--   `log_maxsize` (number) - the maximum size in MB of the log file
-    before it gets rotated. It defaults to 100 MB.
--   `log_maxage` (numder) - is the maximum number of days to retain old
-    log files based on the timestamp encoded in their filename. Note
-    that a day is defined as 24 hours and may not exactly correspond to
-    calendar days due to daylight savings, leap seconds, etc. The
-    default is not to remove old log files based on age.
--   `log_maxbackups` (number) - the maximum number of old log files to
-    retain. The default is to retain all old log files (though
-    log_maxage may still cause them to get deleted.)
 -   `restart_on_failure` (bool) - should it restart on failure.
 -   `tarantoolctl_layout` (bool) - enable/disable tarantoolctl layout
     compatible mode for artifact files: control socket, pid, log files.
@@ -549,9 +536,6 @@ with `tt_daemon.yaml` config.
 daemon:
       run_dir: path
       log_dir: path
-      log_maxsize: num (MB)
-      log_maxage: num (Days)
-      log_maxbackups: num
       log_file: string (file name)
       listen_interface: string
       port: num
@@ -565,16 +549,6 @@ Where:
     `run`.
 -   `log_dir` (string) - directory that stores log files. Default:
     `log`.
--   `log_maxsize` (number) - the maximum size in MB of the log file
-    before it gets rotated. Default: 100 MB.
--   `log_maxage` (numder) - is the maximum number of days to retain old
-    log files based on the timestamp encoded in their filename. Note
-    that a day is defined as 24 hours and may not exactly correspond to
-    calendar days due to daylight savings, leap seconds, etc. Default:
-    not to remove old log files based on age.
--   `log_maxbackups` (number) - the maximum number of old log files to
-    retain. Default: to retain all old log files (though log_maxage may
-    still cause them to get deleted).
 -   `log_file` (string) - name of file contains log of daemon process.
     Default: `tt_daemon.log`.
 -   `listen_interface` (string) - network interface the IP address

@@ -280,8 +280,6 @@ func TestUpdateCliOpts(t *testing.T) {
 		},
 		Env: &config.TtEnvOpts{
 			IncludeDir: "../include_dir",
-			LogMaxAge:  42,
-			LogMaxSize: 200,
 		},
 		Modules: &config.ModulesOpts{},
 		EE:      &config.EEOpts{},
@@ -299,7 +297,4 @@ func TestUpdateCliOpts(t *testing.T) {
 	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.Env.IncludeDir)
 	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directory)
 	assert.Equal(t, configDir, cliOpts.Env.InstancesEnabled)
-	assert.Equal(t, 42, cliOpts.Env.LogMaxAge)
-	assert.Equal(t, logMaxBackups, cliOpts.Env.LogMaxBackups)
-	assert.Equal(t, 200, cliOpts.Env.LogMaxSize)
 }

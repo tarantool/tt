@@ -48,9 +48,6 @@ const (
 	SnapPath      = "snap"
 	VinylPath     = "vinyl"
 	WalPath       = "wal"
-	logMaxSize    = 100
-	logMaxAge     = 8
-	logMaxBackups = 10
 )
 
 var (
@@ -83,9 +80,6 @@ func getDefaultAppOpts() *config.AppOpts {
 func getDefaultTtEnvOpts() *config.TtEnvOpts {
 	return &config.TtEnvOpts{
 		InstancesEnabled:   ".",
-		LogMaxSize:         logMaxSize,
-		LogMaxAge:          logMaxAge,
-		LogMaxBackups:      logMaxBackups,
 		Restartable:        false,
 		BinDir:             BinPath,
 		IncludeDir:         IncludePath,
@@ -126,9 +120,6 @@ func getDefaultDaemonOpts() *config.DaemonOpts {
 		RunDir:          VarRunPath,
 		LogDir:          VarLogPath,
 		LogFile:         defaultDaemonLogFile,
-		LogMaxSize:      0,
-		LogMaxAge:       0,
-		LogMaxBackups:   0,
 		ListenInterface: "",
 	}
 }
@@ -193,16 +184,6 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 			cliOpts.Templates[i].Path, configDir, "."); err != nil {
 			return err
 		}
-	}
-
-	if cliOpts.Env.LogMaxAge == 0 {
-		cliOpts.Env.LogMaxAge = logMaxAge
-	}
-	if cliOpts.Env.LogMaxSize == 0 {
-		cliOpts.Env.LogMaxSize = logMaxSize
-	}
-	if cliOpts.Env.LogMaxBackups == 0 {
-		cliOpts.Env.LogMaxBackups = logMaxBackups
 	}
 
 	return nil

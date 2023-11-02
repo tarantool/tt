@@ -6,9 +6,6 @@ package config
 // tt.yaml file format:
 //  env:
 //    instances_enabled: path
-//    log_maxsize: num (MB)
-//    log_maxage: num (Days)
-//    log_maxbackups: num
 //    tarantoolctl_layout: false
 //    restart_on_failure: bool
 //  modules:
@@ -63,19 +60,6 @@ type TtEnvOpts struct {
 	IncludeDir string `mapstructure:"inc_dir" yaml:"inc_dir"`
 	// InstancesEnabled is the directory where all enabled applications are stored.
 	InstancesEnabled string `mapstructure:"instances_enabled" yaml:"instances_enabled"`
-	// LogMaxSize is a maximum size in MB of the log file before
-	// it gets rotated.
-	LogMaxSize int `mapstructure:"log_maxsize" yaml:"log_maxsize"`
-	// LogMaxAge is the maximum number of days to retain old log files
-	// based on the timestamp encoded in their filename. Note that a
-	// day is defined as 24 hours and may not exactly correspond to
-	// calendar days due to daylight savings, leap seconds, etc. The
-	// default is not to remove old log files based on age.
-	LogMaxAge int `mapstructure:"log_maxage" yaml:"log_maxage"`
-	// LogMaxBackups is the maximum number of old log files to retain.
-	// The default is to retain all old log files (though LogMaxAge may
-	// still cause them to get deleted).
-	LogMaxBackups int `mapstructure:"log_maxbackups" yaml:"log_maxbackups"`
 	// Restartable - if set the instance is started under the watchdog it should
 	// restart on if it crashes.
 	Restartable bool `mapstructure:"restart_on_failure" yaml:"restart_on_failure"`

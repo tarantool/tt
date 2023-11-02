@@ -411,9 +411,6 @@ env:
   bin_dir: bin
   inc_dir: include
   instances_enabled: instances.enabled
-  log_maxsize: 100
-  log_maxage: 8
-  log_maxbackups: 10
   restart_on_failure: false
   tarantoolctl_layout: false
 modules:
@@ -597,9 +594,6 @@ config. Generated `tt.yaml` will look like (comments omitted):
 modules:
   directory: modules
 env:
-  log_maxsize: 100
-  log_maxage: 8
-  log_maxbackups: 10
   restart_on_failure: false
   bin_dir: bin
   inc_dir: include

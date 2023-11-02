@@ -67,9 +67,6 @@ def test_init_missing_configs(tt_cmd, tmpdir):
         assert data_loaded["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["app"]["memtx_dir"] == "var/lib"
         assert data_loaded["env"]["instances_enabled"] == "instances.enabled"
-        assert data_loaded["env"]["log_maxsize"] == 100
-        assert data_loaded["env"]["log_maxage"] == 8
-        assert data_loaded["env"]["log_maxbackups"] == 10
         assert not data_loaded["env"]["tarantoolctl_layout"]
         assert data_loaded["modules"]["directory"] == "modules"
         assert data_loaded["env"]["bin_dir"] == "bin"
