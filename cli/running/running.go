@@ -151,7 +151,7 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (inst Instanc
 	}
 
 	if provider.instanceCtx.ClusterConfigPath != "" {
-		logger.Printf("Watchdog(INFO): using %q cluster config for instance %q",
+		logger.Printf("(INFO): using %q cluster config for instance %q",
 			provider.instanceCtx.ClusterConfigPath,
 			provider.instanceCtx.InstName,
 		)
@@ -173,15 +173,6 @@ func isLoggerChanged(logger *ttlog.Logger, instanceCtx *InstanceCtx) (bool, erro
 
 	// Check if some of the parameters have been changed.
 	if loggerOpts.Filename != instanceCtx.Log {
-		return true, nil
-	}
-	if loggerOpts.MaxAge != instanceCtx.LogMaxAge {
-		return true, nil
-	}
-	if loggerOpts.MaxBackups != instanceCtx.LogMaxBackups {
-		return true, nil
-	}
-	if loggerOpts.MaxSize != instanceCtx.LogMaxSize {
 		return true, nil
 	}
 	return false, nil
@@ -429,13 +420,10 @@ func cleanup(run *InstanceCtx) {
 // createLogger prepares a logger for the watchdog and instance.
 func createLogger(run *InstanceCtx) *ttlog.Logger {
 	opts := ttlog.LoggerOpts{
-		Filename:   run.Log,
-		MaxSize:    run.LogMaxSize,
-		MaxBackups: run.LogMaxBackups,
-		MaxAge:     run.LogMaxAge,
+		Filename: run.Log,
+		Prefix:   "Watchdog ",
 	}
-
-	return ttlog.NewLogger(&opts)
+	return ttlog.NewLogger(opts)
 }
 
 // configMap is a helper structure to bind cluster config path with a pointer to value storage.

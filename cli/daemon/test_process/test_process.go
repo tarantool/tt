@@ -49,10 +49,7 @@ func (w *TestWorker) Stop() error {
 
 func main() {
 	logOpts := ttlog.LoggerOpts{
-		Filename:   daemon.TestProcessLogPath,
-		MaxSize:    0,
-		MaxBackups: 0,
-		MaxAge:     0,
+		Filename: daemon.TestProcessLogPath,
 	}
 
 	proc := daemon.NewProcess(NewTestWorker(), daemon.TestProcessPidFile, logOpts)

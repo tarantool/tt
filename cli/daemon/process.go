@@ -94,7 +94,7 @@ func (process *Process) IsChild() bool {
 // Start starts the process.
 func (process *Process) Start() error {
 	if process.IsChild() {
-		process.logger = ttlog.NewLogger(&process.logOpts)
+		process.logger = ttlog.NewLogger(process.logOpts)
 
 		if err := process_utils.CreatePIDFile(process.pidFileName); err != nil {
 			return err

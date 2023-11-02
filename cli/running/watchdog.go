@@ -66,7 +66,7 @@ func (wd *Watchdog) Start() error {
 	var err error
 	// Create Instance.
 	if wd.instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
-		wd.logger.Printf(`Watchdog(ERROR): instance creation failed: %v.`, err)
+		wd.logger.Printf(`(ERROR): instance creation failed: %v.`, err)
 		return err
 	}
 
@@ -77,7 +77,7 @@ func (wd *Watchdog) Start() error {
 	wd.startSignalHandling()
 
 	if err = wd.preStartAction(); err != nil {
-		wd.logger.Printf(`Pre-start action error: %v`, err)
+		wd.logger.Printf(`(ERROR): Pre-start action error: %v`, err)
 		// Finish the signal handling goroutine.
 		wd.done <- true
 		return err
@@ -90,13 +90,13 @@ func (wd *Watchdog) Start() error {
 
 		wd.stopMutex.Lock()
 		if wd.shouldStop {
-			wd.logger.Printf(`Watchdog(ERROR): terminated before instance start.`)
+			wd.logger.Printf(`(ERROR): terminated before instance start.`)
 			wd.stopMutex.Unlock()
 			return nil
 		}
 		// Start the Instance.
 		if err := wd.instance.Start(); err != nil {
-			wd.logger.Printf(`Watchdog(ERROR):  instance start failed: %v.`, err)
+			wd.logger.Printf(`(ERROR):  instance start failed: %v.`, err)
 			wd.stopMutex.Unlock()
 			break
 		}
@@ -104,7 +104,7 @@ func (wd *Watchdog) Start() error {
 
 		// Wait while the Instance will be terminated.
 		if err := wd.instance.Wait(); err != nil {
-			wd.logger.Printf(`Watchdog(WARN): "%v".`, err)
+			wd.logger.Printf(`(WARN): "%v".`, err)
 		}
 
 		// Set Instance process completion indication.
@@ -115,28 +115,28 @@ func (wd *Watchdog) Start() error {
 		// Stop the process if the Instance is not restartable.
 		restartable, err := wd.provider.IsRestartable()
 		if err != nil {
-			wd.logger.Println("Watchdog(ERROR): can't check if the instance is restartable.")
+			wd.logger.Println("(ERROR): can't check if the instance is restartable.")
 			break
 		}
 		if wd.shouldStop || !restartable {
-			wd.logger.Println("Watchdog(INFO): the Instance has shutdown.")
+			wd.logger.Println("(INFO): the Instance has shutdown.")
 			break
 		}
 
 		if logger, err := wd.provider.UpdateLogger(wd.logger); err != nil {
-			wd.logger.Println("Watchdog(ERROR): can't update logger parameters.")
+			wd.logger.Println("(ERROR): can't update logger parameters.")
 			break
 		} else {
 			wd.logger = logger
 		}
-		wd.logger.Printf(`Watchdog(INFO): waiting for restart timeout %s.`, wd.restartTimeout)
+		wd.logger.Printf(`(INFO): waiting for restart timeout %s.`, wd.restartTimeout)
 		time.Sleep(wd.restartTimeout)
 
 		wd.shouldStop = false
 
 		// Recreate Instance.
 		if wd.instance, err = wd.provider.CreateInstance(wd.logger); err != nil {
-			wd.logger.Printf(`Watchdog(ERROR): "%v".`, err)
+			wd.logger.Printf(`(ERROR): "%v".`, err)
 			return err
 		}
 
@@ -184,6 +184,9 @@ func (wd *Watchdog) startSignalHandling() {
 				case syscall.SIGHUP:
 					// Rotate the log files.
 					wd.logger.Rotate()
+					if wd.instance.IsAlive() {
+						wd.instance.SendSignal(sig)
+					}
 				default:
 					if wd.instance.IsAlive() {
 						wd.instance.SendSignal(sig)

@@ -51,10 +51,7 @@ func NewDaemonCtx(opts *config.DaemonOpts) *DaemonCtx {
 // RunHTTPServerOnBackground starts http daemon process.
 func RunHTTPServerOnBackground(daemonCtx *DaemonCtx) error {
 	logOpts := ttlog.LoggerOpts{
-		Filename:   daemonCtx.LogPath,
-		MaxSize:    daemonCtx.LogMaxSize,
-		MaxBackups: daemonCtx.LogMaxBackups,
-		MaxAge:     daemonCtx.LogMaxAge,
+		Filename: daemonCtx.LogPath,
 	}
 
 	args := []string{"daemon", "start"}

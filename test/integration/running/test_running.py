@@ -6,9 +6,9 @@ import tempfile
 
 import yaml
 
-from utils import (config_name, extract_status, kill_child_process, log_path,
-                   pid_file, run_command_and_get_output, run_path, wait_file,
-                   wait_instance_start, wait_instance_stop)
+from utils import (config_name, extract_status, kill_child_process, log_file,
+                   log_path, pid_file, run_command_and_get_output, run_path,
+                   wait_file, wait_instance_start, wait_instance_stop)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
@@ -122,11 +122,11 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
 
 def test_logrotate(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_env_app", "test_env_app.lua")
     shutil.copy(test_app_path, tmpdir)
 
     # Start an instance.
-    start_cmd = [tt_cmd, "start", "test_app"]
+    start_cmd = [tt_cmd, "start", "test_env_app"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=tmpdir,
@@ -138,30 +138,39 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Check logrotate.
+    tt_log_file = os.path.join(tmpdir, "test_env_app", log_path, "test_env_app", log_file)
+    tnt_log_file = os.path.join(tmpdir, "test_env_app", log_path, "test_env_app", "tarantool.log")
 
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
+    file = wait_file(os.path.join(tmpdir, "test_env_app", run_path, "test_env_app"), pid_file, [])
     assert file != ""
-    logrotate_cmd = [tt_cmd, "logrotate", "test_app"]
+    file = wait_file(os.path.dirname(tt_log_file), log_file, [])
+    assert file != ""
+    file = wait_file(os.path.dirname(tt_log_file), "tarantool.log", [])
+    assert file != ""
+    logrotate_cmd = [tt_cmd, "logrotate", "test_env_app"]
 
-    # We use the first "logrotate" call to create the first log file (the problem is that the log
-    # file will be created after the first log message is written, but we don't write any logs in
-    # the application), and the second one to rotate it and create the second one.
-    exists_log_files = []
-    for _ in range(2):
-        logrotate_rc, logrotate_out = run_command_and_get_output(logrotate_cmd, cwd=tmpdir)
-        assert logrotate_rc == 0
-        assert re.search(r"test_app: logs has been rotated. PID: \d+.", logrotate_out)
+    os.rename(tt_log_file, os.path.join(tmpdir, "tt.log"))
+    os.rename(tnt_log_file, os.path.join(tmpdir, "tarantool.log"))
+    logrotate_rc, logrotate_out = run_command_and_get_output(logrotate_cmd, cwd=tmpdir)
+    assert logrotate_rc == 0
+    assert re.search(r"test_env_app: logs has been rotated. PID: \d+.", logrotate_out)
 
-        file = wait_file(os.path.join(tmpdir, "test_app", log_path, "test_app"), 'tt.*.log',
-                         exists_log_files)
-        assert file != ""
-        exists_log_files.append(file)
+    # Wait for the files to be re-created.
+    file = wait_file(os.path.dirname(tt_log_file), log_file, [])
+    assert file != ""
+    with open(tt_log_file) as f:
+        assert "reopened" in f.read()
+
+    file = wait_file(os.path.dirname(tnt_log_file), "tarantool.log", [])
+    assert file != ""
+    with open(tnt_log_file) as f:
+        assert "reopened" in f.read()
 
     # Stop the Instance.
-    stop_cmd = [tt_cmd, "stop", "test_app"]
+    stop_cmd = [tt_cmd, "stop", "test_env_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
     assert stop_rc == 0
-    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
+    assert re.search(r"The Instance test_env_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
