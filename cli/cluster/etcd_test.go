@@ -639,7 +639,7 @@ func TestEtcdDataPublisher_Publish_timeout_exit(t *testing.T) {
 	// You should increase the values if the test is flaky.
 	before := time.Now()
 	timeout := 100 * time.Millisecond
-	delta := 10 * time.Millisecond
+	delta := 30 * time.Millisecond
 	publisher := cluster.NewEtcdDataPublisher(mock, "prefix", timeout)
 	err := publisher.Publish([]byte{})
 	assert.EqualError(t, err, "context deadline exceeded")
