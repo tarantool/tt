@@ -53,7 +53,6 @@ def test_install_tt_unexisted_commit(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.skip(reason="Changes are incompatible with previous version")
 def test_install_tt(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
@@ -73,6 +72,7 @@ def test_install_tt(tt_cmd, tmpdir):
     # Check that the process shutdowned correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
+    os.remove(configPath)
 
     installed_cmd = [tmpdir + "/bin/tt", "version"]
     installed_program_process = subprocess.Popen(
@@ -87,7 +87,6 @@ def test_install_tt(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.skip(reason="Changes are incompatible with previous version")
 def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
@@ -95,7 +94,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
     # Install specific tt's commit.
-    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "2df3077"]
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "400167c"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir,
@@ -117,11 +116,11 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
         text=True
     )
     start_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool CLI version 1.0.1", start_output)
-    assert re.search(r"commit: 2df3077", start_output)
+    assert re.search(r"Tarantool CLI version 1.3.0", start_output)
+    assert re.search(r"commit: 400167c", start_output)
 
     # Uninstall specific tt's commit.
-    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt=2df3077"]
+    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt", "400167c"]
     uninstall_instance_process = subprocess.Popen(
         uninstall_cmd,
         cwd=tmpdir,
@@ -132,8 +131,8 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     first_output = uninstall_instance_process.stdout.readline()
     assert re.search(r"Removing binary...", first_output)
     second_output = uninstall_instance_process.stdout.readline()
-    assert re.search(r"tt=2df3077 is uninstalled", second_output)
-    assert not os.path.exists(os.path.join(tmpdir, "bin", "tt_2df3077"))
+    assert re.search(r"tt=400167c is uninstalled", second_output)
+    assert not os.path.exists(os.path.join(tmpdir, "bin", "tt_400167c"))
 
 
 @pytest.mark.slow
@@ -181,7 +180,6 @@ def test_wrong_format_hash(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.skip(reason="Changes are incompatible with previous version")
 def test_install_tt_specific_version(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
@@ -201,6 +199,7 @@ def test_install_tt_specific_version(tt_cmd, tmpdir):
     # Check that the process shutdowned correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
+    os.remove(configPath)
 
     installed_cmd = [tmpdir + "/bin/tt", "version"]
     installed_program_process = subprocess.Popen(
