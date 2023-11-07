@@ -1,5 +1,6 @@
 # Tarantool CLI
 
+[![Go Reference][godoc-badge]][godoc-url]
 [![Go Report][report-badge]][report-url]
 [![Release][release-badge]][release-url]
 [![Full CI][testing-actions-badge]][testing-actions-url]
@@ -604,6 +605,9 @@ Common description. For a detailed description, use `tt help command` .
 -   `instances` - show enabled applications.
 -   `binaries` - show a list of installed binaries and their versions.
 -   `cluster` - manage cluster configuration.
+
+[godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/tt.svg
+[godoc-url]: https://pkg.go.dev/github.com/tarantool/tt
 
 [report-badge]: https://goreportcard.com/badge/github.com/tarantool/tt
 [report-url]: https://goreportcard.com/report/github.com/tarantool/tt
