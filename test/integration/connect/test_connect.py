@@ -6,8 +6,10 @@ import subprocess
 import psutil
 import pytest
 
-from utils import (control_socket, kill_procs, run_command_and_get_output,
-                   run_path, wait_file)
+from utils import (control_socket, get_tarantool_version, kill_procs,
+                   run_command_and_get_output, run_path, wait_file)
+
+tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
 @pytest.fixture(autouse=True)
@@ -1109,8 +1111,14 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
                               "+----------+----------+------+-----+\n")
 
             # Execute stdin.
+            if (tarantool_major_version >= 3 or
+               (tarantool_major_version == 2 and tarantool_minor_version >= 11)):
+                select = "select * from seqscan table1"
+            else:
+                select = "select * from table1"
+
             ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
-                                                  stdin="box.execute('select * from table1')",
+                                                  stdin=f"box.execute('{select}')",
                                                   opts={'-x': 'table'})
             assert ret
             assert output == ("+---------+-------------------+\n"
