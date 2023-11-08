@@ -18,7 +18,9 @@ def test_check_non_existent_file(tt_cmd, tmpdir_with_cfg):
     cmd = [tt_cmd, "check", "path-to-non-existent-file"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
-    assert re.search(r"can't find an application init file", output)
+    assert re.search(r"can\'t collect instance information for path-to-non-existent-file", output)
+    assert re.search(f"\"{os.path.join(tmpdir_with_cfg, 'path-to-non-existent-file')}\" " +
+                     "doesn\'t exist or not a directory", output)
 
 
 def test_check_incorrect_syntax_file(tt_cmd, tmpdir_with_cfg):

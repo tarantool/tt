@@ -132,7 +132,7 @@ def test_cluster_show_config_not_exist_app(tt_cmd, tmpdir_with_cfg):
     )
     show_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ unknown: can't find an application init file:")
+    expected = (r"   ⨯ can't collect instance information for unknown:")
     assert expected in show_output
 
 
@@ -243,8 +243,7 @@ def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg, app
     )
     show_output = instance_process.stdout.read()
 
-    expected = (f"   ⨯ {app_name}:unknown: " +
-                "can't find an application init file: " +
+    expected = (f"   ⨯ can't collect instance information for {app_name}:unknown: " +
                 "instance(s) not found")
     assert expected in show_output
 
@@ -536,7 +535,7 @@ def test_cluster_publish_no_app(tt_cmd, tmpdir_with_cfg):
     )
     publish_output = instance_process.stdout.read()
 
-    assert "⨯ non_exist: can't find an application init file:" in publish_output
+    assert "⨯ can\'t collect instance information for non_exist:" in publish_output
 
 
 @pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
@@ -672,7 +671,7 @@ def test_cluster_publish_no_instance(tt_cmd, tmpdir_with_cfg, app_name):
     )
     publish_output = instance_process.stdout.read()
 
-    assert (f"⨯ {app_name}:non_exist: can't find an application init file:" +
+    assert (f"⨯ can't collect instance information for {app_name}:non_exist:" +
             " instance(s) not found") in publish_output
 
 

@@ -188,7 +188,8 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
         text=True
     )
     start_output = instance_process.stdout.read()
-    assert r"can't find an application init file: instance(s) not found" in start_output
+    assert f"can't collect instance information for {app_name}:unknown: "
+    "instance(s) not found" in start_output
     rc = instance_process.wait(5)
     assert rc != 0
 
