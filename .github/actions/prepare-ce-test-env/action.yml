@@ -48,10 +48,25 @@ runs:
       shell: bash
 
     - name: Install Tarantool
+      if: |
+        inputs.skip-tarantool-install == 'false' &&
+        !startsWith(inputs.tarantool-version, '3.')
       uses: tarantool/setup-tarantool@v1
-      if: ${{ inputs.skip-tarantool-install == 'false' }}
       with:
         tarantool-version: '${{ inputs.tarantool-version }}'
+
+    # Here is a workaround for Tarantool 3.0 installation until it is supported
+    # by setup-tarantool. This step will install the latest pre-released
+    # Tarantool 3.0 from repository.
+    - name: Install Tarantool from repo
+      if: |
+        inputs.skip-tarantool-install == 'false' &&
+        startsWith(inputs.tarantool-version, '3.')
+      run: |
+        sudo curl -L https://tarantool.io/iqJapRm/release/3/installer.sh | \
+        sed 's|repo_type="release"|repo_type="pre-release"|' | bash
+        sudo apt install tarantool tarantool-dev
+      shell: bash
 
     - name: Install etcd
       uses: ./.github/actions/setup-etcd
