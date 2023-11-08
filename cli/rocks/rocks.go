@@ -27,6 +27,7 @@ const (
 	rocksRepoManifestName     = "manifest"
 	repoRocksPathEnvVarName   = "TT_CLI_REPO_ROCKS"
 	tarantoolPrefixEnvVarName = "TT_CLI_TARANTOOL_PREFIX"
+	tarantoolDefaultPrefixDir = "/usr"
 )
 
 // addLuarocksRepoOpts adds --server option to luarocks command line if rocks repository
@@ -94,6 +95,13 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 	}
 
 	prefixDir := matches["prefix"]
+
+	if !util.IsDir(prefixDir) {
+		log.Debugf("%q does not exist or is not a directory. Using default: %q",
+			prefixDir, tarantoolDefaultPrefixDir)
+		prefixDir = tarantoolDefaultPrefixDir
+	}
+
 	log.Debugf("Tarantool prefix path: %q", prefixDir)
 	return prefixDir, nil
 }
