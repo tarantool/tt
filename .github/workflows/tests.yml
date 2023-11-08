@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        tarantool-version: ["1.10", "2.10"]
+        tarantool-version: ["1.10", "2.10", "3.0"]
       fail-fast: false
     steps:
       - uses: actions/checkout@master
