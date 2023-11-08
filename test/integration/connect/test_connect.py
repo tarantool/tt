@@ -523,7 +523,7 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     # Connect to a wrong instance.
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "any_app", empty_file)
     assert not ret
-    assert re.search(r"   ⨯ any_app: can't find an application init file", output)
+    assert re.search(r"   ⨯ can\'t collect instance information for any_app", output)
 
     # Connect to the instance and execute a script.
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
@@ -609,8 +609,7 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
     non_exist = app_name + ":" + "any_name"
     ret, output = try_execute_on_instance(tt_cmd, tmpdir, non_exist, empty_file)
     assert not ret
-    assert re.search(r"   ⨯ test_multi_app:any_name: can't find an application init file:"
-                     r" instance\(s\) not found", output)
+    assert re.search(rf"   ⨯ can't collect instance information for {non_exist}", output)
 
     # Connect to instances.
     for instance in instances:

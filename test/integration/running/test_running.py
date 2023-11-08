@@ -400,7 +400,7 @@ def test_running_multi_inst_app_error_cases(tt_cmd):
         )
         instance_process.wait(1)
         start_output = instance_process.stdout.readline()
-        assert re.search(r"can't find an application init file", start_output)
+        assert re.search(r"can\'t collect instance information for app2", start_output)
 
 
 def test_running_reread_config(tt_cmd, tmpdir):

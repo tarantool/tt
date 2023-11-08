@@ -355,14 +355,16 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string) (
 
 		if instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
 			instance.InstName); err != nil {
-			return instances, err
+			return instances, fmt.Errorf("error loading instance %q configuration from "+
+				"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
 		}
 
 		instance.AppName = filepath.Base(appDir)
 		instance.SingleApp = false
 		if instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
 			appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath); err != nil {
-			return instances, err
+			return instances, fmt.Errorf("cannot find instance script for %q in config %q: %w ",
+				instance.InstName, appDirFiles.clusterCfgPath, err)
 		}
 		instances = append(instances, instance)
 	}
@@ -542,7 +544,7 @@ func CollectInstancesForApps(appList []util.AppListEntry, cliOpts *config.CliOpt
 		appName := strings.TrimSuffix(appInfo.Name, ".lua")
 		collectedInstances, err := CollectInstances(appName, instEnabledPath)
 		if err != nil {
-			return instances, fmt.Errorf("%s: can't find an application init file: %s",
+			return instances, fmt.Errorf("can't collect instance information for %s: %w",
 				appName, err)
 		}
 
@@ -665,7 +667,6 @@ func Run(runOpts *RunOpts, scriptPath string) error {
 	return err
 }
 
-// Status returns the status of the Instance.
 func Status(run *InstanceCtx) process_utils.ProcessState {
 	return process_utils.ProcessStatus(run.PIDFile)
 }
