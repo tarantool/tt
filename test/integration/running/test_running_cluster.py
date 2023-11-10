@@ -69,8 +69,8 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
             assert status_info[app_name+":"+inst]["STATUS"] == "RUNNING"
             assert os.path.exists(os.path.join(tmpdir, app_name, "var", "lib", inst))
             assert os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst, "tt.log"))
-            assert os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst,
-                                               "tarantool.log"))
+            assert not os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst,
+                                                   "tarantool.log"))
 
         # Test connection.
         for inst in instances:

@@ -32,6 +32,7 @@ treated as a special case.
 `tt logrotate` command re-opens a log file and sends SIGHUP to the child
 `tarantool` processes.
 - ``tt cat``: all diagnostic messages are printed to stderr.
+- Print `tarantool` stdout/stderr and watchdog logs to the same log file - `tt.log`.
 
 ### Added
 

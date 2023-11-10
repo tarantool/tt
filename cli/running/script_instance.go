@@ -116,15 +116,13 @@ func shortenSocketPath(socketPath string, basePath string) (string, error) {
 	return "", err
 }
 
-// setTarantoolLogFile sets tarantool log file path env var.
-func (inst *scriptInstance) setTarantoolLogFile(cmd *exec.Cmd) {
+// setTarantoolLog sets tarantool log file path env var.
+func (inst *scriptInstance) setTarantoolLog(cmd *exec.Cmd) {
 	if inst.logDir != "" {
-		cmd.Env = append(cmd.Env, "TT_LOG=file:"+filepath.Join(inst.logDir, "tarantool.log"))
 		// This is a cartridge specific variable required for logging scheme to work with
 		// tarantool <2.11 versions. Cartridge performs logging configuration before box.cfg
 		// and uses its own variables to pass to log.cfg call.
-		cmd.Env = append(cmd.Env, "TARANTOOL_LOG=file:"+
-			filepath.Join(inst.logDir, "tarantool.log"))
+		cmd.Env = append(cmd.Env, "TARANTOOL_LOG=")
 	}
 }
 
@@ -183,7 +181,7 @@ func (inst *scriptInstance) Start() error {
 			"TARANTOOL_CFG="+filepath.Dir(inst.appPath)+"/instances.yml")
 	}
 
-	inst.setTarantoolLogFile(cmd)
+	inst.setTarantoolLog(cmd)
 
 	// Start an Instance.
 	if inst.processController, err = newProcessController(cmd); err != nil {
