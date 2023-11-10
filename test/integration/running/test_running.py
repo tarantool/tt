@@ -139,18 +139,14 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
 
     # Check logrotate.
     tt_log_file = os.path.join(tmpdir, "test_env_app", log_path, "test_env_app", log_file)
-    tnt_log_file = os.path.join(tmpdir, "test_env_app", log_path, "test_env_app", "tarantool.log")
 
     file = wait_file(os.path.join(tmpdir, "test_env_app", run_path, "test_env_app"), pid_file, [])
     assert file != ""
     file = wait_file(os.path.dirname(tt_log_file), log_file, [])
     assert file != ""
-    file = wait_file(os.path.dirname(tt_log_file), "tarantool.log", [])
-    assert file != ""
     logrotate_cmd = [tt_cmd, "logrotate", "test_env_app"]
 
-    os.rename(tt_log_file, os.path.join(tmpdir, "tt.log"))
-    os.rename(tnt_log_file, os.path.join(tmpdir, "tarantool.log"))
+    os.rename(tt_log_file, os.path.join(tmpdir, log_file))
     logrotate_rc, logrotate_out = run_command_and_get_output(logrotate_cmd, cwd=tmpdir)
     assert logrotate_rc == 0
     assert re.search(r"test_env_app: logs has been rotated. PID: \d+.", logrotate_out)
@@ -159,11 +155,6 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     file = wait_file(os.path.dirname(tt_log_file), log_file, [])
     assert file != ""
     with open(tt_log_file) as f:
-        assert "reopened" in f.read()
-
-    file = wait_file(os.path.dirname(tnt_log_file), "tarantool.log", [])
-    assert file != ""
-    with open(tnt_log_file) as f:
         assert "reopened" in f.read()
 
     # Stop the Instance.
@@ -607,7 +598,7 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
 
     # Check that log format is in json.
     isJson = False
-    logPath = os.path.join(tmpdir, "test_env_app", "var", "log", "test_env_app", "tarantool.log")
+    logPath = os.path.join(tmpdir, "test_env_app", "var", "log", "test_env_app", log_file)
     with open(logPath, "r") as file:
         for _, line in enumerate(file, start=1):
             if "{" in line:

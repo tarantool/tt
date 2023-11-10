@@ -171,10 +171,7 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, clusterInstance.Stop(stopTimeout))
 	})
-	require.NotZero(t, waitForFile(filepath.Join(tmpAppDir, "tarantool.log")))
-	f, err := os.Open(filepath.Join(tmpAppDir, "tarantool.log"))
-	require.NoError(t, err)
-	require.NoError(t, waitForMsgInBuffer(f, "entering the event loop", 10*time.Second))
+	require.NoError(t, waitForMsgInBuffer(&outputBuf, "entering the event loop", 10*time.Second))
 
 	assert.NoFileExists(t, filepath.Join(tmpAppDir, "run", "tt.control"))
 	assert.NoFileExists(t, filepath.Join(tmpAppDir, "var", "run",

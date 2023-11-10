@@ -7,8 +7,8 @@ import pytest
 import yaml
 
 import utils
-from utils import (get_tarantool_version, pid_file, run_command_and_get_output,
-                   wait_file)
+from utils import (get_tarantool_version, log_file, pid_file,
+                   run_command_and_get_output, wait_file)
 
 cartridge_name = "test_app"
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
@@ -65,10 +65,6 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
 
     instances = ["router", "stateboard", "s1-master", "s1-replica", "s2-master", "s2-replica"]
 
-    log_file = 'tarantool.log'
-    if tarantool_major_version < 2:
-        log_file = 'tt.log'  # tarantool.log is created only on bootstrap (box.cfg) for tnt 1.*
-
     # Wait for the full start of the cartridge.
     for inst in instances:
         run_dir = os.path.join(tmpdir, cartridge_name, utils.run_path, inst)
@@ -108,9 +104,6 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
         setup_rc, setup_out = run_command_and_get_output(setup_cmd, cwd=tmpdir)
         assert setup_rc == 0
         assert re.search(r'Bootstrap vshard task completed successfully', setup_out)
-
-        file = wait_file(log_dir, 'tarantool.log', [])
-        assert file != ""
 
         admin_cmd = [tt_cmd, "cartridge", "admin", "probe",
                      "--conn", "admin:foo@localhost:3301",
@@ -192,10 +185,6 @@ def test_cartridge_base_functionality_in_app_dir(tt_cmd, tmpdir_with_cfg):
 
     instances = ["router", "stateboard", "s1-master", "s1-replica", "s2-master", "s2-replica"]
 
-    log_file = 'tarantool.log'
-    if tarantool_major_version < 2:
-        log_file = 'tt.log'  # tarantool.log is created only on bootstrap (box.cfg) for tnt 1.*
-
     # Wait for the full start of the cartridge.
     try:
         for inst in instances:
@@ -233,9 +222,6 @@ def test_cartridge_base_functionality_in_app_dir(tt_cmd, tmpdir_with_cfg):
         setup_rc, setup_out = run_command_and_get_output(setup_cmd, cwd=app_dir)
         assert setup_rc == 0
         assert 'Bootstrap vshard task completed successfully' in setup_out
-
-        file = wait_file(log_dir, 'tarantool.log', [])
-        assert file != ""
 
         # Test replicasets list without run-dir and app name
         rs_cmd = [tt_cmd, "cartridge", "replicasets", "list"]

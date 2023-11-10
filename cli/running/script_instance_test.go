@@ -218,5 +218,4 @@ func TestInstanceLogs(t *testing.T) {
 	assert.True(t, alive)
 
 	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "test.sock"))
-	assert.FileExists(t, filepath.Join(instTestDataDir, "tarantool.log"))
 }
