@@ -153,6 +153,7 @@ func NewCmdRoot() *cobra.Command {
 		NewCartridgeCmd(),
 		NewClusterCmd(),
 		NewCoredumpCmd(),
+		NewReplicasetCmd(),
 		NewRunCmd(),
 		NewSearchCmd(),
 		NewCleanCmd(),

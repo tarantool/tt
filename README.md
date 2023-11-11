@@ -623,6 +623,7 @@ Common description. For a detailed description, use `tt help command` .
 -   `binaries` - show a list of installed binaries and their versions.
 -   `cluster` - manage cluster configuration.
 -   `env` - add current environment binaries location to the PATH variable.
+-   `replicasets` - manage replicasets.
 
 [godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/tt.svg
 [godoc-url]: https://pkg.go.dev/github.com/tarantool/tt
