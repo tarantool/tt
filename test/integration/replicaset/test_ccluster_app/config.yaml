@@ -1,0 +1,47 @@
+credentials:
+  users:
+    replicator:
+      password: 'topsecret'
+      roles: [replication]
+    client:
+      password: 'secret'
+      roles: [super]
+
+iproto:
+  listen: 'unix/:./{{ instance_name }}.iproto'
+  advertise:
+    peer: replicator@
+
+log:
+ to: file
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001:
+            database:
+              mode: rw
+            app:
+              file: 'init.lua'
+          instance-002:
+            app:
+              file: 'init.lua'
+          instance-003:
+            app:
+              file: 'init.lua'
+  group-002:
+    replicasets:
+      replicaset-002:
+        instances:
+          instance-004:
+            database:
+              mode: rw
+            app:
+              file: 'init.lua'
+          instance-005:
+            database:
+              mode: rw
+            app:
+              file: 'init.lua'
