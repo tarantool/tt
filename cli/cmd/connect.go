@@ -90,15 +90,13 @@ func NewConnectCmd() *cobra.Command {
 		connect.DefaultLanguage.String(), `language: lua or sql`)
 	connectCmd.Flags().StringVarP(&connectFormat, "outputformat", "x",
 		formatter.DefaultFormat.String(), `output format: yaml, lua, table or ttable`)
-	connectCmd.Flags().StringVarP(&connectSslKeyFile, "sslkeyfile", "",
-		connect.DefaultLanguage.String(), `path to a private SSL key file`)
-	connectCmd.Flags().StringVarP(&connectSslCertFile, "sslcertfile", "",
-		connect.DefaultLanguage.String(), `path to an SSL certificate file`)
-	connectCmd.Flags().StringVarP(&connectSslCaFile, "sslcafile", "",
-		connect.DefaultLanguage.String(),
+	connectCmd.Flags().StringVar(&connectSslKeyFile, "sslkeyfile", "",
+		`path to a private SSL key file`)
+	connectCmd.Flags().StringVar(&connectSslCertFile, "sslcertfile", "",
+		`path to an SSL certificate file`)
+	connectCmd.Flags().StringVar(&connectSslCaFile, "sslcafile", "",
 		`path to a trusted certificate authorities (CA) file`)
-	connectCmd.Flags().StringVarP(&connectSslCiphers, "sslciphers", "",
-		connect.DefaultLanguage.String(),
+	connectCmd.Flags().StringVar(&connectSslCiphers, "sslciphers", "",
 		`colon-separated (:) list of SSL cipher suites the connection`)
 	connectCmd.Flags().BoolVarP(&connectInteractive, "interactive", "i",
 		false, `enter interactive mode after executing 'FILE'`)
