@@ -1,6 +1,8 @@
 package pack
 
 import (
+	"errors"
+
 	"github.com/tarantool/tt/cli/cmdcontext"
 )
 
@@ -16,6 +18,10 @@ const (
 // FillCtx fills pack context.
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	args []string) error {
+
+	if (packCtx.IntegrityPrivateKey != "") && packCtx.CartridgeCompat {
+		return errors.New("cannot pack with integrity checks in cartridge-compat mode")
+	}
 
 	packCtx.TarantoolIsSystem = cmdCtx.Cli.IsSystem
 	packCtx.TarantoolExecutable = cmdCtx.Cli.TarantoolCli.Executable

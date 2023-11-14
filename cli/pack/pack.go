@@ -32,6 +32,8 @@ type PackCtx struct {
 	CartridgeCompat bool
 	// TarantoolVersion specifies the version of the tarantool for pack in docker.
 	TarantoolVersion string
+	// IntegrityPrivateKey contains the path to private key for signing hash files.
+	IntegrityPrivateKey string
 }
 
 // ArchiveCtx contains flags specific for tgz type.
