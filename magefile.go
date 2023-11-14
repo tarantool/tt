@@ -47,6 +47,10 @@ var (
 	pythonExecutableName = "python3"
 	ttExecutableName     = "tt"
 
+	submodulePaths = []string{
+		"./cli/integrity",
+	}
+
 	generateModePath = filepath.Join(packagePath, "codegen", "generate_code.go")
 )
 
@@ -247,11 +251,37 @@ func Unit() error {
 	mg.Deps(GenerateGoCode)
 
 	if mg.Verbose() {
-		return sh.RunV(goExecutableName, "test", "-v",
+		err := sh.RunV(goExecutableName, "test", "-v",
 			fmt.Sprintf("%s/...", packagePath))
+		if err != nil {
+			return err
+		}
+
+		for _, submodulePath := range submodulePaths {
+			err := sh.RunV(goExecutableName, "test", "-v",
+				"-C", submodulePath, "./...")
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 
-	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath))
+	err := sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath))
+	if err != nil {
+		return err
+	}
+
+	for _, submodulePath := range submodulePaths {
+		err = sh.RunV(goExecutableName, "test",
+			"-C", submodulePath, "./...")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Run unit tests with a Tarantool instance integration.

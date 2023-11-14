@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	lua "github.com/yuin/gopher-lua"
@@ -113,6 +114,16 @@ func skipArtifacts(cliOpts *config.CliOpts) func(src string) (bool, error) {
 func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	cliOpts *config.CliOpts, buildRocks bool) (string, error) {
 	var err error
+	var signer integrity.Signer = nil
+
+	// If integrity checks are enabled, create an IntegritySigner.
+	if packCtx.IntegrityPrivateKey != "" {
+		signer, err = integrity.NewSigner(packCtx.IntegrityPrivateKey)
+
+		if err != nil {
+			return "", err
+		}
+	}
 
 	// Create temporary directory step.
 	basePath, err := os.MkdirTemp("", "tt_pack")
@@ -257,6 +268,19 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if err != nil {
 		return "", err
 	}
+
+	var appNames []string
+	for _, app := range appList {
+		appNames = append(appNames, app.Name)
+	}
+
+	if packCtx.IntegrityPrivateKey != "" {
+		err = signer.Sign(basePath, appNames)
+		if err != nil {
+			return "", err
+		}
+	}
+
 	return basePath, nil
 }
 
