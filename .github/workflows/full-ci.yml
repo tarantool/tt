@@ -129,7 +129,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install --overwrite go mage wget
+          brew install --overwrite go mage wget node
           pip3 install -r test/requirements.txt
 
       - name: Install etcd
