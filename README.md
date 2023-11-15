@@ -34,6 +34,7 @@ Tarantool-based applications.
   * [Working with application templates](#Working-with-application-templates)
   * [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
   * [Setting Tarantool configuration parameters via environment variables](#setting-tarantool-configuration-parameters-via-environment-variables)
+* [Migration from older TT versions](doc/migration_from_older_versions.md)
 * [Commands](#commands)
 
 ## Intro
