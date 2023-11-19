@@ -47,7 +47,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
-    assert status_rc == 0
+    assert stop_rc == 0
     assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process was terminated correctly.
@@ -112,7 +112,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
     # Stop the new Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
-    assert status_rc == 0
+    assert stop_rc == 0
     assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process of new Instance was terminated correctly.
@@ -257,7 +257,7 @@ def test_running_base_functionality_working_dir_app(tt_cmd):
             # Stop the application.
             stop_cmd = [tt_cmd, "stop", "app"]
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
-            assert status_rc == 0
+            assert stop_rc == 0
             assert re.search(r"The Instance app:(router|master|replica|stateboard) \(PID = \d+\) "
                              r"has been terminated.", stop_out)
 
@@ -309,7 +309,7 @@ def test_running_base_functionality_working_dir_app_no_app_name(tt_cmd):
             # Stop the application.
             stop_cmd = [tt_cmd, "stop"]
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
-            assert status_rc == 0
+            assert stop_rc == 0
             assert re.search(r"The Instance app:(router|master|replica|stateboard) \(PID = \d+\) "
                              r"has been terminated.", stop_out)
 
@@ -545,7 +545,7 @@ def test_no_args_usage(tt_cmd):
             # Stop all applications.
             stop_cmd = [tt_cmd, "stop"]
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
-            assert status_rc == 0
+            assert stop_rc == 0
             assert re.search(r"The Instance app1:(router|master|replica) \(PID = \d+\) "
                              r"has been terminated.", stop_out)
             assert re.search(r"The Instance app2 \(PID = \d+\) "
@@ -589,7 +589,7 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_env_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
-    assert status_rc == 0
+    assert stop_rc == 0
     assert re.search(r"The Instance test_env_app \(PID = \d+\) has been terminated.", stop_out)
 
     # Check that the process was terminated correctly.
