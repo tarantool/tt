@@ -58,6 +58,9 @@ runs:
     # Here is a workaround for Tarantool 3.0 installation until it is supported
     # by setup-tarantool. This step will install the latest pre-released
     # Tarantool 3.0 from repository.
+    #
+    # Now it installs alpha3 version, because the latest versions fail some tests due to
+    # the issue: https://github.com/tarantool/tarantool/issues/9275
     - name: Install Tarantool from repo
       if: |
         inputs.skip-tarantool-install == 'false' &&
@@ -65,7 +68,7 @@ runs:
       run: |
         sudo curl -L https://tarantool.io/iqJapRm/release/3/installer.sh | \
         sed 's|repo_type="release"|repo_type="pre-release"|' | bash
-        sudo apt install tarantool tarantool-dev
+        sudo apt install tarantool=3.0.0~alpha3-1 tarantool-dev=3.0.0~alpha3-1
       shell: bash
 
     - name: Install etcd
