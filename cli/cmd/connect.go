@@ -75,10 +75,11 @@ func NewConnectCmd() *cobra.Command {
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
-			return internal.ValidArgsFunction(
+			validArgs, _ := internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
+			return validArgs, cobra.ShellCompDirectiveDefault
 		},
 	}
 
