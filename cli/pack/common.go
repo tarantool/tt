@@ -210,7 +210,6 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		pkgBin = util.JoinPaths(basePath, packCtx.Name)
 	}
 	// Copy binaries step.
-	fmt.Println(packCtx.TarantoolIsSystem)
 	if cliOpts.Env.BinDir != "" &&
 		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 			packCtx.WithBinaries) {
