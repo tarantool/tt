@@ -212,20 +212,19 @@ func (inst *scriptInstance) Start() error {
 }
 
 // Run runs tarantool instance.
-func (inst *scriptInstance) Run(flags RunFlags) error {
+func (inst *scriptInstance) Run(opts RunOpts) error {
 	f, err := integrity.FileRepository.Read(inst.tarantoolPath)
 	if err != nil {
 		return err
 	}
 	f.Close()
-
 	newInstanceEnv := os.Environ()
 	newInstanceEnv = append(newInstanceEnv,
 		"TT_CLI_INSTANCE="+inst.appPath,
 		"TT_CLI=true",
 	)
 	args := []string{inst.tarantoolPath}
-	args = append(args, convertFlagsToTarantoolOpts(flags)...)
+	args = append(args, opts.RunFlags...)
 	if inst.appPath != "" {
 		log.Debugf("Script to run: %s", inst.appPath)
 
@@ -243,7 +242,7 @@ func (inst *scriptInstance) Run(flags RunFlags) error {
 		// Enable reading from input for Tarantool.
 		args = append(args, "-")
 	}
-	args = append(args, flags.RunArgs...)
+	args = append(args, opts.RunArgs...)
 	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
 	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)
 	if execErr != nil {
@@ -285,24 +284,4 @@ func (inst *scriptInstance) Stop(waitTimeout time.Duration) error {
 		return nil
 	}
 	return inst.processController.Stop(waitTimeout)
-}
-
-// convertFlagsToTarantoolOpts turns flags into tarantool command.
-func convertFlagsToTarantoolOpts(flags RunFlags) []string {
-	var command []string
-	if flags.RunEval != "" {
-		command = append(command, "-e")
-		command = append(command, flags.RunEval)
-	}
-	if flags.RunInteractive {
-		command = append(command, "-i")
-	}
-	if flags.RunLib != "" {
-		command = append(command, "-l")
-		command = append(command, flags.RunLib)
-	}
-	if flags.RunVersion {
-		command = append(command, "-v")
-	}
-	return command
 }

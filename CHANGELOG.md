@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Module ``tt replicaset``, to manage replicasets:
   - ``tt replicaset status`` to show a cluster status information.
 
+### Changed
+
+- Disable ``tt run`` tarantool flag parsing.
+
 ## [2.1.0] - 2023-12-15
 
 ### Changed
@@ -20,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt connect` auto-completion shows directories and files when there are no
 running apps.
 - `tt rocks --server` now accepts several URL's.
+- Disable ``tt run`` tarantool flag parsing.
 
 ### Added
 

@@ -93,27 +93,19 @@ type InstanceCtx struct {
 	// AppHashes
 }
 
-// RunFlags contains flags for tt run.
-type RunFlags struct {
-	// RunEval contains "-e" flag content.
-	RunEval string
-	// RunLib contains "-l" flag content.
-	RunLib string
-	// RunInteractive contains "-i" flag content.
-	RunInteractive bool
-	// RunStdin contains "-" flag content.
-	RunStdin string
-	// RunVersion contains "-v" flag content.
-	RunVersion bool
+// RunOpts contains flags and args for tt run.
+type RunOpts struct {
 	// RunArgs contains command args.
 	RunArgs []string
+	// RunFlags contains command flags.
+	RunFlags []string
 }
 
-// RunOpts contains information for tt run.
-type RunOpts struct {
+// RunInfo contains information for tt run.
+type RunInfo struct {
 	CmdCtx     cmdcontext.CmdCtx
 	RunningCtx RunningCtx
-	RunFlags   RunFlags
+	RunOpts    RunOpts
 }
 
 // providerImpl is an implementation of Provider interface.
@@ -683,10 +675,10 @@ func Stop(run *InstanceCtx) error {
 }
 
 // Run runs an Instance.
-func Run(runOpts *RunOpts, scriptPath string) error {
-	inst := scriptInstance{tarantoolPath: runOpts.CmdCtx.Cli.TarantoolCli.Executable,
+func Run(runInfo *RunInfo, scriptPath string) error {
+	inst := scriptInstance{tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
 		appPath: scriptPath}
-	err := inst.Run(runOpts.RunFlags)
+	err := inst.Run(runInfo.RunOpts)
 	return err
 }
 
