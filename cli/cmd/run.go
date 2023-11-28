@@ -12,31 +12,13 @@ import (
 )
 
 var (
-	// runEval contains "-e" flag content.
-	runEval string
-	// runLib contains "-l" flag content.
-	runLib string
-	// runInteractive contains "-I" flag content.
-	runInteractive bool
-	// runStdin contains "-" flag content.
-	runStdin string
-	// runVersion contains "-v" flag content.
-	runVersion bool
 	// runArgs contains command args.
 	runArgs []string
 )
 
-func newRunOpts(cmdCtx cmdcontext.CmdCtx) *running.RunOpts {
-	return &running.RunOpts{
+func newRunInfo(cmdCtx cmdcontext.CmdCtx) *running.RunInfo {
+	return &running.RunInfo{
 		CmdCtx: cmdCtx,
-		RunFlags: running.RunFlags{
-			RunEval:        runEval,
-			RunLib:         runLib,
-			RunInteractive: runInteractive,
-			RunStdin:       runStdin,
-			RunVersion:     runVersion,
-			RunArgs:        runArgs,
-		},
 	}
 }
 
@@ -49,8 +31,15 @@ func NewRunCmd() *cobra.Command {
 All command line arguments are passed to the interpreted SCRIPT. Options to process in the SCRIPT
 are passed after '--'.
 `,
+		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
+			for _, opt := range args {
+				if opt == "-h" || opt == "--help" {
+					cmd.Help()
+					return
+				}
+			}
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalRunModule, args)
 			handleCmdErr(cmd, err)
 		},
@@ -86,12 +75,6 @@ is after '--', so passed to script.lua as is.
 		DisableFlagsInUseLine: true,
 	}
 
-	runCmd.Flags().StringVarP(&runEval, "evaluate", "e", "", "execute string 'EXPR'")
-	runCmd.Flags().StringVarP(&runLib, "library", "l", "", "require library 'NAME'")
-	runCmd.Flags().BoolVarP(&runInteractive, "interactive", "i", false,
-		"enter interactive mode after executing 'SCRIPT'")
-	runCmd.Flags().BoolVarP(&runVersion, "version", "v", false, "print used tarantool version")
-
 	return runCmd
 }
 
@@ -101,20 +84,30 @@ func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
-	runOpts := newRunOpts(*cmdCtx)
+	runInfo := newRunInfo(*cmdCtx)
 	scriptPath := ""
 	startIndex := 0
 	if len(args) > 0 {
-		if strings.HasSuffix(args[0], ".lua") {
-			scriptPath = args[0]
-			if _, err := os.Stat(scriptPath); err != nil {
-				return fmt.Errorf("there was some problem locating script: %s", err)
+		for i, option := range args {
+			if strings.HasSuffix(option, ".lua") {
+				scriptPath = option
+				if _, err := os.Stat(scriptPath); err != nil {
+					return fmt.Errorf("there was some problem locating script: %s", err)
+				}
+				startIndex = i
+				break
 			}
-			startIndex = 1
 		}
 	}
-	runOpts.RunFlags.RunArgs = args[startIndex:]
-	if err := running.Run(runOpts, scriptPath); err != nil {
+
+	if len(args) != 0 && scriptPath != "" {
+		runInfo.RunOpts.RunArgs = args[startIndex+1:]
+		runInfo.RunOpts.RunFlags = args[:startIndex]
+	} else if scriptPath == "" {
+		runInfo.RunOpts.RunFlags = args
+	}
+
+	if err := running.Run(runInfo, scriptPath); err != nil {
 		return err
 	}
 

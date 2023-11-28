@@ -137,11 +137,9 @@ func (inst *clusterInstance) Start() error {
 }
 
 // Run runs tarantool instance.
-func (inst *clusterInstance) Run(flags RunFlags) error {
+func (inst *clusterInstance) Run(opts RunOpts) error {
 	newInstanceEnv := os.Environ()
 	args := []string{inst.tarantoolPath}
-	args = append(args, convertFlagsToTarantoolOpts(flags)...)
-	args = append(args, flags.RunArgs...)
 
 	f, err := integrity.FileRepository.Read(inst.tarantoolPath)
 	if err != nil {
@@ -149,6 +147,8 @@ func (inst *clusterInstance) Run(flags RunFlags) error {
 	}
 	f.Close()
 
+	args = append(args, opts.RunFlags...)
+	args = append(args, opts.RunArgs...)
 	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
 	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)
 	if execErr != nil {

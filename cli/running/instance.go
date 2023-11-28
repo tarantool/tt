@@ -11,7 +11,7 @@ type Instance interface {
 	Start() error
 
 	// Run runs tarantool interpreter.
-	Run(flags RunFlags) error
+	Run(opts RunOpts) error
 
 	// Wait waits for the process to complete.
 	Wait() error
