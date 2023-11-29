@@ -26,6 +26,7 @@ func TestMultiInstLayout(t *testing.T) {
 		miLayout.ConsoleSocket("/var/run"))
 	assert.Equal(t, "/var/log/app1/master/tt.log", miLayout.LogFile("/var/log"))
 	assert.Equal(t, "/var/lib/app1/master", miLayout.DataDir("/var/lib"))
+	assert.Equal(t, "/var/run/app1/master/tarantool.sock", miLayout.BinaryPort("/var/run"))
 }
 
 func TestMultiIntLayoutNewErr(t *testing.T) {

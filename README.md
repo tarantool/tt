@@ -82,6 +82,7 @@ graph LR
         var --> run[run] --> inst11[instance]
         inst11 --> pid1(tt.pid):::lime
         inst11 --> control1(tarantool.control):::lime
+        inst11 --> binary1(tarantool.sock):::lime
 
         var --> log1[log] --> inst12[instance] --> logfile1(tt.log):::lime
 

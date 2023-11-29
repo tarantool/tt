@@ -10,4 +10,6 @@ type Layout interface {
 	LogFile(dir string) string
 	// DataDir returns data directory path.
 	DataDir(dir string) string
+	// BinaryPort returns binary port file path.
+	BinaryPort(dir string) string
 }

@@ -48,6 +48,8 @@ type scriptInstance struct {
 	vinylDir string `mapstructure:"vinyl_dir" yaml:"vinyl_dir"`
 	// consoleSocket is a Unix domain socket to be used as "admin port".
 	consoleSocket string
+	// binaryPort is a Unix socket to be used as "binary port"
+	binaryPort string
 	// logDir is log files location.
 	logDir string
 	// IntegrityCtx contains information necessary to perform integrity checks.
@@ -86,6 +88,7 @@ func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, logger *tt
 		logDir:          instanceCtx.LogDir,
 		integrityCtx:    integrityCtx,
 		integrityChecks: integrityChecks,
+		binaryPort:      instanceCtx.BinaryPort,
 	}, nil
 }
 
@@ -156,7 +159,6 @@ func (inst *scriptInstance) Start() error {
 	if err != nil {
 		return err
 	}
-
 	cmd.Env = append(os.Environ(), "TT_CLI_INSTANCE="+inst.appPath)
 	if inst.appDir == "" {
 		inst.appDir = filepath.Dir(inst.appPath)
@@ -169,7 +171,10 @@ func (inst *scriptInstance) Start() error {
 	workDir := inst.appDir
 	cmd.Env = append(cmd.Env, "PWD="+workDir)
 	cmd.Dir = workDir
-
+	_, listenSet := os.LookupEnv("TT_LISTEN")
+	if inst.binaryPort != "" && inst.instName != stateBoardInstName && !listenSet {
+		cmd.Env = append(cmd.Env, "TT_LISTEN="+inst.binaryPort)
+	}
 	if inst.consoleSocket != "" {
 		consoleSocket, err := shortenSocketPath(inst.consoleSocket, workDir)
 		if err != nil {

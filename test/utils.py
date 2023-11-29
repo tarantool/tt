@@ -128,9 +128,11 @@ def wait_instance_start(log_path, timeout_sec=10):
         time.sleep(iter_timeout_sec)
 
         with open(log_path, "r") as log_file:
-            last_line = log_file.readlines()[-1]
-            if "started" in last_line:
-                started = True
+            lines = log_file.readlines()
+            for line in lines:
+                if "started" in line:
+                    started = True
+                    break
 
         iter_count = iter_count + 1
 

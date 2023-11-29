@@ -47,6 +47,11 @@ func (layout TntCtlLayout) ConsoleSocket(dir string) string {
 	return layout.genRuntimeFilePath(dir, layout.appName+".control")
 }
 
+// BinaryPort returns binary port file path.
+func (layout TntCtlLayout) BinaryPort(dir string) string {
+	return layout.genRuntimeFilePath(dir, layout.appName+".sock")
+}
+
 // DataDir returns data directory path.
 func (layout TntCtlLayout) DataDir(dir string) string {
 	return util.JoinPaths(layout.baseDir, dir, layout.appName)

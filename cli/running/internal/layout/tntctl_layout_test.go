@@ -20,6 +20,8 @@ func TestTntCtlLayout(t *testing.T) {
 		tntCtlLayout.LogFile("./log/tarantool"))
 	assert.Equal(t, "/home/user/lib/tarantool/app1",
 		tntCtlLayout.DataDir("./lib/tarantool"))
+	assert.Equal(t, "/home/user/run/tarantool/app1.sock",
+		tntCtlLayout.BinaryPort("./run/tarantool"))
 }
 
 func TestTntCtlLayoutNewErr(t *testing.T) {

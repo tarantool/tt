@@ -86,6 +86,8 @@ type InstanceCtx struct {
 	Restartable bool
 	// Control UNIX socket for started instance.
 	ConsoleSocket string
+	// Unix socket used as "binary port".
+	BinaryPort string
 	// True if this is a single instance application (no instances.yml).
 	SingleApp bool
 	// IsFileApp true if this instance is lua-script instance (no-dir)
@@ -453,6 +455,13 @@ func cleanup(run *InstanceCtx) {
 	if _, err := os.Stat(run.ConsoleSocket); err == nil {
 		os.Remove(run.ConsoleSocket)
 	}
+
+	if _, err := os.Stat(run.BinaryPort); err == nil {
+		err = os.Remove(run.BinaryPort)
+		if err != nil {
+			log.Warnf("unable to remove binary port: %q: %s", run.BinaryPort, err)
+		}
+	}
 }
 
 // createLogger prepares a logger for the watchdog and instance.
@@ -520,6 +529,7 @@ func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts, ttConfig
 		}
 
 		inst.ConsoleSocket = envLayout.ConsoleSocket(cliOpts.App.RunDir)
+		inst.BinaryPort = envLayout.BinaryPort(cliOpts.App.RunDir)
 		inst.PIDFile = envLayout.PidFile(cliOpts.App.RunDir)
 		inst.RunDir = filepath.Dir(inst.ConsoleSocket)
 
@@ -556,6 +566,7 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 	}
 	for _, dstString := range []*string{
 		&instance.WalDir, &instance.VinylDir, &instance.MemtxDir, &instance.ConsoleSocket,
+		&instance.BinaryPort,
 	} {
 		renderedString, err := regexputil.ApplyVars(*dstString, templateData)
 		if err != nil {

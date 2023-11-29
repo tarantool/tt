@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -236,7 +237,6 @@ Replicasets state: bootstrapped
 • .*
   Failover: unknown
   Master:   single
-    • test_custom_app  rw
 """, out)
     finally:
         stop_application(tt_cmd, app_name, tmpdir, [])
@@ -269,13 +269,17 @@ def test_status_cartridge(tt_cmd, tmpdir_with_cfg):
     assert build_rc == 0
     assert re.search(r'Application was successfully built', build_out)
 
+    test_env = os.environ.copy()
+    if platform.system() == "Darwin":
+        test_env['TT_LISTEN'] = ''
     start_cmd = [tt_cmd, "start", cartridge_name]
     subprocess.Popen(
         start_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
+        env=test_env
     )
 
     instances = ["router", "stateboard", "s1-master", "s1-replica", "s2-master", "s2-replica"]
