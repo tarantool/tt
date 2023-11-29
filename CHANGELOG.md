@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Make cartridge app dependencies less strict.
 - `tt connect` auto-completion shows directories and files when there are no
 running apps.
+- `tt rocks --server` now accepts several URL's.
 
 ### Added
 
