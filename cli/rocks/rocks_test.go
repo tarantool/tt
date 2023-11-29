@@ -72,6 +72,32 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 			[]string{"--only-server", "/other/repo"}, // No --server option is added.
 			false,
 		},
+		{
+			"Rock repo is specified and --server is passed",
+			args{
+				&config.CliOpts{
+					Repo: &config.RepoOpts{
+						Rocks: "local_path",
+					},
+				},
+				[]string{"--server", "/other/repo"},
+			},
+			[]string{"--server", "/other/repo local_path"},
+			false,
+		},
+		{
+			"Rock repo is specified and --server= is passed",
+			args{
+				&config.CliOpts{
+					Repo: &config.RepoOpts{
+						Rocks: "local_path",
+					},
+				},
+				[]string{"--server=/other/repo"},
+			},
+			[]string{"--server=/other/repo local_path"},
+			false,
+		},
 	}
 
 	for _, tt := range tests {

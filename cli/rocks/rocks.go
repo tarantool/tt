@@ -42,7 +42,19 @@ func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) ([]string, erro
 
 	// Check whether rocks repository is specified in tt config.
 	if cliOpts.Repo != nil && cliOpts.Repo.Rocks != "" {
-		args = append(args, "--server", cliOpts.Repo.Rocks)
+		isServerSet := false
+		for i, opt := range args {
+			if opt == "--server" {
+				isServerSet = true
+				args[i+1] = args[i+1] + " " + cliOpts.Repo.Rocks
+			} else if strings.HasPrefix(opt, "--server=") {
+				isServerSet = true
+				args[i] += " " + cliOpts.Repo.Rocks
+			}
+		}
+		if !isServerSet {
+			args = append(args, "--server", cliOpts.Repo.Rocks)
+		}
 	}
 
 	return args, nil
