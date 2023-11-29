@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -65,6 +66,8 @@ func startWatchdog(ttExecutable string, instance running.InstanceCtx) error {
 	newArgs := []string{"start", "--watchdog", appName}
 
 	wdCmd := exec.Command(ttExecutable, newArgs...)
+	// Set new pgid for watchdog process, so it will not be killed after a session is closed.
+	wdCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return wdCmd.Start()
 }
 
