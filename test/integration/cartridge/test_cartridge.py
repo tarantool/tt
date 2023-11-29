@@ -54,13 +54,16 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     assert build_rc == 0
     assert re.search(r'Application was successfully built', build_out)
 
+    test_env = os.environ.copy()
+    test_env['TT_LISTEN'] = ''
     start_cmd = [tt_cmd, "start", cartridge_name]
     subprocess.Popen(
         start_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
+        env=test_env
     )
 
     instances = ["router", "stateboard", "s1-master", "s1-replica", "s2-master", "s2-replica"]
@@ -174,13 +177,16 @@ def test_cartridge_base_functionality_in_app_dir(tt_cmd, tmpdir_with_cfg):
     assert rc == 0
     assert 'Application was successfully built' in out
 
+    test_env = os.environ.copy()
+    test_env['TT_LISTEN'] = ''
     cmd = [tt_cmd, "start"]
     subprocess.Popen(
         cmd,
         cwd=app_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
+        env=test_env
     )
 
     instances = ["router", "stateboard", "s1-master", "s1-replica", "s2-master", "s2-replica"]

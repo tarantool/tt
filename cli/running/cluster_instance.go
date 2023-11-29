@@ -40,6 +40,8 @@ type clusterInstance struct {
 	vinylDir string
 	// consoleSocket is a Unix domain socket to be used as "admin port".
 	consoleSocket string
+	// binaryPort is a Unix socket to be used as "binary port"
+	binaryPort string
 	// appDir is an application directory.
 	appDir string
 	// runDir is a directory that stores various instance runtime artifacts like
@@ -78,6 +80,7 @@ func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx Instan
 		appName:           instanceCtx.AppName,
 		instName:          instanceCtx.InstName,
 		consoleSocket:     instanceCtx.ConsoleSocket,
+		binaryPort:        instanceCtx.BinaryPort,
 		logger:            logger,
 		walDir:            instanceCtx.WalDir,
 		vinylDir:          instanceCtx.VinylDir,
@@ -128,6 +131,7 @@ func (inst *clusterInstance) Start() error {
 			return err
 		}
 		cmd.Env = append(cmd.Env, "TT_CONSOLE_SOCKET_DEFAULT="+consoleSocket)
+		cmd.Env = append(cmd.Env, "TT_IPROTO_LISTEN_DEFAULT="+"[{\"uri\":\""+inst.binaryPort+"\"}]")
 	} else {
 		return fmt.Errorf("application %q is not a directory", inst.appDir)
 	}

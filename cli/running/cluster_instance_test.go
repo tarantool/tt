@@ -76,6 +76,7 @@ func TestClusterInstance_Start(t *testing.T) {
 		ClusterConfigPath: configPath,
 		InstName:          "instance-001",
 		AppDir:            tmpDir,
+		BinaryPort:        "localhost:3013",
 	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
 		Repository: &mockRepository{},
 	}, false)
@@ -119,9 +120,11 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 		VinylDir:          "vinyl_dir",
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
+		BinaryPort:        "localhost:3013",
 	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
 		Repository: &mockRepository{},
 	}, false)
+
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 
@@ -167,9 +170,11 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
 		LogDir:            tmpAppDir,
+		BinaryPort:        "localhost:3013",
 	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
 		Repository: &mockRepository{},
 	}, false)
+
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 

@@ -59,6 +59,11 @@ func (layout MultiInstLayout) ConsoleSocket(dir string) string {
 	return layout.genFilePath(dir, "tarantool.control")
 }
 
+// BinaryPort returns binary port file path.
+func (layout MultiInstLayout) BinaryPort(dir string) string {
+	return layout.genFilePath(dir, "tarantool.sock")
+}
+
 // DataDir returns data directory path.
 func (layout MultiInstLayout) DataDir(dir string) string {
 	return filepath.Dir(layout.genFilePath(dir, "0"))

@@ -21,7 +21,7 @@ const (
 )
 
 // startTestInstance starts instance for the test.
-func startTestInstance(t *testing.T, app string, consoleSock string,
+func startTestInstance(t *testing.T, app string, consoleSock string, binaryPort string,
 	logger *ttlog.Logger) *scriptInstance {
 	assert := assert.New(t)
 
@@ -43,6 +43,7 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 		WalDir:         instTestDataDir,
 		VinylDir:       instTestDataDir,
 		MemtxDir:       instTestDataDir,
+		BinaryPort:     binaryPort,
 	},
 		logger, integrity.IntegrityCtx{
 			Repository: &mockRepository{},
@@ -80,9 +81,10 @@ func TestInstanceBase(t *testing.T) {
 	binPath, err := os.Executable()
 	assert.Nilf(err, `Can't get the path to the executable. Error: "%v".`, err)
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
+	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
 
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
-	inst := startTestInstance(t, "dumb_test_app", consoleSock, logger)
+	inst := startTestInstance(t, "dumb_test_app", consoleSock, binaryPort, logger)
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	conn, err := net.Dial("unix", consoleSock)
@@ -98,7 +100,7 @@ func TestInstanceLogger(t *testing.T) {
 	defer reader.Close()
 	logger := ttlog.NewCustomLogger(writer, "", 0)
 	consoleSock := ""
-	inst := startTestInstance(t, "log_check_test_app", consoleSock, logger)
+	inst := startTestInstance(t, "log_check_test_app", consoleSock, "", logger)
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	msg := "Check Log.\n"
@@ -184,6 +186,7 @@ func TestInstanceLogs(t *testing.T) {
 	binPath, err := os.Executable()
 	assert.NoError(t, err)
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
+	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
 
 	app := "dumb_test_app"
 	// Need absolute path to the script, because working dir is changed on start.
@@ -204,6 +207,7 @@ func TestInstanceLogs(t *testing.T) {
 		VinylDir:       instTestDataDir,
 		MemtxDir:       instTestDataDir,
 		LogDir:         instTestDataDir,
+		BinaryPort:     binaryPort,
 	},
 		logger, integrity.IntegrityCtx{
 			Repository: &mockRepository{},
@@ -223,4 +227,5 @@ func TestInstanceLogs(t *testing.T) {
 	assert.True(t, alive)
 
 	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "test.sock"))
+	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "testbin.sock"))
 }

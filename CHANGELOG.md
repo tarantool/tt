@@ -51,6 +51,10 @@ uses file name as a script instead of its content.
 - `tt binaries list`: not showing `active` tag for `master` version.
 - missing 3.0 SDK in search results for `tarantool-ee`.
 
+### Changed
+
+- `tt start` now creates binary port.
+
 ## [2.1.1] - 2024-01-15
 
 ### Added
