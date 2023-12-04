@@ -49,6 +49,7 @@ func GetTarantoolEE(cliOpts *config.CliOpts, bundleName, bundleSource string,
 	if err != nil {
 		return err
 	} else if res.StatusCode != http.StatusOK {
+		res.Body.Close()
 		return fmt.Errorf("HTTP request error: %s", http.StatusText(res.StatusCode))
 	}
 
