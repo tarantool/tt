@@ -306,7 +306,7 @@ func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
 		return nil, fmt.Errorf("unable to connect to etcd: %w", err)
 	}
 
-	etcdCollector := NewEtcdCollector(etcd, opts.Prefix, opts.Timeout)
+	etcdCollector := NewEtcdAllCollector(etcd, opts.Prefix, opts.Timeout)
 	etcdRawConfig, err := etcdCollector.Collect()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get config from etcd: %w", err)

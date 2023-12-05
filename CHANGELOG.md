@@ -17,6 +17,7 @@ running apps.
 ### Added
 
 - `tt env`: add current environment binaries location to the PATH variable.
+- `tt cluster`: add an ability to specify a key for `show`/`publish` via URI.
 
 ## [2.0.0] - 2023-11-13
 

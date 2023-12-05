@@ -308,7 +308,7 @@ func TestConnectEtcd(t *testing.T) {
 	}
 }
 
-func TestEtcdCollector_single(t *testing.T) {
+func TestEtcdCollectors_single(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)
 
@@ -318,16 +318,28 @@ func TestEtcdCollector_single(t *testing.T) {
 	require.NotNil(t, etcd)
 	defer etcd.Close()
 
-	etcdPut(t, etcd, "/foo/config/", "foo: bar")
+	etcdPut(t, etcd, "/foo/config/bar", "foo: bar")
 
-	config, err := cluster.NewEtcdCollector(etcd, "/foo/", timeout).Collect()
-	require.NoError(t, err)
-	value, err := config.Get([]string{"foo"})
-	require.NoError(t, err)
-	assert.Equal(t, "bar", value)
+	cases := []struct {
+		Name      string
+		Collector cluster.Collector
+	}{
+		{"all", cluster.NewEtcdAllCollector(etcd, "/foo/", timeout)},
+		{"key", cluster.NewEtcdKeyCollector(etcd, "/foo/", "bar", timeout)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			config, err := tc.Collector.Collect()
+			require.NoError(t, err)
+			value, err := config.Get([]string{"foo"})
+			require.NoError(t, err)
+			assert.Equal(t, "bar", value)
+		})
+	}
 }
 
-func TestEtcdCollector_merge(t *testing.T) {
+func TestEtcdAllCollector_merge(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)
 
@@ -340,7 +352,7 @@ func TestEtcdCollector_merge(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/a", "foo: bar")
 	etcdPut(t, etcd, "/foo/config/b", "foo: car\nzoo: car")
 
-	config, err := cluster.NewEtcdCollector(etcd, "/foo/", timeout).Collect()
+	config, err := cluster.NewEtcdAllCollector(etcd, "/foo/", timeout).Collect()
 	require.NoError(t, err)
 	value, err := config.Get([]string{"foo"})
 	require.NoError(t, err)
@@ -350,7 +362,7 @@ func TestEtcdCollector_merge(t *testing.T) {
 	assert.Equal(t, "car", value)
 }
 
-func TestEtcdCollector_empty(t *testing.T) {
+func TestEtcdCollectors_empty(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)
 
@@ -360,9 +372,21 @@ func TestEtcdCollector_empty(t *testing.T) {
 	require.NotNil(t, etcd)
 	defer etcd.Close()
 
-	config, err := cluster.NewEtcdCollector(etcd, "foo", timeout).Collect()
-	assert.Nil(t, config)
-	assert.Error(t, err)
+	cases := []struct {
+		Name      string
+		Collector cluster.Collector
+	}{
+		{"all", cluster.NewEtcdAllCollector(etcd, "/foo/", timeout)},
+		{"key", cluster.NewEtcdKeyCollector(etcd, "/foo/", "bar", timeout)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			config, err := tc.Collector.Collect()
+			assert.Nil(t, config)
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestGetClusterConfig_etcd(t *testing.T) {
@@ -514,7 +538,7 @@ wal:
 `, config.RawConfig.String())
 }
 
-func TestEtcdDataPublisher_Publish_simple(t *testing.T) {
+func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)
 
@@ -525,13 +549,26 @@ func TestEtcdDataPublisher_Publish_simple(t *testing.T) {
 	defer etcd.Close()
 
 	data := []byte("foo bar")
-	err = cluster.NewEtcdDataPublisher(etcd, "/foo/", timeout).Publish(data)
+	cases := []struct {
+		Name      string
+		Key       string
+		Publisher cluster.DataPublisher
+	}{
+		{"all", "all", cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout)},
+		{"key", "key", cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "key", timeout)},
+	}
 
-	assert.NoError(t, err)
-	assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/all"))
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			err = tc.Publisher.Publish(data)
+
+			assert.NoError(t, err)
+			assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/"+tc.Key))
+		})
+	}
 }
 
-func TestEtcdDataPublisher_Publish_rewrite(t *testing.T) {
+func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)
 
@@ -542,15 +579,28 @@ func TestEtcdDataPublisher_Publish_rewrite(t *testing.T) {
 	defer etcd.Close()
 
 	oldData := []byte("foo bar zoo")
-	err = cluster.NewEtcdDataPublisher(etcd, "/foo/", timeout).Publish(oldData)
 	newData := []byte("zoo bar foo")
-	err = cluster.NewEtcdDataPublisher(etcd, "/foo/", timeout).Publish(newData)
+	cases := []struct {
+		Name      string
+		Key       string
+		Publisher cluster.DataPublisher
+	}{
+		{"all", "all", cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout)},
+		{"key", "key", cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "key", timeout)},
+	}
 
-	assert.NoError(t, err)
-	assert.Equal(t, newData, etcdGet(t, etcd, "/foo/config/all"))
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			err = tc.Publisher.Publish(oldData)
+			require.NoError(t, err)
+			err = tc.Publisher.Publish(newData)
+			assert.NoError(t, err)
+			assert.Equal(t, newData, etcdGet(t, etcd, "/foo/config/"+tc.Key))
+		})
+	}
 }
 
-func TestEtcdDataPublisher_Publish_rewrite_prefix(t *testing.T) {
+func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)
 
@@ -564,7 +614,7 @@ func TestEtcdDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = cluster.NewEtcdDataPublisher(etcd, "/foo/", timeout).Publish(data)
+	err = cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout).Publish(data)
 
 	assert.NoError(t, err)
 	assert.Equal(t, []byte(""), etcdGet(t, etcd, "/foo/config/"))
@@ -572,7 +622,29 @@ func TestEtcdDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/all"))
 }
 
-func TestEtcdDataPublisher_collect_publish_collect(t *testing.T) {
+func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
+	inst := startEtcd(t, httpEndpoint, etcdOpts{})
+	defer stopEtcd(t, inst)
+
+	endpoints := []string{httpEndpoint}
+	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	require.NoError(t, err)
+	require.NotNil(t, etcd)
+	defer etcd.Close()
+
+	etcdPut(t, etcd, "/foo/config/", "foo")
+	etcdPut(t, etcd, "/foo/config/foo", "zoo")
+
+	data := []byte("zoo bar foo")
+	err = cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "all", timeout).Publish(data)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("foo"), etcdGet(t, etcd, "/foo/config/"))
+	assert.Equal(t, []byte("zoo"), etcdGet(t, etcd, "/foo/config/foo"))
+	assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/all"))
+}
+
+func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)
 
@@ -585,9 +657,9 @@ func TestEtcdDataPublisher_collect_publish_collect(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo: bar")
 
 	prefix := "/foo/"
-	dataPublisher := cluster.NewEtcdDataPublisher(etcd, prefix, timeout)
+	dataPublisher := cluster.NewEtcdAllDataPublisher(etcd, prefix, timeout)
 	publisher := cluster.NewYamlConfigPublisher(dataPublisher)
-	collector := cluster.NewEtcdCollector(etcd, prefix, timeout)
+	collector := cluster.NewEtcdAllCollector(etcd, prefix, timeout)
 
 	config, err := collector.Collect()
 	require.NoError(t, err)

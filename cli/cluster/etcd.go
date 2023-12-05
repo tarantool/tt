@@ -27,6 +27,8 @@ type EtcdOpts struct {
 	Endpoints []string
 	// Prefix is a configuration prefix.
 	Prefix string
+	// Key is a target key.
+	Key string
 	// Username is a user name for authorization
 	Username string
 	// Password is a password for authorization
@@ -62,6 +64,7 @@ func MakeEtcdOptsFromUrl(uri *url.URL) (EtcdOpts, error) {
 	opts := EtcdOpts{
 		Endpoints: []string{endpoint.String()},
 		Prefix:    uri.Path,
+		Key:       values.Get("key"),
 		Username:  uri.User.Username(),
 		KeyFile:   values.Get("ssl_key_file"),
 		CertFile:  values.Get("ssl_cert_file"),
@@ -153,31 +156,31 @@ func ConnectEtcd(opts EtcdOpts) (*clientv3.Client, error) {
 	})
 }
 
-// EtcdCollector collects data from a etcd connection.
-type EtcdCollector struct {
-	getter  EtcdGetter
-	prefix  string
-	timeout time.Duration
-}
-
 // EtcdGetter is the interface that wraps get from etcd method.
 type EtcdGetter interface {
 	// Get retrieves key-value pairs for a key.
 	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
 }
 
-// NewEtcdCollector creates a new collector for etcd from the path.
-func NewEtcdCollector(getter EtcdGetter, prefix string, timeout time.Duration) EtcdCollector {
-	return EtcdCollector{
+// EtcdAllCollector collects data from a etcd connection for a whole prefix.
+type EtcdAllCollector struct {
+	getter  EtcdGetter
+	prefix  string
+	timeout time.Duration
+}
+
+// NewEtcdAllCollector creates a new collector for etcd from the whole prefix.
+func NewEtcdAllCollector(getter EtcdGetter, prefix string, timeout time.Duration) EtcdAllCollector {
+	return EtcdAllCollector{
 		getter:  getter,
 		prefix:  prefix,
 		timeout: timeout,
 	}
 }
 
-// Collect collects a configuration from the specified path with the specified
-// timeout.
-func (collector EtcdCollector) Collect() (*Config, error) {
+// Collect collects a configuration from the specified prefix with the
+// specified timeout.
+func (collector EtcdAllCollector) Collect() (*Config, error) {
 	prefix := getConfigPrefix(collector.prefix)
 	ctx := context.Background()
 	if collector.timeout != 0 {
@@ -209,25 +212,81 @@ func (collector EtcdCollector) Collect() (*Config, error) {
 	return cconfig, nil
 }
 
-// EtcdDataPublisher publishes a data into etcd.
-type EtcdDataPublisher struct {
-	getter  EtcdTxnGetter
+// EtcdKeyCollector collects data from a etcd connection for a whole prefix.
+type EtcdKeyCollector struct {
+	getter  EtcdGetter
 	prefix  string
+	key     string
 	timeout time.Duration
 }
 
-// EtcdUpdater is the interface that adds Txn method to EtcdGetter.
+// NewEtcdKeyCollector creates a new collector for etcd from a key from
+// a prefix.
+func NewEtcdKeyCollector(getter EtcdGetter, prefix, key string,
+	timeout time.Duration) EtcdKeyCollector {
+	return EtcdKeyCollector{
+		getter:  getter,
+		prefix:  prefix,
+		key:     key,
+		timeout: timeout,
+	}
+}
+
+// Collect collects a configuration from the specified path with the specified
+// timeout.
+func (collector EtcdKeyCollector) Collect() (*Config, error) {
+	prefix := getConfigPrefix(collector.prefix)
+	key := prefix + collector.key
+	ctx := context.Background()
+	if collector.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, collector.timeout)
+		defer cancel()
+	}
+
+	resp, err := collector.getter.Get(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch data from etcd: %w", err)
+	}
+
+	switch {
+	case len(resp.Kvs) == 0:
+		// It should not happen, but we need to be sure to avoid a null pointer
+		// dereference.
+		return nil, fmt.Errorf("a configuration data not found in key %q",
+			key)
+	case len(resp.Kvs) > 1:
+		return nil, fmt.Errorf("too many responses (%v) from etcd for key %q",
+			resp.Kvs, key)
+	}
+
+	config, err := NewYamlCollector(resp.Kvs[0].Value).Collect()
+	if err != nil {
+		return nil,
+			fmt.Errorf("failed to decode etcd config for key %q: %w", key, err)
+	}
+	return config, nil
+}
+
+// EtcdTxnGetter is the interface that adds Txn method to EtcdGetter.
 type EtcdTxnGetter interface {
 	EtcdGetter
 	// Txn creates a transaction.
 	Txn(ctx context.Context) clientv3.Txn
 }
 
-// NewEtcdDataPublisher creates a new EtcdDataPublisher object to publish
+// EtcdAllDataPublisher publishes a data into etcd to a prefix.
+type EtcdAllDataPublisher struct {
+	getter  EtcdTxnGetter
+	prefix  string
+	timeout time.Duration
+}
+
+// NewEtcdAllDataPublisher creates a new EtcdAllDataPublisher object to publish
 // a data to etcd with the prefix during the timeout.
-func NewEtcdDataPublisher(getter EtcdTxnGetter,
-	prefix string, timeout time.Duration) EtcdDataPublisher {
-	return EtcdDataPublisher{
+func NewEtcdAllDataPublisher(getter EtcdTxnGetter,
+	prefix string, timeout time.Duration) EtcdAllDataPublisher {
+	return EtcdAllDataPublisher{
 		getter:  getter,
 		prefix:  prefix,
 		timeout: timeout,
@@ -235,7 +294,7 @@ func NewEtcdDataPublisher(getter EtcdTxnGetter,
 }
 
 // Publish publishes the configuration into etcd to the given prefix.
-func (publisher EtcdDataPublisher) Publish(data []byte) error {
+func (publisher EtcdAllDataPublisher) Publish(data []byte) error {
 	if data == nil {
 		return fmt.Errorf("failed to publish data into etcd: data does not exist")
 	}
@@ -312,6 +371,56 @@ func (publisher EtcdDataPublisher) Publish(data []byte) error {
 		}
 	}
 	// Unreachable.
+	return nil
+}
+
+// EtcdPutter is the interface that wraps put from etcd method.
+type EtcdPutter interface {
+	// Put puts a key-value pair into etcd.
+	Put(ctx context.Context, key, val string,
+		opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
+}
+
+// EtcdKeyDataPublisher publishes a data into etcd for a prefix and a key.
+type EtcdKeyDataPublisher struct {
+	putter  EtcdPutter
+	prefix  string
+	key     string
+	timeout time.Duration
+}
+
+// NewEtcdKeyDataPublisher creates a new EtcdKeyDataPublisher object to publish
+// a data to etcd with the prefix and key during the timeout.
+func NewEtcdKeyDataPublisher(putter EtcdPutter,
+	prefix, key string, timeout time.Duration) EtcdKeyDataPublisher {
+	return EtcdKeyDataPublisher{
+		putter:  putter,
+		prefix:  prefix,
+		key:     key,
+		timeout: timeout,
+	}
+}
+
+// Publish publishes the configuration into etcd to the given prefix and key.
+func (publisher EtcdKeyDataPublisher) Publish(data []byte) error {
+	if data == nil {
+		return fmt.Errorf("failed to publish data into etcd: data does not exist")
+	}
+
+	prefix := getConfigPrefix(publisher.prefix)
+	key := prefix + publisher.key
+	ctx := context.Background()
+	if publisher.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, publisher.timeout)
+		defer cancel()
+	}
+
+	_, err := publisher.putter.Put(ctx, key, string(data))
+	if err != nil {
+		return fmt.Errorf("failed to put data into etcd: %w", err)
+	}
+
 	return nil
 }
 
