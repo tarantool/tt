@@ -48,6 +48,7 @@ http(s)://[username:password@]host:port[/prefix][?arguments]
 
 Possible arguments:
 
+* key - a target configuration key in the prefix.
 * name - a name of an instance in the cluster configuration.
 * timeout - a request timeout in seconds (default %.1f).
 * ssl_key_file - a path to a private SSL key file.
@@ -108,7 +109,10 @@ environment variables < command flags < URL credentials.
 		Short: "Publish a cluster configuration",
 		Long: "Publish an application or an instance configuration to a cluster " +
 			"configuration file or to a etcd URI.\n\n" +
-			uriHelp,
+			uriHelp + "\n" +
+			"By default, the command removes all keys in etcd with prefix " +
+			"'/prefix/config/' and writes the result to '/prefix/config/all'. " +
+			"You could work and update a target key with the 'key' argument.",
 		Example: "tt cluster publish application_name cluster.yaml\n" +
 			"  tt cluster publish application_name:instance_name instance.yaml\n" +
 			"  tt cluster publish " +

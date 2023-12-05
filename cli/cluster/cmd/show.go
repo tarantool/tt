@@ -35,8 +35,15 @@ func ShowEtcd(showCtx ShowCtx, uri *url.URL) error {
 	}
 	defer etcdcli.Close()
 
-	prefix, timeout := etcdOpts.Prefix, etcdOpts.Timeout
-	config, err := cluster.NewEtcdCollector(etcdcli, prefix, timeout).Collect()
+	prefix, key, timeout := etcdOpts.Prefix, etcdOpts.Key, etcdOpts.Timeout
+	var collector cluster.Collector
+	if key == "" {
+		collector = cluster.NewEtcdAllCollector(etcdcli, prefix, timeout)
+	} else {
+		collector = cluster.NewEtcdKeyCollector(etcdcli, prefix, key, timeout)
+	}
+
+	config, err := collector.Collect()
 	if err != nil {
 		return fmt.Errorf("failed to collect a configuration from etcd: %w", err)
 	}

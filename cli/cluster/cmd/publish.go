@@ -45,14 +45,21 @@ func PublishEtcd(publishCtx PublishCtx, uri *url.URL) error {
 	}
 	defer etcdcli.Close()
 
-	prefix, timeout := etcdOpts.Prefix, etcdOpts.Timeout
-	publisher := cluster.NewEtcdDataPublisher(etcdcli, prefix, timeout)
+	prefix, key, timeout := etcdOpts.Prefix, etcdOpts.Key, etcdOpts.Timeout
+
+	var publisher cluster.DataPublisher
+	if key == "" {
+		publisher = cluster.NewEtcdAllDataPublisher(etcdcli, prefix, timeout)
+	} else {
+		publisher = cluster.NewEtcdKeyDataPublisher(etcdcli, prefix, key, timeout)
+	}
+
 	if instance == "" {
 		// The easy case, just publish the configuration as is.
 		return publisher.Publish(publishCtx.Src)
 	}
 
-	collector := cluster.NewEtcdCollector(etcdcli, prefix, timeout)
+	collector := cluster.NewEtcdAllCollector(etcdcli, prefix, timeout)
 	return replaceInstanceConfig(instance, publishCtx.Config, collector, publisher)
 }
 

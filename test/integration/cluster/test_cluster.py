@@ -115,7 +115,7 @@ def etcd_disable_auth(host):
 
 def etcd_stop(popen):
     if popen:
-        popen.terminate()
+        popen.kill()
         popen.wait()
 
 
@@ -314,6 +314,31 @@ def test_cluster_show_config_etcd_no_prefix(tt_cmd, tmpdir_with_cfg):
     assert expected in show_output
 
 
+def test_cluster_show_config_etcd_no_key(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    host = "http://localhost:12388"
+    popen = etcd_start(host, tmpdir)
+    assert popen
+
+    try:
+        show_cmd = [tt_cmd, "cluster", "show",
+                    f"{host}/prefix?key=foo&timeout=5"]
+        instance_process = subprocess.Popen(
+            show_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        show_output = instance_process.stdout.read()
+    finally:
+        etcd_stop(popen)
+
+    expected = (r"   ⨯ failed to collect a configuration from etcd: " +
+                "a configuration data not found in key \"/prefix/config/foo\"")
+    assert expected in show_output
+
+
 def test_cluster_show_config_etcd_no_auth(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     host = "http://localhost:12388"
@@ -448,6 +473,64 @@ def test_cluster_show_config_etcd_instance(tt_cmd, tmpdir_with_cfg):
 """)
         show_cmd = [tt_cmd, "cluster", "show",
                     f"{endpoint}/prefix?timeout=5&name=master"]
+        instance_process = subprocess.Popen(
+            show_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        show_output = instance_process.stdout.read()
+    finally:
+        etcd_stop(popen)
+
+    assert r"""database:
+  mode: rw
+iproto:
+  listen: 127.0.0.1:3301
+""" in show_output
+
+
+def test_cluster_show_config_etcd_key(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    host = "localhost"
+    port = 12388
+    endpoint = f"http://{host}:{port}"
+    popen = etcd_start(endpoint, tmpdir)
+    assert popen
+
+    try:
+        etcd = etcd3.client(host=host, port=port)
+        etcd.put('/prefix/config/anykey', valid_cluster_cfg)
+        show_cmd = [tt_cmd, "cluster", "show",
+                    f"{endpoint}/prefix?key=anykey&timeout=5"]
+        instance_process = subprocess.Popen(
+            show_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        show_output = instance_process.stdout.read()
+    finally:
+        etcd_stop(popen)
+
+    assert valid_cluster_cfg in show_output
+
+
+def test_cluster_show_config_etcd_key_instance(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    host = "localhost"
+    port = 12388
+    endpoint = f"http://{host}:{port}"
+    popen = etcd_start(endpoint, tmpdir)
+    assert popen
+
+    try:
+        etcd = etcd3.client(host=host, port=port)
+        etcd.put('/prefix/config/anykey', valid_cluster_cfg)
+        show_cmd = [tt_cmd, "cluster", "show",
+                    f"{endpoint}/prefix?key=anykey&timeout=5&name=master"]
         instance_process = subprocess.Popen(
             show_cmd,
             cwd=tmpdir,
@@ -836,6 +919,27 @@ def test_cluster_publish_config_etcd_not_exist(tt_cmd, tmpdir_with_cfg):
     assert expected in publish_output
 
 
+def test_cluster_publish_config_etcd_key_not_exist(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    src_cfg_path = os.path.join(tmpdir, "src.yaml")
+    with open(src_cfg_path, 'w') as f:
+        f.write(valid_cluster_cfg)
+
+    show_cmd = [tt_cmd, "cluster", "publish",
+                "https://localhost:12344/prefix?key=foo&timeout=0.1", "src.yaml"]
+    instance_process = subprocess.Popen(
+        show_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    publish_output = instance_process.stdout.read()
+
+    expected = (r"   ⨯ failed to put data into etcd: context deadline exceeded")
+    assert expected in publish_output
+
+
 def test_cluster_publish_config_etcd_no_auth(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
@@ -990,6 +1094,52 @@ def test_cluster_publish_instance_etcd(tt_cmd, tmpdir_with_cfg):
         )
         publish_output = instance_process.stdout.read()
         etcd_content, _ = etcd.get('/prefix/config/all')
+    finally:
+        etcd_stop(popen)
+
+    assert "" == publish_output
+    assert valid_cluster_cfg.replace("3301", "3303") == etcd_content.decode("utf-8")
+
+
+def test_cluster_publish_key_etcd(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    cluster_cfg_path = os.path.join(tmpdir, "cluster.yaml")
+    with open(cluster_cfg_path, 'w') as f:
+        f.write(valid_cluster_cfg)
+    instance_cfg_path = os.path.join(tmpdir, "instance.yaml")
+    with open(instance_cfg_path, 'w') as f:
+        f.write(valid_instance_cfg)
+    host = "localhost"
+    port = 12388
+    endpoint = f"http://{host}:{port}"
+    popen = etcd_start(endpoint, tmpdir)
+    assert popen
+
+    try:
+        etcd = etcd3.client(host=host, port=port)
+        show_cmd = [tt_cmd, "cluster", "publish",
+                    f"{endpoint}/prefix?key=anykey&timeout=5", "cluster.yaml"]
+        instance_process = subprocess.Popen(
+            show_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        publish_output = instance_process.stdout.read()
+        assert "" == publish_output
+
+        show_cmd = [tt_cmd, "cluster", "publish",
+                    f"{endpoint}/prefix?key=anykey&timeout=5&name=master", "instance.yaml"]
+        instance_process = subprocess.Popen(
+            show_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        publish_output = instance_process.stdout.read()
+        etcd_content, _ = etcd.get('/prefix/config/anykey')
     finally:
         etcd_stop(popen)
 
