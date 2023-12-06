@@ -20,10 +20,12 @@ type ShowCtx struct {
 
 // ShowEtcd shows a configuration from etcd.
 func ShowEtcd(showCtx ShowCtx, uri *url.URL) error {
-	etcdOpts, err := cluster.MakeEtcdOptsFromUrl(uri)
+	uriOpts, err := ParseUriOpts(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
+
+	etcdOpts := MakeEtcdOptsFromUriOpts(uriOpts)
 	if etcdOpts.Username == "" && etcdOpts.Password == "" {
 		etcdOpts.Username = showCtx.Username
 		etcdOpts.Password = showCtx.Password
@@ -35,7 +37,7 @@ func ShowEtcd(showCtx ShowCtx, uri *url.URL) error {
 	}
 	defer etcdcli.Close()
 
-	prefix, key, timeout := etcdOpts.Prefix, etcdOpts.Key, etcdOpts.Timeout
+	prefix, key, timeout := uriOpts.Prefix, uriOpts.Key, etcdOpts.Timeout
 	var collector cluster.Collector
 	if key == "" {
 		collector = cluster.NewEtcdAllCollector(etcdcli, prefix, timeout)
@@ -48,12 +50,12 @@ func ShowEtcd(showCtx ShowCtx, uri *url.URL) error {
 		return fmt.Errorf("failed to collect a configuration from etcd: %w", err)
 	}
 
-	name := uri.Query().Get("name")
+	instance := uriOpts.Instance
 	if showCtx.Validate {
-		err = validateRawConfig(config, name)
+		err = validateRawConfig(config, instance)
 	}
 
-	return printRawClusterConfig(config, uri.Query().Get("name"), showCtx.Validate)
+	return printRawClusterConfig(config, instance, showCtx.Validate)
 }
 
 // ShowCluster shows a full cluster configuration for a configuration path.

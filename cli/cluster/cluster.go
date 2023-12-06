@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	groupsLabel      = "groups"
-	replicasetsLabel = "replicasets"
-	instancesLabel   = "instances"
+	groupsLabel        = "groups"
+	replicasetsLabel   = "replicasets"
+	instancesLabel     = "instances"
+	defaultEtcdTimeout = 3 * time.Second
 )
 
 var (
@@ -278,7 +279,6 @@ func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
 	etcdConfig := clusterConfig.Config.Etcd
 	opts := EtcdOpts{
 		Endpoints: etcdConfig.Endpoints,
-		Prefix:    etcdConfig.Prefix,
 		Username:  etcdConfig.Username,
 		Password:  etcdConfig.Password,
 		KeyFile:   etcdConfig.Ssl.KeyFile,
@@ -298,7 +298,7 @@ func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
 			return nil, fmt.Errorf(fmtErr, err)
 		}
 	} else {
-		opts.Timeout = DefaultEtcdTimeout
+		opts.Timeout = defaultEtcdTimeout
 	}
 
 	etcd, err := ConnectEtcd(opts)
@@ -306,7 +306,7 @@ func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
 		return nil, fmt.Errorf("unable to connect to etcd: %w", err)
 	}
 
-	etcdCollector := NewEtcdAllCollector(etcd, opts.Prefix, opts.Timeout)
+	etcdCollector := NewEtcdAllCollector(etcd, etcdConfig.Prefix, opts.Timeout)
 	etcdRawConfig, err := etcdCollector.Collect()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get config from etcd: %w", err)

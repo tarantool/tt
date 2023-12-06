@@ -64,7 +64,7 @@ You could also specify etcd username and password with environment variables:
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
-`, float64(cluster.DefaultEtcdTimeout)/float64(time.Second),
+`, float64(clustercmd.DefaultUriTimeout)/float64(time.Second),
 		connect.EtcdUsernameEnv, connect.EtcdPasswordEnv)
 
 	show := &cobra.Command{
