@@ -74,8 +74,8 @@ environment variables < command flags < URL credentials.
 			" from etcd URI.\n\n" + uriHelp,
 		Example: "tt cluster show application_name\n" +
 			"  tt cluster show application_name:instance_name\n" +
-			"  tt cluster show https://user@pass@localhost:2379/tt\n" +
-			"  tt cluster show https://user@pass@localhost:2379/tt?name=instance",
+			"  tt cluster show https://user:pass@localhost:2379/tt\n" +
+			"  tt cluster show https://user:pass@localhost:2379/tt?name=instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -116,9 +116,9 @@ environment variables < command flags < URL credentials.
 		Example: "tt cluster publish application_name cluster.yaml\n" +
 			"  tt cluster publish application_name:instance_name instance.yaml\n" +
 			"  tt cluster publish " +
-			"https://user@pass@localhost:2379/tt cluster.yaml\n" +
+			"https://user:pass@localhost:2379/tt cluster.yaml\n" +
 			"  tt cluster publish " +
-			"https://user@pass@localhost:2379/tt?name=instance " +
+			"https://user:pass@localhost:2379/tt?name=instance " +
 			"instance.yaml",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
