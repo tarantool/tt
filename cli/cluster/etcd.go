@@ -6,10 +6,8 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/fs"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,18 +15,10 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-const (
-	DefaultEtcdTimeout = 3 * time.Second
-)
-
 // EtcdOpts is a way to configure a etcd client.
 type EtcdOpts struct {
 	// Endpoints a slice of endpoints to connect.
 	Endpoints []string
-	// Prefix is a configuration prefix.
-	Prefix string
-	// Key is a target key.
-	Key string
 	// Username is a user name for authorization
 	Username string
 	// Password is a password for authorization
@@ -47,73 +37,6 @@ type EtcdOpts struct {
 	SkipHostVerify bool
 	// Timeout is a timeout for actions.
 	Timeout time.Duration
-}
-
-// MakeEtcdOptsFromUrl creates etcd options from a URL.
-func MakeEtcdOptsFromUrl(uri *url.URL) (EtcdOpts, error) {
-	if uri.Scheme == "" || uri.Host == "" {
-		return EtcdOpts{},
-			fmt.Errorf("URL must contain the scheme and the host parts")
-	}
-
-	endpoint := url.URL{
-		Scheme: uri.Scheme,
-		Host:   uri.Host,
-	}
-	values := uri.Query()
-	opts := EtcdOpts{
-		Endpoints: []string{endpoint.String()},
-		Prefix:    uri.Path,
-		Key:       values.Get("key"),
-		Username:  uri.User.Username(),
-		KeyFile:   values.Get("ssl_key_file"),
-		CertFile:  values.Get("ssl_cert_file"),
-		CaPath:    values.Get("ssl_ca_path"),
-		CaFile:    values.Get("ssl_ca_file"),
-		Timeout:   DefaultEtcdTimeout,
-	}
-	if password, ok := uri.User.Password(); ok {
-		opts.Password = password
-	}
-
-	verifyPeerStr := values.Get("verify_peer")
-	verifyHostStr := values.Get("verify_host")
-	timeoutStr := values.Get("timeout")
-
-	if verifyPeerStr != "" {
-		verifyPeerStr = strings.ToLower(verifyPeerStr)
-		if verify, err := strconv.ParseBool(verifyPeerStr); err == nil {
-			if verify == false {
-				opts.SkipHostVerify = true
-			}
-		} else {
-			err = fmt.Errorf("invalid verify_peer, boolean expected: %w", err)
-			return opts, err
-		}
-	}
-
-	if verifyHostStr != "" {
-		verifyHostStr = strings.ToLower(verifyHostStr)
-		if verify, err := strconv.ParseBool(verifyHostStr); err == nil {
-			if verify == false {
-				opts.SkipHostVerify = true
-			}
-		} else {
-			err = fmt.Errorf("invalid verify_host, boolean expected: %w", err)
-			return opts, err
-		}
-	}
-
-	if timeoutStr != "" {
-		if timeout, err := strconv.ParseFloat(timeoutStr, 64); err == nil {
-			opts.Timeout = time.Duration(timeout * float64(time.Second))
-		} else {
-			err = fmt.Errorf("invalid timeout, float expected: %w", err)
-			return opts, err
-		}
-	}
-
-	return opts, nil
 }
 
 // ConnectEtcd creates a new client object for a etcd from the specified

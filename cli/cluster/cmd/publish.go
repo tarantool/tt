@@ -25,16 +25,18 @@ type PublishCtx struct {
 
 // PublishEtcd publishes a configuration to etcd.
 func PublishEtcd(publishCtx PublishCtx, uri *url.URL) error {
-	etcdOpts, err := cluster.MakeEtcdOptsFromUrl(uri)
+	uriOpts, err := ParseUriOpts(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
+
+	etcdOpts := MakeEtcdOptsFromUriOpts(uriOpts)
 	if etcdOpts.Username == "" && etcdOpts.Password == "" {
 		etcdOpts.Username = publishCtx.Username
 		etcdOpts.Password = publishCtx.Password
 	}
 
-	instance := uri.Query().Get("name")
+	instance := uriOpts.Instance
 	if err := publishCtxValidateConfig(publishCtx, instance); err != nil {
 		return err
 	}
@@ -45,7 +47,7 @@ func PublishEtcd(publishCtx PublishCtx, uri *url.URL) error {
 	}
 	defer etcdcli.Close()
 
-	prefix, key, timeout := etcdOpts.Prefix, etcdOpts.Key, etcdOpts.Timeout
+	prefix, key, timeout := uriOpts.Prefix, uriOpts.Key, etcdOpts.Timeout
 
 	var publisher cluster.DataPublisher
 	if key == "" {
