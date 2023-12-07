@@ -32,6 +32,42 @@ func TestNewSigner(t *testing.T) {
 	}
 }
 
+func InitializeIntegrityCheck(t *testing.T) {
+	testCases := []struct {
+		name          string
+		publicKeyPath string
+		configDir     string
+	}{
+		{
+			name:          "Empty key and config path",
+			publicKeyPath: "",
+			configDir:     "",
+		},
+		{
+			name:          "Arbitrary key path, empty config path",
+			publicKeyPath: "public.pem",
+			configDir:     "",
+		},
+		{
+			name:          "Empty key path, arbitrary config path",
+			publicKeyPath: "",
+			configDir:     "app",
+		},
+		{
+			name:          "Arbitrary key and config path",
+			publicKeyPath: "public.pem",
+			configDir:     "app",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath, testCase.configDir)
+			require.EqualError(t, err, "integrity checks should never be initialized in ce", "an error should be produced")
+		})
+	}
+}
+
 func TestRegisterWithIntegritySigner(t *testing.T) {
 	someStr := ""
 
@@ -65,6 +101,90 @@ func TestRegisterWithIntegritySigner(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			integrity.RegisterWithIntegrityFlag(testCase.flagSet, testCase.dst)
+
+			if testCase.flagSet != nil {
+				require.False(t, testCase.flagSet.HasFlags(),
+					"command must not be modified")
+			}
+		})
+	}
+}
+
+func TestRegisterIntegrityCheckFlag(t *testing.T) {
+	someStr := ""
+
+	testCases := []struct {
+		name    string
+		flagSet *pflag.FlagSet
+		dst     *string
+	}{
+		{
+			name:    "Empty flagSet and dst",
+			flagSet: nil,
+			dst:     nil,
+		},
+		{
+			name:    "Empty dst",
+			flagSet: &pflag.FlagSet{},
+			dst:     nil,
+		},
+		{
+			name:    "Empty flagSet",
+			flagSet: nil,
+			dst:     &someStr,
+		},
+		{
+			name:    "Nothing empty",
+			flagSet: &pflag.FlagSet{},
+			dst:     nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			integrity.RegisterIntegrityCheckFlag(testCase.flagSet, testCase.dst)
+
+			if testCase.flagSet != nil {
+				require.False(t, testCase.flagSet.HasFlags(),
+					"command must not be modified")
+			}
+		})
+	}
+}
+
+func TestRegisterIntegrityCheckPeriodFlag(t *testing.T) {
+	someInt := 0
+
+	testCases := []struct {
+		name    string
+		flagSet *pflag.FlagSet
+		dst     *int
+	}{
+		{
+			name:    "Empty flagSet and dst",
+			flagSet: nil,
+			dst:     nil,
+		},
+		{
+			name:    "Empty dst",
+			flagSet: &pflag.FlagSet{},
+			dst:     nil,
+		},
+		{
+			name:    "Empty flagSet",
+			flagSet: nil,
+			dst:     &someInt,
+		},
+		{
+			name:    "Nothing empty",
+			flagSet: &pflag.FlagSet{},
+			dst:     nil,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			integrity.RegisterIntegrityCheckPeriodFlag(testCase.flagSet, testCase.dst)
 
 			if testCase.flagSet != nil {
 				require.False(t, testCase.flagSet.HasFlags(),

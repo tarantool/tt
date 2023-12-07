@@ -11,6 +11,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -48,11 +49,13 @@ type clusterInstance struct {
 	clusterConfigPath string
 	// logDir is log files location.
 	logDir string
+	// integrityChecks tells whether integrity checks are turned on.
+	integrityChecks bool
 }
 
 // newClusterInstance creates a clusterInstance.
 func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx InstanceCtx,
-	logger *ttlog.Logger) (*clusterInstance, error) {
+	logger *ttlog.Logger, integrityChecks bool) (*clusterInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolCli.Executable); err != nil {
 		return nil, err
@@ -80,6 +83,7 @@ func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx Instan
 		runDir:            instanceCtx.RunDir,
 		clusterConfigPath: instanceCtx.ClusterConfigPath,
 		logDir:            instanceCtx.LogDir,
+		integrityChecks:   integrityChecks,
 	}, nil
 }
 
@@ -93,7 +97,13 @@ func appendEnvIfNotEmpty(env []string, envVarName string, value string) []string
 
 // Start starts tarantool instance with cluster config.
 func (inst *clusterInstance) Start() error {
-	cmd := exec.Command(inst.tarantoolPath, "-n", inst.instName, "-c", inst.clusterConfigPath)
+	cmdArgs := []string{"-n", inst.instName, "-c", inst.clusterConfigPath}
+	if inst.integrityChecks {
+		cmdArgs = append(cmdArgs, "--integrity-check",
+			filepath.Join(inst.appDir, integrity.HashesName))
+	}
+
+	cmd := exec.Command(inst.tarantoolPath, cmdArgs...)
 	cmd.Stdout = inst.logger.Writer()
 	cmd.Stderr = inst.logger.Writer()
 
@@ -132,6 +142,13 @@ func (inst *clusterInstance) Run(flags RunFlags) error {
 	args := []string{inst.tarantoolPath}
 	args = append(args, convertFlagsToTarantoolOpts(flags)...)
 	args = append(args, flags.RunArgs...)
+
+	f, err := integrity.FileRepository.Read(inst.tarantoolPath)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
 	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
 	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)
 	if execErr != nil {

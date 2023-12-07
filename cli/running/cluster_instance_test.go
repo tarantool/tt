@@ -75,7 +75,7 @@ func TestClusterInstance_Start(t *testing.T) {
 		ClusterConfigPath: configPath,
 		InstName:          "instance-001",
 		AppDir:            tmpDir,
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0))
+	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), false)
 
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
@@ -116,7 +116,7 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 		VinylDir:          "vinyl_dir",
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0))
+	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), false)
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 
@@ -162,7 +162,7 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
 		LogDir:            tmpAppDir,
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0))
+	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), false)
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 

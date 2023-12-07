@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running/internal/layout"
 	"github.com/tarantool/tt/cli/ttlog"
@@ -89,6 +90,7 @@ type InstanceCtx struct {
 	ClusterConfigPath string
 	// Configuration is instance configuration loaded from cluster config.
 	Configuration cluster.InstanceConfig
+	// AppHashes
 }
 
 // RunFlags contains flags for tt run.
@@ -150,15 +152,18 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (inst Instanc
 		return
 	}
 
+	integrityChecks := provider.cmdCtx.Cli.IntegrityCheck != ""
+
 	if provider.instanceCtx.ClusterConfigPath != "" {
 		logger.Printf("(INFO): using %q cluster config for instance %q",
 			provider.instanceCtx.ClusterConfigPath,
 			provider.instanceCtx.InstName,
 		)
-		return newClusterInstance(provider.cmdCtx.Cli.TarantoolCli, *provider.instanceCtx, logger)
+		return newClusterInstance(provider.cmdCtx.Cli.TarantoolCli, *provider.instanceCtx,
+			logger, integrityChecks)
 	}
 	return newScriptInstance(provider.cmdCtx.Cli.TarantoolCli.Executable, *provider.instanceCtx,
-		logger)
+		logger, integrityChecks)
 }
 
 // isLoggerChanged checks if any of the logging parameters has been changed.
@@ -341,6 +346,12 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string) (
 				SingleApp:      true}}, nil
 		}
 	}
+
+	f, err := integrity.FileRepository.Read(appDirFiles.instCfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("can't check integrity of %q: %w", appDirFiles.instCfgPath, err)
+	}
+	f.Close()
 
 	instParams, err := util.ParseYAML(appDirFiles.instCfgPath)
 	if err != nil {
@@ -616,7 +627,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 }
 
 // Start an Instance.
-func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
+func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod time.Duration) error {
 	if err := createInstanceDataDirectories(*inst); err != nil {
 		return err
 	}
@@ -629,7 +640,8 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 		}
 		return nil
 	}
-	wd := NewWatchdog(inst.Restartable, 5*time.Second, logger, &provider, preStartAction)
+	wd := NewWatchdog(inst.Restartable, 5*time.Second, logger,
+		&provider, preStartAction, integrityCheckPeriod)
 
 	defer func() {
 		cleanup(inst)

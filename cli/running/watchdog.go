@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
 )
 
@@ -48,13 +49,16 @@ type Watchdog struct {
 	shouldStop bool
 	// preStartAction is a hook that is to be run before the start of a new Instance.
 	preStartAction func() error
+	// integrityCheckPeriod is period between integrity checks.
+	integrityCheckPeriod time.Duration
 }
 
 // NewWatchdog creates a new instance of Watchdog.
 func NewWatchdog(restartable bool, restartTimeout time.Duration, logger *ttlog.Logger,
-	provider Provider, preStartAction func() error) *Watchdog {
+	provider Provider, preStartAction func() error, integrityCheckPeriod time.Duration) *Watchdog {
 	wd := Watchdog{instance: nil, logger: logger, restartTimeout: restartTimeout,
-		provider: provider, preStartAction: preStartAction}
+		provider: provider, preStartAction: preStartAction,
+		integrityCheckPeriod: integrityCheckPeriod}
 
 	wd.done = make(chan bool, 1)
 
@@ -75,6 +79,13 @@ func (wd *Watchdog) Start() error {
 	// and tt stop. This way we avoid a situation when we receive
 	// a signal before starting a handler for it.
 	wd.startSignalHandling()
+
+	// Launch integrity checking goroutine.
+	if wd.integrityCheckPeriod != 0 {
+		wd.logger.Printf("(INFO): starting periodic integrity checks each %s.",
+			wd.integrityCheckPeriod)
+		wd.startIntegrityChecks()
+	}
 
 	if err = wd.preStartAction(); err != nil {
 		wd.logger.Printf(`(ERROR): Pre-start action error: %v`, err)
@@ -144,6 +155,30 @@ func (wd *Watchdog) Start() error {
 		wd.startSignalHandling()
 	}
 	return nil
+}
+
+// startIntegrityChecks launches gorountine that performs periodic integrity checks.
+func (wd *Watchdog) startIntegrityChecks() {
+	ticker := time.NewTicker(wd.integrityCheckPeriod)
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				wd.logger.Printf("(INFO): periodic integrity check successfully passed.")
+				err := integrity.FileRepository.ValidateAll()
+				if err != nil {
+					// Integrity check failed.
+					wd.logger.Printf("(ERROR): periodic integrity check failed: %q.", err)
+					wd.instance.SendSignal(syscall.SIGUSR2)
+					return
+				}
+
+			case <-wd.done:
+				return
+			}
+		}
+	}()
 }
 
 // startSignalHandling starts signal handling in a separate goroutine.

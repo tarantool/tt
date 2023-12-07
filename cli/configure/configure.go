@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -195,8 +196,14 @@ func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
 	var cfg *config.CliOpts = GetDefaultCliOpts()
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)
+	// Before loading configure file, we'll initialize integrity checking.
 	if err == nil {
 		// Config file is found, load it.
+		f, err := integrity.FileRepository.Read(configPath)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to validate integrity of %q: %w", configPath, err)
+		}
+		f.Close()
 		rawConfigOpts, err := util.ParseYAML(configPath)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
@@ -523,6 +530,13 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 				return fmt.Errorf(
 					`found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
 			}
+
+			// Before switching to local cli, we shall check its integrity.
+			f, err := integrity.FileRepository.Read(localCli)
+			if err != nil {
+				return err
+			}
+			f.Close()
 
 			// We are not using the "RunExec" function because we have no reason to have several
 			// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
