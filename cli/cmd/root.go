@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/util"
 
 	"github.com/apex/log"
@@ -132,6 +133,8 @@ func NewCmdRoot() *cobra.Command {
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.Verbose, "verbose", "V",
 		false, "Verbose output")
 
+	integrity.RegisterIntegrityCheckFlag(rootCmd.Flags(), &cmdCtx.Cli.IntegrityCheck)
+
 	rootCmd.Flags().SetInterspersed(false)
 
 	rootCmd.AddCommand(
@@ -199,13 +202,32 @@ func InitRoot() {
 	if err := configure.ValidateCliOpts(&cmdCtx.Cli); err != nil {
 		log.Fatal(err.Error())
 	}
+	var err error
 
+	if cmdCtx.Cli.IntegrityCheck != "" {
+		currentDir, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("can't get current dir: %s", err.Error())
+		}
+
+		configPath, _ := util.GetYamlFileName(
+			filepath.Join(currentDir, configure.ConfigName),
+			false,
+		)
+
+		err = integrity.InitializeIntegrityCheck(
+			cmdCtx.Cli.IntegrityCheck,
+			filepath.Dir(configPath),
+		)
+		if err != nil {
+			log.Fatalf("integrity check failed: %s", err)
+		}
+	}
 	// Configure Tarantool CLI.
 	if err := configure.Cli(&cmdCtx); err != nil {
 		log.Fatalf("Failed to configure Tarantool CLI: %s", err)
 	}
 
-	var err error
 	cliOpts, cmdCtx.Cli.ConfigPath, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
 	if err != nil {
 		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
@@ -232,5 +254,8 @@ func InitRoot() {
 	}
 
 	// Configure help command.
-	configureHelpCommand(&cmdCtx, rootCmd)
+	err = configureHelpCommand(&cmdCtx, rootCmd)
+	if err != nil {
+		log.Fatalf("Failed to set up help command: %s", err)
+	}
 }

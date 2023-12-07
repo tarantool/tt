@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/version"
 )
 
@@ -16,6 +17,9 @@ type CmdCtx struct {
 	Cli CliCtx
 	// CommandName contains name of the command.
 	CommandName string
+	// FileRepository is used for reading files that require
+	// integrity control.
+	FileRepository integrity.Repository
 }
 
 // TarantoolCli describes tarantool executable.
@@ -80,4 +84,6 @@ type CliCtx struct {
 	Verbose bool
 	// TarantoolCli is current tarantool cli.
 	TarantoolCli TarantoolCli
+	// IntegrityCheck is a public key used for integrity check.
+	IntegrityCheck string
 }

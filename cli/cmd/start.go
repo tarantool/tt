@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
@@ -20,6 +23,9 @@ var (
 	// In go, we can't just fork the process (reason - goroutines).
 	// So, for daemonize, we restarts the process with "watchdog" flag.
 	watchdog bool
+	// integrityCheckPeriod is a flag enables periodic integrity checks.
+	// The default period is 1 day.
+	integrityCheckPeriod = 24 * 60 * 60
 )
 
 // NewStartCmd creates start command.
@@ -47,6 +53,8 @@ func NewStartCmd() *cobra.Command {
 	startCmd.Flags().BoolVar(&watchdog, "watchdog", false, "")
 	startCmd.Flags().MarkHidden("watchdog")
 
+	integrity.RegisterIntegrityCheckPeriodFlag(startCmd.Flags(), &integrityCheckPeriod)
+
 	return startCmd
 }
 
@@ -61,9 +69,25 @@ func startWatchdog(ttExecutable string, instance running.InstanceCtx) error {
 		return nil
 	}
 
-	log.Infof("Starting an instance [%s]...", appName)
+	newArgs := []string{}
+	if cmdCtx.Cli.IntegrityCheck != "" {
+		newArgs = append(newArgs, "--integrity-check", cmdCtx.Cli.IntegrityCheck)
+	}
 
-	newArgs := []string{"start", "--watchdog", appName}
+	newArgs = append(newArgs, "start", "--watchdog", appName)
+
+	if cmdCtx.Cli.IntegrityCheck != "" {
+		newArgs = append(newArgs, "--integrity-check-period",
+			strconv.Itoa(integrityCheckPeriod))
+	}
+
+	f, err := integrity.FileRepository.Read(ttExecutable)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	log.Infof("Starting an instance [%s]...", appName)
 
 	wdCmd := exec.Command(ttExecutable, newArgs...)
 	// Set new pgid for watchdog process, so it will not be killed after a session is closed.
@@ -113,7 +137,13 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return nil
 	}
 
-	if err := running.Start(cmdCtx, &runningCtx.Instances[0]); err != nil {
+	checkPeriod := time.Duration(0)
+
+	if cmdCtx.Cli.IntegrityCheck != "" && integrityCheckPeriod > 0 {
+		checkPeriod = time.Duration(integrityCheckPeriod * int(time.Second))
+	}
+
+	if err := running.Start(cmdCtx, &runningCtx.Instances[0], checkPeriod); err != nil {
 		return err
 	}
 	return nil

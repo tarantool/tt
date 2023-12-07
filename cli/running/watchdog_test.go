@@ -42,7 +42,7 @@ func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (Instance
 		InstanceScript: provider.appPath,
 		AppDir:         provider.t.TempDir(),
 	},
-		logger)
+		logger, false)
 }
 
 // UpdateLogger updates the logger settings or creates a new logger, if passed nil.
@@ -73,7 +73,7 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	provider := providerTestImpl{tarantool: tarantoolBin, appPath: appPath, logger: logger,
 		dataDir: dataDir, restartable: restartable, t: t}
 	testPreAction := func() error { return nil }
-	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider, testPreAction)
+	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider, testPreAction, 0)
 
 	return wd
 }

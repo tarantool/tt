@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/apex/log"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -49,6 +50,8 @@ type scriptInstance struct {
 	consoleSocket string
 	// logDir is log files location.
 	logDir string
+	// integrityChecks tells whether integrity checks are turned on.
+	integrityChecks bool
 }
 
 //go:embed lua/launcher.lua
@@ -56,7 +59,7 @@ var instanceLauncher []byte
 
 // newScriptInstance creates an Instance.
 func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx,
-	logger *ttlog.Logger) (*scriptInstance, error) {
+	logger *ttlog.Logger, integrityChecks bool) (*scriptInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {
 		return nil, err
@@ -68,17 +71,18 @@ func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx,
 	}
 
 	return &scriptInstance{
-		tarantoolPath: tarantoolPath,
-		appPath:       instanceCtx.InstanceScript,
-		appName:       instanceCtx.AppName,
-		appDir:        instanceCtx.AppDir,
-		instName:      instanceCtx.InstName,
-		consoleSocket: instanceCtx.ConsoleSocket,
-		logger:        logger,
-		walDir:        instanceCtx.WalDir,
-		vinylDir:      instanceCtx.VinylDir,
-		memtxDir:      instanceCtx.MemtxDir,
-		logDir:        instanceCtx.LogDir,
+		tarantoolPath:   tarantoolPath,
+		appPath:         instanceCtx.InstanceScript,
+		appName:         instanceCtx.AppName,
+		appDir:          instanceCtx.AppDir,
+		instName:        instanceCtx.InstName,
+		consoleSocket:   instanceCtx.ConsoleSocket,
+		logger:          logger,
+		walDir:          instanceCtx.WalDir,
+		vinylDir:        instanceCtx.VinylDir,
+		memtxDir:        instanceCtx.MemtxDir,
+		logDir:          instanceCtx.LogDir,
+		integrityChecks: integrityChecks,
 	}, nil
 }
 
@@ -128,7 +132,21 @@ func (inst *scriptInstance) setTarantoolLog(cmd *exec.Cmd) {
 
 // Start starts the Instance with the specified parameters.
 func (inst *scriptInstance) Start() error {
-	cmd := exec.Command(inst.tarantoolPath, "-")
+	f, err := integrity.FileRepository.Read(inst.tarantoolPath)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	cmdArgs := []string{}
+
+	if inst.integrityChecks {
+		cmdArgs = append(cmdArgs, "--integrity-check", integrity.HashesName)
+	}
+
+	cmdArgs = append(cmdArgs, "-")
+
+	cmd := exec.Command(inst.tarantoolPath, cmdArgs...)
 	cmd.Stdout = inst.logger.Writer()
 	cmd.Stderr = inst.logger.Writer()
 	StdinPipe, err := cmd.StdinPipe()
@@ -195,6 +213,12 @@ func (inst *scriptInstance) Start() error {
 
 // Run runs tarantool instance.
 func (inst *scriptInstance) Run(flags RunFlags) error {
+	f, err := integrity.FileRepository.Read(inst.tarantoolPath)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
 	newInstanceEnv := os.Environ()
 	newInstanceEnv = append(newInstanceEnv,
 		"TT_CLI_INSTANCE="+inst.appPath,
