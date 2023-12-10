@@ -308,6 +308,16 @@ func TestConnectEtcd(t *testing.T) {
 	}
 }
 
+func TestConnectEtcd_invalid_endpoint(t *testing.T) {
+	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{
+		Endpoints: []string{"some_unknown_endpoint:2323"},
+		Timeout:   1 * time.Second,
+	})
+
+	assert.Nil(t, etcd)
+	assert.ErrorContains(t, err, "context deadline exceeded")
+}
+
 func TestEtcdCollectors_single(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)

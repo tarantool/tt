@@ -13,6 +13,8 @@ import (
 
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 // EtcdOpts is a way to configure a etcd client.
@@ -76,6 +78,8 @@ func ConnectEtcd(opts EtcdOpts) (*clientv3.Client, error) {
 		Username:    opts.Username,
 		Password:    opts.Password,
 		TLS:         tlsConfig,
+		Logger:      zap.NewNop(),
+		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 	})
 }
 
@@ -119,7 +123,7 @@ func (collector EtcdAllCollector) Collect() (*Config, error) {
 
 	cconfig := NewConfig()
 	if len(resp.Kvs) == 0 {
-		return nil, fmt.Errorf("a configuration data not found in prefix %q",
+		return nil, fmt.Errorf("a configuration data not found in etcd for prefix %q",
 			prefix)
 	}
 
@@ -176,7 +180,7 @@ func (collector EtcdKeyCollector) Collect() (*Config, error) {
 	case len(resp.Kvs) == 0:
 		// It should not happen, but we need to be sure to avoid a null pointer
 		// dereference.
-		return nil, fmt.Errorf("a configuration data not found in key %q",
+		return nil, fmt.Errorf("a configuration data not found in etcd for key %q",
 			key)
 	case len(resp.Kvs) > 1:
 		return nil, fmt.Errorf("too many responses (%v) from etcd for key %q",

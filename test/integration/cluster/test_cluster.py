@@ -284,8 +284,7 @@ def test_cluster_show_config_etcd_not_exist(tt_cmd, tmpdir_with_cfg):
     )
     show_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ failed to collect a configuration from etcd: " +
-                "failed to fetch data from etcd: context deadline exceeded")
+    expected = (r"   ⨯ failed to establish a connection to tarantool or etcd:")
     assert expected in show_output
 
 
@@ -309,8 +308,8 @@ def test_cluster_show_config_etcd_no_prefix(tt_cmd, tmpdir_with_cfg):
     finally:
         etcd_stop(popen)
 
-    expected = (r"   ⨯ failed to collect a configuration from etcd: " +
-                "a configuration data not found in prefix \"/prefix/config/\"")
+    expected = (r"   ⨯ failed to collect a configuration: " +
+                "a configuration data not found in etcd for prefix \"/prefix/config/\"")
     assert expected in show_output
 
 
@@ -334,8 +333,8 @@ def test_cluster_show_config_etcd_no_key(tt_cmd, tmpdir_with_cfg):
     finally:
         etcd_stop(popen)
 
-    expected = (r"   ⨯ failed to collect a configuration from etcd: " +
-                "a configuration data not found in key \"/prefix/config/foo\"")
+    expected = (r"   ⨯ failed to collect a configuration: " +
+                "a configuration data not found in etcd for key \"/prefix/config/foo\"")
     assert expected in show_output
 
 
@@ -360,7 +359,7 @@ def test_cluster_show_config_etcd_no_auth(tt_cmd, tmpdir_with_cfg):
     finally:
         etcd_stop(popen)
 
-    expected = (r"   ⨯ failed to collect a configuration from etcd: " +
+    expected = (r"   ⨯ failed to collect a configuration: " +
                 "failed to fetch data from etcd: etcdserver: user name is empty")
     assert expected in show_output
 
@@ -386,8 +385,7 @@ def test_cluster_show_config_etcd_bad_auth(tt_cmd, tmpdir_with_cfg):
     finally:
         etcd_stop(popen)
 
-    expected = (r"   ⨯ failed to connect to etcd: " +
-                "etcdserver: authentication failed, invalid user ID or password")
+    expected = (r"   ⨯ failed to establish a connection to tarantool or etcd: ")
     assert expected in show_output
 
 
@@ -915,7 +913,7 @@ def test_cluster_publish_config_etcd_not_exist(tt_cmd, tmpdir_with_cfg):
     )
     publish_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ failed to fetch data from etcd: context deadline exceeded")
+    expected = (r"   ⨯ failed to establish a connection to tarantool or etcd:")
     assert expected in publish_output
 
 
@@ -936,7 +934,7 @@ def test_cluster_publish_config_etcd_key_not_exist(tt_cmd, tmpdir_with_cfg):
     )
     publish_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ failed to put data into etcd: context deadline exceeded")
+    expected = (r"   ⨯ failed to establish a connection to tarantool or etcd:")
     assert expected in publish_output
 
 
@@ -995,8 +993,7 @@ def test_cluster_publish_config_etcd_bad_auth(tt_cmd, tmpdir_with_cfg):
     finally:
         etcd_stop(popen)
 
-    expected = (r"   ⨯ failed to connect to etcd: " +
-                "etcdserver: authentication failed, invalid user ID or password")
+    expected = (r"   ⨯ failed to establish a connection to tarantool or etcd:")
     assert expected in publish_output
 
 

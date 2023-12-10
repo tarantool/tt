@@ -55,6 +55,7 @@ require (
 	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/hpcloud/tail v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.11.13 // indirect
@@ -74,6 +75,7 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/robfig/config v0.0.0-20141207224736-0f78529c8c7e // indirect
 	github.com/shirou/gopsutil v3.21.2+incompatible // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect

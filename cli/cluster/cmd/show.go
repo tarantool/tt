@@ -9,45 +9,35 @@ import (
 
 // ShowCtx contains information about cluster show command execution context.
 type ShowCtx struct {
-	// Username defines an etcd username.
+	// Username defines a username for connection.
 	Username string
-	// Password defines an etcd password.
+	// Password defines a password for connection.
 	Password string
 	// Validate defines whether the command will check the showed
 	// configuration.
 	Validate bool
 }
 
-// ShowEtcd shows a configuration from etcd.
-func ShowEtcd(showCtx ShowCtx, uri *url.URL) error {
+// ShowUri shows a configuration from URI.
+func ShowUri(showCtx ShowCtx, uri *url.URL) error {
 	uriOpts, err := ParseUriOpts(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
 
-	etcdOpts := MakeEtcdOptsFromUriOpts(uriOpts)
-	if etcdOpts.Username == "" && etcdOpts.Password == "" {
-		etcdOpts.Username = showCtx.Username
-		etcdOpts.Password = showCtx.Password
+	connOpts := connectOpts{
+		Username: showCtx.Username,
+		Password: showCtx.Password,
 	}
-
-	etcdcli, err := cluster.ConnectEtcd(etcdOpts)
+	_, collector, cancel, err := createPublisherAndCollector(connOpts, uriOpts)
 	if err != nil {
-		return fmt.Errorf("failed to connect to etcd: %w", err)
+		return err
 	}
-	defer etcdcli.Close()
-
-	prefix, key, timeout := uriOpts.Prefix, uriOpts.Key, etcdOpts.Timeout
-	var collector cluster.Collector
-	if key == "" {
-		collector = cluster.NewEtcdAllCollector(etcdcli, prefix, timeout)
-	} else {
-		collector = cluster.NewEtcdKeyCollector(etcdcli, prefix, key, timeout)
-	}
+	defer cancel()
 
 	config, err := collector.Collect()
 	if err != nil {
-		return fmt.Errorf("failed to collect a configuration from etcd: %w", err)
+		return fmt.Errorf("failed to collect a configuration: %w", err)
 	}
 
 	instance := uriOpts.Instance
