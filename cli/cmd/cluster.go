@@ -41,10 +41,11 @@ func NewClusterCmd() *cobra.Command {
 		Short: "Manage cluster configuration",
 	}
 
-	uriHelp := fmt.Sprintf(`The URI specifies a etcd connection settings in the following format:
+	uriHelp := fmt.Sprintf(`The URI specifies a etcd or tarantool config storage `+
+		`connection settings in the following format:
 http(s)://[username:password@]host:port[/prefix][?arguments]
 
-* prefix - a base path to Tarantool configuration in etcd.
+* prefix - a base path to Tarantool configuration in etcd or tarantool config storage.
 
 Possible arguments:
 
@@ -70,8 +71,8 @@ environment variables < command flags < URL credentials.
 	show := &cobra.Command{
 		Use:   "show (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)",
 		Short: "Show a cluster configuration",
-		Long: "Show a cluster configuration for an application, instance or" +
-			" from etcd URI.\n\n" + uriHelp,
+		Long: "Show a cluster configuration for an application, instance," +
+			" from etcd URI or from tarantool config storage URI.\n\n" + uriHelp,
 		Example: "tt cluster show application_name\n" +
 			"  tt cluster show application_name:instance_name\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt\n" +
@@ -108,7 +109,7 @@ environment variables < command flags < URL credentials.
 		Use:   "publish (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>) file",
 		Short: "Publish a cluster configuration",
 		Long: "Publish an application or an instance configuration to a cluster " +
-			"configuration file or to a etcd URI.\n\n" +
+			"configuration file, to a etcd URI or to a tarantool config storage URI.\n\n" +
 			uriHelp + "\n" +
 			"By default, the command removes all keys in etcd with prefix " +
 			"'/prefix/config/' and writes the result to '/prefix/config/all'. " +
@@ -151,13 +152,7 @@ environment variables < command flags < URL credentials.
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if uri, ok := parseUrl(args[0]); ok {
-		if showCtx.Username == "" {
-			showCtx.Username = os.Getenv(connect.EtcdUsernameEnv)
-		}
-		if showCtx.Password == "" {
-			showCtx.Password = os.Getenv(connect.EtcdPasswordEnv)
-		}
-		return clustercmd.ShowEtcd(showCtx, uri)
+		return clustercmd.ShowUri(showCtx, uri)
 	}
 
 	// It looks like an application or an application:instance.
@@ -183,13 +178,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	publishCtx.Config = config
 
 	if uri, ok := parseUrl(args[0]); ok {
-		if publishCtx.Username == "" {
-			publishCtx.Username = os.Getenv(connect.EtcdUsernameEnv)
-		}
-		if publishCtx.Password == "" {
-			publishCtx.Password = os.Getenv(connect.EtcdPasswordEnv)
-		}
-		return clustercmd.PublishEtcd(publishCtx, uri)
+		return clustercmd.PublishUri(publishCtx, uri)
 	}
 
 	// It looks like an application or an application:instance.

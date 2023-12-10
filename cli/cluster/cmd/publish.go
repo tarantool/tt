@@ -10,9 +10,9 @@ import (
 // PublishCtx contains information abould cluster publish command execution
 // context.
 type PublishCtx struct {
-	// Username defines an etcd username.
+	// Username defines a username for connection.
 	Username string
-	// Password defines an etcd password.
+	// Password defines a password for connection.
 	Password string
 	// Force defines whether the publish should be forced and a validation step
 	// is omitted.
@@ -23,17 +23,11 @@ type PublishCtx struct {
 	Config *cluster.Config
 }
 
-// PublishEtcd publishes a configuration to etcd.
-func PublishEtcd(publishCtx PublishCtx, uri *url.URL) error {
+// PublishUri publishes a configuration to URI.
+func PublishUri(publishCtx PublishCtx, uri *url.URL) error {
 	uriOpts, err := ParseUriOpts(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
-	}
-
-	etcdOpts := MakeEtcdOptsFromUriOpts(uriOpts)
-	if etcdOpts.Username == "" && etcdOpts.Password == "" {
-		etcdOpts.Username = publishCtx.Username
-		etcdOpts.Password = publishCtx.Password
 	}
 
 	instance := uriOpts.Instance
@@ -41,27 +35,21 @@ func PublishEtcd(publishCtx PublishCtx, uri *url.URL) error {
 		return err
 	}
 
-	etcdcli, err := cluster.ConnectEtcd(etcdOpts)
+	connOpts := connectOpts{
+		Username: publishCtx.Username,
+		Password: publishCtx.Password,
+	}
+	publisher, collector, cancel, err := createPublisherAndCollector(connOpts, uriOpts)
 	if err != nil {
-		return fmt.Errorf("failed to connect to etcd: %w", err)
+		return err
 	}
-	defer etcdcli.Close()
-
-	prefix, key, timeout := uriOpts.Prefix, uriOpts.Key, etcdOpts.Timeout
-
-	var publisher cluster.DataPublisher
-	if key == "" {
-		publisher = cluster.NewEtcdAllDataPublisher(etcdcli, prefix, timeout)
-	} else {
-		publisher = cluster.NewEtcdKeyDataPublisher(etcdcli, prefix, key, timeout)
-	}
+	defer cancel()
 
 	if instance == "" {
 		// The easy case, just publish the configuration as is.
 		return publisher.Publish(publishCtx.Src)
 	}
 
-	collector := cluster.NewEtcdAllCollector(etcdcli, prefix, timeout)
 	return replaceInstanceConfig(instance, publishCtx.Config, collector, publisher)
 }
 

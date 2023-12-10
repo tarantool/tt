@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/cluster/cmd"
+	"github.com/tarantool/tt/cli/connector"
 )
 
 func TestParseUriOpts(t *testing.T) {
@@ -39,6 +40,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Timeout:  defaultTimeout,
 			},
 			Err: "",
@@ -47,6 +49,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost:3013",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost:3013",
+				Host:     "localhost:3013",
 				Timeout:  defaultTimeout,
 			},
 			Err: "",
@@ -55,6 +58,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://user@localhost",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Username: "user",
 				Timeout:  defaultTimeout,
 			},
@@ -64,6 +68,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://user:pass@localhost",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Username: "user",
 				Password: "pass",
 				Timeout:  defaultTimeout,
@@ -74,6 +79,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost/",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Prefix:   "/",
 				Timeout:  defaultTimeout,
 			},
@@ -83,6 +89,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost/prefix",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Prefix:   "/prefix",
 				Timeout:  defaultTimeout,
 			},
@@ -92,6 +99,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost/prefix?key=anykey",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Prefix:   "/prefix",
 				Key:      "anykey",
 				Timeout:  defaultTimeout,
@@ -102,6 +110,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost/prefix?name=anyname",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Prefix:   "/prefix",
 				Instance: "anyname",
 				Timeout:  defaultTimeout,
@@ -112,6 +121,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost?ssl_key_file=/any/kfile",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				KeyFile:  "/any/kfile",
 				Timeout:  defaultTimeout,
 			},
@@ -121,6 +131,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost?ssl_cert_file=/any/certfile",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				CertFile: "/any/certfile",
 				Timeout:  defaultTimeout,
 			},
@@ -130,6 +141,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost?ssl_ca_path=/any/capath",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				CaPath:   "/any/capath",
 				Timeout:  defaultTimeout,
 			},
@@ -139,6 +151,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost?ssl_ca_file=/any/cafile",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				CaFile:   "/any/cafile",
 				Timeout:  defaultTimeout,
 			},
@@ -148,6 +161,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost?verify_peer=true&verify_host=true",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Timeout:  defaultTimeout,
 			},
 			Err: "",
@@ -156,6 +170,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost?verify_peer=false",
 			Opts: cmd.UriOpts{
 				Endpoint:       "scheme://localhost",
+				Host:           "localhost",
 				SkipPeerVerify: true,
 				Timeout:        defaultTimeout,
 			},
@@ -170,6 +185,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost?verify_host=false",
 			Opts: cmd.UriOpts{
 				Endpoint:       "scheme://localhost",
+				Host:           "localhost",
 				SkipHostVerify: true,
 				Timeout:        defaultTimeout,
 			},
@@ -184,6 +200,7 @@ func TestParseUriOpts(t *testing.T) {
 			Url: "scheme://localhost?timeout=5.5",
 			Opts: cmd.UriOpts{
 				Endpoint: "scheme://localhost",
+				Host:     "localhost",
 				Timeout:  time.Duration(float64(5.5) * float64(time.Second)),
 			},
 			Err: "",
@@ -201,6 +218,7 @@ func TestParseUriOpts(t *testing.T) {
 				"&verify_peer=true&verify_host=false&timeout=2",
 			Opts: cmd.UriOpts{
 				Endpoint:       "scheme://localhost:2012",
+				Host:           "localhost:2012",
 				Prefix:         "/prefix",
 				Key:            "anykey",
 				Instance:       "anyname",
@@ -246,6 +264,7 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 		{
 			Name: "ignored",
 			UriOpts: cmd.UriOpts{
+				Host:     "foo",
 				Prefix:   "foo",
 				Key:      "bar",
 				Instance: "zoo",
@@ -274,6 +293,7 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 			Name: "full",
 			UriOpts: cmd.UriOpts{
 				Endpoint:       "foo",
+				Host:           "host",
 				Prefix:         "prefix",
 				Key:            "key",
 				Instance:       "instance",
@@ -304,6 +324,76 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			etcdOpts := cmd.MakeEtcdOptsFromUriOpts(tc.UriOpts)
+
+			assert.Equal(t, tc.Expected, etcdOpts)
+		})
+	}
+}
+
+func TestMakeConnectOptsFromUriOpts(t *testing.T) {
+	cases := []struct {
+		Name     string
+		UriOpts  cmd.UriOpts
+		Expected connector.ConnectOpts
+	}{
+		{
+			Name:    "empty",
+			UriOpts: cmd.UriOpts{},
+			Expected: connector.ConnectOpts{
+				Network: connector.TCPNetwork,
+			},
+		},
+		{
+			Name: "ignored",
+			UriOpts: cmd.UriOpts{
+				Endpoint:       "localhost:3013",
+				Prefix:         "foo",
+				Key:            "bar",
+				Instance:       "zoo",
+				CaPath:         "ca_path",
+				SkipHostVerify: true,
+				SkipPeerVerify: true,
+				Timeout:        673,
+			},
+			Expected: connector.ConnectOpts{
+				Network: connector.TCPNetwork,
+			},
+		},
+		{
+			Name: "full",
+			UriOpts: cmd.UriOpts{
+				Endpoint:       "scheme://foo",
+				Host:           "foo",
+				Prefix:         "prefix",
+				Key:            "key",
+				Instance:       "instance",
+				Username:       "username",
+				Password:       "password",
+				KeyFile:        "key_file",
+				CertFile:       "cert_file",
+				CaPath:         "ca_path",
+				CaFile:         "ca_file",
+				SkipHostVerify: true,
+				SkipPeerVerify: true,
+				Timeout:        2 * time.Second,
+			},
+			Expected: connector.ConnectOpts{
+				Network:  connector.TCPNetwork,
+				Address:  "foo",
+				Username: "username",
+				Password: "password",
+				Ssl: connector.SslOpts{
+					KeyFile:  "key_file",
+					CertFile: "cert_file",
+					CaFile:   "ca_file",
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			etcdOpts := cmd.MakeConnectOptsFromUriOpts(tc.UriOpts)
 
 			assert.Equal(t, tc.Expected, etcdOpts)
 		})

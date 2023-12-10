@@ -3,8 +3,13 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/tarantool/tt/cli/cluster"
+	"github.com/tarantool/tt/cli/connect"
+	"github.com/tarantool/tt/cli/connector"
 )
 
 // printRawClusterConfig prints a raw cluster configuration or an instance
@@ -128,4 +133,94 @@ func validateInstanceConfig(config *cluster.Config, name string) error {
 // printConfig just prints a configuration to stdout.
 func printConfig(config *cluster.Config) {
 	fmt.Print(config.String())
+}
+
+// connectOpts is additional connect options specified by a user.
+type connectOpts struct {
+	Username string
+	Password string
+}
+
+// connectTarantool establishes a connection to Tarantool.
+func connectTarantool(uriOpts UriOpts, connOpts connectOpts) (connector.Connector, error) {
+	connectorOpts := MakeConnectOptsFromUriOpts(uriOpts)
+	if connectorOpts.Username == "" && connectorOpts.Password == "" {
+		connectorOpts.Username = connOpts.Username
+		connectorOpts.Password = connOpts.Password
+		if connectorOpts.Username == "" {
+			connOpts.Username = os.Getenv(connect.TarantoolUsernameEnv)
+		}
+		if connectorOpts.Password == "" {
+			connOpts.Password = os.Getenv(connect.TarantoolPasswordEnv)
+		}
+	}
+
+	conn, err := connector.Connect(connectorOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to tarantool: %w", err)
+	}
+	return conn, nil
+}
+
+// connectEtcd establishes a connection to etcd.
+func connectEtcd(uriOpts UriOpts, connOpts connectOpts) (*clientv3.Client, error) {
+	etcdOpts := MakeEtcdOptsFromUriOpts(uriOpts)
+	if etcdOpts.Username == "" && etcdOpts.Password == "" {
+		etcdOpts.Username = connOpts.Username
+		etcdOpts.Password = connOpts.Password
+		if etcdOpts.Username == "" {
+			etcdOpts.Username = os.Getenv(connect.EtcdUsernameEnv)
+		}
+		if etcdOpts.Password == "" {
+			etcdOpts.Password = os.Getenv(connect.EtcdPasswordEnv)
+		}
+	}
+
+	etcdcli, err := cluster.ConnectEtcd(etcdOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to etcd: %w", err)
+	}
+	return etcdcli, nil
+}
+
+// createPublisher creates a new data publisher and collector based on UriOpts.
+func createPublisherAndCollector(connOpts connectOpts,
+	opts UriOpts) (cluster.DataPublisher, cluster.Collector, func(), error) {
+	prefix, key, timeout := opts.Prefix, opts.Key, opts.Timeout
+
+	conn, errTarantool := connectTarantool(opts, connOpts)
+	if errTarantool == nil {
+		var (
+			publisher cluster.DataPublisher
+			collector cluster.Collector
+		)
+		if key == "" {
+			publisher = cluster.NewTarantoolAllDataPublisher(conn, prefix, timeout)
+			collector = cluster.NewTarantoolAllCollector(conn, prefix, timeout)
+		} else {
+			publisher = cluster.NewTarantoolKeyDataPublisher(conn, prefix, key, timeout)
+			collector = cluster.NewTarantoolKeyCollector(conn, prefix, key, timeout)
+		}
+		return publisher, collector, func() { conn.Close() }, nil
+	}
+
+	etcdcli, errEtcd := connectEtcd(opts, connOpts)
+	if errEtcd == nil {
+		var (
+			publisher cluster.DataPublisher
+			collector cluster.Collector
+		)
+		if key == "" {
+			publisher = cluster.NewEtcdAllDataPublisher(etcdcli, prefix, timeout)
+			collector = cluster.NewEtcdAllCollector(etcdcli, prefix, timeout)
+		} else {
+			publisher = cluster.NewEtcdKeyDataPublisher(etcdcli, prefix, key, timeout)
+			collector = cluster.NewEtcdKeyCollector(etcdcli, prefix, key, timeout)
+		}
+		return publisher, collector, func() { etcdcli.Close() }, nil
+	}
+
+	return nil, nil, nil,
+		fmt.Errorf("failed to establish a connection to tarantool or etcd: %w, %w",
+			errTarantool, errEtcd)
 }

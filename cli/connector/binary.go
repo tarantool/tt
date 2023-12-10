@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tarantool"
+	_ "github.com/tarantool/go-tarantool/datetime"
+	_ "github.com/tarantool/go-tarantool/decimal"
+	_ "github.com/tarantool/go-tarantool/uuid"
 )
 
 // BinaryConnector implements Connector interface for a connection that sends

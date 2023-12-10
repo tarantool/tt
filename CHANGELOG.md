@@ -18,6 +18,8 @@ running apps.
 
 - `tt env`: add current environment binaries location to the PATH variable.
 - `tt cluster`: add an ability to specify a key for `show`/`publish` via URI.
+- `tt cluster`: add an ability to publish/show configuration from tarantool
+config storage via URI.
 
 ## [2.0.0] - 2023-11-13
 

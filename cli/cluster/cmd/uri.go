@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tarantool/tt/cli/cluster"
+	"github.com/tarantool/tt/cli/connector"
 )
 
 const (
@@ -16,8 +17,10 @@ const (
 
 // UriOpts is a universal list of connect options retrieved from an URI.
 type UriOpts struct {
-	// Endpoint is a an endpoint to connect.
+	// Endpoint is a an endpoint to connect: [scheme://]host[:port].
 	Endpoint string
+	// Host is a an address to connect: host[:port].
+	Host string
 	// Prefix is a configuration prefix.
 	Prefix string
 	// Key is a target key.
@@ -60,6 +63,7 @@ func ParseUriOpts(uri *url.URL) (UriOpts, error) {
 	values := uri.Query()
 	opts := UriOpts{
 		Endpoint: endpoint.String(),
+		Host:     uri.Host,
 		Prefix:   uri.Path,
 		Key:      values.Get("key"),
 		Instance: values.Get("name"),
@@ -131,5 +135,21 @@ func MakeEtcdOptsFromUriOpts(src UriOpts) cluster.EtcdOpts {
 		CaFile:         src.CaFile,
 		SkipHostVerify: src.SkipHostVerify || src.SkipPeerVerify,
 		Timeout:        src.Timeout,
+	}
+}
+
+// MakeConnectOptsFromUriOpts create Tarantool connect options from
+// URI options.
+func MakeConnectOptsFromUriOpts(src UriOpts) connector.ConnectOpts {
+	return connector.ConnectOpts{
+		Network:  connector.TCPNetwork,
+		Address:  src.Host,
+		Username: src.Username,
+		Password: src.Password,
+		Ssl: connector.SslOpts{
+			KeyFile:  src.KeyFile,
+			CertFile: src.CertFile,
+			CaFile:   src.CaFile,
+		},
 	}
 }
