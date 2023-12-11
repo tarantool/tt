@@ -56,6 +56,7 @@ Possible arguments:
 * ssl_cert_file - a path to an SSL certificate file.
 * ssl_ca_file - a path to a trusted certificate authorities (CA) file.
 * ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a colon-separated (:) list of SSL cipher suites the connection can use.
 * verify_host - set off (default true) verification of the certificate’s name against the host.
 * verify_peer - set off (default true) verification of the peer’s SSL certificate.
 

@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
+
+	"github.com/tarantool/tt/cli/connect"
+	"github.com/tarantool/tt/cli/connector"
 )
 
 const (
@@ -153,6 +156,24 @@ type ClusterConfig struct {
 				} `yaml:"request"`
 			} `yaml:"http"`
 		} `yaml:"etcd"`
+		Storage struct {
+			Prefix    string  `yaml:"prefix"`
+			Timeout   float64 `yaml:"timeout"`
+			Endpoints []struct {
+				Uri      string `yaml:"uri"`
+				Login    string `yaml:"login"`
+				Password string `yaml:"password"`
+				Params   struct {
+					Transport       string `yaml:"transport"`
+					SslKeyFile      string `yaml:"ssl_key_file"`
+					SslCertFile     string `yaml:"ssl_cert_file"`
+					SslCaFile       string `yaml:"ssl_ca_file"`
+					SslCiphers      string `yaml:"ssl_ciphers"`
+					SslPassword     string `yaml:"ssl_password"`
+					SslPasswordFile string `yaml:"ssl_password_file"`
+				} `yaml:"params"`
+			} `yaml:"endpoints"`
+		} `yaml:"storage"`
 	} `yaml:"config"`
 	// RawConfig is a configuration of the global scope.
 	RawConfig *Config `yaml:"-"`
@@ -305,13 +326,67 @@ func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to etcd: %w", err)
 	}
+	defer etcd.Close()
 
 	etcdCollector := NewEtcdAllCollector(etcd, etcdConfig.Prefix, opts.Timeout)
 	etcdRawConfig, err := etcdCollector.Collect()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get config from etcd: %w", err)
 	}
-	return etcdRawConfig, err
+	return etcdRawConfig, nil
+}
+
+// collectTarantoolConfig collects a configuration from tarantool config
+// storage with options from the tarantool configuration.
+func collectTarantoolConfig(clusterConfig ClusterConfig) (*Config, error) {
+	tarantoolConfig := clusterConfig.Config.Storage
+	var opts []connector.ConnectOpts
+	for _, endpoint := range tarantoolConfig.Endpoints {
+		var network, address string
+		if !connect.IsBaseURI(endpoint.Uri) {
+			network = connector.TCPNetwork
+			address = endpoint.Uri
+		} else {
+			network, address = connect.ParseBaseURI(endpoint.Uri)
+		}
+
+		if endpoint.Params.Transport == "" || endpoint.Params.Transport != "ssl" {
+			opts = append(opts, connector.ConnectOpts{
+				Network:  network,
+				Address:  address,
+				Username: endpoint.Login,
+				Password: endpoint.Password,
+			})
+		} else {
+			opts = append(opts, connector.ConnectOpts{
+				Network:  network,
+				Address:  address,
+				Username: endpoint.Login,
+				Password: endpoint.Password,
+				Ssl: connector.SslOpts{
+					KeyFile:  endpoint.Params.SslKeyFile,
+					CertFile: endpoint.Params.SslCertFile,
+					CaFile:   endpoint.Params.SslCaFile,
+					Ciphers:  endpoint.Params.SslCiphers,
+				},
+			})
+		}
+	}
+
+	pool, err := connector.ConnectPool(opts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to tarantool config storage: %w", err)
+	}
+	defer pool.Close()
+
+	tarantoolCollector := NewTarantoolAllCollector(pool,
+		tarantoolConfig.Prefix,
+		time.Duration(tarantoolConfig.Timeout*float64(time.Second)))
+	tarantoolRawConfig, err := tarantoolCollector.Collect()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config from tarantool config storage: %w", err)
+	}
+	return tarantoolRawConfig, nil
 }
 
 // GetClusterConfig returns a cluster configuration loaded from a path to
@@ -351,6 +426,14 @@ func GetClusterConfig(path string) (ClusterConfig, error) {
 			return ret, err
 		}
 		config.Merge(etcdConfig)
+	}
+
+	if len(clusterConfig.Config.Storage.Endpoints) > 0 {
+		tarantoolConfig, err := collectTarantoolConfig(clusterConfig)
+		if err != nil {
+			return ret, err
+		}
+		config.Merge(tarantoolConfig)
 	}
 
 	defaultEnvConfig, err := defaultEnvCollector.Collect()
