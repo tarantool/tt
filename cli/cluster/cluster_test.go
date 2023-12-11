@@ -91,16 +91,46 @@ func TestMakeClusterConfig_settings(t *testing.T) {
 	expected.RawConfig = config
 	expected.Groups = nil
 	expected.Config.Etcd.Endpoints = []string{"a", "b"}
-	expected.Config.Etcd.Username = "user"
-	expected.Config.Etcd.Password = "pass"
-	expected.Config.Etcd.Prefix = "/prefix"
-	expected.Config.Etcd.Ssl.KeyFile = "keyfile"
-	expected.Config.Etcd.Ssl.CertFile = "certfile"
-	expected.Config.Etcd.Ssl.CaPath = "cafile"
-	expected.Config.Etcd.Ssl.CaFile = "capath"
+	expected.Config.Etcd.Username = "etcd_user"
+	expected.Config.Etcd.Password = "etcd_pass"
+	expected.Config.Etcd.Prefix = "/etcd_prefix"
+	expected.Config.Etcd.Ssl.KeyFile = "etcd_keyfile"
+	expected.Config.Etcd.Ssl.CertFile = "etcd_certfile"
+	expected.Config.Etcd.Ssl.CaPath = "etcd_cafile"
+	expected.Config.Etcd.Ssl.CaFile = "etcd_capath"
 	expected.Config.Etcd.Ssl.VerifyPeer = true
 	expected.Config.Etcd.Ssl.VerifyHost = true
 	expected.Config.Etcd.Http.Request.Timeout = 123
+
+	expected.Config.Storage.Prefix = "/tt_prefix"
+	expected.Config.Storage.Timeout = 234
+	expected.Config.Storage.Endpoints = []struct {
+		Uri      string `yaml:"uri"`
+		Login    string `yaml:"login"`
+		Password string `yaml:"password"`
+		Params   struct {
+			Transport       string `yaml:"transport"`
+			SslKeyFile      string `yaml:"ssl_key_file"`
+			SslCertFile     string `yaml:"ssl_cert_file"`
+			SslCaFile       string `yaml:"ssl_ca_file"`
+			SslCiphers      string `yaml:"ssl_ciphers"`
+			SslPassword     string `yaml:"ssl_password"`
+			SslPasswordFile string `yaml:"ssl_password_file"`
+		} `yaml:"params"`
+	}{
+		{
+			Uri:      "tt_uri",
+			Login:    "tt_login",
+			Password: "tt_password",
+		},
+	}
+	expected.Config.Storage.Endpoints[0].Params.Transport = "tt_transport"
+	expected.Config.Storage.Endpoints[0].Params.SslKeyFile = "tt_key_file"
+	expected.Config.Storage.Endpoints[0].Params.SslCertFile = "tt_cert_file"
+	expected.Config.Storage.Endpoints[0].Params.SslCaFile = "tt_ca_file"
+	expected.Config.Storage.Endpoints[0].Params.SslCiphers = "tt_ciphers"
+	expected.Config.Storage.Endpoints[0].Params.SslPassword = "tt_password"
+	expected.Config.Storage.Endpoints[0].Params.SslPasswordFile = "tt_password_file"
 
 	config.Set([]string{"config", "etcd", "endpoints"},
 		[]any{expected.Config.Etcd.Endpoints[0], expected.Config.Etcd.Endpoints[1]})
@@ -124,6 +154,30 @@ func TestMakeClusterConfig_settings(t *testing.T) {
 		expected.Config.Etcd.Ssl.VerifyPeer)
 	config.Set([]string{"config", "etcd", "http", "request", "timeout"},
 		int(expected.Config.Etcd.Http.Request.Timeout))
+
+	config.Set([]string{"config", "storage", "prefix"},
+		expected.Config.Storage.Prefix)
+	config.Set([]string{"config", "storage", "timeout"},
+		int(expected.Config.Storage.Timeout))
+
+	config.Set([]string{"config", "storage", "endpoints"},
+		[]any{
+			map[any]any{
+				"uri":      "tt_uri",
+				"login":    "tt_login",
+				"password": "tt_password",
+				"params": map[any]any{
+					"transport":         "tt_transport",
+					"ssl_key_file":      "tt_key_file",
+					"ssl_cert_file":     "tt_cert_file",
+					"ssl_ca_file":       "tt_ca_file",
+					"ssl_ciphers":       "tt_ciphers",
+					"ssl_password":      "tt_password",
+					"ssl_password_file": "tt_password_file",
+				},
+			},
+		},
+	)
 
 	cconfig, err := cluster.MakeClusterConfig(config)
 	require.NoError(t, err)

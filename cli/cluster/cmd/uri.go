@@ -39,6 +39,9 @@ type UriOpts struct {
 	CaPath string
 	// CaFile is a path to a trusted certificate authorities (CA) file.
 	CaFile string
+	// Ciphers is a colon-separated (:) list of SSL cipher suites the
+	// connection can use.
+	Ciphers string
 	// SkipHostVerify controls whether a client verifies the server's
 	// host name. This is dangerous option so by default it is false.
 	SkipHostVerify bool
@@ -72,6 +75,7 @@ func ParseUriOpts(uri *url.URL) (UriOpts, error) {
 		CertFile: values.Get("ssl_cert_file"),
 		CaPath:   values.Get("ssl_ca_path"),
 		CaFile:   values.Get("ssl_ca_file"),
+		Ciphers:  values.Get("ssl_ciphers"),
 		Timeout:  DefaultUriTimeout,
 	}
 	if password, ok := uri.User.Password(); ok {
@@ -150,6 +154,7 @@ func MakeConnectOptsFromUriOpts(src UriOpts) connector.ConnectOpts {
 			KeyFile:  src.KeyFile,
 			CertFile: src.CertFile,
 			CaFile:   src.CaFile,
+			Ciphers:  src.Ciphers,
 		},
 	}
 }

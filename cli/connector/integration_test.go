@@ -245,6 +245,82 @@ func TestConnect_textTls(t *testing.T) {
 	require.ErrorContains(t, err, expected)
 }
 
+var poolCases = []struct {
+	Name string
+	Opts []ConnectOpts
+} {
+	{
+		Name: "single",
+		Opts: []ConnectOpts{
+			ConnectOpts{
+				Network:  "tcp",
+				Address:  "unreachetable",
+				Username: "test",
+				Password: "password",
+			},
+			ConnectOpts{
+				Network:  "tcp",
+				Address:  server,
+				Username: "test",
+				Password: "password",
+			},
+		},
+	},
+	{
+		Name: "with_invalid",
+		Opts: []ConnectOpts{
+			ConnectOpts{
+				Network:  "tcp",
+				Address:  server,
+				Username: "test",
+				Password: "password",
+			},
+		},
+	},
+}
+
+func TestPoolConnect_success(t *testing.T) {
+	for _, tc := range poolCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			pool, err := ConnectPool(tc.Opts)
+			require.NoError(t, err)
+			require.NotNil(t, pool)
+			pool.Close()
+		})
+	}
+}
+
+func TestPoolEval_success(t *testing.T) {
+	for _, tc := range poolCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			pool, err := ConnectPool(tc.Opts)
+			require.NoError(t, err)
+			require.NotNil(t, pool)
+			defer pool.Close()
+
+			ret, err := pool.Eval("return ...", []any{"foo"}, RequestOpts{})
+			assert.NoError(t, err)
+			assert.Equal(t, ret, []any{"foo"})
+		})
+	}
+}
+
+func TestPoolEval_error(t *testing.T) {
+	for _, tc := range poolCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			pool, err := ConnectPool(tc.Opts)
+			require.NoError(t, err)
+			require.NotNil(t, pool)
+			defer pool.Close()
+
+			for i := 0; i < 10; i++ {
+				_, err = pool.Eval("error('foo')", []any{"foo"}, RequestOpts{})
+				assert.ErrorContains(t, err, "foo")
+			}
+		})
+	}
+}
+
 func runTestMain(m *testing.M) int {
 	inst, err := test_helpers.StartTarantool(test_helpers.StartOpts{
 		InitScript:   "testdata/config.lua",

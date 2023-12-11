@@ -215,6 +215,7 @@ func TestParseUriOpts(t *testing.T) {
 				"?key=anykey&name=anyname" +
 				"&ssl_key_file=kfile&ssl_cert_file=certfile" +
 				"&ssl_ca_path=capath&ssl_ca_file=cafile" +
+				"&ssl_ciphers=foo:bar:ciphers" +
 				"&verify_peer=true&verify_host=false&timeout=2",
 			Opts: cmd.UriOpts{
 				Endpoint:       "scheme://localhost:2012",
@@ -228,6 +229,7 @@ func TestParseUriOpts(t *testing.T) {
 				CertFile:       "certfile",
 				CaPath:         "capath",
 				CaFile:         "cafile",
+				Ciphers:        "foo:bar:ciphers",
 				SkipHostVerify: true,
 				Timeout:        time.Duration(2 * time.Second),
 			},
@@ -268,6 +270,7 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 				Prefix:   "foo",
 				Key:      "bar",
 				Instance: "zoo",
+				Ciphers:  "foo:bar:ciphers",
 			},
 			Expected: cluster.EtcdOpts{},
 		},
@@ -373,6 +376,7 @@ func TestMakeConnectOptsFromUriOpts(t *testing.T) {
 				CertFile:       "cert_file",
 				CaPath:         "ca_path",
 				CaFile:         "ca_file",
+				Ciphers:        "foo:bar:ciphers",
 				SkipHostVerify: true,
 				SkipPeerVerify: true,
 				Timeout:        2 * time.Second,
@@ -386,6 +390,7 @@ func TestMakeConnectOptsFromUriOpts(t *testing.T) {
 					KeyFile:  "key_file",
 					CertFile: "cert_file",
 					CaFile:   "ca_file",
+					Ciphers:  "foo:bar:ciphers",
 				},
 			},
 		},
