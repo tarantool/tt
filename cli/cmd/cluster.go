@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/connect"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 )
@@ -34,6 +35,10 @@ var publishCtx = clustercmd.PublishCtx{
 	Password: "",
 	Force:    false,
 }
+
+var (
+	publishIntegrityPrivateKey string
+)
 
 func NewClusterCmd() *cobra.Command {
 	clusterCmd := &cobra.Command{
@@ -145,6 +150,9 @@ environment variables < command flags < URL credentials.
 		"password (used as etcd credentials only)")
 	publish.Flags().BoolVar(&publishCtx.Force, "force", publishCtx.Force,
 		"force publish and skip validation")
+	// Integrity flags.
+	integrity.RegisterWithIntegrityFlag(publish.Flags(), &publishIntegrityPrivateKey)
+
 	clusterCmd.AddCommand(publish)
 
 	return clusterCmd
@@ -152,6 +160,16 @@ environment variables < command flags < URL credentials.
 
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	// TODO: create integrity collectors factory from the command context if
+	// needed instead of the global one.
+	collectors, err := integrity.NewCollectorFactory()
+	if err == integrity.ErrNotConfigured {
+		collectors = cluster.NewCollectorFactory()
+	} else if err != nil {
+		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
+	}
+	showCtx.Collectors = collectors
+
 	if uri, ok := parseUrl(args[0]); ok {
 		return clustercmd.ShowUri(showCtx, uri)
 	}
@@ -171,6 +189,27 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 // internalClusterPublishModule is an entrypoint for `cluster publish` command.
 func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	// TODO: create integrity collectors factory from the command context if
+	// needed instead of the global one.
+	collectors, err := integrity.NewCollectorFactory()
+	if err == integrity.ErrNotConfigured {
+		collectors = cluster.NewCollectorFactory()
+	} else if err != nil {
+		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
+	}
+	publishCtx.Collectors = collectors
+
+	if publishIntegrityPrivateKey != "" {
+		key := publishIntegrityPrivateKey
+		publishers, err := integrity.NewDataPublisherFactory(key)
+		if err != nil {
+			return fmt.Errorf("failed to create publishers with integrity: %w", err)
+		}
+		publishCtx.Publishers = publishers
+	} else {
+		publishCtx.Publishers = cluster.NewDataPublisherFactory()
+	}
+
 	data, config, err := readSourceFile(args[1])
 	if err != nil {
 		return err

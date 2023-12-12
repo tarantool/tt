@@ -17,6 +17,10 @@ type PublishCtx struct {
 	// Force defines whether the publish should be forced and a validation step
 	// is omitted.
 	Force bool
+	// Publishers defines a used data publishers factory.
+	Publishers cluster.DataPublisherFactory
+	// Collectors defines a used collectors factory.
+	Collectors cluster.CollectorFactory
 	// Src is a raw data to publish.
 	Src []byte
 	// Config is a parsed raw data configuration to publish.
@@ -39,7 +43,10 @@ func PublishUri(publishCtx PublishCtx, uri *url.URL) error {
 		Username: publishCtx.Username,
 		Password: publishCtx.Password,
 	}
-	publisher, collector, cancel, err := createPublisherAndCollector(connOpts, uriOpts)
+	publisher, collector, cancel, err := createPublisherAndCollector(
+		publishCtx.Publishers,
+		publishCtx.Collectors,
+		connOpts, uriOpts)
 	if err != nil {
 		return err
 	}
@@ -59,13 +66,21 @@ func PublishCluster(publishCtx PublishCtx, path, instance string) error {
 		return err
 	}
 
-	publisher := cluster.NewFileDataPublisher(path)
+	publisher, err := publishCtx.Publishers.NewFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to create a file publisher: %w", err)
+	}
+
 	if instance == "" {
 		// The easy case, just publish the configuration as is.
 		return publisher.Publish(publishCtx.Src)
 	}
 
-	collector := cluster.NewFileCollector(path)
+	collector, err := publishCtx.Collectors.NewFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to create a file collector: %w", err)
+	}
+
 	return replaceInstanceConfig(instance, publishCtx.Config, collector, publisher)
 }
 

@@ -296,7 +296,8 @@ func Instantiate(cluster ClusterConfig, name string) *Config {
 
 // collectEtcdConfig collects a configuration from etcd with options from
 // the cluster configuration.
-func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
+func collectEtcdConfig(collectors CollectorFactory,
+	clusterConfig ClusterConfig) (*Config, error) {
 	etcdConfig := clusterConfig.Config.Etcd
 	opts := EtcdOpts{
 		Endpoints: etcdConfig.Endpoints,
@@ -328,7 +329,11 @@ func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
 	}
 	defer etcd.Close()
 
-	etcdCollector := NewEtcdAllCollector(etcd, etcdConfig.Prefix, opts.Timeout)
+	etcdCollector, err := collectors.NewEtcd(etcd, etcdConfig.Prefix, "", opts.Timeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create etcd collector: %w", err)
+	}
+
 	etcdRawConfig, err := etcdCollector.Collect()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get config from etcd: %w", err)
@@ -338,7 +343,8 @@ func collectEtcdConfig(clusterConfig ClusterConfig) (*Config, error) {
 
 // collectTarantoolConfig collects a configuration from tarantool config
 // storage with options from the tarantool configuration.
-func collectTarantoolConfig(clusterConfig ClusterConfig) (*Config, error) {
+func collectTarantoolConfig(collectors CollectorFactory,
+	clusterConfig ClusterConfig) (*Config, error) {
 	tarantoolConfig := clusterConfig.Config.Storage
 	var opts []connector.ConnectOpts
 	for _, endpoint := range tarantoolConfig.Endpoints {
@@ -379,9 +385,13 @@ func collectTarantoolConfig(clusterConfig ClusterConfig) (*Config, error) {
 	}
 	defer pool.Close()
 
-	tarantoolCollector := NewTarantoolAllCollector(pool,
-		tarantoolConfig.Prefix,
+	tarantoolCollector, err := collectors.NewTarantool(pool,
+		tarantoolConfig.Prefix, "",
 		time.Duration(tarantoolConfig.Timeout*float64(time.Second)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tarantool config storage collector: %w", err)
+	}
+
 	tarantoolRawConfig, err := tarantoolCollector.Collect()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config from tarantool config storage: %w", err)
@@ -393,7 +403,7 @@ func collectTarantoolConfig(clusterConfig ClusterConfig) (*Config, error) {
 // a config file. It uses a a config file, etcd and default environment
 // variables as sources. The function returns a cluster config as is, without
 // merging of settings from scopes: global, group, replicaset, instance.
-func GetClusterConfig(path string) (ClusterConfig, error) {
+func GetClusterConfig(collectors CollectorFactory, path string) (ClusterConfig, error) {
 	ret := ClusterConfig{}
 	if path == "" {
 		return ret, fmt.Errorf("a configuration file must be set")
@@ -408,7 +418,11 @@ func GetClusterConfig(path string) (ClusterConfig, error) {
 	}
 	config.Merge(mainEnvConfig)
 
-	collector := NewFileCollector(path)
+	collector, err := collectors.NewFile(path)
+	if err != nil {
+		return ret, fmt.Errorf("failed to create a file collector: %w", err)
+	}
+
 	fileConfig, err := collector.Collect()
 	if err != nil {
 		fmtErr := "unable to get cluster config from %q: %w"
@@ -421,7 +435,7 @@ func GetClusterConfig(path string) (ClusterConfig, error) {
 		return ret, fmt.Errorf("unable to parse cluster config from file: %w", err)
 	}
 	if len(clusterConfig.Config.Etcd.Endpoints) > 0 {
-		etcdConfig, err := collectEtcdConfig(clusterConfig)
+		etcdConfig, err := collectEtcdConfig(collectors, clusterConfig)
 		if err != nil {
 			return ret, err
 		}
@@ -429,7 +443,7 @@ func GetClusterConfig(path string) (ClusterConfig, error) {
 	}
 
 	if len(clusterConfig.Config.Storage.Endpoints) > 0 {
-		tarantoolConfig, err := collectTarantoolConfig(clusterConfig)
+		tarantoolConfig, err := collectTarantoolConfig(collectors, clusterConfig)
 		if err != nil {
 			return ret, err
 		}

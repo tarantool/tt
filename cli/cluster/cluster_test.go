@@ -350,7 +350,8 @@ func TestInstantiate_inherbit(t *testing.T) {
 }
 
 func TestGetClusterConfig_path(t *testing.T) {
-	config, err := cluster.GetClusterConfig("testdata/app/config.yaml")
+	collectors := cluster.NewCollectorFactory()
+	config, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
 
 	require.NoError(t, err)
 	assert.Equal(t, `app:
@@ -426,7 +427,8 @@ too: 3
 func TestGetClusterConfig_environment(t *testing.T) {
 	os.Setenv("TT_WAL_DIR_DEFAULT", "envdir")
 	os.Setenv("TT_WAL_MODE_DEFAULT", "envmode")
-	config, err := cluster.GetClusterConfig("testdata/app/config.yaml")
+	collectors := cluster.NewCollectorFactory()
+	config, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
 
 	os.Unsetenv("TT_WAL_DIR_DEFAULT")
 	os.Unsetenv("TT_WAL_MODE_DEFAULT")
@@ -464,14 +466,16 @@ wal:
 }
 
 func TestGetClusterConfig_invalid_apppath(t *testing.T) {
-	config, err := cluster.GetClusterConfig("some/non/exist")
+	collectors := cluster.NewCollectorFactory()
+	config, err := cluster.GetClusterConfig(collectors, "some/non/exist")
 
 	assert.Error(t, err)
 	assert.NotNil(t, config)
 }
 
 func TestGetClusterConfig_nopath(t *testing.T) {
-	config, err := cluster.GetClusterConfig("")
+	collectors := cluster.NewCollectorFactory()
+	config, err := cluster.GetClusterConfig(collectors, "")
 	expected := "a configuration file must be set"
 
 	assert.EqualError(t, err, expected)
@@ -479,7 +483,8 @@ func TestGetClusterConfig_nopath(t *testing.T) {
 }
 
 func TestGetInstanceConfig_file(t *testing.T) {
-	cconfig, err := cluster.GetClusterConfig("testdata/app/config.yaml")
+	collectors := cluster.NewCollectorFactory()
+	cconfig, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
 	require.NoError(t, err)
 	config, err := cluster.GetInstanceConfig(cconfig, "c")
 
@@ -498,7 +503,8 @@ zoo: 2
 }
 
 func TestGetInstanceConfig_environment(t *testing.T) {
-	cconfig, err := cluster.GetClusterConfig("testdata/app/config.yaml")
+	collectors := cluster.NewCollectorFactory()
+	cconfig, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
 	require.NoError(t, err)
 	os.Setenv("TT_WAL_DIR", "envdir")
 	config, err := cluster.GetInstanceConfig(cconfig, "c")
@@ -519,7 +525,8 @@ zoo: 2
 }
 
 func TestGetInstanceConfig_noinstance(t *testing.T) {
-	cconfig, err := cluster.GetClusterConfig("testdata/app/config.yaml")
+	collectors := cluster.NewCollectorFactory()
+	cconfig, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
 	require.NoError(t, err)
 	_, err = cluster.GetInstanceConfig(cconfig, "unknown")
 	expected := "an instance \"unknown\" not found"

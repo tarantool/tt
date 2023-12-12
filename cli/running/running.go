@@ -311,7 +311,18 @@ func loadInstanceConfig(configPath, instName string) (cluster.InstanceConfig, er
 	if configPath == "" {
 		return instCfg, nil
 	}
-	clusterCfg, err := cluster.GetClusterConfig(configPath)
+
+	// TODO: create integrity collectors factory from the command context if
+	// needed instead of the global one.
+	collectors, err := integrity.NewCollectorFactory()
+	if err == integrity.ErrNotConfigured {
+		collectors = cluster.NewCollectorFactory()
+	} else if err != nil {
+		return instCfg,
+			fmt.Errorf("failed to create collectors with integrity check: %w", err)
+	}
+
+	clusterCfg, err := cluster.GetClusterConfig(collectors, configPath)
 	if err != nil {
 		return instCfg, err
 	}

@@ -4,6 +4,12 @@ import (
 	"errors"
 
 	"github.com/spf13/pflag"
+
+	"github.com/tarantool/tt/cli/cluster"
+)
+
+var (
+	ErrNotConfigured = errors.New("integration check is not configured")
 )
 
 var FileRepository Repository = dummyRepository{}
@@ -36,4 +42,16 @@ func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {}
 // InitializeIntegrityCheck is a noop setup of integrity checking.
 func InitializeIntegrityCheck(publicKeyPath string, configDir string) error {
 	return errors.New("integrity checks should never be initialized in ce")
+}
+
+// NewCollectorFactory creates a new CollectorFactory with integrity checks
+// in collectors. In the CE implementation it always returns ErrNotConfigured.
+func NewCollectorFactory() (cluster.CollectorFactory, error) {
+	return nil, ErrNotConfigured
+}
+
+// NewDataPublisherFactory create a new DataPublisherFactory with integrity
+// algorithms in publishers. Should be never be called in the CE.
+func NewDataPublisherFactory(path string) (cluster.DataPublisherFactory, error) {
+	return nil, errors.New("integrity publishers should never be created in ce")
 }
