@@ -38,6 +38,8 @@ type ConnectCtx struct {
 	Interactive bool
 	// ConnectTarget contains connection target string: URI or instance name.
 	ConnectTarget string
+	// Binary port is used
+	Binary bool
 }
 
 const (
