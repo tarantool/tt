@@ -1,15 +1,18 @@
 import os
+import platform
 import re
 import shutil
 import subprocess
+import tempfile
 
 import psutil
 import pytest
 
-from utils import (control_socket, get_tarantool_version, kill_procs,
-                   run_command_and_get_output, run_path, wait_file)
+from utils import (control_socket, create_tt_config, get_tarantool_version,
+                   kill_procs, run_command_and_get_output, run_path, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
+BINARY_PORT_NAME = "tarantool.sock"
 
 
 @pytest.fixture(autouse=True)
@@ -33,7 +36,12 @@ def copy_data(dst, file_paths):
         shutil.copy(path, dst)
 
 
-def start_app(tt_cmd, tmpdir_with_cfg, app_name):
+def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
+    test_env = os.environ.copy()
+    # Set empty TT_LISTEN, so no binary port will be created.
+    if start_binary_port is False:
+        test_env['TT_LISTEN'] = ''
+
     # Start an instance.
     start_cmd = [tt_cmd, "start", app_name]
     instance_process = subprocess.Popen(
@@ -41,7 +49,8 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name):
         cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
+        env=test_env
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
@@ -133,6 +142,12 @@ def is_language_supported(tt_cmd, tmpdir):
     return major >= 2
 
 
+def is_cluster_app_supported(tt_cmd, tmpdir):
+    ok, major, minor, patch = get_version(tt_cmd, tmpdir)
+    assert ok
+    return major >= 3
+
+
 def is_tarantool_ee():
     cmd = ["tarantool", "--version"]
     instance_process = subprocess.run(
@@ -174,6 +189,11 @@ def skip_if_language_supported(tt_cmd, tmpdir, test_app):
 def skip_if_tarantool_ce():
     if not is_tarantool_ee():
         pytest.skip("Tarantool Enterprise required")
+
+
+def skip_if_cluster_app_unsupported(tt_cmd, tmpdir):
+    if not is_cluster_app_supported(tt_cmd, tmpdir):
+        pytest.skip("Tarantool 3.0 or above required")
 
 
 def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
@@ -1578,3 +1598,252 @@ def test_output_format_tables_dialects(tt_cmd, tmpdir_with_cfg):
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_connect_to_single_instance_app_binary(tt_cmd):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported by test")
+    tmpdir = tempfile.mkdtemp()
+    create_tt_config(tmpdir, "")
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app", True)
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
+                     BINARY_PORT_NAME, [])
+    assert file != ""
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'configured', [])
+    assert file != ""
+
+    # Remove console socket
+    os.remove(os.path.join(tmpdir, "test_app", run_path, "test_app", "tarantool.control"))
+
+    # Connect to the instance and execute a script.
+    try:
+        connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password",
+                       "-f", empty_file]
+        instance_process = subprocess.run(
+            connect_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        assert instance_process.returncode == 0
+
+        # Connect to the instance and execute stdin.
+        connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
+        instance_process = subprocess.run(
+            connect_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+            input="2+2"
+        )
+        assert instance_process.returncode == 0
+        assert instance_process.stdout == "---\n- 4\n...\n\n"
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmpdir, "test_app")
+        shutil.rmtree(tmpdir)
+
+
+def test_connect_to_multi_instances_app_binary(tt_cmd):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported by test")
+    tmpdir = tempfile.mkdtemp()
+    create_tt_config(tmpdir, "")
+    app_name = "test_multi_app"
+    empty_file = "empty.lua"
+    # Copy the test application to the "run" directory.
+    test_app_path = os.path.join(os.path.dirname(__file__), app_name)
+    tmp_app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(test_app_path, tmp_app_path)
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [empty_file_path])
+
+    # Start instances.
+    start_app(tt_cmd, tmpdir, app_name, True)
+    try:
+        # Check for start.
+        instances = ['master', 'replica', 'router']
+        for instance in instances:
+            master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
+            file = wait_file(master_run_path, control_socket, [])
+            assert file != ""
+            file = wait_file(master_run_path, BINARY_PORT_NAME, [])
+            assert file != ""
+            file = wait_file(os.path.join(tmpdir, app_name), instance, [])
+            assert file != ""
+
+        # Connect to the instance and execute stdin.
+        connect_cmd = [tt_cmd, "connect", app_name + ":master", "--binary",
+                       "-u", "test", "-p", "password"]
+        instance_process = subprocess.run(
+            connect_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+            input="2+2"
+        )
+        assert instance_process.returncode == 0
+        assert instance_process.stdout == "---\n- 4\n...\n\n"
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmpdir, app_name)
+        shutil.rmtree(tmpdir)
+
+
+def test_connect_to_instance_binary_missing_port(tt_cmd):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported by test")
+    tmpdir = tempfile.mkdtemp()
+    create_tt_config(tmpdir, "")
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app", True)
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
+                     BINARY_PORT_NAME, [])
+    assert file != ""
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'configured', [])
+    assert file != ""
+
+    # Remove binary port.
+    os.remove(os.path.join(tmpdir, "test_app", run_path, "test_app", BINARY_PORT_NAME))
+
+    try:
+        # Connect to the instance and execute stdin.
+        connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
+        instance_process = subprocess.run(
+            connect_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+            input="2+2"
+        )
+        assert instance_process.returncode == 1
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmpdir, "test_app")
+        shutil.rmtree(tmpdir)
+
+
+def test_connect_to_instance_binary_port_is_broken(tt_cmd):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported by test")
+    tmpdir = tempfile.mkdtemp()
+    create_tt_config(tmpdir, "")
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app", True)
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
+                     BINARY_PORT_NAME, [])
+    assert file != ""
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'configured', [])
+    assert file != ""
+
+    # Remove binary port.
+    os.remove(os.path.join(tmpdir, "test_app", run_path, "test_app", BINARY_PORT_NAME))
+    # Create fake binary port.
+    fake_binary_port = open(os.path.join(tmpdir, "test_app", run_path,
+                                         "test_app", BINARY_PORT_NAME), "a")
+    fake_binary_port.write("I am totally not a binary port.")
+    fake_binary_port.close()
+
+    try:
+        # Connect to the instance and execute stdin.
+        connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
+        instance_process = subprocess.run(
+            connect_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+            input="2+2"
+        )
+        assert instance_process.returncode == 1
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmpdir, "test_app")
+        shutil.rmtree(tmpdir)
+
+
+def test_connect_to_cluster_app(tt_cmd):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported by test")
+    tmpdir = tempfile.mkdtemp()
+    create_tt_config(tmpdir, "")
+    skip_if_cluster_app_unsupported(tt_cmd, tmpdir)
+
+    empty_file = "empty.lua"
+    app_name = "test_simple_cluster_app"
+    # Copy the test application to the "run" directory.
+    test_app_path = os.path.join(os.path.dirname(__file__), app_name)
+    tmp_app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(test_app_path, tmp_app_path)
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [empty_file_path])
+
+    # Start instances.
+    start_app(tt_cmd, tmpdir, app_name, True)
+    try:
+        # Check for start.
+        instances = ['master']
+        for instance in instances:
+            master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
+            file = wait_file(master_run_path, control_socket, [])
+            assert file != ""
+            file = wait_file(master_run_path, BINARY_PORT_NAME, [])
+            assert file != ""
+            file = wait_file(os.path.join(tmpdir, app_name), 'configured', [])
+            assert file != ""
+
+        # Connect to the instance and execute stdin.
+        connect_cmd = [tt_cmd, "connect", app_name + ":master", "--binary"]
+        instance_process = subprocess.run(
+            connect_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+            input="2+2"
+        )
+        assert instance_process.returncode == 0
+        assert instance_process.stdout == "---\n- 4\n...\n\n"
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmpdir, app_name)
+        shutil.rmtree(tmpdir)

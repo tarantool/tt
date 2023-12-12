@@ -83,6 +83,7 @@ running apps.
 
 ### Added
 
+- `tt connect --binary`: connect to instance using binary port.
 - `tt env`: add current environment binaries location to the PATH variable.
 - `tt cluster`: add an ability to specify a key for `show`/`publish` via URI.
 - `tt cluster`: add an ability to publish/show configuration from tarantool

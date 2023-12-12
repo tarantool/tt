@@ -30,6 +30,7 @@ var (
 	connectSslCaFile   string
 	connectSslCiphers  string
 	connectInteractive bool
+	connectBinary      bool
 )
 
 // NewConnectCmd creates connect command.
@@ -101,6 +102,8 @@ func NewConnectCmd() *cobra.Command {
 		`colon-separated (:) list of SSL cipher suites the connection`)
 	connectCmd.Flags().BoolVarP(&connectInteractive, "interactive", "i",
 		false, `enter interactive mode after executing 'FILE'`)
+	connectCmd.Flags().BoolVarP(&connectBinary, "binary", "",
+		false, `connect to instance using binary port`)
 
 	return connectCmd
 }
@@ -138,14 +141,20 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 			err = fmt.Errorf("specify instance name")
 			return
 		}
-		if connectCtx.Username != "" || connectCtx.Password != "" {
+		if (connectCtx.Username != "" || connectCtx.Password != "") && !connectCtx.Binary {
 			err = fmt.Errorf("username and password are not supported" +
 				" with a connection via a control socket")
 			return
 		}
-		connOpts = makeConnOpts(
-			connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
-		)
+		if connectCtx.Binary {
+			connOpts = makeConnOpts(
+				connector.UnixNetwork, runningCtx.Instances[0].BinaryPort, *connectCtx,
+			)
+		} else {
+			connOpts = makeConnOpts(
+				connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
+			)
+		}
 	} else if connect.IsCredentialsURI(args[0]) {
 		if connectCtx.Username != "" || connectCtx.Password != "" {
 			err = fmt.Errorf("username and password are specified with" +
@@ -189,6 +198,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		SslCaFile:   connectSslCaFile,
 		SslCiphers:  connectSslCiphers,
 		Interactive: connectInteractive,
+		Binary:      connectBinary,
 	}
 
 	var ok bool
