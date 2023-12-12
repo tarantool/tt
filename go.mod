@@ -23,7 +23,6 @@ require (
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
 	github.com/tarantool/go-prompt v1.0.0
 	github.com/tarantool/go-tarantool v1.10.1-0.20230309143354-e257ff30dd4d
-	github.com/tarantool/tt/cli/integrity v0.0.0-00010101000000-000000000000
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yuin/gopher-lua v1.1.1-0.20230219103905-71163b697a8f
 	go.etcd.io/etcd/api/v3 v3.5.9
@@ -103,5 +102,4 @@ require (
 replace (
 	github.com/c-bata/go-prompt => github.com/tarantool/go-prompt v0.2.6-tarantool
 	github.com/tarantool/cartridge-cli => ./cli/cartridge/third_party/cartridge-cli
-	github.com/tarantool/tt/cli/integrity => ./cli/integrity
 )

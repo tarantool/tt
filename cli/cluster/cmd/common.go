@@ -184,7 +184,10 @@ func connectEtcd(uriOpts UriOpts, connOpts connectOpts) (*clientv3.Client, error
 }
 
 // createPublisher creates a new data publisher and collector based on UriOpts.
-func createPublisherAndCollector(connOpts connectOpts,
+func createPublisherAndCollector(
+	publishers cluster.DataPublisherFactory,
+	collectors cluster.CollectorFactory,
+	connOpts connectOpts,
 	opts UriOpts) (cluster.DataPublisher, cluster.Collector, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Key, opts.Timeout
 
@@ -193,13 +196,22 @@ func createPublisherAndCollector(connOpts connectOpts,
 		var (
 			publisher cluster.DataPublisher
 			collector cluster.Collector
+			err       error
 		)
-		if key == "" {
-			publisher = cluster.NewTarantoolAllDataPublisher(conn, prefix, timeout)
-			collector = cluster.NewTarantoolAllCollector(conn, prefix, timeout)
-		} else {
-			publisher = cluster.NewTarantoolKeyDataPublisher(conn, prefix, key, timeout)
-			collector = cluster.NewTarantoolKeyCollector(conn, prefix, key, timeout)
+		if publishers != nil {
+			publisher, err = publishers.NewTarantool(conn, prefix, key, timeout)
+			if err != nil {
+				return nil, nil, nil,
+					fmt.Errorf("failed to create tarantool config storage publisher: %w", err)
+			}
+		}
+
+		if collectors != nil {
+			collector, err = collectors.NewTarantool(conn, prefix, key, timeout)
+			if err != nil {
+				return nil, nil, nil,
+					fmt.Errorf("failed to create tarantool config storage collector: %w", err)
+			}
 		}
 		return publisher, collector, func() { conn.Close() }, nil
 	}
@@ -209,13 +221,22 @@ func createPublisherAndCollector(connOpts connectOpts,
 		var (
 			publisher cluster.DataPublisher
 			collector cluster.Collector
+			err       error
 		)
-		if key == "" {
-			publisher = cluster.NewEtcdAllDataPublisher(etcdcli, prefix, timeout)
-			collector = cluster.NewEtcdAllCollector(etcdcli, prefix, timeout)
-		} else {
-			publisher = cluster.NewEtcdKeyDataPublisher(etcdcli, prefix, key, timeout)
-			collector = cluster.NewEtcdKeyCollector(etcdcli, prefix, key, timeout)
+		if publishers != nil {
+			publisher, err = publishers.NewEtcd(etcdcli, prefix, key, timeout)
+			if err != nil {
+				return nil, nil, nil,
+					fmt.Errorf("failed to create etcd publisher: %w", err)
+			}
+		}
+
+		if collectors != nil {
+			collector, err = collectors.NewEtcd(etcdcli, prefix, key, timeout)
+			if err != nil {
+				return nil, nil, nil,
+					fmt.Errorf("failed to create etcd collector: %w", err)
+			}
 		}
 		return publisher, collector, func() { etcdcli.Close() }, nil
 	}

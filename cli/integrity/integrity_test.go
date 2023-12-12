@@ -27,7 +27,8 @@ func TestNewSigner(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			signer, err := integrity.NewSigner(testCase.privateKeyPath)
 			require.Nil(t, signer, "signer must not be created")
-			require.EqualError(t, err, "integrity signer should never be created in ce", "an error should be produced")
+			require.EqualError(t, err, "integrity signer should never be created in ce",
+				"an error should be produced")
 		})
 	}
 }
@@ -63,7 +64,9 @@ func InitializeIntegrityCheck(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath, testCase.configDir)
-			require.EqualError(t, err, "integrity checks should never be initialized in ce", "an error should be produced")
+			require.EqualError(t, err,
+				"integrity checks should never be initialized in ce",
+				"an error should be produced")
 		})
 	}
 }
@@ -192,4 +195,18 @@ func TestRegisterIntegrityCheckPeriodFlag(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewCollectorFactory(t *testing.T) {
+	factory, err := integrity.NewCollectorFactory()
+
+	require.Nil(t, factory)
+	require.Equal(t, err, integrity.ErrNotConfigured)
+}
+
+func TestNewPublisherFactory(t *testing.T) {
+	factory, err := integrity.NewDataPublisherFactory("")
+
+	require.Nil(t, factory)
+	require.EqualError(t, err, "integrity publishers should never be created in ce")
 }

@@ -422,7 +422,8 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 `)
 	os.Setenv("TT_WAL_MODE_DEFAULT", "envmode")
 	os.Setenv("TT_WAL_MAX_SIZE_DEFAULT", "envsize")
-	config, err := cluster.GetClusterConfig("testdata/etcdapp/config.yaml")
+	collectors := cluster.NewCollectorFactory()
+	config, err := cluster.GetClusterConfig(collectors, "testdata/etcdapp/config.yaml")
 	os.Unsetenv("TT_WAL_MODE_DEFAULT")
 	os.Unsetenv("TT_WAL_MAX_SIZE_DEFAULT")
 
@@ -500,7 +501,8 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 	os.Setenv("TT_CONFIG_ETCD_PASSWORD", pass)
 	os.Setenv("TT_CONFIG_ETCD_PREFIX", prefix)
 
-	config, err := cluster.GetClusterConfig("testdata/etcdapp/config.yaml")
+	collectors := cluster.NewCollectorFactory()
+	config, err := cluster.GetClusterConfig(collectors, "testdata/etcdapp/config.yaml")
 
 	os.Unsetenv("TT_CONFIG_ETCD_USERNAME")
 	os.Unsetenv("TT_CONFIG_ETCD_PASSWORD")

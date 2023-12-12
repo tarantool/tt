@@ -13,6 +13,8 @@ type ShowCtx struct {
 	Username string
 	// Password defines a password for connection.
 	Password string
+	// Collectors defines a used collectors factory.
+	Collectors cluster.CollectorFactory
 	// Validate defines whether the command will check the showed
 	// configuration.
 	Validate bool
@@ -29,7 +31,10 @@ func ShowUri(showCtx ShowCtx, uri *url.URL) error {
 		Username: showCtx.Username,
 		Password: showCtx.Password,
 	}
-	_, collector, cancel, err := createPublisherAndCollector(connOpts, uriOpts)
+	_, collector, cancel, err := createPublisherAndCollector(
+		nil,
+		showCtx.Collectors,
+		connOpts, uriOpts)
 	if err != nil {
 		return err
 	}
@@ -50,7 +55,7 @@ func ShowUri(showCtx ShowCtx, uri *url.URL) error {
 
 // ShowCluster shows a full cluster configuration for a configuration path.
 func ShowCluster(showCtx ShowCtx, path, name string) error {
-	config, err := cluster.GetClusterConfig(path)
+	config, err := cluster.GetClusterConfig(showCtx.Collectors, path)
 	if err != nil {
 		return fmt.Errorf("failed to get a cluster configuration: %w", err)
 	}
