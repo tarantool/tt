@@ -1,10 +1,14 @@
 -- This is a router listening network socket.
 
-local cfg = require('localcfg')
-cfg.discovery_mode = 'off'
+local vshard = require('vshard')
 
 -- Start the database with sharding
-local vshard = require('vshard')
+box.cfg{
+    listen = 3300,
+    replication_connect_quorum = 0,
+}
+
+local cfg = require('localcfg')
 vshard.router.cfg(cfg)
 vshard.router.bootstrap()
 
