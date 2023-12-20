@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 running apps.
 - `tt rocks --server` now accepts several URL's.
 - Disable ``tt run`` tarantool flag parsing.
+- Now ``tt run`` starts instance without our wrapper.
 
 ### Added
 

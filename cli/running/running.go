@@ -97,8 +97,6 @@ type InstanceCtx struct {
 type RunOpts struct {
 	// RunArgs contains command args.
 	RunArgs []string
-	// RunFlags contains command flags.
-	RunFlags []string
 }
 
 // RunInfo contains information for tt run.
@@ -675,9 +673,8 @@ func Stop(run *InstanceCtx) error {
 }
 
 // Run runs an Instance.
-func Run(runInfo *RunInfo, scriptPath string) error {
-	inst := scriptInstance{tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
-		appPath: scriptPath}
+func Run(runInfo *RunInfo) error {
+	inst := scriptInstance{tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable}
 	err := inst.Run(runInfo.RunOpts)
 	return err
 }

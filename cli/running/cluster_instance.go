@@ -147,7 +147,6 @@ func (inst *clusterInstance) Run(opts RunOpts) error {
 	}
 	f.Close()
 
-	args = append(args, opts.RunFlags...)
 	args = append(args, opts.RunArgs...)
 	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
 	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)

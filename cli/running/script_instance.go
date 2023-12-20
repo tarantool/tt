@@ -219,29 +219,7 @@ func (inst *scriptInstance) Run(opts RunOpts) error {
 	}
 	f.Close()
 	newInstanceEnv := os.Environ()
-	newInstanceEnv = append(newInstanceEnv,
-		"TT_CLI_INSTANCE="+inst.appPath,
-		"TT_CLI=true",
-	)
 	args := []string{inst.tarantoolPath}
-	args = append(args, opts.RunFlags...)
-	if inst.appPath != "" {
-		log.Debugf("Script to run: %s", inst.appPath)
-
-		// Save current stdin file descriptor. It will be used in launcher lua
-		// script to restore original stdin.
-		stdinFd, _ := syscall.Dup(int(os.Stdin.Fd()))
-		newInstanceEnv = append(newInstanceEnv, fmt.Sprintf("TT_CLI_RUN_STDIN_FD=%d", stdinFd))
-
-		// Replace current stdin with pipe descriptor, and write launcher code to this pipe.
-		// Tarantool will read from pipe after exec.
-		stdinReader, stdinWriter, _ := os.Pipe()
-		syscall.Dup2(int(stdinReader.Fd()), int(os.Stdin.Fd()))
-		stdinWriter.Write([]byte(instanceLauncher))
-
-		// Enable reading from input for Tarantool.
-		args = append(args, "-")
-	}
 	args = append(args, opts.RunArgs...)
 	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
 	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)

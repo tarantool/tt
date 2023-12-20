@@ -79,7 +79,7 @@ def test_running_missing_script(tt_cmd, tmpdir_with_cfg):
         text=True
     )
     run_output = instance_process.stdout.readline()
-    assert re.search(r"was some problem locating script", run_output)
+    assert re.search(r"Can't open script", run_output)
 
 
 def test_running_multi_instance(tt_cmd, tmpdir_with_cfg):
