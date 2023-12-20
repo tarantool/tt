@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/exp/slices"
 )
@@ -16,7 +17,10 @@ import (
 func Test_CollectInstances(t *testing.T) {
 	instancesEnabledPath := filepath.Join("testdata", "instances_enabled")
 
-	instances, err := CollectInstances("script", instancesEnabledPath)
+	instances, err := CollectInstances("script", instancesEnabledPath,
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Equal(t, InstanceCtx{
@@ -27,7 +31,10 @@ func Test_CollectInstances(t *testing.T) {
 		SingleApp:      true,
 	}, instances[0])
 
-	instances, err = CollectInstances("single_inst", instancesEnabledPath)
+	instances, err = CollectInstances("single_inst", instancesEnabledPath,
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Equal(t, InstanceCtx{
@@ -40,7 +47,10 @@ func Test_CollectInstances(t *testing.T) {
 
 	appName := "multi_inst_app"
 	appPath := filepath.Join(instancesEnabledPath, appName)
-	instances, err = CollectInstances(appName, instancesEnabledPath)
+	instances, err = CollectInstances(appName, instancesEnabledPath,
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	require.NoError(t, err)
 	require.Equal(t, 3, len(instances))
 	assert.True(t, slices.Contains(instances, InstanceCtx{
@@ -70,19 +80,28 @@ func Test_CollectInstances(t *testing.T) {
 	instancesEnabledPath = filepath.Join(tmpDir, "instances.enabled")
 	require.NoError(t, os.Mkdir(instancesEnabledPath, 0755))
 
-	instances, err = CollectInstances("script", instancesEnabledPath)
+	instances, err = CollectInstances("script", instancesEnabledPath,
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	assert.ErrorContains(t, err, "script\" doesn't exist or not a directory")
 	assert.Equal(t, 0, len(instances))
 
 	err = os.WriteFile(filepath.Join(instancesEnabledPath, "script.lua"),
 		[]byte("print(42)"), 0644)
 	require.NoError(t, err)
-	instances, err = CollectInstances("script", instancesEnabledPath)
+	instances, err = CollectInstances("script", instancesEnabledPath,
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 
 	require.NoError(t, os.Chmod(instancesEnabledPath, 0666))
-	instances, err = CollectInstances("script", instancesEnabledPath)
+	instances, err = CollectInstances("script", instancesEnabledPath,
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	assert.ErrorContains(t, err, "script.lua: permission denied")
 	assert.Equal(t, 1, len(instances))
 	require.NoError(t, os.Chmod(instancesEnabledPath, 0755))
@@ -151,7 +170,10 @@ func Test_collectInstancesForApps(t *testing.T) {
 	}
 	cliOpts := configure.GetDefaultCliOpts()
 	cliOpts.Env.InstancesEnabled = instancesEnabled
-	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/")
+	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	require.NoError(t, err)
 	assert.Equal(t, 3, len(instances))
 
@@ -281,7 +303,10 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 	appDir := filepath.Join(instancesEnabled, appName)
 	cliOpts := configure.GetDefaultCliOpts()
 	cliOpts.Env.InstancesEnabled = instancesEnabled
-	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/")
+	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 
@@ -314,7 +339,10 @@ func Test_collectInstancesSingleInstanceTntCtlLayout(t *testing.T) {
 	cliOpts.Env.InstancesEnabled = instancesEnabled
 	cliOpts.Env.TarantoolctlLayout = true
 	cfgDir := "/etc/tarantool/"
-	instances, err := CollectInstancesForApps(apps, cliOpts, cfgDir)
+	instances, err := CollectInstancesForApps(apps, cliOpts, cfgDir,
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		})
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 

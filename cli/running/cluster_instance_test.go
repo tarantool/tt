@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -75,7 +76,9 @@ func TestClusterInstance_Start(t *testing.T) {
 		ClusterConfigPath: configPath,
 		InstName:          "instance-001",
 		AppDir:            tmpDir,
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), false)
+	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
+		Repository: integrity.NewDummyRepository(),
+	}, false)
 
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
@@ -116,7 +119,9 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 		VinylDir:          "vinyl_dir",
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), false)
+	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
+		Repository: integrity.NewDummyRepository(),
+	}, false)
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 
@@ -162,7 +167,9 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
 		LogDir:            tmpAppDir,
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), false)
+	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
+		Repository: integrity.NewDummyRepository(),
+	}, false)
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 

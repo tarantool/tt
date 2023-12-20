@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
 )
 
@@ -42,7 +43,9 @@ func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (Instance
 		InstanceScript: provider.appPath,
 		AppDir:         provider.t.TempDir(),
 	},
-		logger, false)
+		logger, integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		}, false)
 }
 
 // UpdateLogger updates the logger settings or creates a new logger, if passed nil.
@@ -73,7 +76,10 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	provider := providerTestImpl{tarantool: tarantoolBin, appPath: appPath, logger: logger,
 		dataDir: dataDir, restartable: restartable, t: t}
 	testPreAction := func() error { return nil }
-	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider, testPreAction, 0)
+	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider, testPreAction,
+		integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		}, 0)
 
 	return wd
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -37,7 +36,7 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 		return internal(cmdCtx, args)
 	}
 
-	f, err := integrity.FileRepository.Read(info.ExternalPath)
+	f, err := cmdCtx.Integrity.Repository.Read(info.ExternalPath)
 	if err != nil {
 		return fmt.Errorf("integrity check failed for %q: %w", info.ExternalPath, err)
 	}

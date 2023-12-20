@@ -242,7 +242,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	if packCtx.Archive.All {
 		instances, err := running.CollectInstancesForApps(appList, cliOpts,
-			cmdCtx.Cli.ConfigDir)
+			cmdCtx.Cli.ConfigDir, cmdCtx.Integrity)
 		if err != nil {
 			return "", fmt.Errorf("failed to collect instances info: %w", err)
 		}

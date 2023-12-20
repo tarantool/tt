@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/version"
 )
 
@@ -38,7 +39,7 @@ func TestGetList(t *testing.T) {
 		f.Close()
 	}
 
-	cliOpts, _, err := configure.GetCliOpts(cfgPath)
+	cliOpts, _, err := configure.GetCliOpts(cfgPath, integrity.NewDummyRepository())
 	require.NoError(t, err)
 	result := GetList(cliOpts, "tt")
 	assert.Equal(result, []string{"1.2.3"})

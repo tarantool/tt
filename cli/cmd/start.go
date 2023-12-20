@@ -89,7 +89,7 @@ func startWatchdog(ttExecutable string, instance running.InstanceCtx) error {
 			strconv.Itoa(integrityCheckPeriod))
 	}
 
-	f, err := integrity.FileRepository.Read(ttExecutable)
+	f, err := cmdCtx.Integrity.Repository.Read(ttExecutable)
 	if err != nil {
 		return err
 	}

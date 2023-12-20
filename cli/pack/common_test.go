@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
 )
 
@@ -563,7 +564,9 @@ func Test_skipArtifacts(t *testing.T) {
 }
 
 func Test_prepareBundleBasic(t *testing.T) {
-	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml")
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml",
+		integrity.NewDummyRepository())
+
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
@@ -616,7 +619,8 @@ func Test_prepareBundleBasic(t *testing.T) {
 		check.checkFunc(t, filepath.Join(bundleDir, check.path))
 	}
 
-	cliOpts, _, err = configure.GetCliOpts(filepath.Join(bundleDir, "tt.yaml"))
+	cliOpts, _, err = configure.GetCliOpts(filepath.Join(bundleDir, "tt.yaml"),
+		integrity.NewDummyRepository())
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(bundleDir, "instances.enabled"), cliOpts.Env.InstancesEnabled)
 	assert.Equal(t, filepath.Join(bundleDir, "include"), cliOpts.Env.IncludeDir)
@@ -628,11 +632,15 @@ func Test_prepareBundleBasic(t *testing.T) {
 }
 
 func Test_prepareBundleWithArtifacts(t *testing.T) {
-	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml")
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml",
+		integrity.NewDummyRepository())
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
+		},
+		Integrity: integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
 		},
 	}, &PackCtx{
 		Archive: ArchiveCtx{
@@ -693,11 +701,15 @@ func Test_prepareBundleWithArtifacts(t *testing.T) {
 }
 
 func Test_prepareBundleDifferentDataDirs(t *testing.T) {
-	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_different_dirs/tt.yaml")
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_different_dirs/tt.yaml",
+		integrity.NewDummyRepository())
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
+		},
+		Integrity: integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
 		},
 	}, &PackCtx{
 		Archive: ArchiveCtx{
@@ -760,11 +772,15 @@ func Test_prepareBundleDifferentDataDirs(t *testing.T) {
 }
 
 func Test_prepareBundleTntCtlLayout(t *testing.T) {
-	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_tntctl_layout/tt.yaml")
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_tntctl_layout/tt.yaml",
+		integrity.NewDummyRepository())
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
+		},
+		Integrity: integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
 		},
 	}, &PackCtx{
 		Archive: ArchiveCtx{
@@ -825,7 +841,8 @@ func Test_prepareBundleTntCtlLayout(t *testing.T) {
 }
 
 func Test_prepareBundleCartridgeCompatWithArtifacts(t *testing.T) {
-	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml")
+	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml",
+		integrity.NewDummyRepository())
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
@@ -833,6 +850,9 @@ func Test_prepareBundleCartridgeCompatWithArtifacts(t *testing.T) {
 			TarantoolCli: cmdcontext.TarantoolCli{
 				Executable: "testdata/env1/bin/tarantool",
 			},
+		},
+		Integrity: integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
 		},
 	}, &PackCtx{
 		AppList:         []string{"multi"},

@@ -41,7 +41,7 @@ func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 		}
 		log.Infof("%s (%s)", color.GreenString(strings.TrimSuffix(app.Name, ".lua")),
 			appLocation)
-		instances, _ := running.CollectInstances(app.Name, instanceDir)
+		instances, _ := running.CollectInstances(app.Name, instanceDir, cmdCtx.Integrity)
 		for _, inst := range instances {
 			fullInstanceName := running.GetAppInstanceName(inst)
 			if fullInstanceName != app.Name {

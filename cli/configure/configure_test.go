@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -19,7 +20,11 @@ import (
 func TestConfigureCli(t *testing.T) {
 	assert := assert.New(t)
 
-	cmdCtx := cmdcontext.CmdCtx{}
+	cmdCtx := cmdcontext.CmdCtx{
+		Integrity: integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		},
+	}
 
 	// Test system configuration.
 	cmdCtx.Cli.IsSystem = true
