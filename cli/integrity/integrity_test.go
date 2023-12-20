@@ -33,29 +33,21 @@ func TestNewSigner(t *testing.T) {
 	}
 }
 
-func InitializeIntegrityCheck(t *testing.T) {
+func InitializeIntegrityCheckWithKey(t *testing.T) {
+	var ctx integrity.IntegrityCtx
+
 	testCases := []struct {
 		name          string
 		publicKeyPath string
 		configDir     string
 	}{
 		{
-			name:          "Empty key and config path",
-			publicKeyPath: "",
-			configDir:     "",
-		},
-		{
-			name:          "Arbitrary key path, empty config path",
+			name:          "Empty config path",
 			publicKeyPath: "public.pem",
 			configDir:     "",
 		},
 		{
-			name:          "Empty key path, arbitrary config path",
-			publicKeyPath: "",
-			configDir:     "app",
-		},
-		{
-			name:          "Arbitrary key and config path",
+			name:          "Arbitrary config path",
 			publicKeyPath: "public.pem",
 			configDir:     "app",
 		},
@@ -63,10 +55,43 @@ func InitializeIntegrityCheck(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath, testCase.configDir)
+			err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
+				testCase.configDir, &ctx)
 			require.EqualError(t, err,
 				"integrity checks should never be initialized in ce",
 				"an error should be produced")
+		})
+	}
+}
+
+func InitializeIntegrityCheckWithoutKey(t *testing.T) {
+	var ctx integrity.IntegrityCtx
+
+	testCases := []struct {
+		name          string
+		publicKeyPath string
+		configDir     string
+	}{
+		{
+			name:          "Empty config path",
+			publicKeyPath: "",
+			configDir:     "",
+		},
+		{
+			name:          "Arbitrary config path",
+			publicKeyPath: "",
+			configDir:     "app",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
+				testCase.configDir, &ctx)
+			require.NoError(t, err,
+				"initialization should pass successfully")
+			require.IsType(t, integrity.NewDummyRepository(), ctx,
+				"dummy repository should be created")
 		})
 	}
 }
@@ -198,7 +223,9 @@ func TestRegisterIntegrityCheckPeriodFlag(t *testing.T) {
 }
 
 func TestNewCollectorFactory(t *testing.T) {
-	factory, err := integrity.NewCollectorFactory()
+	factory, err := integrity.NewCollectorFactory(integrity.IntegrityCtx{
+		Repository: integrity.NewDummyRepository(),
+	})
 
 	require.Nil(t, factory)
 	require.Equal(t, err, integrity.ErrNotConfigured)

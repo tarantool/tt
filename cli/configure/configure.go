@@ -192,14 +192,15 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 
 // GetCliOpts returns Tarantool CLI options from the config file
 // located at path configurePath.
-func GetCliOpts(configurePath string) (*config.CliOpts, string, error) {
+func GetCliOpts(configurePath string, repository integrity.Repository) (
+	*config.CliOpts, string, error) {
 	var cfg *config.CliOpts = GetDefaultCliOpts()
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)
 	// Before loading configure file, we'll initialize integrity checking.
 	if err == nil {
 		// Config file is found, load it.
-		f, err := integrity.FileRepository.Read(configPath)
+		f, err := repository.Read(configPath)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to validate integrity of %q: %w", configPath, err)
 		}
@@ -492,7 +493,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		}
 	}
 
-	cliOpts, _, err := GetCliOpts(cmdCtx.Cli.ConfigPath)
+	cliOpts, _, err := GetCliOpts(cmdCtx.Cli.ConfigPath, cmdCtx.Integrity.Repository)
 	if err != nil {
 		return err
 	}
@@ -532,7 +533,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 			}
 
 			// Before switching to local cli, we shall check its integrity.
-			f, err := integrity.FileRepository.Read(localCli)
+			f, err := cmdCtx.Integrity.Repository.Read(localCli)
 			if err != nil {
 				return err
 			}

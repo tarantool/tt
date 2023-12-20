@@ -17,9 +17,8 @@ type CmdCtx struct {
 	Cli CliCtx
 	// CommandName contains name of the command.
 	CommandName string
-	// FileRepository is used for reading files that require
-	// integrity control.
-	FileRepository integrity.Repository
+	// Integrity contains tools used for integrity checking.
+	Integrity integrity.IntegrityCtx
 }
 
 // TarantoolCli describes tarantool executable.

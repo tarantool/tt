@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
 )
 
@@ -43,7 +44,9 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 		VinylDir:       instTestDataDir,
 		MemtxDir:       instTestDataDir,
 	},
-		logger, false)
+		logger, integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		}, false)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
@@ -202,7 +205,9 @@ func TestInstanceLogs(t *testing.T) {
 		MemtxDir:       instTestDataDir,
 		LogDir:         instTestDataDir,
 	},
-		logger, false)
+		logger, integrity.IntegrityCtx{
+			Repository: integrity.NewDummyRepository(),
+		}, false)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })

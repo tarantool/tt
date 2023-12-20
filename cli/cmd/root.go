@@ -205,31 +205,32 @@ func InitRoot() {
 	}
 	var err error
 
-	if cmdCtx.Cli.IntegrityCheck != "" {
-		currentDir, err := os.Getwd()
-		if err != nil {
-			log.Fatalf("can't get current dir: %s", err.Error())
-		}
-
-		configPath, _ := util.GetYamlFileName(
-			filepath.Join(currentDir, configure.ConfigName),
-			false,
-		)
-
-		err = integrity.InitializeIntegrityCheck(
-			cmdCtx.Cli.IntegrityCheck,
-			filepath.Dir(configPath),
-		)
-		if err != nil {
-			log.Fatalf("integrity check failed: %s", err)
-		}
+	currentDir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("can't get current dir: %s", err.Error())
 	}
+
+	configPath, _ := util.GetYamlFileName(
+		filepath.Join(currentDir, configure.ConfigName),
+		false,
+	)
+
+	err = integrity.InitializeIntegrityCheck(
+		cmdCtx.Cli.IntegrityCheck,
+		filepath.Dir(configPath),
+		&cmdCtx.Integrity,
+	)
+	if err != nil {
+		log.Fatalf("integrity check failed: %s", err)
+	}
+
 	// Configure Tarantool CLI.
 	if err := configure.Cli(&cmdCtx); err != nil {
 		log.Fatalf("Failed to configure Tarantool CLI: %s", err)
 	}
 
-	cliOpts, cmdCtx.Cli.ConfigPath, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath)
+	cliOpts, cmdCtx.Cli.ConfigPath, err = configure.GetCliOpts(cmdCtx.Cli.ConfigPath,
+		cmdCtx.Integrity.Repository)
 	if err != nil {
 		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
 	}

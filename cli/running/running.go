@@ -90,7 +90,6 @@ type InstanceCtx struct {
 	ClusterConfigPath string
 	// Configuration is instance configuration loaded from cluster config.
 	Configuration cluster.InstanceConfig
-	// AppHashes
 }
 
 // RunOpts contains flags and args for tt run.
@@ -115,7 +114,8 @@ type providerImpl struct {
 
 // updateCtx updates cmdCtx according to the current contents of the cfg file.
 func (provider *providerImpl) updateCtx() error {
-	cliOpts, _, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath)
+	cliOpts, _, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath,
+		provider.cmdCtx.Integrity.Repository)
 	if err != nil {
 		return err
 	}
@@ -150,10 +150,10 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (inst Instanc
 			provider.instanceCtx.InstName,
 		)
 		return newClusterInstance(provider.cmdCtx.Cli.TarantoolCli, *provider.instanceCtx,
-			logger, integrityChecks)
+			logger, provider.cmdCtx.Integrity, integrityChecks)
 	}
 	return newScriptInstance(provider.cmdCtx.Cli.TarantoolCli.Executable, *provider.instanceCtx,
-		logger, integrityChecks)
+		logger, provider.cmdCtx.Integrity, integrityChecks)
 }
 
 // isLoggerChanged checks if any of the logging parameters has been changed.
@@ -296,7 +296,8 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 }
 
 // loadInstanceConfig load instance configuration from cluster config.
-func loadInstanceConfig(configPath, instName string) (cluster.InstanceConfig, error) {
+func loadInstanceConfig(configPath, instName string,
+	integrityCtx integrity.IntegrityCtx) (cluster.InstanceConfig, error) {
 	var instCfg cluster.InstanceConfig
 	if configPath == "" {
 		return instCfg, nil
@@ -304,7 +305,7 @@ func loadInstanceConfig(configPath, instName string) (cluster.InstanceConfig, er
 
 	// TODO: create integrity collectors factory from the command context if
 	// needed instead of the global one.
-	collectors, err := integrity.NewCollectorFactory()
+	collectors, err := integrity.NewCollectorFactory(integrityCtx)
 	if err == integrity.ErrNotConfigured {
 		collectors = cluster.NewCollectorFactory()
 	} else if err != nil {
@@ -323,7 +324,8 @@ func loadInstanceConfig(configPath, instName string) (cluster.InstanceConfig, er
 }
 
 // collectInstancesFromAppDir collects instances information from application directory.
-func collectInstancesFromAppDir(appDir string, selectedInstName string) (
+func collectInstancesFromAppDir(appDir string, selectedInstName string,
+	integrityCtx integrity.IntegrityCtx) (
 	[]InstanceCtx,
 	error,
 ) {
@@ -348,7 +350,7 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string) (
 		}
 	}
 
-	f, err := integrity.FileRepository.Read(appDirFiles.instCfgPath)
+	f, err := integrityCtx.Repository.Read(appDirFiles.instCfgPath)
 	if err != nil {
 		return nil, fmt.Errorf("can't check integrity of %q: %w", appDirFiles.instCfgPath, err)
 	}
@@ -366,7 +368,7 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string) (
 		}
 
 		if instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
-			instance.InstName); err != nil {
+			instance.InstName, integrityCtx); err != nil {
 			return instances, fmt.Errorf("error loading instance %q configuration from "+
 				"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
 		}
@@ -389,7 +391,8 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string) (
 }
 
 // CollectInstances searches all instances available in application.
-func CollectInstances(appName string, applicationsDir string) ([]InstanceCtx, error) {
+func CollectInstances(appName string, applicationsDir string,
+	integrityCtx integrity.IntegrityCtx) ([]InstanceCtx, error) {
 	// The user can select a specific instance from the application.
 	// Example: `tt status application:server`.
 	selectedInstName := ""
@@ -417,7 +420,7 @@ func CollectInstances(appName string, applicationsDir string) ([]InstanceCtx, er
 		appDir = applicationsDir
 	}
 
-	return collectInstancesFromAppDir(appDir, selectedInstName)
+	return collectInstancesFromAppDir(appDir, selectedInstName, integrityCtx)
 }
 
 // cleanup removes runtime artifacts.
@@ -544,7 +547,7 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 
 // CollectInstancesForApps collects instances information for applications in list.
 func CollectInstancesForApps(appList []util.AppListEntry, cliOpts *config.CliOpts,
-	ttConfigDir string) (
+	ttConfigDir string, integrityCtx integrity.IntegrityCtx) (
 	[]InstanceCtx, error) {
 	instEnabledPath := cliOpts.Env.InstancesEnabled
 	if cliOpts.Env.InstancesEnabled == "." {
@@ -554,7 +557,7 @@ func CollectInstancesForApps(appList []util.AppListEntry, cliOpts *config.CliOpt
 	var instances []InstanceCtx
 	for _, appInfo := range appList {
 		appName := strings.TrimSuffix(appInfo.Name, ".lua")
-		collectedInstances, err := CollectInstances(appName, instEnabledPath)
+		collectedInstances, err := CollectInstances(appName, instEnabledPath, integrityCtx)
 		if err != nil {
 			return instances, fmt.Errorf("can't collect instance information for %s: %w",
 				appName, err)
@@ -620,7 +623,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	if runningCtx.Instances, err = CollectInstancesForApps(appList, cliOpts,
-		cmdCtx.Cli.ConfigDir); err != nil {
+		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity); err != nil {
 		return err
 	}
 
@@ -642,7 +645,7 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod ti
 		return nil
 	}
 	wd := NewWatchdog(inst.Restartable, 5*time.Second, logger,
-		&provider, preStartAction, integrityCheckPeriod)
+		&provider, preStartAction, cmdCtx.Integrity, integrityCheckPeriod)
 
 	defer func() {
 		cleanup(inst)
@@ -672,9 +675,9 @@ func Stop(run *InstanceCtx) error {
 	return nil
 }
 
-// Run runs an Instance.
 func Run(runInfo *RunInfo) error {
-	inst := scriptInstance{tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable}
+	inst := scriptInstance{tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
+		integrityCtx: runInfo.CmdCtx.Integrity}
 	err := inst.Run(runInfo.RunOpts)
 	return err
 }

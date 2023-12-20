@@ -12,7 +12,9 @@ var (
 	ErrNotConfigured = errors.New("integration check is not configured")
 )
 
-var FileRepository Repository = dummyRepository{}
+type IntegrityCtx struct {
+	Repository Repository
+}
 
 var HashesName = ""
 
@@ -40,13 +42,18 @@ func RegisterIntegrityCheckFlag(flagset *pflag.FlagSet, dst *string) {}
 func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {}
 
 // InitializeIntegrityCheck is a noop setup of integrity checking.
-func InitializeIntegrityCheck(publicKeyPath string, configDir string) error {
-	return errors.New("integrity checks should never be initialized in ce")
+func InitializeIntegrityCheck(publicKeyPath string, configDir string, ctx *IntegrityCtx) error {
+	if publicKeyPath != "" {
+		return errors.New("integrity checks should never be initialized in ce")
+	}
+
+	ctx.Repository = dummyRepository{}
+	return nil
 }
 
 // NewCollectorFactory creates a new CollectorFactory with integrity checks
 // in collectors. In the CE implementation it always returns ErrNotConfigured.
-func NewCollectorFactory() (cluster.CollectorFactory, error) {
+func NewCollectorFactory(ctx IntegrityCtx) (cluster.CollectorFactory, error) {
 	return nil, ErrNotConfigured
 }
 

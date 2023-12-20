@@ -50,6 +50,8 @@ type scriptInstance struct {
 	consoleSocket string
 	// logDir is log files location.
 	logDir string
+	// IntegrityCtx contains information necessary to perform integrity checks.
+	integrityCtx integrity.IntegrityCtx
 	// integrityChecks tells whether integrity checks are turned on.
 	integrityChecks bool
 }
@@ -58,8 +60,8 @@ type scriptInstance struct {
 var instanceLauncher []byte
 
 // newScriptInstance creates an Instance.
-func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx,
-	logger *ttlog.Logger, integrityChecks bool) (*scriptInstance, error) {
+func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, logger *ttlog.Logger,
+	integrityCtx integrity.IntegrityCtx, integrityChecks bool) (*scriptInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {
 		return nil, err
@@ -82,6 +84,7 @@ func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx,
 		vinylDir:        instanceCtx.VinylDir,
 		memtxDir:        instanceCtx.MemtxDir,
 		logDir:          instanceCtx.LogDir,
+		integrityCtx:    integrityCtx,
 		integrityChecks: integrityChecks,
 	}, nil
 }
@@ -132,7 +135,7 @@ func (inst *scriptInstance) setTarantoolLog(cmd *exec.Cmd) {
 
 // Start starts the Instance with the specified parameters.
 func (inst *scriptInstance) Start() error {
-	f, err := integrity.FileRepository.Read(inst.tarantoolPath)
+	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
 	if err != nil {
 		return err
 	}
@@ -213,7 +216,7 @@ func (inst *scriptInstance) Start() error {
 
 // Run runs tarantool instance.
 func (inst *scriptInstance) Run(opts RunOpts) error {
-	f, err := integrity.FileRepository.Read(inst.tarantoolPath)
+	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
 	if err != nil {
 		return err
 	}

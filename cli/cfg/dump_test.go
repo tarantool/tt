@@ -11,10 +11,12 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/integrity"
 )
 
 func getCliOpts(t *testing.T, configFile string) *config.CliOpts {
-	cliOpts, configPath, err := configure.GetCliOpts(configFile)
+	cliOpts, configPath, err := configure.GetCliOpts(configFile,
+		integrity.NewDummyRepository())
 	require.NoError(t, err)
 	require.Equal(t, configFile, configPath)
 	return cliOpts

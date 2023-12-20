@@ -49,13 +49,16 @@ type clusterInstance struct {
 	clusterConfigPath string
 	// logDir is log files location.
 	logDir string
+	// IntegrityCtx contains information necessary to perform integrity checks.
+	integrityCtx integrity.IntegrityCtx
 	// integrityChecks tells whether integrity checks are turned on.
 	integrityChecks bool
 }
 
 // newClusterInstance creates a clusterInstance.
 func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx InstanceCtx,
-	logger *ttlog.Logger, integrityChecks bool) (*clusterInstance, error) {
+	logger *ttlog.Logger, integrityCtx integrity.IntegrityCtx,
+	integrityChecks bool) (*clusterInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolCli.Executable); err != nil {
 		return nil, err
@@ -83,6 +86,7 @@ func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx Instan
 		runDir:            instanceCtx.RunDir,
 		clusterConfigPath: instanceCtx.ClusterConfigPath,
 		logDir:            instanceCtx.LogDir,
+		integrityCtx:      integrityCtx,
 		integrityChecks:   integrityChecks,
 	}, nil
 }
@@ -141,7 +145,7 @@ func (inst *clusterInstance) Run(opts RunOpts) error {
 	newInstanceEnv := os.Environ()
 	args := []string{inst.tarantoolPath}
 
-	f, err := integrity.FileRepository.Read(inst.tarantoolPath)
+	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
 	if err != nil {
 		return err
 	}

@@ -162,7 +162,7 @@ environment variables < command flags < URL credentials.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// TODO: create integrity collectors factory from the command context if
 	// needed instead of the global one.
-	collectors, err := integrity.NewCollectorFactory()
+	collectors, err := integrity.NewCollectorFactory(cmdCtx.Integrity)
 	if err == integrity.ErrNotConfigured {
 		collectors = cluster.NewCollectorFactory()
 	} else if err != nil {
@@ -191,7 +191,7 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// TODO: create integrity collectors factory from the command context if
 	// needed instead of the global one.
-	collectors, err := integrity.NewCollectorFactory()
+	collectors, err := integrity.NewCollectorFactory(cmdCtx.Integrity)
 	if err == integrity.ErrNotConfigured {
 		collectors = cluster.NewCollectorFactory()
 	} else if err != nil {

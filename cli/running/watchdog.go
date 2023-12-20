@@ -47,15 +47,23 @@ type Watchdog struct {
 	shouldStop bool
 	// preStartAction is a hook that is to be run before the start of a new Instance.
 	preStartAction func() error
+	// IntegrityCtx contains information necessary to perform integrity checks.
+	integrityCtx integrity.IntegrityCtx
 	// integrityCheckPeriod is period between integrity checks.
 	integrityCheckPeriod time.Duration
 }
 
 // NewWatchdog creates a new instance of Watchdog.
 func NewWatchdog(restartable bool, restartTimeout time.Duration, logger *ttlog.Logger,
-	provider Provider, preStartAction func() error, integrityCheckPeriod time.Duration) *Watchdog {
-	wd := Watchdog{instance: nil, logger: logger, restartTimeout: restartTimeout,
-		provider: provider, preStartAction: preStartAction,
+	provider Provider, preStartAction func() error,
+	integrityCtx integrity.IntegrityCtx, integrityCheckPeriod time.Duration) *Watchdog {
+	wd := Watchdog{
+		instance:             nil,
+		logger:               logger,
+		restartTimeout:       restartTimeout,
+		provider:             provider,
+		preStartAction:       preStartAction,
+		integrityCtx:         integrityCtx,
 		integrityCheckPeriod: integrityCheckPeriod}
 
 	return &wd
@@ -175,7 +183,7 @@ func (wd *Watchdog) startIntegrityChecks(ctx context.Context) {
 			select {
 			case <-ticker.C:
 				wd.logger.Printf("(INFO): periodic integrity check successfully passed.")
-				err := integrity.FileRepository.ValidateAll()
+				err := wd.integrityCtx.Repository.ValidateAll()
 				if err != nil {
 					// Integrity check failed.
 					wd.logger.Printf("(ERROR): periodic integrity check failed: %q.", err)
