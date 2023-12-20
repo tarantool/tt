@@ -1,10 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-	"strings"
-
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
@@ -85,29 +81,10 @@ func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	runInfo := newRunInfo(*cmdCtx)
-	scriptPath := ""
-	startIndex := 0
-	if len(args) > 0 {
-		for i, option := range args {
-			if strings.HasSuffix(option, ".lua") {
-				scriptPath = option
-				if _, err := os.Stat(scriptPath); err != nil {
-					return fmt.Errorf("there was some problem locating script: %s", err)
-				}
-				startIndex = i
-				break
-			}
-		}
-	}
 
-	if len(args) != 0 && scriptPath != "" {
-		runInfo.RunOpts.RunArgs = args[startIndex+1:]
-		runInfo.RunOpts.RunFlags = args[:startIndex]
-	} else if scriptPath == "" {
-		runInfo.RunOpts.RunFlags = args
-	}
+	runInfo.RunOpts.RunArgs = args
 
-	if err := running.Run(runInfo, scriptPath); err != nil {
+	if err := running.Run(runInfo); err != nil {
 		return err
 	}
 
