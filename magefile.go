@@ -33,7 +33,6 @@ const (
 
 var (
 	ldflags = []string{
-		"-s", "-w",
 		"-X ${PACKAGE}/version.gitTag=${GIT_TAG}",
 		"-X ${PACKAGE}/version.gitCommit=${GIT_COMMIT}",
 		"-X ${PACKAGE}/version.gitCommitSinceTag=${GIT_COMMIT_SINCE_TAG}",
@@ -48,6 +47,10 @@ var (
 	ttExecutableName     = "tt"
 
 	generateModePath = filepath.Join(packagePath, "codegen", "generate_code.go")
+
+	Aliases = map[string]any{
+		"build": Build.Release,
+	}
 )
 
 type BuildType string
@@ -159,9 +162,7 @@ func PatchCC() error {
 
 // Building tt executable. Supported environment variables:
 // TT_CLI_BUILD_SSL=(no|static|shared)
-func Build() error {
-	fmt.Println("Building tt...")
-
+func buildTt(ldflags []string) error {
 	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)
 
@@ -202,6 +203,22 @@ func Build() error {
 	}
 
 	return nil
+}
+
+type Build mg.Namespace
+
+// Building release tt executable without debug info.
+func (Build) Release() error {
+	fmt.Println("Building release tt...")
+
+	return buildTt(append(ldflags, "-s", "-w"))
+}
+
+// Building debug tt executable.
+func (Build) Debug() error {
+	fmt.Println("Building debug tt...")
+
+	return buildTt(ldflags)
 }
 
 // Run license checker.
