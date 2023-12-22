@@ -74,6 +74,14 @@ func startWatchdog(ttExecutable string, instance running.InstanceCtx) error {
 		newArgs = append(newArgs, "--integrity-check", cmdCtx.Cli.IntegrityCheck)
 	}
 
+	if cmdCtx.Cli.IsSystem {
+		newArgs = append(newArgs, "-S")
+	} else if cmdCtx.Cli.LocalLaunchDir != "" {
+		newArgs = append(newArgs, "-L", cmdCtx.Cli.LocalLaunchDir)
+	} else {
+		newArgs = append(newArgs, "--cfg", cmdCtx.Cli.ConfigPath)
+	}
+
 	newArgs = append(newArgs, "start", "--watchdog", appName)
 
 	if cmdCtx.Cli.IntegrityCheck != "" {
