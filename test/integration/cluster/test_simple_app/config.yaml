@@ -5,11 +5,13 @@ groups:
         instances:
           master:
             iproto:
-              listen: '127.0.0.1:3301'
+              listen:
+              - uri: '127.0.0.1:3301'
             database:
               mode: rw
           storage:
             iproto:
-              listen: '127.0.0.1:3302'
+              listen:
+              - uri: '127.0.0.1:3302'
             database:
               mode: rw

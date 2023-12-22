@@ -14,12 +14,14 @@ test_simple_app_cfg = r"""groups:
             database:
               mode: rw
             iproto:
-              listen: 127.0.0.1:3301
+              listen:
+              - uri: 127.0.0.1:3301
           storage:
             database:
               mode: rw
             iproto:
-              listen: 127.0.0.1:3302
+              listen:
+              - uri: 127.0.0.1:3302
 """
 
 valid_cluster_cfg = r"""groups:
@@ -31,7 +33,8 @@ valid_cluster_cfg = r"""groups:
             database:
               mode: rw
             iproto:
-              listen: 127.0.0.1:3301
+              listen:
+              - uri: 127.0.0.1:3301
 """
 
 invalid_cluster_cfg = r"""groups:
@@ -43,19 +46,22 @@ invalid_cluster_cfg = r"""groups:
             database:
               mode: any
             iproto:
-              listen: 127.0.0.1:3301
+              listen:
+              - uri: 127.0.0.1:3301
 """
 
 valid_instance_cfg = r"""database:
   mode: rw
 iproto:
-  listen: 127.0.0.1:3303
+  listen:
+  - uri: 127.0.0.1:3303
 """
 
 invalid_instance_cfg = r"""database:
   mode: any
 iproto:
-  listen: 127.0.0.1:3303
+  listen:
+  - uri: 127.0.0.1:3303
 """
 
 # The root user requires the least amount of steps to work.
@@ -219,7 +225,8 @@ def test_cluster_show_config_app_validate_error(tt_cmd, tmpdir_with_cfg):
               mode: rs
               txn_timeout: asd
             iproto:
-              listen: 127.0.0.1:3301
+              listen:
+              - uri: 127.0.0.1:3301
    ⨯ an invalid instance "master" configuration:"""
     expected += r""" invalid path "database.mode": value "rs" should be one of [ro rw]
 invalid path "database.txn_timeout": failed to parse value "asd" to type number
@@ -266,7 +273,8 @@ def test_cluster_show_config_app_instance(tt_cmd, tmpdir_with_cfg, app_name):
     assert r"""database:
   mode: rw
 iproto:
-  listen: 127.0.0.1:3302
+  listen:
+  - uri: 127.0.0.1:3302
 """ in show_output
 
 
@@ -404,7 +412,8 @@ def test_cluster_show_config_etcd_cluster(tt_cmd, tmpdir_with_cfg, auth):
             database:
               mode: rw
             iproto:
-              listen: 127.0.0.1:3301
+              listen:
+              - uri: 127.0.0.1:3301
 """
     popen = etcd_start(endpoint, tmpdir)
     assert popen
@@ -467,7 +476,8 @@ def test_cluster_show_config_etcd_instance(tt_cmd, tmpdir_with_cfg):
             database:
               mode: rw
             iproto:
-              listen: 127.0.0.1:3301
+              listen:
+              - uri: 127.0.0.1:3301
 """)
         show_cmd = [tt_cmd, "cluster", "show",
                     f"{endpoint}/prefix?timeout=5&name=master"]
@@ -485,7 +495,8 @@ def test_cluster_show_config_etcd_instance(tt_cmd, tmpdir_with_cfg):
     assert r"""database:
   mode: rw
 iproto:
-  listen: 127.0.0.1:3301
+  listen:
+  - uri: 127.0.0.1:3301
 """ in show_output
 
 
@@ -543,7 +554,8 @@ def test_cluster_show_config_etcd_key_instance(tt_cmd, tmpdir_with_cfg):
     assert r"""database:
   mode: rw
 iproto:
-  listen: 127.0.0.1:3301
+  listen:
+  - uri: 127.0.0.1:3301
 """ in show_output
 
 
@@ -818,12 +830,14 @@ def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg, app_name):
             database:
               mode: rw
             iproto:
-              listen: 127.0.0.1:3303
+              listen:
+              - uri: 127.0.0.1:3303
           storage:
             database:
               mode: rw
             iproto:
-              listen: 127.0.0.1:3302\n""" == uploaded
+              listen:
+              - uri: 127.0.0.1:3302\n""" == uploaded
 
 
 @pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
@@ -888,12 +902,14 @@ def test_cluster_publish_invalid_instance_force(tt_cmd, tmpdir_with_cfg, app_nam
             database:
               mode: any
             iproto:
-              listen: 127.0.0.1:3303
+              listen:
+              - uri: 127.0.0.1:3303
           storage:
             database:
               mode: rw
             iproto:
-              listen: 127.0.0.1:3302\n""" == uploaded
+              listen:
+              - uri: 127.0.0.1:3302\n""" == uploaded
 
 
 def test_cluster_publish_config_etcd_not_exist(tt_cmd, tmpdir_with_cfg):
