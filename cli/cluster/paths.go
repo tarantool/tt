@@ -21,6 +21,22 @@ var ConfigEnvPaths = [][]string{
 	[]string{"audit_log", "syslog", "identity"},
 	[]string{"audit_log", "syslog", "server"},
 	[]string{"audit_log", "to"},
+	[]string{"compat", "binary_data_decoding"},
+	[]string{"compat", "box_cfg_replication_sync_timeout"},
+	[]string{"compat", "box_info_cluster_meaning"},
+	[]string{"compat", "box_session_push_deprecation"},
+	[]string{"compat", "box_space_execute_priv"},
+	[]string{"compat", "box_space_max"},
+	[]string{"compat", "box_tuple_extension"},
+	[]string{"compat", "box_tuple_new_vararg"},
+	[]string{"compat", "c_func_iproto_multireturn"},
+	[]string{"compat", "fiber_channel_close_mode"},
+	[]string{"compat", "fiber_slice_default"},
+	[]string{"compat", "json_escape_forward_slash"},
+	[]string{"compat", "sql_priv"},
+	[]string{"compat", "sql_seq_scan_default"},
+	[]string{"compat", "yaml_pretty_multiline"},
+	[]string{"config", "context"},
 	[]string{"config", "etcd", "endpoints"},
 	[]string{"config", "etcd", "http", "request", "timeout"},
 	[]string{"config", "etcd", "http", "request", "unix_socket"},
@@ -33,7 +49,10 @@ var ConfigEnvPaths = [][]string{
 	[]string{"config", "etcd", "ssl", "verify_peer"},
 	[]string{"config", "etcd", "username"},
 	[]string{"config", "reload"},
-	[]string{"config", "version"},
+	[]string{"config", "storage", "endpoints"},
+	[]string{"config", "storage", "prefix"},
+	[]string{"config", "storage", "reconnect_after"},
+	[]string{"config", "storage", "timeout"},
 	[]string{"console", "enabled"},
 	[]string{"console", "socket"},
 	[]string{"credentials", "roles"},
@@ -73,8 +92,26 @@ var ConfigEnvPaths = [][]string{
 	[]string{"flightrec", "requests_max_res_size"},
 	[]string{"flightrec", "requests_size"},
 	[]string{"iproto", "advertise", "client"},
-	[]string{"iproto", "advertise", "peer"},
-	[]string{"iproto", "advertise", "sharding"},
+	[]string{"iproto", "advertise", "peer", "login"},
+	[]string{"iproto", "advertise", "peer", "params", "ssl_ca_file"},
+	[]string{"iproto", "advertise", "peer", "params", "ssl_cert_file"},
+	[]string{"iproto", "advertise", "peer", "params", "ssl_ciphers"},
+	[]string{"iproto", "advertise", "peer", "params", "ssl_key_file"},
+	[]string{"iproto", "advertise", "peer", "params", "ssl_password"},
+	[]string{"iproto", "advertise", "peer", "params", "ssl_password_file"},
+	[]string{"iproto", "advertise", "peer", "params", "transport"},
+	[]string{"iproto", "advertise", "peer", "password"},
+	[]string{"iproto", "advertise", "peer", "uri"},
+	[]string{"iproto", "advertise", "sharding", "login"},
+	[]string{"iproto", "advertise", "sharding", "params", "ssl_ca_file"},
+	[]string{"iproto", "advertise", "sharding", "params", "ssl_cert_file"},
+	[]string{"iproto", "advertise", "sharding", "params", "ssl_ciphers"},
+	[]string{"iproto", "advertise", "sharding", "params", "ssl_key_file"},
+	[]string{"iproto", "advertise", "sharding", "params", "ssl_password"},
+	[]string{"iproto", "advertise", "sharding", "params", "ssl_password_file"},
+	[]string{"iproto", "advertise", "sharding", "params", "transport"},
+	[]string{"iproto", "advertise", "sharding", "password"},
+	[]string{"iproto", "advertise", "sharding", "uri"},
 	[]string{"iproto", "listen"},
 	[]string{"iproto", "net_msg_max"},
 	[]string{"iproto", "readahead"},
@@ -292,6 +329,157 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	SchemaPath{
+		Path: []string{"compat", "binary_data_decoding"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_cfg_replication_sync_timeout"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_info_cluster_meaning"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_session_push_deprecation"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_space_execute_priv"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_space_max"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_tuple_extension"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_tuple_new_vararg"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "c_func_iproto_multireturn"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "fiber_channel_close_mode"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "fiber_slice_default"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "json_escape_forward_slash"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "sql_priv"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "sql_seq_scan_default"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "yaml_pretty_multiline"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"config", "context"},
+		Validator: MakeMapValidator(
+			StringValidator{},
+			MakeRecordValidator(map[string]Validator{
+				"file": StringValidator{},
+				"from": MakeAllowedValidator(
+					StringValidator{},
+					[]any{
+						"env",
+						"file",
+					}),
+				"rstrip": BooleanValidator{},
+				"env":    StringValidator{},
+			})),
+	},
+	SchemaPath{
 		Path: []string{"config", "etcd", "endpoints"},
 		Validator: MakeArrayValidator(
 			StringValidator{}),
@@ -346,12 +534,39 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	SchemaPath{
-		Path: []string{"config", "version"},
-		Validator: MakeAllowedValidator(
-			StringValidator{},
-			[]any{
-				"dev",
-			}),
+		Path: []string{"config", "storage", "endpoints"},
+		Validator: MakeArrayValidator(
+			MakeRecordValidator(map[string]Validator{
+				"password": StringValidator{},
+				"params": MakeRecordValidator(map[string]Validator{
+					"ssl_password": StringValidator{},
+					"ssl_key_file": StringValidator{},
+					"transport": MakeAllowedValidator(
+						StringValidator{},
+						[]any{
+							"plain",
+							"ssl",
+						}),
+					"ssl_password_file": StringValidator{},
+					"ssl_cert_file":     StringValidator{},
+					"ssl_ciphers":       StringValidator{},
+					"ssl_ca_file":       StringValidator{},
+				}),
+				"uri":   StringValidator{},
+				"login": StringValidator{},
+			})),
+	},
+	SchemaPath{
+		Path:      []string{"config", "storage", "prefix"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"config", "storage", "reconnect_after"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"config", "storage", "timeout"},
+		Validator: NumberValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"console", "enabled"},
@@ -615,16 +830,115 @@ var TarantoolSchema = []SchemaPath{
 		Validator: StringValidator{},
 	},
 	SchemaPath{
-		Path:      []string{"iproto", "advertise", "peer"},
+		Path:      []string{"iproto", "advertise", "peer", "login"},
 		Validator: StringValidator{},
 	},
 	SchemaPath{
-		Path:      []string{"iproto", "advertise", "sharding"},
+		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_ca_file"},
 		Validator: StringValidator{},
 	},
 	SchemaPath{
-		Path:      []string{"iproto", "listen"},
+		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_cert_file"},
 		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_ciphers"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_key_file"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_password"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_password_file"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path: []string{"iproto", "advertise", "peer", "params", "transport"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"plain",
+				"ssl",
+			}),
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "peer", "password"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "peer", "uri"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "login"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_ca_file"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_cert_file"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_ciphers"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_key_file"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_password"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_password_file"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path: []string{"iproto", "advertise", "sharding", "params", "transport"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"plain",
+				"ssl",
+			}),
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "password"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"iproto", "advertise", "sharding", "uri"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path: []string{"iproto", "listen"},
+		Validator: MakeArrayValidator(
+			MakeRecordValidator(map[string]Validator{
+				"uri": StringValidator{},
+				"params": MakeRecordValidator(map[string]Validator{
+					"ssl_password": StringValidator{},
+					"ssl_key_file": StringValidator{},
+					"transport": MakeAllowedValidator(
+						StringValidator{},
+						[]any{
+							"plain",
+							"ssl",
+						}),
+					"ssl_password_file": StringValidator{},
+					"ssl_cert_file":     StringValidator{},
+					"ssl_ciphers":       StringValidator{},
+					"ssl_ca_file":       StringValidator{},
+				}),
+			})),
 	},
 	SchemaPath{
 		Path:      []string{"iproto", "net_msg_max"},
@@ -1026,6 +1340,7 @@ var TarantoolSchema = []SchemaPath{
 				[]any{
 					"router",
 					"storage",
+					"rebalancer",
 				})),
 	},
 	SchemaPath{
