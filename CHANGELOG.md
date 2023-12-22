@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Disable ``tt run`` tarantool flag parsing.
 
+### Fixed
+
+- `tt start`: not working global `tt` flags.
+
 ## [2.1.0] - 2023-12-15
 
 ### Changed
