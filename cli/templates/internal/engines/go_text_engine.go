@@ -4,10 +4,23 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path"
+	"strconv"
 	"text/template"
 )
 
 type GoTextEngine struct {
+}
+
+// makeTemplate creates template for rendering.
+func makeTemplate(name string) *template.Template {
+	state := newGenState()
+	funcMap := template.FuncMap{
+		"port":        state.genPort,
+		"replicasets": genReplicasets,
+		"atoi":        strconv.Atoi,
+	}
+	return template.New(name).Funcs(funcMap)
 }
 
 // RenderFile renders srcPath template to dstPath using go text/template engine.
@@ -18,7 +31,12 @@ func (GoTextEngine) RenderFile(srcPath string, dstPath string, data interface{})
 	}
 	originFileMode := stat.Mode()
 
-	parsedTemplate, err := template.ParseFiles(srcPath)
+	content, err := os.ReadFile(srcPath)
+	if err != nil {
+		return fmt.Errorf("error reading file %s: %s", srcPath, err)
+	}
+
+	parsedTemplate, err := makeTemplate(path.Base(srcPath)).Parse(string(content))
 	if err != nil {
 		return fmt.Errorf("error parsing %s: %s", srcPath, err)
 	}
@@ -41,7 +59,7 @@ func (GoTextEngine) RenderFile(srcPath string, dstPath string, data interface{})
 
 // RenderText renders in text using go tex/template engine.
 func (GoTextEngine) RenderText(in string, data interface{}) (string, error) {
-	parsedTemplate, err := template.New("file").Parse(in)
+	parsedTemplate, err := makeTemplate("file").Parse(in)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse %s: %s", in, err)
 	}

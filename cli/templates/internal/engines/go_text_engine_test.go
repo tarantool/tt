@@ -85,4 +85,24 @@ func TestTextRendering(t *testing.T) {
 	_, err = engine.RenderText(templateText, data)
 	require.EqualError(t, err, "template execution failed: template: file:1:2: "+
 		"executing \"file\" at <.hello>: map has no entry for key \"hello\"")
+
+	// Test builtin functions.
+	templateText = "{{port}}"
+	expectedText = "3301"
+	actualText, err = engine.RenderText(templateText, nil)
+	require.NoError(t, err)
+	assert.Equal(t, expectedText, actualText)
+
+	templateText = `{{range replicasets "name" 1 1}}` +
+		"Hi, {{.Name}}! Your instances: {{ range .InstNames }}{{.}}{{end}}{{end}}"
+	expectedText = "Hi, name-001! Your instances: name-001-a"
+	actualText, err = engine.RenderText(templateText, nil)
+	require.NoError(t, err)
+	assert.Equal(t, expectedText, actualText)
+
+	templateText = `{{atoi "5"}} apples`
+	expectedText = "5 apples"
+	actualText, err = engine.RenderText(templateText, nil)
+	require.NoError(t, err)
+	assert.Equal(t, expectedText, actualText)
 }
