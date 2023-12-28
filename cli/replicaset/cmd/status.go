@@ -31,15 +31,10 @@ func Status(statusCtx StatusCtx) error {
 	}
 
 	var replicasets replicaset.Replicasets
-	switch orchestrator {
-	case replicaset.OrchestratorCartridge:
-		replicasets, err = getCartridgeReplicasets(statusCtx)
-	case replicaset.OrchestratorCentralizedConfig:
-		replicasets, err = getCConfigReplicasets(statusCtx)
-	case replicaset.OrchestratorCustom:
-		replicasets, err = getCustomReplicasets(statusCtx)
-	default:
-		err = fmt.Errorf("orchestrator is not supported: %s", orchestrator)
+	if statusCtx.IsApplication {
+		replicasets, err = replicaset.DiscoveryApplication(statusCtx.RunningCtx, orchestrator)
+	} else {
+		replicasets, err = replicaset.DiscoveryInstance(statusCtx.Conn, orchestrator)
 	}
 	if err != nil {
 		return err
@@ -73,39 +68,6 @@ func getOrchestrator(statusCtx StatusCtx) (replicaset.Orchestrator, error) {
 			fmt.Errorf("unable to determinate orchestrator: %w", err)
 	}
 	return orchestrator, nil
-}
-
-// getCartridgeReplicasets returns a list of cartridge replicasets.
-func getCartridgeReplicasets(statusCtx StatusCtx) (replicaset.Replicasets, error) {
-	var getter replicaset.ReplicasetsGetter
-	if statusCtx.IsApplication {
-		getter = replicaset.NewCartridgeApplication(statusCtx.RunningCtx, statusCtx.Conn)
-	} else {
-		getter = replicaset.NewCartridgeInstance(statusCtx.Conn)
-	}
-	return getter.GetReplicasets()
-}
-
-// getCConfigReplicasets returns a list of centralized config replicasets.
-func getCConfigReplicasets(statusCtx StatusCtx) (replicaset.Replicasets, error) {
-	var getter replicaset.ReplicasetsGetter
-	if statusCtx.IsApplication {
-		getter = replicaset.NewCConfigApplication(statusCtx.RunningCtx)
-	} else {
-		getter = replicaset.NewCConfigInstance(statusCtx.Conn)
-	}
-	return getter.GetReplicasets()
-}
-
-// getCustomReplicasets returns a list replicasets for a custom orchestrator.
-func getCustomReplicasets(statusCtx StatusCtx) (replicaset.Replicasets, error) {
-	var getter replicaset.ReplicasetsGetter
-	if statusCtx.IsApplication {
-		getter = replicaset.NewCustomApplication(statusCtx.RunningCtx)
-	} else {
-		getter = replicaset.NewCustomInstance(statusCtx.Conn)
-	}
-	return getter.GetReplicasets()
 }
 
 // statusReplicasets show the current status of known replicasets.
