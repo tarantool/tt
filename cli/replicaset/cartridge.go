@@ -72,7 +72,7 @@ func (c *CartridgeInstance) GetReplicasets() (Replicasets, error) {
 			replicasets.Replicasets[i].Failover = failover
 			replicasets.Replicasets[i].StateProvider = provider
 		}
-		replicasets, err = updateCartridgeInstance(c.evaler, replicasets)
+		replicasets, err = updateCartridgeInstance(c.evaler, nil, replicasets)
 		if err != nil {
 			return replicasets, err
 		}
@@ -120,9 +120,9 @@ func (c *CartridgeApplication) GetReplicasets() (Replicasets, error) {
 	}
 
 	err = EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
-		func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+		func(ictx running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 			var err error
-			replicasets, err = updateCartridgeInstance(evaler, replicasets)
+			replicasets, err = updateCartridgeInstance(evaler, &ictx, replicasets)
 			return false, err
 		},
 	))
@@ -133,7 +133,7 @@ func (c *CartridgeApplication) GetReplicasets() (Replicasets, error) {
 // updateCartridgeInstance receives and updates an additional instance
 // information about the instance in the replicasets.
 func updateCartridgeInstance(evaler connector.Evaler,
-	replicasets Replicasets) (Replicasets, error) {
+	ictx *running.InstanceCtx, replicasets Replicasets) (Replicasets, error) {
 	info := []struct {
 		UUID string
 		RW   bool
@@ -160,6 +160,10 @@ func updateCartridgeInstance(evaler connector.Evaler,
 					replicaset.Instances[i].Mode = ModeRW
 				} else {
 					replicaset.Instances[i].Mode = ModeRead
+				}
+				if ictx != nil {
+					replicaset.Instances[i].InstanceCtx = *ictx
+					replicaset.Instances[i].InstanceCtxFound = true
 				}
 			}
 		}
