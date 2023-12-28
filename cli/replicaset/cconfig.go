@@ -86,11 +86,18 @@ func (c *CConfigApplication) GetReplicasets() (Replicasets, error) {
 	var topologies []cconfigTopology
 
 	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
-		func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+		func(ictx running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 			topology, err := getCConfigInstanceTopology(evaler)
 			if err != nil {
 				return true, err
 			}
+			for i, _ := range topology.Instances {
+				if topology.Instances[i].UUID == topology.InstanceUUID {
+					topology.Instances[i].InstanceCtx = ictx
+					topology.Instances[i].InstanceCtxFound = true
+				}
+			}
+
 			topologies = append(topologies, topology)
 			return false, nil
 		}))
@@ -187,6 +194,10 @@ func updateCConfigInstances(replicaset *Replicaset, topology cconfigTopology) {
 			}
 			if instance.Mode == ModeUnknown {
 				instance.Mode = tinstance.Mode
+			}
+			if !instance.InstanceCtxFound {
+				instance.InstanceCtx = tinstance.InstanceCtx
+				instance.InstanceCtxFound = tinstance.InstanceCtxFound
 			}
 		} else {
 			replicaset.Instances = append(replicaset.Instances, tinstance)

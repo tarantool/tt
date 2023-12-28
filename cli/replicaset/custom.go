@@ -84,10 +84,16 @@ func (c *CustomApplication) GetReplicasets() (Replicasets, error) {
 	var topologies []customTopology
 
 	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
-		func(inst running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-			topology, err := getCustomInstanceTopology(inst.InstName, evaler)
+		func(ictx running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+			topology, err := getCustomInstanceTopology(ictx.InstName, evaler)
 			if err != nil {
 				return true, err
+			}
+			for i, _ := range topology.Instances {
+				if topology.Instances[i].UUID == topology.InstanceUUID {
+					topology.Instances[i].InstanceCtx = ictx
+					topology.Instances[i].InstanceCtxFound = true
+				}
 			}
 
 			topologies = append(topologies, topology)
@@ -187,6 +193,10 @@ func updateCustomInstances(replicaset *Replicaset, topology customTopology) {
 			}
 			if instance.Mode == ModeUnknown {
 				instance.Mode = tinstance.Mode
+			}
+			if !instance.InstanceCtxFound {
+				instance.InstanceCtx = tinstance.InstanceCtx
+				instance.InstanceCtxFound = tinstance.InstanceCtxFound
 			}
 		} else {
 			replicaset.Instances = append(replicaset.Instances, tinstance)
