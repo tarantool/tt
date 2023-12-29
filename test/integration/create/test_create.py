@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from utils import (config_name, extract_status, get_tarantool_version,
-                   pid_file, run_command_and_get_output, wait_file)
+                   pid_file, run_command_and_get_output, wait_event, wait_file)
 
 tt_config_text = '''env:
   instances_enabled: test.instances.enabled
@@ -783,3 +783,151 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
     assert instance_process_rc == 0
+
+
+@pytest.mark.parametrize("var", [
+    "bucket_count=str",
+    "bucket_count=-1",
+    "bucket_count=0",
+    "replicasets_count=0",
+    "replicas_count=1",
+    "routers_count=0",
+])
+def test_create_app_from_builtin_cartridge_template_errors(tt_cmd, tmpdir, var):
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmpdir))
+
+    create_cmd = [tt_cmd, "create", "vshard_cluster", "--name", "app1",
+                  "--non-interactive", "--var", var]
+    rc, _ = run_command_and_get_output(create_cmd, cwd=tmpdir)
+    assert rc != 0
+    assert not os.path.exists(os.path.join(tmpdir, "app1"))
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(tarantool_major_version < 3,
+                    reason="skip centralized config test for Tarantool < 3")
+def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmpdir):
+    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmpdir))
+
+    create_cmd = [tt_cmd, "create", "vshard_cluster", "--name", "app1"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.writelines(["3000\n", "2\n", "2\n", "1\n"])
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    output = tt_process.stdout.read()
+
+    expected_lines = [
+        "Build and start 'app1' application",
+        "$ tt build app1",
+        "$ tt start app1",
+        "Application 'app1' created successfully",
+        "Pay attention that default passwords were generated,",
+        "you can change it in the config.yaml."
+    ]
+    for line in expected_lines:
+        assert output.find(line) != -1
+
+    app_path = os.path.join(tmpdir, "app1")
+    assert os.path.exists(os.path.join(app_path, "storage.lua"))
+    assert os.path.exists(os.path.join(app_path, "router.lua"))
+
+    assert os.path.exists(os.path.join(app_path, "app1-scm-1.rockspec"))
+    assert os.path.exists(os.path.join(app_path, "instances.yaml"))
+
+    build_cmd = [tt_cmd, "build", "app1"]
+    tt_process = subprocess.Popen(
+        build_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+    build_output = tt_process.stdout.readlines()
+    assert "Application was successfully built" in build_output[len(build_output)-1]
+
+    # Start vshard cluster app.
+    start_cmd = [tt_cmd, "start", "app1"]
+    instance_process = subprocess.Popen(
+        start_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    start_output = instance_process.stdout.readlines()
+    for line in start_output:
+        assert "Starting an instance" in line
+    instances = ["storage-001-a", "storage-001-b", "storage-002-a",
+                 "storage-002-b", "router-001-a"]
+    for inst in instances:
+        file = wait_file(os.path.join(tmpdir, "test.instances.enabled", "app1", inst),
+                         pid_file, [])
+        assert file != ""
+
+    # Check status.
+    status_cmd = [tt_cmd, "status", "app1"]
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    assert status_rc == 0
+    status_info = extract_status(status_out)
+    for key in status_info.keys():
+        assert status_info[key]["STATUS"] == "RUNNING"
+
+    def eval_cmd_func(inst, cmd):
+        connect_process = subprocess.Popen(
+            [tt_cmd, "connect", f"app1:{inst}", "-f-"],
+            cwd=tmpdir,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        connect_process.stdin.write(cmd)
+        connect_process.stdin.close()
+        connect_process.wait()
+        return connect_process.stdout.read()
+
+    def insert_data_func():
+        out = eval_cmd_func("router-001-a", "put_sample_data()")
+        return out == "---\n...\n\n"
+
+    def select_data_func():
+        out = eval_cmd_func("router-001-a", "get(1)")
+        return out.find("[1, 'Elizabeth', 12]") != -1
+
+    # Check that data can be inserted and selected.
+    can_insert = wait_event(60, insert_data_func)
+    can_select = False
+    if can_insert:
+        can_select = wait_event(60, select_data_func)
+
+    # Print instances log to find out the reason in case of an assert fall.
+    for inst in instances:
+        with open(os.path.join(tmpdir, "app1", inst, "tt.log")) as f:
+            print(inst, f.read())
+
+    # Stop the vhsard_cluster app.
+    stop_cmd = [tt_cmd, "stop", "app1"]
+    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+    assert stop_rc == 0
+    for inst in instances:
+        assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.",
+                         stop_out)
+
+    with open(os.path.join(app_path, "router-001-a", "tt.log")) as f:
+        print("\n".join(f.readlines()))
+    # Assert here to be sure that instances are stopped.
+    assert can_insert, "can not insert data into the vshard cluster"
+    assert can_select, "can not select data from the vhsard cluster"

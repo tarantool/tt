@@ -1,0 +1,10 @@
+---
+{{- $replicasets := atoi .replicasets_count}}{{$replicas := atoi .replicas_count}}
+{{ range replicasets "storage" $replicasets $replicas }}{{range .InstNames}}{{.}}:
+
+{{end}}{{end}}
+
+{{- $routers := atoi .routers_count}}
+{{- range replicasets "router" $routers 1}}{{range .InstNames}}{{.}}:
+
+{{end}}{{end}}

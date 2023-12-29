@@ -1,0 +1,30 @@
+description: Vshard cluster template
+follow-up-message: |
+  What's next?
+  Build and start '{{ .name }}' application:
+      $ tt build {{ .name }}
+      $ tt start {{ .name }}
+
+  Pay attention that default passwords were generated,
+  you can change it in the config.yaml.
+
+vars:
+  - prompt: Bucket count
+    name: bucket_count
+    default: '3000'
+    re: ^[1-9]\d*$
+
+  - prompt: Storage replication sets count
+    name: replicasets_count
+    default: '2'
+    re: ^[1-9]\d*$
+
+  - prompt: Storage replicas per replication set count (>=2)
+    name: replicas_count
+    default: '2'
+    re: ^[2-9]|[1-9]\d+$
+
+  - prompt: Routers count
+    name: routers_count
+    default: '1'
+    re: ^[1-9]\d*$
