@@ -155,6 +155,15 @@ def wait_instance_stop(pid_path, timeout_sec=5):
     return stopped
 
 
+def wait_event(timeout, event_func, interval=0.1):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if event_func():
+            return True
+        time.sleep(interval)
+    return False
+
+
 class TarantoolTestInstance:
     """Create test tarantool instance via subprocess.Popen with given cfg file.
 

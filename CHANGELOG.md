@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Module ``tt replicaset``, to manage replicasets:
   - ``tt replicaset status`` to show a cluster status information.
+- Built-in vshard cluster application template.
 
 ### Changed
 

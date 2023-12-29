@@ -1,0 +1,52 @@
+credentials:
+  users:
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'secret'
+      roles: [replication]
+    storage:
+      password: 'secret'
+      roles: [sharding]
+
+iproto:
+  advertise:
+    peer:
+      login: replicator
+    sharding:
+      login: storage
+
+sharding:
+  bucket_count: {{.bucket_count}}
+
+groups:
+  storages:
+    app:
+      module: storage
+    sharding:
+      roles: [storage]
+    replication:
+      failover: manual
+    {{- $replicasets := atoi .replicasets_count}}{{$replicas := atoi .replicas_count}}
+    replicasets: {{ range replicasets "storage" $replicasets $replicas }}
+      {{.Name}}:
+        leader: {{index .InstNames 0}}
+        instances: {{range .InstNames}}
+          {{.}}:
+            iproto:
+              listen:
+                - uri: localhost:{{port}}{{end}}{{end}}
+  routers:
+    app:
+      module: router
+    sharding:
+      roles: [router]
+    {{- $routers := atoi .routers_count}}
+    replicasets: {{ range replicasets "router" $routers 1}}
+      {{.Name}}:
+        instances: {{range .InstNames}}
+          {{.}}:
+            iproto:
+              listen:
+                - uri: localhost:{{port}}{{end}}{{end}}

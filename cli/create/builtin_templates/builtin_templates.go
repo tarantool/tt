@@ -11,8 +11,9 @@ var TemplatesFs embed.FS
 
 // FileModes contains mapping of file modes by built-in template name.
 var FileModes = map[string]map[string]int{
-	"cartridge": static.CartridgeFileModes,
+	"cartridge":      static.CartridgeFileModes,
+	"vshard_cluster": static.VshardClusterFileModes,
 }
 
 // Names contains built-in template names.
-var Names = [...]string{"cartridge"}
+var Names = [...]string{"cartridge", "vshard_cluster"}
