@@ -1,4 +1,4 @@
-package list
+package binary
 
 import (
 	"errors"
@@ -73,8 +73,8 @@ func printVersion(versionString string) {
 	}
 }
 
-// parseBinaries seeks through fileList returning array of found versions of program.
-func parseBinaries(fileList []fs.DirEntry, programName string,
+// ParseBinaries seeks through fileList returning array of found versions of program.
+func ParseBinaries(fileList []fs.DirEntry, programName string,
 	binDir string) ([]version.Version, error) {
 	var binaryVersions []version.Version
 	symlinkName := programName
@@ -159,7 +159,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error
 	}
 	fmt.Println("List of installed binaries:")
 	for _, programName := range programs {
-		binaryVersions, err := parseBinaries(binDirFilesList, programName, binDir)
+		binaryVersions, err := ParseBinaries(binDirFilesList, programName, binDir)
 		if err != nil {
 			return err
 		}

@@ -1,4 +1,4 @@
-package list
+package binary
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 func TestParseBinaries(t *testing.T) {
 	fileList, err := os.ReadDir("./testdata/bin")
 	require.NoError(t, err)
-	versions, err := parseBinaries(fileList, "tarantool", "./testdata/bin")
+	versions, err := ParseBinaries(fileList, "tarantool", "./testdata/bin")
 	require.NoError(t, err)
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 	expectedSortedVersions := []string{"master", "2.10.5", "2.8.6 [active]", "1.10.0", "0000000"}
@@ -31,7 +31,7 @@ func TestParseBinariesTarantoolDev(t *testing.T) {
 			testDir := fmt.Sprintf("./testdata/tarantool_dev/%s", dir)
 			fileList, err := os.ReadDir(testDir)
 			assert.NoError(t, err)
-			versions, err := parseBinaries(fileList, "tarantool-dev", testDir)
+			versions, err := ParseBinaries(fileList, "tarantool-dev", testDir)
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(versions))
 			version := versions[0].Str

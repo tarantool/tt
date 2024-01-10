@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt rocks`: not working on macOs.
 - `tt install tarantool` fails due to checkout error.
 
+### Changed
+
+- `tt binaries` renamed to `tt binaries list`
+
 ## [2.1.1] - 2024-01-15
 
 ### Added

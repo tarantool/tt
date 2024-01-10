@@ -5,7 +5,7 @@ import subprocess
 from utils import config_name
 
 
-def test_binaries(tt_cmd, tmpdir):
+def test_list(tt_cmd, tmpdir):
     # Copy the test bin_dir to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "bin")
     shutil.copytree(test_app_path, tmpdir + "/bin", True)
@@ -16,7 +16,7 @@ def test_binaries(tt_cmd, tmpdir):
         f.write('tt:\n  env:\n    bin_dir: "./bin"\n    inc_dir:\n')
 
     # Print binaries
-    binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries"]
+    binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries", "list"]
     binaries_process = subprocess.Popen(
         binaries_cmd,
         cwd=tmpdir,
@@ -35,14 +35,14 @@ def test_binaries(tt_cmd, tmpdir):
     assert "2.8.1 [active]" in output
 
 
-def test_binaries_no_directory(tt_cmd, tmpdir):
+def test_list_no_directory(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     # Create test config
     with open(configPath, 'w') as f:
         f.write('tt:\n  env:\n    bin_dir: "./bin"\n    inc_dir:\n')
 
     # Print binaries
-    binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries"]
+    binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries", "list"]
     binaries_process = subprocess.Popen(
         binaries_cmd,
         cwd=tmpdir,
@@ -57,7 +57,7 @@ def test_binaries_no_directory(tt_cmd, tmpdir):
     assert "there are no binaries installed in this environment of 'tt'" in output
 
 
-def test_binaries_empty_directory(tt_cmd, tmpdir):
+def test_list_empty_directory(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
     os.mkdir(tmpdir+"/bin")
     # Create test config
@@ -65,7 +65,7 @@ def test_binaries_empty_directory(tt_cmd, tmpdir):
         f.write('tt:\n  env:\n    bin_dir: "./bin"\n    inc_dir:\n')
 
     # Print binaries
-    binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries"]
+    binaries_cmd = [tt_cmd, "--cfg", configPath, "binaries", "list"]
     binaries_process = subprocess.Popen(
         binaries_cmd,
         cwd=tmpdir,
@@ -80,7 +80,7 @@ def test_binaries_empty_directory(tt_cmd, tmpdir):
     assert "there are no binaries installed in this environment of 'tt'" in output
 
 
-def test_binaries_tarantool_dev(tt_cmd, tmpdir):
+def test_list_tarantool_dev(tt_cmd, tmpdir):
     # Copy the test dir to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "tarantool_dev")
     shutil.copytree(test_app_path, tmpdir + "/tarantool_dev", True)
@@ -91,7 +91,7 @@ def test_binaries_tarantool_dev(tt_cmd, tmpdir):
         f.write(
             'env:\n  bin_dir: "./tarantool_dev/bin"\n  inc_dir:\n')
 
-    binaries_cmd = [tt_cmd, "--cfg", config_path, "binaries"]
+    binaries_cmd = [tt_cmd, "--cfg", config_path, "binaries", "list"]
     binaries_process = subprocess.Popen(
         binaries_cmd,
         cwd=tmpdir,
