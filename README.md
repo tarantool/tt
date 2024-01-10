@@ -620,7 +620,7 @@ Common description. For a detailed description, use `tt help command` .
 -   `cfg dump` - print tt environment configuration.
 -   `pack` - pack an environment into a tarball/RPM/Deb.
 -   `instances` - show enabled applications.
--   `binaries` - show a list of installed binaries and their versions.
+-   `binaries list` - show a list of installed binaries and their versions.
 -   `cluster` - manage cluster configuration.
 -   `env` - add current environment binaries location to the PATH variable.
 -   `replicasets` - manage replicasets.

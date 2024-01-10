@@ -18,7 +18,8 @@ func TestCheckConfig(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"binaries", internalBinariesModule(&cmdcontext.CmdCtx{}, nil)},
+		{"binaries list", internalListModule(&cmdcontext.CmdCtx{}, nil)},
+		{"binaries switch", internalSwitchModule(&cmdcontext.CmdCtx{}, nil)},
 		{"build", internalBuildModule(&cmdcontext.CmdCtx{}, nil)},
 		{"check", internalCheckModule(&cmdcontext.CmdCtx{}, nil)},
 		{"clean", internalCleanModule(&cmdcontext.CmdCtx{}, nil)},
