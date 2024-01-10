@@ -13,6 +13,7 @@ require (
 	github.com/hashicorp/go-version v1.4.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/magefile/mage v1.12.1
+	github.com/manifoldco/promptui v0.9.0
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/mitchellh/mapstructure v1.4.3
@@ -46,6 +47,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
 	github.com/avast/retry-go v3.0.0+incompatible // indirect
 	github.com/c-bata/go-prompt v0.2.6 // indirect
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/containerd/containerd v1.6.26 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
