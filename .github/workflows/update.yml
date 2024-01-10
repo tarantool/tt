@@ -35,6 +35,8 @@ jobs:
       run: |
         go install github.com/magefile/mage@latest
         go install golang.org/x/tools/cmd/goimports@latest
+        go install golang.org/x/tools/cmd/stringer@v0.16.1
+      shell: bash
 
     - name: Generate code
       run: mage generate
