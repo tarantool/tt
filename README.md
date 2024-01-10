@@ -621,6 +621,7 @@ Common description. For a detailed description, use `tt help command` .
 -   `pack` - pack an environment into a tarball/RPM/Deb.
 -   `instances` - show enabled applications.
 -   `binaries list` - show a list of installed binaries and their versions.
+-   `binaries switch` - switch to installed binary.
 -   `cluster` - manage cluster configuration.
 -   `env` - add current environment binaries location to the PATH variable.
 -   `replicasets` - manage replicasets.

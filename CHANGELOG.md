@@ -11,19 +11,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Built-in vshard cluster application template.
 - Building tt in Linux-aarch64, FreeBSD environments.
+- `tt binaries switch`: switch to installed binary.
 
 ### Changed
 
 - `tt replicaset`: prefer cartridge instances without critical issues on it during discovery.
+- `tt binaries` renamed to `tt binaries list`
 
 ### Fixed
 
 - `tt rocks`: not working on macOs.
 - `tt install tarantool` fails due to checkout error.
-
-### Changed
-
-- `tt binaries` renamed to `tt binaries list`
 
 ## [2.1.1] - 2024-01-15
 
