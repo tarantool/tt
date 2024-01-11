@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/tarantool/tt/cli/binary"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/instances"
 	"github.com/tarantool/tt/cli/modules"
 )
 
@@ -30,7 +30,7 @@ func internalInstancesModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
-	err := binary.ListInstances(cmdCtx, cliOpts)
+	err := instances.ListInstances(cmdCtx, cliOpts)
 
 	return err
 }
