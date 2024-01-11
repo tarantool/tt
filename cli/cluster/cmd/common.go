@@ -7,9 +7,10 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/tarantool/go-tarantool"
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/connect"
-	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/cli/integrity"
 )
 
 // printRawClusterConfig prints a raw cluster configuration or an instance
@@ -142,20 +143,20 @@ type connectOpts struct {
 }
 
 // connectTarantool establishes a connection to Tarantool.
-func connectTarantool(uriOpts UriOpts, connOpts connectOpts) (connector.Connector, error) {
-	connectorOpts := MakeConnectOptsFromUriOpts(uriOpts)
-	if connectorOpts.Username == "" && connectorOpts.Password == "" {
-		connectorOpts.Username = connOpts.Username
-		connectorOpts.Password = connOpts.Password
-		if connectorOpts.Username == "" {
-			connOpts.Username = os.Getenv(connect.TarantoolUsernameEnv)
+func connectTarantool(uriOpts UriOpts, connOpts connectOpts) (tarantool.Connector, error) {
+	addr, connectorOpts := MakeConnectOptsFromUriOpts(uriOpts)
+	if connectorOpts.User == "" && connectorOpts.Pass == "" {
+		connectorOpts.User = connOpts.Username
+		connectorOpts.Pass = connOpts.Password
+		if connectorOpts.User == "" {
+			connectorOpts.User = os.Getenv(connect.TarantoolUsernameEnv)
 		}
-		if connectorOpts.Password == "" {
-			connOpts.Password = os.Getenv(connect.TarantoolPasswordEnv)
+		if connectorOpts.Pass == "" {
+			connectorOpts.Pass = os.Getenv(connect.TarantoolPasswordEnv)
 		}
 	}
 
-	conn, err := connector.Connect(connectorOpts)
+	conn, err := tarantool.Connect(addr, connectorOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to tarantool: %w", err)
 	}
@@ -185,16 +186,16 @@ func connectEtcd(uriOpts UriOpts, connOpts connectOpts) (*clientv3.Client, error
 
 // createPublisher creates a new data publisher and collector based on UriOpts.
 func createPublisherAndCollector(
-	publishers cluster.DataPublisherFactory,
+	publishers integrity.DataPublisherFactory,
 	collectors cluster.CollectorFactory,
 	connOpts connectOpts,
-	opts UriOpts) (cluster.DataPublisher, cluster.Collector, func(), error) {
+	opts UriOpts) (integrity.DataPublisher, cluster.Collector, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Key, opts.Timeout
 
 	conn, errTarantool := connectTarantool(opts, connOpts)
 	if errTarantool == nil {
 		var (
-			publisher cluster.DataPublisher
+			publisher integrity.DataPublisher
 			collector cluster.Collector
 			err       error
 		)
@@ -219,7 +220,7 @@ func createPublisherAndCollector(
 	etcdcli, errEtcd := connectEtcd(opts, connOpts)
 	if errEtcd == nil {
 		var (
-			publisher cluster.DataPublisher
+			publisher integrity.DataPublisher
 			collector cluster.Collector
 			err       error
 		)

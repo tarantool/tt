@@ -3,6 +3,7 @@ package cluster
 import (
 	"fmt"
 
+	"github.com/tarantool/tt/cli/integrity"
 	"gopkg.in/yaml.v2"
 )
 
@@ -19,7 +20,7 @@ func NewYamlCollector(data []byte) YamlCollector {
 	}
 }
 
-// Collect collects a configuration from YAML data.
+// Collect collects configuration from YAML data.
 func (collector YamlCollector) Collect() (*Config, error) {
 	config := NewConfig()
 	if err := yaml.Unmarshal(collector.data, config); err != nil {
@@ -29,16 +30,51 @@ func (collector YamlCollector) Collect() (*Config, error) {
 	return config, nil
 }
 
+// YamlCollectorDecorator is a wrapper over integrity.DataCollector
+// implementing Collector.
+type YamlCollectorDecorator struct {
+	rawCollector integrity.DataCollector
+}
+
+// Collect collects configuration from raw data interpretening it
+// as YAML.
+func (collector YamlCollectorDecorator) Collect() (*Config, error) {
+	raw, err := collector.rawCollector.Collect()
+	if err != nil {
+		return nil, err
+	}
+
+	cconfig := NewConfig()
+
+	for _, data := range raw {
+		if config, err := NewYamlCollector(data.Value).Collect(); err != nil {
+			return nil, fmt.Errorf("failed to decode config from %q: %w", data.Source, err)
+		} else {
+			cconfig.Merge(config)
+		}
+	}
+
+	return cconfig, nil
+}
+
+// NewYamlCollectorDecorator wraps a DataCollector to interpret raw data as
+// YAML configurations.
+func NewYamlCollectorDecorator(collector integrity.DataCollector) YamlCollectorDecorator {
+	return YamlCollectorDecorator{
+		rawCollector: collector,
+	}
+}
+
 // YamlConfigPublisher publishes a configuration as YAML via the base
 // publisher.
 type YamlConfigPublisher struct {
 	// publisher used to publish the YAML data.
-	publisher DataPublisher
+	publisher integrity.DataPublisher
 }
 
 // NewYamlConfigPublisher creates a new YamlConfigPublisher object to publish
 // a configuration via the publisher.
-func NewYamlConfigPublisher(publisher DataPublisher) YamlConfigPublisher {
+func NewYamlConfigPublisher(publisher integrity.DataPublisher) YamlConfigPublisher {
 	return YamlConfigPublisher{
 		publisher: publisher,
 	}

@@ -12,6 +12,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/tarantool/tt/cli/cluster"
+	"github.com/tarantool/tt/cli/integrity"
 )
 
 type MockEtcdGetter struct {
@@ -105,7 +106,7 @@ func TestClientKVImplementsEtcdGetter(t *testing.T) {
 }
 
 func TestNewEtcdAllCollector(t *testing.T) {
-	var collector cluster.Collector
+	var collector integrity.DataCollector
 
 	collector = cluster.NewEtcdAllCollector(&MockEtcdGetter{}, "", 0)
 
@@ -146,7 +147,7 @@ func TestEtcdCollectors_Collect_timeout(t *testing.T) {
 	for _, tc := range cases {
 		collectors := []struct {
 			Name      string
-			Collector cluster.Collector
+			Collector integrity.DataCollector
 		}{
 			{"all", cluster.NewEtcdAllCollector(mock, "/foo", tc)},
 			{"key", cluster.NewEtcdKeyCollector(mock, "/foo", "key", tc)},
@@ -171,7 +172,7 @@ func TestEtcdCollectors_Collect_timeout(t *testing.T) {
 func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 	cases := []struct {
 		Kvs      []*mvccpb.KeyValue
-		Expected string
+		Expected []integrity.Data
 	}{
 		{
 			Kvs: []*mvccpb.KeyValue{
@@ -180,7 +181,10 @@ func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 					Value: []byte("f: a\nb: a\n"),
 				},
 			},
-			Expected: "b: a\nf: a\n",
+			Expected: []integrity.Data{{
+				Source: "k",
+				Value:  []byte("f: a\nb: a\n"),
+			}},
 		},
 		{
 			Kvs: []*mvccpb.KeyValue{
@@ -193,7 +197,16 @@ func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 					Value: []byte("f: b\nb: b\nc: b\n"),
 				},
 			},
-			Expected: "b: a\nc: b\nf: a\n",
+			Expected: []integrity.Data{
+				{
+					Source: "k",
+					Value:  []byte("f: a\nb: a\n"),
+				},
+				{
+					Source: "k",
+					Value:  []byte("f: b\nb: b\nc: b\n"),
+				},
+			},
 		},
 	}
 
@@ -206,7 +219,7 @@ func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 
 			assert.NoError(t, err)
 			require.NotNil(t, config)
-			assert.Equal(t, tc.Expected, config.String())
+			assert.Equal(t, tc.Expected, config)
 		})
 	}
 }
@@ -217,7 +230,7 @@ func TestEtcdCollectors_Collect_error(t *testing.T) {
 	}
 	cases := []struct {
 		Name      string
-		Collector cluster.Collector
+		Collector integrity.DataCollector
 	}{
 		{"all", cluster.NewEtcdAllCollector(mock, "/foo", 0)},
 		{"key", cluster.NewEtcdKeyCollector(mock, "/foo", "key", 0)},
@@ -238,7 +251,7 @@ func TestEtcdCollectors_Collect_empty(t *testing.T) {
 	}
 	cases := []struct {
 		Name      string
-		Collector cluster.Collector
+		Collector integrity.DataCollector
 	}{
 		{"all", cluster.NewEtcdAllCollector(mock, "/foo", 0)},
 		{"key", cluster.NewEtcdKeyCollector(mock, "/foo", "key", 0)},
@@ -252,32 +265,8 @@ func TestEtcdCollectors_Collect_empty(t *testing.T) {
 	}
 }
 
-func TestEtcdAllCollector_Collect_decode_error(t *testing.T) {
-	cases := [][]*mvccpb.KeyValue{
-		[]*mvccpb.KeyValue{
-			&mvccpb.KeyValue{Key: []byte("k"), Value: []byte("f: a\n- b\n")},
-		},
-		[]*mvccpb.KeyValue{
-			&mvccpb.KeyValue{Key: []byte("a"), Value: []byte("f: a\n")},
-			&mvccpb.KeyValue{Key: []byte("k"), Value: []byte("f: a\n- b\n")},
-		},
-	}
-
-	for i, tc := range cases {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			mock := &MockEtcdGetter{
-				Kvs: tc,
-			}
-			config, err := cluster.NewEtcdAllCollector(mock, "foo", 0).Collect()
-
-			assert.Error(t, err)
-			assert.Nil(t, config)
-		})
-	}
-}
-
 func TestNewEtcdKeyCollector(t *testing.T) {
-	var collector cluster.Collector
+	var collector integrity.DataCollector
 
 	collector = cluster.NewEtcdKeyCollector(&MockEtcdGetter{}, "", "", 0)
 
@@ -319,13 +308,16 @@ func TestEtcdKeyCollector_Collect_key(t *testing.T) {
 			},
 		},
 	}
-	expected := "b: a\nf: a\n"
+	expected := []integrity.Data{{
+		Source: "k",
+		Value:  []byte("f: a\nb: a\n"),
+	}}
 
 	config, err := cluster.NewEtcdKeyCollector(mock, "foo", "key", 0).Collect()
 
 	assert.NoError(t, err)
 	require.NotNil(t, config)
-	assert.Equal(t, expected, config.String())
+	assert.Equal(t, expected, config)
 }
 
 func TestEtcdKeyCollector_Collect_too_many(t *testing.T) {
@@ -348,21 +340,8 @@ func TestEtcdKeyCollector_Collect_too_many(t *testing.T) {
 	require.Nil(t, config)
 }
 
-func TestEtcdKeyCollector_Collect_decode_error(t *testing.T) {
-	mock := &MockEtcdGetter{
-		Kvs: []*mvccpb.KeyValue{
-			&mvccpb.KeyValue{Key: []byte("k"), Value: []byte("f: a\n- b\n")},
-		},
-	}
-
-	config, err := cluster.NewEtcdKeyCollector(mock, "foo", "key", 0).Collect()
-
-	assert.ErrorContains(t, err, "failed to decode etcd config")
-	require.Nil(t, config)
-}
-
 func TestNewEtcdAllDataPublisher(t *testing.T) {
-	var publisher cluster.DataPublisher
+	var publisher integrity.DataPublisher
 
 	publisher = cluster.NewEtcdAllDataPublisher(nil, "", 0)
 
@@ -475,7 +454,7 @@ func TestEtcdAllDataPublisher_Publish_txn_inputs(t *testing.T) {
 func TestEtcdDataPublishers_Publish_data_nil(t *testing.T) {
 	cases := []struct {
 		Name      string
-		Publisher cluster.DataPublisher
+		Publisher integrity.DataPublisher
 	}{
 		{"all", cluster.NewEtcdAllDataPublisher(nil, "", 0)},
 		{"key", cluster.NewEtcdKeyDataPublisher(nil, "", "", 0)},
@@ -494,7 +473,7 @@ func TestEtcdDataPublishers_Publish_data_nil(t *testing.T) {
 func TestEtcdDataPublishers_Publish_publisher_nil(t *testing.T) {
 	cases := []struct {
 		Name      string
-		Publisher cluster.DataPublisher
+		Publisher integrity.DataPublisher
 	}{
 		{"all", cluster.NewEtcdAllDataPublisher(nil, "", 0)},
 		{"key", cluster.NewEtcdKeyDataPublisher(nil, "", "", 0)},
@@ -601,7 +580,7 @@ func TestEtcdAllDataPublisher_Publish_timeout_exit(t *testing.T) {
 }
 
 func TestNewEtcdKeyDataPublisher(t *testing.T) {
-	var publisher cluster.DataPublisher
+	var publisher integrity.DataPublisher
 
 	publisher = cluster.NewEtcdKeyDataPublisher(nil, "", "", 0)
 

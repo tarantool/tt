@@ -160,11 +160,10 @@ environment variables < command flags < URL credentials.
 
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	// TODO: create integrity collectors factory from the command context if
-	// needed instead of the global one.
-	collectors, err := integrity.NewCollectorFactory(cmdCtx.Integrity)
+	collectorsRaw, err := integrity.NewDataCollectorFactory(cmdCtx.Integrity)
+	collectors := cluster.NewCollectorFactory(collectorsRaw)
 	if err == integrity.ErrNotConfigured {
-		collectors = cluster.NewCollectorFactory()
+		collectors = cluster.NewCollectorFactory(cluster.NewDataCollectorFactory())
 	} else if err != nil {
 		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
 	}
@@ -189,11 +188,10 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 // internalClusterPublishModule is an entrypoint for `cluster publish` command.
 func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	// TODO: create integrity collectors factory from the command context if
-	// needed instead of the global one.
-	collectors, err := integrity.NewCollectorFactory(cmdCtx.Integrity)
+	collectorsRaw, err := integrity.NewDataCollectorFactory(cmdCtx.Integrity)
+	collectors := cluster.NewCollectorFactory(collectorsRaw)
 	if err == integrity.ErrNotConfigured {
-		collectors = cluster.NewCollectorFactory()
+		collectors = cluster.NewCollectorFactory(cluster.NewDataCollectorFactory())
 	} else if err != nil {
 		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
 	}

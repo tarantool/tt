@@ -34,8 +34,6 @@ func TestNewSigner(t *testing.T) {
 }
 
 func InitializeIntegrityCheckWithKey(t *testing.T) {
-	var ctx integrity.IntegrityCtx
-
 	testCases := []struct {
 		name          string
 		publicKeyPath string
@@ -55,8 +53,8 @@ func InitializeIntegrityCheckWithKey(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
-				testCase.configDir, &ctx)
+			_, err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
+				testCase.configDir)
 			require.EqualError(t, err,
 				"integrity checks should never be initialized in ce",
 				"an error should be produced")
@@ -65,8 +63,6 @@ func InitializeIntegrityCheckWithKey(t *testing.T) {
 }
 
 func InitializeIntegrityCheckWithoutKey(t *testing.T) {
-	var ctx integrity.IntegrityCtx
-
 	testCases := []struct {
 		name          string
 		publicKeyPath string
@@ -86,11 +82,11 @@ func InitializeIntegrityCheckWithoutKey(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
-				testCase.configDir, &ctx)
+			ctx, err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
+				testCase.configDir)
 			require.NoError(t, err,
 				"initialization should pass successfully")
-			require.IsType(t, integrity.NewDummyRepository(), ctx,
+			require.NotNil(t, ctx.Repository,
 				"dummy repository should be created")
 		})
 	}
@@ -222,10 +218,8 @@ func TestRegisterIntegrityCheckPeriodFlag(t *testing.T) {
 	}
 }
 
-func TestNewCollectorFactory(t *testing.T) {
-	factory, err := integrity.NewCollectorFactory(integrity.IntegrityCtx{
-		Repository: integrity.NewDummyRepository(),
-	})
+func TestNewDataCollectorFactory(t *testing.T) {
+	factory, err := integrity.NewDataCollectorFactory(integrity.IntegrityCtx{})
 
 	require.Nil(t, factory)
 	require.Equal(t, err, integrity.ErrNotConfigured)

@@ -77,7 +77,7 @@ func TestClusterInstance_Start(t *testing.T) {
 		InstName:          "instance-001",
 		AppDir:            tmpDir,
 	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
-		Repository: integrity.NewDummyRepository(),
+		Repository: &mockRepository{},
 	}, false)
 
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
 	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
-		Repository: integrity.NewDummyRepository(),
+		Repository: &mockRepository{},
 	}, false)
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
@@ -168,7 +168,7 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 		AppDir:            tmpAppDir,
 		LogDir:            tmpAppDir,
 	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
-		Repository: integrity.NewDummyRepository(),
+		Repository: &mockRepository{},
 	}, false)
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)

@@ -1,7 +1,6 @@
 package cluster_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/cluster"
+	"github.com/tarantool/tt/cli/integrity"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 )
 
 func TestNewFileCollector(t *testing.T) {
-	var collector cluster.Collector
+	var collector integrity.DataCollector
 
 	collector = cluster.NewFileCollector(testYamlPath)
 
@@ -33,41 +33,31 @@ func TestNewFileCollector_not_exist(t *testing.T) {
 }
 
 func TestFileCollector_valid(t *testing.T) {
-	paths := []struct {
-		path  []string
-		value any
-	}{
-		{[]string{"config", "version"}, "3.0.0"},
-		{[]string{"config", "hooks", "post_cfg"}, "/foo"},
-		{[]string{"config", "hooks", "on_state_change"}, "/bar"},
-		{[]string{"etcd", "endpoints"}, []any{"http://foo:4001", "bar"}},
-		{[]string{"etcd", "username"}, "etcd"},
-		{[]string{"etcd", "password"}, "not_a_secret"},
-	}
+	expected := []integrity.Data{{
+		Source: testYamlPath,
+		Value: []byte(`config:
+  version: 3.0.0
+  hooks:
+    post_cfg: /foo
+    on_state_change: /bar
+etcd:
+  endpoints:
+    - http://foo:4001
+    - bar
+  username: etcd
+  password: not_a_secret
+`),
+	}}
+
 	collector := cluster.NewFileCollector(testYamlPath)
 
-	config, err := collector.Collect()
+	data, err := collector.Collect()
 	require.NoError(t, err)
-	require.NotNil(t, config)
-
-	for _, p := range paths {
-		t.Run(fmt.Sprintf("%v", p.path), func(t *testing.T) {
-			value, err := config.Get(p.path)
-			assert.NoError(t, err)
-			assert.Equal(t, p.value, value)
-		})
-	}
-}
-
-func TestFileCollector_invalid(t *testing.T) {
-	collector := cluster.NewFileCollector(invalidYamlPath)
-
-	_, err := collector.Collect()
-	assert.Error(t, err)
+	require.Equal(t, expected, data)
 }
 
 func TestNewFileDataPublisher(t *testing.T) {
-	var publisher cluster.DataPublisher
+	var publisher integrity.DataPublisher
 
 	publisher = cluster.NewFileDataPublisher("")
 	assert.NotNil(t, publisher)

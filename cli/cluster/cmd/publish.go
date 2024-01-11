@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/tarantool/tt/cli/cluster"
+	"github.com/tarantool/tt/cli/integrity"
 )
 
 // PublishCtx contains information abould cluster publish command execution
@@ -18,7 +19,7 @@ type PublishCtx struct {
 	// is omitted.
 	Force bool
 	// Publishers defines a used data publishers factory.
-	Publishers cluster.DataPublisherFactory
+	Publishers integrity.DataPublisherFactory
 	// Collectors defines a used collectors factory.
 	Collectors cluster.CollectorFactory
 	// Src is a raw data to publish.
@@ -96,7 +97,7 @@ func publishCtxValidateConfig(publishCtx PublishCtx, instance string) error {
 // replaceInstanceConfig replaces an instance configuration in the collected
 // cluster configuration and republishes it.
 func replaceInstanceConfig(instance string, config *cluster.Config,
-	collector cluster.Collector, publisher cluster.DataPublisher) error {
+	collector cluster.Collector, publisher integrity.DataPublisher) error {
 	src, err := collector.Collect()
 	if err != nil {
 		return fmt.Errorf("failed to get a cluster configuration to update "+

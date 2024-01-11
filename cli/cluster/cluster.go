@@ -1,14 +1,15 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/tarantool/go-tarantool"
 	"github.com/tarantool/tt/cli/connect"
-	"github.com/tarantool/tt/cli/connector"
 )
 
 const (
@@ -345,58 +346,83 @@ func collectEtcdConfig(collectors CollectorFactory,
 // storage with options from the tarantool configuration.
 func collectTarantoolConfig(collectors CollectorFactory,
 	clusterConfig ClusterConfig) (*Config, error) {
+	type tarantoolOpts struct {
+		addr string
+		opts tarantool.Opts
+	}
+
 	tarantoolConfig := clusterConfig.Config.Storage
-	var opts []connector.ConnectOpts
+	var opts []tarantoolOpts
 	for _, endpoint := range tarantoolConfig.Endpoints {
 		var network, address string
 		if !connect.IsBaseURI(endpoint.Uri) {
-			network = connector.TCPNetwork
+			network = "tcp"
 			address = endpoint.Uri
 		} else {
 			network, address = connect.ParseBaseURI(endpoint.Uri)
 		}
 
 		if endpoint.Params.Transport == "" || endpoint.Params.Transport != "ssl" {
-			opts = append(opts, connector.ConnectOpts{
-				Network:  network,
-				Address:  address,
-				Username: endpoint.Login,
-				Password: endpoint.Password,
-			})
-		} else {
-			opts = append(opts, connector.ConnectOpts{
-				Network:  network,
-				Address:  address,
-				Username: endpoint.Login,
-				Password: endpoint.Password,
-				Ssl: connector.SslOpts{
-					KeyFile:  endpoint.Params.SslKeyFile,
-					CertFile: endpoint.Params.SslCertFile,
-					CaFile:   endpoint.Params.SslCaFile,
-					Ciphers:  endpoint.Params.SslCiphers,
+			opts = append(opts, tarantoolOpts{
+				opts: tarantool.Opts{
+					User:       endpoint.Login,
+					Pass:       endpoint.Password,
+					Transport:  endpoint.Params.Transport,
+					SkipSchema: true,
 				},
+				addr: fmt.Sprintf("%s://%s", network, address)})
+		} else {
+			opts = append(opts, tarantoolOpts{
+				opts: tarantool.Opts{
+					User:      endpoint.Login,
+					Pass:      endpoint.Password,
+					Transport: endpoint.Params.Transport,
+					Ssl: tarantool.SslOpts{
+						KeyFile:  endpoint.Params.SslKeyFile,
+						CertFile: endpoint.Params.SslCertFile,
+						CaFile:   endpoint.Params.SslCaFile,
+						Ciphers:  endpoint.Params.SslCiphers,
+					},
+					SkipSchema: true,
+				},
+				addr: fmt.Sprintf("%s://%s", network, address),
 			})
 		}
 	}
 
-	pool, err := connector.ConnectPool(opts)
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect to tarantool config storage: %w", err)
-	}
-	defer pool.Close()
+	var connectionErrors []error
+	cconfig := NewConfig()
+	for _, opt := range opts {
+		conn, err := tarantool.Connect(opt.addr, opt.opts)
 
-	tarantoolCollector, err := collectors.NewTarantool(pool,
-		tarantoolConfig.Prefix, "",
-		time.Duration(tarantoolConfig.Timeout*float64(time.Second)))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tarantool config storage collector: %w", err)
+		if err != nil {
+			connectionErrors = append(connectionErrors,
+				fmt.Errorf("error when connecting to endpoint %q: %w", opt.addr, err))
+			continue
+		} else {
+			defer conn.Close()
+
+			tarantoolCollector, err := collectors.NewTarantool(conn,
+				tarantoolConfig.Prefix, "",
+				time.Duration(tarantoolConfig.Timeout*float64(time.Second)))
+			if err != nil {
+				connectionErrors = append(connectionErrors,
+					fmt.Errorf("error when creating a colletor for endpoint %q: %w", opt.addr, err))
+				continue
+			}
+
+			config, err := tarantoolCollector.Collect()
+			if err != nil {
+				connectionErrors = append(connectionErrors,
+					fmt.Errorf("error when collecting config from endpoint %q: %w", opt.addr, err))
+				continue
+			}
+
+			cconfig.Merge(config)
+		}
 	}
 
-	tarantoolRawConfig, err := tarantoolCollector.Collect()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config from tarantool config storage: %w", err)
-	}
-	return tarantoolRawConfig, nil
+	return cconfig, errors.Join(connectionErrors...)
 }
 
 // GetClusterConfig returns a cluster configuration loaded from a path to

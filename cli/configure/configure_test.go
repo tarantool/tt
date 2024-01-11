@@ -1,6 +1,7 @@
 package configure
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,13 +17,39 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+type mockRepository struct {
+	fileRequestLog []string
+}
+
+func (m *mockRepository) Read(path string) (io.ReadCloser, error) {
+	m.fileRequestLog = append(m.fileRequestLog, path)
+
+	return os.Open(path)
+}
+
+func (m *mockRepository) ValidateAll() error {
+	return nil
+}
+
+func (m *mockRepository) resetLog() {
+	m.fileRequestLog = []string{}
+}
+
+func newMockRepository() mockRepository {
+	return mockRepository{
+		fileRequestLog: []string{},
+	}
+}
+
 // Test Tarantool CLI configuration (system and local).
 func TestConfigureCli(t *testing.T) {
 	assert := assert.New(t)
 
+	mockRepository := newMockRepository()
+
 	cmdCtx := cmdcontext.CmdCtx{
 		Integrity: integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository,
 		},
 	}
 
@@ -67,10 +94,15 @@ func TestConfigureCli(t *testing.T) {
 	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
 	assert.Equal(cmdCtx.Cli.TarantoolCli.Executable, expectedTarantoolPath)
 
+	// Check that all necessary files have been checked.
+	assert.Equal([]string{expectedConfigPath},
+		mockRepository.fileRequestLog)
+
 	// Test default configuration (no flags specified).
 	cmdCtx.Cli.LocalLaunchDir = ""
 	cmdCtx.Cli.ConfigPath = ""
 	dir := t.TempDir()
+	mockRepository.resetLog()
 
 	// Check if it will go down to the bottom of the directory looking
 	// for the tt.yaml configuration file, specifically skip a file
@@ -91,6 +123,8 @@ func TestConfigureCli(t *testing.T) {
 	}
 
 	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
+	assert.Equal([]string{expectedConfigPath},
+		mockRepository.fileRequestLog)
 }
 
 func TestAdjustPathWithConfigLocation(t *testing.T) {

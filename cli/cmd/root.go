@@ -215,10 +215,9 @@ func InitRoot() {
 		false,
 	)
 
-	err = integrity.InitializeIntegrityCheck(
+	cmdCtx.Integrity, err = integrity.InitializeIntegrityCheck(
 		cmdCtx.Cli.IntegrityCheck,
 		filepath.Dir(configPath),
-		&cmdCtx.Integrity,
 	)
 	if err != nil {
 		log.Fatalf("integrity check failed: %s", err)

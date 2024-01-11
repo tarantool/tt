@@ -303,11 +303,10 @@ func loadInstanceConfig(configPath, instName string,
 		return instCfg, nil
 	}
 
-	// TODO: create integrity collectors factory from the command context if
-	// needed instead of the global one.
-	collectors, err := integrity.NewCollectorFactory(integrityCtx)
+	collectorsRaw, err := integrity.NewDataCollectorFactory(integrityCtx)
+	collectors := cluster.NewCollectorFactory(collectorsRaw)
 	if err == integrity.ErrNotConfigured {
-		collectors = cluster.NewCollectorFactory()
+		collectors = cluster.NewCollectorFactory(cluster.NewDataCollectorFactory())
 	} else if err != nil {
 		return instCfg,
 			fmt.Errorf("failed to create collectors with integrity check: %w", err)

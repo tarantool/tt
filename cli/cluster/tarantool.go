@@ -1,27 +1,50 @@
 package cluster
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/tt/cli/integrity"
 )
+
+// tarantoolCall retursns result of a function call via tarantool connector.
+func tarantoolCall(conn tarantool.Connector,
+	fun string, args []any, timeout time.Duration) ([]any, error) {
+	req := tarantool.NewCallRequest(fun).Args(args)
+
+	if timeout != 0 {
+		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		req = req.Context(ctx)
+	}
+
+	response, err := conn.Do(req).Get()
+	if err != nil {
+		return nil, err
+	}
+
+	return response.Data, err
+}
 
 // TarantoolAllCollector collects data from a Tarantool for a whole prefix.
 type TarantoolAllCollector struct {
-	evaler  connector.Evaler
+	conn    tarantool.Connector
 	prefix  string
 	timeout time.Duration
 }
 
 // NewTarantoolAllCollector creates a new collector for Tarantool from the
 // whole prefix.
-func NewTarantoolAllCollector(evaler connector.Evaler, prefix string,
+func NewTarantoolAllCollector(conn tarantool.Connector, prefix string,
 	timeout time.Duration) TarantoolAllCollector {
 	return TarantoolAllCollector{
-		evaler:  evaler,
+		conn:    conn,
 		prefix:  prefix,
 		timeout: timeout,
 	}
@@ -29,9 +52,9 @@ func NewTarantoolAllCollector(evaler connector.Evaler, prefix string,
 
 // Collect collects a configuration from the specified prefix with the
 // specified timeout.
-func (collector TarantoolAllCollector) Collect() (*Config, error) {
+func (collector TarantoolAllCollector) Collect() ([]integrity.Data, error) {
 	prefix := getConfigPrefix(collector.prefix)
-	resp, err := tarantoolGet(collector.evaler, prefix, collector.timeout)
+	resp, err := tarantoolGet(collector.conn, prefix, collector.timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -41,22 +64,20 @@ func (collector TarantoolAllCollector) Collect() (*Config, error) {
 			prefix)
 	}
 
-	cconfig := NewConfig()
+	collected := []integrity.Data{}
 	for _, data := range resp.Data {
-		if config, err := NewYamlCollector([]byte(data.Value)).Collect(); err != nil {
-			fmtErr := "failed to decode tarantool config for key %q: %w"
-			return nil, fmt.Errorf(fmtErr, data.Path, err)
-		} else {
-			cconfig.Merge(config)
-		}
+		collected = append(collected, integrity.Data{
+			Source: data.Path,
+			Value:  []byte(data.Value),
+		})
 	}
 
-	return cconfig, nil
+	return collected, nil
 }
 
 // TarantoolKeyCollector collects data from a Tarantool for a separate key.
 type TarantoolKeyCollector struct {
-	evaler  connector.Evaler
+	conn    tarantool.Connector
 	prefix  string
 	key     string
 	timeout time.Duration
@@ -64,10 +85,10 @@ type TarantoolKeyCollector struct {
 
 // NewTarantoolKeyCollector creates a new collector for Tarantool from a key
 // from a prefix.
-func NewTarantoolKeyCollector(evaler connector.Evaler, prefix, key string,
+func NewTarantoolKeyCollector(conn tarantool.Connector, prefix, key string,
 	timeout time.Duration) TarantoolKeyCollector {
 	return TarantoolKeyCollector{
-		evaler:  evaler,
+		conn:    conn,
 		prefix:  prefix,
 		key:     key,
 		timeout: timeout,
@@ -76,9 +97,9 @@ func NewTarantoolKeyCollector(evaler connector.Evaler, prefix, key string,
 
 // Collect collects a configuration from the specified path with the specified
 // timeout.
-func (collector TarantoolKeyCollector) Collect() (*Config, error) {
+func (collector TarantoolKeyCollector) Collect() ([]integrity.Data, error) {
 	key := getConfigPrefix(collector.prefix) + collector.key
-	resp, err := tarantoolGet(collector.evaler, key, collector.timeout)
+	resp, err := tarantoolGet(collector.conn, key, collector.timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -94,27 +115,27 @@ func (collector TarantoolKeyCollector) Collect() (*Config, error) {
 			resp, key)
 	}
 
-	config, err := NewYamlCollector([]byte(resp.Data[0].Value)).Collect()
-	if err != nil {
-		return nil,
-			fmt.Errorf("failed to decode tarantool config for key %q: %w", key, err)
-	}
-	return config, err
+	return []integrity.Data{
+		{
+			Source: key,
+			Value:  []byte(resp.Data[0].Value),
+		},
+	}, err
 }
 
 // TarantoolAllDataPublisher publishes a data into Tarantool to a prefix.
 type TarantoolAllDataPublisher struct {
-	evaler  connector.Evaler
+	conn    tarantool.Connector
 	prefix  string
 	timeout time.Duration
 }
 
 // NewTarantoolAllDataPublisher creates a new TarantoolAllDataPublisher object
 // to publish a data to Tarantool with the prefix during the timeout.
-func NewTarantoolAllDataPublisher(evaler connector.Evaler,
+func NewTarantoolAllDataPublisher(conn tarantool.Connector,
 	prefix string, timeout time.Duration) TarantoolAllDataPublisher {
 	return TarantoolAllDataPublisher{
-		evaler:  evaler,
+		conn:    conn,
 		prefix:  prefix,
 		timeout: timeout,
 	}
@@ -132,9 +153,8 @@ func (publisher TarantoolAllDataPublisher) Publish(data []byte) error {
 			},
 		},
 	}
-	opts := connector.RequestOpts{ReadTimeout: publisher.timeout}
 
-	_, err := publisher.evaler.Eval("return config.storage.txn(...)", args, opts)
+	_, err := tarantoolCall(publisher.conn, "config.storage.txn", args, publisher.timeout)
 	if err != nil {
 		return fmt.Errorf("failed to put data into tarantool: %w", err)
 	}
@@ -144,7 +164,7 @@ func (publisher TarantoolAllDataPublisher) Publish(data []byte) error {
 // TarantoolKeyDataPublisher publishes a data into Tarantool for a prefix
 // and a key.
 type TarantoolKeyDataPublisher struct {
-	evaler  connector.Evaler
+	conn    tarantool.Connector
 	prefix  string
 	key     string
 	timeout time.Duration
@@ -152,10 +172,10 @@ type TarantoolKeyDataPublisher struct {
 
 // NewTarantoolKeyDataPublisher creates a new TarantoolKeyDataPublisher object
 // to publish a data to Tarantool with the prefix and key during the timeout.
-func NewTarantoolKeyDataPublisher(evaler connector.Evaler,
+func NewTarantoolKeyDataPublisher(conn tarantool.Connector,
 	prefix, key string, timeout time.Duration) TarantoolKeyDataPublisher {
 	return TarantoolKeyDataPublisher{
-		evaler:  evaler,
+		conn:    conn,
 		prefix:  prefix,
 		key:     key,
 		timeout: timeout,
@@ -167,9 +187,8 @@ func NewTarantoolKeyDataPublisher(evaler connector.Evaler,
 func (publisher TarantoolKeyDataPublisher) Publish(data []byte) error {
 	key := getConfigPrefix(publisher.prefix) + publisher.key
 	args := []any{key, string(data)}
-	opts := connector.RequestOpts{ReadTimeout: publisher.timeout}
 
-	_, err := publisher.evaler.Eval("return config.storage.put(...)", args, opts)
+	_, err := tarantoolCall(publisher.conn, "config.storage.put", args, publisher.timeout)
 	if err != nil {
 		return fmt.Errorf("failed to put data into tarantool: %w", err)
 	}
@@ -183,13 +202,13 @@ type tarantoolResponse struct {
 	}
 }
 
-func tarantoolGet(evaler connector.Evaler,
+func tarantoolGet(conn tarantool.Connector,
 	path string, timeout time.Duration) (tarantoolResponse, error) {
 	resp := tarantoolResponse{}
 
 	args := []any{path}
-	opts := connector.RequestOpts{ReadTimeout: timeout}
-	data, err := evaler.Eval("return config.storage.get(...)", args, opts)
+
+	data, err := tarantoolCall(conn, "config.storage.get", args, timeout)
 	if err != nil {
 		return resp, fmt.Errorf("failed to fetch data from tarantool: %w", err)
 	}

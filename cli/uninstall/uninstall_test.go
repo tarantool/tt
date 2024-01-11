@@ -1,6 +1,7 @@
 package uninstall
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,11 +9,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/version"
 )
 
 const testDirName = "uninstall-test-dir"
+
+type mockRepository struct{}
+
+func (mock *mockRepository) Read(path string) (io.ReadCloser, error) {
+	return os.Open(path)
+}
+
+func (mock *mockRepository) ValidateAll() error {
+	return nil
+}
 
 func TestGetList(t *testing.T) {
 	assert := assert.New(t)
@@ -39,7 +49,7 @@ func TestGetList(t *testing.T) {
 		f.Close()
 	}
 
-	cliOpts, _, err := configure.GetCliOpts(cfgPath, integrity.NewDummyRepository())
+	cliOpts, _, err := configure.GetCliOpts(cfgPath, &mockRepository{})
 	require.NoError(t, err)
 	result := GetList(cliOpts, "tt")
 	assert.Equal(result, []string{"1.2.3"})

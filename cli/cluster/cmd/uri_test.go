@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/go-tarantool"
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/cluster/cmd"
-	"github.com/tarantool/tt/cli/connector"
 )
 
 func TestParseUriOpts(t *testing.T) {
@@ -335,16 +335,16 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 
 func TestMakeConnectOptsFromUriOpts(t *testing.T) {
 	cases := []struct {
-		Name     string
-		UriOpts  cmd.UriOpts
-		Expected connector.ConnectOpts
+		Name         string
+		UriOpts      cmd.UriOpts
+		Expected     tarantool.Opts
+		ExpectedAddr string
 	}{
 		{
-			Name:    "empty",
-			UriOpts: cmd.UriOpts{},
-			Expected: connector.ConnectOpts{
-				Network: connector.TCPNetwork,
-			},
+			Name:         "empty",
+			UriOpts:      cmd.UriOpts{},
+			Expected:     tarantool.Opts{},
+			ExpectedAddr: "tcp://",
 		},
 		{
 			Name: "ignored",
@@ -358,9 +358,10 @@ func TestMakeConnectOptsFromUriOpts(t *testing.T) {
 				SkipPeerVerify: true,
 				Timeout:        673,
 			},
-			Expected: connector.ConnectOpts{
-				Network: connector.TCPNetwork,
+			Expected: tarantool.Opts{
+				Timeout: 673,
 			},
+			ExpectedAddr: "tcp://", // is this ok?
 		},
 		{
 			Name: "full",
@@ -381,26 +382,28 @@ func TestMakeConnectOptsFromUriOpts(t *testing.T) {
 				SkipPeerVerify: true,
 				Timeout:        2 * time.Second,
 			},
-			Expected: connector.ConnectOpts{
-				Network:  connector.TCPNetwork,
-				Address:  "foo",
-				Username: "username",
-				Password: "password",
-				Ssl: connector.SslOpts{
+			Expected: tarantool.Opts{
+				User:      "username",
+				Pass:      "password",
+				Timeout:   2 * time.Second,
+				Transport: "ssl",
+				Ssl: tarantool.SslOpts{
 					KeyFile:  "key_file",
 					CertFile: "cert_file",
 					CaFile:   "ca_file",
 					Ciphers:  "foo:bar:ciphers",
 				},
 			},
+			ExpectedAddr: "tcp://foo",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			etcdOpts := cmd.MakeConnectOptsFromUriOpts(tc.UriOpts)
+			addr, tntOpts := cmd.MakeConnectOptsFromUriOpts(tc.UriOpts)
 
-			assert.Equal(t, tc.Expected, etcdOpts)
+			assert.Equal(t, tc.Expected, tntOpts)
+			assert.Equal(t, tc.ExpectedAddr, addr)
 		})
 	}
 }

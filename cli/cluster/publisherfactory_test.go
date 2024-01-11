@@ -7,24 +7,25 @@ import (
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/tarantool/go-tarantool"
 	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/cli/integrity"
 )
 
 func TestDataPublisherFactory(t *testing.T) {
 	etcdcli := &clientv3.Client{}
-	conn := &connector.BinaryConnector{}
+	conn := &tarantool.Connection{}
 	factory := cluster.NewDataPublisherFactory()
 
-	noErr := func(publisher cluster.DataPublisher, err error) cluster.DataPublisher {
+	noErr := func(publisher integrity.DataPublisher, err error) integrity.DataPublisher {
 		require.NoError(t, err)
 		return publisher
 	}
 
 	cases := []struct {
 		Name      string
-		Publisher cluster.DataPublisher
-		Expected  cluster.DataPublisher
+		Publisher integrity.DataPublisher
+		Expected  integrity.DataPublisher
 	}{
 		{
 			Name:      "file",

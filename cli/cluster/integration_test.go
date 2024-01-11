@@ -16,6 +16,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/tarantool/tt/cli/cluster"
+	"github.com/tarantool/tt/cli/integrity"
 )
 
 const (
@@ -334,8 +335,10 @@ func TestEtcdCollectors_single(t *testing.T) {
 		Name      string
 		Collector cluster.Collector
 	}{
-		{"all", cluster.NewEtcdAllCollector(etcd, "/foo/", timeout)},
-		{"key", cluster.NewEtcdKeyCollector(etcd, "/foo/", "bar", timeout)},
+		{"all", cluster.NewYamlCollectorDecorator(
+			cluster.NewEtcdAllCollector(etcd, "/foo/", timeout))},
+		{"key", cluster.NewYamlCollectorDecorator(
+			cluster.NewEtcdKeyCollector(etcd, "/foo/", "bar", timeout))},
 	}
 
 	for _, tc := range cases {
@@ -362,7 +365,8 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/a", "foo: bar")
 	etcdPut(t, etcd, "/foo/config/b", "foo: car\nzoo: car")
 
-	config, err := cluster.NewEtcdAllCollector(etcd, "/foo/", timeout).Collect()
+	config, err := cluster.NewYamlCollectorDecorator(
+		cluster.NewEtcdAllCollector(etcd, "/foo/", timeout)).Collect()
 	require.NoError(t, err)
 	value, err := config.Get([]string{"foo"})
 	require.NoError(t, err)
@@ -386,8 +390,10 @@ func TestEtcdCollectors_empty(t *testing.T) {
 		Name      string
 		Collector cluster.Collector
 	}{
-		{"all", cluster.NewEtcdAllCollector(etcd, "/foo/", timeout)},
-		{"key", cluster.NewEtcdKeyCollector(etcd, "/foo/", "bar", timeout)},
+		{"all", cluster.NewYamlCollectorDecorator(
+			cluster.NewEtcdAllCollector(etcd, "/foo/", timeout))},
+		{"key", cluster.NewYamlCollectorDecorator(
+			cluster.NewEtcdKeyCollector(etcd, "/foo/", "bar", timeout))},
 	}
 
 	for _, tc := range cases {
@@ -422,7 +428,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 `)
 	os.Setenv("TT_WAL_MODE_DEFAULT", "envmode")
 	os.Setenv("TT_WAL_MAX_SIZE_DEFAULT", "envsize")
-	collectors := cluster.NewCollectorFactory()
+	collectors := cluster.NewCollectorFactory(cluster.NewDataCollectorFactory())
 	config, err := cluster.GetClusterConfig(collectors, "testdata/etcdapp/config.yaml")
 	os.Unsetenv("TT_WAL_MODE_DEFAULT")
 	os.Unsetenv("TT_WAL_MAX_SIZE_DEFAULT")
@@ -501,7 +507,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 	os.Setenv("TT_CONFIG_ETCD_PASSWORD", pass)
 	os.Setenv("TT_CONFIG_ETCD_PREFIX", prefix)
 
-	collectors := cluster.NewCollectorFactory()
+	collectors := cluster.NewCollectorFactory(cluster.NewDataCollectorFactory())
 	config, err := cluster.GetClusterConfig(collectors, "testdata/etcdapp/config.yaml")
 
 	os.Unsetenv("TT_CONFIG_ETCD_USERNAME")
@@ -564,7 +570,7 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 	cases := []struct {
 		Name      string
 		Key       string
-		Publisher cluster.DataPublisher
+		Publisher integrity.DataPublisher
 	}{
 		{"all", "all", cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout)},
 		{"key", "key", cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "key", timeout)},
@@ -595,7 +601,7 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 	cases := []struct {
 		Name      string
 		Key       string
-		Publisher cluster.DataPublisher
+		Publisher integrity.DataPublisher
 	}{
 		{"all", "all", cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout)},
 		{"key", "key", cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "key", timeout)},
@@ -671,7 +677,8 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	prefix := "/foo/"
 	dataPublisher := cluster.NewEtcdAllDataPublisher(etcd, prefix, timeout)
 	publisher := cluster.NewYamlConfigPublisher(dataPublisher)
-	collector := cluster.NewEtcdAllCollector(etcd, prefix, timeout)
+	collector := cluster.NewYamlCollectorDecorator(
+		cluster.NewEtcdAllCollector(etcd, prefix, timeout))
 
 	config, err := collector.Collect()
 	require.NoError(t, err)

@@ -3,6 +3,8 @@ package cluster
 import (
 	"fmt"
 	"os"
+
+	"github.com/tarantool/tt/cli/integrity"
 )
 
 // FileCollector collects data from a YAML file.
@@ -19,19 +21,23 @@ func NewFileCollector(path string) FileCollector {
 }
 
 // Collect collects a configuration from a file located at a specified path.
-func (collector FileCollector) Collect() (*Config, error) {
+func (collector FileCollector) Collect() ([]integrity.Data, error) {
 	data, err := os.ReadFile(collector.path)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read a file %q: %w",
 			collector.path, err)
 	}
 
-	config, err := NewYamlCollector(data).Collect()
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse a file %q: %w",
 			collector.path, err)
 	}
-	return config, nil
+	return []integrity.Data{
+		{
+			Source: collector.path,
+			Value:  data,
+		},
+	}, nil
 }
 
 // FileDataPublisher publishes a data into a file as is.
