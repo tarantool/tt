@@ -44,7 +44,7 @@ func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (Instance
 		AppDir:         provider.t.TempDir(),
 	},
 		logger, integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository{},
 		}, false)
 }
 
@@ -78,7 +78,7 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 	testPreAction := func() error { return nil }
 	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider, testPreAction,
 		integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository{},
 		}, 0)
 
 	return wd

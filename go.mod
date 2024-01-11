@@ -16,15 +16,15 @@ require (
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mattn/go-isatty v0.0.14
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
-	github.com/mitchellh/mapstructure v1.4.3
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.0.0-20221105221325-4eb28fa6025c
 	github.com/otiai10/copy v1.7.1
 	github.com/spf13/cobra v1.8.0
-	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.4
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
 	github.com/tarantool/go-prompt v1.0.0
 	github.com/tarantool/go-tarantool v1.12.2
+	github.com/tarantool/tt/cli/integrity v0.0.0-20231215111236-8676f416ba8f
 	github.com/vmihailenco/msgpack/v5 v5.3.5
 	github.com/yuin/gopher-lua v1.1.1-0.20230219103905-71163b697a8f
 	go.etcd.io/etcd/api/v3 v3.5.9
@@ -83,6 +83,7 @@ require (
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tarantool/go-openssl v0.0.8-0.20230307065445-720eeb389195 // indirect
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
 	github.com/tklauser/numcpus v0.2.1 // indirect
@@ -96,7 +97,6 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.2 // indirect
@@ -106,4 +106,5 @@ require (
 replace (
 	github.com/c-bata/go-prompt => github.com/tarantool/go-prompt v0.2.6-tarantool
 	github.com/tarantool/cartridge-cli => ./cli/cartridge/third_party/cartridge-cli
+	github.com/tarantool/tt/cli/integrity => ./cli/integrity
 )

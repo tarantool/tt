@@ -24,9 +24,4 @@ func (dummyRepository) Read(path string) (io.ReadCloser, error) {
 // validation.
 func (dummyRepository) ValidateAll() error { return nil }
 
-// NewDummyRepository constructs a dummy repository
-func NewDummyRepository() Repository {
-	return dummyRepository{}
-}
-
 var _ Repository = dummyRepository{}

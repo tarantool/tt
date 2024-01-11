@@ -4,19 +4,23 @@ import (
 	"errors"
 
 	"github.com/spf13/pflag"
-
-	"github.com/tarantool/tt/cli/cluster"
 )
 
 var (
-	ErrNotConfigured = errors.New("integration check is not configured")
+	// ErrNotConfigured is reported when integrity check is not configured
+	// in the command context.
+	ErrNotConfigured = errors.New("integrity check is not configured")
 )
 
+// IntegrityCtx is context required for integrity checks.
 type IntegrityCtx struct {
+	// Repository is a repository used to check integrity of files.
 	Repository Repository
 }
 
-var HashesName = ""
+// HashesFileName is a name of a file containing file hashes that
+// require checking.
+const HashesFileName = ""
 
 // Signer implements high-level API for package signing.
 type Signer interface {
@@ -42,23 +46,24 @@ func RegisterIntegrityCheckFlag(flagset *pflag.FlagSet, dst *string) {}
 func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {}
 
 // InitializeIntegrityCheck is a noop setup of integrity checking.
-func InitializeIntegrityCheck(publicKeyPath string, configDir string, ctx *IntegrityCtx) error {
+func InitializeIntegrityCheck(publicKeyPath string, configDir string) (IntegrityCtx, error) {
 	if publicKeyPath != "" {
-		return errors.New("integrity checks should never be initialized in ce")
+		return IntegrityCtx{}, errors.New("integrity checks should never be initialized in ce")
 	}
 
-	ctx.Repository = dummyRepository{}
-	return nil
+	return IntegrityCtx{
+		Repository: dummyRepository{},
+	}, nil
 }
 
-// NewCollectorFactory creates a new CollectorFactory with integrity checks
+// NewDataCollectorFactory creates a new CollectorFactory with integrity checks
 // in collectors. In the CE implementation it always returns ErrNotConfigured.
-func NewCollectorFactory(ctx IntegrityCtx) (cluster.CollectorFactory, error) {
+func NewDataCollectorFactory(ctx IntegrityCtx) (DataCollectorFactory, error) {
 	return nil, ErrNotConfigured
 }
 
 // NewDataPublisherFactory create a new DataPublisherFactory with integrity
 // algorithms in publishers. Should be never be called in the CE.
-func NewDataPublisherFactory(path string) (cluster.DataPublisherFactory, error) {
+func NewDataPublisherFactory(path string) (DataPublisherFactory, error) {
 	return nil, errors.New("integrity publishers should never be created in ce")
 }

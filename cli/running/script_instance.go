@@ -144,7 +144,7 @@ func (inst *scriptInstance) Start() error {
 	cmdArgs := []string{}
 
 	if inst.integrityChecks {
-		cmdArgs = append(cmdArgs, "--integrity-check", integrity.HashesName)
+		cmdArgs = append(cmdArgs, "--integrity-check", integrity.HashesFileName)
 	}
 
 	cmdArgs = append(cmdArgs, "-")

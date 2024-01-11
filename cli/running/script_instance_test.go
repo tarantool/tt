@@ -45,7 +45,7 @@ func startTestInstance(t *testing.T, app string, consoleSock string,
 		MemtxDir:       instTestDataDir,
 	},
 		logger, integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository{},
 		}, false)
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
@@ -206,7 +206,7 @@ func TestInstanceLogs(t *testing.T) {
 		LogDir:         instTestDataDir,
 	},
 		logger, integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository{},
 		}, false)
 	require.NoError(t, err)
 

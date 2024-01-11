@@ -2,6 +2,7 @@ package pack
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -17,6 +18,16 @@ import (
 	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
 )
+
+type mockRepository struct{}
+
+func (mock *mockRepository) Read(path string) (io.ReadCloser, error) {
+	return os.Open(path)
+}
+
+func (mock *mockRepository) ValidateAll() error {
+	return nil
+}
 
 func TestRocksFinder(t *testing.T) {
 	testDir := t.TempDir()
@@ -565,7 +576,7 @@ func Test_skipArtifacts(t *testing.T) {
 
 func Test_prepareBundleBasic(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml",
-		integrity.NewDummyRepository())
+		&mockRepository{})
 
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
@@ -620,7 +631,7 @@ func Test_prepareBundleBasic(t *testing.T) {
 	}
 
 	cliOpts, _, err = configure.GetCliOpts(filepath.Join(bundleDir, "tt.yaml"),
-		integrity.NewDummyRepository())
+		&mockRepository{})
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(bundleDir, "instances.enabled"), cliOpts.Env.InstancesEnabled)
 	assert.Equal(t, filepath.Join(bundleDir, "include"), cliOpts.Env.IncludeDir)
@@ -633,14 +644,14 @@ func Test_prepareBundleBasic(t *testing.T) {
 
 func Test_prepareBundleWithArtifacts(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml",
-		integrity.NewDummyRepository())
+		&mockRepository{})
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
 		},
 		Integrity: integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository{},
 		},
 	}, &PackCtx{
 		Archive: ArchiveCtx{
@@ -702,14 +713,14 @@ func Test_prepareBundleWithArtifacts(t *testing.T) {
 
 func Test_prepareBundleDifferentDataDirs(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_different_dirs/tt.yaml",
-		integrity.NewDummyRepository())
+		&mockRepository{})
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
 		},
 		Integrity: integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository{},
 		},
 	}, &PackCtx{
 		Archive: ArchiveCtx{
@@ -773,14 +784,14 @@ func Test_prepareBundleDifferentDataDirs(t *testing.T) {
 
 func Test_prepareBundleTntCtlLayout(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_tntctl_layout/tt.yaml",
-		integrity.NewDummyRepository())
+		&mockRepository{})
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
 		},
 		Integrity: integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository{},
 		},
 	}, &PackCtx{
 		Archive: ArchiveCtx{
@@ -842,7 +853,7 @@ func Test_prepareBundleTntCtlLayout(t *testing.T) {
 
 func Test_prepareBundleCartridgeCompatWithArtifacts(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml",
-		integrity.NewDummyRepository())
+		&mockRepository{})
 	require.NoError(t, err)
 	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
@@ -852,7 +863,7 @@ func Test_prepareBundleCartridgeCompatWithArtifacts(t *testing.T) {
 			},
 		},
 		Integrity: integrity.IntegrityCtx{
-			Repository: integrity.NewDummyRepository(),
+			Repository: &mockRepository{},
 		},
 	}, &PackCtx{
 		AppList:         []string{"multi"},

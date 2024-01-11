@@ -3,6 +3,7 @@ package cfg
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,12 +12,21 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/integrity"
 )
+
+type mockRepository struct{}
+
+func (mock *mockRepository) Read(path string) (io.ReadCloser, error) {
+	return os.Open(path)
+}
+
+func (mock *mockRepository) ValidateAll() error {
+	return nil
+}
 
 func getCliOpts(t *testing.T, configFile string) *config.CliOpts {
 	cliOpts, configPath, err := configure.GetCliOpts(configFile,
-		integrity.NewDummyRepository())
+		&mockRepository{})
 	require.NoError(t, err)
 	require.Equal(t, configFile, configPath)
 	return cliOpts

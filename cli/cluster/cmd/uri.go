@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tarantool/go-tarantool"
 	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/connector"
 )
 
 const (
@@ -144,17 +144,22 @@ func MakeEtcdOptsFromUriOpts(src UriOpts) cluster.EtcdOpts {
 
 // MakeConnectOptsFromUriOpts create Tarantool connect options from
 // URI options.
-func MakeConnectOptsFromUriOpts(src UriOpts) connector.ConnectOpts {
-	return connector.ConnectOpts{
-		Network:  connector.TCPNetwork,
-		Address:  src.Host,
-		Username: src.Username,
-		Password: src.Password,
-		Ssl: connector.SslOpts{
+func MakeConnectOptsFromUriOpts(src UriOpts) (string, tarantool.Opts) {
+	opts := tarantool.Opts{
+		User: src.Username,
+		Pass: src.Password,
+		Ssl: tarantool.SslOpts{
 			KeyFile:  src.KeyFile,
 			CertFile: src.CertFile,
 			CaFile:   src.CaFile,
 			Ciphers:  src.Ciphers,
 		},
+		Timeout: src.Timeout,
 	}
+
+	if opts.Ssl != (tarantool.SslOpts{}) {
+		opts.Transport = "ssl"
+	}
+
+	return fmt.Sprintf("tcp://%s", src.Host), opts
 }

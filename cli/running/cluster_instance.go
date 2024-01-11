@@ -104,7 +104,7 @@ func (inst *clusterInstance) Start() error {
 	cmdArgs := []string{"-n", inst.instName, "-c", inst.clusterConfigPath}
 	if inst.integrityChecks {
 		cmdArgs = append(cmdArgs, "--integrity-check",
-			filepath.Join(inst.appDir, integrity.HashesName))
+			filepath.Join(inst.appDir, integrity.HashesFileName))
 	}
 
 	cmd := exec.Command(inst.tarantoolPath, cmdArgs...)

@@ -53,6 +53,10 @@ var (
 		"unit":     Unit.Default,
 		"unitfull": Unit.Full,
 	}
+
+	modules = []string{
+		"cli/integrity",
+	}
 )
 
 type BuildType string
@@ -285,8 +289,19 @@ func Lint() error {
 	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)
 
-	if err := sh.RunV("golangci-lint", "run", "--config=golangci-lint.yml"); err != nil {
-		return err
+	lintDirs := append([]string{"."}, modules...)
+	root, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current dir: %w", err)
+	}
+
+	for _, dir := range lintDirs {
+		os.Chdir(dir)
+		if err := sh.RunV("golangci-lint", "run",
+			fmt.Sprintf("--config=%s/golangci-lint.yml", root)); err != nil {
+			return err
+		}
+		os.Chdir(root)
 	}
 
 	fmt.Println("Running flake8...")
@@ -303,13 +318,22 @@ type Unit mg.Namespace
 func runUnitTests(flags []string) error {
 	mg.Deps(GenerateGoCode)
 
-	args := []string{"test"}
-	if mg.Verbose() {
-		args = append(args, "-v")
+	testdirs := append([]string{"."}, modules...)
+	for _, module := range testdirs {
+		args := []string{"test", "-C", module}
+		if mg.Verbose() {
+			args = append(args, "-v")
+		}
+		args = append(args, "./...")
+		args = append(args, flags...)
+
+		err := sh.RunV(goExecutableName, args...)
+		if err != nil {
+			return err
+		}
 	}
-	args = append(args, fmt.Sprintf("%s/...", packagePath))
-	args = append(args, flags...)
-	return sh.RunV(goExecutableName, args...)
+
+	return nil
 }
 
 // Run unit tests.

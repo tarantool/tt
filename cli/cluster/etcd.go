@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tarantool/tt/cli/integrity"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -107,7 +108,7 @@ func NewEtcdAllCollector(getter EtcdGetter, prefix string, timeout time.Duration
 
 // Collect collects a configuration from the specified prefix with the
 // specified timeout.
-func (collector EtcdAllCollector) Collect() (*Config, error) {
+func (collector EtcdAllCollector) Collect() ([]integrity.Data, error) {
 	prefix := getConfigPrefix(collector.prefix)
 	ctx := context.Background()
 	if collector.timeout != 0 {
@@ -121,22 +122,20 @@ func (collector EtcdAllCollector) Collect() (*Config, error) {
 		return nil, fmt.Errorf("failed to fetch data from etcd: %w", err)
 	}
 
-	cconfig := NewConfig()
 	if len(resp.Kvs) == 0 {
 		return nil, fmt.Errorf("a configuration data not found in etcd for prefix %q",
 			prefix)
 	}
 
+	collected := []integrity.Data{}
 	for _, kv := range resp.Kvs {
-		if config, err := NewYamlCollector(kv.Value).Collect(); err != nil {
-			fmtErr := "failed to decode etcd config for key %q: %w"
-			return nil, fmt.Errorf(fmtErr, string(kv.Key), err)
-		} else {
-			cconfig.Merge(config)
-		}
+		collected = append(collected, integrity.Data{
+			Source: string(kv.Key),
+			Value:  kv.Value,
+		})
 	}
 
-	return cconfig, nil
+	return collected, nil
 }
 
 // EtcdKeyCollector collects data from a etcd connection for a whole prefix.
@@ -161,7 +160,7 @@ func NewEtcdKeyCollector(getter EtcdGetter, prefix, key string,
 
 // Collect collects a configuration from the specified path with the specified
 // timeout.
-func (collector EtcdKeyCollector) Collect() (*Config, error) {
+func (collector EtcdKeyCollector) Collect() ([]integrity.Data, error) {
 	prefix := getConfigPrefix(collector.prefix)
 	key := prefix + collector.key
 	ctx := context.Background()
@@ -187,12 +186,13 @@ func (collector EtcdKeyCollector) Collect() (*Config, error) {
 			resp.Kvs, key)
 	}
 
-	config, err := NewYamlCollector(resp.Kvs[0].Value).Collect()
-	if err != nil {
-		return nil,
-			fmt.Errorf("failed to decode etcd config for key %q: %w", key, err)
+	collected := []integrity.Data{
+		{
+			Source: string(resp.Kvs[0].Key),
+			Value:  resp.Kvs[0].Value,
+		},
 	}
-	return config, nil
+	return collected, nil
 }
 
 // EtcdTxnGetter is the interface that adds Txn method to EtcdGetter.
