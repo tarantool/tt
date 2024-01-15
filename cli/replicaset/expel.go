@@ -9,6 +9,9 @@ type ExpelCtx struct {
 	// Force is true when expelling can skip
 	// some non-critical checks.
 	Force bool
+	// Timeout is a timeout for expelling waitings in seconds.
+	// Keep int, because it can be passed to the target instance.
+	Timeout int
 }
 
 // Expeller is an interface for expelling instances from a replicaset.

@@ -51,31 +51,12 @@ func Status(statusCtx StatusCtx) error {
 	return statusReplicasets(replicasets)
 }
 
-// getOrchestratorType determinates a used orchestrator type.
+// getOrchestratorType determines a used orchestrator for a status context.
 func getOrchestratorType(statusCtx StatusCtx) (replicaset.Orchestrator, error) {
-	if statusCtx.Orchestrator != replicaset.OrchestratorUnknown {
-		return statusCtx.Orchestrator, nil
-	}
-
 	if statusCtx.Conn != nil {
-		return replicaset.EvalOrchestrator(statusCtx.Conn)
+		return getInstanceOrchestrator(statusCtx.Orchestrator, statusCtx.Conn)
 	}
-
-	var orchestrator replicaset.Orchestrator
-	eval := func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-		instanceOrchestrator, err := replicaset.EvalOrchestrator(evaler)
-		if err == nil {
-			orchestrator = instanceOrchestrator
-		}
-		return true, err
-	}
-
-	instances := statusCtx.RunningCtx.Instances
-	if err := replicaset.EvalAny(instances, replicaset.InstanceEvalFunc(eval)); err != nil {
-		return orchestrator,
-			fmt.Errorf("unable to determinate orchestrator: %w", err)
-	}
-	return orchestrator, nil
+	return getApplicationOrchestrator(statusCtx.Orchestrator, statusCtx.RunningCtx)
 }
 
 // statusReplicasets show the current status of known replicasets.
