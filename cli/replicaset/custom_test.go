@@ -13,10 +13,12 @@ import (
 var _ replicaset.Discoverer = &replicaset.CustomInstance{}
 var _ replicaset.Promoter = &replicaset.CustomInstance{}
 var _ replicaset.Demoter = &replicaset.CustomInstance{}
+var _ replicaset.Expeller = &replicaset.CustomInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CustomApplication{}
 var _ replicaset.Promoter = &replicaset.CustomApplication{}
 var _ replicaset.Demoter = &replicaset.CustomApplication{}
+var _ replicaset.Expeller = &replicaset.CustomApplication{}
 
 func TestCustomApplication_Promote(t *testing.T) {
 	app := replicaset.NewCustomApplication(running.RunningCtx{})
@@ -30,6 +32,13 @@ func TestCustomApplication_Demote(t *testing.T) {
 	err := app.Demote(replicaset.DemoteCtx{})
 	assert.EqualError(t, err,
 		`demote is not supported for an application by "custom" orchestrator`)
+}
+
+func TestCustomApplication_Expel(t *testing.T) {
+	instance := replicaset.NewCustomApplication(running.RunningCtx{})
+	err := instance.Expel(replicaset.ExpelCtx{})
+	assert.EqualError(t, err,
+		`expel is not supported for an application by "custom" orchestrator`)
 }
 
 func TestCustomInstance_Discovery(t *testing.T) {
@@ -344,4 +353,11 @@ func TestCustomInstance_Demote(t *testing.T) {
 	err := inst.Demote(replicaset.DemoteCtx{})
 	assert.EqualError(t, err,
 		`demote is not supported for a single instance by "custom" orchestrator`)
+}
+
+func TestCustomInstance_Expel(t *testing.T) {
+	instance := replicaset.NewCustomInstance(nil)
+	err := instance.Expel(replicaset.ExpelCtx{})
+	assert.EqualError(t, err,
+		`expel is not supported for a single instance by "custom" orchestrator`)
 }
