@@ -80,6 +80,11 @@ func (c *CartridgeInstance) Discovery() (Replicasets, error) {
 	return recalculateMasters(replicasets), nil
 }
 
+// Expel is not supported for a single instance by the Cartridge orchestrator.
+func (c *CartridgeInstance) Expel(name string) error {
+	return newErrExpelByInstanceNotSupported(OrchestratorCartridge)
+}
+
 // CartridgeApplication is an application with the Cartridge orchestrator.
 type CartridgeApplication struct {
 	runningCtx running.RunningCtx
@@ -128,6 +133,11 @@ func (c *CartridgeApplication) Discovery() (Replicasets, error) {
 	))
 
 	return recalculateMasters(replicasets), err
+}
+
+// Expel expels an instance from a Cartridge replicasets.
+func (c *CartridgeApplication) Expel(name string) error {
+	return newErrExpelByAppNotSupported(OrchestratorCartridge)
 }
 
 // updateCartridgeInstance receives and updates an additional instance

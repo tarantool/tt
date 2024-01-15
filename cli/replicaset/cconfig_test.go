@@ -7,10 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/cli/running"
 )
 
 var _ replicaset.Discoverer = &replicaset.CConfigInstance{}
+var _ replicaset.Expeller = &replicaset.CConfigInstance{}
 var _ replicaset.Discoverer = &replicaset.CConfigApplication{}
+var _ replicaset.Expeller = &replicaset.CConfigApplication{}
 
 func TestCConfigInstance_Discovery(t *testing.T) {
 	cases := []struct {
@@ -365,4 +368,22 @@ func TestCConfigInstance_Discovery_errors(t *testing.T) {
 			assert.ErrorContains(t, err, tc.Expected)
 		})
 	}
+}
+
+func TestCConfigInstance_Expel(t *testing.T) {
+	instance := replicaset.NewCConfigInstance(nil)
+
+	err := instance.Expel("any")
+
+	assert.EqualError(t, err,
+		"expel is not supported for a single instance by \"centralized config\" orchestrator")
+}
+
+func TestCConfigApplication_Expel(t *testing.T) {
+	instance := replicaset.NewCConfigApplication(running.RunningCtx{})
+
+	err := instance.Expel("any")
+
+	assert.EqualError(t, err,
+		"expel is not supported for an application by \"centralized config\" orchestrator")
 }

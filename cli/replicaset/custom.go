@@ -65,6 +65,11 @@ func (c *CustomInstance) Discovery() (Replicasets, error) {
 	}), nil
 }
 
+// Expel is not supported for a single instance by the Custom orchestrator.
+func (c *CustomInstance) Expel(name string) error {
+	return newErrExpelByInstanceNotSupported(OrchestratorCustom)
+}
+
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
 	runningCtx running.RunningCtx
@@ -104,6 +109,11 @@ func (c *CustomApplication) Discovery() (Replicasets, error) {
 	}
 
 	return mergeCustomTopologies(topologies)
+}
+
+// Expel is not supported for an application by the Custom orchestrator.
+func (c *CustomApplication) Expel(name string) error {
+	return newErrExpelByAppNotSupported(OrchestratorCustom)
 }
 
 // getCustomInstanceTopology returns a topology for an instance.

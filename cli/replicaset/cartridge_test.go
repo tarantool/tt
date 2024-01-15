@@ -7,10 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/cli/running"
 )
 
 var _ replicaset.Discoverer = &replicaset.CartridgeInstance{}
+var _ replicaset.Expeller = &replicaset.CartridgeInstance{}
 var _ replicaset.Discoverer = &replicaset.CartridgeApplication{}
+var _ replicaset.Expeller = &replicaset.CartridgeApplication{}
 
 func TestCartridgeInstance_Discovery(t *testing.T) {
 	cases := []struct {
@@ -680,4 +683,22 @@ func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 			assert.ErrorContains(t, err, tc.Expected)
 		})
 	}
+}
+
+func TestCartridgeInstance_Expel(t *testing.T) {
+	instance := replicaset.NewCartridgeInstance(nil)
+
+	err := instance.Expel("any")
+
+	assert.EqualError(t, err,
+		"expel is not supported for a single instance by \"cartridge\" orchestrator")
+}
+
+func TestCartridgeApplication_Expel(t *testing.T) {
+	instance := replicaset.NewCartridgeApplication(running.RunningCtx{}, nil)
+
+	err := instance.Expel("any")
+
+	assert.EqualError(t, err,
+		"expel is not supported for an application by \"cartridge\" orchestrator")
 }

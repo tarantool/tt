@@ -67,6 +67,12 @@ func (c *CConfigInstance) Discovery() (Replicasets, error) {
 	}), nil
 }
 
+// Expel is not supported for a single instance by the centralized config
+// orchestrator.
+func (c *CConfigInstance) Expel(name string) error {
+	return newErrExpelByInstanceNotSupported(OrchestratorCentralizedConfig)
+}
+
 // CConfigApplication is an application with the centralized config
 // orchestrator.
 type CConfigApplication struct {
@@ -110,6 +116,11 @@ func (c *CConfigApplication) Discovery() (Replicasets, error) {
 	}
 
 	return mergeCConfigTopologies(topologies)
+}
+
+// Expel expels an instance from the cetralized config's replicasets.
+func (c *CConfigApplication) Expel(name string) error {
+	return newErrExpelByAppNotSupported(OrchestratorCentralizedConfig)
 }
 
 // getCConfigInstanceTopology returns a topology for an instance.
