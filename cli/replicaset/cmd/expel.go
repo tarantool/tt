@@ -4,24 +4,23 @@ import (
 	"fmt"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/connector"
+
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
-// DemoteCtx describes the context to demote an instance.
-type DemoteCtx struct {
-	// InstName is an instance name to demote.
-	InstName string
+// ExpelCtx contains information about replicaset expel command execution
+// context.
+type ExpelCtx struct {
+	// Instance is a target instance name.
+	Instance string
 	// Publishers is data publisher factory.
 	Publishers libcluster.DataPublisherFactory
 	// Collectors is data collector factory.
 	Collectors libcluster.DataCollectorFactory
 	// Orchestrator is a forced orchestator choice.
 	Orchestrator replicaset.Orchestrator
-	// Conn is an active connection to a passed instance.
-	Conn connector.Connector
 	// RunningCtx is an application running context.
 	RunningCtx running.RunningCtx
 	// Force true if unfound instances can be skipped.
@@ -31,21 +30,22 @@ type DemoteCtx struct {
 	Timeout int
 }
 
-// Demote demotes an instance.
-func Demote(ctx DemoteCtx) error {
-	orchestratorType, err := getInstanceOrchestrator(ctx.Orchestrator, ctx.Conn)
+// Expel expels an instance from a replicaset.
+func Expel(expelCtx ExpelCtx) error {
+	orchestratorType, err := getApplicationOrchestrator(expelCtx.Orchestrator,
+		expelCtx.RunningCtx)
 	if err != nil {
 		return err
 	}
 
 	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
-		ctx.RunningCtx, ctx.Collectors, ctx.Publishers)
+		expelCtx.RunningCtx, expelCtx.Collectors, expelCtx.Publishers)
 	if err != nil {
 		return err
 	}
 
 	log.Info("Discovery application...")
-	fmt.Println()
+	fmt.Println("")
 
 	// Get and print status.
 	replicasets, err := orchestrator.Discovery()
@@ -53,16 +53,15 @@ func Demote(ctx DemoteCtx) error {
 		return err
 	}
 	statusReplicasets(replicasets)
-	fmt.Println()
 
-	if ctx.InstName != "" {
-		log.Infof("Demote instance: %s", ctx.InstName)
-	}
+	fmt.Println("")
+	log.Infof("Expel instance: %s", expelCtx.Instance)
 
-	err = orchestrator.Demote(replicaset.DemoteCtx{
-		InstName: ctx.InstName,
-		Force:    ctx.Force,
-		Timeout:  ctx.Timeout,
+	// Try to expel the instance.
+	err = orchestrator.Expel(replicaset.ExpelCtx{
+		InstName: expelCtx.Instance,
+		Force:    expelCtx.Force,
+		Timeout:  expelCtx.Timeout,
 	})
 	if err == nil {
 		log.Info("Done.")
