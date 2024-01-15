@@ -12,7 +12,6 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/replicaset"
 	replicasetcmd "github.com/tarantool/tt/cli/replicaset/cmd"
-
 	"github.com/tarantool/tt/cli/running"
 )
 
@@ -124,6 +123,29 @@ func newDemoteCmd() *cobra.Command {
 	return cmd
 }
 
+// newExpelCmd creates a "replicaset expel" command.
+func newExpelCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "expel [-f] [--cartridge|--config|--custom] <APP_NAME:INSTANCE_NAME>",
+		Short: "Expel an instance from a replicaset",
+		Long:  "Expel an instance from a replicaset.",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetExpelModule, args)
+			handleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(1),
+	}
+
+	addOrchestratorFlags(cmd)
+	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
+		"skip instances not found locally")
+	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.DefaultTimeout, "timeout")
+
+	return cmd
+}
+
 // NewReplicasetCmd creates a replicaset command.
 func NewReplicasetCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -135,6 +157,7 @@ func NewReplicasetCmd() *cobra.Command {
 	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newPromoteCmd())
 	cmd.AddCommand(newDemoteCmd())
+	cmd.AddCommand(newExpelCmd())
 
 	return cmd
 }
@@ -182,7 +205,8 @@ type replicasetCtx struct {
 }
 
 // replicasetFillCtx fills the replicaset command context.
-func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []string) error {
+func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []string,
+	isRunningCtxRequired bool) error {
 	var err error
 	ctx.Orchestrator, err = getOrchestrator()
 	if err != nil {
@@ -215,6 +239,9 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 			ctx.IsInstanceConnect = true
 			appName, instName, found := strings.Cut(args[0], string(running.InstanceDelimiter))
 			if found {
+				if instName != ctx.RunningCtx.Instances[0].InstName {
+					return fmt.Errorf("instance %q not found", instName)
+				}
 				// Re-fill context for an application.
 				ctx.InstName = instName
 				err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{appName})
@@ -225,7 +252,9 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 			}
 		}
 	} else {
-		var err error
+		if isRunningCtxRequired {
+			return err
+		}
 		connOpts, _, err = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
 		if err != nil {
 			return err
@@ -248,7 +277,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 // internalReplicasetPromoteModule is a "promote" command for the replicaset module.
 func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
 		return err
 	}
 	if !ctx.IsInstanceConnect {
@@ -278,7 +307,7 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 // internalReplicasetDemoteModule is a "demote" command for the replicaset module.
 func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, true); err != nil {
 		return err
 	}
 	if !ctx.IsApplication {
@@ -310,7 +339,7 @@ func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 // internalReplicasetStatusModule is a "status" command for the replicaset module.
 func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
 		return err
 	}
 	if ctx.IsInstanceConnect {
@@ -321,6 +350,32 @@ func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 		RunningCtx:    ctx.RunningCtx,
 		Conn:          ctx.Conn,
 		Orchestrator:  ctx.Orchestrator,
+	})
+}
+
+// internalReplicasetExpelModule is a "expel" command for the replicaset module.
+func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if _, _, found := strings.Cut(args[0], string(running.InstanceDelimiter)); !found {
+		return fmt.Errorf("the command expects argument application_name:instance_name")
+	}
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, true); err != nil {
+		return err
+	}
+	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, "")
+	if err != nil {
+		return err
+	}
+
+	return replicasetcmd.Expel(replicasetcmd.ExpelCtx{
+		Instance:     ctx.InstName,
+		Publishers:   publishers,
+		Collectors:   collectors,
+		Orchestrator: ctx.Orchestrator,
+		RunningCtx:   ctx.RunningCtx,
+		Force:        replicasetForce,
+		Timeout:      replicasetTimeout,
 	})
 }
 

@@ -36,7 +36,7 @@ type PromoteCtx struct {
 
 // Promote promotes an instance.
 func Promote(ctx PromoteCtx) error {
-	orchestratorType, err := getOrchestratorInstance(ctx.Orchestrator, ctx.Conn)
+	orchestratorType, err := getInstanceOrchestrator(ctx.Orchestrator, ctx.Conn)
 	if err != nil {
 		return err
 	}
