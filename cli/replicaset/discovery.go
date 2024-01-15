@@ -7,6 +7,13 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
+// Discoverer is an interface for discovering information about
+// replicasets.
+type Discoverer interface {
+	// Discovery returns replicasets information or an error.
+	Discovery() (Replicasets, error)
+}
+
 // DiscoveryApplication retrieves replicasets information for instances in an
 // application. If orchestrator == OrchestratorUnknown then it tries to
 // determinate an orchestrator.
@@ -26,11 +33,11 @@ func DiscoveryApplication(app running.RunningCtx,
 
 	switch orchestrator {
 	case OrchestratorCartridge:
-		return NewCartridgeApplication(app).GetReplicasets()
+		return NewCartridgeApplication(app).Discovery()
 	case OrchestratorCentralizedConfig:
-		return NewCConfigApplication(app).GetReplicasets()
+		return NewCConfigApplication(app).Discovery()
 	case OrchestratorCustom:
-		return NewCustomApplication(app).GetReplicasets()
+		return NewCustomApplication(app).Discovery()
 	default:
 		return Replicasets{}, fmt.Errorf("orchestrator is not supported: %s", orchestrator)
 	}
@@ -51,11 +58,11 @@ func DiscoveryInstance(evaler connector.Evaler,
 
 	switch orchestrator {
 	case OrchestratorCartridge:
-		return NewCartridgeInstance(evaler).GetReplicasets()
+		return NewCartridgeInstance(evaler).Discovery()
 	case OrchestratorCentralizedConfig:
-		return NewCConfigInstance(evaler).GetReplicasets()
+		return NewCConfigInstance(evaler).Discovery()
 	case OrchestratorCustom:
-		return NewCustomInstance(evaler).GetReplicasets()
+		return NewCustomInstance(evaler).Discovery()
 	default:
 		return Replicasets{}, fmt.Errorf("orchestartor is not supported: %s", orchestrator)
 	}

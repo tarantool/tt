@@ -86,7 +86,7 @@ func getCartridgeReplicasets(topology cartridgeTopology) Replicasets {
 
 // GetReplicasets returns a replicaset topology for a single instance with the
 // Cartridge orchestrator.
-func (c *CartridgeInstance) GetReplicasets() (Replicasets, error) {
+func (c *CartridgeInstance) Discovery() (Replicasets, error) {
 	replicasets := Replicasets{
 		State:        StateUnknown,
 		Orchestrator: OrchestratorCartridge,
@@ -118,9 +118,9 @@ func NewCartridgeApplication(runningCtx running.RunningCtx) *CartridgeApplicatio
 	}
 }
 
-// GetReplicasets returns a replicaset topology for an application with
+// Discovery returns a replicaset topology for an application with
 // the Cartridge orchestrator.
-func (c *CartridgeApplication) GetReplicasets() (Replicasets, error) {
+func (c *CartridgeApplication) Discovery() (Replicasets, error) {
 	replicasets := Replicasets{
 		State:        StateUnknown,
 		Orchestrator: OrchestratorCartridge,
