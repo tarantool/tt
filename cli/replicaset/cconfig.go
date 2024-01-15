@@ -44,9 +44,9 @@ func NewCConfigInstance(evaler connector.Evaler) *CConfigInstance {
 	}
 }
 
-// GetReplicasets returns a replicasets topology for a single instance with
+// Discovery returns a replicasets topology for a single instance with
 // the centralized config orchestrator.
-func (c *CConfigInstance) GetReplicasets() (Replicasets, error) {
+func (c *CConfigInstance) Discovery() (Replicasets, error) {
 	topology, err := getCConfigInstanceTopology(c.evaler)
 	if err != nil {
 		return Replicasets{}, err
@@ -80,9 +80,9 @@ func NewCConfigApplication(runningCtx running.RunningCtx) *CConfigApplication {
 	}
 }
 
-// GetReplicasets returns a replicasets topology for an application with
+// Discovery returns a replicasets topology for an application with
 // the centralized config orchestrator.
-func (c *CConfigApplication) GetReplicasets() (Replicasets, error) {
+func (c *CConfigApplication) Discovery() (Replicasets, error) {
 	var topologies []cconfigTopology
 
 	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
