@@ -16,10 +16,12 @@ import (
 var _ replicaset.Discoverer = &replicaset.CartridgeInstance{}
 var _ replicaset.Promoter = &replicaset.CartridgeInstance{}
 var _ replicaset.Demoter = &replicaset.CartridgeInstance{}
+var _ replicaset.Expeller = &replicaset.CartridgeInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CartridgeApplication{}
 var _ replicaset.Promoter = &replicaset.CartridgeApplication{}
 var _ replicaset.Demoter = &replicaset.CartridgeApplication{}
+var _ replicaset.Expeller = &replicaset.CartridgeApplication{}
 
 func TestCartridgeApplication_Demote(t *testing.T) {
 	app := replicaset.NewCartridgeApplication(running.RunningCtx{})
@@ -880,4 +882,18 @@ func TestCartridgeInstancePromote_errs(t *testing.T) {
 			require.EqualError(t, err, tc.expected)
 		})
 	}
+}
+
+func TestCartridgeInstance_Expel(t *testing.T) {
+	instance := replicaset.NewCartridgeInstance(nil)
+	err := instance.Expel(replicaset.ExpelCtx{})
+	assert.EqualError(t, err,
+		`expel is not supported for a single instance by "cartridge" orchestrator`)
+}
+
+func TestCartridgeApplication_Expel(t *testing.T) {
+	instance := replicaset.NewCartridgeApplication(running.RunningCtx{})
+	err := instance.Expel(replicaset.ExpelCtx{})
+	assert.EqualError(t, err,
+		`expel is not supported for an application by "cartridge" orchestrator`)
 }

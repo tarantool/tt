@@ -97,6 +97,12 @@ func (c *CConfigInstance) Demote(ctx DemoteCtx) error {
 	return newErrDemoteByInstanceNotSupported(OrchestratorCentralizedConfig)
 }
 
+// Expel is not supported for a single instance by the centralized config
+// orchestrator.
+func (c *CConfigInstance) Expel(ctx ExpelCtx) error {
+	return newErrExpelByInstanceNotSupported(OrchestratorCentralizedConfig)
+}
+
 // CConfigApplication is an application with the centralized config
 // orchestrator.
 type CConfigApplication struct {
@@ -147,6 +153,11 @@ func (c *CConfigApplication) Discovery() (Replicasets, error) {
 	}
 
 	return mergeCConfigTopologies(topologies)
+}
+
+// Expel expels an instance from the cetralized config's replicasets.
+func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
+	return newErrExpelByAppNotSupported(OrchestratorCentralizedConfig)
 }
 
 // getCConfigInstanceTopology returns a topology for an instance.
