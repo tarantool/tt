@@ -43,9 +43,9 @@ func NewCustomInstance(evaler connector.Evaler) *CustomInstance {
 	}
 }
 
-// GetReplicasets returns a replicasets topology for a single
+// Discovery returns a replicasets topology for a single
 // instance with a custom type of orchestrator.
-func (c *CustomInstance) GetReplicasets() (Replicasets, error) {
+func (c *CustomInstance) Discovery() (Replicasets, error) {
 	topology, err := getCustomInstanceTopology("", c.evaler)
 	if err != nil {
 		return Replicasets{}, err
@@ -78,9 +78,9 @@ func NewCustomApplication(runningCtx running.RunningCtx) *CustomApplication {
 	}
 }
 
-// GetReplicasets returns a replicasets configuration for an application with
+// Discovery returns a replicasets configuration for an application with
 // a custom orchestrator.
-func (c *CustomApplication) GetReplicasets() (Replicasets, error) {
+func (c *CustomApplication) Discovery() (Replicasets, error) {
 	var topologies []customTopology
 
 	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(

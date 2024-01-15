@@ -39,9 +39,9 @@ func NewCartridgeInstance(evaler connector.Evaler) *CartridgeInstance {
 	}
 }
 
-// GetReplicasets returns a replicaset topology for a single instance with the
+// Discovery returns a replicaset topology for a single instance with the
 // Cartridge orchestrator.
-func (c *CartridgeInstance) GetReplicasets() (Replicasets, error) {
+func (c *CartridgeInstance) Discovery() (Replicasets, error) {
 	replicasets := Replicasets{
 		State:        StateUnknown,
 		Orchestrator: OrchestratorCartridge,
@@ -95,9 +95,9 @@ func NewCartridgeApplication(runningCtx running.RunningCtx,
 	}
 }
 
-// GetReplicasets returns a replicaset topology for an application with
+// Discovery returns a replicaset topology for an application with
 // the Cartridge orchestrator.
-func (c *CartridgeApplication) GetReplicasets() (Replicasets, error) {
+func (c *CartridgeApplication) Discovery() (Replicasets, error) {
 	replicasets := Replicasets{
 		State:        StateUnknown,
 		Orchestrator: OrchestratorCartridge,
@@ -105,12 +105,12 @@ func (c *CartridgeApplication) GetReplicasets() (Replicasets, error) {
 
 	var err error
 	if c.preferred != nil {
-		replicasets, err = NewCartridgeInstance(c.preferred).GetReplicasets()
+		replicasets, err = NewCartridgeInstance(c.preferred).Discovery()
 	} else {
 		err = EvalAny(c.runningCtx.Instances, InstanceEvalFunc(
 			func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 				var err error
-				replicasets, err = NewCartridgeInstance(evaler).GetReplicasets()
+				replicasets, err = NewCartridgeInstance(evaler).Discovery()
 				return true, err
 			},
 		))
