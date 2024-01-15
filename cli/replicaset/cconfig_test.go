@@ -9,10 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/cli/running"
 )
 
 var _ replicaset.Discoverer = &replicaset.CConfigInstance{}
+var _ replicaset.Expeller = &replicaset.CConfigInstance{}
 var _ replicaset.Discoverer = &replicaset.CConfigApplication{}
+var _ replicaset.Expeller = &replicaset.CConfigApplication{}
 
 func TestCConfigInstance_Discovery(t *testing.T) {
 	cases := []struct {
@@ -385,4 +388,22 @@ func TestCConfigInstance_Demote(t *testing.T) {
 
 	require.EqualError(t, err,
 		`demote is not supported for a single instance by "centralized config" orchestrator`)
+}
+
+func TestCConfigInstance_Expel(t *testing.T) {
+	instance := replicaset.NewCConfigInstance(nil)
+
+	err := instance.Expel(replicaset.ExpelCtx{})
+
+	assert.EqualError(t, err,
+		"expel is not supported for a single instance by \"centralized config\" orchestrator")
+}
+
+func TestCConfigApplication_Expel(t *testing.T) {
+	instance := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil)
+
+	err := instance.Expel(replicaset.ExpelCtx{})
+
+	assert.EqualError(t, err,
+		"expel is not supported for an application by \"centralized config\" orchestrator")
 }

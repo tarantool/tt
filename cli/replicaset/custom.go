@@ -75,6 +75,11 @@ func (c *CustomInstance) Demote(ctx DemoteCtx) error {
 	return newErrDemoteByInstanceNotSupported(OrchestratorCustom)
 }
 
+// Expel is not supported for a single instance by the Custom orchestrator.
+func (c *CustomInstance) Expel(ctx ExpelCtx) error {
+	return newErrExpelByInstanceNotSupported(OrchestratorCustom)
+}
+
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
 	runningCtx running.RunningCtx
@@ -124,6 +129,11 @@ func (c *CustomApplication) Promote(ctx PromoteCtx) error {
 // Demote is not supported for a custom application.
 func (c *CustomApplication) Demote(ctx DemoteCtx) error {
 	return newErrDemoteByAppNotSupported(OrchestratorCustom)
+}
+
+// Expel is not supported for an application by the Custom orchestrator.
+func (c *CustomApplication) Expel(ctx ExpelCtx) error {
+	return newErrExpelByAppNotSupported(OrchestratorCustom)
 }
 
 // getCustomInstanceTopology returns a topology for an instance.
