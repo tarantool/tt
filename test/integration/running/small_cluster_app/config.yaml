@@ -10,11 +10,13 @@ groups:
         instances:
           storage-master:
             iproto:
-              listen: '127.0.0.1:3301'
+              listen:
+                - uri: '127.0.0.1:3301'
             database:
               mode: rw
           storage-replica:
             iproto:
-              listen: '127.0.0.1:3302'
+              listen:
+                - uri: '127.0.0.1:3302'
             database:
               mode: ro

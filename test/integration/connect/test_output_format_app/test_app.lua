@@ -29,7 +29,7 @@ box.space.customers:insert({6, 'William', 25})
 box.space.customers:insert({7, 'Elizabeth', 18})
 
 if box.execute ~= nil then
-    box.execute([[CREATE TABLE table1 (column1 INT PRIMARY key, column2 VARCHAR(10));]])
+    box.execute([[CREATE TABLE table1 (COLUMN1 INT PRIMARY key, COLUMN2 VARCHAR(10));]])
     box.execute([[INSERT INTO table1 VALUES (10,'Hello SQL world!');]])
     box.execute([[INSERT INTO table1 VALUES (20,'Hello LUA world!');]])
     box.execute([[INSERT INTO table1 VALUES (30,'Hello YAML world!');]])

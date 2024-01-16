@@ -14,7 +14,8 @@ groups:
         instances:
           master:
             iproto:
-              listen: '127.0.0.1:3301'
+              listen:
+                - uri: '127.0.0.1:3301'
             database:
               mode: rw
             wal:
