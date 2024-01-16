@@ -1100,7 +1100,7 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
             # Execute stdin.
             ret, output = try_execute_on_instance(
                 tt_cmd, tmpdir, uri,
-                stdin="box.execute('select 1 as foo, 30, 50, 4+4 as data')",
+                stdin="box.execute('select 1 as FOO, 30, 50, 4+4 as DATA')",
                 opts={'-x': 'table'})
             assert ret
             assert output == ("+----------+----------+------+-----+\n"
