@@ -143,3 +143,74 @@ Replicasets state: uninitialized
                 break
             time.sleep(1)
         assert rs_out == status_expelled
+
+
+@pytest.mark.skipif(tarantool_major_version < 3,
+                    reason="skip centralized config test for Tarantool < 3")
+@pytest.mark.parametrize("flag", [None, "--config"])
+def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
+    tmpdir = tmpdir_with_cfg
+    app_name = "test_ccluster_app"
+    app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    try:
+        # Start a cluster.
+        start_cmd = [tt_cmd, "start", app_name]
+        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        assert rc == 0
+
+        for i in range(1, 6):
+            file = wait_file(os.path.join(tmpdir, app_name), f'ready-instance-00{i}', [])
+            assert file != ""
+
+        expel_cmd = [tt_cmd, "replicaset", "expel"]
+        if flag:
+            expel_cmd.append(flag)
+        expel_cmd.append(f"{app_name}:instance-003")
+
+        rc, out = run_command_and_get_output(expel_cmd, cwd=tmpdir)
+        assert rc == 0
+        assert re.search("""   • Discovery application...*
+
+Orchestrator:      centralized config
+Replicasets state: bootstrapped
+
+• replicaset-001
+  Failover: off
+  Master:   single
+    • instance-001 unix/:./instance-001.iproto rw
+    • instance-002 unix/:./instance-002.iproto read
+    • instance-003 unix/:./instance-003.iproto read
+• replicaset-002
+  Failover: off
+  Master:   multi
+    • instance-004 unix/:./instance-004.iproto rw
+    • instance-005 unix/:./instance-005.iproto rw
+
+   • Expel instance: instance-003
+   • Done.*
+""", out)
+
+        # Check that the instance has been expelled.
+        status_cmd = [tt_cmd, "replicaset", "status", app_name]
+        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        assert rc == 0
+        assert """Orchestrator:      centralized config
+Replicasets state: bootstrapped
+
+• replicaset-001
+  Failover: off
+  Master:   single
+    • instance-001 unix/:./instance-001.iproto rw
+    • instance-002 unix/:./instance-002.iproto read
+• replicaset-002
+  Failover: off
+  Master:   multi
+    • instance-004 unix/:./instance-004.iproto rw
+    • instance-005 unix/:./instance-005.iproto rw
+""" == out
+
+    finally:
+        stop_cmd = [tt_cmd, "stop", app_name]
+        rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+        assert rc == 0

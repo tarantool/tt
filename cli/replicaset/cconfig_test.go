@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/replicaset"
-	"github.com/tarantool/tt/cli/running"
 )
 
 var _ replicaset.Discoverer = &replicaset.CConfigInstance{}
@@ -399,11 +398,4 @@ func TestCConfigInstance_Expel(t *testing.T) {
 	err := instance.Expel(replicaset.ExpelCtx{})
 	assert.EqualError(t, err,
 		`expel is not supported for a single instance by "centralized config" orchestrator`)
-}
-
-func TestCConfigApplication_Expel(t *testing.T) {
-	instance := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil)
-	err := instance.Expel(replicaset.ExpelCtx{})
-	assert.EqualError(t, err,
-		`expel is not supported for an application by "centralized config" orchestrator`)
 }
