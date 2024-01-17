@@ -21,7 +21,7 @@ for _, instance in ipairs(box_info.replication) do
     local uri = nil
     if instance.upstream ~= nil then
         uri = instance.upstream.peer
-    elseif box.cfg.listen ~= nil then
+    elseif box.cfg.listen ~= nil and instance.uuid == box_info.uuid then
         if type(box.cfg.listen) == 'string' then
             uri = box.cfg.listen
         elseif #box.cfg.listen > 0 then

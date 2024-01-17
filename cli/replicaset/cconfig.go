@@ -9,10 +9,10 @@ import (
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/running"
 
-	cluster "github.com/tarantool/tt/cli/cluster"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
@@ -157,7 +157,49 @@ func (c *CConfigApplication) Discovery() (Replicasets, error) {
 
 // Expel expels an instance from the cetralized config's replicasets.
 func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
-	return newErrExpelByAppNotSupported(OrchestratorCentralizedConfig)
+	replicasets, err := c.Discovery()
+	if err != nil {
+		return fmt.Errorf("failed to get replicasets: %s", err)
+	}
+
+	targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
+	if !found {
+		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+	}
+	if !targetInstance.InstanceCtxFound {
+		return fmt.Errorf("instance %q should be online", ctx.InstName)
+	}
+	if len(targetReplicaset.Instances) == 1 {
+		return fmt.Errorf("not found any other instance joined to a replicaset")
+	}
+
+	var instances []running.InstanceCtx
+	var unfound []string
+	for _, inst := range targetReplicaset.Instances {
+		if !inst.InstanceCtxFound {
+			if inst.Alias != ctx.InstName {
+				// The target instance could be offline.
+				unfound = append(unfound, inst.Alias)
+			}
+		} else {
+			instances = append(instances, inst.InstanceCtx)
+		}
+	}
+	if len(unfound) > 0 {
+		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unfound, ","))
+		if !ctx.Force {
+			return fmt.Errorf(
+				"all other instances in the target replicast should be online, %s", msg)
+		}
+		log.Warn(msg)
+	}
+
+	isConfigPublished, err := c.expel(targetInstance.InstanceCtx, ctx.InstName)
+	// Check the config was published.
+	if isConfigPublished {
+		err = errors.Join(err, reloadCConfig(instances))
+	}
+	return err
 }
 
 // getCConfigInstanceTopology returns a topology for an instance.
@@ -221,6 +263,17 @@ func mergeCConfigTopologies(topologies []cconfigTopology) (Replicasets, error) {
 				Instances:  topology.Instances,
 			})
 		}
+	}
+
+	// Clear expelled instances.
+	for i, _ := range replicasets.Replicasets {
+		unexpelled := []Instance{}
+		for _, instance := range replicasets.Replicasets[i].Instances {
+			if instance.URI != "" {
+				unexpelled = append(unexpelled, instance)
+			}
+		}
+		replicasets.Replicasets[i].Instances = unexpelled
 	}
 
 	return recalculateMasters(replicasets), nil
@@ -451,6 +504,35 @@ func (c *CConfigApplication) demote(instance Instance,
 	return true, nil
 }
 
+// expel expels an instance in the application and returns true
+// if the instance config was published.
+func (c *CConfigApplication) expel(instance running.InstanceCtx, name string) (bool, error) {
+	clusterCfgPath := instance.ClusterConfigPath
+	clusterCfg, err := cluster.GetClusterConfig(libcluster.NewCollectorFactory(c.collectors),
+		clusterCfgPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to get cluster config: %w", err)
+	}
+
+	cconfigInstance, err := getCConfigInstance(&clusterCfg, name)
+	if err != nil {
+		return false, err
+	}
+
+	err = patchLocalCConfig(
+		clusterCfgPath,
+		c.collectors,
+		c.publishers,
+		func(config *libcluster.Config) (*libcluster.Config, error) {
+			return patchCConfigExpel(config, cconfigInstance)
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	return true, err
+}
+
 // demoteElection demotes an instance in the replicaset with "election" failover.
 // https://github.com/tarantool/tarantool/issues/9855
 func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
@@ -611,6 +693,25 @@ func patchCConfigPromote(config *libcluster.Config,
 		return nil, fmt.Errorf("unexpected failover: %q", failover)
 	}
 	return config, err
+}
+
+// patchCConfigExpel patches the config to expel an instance, following the documentation:
+// https://www.tarantool.io/en/doc/latest/how-to/replication/repl_bootstrap/#disconnecting-an-instance
+//
+// It set up:
+// instance.iproto.listen = {}
+func patchCConfigExpel(config *libcluster.Config,
+	inst cconfigInstance) (*libcluster.Config, error) {
+	var (
+		groupName      = inst.groupName
+		replicasetName = inst.replicasetName
+		instName       = inst.name
+	)
+	if err := config.Set([]string{"groups", groupName, "replicasets", replicasetName,
+		"instances", instName, "iproto", "listen"}, map[any]any{}); err != nil {
+		return nil, err
+	}
+	return config, nil
 }
 
 // patchCConfigDemote patches the config to demote an instance.

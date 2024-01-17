@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
  cluster config (3.0) or cartridge orchestrator.
 - `tt replicaset demote`: command to demote an instance in the tarantool replicaset with
  cluster config (3.0) orchestrator.
+- `tt replicaset expel`:  command to expel an instance from the tarantool replicaset with
+ cluster config (3.0) or cartridge orchestrator.
 - `tt cluster replicaset`: module to manage replicaset via 3.0 cluster config storage.
   * `tt cluster replicaset promote`: command to promote an instance in the replicaset.
   * `tt cluster replicaset demote`: command to demote an instance in the replicaset.
