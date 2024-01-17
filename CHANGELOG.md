@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Built-in vshard cluster application template.
+- `tt replicaset status``: added `expel` subcommand to expel an instance from
+a cluster.
 
 ## [2.1.1] - 2024-01-15
 
