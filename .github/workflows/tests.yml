@@ -110,7 +110,7 @@ jobs:
         github.event.pull_request.head.repo.owner.login != 'tarantool' &&
         !contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: [self-hosted, macOS-13-self-hosted, x86_64, regular]
-
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@master
         with:
