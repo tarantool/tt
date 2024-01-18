@@ -221,7 +221,18 @@ TT_CLI_BUILD_SSL=shared mage build
 
 #### Run tests
 
-To run default set of tests (excluding slow tests):
+Create a virtual environment and install tests requirements:
+
+``` console
+python3 -m venv .venv
+
+source .venv/bin/activate
+
+pip install -r test/requirements.txt
+```
+
+Once inside the virtual environment, run default set of tests (excluding
+slow tests):
 
 ``` console
 mage test
