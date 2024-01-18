@@ -11,3 +11,4 @@ netifaces==0.11.0
 etcd3==0.12.0
 protobuf==3.20.3
 importlib-metadata<4.3
+pytest-timeout==2.2.0
