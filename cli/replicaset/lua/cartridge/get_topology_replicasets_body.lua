@@ -43,8 +43,20 @@ for _, replicaset in pairs(replicasets) do
 end
 
 local failover_params = require('cartridge').failover_get_params()
+local issues = require('cartridge.issues').list_on_cluster()
+local is_critical = false
+local uuid = box.info().uuid
+
+for _, issue in pairs(issues) do
+    if issue.level == 'critical' and issue.instance_uuid == uuid then
+        is_critical = true
+        break
+    end
+end
+
 return {
     failover = failover_params.mode,
     provider = failover_params.state_provider or "none",
     replicasets = topology_replicasets,
+    is_critical = is_critical,
 }

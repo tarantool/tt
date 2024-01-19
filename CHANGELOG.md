@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Built-in vshard cluster application template.
 
+### Changed
+
+- `tt replicaset`: prefer cartridge instances without critical issues on it during discovery.
+
 ## [2.1.1] - 2024-01-15
 
 ### Added

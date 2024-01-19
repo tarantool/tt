@@ -26,7 +26,7 @@ func DiscoveryApplication(app running.RunningCtx,
 
 	switch orchestrator {
 	case OrchestratorCartridge:
-		return NewCartridgeApplication(app, nil).GetReplicasets()
+		return NewCartridgeApplication(app).GetReplicasets()
 	case OrchestratorCentralizedConfig:
 		return NewCConfigApplication(app).GetReplicasets()
 	case OrchestratorCustom:

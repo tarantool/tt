@@ -25,6 +25,10 @@ type cartridgeTopology struct {
 	Provider string
 	// Replicasets is an array of replicasets.
 	Replicasets []Replicaset
+	// IsCritical indicates whether instance has critical issues.
+	IsCritical bool `mapstructure:"is_critical"`
+	// IsBootstrapped indicates whether instance is bootstrapped.
+	IsBootstrapped bool
 }
 
 // CartridgeInstance is an instance with the Cartridge orchestrator.
@@ -39,6 +43,47 @@ func NewCartridgeInstance(evaler connector.Evaler) *CartridgeInstance {
 	}
 }
 
+// getCartridgeTopology returns a cartridge topology received from an instance.
+func getCartridgeTopology(evaler connector.Evaler) (cartridgeTopology, error) {
+	var topology cartridgeTopology
+	args := []any{}
+	opts := connector.RequestOpts{}
+	data, err := evaler.Eval(cartridgeGetTopologyReplicasetsBody, args, opts)
+	if err != nil {
+		return topology, err
+	}
+
+	if len(data) != 1 {
+		return topology, fmt.Errorf("unexpected response: %v", data)
+	}
+
+	if err := mapstructure.Decode(data[0], &topology); err != nil {
+		return topology, fmt.Errorf("failed to parse a response: %w", err)
+	}
+
+	topology.IsBootstrapped = len(topology.Replicasets) > 0
+	return topology, nil
+}
+
+// getCartridgeReplicasets converts cartridgeTopology to Replicasets.
+func getCartridgeReplicasets(topology cartridgeTopology) Replicasets {
+	replicasets := Replicasets{
+		State:        StateUninitialized,
+		Replicasets:  topology.Replicasets,
+		Orchestrator: OrchestratorCartridge,
+	}
+	if topology.IsBootstrapped {
+		replicasets.State = StateBootstrapped
+		failover := ParseFailover(topology.Failover)
+		provider := ParseStateProvider(topology.Provider)
+		for i := range replicasets.Replicasets {
+			replicasets.Replicasets[i].Failover = failover
+			replicasets.Replicasets[i].StateProvider = provider
+		}
+	}
+	return replicasets
+}
+
 // GetReplicasets returns a replicaset topology for a single instance with the
 // Cartridge orchestrator.
 func (c *CartridgeInstance) GetReplicasets() (Replicasets, error) {
@@ -46,32 +91,13 @@ func (c *CartridgeInstance) GetReplicasets() (Replicasets, error) {
 		State:        StateUnknown,
 		Orchestrator: OrchestratorCartridge,
 	}
-	args := []any{}
-	opts := connector.RequestOpts{}
-	data, err := c.evaler.Eval(cartridgeGetTopologyReplicasetsBody, args, opts)
+	topology, err := getCartridgeTopology(c.evaler)
 	if err != nil {
 		return replicasets, err
 	}
 
-	if len(data) != 1 {
-		return replicasets, fmt.Errorf("unexpected response: %v", data)
-	}
-
-	var topology cartridgeTopology
-	if err := mapstructure.Decode(data[0], &topology); err != nil {
-		return replicasets, fmt.Errorf("failed to parse a response: %w", err)
-	}
-
-	replicasets.State = StateUninitialized
-	replicasets.Replicasets = topology.Replicasets
+	replicasets = getCartridgeReplicasets(topology)
 	if len(replicasets.Replicasets) > 0 {
-		replicasets.State = StateBootstrapped
-		failover := ParseFailover(topology.Failover)
-		provider := ParseStateProvider(topology.Provider)
-		for i, _ := range replicasets.Replicasets {
-			replicasets.Replicasets[i].Failover = failover
-			replicasets.Replicasets[i].StateProvider = provider
-		}
 		replicasets, err = updateCartridgeInstance(c.evaler, nil, replicasets)
 		if err != nil {
 			return replicasets, err
@@ -83,15 +109,12 @@ func (c *CartridgeInstance) GetReplicasets() (Replicasets, error) {
 // CartridgeApplication is an application with the Cartridge orchestrator.
 type CartridgeApplication struct {
 	runningCtx running.RunningCtx
-	preferred  connector.Evaler
 }
 
 // NewCartridgeApplication creates a new CartridgeApplication object.
-func NewCartridgeApplication(runningCtx running.RunningCtx,
-	preferred connector.Evaler) *CartridgeApplication {
+func NewCartridgeApplication(runningCtx running.RunningCtx) *CartridgeApplication {
 	return &CartridgeApplication{
 		runningCtx: runningCtx,
-		preferred:  preferred,
 	}
 }
 
@@ -103,22 +126,30 @@ func (c *CartridgeApplication) GetReplicasets() (Replicasets, error) {
 		Orchestrator: OrchestratorCartridge,
 	}
 
-	var err error
-	if c.preferred != nil {
-		replicasets, err = NewCartridgeInstance(c.preferred).GetReplicasets()
-	} else {
-		err = EvalAny(c.runningCtx.Instances, InstanceEvalFunc(
-			func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-				var err error
-				replicasets, err = NewCartridgeInstance(evaler).GetReplicasets()
+	var topology cartridgeTopology
+	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
+		func(inst running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+			newTopology, err := getCartridgeTopology(evaler)
+			if err != nil {
 				return true, err
-			},
-		))
-	}
+			}
+			if topology.IsBootstrapped {
+				if newTopology.IsBootstrapped {
+					topology = newTopology
+				}
+			} else {
+				topology = newTopology
+			}
+
+			// Stop if we already found a valid topology.
+			return topology.IsBootstrapped && !topology.IsCritical, nil
+		},
+	))
 	if err != nil {
 		return replicasets, fmt.Errorf("failed to get topology: %w", err)
 	}
 
+	replicasets = getCartridgeReplicasets(topology)
 	err = EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
 		func(ictx running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 			var err error
