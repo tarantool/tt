@@ -356,7 +356,7 @@ func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, pro
 
 // compileVersionRegexp compiles a regular expression for cutting version from SDK bundle names.
 func compileVersionRegexp() (*regexp.Regexp, error) {
-	matchRe := "^(?P<tarball>tarantool-enterprise-sdk-(?P<version>.*r[0-9]{3}).*\\.tar\\.gz)$"
+	matchRe := "^(?P<tarball>tarantool-enterprise-sdk-(?P<version>.*r[0-9]{1,3}).*\\.tar\\.gz)$"
 
 	re := regexp.MustCompile(matchRe)
 
