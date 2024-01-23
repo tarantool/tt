@@ -31,13 +31,6 @@ type Replicasets struct {
 	Replicasets []Replicaset
 }
 
-// ReplicasetsGetter is an interface for retrieving information about
-// replicasets.
-type ReplicasetsGetter interface {
-	// GetReplicasets returns replicasets information or an error.
-	GetReplicasets() (Replicasets, error)
-}
-
 // recalculateMaster recalculates Master field for the replicaset according
 // to instances information.
 func recalculateMaster(replicaset *Replicaset) {

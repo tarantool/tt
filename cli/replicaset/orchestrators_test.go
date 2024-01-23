@@ -33,23 +33,23 @@ func (e *instanceMockEvaler) Eval(expr string,
 
 var orchestratorCases = []struct {
 	Name string
-	New  func(evaler connector.Evaler) replicaset.ReplicasetsGetter
+	New  func(evaler connector.Evaler) replicaset.Discoverer
 }{
 	{
 		Name: "cartridge",
-		New: func(evaler connector.Evaler) replicaset.ReplicasetsGetter {
+		New: func(evaler connector.Evaler) replicaset.Discoverer {
 			return replicaset.NewCartridgeInstance(evaler)
 		},
 	},
 	{
 		Name: "cconfig",
-		New: func(evaler connector.Evaler) replicaset.ReplicasetsGetter {
+		New: func(evaler connector.Evaler) replicaset.Discoverer {
 			return replicaset.NewCConfigInstance(evaler)
 		},
 	},
 	{
 		Name: "custom",
-		New: func(evaler connector.Evaler) replicaset.ReplicasetsGetter {
+		New: func(evaler connector.Evaler) replicaset.Discoverer {
 			return replicaset.NewCustomInstance(evaler)
 		},
 	},
@@ -71,7 +71,7 @@ func TestNewReplicasetGetter(t *testing.T) {
 	for _, oc := range orchestratorCases {
 		for _, tc := range cases {
 			t.Run(oc.Name+"_"+tc.Name, func(t *testing.T) {
-				var getter replicaset.ReplicasetsGetter
+				var getter replicaset.Discoverer
 				getter = oc.New(tc.Evaler)
 				assert.NotNil(t, getter)
 			})
@@ -79,7 +79,7 @@ func TestNewReplicasetGetter(t *testing.T) {
 	}
 }
 
-func TestReplicasetGetter_GetReplicasets_panics_with_invalid_evaler(t *testing.T) {
+func TestReplicasetGetter_Discovery_panics_with_invalid_evaler(t *testing.T) {
 	cases := []struct {
 		Name   string
 		Evaler connector.Evaler
@@ -93,7 +93,7 @@ func TestReplicasetGetter_GetReplicasets_panics_with_invalid_evaler(t *testing.T
 			t.Run(oc.Name+"_"+tc.Name, func(t *testing.T) {
 				getter := oc.New(tc.Evaler)
 				assert.Panics(t, func() {
-					getter.GetReplicasets()
+					getter.Discovery()
 				})
 			})
 		}

@@ -10,7 +10,7 @@ while true do
 end
 
 while true do
-    if #box.cfg.replication == #box.info.replication then
+    if #box.cfg.replication <= #box.info.replication then
         break
     end
     fiber.sleep(0.1)

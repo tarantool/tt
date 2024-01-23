@@ -9,10 +9,12 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 )
 
-var _ replicaset.ReplicasetsGetter = &replicaset.CartridgeInstance{}
-var _ replicaset.ReplicasetsGetter = &replicaset.CartridgeApplication{}
+var _ replicaset.Discoverer = &replicaset.CartridgeInstance{}
+var _ replicaset.Expeller = &replicaset.CartridgeInstance{}
+var _ replicaset.Discoverer = &replicaset.CartridgeApplication{}
+var _ replicaset.Expeller = &replicaset.CartridgeApplication{}
 
-func TestCartridgeInstance_GetReplicasets(t *testing.T) {
+func TestCartridgeInstance_Discovery(t *testing.T) {
 	cases := []struct {
 		Name     string
 		Evaler   *instanceMockEvaler
@@ -462,14 +464,14 @@ func TestCartridgeInstance_GetReplicasets(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCartridgeInstance(tc.Evaler)
-			replicasets, err := instance.GetReplicasets()
+			replicasets, err := instance.Discovery()
 			assert.NoError(t, err)
 			assert.Equal(t, tc.Expected, replicasets)
 		})
 	}
 }
 
-func TestCartridgeInstance_GetReplicasets_failover(t *testing.T) {
+func TestCartridgeInstance_Discovery_failover(t *testing.T) {
 	cases := []struct {
 		Failover string
 		Expected replicaset.Failover
@@ -524,14 +526,14 @@ func TestCartridgeInstance_GetReplicasets_failover(t *testing.T) {
 
 			getter := replicaset.NewCartridgeInstance(evaler)
 
-			replicasets, err := getter.GetReplicasets()
+			replicasets, err := getter.Discovery()
 			assert.NoError(t, err)
 			assert.Equal(t, expected, replicasets)
 		})
 	}
 }
 
-func TestCartridgeInstance_GetReplicasets_provider(t *testing.T) {
+func TestCartridgeInstance_Discovery_provider(t *testing.T) {
 	cases := []struct {
 		Provider string
 		Expected replicaset.StateProvider
@@ -586,14 +588,14 @@ func TestCartridgeInstance_GetReplicasets_provider(t *testing.T) {
 
 			getter := replicaset.NewCartridgeInstance(evaler)
 
-			replicasets, err := getter.GetReplicasets()
+			replicasets, err := getter.Discovery()
 			assert.NoError(t, err)
 			assert.Equal(t, expected, replicasets)
 		})
 	}
 }
 
-func TestCartridgeInstance_GetReplicasets_errors(t *testing.T) {
+func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 	cases := []struct {
 		Name     string
 		Evaler   *instanceMockEvaler
@@ -676,8 +678,17 @@ func TestCartridgeInstance_GetReplicasets_errors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCartridgeInstance(tc.Evaler)
-			_, err := instance.GetReplicasets()
+			_, err := instance.Discovery()
 			assert.ErrorContains(t, err, tc.Expected)
 		})
 	}
+}
+
+func TestCartridgeInstance_Expel(t *testing.T) {
+	instance := replicaset.NewCartridgeInstance(nil)
+
+	err := instance.Expel("any")
+
+	assert.EqualError(t, err,
+		"expel is not supported for a single instance by \"cartridge\" orchestrator")
 }

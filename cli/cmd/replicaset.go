@@ -11,7 +11,7 @@ import (
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/replicaset"
-	"github.com/tarantool/tt/cli/replicaset/cmd"
+	replicasetcmd "github.com/tarantool/tt/cli/replicaset/cmd"
 	"github.com/tarantool/tt/cli/running"
 )
 
@@ -35,13 +35,21 @@ var (
 
 // NewReplicasetCmd creates a replicaset command.
 func NewReplicasetCmd() *cobra.Command {
-	replicasetCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "replicaset",
 		Short:   "Manage replicasets",
 		Aliases: []string{"rs"},
 	}
 
-	statusCmd := &cobra.Command{
+	cmd.AddCommand(newStatusCmd())
+	cmd.AddCommand(newExpelCmd())
+
+	return cmd
+}
+
+// newStatusCmd creates a "replicaset status" command.
+func newStatusCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use: "status [--cartridge|--config|--custom] " +
 			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
 			"  The URI can be specified in the following formats:\n" +
@@ -62,27 +70,52 @@ func NewReplicasetCmd() *cobra.Command {
 		},
 		Args: cobra.ExactArgs(1),
 	}
-	statusCmd.Flags().BoolVar(&orchestratorCentralizedConfig, "config", false,
-		`to force the centralized config orchestrator`)
-	statusCmd.Flags().BoolVar(&orchestratorCartridge, "cartridge", false,
-		`to force the Cartridge orchestrator`)
-	statusCmd.Flags().BoolVar(&orchestratorCustom, "custom", false,
-		`to force a custom orchestrator`)
-	statusCmd.Flags().StringVarP(&replicasetUser, "username", "u", "",
-		`username for the URI case`)
-	statusCmd.Flags().StringVarP(&replicasetPassword, "password", "p", "",
-		`password for the URI case`)
-	statusCmd.Flags().StringVar(&replicasetSslKeyFile, "sslkeyfile", "",
-		`path to a private SSL key file for the URI case`)
-	statusCmd.Flags().StringVar(&replicasetSslCertFile, "sslcertfile", "",
-		`path to an SSL certificate file for the URI case`)
-	statusCmd.Flags().StringVar(&replicasetSslCaFile, "sslcafile", "",
-		`path to a trusted certificate authorities (CA) file for the URI case`)
-	statusCmd.Flags().StringVar(&replicasetSslCiphers, "sslciphers", "",
-		`colon-separated (:) list of SSL cipher suites for the URI case`)
-	replicasetCmd.AddCommand(statusCmd)
 
-	return replicasetCmd
+	addOrchestratorFlags(cmd)
+	cmd.Flags().StringVarP(&replicasetUser, "username", "u", "",
+		`username for the URI case`)
+	cmd.Flags().StringVarP(&replicasetPassword, "password", "p", "",
+		`password for the URI case`)
+	cmd.Flags().StringVar(&replicasetSslKeyFile, "sslkeyfile", "",
+		`path to a private SSL key file for the URI case`)
+	cmd.Flags().StringVar(&replicasetSslCertFile, "sslcertfile", "",
+		`path to an SSL certificate file for the URI case`)
+	cmd.Flags().StringVar(&replicasetSslCaFile, "sslcafile", "",
+		`path to a trusted certificate authorities (CA) file for the URI case`)
+	cmd.Flags().StringVar(&replicasetSslCiphers, "sslciphers", "",
+		`colon-separated (:) list of SSL cipher suites for the URI case`)
+
+	return cmd
+}
+
+// newExpelCmd creates a "replicaset expel" command.
+func newExpelCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "expel [--cartridge|--config|--custom] <APP_NAME:INSTANCE_NAME>",
+		Short: "Expel an instance from a replicaset",
+		Long:  "Expel an instance from a replicaset.",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetExpelModule, args)
+			handleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(1),
+	}
+
+	addOrchestratorFlags(cmd)
+
+	return cmd
+}
+
+// addOrchestratorFlags adds orchestrators flags for a command.
+func addOrchestratorFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&orchestratorCentralizedConfig, "config", false,
+		`to force the centralized config orchestrator`)
+	cmd.Flags().BoolVar(&orchestratorCartridge, "cartridge", false,
+		`to force the Cartridge orchestrator`)
+	cmd.Flags().BoolVar(&orchestratorCustom, "custom", false,
+		`to force a custom orchestrator`)
 }
 
 // internalReplicasetStatusModule is a "status" command for the replicaset module.
@@ -157,6 +190,41 @@ func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 		IsApplication: isApplication,
 		Conn:          conn,
 		Orchestrator:  orchestrator,
+	})
+}
+
+// internalReplicasetExpelModule is a "expel" command for the replicaset module.
+func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	orchestrator, err := getOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	app, instance, found := strings.Cut(args[0], string(running.InstanceDelimiter))
+	if !found {
+		return fmt.Errorf("the command expects argument application_name:instance_name")
+	}
+
+	var runningCtx running.RunningCtx
+	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{app}); err != nil {
+		return err
+	}
+
+	found = false
+	for _, inst := range runningCtx.Instances {
+		if inst.InstName == instance {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("instance %q not found", instance)
+	}
+
+	return replicasetcmd.Expel(replicasetcmd.ExpelCtx{
+		Orchestrator: orchestrator,
+		RunningCtx:   runningCtx,
+		Instance:     instance,
 	})
 }
 

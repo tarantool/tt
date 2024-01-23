@@ -7,12 +7,15 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/cli/running"
 )
 
-var _ replicaset.ReplicasetsGetter = &replicaset.CustomInstance{}
-var _ replicaset.ReplicasetsGetter = &replicaset.CustomApplication{}
+var _ replicaset.Discoverer = &replicaset.CustomInstance{}
+var _ replicaset.Expeller = &replicaset.CustomInstance{}
+var _ replicaset.Discoverer = &replicaset.CustomApplication{}
+var _ replicaset.Expeller = &replicaset.CustomApplication{}
 
-func TestCustomInstance_GetReplicasets(t *testing.T) {
+func TestCustomInstance_Discovery(t *testing.T) {
 	cases := []struct {
 		Name     string
 		Evaler   *instanceMockEvaler
@@ -255,14 +258,14 @@ func TestCustomInstance_GetReplicasets(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCustomInstance(tc.Evaler)
-			replicasets, err := instance.GetReplicasets()
+			replicasets, err := instance.Discovery()
 			assert.NoError(t, err)
 			assert.Equal(t, tc.Expected, replicasets)
 		})
 	}
 }
 
-func TestCustomInstance_GetReplicasets_errors(t *testing.T) {
+func TestCustomInstance_Discovery_errors(t *testing.T) {
 	cases := []struct {
 		Name     string
 		Evaler   *instanceMockEvaler
@@ -306,8 +309,26 @@ func TestCustomInstance_GetReplicasets_errors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCustomInstance(tc.Evaler)
-			_, err := instance.GetReplicasets()
+			_, err := instance.Discovery()
 			assert.ErrorContains(t, err, tc.Expected)
 		})
 	}
+}
+
+func TestCustomInstance_Expel(t *testing.T) {
+	instance := replicaset.NewCustomInstance(nil)
+
+	err := instance.Expel("any")
+
+	assert.EqualError(t, err,
+		"expel is not supported for a single instance by \"custom\" orchestrator")
+}
+
+func TestCustomApplication_Expel(t *testing.T) {
+	instance := replicaset.NewCustomApplication(running.RunningCtx{})
+
+	err := instance.Expel("any")
+
+	assert.EqualError(t, err,
+		"expel is not supported for an application by \"custom\" orchestrator")
 }

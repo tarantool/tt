@@ -43,9 +43,9 @@ func NewCustomInstance(evaler connector.Evaler) *CustomInstance {
 	}
 }
 
-// GetReplicasets returns a replicasets topology for a single
+// Discovery returns a replicasets topology for a single
 // instance with a custom type of orchestrator.
-func (c *CustomInstance) GetReplicasets() (Replicasets, error) {
+func (c *CustomInstance) Discovery() (Replicasets, error) {
 	topology, err := getCustomInstanceTopology("", c.evaler)
 	if err != nil {
 		return Replicasets{}, err
@@ -65,6 +65,11 @@ func (c *CustomInstance) GetReplicasets() (Replicasets, error) {
 	}), nil
 }
 
+// Expel is not supported for a single instance by the Custom orchestrator.
+func (c *CustomInstance) Expel(name string) error {
+	return newErrExpelByInstanceNotSupported(OrchestratorCustom)
+}
+
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
 	runningCtx running.RunningCtx
@@ -78,9 +83,9 @@ func NewCustomApplication(runningCtx running.RunningCtx) *CustomApplication {
 	}
 }
 
-// GetReplicasets returns a replicasets configuration for an application with
+// Discovery returns a replicasets configuration for an application with
 // a custom orchestrator.
-func (c *CustomApplication) GetReplicasets() (Replicasets, error) {
+func (c *CustomApplication) Discovery() (Replicasets, error) {
 	var topologies []customTopology
 
 	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
@@ -104,6 +109,11 @@ func (c *CustomApplication) GetReplicasets() (Replicasets, error) {
 	}
 
 	return mergeCustomTopologies(topologies)
+}
+
+// Expel is not supported for an application by the Custom orchestrator.
+func (c *CustomApplication) Expel(name string) error {
+	return newErrExpelByAppNotSupported(OrchestratorCustom)
 }
 
 // getCustomInstanceTopology returns a topology for an instance.
