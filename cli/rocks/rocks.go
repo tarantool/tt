@@ -195,6 +195,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 		"luarocks.tools.zip":               rocks_path + "luarocks/tools/zip.lua",
 		"luarocks.tools.tar":               rocks_path + "luarocks/tools/tar.lua",
 		"luarocks.fs.unix":                 rocks_path + "luarocks/fs/unix.lua",
+		"luarocks.fs.macosx":               extra_path + "macosx.lua",
 		"luarocks.fs.unix.tools":           rocks_path + "luarocks/fs/unix/tools.lua",
 		"luarocks.fs.lua":                  rocks_path + "luarocks/fs/lua.lua",
 		"luarocks.fs.tools":                rocks_path + "luarocks/fs/tools.lua",
