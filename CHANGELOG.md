@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt replicaset`: prefer cartridge instances without critical issues on it during discovery.
 
+### Fixed
+
+- `tt rocks`: not working on macOs.
+
 ## [2.1.1] - 2024-01-15
 
 ### Added
