@@ -64,33 +64,24 @@ func ParseBinaries(fileList []fs.DirEntry, programName string,
 	for _, f := range fileList {
 		if strings.HasPrefix(f.Name(), versionPrefix) {
 			versionStr := strings.TrimPrefix(strings.TrimPrefix(f.Name(), versionPrefix), "v")
+			var ver version.Version
+			isRightFormat, _ := util.IsValidCommitHash(versionStr)
 			if versionStr == "master" {
-				binaryVersions = append(binaryVersions, version.Version{
-					Major: math.MaxUint, // Small hack to make master the newest version.
-					Str:   "master",
-				})
-			} else {
-				isRightFormat, _ := util.IsValidCommitHash(versionStr)
-
-				if isRightFormat {
-					ver := version.Version{}
-					if binActive == f.Name() {
-						ver.Str = versionStr + " [active]"
-					} else {
-						ver.Str = versionStr
-					}
-					binaryVersions = append(binaryVersions, ver)
-					continue
-				}
-				ver, err := version.Parse(versionStr)
+				ver.Major = math.MaxUint // Small hack to make master the newest version.
+			} else if !isRightFormat {
+				ver, err = version.Parse(versionStr)
 				if err != nil {
 					return binaryVersions, err
 				}
-				if binActive == f.Name() {
-					ver.Str += " [active]"
-				}
-				binaryVersions = append(binaryVersions, ver)
 			}
+
+			if binActive == f.Name() {
+				ver.Str = versionStr + " [active]"
+			} else {
+				ver.Str = versionStr
+			}
+			binaryVersions = append(binaryVersions, ver)
+
 		}
 	}
 
