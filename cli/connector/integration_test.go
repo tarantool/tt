@@ -3,7 +3,7 @@
 package connector_test
 
 import (
-	"log"
+	"fmt"
 	"net"
 	"os"
 	"testing"
@@ -248,7 +248,7 @@ func TestConnect_textTls(t *testing.T) {
 var poolCases = []struct {
 	Name string
 	Opts []ConnectOpts
-} {
+}{
 	{
 		Name: "single",
 		Opts: []ConnectOpts{
@@ -328,25 +328,28 @@ func runTestMain(m *testing.M) int {
 		WorkDir:      workDir,
 		User:         opts.User,
 		Pass:         opts.Pass,
-		WaitStart:    100 * time.Millisecond,
-		ConnectRetry: 3,
-		RetryTimeout: 500 * time.Millisecond,
+		WaitStart:    time.Second,
+		ConnectRetry: 5,
+		RetryTimeout: 200 * time.Millisecond,
 	})
 	defer test_helpers.StopTarantoolWithCleanup(inst)
 	if err != nil {
-		log.Fatalf("Failed to prepare test tarantool: %s", err)
+		fmt.Println("Failed to prepare test tarantool:", err)
+		return 1
 	}
 
 	conn, err := tarantool.Connect(server, opts)
 	if err != nil {
-		log.Fatalf("Failed to check tarantool version: %s", err)
+		fmt.Println("Failed to check tarantool version:", err)
+		return 1
 	}
 	req := tarantool.NewEvalRequest("return box.info.package")
 	resp, err := conn.Do(req).Get()
 	conn.Close()
 
 	if err != nil {
-		log.Fatalf("Failed to get box.info.package: %s", err)
+		fmt.Println("Failed to get box.info.package:", err)
+		return 1
 	}
 
 	if len(resp.Data) > 0 {
@@ -371,14 +374,15 @@ func runTestMain(m *testing.M) int {
 			WorkDir:         workDir,
 			User:            opts.User,
 			Pass:            opts.Pass,
-			WaitStart:       100 * time.Millisecond,
-			ConnectRetry:    3,
-			RetryTimeout:    500 * time.Millisecond,
+			WaitStart:       time.Second,
+			ConnectRetry:    5,
+			RetryTimeout:    200 * time.Millisecond,
 		})
-		if err != nil {
-			log.Fatalf("Failed to prepare test tarantool with TLS: %s", err)
-		}
 		defer test_helpers.StopTarantoolWithCleanup(inst)
+		if err != nil {
+			fmt.Println("Failed to prepare test tarantool with TLS:", err)
+			return 1
+		}
 	}
 
 	return m.Run()
