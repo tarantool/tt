@@ -4,7 +4,6 @@ package replicaset_test
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -552,24 +551,27 @@ func runTestMain(m *testing.M) int {
 		WorkDir:      workDir,
 		User:         opts.User,
 		Pass:         opts.Pass,
-		WaitStart:    100 * time.Millisecond,
-		ConnectRetry: 3,
-		RetryTimeout: 500 * time.Millisecond,
+		WaitStart:    time.Second,
+		ConnectRetry: 5,
+		RetryTimeout: 200 * time.Millisecond,
 	})
 	defer test_helpers.StopTarantoolWithCleanup(inst)
 	if err != nil {
-		log.Fatalf("Failed to prepare test tarantool: %s", err)
+		fmt.Println("Failed to prepare test tarantool:", err)
+		return 1
 	}
 
 	conn, err := tarantool.Connect(server, opts)
 	if err != nil {
-		log.Fatalf("Failed to check tarantool version: %s", err)
+		fmt.Println("Failed to check tarantool version:", err)
+		return 1
 	}
 
 	_, err = conn.Do(tarantool.NewPingRequest()).Get()
 	conn.Close()
 	if err != nil {
-		log.Fatalf("Failed to ping tarantool server: %s", err)
+		fmt.Println("Failed to ping tarantool server:", err)
+		return 1
 	}
 
 	return m.Run()
