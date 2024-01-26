@@ -163,44 +163,69 @@ func PatchCC() error {
 	return nil
 }
 
-// Building tt executable. Supported environment variables:
-// TT_CLI_BUILD_SSL=(no|static|shared)
-func buildTt(ldflags []string) error {
-	mg.Deps(PatchCC)
-	mg.Deps(GenerateGoCode)
+type optsUpdater func([]string) ([]string, error)
 
-	buildLdflags := make([]string, len(ldflags))
-	copy(buildLdflags, ldflags)
-	tags := "-tags=netgo,osusergo"
+// appendFlags appends flags passed in args.
+func appendFlags(flags ...string) optsUpdater {
+	return func(args []string) ([]string, error) {
+		return append(args, flags...), nil
+	}
+}
+
+// appendLdFlags appends linker flags.
+func appendLdFlags(flags ...string) optsUpdater {
+	return func(args []string) ([]string, error) {
+		buildLdflags := make([]string, len(ldflags))
+		copy(buildLdflags, ldflags)
+		buildLdflags = append(buildLdflags, flags...)
+
+		buildType := os.Getenv(buildTypeEnv)
+		if BuildType(buildType) == BuildTypeStatic && runtime.GOOS != "darwin" {
+			buildLdflags = append(buildLdflags, staticLdflags...)
+		}
+		return append(append(args, "-ldflags"), strings.Join(buildLdflags, " ")), nil
+	}
+}
+
+// appendTags appends tags.
+func appendTags(args []string) ([]string, error) {
+	tags := []string{"netgo", "osusergo"}
 
 	buildType := os.Getenv(buildTypeEnv)
 	switch BuildType(buildType) {
 	case BuildTypeDefault:
 		fallthrough
 	case BuildTypeNoCgo:
-		tags = tags + ",go_tarantool_ssl_disable"
+		tags = append(tags, "go_tarantool_ssl_disable")
 	case BuildTypeStatic:
-		if runtime.GOOS != "darwin" {
-			buildLdflags = append(buildLdflags, staticLdflags...)
-		}
-		tags = tags + ",openssl_static"
+		tags = append(tags, "openssl_static")
 	case BuildTypeShared:
 	default:
-		return fmt.Errorf("Unsupported build type: %s, supported: "+
+		return []string{}, fmt.Errorf("Unsupported build type: %s, supported: "+
 			"%s, %s, %s\n",
 			buildType, BuildTypeNoCgo, BuildTypeStatic, BuildTypeShared)
 	}
+	return append(append(args, "-tags"), strings.Join(tags, ",")), nil
+}
 
-	err := sh.RunWith(
-		getBuildEnvironment(), goExecutableName, "build",
-		"-o", ttExecutableName,
-		tags,
-		"-ldflags", strings.Join(buildLdflags, " "),
+// Building tt executable. Supported environment variables:
+// TT_CLI_BUILD_SSL=(no|static|shared)
+func buildTt(argUpdaters ...optsUpdater) error {
+	mg.Deps(PatchCC)
+	mg.Deps(GenerateGoCode)
+
+	args := []string{"build", "-o", ttExecutableName}
+	var err error
+	for _, updateArguments := range argUpdaters {
+		if args, err = updateArguments(args); err != nil {
+			return err
+		}
+	}
+	args = append(args,
 		"-asmflags", asmflags,
 		"-gcflags", gcflags,
-		packagePath,
-	)
-
+		packagePath)
+	err = sh.RunWith(getBuildEnvironment(), goExecutableName, args...)
 	if err != nil {
 		return fmt.Errorf("Failed to build tt executable: %s", err)
 	}
@@ -214,14 +239,27 @@ type Build mg.Namespace
 func (Build) Release() error {
 	fmt.Println("Building release tt...")
 
-	return buildTt(append(ldflags, "-s", "-w"))
+	return buildTt(appendTags, appendLdFlags("-s", "-w"))
 }
 
 // Building debug tt executable.
 func (Build) Debug() error {
 	fmt.Println("Building debug tt...")
 
-	return buildTt(ldflags)
+	return buildTt(appendTags, appendLdFlags())
+}
+
+// Building tt executable with coverage.
+func (Build) Coverage() error {
+	fmt.Println("Building release tt with coverage...")
+
+	err := buildTt(appendFlags("-cover"), appendTags, appendLdFlags("-s", "-w"))
+	if err != nil {
+		return err
+	}
+	fmt.Println(`Set coverage data destination directory (must exist) and run tt:
+	GOCOVERDIR=./<coverage_dest_dir> tt <opts>`)
+	return nil
 }
 
 // Run license checker.
