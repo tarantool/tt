@@ -49,7 +49,9 @@ var (
 	generateModePath = filepath.Join(packagePath, "codegen", "generate_code.go")
 
 	Aliases = map[string]any{
-		"build": Build.Release,
+		"build":    Build.Release,
+		"unit":     Unit.Default,
+		"unitfull": Unit.Full,
 	}
 )
 
@@ -258,33 +260,75 @@ func Lint() error {
 	return nil
 }
 
-// Run unit tests.
-func Unit() error {
-	fmt.Println("Running unit tests...")
+type Unit mg.Namespace
 
+func runUnitTests(flags []string) error {
 	mg.Deps(GenerateGoCode)
 
+	args := []string{"test"}
 	if mg.Verbose() {
-		return sh.RunV(goExecutableName, "test", "-v",
-			fmt.Sprintf("%s/...", packagePath))
+		args = append(args, "-v")
 	}
+	args = append(args, fmt.Sprintf("%s/...", packagePath))
+	args = append(args, flags...)
+	return sh.RunV(goExecutableName, args...)
+}
 
-	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath))
+// Run unit tests.
+func (Unit) Default() error {
+	fmt.Println("Running unit tests...")
+
+	return runUnitTests([]string{})
 }
 
 // Run unit tests with a Tarantool instance integration.
-func UnitFull() error {
+func (Unit) Full() error {
 	fmt.Println("Running full unit tests...")
 
-	mg.Deps(GenerateGoCode)
+	return runUnitTests([]string{"-tags", "integration"})
+}
 
-	if mg.Verbose() {
-		return sh.RunV(goExecutableName, "test", "-v", fmt.Sprintf("%s/...", packagePath),
-			"-tags", "integration")
+// Run full unit tests set with code coverage.
+func (Unit) Coverage() error {
+	fmt.Println("Running full unit tests with code coverage...")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	coverDir := filepath.Join(cwd, "coverage", "unit")
+	coverageDirInfo, err := os.Stat(coverDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(coverDir, 0750); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else {
+		if !coverageDirInfo.IsDir() {
+			return fmt.Errorf("%q is not a directory", coverDir)
+		}
 	}
 
-	return sh.RunV(goExecutableName, "test", fmt.Sprintf("%s/...", packagePath),
-		"-tags", "integration")
+	err = runUnitTests([]string{
+		"-tags", "integration",
+		"-cover",
+		"-args", fmt.Sprintf(`-test.gocoverdir=%s`, coverDir)})
+	if err != nil {
+		return err
+	}
+	relCoverDir, err := filepath.Rel(cwd, coverDir)
+	if err != nil {
+		relCoverDir = coverDir
+	}
+	fmt.Printf("Coverage data is saved to %q\n", relCoverDir)
+	fmt.Printf(`Example command for analysis:
+	go tool covdata func -i %q
+`, relCoverDir)
+
+	return nil
 }
 
 // Run integration tests, excluding slow tests.
@@ -327,12 +371,12 @@ func Codespell() error {
 
 // Run all tests together, excluding slow and unit integration tests.
 func Test() {
-	mg.SerialDeps(Lint, CheckLicenses, Unit, Integration)
+	mg.SerialDeps(Lint, CheckLicenses, Unit.Default, Integration)
 }
 
 // Run all tests together.
 func TestFull() {
-	mg.SerialDeps(Lint, CheckLicenses, UnitFull, IntegrationFull)
+	mg.SerialDeps(Lint, CheckLicenses, Unit.Full, IntegrationFull)
 }
 
 // Cleanup directory.

@@ -4,3 +4,4 @@ __pycache__
 /tt
 **/*_gen.go
 .venv
+coverage
