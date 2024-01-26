@@ -85,10 +85,10 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 		}
 		defer devNull.Close()
 
-		if err = syscall.Dup2(int(devNull.Fd()), syscall.Stdout); err != nil {
+		if err = Dup2(int(devNull.Fd()), syscall.Stdout); err != nil {
 			return err
 		}
-		defer syscall.Dup2(savedStdoutFd, syscall.Stdout)
+		defer Dup2(savedStdoutFd, syscall.Stdout)
 	}
 
 	rocksMakeCmd := []string{"make"}
@@ -98,7 +98,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 	if err := rocks.Exec(cmdCtx, cliOpts, rocksMakeCmd); err != nil {
 		return err
 	}
-	if err := syscall.Dup2(savedStdoutFd, syscall.Stdout); err != nil {
+	if err := Dup2(savedStdoutFd, syscall.Stdout); err != nil {
 		return err
 	}
 

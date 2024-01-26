@@ -453,7 +453,7 @@ func getDefaultConfigPath() string {
 	switch runtime.GOOS {
 	case "linux":
 		return defaultLinuxConfigPath
-	case "darwin":
+	case "darwin", "freebsd":
 		return defaultDarwinConfigPath
 
 	}
