@@ -1,6 +1,7 @@
 package running
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"sync"
@@ -36,9 +37,6 @@ type Watchdog struct {
 	// restartTimeout describes the timeout between
 	// restarting the Instance.
 	restartTimeout time.Duration
-	// done channel used to inform the signal handle goroutine
-	// about termination of the Instance.
-	done chan bool
 	// provider provides Watchdog methods to get objects whose creation
 	// and updating may depend on changing external parameters
 	// (such as configuration file).
@@ -60,8 +58,6 @@ func NewWatchdog(restartable bool, restartTimeout time.Duration, logger *ttlog.L
 		provider: provider, preStartAction: preStartAction,
 		integrityCheckPeriod: integrityCheckPeriod}
 
-	wd.done = make(chan bool, 1)
-
 	return &wd
 }
 
@@ -78,19 +74,21 @@ func (wd *Watchdog) Start() error {
 	// get started for avoiding a race condition between tt start
 	// and tt stop. This way we avoid a situation when we receive
 	// a signal before starting a handler for it.
-	wd.startSignalHandling()
+	watchdogCtx, watchdogCancel := context.WithCancel(context.Background())
+	wd.startSignalHandling(watchdogCtx, watchdogCancel)
 
 	// Launch integrity checking goroutine.
 	if wd.integrityCheckPeriod != 0 {
 		wd.logger.Printf("(INFO): starting periodic integrity checks each %s.",
 			wd.integrityCheckPeriod)
-		wd.startIntegrityChecks()
+		wd.startIntegrityChecks(watchdogCtx)
 	}
 
 	if err = wd.preStartAction(); err != nil {
 		wd.logger.Printf(`(ERROR): Pre-start action error: %v`, err)
-		// Finish the signal handling goroutine.
-		wd.done <- true
+		// Finish the signal handling and periodic integrity checking goroutines.
+		watchdogCancel()
+		wd.doneBarrier.Wait()
 		return err
 	}
 
@@ -119,7 +117,7 @@ func (wd *Watchdog) Start() error {
 		}
 
 		// Set Instance process completion indication.
-		wd.done <- true
+		watchdogCancel()
 		// Wait for the signal processing goroutine to complete.
 		wd.doneBarrier.Wait()
 
@@ -151,17 +149,28 @@ func (wd *Watchdog) Start() error {
 			return err
 		}
 
-		// Before the restart of an instance start a new signal handling loop.
-		wd.startSignalHandling()
+		// Before the restart of an instance create a fresh context,
+		// restart integrity checks and signal handling.
+		watchdogCtx, watchdogCancel = context.WithCancel(context.Background())
+		if wd.integrityCheckPeriod != 0 {
+			wd.startIntegrityChecks(watchdogCtx)
+		}
+		wd.startSignalHandling(watchdogCtx, watchdogCancel)
 	}
 	return nil
 }
 
 // startIntegrityChecks launches gorountine that performs periodic integrity checks.
-func (wd *Watchdog) startIntegrityChecks() {
+func (wd *Watchdog) startIntegrityChecks(ctx context.Context) {
 	ticker := time.NewTicker(wd.integrityCheckPeriod)
 
+	// Set barrier to synchronize with the main loop.
+	wd.doneBarrier.Add(1)
+
 	go func() {
+		// Set indication that the periodic integrity checking has been completed.
+		defer wd.doneBarrier.Done()
+
 		for {
 			select {
 			case <-ticker.C:
@@ -174,7 +183,7 @@ func (wd *Watchdog) startIntegrityChecks() {
 					return
 				}
 
-			case <-wd.done:
+			case <-ctx.Done():
 				return
 			}
 		}
@@ -182,7 +191,7 @@ func (wd *Watchdog) startIntegrityChecks() {
 }
 
 // startSignalHandling starts signal handling in a separate goroutine.
-func (wd *Watchdog) startSignalHandling() {
+func (wd *Watchdog) startSignalHandling(ctx context.Context, cancel context.CancelFunc) {
 	sigChan := make(chan os.Signal, 1)
 	// Reset the signal mask before starting of the new loop.
 	signal.Reset()
@@ -227,7 +236,7 @@ func (wd *Watchdog) startSignalHandling() {
 						wd.instance.SendSignal(sig)
 					}
 				}
-			case _ = <-wd.done:
+			case <-ctx.Done():
 				return
 			}
 		}
