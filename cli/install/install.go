@@ -4,6 +4,7 @@ import (
 	"bufio"
 	_ "embed"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
@@ -436,6 +437,20 @@ func checkCommit(input string, programName string, installCtx InstallCtx,
 	return returnedHash, pullRequestHash, nil
 }
 
+// gitCheckout switches to commit/tag, initializes and updates submodules.
+func gitCheckout(repoDir string, checkout string, verbose bool, logWriter io.Writer) error {
+	err := util.ExecuteCommand("git", verbose, logWriter, repoDir, "checkout", checkout)
+	if err != nil {
+		return fmt.Errorf("failed to checkout: %s", err)
+	}
+	err = util.ExecuteCommand("git", verbose, logWriter, repoDir, "submodule", "update",
+		"--init", "--recursive")
+	if err != nil {
+		return fmt.Errorf("failed to update submodules: %s", err)
+	}
+	return nil
+}
+
 // installTt installs selected version of tt.
 func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	versionFound := false
@@ -565,8 +580,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 			if err != nil {
 				return err
 			}
-			util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout",
-				"--recurse-submodules", ttVersion)
+			err = gitCheckout(path, ttVersion, installCtx.verbose, logFile)
 		} else {
 			return fmt.Errorf("can't find distfiles directory")
 		}
@@ -590,8 +604,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 					return err
 				}
 			}
-			err = util.ExecuteCommand("git", installCtx.verbose, logFile, path,
-				"checkout", "--recurse-submodules", ttVersion)
+			err = gitCheckout(path, ttVersion, installCtx.verbose, logFile)
 		}
 	}
 
@@ -761,8 +774,7 @@ func copyLocalTarantool(distfiles string, path string, tarVersion string,
 		if err != nil {
 			return err
 		}
-		err = util.ExecuteCommand("git", installCtx.verbose, logFile, path, "checkout",
-			"--recurse-submodules", tarVersion)
+		err = gitCheckout(path, tarVersion, installCtx.verbose, logFile)
 	} else {
 		return fmt.Errorf("can't find distfiles directory")
 	}
@@ -1061,8 +1073,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 					return err
 				}
 			}
-			err = util.ExecuteCommand("git", installCtx.verbose, logFile, path,
-				"checkout", "--recurse-submodules", tarVersion)
+			err = gitCheckout(path, tarVersion, installCtx.verbose, logFile)
 		}
 	}
 	if err != nil {
