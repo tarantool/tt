@@ -442,7 +442,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 config:
   etcd:
     endpoints:
-    - http://127.0.0.1:12379
+      - http://127.0.0.1:12379
     http:
       request:
         timeout: 2.5
@@ -523,7 +523,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 config:
   etcd:
     endpoints:
-    - http://127.0.0.1:12379
+      - http://127.0.0.1:12379
     http:
       request:
         timeout: 2.5

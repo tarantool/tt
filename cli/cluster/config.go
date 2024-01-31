@@ -2,8 +2,9 @@ package cluster
 
 import (
 	"fmt"
+	"strings"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -14,7 +15,7 @@ const (
 type Config struct {
 	// paths is a container implementation for the deserialized configuration.
 	//
-	// At this moment it is fully-compatible with yaml.v2 Marshal()/Unmarshal()
+	// At this moment it is fully-compatible with yaml.v3 Marshal()/Unmarshal()
 	// functions. So it could be marshaled and unmarshaled directly to YAML.
 	// We may change it in the future.
 	paths any
@@ -213,11 +214,35 @@ func (config *Config) Merge(low *Config) {
 	})
 }
 
+// deepCastStringMapToAnyMap casts all map[string]any to map[any]any deeply.
+func deepCastStringMapToAnyMap(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		m := map[any]any{}
+		for k, v2 := range x {
+			m[k] = deepCastStringMapToAnyMap(v2)
+		}
+		v = m
+	case map[any]any:
+		for k, v2 := range x {
+			x[k] = deepCastStringMapToAnyMap(v2)
+		}
+	case []any:
+		for i, v2 := range x {
+			x[i] = deepCastStringMapToAnyMap(v2)
+		}
+	default:
+	}
+	return v
+}
+
 // UnmarshalYAML helps to unmarshal the configuration from a YAML document.
 func (config *Config) UnmarshalYAML(unmarshal func(any) error) error {
-	if err := unmarshal(&config.paths); err != nil {
+	var rawPaths any
+	if err := unmarshal(&rawPaths); err != nil {
 		return fmt.Errorf("failed to unmarshal Config: %w", err)
 	}
+	config.paths = deepCastStringMapToAnyMap(rawPaths)
 	return nil
 }
 
@@ -228,10 +253,12 @@ func (config *Config) String() string {
 		return ""
 	}
 
-	decoded, err := yaml.Marshal(config.paths)
-	if err != nil {
+	sb := &strings.Builder{}
+	encoder := yaml.NewEncoder(sb)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(config.paths); err != nil {
 		panic(fmt.Sprintf("failed to marshal a config: %s", err))
 	}
 
-	return string(decoded)
+	return sb.String()
 }

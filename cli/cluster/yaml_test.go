@@ -274,9 +274,9 @@ func TestYamlConfigPublisher_Publish_publish_data(t *testing.T) {
 	assert.Equal(t, `foo: bar
 zoo:
   foo:
-  - 1
-  - 2
-  - 3
+    - 1
+    - 2
+    - 3
 `, string(input))
 }
 
