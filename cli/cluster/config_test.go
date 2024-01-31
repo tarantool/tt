@@ -313,9 +313,9 @@ foo:
   bar: 1
   zoo: 1
 zoo:
-- "1"
-- "2"
-- "3"
+  - "1"
+  - "2"
+  - "3"
 `
 	assert.Equal(t, expected, config.String())
 }

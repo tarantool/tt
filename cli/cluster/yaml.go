@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/tarantool/tt/cli/integrity"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // YamlCollector collects a configuration from YAML data.
