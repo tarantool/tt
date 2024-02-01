@@ -236,15 +236,18 @@ groups:
         instances:
           instance1:
             iproto:
-              listen: "127.0.0.1:3384"
+              listen:
+              - uri: 127.0.0.1:3384
           instance2:
             iproto:
-              listen: "127.0.0.1:3385"
+              listen:
+              - uri: 127.0.0.1:3385
 ```
 `instance.yaml`:
 ```yaml
 iproto:
-  listen: "127.0.0.1:3389"
+  listen:
+  - uri: 127.0.0.1:3389
   threads: 10
 ```
 
@@ -259,13 +262,16 @@ groups:
         instances:
           instance1:
             iproto:
-              listen: 127.0.0.1:3384
+              listen:
+              - uri: 127.0.0.1:3384
           instance2:
             iproto:
-              listen: 127.0.0.1:3385
+              listen:
+              - uri: 127.0.0.1:3385
 $ tt cluster show "http://localhost:2379/tt?name=instance2"
 iproto:
-  listen: 127.0.0.1:3385
+  listen:
+  - uri: 127.0.0.1:3385
 ```
 
 At now we could update an instance configuration and show the result:
@@ -279,14 +285,17 @@ groups:
         instances:
           instance1:
             iproto:
-              listen: 127.0.0.1:3384
+              listen:
+              - uri: 127.0.0.1:3384
           instance2:
             iproto:
-              listen: 127.0.0.1:3389
+              listen:
+              - uri: 127.0.0.1:3389
               threads: 10
 $ tt cluster show "http://localhost:2379/tt?name=instance2"
 iproto:
-  listen: 127.0.0.1:3389
+  listen:
+  - uri: 127.0.0.1:3389
   threads: 10
 ```
 
@@ -307,14 +316,17 @@ groups:
         instances:
           instance1:
             iproto:
-              listen: 127.0.0.1:3384
+              listen:
+              - uri: 127.0.0.1:3384
           instance2:
             iproto:
-              listen: 127.0.0.1:3389
+              listen:
+              - uri: 127.0.0.1:3389
               threads: 10
 $ tt cluster show test_app:instance2
 iproto:
-  listen: 127.0.0.1:3389
+  listen:
+  - uri: 127.0.0.1:3389
   threads: 10
 ```
 
@@ -325,9 +337,12 @@ collects configuration from all data sources (environment variables, etcd) and
 shows a combined configuration with the same logic as Tarantool:
 
 ```
-$ TT_IPROTO_LISTEN="127.0.0.1:3333" tt cluster show test_app:instance2
+$ TT_APP_FILE=init.lua tt cluster show test_app:instance2
+app:
+  file: init.lua
 iproto:
-  listen: 127.0.0.1:3333
+  listen:
+  - uri: 127.0.0.1:3389
   threads: 10
 ```
 
