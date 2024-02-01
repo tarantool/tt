@@ -21,7 +21,8 @@ runs:
         rm -rf ${INSTALL_PREFIX} && mkdir -p ${INSTALL_PREFIX}
 
         OS_NAME="$(uname | tr '[:upper:]' '[:lower:]')"
-        FILENAME="etcd-${ETCD_VER}-${OS_NAME}-amd64"
+        ARCH=$(uname -m | awk '{print ($0 == "x86_64")?"amd64":"arm64"}')
+        FILENAME="etcd-${ETCD_VER}-${OS_NAME}-${ARCH}"
         if [ "${OS_NAME}" == "linux" ]; then
           curl -L "${BASE_URL}/${ETCD_VER}/${FILENAME}.tar.gz" -o "${INSTALL_PREFIX}/${FILENAME}.tar.gz"
           tar xvzf "${INSTALL_PREFIX}/${FILENAME}.tar.gz" -C ${INSTALL_PREFIX} --strip-components=1

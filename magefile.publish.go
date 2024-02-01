@@ -71,7 +71,7 @@ func walkMatch(root string, patterns []string) ([]string, error) {
 func getPatterns(distro Distro) ([]string, error) {
 
 	if distro.OS == "el" || distro.OS == "fedora" {
-		return []string{"*.x86_64.rpm", "*.noarch.rpm"}, nil
+		return []string{"*.rpm", "*.noarch.rpm"}, nil
 	}
 
 	if distro.OS == "ubuntu" || distro.OS == "debian" {

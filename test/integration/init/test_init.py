@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 
+import pytest
 import yaml
 
 from utils import config_name
@@ -305,6 +306,10 @@ def test_tarantoolctl_cfg_from_doc(tt_cmd, tmpdir):
     check_env_dirs(tmpdir, "instances")
 
 
+@pytest.mark.skipif(
+    os.getuid() == 0,
+    reason="Skipping the test, it shouldn't run as root",
+)
 def test_init_tarantoolctl_app_no_read_permissions(tt_cmd, tmpdir):
     shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "tarantoolctl.lua"),
                 os.path.join(tmpdir, ".tarantoolctl"))

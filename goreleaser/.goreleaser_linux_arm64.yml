@@ -1,0 +1,150 @@
+before:
+  hooks:
+    - go mod download
+
+env:
+  - GO111MODULE=on
+
+builds:
+  -
+    id: tt
+    binary: tt
+    dir: cli
+
+    env:
+      - CGO_ENABLED=1
+
+    tags:
+      - netgo
+      - osusergo
+      - openssl_static
+
+    ldflags:
+      - -linkmode=external -extldflags -static
+      - -s -w
+      - -X github.com/tarantool/tt/cli/version.gitTag={{ .Tag }}
+      - -X github.com/tarantool/tt/cli/version.gitCommit={{ .ShortCommit }}
+      - -X github.com/tarantool/tt/cli/configure.defaultConfigPath=/etc/tarantool
+
+    goos:
+      - linux
+    goarch:
+      - arm64
+
+    hooks:
+      pre:
+        - mage PatchCC
+        - mage GenerateGoCode
+
+archives:
+  -
+    id: "tt"
+    builds: ['tt']
+    format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+snapshot:
+  name_template: "{{ .Tag }}-{{ .ShortCommit }}"
+
+nfpms:
+  -
+    id: "tt"
+    builds: ['tt']
+    formats:
+      - deb
+      - rpm
+    homepage: "https://github.com/tarantool/tt"
+    maintainer: "Leonid Vasiliev <lvasiliev@tarantool.org>"
+    description: "Command-line utility to manage Tarantool applications"
+    license: "BSD-2 MIT Apache-2.0 BSD MPL-2.0"
+    recommends:
+      - git
+      - zip
+      - unzip
+      - curl
+    contents:
+      - src: "package/tt.yaml.default"
+        dst: "/etc/tarantool/tt.yaml"
+        type: config
+
+      - src: "package/logrotate.conf"
+        dst: "/etc/logrotate.d/tt.conf"
+        type: config
+        file_info:
+          mode: 0600
+
+      - src: package/instances.available
+        dst: /etc/tarantool/instances.available
+        type: tree
+      - dst: /etc/tarantool/instances.enabled
+        type: dir
+        file_info:
+          mode: 0755
+      - dst: /etc/tarantool
+        type: ghost
+
+      # Artifacts directories for the system tt environment.
+      - dst: /var/lib/tarantool/sys_env
+        type: dir
+        file_info:
+          mode: 0750
+          owner: tarantool
+          group: tarantool
+      - dst: /var/lib/tarantool
+        type: ghost
+
+      - dst: /var/run/tarantool/sys_env
+        type: dir
+        file_info:
+          mode: 0750
+          owner: tarantool
+          group: tarantool
+      - dst: /var/run/tarantool
+        type: ghost
+
+      - dst: /var/log/tarantool/sys_env
+        type: dir
+        file_info:
+          mode: 0750
+          owner: tarantool
+          group: tarantool
+      - dst: /var/log/tarantool
+        type: ghost
+
+      # According to systemd.unit manual page, location for system mode units installed by package
+      # manager is different for deb-based and rpm-based distributions.
+      - src: package/systemd/replicaset_example@.service
+        dst: /lib/systemd/system/replicaset_example@.service
+        packager: deb
+      - src: package/systemd/replicaset_example@.service
+        dst: /usr/lib/systemd/system/replicaset_example@.service
+        packager: rpm
+
+      # ZSH and Bash autocompletion scripts get placed in appropriate directories
+      # and get activated automatically with restarting corresponding shell after
+      # the package installation.
+      # Sources:
+      # https://github.com/scop/bash-completion/blob/master/README.md#faq
+      # https://github.com/zsh-users/zsh-completions/blob/master/zsh-completions-howto.org#intro
+      - src: "tt-completion.bash"
+        dst: "/usr/share/bash-completion/completions/tt"
+      - src: "tt-completion.zsh"
+        dst: "/usr/share/zsh/vendor-completions/_tt"
+
+    overrides:
+      rpm:
+        file_name_template: >-
+          {{- .ProjectName }}-
+          {{- .Version }}.
+          {{- if eq .Arch "arm64" }}aarch64
+          {{- else }}{{ .Arch }}{{ end }}
+
+      deb:
+        file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}"
+
+    scripts:
+      preinstall: "package/scripts/preinstall.sh"

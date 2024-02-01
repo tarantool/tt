@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -85,6 +86,9 @@ func TestIsRegularFile(t *testing.T) {
 }
 
 func TestCreateDirectory(t *testing.T) {
+	if user, err := user.Current(); err == nil && user.Uid == "0" {
+		t.Skip("Skipping the test, it shouldn't run as root")
+	}
 	tempDir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(tempDir, "dir1"), 0750))
 

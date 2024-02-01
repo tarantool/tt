@@ -49,6 +49,42 @@ jobs:
       - name: Integration tests
         run: mage integration
 
+  tests-ce-linux-arm64:
+    if: |
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.owner.login != 'tarantool' &&
+        !contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: graviton
+    strategy:
+      fail-fast: false
+    container:
+      image: tarantool/testing:tt-build
+      options: '--init --privileged'
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install test requirements
+        run: |
+          pip3 install setuptools==59.5.0
+          pip3 install -r test/requirements.txt
+        shell: bash
+
+      - name: Install etcd
+        uses: ./.github/actions/setup-etcd
+
+      - name: Build test
+        run: mage build
+
+      - name: Unit tests
+        run: mage unit
+
+      - name: Integration tests
+        run: mage integration
+
   tests-ee:
     # The same as for tests-ce, but it does not run on pull requests from
     # forks by default. Tests will run only when the pull request is labeled

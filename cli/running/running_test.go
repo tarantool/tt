@@ -3,6 +3,7 @@ package running
 import (
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -25,6 +26,9 @@ func (mock *mockRepository) ValidateAll() error {
 }
 
 func Test_CollectInstances(t *testing.T) {
+	if user, err := user.Current(); err == nil && user.Uid == "0" {
+		t.Skip("Skipping the test, it shouldn't run as root")
+	}
 	instancesEnabledPath := filepath.Join("testdata", "instances_enabled")
 
 	instances, err := CollectInstances("script", instancesEnabledPath,

@@ -348,6 +348,13 @@ func (Unit) Default() error {
 func (Unit) Full() error {
 	fmt.Println("Running full unit tests...")
 
+	return runUnitTests([]string{"-tags", "integration,integration_docker"})
+}
+
+// Run unit tests with a Tarantool instance integration, excluding docker tests.
+func (Unit) FullSkipDocker() error {
+	fmt.Println("Running full unit tests, excluding docker...")
+
 	return runUnitTests([]string{"-tags", "integration"})
 }
 
@@ -376,7 +383,7 @@ func (Unit) Coverage() error {
 	}
 
 	err = runUnitTests([]string{
-		"-tags", "integration",
+		"-tags", "integration,integration_docker",
 		"-cover",
 		"-args", fmt.Sprintf(`-test.gocoverdir=%s`, coverDir)})
 	if err != nil {
@@ -408,6 +415,14 @@ func IntegrationFull() error {
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow_ee and not notarantool",
 		"test/integration")
+}
+
+// Run full set of integration tests, excluding docker tests.
+func IntegrationFullSkipDocker() error {
+	fmt.Println("Running all integration tests, excluding docker...")
+
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
+		"not slow_ee and not notarantool and not docker", "test/integration")
 }
 
 // Run set of ee integration tests.
