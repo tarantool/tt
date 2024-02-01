@@ -3,6 +3,7 @@ package steps
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -58,6 +59,9 @@ func TestMoveAppDirSourceDirMissing(t *testing.T) {
 }
 
 func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
+	if user, err := user.Current(); err == nil && user.Uid == "0" {
+		t.Skip("Skipping the test, it shouldn't run as root")
+	}
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
 

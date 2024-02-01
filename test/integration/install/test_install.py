@@ -94,7 +94,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
     # Install specific tt's commit.
-    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "400167c"]
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "97c7b73"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir,
@@ -116,11 +116,11 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
         text=True
     )
     start_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool CLI version 1.3.0", start_output)
-    assert re.search(r"commit: 400167c", start_output)
+    assert re.search(r"Tarantool CLI version 2.1.1", start_output)
+    assert re.search(r"commit: 97c7b73", start_output)
 
     # Uninstall specific tt's commit.
-    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt", "400167c"]
+    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt", "97c7b73"]
     uninstall_instance_process = subprocess.Popen(
         uninstall_cmd,
         cwd=tmpdir,
@@ -131,8 +131,8 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     first_output = uninstall_instance_process.stdout.readline()
     assert re.search(r"Removing binary...", first_output)
     second_output = uninstall_instance_process.stdout.readline()
-    assert re.search(r"tt=400167c is uninstalled", second_output)
-    assert not os.path.exists(os.path.join(tmpdir, "bin", "tt_400167c"))
+    assert re.search(r"tt=97c7b73 is uninstalled", second_output)
+    assert not os.path.exists(os.path.join(tmpdir, "bin", "tt_97c7b73"))
 
 
 @pytest.mark.slow
@@ -187,7 +187,7 @@ def test_install_tt_specific_version(tt_cmd, tmpdir):
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
     # Install latest tt.
-    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "1.0.0"]
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "2.1.2"]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmpdir,
@@ -210,7 +210,7 @@ def test_install_tt_specific_version(tt_cmd, tmpdir):
         text=True
     )
     start_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool CLI version 1.0.0", start_output)
+    assert re.search(r"Tarantool CLI version 2.1.2", start_output)
 
 
 @pytest.mark.slow
@@ -301,6 +301,7 @@ def test_install_tarantool(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
+@pytest.mark.docker
 def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")

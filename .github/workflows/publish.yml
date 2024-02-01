@@ -73,6 +73,52 @@ jobs:
           name: packages-linux
           path: dist
 
+  create-packages-linux-arm64:
+    runs-on: graviton
+    strategy:
+      fail-fast: false
+    container:
+      image: tarantool/testing:tt-build
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install etcd
+        uses: ./.github/actions/setup-etcd
+
+      - name: Set GoReleaser flags
+        id: set-goreleaser-flags
+        run: |
+          if ${{ startsWith(github.ref, 'refs/tags') }} ; then
+            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --skip-validate"
+          else
+            echo "::set-output name=GORELEASER_FLAGS::--rm-dist --snapshot"
+          fi
+
+      # These scripts will be picked up while building packages with goreleaser.
+      - name: Generate ZSH and Bash completion scripts
+        run: |
+          mage build
+          ./tt completion bash > tt-completion.bash
+          ./tt completion zsh > tt-completion.zsh
+
+      - name: Build packages
+        env:
+          CGO_LDFLAGS: "-L/opt/openssl/lib"
+          CGO_CFLAGS: "-I/opt/openssl/include"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} \
+            --skip-publish --config ./goreleaser/.goreleaser_linux_arm64.yml
+
+      - name: Upload packages artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: packages-linux-arm64
+          path: dist
+
   create-packages-macos:
     runs-on: macos-latest
     steps:
@@ -128,7 +174,7 @@ jobs:
           path: dist
 
   draft-release:
-    needs: [create-packages-linux, create-packages-macos]
+    needs: [create-packages-linux, create-packages-linux-arm64, create-packages-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
@@ -143,6 +189,7 @@ jobs:
       - name: Make directories
         run: |
           mkdir -p ./dist-prebuilt/packages-linux
+          mkdir -p ./dist-prebuilt/packages-linux-arm64
           mkdir -p ./dist-prebuilt/packages-macos
 
       - name: Download linux binaries
@@ -150,6 +197,12 @@ jobs:
         with:
           name: packages-linux
           path: ./dist-prebuilt/packages-linux
+
+      - name: Download linux arm64 binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: packages-linux-arm64
+          path: ./dist-prebuilt/packages-linux-arm64
 
       - name: Download macos binaries
         uses: actions/download-artifact@v3
@@ -162,11 +215,15 @@ jobs:
           rm ./dist-prebuilt/packages-linux/artifacts.json
           rm ./dist-prebuilt/packages-linux/config.yaml
           rm ./dist-prebuilt/packages-linux/metadata.json
+          rm ./dist-prebuilt/packages-linux-arm64/artifacts.json
+          rm ./dist-prebuilt/packages-linux-arm64/config.yaml
+          rm ./dist-prebuilt/packages-linux-arm64/metadata.json
           rm ./dist-prebuilt/packages-macos/artifacts.json
           rm ./dist-prebuilt/packages-macos/config.yaml
           rm ./dist-prebuilt/packages-macos/metadata.json
           rm ./dist-prebuilt/packages-macos/tt_darwin_amd64_v1/tt
           rm ./dist-prebuilt/packages-linux/tt_linux_amd64_v1/tt
+          rm ./dist-prebuilt/packages-linux-arm64/tt_linux_arm64/tt
 
       - name: Pack additional archives
         run: |
@@ -177,8 +234,10 @@ jobs:
         run: |
           cd ./dist-prebuilt
           cat ./packages-linux/tt*checksums.txt >> checksums.txt
+          cat ./packages-linux-arm64/tt*checksums.txt >> checksums.txt
           cat ./packages-macos/tt*checksums.txt >> checksums.txt
           rm ./packages-linux/tt*checksums.txt
+          rm ./packages-linux-arm64/tt*checksums.txt
           rm ./packages-macos/tt*checksums.txt
           mv checksums.txt ./packages-macos/
 
@@ -199,7 +258,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-s3:
-    needs: create-packages-linux
+    needs: [create-packages-linux, create-packages-linux-arm64]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags')
     steps:
@@ -216,13 +275,25 @@ jobs:
           cd mage
           go run bootstrap.go
 
-      - name: Download packages artifacts
+      - name: Download x86_64 packages artifacts
         uses: actions/download-artifact@v2
         with:
           name: packages-linux
           path: dist
 
-      - name: Publish packages to RWS
+      - name: Publish x86_64 packages to RWS
+        env:
+          RWS_URL_PART: https://rws.tarantool.org/release/modules
+          RWS_AUTH: ${{ secrets.RWS_AUTH }}
+        run: mage publishRWS && rm -rf dist
+
+      - name: Download arm64 packages artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: packages-linux-arm64
+          path: dist
+
+      - name: Publish arm64 packages to RWS
         env:
           RWS_URL_PART: https://rws.tarantool.org/release/modules
           RWS_AUTH: ${{ secrets.RWS_AUTH }}

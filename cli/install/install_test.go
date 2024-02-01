@@ -2,6 +2,7 @@ package install
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -11,6 +12,9 @@ import (
 )
 
 func Test_dirsAreWriteable(t *testing.T) {
+	if user, err := user.Current(); err == nil && user.Uid == "0" {
+		t.Skip("Skipping the test, it shouldn't run as root")
+	}
 	tmpDirNonWriteableForAll := t.TempDir()
 	// dr-xr-xr-x mode.
 	permissions := 0555
@@ -49,6 +53,9 @@ func Test_dirsAreWriteable(t *testing.T) {
 }
 
 func Test_subDirIsWritable(t *testing.T) {
+	if user, err := user.Current(); err == nil && user.Uid == "0" {
+		t.Skip("Skipping the test, it shouldn't run as root")
+	}
 	tmpDirNonWriteableForAll := t.TempDir()
 	// dr-xr-xr-x mode.
 	permissions := 0555

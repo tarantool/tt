@@ -1015,6 +1015,7 @@ def verify_rpmdeb_package_content(pkg_dir):
 
 
 @pytest.mark.slow
+@pytest.mark.docker
 def test_pack_deb(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -1092,6 +1093,7 @@ def test_pack_deb(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
+@pytest.mark.docker
 def test_pack_rpm(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -1212,6 +1214,7 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
+@pytest.mark.docker
 def test_pack_deb_use_docker_tnt_version(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -1251,6 +1254,7 @@ def test_pack_deb_use_docker_tnt_version(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
+@pytest.mark.docker
 def test_pack_rpm_use_docker_wrong_version_format(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -1276,6 +1280,7 @@ def test_pack_rpm_use_docker_wrong_version_format(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
+@pytest.mark.docker
 def test_pack_rpm_use_docker_wrong_version(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -1348,6 +1353,7 @@ def test_pack_deb_use_docker(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
+@pytest.mark.docker
 def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
