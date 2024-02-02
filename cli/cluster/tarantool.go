@@ -13,7 +13,7 @@ import (
 
 // tarantoolCall retursns result of a function call via tarantool connector.
 func tarantoolCall(conn tarantool.Connector,
-	fun string, args []any, timeout time.Duration) ([]any, error) {
+	fun string, args []any, timeout time.Duration) ([][]any, error) {
 	req := tarantool.NewCallRequest(fun).Args(args)
 
 	if timeout != 0 {
@@ -24,12 +24,12 @@ func tarantoolCall(conn tarantool.Connector,
 		req = req.Context(ctx)
 	}
 
-	response, err := conn.Do(req).Get()
-	if err != nil {
+	var result [][]any
+	if err := conn.Do(req).GetTyped(&result); err != nil {
 		return nil, err
 	}
 
-	return response.Data, err
+	return result, nil
 }
 
 // TarantoolAllCollector collects data from a Tarantool for a whole prefix.
@@ -67,8 +67,9 @@ func (collector TarantoolAllCollector) Collect() ([]integrity.Data, error) {
 	collected := []integrity.Data{}
 	for _, data := range resp.Data {
 		collected = append(collected, integrity.Data{
-			Source: data.Path,
-			Value:  []byte(data.Value),
+			Source:   data.Path,
+			Value:    []byte(data.Value),
+			Revision: data.ModRevision,
 		})
 	}
 
@@ -117,8 +118,9 @@ func (collector TarantoolKeyCollector) Collect() ([]integrity.Data, error) {
 
 	return []integrity.Data{
 		{
-			Source: key,
-			Value:  []byte(resp.Data[0].Value),
+			Source:   key,
+			Value:    []byte(resp.Data[0].Value),
+			Revision: resp.Data[0].ModRevision,
 		},
 	}, err
 }
@@ -142,7 +144,12 @@ func NewTarantoolAllDataPublisher(conn tarantool.Connector,
 }
 
 // Publish publishes the configuration into Tarantool to the given prefix.
-func (publisher TarantoolAllDataPublisher) Publish(data []byte) error {
+func (publisher TarantoolAllDataPublisher) Publish(revision int64, data []byte) error {
+	if revision != 0 {
+		return fmt.Errorf(
+			"failed to publish data into tarantool: target revision %d is not supported",
+			revision)
+	}
 	prefix := getConfigPrefix(publisher.prefix)
 	key := prefix + "all"
 	args := []any{
@@ -184,11 +191,21 @@ func NewTarantoolKeyDataPublisher(conn tarantool.Connector,
 
 // Publish publishes the configuration into Tarantool to the given prefix and
 // key.
-func (publisher TarantoolKeyDataPublisher) Publish(data []byte) error {
+// If passed revision is not 0, the data will be published only if target key revision the same.
+func (publisher TarantoolKeyDataPublisher) Publish(revision int64, data []byte) error {
 	key := getConfigPrefix(publisher.prefix) + publisher.key
-	args := []any{key, string(data)}
 
-	_, err := tarantoolCall(publisher.conn, "config.storage.put", args, publisher.timeout)
+	txn := map[any]any{
+		"on_success": []any{
+			[]any{"put", key, string(data)},
+		},
+	}
+	if revision != 0 {
+		txn["predicates"] = []any{"mod_revision", "==", revision}
+	}
+	args := []any{txn}
+
+	_, err := tarantoolCall(publisher.conn, "config.storage.txn", args, publisher.timeout)
 	if err != nil {
 		return fmt.Errorf("failed to put data into tarantool: %w", err)
 	}
@@ -197,8 +214,9 @@ func (publisher TarantoolKeyDataPublisher) Publish(data []byte) error {
 
 type tarantoolResponse struct {
 	Data []struct {
-		Path  string
-		Value string
+		Path        string
+		Value       string
+		ModRevision int64 `mapstructure:"mod_revision"`
 	}
 }
 
@@ -216,8 +234,9 @@ func tarantoolGet(conn tarantool.Connector,
 		return resp, fmt.Errorf("unexpected response from tarantool: %q", data)
 	}
 
-	if err := mapstructure.Decode(data[0], &resp); err != nil {
-		return resp, fmt.Errorf("failed to map response from tarantool: %q", data[0])
+	rawResp := data[0][0]
+	if err := mapstructure.Decode(rawResp, &resp); err != nil {
+		return resp, fmt.Errorf("failed to map response from tarantool: %q", rawResp)
 	}
 
 	return resp, nil

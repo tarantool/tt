@@ -230,10 +230,10 @@ func TestYamlCollectorDecorator_unique(t *testing.T) {
 	assert.Error(t, err)
 }
 
-type dataPublishFunc func(data []byte) error
+type dataPublishFunc func(revision int64, data []byte) error
 
-func (f dataPublishFunc) Publish(data []byte) error {
-	return f(data)
+func (f dataPublishFunc) Publish(revision int64, data []byte) error {
+	return f(revision, data)
 }
 
 func TestNewYamlConfigPublisher(t *testing.T) {
@@ -261,7 +261,7 @@ func TestYamlConfigPublisher_Publish_nil_config(t *testing.T) {
 func TestYamlConfigPublisher_Publish_publish_data(t *testing.T) {
 	var input []byte
 	publisher := cluster.NewYamlConfigPublisher(dataPublishFunc(
-		func(data []byte) error {
+		func(revision int64, data []byte) error {
 			input = data
 			return nil
 		}))
@@ -283,7 +283,7 @@ zoo:
 func TestYamlConfigPublisher_Publish_error(t *testing.T) {
 	err := fmt.Errorf("any")
 	publisher := cluster.NewYamlConfigPublisher(dataPublishFunc(
-		func([]byte) error {
+		func(int64, []byte) error {
 			return err
 		}))
 	config := cluster.NewConfig()

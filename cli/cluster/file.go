@@ -55,7 +55,11 @@ func NewFileDataPublisher(path string) FileDataPublisher {
 }
 
 // Publish publishes the data to a file for the given path.
-func (publisher FileDataPublisher) Publish(data []byte) error {
+func (publisher FileDataPublisher) Publish(revision int64, data []byte) error {
+	if revision != 0 {
+		return fmt.Errorf("failed to publish data into file: target revision %d is not supported",
+			revision)
+	}
 	if publisher.path == "" {
 		return fmt.Errorf("file path is empty")
 	}

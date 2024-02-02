@@ -130,8 +130,9 @@ func (collector EtcdAllCollector) Collect() ([]integrity.Data, error) {
 	collected := []integrity.Data{}
 	for _, kv := range resp.Kvs {
 		collected = append(collected, integrity.Data{
-			Source: string(kv.Key),
-			Value:  kv.Value,
+			Source:   string(kv.Key),
+			Value:    kv.Value,
+			Revision: kv.ModRevision,
 		})
 	}
 
@@ -188,8 +189,9 @@ func (collector EtcdKeyCollector) Collect() ([]integrity.Data, error) {
 
 	collected := []integrity.Data{
 		{
-			Source: string(resp.Kvs[0].Key),
-			Value:  resp.Kvs[0].Value,
+			Source:   string(resp.Kvs[0].Key),
+			Value:    resp.Kvs[0].Value,
+			Revision: resp.Kvs[0].ModRevision,
 		},
 	}
 	return collected, nil
@@ -221,7 +223,11 @@ func NewEtcdAllDataPublisher(getter EtcdTxnGetter,
 }
 
 // Publish publishes the configuration into etcd to the given prefix.
-func (publisher EtcdAllDataPublisher) Publish(data []byte) error {
+func (publisher EtcdAllDataPublisher) Publish(revision int64, data []byte) error {
+	if revision != 0 {
+		return fmt.Errorf("failed to publish data into etcd: target revision %d is not supported",
+			revision)
+	}
 	if data == nil {
 		return fmt.Errorf("failed to publish data into etcd: data does not exist")
 	}
@@ -301,16 +307,9 @@ func (publisher EtcdAllDataPublisher) Publish(data []byte) error {
 	return nil
 }
 
-// EtcdPutter is the interface that wraps put from etcd method.
-type EtcdPutter interface {
-	// Put puts a key-value pair into etcd.
-	Put(ctx context.Context, key, val string,
-		opts ...clientv3.OpOption) (*clientv3.PutResponse, error)
-}
-
 // EtcdKeyDataPublisher publishes a data into etcd for a prefix and a key.
 type EtcdKeyDataPublisher struct {
-	putter  EtcdPutter
+	getter  EtcdTxnGetter
 	prefix  string
 	key     string
 	timeout time.Duration
@@ -318,10 +317,10 @@ type EtcdKeyDataPublisher struct {
 
 // NewEtcdKeyDataPublisher creates a new EtcdKeyDataPublisher object to publish
 // a data to etcd with the prefix and key during the timeout.
-func NewEtcdKeyDataPublisher(putter EtcdPutter,
+func NewEtcdKeyDataPublisher(getter EtcdTxnGetter,
 	prefix, key string, timeout time.Duration) EtcdKeyDataPublisher {
 	return EtcdKeyDataPublisher{
-		putter:  putter,
+		getter:  getter,
 		prefix:  prefix,
 		key:     key,
 		timeout: timeout,
@@ -329,7 +328,8 @@ func NewEtcdKeyDataPublisher(putter EtcdPutter,
 }
 
 // Publish publishes the configuration into etcd to the given prefix and key.
-func (publisher EtcdKeyDataPublisher) Publish(data []byte) error {
+// If passed revision is not 0, the data will be published only if target key revision the same.
+func (publisher EtcdKeyDataPublisher) Publish(revision int64, data []byte) error {
 	if data == nil {
 		return fmt.Errorf("failed to publish data into etcd: data does not exist")
 	}
@@ -343,9 +343,16 @@ func (publisher EtcdKeyDataPublisher) Publish(data []byte) error {
 		defer cancel()
 	}
 
-	_, err := publisher.putter.Put(ctx, key, string(data))
+	txn := publisher.getter.Txn(ctx)
+	if revision != 0 {
+		txn = txn.If(clientv3.Compare(clientv3.ModRevision(key), "=", revision))
+	}
+	tresp, err := txn.Then(clientv3.OpPut(key, string(data))).Commit()
 	if err != nil {
 		return fmt.Errorf("failed to put data into etcd: %w", err)
+	}
+	if !tresp.Succeeded {
+		return fmt.Errorf("failed to put data into etcd: wrong revision")
 	}
 
 	return nil

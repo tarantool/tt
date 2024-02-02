@@ -64,20 +64,27 @@ func TestNewFileDataPublisher(t *testing.T) {
 }
 
 func TestFileDataPublisher_Publish_empty_path(t *testing.T) {
-	err := cluster.NewFileDataPublisher("").Publish([]byte{})
+	err := cluster.NewFileDataPublisher("").Publish(0, []byte{})
 
 	assert.EqualError(t, err, "file path is empty")
 }
 
 func TestFileDataPublisher_Publish_empty_data(t *testing.T) {
-	err := cluster.NewFileDataPublisher("foo").Publish(nil)
+	err := cluster.NewFileDataPublisher("foo").Publish(0, nil)
 
 	assert.EqualError(t, err,
 		"failed to publish data into \"foo\": data does not exist")
 }
 
+func TestFileDataPublisher_Publish_revision(t *testing.T) {
+	err := cluster.NewFileDataPublisher("foo").Publish(1, []byte{})
+
+	assert.EqualError(t, err,
+		"failed to publish data into file: target revision 1 is not supported")
+}
+
 func TestFileDataPublisher_Publish_error(t *testing.T) {
-	err := cluster.NewFileDataPublisher("/some/invalid/path").Publish([]byte{})
+	err := cluster.NewFileDataPublisher("/some/invalid/path").Publish(0, []byte{})
 
 	assert.Error(t, err)
 }
@@ -87,7 +94,7 @@ func TestFileDataPublisher_Publish_data(t *testing.T) {
 	path := filepath.Join(dir, "testfile")
 
 	data := []byte("foo")
-	err := cluster.NewFileDataPublisher(path).Publish(data)
+	err := cluster.NewFileDataPublisher(path).Publish(0, data)
 	require.NoError(t, err)
 
 	read, err := os.ReadFile(path)
@@ -110,7 +117,7 @@ func TestFileDataPublisher_Publish_data_exist_file(t *testing.T) {
 	originalMode := fi.Mode()
 
 	data := []byte("foo")
-	err = cluster.NewFileDataPublisher(path).Publish(data)
+	err = cluster.NewFileDataPublisher(path).Publish(0, data)
 	require.NoError(t, err)
 
 	read, err := os.ReadFile(path)
