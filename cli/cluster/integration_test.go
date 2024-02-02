@@ -167,7 +167,7 @@ func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 	require.NotNil(t, presp)
 }
 
-func etcdGet(t *testing.T, etcd *clientv3.Client, key string) []byte {
+func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -177,11 +177,11 @@ func etcdGet(t *testing.T, etcd *clientv3.Client, key string) []byte {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	if len(resp.Kvs) == 0 {
-		return []byte("")
+		return []byte(""), 0
 	}
 
 	require.Len(t, resp.Kvs, 1)
-	return resp.Kvs[0].Value
+	return resp.Kvs[0].Value, resp.Kvs[0].ModRevision
 }
 
 type connectEtcdOpts struct {
@@ -578,10 +578,11 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			err = tc.Publisher.Publish(data)
+			err = tc.Publisher.Publish(0, data)
 
 			assert.NoError(t, err)
-			assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/"+tc.Key))
+			actual, _ := etcdGet(t, etcd, "/foo/config/"+tc.Key)
+			assert.Equal(t, data, actual)
 		})
 	}
 }
@@ -609,11 +610,12 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			err = tc.Publisher.Publish(oldData)
+			err = tc.Publisher.Publish(0, oldData)
 			require.NoError(t, err)
-			err = tc.Publisher.Publish(newData)
+			err = tc.Publisher.Publish(0, newData)
 			assert.NoError(t, err)
-			assert.Equal(t, newData, etcdGet(t, etcd, "/foo/config/"+tc.Key))
+			actual, _ := etcdGet(t, etcd, "/foo/config/"+tc.Key)
+			assert.Equal(t, newData, actual)
 		})
 	}
 }
@@ -632,15 +634,50 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout).Publish(data)
+	err = cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout).Publish(0, data)
 
 	assert.NoError(t, err)
-	assert.Equal(t, []byte(""), etcdGet(t, etcd, "/foo/config/"))
-	assert.Equal(t, []byte(""), etcdGet(t, etcd, "/foo/config/foo"))
-	assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/all"))
+
+	actual, _ := etcdGet(t, etcd, "/foo/config/")
+	assert.Equal(t, []byte(""), actual)
+
+	actual, _ = etcdGet(t, etcd, "/foo/config/foo")
+	assert.Equal(t, []byte(""), actual)
+
+	actual, _ = etcdGet(t, etcd, "/foo/config/all")
+	assert.Equal(t, data, actual)
 }
 
-func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
+func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
+	inst := startEtcd(t, httpEndpoint, etcdOpts{})
+	defer stopEtcd(t, inst)
+
+	endpoints := []string{httpEndpoint}
+	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	require.NoError(t, err)
+	require.NotNil(t, etcd)
+	defer etcd.Close()
+
+	etcdPut(t, etcd, "/foo/config/key", "bar")
+	_, modRevision := etcdGet(t, etcd, "/foo/config/key")
+
+	data := []byte("baz")
+
+	publisher := cluster.NewEtcdKeyDataPublisher(etcd, "/foo", "key", timeout)
+	// Use wrong revision.
+	err = publisher.Publish(modRevision-1, data)
+	assert.Errorf(t, err, "failed to put data into etcd: wrong revision")
+	actual, _ := etcdGet(t, etcd, "/foo/config/key")
+	assert.Equal(t, []byte("bar"), actual)
+
+	// Use right revision.
+	err = publisher.Publish(modRevision, data)
+	assert.NoError(t, err)
+	actual, _ = etcdGet(t, etcd, "/foo/config/key")
+	assert.Equal(t, data, actual)
+}
+
+func TestEtcdKeyDataPublisher_Publish_ignore_prefix(t *testing.T) {
 	inst := startEtcd(t, httpEndpoint, etcdOpts{})
 	defer stopEtcd(t, inst)
 
@@ -654,12 +691,18 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "all", timeout).Publish(data)
+	err = cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "all", timeout).Publish(0, data)
 
 	assert.NoError(t, err)
-	assert.Equal(t, []byte("foo"), etcdGet(t, etcd, "/foo/config/"))
-	assert.Equal(t, []byte("zoo"), etcdGet(t, etcd, "/foo/config/foo"))
-	assert.Equal(t, data, etcdGet(t, etcd, "/foo/config/all"))
+
+	actual, _ := etcdGet(t, etcd, "/foo/config/")
+	assert.Equal(t, []byte("foo"), actual)
+
+	actual, _ = etcdGet(t, etcd, "/foo/config/foo")
+	assert.Equal(t, []byte("zoo"), actual)
+
+	actual, _ = etcdGet(t, etcd, "/foo/config/all")
+	assert.Equal(t, data, actual)
 }
 
 func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {

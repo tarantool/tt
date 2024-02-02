@@ -79,23 +79,6 @@ func (getter *MockEtcdTxnGetter) Txn(ctx context.Context) clientv3.Txn {
 	return getter.TxnRet
 }
 
-type MockEtcdPutter struct {
-	Ctx context.Context
-	Key string
-	Val string
-	Ops []clientv3.OpOption
-	Err error
-}
-
-func (putter *MockEtcdPutter) Put(ctx context.Context, key string, val string,
-	opts ...clientv3.OpOption) (*clientv3.PutResponse, error) {
-	putter.Ctx = ctx
-	putter.Key = key
-	putter.Val = val
-	putter.Ops = opts
-	return nil, putter.Err
-}
-
 func TestClientKVImplementsEtcdGetter(t *testing.T) {
 	var (
 		kv     clientv3.KV
@@ -177,34 +160,40 @@ func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 		{
 			Kvs: []*mvccpb.KeyValue{
 				&mvccpb.KeyValue{
-					Key:   []byte("k"),
-					Value: []byte("f: a\nb: a\n"),
+					Key:         []byte("k"),
+					Value:       []byte("f: a\nb: a\n"),
+					ModRevision: 1,
 				},
 			},
 			Expected: []integrity.Data{{
-				Source: "k",
-				Value:  []byte("f: a\nb: a\n"),
+				Source:   "k",
+				Value:    []byte("f: a\nb: a\n"),
+				Revision: 1,
 			}},
 		},
 		{
 			Kvs: []*mvccpb.KeyValue{
 				&mvccpb.KeyValue{
-					Key:   []byte("k"),
-					Value: []byte("f: a\nb: a\n"),
+					Key:         []byte("k"),
+					Value:       []byte("f: a\nb: a\n"),
+					ModRevision: 1,
 				},
 				&mvccpb.KeyValue{
-					Key:   []byte("k"),
-					Value: []byte("f: b\nb: b\nc: b\n"),
+					Key:         []byte("k"),
+					Value:       []byte("f: b\nb: b\nc: b\n"),
+					ModRevision: 2,
 				},
 			},
 			Expected: []integrity.Data{
 				{
-					Source: "k",
-					Value:  []byte("f: a\nb: a\n"),
+					Source:   "k",
+					Value:    []byte("f: a\nb: a\n"),
+					Revision: 1,
 				},
 				{
-					Source: "k",
-					Value:  []byte("f: b\nb: b\nc: b\n"),
+					Source:   "k",
+					Value:    []byte("f: b\nb: b\nc: b\n"),
+					Revision: 2,
 				},
 			},
 		},
@@ -303,14 +292,16 @@ func TestEtcdKeyCollector_Collect_key(t *testing.T) {
 	mock := &MockEtcdGetter{
 		Kvs: []*mvccpb.KeyValue{
 			&mvccpb.KeyValue{
-				Key:   []byte("k"),
-				Value: []byte("f: a\nb: a\n"),
+				Key:         []byte("k"),
+				Value:       []byte("f: a\nb: a\n"),
+				ModRevision: 1,
 			},
 		},
 	}
 	expected := []integrity.Data{{
-		Source: "k",
-		Value:  []byte("f: a\nb: a\n"),
+		Source:   "k",
+		Value:    []byte("f: a\nb: a\n"),
+		Revision: 1,
 	}}
 
 	config, err := cluster.NewEtcdKeyCollector(mock, "foo", "key", 0).Collect()
@@ -324,12 +315,14 @@ func TestEtcdKeyCollector_Collect_too_many(t *testing.T) {
 	mock := &MockEtcdGetter{
 		Kvs: []*mvccpb.KeyValue{
 			&mvccpb.KeyValue{
-				Key:   []byte("k"),
-				Value: []byte("f: a\nb: a\n"),
+				Key:         []byte("k"),
+				Value:       []byte("f: a\nb: a\n"),
+				ModRevision: 1,
 			},
 			&mvccpb.KeyValue{
-				Key:   []byte("k"),
-				Value: []byte("f: b\nb: b\nc: b\n"),
+				Key:         []byte("k"),
+				Value:       []byte("f: b\nb: b\nc: b\n"),
+				ModRevision: 2,
 			},
 		},
 	}
@@ -364,7 +357,7 @@ func TestEtcdAllDataPublisher_Publish_get_inputs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Prefix, func(t *testing.T) {
 			mock := &MockEtcdTxnGetter{}
-			cluster.NewEtcdAllDataPublisher(mock, tc.Prefix, 0).Publish(data)
+			cluster.NewEtcdAllDataPublisher(mock, tc.Prefix, 0).Publish(0, data)
 
 			assert.NotNil(t, mock.Ctx)
 			assert.Equal(t, tc.Key, mock.Key)
@@ -431,7 +424,7 @@ func TestEtcdAllDataPublisher_Publish_txn_inputs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			publisher := cluster.NewEtcdAllDataPublisher(tc.Mock, "/foo", 0)
-			publisher.Publish([]byte{})
+			publisher.Publish(0, []byte{})
 
 			assert.Len(t, tc.Mock.TxnRet.IfCs, tc.IfLen)
 			assert.Len(t, tc.Mock.TxnRet.ThenOps, tc.ThenLen)
@@ -462,7 +455,7 @@ func TestEtcdDataPublishers_Publish_data_nil(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			err := tc.Publisher.Publish(nil)
+			err := tc.Publisher.Publish(0, nil)
 
 			assert.EqualError(t, err,
 				"failed to publish data into etcd: data does not exist")
@@ -482,7 +475,7 @@ func TestEtcdDataPublishers_Publish_publisher_nil(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			assert.Panics(t, func() {
-				tc.Publisher.Publish([]byte{})
+				tc.Publisher.Publish(0, []byte{})
 			})
 		})
 	}
@@ -520,7 +513,7 @@ func TestEtcdAllDataPublisher_Publish_errors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			publisher := cluster.NewEtcdAllDataPublisher(tc.Mock, "prefix", 0)
-			err := publisher.Publish([]byte{})
+			err := publisher.Publish(0, []byte{})
 			if tc.Expected != "" {
 				assert.EqualError(t, err, tc.Expected)
 			} else {
@@ -530,6 +523,14 @@ func TestEtcdAllDataPublisher_Publish_errors(t *testing.T) {
 	}
 }
 
+func TestEtcdAllDataPublisher_Publish_revision(t *testing.T) {
+	mock := &MockEtcdTxnGetter{}
+	publisher := cluster.NewEtcdAllDataPublisher(mock, "prefix", 0)
+	err := publisher.Publish(1, []byte{})
+	assert.EqualError(t, err,
+		"failed to publish data into etcd: target revision 1 is not supported")
+}
+
 func TestEtcdAllDataPublisher_Publish_timeout(t *testing.T) {
 	cases := []time.Duration{0, 60 * time.Second}
 
@@ -537,7 +538,7 @@ func TestEtcdAllDataPublisher_Publish_timeout(t *testing.T) {
 		t.Run(fmt.Sprint(tc), func(t *testing.T) {
 			mock := &MockEtcdTxnGetter{}
 			publisher := cluster.NewEtcdAllDataPublisher(mock, "prefix", tc)
-			err := publisher.Publish([]byte{})
+			err := publisher.Publish(0, []byte{})
 
 			require.NoError(t, err)
 			require.NotNil(t, mock.Ctx)
@@ -574,7 +575,7 @@ func TestEtcdAllDataPublisher_Publish_timeout_exit(t *testing.T) {
 	timeout := 100 * time.Millisecond
 	delta := 30 * time.Millisecond
 	publisher := cluster.NewEtcdAllDataPublisher(mock, "prefix", timeout)
-	err := publisher.Publish([]byte{})
+	err := publisher.Publish(0, []byte{})
 	assert.EqualError(t, err, "context deadline exceeded")
 	assert.InDelta(t, timeout, time.Since(before), float64(delta))
 }
@@ -605,37 +606,58 @@ func TestEtcdKeyDataPublisher_Publish_inputs(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Expected, func(t *testing.T) {
-			mock := &MockEtcdPutter{Err: fmt.Errorf("foo")}
+			mock := &MockEtcdTxnGetter{TxnRet: &MockTxn{Err: fmt.Errorf("foo")}}
 			publisher := cluster.NewEtcdKeyDataPublisher(mock, tc.Prefix, tc.Key, 0)
-			publisher.Publish(data)
+			publisher.Publish(0, data)
 
-			assert.NotNil(t, mock.Ctx)
-			assert.Equal(t, tc.Expected, mock.Key)
-			assert.Equal(t, data, []byte(mock.Val))
-			assert.Len(t, mock.Ops, 0)
+			assert.NotNil(t, mock.CtxTxn)
+			assert.Equal(t,
+				[]clientv3.Op{clientv3.OpPut(tc.Expected, string(data))}, mock.TxnRet.ThenOps)
+			assert.Nil(t, mock.TxnRet.IfCs)
+			assert.Nil(t, mock.TxnRet.ElseOps)
 		})
 	}
 }
 
+func TestEtcdKeyDataPublisher_Publish_modRevision(t *testing.T) {
+	prefix := "/foo"
+	key := "key"
+	modRevision := int64(5)
+	data := []byte("foo bar")
+	expected := "/foo/config/key"
+	mock := &MockEtcdTxnGetter{TxnRet: &MockTxn{Err: fmt.Errorf("foo")}}
+	publisher := cluster.NewEtcdKeyDataPublisher(mock, prefix, key, 0)
+
+	publisher.Publish(modRevision, data)
+	assert.NotNil(t, mock.CtxTxn)
+	assert.Equal(t,
+		[]clientv3.Op{clientv3.OpPut(expected, string(data))},
+		mock.TxnRet.ThenOps)
+	assert.Equal(t,
+		[]clientv3.Cmp{clientv3.Compare(clientv3.ModRevision(expected), "=", modRevision)},
+		mock.TxnRet.IfCs)
+	assert.Nil(t, mock.TxnRet.ElseOps)
+}
+
 func TestEtcdKeyDataPublisher_Publish_error(t *testing.T) {
-	mock := &MockEtcdPutter{Err: fmt.Errorf("foo")}
+	mock := &MockEtcdTxnGetter{TxnRet: &MockTxn{Err: fmt.Errorf("foo")}}
 	publisher := cluster.NewEtcdKeyDataPublisher(mock, "", "", 0)
-	err := publisher.Publish([]byte{})
+	err := publisher.Publish(0, []byte{})
 
 	assert.EqualError(t, err, "failed to put data into etcd: foo")
 }
 
 func TestEtcdKeyDataPublisher_Publish_timeout(t *testing.T) {
 	cases := []time.Duration{0, 60 * time.Second}
-	mock := &MockEtcdPutter{Err: fmt.Errorf("foo")}
+	mock := &MockEtcdTxnGetter{TxnRet: &MockTxn{Err: fmt.Errorf("foo")}}
 
 	for _, tc := range cases {
 		t.Run(fmt.Sprint(tc), func(t *testing.T) {
 			publisher := cluster.NewEtcdKeyDataPublisher(mock, "", "", tc)
-			publisher.Publish([]byte{})
+			publisher.Publish(0, []byte{})
 
 			expected := time.Now().Add(tc)
-			deadline, ok := mock.Ctx.Deadline()
+			deadline, ok := mock.CtxTxn.Deadline()
 			if tc == 0 {
 				assert.False(t, ok)
 			} else {

@@ -13,6 +13,8 @@ type Data struct {
 	Source string
 	// Value is data collected.
 	Value []byte
+	// Revision is data revision.
+	Revision int64
 }
 
 // DataCollector interface must be implemented by a source collector.

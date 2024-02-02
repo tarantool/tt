@@ -10,7 +10,7 @@ import (
 // DataPublisher interface must be implemented by a raw data publisher.
 type DataPublisher interface {
 	// Publish publishes the interface or returns an error.
-	Publish(data []byte) error
+	Publish(revision int64, data []byte) error
 }
 
 // Data publisher factory creates new data publishers.

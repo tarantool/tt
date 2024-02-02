@@ -55,7 +55,7 @@ func PublishUri(publishCtx PublishCtx, uri *url.URL) error {
 
 	if instance == "" {
 		// The easy case, just publish the configuration as is.
-		return publisher.Publish(publishCtx.Src)
+		return publisher.Publish(0, publishCtx.Src)
 	}
 
 	return replaceInstanceConfig(instance, publishCtx.Config, collector, publisher)
@@ -74,7 +74,7 @@ func PublishCluster(publishCtx PublishCtx, path, instance string) error {
 
 	if instance == "" {
 		// The easy case, just publish the configuration as is.
-		return publisher.Publish(publishCtx.Src)
+		return publisher.Publish(0, publishCtx.Src)
 	}
 
 	collector, err := publishCtx.Collectors.NewFile(path)

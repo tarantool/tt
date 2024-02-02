@@ -86,5 +86,5 @@ func (publisher YamlConfigPublisher) Publish(config *Config) error {
 		return fmt.Errorf("config does not exist")
 	}
 
-	return publisher.publisher.Publish([]byte(config.String()))
+	return publisher.publisher.Publish(0, []byte(config.String()))
 }
