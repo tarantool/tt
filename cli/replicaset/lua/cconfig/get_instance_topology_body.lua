@@ -14,7 +14,7 @@ local replicaset = {
     leaderuuid = leader_uuid,
     instances = {},
     instanceuuid = box_info.uuid,
-    instancerw = box.cfg.read_only == false,
+    instancerw = box.info.ro == false,
 }
 
 for _, instance in ipairs(box_info.replication) do
