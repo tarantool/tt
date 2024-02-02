@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Built-in vshard cluster application template.
 - Building tt in Linux-aarch64, FreeBSD environments.
 - `tt binaries switch`: switch to installed binary.
+- `tt download`: download Tarantool SDK.
 
 ### Changed
 
