@@ -501,5 +501,5 @@ func GetTarantoolBundleInfo(cliOpts *config.CliOpts, local bool, devBuild bool,
 		}
 	}
 
-	return BundleInfo{}, fmt.Errorf("%s version of tarantool-ee doesn't exist", expectedVersion)
+	return BundleInfo{}, fmt.Errorf("%s version doesn't exist", expectedVersion)
 }
