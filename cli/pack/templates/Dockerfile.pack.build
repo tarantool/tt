@@ -5,7 +5,8 @@ RUN apt-get update && apt-get install -y curl
 
 RUN curl -L https://tarantool.io/release/2/installer.sh | bash
 
-RUN apt-get update && apt-get install -y tt
+RUN apt-get update && apt-get install -y tt={{ .tt_version }} || \
+  apt-get install -y tt
 
 # Install Tarantool
 FROM --platform=linux/amd64 ubuntu:18.04 as tarantool-builder

@@ -67,6 +67,7 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	dockerfileText, err := goTextEngine.RenderText(string(buildDockerfile),
 		map[string]string{
 			"tnt_version": tntVersionStr,
+			"tt_version":  version.GetVersion(true, false),
 			"env_dir":     filepath.Base(envDir),
 		})
 	if err != nil {
