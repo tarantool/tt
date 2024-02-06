@@ -19,6 +19,9 @@ Common (all instances) unit is removed.
 error.
 - `tt pack` packs applications, which are not valid: instances file is
 empty, for example.
+- `tt pack` with `--use-docker` fails due to incompatible versions of `tt`
+between local system and docker container. Install current `tt` version
+in docker image if possible.
 
 ## [2.1.2] - 2024-02-02
 
