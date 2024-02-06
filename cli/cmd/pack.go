@@ -101,7 +101,7 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
-	err := pack.FillCtx(cmdCtx, packCtx, args)
+	err := pack.FillCtx(cmdCtx, packCtx, cliOpts, args)
 	if err != nil {
 		return err
 	}

@@ -434,7 +434,7 @@ func TestCollectAppList(t *testing.T) {
 		" expected: %d, got %d", len(apps), len(collected))
 
 	for _, item := range collected {
-		require.Truef(t, apps[item.Name], "wrong item got collected in app list: %s", item)
+		require.Truef(t, apps[item], "wrong item got collected in app list: %s", item)
 	}
 }
 

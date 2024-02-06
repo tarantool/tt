@@ -4,14 +4,30 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
+	"github.com/tarantool/tt/cli/running"
 )
+
+func compareFiles(t *testing.T, resultFile string, expectedFile string) {
+	actualContent, err := os.ReadFile(resultFile)
+	require.NoError(t, err)
+	actualContentStr := string(actualContent)
+
+	expectedContent, err := os.ReadFile(expectedFile)
+	require.NoError(t, err)
+	expectedContentStr := string(expectedContent)
+
+	assert.Equal(t, expectedContentStr, actualContentStr)
+}
 
 func Test_initSystemdDir(t *testing.T) {
 	baseTestDir := t.TempDir()
@@ -20,15 +36,25 @@ func Test_initSystemdDir(t *testing.T) {
 	fakeCfgPath := "/path/to/cfg"
 
 	var (
-		test1Dir = "test_default_template_values"
-		test2Dir = "test_default_template_partly_defined_values"
-		test3Dir = "test_default_template_fully_defined_values"
-		appDir   = "app"
+		test1Dir        = "test_default_template_values"
+		test2Dir        = "test_default_template_partly_defined_values"
+		test3Dir        = "test_default_template_fully_defined_values"
+		testMultiAppDir = "test_multi_app_env"
+		appDir          = "app"
+		appsInfo        = map[string][]running.InstanceCtx{
+			"app": {
+				running.InstanceCtx{
+					AppName:   "app",
+					SingleApp: false,
+				},
+			},
+		}
 	)
 	testDirs := []string{
 		filepath.Join(test1Dir, appDir),
 		filepath.Join(test2Dir, appDir),
 		filepath.Join(test3Dir, appDir),
+		testMultiAppDir,
 	}
 
 	err := test_helpers.CreateDirs(baseTestDir, testDirs)
@@ -69,31 +95,18 @@ func Test_initSystemdDir(t *testing.T) {
 					},
 				},
 				packCtx: &PackCtx{
-					Name:    "pack",
-					AppList: []string{appDir},
+					Name:     "pack",
+					AppList:  []string{appDir},
+					AppsInfo: appsInfo,
 				},
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err == nil
 			},
 			check: func() error {
-				content, err := os.ReadFile(filepath.Join(baseTestDir,
-					test1Dir, prefixToUnit, "pack.service"))
-				if err != nil {
-					return err
-				}
-				contentStr := string(content)
-
-				expectedContent, err := os.ReadFile(filepath.Join(baseTestDir,
-					test1Dir, prefixToUnit, "expected-unit-content-1.txt"))
-				if err != nil {
-					return err
-				}
-				expectedContentStr := string(expectedContent)
-
-				if contentStr != expectedContentStr {
-					return fmt.Errorf("the unit file doesn't contain the passed value")
-				}
+				compareFiles(t, filepath.Join(baseTestDir, test1Dir, prefixToUnit, "app@.service"),
+					filepath.Join(baseTestDir, test1Dir, prefixToUnit,
+						"expected-unit-content-1.txt"))
 				return nil
 			},
 		},
@@ -114,29 +127,16 @@ func Test_initSystemdDir(t *testing.T) {
 						SystemdUnitParamsFile: filepath.Join(baseTestDir,
 							test2Dir, "partly-defined-params.yaml"),
 					},
+					AppsInfo: appsInfo,
 				},
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err == nil
 			},
 			check: func() error {
-				content, err := os.ReadFile(filepath.Join(baseTestDir,
-					test2Dir, prefixToUnit, "pack.service"))
-				if err != nil {
-					return err
-				}
-				contentStr := string(content)
-
-				expectedContent, err := os.ReadFile(filepath.Join(baseTestDir,
-					test2Dir, prefixToUnit, "expected-unit-content-2.txt"))
-				if err != nil {
-					return err
-				}
-				expectedContentStr := string(expectedContent)
-
-				if contentStr != expectedContentStr {
-					return fmt.Errorf("the unit file doesn't contain the passed value")
-				}
+				compareFiles(t, filepath.Join(baseTestDir, test2Dir, prefixToUnit, "app@.service"),
+					filepath.Join(baseTestDir, test2Dir, prefixToUnit,
+						"expected-unit-content-2.txt"))
 				return nil
 			},
 		},
@@ -157,29 +157,83 @@ func Test_initSystemdDir(t *testing.T) {
 						SystemdUnitParamsFile: filepath.Join(baseTestDir,
 							test3Dir, "fully-defined-params.yaml"),
 					},
+					AppsInfo: appsInfo,
 				},
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err == nil
 			},
 			check: func() error {
-				content, err := os.ReadFile(filepath.Join(baseTestDir,
-					test3Dir, prefixToUnit, "pack.service"))
-				if err != nil {
-					return err
+				compareFiles(t, filepath.Join(baseTestDir, test3Dir, prefixToUnit, "app@.service"),
+					filepath.Join(baseTestDir, test3Dir, prefixToUnit,
+						"expected-unit-content-3.txt"))
+				return nil
+			},
+		},
+		{
+			name: "Systemd units generation for multiple applications env",
+			args: args{
+				baseDirPath: filepath.Join(baseTestDir, testMultiAppDir),
+				pathToEnv:   fakeCfgPath,
+				opts: &config.CliOpts{
+					Env: &config.TtEnvOpts{
+						InstancesEnabled: filepath.Join(baseTestDir, test3Dir),
+					},
+				},
+				packCtx: &PackCtx{
+					Name:    "pack",
+					AppList: []string{"app1", "app2"},
+					AppsInfo: map[string][]running.InstanceCtx{
+						"app1": {
+							running.InstanceCtx{
+								AppName:   "app1",
+								SingleApp: false,
+							},
+						},
+						"app2": {
+							running.InstanceCtx{
+								AppName:   "app2",
+								SingleApp: true,
+							},
+						},
+					},
+				},
+			},
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return err == nil
+			},
+			check: func() error {
+				unitTemplate, err := template.ParseFiles("templates/app-inst-unit-template.txt")
+				require.NoError(t, err)
+				// app1 systemd unit check.
+				appInstData := map[string]any{
+					"TT":         filepath.Join(fakeCfgPath, configure.BinPath, "tt"),
+					"ConfigPath": fakeCfgPath,
+					"FdLimit":    defaultInstanceFdLimit,
+					"AppName":    "app1@%i",
+					"ExecArgs":   "app1:%i",
 				}
-				contentStr := string(content)
+				strBuilder := strings.Builder{}
+				unitTemplate.Execute(&strBuilder, appInstData)
 
-				expectedContent, err := os.ReadFile(filepath.Join(baseTestDir,
-					test3Dir, prefixToUnit, "expected-unit-content-3.txt"))
-				if err != nil {
-					return err
-				}
-				expectedContentStr := string(expectedContent)
+				buf, err := os.ReadFile(filepath.Join(baseTestDir, testMultiAppDir, prefixToUnit,
+					"app1@.service"))
+				require.NoError(t, err)
+				actualContent := string(buf)
+				assert.Equal(t, strBuilder.String(), actualContent)
 
-				if contentStr != expectedContentStr {
-					return fmt.Errorf("the unit file doesn't contain the passed value")
-				}
+				// app2 systems unit check.
+				appInstData["AppName"] = "app2"
+				appInstData["ExecArgs"] = "app2"
+				strBuilder.Reset()
+				unitTemplate.Execute(&strBuilder, appInstData)
+				// app2 is single instance app, so unit file is not template unit file.
+				buf, err = os.ReadFile(filepath.Join(baseTestDir, testMultiAppDir, prefixToUnit,
+					"app2.service"))
+				require.NoError(t, err)
+				actualContent = string(buf)
+				assert.Equal(t, strBuilder.String(), actualContent)
+
 				return nil
 			},
 		},
@@ -198,6 +252,15 @@ func Test_initSystemdDir(t *testing.T) {
 
 func Test_getUnitParams(t *testing.T) {
 	testDir := t.TempDir()
+
+	appsInfo := map[string][]running.InstanceCtx{
+		"envName": {
+			running.InstanceCtx{
+				AppName:   "envName",
+				SingleApp: false,
+			},
+		},
+	}
 
 	type args struct {
 		packCtx   *PackCtx
@@ -221,13 +284,15 @@ func Test_getUnitParams(t *testing.T) {
 					RpmDeb: RpmDebCtx{
 						SystemdUnitParamsFile: "",
 					},
+					AppsInfo: appsInfo,
 				},
 			},
 			want: map[string]interface{}{
 				"TT":         "tt",
 				"ConfigPath": "/path/to/env",
 				"FdLimit":    defaultInstanceFdLimit,
-				"EnvName":    "envName",
+				"AppName":    "envName",
+				"ExecArgs":   "envName:%i",
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err != nil
@@ -246,13 +311,15 @@ func Test_getUnitParams(t *testing.T) {
 					RpmDeb: RpmDebCtx{
 						SystemdUnitParamsFile: filepath.Join(testDir, "partly-params.yaml"),
 					},
+					AppsInfo: appsInfo,
 				},
 			},
 			want: map[string]interface{}{
 				"TT":         "tt",
 				"ConfigPath": "/path/to/env",
 				"FdLimit":    1024,
-				"EnvName":    "envName",
+				"AppName":    "envName",
+				"ExecArgs":   "envName:%i",
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err != nil
@@ -273,13 +340,22 @@ func Test_getUnitParams(t *testing.T) {
 					RpmDeb: RpmDebCtx{
 						SystemdUnitParamsFile: filepath.Join(testDir, "fully-params.yaml"),
 					},
+					AppsInfo: map[string][]running.InstanceCtx{
+						"envName": {
+							running.InstanceCtx{
+								AppName:   "envName",
+								SingleApp: false,
+							},
+						},
+					},
 				},
 			},
 			want: map[string]interface{}{
 				"TT":         "/usr/bin/tt",
 				"ConfigPath": "/test/path",
 				"FdLimit":    1024,
-				"EnvName":    "testEnv",
+				"AppName":    "envName",
+				"ExecArgs":   "envName",
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err != nil
@@ -289,7 +365,7 @@ func Test_getUnitParams(t *testing.T) {
 					[]byte("FdLimit: 1024\n"+
 						"TT: /usr/bin/tt\n"+
 						"ConfigPath: /test/path\n"+
-						"EnvName: testEnv\n"), 0666)
+						"AppName: testEnv\n"), 0666)
 				return err
 			},
 		},
@@ -297,7 +373,9 @@ func Test_getUnitParams(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.NoError(t, tt.prepare())
-			got, err := getUnitParams(tt.args.packCtx, tt.args.pathToEnv, tt.args.envName)
+			got, err := getUnitParams(tt.args.packCtx, tt.args.pathToEnv, running.InstanceCtx{
+				AppName: tt.args.envName,
+			})
 			if !tt.wantErr(t, err, fmt.Sprintf("getUnitParams(%v, %v, %v)",
 				tt.args.packCtx, tt.args.pathToEnv, tt.args.envName)) {
 				return

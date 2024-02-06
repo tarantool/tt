@@ -953,6 +953,34 @@ def test_pack_deb(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
+    app_systemd_template = """
+[Unit]
+Description=Tarantool application {app}
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/share/tarantool/bundle1/bin/tt -L /usr/share/tarantool/bundle1 start {args}
+ExecStop=/usr/share/tarantool/bundle1/bin/tt -L /usr/share/tarantool/bundle1 stop {args}
+Restart=on-failure
+RestartSec=2
+User=tarantool
+Group=tarantool
+
+LimitCORE=infinity
+# Disable OOM killer
+OOMScoreAdjust=-1000
+# Increase fd limit for Vinyl
+LimitNOFILE=65535
+
+# Systemd waits until all xlogs are recovered
+TimeoutStartSec=86400s
+# Give a reasonable amount of time to close xlogs
+TimeoutStopSec=10s
+
+[Install]
+WantedBy=multi-user.target"""
+
     # check if docker daemon is up
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
@@ -983,21 +1011,25 @@ def test_pack_deb(tt_cmd, tmpdir):
                                              '/bin/bash', '-c',
                                              '/bin/dpkg -i {0} && '
                                              'ls /usr/share/tarantool/bundle1 '
-                                             '&& systemctl list-unit-files | grep bundle1'
+                                             '&& systemctl list-unit-files | grep app'
+                                             '&& cat /usr/lib/systemd/system/app1.service'
+                                             ' /usr/lib/systemd/system/app2@.service'
                                             .format(package_file_name)])
+    assert rc == 0
 
     assert re.search(r'Preparing to unpack {0}'.format(package_file_name), output)
     assert re.search(r'Unpacking bundle \(0\.1\.0\)', output)
     assert re.search(r'Setting up bundle \(0\.1\.0\)', output)
 
     installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
-    systemd_units = ['bundle1@.service', 'bundle1.service']
+    systemd_units = ['app1.service', 'app2@.service']
 
     for path in installed_package_paths:
         assert re.search(path, output)
     for unit in systemd_units:
         assert re.search(unit, output)
-    assert rc == 0
+    assert app_systemd_template.format(app="app1", args="app1") in output
+    assert app_systemd_template.format(app="app2@%i", args="app2:%i") in output
 
 
 @pytest.mark.slow
@@ -1035,21 +1067,19 @@ def test_pack_rpm(tt_cmd, tmpdir):
                                              '/bin/bash', '-c',
                                              'rpm -i {0} '
                                              '&& ls /usr/share/tarantool/bundle1 '
-                                             '&& systemctl list-unit-files | grep bundle1'
+                                             '&& systemctl list-unit-files | grep app'
                                             .format(package_file_name)])
+    assert rc == 0
     installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
-    systemd_units = ['bundle1@.service', 'bundle1.service']
+    systemd_units = ['app1.service', 'app2@.service']
 
     for path in installed_package_paths:
         assert re.search(path, output)
     for unit in systemd_units:
         assert re.search(unit, output)
 
-    assert rc == 0
-
 
 @pytest.mark.slow
-@pytest.mark.skip(reason="Changes are incompatible with previous version")
 def test_pack_rpm_use_docker(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -1083,19 +1113,17 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
                                              'rpm -i {0} && ls /usr/share/tarantool/bundle1 '
                                              '&& ls /usr/lib/systemd/system'
                                             .format(package_file_name)])
+    assert rc == 0
     installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
-    systemd_paths = ['bundle1%.service', 'bundle1.service']
+    systemd_paths = ['app1.service', 'app2@.service']
 
     for path in installed_package_paths:
         re.search(path, output)
     for path in systemd_paths:
         re.search(path, output)
 
-    assert rc == 0
-
 
 @pytest.mark.slow
-@pytest.mark.skip(reason="Changes are incompatible with previous version")
 def test_pack_deb_use_docker_tnt_version(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
@@ -1185,7 +1213,6 @@ def test_pack_rpm_use_docker_wrong_version(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-@pytest.mark.skip(reason="Changes are incompatible with previous version")
 def test_pack_deb_use_docker(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
