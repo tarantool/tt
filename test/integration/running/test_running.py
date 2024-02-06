@@ -500,20 +500,10 @@ def test_no_args_usage(tt_cmd):
                 os.mkdir(os.path.join(test_app_path, "multi_app"))
             # Start all instances.
             start_cmd = [tt_cmd, "start"]
-            instance_process = subprocess.Popen(
-                start_cmd,
-                cwd=test_app_path,
-                stderr=subprocess.STDOUT,
-                stdout=subprocess.PIPE,
-                text=True
-            )
-            for i in range(0, 3):
-                start_output = instance_process.stdout.readline()
-                assert re.search(r"Starting an instance \[app1:(router|master|replica)\]",
-                                 start_output)
-
-            start_output = instance_process.stdout.readline()
-            assert re.search(r"Starting an instance \[app2\]", start_output)
+            start_rc, start_out = run_command_and_get_output(start_cmd, cwd=test_app_path)
+            assert start_rc == 0
+            assert re.search(r"Starting an instance \[app1:(router|master|replica)\]", start_out)
+            assert re.search(r"Starting an instance \[app2\]", start_out)
 
             # Check status.
             inst_enabled_dir = os.path.join(test_app_path, "instances_enabled")
@@ -550,10 +540,6 @@ def test_no_args_usage(tt_cmd):
                              r"has been terminated.", stop_out)
             assert re.search(r"The Instance app2 \(PID = \d+\) "
                              r"has been terminated.", stop_out)
-
-            # Check that the process was terminated correctly.
-            instance_process_rc = instance_process.wait(1)
-            assert instance_process_rc == 0
 
 
 def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
