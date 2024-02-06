@@ -218,7 +218,8 @@ def test_build_spec_file_set(tt_cmd, tmpdir_with_cfg):
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "cartridge"))
 
 
-def test_build_app_by_name(tt_cmd, tmpdir):
+@pytest.mark.parametrize("flag", [None, "-V"])
+def test_build_app_by_name(tt_cmd, tmpdir, flag):
     init_cmd = [tt_cmd, "init"]
     tt_process = subprocess.Popen(
         init_cmd,
@@ -235,7 +236,10 @@ def test_build_app_by_name(tt_cmd, tmpdir):
                               os.path.join(tmpdir, "appdir", "app1"))
 
     os.symlink("../appdir/app1", os.path.join(tmpdir, "instances.enabled", "app1"), True)
-    build_cmd = [tt_cmd, "build", "app1"]
+    build_cmd = [tt_cmd]
+    if flag:
+        build_cmd.append(flag)
+    build_cmd.extend(["build", "app1"])
     tt_process = subprocess.Popen(
         build_cmd,
         cwd=tmpdir,

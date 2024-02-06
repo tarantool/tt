@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `tt start`: not working on FreeBSD.
+- `tt pack` and `tt build` fail in verbose mode with "invalid argument"
+error.
 
 ## [2.1.2] - 2024-02-02
 
