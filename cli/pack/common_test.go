@@ -579,11 +579,17 @@ func Test_prepareBundleBasic(t *testing.T) {
 		&mockRepository{})
 
 	require.NoError(t, err)
-	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+	cmdCtx := cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
 		},
-	}, &PackCtx{}, cliOpts, false)
+		Integrity: integrity.IntegrityCtx{
+			Repository: &mockRepository{},
+		},
+	}
+	var packCtx PackCtx
+	require.NoError(t, FillCtx(&cmdCtx, &packCtx, cliOpts, []string{"tgz"}))
+	bundleDir, err := prepareBundle(&cmdCtx, &packCtx, cliOpts, false)
 	require.NoError(t, err)
 	defer func() {
 		if strings.HasPrefix(bundleDir, "/tmp/") ||
@@ -646,18 +652,23 @@ func Test_prepareBundleWithArtifacts(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml",
 		&mockRepository{})
 	require.NoError(t, err)
-	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+
+	cmdCtx := cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
 		},
 		Integrity: integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		},
-	}, &PackCtx{
+	}
+	var packCtx PackCtx = PackCtx{
 		Archive: ArchiveCtx{
 			All: true,
 		},
-	}, cliOpts, false)
+	}
+	require.NoError(t, FillCtx(&cmdCtx, &packCtx, cliOpts, []string{"tgz"}))
+
+	bundleDir, err := prepareBundle(&cmdCtx, &packCtx, cliOpts, false)
 	require.NoError(t, err)
 	defer func() {
 		if strings.HasPrefix(bundleDir, "/tmp/") ||
@@ -715,18 +726,23 @@ func Test_prepareBundleDifferentDataDirs(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_different_dirs/tt.yaml",
 		&mockRepository{})
 	require.NoError(t, err)
-	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+
+	cmdCtx := cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
 		},
 		Integrity: integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		},
-	}, &PackCtx{
+	}
+	var packCtx PackCtx = PackCtx{
 		Archive: ArchiveCtx{
 			All: true,
 		},
-	}, cliOpts, false)
+	}
+	require.NoError(t, FillCtx(&cmdCtx, &packCtx, cliOpts, []string{"tgz"}))
+
+	bundleDir, err := prepareBundle(&cmdCtx, &packCtx, cliOpts, false)
 	require.NoError(t, err)
 	defer func() {
 		if strings.HasPrefix(bundleDir, "/tmp/") ||
@@ -786,18 +802,23 @@ func Test_prepareBundleTntCtlLayout(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env_tntctl_layout/tt.yaml",
 		&mockRepository{})
 	require.NoError(t, err)
-	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+
+	cmdCtx := cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
 		},
 		Integrity: integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		},
-	}, &PackCtx{
+	}
+	var packCtx PackCtx = PackCtx{
 		Archive: ArchiveCtx{
 			All: true,
 		},
-	}, cliOpts, false)
+	}
+	require.NoError(t, FillCtx(&cmdCtx, &packCtx, cliOpts, []string{"tgz"}))
+
+	bundleDir, err := prepareBundle(&cmdCtx, &packCtx, cliOpts, false)
 	require.NoError(t, err)
 	defer func() {
 		if strings.HasPrefix(bundleDir, "/tmp/") ||
@@ -855,7 +876,8 @@ func Test_prepareBundleCartridgeCompatWithArtifacts(t *testing.T) {
 	cliOpts, configPath, err := configure.GetCliOpts("testdata/env1/tt.yaml",
 		&mockRepository{})
 	require.NoError(t, err)
-	bundleDir, err := prepareBundle(&cmdcontext.CmdCtx{
+
+	cmdCtx := cmdcontext.CmdCtx{
 		Cli: cmdcontext.CliCtx{
 			ConfigDir: filepath.Dir(configPath),
 			TarantoolCli: cmdcontext.TarantoolCli{
@@ -865,14 +887,18 @@ func Test_prepareBundleCartridgeCompatWithArtifacts(t *testing.T) {
 		Integrity: integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		},
-	}, &PackCtx{
+	}
+	var packCtx PackCtx = PackCtx{
 		AppList:         []string{"multi"},
 		CartridgeCompat: true,
 		Archive: ArchiveCtx{
 			All: true,
 		},
 		TarantoolIsSystem: false,
-	}, cliOpts, false)
+	}
+	require.NoError(t, FillCtx(&cmdCtx, &packCtx, cliOpts, []string{"tgz"}))
+
+	bundleDir, err := prepareBundle(&cmdCtx, &packCtx, cliOpts, false)
 	require.NoError(t, err)
 	defer func() {
 		if strings.HasPrefix(bundleDir, "/tmp/") ||

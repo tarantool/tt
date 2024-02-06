@@ -1,11 +1,11 @@
 [Unit]
-Description=Tarantool app pack.default
+Description=Tarantool application app@%i
 After=network.target
 
 [Service]
 Type=forking
-ExecStart=/path/to/cfg/bin/tt -L /path/to/cfg start
-ExecStop=/path/to/cfg/bin/tt -L /path/to/cfg stop
+ExecStart=/path/to/cfg/bin/tt -L /path/to/cfg start app:%i
+ExecStop=/path/to/cfg/bin/tt -L /path/to/cfg stop app:%i
 Restart=on-failure
 RestartSec=2
 User=tarantool
@@ -24,4 +24,3 @@ TimeoutStopSec=10s
 
 [Install]
 WantedBy=multi-user.target
-Alias=pack

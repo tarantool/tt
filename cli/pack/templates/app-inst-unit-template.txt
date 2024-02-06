@@ -1,11 +1,11 @@
 [Unit]
-Description=Tarantool app {{ .EnvName }}@%i
+Description=Tarantool application {{ .AppName }}
 After=network.target
 
 [Service]
 Type=forking
-ExecStart={{ .TT }} -L {{ .ConfigPath }} start %i
-ExecStop={{ .TT }} -L {{ .ConfigPath }} stop %i
+ExecStart={{ .TT }} -L {{ .ConfigPath }} start {{ .ExecArgs }}
+ExecStop={{ .TT }} -L {{ .ConfigPath }} stop {{ .ExecArgs }}
 Restart=on-failure
 RestartSec=2
 User=tarantool
@@ -24,4 +24,3 @@ TimeoutStopSec=10s
 
 [Install]
 WantedBy=multi-user.target
-Alias=%i

@@ -1,5 +1,7 @@
 package pack
 
+import "github.com/tarantool/tt/cli/running"
+
 // PackCtx contains all flags for tt pack command.
 type PackCtx struct {
 	// Type contains a type of packing.
@@ -34,6 +36,8 @@ type PackCtx struct {
 	TarantoolVersion string
 	// IntegrityPrivateKey contains the path to private key for signing hash files.
 	IntegrityPrivateKey string
+	// Application info collected from tt env.
+	AppsInfo map[string][]running.InstanceCtx
 }
 
 // ArchiveCtx contains flags specific for tgz type.

@@ -7,11 +7,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- `tt pack` generates a separate systemd unit for each packed application.
+Common (all instances) unit is removed.
+
 ### Fixed
 
 - `tt start`: not working on FreeBSD.
 - `tt pack` and `tt build` fail in verbose mode with "invalid argument"
 error.
+- `tt pack` packs applications, which are not valid: instances file is
+empty, for example.
 
 ## [2.1.2] - 2024-02-02
 

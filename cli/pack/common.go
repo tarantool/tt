@@ -156,50 +156,25 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 	}
 
-	// Collect app list step.
-	appList := []util.AppListEntry{}
-	if packCtx.AppList == nil {
-		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.Env.InstancesEnabled,
-			true)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		for _, appName := range packCtx.AppList {
-			if util.IsApp(filepath.Join(cliOpts.Env.InstancesEnabled, appName)) {
-				appList = append(appList, util.AppListEntry{
-					Name:     appName,
-					Location: filepath.Join(cliOpts.Env.InstancesEnabled, appName),
-				})
-			} else {
-				log.Warnf("Skip packing of '%s': specified name is not an application.", appName)
-			}
-		}
+	appList := make([]string, 0, len(packCtx.AppsInfo))
+	for appName, _ := range packCtx.AppsInfo {
+		appList = append(appList, appName)
 	}
-
-	if len(appList) == 0 {
-		err = fmt.Errorf("there are no apps found in instance_enabled directory")
-		return "", err
-	}
-
 	if packCtx.CartridgeCompat && len(appList) != 1 {
 		err = fmt.Errorf("cannot pack multiple applications in compat mode")
 		return "", err
 	}
 
 	{
-		appsToPack := ""
-		for _, appInfo := range appList {
-			appsToPack += appInfo.Name + " "
-		}
+		appsToPack := strings.Join(appList, " ")
 		if packCtx.CartridgeCompat {
 			if packCtx.Name != "" {
 				// Need to change application name.
-				appList[0].Name = packCtx.Name
+				appList[0] = packCtx.Name
 			} else {
 				// Need to collect application name for
 				// VERSION and VERSION.lua files.
-				packCtx.Name = appList[0].Name
+				packCtx.Name = appList[0]
 			}
 		}
 		log.Infof("Apps to pack: %s", appsToPack)
@@ -218,21 +193,27 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 			return "", err
 		}
 	}
-
 	// Copy all apps to a temp directory step.
-	for _, appInfo := range appList {
+	for appName, instances := range packCtx.AppsInfo {
+		if len(instances) == 0 {
+			return "", fmt.Errorf("application %q does not have any instances", appName)
+		}
+		inst := instances[0]
+		appPath := inst.AppDir
+		if inst.IsFileApp {
+			appPath = inst.InstanceScript
+		}
 		if packCtx.CartridgeCompat {
-			err = copyAppSrc(appInfo.Location, appInfo.Name, basePath, skipArtifacts(cliOpts))
+			err = copyAppSrc(appPath, appName, basePath, skipArtifacts(cliOpts))
 		} else {
-			err = copyAppSrc(appInfo.Location, filepath.Base(appInfo.Location), basePath,
-				skipArtifacts(cliOpts))
+			err = copyAppSrc(appPath, filepath.Base(appPath), basePath, skipArtifacts(cliOpts))
 		}
 		if err != nil {
 			return "", err
 		}
 
 		if !packCtx.CartridgeCompat {
-			err = createAppSymlink(appInfo.Location, appInfo.Name,
+			err = createAppSymlink(appPath, filepath.Base(appPath),
 				util.JoinPaths(basePath, newOpts.Env.InstancesEnabled))
 			if err != nil {
 				return "", err
@@ -241,13 +222,8 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	if packCtx.Archive.All {
-		instances, err := running.CollectInstancesForApps(appList, cliOpts,
-			cmdCtx.Cli.ConfigDir, cmdCtx.Integrity)
-		if err != nil {
-			return "", fmt.Errorf("failed to collect instances info: %w", err)
-		}
 		if err = copyArtifacts(*packCtx, basePath, cmdCtx.Cli.ConfigDir,
-			cliOpts, newOpts, instances); err != nil {
+			cliOpts, newOpts, packCtx.AppsInfo); err != nil {
 			return "", err
 		}
 	}
@@ -261,20 +237,15 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	ttYamlPath := basePath
 	if packCtx.CartridgeCompat {
-		ttYamlPath = filepath.Join(ttYamlPath, appList[0].Name)
+		ttYamlPath = filepath.Join(ttYamlPath, appList[0])
 	}
 	writeEnv(newOpts, ttYamlPath, packCtx.CartridgeCompat)
 	if err != nil {
 		return "", err
 	}
 
-	var appNames []string
-	for _, app := range appList {
-		appNames = append(appNames, app.Name)
-	}
-
 	if packCtx.IntegrityPrivateKey != "" {
-		err = signer.Sign(basePath, appNames)
+		err = signer.Sign(basePath, appList)
 		if err != nil {
 			return "", err
 		}
@@ -344,51 +315,53 @@ func copyAppSrc(appPath string, appName string, basePath string,
 // to the passed package structure from the passed path.
 func copyArtifacts(packCtx PackCtx, basePath string,
 	configDir string, currentOpts, newOpts *config.CliOpts,
-	instances []running.InstanceCtx) error {
+	appsInfo map[string][]running.InstanceCtx) error {
 
 	prevAppName := ""
-	for _, inst := range instances {
-		if inst.AppName != prevAppName {
-			prevAppName = inst.AppName
+	for _, instances := range appsInfo {
+		for _, inst := range instances {
+			if inst.AppName != prevAppName {
+				prevAppName = inst.AppName
 
-			appDirName := filepath.Base(inst.AppDir)
-			destAppDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled, appDirName)
-			newConfigDir := basePath
-			if packCtx.CartridgeCompat {
-				destAppDir = util.JoinPaths(basePath, packCtx.Name)
-				newConfigDir = destAppDir
-			}
-
-			dstDir := func(dir string) string {
-				if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
-					return util.JoinPaths(newConfigDir, dir)
+				appDirName := filepath.Base(inst.AppDir)
+				destAppDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled, appDirName)
+				newConfigDir := basePath
+				if packCtx.CartridgeCompat {
+					destAppDir = util.JoinPaths(basePath, packCtx.Name)
+					newConfigDir = destAppDir
 				}
-				return util.JoinPaths(destAppDir, dir)
-			}
-			copyInfo := []struct{ src, dest string }{}
-			if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
-				copyInfo = append(copyInfo, struct{ src, dest string }{
-					src:  inst.Log,
-					dest: util.JoinPaths(dstDir(newOpts.App.LogDir), filepath.Base(inst.Log))})
-			} else {
-				copyInfo = append(copyInfo, struct{ src, dest string }{
-					src:  filepath.Dir(inst.LogDir),
-					dest: dstDir(newOpts.App.LogDir)})
-			}
-			copyInfo = append(copyInfo,
-				struct{ src, dest string }{
-					src: filepath.Dir(inst.WalDir), dest: dstDir(newOpts.App.WalDir)},
-				struct{ src, dest string }{
-					src: filepath.Dir(inst.MemtxDir), dest: dstDir(newOpts.App.MemtxDir)},
-				struct{ src, dest string }{
-					src: filepath.Dir(inst.VinylDir), dest: dstDir(newOpts.App.VinylDir)})
-			if newOpts.App.WalDir == newOpts.App.VinylDir {
-				copyInfo = copyInfo[:2]
-			}
-			for _, toCopy := range copyInfo {
-				log.Debugf("Copying %q -> %q", toCopy.src, toCopy.dest)
-				if err := copy.Copy(toCopy.src, toCopy.dest); err != nil {
-					log.Warnf("Failed to copy artifacts: %s", err)
+
+				dstDir := func(dir string) string {
+					if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
+						return util.JoinPaths(newConfigDir, dir)
+					}
+					return util.JoinPaths(destAppDir, dir)
+				}
+				copyInfo := []struct{ src, dest string }{}
+				if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
+					copyInfo = append(copyInfo, struct{ src, dest string }{
+						src:  inst.Log,
+						dest: util.JoinPaths(dstDir(newOpts.App.LogDir), filepath.Base(inst.Log))})
+				} else {
+					copyInfo = append(copyInfo, struct{ src, dest string }{
+						src:  filepath.Dir(inst.LogDir),
+						dest: dstDir(newOpts.App.LogDir)})
+				}
+				copyInfo = append(copyInfo,
+					struct{ src, dest string }{
+						src: filepath.Dir(inst.WalDir), dest: dstDir(newOpts.App.WalDir)},
+					struct{ src, dest string }{
+						src: filepath.Dir(inst.MemtxDir), dest: dstDir(newOpts.App.MemtxDir)},
+					struct{ src, dest string }{
+						src: filepath.Dir(inst.VinylDir), dest: dstDir(newOpts.App.VinylDir)})
+				if newOpts.App.WalDir == newOpts.App.VinylDir {
+					copyInfo = copyInfo[:2]
+				}
+				for _, toCopy := range copyInfo {
+					log.Debugf("Copying %q -> %q", toCopy.src, toCopy.dest)
+					if err := copy.Copy(toCopy.src, toCopy.dest); err != nil {
+						log.Warnf("Failed to copy artifacts: %s", err)
+					}
 				}
 			}
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v2"
 )
@@ -17,11 +18,26 @@ const (
 	defaultInstanceFdLimit = 65535
 )
 
-//go:embed templates/app-unit-template.txt
-var appUnitContentTemplate string
-
 //go:embed templates/app-inst-unit-template.txt
 var appInstUnitContentTemplate string
+
+// systemdUnitFileName generates systemd unit file name for application.
+func systemdUnitFileName(inst running.InstanceCtx) string {
+	if inst.SingleApp {
+		return fmt.Sprintf("%s.service", inst.AppName)
+	} else {
+		return fmt.Sprintf("%s@.service", inst.AppName)
+	}
+}
+
+// systemdDescriptionAppName generates an app name to use in description line in systemd unit.
+func systemdDescriptionAppName(inst running.InstanceCtx) string {
+	if inst.SingleApp {
+		return inst.AppName
+	} else {
+		return fmt.Sprintf("%s@%%i", inst.AppName)
+	}
+}
 
 // initSystemdDir generates systemd unit files for every application in the current bundle.
 // pathToEnv is a path to environment in the target system.
@@ -30,53 +46,57 @@ func initSystemdDir(packCtx *PackCtx, opts *config.CliOpts,
 	baseDirPath, pathToEnv string) error {
 	log.Infof("Initializing systemd directory.")
 
-	packageName, err := getPackageName(packCtx, opts, "", false)
-	if err != nil {
-		return err
-	}
-
 	systemdBaseDir := filepath.Join(baseDirPath, "usr", "lib", "systemd", "system")
-	err = os.MkdirAll(systemdBaseDir, dirPermissions)
+	err := os.MkdirAll(systemdBaseDir, dirPermissions)
 	if err != nil {
 		return err
 	}
 
-	appUnitTemplate := appUnitContentTemplate
-	appInstUnitTemplate := appInstUnitContentTemplate
+	for appName, instances := range packCtx.AppsInfo {
+		if len(instances) == 0 {
+			return fmt.Errorf("missing instances list for %q application", appName)
+		}
+		inst := instances[0]
+		// Create service systemd.unit for each application.
+		appInstUnitPath := systemdUnitFileName(inst)
+		appInstUnitPath = filepath.Join(systemdBaseDir, appInstUnitPath)
 
-	contentParams, err := getUnitParams(packCtx, pathToEnv, packageName)
-	if err != nil {
-		return err
-	}
+		log.Debugf("Generating systemd unit for %q application.", appName)
+		contentParams, err := getUnitParams(packCtx, pathToEnv, inst)
+		if err != nil {
+			return err
+		}
 
-	appUnitPath := fmt.Sprintf("%s.service", packageName)
-	appUnitPath = filepath.Join(systemdBaseDir, appUnitPath)
-	err = util.InstantiateFileFromTemplate(appUnitPath, appUnitTemplate, contentParams)
-	if err != nil {
-		return err
-	}
-
-	appInstUnitPath := fmt.Sprintf("%s@.service", packageName)
-	appInstUnitPath = filepath.Join(systemdBaseDir, appInstUnitPath)
-	err = util.InstantiateFileFromTemplate(appInstUnitPath, appInstUnitTemplate, contentParams)
-	if err != nil {
-		return err
+		if err = util.InstantiateFileFromTemplate(appInstUnitPath, appInstUnitContentTemplate,
+			contentParams); err != nil {
+			return fmt.Errorf("failed to create systemd unit file: %s", err)
+		}
 	}
 
 	return nil
 }
 
+// systemdExecArgsForApp generates CLI arguments for start/stop commands in unit file.
+func systemdExecArgsForApp(inst running.InstanceCtx) (string, error) {
+	if inst.SingleApp {
+		// There are no instances for single instance application. So only app name is returned.
+		return inst.AppName, nil
+	} else {
+		// Return <app><delimiter>%i format ars. %i will be replaced with instance name.
+		return fmt.Sprintf("%s%c%%i", inst.AppName, running.InstanceDelimiter), nil
+	}
+}
+
 // getUnitParams checks if there is a passed unit params file in context and
 // returns its content. Otherwise, it returns the default params.
-func getUnitParams(packCtx *PackCtx, pathToEnv,
-	envName string) (map[string]interface{}, error) {
+func getUnitParams(packCtx *PackCtx, pathToEnv string,
+	inst running.InstanceCtx) (map[string]interface{}, error) {
 	ttBinary := getTTBinary(packCtx, pathToEnv)
 
 	referenceParams := map[string]interface{}{
 		"TT":         ttBinary,
 		"ConfigPath": pathToEnv,
 		"FdLimit":    defaultInstanceFdLimit,
-		"EnvName":    envName,
 	}
 
 	contentParams := make(map[string]interface{})
@@ -87,8 +107,7 @@ func getUnitParams(packCtx *PackCtx, pathToEnv,
 			return nil, err
 		}
 
-		err = yaml.NewDecoder(unitTemplFile).Decode(&contentParams)
-		if err != nil {
+		if err = yaml.NewDecoder(unitTemplFile).Decode(&contentParams); err != nil {
 			return nil, err
 		}
 	}
@@ -96,6 +115,14 @@ func getUnitParams(packCtx *PackCtx, pathToEnv,
 		if _, ok := contentParams[key]; !ok {
 			contentParams[key] = referenceParams[key]
 		}
+	}
+	// Application name is specific for each generated per-application systemd unit, so it
+	// should not be set by unit params file, because it will become the same for all units.
+	contentParams["AppName"] = systemdDescriptionAppName(inst)
+	var err error
+	if contentParams["ExecArgs"], err = systemdExecArgsForApp(inst); err != nil {
+		return contentParams,
+			fmt.Errorf("cannot generate tt start/stop argument for systemd unit: %s", err)
 	}
 	return contentParams, nil
 }

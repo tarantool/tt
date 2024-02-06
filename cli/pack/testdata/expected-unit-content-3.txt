@@ -1,11 +1,11 @@
 [Unit]
-Description=Tarantool app customEnvName.default
+Description=Tarantool application app@%i
 After=network.target
 
 [Service]
 Type=forking
-ExecStart=/usr/bin/tt -L /path/cfg start
-ExecStop=/usr/bin/tt -L /path/cfg stop
+ExecStart=/usr/bin/tt -L /path/cfg start app:%i
+ExecStop=/usr/bin/tt -L /path/cfg stop app:%i
 Restart=on-failure
 RestartSec=2
 User=tarantool
@@ -24,4 +24,3 @@ TimeoutStopSec=10s
 
 [Install]
 WantedBy=multi-user.target
-Alias=customEnvName

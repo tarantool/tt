@@ -11,7 +11,6 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/integrity"
-	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/exp/slices"
 )
 
@@ -40,6 +39,7 @@ func Test_CollectInstances(t *testing.T) {
 		InstName:       "script",
 		InstanceScript: "testdata/instances_enabled/script.lua",
 		SingleApp:      true,
+		IsFileApp:      true,
 	}, instances[0])
 
 	instances, err = CollectInstances("single_inst", instancesEnabledPath,
@@ -54,6 +54,7 @@ func Test_CollectInstances(t *testing.T) {
 		InstName:       "single_inst",
 		InstanceScript: "testdata/instances_enabled/single_inst/init.lua",
 		SingleApp:      true,
+		IsFileApp:      false,
 	}, instances[0])
 
 	appName := "multi_inst_app"
@@ -70,6 +71,7 @@ func Test_CollectInstances(t *testing.T) {
 		InstName:       "router",
 		InstanceScript: filepath.Join(appPath, "router.init.lua"),
 		SingleApp:      false,
+		IsFileApp:      false,
 	}))
 	assert.True(t, slices.Contains(instances, InstanceCtx{
 		AppDir:         "testdata/instances_enabled/multi_inst_app",
@@ -77,6 +79,7 @@ func Test_CollectInstances(t *testing.T) {
 		InstName:       "master1",
 		InstanceScript: filepath.Join(appPath, "init.lua"),
 		SingleApp:      false,
+		IsFileApp:      false,
 	}))
 	assert.True(t, slices.Contains(instances, InstanceCtx{
 		AppDir:         "testdata/instances_enabled/multi_inst_app",
@@ -84,6 +87,7 @@ func Test_CollectInstances(t *testing.T) {
 		InstName:       "stateboard",
 		InstanceScript: filepath.Join(appPath, "stateboard.init.lua"),
 		SingleApp:      false,
+		IsFileApp:      false,
 	}))
 
 	// Error cases.
@@ -174,11 +178,7 @@ func Test_collectInstancesForApps(t *testing.T) {
 	instancesEnabled, err := filepath.Abs("./testdata/instances_enabled")
 	require.NoError(t, err)
 	appLocation := filepath.Join(instancesEnabled, appName)
-	apps := []util.AppListEntry{
-		{
-			Name: appName,
-		},
-	}
+	apps := []string{appName}
 	cliOpts := configure.GetDefaultCliOpts()
 	cliOpts.Env.InstancesEnabled = instancesEnabled
 	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
@@ -186,10 +186,10 @@ func Test_collectInstancesForApps(t *testing.T) {
 			Repository: &mockRepository{},
 		})
 	require.NoError(t, err)
-	assert.Equal(t, 3, len(instances))
+	require.Contains(t, instances, appName)
 
 	comparisonsCount := 0
-	for _, inst := range instances {
+	for _, inst := range instances[appName] {
 		switch inst.InstName {
 		case "instance-001":
 			assert.Equal(t, filepath.Join(appLocation, "var", "lib", "instance-001"),
@@ -304,13 +304,7 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 	appName := "script"
 	instancesEnabled, err := filepath.Abs("./testdata/instances_enabled")
 	require.NoError(t, err)
-	appLocation := filepath.Join(instancesEnabled, appName+".lua")
-	apps := []util.AppListEntry{
-		{
-			Name:     appName + ".lua",
-			Location: appLocation,
-		},
-	}
+	apps := []string{appName + ".lua"}
 	appDir := filepath.Join(instancesEnabled, appName)
 	cliOpts := configure.GetDefaultCliOpts()
 	cliOpts.Env.InstancesEnabled = instancesEnabled
@@ -319,9 +313,10 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 			Repository: &mockRepository{},
 		})
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(instances))
+	require.Equal(t, 1, len(instances))
+	require.Contains(t, instances, appName)
 
-	inst := instances[0]
+	inst := instances[appName][0]
 	assert.Equal(t, filepath.Join(appDir, "var", "lib", appName), inst.WalDir)
 	assert.Equal(t, filepath.Join(appDir, "var", "lib", appName), inst.VinylDir)
 	assert.Equal(t, filepath.Join(appDir, "var", "lib", appName), inst.MemtxDir)
@@ -339,13 +334,7 @@ func Test_collectInstancesSingleInstanceTntCtlLayout(t *testing.T) {
 	appName := "script"
 	instancesEnabled, err := filepath.Abs("./testdata/instances_enabled")
 	require.NoError(t, err)
-	appLocation := filepath.Join(instancesEnabled, appName+".lua")
-	apps := []util.AppListEntry{
-		{
-			Name:     appName + ".lua",
-			Location: appLocation,
-		},
-	}
+	apps := []string{appName + ".lua"}
 	cliOpts := configure.GetDefaultCliOpts()
 	cliOpts.Env.InstancesEnabled = instancesEnabled
 	cliOpts.Env.TarantoolctlLayout = true
@@ -355,9 +344,11 @@ func Test_collectInstancesSingleInstanceTntCtlLayout(t *testing.T) {
 			Repository: &mockRepository{},
 		})
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(instances))
+	require.Len(t, instances, 1)
+	require.Contains(t, instances, appName)
+	require.Len(t, instances[appName], 1)
 
-	inst := instances[0]
+	inst := instances[appName][0]
 	assert.Equal(t, filepath.Join(cfgDir, "var", "lib", appName), inst.WalDir)
 	assert.Equal(t, filepath.Join(cfgDir, "var", "lib", appName), inst.VinylDir)
 	assert.Equal(t, filepath.Join(cfgDir, "var", "lib", appName), inst.MemtxDir)
@@ -389,4 +380,30 @@ func Test_getInstanceName(t *testing.T) {
 		actual := getInstanceName(tc.fullInstanceName, tc.isClusterInstance)
 		assert.Equal(t, tc.expected, actual)
 	}
+}
+
+func TestGetAppPath(t *testing.T) {
+	assert.Equal(t, "/path/to/app/init.lua", GetAppPath(InstanceCtx{
+		InstanceScript: "/path/to/app/init.lua",
+		AppDir:         "/path/to/app/",
+		SingleApp:      true,
+		IsFileApp:      true,
+	}))
+	assert.Equal(t, "/path/to/app/init.lua", GetAppPath(InstanceCtx{
+		InstanceScript: "/path/to/app/init.lua",
+		AppDir:         "/path/to/app/",
+		SingleApp:      false,
+		IsFileApp:      true,
+	}))
+	assert.Equal(t, "/path/to/app/", GetAppPath(InstanceCtx{
+		InstanceScript: "/path/to/app/init.lua",
+		AppDir:         "/path/to/app/",
+		SingleApp:      true,
+	}))
+	assert.Equal(t, "/path/to/app/", GetAppPath(InstanceCtx{
+		InstanceScript: "/path/to/app/init.lua",
+		AppDir:         "/path/to/app/",
+		SingleApp:      false,
+	}))
+
 }

@@ -1,4 +1,4 @@
 TT: /usr/bin/tt
 ConfigPath: /path/cfg
-EnvName: customEnvName
+AppName: TntService
 FdLimit: 2048

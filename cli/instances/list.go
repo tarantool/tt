@@ -2,8 +2,7 @@ package instances
 
 import (
 	"fmt"
-	"os"
-	"strings"
+	"path/filepath"
 
 	"github.com/apex/log"
 	"github.com/fatih/color"
@@ -15,16 +14,13 @@ import (
 
 // ListInstances shows enabled applications.
 func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
-	instanceDir := cliOpts.Env.InstancesEnabled
-	if _, err := os.Stat(instanceDir); os.IsNotExist(err) {
-		return fmt.Errorf("instances enabled directory doesn't exist: %s",
-			instanceDir)
+	if !util.IsDir(cliOpts.Env.InstancesEnabled) {
+		return fmt.Errorf("instances enabled directory doesn't exist")
 	}
 
-	appList, err := util.CollectAppList(cmdCtx.Cli.ConfigDir,
-		instanceDir, false)
+	appList, err := util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.Env.InstancesEnabled, false)
 	if err != nil {
-		return fmt.Errorf("can't collect an application list: %s", err)
+		return fmt.Errorf("can't collect applications list: %s", err)
 	}
 
 	if len(appList) == 0 {
@@ -32,22 +28,32 @@ func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 	}
 
 	fmt.Println("List of enabled applications:")
-	fmt.Printf("instances enabled directory: %s\n", instanceDir)
+	fmt.Printf("instances enabled directory: %s\n", cliOpts.Env.InstancesEnabled)
 
-	for _, app := range appList {
-		appLocation := strings.TrimPrefix(app.Location, instanceDir+string(os.PathSeparator))
-		if !strings.HasSuffix(appLocation, ".lua") {
-			appLocation = appLocation + string(os.PathSeparator)
+	applications, err := running.CollectInstancesForApps(appList, cliOpts, cmdCtx.Cli.ConfigDir,
+		cmdCtx.Integrity)
+	if err != nil {
+		return err
+	}
+	for appName, instances := range applications {
+		if len(instances) == 0 {
+			log.Warnf("no instances for %q application", appName)
+			continue
 		}
-		log.Infof("%s (%s)", color.GreenString(strings.TrimSuffix(app.Name, ".lua")),
-			appLocation)
-		instances, _ := running.CollectInstances(app.Name, instanceDir, cmdCtx.Integrity)
+		inst := instances[0]
+		appLocation := filepath.Base(running.GetAppPath(inst))
+		if inst.IsFileApp {
+			appLocation += string(filepath.Separator)
+		}
+		log.Infof("%s (%s)", color.GreenString(appName), appLocation)
 		for _, inst := range instances {
 			fullInstanceName := running.GetAppInstanceName(inst)
-			if fullInstanceName != app.Name {
-				fmt.Printf("	%s (%s)\n",
-					color.YellowString(strings.TrimPrefix(fullInstanceName, app.Name+":")),
-					strings.TrimPrefix(inst.InstanceScript, app.Location+string(os.PathSeparator)))
+			if fullInstanceName != appName {
+				script := ""
+				if inst.InstanceScript != "" {
+					script = filepath.Base(inst.InstanceScript)
+				}
+				fmt.Printf("	%s (%s)\n", color.YellowString(inst.InstName), script)
 			}
 		}
 	}
