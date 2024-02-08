@@ -55,6 +55,18 @@ func initAppsInfo(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx, packCtx *P
 	return nil
 }
 
+// getPackageName return result environment name for the package.
+func getPackageName(cmdCtx cmdcontext.CmdCtx) (string, error) {
+	if len(cmdCtx.Cli.ConfigDir) == 0 {
+		absPath, err := filepath.Abs(".")
+		if err != nil {
+			return "", fmt.Errorf("cannot get path of current dir: %s", err)
+		}
+		return filepath.Base(absPath), nil
+	}
+	return filepath.Base(cmdCtx.Cli.ConfigDir), nil
+}
+
 // FillCtx fills pack context.
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpts,
 	args []string) error {
@@ -72,6 +84,15 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpt
 
 	if err := initAppsInfo(cliOpts, cmdCtx, packCtx); err != nil {
 		return fmt.Errorf("error collect applications info: %s", err)
+	}
+
+	// If cartridge-compat is set and package name is not set, no need to set package name here,
+	// its name will be taken from the application name, which is packed in cartridge-compat mode.
+	if packCtx.Name == "" && !packCtx.CartridgeCompat {
+		var err error
+		if packCtx.Name, err = getPackageName(*cmdCtx); err != nil {
+			return fmt.Errorf("cannot get environment: %s", err)
+		}
 	}
 
 	return nil

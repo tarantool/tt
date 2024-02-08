@@ -38,7 +38,7 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if err != nil {
 		return err
 	}
-	tarName, err := getPackageName(packCtx, opts, tgzSuffix, true)
+	tarName, err := getPackageFileName(packCtx, opts, tgzSuffix, true)
 	if err != nil {
 		return err
 	}

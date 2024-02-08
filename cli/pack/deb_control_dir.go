@@ -34,7 +34,7 @@ type PackDependency struct {
 type PackDependencies []PackDependency
 
 // createControlDir creates a control directory that contains control file, postinst and preinst.
-func createControlDir(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
+func createControlDir(cmdCtx cmdcontext.CmdCtx, packCtx PackCtx,
 	opts *config.CliOpts, destDirPath string) error {
 	log.Debug("Create DEB control file")
 
@@ -44,8 +44,10 @@ func createControlDir(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 	}
 
 	name := packCtx.Name
-	if packCtx.Name == "" {
-		name = "bundle"
+	if name == "" {
+		if name, err = getPackageName(cmdCtx); err != nil {
+			return fmt.Errorf("cannot generate package name: %s", name)
+		}
 	}
 	version := getVersion(&packCtx, opts, defaultVersion)
 
@@ -57,7 +59,7 @@ func createControlDir(cmdCtx *cmdcontext.CmdCtx, packCtx PackCtx,
 		"Depends":      "",
 	}
 
-	deps, err := parseAllDependencies(cmdCtx, &packCtx)
+	deps, err := parseAllDependencies(&cmdCtx, &packCtx)
 	if err != nil {
 		return err
 	}

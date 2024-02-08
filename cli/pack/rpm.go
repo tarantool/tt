@@ -2,6 +2,7 @@ package pack
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -54,13 +55,16 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 	}()
 
-	bundleName, err := getPackageName(packCtx, opts, "", false)
-	if err != nil {
-		return err
+	bundleName := packCtx.Name
+	if bundleName == "" {
+		if bundleName, err = getPackageName(*cmdCtx); err != nil {
+			return fmt.Errorf("cannot generate package name: %s", bundleName)
+		}
 	}
 
-	if err := copy.Copy(bundlePath, filepath.Join(packageDir, "usr", "share", "tarantool",
-		bundleName)); err != nil {
+	packagingEnvInstallPath := filepath.Join(packageDir, "usr", "share", "tarantool",
+		bundleName)
+	if err := copy.Copy(bundlePath, packagingEnvInstallPath); err != nil {
 		return err
 	}
 
@@ -73,7 +77,7 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if err != nil {
 		return err
 	}
-	resPackagePath, err := getPackageName(packCtx, opts, rpmSuffix, true)
+	resPackagePath, err := getPackageFileName(packCtx, opts, rpmSuffix, true)
 	if err != nil {
 		return err
 	}

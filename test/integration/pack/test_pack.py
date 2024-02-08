@@ -78,12 +78,12 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
+                os.path.join("instances.enabled", "app1"),
             ],
             "check_not_exist": [
                 os.path.join("app2", "var", "run"),
                 os.path.join("app2", "var", "log"),
                 os.path.join("app2", "var", "lib"),
-                os.path.join("instances.enabled", "app1"),
                 os.path.join("app1"),
             ],
             "artifacts_in_separated_dir": False,
@@ -1013,13 +1013,14 @@ WantedBy=multi-user.target"""
                                              'ls /usr/share/tarantool/bundle1 '
                                              '&& systemctl list-unit-files | grep app'
                                              '&& cat /usr/lib/systemd/system/app1.service'
-                                             ' /usr/lib/systemd/system/app2@.service'
+                                             ' /usr/lib/systemd/system/app2@.service '
+                                             ' /usr/share/tarantool/bundle1/tt.yaml'
                                             .format(package_file_name)])
     assert rc == 0
 
     assert re.search(r'Preparing to unpack {0}'.format(package_file_name), output)
-    assert re.search(r'Unpacking bundle \(0\.1\.0\)', output)
-    assert re.search(r'Setting up bundle \(0\.1\.0\)', output)
+    assert re.search(r'Unpacking bundle1 \(0\.1\.0\)', output)
+    assert re.search(r'Setting up bundle1 \(0\.1\.0\)', output)
 
     installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
     systemd_units = ['app1.service', 'app2@.service']
@@ -1030,6 +1031,9 @@ WantedBy=multi-user.target"""
         assert re.search(unit, output)
     assert app_systemd_template.format(app="app1", args="app1") in output
     assert app_systemd_template.format(app="app2@%i", args="app2:%i") in output
+    assert 'wal_dir: /var/lib/tarantool/bundle1' in output
+    assert 'log_dir: /var/log/tarantool/bundle1' in output
+    assert 'run_dir: /var/run/tarantool/bundle1' in output
 
 
 @pytest.mark.slow

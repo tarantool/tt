@@ -129,7 +129,7 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 	if err != nil {
 		return nil, err
 	}
-	name, err := getPackageName(packCtx, opts, "", false)
+	name, err := getPackageFileName(packCtx, opts, "", false)
 	if err != nil {
 		return nil, err
 	}

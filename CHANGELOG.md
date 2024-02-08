@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt pack` generates a separate systemd unit for each packed application.
 Common (all instances) unit is removed.
+- `tt pack` default data, run, log files location is changed for rpm/deb
+packages to `/var/[log | run | lib]/tarantool/<env_name>`
 
 ### Fixed
 

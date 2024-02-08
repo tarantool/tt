@@ -132,7 +132,7 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, 
 	log.Info("Computing lead section")
 
 	// Compute lead.
-	name, err := getPackageName(packCtx, opts, "", false)
+	name, err := getPackageFileName(packCtx, opts, "", false)
 	if err != nil {
 		return err
 	}
