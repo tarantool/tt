@@ -2,6 +2,7 @@ package pack
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -140,7 +141,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 	}()
 
-	newOpts := createNewOpts(cliOpts, packCtx.CartridgeCompat)
+	newOpts := createNewOpts(cliOpts, *packCtx)
 
 	err = createPackageStructure(basePath, packCtx.CartridgeCompat, newOpts)
 	if err != nil {
@@ -213,10 +214,20 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 
 		if !packCtx.CartridgeCompat {
-			err = createAppSymlink(appPath, filepath.Base(appPath),
-				util.JoinPaths(basePath, newOpts.Env.InstancesEnabled))
+			packagingInstEnabledDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled)
+			err = createAppSymlink(appPath, filepath.Base(appPath), packagingInstEnabledDir)
 			if err != nil {
 				return "", err
+			}
+			// Create working dir for script-only applications. This is required to do not attempt
+			// to create it on target system which may lead to permissions denied error.
+			if inst.IsFileApp {
+				workingDir := util.JoinPaths(packagingInstEnabledDir, filepath.Base(inst.AppDir))
+				if err = os.Mkdir(workingDir, dirPermissions); err != nil {
+					return "", fmt.Errorf(
+						"cannot create working directory %q for application: %s",
+						workingDir, err)
+				}
 			}
 		}
 	}
@@ -387,9 +398,20 @@ func createAppSymlink(appPath string, appName string, instancesEnabledDir string
 }
 
 // createNewOpts generates new CLI opts using some data from current opts.
-func createNewOpts(opts *config.CliOpts, cartridgeCompat bool) *config.CliOpts {
+func createNewOpts(opts *config.CliOpts, packCtx PackCtx) *config.CliOpts {
 	log.Infof("Generating new %s for the new package", configure.ConfigName)
-	cliOptsNew := configure.GetDefaultCliOpts()
+
+	var cliOptsNew *config.CliOpts
+	if packCtx.Type == Rpm || packCtx.Type == Deb {
+		cliOptsNew = configure.GetSystemCliOpts()
+		for _, varPath := range []*string{&cliOptsNew.App.WalDir, &cliOptsNew.App.MemtxDir,
+			&cliOptsNew.App.VinylDir, &cliOptsNew.App.RunDir, &cliOptsNew.App.LogDir} {
+			*varPath = filepath.Join(*varPath, packCtx.Name)
+		}
+	} else {
+		cliOptsNew = configure.GetDefaultCliOpts()
+	}
+
 	cliOptsNew.Env.InstancesEnabled = configure.InstancesEnabledDirName
 	cliOptsNew.Env.Restartable = opts.Env.Restartable
 	cliOptsNew.Env.TarantoolctlLayout = opts.Env.TarantoolctlLayout
@@ -403,7 +425,7 @@ func createNewOpts(opts *config.CliOpts, cartridgeCompat bool) *config.CliOpts {
 		cliOptsNew.App.WalDir = configure.VarWalPath
 	}
 
-	if cartridgeCompat {
+	if packCtx.CartridgeCompat {
 		cliOptsNew.Env.InstancesEnabled = "."
 		cliOptsNew.Env.BinDir = "."
 	}
@@ -600,8 +622,8 @@ func copyBinaries(tntCli cmdcontext.TarantoolCli, destPath string) error {
 	return nil
 }
 
-// getPackageName returns the result name of the package.
-func getPackageName(packCtx *PackCtx, opts *config.CliOpts, suffix string,
+// getPackageFileName returns the result name of the package file.
+func getPackageFileName(packCtx *PackCtx, opts *config.CliOpts, suffix string,
 	addVersion bool) (string, error) {
 	var packageName string
 

@@ -14,7 +14,7 @@ func TestCreateControlDir(t *testing.T) {
 	testCases := []struct {
 		name         string
 		packCtx      *PackCtx
-		cmdCtx       *cmdcontext.CmdCtx
+		cmdCtx       cmdcontext.CmdCtx
 		opts         *config.CliOpts
 		destPath     string
 		correctError func(err error) bool

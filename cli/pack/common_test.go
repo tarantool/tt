@@ -373,7 +373,8 @@ func TestNormalizeGitVersion(t *testing.T) {
 
 func Test_createNewOpts(t *testing.T) {
 	type args struct {
-		opts *config.CliOpts
+		opts    *config.CliOpts
+		packCtx PackCtx
 	}
 
 	testOptsStd := &config.CliOpts{
@@ -410,6 +411,10 @@ func Test_createNewOpts(t *testing.T) {
 			name: "Wal, Vinyl and Memtx directories are not separated",
 			args: args{
 				opts: testOptsStd,
+				packCtx: PackCtx{
+					Type: "tgz",
+					Name: "bundle",
+				},
 			},
 			expectedOps: &config.CliOpts{
 				Env: &config.TtEnvOpts{
@@ -443,6 +448,10 @@ func Test_createNewOpts(t *testing.T) {
 			name: "Wal, Vinyl and Memtx directories are separated",
 			args: args{
 				opts: testOptsCustom,
+				packCtx: PackCtx{
+					Type: "tgz",
+					Name: "bundle",
+				},
 			},
 			expectedOps: &config.CliOpts{
 				Env: &config.TtEnvOpts{
@@ -472,10 +481,47 @@ func Test_createNewOpts(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "System paths",
+			args: args{
+				opts: testOptsStd,
+				packCtx: PackCtx{
+					Type: "rpm",
+					Name: "bundle",
+				},
+			},
+			expectedOps: &config.CliOpts{
+				Env: &config.TtEnvOpts{
+					BinDir:             "bin",
+					IncludeDir:         "include",
+					InstancesEnabled:   configure.InstancesEnabledDirName,
+					Restartable:        true,
+					TarantoolctlLayout: false,
+				},
+				App: &config.AppOpts{
+					WalDir:   "/var/lib/tarantool/bundle",
+					VinylDir: "/var/lib/tarantool/bundle",
+					MemtxDir: "/var/lib/tarantool/bundle",
+					LogDir:   "/var/log/tarantool/bundle",
+					RunDir:   "/var/run/tarantool/bundle",
+				},
+				Modules: &config.ModulesOpts{
+					Directory: "modules",
+				},
+				Repo: &config.RepoOpts{
+					Rocks:   "",
+					Install: "distfiles",
+				},
+				EE: &config.EEOpts{},
+				Templates: []config.TemplateOpts{
+					{Path: "templates"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := createNewOpts(tt.args.opts, false)
+			got := createNewOpts(tt.args.opts, tt.args.packCtx)
 			assert.Equal(t, tt.expectedOps, got)
 		})
 	}
@@ -626,7 +672,7 @@ func Test_prepareBundleBasic(t *testing.T) {
 		// Script app.
 		{assert.FileExists, "script.lua"},
 		{assert.FileExists, "instances.enabled/script_app.lua"},
-		{assert.NoDirExists, "instances.enabled/script_app"},
+		{assert.DirExists, "instances.enabled/script_app"},
 		{assert.NoFileExists, "instances.enabled/script_app/init.lua"},
 		{assert.NoDirExists, "instances.enabled/script_app/var/lib"},
 		{assert.NoDirExists, "instances.enabled/script_app/var/log"},
@@ -865,7 +911,8 @@ func Test_prepareBundleTntCtlLayout(t *testing.T) {
 		{assert.FileExists, "var/lib/script_app/00000000000000000000.snap"},
 		{assert.FileExists, "var/lib/script_app/00000000000000000000.xlog"},
 		{assert.FileExists, "var/log/script_app.log"},
-		{assert.NoDirExists, "instances.enabled/script_app/"},
+		// Working dir must be created for script-file app.
+		{assert.DirExists, "instances.enabled/script_app/"},
 	}
 	for _, check := range checks {
 		check.checkFunc(t, filepath.Join(bundleDir, check.path))

@@ -88,6 +88,43 @@ func getDefaultTtEnvOpts() *config.TtEnvOpts {
 	}
 }
 
+// getDefaultAppOpts generates default app config.
+func getSystemAppOpts() *config.AppOpts {
+	systemDataDir := filepath.Join(string(filepath.Separator), VarDataPath, "tarantool")
+	return &config.AppOpts{
+		RunDir:   filepath.Join(string(filepath.Separator), VarRunPath, "tarantool"),
+		LogDir:   filepath.Join(string(filepath.Separator), VarLogPath, "tarantool"),
+		WalDir:   systemDataDir,
+		VinylDir: systemDataDir,
+		MemtxDir: systemDataDir,
+	}
+}
+
+// GetDefaultCliOpts returns `CliOpts` filled with default values.
+func GetSystemCliOpts() *config.CliOpts {
+	modules := config.ModulesOpts{
+		Directory: ModulesPath,
+	}
+	ee := config.EEOpts{
+		CredPath: "",
+	}
+	repo := config.RepoOpts{
+		Rocks:   "",
+		Install: DistfilesPath,
+	}
+	templates := []config.TemplateOpts{
+		{Path: "templates"},
+	}
+	return &config.CliOpts{
+		Env:       getDefaultTtEnvOpts(),
+		Modules:   &modules,
+		App:       getSystemAppOpts(),
+		Repo:      &repo,
+		EE:        &ee,
+		Templates: templates,
+	}
+}
+
 // GetDefaultCliOpts returns `CliOpts` filled with default values.
 func GetDefaultCliOpts() *config.CliOpts {
 	modules := config.ModulesOpts{

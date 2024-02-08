@@ -2,6 +2,7 @@ package pack
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -87,7 +88,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	log.Info("Creating a data directory")
 
-	packageName, err := getPackageName(packCtx, opts, "", false)
+	packageName, err := getPackageFileName(packCtx, opts, "", false)
 	if err != nil {
 		return err
 	}
@@ -130,7 +131,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	// Create a control directory with control file and postinst, preinst scripts inside.
 	controlDirPath := filepath.Join(packageDir, controlDirName)
-	err = createControlDir(cmdCtx, *packCtx, opts, controlDirPath)
+	err = createControlDir(*cmdCtx, *packCtx, opts, controlDirPath)
 	if err != nil {
 		return err
 	}
@@ -154,7 +155,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if err != nil {
 		return err
 	}
-	packageName, err = getPackageName(packCtx, opts, debSuffix, true)
+	packageName, err = getPackageFileName(packCtx, opts, debSuffix, true)
 	if err != nil {
 		return err
 	}
