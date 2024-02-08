@@ -247,7 +247,7 @@ local function start_instance()
         void setlinebuf(FILE *stream);
     ]])
 
-    if jit.os == 'OSX' then
+    if jit.os == 'OSX' or jit.os == 'BSD' then
         ffi.cdef([[
             FILE *__stdoutp;
         ]])
