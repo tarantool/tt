@@ -64,6 +64,11 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
+	// Temporary workaround until copy package version upgrade, so PermissionControl can be
+	// customized.
+	fileSystem := os.DirFS(packagingEnvInstallPath)
+	fs.WalkDir(fileSystem, ".", updatePermissions(packagingEnvInstallPath))
+
 	rpmSuffix, err := getRPMSuffix()
 	if err != nil {
 		return err

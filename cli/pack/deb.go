@@ -114,6 +114,11 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
+	// Temporary workaround until copy package version upgrade, so PermissionControl can be
+	// customized.
+	fileSystem := os.DirFS(packagePrefixedPath)
+	fs.WalkDir(fileSystem, ".", updatePermissions(packagePrefixedPath))
+
 	// Create data.tar.gz.
 	dataArchivePath := filepath.Join(packageDir, dataArchiveName)
 	err = WriteTgzArchive(packageDataDir, dataArchivePath)
