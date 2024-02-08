@@ -681,3 +681,16 @@ func LuaGetRocksVersions(appDirPath string) (RocksVersions, error) {
 
 	return rocksVersionsMap, nil
 }
+
+// updatePermissions updates permissions for packaging files/dirs to make it work under
+// non-root user on target system.
+func updatePermissions(baseDir string) func(path string, entry fs.DirEntry, err error) error {
+	return func(path string, entry fs.DirEntry, err error) error {
+		if entry.IsDir() {
+			if err := os.Chmod(filepath.Join(baseDir, path), 0755); err != nil {
+				log.Warnf("failed to to change permissions of %q: %s", path, err)
+			}
+		}
+		return nil
+	}
+}
