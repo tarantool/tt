@@ -2,6 +2,7 @@ import glob
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tarfile
 
@@ -948,38 +949,63 @@ def test_pack_nonexistent_modules_directory(tt_cmd, tmpdir):
     assert rc == 0
 
 
+def verify_rpmdeb_package_content(pkg_dir):
+    env_path = os.path.join(pkg_dir, 'usr', 'share', 'tarantool', 'bundle1')
+
+    def prefix(suffix):
+        return os.path.join(env_path, suffix)
+
+    check_paths = [
+        {
+            'path': env_path, 'perms': stat.S_IXOTH & stat.S_IROTH
+        },
+        {
+            'path': prefix('app2'), 'perms': stat.S_IXOTH & stat.S_IROTH
+        },
+        {
+            'path': prefix('app2/init.lua'), 'perms': stat.S_IXOTH & stat.S_IROTH
+        },
+        {
+            'path': prefix('instances.enabled/app1'),
+            'perms': stat.S_IXOTH & stat.S_IROTH & stat.S_IFDIR
+        },
+        {
+            'path': prefix('instances.enabled/app2'),
+            'perms': stat.S_IXOTH & stat.S_IROTH & stat.S_IFLNK
+        },
+        {
+            'path': prefix('instances.enabled/app1.lua'),
+            'perms': stat.S_IXOTH & stat.S_IROTH & stat.S_IFLNK
+        },
+        {
+            'path': prefix('app.lua'),
+            'perms': stat.S_IXOTH & stat.S_IROTH & stat.S_IFREG
+        },
+        {
+            'path': prefix('tt.yaml'),
+            'perms': stat.S_IXOTH & stat.S_IROTH & stat.S_IFREG
+        },
+        {
+            'path': os.path.join(pkg_dir, 'usr', 'lib', 'systemd', 'system',
+                                 'app1.service'),
+            'perms': stat.S_IFREG
+        },
+        {
+            'path': os.path.join(pkg_dir, 'usr', 'lib', 'systemd', 'system',
+                                 'app2@.service'),
+            'perms': stat.S_IFREG
+        },
+        ]
+    for unpacked in check_paths:
+        assert os.path.exists(unpacked['path'])
+        perms = os.stat(unpacked['path'])
+        assert (perms.st_mode & unpacked['perms']) == unpacked['perms']
+
+
 @pytest.mark.slow
 def test_pack_deb(tt_cmd, tmpdir):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
-
-    app_systemd_template = """
-[Unit]
-Description=Tarantool application {app}
-After=network.target
-
-[Service]
-Type=forking
-ExecStart=/usr/share/tarantool/bundle1/bin/tt -L /usr/share/tarantool/bundle1 start {args}
-ExecStop=/usr/share/tarantool/bundle1/bin/tt -L /usr/share/tarantool/bundle1 stop {args}
-Restart=on-failure
-RestartSec=2
-User=tarantool
-Group=tarantool
-
-LimitCORE=infinity
-# Disable OOM killer
-OOMScoreAdjust=-1000
-# Increase fd limit for Vinyl
-LimitNOFILE=65535
-
-# Systemd waits until all xlogs are recovered
-TimeoutStartSec=86400s
-# Give a reasonable amount of time to close xlogs
-TimeoutStopSec=10s
-
-[Install]
-WantedBy=multi-user.target"""
 
     # check if docker daemon is up
     rc, _ = run_command_and_get_output(['docker', 'ps'])
@@ -1004,8 +1030,12 @@ WantedBy=multi-user.target"""
     package_file = os.path.join(base_dir, package_file_name)
     assert os.path.isfile(package_file)
 
+    unpacked_pkg_dir = os.path.join(tmpdir, 'unpacked')
+    os.mkdir(unpacked_pkg_dir)
+
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
                                              '{0}:/usr/src/'.format(base_dir),
+                                             '-v', '{0}:/tmp/unpack'.format(unpacked_pkg_dir),
                                              '-w', '/usr/src',
                                              'jrei/systemd-ubuntu',
                                              '/bin/bash', '-c',
@@ -1014,7 +1044,8 @@ WantedBy=multi-user.target"""
                                              '&& systemctl list-unit-files | grep app'
                                              '&& cat /usr/lib/systemd/system/app1.service'
                                              ' /usr/lib/systemd/system/app2@.service '
-                                             ' /usr/share/tarantool/bundle1/tt.yaml'
+                                             ' /usr/share/tarantool/bundle1/tt.yaml '
+                                             '&& dpkg -x {0} /tmp/unpack'
                                             .format(package_file_name)])
     assert rc == 0
 
@@ -1029,11 +1060,19 @@ WantedBy=multi-user.target"""
         assert re.search(path, output)
     for unit in systemd_units:
         assert re.search(unit, output)
-    assert app_systemd_template.format(app="app1", args="app1") in output
-    assert app_systemd_template.format(app="app2@%i", args="app2:%i") in output
     assert 'wal_dir: /var/lib/tarantool/bundle1' in output
     assert 'log_dir: /var/log/tarantool/bundle1' in output
     assert 'run_dir: /var/run/tarantool/bundle1' in output
+
+    file = open(os.path.join(os.path.dirname(__file__), 'systemd_unit_template.txt'), mode='r')
+    app_systemd_template = file.read()
+    file.close()
+
+    assert app_systemd_template.format(app='app1', args='app1') in output
+    assert app_systemd_template.format(app='app2@%i', args='app2:%i') in output
+
+    # Verify Deb package content.
+    verify_rpmdeb_package_content(unpacked_pkg_dir)
 
 
 @pytest.mark.slow
@@ -1064,14 +1103,22 @@ def test_pack_rpm(tt_cmd, tmpdir):
     package_file = os.path.join(base_dir, package_file_name)
     assert os.path.isfile(package_file)
 
+    unpacked_pkg_dir = os.path.join(tmpdir, 'unpacked')
+    os.mkdir(unpacked_pkg_dir)
+
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
                                              '{0}:/usr/src/'.format(base_dir),
+                                             '-v', '{0}:/tmp/unpack'.format(unpacked_pkg_dir),
                                              '-w', '/usr/src',
                                              'jrei/systemd-fedora',
                                              '/bin/bash', '-c',
                                              'rpm -i {0} '
                                              '&& ls /usr/share/tarantool/bundle1 '
                                              '&& systemctl list-unit-files | grep app'
+                                             '&& cat /usr/lib/systemd/system/app1.service'
+                                             ' /usr/lib/systemd/system/app2@.service '
+                                             ' /usr/share/tarantool/bundle1/tt.yaml '
+                                             '&& rpm2cpio {0} > /tmp/unpack/pkg.cpio'
                                             .format(package_file_name)])
     assert rc == 0
     installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
@@ -1081,6 +1128,24 @@ def test_pack_rpm(tt_cmd, tmpdir):
         assert re.search(path, output)
     for unit in systemd_units:
         assert re.search(unit, output)
+
+    file = open(os.path.join(os.path.dirname(__file__), 'systemd_unit_template.txt'), mode='r')
+    app_systemd_template = file.read()
+    file.close()
+
+    assert app_systemd_template.format(app='app1', args='app1') in output
+    assert app_systemd_template.format(app='app2@%i', args='app2:%i') in output
+
+    # Verify Deb package content.
+    rc, output = run_command_and_get_output(
+        ['cpio',
+         '--file', os.path.join(unpacked_pkg_dir, 'pkg.cpio'),
+         '-idm'],
+        env=dict(os.environ, LANG='en_US.UTF-8', LC_ALL='en_US.UTF-8'),
+        cwd=unpacked_pkg_dir)
+
+    assert rc == 0
+    verify_rpmdeb_package_content(unpacked_pkg_dir)
 
 
 @pytest.mark.slow
