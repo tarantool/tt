@@ -48,6 +48,8 @@ var ConfigEnvPaths = [][]string{
 	[]string{"config", "etcd", "ssl", "verify_host"},
 	[]string{"config", "etcd", "ssl", "verify_peer"},
 	[]string{"config", "etcd", "username"},
+	[]string{"config", "etcd", "watchers", "reconnect_max_attempts"},
+	[]string{"config", "etcd", "watchers", "reconnect_timeout"},
 	[]string{"config", "reload"},
 	[]string{"config", "storage", "endpoints"},
 	[]string{"config", "storage", "prefix"},
@@ -180,6 +182,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"sharding", "rebalancer_disbalance_threshold"},
 	[]string{"sharding", "rebalancer_max_receiving"},
 	[]string{"sharding", "rebalancer_max_sending"},
+	[]string{"sharding", "rebalancer_mode"},
 	[]string{"sharding", "roles"},
 	[]string{"sharding", "sched_move_quota"},
 	[]string{"sharding", "sched_ref_quota"},
@@ -214,6 +217,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"wal", "max_size"},
 	[]string{"wal", "mode"},
 	[]string{"wal", "queue_max_size"},
+	[]string{"wal", "retention_period"},
 }
 
 var TarantoolSchema = []SchemaPath{
@@ -523,6 +527,14 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"config", "etcd", "username"},
 		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"config", "etcd", "watchers", "reconnect_max_attempts"},
+		Validator: IntegerValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"config", "etcd", "watchers", "reconnect_timeout"},
+		Validator: NumberValidator{},
 	},
 	SchemaPath{
 		Path: []string{"config", "reload"},
@@ -1333,6 +1345,16 @@ var TarantoolSchema = []SchemaPath{
 		Validator: IntegerValidator{},
 	},
 	SchemaPath{
+		Path: []string{"sharding", "rebalancer_mode"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"manual",
+				"auto",
+				"off",
+			}),
+	},
+	SchemaPath{
 		Path: []string{"sharding", "roles"},
 		Validator: MakeArrayValidator(
 			MakeAllowedValidator(
@@ -1485,5 +1507,9 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"wal", "queue_max_size"},
 		Validator: IntegerValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"wal", "retention_period"},
+		Validator: NumberValidator{},
 	},
 }
