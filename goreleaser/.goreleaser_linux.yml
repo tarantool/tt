@@ -90,9 +90,11 @@ nfpms:
 
     overrides:
       rpm:
-        replacements:
-          amd64: x86_64
-        file_name_template: "{{ .ProjectName }}-{{ .Version }}.{{ .Arch }}"
+        file_name_template: >-
+          {{- .ProjectName }}-
+          {{- .Version }}.
+          {{- if eq .Arch "amd64" }}x86_64
+          {{- else }}{{ .Arch }}{{ end }}
 
       deb:
         file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}"
