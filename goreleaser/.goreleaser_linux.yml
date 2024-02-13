@@ -77,6 +77,16 @@ nfpms:
         file_info:
           mode: 0600
 
+      - src: package/instances.available
+        dst: /etc/tarantool/instances.available
+        type: tree
+      - dst: /etc/tarantool/instances.enabled
+        type: dir
+        file_info:
+          mode: 0755
+      - dst: /etc/tarantool
+        type: ghost
+
       # ZSH and Bash autocompletion scripts get placed in appropriate directories
       # and get activated automatically with restarting corresponding shell after
       # the package installation.
