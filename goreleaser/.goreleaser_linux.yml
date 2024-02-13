@@ -87,6 +87,34 @@ nfpms:
       - dst: /etc/tarantool
         type: ghost
 
+      # Artifacts directories for the system tt environment.
+      - dst: /var/lib/tarantool/sys_env
+        type: dir
+        file_info:
+          mode: 0750
+          owner: tarantool
+          group: tarantool
+      - dst: /var/lib/tarantool
+        type: ghost
+
+      - dst: /var/run/tarantool/sys_env
+        type: dir
+        file_info:
+          mode: 0750
+          owner: tarantool
+          group: tarantool
+      - dst: /var/run/tarantool
+        type: ghost
+
+      - dst: /var/log/tarantool/sys_env
+        type: dir
+        file_info:
+          mode: 0750
+          owner: tarantool
+          group: tarantool
+      - dst: /var/log/tarantool
+        type: ghost
+
       # ZSH and Bash autocompletion scripts get placed in appropriate directories
       # and get activated automatically with restarting corresponding shell after
       # the package installation.
