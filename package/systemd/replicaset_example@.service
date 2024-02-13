@@ -1,0 +1,26 @@
+[Unit]
+Description=Tarantool application replicaset_example:%i
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=tt -S start replicaset_example:%i
+ExecStop=tt -S stop replicaset_example:%i
+Restart=on-failure
+RestartSec=2
+User=tarantool
+Group=tarantool
+
+LimitCORE=infinity
+# Disable OOM killer
+OOMScoreAdjust=-1000
+# Increase fd limit for Vinyl
+LimitNOFILE=65535
+
+# Systemd waits until all xlogs are recovered
+TimeoutStartSec=86400s
+# Give a reasonable amount of time to close xlogs
+TimeoutStopSec=10s
+
+[Install]
+WantedBy=multi-user.target

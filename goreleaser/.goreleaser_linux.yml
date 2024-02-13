@@ -115,6 +115,15 @@ nfpms:
       - dst: /var/log/tarantool
         type: ghost
 
+      # According to systemd.unit manual page, location for system mode units installed by package
+      # manager is different for deb-based and rpm-based distributions.
+      - src: package/systemd/replicaset_example@.service
+        dst: /lib/systemd/system/replicaset_example@.service
+        packager: deb
+      - src: package/systemd/replicaset_example@.service
+        dst: /usr/lib/systemd/system/replicaset_example@.service
+        packager: rpm
+
       # ZSH and Bash autocompletion scripts get placed in appropriate directories
       # and get activated automatically with restarting corresponding shell after
       # the package installation.
