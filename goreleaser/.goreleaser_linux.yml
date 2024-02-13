@@ -108,3 +108,6 @@ nfpms:
 
       deb:
         file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Arch }}"
+
+    scripts:
+      preinstall: "package/scripts/preinstall.sh"
