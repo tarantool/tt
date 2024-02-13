@@ -1,0 +1,36 @@
+config:
+  context:
+    replicator_password:
+      from: file
+      file: secrets/replicator_password.txt
+      rstrip: true
+
+credentials:
+  users:
+    replicator:
+      password: '{{ context.replicator_password }}'
+      roles: [replication]
+
+iproto:
+  advertise:
+    peer:
+      login: 'replicator'
+
+app:
+  file: 'example.lua'
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3301
+            database:
+              mode: rw
+          replica:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:3302
