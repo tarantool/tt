@@ -67,7 +67,7 @@ nfpms:
       - unzip
       - curl
     contents:
-      - src: "tt.yaml.default"
+      - src: "package/tt.yaml.default"
         dst: "/etc/tarantool/tt.yaml"
         type: config
       # ZSH and Bash autocompletion scripts get placed in appropriate directories
