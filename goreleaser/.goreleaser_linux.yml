@@ -70,6 +70,13 @@ nfpms:
       - src: "package/tt.yaml.default"
         dst: "/etc/tarantool/tt.yaml"
         type: config
+
+      - src: "package/logrotate.conf"
+        dst: "/etc/logrotate.d/tt.conf"
+        type: config
+        file_info:
+          mode: 0600
+
       # ZSH and Bash autocompletion scripts get placed in appropriate directories
       # and get activated automatically with restarting corresponding shell after
       # the package installation.
