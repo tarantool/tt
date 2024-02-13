@@ -5,3 +5,4 @@ __pycache__
 **/*_gen.go
 .venv
 coverage
+dist
