@@ -114,7 +114,24 @@ func NewCmdRoot() *cobra.Command {
 		Long:  "Utility for managing Tarantool packages and Tarantool-based applications",
 		Example: `$ tt -L /path/to/local/dir version
   $ tt -S -I help
-  $ tt completion`,
+  $ tt completion
+
+If tt was installed from a repository, then the basic replicaset examples were installed with it.
+To start work with these examples create a symbolic link in system instances enabled directory
+(requires root permissions) to enable the application:
+
+Tarantool 2.*:
+  # ln -s /etc/tarantool/instances.available/replicaset_example_tarantool_2 \
+/etc/tarantool/instances.enabled/replicaset_example
+
+Tarantool 3.*:
+  # ln -s /etc/tarantool/instances.available/replicaset_example_tarantool_3 \
+/etc/tarantool/instances.enabled/replicaset_example
+
+After that tt will be able to manage the application using 'replicaset_example' name:
+  # tt start replicaset_example
+    • Starting an instance [replicaset_example:master]...
+    • Starting an instance [replicaset_example:replica]...`,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.Help()
 		},
