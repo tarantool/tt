@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 // PublishCtx contains information abould cluster publish command execution
@@ -19,13 +18,13 @@ type PublishCtx struct {
 	// is omitted.
 	Force bool
 	// Publishers defines a used data publishers factory.
-	Publishers integrity.DataPublisherFactory
+	Publishers libcluster.DataPublisherFactory
 	// Collectors defines a used collectors factory.
-	Collectors cluster.CollectorFactory
+	Collectors libcluster.CollectorFactory
 	// Src is a raw data to publish.
 	Src []byte
 	// Config is a parsed raw data configuration to publish.
-	Config *cluster.Config
+	Config *libcluster.Config
 }
 
 // PublishUri publishes a configuration to URI.
@@ -96,24 +95,24 @@ func publishCtxValidateConfig(publishCtx PublishCtx, instance string) error {
 
 // replaceInstanceConfig replaces an instance configuration in the collected
 // cluster configuration and republishes it.
-func replaceInstanceConfig(instance string, config *cluster.Config,
-	collector cluster.Collector, publisher integrity.DataPublisher) error {
+func replaceInstanceConfig(instance string, config *libcluster.Config,
+	collector libcluster.Collector, publisher libcluster.DataPublisher) error {
 	src, err := collector.Collect()
 	if err != nil {
 		return fmt.Errorf("failed to get a cluster configuration to update "+
 			"an instance %q: %w", instance, err)
 	}
 
-	cconfig, err := cluster.MakeClusterConfig(src)
+	cconfig, err := libcluster.MakeClusterConfig(src)
 	if err != nil {
 		return fmt.Errorf("failed to parse a target configuration: %w", err)
 	}
 
-	cconfig, err = cluster.ReplaceInstanceConfig(cconfig, instance, config)
+	cconfig, err = libcluster.ReplaceInstanceConfig(cconfig, instance, config)
 	if err != nil {
 		return fmt.Errorf("failed to replace an instance %q configuration "+
 			"in a cluster configuration: %w", instance, err)
 	}
 
-	return cluster.NewYamlConfigPublisher(publisher).Publish(cconfig.RawConfig)
+	return libcluster.NewYamlConfigPublisher(publisher).Publish(cconfig.RawConfig)
 }

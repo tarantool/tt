@@ -7,8 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/lib/cluster"
 )
 
 func TestNewYamlCollector(t *testing.T) {
@@ -98,17 +97,17 @@ func TestYamlCollector_unique(t *testing.T) {
 }
 
 type mockDataCollector struct {
-	data []integrity.Data
+	data []cluster.Data
 	err  error
 }
 
-func (mock mockDataCollector) Collect() ([]integrity.Data, error) {
+func (mock mockDataCollector) Collect() ([]cluster.Data, error) {
 	return mock.data, mock.err
 }
 
 func newYamlDecoratorMocked(data []byte, err error) cluster.YamlCollectorDecorator {
 	return cluster.NewYamlCollectorDecorator(mockDataCollector{
-		data: []integrity.Data{{
+		data: []cluster.Data{{
 			Value: data,
 		}},
 		err: err,
@@ -160,7 +159,7 @@ etcd:
 }
 
 func TestYamlCollectorDecorator_merge(t *testing.T) {
-	kvs := []integrity.Data{
+	kvs := []cluster.Data{
 		{
 			Source: "k",
 			Value:  []byte("f: a\nb: a\n"),
@@ -187,7 +186,7 @@ func TestYamlCollectorDecorator_invalid(t *testing.T) {
 - foo
 `)
 	collector := cluster.NewYamlCollectorDecorator(mockDataCollector{
-		data: []integrity.Data{{
+		data: []cluster.Data{{
 			Source: "test",
 			Value:  data,
 		}},

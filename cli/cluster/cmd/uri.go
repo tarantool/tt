@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/tt/cli/cluster"
+
+	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 const (
@@ -123,13 +124,13 @@ func ParseUriOpts(uri *url.URL) (UriOpts, error) {
 }
 
 // MakeEtcdOptsFromUriOpts create etcd connect options from URI options.
-func MakeEtcdOptsFromUriOpts(src UriOpts) cluster.EtcdOpts {
+func MakeEtcdOptsFromUriOpts(src UriOpts) libcluster.EtcdOpts {
 	var endpoints []string
 	if src.Endpoint != "" {
 		endpoints = []string{src.Endpoint}
 	}
 
-	return cluster.EtcdOpts{
+	return libcluster.EtcdOpts{
 		Endpoints:      endpoints,
 		Username:       src.Username,
 		Password:       src.Password,

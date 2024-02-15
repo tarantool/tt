@@ -8,7 +8,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/tt/lib/integrity"
 )
 
 // tarantoolCall retursns result of a function call via tarantool connector.
@@ -52,7 +51,7 @@ func NewTarantoolAllCollector(conn tarantool.Connector, prefix string,
 
 // Collect collects a configuration from the specified prefix with the
 // specified timeout.
-func (collector TarantoolAllCollector) Collect() ([]integrity.Data, error) {
+func (collector TarantoolAllCollector) Collect() ([]Data, error) {
 	prefix := getConfigPrefix(collector.prefix)
 	resp, err := tarantoolGet(collector.conn, prefix, collector.timeout)
 	if err != nil {
@@ -64,9 +63,9 @@ func (collector TarantoolAllCollector) Collect() ([]integrity.Data, error) {
 			prefix)
 	}
 
-	collected := []integrity.Data{}
+	collected := []Data{}
 	for _, data := range resp.Data {
-		collected = append(collected, integrity.Data{
+		collected = append(collected, Data{
 			Source:   data.Path,
 			Value:    []byte(data.Value),
 			Revision: data.ModRevision,
@@ -98,7 +97,7 @@ func NewTarantoolKeyCollector(conn tarantool.Connector, prefix, key string,
 
 // Collect collects a configuration from the specified path with the specified
 // timeout.
-func (collector TarantoolKeyCollector) Collect() ([]integrity.Data, error) {
+func (collector TarantoolKeyCollector) Collect() ([]Data, error) {
 	key := getConfigPrefix(collector.prefix) + collector.key
 	resp, err := tarantoolGet(collector.conn, key, collector.timeout)
 	if err != nil {
@@ -116,7 +115,7 @@ func (collector TarantoolKeyCollector) Collect() ([]integrity.Data, error) {
 			resp, key)
 	}
 
-	return []integrity.Data{
+	return []Data{
 		{
 			Source:   key,
 			Value:    []byte(resp.Data[0].Value),
@@ -230,7 +229,7 @@ func tarantoolGet(conn tarantool.Connector,
 	if err != nil {
 		return resp, fmt.Errorf("failed to fetch data from tarantool: %w", err)
 	}
-	if len(data) != 1 {
+	if len(data) != 1 || len(data[0]) == 0 {
 		return resp, fmt.Errorf("unexpected response from tarantool: %q", data)
 	}
 

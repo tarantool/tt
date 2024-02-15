@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/tarantool/tt/cli/cluster"
+	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 // ShowCtx contains information about cluster show command execution context.
@@ -14,7 +15,7 @@ type ShowCtx struct {
 	// Password defines a password for connection.
 	Password string
 	// Collectors defines a used collectors factory.
-	Collectors cluster.CollectorFactory
+	Collectors libcluster.CollectorFactory
 	// Validate defines whether the command will check the showed
 	// configuration.
 	Validate bool
