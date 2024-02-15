@@ -12,8 +12,8 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 )
 
-// WriteTgzArchive creates TGZ archive of specified path.
-func WriteTgzArchive(srcDirPath string, destFilePath string) error {
+// writeTgzArchive creates TGZ archive of specified path.
+func writeTgzArchive(srcDirPath string, destFilePath string, packCtx PackCtx) error {
 	destFile, err := os.Create(destFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create result TGZ file %s: %s", destFilePath, err)
@@ -22,7 +22,7 @@ func WriteTgzArchive(srcDirPath string, destFilePath string) error {
 	gzipWriter := gzip.NewWriter(destFile)
 	defer gzipWriter.Close()
 
-	err = WriteTarArchive(srcDirPath, gzipWriter)
+	err = WriteTarArchive(srcDirPath, gzipWriter, packCtx.RpmDeb.pkgFilesInfo)
 	if err != nil {
 		return err
 	}
@@ -32,7 +32,8 @@ func WriteTgzArchive(srcDirPath string, destFilePath string) error {
 
 // WriteTarArchive creates Tar archive of specified path
 // using specified writer
-func WriteTarArchive(srcDirPath string, compressWriter io.Writer) error {
+func WriteTarArchive(srcDirPath string, compressWriter io.Writer,
+	pkgFiles map[string]packFileInfo) error {
 	tarWriter := tar.NewWriter(compressWriter)
 	defer tarWriter.Close()
 
@@ -59,6 +60,18 @@ func WriteTarArchive(srcDirPath string, compressWriter io.Writer) error {
 			if err != nil {
 				return err
 			}
+		}
+
+		relPath, err := filepath.Rel(srcDirPath, filePath)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path of %q: %s", filePath, err)
+		}
+		if packFileInfo, found := pkgFiles[relPath]; found {
+			tarHeader.Uname = packFileInfo.owner
+			tarHeader.Gname = packFileInfo.group
+		} else {
+			tarHeader.Uname = defaultFileUser
+			tarHeader.Gname = defaultFileGroup
 		}
 
 		tarHeader.Name, err = filepath.Rel(srcDirPath, filePath)

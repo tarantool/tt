@@ -53,6 +53,14 @@ var (
 
 type RocksVersions map[string][]string
 
+// packFileInfo contains information to set for files/dirs in rpm/deb packages.
+type packFileInfo struct {
+	// owner is an owner of file/dir.
+	owner string
+	// group is a file/dir group.
+	group string
+}
+
 // skipDefaults filters out sockets and git dirs.
 func skipDefaults(src string) (bool, error) {
 	fileInfo, err := os.Stat(src)
@@ -715,4 +723,21 @@ func updatePermissions(baseDir string) func(path string, entry fs.DirEntry, err 
 		}
 		return nil
 	}
+}
+
+// createArtifactsDirs creates /var/<dir>/tarantool/<env> artifact directories in rpm/deb package
+// and sets owner and group info for these directories.
+func createArtifactsDirs(pkgDataDir string, packCtx *PackCtx) error {
+	for _, dirToCreate := range []string{configure.VarDataPath, configure.VarLogPath,
+		configure.VarRunPath} {
+		artifactEnvDir := filepath.Join(pkgDataDir, dirToCreate, "tarantool", packCtx.Name)
+		if err := os.MkdirAll(artifactEnvDir, dirPermissions); err != nil {
+			return fmt.Errorf("cannot create %q: %s", artifactEnvDir, err)
+		}
+	}
+	for _, dir := range [...]string{"lib", "log", "run"} {
+		packCtx.RpmDeb.pkgFilesInfo[fmt.Sprintf("var/%s/tarantool/%s", dir, packCtx.Name)] =
+			packFileInfo{"tarantool", "tarantool"}
+	}
+	return nil
 }

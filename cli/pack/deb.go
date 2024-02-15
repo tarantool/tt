@@ -110,6 +110,10 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
+	if err = createArtifactsDirs(packageDataDir, packCtx); err != nil {
+		return err
+	}
+
 	// App directory.
 	if err = copy.Copy(bundlePath, packagePrefixedPath); err != nil {
 		return err
@@ -122,7 +126,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	// Create data.tar.gz.
 	dataArchivePath := filepath.Join(packageDir, dataArchiveName)
-	err = WriteTgzArchive(packageDataDir, dataArchivePath)
+	err = writeTgzArchive(packageDataDir, dataArchivePath, *packCtx)
 	if err != nil {
 		return err
 	}
@@ -138,7 +142,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	// Create control.tar.gz.
 	controlArchivePath := filepath.Join(packageDir, controlArchiveName)
-	err = WriteTgzArchive(controlDirPath, controlArchivePath)
+	err = writeTgzArchive(controlDirPath, controlArchivePath, *packCtx)
 	if err != nil {
 		return err
 	}

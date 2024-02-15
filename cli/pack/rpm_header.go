@@ -140,7 +140,7 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 	payloadSize := cpioFileInfo.Size()
 
 	// Generate fileinfo.
-	filesInfo, err := getFilesInfo(relPaths, packageFilesDir)
+	filesInfo, err := getFilesInfo(relPaths, packageFilesDir, packCtx.RpmDeb.pkgFilesInfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get files info: %s", err)
 	}
@@ -219,7 +219,8 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 
 // getFilesInfo returns the meta information about all items inside the passed
 // directory needed for packing it into rpm headers.
-func getFilesInfo(relPaths []string, dirPath string) (filesInfo, error) {
+func getFilesInfo(relPaths []string, dirPath string,
+	pkgFiles map[string]packFileInfo) (filesInfo, error) {
 	info := filesInfo{}
 
 	for _, relPath := range relPaths {
@@ -251,8 +252,13 @@ func getFilesInfo(relPaths []string, dirPath string) (filesInfo, error) {
 		info.BaseNames = append(info.BaseNames, filepath.Base(relPath))
 		info.FileMtimes = append(info.FileMtimes, int32(fileInfo.ModTime().Unix()))
 
-		info.FileUserNames = append(info.FileUserNames, defaultFileUser)
-		info.FileGroupNames = append(info.FileGroupNames, defaultFileGroup)
+		if packFileInfo, found := pkgFiles[relPath]; found {
+			info.FileUserNames = append(info.FileUserNames, packFileInfo.owner)
+			info.FileGroupNames = append(info.FileGroupNames, packFileInfo.group)
+		} else {
+			info.FileUserNames = append(info.FileUserNames, defaultFileUser)
+			info.FileGroupNames = append(info.FileGroupNames, defaultFileGroup)
+		}
 		info.FileLangs = append(info.FileLangs, defaultFileLang)
 
 		sysFileInfo, ok := fileInfo.Sys().(*syscall.Stat_t)

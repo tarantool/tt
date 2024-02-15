@@ -74,6 +74,8 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpt
 		return fmt.Errorf("package type is not provided")
 	}
 
+	packCtx.RpmDeb.pkgFilesInfo = make(map[string]packFileInfo)
+
 	if (packCtx.IntegrityPrivateKey != "") && packCtx.CartridgeCompat {
 		return errors.New("cannot pack with integrity checks in cartridge-compat mode")
 	}

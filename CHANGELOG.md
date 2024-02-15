@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 Common (all instances) unit is removed.
 - `tt pack` default data, run, log files location is changed for rpm/deb
 packages to `/var/[log | run | lib]/tarantool/<env_name>`
+- create `/var/[log | run | lib]/tarantool/<env_name>` on target system
+for packed applications.
 
 ### Fixed
 
