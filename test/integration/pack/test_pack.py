@@ -1045,13 +1045,17 @@ def test_pack_deb(tt_cmd, tmpdir):
                                              '&& cat /usr/lib/systemd/system/app1.service'
                                              ' /usr/lib/systemd/system/app2@.service '
                                              ' /usr/share/tarantool/bundle1/tt.yaml '
-                                             '&& dpkg -x {0} /tmp/unpack'
-                                            .format(package_file_name)])
+                                             '&& id tarantool '
+                                             ' && dpkg -x {0} /tmp/unpack '
+                                             ' && chown {1}:{2} /tmp/unpack -R'.
+                                             format(package_file_name, os.getuid(), os.getgid())
+                                             ])
     assert rc == 0
 
     assert re.search(r'Preparing to unpack {0}'.format(package_file_name), output)
     assert re.search(r'Unpacking bundle1 \(0\.1\.0\)', output)
     assert re.search(r'Setting up bundle1 \(0\.1\.0\)', output)
+    assert re.search(r'uid=\d+\(tarantool\) gid=\d+\(tarantool\) groups=\d+\(tarantool\)', output)
 
     installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
     systemd_units = ['app1.service', 'app2@.service']
@@ -1118,11 +1122,14 @@ def test_pack_rpm(tt_cmd, tmpdir):
                                              '&& cat /usr/lib/systemd/system/app1.service'
                                              ' /usr/lib/systemd/system/app2@.service '
                                              ' /usr/share/tarantool/bundle1/tt.yaml '
+                                             '&& id tarantool '
                                              '&& rpm2cpio {0} > /tmp/unpack/pkg.cpio'
                                             .format(package_file_name)])
     assert rc == 0
     installed_package_paths = ['app.lua', 'app2', 'instances.enabled', config_name]
     systemd_units = ['app1.service', 'app2@.service']
+
+    assert re.search(r'uid=\d+\(tarantool\) gid=\d+\(tarantool\) groups=\d+\(tarantool\)', output)
 
     for path in installed_package_paths:
         assert re.search(path, output)
@@ -1326,3 +1333,56 @@ def test_pack_deb_use_docker(tt_cmd, tmpdir):
         re.search(path, output)
 
     assert rc == 0
+
+
+@pytest.mark.slow
+def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, "bundle1")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+
+    with open(os.path.join(tmpdir, "preinst.sh"), "w") as pre_inst:
+        pre_inst.write("echo 'hello'")
+    with open(os.path.join(tmpdir, "postinst.sh"), "w") as post_inst:
+        post_inst.write("echo 'bye'")
+
+    cmd = [tt_cmd, "pack", "rpm", "--preinst", os.path.join(tmpdir, "preinst.sh"),
+           "--postinst", os.path.join(tmpdir, "postinst.sh")]
+
+    rc, output = run_command_and_get_output(
+        cmd,
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+
+    package_file_name = "bundle1-0.1.0.0-1." + get_arch() + ".rpm"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-w', '/usr/src',
+                                             'jrei/systemd-fedora',
+                                             '/bin/bash', '-c',
+                                             'rpm -qp --scripts {0} '
+                                            .format(package_file_name)])
+    assert rc == 0
+
+    assert """preinstall scriptlet (using /bin/sh):
+SYSUSER=tarantool
+""" in output
+    assert "echo 'hello'" in output
+    assert """postinstall scriptlet (using /bin/sh):
+
+echo 'bye'
+""" in output
