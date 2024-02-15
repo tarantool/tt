@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // CmdCtx is the main structure of the program context.

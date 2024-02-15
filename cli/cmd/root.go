@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/lib/integrity"
 
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/cli"

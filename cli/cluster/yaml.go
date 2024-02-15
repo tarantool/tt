@@ -3,7 +3,7 @@ package cluster
 import (
 	"fmt"
 
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 	"gopkg.in/yaml.v3"
 )
 

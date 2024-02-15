@@ -55,7 +55,7 @@ var (
 	}
 
 	modules = []string{
-		"cli/integrity",
+		"lib/integrity",
 	}
 )
 

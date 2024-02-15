@@ -8,7 +8,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // tarantoolCall retursns result of a function call via tarantool connector.

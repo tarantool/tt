@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 type mockRepository struct {

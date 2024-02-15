@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // Provider interface provides Watchdog methods to get objects whose creation

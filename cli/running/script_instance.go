@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (
