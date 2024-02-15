@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // FileCollector collects data from a YAML file.

@@ -16,7 +16,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (

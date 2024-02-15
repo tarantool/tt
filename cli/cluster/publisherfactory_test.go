@@ -9,7 +9,7 @@ import (
 
 	"github.com/tarantool/go-tarantool"
 	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 func TestDataPublisherFactory(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // CollectorFactory creates new data collectors.

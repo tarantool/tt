@@ -16,7 +16,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running/internal/layout"
 	"github.com/tarantool/tt/cli/ttlog"

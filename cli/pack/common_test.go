@@ -15,8 +15,8 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/pack/test_helpers"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 type mockRepository struct{}

@@ -13,9 +13,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (

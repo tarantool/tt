@@ -11,9 +11,9 @@ import (
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/integrity"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // clusterInstance describes tarantool 3 instance running using cluster config.

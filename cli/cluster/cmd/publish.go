@@ -5,7 +5,7 @@ import (
 	"net/url"
 
 	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // PublishCtx contains information abould cluster publish command execution

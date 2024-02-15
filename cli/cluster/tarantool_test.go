@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/integrity"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 func TestNewTarantoolCollectors_Collect_nil_evaler(t *testing.T) {
