@@ -75,7 +75,7 @@ func NewIntegrityDataPublisherFactory(signFunc SignFunc) DataPublisherFactory {
 
 // NewFiler creates a new file data publisher with integrity signing.
 func (factory integrityPublishersFactory) NewFile(path string) (DataPublisher, error) {
-	return nil, fmt.Errorf("unimplemented")
+	return nil, fmt.Errorf("publishing into a file with integrity data is not supported")
 }
 
 // NewEtcd creates a new etcd data publisher with integrity signing.

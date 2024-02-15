@@ -1,6 +1,8 @@
 package cluster_test
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -24,11 +26,29 @@ func TestNewFileCollector(t *testing.T) {
 	assert.NotNil(t, collector)
 }
 
-func TestNewFileCollector_not_exist(t *testing.T) {
-	collector := cluster.NewFileCollector("some/invalid/path")
+func TestNewIntegrityFileCollector(t *testing.T) {
+	var collector cluster.DataCollector
 
-	_, err := collector.Collect()
-	assert.Error(t, err)
+	collector = cluster.NewIntegrityFileCollector(nil, "")
+	require.NotNil(t, collector)
+	assert.Panics(t, func() {
+		collector.Collect()
+	})
+}
+
+func TestNewIntegrityFileCollector_fileReadFunc_error(t *testing.T) {
+	const errMsg = "foo"
+
+	collector := cluster.NewIntegrityFileCollector(
+		func(path string) (io.ReadCloser, error) {
+			return nil, fmt.Errorf(errMsg)
+		}, "foo")
+
+	require.NotNil(t, collector)
+	data, err := collector.Collect()
+
+	assert.Nil(t, data)
+	assert.EqualError(t, err, fmt.Sprintf("unable to read file \"foo\": %s", errMsg))
 }
 
 func TestFileCollector_valid(t *testing.T) {
@@ -48,11 +68,58 @@ etcd:
 `),
 	}}
 
-	collector := cluster.NewFileCollector(testYamlPath)
+	cases := []struct {
+		Name      string
+		Collector cluster.DataCollector
+	}{
+		{
+			Name:      "base",
+			Collector: cluster.NewFileCollector(testYamlPath),
+		},
+		{
+			Name: "integrity",
+			Collector: cluster.NewIntegrityFileCollector(
+				func(path string) (io.ReadCloser, error) {
+					return os.Open(path)
+				}, testYamlPath),
+		},
+	}
 
-	data, err := collector.Collect()
-	require.NoError(t, err)
-	require.Equal(t, expected, data)
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			data, err := tc.Collector.Collect()
+			require.NoError(t, err)
+			require.Equal(t, expected, data)
+		})
+	}
+}
+
+func TestNewFileCollector_not_exist(t *testing.T) {
+	const invalidPath = "some/invalid/path"
+	cases := []struct {
+		Name      string
+		Collector cluster.DataCollector
+	}{
+		{
+			Name:      "base",
+			Collector: cluster.NewFileCollector(invalidPath),
+		},
+		{
+			Name: "integrity",
+			Collector: cluster.NewIntegrityFileCollector(
+				func(path string) (io.ReadCloser, error) {
+					return os.Open(path)
+				}, invalidPath),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			data, err := tc.Collector.Collect()
+			require.Nil(t, data)
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestNewFileDataPublisher(t *testing.T) {
