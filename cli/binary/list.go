@@ -34,33 +34,45 @@ func printVersion(versionString string) {
 func ParseBinaries(fileList []fs.DirEntry, programName string,
 	binDir string) ([]version.Version, error) {
 	var binaryVersions []version.Version
+
 	symlinkName := programName
-
-	if programName == search.ProgramDev {
-		binActive, isTarantoolBinary, err := install.IsTarantoolDev(
-			filepath.Join(binDir, "tarantool"),
-			binDir,
-		)
-		if err != nil {
-			return binaryVersions, err
-		}
-		if isTarantoolBinary {
-			binaryVersions = append(binaryVersions,
-				version.Version{Str: programName + " -> " + binActive + " [active]"})
-		}
-		return binaryVersions, nil
-	}
-
-	if programName == search.ProgramEe {
+	if programName == search.ProgramEe || programName == search.ProgramDev {
 		symlinkName = search.ProgramCe
 	}
-	binActive, err := util.ResolveSymlink(filepath.Join(binDir, symlinkName))
-	if err != nil && !os.IsNotExist(err) {
-		return binaryVersions, err
+
+	binActive := ""
+	programPath := filepath.Join(binDir, symlinkName)
+	if fileInfo, err := os.Lstat(programPath); err == nil {
+		if programName == search.ProgramDev &&
+			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+			binActive, isTarantoolBinary, err := install.IsTarantoolDev(programPath, binDir)
+			if err != nil {
+				return binaryVersions, err
+			}
+			if isTarantoolBinary {
+				binaryVersions = append(binaryVersions,
+					version.Version{Str: programName + " -> " + binActive + " [active]"})
+			}
+			return binaryVersions, nil
+		} else if programName == search.ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0 {
+			tntCli := cmdcontext.TarantoolCli{Executable: programPath}
+			binaryVersion, err := tntCli.GetVersion()
+			if err != nil {
+				return binaryVersions, err
+			}
+			binaryVersion.Str += " [active]"
+			binaryVersions = append(binaryVersions, binaryVersion)
+		} else {
+			binActive, err = util.ResolveSymlink(programPath)
+			if err != nil && !os.IsNotExist(err) {
+				return binaryVersions, err
+			}
+			binActive = filepath.Base(binActive)
+		}
 	}
-	binActive = filepath.Base(binActive)
 
 	versionPrefix := programName + version.FsSeparator
+	var err error
 	for _, f := range fileList {
 		if strings.HasPrefix(f.Name(), versionPrefix) {
 			versionStr := strings.TrimPrefix(strings.TrimPrefix(f.Name(), versionPrefix), "v")

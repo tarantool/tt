@@ -24,6 +24,7 @@ empty, for example.
 - `tt pack` with `--use-docker` fails due to incompatible versions of `tt`
 between local system and docker container. Install current `tt` version
 in docker image if possible.
+- `tt binaries list` invalid argument error if `tarantool` is not a symlink.
 
 ## [2.1.2] - 2024-02-02
 
