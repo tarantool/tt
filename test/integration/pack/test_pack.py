@@ -995,6 +995,18 @@ def verify_rpmdeb_package_content(pkg_dir):
                                  'app2@.service'),
             'perms': stat.S_IFREG
         },
+        {
+            'path': os.path.join(pkg_dir, 'var', 'lib', 'tarantool', 'bundle1'),
+            'perms': stat.S_IFDIR
+        },
+        {
+            'path': os.path.join(pkg_dir, 'var', 'log', 'tarantool', 'bundle1'),
+            'perms': stat.S_IFDIR
+        },
+        {
+            'path': os.path.join(pkg_dir, 'var', 'run', 'tarantool', 'bundle1'),
+            'perms': stat.S_IFDIR
+        },
         ]
     for unpacked in check_paths:
         assert os.path.exists(unpacked['path'])

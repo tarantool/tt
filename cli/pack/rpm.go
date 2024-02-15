@@ -88,6 +88,10 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
+	if err = createArtifactsDirs(packageDir, packCtx); err != nil {
+		return err
+	}
+
 	err = packRpm(cmdCtx, packCtx, opts, packageDir, resPackagePath)
 
 	if err != nil {

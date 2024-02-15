@@ -62,4 +62,6 @@ type RpmDebCtx struct {
 	DepsFile string
 	// SystemdUnitParamsFile is a path to file with systemd unit parameters.
 	SystemdUnitParamsFile string
+	// pkgFilesInfo files info to modify in result rpm/deb package.
+	pkgFilesInfo map[string]packFileInfo
 }

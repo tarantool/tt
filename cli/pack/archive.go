@@ -63,7 +63,7 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 	tarName = filepath.Join(currentDir, tarName)
 
-	err = WriteTgzArchive(bundlePath, tarName)
+	err = writeTgzArchive(bundlePath, tarName, *packCtx)
 	if err != nil {
 		if err := os.Remove(tarName); err != nil {
 			log.Warnf("Failed to remove a tarball file %s: %s", tarName, err)
