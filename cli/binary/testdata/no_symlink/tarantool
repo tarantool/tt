@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo 'Tarantool 3.1.0-entrypoint-83-gcb0264c3c'
