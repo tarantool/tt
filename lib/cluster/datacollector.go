@@ -100,5 +100,10 @@ func (factory integrityCollectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 // collector with integrity checks.
 func (factory integrityCollectorsFactory) NewTarantool(conn tarantool.Connector,
 	prefix, key string, timeout time.Duration) (DataCollector, error) {
-	return nil, fmt.Errorf("unimplemented")
+	if key == "" {
+		return NewIntegrityTarantoolAllCollector(factory.checkFunc,
+			conn, prefix, timeout), nil
+	}
+	return NewIntegrityTarantoolKeyCollector(factory.checkFunc,
+		conn, prefix, key, timeout), nil
 }

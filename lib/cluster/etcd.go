@@ -414,9 +414,3 @@ func isSameDirSymlink(f fs.DirEntry, dir string) bool {
 	target, err := os.Readlink(filepath.Join(dir, f.Name()))
 	return err == nil && !strings.Contains(target, "/")
 }
-
-// getConfigPrefix returns a full configuration prefix.
-func getConfigPrefix(basePrefix string) string {
-	prefix := strings.TrimRight(basePrefix, "/")
-	return fmt.Sprintf("%s/%s/", prefix, "config")
-}

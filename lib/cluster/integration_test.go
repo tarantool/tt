@@ -8,12 +8,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
+
+	"github.com/tarantool/go-tarantool"
 
 	"github.com/tarantool/tt/lib/cluster"
 )
@@ -24,6 +28,44 @@ const (
 	httpsEndpoint = "https://" + baseEndpoint
 	timeout       = 5 * time.Second
 )
+
+func tcsIsSupported(t *testing.T) bool {
+	cmd := exec.Command("tarantool", "--version")
+
+	out, err := cmd.Output()
+	require.NoError(t, err)
+
+	expected := "Tarantool Enterprise 3"
+
+	return strings.HasPrefix(string(out), expected)
+}
+
+func startTcs(t *testing.T) *exec.Cmd {
+	cmd := exec.Command("tarantool", "--name", "master",
+		"--config", "testdata/config.yml",
+		"testdata/init.lua")
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	var conn tarantool.Connector
+	// Wait for Tarantool to start.
+	for i := 0; i < 10; i++ {
+		conn, err = tarantool.Connect("127.0.0.1:3301", tarantool.Opts{})
+		if err == nil {
+			defer conn.Close()
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	require.NoError(t, err)
+
+	return cmd
+}
+
+func stopTcs(t *testing.T, cmd *exec.Cmd) {
+	err := cmd.Process.Kill()
+	require.NoError(t, err)
+}
 
 type etcdOpts struct {
 	Username string
@@ -588,4 +630,381 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	assert.Equal(t, value, "bar")
 	_, err = config.Get([]string{"zoo"})
 	assert.Error(t, err)
+}
+
+var testsIntegrity = []struct {
+	Name         string
+	Applicable   func(t *testing.T) bool
+	Setup        func(t *testing.T) interface{}
+	Shutdown     func(t *testing.T, inst interface{})
+	NewPublisher func(
+		t *testing.T,
+		signFunc cluster.SignFunc,
+		prefix, key string,
+	) (cluster.DataPublisher, func())
+	NewCollector func(
+		t *testing.T,
+		checkFunc cluster.CheckFunc,
+		prefix, key string,
+	) (cluster.DataCollector, func())
+}{
+	{
+		Name:       "tarantool",
+		Applicable: tcsIsSupported,
+		Setup: func(t *testing.T) interface{} {
+			command := startTcs(t)
+			return command
+		},
+		Shutdown: func(t *testing.T, inst interface{}) {
+			stopTcs(t, inst.(*exec.Cmd))
+		},
+		NewPublisher: func(
+			t *testing.T,
+			signFunc cluster.SignFunc,
+			prefix,
+			key string,
+		) (cluster.DataPublisher, func()) {
+			publisherFactory := cluster.NewIntegrityDataPublisherFactory(signFunc)
+
+			opts := tarantool.Opts{
+				Timeout:       10 * time.Second,
+				Reconnect:     10 * time.Second,
+				MaxReconnects: 10,
+				User:          "client",
+				Pass:          "secret",
+			}
+
+			conn, err := tarantool.Connect("127.0.0.1:3301", opts)
+			require.NoError(t, err)
+
+			pub, err := publisherFactory.NewTarantool(conn, prefix, key, 1*time.Second)
+			require.NoError(t, err)
+
+			return pub, func() { conn.Close() }
+		},
+		NewCollector: func(
+			t *testing.T,
+			checkFunc cluster.CheckFunc,
+			prefix,
+			key string,
+		) (cluster.DataCollector, func()) {
+			collectorFactory := cluster.NewIntegrityDataCollectorFactory(checkFunc, nil)
+
+			opts := tarantool.Opts{
+				Timeout:       10 * time.Second,
+				Reconnect:     10 * time.Second,
+				MaxReconnects: 10,
+				User:          "client",
+				Pass:          "secret",
+			}
+
+			conn, err := tarantool.Connect("127.0.0.1:3301", opts)
+			require.NoError(t, err)
+
+			coll, err := collectorFactory.NewTarantool(conn, prefix, key, 1*time.Second)
+			require.NoError(t, err)
+
+			return coll, func() { conn.Close() }
+		},
+	},
+}
+
+var validSignFunc = func(data []byte) (map[string][]byte, []byte, error) {
+	return map[string][]byte{
+		"foo": []byte("foo"),
+		"bar": data,
+	}, data, nil
+}
+
+var validCheckFunc = func(data []byte, hashes map[string][]byte, sig []byte) error {
+	expected := map[string][]byte{
+		"foo": []byte("foo"),
+		"bar": data,
+	}
+	if !reflect.DeepEqual(expected, hashes) {
+		return fmt.Errorf("an unexpected hashes map: %q, expected: %q", hashes, expected)
+	}
+
+	if string(data) != string(sig) {
+		return fmt.Errorf("data %q != sig %q", string(data), string(sig))
+	}
+	return nil
+}
+
+func TestIntegrityDataPublisherKey_CollectorAll_valid(t *testing.T) {
+	for _, test := range testsIntegrity {
+		t.Run(test.Name, func(t *testing.T) {
+			if !test.Applicable(t) {
+				t.Skip()
+			}
+
+			inst := test.Setup(t)
+			defer test.Shutdown(t, inst)
+
+			const testPrefix = "/test1"
+
+			data := []cluster.Data{
+				{"bar", []byte("abcdefg"), 0},
+				{"baz", []byte("qwertyuiop"), 0},
+			}
+
+			for _, entry := range data {
+				publisher, closeConn :=
+					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source)
+				defer closeConn()
+
+				err := publisher.Publish(entry.Revision, entry.Value)
+				require.NoError(t, err)
+			}
+
+			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "")
+			defer closeConn()
+
+			result, err := collector.Collect()
+			require.NoError(t, err)
+
+			require.Equal(t, result, []cluster.Data{
+				{testPrefix + "/config/bar", data[0].Value, 0},
+				{testPrefix + "/config/baz", data[1].Value, 0},
+			})
+		})
+	}
+}
+
+func TestIntegrityDataPublisherKey_CollectorKey_valid(t *testing.T) {
+	for _, test := range testsIntegrity {
+		t.Run(test.Name, func(t *testing.T) {
+			if !test.Applicable(t) {
+				t.Skip()
+			}
+
+			inst := test.Setup(t)
+			defer test.Shutdown(t, inst)
+
+			const testPrefix = "/test2"
+
+			data := []cluster.Data{
+				{"bar", []byte("abcdefg"), 0},
+				{"baz", []byte("qwertyuiop"), 0},
+			}
+
+			for _, entry := range data {
+				publisher, closeConn :=
+					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source)
+				defer closeConn()
+
+				err := publisher.Publish(entry.Revision, entry.Value)
+				require.NoError(t, err)
+			}
+
+			for _, entry := range data {
+				collector, closeConn :=
+					test.NewCollector(t, validCheckFunc, testPrefix, entry.Source)
+				defer closeConn()
+
+				result, err := collector.Collect()
+				require.NoError(t, err)
+
+				require.Equal(t, result, []cluster.Data{
+					{testPrefix + "/config/" + entry.Source, entry.Value, 0},
+				})
+			}
+		})
+	}
+}
+
+func TestIntegrityDataCollectorAllPublisherAll_valid(t *testing.T) {
+	for _, test := range testsIntegrity {
+		t.Run(test.Name, func(t *testing.T) {
+			if !test.Applicable(t) {
+				t.Skip()
+			}
+
+			inst := test.Setup(t)
+			defer test.Shutdown(t, inst)
+
+			const testPrefix = "/test3"
+
+			// Publish some data to check that "All" publisher erases it.
+			data := []cluster.Data{
+				{"bar", []byte("this shall be erased"), 0},
+				{"baz", []byte("this shall be erased as well"), 0},
+				{"", []byte("abcdefg"), 0},
+			}
+
+			for _, entry := range data {
+				publisher, closeConn :=
+					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source)
+				defer closeConn()
+
+				err := publisher.Publish(entry.Revision, entry.Value)
+				require.NoError(t, err)
+			}
+
+			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "")
+			defer closeConn()
+
+			result, err := collector.Collect()
+			require.NoError(t, err)
+
+			require.Equal(t, result, []cluster.Data{
+				{testPrefix + "/config/all", data[2].Value, 0},
+			})
+		})
+	}
+}
+
+func TestIntegrityDataCollectorKeyPublisherAll_valid(t *testing.T) {
+	for _, test := range testsIntegrity {
+		t.Run(test.Name, func(t *testing.T) {
+			if !test.Applicable(t) {
+				t.Skip()
+			}
+
+			inst := test.Setup(t)
+			defer test.Shutdown(t, inst)
+
+			const testPrefix = "/test4"
+
+			// Publish some data to check that "All" publisher erases it.
+			data := []cluster.Data{
+				{"bar", []byte("this shall be erased"), 0},
+				{"baz", []byte("this shall be erased as well"), 0},
+				{"", []byte("abcdefg"), 0},
+			}
+
+			for _, entry := range data {
+				publisher, closeConn :=
+					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source)
+				defer closeConn()
+
+				err := publisher.Publish(entry.Revision, entry.Value)
+				require.NoError(t, err)
+			}
+
+			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "all")
+			defer closeConn()
+
+			result, err := collector.Collect()
+			require.NoError(t, err)
+
+			require.Equal(t, result, []cluster.Data{
+				{testPrefix + "/config/all", data[2].Value, 0},
+			})
+		})
+	}
+}
+
+func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
+	for _, test := range testsIntegrity {
+		t.Run(test.Name, func(t *testing.T) {
+			if !test.Applicable(t) {
+				t.Skip()
+			}
+
+			inst := test.Setup(t)
+			defer test.Shutdown(t, inst)
+
+			const testPrefix = "/test5"
+
+			publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, "bar")
+			defer closeConn()
+
+			exampleData1 := []byte("abcdefg")
+			err := publisher.Publish(0, exampleData1)
+			require.NoError(t, err)
+
+			collector, closeConn := test.NewCollector(t,
+				func([]byte, map[string][]byte, []byte) error {
+					return fmt.Errorf("any error")
+				}, testPrefix, "")
+			defer closeConn()
+
+			result, err := collector.Collect()
+			require.ErrorContains(t, err, "any error")
+			require.Nil(t, result)
+		})
+	}
+}
+
+func TestIntegrityDataPublisher_CollectorKey_check_error(t *testing.T) {
+	for _, test := range testsIntegrity {
+		t.Run(test.Name, func(t *testing.T) {
+			if !test.Applicable(t) {
+				t.Skip()
+			}
+
+			inst := test.Setup(t)
+			defer test.Shutdown(t, inst)
+
+			const testPrefix = "/test6"
+
+			publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, "")
+			defer closeConn()
+
+			exampleData1 := []byte("abcdefg")
+			err := publisher.Publish(0, exampleData1)
+			require.NoError(t, err)
+
+			collector, closeConn := test.NewCollector(t,
+				func([]byte, map[string][]byte, []byte) error {
+					return fmt.Errorf("any error")
+				}, testPrefix, "all")
+			defer closeConn()
+
+			result, err := collector.Collect()
+			require.ErrorContains(t, err, "any error")
+			require.Nil(t, result)
+		})
+	}
+}
+
+func TestIntegrityDataPublisherKey_sign_error(t *testing.T) {
+	for _, test := range testsIntegrity {
+		t.Run(test.Name, func(t *testing.T) {
+			if !test.Applicable(t) {
+				t.Skip()
+			}
+
+			inst := test.Setup(t)
+			defer test.Shutdown(t, inst)
+
+			const testPrefix = "/test7"
+
+			publisher, closeConn := test.NewPublisher(t,
+				func([]byte) (map[string][]byte, []byte, error) {
+					return nil, nil, fmt.Errorf("any error")
+				}, testPrefix, "bar")
+			defer closeConn()
+
+			exampleData1 := []byte("abcdefg")
+			err := publisher.Publish(0, exampleData1)
+			require.ErrorContains(t, err, "any error")
+		})
+	}
+}
+
+func TestIntegrityDataPublisherAll_sign_error(t *testing.T) {
+	for _, test := range testsIntegrity {
+		t.Run(test.Name, func(t *testing.T) {
+			if !test.Applicable(t) {
+				t.Skip()
+			}
+
+			inst := test.Setup(t)
+			defer test.Shutdown(t, inst)
+
+			const testPrefix = "/test8"
+
+			publisher, closeConn := test.NewPublisher(t,
+				func([]byte) (map[string][]byte, []byte, error) {
+					return nil, nil, fmt.Errorf("any error")
+				}, testPrefix, "")
+			defer closeConn()
+
+			exampleData1 := []byte("abcdefg")
+			err := publisher.Publish(0, exampleData1)
+			require.ErrorContains(t, err, "any error")
+		})
+	}
 }

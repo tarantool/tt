@@ -88,5 +88,10 @@ func (factory integrityPublishersFactory) NewEtcd(etcdcli *clientv3.Client,
 // with integrity signing.
 func (factory integrityPublishersFactory) NewTarantool(conn tarantool.Connector,
 	prefix, key string, timeout time.Duration) (DataPublisher, error) {
-	return nil, fmt.Errorf("unimplemented")
+	if key == "" {
+		return NewIntegrityTarantoolAllDataPublisher(factory.signFunc,
+			conn, prefix, timeout), nil
+	}
+	return NewIntegrityTarantoolKeyDataPublisher(factory.signFunc,
+		conn, prefix, key, timeout), nil
 }
