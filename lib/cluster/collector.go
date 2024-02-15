@@ -6,8 +6,13 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/tt/lib/integrity"
 )
+
+// Collector interface must be implemented by a configuration source collector.
+type Collector interface {
+	// Collect collects a configuration or returns an error.
+	Collect() (*Config, error)
+}
 
 // CollectorFactory creates new data collectors.
 type CollectorFactory interface {
@@ -22,42 +27,10 @@ type CollectorFactory interface {
 		prefix, key string, timeout time.Duration) (Collector, error)
 }
 
-// collectorsFactory is a type that implements a default CollectorFactory.
-type collectorsFactory struct{}
-
-// NewDataCollectorFactory creates a new CollectorFactory.
-func NewDataCollectorFactory() integrity.DataCollectorFactory {
-	return collectorsFactory{}
-}
-
-// NewFiler creates a new file configuration collector.
-func (factory collectorsFactory) NewFile(path string) (integrity.DataCollector, error) {
-	return NewFileCollector(path), nil
-}
-
-// NewEtcd creates a new etcd configuration collector.
-func (factory collectorsFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration) (integrity.DataCollector, error) {
-	if key == "" {
-		return NewEtcdAllCollector(etcdcli, prefix, timeout), nil
-	}
-	return NewEtcdKeyCollector(etcdcli, prefix, key, timeout), nil
-}
-
-// NewTarantool creates creates a new tarantool config storage configuration
-// collector.
-func (factory collectorsFactory) NewTarantool(conn tarantool.Connector,
-	prefix, key string, timeout time.Duration) (integrity.DataCollector, error) {
-	if key == "" {
-		return NewTarantoolAllCollector(conn, prefix, timeout), nil
-	}
-	return NewTarantoolKeyCollector(conn, prefix, key, timeout), nil
-}
-
 // yamlDataCollectorFactoryDecorator is a wrapper over DataCollectorFactory turning
 // it into a CollectorFactory.
 type yamlDataCollectorFactoryDecorator struct {
-	rawFactory integrity.DataCollectorFactory
+	rawFactory DataCollectorFactory
 }
 
 // NewFile creates a new file configuration DataCollector and wraps it.
@@ -82,7 +55,7 @@ func (factory yamlDataCollectorFactoryDecorator) NewTarantool(conn tarantool.Con
 
 // NewCollectorFactory turns arbitrary DataCollectorFactory into a
 // CollectorFactory using YAML collector decorator.
-func NewCollectorFactory(factory integrity.DataCollectorFactory) CollectorFactory {
+func NewCollectorFactory(factory DataCollectorFactory) CollectorFactory {
 	return yamlDataCollectorFactoryDecorator{
 		rawFactory: factory,
 	}

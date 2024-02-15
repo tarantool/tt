@@ -33,7 +33,7 @@ func TestNewSigner(t *testing.T) {
 	}
 }
 
-func InitializeIntegrityCheckWithKey(t *testing.T) {
+func TestInitializeIntegrityCheckWithKey(t *testing.T) {
 	testCases := []struct {
 		name          string
 		publicKeyPath string
@@ -62,7 +62,7 @@ func InitializeIntegrityCheckWithKey(t *testing.T) {
 	}
 }
 
-func InitializeIntegrityCheckWithoutKey(t *testing.T) {
+func TestInitializeIntegrityCheckWithoutKey(t *testing.T) {
 	testCases := []struct {
 		name          string
 		publicKeyPath string
@@ -218,16 +218,16 @@ func TestRegisterIntegrityCheckPeriodFlag(t *testing.T) {
 	}
 }
 
-func TestNewDataCollectorFactory(t *testing.T) {
-	factory, err := integrity.NewDataCollectorFactory(integrity.IntegrityCtx{})
+func TestGetCheckFunction(t *testing.T) {
+	fun, err := integrity.GetCheckFunction(integrity.IntegrityCtx{})
 
-	require.Nil(t, factory)
+	require.Nil(t, fun)
 	require.Equal(t, err, integrity.ErrNotConfigured)
 }
 
-func TestNewPublisherFactory(t *testing.T) {
-	factory, err := integrity.NewDataPublisherFactory("")
+func TestGetSignFunction(t *testing.T) {
+	fun, err := integrity.GetSignFunction("")
 
-	require.Nil(t, factory)
-	require.EqualError(t, err, "integrity publishers should never be created in ce")
+	require.Nil(t, fun)
+	require.EqualError(t, err, "sign function should never be created in ce")
 }

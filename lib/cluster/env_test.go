@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/cluster"
+	"github.com/tarantool/tt/lib/cluster"
 )
 
 var testFormatter = func(path []string) string {

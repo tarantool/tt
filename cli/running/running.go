@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,12 +17,13 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/lib/integrity"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running/internal/layout"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/util/regexputil"
+	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 const defaultDirPerms = 0770
@@ -91,7 +93,7 @@ type InstanceCtx struct {
 	// ClusterConfigPath is a path of cluster configuration.
 	ClusterConfigPath string
 	// Configuration is instance configuration loaded from cluster config.
-	Configuration cluster.InstanceConfig
+	Configuration libcluster.InstanceConfig
 }
 
 // RunOpts contains flags and args for tt run.
@@ -308,20 +310,26 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 
 // loadInstanceConfig load instance configuration from cluster config.
 func loadInstanceConfig(configPath, instName string,
-	integrityCtx integrity.IntegrityCtx) (cluster.InstanceConfig, error) {
-	var instCfg cluster.InstanceConfig
+	integrityCtx integrity.IntegrityCtx) (libcluster.InstanceConfig, error) {
+	var instCfg libcluster.InstanceConfig
 	if configPath == "" {
 		return instCfg, nil
 	}
 
-	collectorsRaw, err := integrity.NewDataCollectorFactory(integrityCtx)
-	collectors := cluster.NewCollectorFactory(collectorsRaw)
+	var dataCollectors libcluster.DataCollectorFactory
+	checkFunc, err := integrity.GetCheckFunction(integrityCtx)
 	if err == integrity.ErrNotConfigured {
-		collectors = cluster.NewCollectorFactory(cluster.NewDataCollectorFactory())
+		dataCollectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return instCfg,
 			fmt.Errorf("failed to create collectors with integrity check: %w", err)
+	} else {
+		dataCollectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
+			func(path string) (io.ReadCloser, error) {
+				return integrityCtx.Repository.Read(path)
+			})
 	}
+	collectors := libcluster.NewCollectorFactory(dataCollectors)
 
 	clusterCfg, err := cluster.GetClusterConfig(collectors, configPath)
 	if err != nil {
@@ -466,12 +474,12 @@ type configMap[T any] struct {
 
 // mapValuesFromConfig get values specified by paths from cfg config and stores them by pointers
 // and modifying with mapFunc.
-func mapValuesFromConfig[T any](cfg *cluster.Config, mapFunc func(val T) (T, error),
+func mapValuesFromConfig[T any](cfg *libcluster.Config, mapFunc func(val T) (T, error),
 	maps ...configMap[T]) error {
 	for _, cfgMapping := range maps {
 		value, err := cfg.Get(cfgMapping.path)
 		if err != nil {
-			var eNotExist *cluster.NotExistError
+			var eNotExist *libcluster.NotExistError
 			if errors.As(err, &eNotExist) {
 				continue
 			} else {

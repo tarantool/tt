@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -10,14 +11,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/cli/cluster"
 	clustercmd "github.com/tarantool/tt/cli/cluster/cmd"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/connect"
-	"github.com/tarantool/tt/lib/integrity"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
+	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (
@@ -160,14 +161,19 @@ environment variables < command flags < URL credentials.
 
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	collectorsRaw, err := integrity.NewDataCollectorFactory(cmdCtx.Integrity)
-	collectors := cluster.NewCollectorFactory(collectorsRaw)
+	var dataCollectors libcluster.DataCollectorFactory
+	checkFunc, err := integrity.GetCheckFunction(cmdCtx.Integrity)
 	if err == integrity.ErrNotConfigured {
-		collectors = cluster.NewCollectorFactory(cluster.NewDataCollectorFactory())
+		dataCollectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
+	} else {
+		dataCollectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
+			func(path string) (io.ReadCloser, error) {
+				return cmdCtx.Integrity.Repository.Read(path)
+			})
 	}
-	showCtx.Collectors = collectors
+	showCtx.Collectors = libcluster.NewCollectorFactory(dataCollectors)
 
 	if uri, ok := parseUrl(args[0]); ok {
 		return clustercmd.ShowUri(showCtx, uri)
@@ -188,24 +194,29 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 // internalClusterPublishModule is an entrypoint for `cluster publish` command.
 func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	collectorsRaw, err := integrity.NewDataCollectorFactory(cmdCtx.Integrity)
-	collectors := cluster.NewCollectorFactory(collectorsRaw)
+	var dataCollectors libcluster.DataCollectorFactory
+	checkFunc, err := integrity.GetCheckFunction(cmdCtx.Integrity)
 	if err == integrity.ErrNotConfigured {
-		collectors = cluster.NewCollectorFactory(cluster.NewDataCollectorFactory())
+		dataCollectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
+	} else {
+		dataCollectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
+			func(path string) (io.ReadCloser, error) {
+				return cmdCtx.Integrity.Repository.Read(path)
+			})
 	}
-	publishCtx.Collectors = collectors
+	publishCtx.Collectors = libcluster.NewCollectorFactory(dataCollectors)
 
 	if publishIntegrityPrivateKey != "" {
 		key := publishIntegrityPrivateKey
-		publishers, err := integrity.NewDataPublisherFactory(key)
+		signFunc, err := integrity.GetSignFunction(key)
 		if err != nil {
 			return fmt.Errorf("failed to create publishers with integrity: %w", err)
 		}
-		publishCtx.Publishers = publishers
+		publishCtx.Publishers = libcluster.NewIntegrityDataPublisherFactory(signFunc)
 	} else {
-		publishCtx.Publishers = cluster.NewDataPublisherFactory()
+		publishCtx.Publishers = libcluster.NewDataPublisherFactory()
 	}
 
 	data, config, err := readSourceFile(args[1])
@@ -238,13 +249,13 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 }
 
 // readSourceFile reads a configuration from a source file.
-func readSourceFile(path string) ([]byte, *cluster.Config, error) {
+func readSourceFile(path string) ([]byte, *libcluster.Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read path %q: %s", path, err)
 	}
 
-	config, err := cluster.NewYamlCollector(data).Collect()
+	config, err := libcluster.NewYamlCollector(data).Collect()
 	if err != nil {
 		err = fmt.Errorf("failed to read a configuration from path %q: %s",
 			path, err)

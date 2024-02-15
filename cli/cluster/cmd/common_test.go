@@ -7,16 +7,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/cluster"
+	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
-func createClusterConfig(t *testing.T, data string) cluster.ClusterConfig {
+func createClusterConfig(t *testing.T, data string) libcluster.ClusterConfig {
 	t.Helper()
 
-	config, err := cluster.NewYamlCollector([]byte(data)).Collect()
+	config, err := libcluster.NewYamlCollector([]byte(data)).Collect()
 	require.NoError(t, err)
 
-	cconfig, err := cluster.MakeClusterConfig(config)
+	cconfig, err := libcluster.MakeClusterConfig(config)
 	require.NoError(t, err)
 
 	return cconfig
@@ -26,7 +26,7 @@ func TestValidateClusterConfig(t *testing.T) {
 	cases := []struct {
 		Name   string
 		Env    map[string]string
-		Config cluster.ClusterConfig
+		Config libcluster.ClusterConfig
 		Full   []bool
 		// The error order could be different.
 		Err []string

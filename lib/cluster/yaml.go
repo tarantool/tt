@@ -3,7 +3,6 @@ package cluster
 import (
 	"fmt"
 
-	"github.com/tarantool/tt/lib/integrity"
 	"gopkg.in/yaml.v3"
 )
 
@@ -30,10 +29,10 @@ func (collector YamlCollector) Collect() (*Config, error) {
 	return config, nil
 }
 
-// YamlCollectorDecorator is a wrapper over integrity.DataCollector
+// YamlCollectorDecorator is a wrapper over DataCollector
 // implementing Collector.
 type YamlCollectorDecorator struct {
-	rawCollector integrity.DataCollector
+	rawCollector DataCollector
 }
 
 // Collect collects configuration from raw data interpretening it
@@ -59,7 +58,7 @@ func (collector YamlCollectorDecorator) Collect() (*Config, error) {
 
 // NewYamlCollectorDecorator wraps a DataCollector to interpret raw data as
 // YAML configurations.
-func NewYamlCollectorDecorator(collector integrity.DataCollector) YamlCollectorDecorator {
+func NewYamlCollectorDecorator(collector DataCollector) YamlCollectorDecorator {
 	return YamlCollectorDecorator{
 		rawCollector: collector,
 	}
@@ -69,12 +68,12 @@ func NewYamlCollectorDecorator(collector integrity.DataCollector) YamlCollectorD
 // publisher.
 type YamlConfigPublisher struct {
 	// publisher used to publish the YAML data.
-	publisher integrity.DataPublisher
+	publisher DataPublisher
 }
 
 // NewYamlConfigPublisher creates a new YamlConfigPublisher object to publish
 // a configuration via the publisher.
-func NewYamlConfigPublisher(publisher integrity.DataPublisher) YamlConfigPublisher {
+func NewYamlConfigPublisher(publisher DataPublisher) YamlConfigPublisher {
 	return YamlConfigPublisher{
 		publisher: publisher,
 	}

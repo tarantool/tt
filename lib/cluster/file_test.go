@@ -8,8 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/lib/cluster"
 )
 
 const (
@@ -18,7 +17,7 @@ const (
 )
 
 func TestNewFileCollector(t *testing.T) {
-	var collector integrity.DataCollector
+	var collector cluster.DataCollector
 
 	collector = cluster.NewFileCollector(testYamlPath)
 
@@ -33,7 +32,7 @@ func TestNewFileCollector_not_exist(t *testing.T) {
 }
 
 func TestFileCollector_valid(t *testing.T) {
-	expected := []integrity.Data{{
+	expected := []cluster.Data{{
 		Source: testYamlPath,
 		Value: []byte(`config:
   version: 3.0.0
@@ -57,7 +56,7 @@ etcd:
 }
 
 func TestNewFileDataPublisher(t *testing.T) {
-	var publisher integrity.DataPublisher
+	var publisher cluster.DataPublisher
 
 	publisher = cluster.NewFileDataPublisher("")
 	assert.NotNil(t, publisher)

@@ -56,14 +56,16 @@ func InitializeIntegrityCheck(publicKeyPath string, configDir string) (Integrity
 	}, nil
 }
 
-// NewDataCollectorFactory creates a new CollectorFactory with integrity checks
-// in collectors. In the CE implementation it always returns ErrNotConfigured.
-func NewDataCollectorFactory(ctx IntegrityCtx) (DataCollectorFactory, error) {
+// GetCheckFunction returns a function that checks a map of hashes and a
+// signature of a data.
+func GetCheckFunction(ctx IntegrityCtx) (
+	func(data []byte, hashes map[string][]byte, sign []byte) error, error) {
 	return nil, ErrNotConfigured
 }
 
-// NewDataPublisherFactory create a new DataPublisherFactory with integrity
-// algorithms in publishers. Should be never be called in the CE.
-func NewDataPublisherFactory(path string) (DataPublisherFactory, error) {
-	return nil, errors.New("integrity publishers should never be created in ce")
+// GetSignFunction returns a function that creates a map of hashes and a
+// signature for a data for the private key in the path.
+func GetSignFunction(privateKeyPath string) (
+	func(data []byte) (map[string][]byte, []byte, error), error) {
+	return nil, errors.New("sign function should never be created in ce")
 }

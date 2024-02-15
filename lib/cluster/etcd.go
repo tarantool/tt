@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarantool/tt/lib/integrity"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -108,7 +107,7 @@ func NewEtcdAllCollector(getter EtcdGetter, prefix string, timeout time.Duration
 
 // Collect collects a configuration from the specified prefix with the
 // specified timeout.
-func (collector EtcdAllCollector) Collect() ([]integrity.Data, error) {
+func (collector EtcdAllCollector) Collect() ([]Data, error) {
 	prefix := getConfigPrefix(collector.prefix)
 	ctx := context.Background()
 	if collector.timeout != 0 {
@@ -127,9 +126,9 @@ func (collector EtcdAllCollector) Collect() ([]integrity.Data, error) {
 			prefix)
 	}
 
-	collected := []integrity.Data{}
+	collected := []Data{}
 	for _, kv := range resp.Kvs {
-		collected = append(collected, integrity.Data{
+		collected = append(collected, Data{
 			Source:   string(kv.Key),
 			Value:    kv.Value,
 			Revision: kv.ModRevision,
@@ -161,7 +160,7 @@ func NewEtcdKeyCollector(getter EtcdGetter, prefix, key string,
 
 // Collect collects a configuration from the specified path with the specified
 // timeout.
-func (collector EtcdKeyCollector) Collect() ([]integrity.Data, error) {
+func (collector EtcdKeyCollector) Collect() ([]Data, error) {
 	prefix := getConfigPrefix(collector.prefix)
 	key := prefix + collector.key
 	ctx := context.Background()
@@ -187,7 +186,7 @@ func (collector EtcdKeyCollector) Collect() ([]integrity.Data, error) {
 			resp.Kvs, key)
 	}
 
-	collected := []integrity.Data{
+	collected := []Data{
 		{
 			Source:   string(resp.Kvs[0].Key),
 			Value:    resp.Kvs[0].Value,

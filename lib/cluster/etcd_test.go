@@ -11,8 +11,7 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/lib/cluster"
 )
 
 type MockEtcdGetter struct {
@@ -89,7 +88,7 @@ func TestClientKVImplementsEtcdGetter(t *testing.T) {
 }
 
 func TestNewEtcdAllCollector(t *testing.T) {
-	var collector integrity.DataCollector
+	var collector cluster.DataCollector
 
 	collector = cluster.NewEtcdAllCollector(&MockEtcdGetter{}, "", 0)
 
@@ -130,7 +129,7 @@ func TestEtcdCollectors_Collect_timeout(t *testing.T) {
 	for _, tc := range cases {
 		collectors := []struct {
 			Name      string
-			Collector integrity.DataCollector
+			Collector cluster.DataCollector
 		}{
 			{"all", cluster.NewEtcdAllCollector(mock, "/foo", tc)},
 			{"key", cluster.NewEtcdKeyCollector(mock, "/foo", "key", tc)},
@@ -155,7 +154,7 @@ func TestEtcdCollectors_Collect_timeout(t *testing.T) {
 func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 	cases := []struct {
 		Kvs      []*mvccpb.KeyValue
-		Expected []integrity.Data
+		Expected []cluster.Data
 	}{
 		{
 			Kvs: []*mvccpb.KeyValue{
@@ -165,7 +164,7 @@ func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 					ModRevision: 1,
 				},
 			},
-			Expected: []integrity.Data{{
+			Expected: []cluster.Data{{
 				Source:   "k",
 				Value:    []byte("f: a\nb: a\n"),
 				Revision: 1,
@@ -184,7 +183,7 @@ func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 					ModRevision: 2,
 				},
 			},
-			Expected: []integrity.Data{
+			Expected: []cluster.Data{
 				{
 					Source:   "k",
 					Value:    []byte("f: a\nb: a\n"),
@@ -219,7 +218,7 @@ func TestEtcdCollectors_Collect_error(t *testing.T) {
 	}
 	cases := []struct {
 		Name      string
-		Collector integrity.DataCollector
+		Collector cluster.DataCollector
 	}{
 		{"all", cluster.NewEtcdAllCollector(mock, "/foo", 0)},
 		{"key", cluster.NewEtcdKeyCollector(mock, "/foo", "key", 0)},
@@ -240,7 +239,7 @@ func TestEtcdCollectors_Collect_empty(t *testing.T) {
 	}
 	cases := []struct {
 		Name      string
-		Collector integrity.DataCollector
+		Collector cluster.DataCollector
 	}{
 		{"all", cluster.NewEtcdAllCollector(mock, "/foo", 0)},
 		{"key", cluster.NewEtcdKeyCollector(mock, "/foo", "key", 0)},
@@ -255,7 +254,7 @@ func TestEtcdCollectors_Collect_empty(t *testing.T) {
 }
 
 func TestNewEtcdKeyCollector(t *testing.T) {
-	var collector integrity.DataCollector
+	var collector cluster.DataCollector
 
 	collector = cluster.NewEtcdKeyCollector(&MockEtcdGetter{}, "", "", 0)
 
@@ -298,7 +297,7 @@ func TestEtcdKeyCollector_Collect_key(t *testing.T) {
 			},
 		},
 	}
-	expected := []integrity.Data{{
+	expected := []cluster.Data{{
 		Source:   "k",
 		Value:    []byte("f: a\nb: a\n"),
 		Revision: 1,
@@ -334,7 +333,7 @@ func TestEtcdKeyCollector_Collect_too_many(t *testing.T) {
 }
 
 func TestNewEtcdAllDataPublisher(t *testing.T) {
-	var publisher integrity.DataPublisher
+	var publisher cluster.DataPublisher
 
 	publisher = cluster.NewEtcdAllDataPublisher(nil, "", 0)
 
@@ -447,7 +446,7 @@ func TestEtcdAllDataPublisher_Publish_txn_inputs(t *testing.T) {
 func TestEtcdDataPublishers_Publish_data_nil(t *testing.T) {
 	cases := []struct {
 		Name      string
-		Publisher integrity.DataPublisher
+		Publisher cluster.DataPublisher
 	}{
 		{"all", cluster.NewEtcdAllDataPublisher(nil, "", 0)},
 		{"key", cluster.NewEtcdKeyDataPublisher(nil, "", "", 0)},
@@ -466,7 +465,7 @@ func TestEtcdDataPublishers_Publish_data_nil(t *testing.T) {
 func TestEtcdDataPublishers_Publish_publisher_nil(t *testing.T) {
 	cases := []struct {
 		Name      string
-		Publisher integrity.DataPublisher
+		Publisher cluster.DataPublisher
 	}{
 		{"all", cluster.NewEtcdAllDataPublisher(nil, "", 0)},
 		{"key", cluster.NewEtcdKeyDataPublisher(nil, "", "", 0)},
@@ -581,7 +580,7 @@ func TestEtcdAllDataPublisher_Publish_timeout_exit(t *testing.T) {
 }
 
 func TestNewEtcdKeyDataPublisher(t *testing.T) {
-	var publisher integrity.DataPublisher
+	var publisher cluster.DataPublisher
 
 	publisher = cluster.NewEtcdKeyDataPublisher(nil, "", "", 0)
 

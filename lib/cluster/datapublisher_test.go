@@ -8,8 +8,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/lib/cluster"
 )
 
 func TestDataPublisherFactory(t *testing.T) {
@@ -17,15 +16,15 @@ func TestDataPublisherFactory(t *testing.T) {
 	conn := &tarantool.Connection{}
 	factory := cluster.NewDataPublisherFactory()
 
-	noErr := func(publisher integrity.DataPublisher, err error) integrity.DataPublisher {
+	noErr := func(publisher cluster.DataPublisher, err error) cluster.DataPublisher {
 		require.NoError(t, err)
 		return publisher
 	}
 
 	cases := []struct {
 		Name      string
-		Publisher integrity.DataPublisher
-		Expected  integrity.DataPublisher
+		Publisher cluster.DataPublisher
+		Expected  cluster.DataPublisher
 	}{
 		{
 			Name:      "file",

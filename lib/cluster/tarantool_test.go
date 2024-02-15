@@ -5,14 +5,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/lib/integrity"
+	"github.com/tarantool/tt/lib/cluster"
 )
 
 func TestNewTarantoolCollectors_Collect_nil_evaler(t *testing.T) {
 	cases := []struct {
 		Name      string
-		Collector integrity.DataCollector
+		Collector cluster.DataCollector
 	}{
 		{"any", cluster.NewTarantoolAllCollector(nil, "", 0)},
 		{"key", cluster.NewTarantoolKeyCollector(nil, "", "", 0)},
@@ -30,7 +29,7 @@ func TestNewTarantoolCollectors_Collect_nil_evaler(t *testing.T) {
 func TestNewTarantoolDataPublishers(t *testing.T) {
 	cases := []struct {
 		Name      string
-		Publisher integrity.DataPublisher
+		Publisher cluster.DataPublisher
 	}{
 		{"all", cluster.NewTarantoolAllDataPublisher(nil, "", 0)},
 		{"key", cluster.NewTarantoolKeyDataPublisher(nil, "", "", 0)},
@@ -53,7 +52,7 @@ func TestAllTarantoolDataPublisher_Publish_revision(t *testing.T) {
 func TestNewTarantoolDataPublishers_Publish_nil_evaler(t *testing.T) {
 	cases := []struct {
 		Name      string
-		Publisher integrity.DataPublisher
+		Publisher cluster.DataPublisher
 	}{
 		{"all", cluster.NewTarantoolAllDataPublisher(nil, "", 0)},
 		{"key", cluster.NewTarantoolKeyDataPublisher(nil, "", "", 0)},

@@ -56,6 +56,7 @@ var (
 
 	modules = []string{
 		"lib/integrity",
+		"lib/cluster",
 	}
 )
 
@@ -451,12 +452,14 @@ func Clean() {
 // Generate generates code as usual `go generate` command. To work properly you
 // will need a latest Tarantool executable in PATH.
 func Generate() error {
-	err := sh.RunWith(getBuildEnvironment(), goExecutableName, "generate", "./...")
-
-	if err != nil {
-		return err
+	paths := append([]string{"."}, modules...)
+	for _, path := range paths {
+		err := sh.RunWith(getBuildEnvironment(), goExecutableName, "-C", path,
+			"generate", "./...")
+		if err != nil {
+			return fmt.Errorf("failed to generate sources for path %q: %w", path, err)
+		}
 	}
-
 	return nil
 }
 

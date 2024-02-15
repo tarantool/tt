@@ -9,8 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/tt/cli/cluster"
+
 	"github.com/tarantool/tt/cli/cluster/cmd"
+	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 func TestParseUriOpts(t *testing.T) {
@@ -256,12 +257,12 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 	cases := []struct {
 		Name     string
 		UriOpts  cmd.UriOpts
-		Expected cluster.EtcdOpts
+		Expected libcluster.EtcdOpts
 	}{
 		{
 			Name:     "empty",
 			UriOpts:  cmd.UriOpts{},
-			Expected: cluster.EtcdOpts{},
+			Expected: libcluster.EtcdOpts{},
 		},
 		{
 			Name: "ignored",
@@ -272,14 +273,14 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 				Instance: "zoo",
 				Ciphers:  "foo:bar:ciphers",
 			},
-			Expected: cluster.EtcdOpts{},
+			Expected: libcluster.EtcdOpts{},
 		},
 		{
 			Name: "skip_host_verify",
 			UriOpts: cmd.UriOpts{
 				SkipHostVerify: true,
 			},
-			Expected: cluster.EtcdOpts{
+			Expected: libcluster.EtcdOpts{
 				SkipHostVerify: true,
 			},
 		},
@@ -288,7 +289,7 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 			UriOpts: cmd.UriOpts{
 				SkipPeerVerify: true,
 			},
-			Expected: cluster.EtcdOpts{
+			Expected: libcluster.EtcdOpts{
 				SkipHostVerify: true,
 			},
 		},
@@ -310,7 +311,7 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 				SkipPeerVerify: true,
 				Timeout:        2 * time.Second,
 			},
-			Expected: cluster.EtcdOpts{
+			Expected: libcluster.EtcdOpts{
 				Endpoints:      []string{"foo"},
 				Username:       "username",
 				Password:       "password",
