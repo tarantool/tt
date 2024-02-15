@@ -25,6 +25,8 @@ empty, for example.
 between local system and docker container. Install current `tt` version
 in docker image if possible.
 - `tt binaries list` invalid argument error if `tarantool` is not a symlink.
+- if a user provides pre or post install script to `tt pack rpm`, it
+uses file name as a script instead of its content.
 
 ## [2.1.2] - 2024-02-02
 

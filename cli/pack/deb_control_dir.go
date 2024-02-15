@@ -1,6 +1,7 @@
 package pack
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -180,9 +181,9 @@ func getLexer() *stateful.Definition {
 func initScript(destDirPath, scriptName string, mp map[string]interface{}) error {
 	var scriptTemplate string
 	if scriptName == PostInstScriptName {
-		scriptTemplate = PostInstScriptContent
+		scriptTemplate = postInstScriptContent
 	} else if scriptName == PreInstScriptName {
-		scriptTemplate = PreInstScriptContent
+		scriptTemplate = debPreInstScriptContent
 	}
 
 	text, err := util.GetTextTemplatedStr(&scriptTemplate, mp)
@@ -196,6 +197,9 @@ func initScript(destDirPath, scriptName string, mp map[string]interface{}) error
 	return nil
 }
 
+//go:embed templates/deb_preinst.sh
+var debPreInstScriptContent string
+
 const (
 	defaultMaintainer = "Tarantool developer"
 
@@ -207,15 +211,5 @@ Description: Tarantool environment: {{ .Name }}
 Depends: {{ .Depends }}
 
 `
-	PreInstScriptContent = `/bin/sh -c 'groupadd -r tarantool > /dev/null 2>&1 || :'
-/bin/sh -c 'useradd -M -N -g tarantool -r -d /var/lib/tarantool -s /sbin/nologin \
-    -c "Tarantool Server" tarantool > /dev/null 2>&1 || :'
-/bin/sh -c 'mkdir -p /etc/tarantool/conf.d/ --mode 755 2>&1 || :'
-/bin/sh -c 'mkdir -p /var/lib/tarantool/ --mode 755 2>&1 || :'
-/bin/sh -c 'chown tarantool:tarantool /var/lib/tarantool 2>&1 || :'
-/bin/sh -c 'mkdir -p /var/run/tarantool/ --mode 755 2>&1 || :'
-/bin/sh -c 'chown tarantool:tarantool /var/run/tarantool 2>&1 || :'
-`
-
-	PostInstScriptContent = ``
+	postInstScriptContent = ``
 )

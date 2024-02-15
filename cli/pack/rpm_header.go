@@ -1,6 +1,7 @@
 package pack
 
 import (
+	_ "embed"
 	"fmt"
 	"io/fs"
 	"os"
@@ -88,15 +89,36 @@ func addDependenciesRPM(rpmHeader *rpmTagSetType, deps PackDependencies) {
 	}...)
 }
 
+//go:embed templates/rpm_preinst.sh
+var rpmPreInstScriptContent string
+
 // addPreAndPostInstallScriptsRPM writes passed paths of pre-install
 // and post-install scripts to the rpm header.
-func addPreAndPostInstallScriptsRPM(rpmHeader *rpmTagSetType, preInst string, postInst string) {
+func addPreAndPostInstallScriptsRPM(rpmHeader *rpmTagSetType,
+	preInst string, postInst string) error {
+	preInstScript := rpmPreInstScriptContent
+	if preInst != "" {
+		userPreInstBytes, err := os.ReadFile(preInst)
+		if err != nil {
+			return fmt.Errorf("error reading preinst file %q: %s", preInst, err)
+		}
+		preInstScript += "\n" + string(userPreInstBytes)
+	}
+
+	postInstScript := postInstScriptContent
+	if preInst != "" {
+		userPostInstBytes, err := os.ReadFile(postInst)
+		if err != nil {
+			return fmt.Errorf("error reading postinst file %q: %s", postInst, err)
+		}
+		postInstScript += "\n" + string(userPostInstBytes)
+	}
+
 	rpmHeader.addTags([]rpmTagType{
-		{ID: tagPrein, Type: rpmTypeString,
-			Value: strings.Join([]string{PreInstScriptContent, preInst}, "\n")},
-		{ID: tagPostin, Type: rpmTypeString,
-			Value: postInst},
+		{ID: tagPrein, Type: rpmTypeString, Value: preInstScript},
+		{ID: tagPostin, Type: rpmTypeString, Value: postInstScript},
 	}...)
+	return nil
 }
 
 // genRpmHeader generates rpm headers.
@@ -189,10 +211,10 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 	}
 
 	addDependenciesRPM(&rpmHeader, deps)
-	addPreAndPostInstallScriptsRPM(&rpmHeader, packCtx.RpmDeb.PreInst,
+	err = addPreAndPostInstallScriptsRPM(&rpmHeader, packCtx.RpmDeb.PreInst,
 		packCtx.RpmDeb.PostInst)
 
-	return rpmHeader, nil
+	return rpmHeader, err
 }
 
 // getFilesInfo returns the meta information about all items inside the passed
