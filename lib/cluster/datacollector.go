@@ -87,7 +87,7 @@ func NewIntegrityDataCollectorFactory(checkFunc CheckFunc,
 
 // NewFiler creates a new file configuration collector with integrity checks.
 func (factory integrityCollectorsFactory) NewFile(path string) (DataCollector, error) {
-	return nil, fmt.Errorf("unimplemented")
+	return NewIntegrityFileCollector(factory.fileReadFunc, path), nil
 }
 
 // NewEtcd creates a new etcd configuration collector with integrity checks.

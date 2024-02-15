@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -9,26 +10,45 @@ import (
 type FileCollector struct {
 	// path is a path to a YAML file.
 	path string
+	// fileReadFunc is a function to read a file.
+	fileReadFunc FileReadFunc
 }
 
-// NewFileCollector create a new file collector for a path.
+// defaultFileReadFunc is a default read file function.
+func defaultFileReadFunc(path string) (io.ReadCloser, error) {
+	return os.Open(path)
+}
+
+// NewFileCollector creates a new file collector for a path.
 func NewFileCollector(path string) FileCollector {
 	return FileCollector{
-		path: path,
+		path:         path,
+		fileReadFunc: defaultFileReadFunc,
+	}
+}
+
+// NewIntegrityFileCollector creates a new file collector for a path with
+// additional integrity checks.
+func NewIntegrityFileCollector(fileReadFunc FileReadFunc, path string) FileCollector {
+	return FileCollector{
+		path:         path,
+		fileReadFunc: fileReadFunc,
 	}
 }
 
 // Collect collects a configuration from a file located at a specified path.
 func (collector FileCollector) Collect() ([]Data, error) {
-	data, err := os.ReadFile(collector.path)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read a file %q: %w",
-			collector.path, err)
-	}
+	const fmtErr = "unable to read file %q: %w"
 
+	reader, err := collector.fileReadFunc(collector.path)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse a file %q: %w",
-			collector.path, err)
+		return nil, fmt.Errorf(fmtErr, collector.path, err)
+	}
+	defer reader.Close()
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf(fmtErr, collector.path, err)
 	}
 	return []Data{
 		{

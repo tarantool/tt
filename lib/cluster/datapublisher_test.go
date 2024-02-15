@@ -59,3 +59,12 @@ func TestDataPublisherFactory(t *testing.T) {
 		})
 	}
 }
+
+func TestIntegrityDataPublisherFactory_NewFile(t *testing.T) {
+	factory := cluster.NewIntegrityDataPublisherFactory(nil)
+	publisher, err := factory.NewFile("any")
+
+	assert.Nil(t, publisher)
+	assert.EqualError(t, err,
+		"publishing into a file with integrity data is not supported")
+}
