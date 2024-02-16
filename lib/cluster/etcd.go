@@ -89,6 +89,13 @@ type EtcdGetter interface {
 	Get(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
 }
 
+// EtcdTxnGetter is the interface that adds Txn method to EtcdGetter.
+type EtcdTxnGetter interface {
+	EtcdGetter
+	// Txn creates a transaction.
+	Txn(ctx context.Context) clientv3.Txn
+}
+
 // EtcdAllCollector collects data from a etcd connection for a whole prefix.
 type EtcdAllCollector struct {
 	getter  EtcdGetter
@@ -136,6 +143,122 @@ func (collector EtcdAllCollector) Collect() ([]Data, error) {
 	}
 
 	return collected, nil
+}
+
+// EtcdAllCollector collects data from a etcd connection for a whole prefix
+// with integrity checks.
+type IntegrityEtcdAllCollector struct {
+	getter    EtcdTxnGetter
+	prefix    string
+	checkFunc CheckFunc
+	timeout   time.Duration
+}
+
+// NewIntegrityEtcdAllCollector creates a new collector for etcd from the
+// whole prefix with integrity checks.
+func NewIntegrityEtcdAllCollector(checkFunc CheckFunc,
+	getter EtcdTxnGetter, prefix string, timeout time.Duration) IntegrityEtcdAllCollector {
+	return IntegrityEtcdAllCollector{
+		getter:    getter,
+		prefix:    prefix,
+		checkFunc: checkFunc,
+		timeout:   timeout,
+	}
+}
+
+// Collect collects a configuration from the specified prefix with the
+// specified timeout.
+func (collector IntegrityEtcdAllCollector) Collect() ([]Data, error) {
+	valuesPrefix := getConfigPrefix(collector.prefix)
+	hashesPrefix := getHashesPrefix(collector.prefix)
+	signsPrefix := getSignPrefix(collector.prefix)
+
+	ctx := context.Background()
+	if collector.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, collector.timeout)
+		defer cancel()
+	}
+
+	resp, err := collector.getter.Txn(ctx).Then(
+		clientv3.OpGet(valuesPrefix, clientv3.WithPrefix()),
+		clientv3.OpGet(hashesPrefix, clientv3.WithPrefix()),
+		clientv3.OpGet(signsPrefix, clientv3.WithPrefix()),
+	).Commit()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch data from etcd: %w", err)
+	}
+
+	if len(resp.Responses) != 3 {
+		return nil,
+			fmt.Errorf("failed to fetch data from etcd: some of transaction responses are missing")
+	}
+
+	values := resp.Responses[0].GetResponseRange().Kvs
+	hashes := resp.Responses[1].GetResponseRange().Kvs
+	sigs := resp.Responses[2].GetResponseRange().Kvs
+
+	type valueNode struct {
+		Value  []byte
+		Hashes map[string][]byte
+		Sig    []byte
+	}
+	keys := []string{}
+	nodes := map[string]valueNode{}
+
+	for _, data := range values {
+		if key, ok := strings.CutPrefix(string(data.Key), valuesPrefix); ok {
+			value := data.Value
+
+			keys = append(keys, key)
+			nodes[key] = valueNode{Value: value}
+		}
+	}
+
+	for _, data := range hashes {
+		if ok, hash, key := parseHashPath(string(data.Key), collector.prefix); ok {
+			if node, ok := nodes[key]; ok {
+				if node.Hashes == nil {
+					node.Hashes = map[string][]byte{hash: data.Value}
+				} else {
+					node.Hashes[hash] = data.Value
+				}
+				nodes[key] = node
+			}
+		}
+	}
+
+	for _, data := range sigs {
+		if key, ok := strings.CutPrefix(string(data.Key), signsPrefix); ok {
+			if node, ok := nodes[key]; ok {
+				node.Sig = data.Value
+				nodes[key] = node
+			}
+		} else {
+			return nil, fmt.Errorf("missing signature for key %q",
+				getConfigKey(collector.prefix, key))
+		}
+	}
+
+	data := []Data{}
+
+	for _, key := range keys {
+		node := nodes[key]
+		fullKey := getConfigKey(collector.prefix, key)
+
+		err := collector.checkFunc(node.Value, node.Hashes, node.Sig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to perform integrity checks for key %q: %w",
+				fullKey, err)
+		}
+
+		data = append(data, Data{
+			Source: fullKey,
+			Value:  node.Value,
+		})
+	}
+
+	return data, nil
 }
 
 // EtcdKeyCollector collects data from a etcd connection for a whole prefix.
@@ -196,11 +319,94 @@ func (collector EtcdKeyCollector) Collect() ([]Data, error) {
 	return collected, nil
 }
 
-// EtcdTxnGetter is the interface that adds Txn method to EtcdGetter.
-type EtcdTxnGetter interface {
-	EtcdGetter
-	// Txn creates a transaction.
-	Txn(ctx context.Context) clientv3.Txn
+type IntegrityEtcdKeyCollector struct {
+	getter    EtcdTxnGetter
+	prefix    string
+	key       string
+	checkFunc CheckFunc
+	timeout   time.Duration
+}
+
+// NewIntegrityEtcdKeyCollector creates a new collector for etcd with
+// additional integrity checks from a key from a prefix.
+func NewIntegrityEtcdKeyCollector(checkFunc CheckFunc,
+	getter EtcdTxnGetter, prefix, key string,
+	timeout time.Duration) IntegrityEtcdKeyCollector {
+	return IntegrityEtcdKeyCollector{
+		getter:    getter,
+		prefix:    prefix,
+		key:       key,
+		checkFunc: checkFunc,
+		timeout:   timeout,
+	}
+}
+
+// Collect collects a configuration from the specified prefix with the
+// specified timeout.
+func (collector IntegrityEtcdKeyCollector) Collect() ([]Data, error) {
+	valueKey := getConfigKey(collector.prefix, collector.key)
+	hashesPrefix := getHashesPrefix(collector.prefix)
+	sigKey := getSignKey(collector.prefix, collector.key)
+
+	ctx := context.Background()
+	if collector.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, collector.timeout)
+		defer cancel()
+	}
+
+	resp, err := collector.getter.Txn(ctx).Then(
+		clientv3.OpGet(valueKey),
+		clientv3.OpGet(hashesPrefix, clientv3.WithPrefix()),
+		clientv3.OpGet(sigKey),
+	).Commit()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch data from etcd: %w", err)
+	}
+
+	if len(resp.Responses) != 3 {
+		return nil,
+			fmt.Errorf("failed to fetch data from etcd: some of transaction responses are missing")
+	}
+
+	values := resp.Responses[0].GetResponseRange().Kvs
+	hashes := resp.Responses[1].GetResponseRange().Kvs
+	sigs := resp.Responses[2].GetResponseRange().Kvs
+
+	switch {
+	case len(values) == 0:
+		return nil, fmt.Errorf("a configuration data not found in etcd for key %q", valueKey)
+	case len(values) > 1:
+		return nil, fmt.Errorf("too many responses (%v) from etcd for key %q", values, valueKey)
+	case len(hashes) == 0:
+		return nil, fmt.Errorf("hashes not found in etcd")
+	case len(sigs) == 0:
+		return nil, fmt.Errorf("signature not found in etcd for key %q", valueKey)
+	case len(sigs) > 1:
+		return nil, fmt.Errorf("too many signatures (%v) from etcd for key %q", sigs, valueKey)
+	}
+
+	value := values[0].Value
+	hashMap := make(map[string][]byte)
+	for _, resp := range hashes {
+		ok, hash, key := parseHashPath(string(resp.Key), collector.prefix)
+		if ok && key == collector.key {
+			hashMap[hash] = resp.Value
+		}
+	}
+	sig := sigs[0].Value
+
+	err = collector.checkFunc(value, hashMap, sig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform integrity check for key %q: %w",
+			valueKey, err)
+	}
+
+	return []Data{{
+		Source: valueKey,
+		Value:  value,
+	}}, nil
 }
 
 // EtcdAllDataPublisher publishes a data into etcd to a prefix.
@@ -306,12 +512,166 @@ func (publisher EtcdAllDataPublisher) Publish(revision int64, data []byte) error
 	return nil
 }
 
+// EtcdAllDataPublisher publishes a signed data into etcd to a prefix.
+type IntegrityEtcdAllDataPublisher struct {
+	getter   EtcdTxnGetter
+	prefix   string
+	signFunc SignFunc
+	timeout  time.Duration
+}
+
+// NewIntegrityEtcdAllDataPublisher creates a new IntegrityEtcdAllDataPublisher
+// object to publish a signed data to etcd with the prefix during the timeout.
+func NewIntegrityEtcdAllDataPublisher(signFunc SignFunc,
+	getter EtcdTxnGetter,
+	prefix string, timeout time.Duration) IntegrityEtcdAllDataPublisher {
+	return IntegrityEtcdAllDataPublisher{
+		getter:   getter,
+		prefix:   prefix,
+		signFunc: signFunc,
+		timeout:  timeout,
+	}
+}
+
+// Publish publishes the configuration into Tarantool to the given prefix.
+func (publisher IntegrityEtcdAllDataPublisher) Publish(revision int64, data []byte) error {
+	if revision != 0 {
+		return fmt.Errorf("failed to publish data into etcd: target revision %d is not supported",
+			revision)
+	}
+	if data == nil {
+		return fmt.Errorf("failed to publish data into etcd: data does not exist")
+	}
+
+	hashes, sig, err := publisher.signFunc(data)
+	if err != nil {
+		return err
+	}
+
+	const key = "all"
+	valueKey := getConfigKey(publisher.prefix, key)
+	hashKeys := make(map[string][]byte, len(hashes))
+	for k, v := range hashes {
+		hashKeys[getHashesKey(publisher.prefix, k, key)] = v
+	}
+	sigKey := getSignKey(publisher.prefix, key)
+
+	valuePrefix := getConfigPrefix(publisher.prefix)
+	hashesPrefix := getHashesPrefix(publisher.prefix)
+	sigsPrefix := getSignPrefix(publisher.prefix)
+
+	ctx := context.Background()
+	if publisher.timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, publisher.timeout)
+		defer cancel()
+	}
+
+	// Start by getting set of currently available keys.
+	// If first iteration doesn't succeed, this will be a CAS-loop.
+	txnGetOps := []clientv3.Op{
+		clientv3.OpGet(valuePrefix, clientv3.WithPrefix()),
+		clientv3.OpGet(hashesPrefix, clientv3.WithPrefix()),
+		clientv3.OpGet(sigsPrefix, clientv3.WithPrefix()),
+	}
+	resp, err := publisher.getter.Txn(ctx).Then(txnGetOps...).Commit()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to fetch data from etcd: %w", err)
+		}
+
+		if len(resp.Responses) != 3 {
+			return fmt.Errorf(
+				"failed to fetch data from etcd: some of transaction responses are missing")
+		}
+
+		values := resp.Responses[0].GetResponseRange().Kvs
+		hashes := resp.Responses[1].GetResponseRange().Kvs
+		sigs := resp.Responses[2].GetResponseRange().Kvs
+
+		// Gathering the keys and their revisions.
+		deleteKeys := []string{}
+		deleteRevisions := []int64{}
+
+		for _, value := range values {
+			if string(value.Key) != valueKey {
+				deleteKeys = append(deleteKeys, string(value.Key))
+				deleteRevisions = append(deleteRevisions, value.ModRevision)
+			}
+		}
+
+		for _, hash := range hashes {
+			found := false
+			for k := range hashKeys {
+				if string(hash.Key) == k {
+					found = true
+					break
+				}
+			}
+			if !found {
+				deleteKeys = append(deleteKeys, string(hash.Key))
+				deleteRevisions = append(deleteRevisions, hash.ModRevision)
+			}
+		}
+
+		for _, sig := range sigs {
+			if string(sig.Key) != sigKey {
+				deleteKeys = append(deleteKeys, string(sig.Key))
+				deleteRevisions = append(deleteRevisions, sig.ModRevision)
+			}
+		}
+
+		// Construct the delete part of the transaction
+		cmps := []clientv3.Cmp{}
+		txnPutOps := []clientv3.Op{}
+
+		for i, key := range deleteKeys {
+			rev := deleteRevisions[i]
+
+			cmps = append(cmps, clientv3.Compare(clientv3.ModRevision(key), "=", rev))
+			txnPutOps = append(txnPutOps, clientv3.OpDelete(key))
+		}
+
+		// Add ops for writing a new value.
+		txnPutOps = append(txnPutOps,
+			clientv3.OpPut(valueKey, string(data)),
+			clientv3.OpPut(sigKey, string(sig)))
+		for k, v := range hashKeys {
+			txnPutOps = append(txnPutOps, clientv3.OpPut(k, string(v)))
+		}
+
+		// Construct and execute a transaction. Otherwise, we'll get a new set of keys.
+		resp, err =
+			publisher.getter.Txn(ctx).If(cmps...).Then(txnPutOps...).Else(txnGetOps...).Commit()
+		if err != nil {
+			return fmt.Errorf("failed to put data into etcd: %w", err)
+		}
+
+		// If everything OK, we're done.
+		if resp.Succeeded {
+			break
+		}
+
+		// Otherwise, go on to the next CAS iteration.
+	}
+
+	return nil
+}
+
 // EtcdKeyDataPublisher publishes a data into etcd for a prefix and a key.
 type EtcdKeyDataPublisher struct {
-	getter  EtcdTxnGetter
-	prefix  string
-	key     string
-	timeout time.Duration
+	getter   EtcdTxnGetter
+	prefix   string
+	key      string
+	signFunc SignFunc
+	timeout  time.Duration
 }
 
 // NewEtcdKeyDataPublisher creates a new EtcdKeyDataPublisher object to publish
@@ -323,6 +683,20 @@ func NewEtcdKeyDataPublisher(getter EtcdTxnGetter,
 		prefix:  prefix,
 		key:     key,
 		timeout: timeout,
+	}
+}
+
+// NewIntegrityEtcdKeyDataPublisher creates a new EtcdKeyDataPublisher object
+// to publish a signed data to etcd with the prefix and key during the timeout.
+func NewIntegrityEtcdKeyDataPublisher(signFunc SignFunc,
+	getter EtcdTxnGetter,
+	prefix, key string, timeout time.Duration) EtcdKeyDataPublisher {
+	return EtcdKeyDataPublisher{
+		getter:   getter,
+		prefix:   prefix,
+		key:      key,
+		signFunc: signFunc,
+		timeout:  timeout,
 	}
 }
 
@@ -346,7 +720,24 @@ func (publisher EtcdKeyDataPublisher) Publish(revision int64, data []byte) error
 	if revision != 0 {
 		txn = txn.If(clientv3.Compare(clientv3.ModRevision(key), "=", revision))
 	}
-	tresp, err := txn.Then(clientv3.OpPut(key, string(data))).Commit()
+
+	putOps := []clientv3.Op{}
+	putOps = append(putOps, clientv3.OpPut(key, string(data)))
+
+	if publisher.signFunc != nil {
+		hashes, sign, err := publisher.signFunc(data)
+		if err != nil {
+			return fmt.Errorf("failed to sign data: %w", err)
+		}
+		for hash, value := range hashes {
+			targetKey := getHashesKey(publisher.prefix, hash, publisher.key)
+			putOps = append(putOps, clientv3.OpPut(targetKey, string(value)))
+		}
+		putOps = append(putOps,
+			clientv3.OpPut(getSignKey(publisher.prefix, publisher.key), string(sign)))
+	}
+
+	tresp, err := txn.Then(putOps...).Commit()
 	if err != nil {
 		return fmt.Errorf("failed to put data into etcd: %w", err)
 	}

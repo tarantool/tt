@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/tarantool/go-tarantool"
@@ -93,7 +92,10 @@ func (factory integrityCollectorsFactory) NewFile(path string) (DataCollector, e
 // NewEtcd creates a new etcd configuration collector with integrity checks.
 func (factory integrityCollectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 	prefix, key string, timeout time.Duration) (DataCollector, error) {
-	return nil, fmt.Errorf("unimplemented")
+	if key == "" {
+		return NewIntegrityEtcdAllCollector(factory.checkFunc, etcdcli, prefix, timeout), nil
+	}
+	return NewIntegrityEtcdKeyCollector(factory.checkFunc, etcdcli, prefix, key, timeout), nil
 }
 
 // NewTarantool creates creates a new tarantool config storage configuration

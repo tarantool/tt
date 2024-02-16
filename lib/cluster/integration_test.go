@@ -525,6 +525,7 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 
 	data := []byte("zoo bar foo")
 	err = cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout).Publish(0, data)
+	require.NoError(t, err)
 
 	actual, _ := etcdGet(t, etcd, "/foo/config/")
 	assert.Equal(t, []byte(""), actual)
@@ -705,6 +706,55 @@ var testsIntegrity = []struct {
 			require.NoError(t, err)
 
 			return coll, func() { conn.Close() }
+		},
+	},
+	{
+		Name:       "etcd",
+		Applicable: func(t *testing.T) bool { return true },
+		Setup: func(t *testing.T) interface{} {
+			inst := startEtcd(t, httpEndpoint, etcdOpts{})
+			return inst
+		},
+		Shutdown: func(t *testing.T, inst interface{}) {
+			stopEtcd(t, inst.(etcdInstance))
+		},
+		NewPublisher: func(
+			t *testing.T,
+			signFunc cluster.SignFunc,
+			prefix,
+			key string,
+		) (cluster.DataPublisher, func()) {
+			publisherFactory := cluster.NewIntegrityDataPublisherFactory(signFunc)
+
+			etcd, err := clientv3.New(clientv3.Config{
+				Endpoints:   []string{httpEndpoint},
+				DialTimeout: 1 * time.Second,
+			})
+			require.NoError(t, err)
+
+			pub, err := publisherFactory.NewEtcd(etcd, prefix, key, 10*time.Second)
+			require.NoError(t, err)
+
+			return pub, func() { etcd.Close() }
+		},
+		NewCollector: func(
+			t *testing.T,
+			checkFunc cluster.CheckFunc,
+			prefix,
+			key string,
+		) (cluster.DataCollector, func()) {
+			collectorFactory := cluster.NewIntegrityDataCollectorFactory(checkFunc, nil)
+
+			etcd, err := clientv3.New(clientv3.Config{
+				Endpoints:   []string{httpEndpoint},
+				DialTimeout: 60 * time.Second,
+			})
+			require.NoError(t, err)
+
+			coll, err := collectorFactory.NewEtcd(etcd, prefix, key, 10*time.Second)
+			require.NoError(t, err)
+
+			return coll, func() { etcd.Close() }
 		},
 	},
 }
