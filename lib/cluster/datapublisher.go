@@ -81,7 +81,10 @@ func (factory integrityPublishersFactory) NewFile(path string) (DataPublisher, e
 // NewEtcd creates a new etcd data publisher with integrity signing.
 func (factory integrityPublishersFactory) NewEtcd(etcdcli *clientv3.Client,
 	prefix, key string, timeout time.Duration) (DataPublisher, error) {
-	return nil, fmt.Errorf("unimplemented")
+	if key == "" {
+		return NewIntegrityEtcdAllDataPublisher(factory.signFunc, etcdcli, prefix, timeout), nil
+	}
+	return NewIntegrityEtcdKeyDataPublisher(factory.signFunc, etcdcli, prefix, key, timeout), nil
 }
 
 // NewTarantool creates creates a new tarantool config storage data publisher
