@@ -66,7 +66,9 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        sdk-version: ["2.10.2-0-gf4228cb7d-r508-linux-x86_64"]
+        sdk-version:
+          - "2.11.2-0-r609.linux.x86_64"
+          - "3.0.0-0-gf58f7d82a-r23.linux.x86_64"
       fail-fast: false
     steps:
         # `ref` as merge request is needed for pull_request_target because this
