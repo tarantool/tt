@@ -1,0 +1,45 @@
+credentials:
+  users:
+    replicator:
+      password: topsecret
+      roles: [replication]
+    client:
+      password: secret
+      roles: [super]
+
+iproto:
+  listen:
+    - uri: unix/:./{{ instance_name }}.iproto
+  advertise:
+    peer:
+      login: replicator
+
+app:
+  file: 'init.lua'
+
+groups:
+  group-001:
+    replicasets:
+      off-failover:
+        instances:
+          off-failover-1:
+            database:
+              mode: rw
+          off-failover-2: {}
+        replication:
+          failover: off
+
+      manual-failover:
+        instances:
+          manual-failover-1: {}
+          manual-failover-2: {}
+        replication:
+          failover: manual
+        leader: manual-failover-1
+
+      election-failover:
+        instances:
+          election-failover-1: {}
+          election-failover-2: {}
+        replication:
+          failover: election

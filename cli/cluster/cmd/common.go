@@ -184,7 +184,24 @@ func connectEtcd(uriOpts UriOpts, connOpts connectOpts) (*clientv3.Client, error
 	return etcdcli, nil
 }
 
-// createPublisher creates a new data publisher and collector based on UriOpts.
+// doOnStorage determines a storage based on the opts.
+func doOnStorage(connOpts connectOpts, opts UriOpts,
+	tarantoolFunc func(tarantool.Connector) error, etcdFunc func(*clientv3.Client) error) error {
+	etcdcli, errEtcd := connectEtcd(opts, connOpts)
+	if errEtcd == nil {
+		return etcdFunc(etcdcli)
+	}
+
+	conn, errTarantool := connectTarantool(opts, connOpts)
+	if errTarantool == nil {
+		return tarantoolFunc(conn)
+	}
+
+	return fmt.Errorf("failed to establish a connection to tarantool or etcd: %w, %w",
+		errTarantool, errEtcd)
+}
+
+// createPublisherAndCollector creates a new data publisher and collector based on UriOpts.
 func createPublisherAndCollector(
 	publishers libcluster.DataPublisherFactory,
 	collectors libcluster.CollectorFactory,
@@ -192,57 +209,54 @@ func createPublisherAndCollector(
 	opts UriOpts) (libcluster.DataPublisher, libcluster.Collector, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Key, opts.Timeout
 
-	conn, errTarantool := connectTarantool(opts, connOpts)
-	if errTarantool == nil {
-		var (
-			publisher libcluster.DataPublisher
-			collector libcluster.Collector
-			err       error
-		)
+	var (
+		publisher libcluster.DataPublisher
+		collector libcluster.Collector
+		err       error
+		closeFunc func()
+	)
+
+	tarantoolFunc := func(conn tarantool.Connector) error {
 		if publishers != nil {
 			publisher, err = publishers.NewTarantool(conn, prefix, key, timeout)
 			if err != nil {
-				return nil, nil, nil,
-					fmt.Errorf("failed to create tarantool config storage publisher: %w", err)
+				conn.Close()
+				return fmt.Errorf("failed to create tarantool config storage publisher: %w", err)
 			}
 		}
-
 		if collectors != nil {
 			collector, err = collectors.NewTarantool(conn, prefix, key, timeout)
 			if err != nil {
-				return nil, nil, nil,
-					fmt.Errorf("failed to create tarantool config storage collector: %w", err)
+				conn.Close()
+				return fmt.Errorf("failed to create tarantool config storage collector: %w", err)
 			}
 		}
-		return publisher, collector, func() { conn.Close() }, nil
+		closeFunc = func() { conn.Close() }
+		return nil
 	}
 
-	etcdcli, errEtcd := connectEtcd(opts, connOpts)
-	if errEtcd == nil {
-		var (
-			publisher libcluster.DataPublisher
-			collector libcluster.Collector
-			err       error
-		)
+	etcdFunc := func(client *clientv3.Client) error {
 		if publishers != nil {
-			publisher, err = publishers.NewEtcd(etcdcli, prefix, key, timeout)
+			publisher, err = publishers.NewEtcd(client, prefix, key, timeout)
 			if err != nil {
-				return nil, nil, nil,
-					fmt.Errorf("failed to create etcd publisher: %w", err)
+				client.Close()
+				return fmt.Errorf("failed to create etcd publisher: %w", err)
 			}
 		}
-
 		if collectors != nil {
-			collector, err = collectors.NewEtcd(etcdcli, prefix, key, timeout)
+			collector, err = collectors.NewEtcd(client, prefix, key, timeout)
 			if err != nil {
-				return nil, nil, nil,
-					fmt.Errorf("failed to create etcd collector: %w", err)
+				client.Close()
+				return fmt.Errorf("failed to create etcd collector: %w", err)
 			}
 		}
-		return publisher, collector, func() { etcdcli.Close() }, nil
+		closeFunc = func() { client.Close() }
+		return nil
 	}
 
-	return nil, nil, nil,
-		fmt.Errorf("failed to establish a connection to tarantool or etcd: %w, %w",
-			errTarantool, errEtcd)
+	if err := doOnStorage(connOpts, opts, tarantoolFunc, etcdFunc); err != nil {
+		return nil, nil, nil, err
+	}
+
+	return publisher, collector, closeFunc, nil
 }

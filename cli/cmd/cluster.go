@@ -37,18 +37,17 @@ var publishCtx = clustercmd.PublishCtx{
 	Force:    false,
 }
 
+var promoteCtx = clustercmd.PromoteCtx{
+	Username: "",
+	Password: "",
+	Force:    false,
+}
+
 var (
-	publishIntegrityPrivateKey string
-)
-
-func NewClusterCmd() *cobra.Command {
-	clusterCmd := &cobra.Command{
-		Use:   "cluster",
-		Short: "Manage cluster configuration",
-	}
-
-	uriHelp := fmt.Sprintf(`The URI specifies a etcd or tarantool config storage `+
-		`connection settings in the following format:
+	clusterIntegrityPrivateKey string
+	clusterUriHelp             = fmt.Sprintf(
+		`The URI specifies a etcd or tarantool config storage `+
+			`connection settings in the following format:
 http(s)://[username:password@]host:port[/prefix][?arguments]
 
 * prefix - a base path to Tarantool configuration in etcd or tarantool config storage.
@@ -66,20 +65,62 @@ Possible arguments:
 * verify_host - set off (default true) verification of the certificate’s name against the host.
 * verify_peer - set off (default true) verification of the peer’s SSL certificate.
 
-You could also specify etcd username and password with environment variables:
+You could also specify etcd/tarantool username and password with environment variables:
 * %s - specifies an etcd username
-* %s - specidies an etcd password
+* %s - specifies an etcd password
+* %s - specifies a tarantool username
+* %s - specifies a tarantool password
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
 `, float64(clustercmd.DefaultUriTimeout)/float64(time.Second),
-		connect.EtcdUsernameEnv, connect.EtcdPasswordEnv)
+		connect.EtcdUsernameEnv, connect.EtcdPasswordEnv,
+		connect.TarantoolUsernameEnv, connect.TarantoolPasswordEnv)
+)
+
+func newClusterReplicasetCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "replicaset",
+		Short:   "manage replicaset via 3.0 cluster config source",
+		Aliases: []string{"rs"},
+	}
+
+	promoteCmd := &cobra.Command{
+		Use:                   "promote [-f] [flags] <URI> <INSTANCE_NAME>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Promote an instance",
+		Long:                  "Promote an instance\n\n" + clusterUriHelp,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalClusterReplicasetPromoteModule, args)
+			handleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(2),
+	}
+	promoteCmd.Flags().StringVarP(&promoteCtx.Username, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	promoteCmd.Flags().StringVarP(&promoteCtx.Password, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+	promoteCmd.Flags().BoolVarP(&promoteCtx.Force, "force", "f", false,
+		"skip selecting a key for patching")
+	integrity.RegisterWithIntegrityFlag(promoteCmd.Flags(), &clusterIntegrityPrivateKey)
+
+	cmd.AddCommand(promoteCmd)
+	return cmd
+}
+
+func NewClusterCmd() *cobra.Command {
+	clusterCmd := &cobra.Command{
+		Use:   "cluster",
+		Short: "Manage cluster configuration",
+	}
 
 	show := &cobra.Command{
 		Use:   "show (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)",
 		Short: "Show a cluster configuration",
 		Long: "Show a cluster configuration for an application, instance," +
-			" from etcd URI or from tarantool config storage URI.\n\n" + uriHelp,
+			" from etcd URI or from tarantool config storage URI.\n\n" + clusterUriHelp,
 		Example: "tt cluster show application_name\n" +
 			"  tt cluster show application_name:instance_name\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt\n" +
@@ -117,7 +158,7 @@ environment variables < command flags < URL credentials.
 		Short: "Publish a cluster configuration",
 		Long: "Publish an application or an instance configuration to a cluster " +
 			"configuration file, to a etcd URI or to a tarantool config storage URI.\n\n" +
-			uriHelp + "\n" +
+			clusterUriHelp + "\n" +
 			"By default, the command removes all keys in etcd with prefix " +
 			"'/prefix/config/' and writes the result to '/prefix/config/all'. " +
 			"You could work and update a target key with the 'key' argument.",
@@ -152,9 +193,10 @@ environment variables < command flags < URL credentials.
 	publish.Flags().BoolVar(&publishCtx.Force, "force", publishCtx.Force,
 		"force publish and skip validation")
 	// Integrity flags.
-	integrity.RegisterWithIntegrityFlag(publish.Flags(), &publishIntegrityPrivateKey)
+	integrity.RegisterWithIntegrityFlag(publish.Flags(), &clusterIntegrityPrivateKey)
 
 	clusterCmd.AddCommand(publish)
+	clusterCmd.AddCommand(newClusterReplicasetCmd())
 
 	return clusterCmd
 }
@@ -175,7 +217,7 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 	showCtx.Collectors = libcluster.NewCollectorFactory(dataCollectors)
 
-	if uri, ok := parseUrl(args[0]); ok {
+	if uri, err := parseUrl(args[0]); err == nil {
 		return clustercmd.ShowUri(showCtx, uri)
 	}
 
@@ -194,30 +236,13 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 // internalClusterPublishModule is an entrypoint for `cluster publish` command.
 func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	var dataCollectors libcluster.DataCollectorFactory
-	checkFunc, err := integrity.GetCheckFunction(cmdCtx.Integrity)
-	if err == integrity.ErrNotConfigured {
-		dataCollectors = libcluster.NewDataCollectorFactory()
-	} else if err != nil {
-		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
-	} else {
-		dataCollectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
-			func(path string) (io.ReadCloser, error) {
-				return cmdCtx.Integrity.Repository.Read(path)
-			})
+	dataCollectors, dataPublishers, err := createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, clusterIntegrityPrivateKey)
+	if err != nil {
+		return err
 	}
 	publishCtx.Collectors = libcluster.NewCollectorFactory(dataCollectors)
-
-	if publishIntegrityPrivateKey != "" {
-		key := publishIntegrityPrivateKey
-		signFunc, err := integrity.GetSignFunction(key)
-		if err != nil {
-			return fmt.Errorf("failed to create publishers with integrity: %w", err)
-		}
-		publishCtx.Publishers = libcluster.NewIntegrityDataPublisherFactory(signFunc)
-	} else {
-		publishCtx.Publishers = libcluster.NewDataPublisherFactory()
-	}
+	publishCtx.Publishers = dataPublishers
 
 	data, config, err := readSourceFile(args[1])
 	if err != nil {
@@ -226,7 +251,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	publishCtx.Src = data
 	publishCtx.Config = config
 
-	if uri, ok := parseUrl(args[0]); ok {
+	if uri, err := parseUrl(args[0]); err == nil {
 		return clustercmd.PublishUri(publishCtx, uri)
 	}
 
@@ -248,6 +273,23 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	return clustercmd.PublishCluster(publishCtx, configPath, name)
 }
 
+// internalClusterReplicasetPromoteModule is a "cluster replicaset promote" command.
+func internalClusterReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	uri, err := parseUrl(args[0])
+	if err != nil {
+		return fmt.Errorf("failed to parse config source URI: %w", err)
+	}
+
+	promoteCtx.Collectors, promoteCtx.Publishers, err = createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, clusterIntegrityPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	promoteCtx.InstName = args[1]
+	return clustercmd.Promote(uri, promoteCtx)
+}
+
 // readSourceFile reads a configuration from a source file.
 func readSourceFile(path string) ([]byte, *libcluster.Config, error) {
 	data, err := os.ReadFile(path)
@@ -265,9 +307,9 @@ func readSourceFile(path string) ([]byte, *libcluster.Config, error) {
 	return data, config, nil
 }
 
-// parseUrl returns a URL, true if string could be recognized as a URL or
-// nil, false otherwise.
-func parseUrl(str string) (*url.URL, bool) {
+// parseUrl returns a URL, nil if string could be recognized as a URL,
+// otherwise nil, an error.
+func parseUrl(str string) (*url.URL, error) {
 	uri, err := url.Parse(str)
 
 	// The URL general form represented is:
@@ -277,10 +319,13 @@ func parseUrl(str string) (*url.URL, bool) {
 	//
 	// So it is enough to check scheme, host and opaque to avoid to handle
 	// app:instance as a URL.
-	if err == nil && uri.Scheme != "" && uri.Host != "" && uri.Opaque == "" {
-		return uri, true
+	if err != nil {
+		return nil, err
 	}
-	return nil, false
+	if uri.Scheme != "" && uri.Host != "" && uri.Opaque == "" {
+		return uri, nil
+	}
+	return nil, fmt.Errorf("specified string can not be recognized as URL")
 }
 
 // parseAppStr parses a string and returns an application instance context

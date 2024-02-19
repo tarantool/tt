@@ -2,9 +2,11 @@ package replicaset_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/replicaset"
 )
@@ -365,4 +367,14 @@ func TestCConfigInstance_Discovery_errors(t *testing.T) {
 			assert.ErrorContains(t, err, tc.Expected)
 		})
 	}
+}
+
+func TestCConfigInstance_Promote_error(t *testing.T) {
+	err := fmt.Errorf("some error")
+	evaler := &instanceMockEvaler{
+		Error: []error{err},
+	}
+	instance := replicaset.NewCConfigInstance(evaler)
+	actual := instance.Promote(replicaset.PromoteCtx{})
+	require.Equal(t, err, actual)
 }

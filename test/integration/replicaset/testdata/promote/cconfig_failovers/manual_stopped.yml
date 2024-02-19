@@ -1,0 +1,10 @@
+failover: "manual"
+instances:
+  manual-failover-1:
+    is_leader: False
+    listen: "unix/:./manual-failover-1.iproto"
+    mode: unknown
+  manual-failover-2:
+    is_leader: False
+    listen: "unix/:./manual-failover-2.iproto"
+    mode: rw

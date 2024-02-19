@@ -1,0 +1,11 @@
+failover: "election"
+master: single
+instances:
+  election-failover-1:
+    is_leader: False
+    listen: "unix/:./election-failover-1.iproto"
+    mode: read
+  election-failover-2:
+    is_leader: True
+    listen: "unix/:./election-failover-2.iproto"
+    mode: rw

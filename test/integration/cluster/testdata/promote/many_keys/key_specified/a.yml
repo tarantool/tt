@@ -1,0 +1,8 @@
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-002:
+            database:
+              mode: ro

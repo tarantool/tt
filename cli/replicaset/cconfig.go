@@ -2,16 +2,25 @@ package replicaset
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/running"
+
+	cluster "github.com/tarantool/tt/cli/cluster"
+	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 //go:embed lua/cconfig/get_instance_topology_body.lua
 var cconfigGetInstanceTopologyBody string
+
+//go:embed lua/cconfig/promote_election.lua
+var cconfigPromoteElectionBody string
 
 // cconfigTopology used to export topology information from a Tarantool
 // instance with the centralized config orchestrator.
@@ -30,6 +39,14 @@ type cconfigTopology struct {
 	InstanceUUID string
 	// InstanceRW is true when the current instance is in RW mode.
 	InstanceRW bool
+}
+
+// cconfigInstCtx describes an instance context in the cluster config.
+type cconfigInstCtx struct {
+	failover       Failover
+	groupName      string
+	replicasetName string
+	name           string
 }
 
 // CConfigInstance is an instance with the centralized config orchestrator.
@@ -67,16 +84,28 @@ func (c *CConfigInstance) Discovery() (Replicasets, error) {
 	}), nil
 }
 
+// Promote promotes an instance.
+func (c *CConfigInstance) Promote(ctx PromoteCtx) error {
+	return cconfigPromoteElection(c.evaler, ctx.ElectionTimeout)
+}
+
 // CConfigApplication is an application with the centralized config
 // orchestrator.
 type CConfigApplication struct {
 	runningCtx running.RunningCtx
+	publishers libcluster.DataPublisherFactory
+	collectors libcluster.DataCollectorFactory
 }
 
 // NewCConfigApplication creates a new CartridgeApplication object.
-func NewCConfigApplication(runningCtx running.RunningCtx) *CConfigApplication {
+func NewCConfigApplication(
+	runningCtx running.RunningCtx,
+	collectors libcluster.DataCollectorFactory,
+	publishers libcluster.DataPublisherFactory) *CConfigApplication {
 	return &CConfigApplication{
 		runningCtx: runningCtx,
+		publishers: publishers,
+		collectors: collectors,
 	}
 }
 
@@ -203,4 +232,236 @@ func updateCConfigInstances(replicaset *Replicaset, topology cconfigTopology) {
 			replicaset.Instances = append(replicaset.Instances, tinstance)
 		}
 	}
+}
+
+// Promote promotes an instance in the application.
+func (c *CConfigApplication) Promote(ctx PromoteCtx) error {
+	replicasets, err := c.Discovery()
+	if err != nil {
+		return fmt.Errorf("failed to get replicasets: %w", err)
+	}
+
+	var (
+		targetReplicaset Replicaset
+		targetInstance   Instance
+		found            bool
+	)
+loop:
+	for _, replicaset := range replicasets.Replicasets {
+		for _, instance := range replicaset.Instances {
+			if instance.Alias == ctx.InstName {
+				targetReplicaset = replicaset
+				targetInstance = instance
+				found = true
+				break loop
+			}
+		}
+	}
+	if !found {
+		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+	}
+	if !targetInstance.InstanceCtxFound {
+		return fmt.Errorf("instance %q should be online", ctx.InstName)
+	}
+
+	var instances []running.InstanceCtx
+	var unfound []string
+	for _, inst := range targetReplicaset.Instances {
+		if !inst.InstanceCtxFound {
+			unfound = append(unfound, inst.Alias)
+		} else {
+			instances = append(instances, inst.InstanceCtx)
+		}
+	}
+	if len(unfound) > 0 {
+		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unfound, ","))
+		if !ctx.Force {
+			return fmt.Errorf("all instances in the target replicast should be online, %s", msg)
+		}
+		log.Warn(msg)
+	}
+
+	isConfigPatched, err := c.promote(targetInstance.InstanceCtx, ctx)
+	if err != nil {
+		return err
+	}
+	if isConfigPatched {
+		err = reloadCConfig(instances)
+	}
+	return err
+}
+
+// cconfigPromoteElection tries to promote an instance via `box.ctl.promote()`.
+func cconfigPromoteElection(evaler connector.Evaler, timeout int) error {
+	args := []any{timeout}
+	opts := connector.RequestOpts{}
+	_, err := evaler.Eval(cconfigPromoteElectionBody, args, opts)
+	return err
+}
+
+// reloadCConfig reloads a cluster config on the several instances.
+func reloadCConfig(instances []running.InstanceCtx) error {
+	errored := []string{}
+	eval := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+		args := []any{}
+		opts := connector.RequestOpts{}
+		_, err := evaler.Eval("require('config'):reload()", args, opts)
+		if err != nil {
+			fmt.Println(err)
+			errored = append(errored, instance.InstName)
+		}
+		return false, nil
+	}
+	if err := EvalForeach(instances, InstanceEvalFunc(eval)); err != nil {
+		return fmt.Errorf("failed to reload instances configuration"+
+			", please try to do it manually with `require('config'):reload()`: %w", err)
+	}
+	if len(errored) > 0 {
+		return fmt.Errorf("failed to reload instance configuration for: %s, "+
+			"please try to do it manually with `require('config'):reload()`",
+			strings.Join(errored, ", "))
+	}
+	return nil
+}
+
+// promote promotes an instance in the application and returns true
+// if the instance config was patched.
+func (c *CConfigApplication) promote(instance running.InstanceCtx, ctx PromoteCtx) (bool, error) {
+	clusterCfg, err := cluster.GetClusterConfig(libcluster.NewCollectorFactory(c.collectors),
+		instance.ClusterConfigPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to get cluster config: %w", err)
+	}
+
+	instCtx, err := getCConfigInstanceCtx(&clusterCfg, ctx.InstName)
+	if err != nil {
+		return false, err
+	}
+
+	if instCtx.failover == FailoverElection {
+		eval := func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+			return true, cconfigPromoteElection(evaler, ctx.ElectionTimeout)
+		}
+		err := EvalAny([]running.InstanceCtx{instance}, InstanceEvalFunc(eval))
+		return false, err
+	}
+
+	collector, publisher, err := cconfigCreateCollectorAndDataPublisher(
+		c.collectors,
+		c.publishers,
+		instance.ClusterConfigPath,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	config, err := collector.Collect()
+	if err != nil {
+		return false, fmt.Errorf("failed to collect a configuration to update: %w", err)
+	}
+
+	config, err = patchCConfigPromote(config, instCtx)
+	if err != nil {
+		return false, fmt.Errorf("failed to patch config: %w", err)
+	}
+
+	err = libcluster.NewYamlConfigPublisher(publisher).Publish(config)
+	return true, err
+}
+
+// cconfigCreateCollectorAndDataPublisher creates collector and data publisher
+// for the local cluster config manipulations.
+func cconfigCreateCollectorAndDataPublisher(
+	collectors libcluster.DataCollectorFactory,
+	publishers libcluster.DataPublisherFactory,
+	clusterCfgPath string) (libcluster.Collector, libcluster.DataPublisher, error) {
+	collector, err := libcluster.NewCollectorFactory(collectors).NewFile(clusterCfgPath)
+	if err != nil {
+		return nil, nil,
+			fmt.Errorf("failed to create a configuration collector: %w", err)
+	}
+	publisher, err := publishers.NewFile(clusterCfgPath)
+	if err != nil {
+		return nil, nil,
+			fmt.Errorf("failed to create a configuration publisher: %w", err)
+	}
+	return collector, publisher, nil
+}
+
+// cconfigGetFailover extracts the instance replicaset failover.
+func cconfigGetFailover(clusterConfig *libcluster.ClusterConfig,
+	instName string) (Failover, error) {
+	var failover Failover
+	instConfig := libcluster.Instantiate(*clusterConfig, instName)
+
+	rawFailover, err := instConfig.Get([]string{"replication", "failover"})
+	var notExistErr libcluster.NotExistError
+	if errors.As(err, &notExistErr) {
+		// https://github.com/tarantool/tt/issues/791
+		return FailoverOff, nil
+	}
+	if err != nil {
+		return failover,
+			fmt.Errorf("failed to get failover: %w", err)
+	}
+	failoverStr, ok := rawFailover.(string)
+	if !ok {
+		return failover,
+			fmt.Errorf("unexpected failover type: %T, string expected", rawFailover)
+	}
+	failover = ParseFailover(failoverStr)
+	return failover, nil
+}
+
+// patchCConfigPromote patches the config to promote an instance.
+func patchCConfigPromote(config *libcluster.Config,
+	ctx cconfigInstCtx) (*libcluster.Config, error) {
+	var err error
+	var (
+		failover       = ctx.failover
+		groupName      = ctx.groupName
+		replicasetName = ctx.replicasetName
+		instName       = ctx.name
+	)
+	switch failover {
+	case FailoverOff:
+		err = config.Set([]string{"groups", groupName, "replicasets", replicasetName,
+			"instances", instName, "database", "mode"}, "rw")
+	case FailoverManual:
+		err = config.Set([]string{"groups", groupName, "replicasets", replicasetName,
+			"leader"}, instName)
+	default:
+		return nil, fmt.Errorf("unexpected failover: %q", failover)
+	}
+	return config, err
+}
+
+// getCConfigInstance extracts an instance context from the cluster config.
+func getCConfigInstanceCtx(
+	config *libcluster.ClusterConfig, instName string) (cconfigInstCtx, error) {
+	var (
+		ctx   cconfigInstCtx
+		found bool
+		err   error
+	)
+	ctx.name = instName
+loop:
+	for gname, group := range config.Groups {
+		for rname, replicaset := range group.Replicasets {
+			for iname := range replicaset.Instances {
+				if instName == iname {
+					ctx.groupName = gname
+					ctx.replicasetName = rname
+					found = true
+					break loop
+				}
+			}
+		}
+	}
+	if !found {
+		return ctx,
+			fmt.Errorf("instance %q not found in the cluster configuration", instName)
+	}
+	ctx.failover, err = cconfigGetFailover(config, instName)
+	return ctx, err
 }
