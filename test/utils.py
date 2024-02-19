@@ -411,3 +411,12 @@ def get_tarantool_version():
     assert match is not None
 
     return int(match.group('major')), int(match.group('minor'))
+
+
+def read_kv(dirname):
+    kvs = {}
+    for filename in os.listdir(dirname):
+        key, _ = os.path.splitext(filename)
+        with open(os.path.join(dirname, filename), "r") as f:
+            kvs[key] = f.read()
+    return kvs

@@ -35,7 +35,7 @@ func DiscoveryApplication(app running.RunningCtx,
 	case OrchestratorCartridge:
 		return NewCartridgeApplication(app).Discovery()
 	case OrchestratorCentralizedConfig:
-		return NewCConfigApplication(app).Discovery()
+		return NewCConfigApplication(app, nil, nil).Discovery()
 	case OrchestratorCustom:
 		return NewCustomApplication(app).Discovery()
 	default:

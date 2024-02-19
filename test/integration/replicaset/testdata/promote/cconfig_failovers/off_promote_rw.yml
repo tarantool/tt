@@ -1,0 +1,11 @@
+failover: "off"
+master: single
+instances:
+  off-failover-1:
+    is_leader: False
+    listen: "unix/:./off-failover-1.iproto"
+    mode: rw
+  off-failover-2:
+    is_leader: False
+    listen: "unix/:./off-failover-2.iproto"
+    mode: read

@@ -1,0 +1,16 @@
+groups:
+  groups-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002: {}
+        leader: instance-002
+      replicaset-002:
+        instances:
+          instance-003: {}
+          instance-004: {}
+        replication:
+          failover: election
+    replication:
+      failover: manual
