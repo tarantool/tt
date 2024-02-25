@@ -25,6 +25,10 @@ func NewCompletionCmd() *cobra.Command {
 			handleCmdErr(cmd, err)
 		},
 		Args: cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+		Example: `
+# Enable auto-completion in current bash shell.
+
+    $ . <(tt completion bash)`,
 	}
 
 	return cmd
