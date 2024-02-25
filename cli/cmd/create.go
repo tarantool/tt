@@ -47,7 +47,8 @@ func NewCreateCmd() *cobra.Command {
 		Long: `Create an application from a template.
 
 Built-in templates:
-	cartridge: a simple Cartridge application.`,
+	cartridge: a simple Cartridge application.
+	vshard_cluster: Tarantool 3 vshard cluster application.`,
 		Example: `
 # Create an application app1 from a template.
 
@@ -57,7 +58,11 @@ Built-in templates:
 # (cartridge_app) if it exists. ` +
 			`User interaction is disabled.
 
-    $ tt create cartridge --name cartridge_app -f --non-interactive --dst /opt/tt/apps/`,
+    $ tt create cartridge --name cartridge_app -f --non-interactive --dst /opt/tt/apps/
+
+# Create Tarantool 3 vshard cluster.
+
+    $ tt create vshard_cluster --name cluster_app`,
 	}
 
 	createCmd.Flags().StringVarP(&appName, "name", "n", "", "Application name")
