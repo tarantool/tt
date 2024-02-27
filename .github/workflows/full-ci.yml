@@ -185,7 +185,6 @@ jobs:
       - name: Install dependencies
         run: |
           brew install --overwrite go mage
-          brew install python3
           pip3 install -r test/requirements.txt
 
       - name: Build tt
