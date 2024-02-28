@@ -80,7 +80,7 @@ func (config *Config) getMap(path []string) (map[any]any, error) {
 			return nil, fmt.Errorf(fmtPathNotMap, path[0:i])
 		} else if i < len(path) {
 			if _, ok := m[path[i]]; !ok {
-				return nil, &NotExistError{path[0 : i+1]}
+				return nil, NotExistError{path[0 : i+1]}
 			} else {
 				currentValue = m[path[i]]
 			}
