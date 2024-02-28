@@ -53,3 +53,13 @@ func parseHashPath(path, prefix string) (bool, string, string) {
 
 	return true, split[0], split[1]
 }
+
+// GetStorageKey extracts the key from the source that contains the config prefix.
+func GetStorageKey(prefix, source string) (string, error) {
+	cfgPrefix := getConfigPrefix(prefix)
+	key, ok := strings.CutPrefix(source, cfgPrefix)
+	if !ok {
+		return "", fmt.Errorf("source must begin with: %s", cfgPrefix)
+	}
+	return key, nil
+}
