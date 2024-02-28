@@ -479,7 +479,7 @@ func mapValuesFromConfig[T any](cfg *libcluster.Config, mapFunc func(val T) (T, 
 	for _, cfgMapping := range maps {
 		value, err := cfg.Get(cfgMapping.path)
 		if err != nil {
-			var eNotExist *libcluster.NotExistError
+			var eNotExist libcluster.NotExistError
 			if errors.As(err, &eNotExist) {
 				continue
 			} else {

@@ -93,19 +93,25 @@ func TestConfig_Set_intersection(t *testing.T) {
 }
 
 func TestConfig_Get_non_exist(t *testing.T) {
-	paths := [][]string{
-		[]string{"foo"},
-		[]string{"zoo", "bar"},
+	cases := []struct {
+		path    []string
+		errPath []string
+	}{
+		{[]string{"foo"}, []string{"foo"}},
+		{[]string{"zoo", "bar"}, []string{"zoo", "bar"}},
+		{[]string{"baz", "zoo", "bar"}, []string{"baz", "zoo"}},
 	}
 
 	c := cluster.NewConfig()
 	err := c.Set([]string{"zoo", "foo"}, 1)
 	require.NoError(t, err)
+	err = c.Set([]string{"baz"}, map[any]any{})
+	require.NoError(t, err)
 
-	for _, p := range paths {
-		t.Run(fmt.Sprintf("%v", p), func(t *testing.T) {
-			_, err := c.Get(p)
-			expected := fmt.Sprintf("path %q does not exist", p)
+	for _, p := range cases {
+		t.Run(fmt.Sprintf("%v", p.path), func(t *testing.T) {
+			_, err := c.Get(p.path)
+			expected := fmt.Sprintf("path %q does not exist", p.errPath)
 			require.EqualError(t, err, expected)
 			require.ErrorAs(t, err, &cluster.NotExistError{})
 		})
