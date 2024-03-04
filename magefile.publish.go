@@ -33,6 +33,9 @@ var targetDistros = []Distro{
 	{OS: "debian", Dist: "stretch"},  // 9
 	{OS: "debian", Dist: "buster"},   // 10
 	{OS: "debian", Dist: "bullseye"}, // 11
+
+	{OS: "linux-deb", Dist: "static"},
+	{OS: "linux-rpm", Dist: "static"},
 }
 
 // walkMatch walks through directory and collects file paths satisfying patterns.
@@ -70,11 +73,11 @@ func walkMatch(root string, patterns []string) ([]string, error) {
 // getPatterns returns patterns to select goreleaser build artifacts.
 func getPatterns(distro Distro) ([]string, error) {
 
-	if distro.OS == "el" || distro.OS == "fedora" {
-		return []string{"*.rpm", "*.noarch.rpm"}, nil
+	if distro.OS == "el" || distro.OS == "fedora" || distro.OS == "linux-rpm" {
+		return []string{"*.rpm"}, nil
 	}
 
-	if distro.OS == "ubuntu" || distro.OS == "debian" {
+	if distro.OS == "ubuntu" || distro.OS == "debian" || distro.OS == "linux-deb"{
 		return []string{"*.deb", "*.dsc"}, nil
 	}
 
