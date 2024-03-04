@@ -3,8 +3,9 @@ import os
 import shutil
 
 import pytest
-from helpers import (box_ctl_promote, eval_on_instance, parse_status,
-                     parse_yml, start_application, stop_application)
+from replicaset_helpers import (box_ctl_promote, eval_on_instance,
+                                parse_status, parse_yml, start_application,
+                                stop_application)
 
 from utils import (get_tarantool_version, read_kv, run_command_and_get_output,
                    wait_event)

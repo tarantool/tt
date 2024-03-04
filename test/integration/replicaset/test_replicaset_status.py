@@ -6,36 +6,12 @@ import subprocess
 import time
 
 import pytest
+from replicaset_helpers import stop_application
 
-import utils
-from utils import (get_tarantool_version, log_file, pid_file,
+from utils import (get_tarantool_version, log_file, log_path, pid_file,
                    run_command_and_get_output, run_path, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
-
-
-def start_application(cmd, workdir, app_name, instances):
-    instance_process = subprocess.Popen(
-        cmd,
-        cwd=workdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    start_output = instance_process.stdout.read()
-    for inst in instances:
-        assert f"Starting an instance [{app_name}:{inst}]" in start_output
-
-
-def stop_application(tt_cmd, app_name, workdir, instances):
-    stop_cmd = [tt_cmd, "stop", app_name]
-    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=workdir)
-    assert stop_rc == 0
-
-    for inst in instances:
-        assert re.search(rf"The Instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
-                         stop_out)
-        assert not os.path.exists(os.path.join(workdir, run_path, app_name, inst, "tarantool.pid"))
 
 
 @pytest.mark.parametrize("case", [["--config", "--custom"],
@@ -286,8 +262,8 @@ def test_status_cartridge(tt_cmd, tmpdir_with_cfg):
 
     # Wait for the full start of the cartridge.
     for inst in instances:
-        run_dir = os.path.join(tmpdir, cartridge_name, utils.run_path, inst)
-        log_dir = os.path.join(tmpdir, cartridge_name, utils.log_path, inst)
+        run_dir = os.path.join(tmpdir, cartridge_name, run_path, inst)
+        log_dir = os.path.join(tmpdir, cartridge_name, log_path, inst)
 
         file = wait_file(run_dir, pid_file, [])
         assert file != ""

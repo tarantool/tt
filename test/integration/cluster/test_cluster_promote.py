@@ -1,9 +1,13 @@
 import os
 
 import pytest
-from helpers import etcd_password, etcd_username, read_kv, to_etcd_key
+from etcd_helper import etcd_password, etcd_username
 
-from utils import run_command_and_get_output
+from utils import read_kv, run_command_and_get_output
+
+
+def to_etcd_key(key):
+    return f"/prefix/config/{key}"
 
 
 @pytest.mark.parametrize("data_dir, err_text", [
@@ -58,7 +62,7 @@ from utils import run_command_and_get_output
         id="many replicasets",
     )
 ])
-def test_promote_single_key(
+def test_cluster_promote_single_key(
     tt_cmd, etcd, tmpdir_with_cfg, data_dir, err_text,
 ):
     test_data_dir = os.path.join(os.path.dirname(__file__), "testdata", "promote",
@@ -110,7 +114,7 @@ def test_promote_single_key(
         id="instance not found among keys",
     )
 ])
-def test_promote_many_keys(
+def test_cluster_promote_many_keys(
     tt_cmd, etcd,
     tmpdir_with_cfg,
     data_dir,
@@ -153,7 +157,7 @@ def test_promote_many_keys(
         assert v == actual.decode("utf-8")
 
 
-def test_promote_key_specified(tt_cmd, etcd, tmpdir_with_cfg):
+def test_cluster_promote_key_specified(tt_cmd, etcd, tmpdir_with_cfg):
     etcdcli = etcd.conn()
     tmpdir = tmpdir_with_cfg
     test_data_dir = os.path.join(os.path.dirname(__file__), "testdata", "promote",
@@ -169,7 +173,7 @@ def test_promote_key_specified(tt_cmd, etcd, tmpdir_with_cfg):
     del kvs["expected"]
 
     url = f"{etcd.endpoint}/prefix?key=b&timeout=5"
-    promote_cmd = [tt_cmd, "rs", "cs", "promote", "-f", url, "instance-002"]
+    promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
 
     rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir)
     assert rc == 0
@@ -187,13 +191,13 @@ def test_promote_key_specified(tt_cmd, etcd, tmpdir_with_cfg):
         assert v == actual.decode("utf-8")
 
 
-def test_promote_cconfig_source_no_auth(tt_cmd, etcd, tmpdir_with_cfg):
+def test_cluster_promote_no_auth(tt_cmd, etcd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
 
     try:
         etcd.enable_auth()
         url = f"{etcd.endpoint}/prefix?timeout=5"
-        promote_cmd = [tt_cmd, "rs", "cs", "promote", url, "instance-002"]
+        promote_cmd = [tt_cmd, "cluster", "rs", "promote", url, "instance-002"]
         rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir)
         assert rc != 0
         expected = (r"   ⨯ failed to collect cluster config: " +
@@ -203,13 +207,13 @@ def test_promote_cconfig_source_no_auth(tt_cmd, etcd, tmpdir_with_cfg):
         etcd.disable_auth()
 
 
-def test_promote_cconfig_source_bad_auth(tt_cmd, etcd, tmpdir_with_cfg):
+def test_cluster_promote_bad_auth(tt_cmd, etcd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
 
     try:
         etcd.enable_auth()
         url = f"http://invalid_user:invalid_pass@{etcd.host}:{etcd.port}/prefix?timeout=5"
-        promote_cmd = [tt_cmd, "rs", "cs", "promote", url, "instance-002"]
+        promote_cmd = [tt_cmd, "cluster", "rs", "promote", url, "instance-002"]
         rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir)
         assert rc != 0
         expected = (r"failed to connect to etcd: " +
@@ -243,7 +247,7 @@ groups:
 
 
 @pytest.mark.parametrize('auth', ["url", "flag", "env"])
-def test_promote_cconfig_source_auth(tt_cmd, etcd, tmpdir_with_cfg, auth):
+def test_cluster_promote_auth(tt_cmd, etcd, tmpdir_with_cfg, auth):
     tmpdir = tmpdir_with_cfg
     etcdcli = etcd.conn()
     key = to_etcd_key("all")
@@ -254,11 +258,11 @@ def test_promote_cconfig_source_auth(tt_cmd, etcd, tmpdir_with_cfg, auth):
         if auth == "url":
             env = None
             url = f"http://{etcd_username}:{etcd_password}@{etcd.host}:{etcd.port}/prefix?timeout=5"
-            promote_cmd = [tt_cmd, "rs", "cs", "promote", "-f", url, "instance-002"]
+            promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
         elif auth == "flag":
             env = None
             url = f"{etcd.endpoint}/prefix?timeout=5"
-            promote_cmd = [tt_cmd, "rs", "cs", "promote", "-f",
+            promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f",
                            "-u", etcd_username,
                            "-p", etcd_password,
                            url, "instance-002"]
@@ -266,7 +270,7 @@ def test_promote_cconfig_source_auth(tt_cmd, etcd, tmpdir_with_cfg, auth):
             env = {"TT_CLI_ETCD_USERNAME": etcd_username,
                    "TT_CLI_ETCD_PASSWORD": etcd_password}
             url = f"{etcd.endpoint}/prefix?timeout=5"
-            promote_cmd = [tt_cmd, "rs", "cs", "promote", "-f", url, "instance-002"]
+            promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
 
         rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir, env=env)
         assert rc == 0
