@@ -39,13 +39,14 @@ var (
 // newStatusCmd creates a "replicaset status" command.
 func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "status [--cartridge|--config|--custom] " +
+		Use: "status [--cartridge|--config|--custom] [flags] " +
 			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
 			"  The URI can be specified in the following formats:\n" +
 			"  * [tcp://][username:password@][host:port]\n" +
 			"  * [unix://][username:password@]socketpath\n" +
 			"  To specify relative path without `unix://` use `./`.",
-		Short: "Show a replicaset status",
+		DisableFlagsInUseLine: true,
+		Short:                 "Show a replicaset status",
 		Long: "Show a replicaset status.\n\n" +
 			"The command supports the following environment variables:\n\n" +
 			"* " + connect.TarantoolUsernameEnv + " - specifies a username\n" +
