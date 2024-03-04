@@ -2,7 +2,6 @@ import os
 import subprocess
 
 import etcd3
-import yaml
 
 etcd_username = "root"
 etcd_password = "password"
@@ -15,7 +14,6 @@ class EtcdInstance():
         self.workdir = workdir
         self.endpoint = f"http://{self.host}:{self.port}"
         self.popen = None
-        self.auth_enabled = False
 
     def start(self):
         popen = subprocess.Popen(
@@ -48,9 +46,11 @@ class EtcdInstance():
         return etcd
 
     def truncate(self):
-        c = self.conn()
-        c.delete_prefix("/")
-        c.close()
+        try:
+            subprocess.run(["etcdctl", "del", "--prefix", "/", f"--endpoints={self.endpoint}"])
+        except Exception as ex:
+            self.stop()
+            raise ex
 
     def enable_auth(self):
         # etcdv3 client have a bug that prevents to establish a connection with
@@ -66,18 +66,8 @@ class EtcdInstance():
         except Exception as ex:
             self.stop()
             raise ex
-        self.auth_enabled = True
 
     def disable_auth(self):
         subprocess.run(["etcdctl", "auth", "disable",
                         f"--user={etcd_username}:{etcd_password}",
                         f"--endpoints={self.endpoint}"])
-        self.auth_enabled = False
-
-
-def parse_yml(input):
-    return yaml.safe_load(input)
-
-
-def to_etcd_key(key):
-    return f"/prefix/config/{key}"
