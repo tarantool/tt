@@ -36,6 +36,7 @@ Tarantool-based applications.
   * [Setting Tarantool configuration parameters via environment variables](#setting-tarantool-configuration-parameters-via-environment-variables)
   * [Add current environment binaries location to the PATH variable](#add-current-environment-binaries-location-to-the-path-variable)
 * [Migration from older TT versions](doc/migration_from_older_versions.md)
+* [Known issues](doc/known_issues.md)
 * [Commands](#commands)
 
 ## Intro
