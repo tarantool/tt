@@ -29,6 +29,34 @@ func (collector YamlCollector) Collect() (*Config, error) {
 	return config, nil
 }
 
+// YamlDataMergeCollector collects and merges configuration
+// from the slice of Data.
+type YamlDataMergeCollector struct {
+	data []Data
+}
+
+// NewYamlDataMergeCollector creates YamlDataMergeCollector.
+func NewYamlDataMergeCollector(data ...Data) YamlDataMergeCollector {
+	return YamlDataMergeCollector{
+		data: data,
+	}
+}
+
+// Collect collects configuration from YAML data.
+func (collector YamlDataMergeCollector) Collect() (*Config, error) {
+	cconfig := NewConfig()
+
+	for _, src := range collector.data {
+		if config, err := NewYamlCollector(src.Value).Collect(); err != nil {
+			return nil, fmt.Errorf("failed to decode config from %q: %w", src.Source, err)
+		} else {
+			cconfig.Merge(config)
+		}
+	}
+
+	return cconfig, nil
+}
+
 // YamlCollectorDecorator is a wrapper over DataCollector
 // implementing Collector.
 type YamlCollectorDecorator struct {
@@ -42,18 +70,7 @@ func (collector YamlCollectorDecorator) Collect() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	cconfig := NewConfig()
-
-	for _, data := range raw {
-		if config, err := NewYamlCollector(data.Value).Collect(); err != nil {
-			return nil, fmt.Errorf("failed to decode config from %q: %w", data.Source, err)
-		} else {
-			cconfig.Merge(config)
-		}
-	}
-
-	return cconfig, nil
+	return NewYamlDataMergeCollector(raw...).Collect()
 }
 
 // NewYamlCollectorDecorator wraps a DataCollector to interpret raw data as
