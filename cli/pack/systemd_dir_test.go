@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/running"
 )
@@ -45,7 +44,6 @@ func Test_initSystemdDir(t *testing.T) {
 
 	type args struct {
 		pathToEnv string
-		opts      *config.CliOpts
 		packCtx   *PackCtx
 	}
 	tests := []struct {
@@ -58,9 +56,6 @@ func Test_initSystemdDir(t *testing.T) {
 			name: "Default template and values test 1",
 			args: args{
 				pathToEnv: fakeCfgPath,
-				opts: &config.CliOpts{
-					Env: &config.TtEnvOpts{},
-				},
 				packCtx: &PackCtx{
 					Name:     "pack",
 					AppList:  []string{appDir},
@@ -78,9 +73,6 @@ func Test_initSystemdDir(t *testing.T) {
 			name: "Default template and partly defined values test 2",
 			args: args{
 				pathToEnv: fakeCfgPath,
-				opts: &config.CliOpts{
-					Env: &config.TtEnvOpts{},
-				},
 				packCtx: &PackCtx{
 					Name:    "pack",
 					AppList: []string{appDir},
@@ -102,9 +94,6 @@ func Test_initSystemdDir(t *testing.T) {
 			name: "Default template and fully defined values test 3",
 			args: args{
 				pathToEnv: fakeCfgPath,
-				opts: &config.CliOpts{
-					Env: &config.TtEnvOpts{},
-				},
 				packCtx: &PackCtx{
 					Name:    "pack",
 					AppList: []string{appDir},
@@ -126,9 +115,6 @@ func Test_initSystemdDir(t *testing.T) {
 			name: "Systemd units generation for multiple applications env",
 			args: args{
 				pathToEnv: fakeCfgPath,
-				opts: &config.CliOpts{
-					Env: &config.TtEnvOpts{},
-				},
 				packCtx: &PackCtx{
 					Name:    "pack",
 					AppList: []string{"app1", "app2"},
@@ -182,15 +168,34 @@ func Test_initSystemdDir(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			name: "Default template and partly defined environment params",
+			args: args{
+				pathToEnv: fakeCfgPath,
+				packCtx: &PackCtx{
+					Name:    "pack",
+					AppList: []string{appDir},
+					RpmDeb: RpmDebCtx{
+						SystemdUnitParamsFile: filepath.Join("testdata",
+							"unit-params-with-env.yml"),
+					},
+					AppsInfo: appsInfo,
+				},
+			},
+			wantErr: assert.NoError,
+			check: func(baseTestDir string) error {
+				compareFiles(t, filepath.Join(baseTestDir, prefixToUnit, "app@.service"),
+					filepath.Join("testdata", "expected-unit-content-with-env.txt"))
+				return nil
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			baseTestDir := t.TempDir()
-			tt.args.opts.Env.InstancesEnabled = baseTestDir
-			tt.wantErr(t, initSystemdDir(tt.args.packCtx, tt.args.opts, baseTestDir,
-				tt.args.pathToEnv),
-				fmt.Sprintf("initSystemdDir(%v, %v, %v, %v)", baseTestDir, tt.args.pathToEnv,
-					tt.args.opts, tt.args.packCtx))
+			tt.wantErr(t, initSystemdDir(tt.args.packCtx, baseTestDir, tt.args.pathToEnv),
+				fmt.Sprintf("initSystemdDir(%v, %v, %v)",
+					baseTestDir, tt.args.pathToEnv, tt.args.packCtx))
 
 			assert.NoError(t, tt.check(baseTestDir))
 		})
@@ -218,7 +223,7 @@ func Test_getUnitParams(t *testing.T) {
 		name    string
 		args    args
 		prepare func() error
-		want    map[string]interface{}
+		want    systemdUnitParams
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
@@ -234,12 +239,13 @@ func Test_getUnitParams(t *testing.T) {
 					AppsInfo: appsInfo,
 				},
 			},
-			want: map[string]interface{}{
-				"TT":         "tt",
-				"ConfigPath": "/path/to/env",
-				"FdLimit":    defaultInstanceFdLimit,
-				"AppName":    "envName",
-				"ExecArgs":   "envName:%i",
+			want: systemdUnitParams{
+				TT:          "tt",
+				ConfigPath:  "/path/to/env",
+				FdLimit:     defaultInstanceFdLimit,
+				AppName:     "envName",
+				ExecArgs:    "envName:%i",
+				InstanceEnv: map[string]string{},
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err != nil
@@ -261,12 +267,12 @@ func Test_getUnitParams(t *testing.T) {
 					AppsInfo: appsInfo,
 				},
 			},
-			want: map[string]interface{}{
-				"TT":         "tt",
-				"ConfigPath": "/path/to/env",
-				"FdLimit":    1024,
-				"AppName":    "envName",
-				"ExecArgs":   "envName:%i",
+			want: systemdUnitParams{
+				TT:         "tt",
+				ConfigPath: "/path/to/env",
+				FdLimit:    1024,
+				AppName:    "envName",
+				ExecArgs:   "envName:%i",
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err != nil
@@ -297,12 +303,12 @@ func Test_getUnitParams(t *testing.T) {
 					},
 				},
 			},
-			want: map[string]interface{}{
-				"TT":         "/usr/bin/tt",
-				"ConfigPath": "/test/path",
-				"FdLimit":    1024,
-				"AppName":    "envName",
-				"ExecArgs":   "envName",
+			want: systemdUnitParams{
+				TT:         "/usr/bin/tt",
+				ConfigPath: "/test/path",
+				FdLimit:    1024,
+				AppName:    "envName",
+				ExecArgs:   "envName",
 			},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
 				return err != nil
@@ -314,6 +320,95 @@ func Test_getUnitParams(t *testing.T) {
 						"ConfigPath: /test/path\n"+
 						"AppName: testEnv\n"), 0666)
 				return err
+			},
+		},
+		{
+			name: "environment params",
+			args: args{
+				envName:   "envName",
+				pathToEnv: "/path/to/env",
+				packCtx: &PackCtx{
+					WithoutBinaries: true,
+					RpmDeb: RpmDebCtx{
+						SystemdUnitParamsFile: filepath.Join(testDir, "env-params.yaml"),
+					},
+					AppsInfo: appsInfo,
+				},
+			},
+			want: systemdUnitParams{
+				TT:          "tt",
+				ConfigPath:  "/path/to/env",
+				FdLimit:     1024,
+				AppName:     "envName",
+				ExecArgs:    "envName:%i",
+				InstanceEnv: map[string]string{"INSTANCE": "%i", "TARANTOOL_WORKDIR": "/tmp"},
+			},
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return err != nil
+			},
+			prepare: func() error {
+				return os.WriteFile(filepath.Join(testDir, "env-params.yaml"),
+					[]byte(`FdLimit: 1024
+instance-env:
+  INSTANCE: "%i"
+  TARANTOOL_WORKDIR: "/tmp"`), 0664)
+			},
+		},
+		{
+			name: "systemd params priority",
+			args: args{
+				envName:   "envName",
+				pathToEnv: "/path/to/env",
+				packCtx: &PackCtx{
+					WithoutBinaries: true,
+					RpmDeb: RpmDebCtx{
+						SystemdUnitParamsFile: filepath.Join(testDir, "custom-params.yaml"),
+					},
+					AppsInfo: map[string][]running.InstanceCtx{
+						"envName": {
+							running.InstanceCtx{
+								AppName:   "envName",
+								SingleApp: true,
+								AppDir:    filepath.Join(testDir, "appDir"),
+							},
+						},
+					},
+				},
+			},
+			want: systemdUnitParams{
+				TT:         "tt",
+				ConfigPath: "/path/to/env",
+				FdLimit:    128,
+				AppName:    "envName",
+				ExecArgs:   "envName:%i",
+				InstanceEnv: map[string]string{
+					"INSTANCE":          "inst",
+					"TARANTOOL_WORKDIR": "/tmp/workdir",
+				},
+			},
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return err != nil
+			},
+			prepare: func() error {
+				err := os.WriteFile(filepath.Join(testDir, "custom-params.yaml"),
+					[]byte(`FdLimit: 1024
+instance-env:
+  INSTANCE: "%i"
+  TARANTOOL_WORKDIR: "/tmp"`), 0664)
+				if err != nil {
+					return err
+				}
+				if err = os.Mkdir(filepath.Join(testDir, "appDir"), 0775); err != nil {
+					return err
+				}
+				if err = os.WriteFile(filepath.Join(testDir, "appDir", "systemd-unit-params.yml"),
+					[]byte(`FdLimit: 128
+instance-env:
+  INSTANCE: "inst"
+  TARANTOOL_WORKDIR: "/tmp/workdir"`), 0664); err != nil {
+					return err
+				}
+				return nil
 			},
 		},
 	}

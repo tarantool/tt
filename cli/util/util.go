@@ -827,8 +827,7 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 
 // InstantiateFileFromTemplate accepts the path to file,
 // template content and parameters for its filling.
-func InstantiateFileFromTemplate(templatePath string, templateContent string,
-	params map[string]interface{}) error {
+func InstantiateFileFromTemplate(templatePath string, templateContent string, params any) error {
 	file, err := os.Create(templatePath)
 	if err != nil {
 		return err

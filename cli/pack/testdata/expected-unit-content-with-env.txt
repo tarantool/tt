@@ -23,6 +23,8 @@ TimeoutStartSec=86400s
 TimeoutStopSec=10s
 
 # Environment variables
+Environment=INST=%i
+Environment=TARANTOOL_WORKDIR=/tmp
 
 [Install]
 WantedBy=multi-user.target

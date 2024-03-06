@@ -105,7 +105,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	envSystemPath := filepath.Join("/", defaultEnvPrefix, packageName)
-	err = initSystemdDir(packCtx, opts, packageDataDir, envSystemPath)
+	err = initSystemdDir(packCtx, packageDataDir, envSystemPath)
 	if err != nil {
 		return err
 	}

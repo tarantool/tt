@@ -22,5 +22,7 @@ TimeoutStartSec=86400s
 # Give a reasonable amount of time to close xlogs
 TimeoutStopSec=10s
 
+# Environment variables
+
 [Install]
 WantedBy=multi-user.target
