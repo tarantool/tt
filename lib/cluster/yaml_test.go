@@ -96,6 +96,105 @@ func TestYamlCollector_unique(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestYamlDataMergeCollector_valid(t *testing.T) {
+	item1 := cluster.Data{
+		Source: "k1",
+		Value: []byte(`config:
+  version: 3.0.0
+  hooks:
+    post_cfg: /foo
+app:
+  app1`),
+		Revision: 3,
+	}
+	item2 := cluster.Data{
+		Source: "k2",
+		Value: []byte(`app:
+  app2
+etcd:
+  endpoints:
+    - bar
+  username: etcd
+  password: not_a_secret`),
+		Revision: 1,
+	}
+
+	paths := []struct {
+		path  []string
+		value any
+	}{
+		{[]string{"config", "version"}, "3.0.0"},
+		{[]string{"config", "hooks", "post_cfg"}, "/foo"},
+		{[]string{"app"}, "app1"},
+		{[]string{"etcd", "endpoints"}, []any{"bar"}},
+		{[]string{"etcd", "username"}, "etcd"},
+		{[]string{"etcd", "password"}, "not_a_secret"},
+	}
+
+	collector := cluster.NewYamlDataMergeCollector(item1, item2)
+
+	config, err := collector.Collect()
+	require.NoError(t, err)
+	require.NotNil(t, config)
+	for _, p := range paths {
+		t.Run(fmt.Sprintf("%v", p.path), func(t *testing.T) {
+			value, err := config.Get(p.path)
+			assert.NoError(t, err)
+			assert.Equal(t, p.value, value)
+		})
+	}
+}
+
+func TestYamlDataMergeCollector_invalid(t *testing.T) {
+	item_valid := cluster.Data{
+		Source: "a",
+		Value: []byte(`config:
+  version: 3.0.0`),
+	}
+	item_invalid := cluster.Data{
+		Source: "b",
+		Value: []byte(`key: value
+- not_valid`),
+	}
+	collector := cluster.NewYamlDataMergeCollector(item_valid, item_invalid)
+	config, err := collector.Collect()
+	require.EqualError(t, err, `failed to decode config from "b":`+
+		" unable to unmarshal YAML: yaml: line 1: did not find expected key")
+	require.Nil(t, config)
+}
+
+func TestYamlDataMergeCollector_empty(t *testing.T) {
+	data := []cluster.Data{
+		{},
+		{Value: []byte("")},
+	}
+	for _, d := range data {
+		t.Run(fmt.Sprintf("%v", data), func(t *testing.T) {
+			collector := cluster.NewYamlDataMergeCollector(d)
+			config, err := collector.Collect()
+
+			assert.NoError(t, err)
+			assert.NotNil(t, config)
+		})
+	}
+}
+
+func TestYamlDataMergeCollector_unique(t *testing.T) {
+	collector := cluster.NewYamlDataMergeCollector(cluster.Data{
+		Value: []byte("config: asd"),
+	})
+
+	config1, err := collector.Collect()
+	require.NoError(t, err)
+	config2, err := collector.Collect()
+	require.NoError(t, err)
+
+	path := []string{"foo"}
+	require.Nil(t, config1.Set(path, "bar"))
+	_, err = config2.Get(path)
+	assert.Error(t, err)
+}
+
 type mockDataCollector struct {
 	data []cluster.Data
 	err  error
