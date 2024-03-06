@@ -1404,3 +1404,179 @@ SYSUSER=tarantool
 
 echo 'bye'
 """ in output
+
+
+def test_pack_systemd_params_default_file(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, "systemd_params")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "systemd_params"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+
+    cmd = [tt_cmd, "pack", "rpm"]
+
+    rc, output = run_command_and_get_output(
+        cmd,
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+
+    package_file_name = "systemd_params-0.1.0.0-1." + get_arch() + ".rpm"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    # Unpack rpm package.
+    pkg_dir = os.path.join(tmpdir, 'unpacked')
+    os.mkdir(pkg_dir)
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-v', '{0}:/tmp/unpack'.format(pkg_dir),
+                                             '-w', '/usr/src',
+                                             'jrei/systemd-fedora',
+                                             '/bin/bash', '-c',
+                                             'rpm2cpio {0} > /tmp/unpack/pkg.cpio'
+                                            .format(package_file_name)])
+    assert rc == 0
+
+    rc, output = run_command_and_get_output(
+        ['cpio', '--file', os.path.join(pkg_dir, 'pkg.cpio'), '-idm'],
+        env=dict(os.environ, LANG='en_US.UTF-8', LC_ALL='en_US.UTF-8'), cwd=pkg_dir)
+    assert rc == 0
+
+    # Check systemd unit is parametrized.
+    units_dir = os.path.join(pkg_dir, 'usr', 'lib', 'systemd', 'system')
+    assert os.path.exists(os.path.join(units_dir, 'app1@.service'))
+    assert os.path.exists(os.path.join(units_dir, 'app2@.service'))
+
+    with open(os.path.join(units_dir, 'app1@.service')) as f:
+        buf = f.read()
+        assert 'Environment=' not in buf
+
+    with open(os.path.join(units_dir, 'app2@.service')) as f:
+        buf = f.read()
+        assert 'Environment=INSTANCE=inst' in buf
+        assert 'Environment=TARANTOOL_WORKDIR=/tmp/workdir' in buf
+
+
+def test_pack_systemd_params_params_file_set(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, 'systemd_params')
+    shutil.copytree(os.path.join(os.path.dirname(__file__), 'test_bundles', 'systemd_params'),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+
+    cmd = [tt_cmd, 'pack', 'rpm', '--unit-params-file',
+           os.path.join(os.path.dirname(__file__), 'test_bundles', 'systemd_params', 'params.yml')]
+
+    rc, output = run_command_and_get_output(
+        cmd,
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+
+    package_file_name = 'systemd_params-0.1.0.0-1.' + get_arch() + '.rpm'
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    # Unpack rpm package.
+    pkg_dir = os.path.join(tmpdir, 'unpacked')
+    os.mkdir(pkg_dir)
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-v', '{0}:/tmp/unpack'.format(pkg_dir),
+                                             '-w', '/usr/src',
+                                             'jrei/systemd-fedora',
+                                             '/bin/bash', '-c',
+                                             'rpm2cpio {0} > /tmp/unpack/pkg.cpio'
+                                            .format(package_file_name)])
+    assert rc == 0
+
+    rc, output = run_command_and_get_output(
+        ['cpio', '--file', os.path.join(pkg_dir, 'pkg.cpio'), '-idm'],
+        env=dict(os.environ, LANG='en_US.UTF-8', LC_ALL='en_US.UTF-8'), cwd=pkg_dir)
+    assert rc == 0
+
+    # Check systemd unit is parametrized.
+    units_dir = os.path.join(pkg_dir, 'usr', 'lib', 'systemd', 'system')
+    assert os.path.exists(os.path.join(units_dir, 'app1@.service'))
+    assert os.path.exists(os.path.join(units_dir, 'app2@.service'))
+
+    with open(os.path.join(units_dir, 'app1@.service')) as f:
+        buf = f.read()
+        assert 'Environment=INSTANCE=inst:%i' in buf
+        assert 'Environment=TARANTOOL_WORKDIR=/tmp' in buf
+
+    with open(os.path.join(units_dir, 'app2@.service')) as f:
+        buf = f.read()
+        assert 'Environment=INSTANCE=inst' in buf
+        assert 'Environment=TARANTOOL_WORKDIR=/tmp/workdir' in buf
+
+
+def test_pack_systemd_params_missing_params_file(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, 'systemd_params')
+    shutil.copytree(os.path.join(os.path.dirname(__file__), 'test_bundles', 'systemd_params'),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    cmd = [tt_cmd, 'pack', 'rpm', '--unit-params-file', 'missing_params.yml']
+
+    rc, output = run_command_and_get_output(cmd, cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc != 0
+    assert 'no such file or directory' in output
+
+    package_file_name = 'systemd_params-0.1.0.0-1.' + get_arch() + '.rpm'
+    package_file = os.path.join(tmpdir, package_file_name)
+    assert not os.path.exists(package_file)
+
+
+def test_pack_systemd_params_params_file_bad_format(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, 'systemd_params')
+    shutil.copytree(os.path.join(os.path.dirname(__file__), 'test_bundles', 'systemd_params'),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    with open(os.path.join(tmpdir, 'bad_params.yml'), 'w') as f:
+        f.write('''FdLimit: 'string'
+''')
+
+    cmd = [tt_cmd, 'pack', 'rpm', '--unit-params-file', 'bad_params.yml']
+
+    rc, output = run_command_and_get_output(cmd, cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    assert rc != 0
+    assert 'failed to decode systemd unit params' in output
+
+    package_file_name = 'systemd_params-0.1.0.0-1.' + get_arch() + '.rpm'
+    package_file = os.path.join(tmpdir, package_file_name)
+    assert not os.path.exists(package_file)

@@ -83,7 +83,7 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	envSystemPath := filepath.Join("/", defaultEnvPrefix, bundleName)
-	err = initSystemdDir(packCtx, opts, packageDir, envSystemPath)
+	err = initSystemdDir(packCtx, packageDir, envSystemPath)
 	if err != nil {
 		return err
 	}

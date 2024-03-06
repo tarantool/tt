@@ -1,0 +1,4 @@
+FdLimit: 100
+instance-env:
+  INSTANCE: "inst"
+  TARANTOOL_WORKDIR: "/tmp/workdir"

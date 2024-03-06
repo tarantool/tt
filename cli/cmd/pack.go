@@ -88,6 +88,9 @@ The supported types are: tgz, deb, rpm`,
 	packCmd.Flags().StringVar(&packCtx.TarantoolVersion, "tarantool-version",
 		packCtx.TarantoolVersion,
 		"Version of the tarantool for pack in docker (only with --use-docker flag).")
+	packCmd.Flags().StringVar(&packCtx.RpmDeb.SystemdUnitParamsFile, "unit-params-file",
+		packCtx.RpmDeb.SystemdUnitParamsFile,
+		"Path to the file that contains systemd unit params")
 
 	// Integrity flags.
 	integrity.RegisterWithIntegrityFlag(packCmd.Flags(), &packCtx.IntegrityPrivateKey)
