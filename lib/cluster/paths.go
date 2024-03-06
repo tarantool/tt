@@ -23,6 +23,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"audit_log", "to"},
 	[]string{"compat", "binary_data_decoding"},
 	[]string{"compat", "box_cfg_replication_sync_timeout"},
+	[]string{"compat", "box_error_unpack_type_and_code"},
 	[]string{"compat", "box_info_cluster_meaning"},
 	[]string{"compat", "box_session_push_deprecation"},
 	[]string{"compat", "box_space_execute_priv"},
@@ -343,6 +344,15 @@ var TarantoolSchema = []SchemaPath{
 	},
 	SchemaPath{
 		Path: []string{"compat", "box_cfg_replication_sync_timeout"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_error_unpack_type_and_code"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
 			[]any{
