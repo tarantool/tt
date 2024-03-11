@@ -204,9 +204,9 @@ class TarantoolTestInstance:
 
     def __init__(self, instance_cfg_file_name, instance_cfg_file_dir, path_to_lua_utils, tmpdir):
         # Copy the instance config files to the run pytest tmpdir directory.
-        shutil.copy(instance_cfg_file_dir + "/" + instance_cfg_file_name, tmpdir)
+        shutil.copytree(instance_cfg_file_dir, tmpdir, dirs_exist_ok=True)
         # Copy the lua module with the auxiliary functions required by the instance config file.
-        shutil.copy(path_to_lua_utils + "/" + "utils.lua", tmpdir)
+        shutil.copy(os.path.join(path_to_lua_utils, "utils.lua"), tmpdir)
 
         self._tmpdir = tmpdir
         self._instance_cfg_file_name = instance_cfg_file_name

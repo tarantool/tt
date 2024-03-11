@@ -1,25 +1,24 @@
 import os
 import re
-import shutil
 
 import pytest
 
-from utils import (TarantoolTestInstance, kill_child_process,
-                   run_command_and_get_output)
+from utils import TarantoolTestInstance, run_command_and_get_output
 
 # The name of instance config file within this integration tests.
 # This file should be in /test/integration/play/test_file/.
 INSTANCE_NAME = "remote_instance_cfg.lua"
 
 
-# In case of unsuccessful completion of tests, tarantool test instances may remain running.
-# This is autorun wrapper for each test case in this module.
-@pytest.fixture(autouse=True)
-def kill_remain_instance_wrapper():
-    # Run test.
-    yield
-    # Kill a test instance if it was not stopped due to a failed test.
-    kill_child_process()
+@pytest.fixture
+def test_instance(request, tmpdir):
+    dir = os.path.dirname(__file__)
+    test_app_path = os.path.join(dir, "test_file")
+    lua_utils_path = os.path.join(dir, "..", "..")
+    inst = TarantoolTestInstance(INSTANCE_NAME, test_app_path, lua_utils_path, tmpdir)
+    inst.start()
+    request.addfinalizer(lambda: inst.stop())
+    return inst
 
 
 def test_play_unset_arg(tt_cmd, tmpdir):
@@ -38,44 +37,24 @@ def test_play_non_existent_uri(tt_cmd, tmpdir):
     assert re.search(r"no connection to the host", output)
 
 
-def test_play_non_existent_file(tt_cmd, tmpdir):
-    # Testing with non-existent .xlog or .snap file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_file")
-
-    # Create tarantool instance for testing and start it.
-    path_to_lua_utils = os.path.join(os.path.dirname(__file__), "test_file/../../../")
-    test_instance = TarantoolTestInstance(INSTANCE_NAME, test_app_path, path_to_lua_utils, tmpdir)
-    test_instance.start()
-
+def test_play_non_existent_file(tt_cmd, tmpdir, test_instance):
     # Run play with non-existent file.
     cmd = [tt_cmd, "play", "127.0.0.1:" + test_instance.port, "path-to-non-existent-file"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    test_instance.stop()
     assert rc == 1
     assert re.search(r"No such file or directory", output)
 
 
-def test_play_test_remote_instance(tt_cmd, tmpdir):
-    # Testing play using remote instance.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_file")
-    # Copy the .xlog file to the "run" directory.
-    shutil.copy(test_app_path + "/test.xlog", tmpdir)
-
-    # Create tarantool instance for testing and start it.
-    path_to_lua_utils = os.path.join(os.path.dirname(__file__), "test_file/../../../")
-    test_instance = TarantoolTestInstance(INSTANCE_NAME, test_app_path, path_to_lua_utils, tmpdir)
-    test_instance.start()
-
+def test_play_test_remote_instance(tt_cmd, test_instance):
     # Play .xlog file to the remote instance.
     cmd = [tt_cmd, "play", "127.0.0.1:" + test_instance.port, "test.xlog", "--space=999"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
-    test_instance.stop()
+    rc, output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
     assert rc == 0
     assert re.search(r"Play result: completed successfully", output)
 
     # Testing played .xlog file from the remote instance.
     cmd = [tt_cmd, "cat", "00000000000000000000.xlog", "--space=999"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
     assert rc == 0
     assert re.search(r"space_id: 999", output)
     assert re.search(r"[1, 'Roxette', 1986]", output)
@@ -90,17 +69,7 @@ def test_play_test_remote_instance(tt_cmd, tmpdir):
     pytest.param({"env": {"TT_CLI_USERNAME": "fry"}}),
     pytest.param({"uri": "test_user:4"}),
 ])
-def test_play_wrong_creds(tt_cmd, tmpdir, opts):
-    # Testing play using remote instance.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_file")
-    # Copy the .xlog file to the "run" directory.
-    shutil.copy(test_app_path + "/test.xlog", tmpdir)
-
-    # Create tarantool instance for testing and start it.
-    path_to_lua_utils = os.path.join(os.path.dirname(__file__), "test_file/../../../")
-    test_instance = TarantoolTestInstance(INSTANCE_NAME, test_app_path, path_to_lua_utils, tmpdir)
-    test_instance.start()
-
+def test_play_wrong_creds(tt_cmd, tmpdir, opts, test_instance):
     # Play .xlog file to the remote instance.
     uri = "127.0.0.1:" + test_instance.port
     if "uri" in opts:
@@ -114,7 +83,6 @@ def test_play_wrong_creds(tt_cmd, tmpdir, opts):
         cmd.extend(opts["flags"])
 
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir, env=env)
-    test_instance.stop()
     assert rc != 0
 
 
@@ -127,17 +95,7 @@ def test_play_wrong_creds(tt_cmd, tmpdir, opts):
     }}),
     pytest.param({"uri": "test_user:secret"}),
 ])
-def test_play_creds(tt_cmd, tmpdir, opts):
-    # Testing play using remote instance.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_file")
-    # Copy the .xlog file to the "run" directory.
-    shutil.copy(test_app_path + "/test.xlog", tmpdir)
-
-    # Create tarantool instance for testing and start it.
-    path_to_lua_utils = os.path.join(os.path.dirname(__file__), "test_file/../../../")
-    test_instance = TarantoolTestInstance(INSTANCE_NAME, test_app_path, path_to_lua_utils, tmpdir)
-    test_instance.start()
-
+def test_play_creds(tt_cmd, tmpdir, opts, test_instance):
     # Play .xlog file to the remote instance.
     uri = "127.0.0.1:" + test_instance.port
     if "uri" in opts:
@@ -151,5 +109,4 @@ def test_play_creds(tt_cmd, tmpdir, opts):
         cmd.extend(opts["flags"])
 
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir, env=env)
-    test_instance.stop()
     assert rc == 0
