@@ -202,6 +202,7 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 	if err != nil {
 		return fmt.Errorf("unable to establish connection: %s", err)
 	}
+	defer conn.Close()
 
 	collectors, publishers, err := createDataCollectorsAndDataPublishers(
 		cmdCtx.Integrity, "")
