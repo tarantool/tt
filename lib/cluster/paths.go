@@ -23,6 +23,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"audit_log", "to"},
 	[]string{"compat", "binary_data_decoding"},
 	[]string{"compat", "box_cfg_replication_sync_timeout"},
+	[]string{"compat", "box_error_serialize_verbose"},
 	[]string{"compat", "box_error_unpack_type_and_code"},
 	[]string{"compat", "box_info_cluster_meaning"},
 	[]string{"compat", "box_session_push_deprecation"},
@@ -189,6 +190,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"sharding", "sched_ref_quota"},
 	[]string{"sharding", "shard_index"},
 	[]string{"sharding", "sync_timeout"},
+	[]string{"sharding", "weight"},
 	[]string{"sharding", "zone"},
 	[]string{"snapshot", "by", "interval"},
 	[]string{"snapshot", "by", "wal_size"},
@@ -344,6 +346,15 @@ var TarantoolSchema = []SchemaPath{
 	},
 	SchemaPath{
 		Path: []string{"compat", "box_cfg_replication_sync_timeout"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "box_error_serialize_verbose"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
 			[]any{
@@ -1389,6 +1400,10 @@ var TarantoolSchema = []SchemaPath{
 	},
 	SchemaPath{
 		Path:      []string{"sharding", "sync_timeout"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"sharding", "weight"},
 		Validator: NumberValidator{},
 	},
 	SchemaPath{
