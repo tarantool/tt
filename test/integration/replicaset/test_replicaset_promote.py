@@ -3,6 +3,8 @@ import os
 import shutil
 
 import pytest
+from cartridge_helper import (cartridge_name, cartridge_password,
+                              cartridge_username)
 from replicaset_helpers import (box_ctl_promote, eval_on_instance,
                                 parse_status, parse_yml, start_application,
                                 stop_application)
@@ -231,3 +233,134 @@ def test_promote_cconfig_election_errors(
         assert f'unexpected election_mode: "{election_mode}"' in out
     finally:
         stop_application(tt_cmd, app_name, tmpdir, instances)
+
+
+@pytest.mark.skipif(tarantool_major_version >= 3,
+                    reason="skip cartridge tests for Tarantool 3.0")
+def test_promote_cartridge_no_instance(tt_cmd, cartridge_app):
+    workdir = cartridge_app.workdir
+    cmd = [tt_cmd, "rs", "promote", f"{cartridge_name}:unknown"]
+    rc, out = run_command_and_get_output(cmd, cwd=workdir)
+    assert rc != 0
+    assert "unknown: instance(s) not found" in out
+
+
+stateful_failover_param = {
+    "mode": "stateful",
+    "state_provider": "stateboard",
+    "stateboard_params": {
+        "uri": None,  # Will be filled in the test runtime.
+        "password": "passwd"
+    }
+}
+
+cartridge_promote_timeout = 15
+
+
+def promote_cartridge_failovers_test_helper(tt_cmd, cartridge_app, failover):
+    if failover["mode"] == "stateful":
+        failover["stateboard_params"]["uri"] = cartridge_app.uri["stateboard"]
+    replicaset = "s-2"
+    inst = "s2-replica-1"
+
+    cartridge_app.set_failover(failover)
+    cmd = [tt_cmd, "rs", "promote",
+           "--timeout", str(cartridge_promote_timeout),
+           f"{cartridge_name}:{inst}"]
+    rc, out = run_command_and_get_output(cmd, cwd=cartridge_app.workdir)
+    assert rc == 0
+
+    buf = io.StringIO(out)
+    assert "• Discovery application..." in buf.readline()
+    buf.readline()
+    # Skip init status in the output.
+    parse_status(buf)
+    assert f"Promote instance: {inst}" in buf.readline()
+    assert "Done." in buf.readline()
+
+    # Check status.
+    status_cmd = [tt_cmd, "rs", "status", cartridge_name]
+    rc, out = run_command_and_get_output(status_cmd, cwd=cartridge_app.workdir)
+    assert rc == 0
+    actual = parse_status(io.StringIO(out))["replicasets"][replicaset]["instances"][inst]
+    assert actual["mode"] == "rw"
+
+
+@pytest.mark.skipif(tarantool_major_version >= 3,
+                    reason="skip cartridge tests for Tarantool 3.0")
+@pytest.mark.parametrize("failover", [
+    pytest.param({"mode": "disabled"}, id="disabled"),
+    pytest.param({"mode": "eventual"}, id="eventual"),
+    pytest.param(stateful_failover_param, id="stateful"),
+])
+def test_promote_cartridge_failovers(tt_cmd, cartridge_app, failover):
+    promote_cartridge_failovers_test_helper(tt_cmd, cartridge_app, failover)
+
+
+@pytest.mark.skipif(tarantool_major_version >= 3 or tarantool_major_version < 2,
+                    reason="skip cartridge tests for Tarantool 3.0 | " +
+                    "Tarantool < 2 does not support raft")
+def test_promote_cartridge_failover_raft(tt_cmd, cartridge_app):
+    promote_cartridge_failovers_test_helper(tt_cmd, cartridge_app, {"mode": "raft"})
+
+
+@pytest.mark.skipif(tarantool_major_version >= 3,
+                    reason="skip cartridge tests for Tarantool 3.0")
+def test_promote_cartridge_stopped(tt_cmd, cartridge_app):
+    failover_param = stateful_failover_param
+    failover_param["stateboard_params"]["uri"] = cartridge_app.uri["stateboard"]
+    cartridge_app.set_failover(stateful_failover_param)
+    replicaset = "s-2"
+    inst = "s2-replica-1"
+
+    # Stop master instance.
+    cartridge_app.stop_inst("s2-master")
+
+    cmd = [tt_cmd, "rs", "promote", "-f",
+           "--timeout", str(cartridge_promote_timeout),
+           f"{cartridge_name}:{inst}"]
+    rc, out = run_command_and_get_output(cmd, cwd=cartridge_app.workdir)
+    assert rc == 0
+
+    buf = io.StringIO(out)
+    assert "• Discovery application..." in buf.readline()
+    buf.readline()
+    # Skip init status in the output.
+    parse_status(buf)
+    assert f"Promote instance: {inst}" in buf.readline()
+    assert "Done." in buf.readline()
+
+    # Check status.
+    status_cmd = [tt_cmd, "rs", "status", cartridge_name]
+    rc, out = run_command_and_get_output(status_cmd, cwd=cartridge_app.workdir)
+    assert rc == 0
+    actual = parse_status(io.StringIO(out))["replicasets"][replicaset]["instances"][inst]
+    assert actual["mode"] == "rw"
+
+
+@pytest.mark.skipif(tarantool_major_version >= 3,
+                    reason="skip cartridge tests for Tarantool 3.0")
+def test_promote_cartridge_remote(tt_cmd, cartridge_app):
+    replicaset = "s-1"
+    inst = "s1-replica"
+
+    cmd = [tt_cmd, "rs", "promote",
+           "-u", cartridge_username, "-p", cartridge_password,
+           "--timeout", str(cartridge_promote_timeout),
+           cartridge_app.uri[inst]]
+    rc, out = run_command_and_get_output(cmd, cwd=cartridge_app.workdir)
+    assert rc == 0
+
+    buf = io.StringIO(out)
+    assert "• Discovery application..." in buf.readline()
+    buf.readline()
+    # Skip init status in the output.
+    parse_status(buf)
+    assert "Done." in buf.readline()
+
+    # Check status.
+    status_cmd = [tt_cmd, "rs", "status", cartridge_name]
+    rc, out = run_command_and_get_output(status_cmd, cwd=cartridge_app.workdir)
+    assert rc == 0
+    actual = parse_status(io.StringIO(out))["replicasets"][replicaset]["instances"][inst]
+    assert actual["mode"] == "rw"

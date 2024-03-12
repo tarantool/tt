@@ -47,7 +47,9 @@ func Promote(ctx PromoteCtx) error {
 		case replicaset.OrchestratorCentralizedConfig:
 			orchestrator = replicaset.NewCConfigApplication(ctx.RunningCtx, ctx.Collectors,
 				ctx.Publishers)
-		case replicaset.OrchestratorCartridge, replicaset.OrchestratorCustom:
+		case replicaset.OrchestratorCartridge:
+			orchestrator = replicaset.NewCartridgeApplication(ctx.RunningCtx)
+		case replicaset.OrchestratorCustom:
 			fallthrough
 		default:
 			return fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
@@ -56,7 +58,9 @@ func Promote(ctx PromoteCtx) error {
 		switch orchestratorType {
 		case replicaset.OrchestratorCentralizedConfig:
 			orchestrator = replicaset.NewCConfigInstance(ctx.Conn)
-		case replicaset.OrchestratorCartridge, replicaset.OrchestratorCustom:
+		case replicaset.OrchestratorCartridge:
+			orchestrator = replicaset.NewCartridgeInstance(ctx.Conn)
+		case replicaset.OrchestratorCustom:
 			fallthrough
 		default:
 			return fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
@@ -79,9 +83,9 @@ func Promote(ctx PromoteCtx) error {
 	}
 
 	err = orchestrator.Promote(replicaset.PromoteCtx{
-		InstName:        ctx.InstName,
-		Force:           ctx.Force,
-		ElectionTimeout: ctx.Timeout,
+		InstName: ctx.InstName,
+		Force:    ctx.Force,
+		Timeout:  ctx.Timeout,
 	})
 	if err == nil {
 		log.Info("Done.")

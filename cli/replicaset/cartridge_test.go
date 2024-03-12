@@ -2,10 +2,13 @@ package replicaset_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/replicaset"
 )
 
@@ -678,6 +681,183 @@ func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 			instance := replicaset.NewCartridgeInstance(tc.Evaler)
 			_, err := instance.Discovery()
 			assert.ErrorContains(t, err, tc.Expected)
+		})
+	}
+}
+
+func TestCartridgeInstancePromote_errs(t *testing.T) {
+	getReplicasetInfo := func(failover string) map[any]any {
+		return map[any]any{
+			"failover": failover,
+			"replicasets": []any{
+				map[any]any{
+					"uuid": "foo1",
+					"instances": []any{
+						map[any]any{
+							"uuid":  "i1",
+							"alias": "inst-01",
+						},
+					},
+				},
+			},
+		}
+	}
+
+	var (
+		instInfoBar = map[any]any{
+			"uuid": "bar",
+			"rw":   false,
+		}
+
+		instInfoI1 = map[any]any{
+			"uuid": "i1",
+			"rw":   true,
+		}
+
+		replicasetInfo                 = getReplicasetInfo("disabled")
+		replicasetInfoFailoverUnknown  = getReplicasetInfo("lol")
+		replicasetInfoFailoverStateful = getReplicasetInfo("stateful")
+	)
+
+	mockErr := fmt.Errorf("mocked error")
+	cases := []struct {
+		evaler   connector.Evaler
+		expected string
+		name     string
+		ctx      replicaset.PromoteCtx
+	}{
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfo},
+					{instInfoBar},
+					{instInfoBar},
+				},
+			},
+			expected: `instance with uuid "bar" not found in a configured replicaset`,
+			name:     "no instance",
+			ctx:      replicaset.PromoteCtx{InstName: "inst-02"},
+		},
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfo},
+					{instInfoI1},
+					{instInfoI1},
+					nil,
+				},
+				Error: []error{nil, nil, nil, mockErr},
+			},
+			expected: "failed to edit replicasets: " + mockErr.Error(),
+			ctx:      replicaset.PromoteCtx{InstName: "inst-01"},
+			name:     "edit replicasets err",
+		},
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfoFailoverUnknown},
+					{instInfoI1},
+					{instInfoI1},
+				},
+			},
+			expected: "unexpected failover",
+			name:     "unexpected failover",
+		},
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfo},
+					{instInfoI1},
+					{instInfoI1},
+					nil,
+					nil,
+				},
+				Error: []error{nil, nil, nil, nil, mockErr},
+			},
+			expected: "failed to get cartridge version: " + mockErr.Error(),
+			ctx:      replicaset.PromoteCtx{InstName: "inst-01"},
+			name:     "version error",
+		},
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfo},
+					{instInfoI1},
+					{instInfoI1},
+					nil,
+					{"lol"},
+				},
+			},
+			expected: `failed to parse version "lol": format is not valid`,
+			ctx:      replicaset.PromoteCtx{InstName: "inst-01"},
+			name:     "version parse err",
+		},
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfo},
+					{instInfoI1},
+					{instInfoI1},
+					nil,
+					{"unknown"},
+				},
+			},
+			expected: "cartridge version is unknown",
+			ctx:      replicaset.PromoteCtx{InstName: "inst-01"},
+			name:     "unknown version",
+		},
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfo},
+					{instInfoI1},
+					{instInfoI1},
+					nil,
+					{"1.0.0"},
+					nil,
+				},
+				Error: []error{nil, nil, nil, nil, nil, mockErr},
+			},
+			expected: "failed to wait healthy: " + mockErr.Error(),
+			ctx:      replicaset.PromoteCtx{InstName: "inst-01"},
+			name:     "healthy waiting error",
+		},
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfo},
+					{instInfoI1},
+					{instInfoI1},
+					nil,
+					{"2.8.0"},
+					nil,
+				},
+				Error: []error{nil, nil, nil, nil, nil, mockErr},
+			},
+			expected: "failed to wait rw: " + mockErr.Error(),
+			ctx:      replicaset.PromoteCtx{InstName: "inst-01"},
+			name:     "rw waiting error",
+		},
+		{
+			evaler: &instanceMockEvaler{
+				Ret: [][]any{
+					{replicasetInfoFailoverStateful},
+					{instInfoI1},
+					{instInfoI1},
+					nil,
+				},
+				Error: []error{nil, nil, nil, mockErr},
+			},
+			expected: "failed to failover promote: " + mockErr.Error(),
+			ctx:      replicaset.PromoteCtx{InstName: "inst-01"},
+			name:     "promoting via failover error",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			instance := replicaset.NewCartridgeInstance(tc.evaler)
+			err := instance.Promote(tc.ctx)
+			require.EqualError(t, err, tc.expected)
 		})
 	}
 }
