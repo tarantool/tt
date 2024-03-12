@@ -8,13 +8,27 @@ import (
 
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/version"
 )
 
-//go:embed lua/cartridge/get_topology_replicasets_body.lua
-var cartridgeGetTopologyReplicasetsBody string
+var (
+	//go:embed lua/cartridge/get_topology_replicasets_body.lua
+	cartridgeGetTopologyReplicasetsBody string
 
-//go:embed lua/cartridge/get_instance_info_body.lua
-var cartridgeGetInstanceInfoBody string
+	//go:embed lua/cartridge/get_instance_info_body.lua
+	cartridgeGetInstanceInfoBody string
+
+	//go:embed lua/cartridge/edit_replicasets_body.lua
+	cartridgeEditReplicasetsBody string
+
+	//go:embed lua/cartridge/failover_promote_body.lua
+	cartridgeFailoverPromoteBody string
+
+	//go:embed lua/cartridge/wait_healthy_body.lua
+	cartridgeWaitHealthyBody string
+
+	cartridgeGetVersionBody = "return require('cartridge').VERSION or '1'"
+)
 
 // cartridgeTopology used to export topology information from a Tarantool
 // instance with the Cartridge orchestrator.
@@ -34,6 +48,13 @@ type cartridgeTopology struct {
 // CartridgeInstance is an instance with the Cartridge orchestrator.
 type CartridgeInstance struct {
 	evaler connector.Evaler
+}
+
+// cartridgeInstance describes a cartridge instance.
+type cartridgeInstance struct {
+	Failover       Failover
+	ReplicasetUUID string
+	InstanceUUID   string
 }
 
 // NewCartridgeInstance creates a new CartridgeInstance object for the evaler.
@@ -82,6 +103,38 @@ func getCartridgeReplicasets(topology cartridgeTopology) Replicasets {
 		}
 	}
 	return replicasets
+}
+
+// Promote promotes a cartridge instance.
+func (c *CartridgeInstance) Promote(ctx PromoteCtx) error {
+	replicasets, err := c.Discovery()
+	if err != nil {
+		return err
+	}
+	uuid, _, err := getCartridgeInstanceInfo(c.evaler)
+	if err != nil {
+		return err
+	}
+	var (
+		inst  cartridgeInstance
+		found bool
+	)
+loop:
+	for _, replicaset := range replicasets.Replicasets {
+		for _, instance := range replicaset.Instances {
+			if instance.UUID == uuid {
+				inst.ReplicasetUUID = replicaset.UUID
+				inst.InstanceUUID = instance.UUID
+				inst.Failover = replicaset.Failover
+				found = true
+				break loop
+			}
+		}
+	}
+	if !found {
+		return fmt.Errorf("instance with uuid %q not found in a configured replicaset", uuid)
+	}
+	return cartridgePromote(c.evaler, inst, ctx.Force, ctx.Timeout)
 }
 
 // GetReplicasets returns a replicaset topology for a single instance with the
@@ -161,10 +214,46 @@ func (c *CartridgeApplication) Discovery() (Replicasets, error) {
 	return recalculateMasters(replicasets), err
 }
 
-// updateCartridgeInstance receives and updates an additional instance
-// information about the instance in the replicasets.
-func updateCartridgeInstance(evaler connector.Evaler,
-	ictx *running.InstanceCtx, replicasets Replicasets) (Replicasets, error) {
+// Promote promotes an instance in the cartridge application.
+func (c *CartridgeApplication) Promote(ctx PromoteCtx) error {
+	replicasets, err := c.Discovery()
+	if err != nil {
+		return err
+	}
+	var (
+		targetInstance Instance
+		inst           cartridgeInstance
+		found          bool
+	)
+loop:
+	for _, replicaset := range replicasets.Replicasets {
+		for _, instance := range replicaset.Instances {
+			if instance.Alias == ctx.InstName {
+				inst = cartridgeInstance{
+					ReplicasetUUID: replicaset.UUID,
+					InstanceUUID:   instance.UUID,
+					Failover:       replicaset.Failover,
+				}
+				targetInstance = instance
+				found = true
+				break loop
+			}
+		}
+	}
+	if !found {
+		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+	}
+	if !targetInstance.InstanceCtxFound {
+		return fmt.Errorf("target instance should be online")
+	}
+
+	return cartridgePromote(MakeInstanceEvalFunc(targetInstance.InstanceCtx),
+		inst, ctx.Force, ctx.Timeout)
+}
+
+// getCartridgeInstanceInfo returns an additional instance information.
+func getCartridgeInstanceInfo(
+	evaler connector.Evaler) (uuid string, rw bool, err error) {
 	info := []struct {
 		UUID string
 		RW   bool
@@ -174,20 +263,30 @@ func updateCartridgeInstance(evaler connector.Evaler,
 	opts := connector.RequestOpts{}
 	data, err := evaler.Eval(cartridgeGetInstanceInfoBody, args, opts)
 	if err != nil {
-		return replicasets, err
+		return "", false, err
 	}
 
 	if err := mapstructure.Decode(data, &info); err != nil {
-		return replicasets, fmt.Errorf("failed to parse a response: %w", err)
+		return "", false, fmt.Errorf("failed to parse a response: %w", err)
 	}
 	if len(info) != 1 {
-		return replicasets, fmt.Errorf("unexpected response")
+		return "", false, fmt.Errorf("unexpected response")
 	}
+	return info[0].UUID, info[0].RW, nil
+}
 
+// updateCartridgeInstance receives and updates an additional instance
+// information about the instance in the replicasets.
+func updateCartridgeInstance(evaler connector.Evaler,
+	ictx *running.InstanceCtx, replicasets Replicasets) (Replicasets, error) {
+	uuid, rw, err := getCartridgeInstanceInfo(evaler)
+	if err != nil {
+		return replicasets, err
+	}
 	for _, replicaset := range replicasets.Replicasets {
 		for i, _ := range replicaset.Instances {
-			if replicaset.Instances[i].UUID == info[0].UUID {
-				if info[0].RW {
+			if replicaset.Instances[i].UUID == uuid {
+				if rw {
 					replicaset.Instances[i].Mode = ModeRW
 				} else {
 					replicaset.Instances[i].Mode = ModeRead
@@ -200,4 +299,149 @@ func updateCartridgeInstance(evaler connector.Evaler,
 		}
 	}
 	return replicasets, nil
+}
+
+// getCartridgeVersion returns the version of the cartridge.
+func getCartridgeVersion(evaler connector.Evaler) (string, error) {
+	var reqOpts connector.RequestOpts
+	args := []any{}
+	errPrefix := "failed to get cartridge version: "
+	ret, err := evaler.Eval(cartridgeGetVersionBody, args, reqOpts)
+	if err != nil {
+		return "", fmt.Errorf(errPrefix+"%w", err)
+	}
+	if len(ret) != 1 {
+		return "", fmt.Errorf(errPrefix + "unexpected response length")
+	}
+	version, ok := ret[0].(string)
+	if !ok {
+		return "", fmt.Errorf(errPrefix+"unexpected version type: %T", ret[0])
+	}
+	return version, nil
+}
+
+// getCartridgeMajorVersion returns the major version of the cartridge.
+func getCartridgeMajorVersion(evaler connector.Evaler) (int, error) {
+	ver, err := getCartridgeVersion(evaler)
+	if err != nil {
+		return 0, err
+	}
+	switch ver {
+	case "scm-1":
+		return 2, nil
+	case "unknown":
+		return 0, fmt.Errorf("cartridge version is unknown")
+	default:
+		parsed, err := version.Parse(ver)
+		if err != nil {
+			return 0, err
+		}
+		return int(parsed.Major), nil
+	}
+}
+
+// cartridgeHealthCheckIsNeeded checks if we need to wait cluster healthy
+// after replicaset editing.
+// https://github.com/tarantool/cartridge-cli/blob/76044114f412b1fa15e353f84e7de1f0c3d98566/cli/cluster/cluster.go#L15-L22
+func cartridgeHealthCheckIsNeeded(evaler connector.Evaler) (bool, error) {
+	major, err := getCartridgeMajorVersion(evaler)
+	if err != nil {
+		return false, err
+	}
+	return major < 2, nil
+}
+
+// cartridgeEditReplicasetsOpts describes options for replicaset editing.
+type cartridgeEditReplicasetsOpts struct {
+	UUID        *string  `msgpack:"uuid,omitempty"`
+	Alias       *string  `msgpack:"alias,omitempty"`
+	Roles       []string `msgpack:"roles,omitempty"`
+	AllRW       *bool    `msgpack:"all_rw,omitempty"`
+	Weight      *float64 `msgpack:"weight,omitempty"`
+	VshardGroup *string  `msgpack:"vshard_group,omitempty"`
+	JoinServers []struct {
+		URI string `msgpack:"uri"`
+	} `msgpack:"join_servers,omitempty"`
+	FailoverPriority []string `msgpack:"failover_priority,omitempty"`
+}
+
+// cartridgeWaitHealthy waits until the cluster becomes healthy.
+func cartridgeWaitHealthy(evaler connector.Evaler, timeout int) error {
+	var reqOpts connector.RequestOpts
+	args := []any{timeout}
+	if _, err := evaler.Eval(cartridgeWaitHealthyBody, args, reqOpts); err != nil {
+		return fmt.Errorf("failed to wait healthy: %w", err)
+	}
+	return nil
+}
+
+// cartridgeEditReplicasets edits replicasets topology in the cartridge app.
+func cartridgeEditReplicasets(evaler connector.Evaler,
+	opts []cartridgeEditReplicasetsOpts, timeout int) error {
+	var reqOpts connector.RequestOpts
+	args := []any{opts}
+	if _, err := evaler.Eval(cartridgeEditReplicasetsBody, args, reqOpts); err != nil {
+		return fmt.Errorf("failed to edit replicasets: %w", err)
+	}
+	healthCheckIsNeeded, err := cartridgeHealthCheckIsNeeded(evaler)
+	if err != nil {
+		return err
+	}
+	if healthCheckIsNeeded {
+		if err := cartridgeWaitHealthy(evaler, timeout); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// cartridgeFailoverPromoteOpts describes options for promoting via failover.
+type cartridgeFailoverPromoteOpts struct {
+	Leaders            map[string]string `msgpack:"replicaset_leaders"`
+	ForceInconsistency bool              `msgpack:"force_inconsistency"`
+	SkipErrorOnChange  bool              `msgpack:"skip_error_on_change"`
+}
+
+// cartridgeFailoverPromote is a cartridge.failover_promote() wrapper.
+func cartridgeFailoverPromote(evaler connector.Evaler, opts cartridgeFailoverPromoteOpts) error {
+	var reqOpts connector.RequestOpts
+	args := []any{opts}
+	if _, err := evaler.Eval(cartridgeFailoverPromoteBody, args, reqOpts); err != nil {
+		return fmt.Errorf("failed to failover promote: %w", err)
+	}
+	return nil
+}
+
+// cartridgePromote promotes an instance in the cartridge replicaset.
+// https://www.tarantool.io/en/doc/2.11/book/cartridge/cartridge_dev/#manual-leader-promotion
+func cartridgePromote(evaler connector.Evaler,
+	inst cartridgeInstance, force bool, timeout int) error {
+	switch inst.Failover {
+	case FailoverOff, FailoverEventual:
+		opts := cartridgeEditReplicasetsOpts{
+			UUID:             &inst.ReplicasetUUID,
+			FailoverPriority: []string{inst.InstanceUUID},
+		}
+		if err := cartridgeEditReplicasets(evaler,
+			[]cartridgeEditReplicasetsOpts{opts}, timeout); err != nil {
+			return err
+		}
+	case FailoverElection, FailoverStateful:
+		leaders := map[string]string{}
+		leaders[inst.ReplicasetUUID] = inst.InstanceUUID
+		opts := cartridgeFailoverPromoteOpts{
+			Leaders:            leaders,
+			ForceInconsistency: force,
+			// Anyway print an error if vclockkeeper was changed in
+			// etcd during inconsistency forcing.
+			// https://github.com/tarantool/cartridge/blob/1c07213c058cfb500a8046175407ed46acf6cb44/cartridge/failover.lua#L1112-L1114
+			SkipErrorOnChange: false,
+		}
+		if err := cartridgeFailoverPromote(evaler, opts); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unexpected failover")
+	}
+	return waitRW(evaler, timeout)
 }

@@ -86,7 +86,7 @@ func (c *CConfigInstance) Discovery() (Replicasets, error) {
 
 // Promote promotes an instance.
 func (c *CConfigInstance) Promote(ctx PromoteCtx) error {
-	return cconfigPromoteElection(c.evaler, ctx.ElectionTimeout)
+	return cconfigPromoteElection(c.evaler, ctx.Timeout)
 }
 
 // CConfigApplication is an application with the centralized config
@@ -340,7 +340,7 @@ func (c *CConfigApplication) promote(instance running.InstanceCtx, ctx PromoteCt
 
 	if instCtx.failover == FailoverElection {
 		eval := func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-			return true, cconfigPromoteElection(evaler, ctx.ElectionTimeout)
+			return true, cconfigPromoteElection(evaler, ctx.Timeout)
 		}
 		err := EvalAny([]running.InstanceCtx{instance}, InstanceEvalFunc(eval))
 		return false, err

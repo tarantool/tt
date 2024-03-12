@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- `tt replicaset promote`: command to promote an instance in the tarantool 3.0 replicaset.
+- `tt replicaset promote`: command to promote an instance in the tarantool replicaset with
+ cluster config (3.0) or cartridge orchestrator.
 - `tt cluster replicaset`: module to manage replicaset via 3.0 cluster config source.
   * `tt cluster replicaset promote`: command to promote an instance in the replicaset.
 - `tt connect --binary`: connect to instance using binary port.

@@ -7,9 +7,9 @@ type PromoteCtx struct {
 	// Force is true when promoting can skip
 	// some non-critical checks.
 	Force bool
-	// ElectionTimeout is a timeout for promoting via election in seconds.
+	// Timeout is a timeout for promoting waitings in seconds.
 	// Keep int, because it can be passed to the target instance.
-	ElectionTimeout int
+	Timeout int
 }
 
 // Promoter is an interface to promote an instance in the replicaset.

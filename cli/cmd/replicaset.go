@@ -68,7 +68,7 @@ func newStatusCmd() *cobra.Command {
 
 // newPromoteCmd creates a "replicaset promote" command.
 func newPromoteCmd() *cobra.Command {
-	promoteCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use: "promote [--cartridge|--config|--custom] [-f] [--timeout secs] [flags] " +
 			"(<APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
 			"  The URI can be specified in the following formats:\n" +
@@ -91,14 +91,16 @@ func newPromoteCmd() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 	}
 
-	addOrchestratorFlags(promoteCmd)
-	addTarantoolConnectFlags(promoteCmd)
-	promoteCmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
-		"skip instances not found locally")
-	promoteCmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
-		replicasetcmd.DefaultTimeout, "election promoting timeout")
+	addOrchestratorFlags(cmd)
+	addTarantoolConnectFlags(cmd)
+	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
+		"to force a promotion:\n"+
+			"  * config: skip instances not found locally\n"+
+			"  * cartridge: force inconsistency")
+	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
+		replicasetcmd.DefaultTimeout, "promoting timeout")
 
-	return promoteCmd
+	return cmd
 }
 
 // NewReplicasetCmd creates a replicaset command.

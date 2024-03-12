@@ -5,6 +5,7 @@ import tempfile
 
 import py
 import pytest
+from cartridge_helper import CartridgeApp
 from etcd_helper import EtcdInstance
 
 from utils import create_tt_config
@@ -99,3 +100,20 @@ def etcd_session(request, session_tmpdir):
 def etcd(etcd_session):
     etcd_session.truncate()
     return etcd_session
+
+
+@pytest.fixture(scope="session")
+def cartridge_app_session(request, tt_cmd):
+    tmpdir = get_tmpdir(request)
+    create_tt_config(tmpdir, "")
+    cartridge_app = CartridgeApp(tmpdir, tt_cmd)
+    request.addfinalizer(lambda: cartridge_app.stop())
+    cartridge_app.start()
+
+    return cartridge_app
+
+
+@pytest.fixture
+def cartridge_app(cartridge_app_session):
+    cartridge_app_session.truncate()
+    return cartridge_app_session

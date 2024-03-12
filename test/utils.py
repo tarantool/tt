@@ -11,8 +11,9 @@ import psutil
 import tarantool
 import yaml
 
-run_path = os.path.join("var", "run")
-log_path = os.path.join("var", "log")
+var_path = "var"
+run_path = os.path.join(var_path, "run")
+log_path = os.path.join(var_path, "log")
 config_name = "tt.yaml"
 control_socket = "tarantool.control"
 pid_file = "tt.pid"
@@ -329,12 +330,21 @@ def get_process_conn(pidfile, port):
     return None
 
 
+def find_ports(n=1, port=8000):
+    ports = []
+    while len(ports) < n:
+        busy = False
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("localhost", port)) == 0:
+                busy = True
+        if not busy:
+            ports.append(port)
+        port += 1
+    return ports
+
+
 def find_port(port=8000):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        if s.connect_ex(("localhost", port)) == 0:
-            return find_port(port=port + 1)
-        else:
-            return port
+    return find_ports(1, port)[0]
 
 
 def extract_status(status_output):
