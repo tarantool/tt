@@ -142,16 +142,27 @@ func CreatePIDFile(pidFileName string) error {
 	return nil
 }
 
-// StopProcess stops the process by pidFile.
-func StopProcess(pidFile string) (int, error) {
+// getRunningPid returns PID from pidfile and check the process is running.
+func getRunningPid(pidFile string) (int, error) {
 	pid, err := GetPIDFromFile(pidFile)
 	if err != nil {
 		return 0, err
 	}
 
-	alive, err := IsProcessAlive(pid)
-	if !alive {
-		return 0, fmt.Errorf(`the process is already dead. Error: "%v"`, err)
+	if alive, err := IsProcessAlive(pid); err != nil {
+		return 0, fmt.Errorf("failed to check if the process %v is running: %s", pid, err)
+	} else if !alive {
+		return 0, fmt.Errorf("the process %v is not running", pid)
+	}
+
+	return pid, nil
+}
+
+// StopProcess stops the process by pidFile.
+func StopProcess(pidFile string) (int, error) {
+	pid, err := getRunningPid(pidFile)
+	if err != nil {
+		return 0, fmt.Errorf("can't get pid of running process: %s", err)
 	}
 
 	if err = syscall.Kill(pid, syscall.SIGINT); err != nil {
@@ -160,6 +171,43 @@ func StopProcess(pidFile string) (int, error) {
 
 	if res := waitProcessTermination(pid, 30*time.Second, 100*time.Millisecond); !res {
 		return 0, fmt.Errorf("can't terminate the process")
+	}
+
+	return pid, nil
+}
+
+// QuitProcess quits the process by pidFile.
+func QuitProcess(pidFile string) (int, error) {
+	pid, err := getRunningPid(pidFile)
+	if err != nil {
+		return 0, fmt.Errorf("can't get pid of running process: %s", err)
+	}
+
+	if err = syscall.Kill(pid, syscall.SIGQUIT); err != nil {
+		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %s", err)
+	}
+
+	if res := waitProcessTermination(pid, 30*time.Second, 100*time.Millisecond); !res {
+		return 0, fmt.Errorf("can't terminate the process with SIGQUIT")
+	}
+
+	return pid, nil
+}
+
+// KillProcessGroup kills a process group using a PID from the pid file as a process group id.
+func KillProcessGroup(pidFile string) (int, error) {
+	pid, err := getRunningPid(pidFile)
+	if err != nil {
+		return 0, fmt.Errorf("can't get pid of running process: %s", err)
+	}
+
+	pgid, err := syscall.Getpgid(pid)
+	if err != nil {
+		return 0, fmt.Errorf("can't get a process group of the %d process: %s", pid, err)
+	}
+
+	if err = syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
+		return 0, fmt.Errorf("can't kill the process: %s", err)
 	}
 
 	return pid, nil

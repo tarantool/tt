@@ -27,4 +27,7 @@ type Instance interface {
 	// waitTimeout - the time that was provided to the process
 	// to terminate correctly before killing it.
 	Stop(waitTimeout time.Duration) error
+
+	// StopWithSignal terminates the process with specific signal.
+	StopWithSignal(waitTimeout time.Duration, usedSignal os.Signal) error
 }

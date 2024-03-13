@@ -4,11 +4,15 @@ import shutil
 import subprocess
 import tempfile
 
+import psutil
+import pytest
 import yaml
+from retry import retry
 
-from utils import (config_name, extract_status, kill_child_process, log_file,
-                   log_path, pid_file, run_command_and_get_output, run_path,
-                   wait_file, wait_instance_start, wait_instance_stop)
+from utils import (config_name, control_socket, extract_status,
+                   kill_child_process, log_file, log_path, pid_file,
+                   run_command_and_get_output, run_path, wait_file,
+                   wait_instance_start, wait_instance_stop)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
@@ -791,3 +795,111 @@ def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
                              stop_out)
             assert re.search(r"The Instance mi_app:storage \(PID = \d+\) has been terminated.",
                              stop_out)
+
+
+# SIGQUIT tests are skipped, because they cause coredump generation, which cannot be disabled
+# with process limits setting for some coredump patterns (using systemd-coderump).
+@pytest.mark.parametrize("cmd,input", [
+    (["kill", "test_app", "-f"], None),
+    (["kill", "test_app"], "y\n"),
+    ])
+def test_kill(tt_cmd, tmpdir_with_cfg, cmd, input):
+    tmpdir = tmpdir_with_cfg
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
+    shutil.copy(test_app_path, tmpdir)
+
+    # Start an instance.
+    start_cmd = [tt_cmd, "start", "test_app"]
+    run_command_and_get_output(start_cmd, cwd=tmpdir)
+    run_dir = os.path.join(tmpdir, "test_app", run_path, "test_app")
+
+    try:
+        tt_pid_file = wait_file(run_dir, pid_file, [])
+        assert tt_pid_file != ""
+        console_socket = wait_file(run_dir, control_socket, [])
+        assert console_socket != ""
+
+        watchdog_pid = 0
+        with open(os.path.join(run_dir, tt_pid_file), "r", encoding="utf-8") as f:
+            watchdog_pid = int(f.readline())
+        assert watchdog_pid != 0
+        tarantool_process = None
+        watchdog_process = psutil.Process(watchdog_pid)
+        for child in watchdog_process.children():
+            if "tarantool" in child.exe():
+                tarantool_process = child
+        assert tarantool_process is not None
+
+        # Kill the Instance.
+        kill_cmd = [tt_cmd]
+        kill_cmd.extend(cmd)
+        rc, kill_out = run_command_and_get_output(kill_cmd, cwd=tmpdir, input=input)
+        assert rc == 0
+        assert re.search(r"The instance test_app \(PID = \d+\) has been killed.", kill_out)
+
+        assert not os.path.exists(os.path.join(run_dir, console_socket))
+        assert not os.path.exists(os.path.join(run_dir, tt_pid_file))
+
+        @retry(AssertionError, tries=6, delay=0.5)
+        def process_not_running(process):
+            assert not process.is_running()
+        process_not_running(tarantool_process)
+        process_not_running(watchdog_process)
+
+    finally:
+        stop = [tt_cmd, "stop", "test_app"]
+        run_command_and_get_output(stop, cwd=tmpdir)
+
+
+@pytest.mark.parametrize("cmd,input", [
+    (["kill", "-f"], None),
+    (["kill"], "y\n"),
+    ])
+def test_kill_without_app_name(tt_cmd, tmpdir, cmd, input):
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
+    instances = ["master", "replica", "router"]
+    test_app_path = os.path.join(tmpdir, "multi_app")
+    shutil.copytree(test_app_path_src, test_app_path)
+
+    # Start apps.
+    start_cmd = [tt_cmd, "start"]
+    rc, start_out = run_command_and_get_output(start_cmd, cwd=test_app_path)
+    assert rc == 0
+    try:
+        assert re.search(r"Starting an instance \[app1:(router|master|replica)\]", start_out)
+        assert re.search(r"Starting an instance \[app2\]", start_out)
+        inst_dir = os.path.join(test_app_path, "instances_enabled")
+        for instName in instances:
+            assert "" != wait_file(os.path.join(inst_dir, "app1", run_path, instName), pid_file, [])
+        assert "" != wait_file(os.path.join(inst_dir, "app2", run_path, "app2"), pid_file, [])
+
+        # Check status.
+        status_cmd = [tt_cmd, "status"]
+        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+        assert status_rc == 0
+        status_out = extract_status(status_out)
+
+        for instName in instances:
+            assert status_out[f"app1:{instName}"]["STATUS"] == "RUNNING"
+        assert status_out["app2"]["STATUS"] == "RUNNING"
+
+        # Kill all apps.
+        kill_cmd = [tt_cmd]
+        kill_cmd.extend(cmd)
+        rc, stop_out = run_command_and_get_output(kill_cmd, cwd=test_app_path, input=input)
+        assert rc == 0
+        assert re.search(r"The instance app1:(router|master|replica) \(PID = \d+\) "
+                         "has been killed.", stop_out)
+        assert re.search(r"The instance app2 \(PID = \d+\) has been killed.", stop_out)
+
+        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
+        assert status_rc == 0
+        status_out = extract_status(status_out)
+
+        for instName in instances:
+            assert status_out[f"app1:{instName}"]["STATUS"] == "NOT RUNNING"
+        assert status_out["app2"]["STATUS"] == "NOT RUNNING"
+
+    finally:
+        stop = [tt_cmd, "stop"]
+        run_command_and_get_output(stop, cwd=test_app_path)

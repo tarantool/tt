@@ -193,8 +193,13 @@ func (inst *clusterInstance) IsAlive() bool {
 // timeout - the time that was provided to the process
 // to terminate correctly before killing it.
 func (inst *clusterInstance) Stop(waitTimeout time.Duration) error {
+	return inst.StopWithSignal(waitTimeout, os.Interrupt)
+}
+
+// StopWithSignal terminates the process with specific signal.
+func (inst *clusterInstance) StopWithSignal(waitTimeout time.Duration, usedSignal os.Signal) error {
 	if inst.processController == nil {
 		return nil
 	}
-	return inst.processController.Stop(waitTimeout)
+	return inst.processController.StopWithSignal(waitTimeout, usedSignal)
 }

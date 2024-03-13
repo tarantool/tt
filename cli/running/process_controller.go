@@ -74,11 +74,14 @@ func (pc *processController) IsAlive() bool {
 	return pc.SendSignal(syscall.Signal(0)) == nil
 }
 
-// Stop terminates the process.
-//
-// timeout - the time that was provided to the process
-// to terminate correctly before the "SIGKILL" signal is used.
 func (pc *processController) Stop(waitTimeout time.Duration) error {
+	return pc.StopWithSignal(waitTimeout, os.Interrupt)
+}
+
+// StopWithSignal sends the signal to the process and waits for it to complete.
+//
+// timeout - the time to wait for a process to complete before the "SIGKILL" signal to be sent.
+func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSignal os.Signal) error {
 	if !pc.IsAlive() {
 		return nil
 	}
@@ -90,10 +93,10 @@ func (pc *processController) Stop(waitTimeout time.Duration) error {
 		waitDone <- pc.Wait()
 	}()
 
-	// Trying to terminate the process by using a "SIGINT" signal.
+	// Trying to terminate the process by using a stopSignal.
 	// In case of failure a "SIGKILL" signal will be used.
-	if err := pc.SendSignal(os.Interrupt); err != nil {
-		return fmt.Errorf("failed to send SIGINT to instance: %s", err)
+	if err := pc.SendSignal(stopSignal); err != nil {
+		return fmt.Errorf("failed to send %v to instance: %s", stopSignal, err)
 	}
 
 	// Terminate the process at any cost.

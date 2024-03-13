@@ -271,3 +271,11 @@ func (inst *scriptInstance) Stop(waitTimeout time.Duration) error {
 	}
 	return inst.processController.Stop(waitTimeout)
 }
+
+// StopWithSignal terminates the process with specific signal.
+func (inst *scriptInstance) StopWithSignal(waitTimeout time.Duration, usedSignal os.Signal) error {
+	if inst.processController == nil {
+		return nil
+	}
+	return inst.processController.StopWithSignal(waitTimeout, usedSignal)
+}
