@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 import subprocess
 import time
@@ -55,7 +56,9 @@ def test_cartridge_base_functionality(tt_cmd, tmpdir_with_cfg):
     assert re.search(r'Application was successfully built', build_out)
 
     test_env = os.environ.copy()
-    test_env['TT_LISTEN'] = ''
+    if platform.system() == "Darwin":
+        test_env['TT_LISTEN'] = ''
+
     start_cmd = [tt_cmd, "start", cartridge_name]
     subprocess.Popen(
         start_cmd,
@@ -178,7 +181,9 @@ def test_cartridge_base_functionality_in_app_dir(tt_cmd, tmpdir_with_cfg):
     assert 'Application was successfully built' in out
 
     test_env = os.environ.copy()
-    test_env['TT_LISTEN'] = ''
+    if platform.system() == "Darwin":
+        test_env['TT_LISTEN'] = ''
+
     cmd = [tt_cmd, "start"]
     subprocess.Popen(
         cmd,
