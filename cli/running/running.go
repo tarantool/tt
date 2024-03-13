@@ -712,6 +712,41 @@ func Stop(run *InstanceCtx) error {
 	return nil
 }
 
+// Kill kills instance process.
+func Kill(run InstanceCtx) error {
+	pid, err := process_utils.KillProcessGroup(run.PIDFile)
+	if err != nil {
+		return fmt.Errorf("failed to kill the processes: %s", err)
+	}
+
+	// Remove PID files because due to SIGKILL watchdog can't cleanup itself.
+	cleanup(&run)
+
+	fullInstanceName := GetAppInstanceName(run)
+	log.Infof("The instance %s (PID = %v) has been killed.", fullInstanceName, pid)
+
+	return nil
+}
+
+// Quit the Instance.
+func Quit(run InstanceCtx) error {
+	pid, err := process_utils.QuitProcess(run.PIDFile)
+	if err != nil {
+		return fmt.Errorf("failed to quit the process: %s", err)
+	}
+
+	if _, err := os.Stat(run.ConsoleSocket); err == nil {
+		if err = os.Remove(run.ConsoleSocket); err != nil {
+			log.Warnf("cannot remove console socket %q: %s", run.ConsoleSocket, err)
+		}
+	}
+
+	fullInstanceName := GetAppInstanceName(run)
+	log.Infof("The instance %s (PID = %v) has been terminated with dump.", fullInstanceName, pid)
+
+	return nil
+}
+
 func Run(runInfo *RunInfo) error {
 	inst := scriptInstance{tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
 		integrityCtx: runInfo.CmdCtx.Integrity}

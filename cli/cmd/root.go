@@ -186,6 +186,7 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		NewBinariesCmd(),
 		NewEnvCmd(),
 		NewDownloadCmd(),
+		NewKillCmd(),
 	)
 	if err := injectCmds(rootCmd); err != nil {
 		panic(err.Error())

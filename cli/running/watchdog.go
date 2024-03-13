@@ -233,6 +233,14 @@ func (wd *Watchdog) startSignalHandling(ctx context.Context, cancel context.Canc
 					if wd.instance.IsAlive() {
 						wd.instance.Stop(30 * time.Second)
 					}
+				case syscall.SIGQUIT:
+					wd.logger.Print("(INFO): SIGQUIT received.")
+					wd.stopMutex.Lock()
+					wd.shouldStop = true
+					wd.stopMutex.Unlock()
+					if wd.instance.IsAlive() {
+						wd.instance.StopWithSignal(30*time.Second, syscall.SIGQUIT)
+					}
 				case syscall.SIGHUP:
 					// Rotate the log files.
 					wd.logger.Rotate()

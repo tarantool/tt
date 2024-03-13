@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt cluster replicaset`: module to manage replicaset via 3.0 cluster config source.
   * `tt cluster replicaset promote`: command to promote an instance in the replicaset.
 - `tt connect --binary`: connect to instance using binary port.
+- `tt kill`: command to stop instance(s) with SIGQUIT and SIGKILL signals.
 
 ### Changed
 

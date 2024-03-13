@@ -20,23 +20,22 @@ log_file = "tt.log"
 
 
 def run_command_and_get_output(
-    cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=None, env=None
+    cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, input=None, cwd=None, env=None
 ):
-    process = subprocess.Popen(
+    process = subprocess.run(
         cmd,
         env=env,
         cwd=cwd,
         stderr=stderr,
         stdout=stdout,
+        text=True,
+        input=input
     )
 
-    out, _ = process.communicate()
-    out = out.decode('utf-8')
-
     # This print is here to make running tests with -s flag more verbose
-    print(out)
+    print(process.stdout)
 
-    return process.returncode, out
+    return process.returncode, process.stdout
 
 
 def create_tt_config(config_path, modules_path):
