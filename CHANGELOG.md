@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt replicaset promote`: command to promote an instance in the tarantool 3.0 replicaset.
 - `tt cluster replicaset`: module to manage replicaset via 3.0 cluster config source.
   * `tt cluster replicaset promote`: command to promote an instance in the replicaset.
+- `tt connect --binary`: connect to instance using binary port.
+
+### Changed
+
+- `tt start` now creates binary port.
 
 ## [2.2.0] - 2024-03-06
 
@@ -59,10 +64,6 @@ uses file name as a script instead of its content.
 - `tt binaries list`: not showing `active` tag for `master` version.
 - missing 3.0 SDK in search results for `tarantool-ee`.
 
-### Changed
-
-- `tt start` now creates binary port.
-
 ## [2.1.1] - 2024-01-15
 
 ### Added
@@ -91,7 +92,6 @@ running apps.
 
 ### Added
 
-- `tt connect --binary`: connect to instance using binary port.
 - `tt env`: add current environment binaries location to the PATH variable.
 - `tt cluster`: add an ability to specify a key for `show`/`publish` via URI.
 - `tt cluster`: add an ability to publish/show configuration from tarantool
