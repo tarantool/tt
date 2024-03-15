@@ -61,11 +61,11 @@ func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 	if err != nil {
 		return err
 	}
-	instanceCtx, err := getCConfigInstanceCtx(&clusterConfig, ctx.InstName)
+	inst, err := getCConfigInstance(&clusterConfig, ctx.InstName)
 	if err != nil {
 		return err
 	}
-	path, depth, err := getCConfigPromotePath(instanceCtx)
+	path, depth, err := getCConfigPromotePath(inst)
 	if err != nil {
 		return err
 	}
@@ -82,12 +82,12 @@ func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 	if err != nil {
 		return err
 	}
-	return c.promote(targets[dstIndex], instanceCtx)
+	return c.promote(targets[dstIndex], inst)
 }
 
 // promote promotes an instance by patching the specified target.
-func (c *CConfigSource) promote(target patchTarget, ctx cconfigInstCtx) error {
-	patched, err := patchCConfigPromote(target.config, ctx)
+func (c *CConfigSource) promote(target patchTarget, inst cconfigInstance) error {
+	patched, err := patchCConfigPromote(target.config, inst)
 	if err != nil {
 		return err
 	}
@@ -104,12 +104,12 @@ func (c *CConfigSource) promote(target patchTarget, ctx cconfigInstCtx) error {
 // we consider the configs which contains the paths (in the priority order):
 // * "/groups/g/replicasets/r/leader"
 // * "/groups/g/replicasets/r"
-func getCConfigPromotePath(ctx cconfigInstCtx) (path []string, depth int, err error) {
+func getCConfigPromotePath(inst cconfigInstance) (path []string, depth int, err error) {
 	var (
-		failover       = ctx.failover
-		groupName      = ctx.groupName
-		replicasetName = ctx.replicasetName
-		instName       = ctx.name
+		failover       = inst.failover
+		groupName      = inst.groupName
+		replicasetName = inst.replicasetName
+		instName       = inst.name
 	)
 	switch failover {
 	case FailoverOff:

@@ -219,7 +219,7 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 		IsApplication: isApplication,
 		Conn:          conn,
 		RunningCtx:    runningCtx,
-		Orhestrator:   orchestrator,
+		Orchestrator:  orchestrator,
 		Force:         replicasetForce,
 		Timeout:       replicasetTimeout,
 	})

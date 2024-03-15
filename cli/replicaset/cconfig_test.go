@@ -376,5 +376,5 @@ func TestCConfigInstance_Promote_error(t *testing.T) {
 	}
 	instance := replicaset.NewCConfigInstance(evaler)
 	actual := instance.Promote(replicaset.PromoteCtx{})
-	require.Equal(t, err, actual)
+	require.ErrorIs(t, actual, err)
 }

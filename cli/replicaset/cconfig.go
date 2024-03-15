@@ -16,11 +16,13 @@ import (
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
-//go:embed lua/cconfig/get_instance_topology_body.lua
-var cconfigGetInstanceTopologyBody string
+var (
+	//go:embed lua/cconfig/get_instance_topology_body.lua
+	cconfigGetInstanceTopologyBody string
 
-//go:embed lua/cconfig/promote_election.lua
-var cconfigPromoteElectionBody string
+	//go:embed lua/cconfig/promote_election.lua
+	cconfigPromoteElectionBody string
+)
 
 // cconfigTopology used to export topology information from a Tarantool
 // instance with the centralized config orchestrator.
@@ -41,8 +43,8 @@ type cconfigTopology struct {
 	InstanceRW bool
 }
 
-// cconfigInstCtx describes an instance context in the cluster config.
-type cconfigInstCtx struct {
+// cconfigInstance describes an instance in the cluster config.
+type cconfigInstance struct {
 	failover       Failover
 	groupName      string
 	replicasetName string
@@ -293,10 +295,13 @@ loop:
 
 // cconfigPromoteElection tries to promote an instance via `box.ctl.promote()`.
 func cconfigPromoteElection(evaler connector.Evaler, timeout int) error {
-	args := []any{timeout}
+	args := []any{}
 	opts := connector.RequestOpts{}
 	_, err := evaler.Eval(cconfigPromoteElectionBody, args, opts)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to promote via election: %w", err)
+	}
+	return waitRW(evaler, timeout)
 }
 
 // reloadCConfig reloads a cluster config on the several instances.
@@ -333,12 +338,12 @@ func (c *CConfigApplication) promote(instance running.InstanceCtx, ctx PromoteCt
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
 
-	instCtx, err := getCConfigInstanceCtx(&clusterCfg, ctx.InstName)
+	inst, err := getCConfigInstance(&clusterCfg, ctx.InstName)
 	if err != nil {
 		return false, err
 	}
 
-	if instCtx.failover == FailoverElection {
+	if inst.failover == FailoverElection {
 		eval := func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 			return true, cconfigPromoteElection(evaler, ctx.Timeout)
 		}
@@ -360,7 +365,7 @@ func (c *CConfigApplication) promote(instance running.InstanceCtx, ctx PromoteCt
 		return false, fmt.Errorf("failed to collect a configuration to update: %w", err)
 	}
 
-	config, err = patchCConfigPromote(config, instCtx)
+	config, err = patchCConfigPromote(config, inst)
 	if err != nil {
 		return false, fmt.Errorf("failed to patch config: %w", err)
 	}
@@ -415,13 +420,13 @@ func cconfigGetFailover(clusterConfig *libcluster.ClusterConfig,
 
 // patchCConfigPromote patches the config to promote an instance.
 func patchCConfigPromote(config *libcluster.Config,
-	ctx cconfigInstCtx) (*libcluster.Config, error) {
+	inst cconfigInstance) (*libcluster.Config, error) {
 	var err error
 	var (
-		failover       = ctx.failover
-		groupName      = ctx.groupName
-		replicasetName = ctx.replicasetName
-		instName       = ctx.name
+		failover       = inst.failover
+		groupName      = inst.groupName
+		replicasetName = inst.replicasetName
+		instName       = inst.name
 	)
 	switch failover {
 	case FailoverOff:
@@ -436,22 +441,22 @@ func patchCConfigPromote(config *libcluster.Config,
 	return config, err
 }
 
-// getCConfigInstance extracts an instance context from the cluster config.
-func getCConfigInstanceCtx(
-	config *libcluster.ClusterConfig, instName string) (cconfigInstCtx, error) {
+// getCConfigInstance extracts an instance from the cluster config.
+func getCConfigInstance(
+	config *libcluster.ClusterConfig, instName string) (cconfigInstance, error) {
 	var (
-		ctx   cconfigInstCtx
+		inst  cconfigInstance
 		found bool
 		err   error
 	)
-	ctx.name = instName
+	inst.name = instName
 loop:
 	for gname, group := range config.Groups {
 		for rname, replicaset := range group.Replicasets {
 			for iname := range replicaset.Instances {
 				if instName == iname {
-					ctx.groupName = gname
-					ctx.replicasetName = rname
+					inst.groupName = gname
+					inst.replicasetName = rname
 					found = true
 					break loop
 				}
@@ -459,9 +464,9 @@ loop:
 		}
 	}
 	if !found {
-		return ctx,
+		return inst,
 			fmt.Errorf("instance %q not found in the cluster configuration", instName)
 	}
-	ctx.failover, err = cconfigGetFailover(config, instName)
-	return ctx, err
+	inst.failover, err = cconfigGetFailover(config, instName)
+	return inst, err
 }
