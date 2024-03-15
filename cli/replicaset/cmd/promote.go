@@ -22,7 +22,7 @@ type PromoteCtx struct {
 	// IsApplication true if an application passed.
 	IsApplication bool
 	// Orchestrator is a forced orchestator choice.
-	Orhestrator replicaset.Orchestrator
+	Orchestrator replicaset.Orchestrator
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector
 	// RunningCtx is an application running context.
@@ -36,7 +36,7 @@ type PromoteCtx struct {
 
 // Promote promotes an instance.
 func Promote(ctx PromoteCtx) error {
-	orchestratorType, err := getOrchestratorInstance(ctx.Orhestrator, ctx.Conn)
+	orchestratorType, err := getOrchestratorInstance(ctx.Orchestrator, ctx.Conn)
 	if err != nil {
 		return err
 	}

@@ -1,20 +1,13 @@
+local config = require('config'):get()
+local failover = config.replication.failover
 
-local function promote(timeout)
-    local config = require('config'):get()
-    local failover = config.replication.failover
-
-    if failover ~= 'election' then
-        error(('unexpected failover: %q, "election" expected'):format(failover))
-    end
-
-    local election_mode = box.cfg.election_mode
-    if election_mode ~= 'candidate' and election_mode ~= 'manual' then
-        error(('unexpected election_mode: %q, ' ..
-            '"candidate" or "manual" expected'):format(election_mode))
-    end
-
-    box.ctl.promote()
-    box.ctl.wait_rw(timeout)
+if failover ~= 'election' then
+    error(('unexpected failover: %q, "election" expected'):format(failover))
 end
 
-promote(...)
+local election_mode = box.cfg.election_mode
+if election_mode ~= 'candidate' and election_mode ~= 'manual' then
+    error(('unexpected election_mode: %q, ' .. '"candidate" or "manual" expected'):format(election_mode))
+end
+
+box.ctl.promote()
