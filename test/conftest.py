@@ -3,12 +3,13 @@ import platform
 import subprocess
 import tempfile
 
+import psutil
 import py
 import pytest
 from cartridge_helper import CartridgeApp
 from etcd_helper import EtcdInstance
 
-from utils import create_tt_config
+from utils import create_tt_config, kill_procs
 
 
 # ######## #
@@ -85,14 +86,24 @@ def tmpdir_with_tarantool(tt_cmd, request):
 
 
 @pytest.fixture(scope="session")
-def etcd_session(request, session_tmpdir):
-    tmpdir = session_tmpdir
+def etcd_session(request):
+    tmpdir = get_tmpdir(request)
     host = "localhost"
     port = 12388
     etcd_instance = EtcdInstance(host, port, tmpdir)
+
+    def stop_etcd_children():
+        etcd_instance.stop()
+
+        # Additionally, we stop all etcd children;
+        # Finalizer may execute while ectd is starting.
+        me = psutil.Process()
+        kill_procs(list(filter(lambda p: p.name() == "etcd",
+                               me.children())))
+
+    request.addfinalizer(stop_etcd_children)
     etcd_instance.start()
 
-    request.addfinalizer(lambda: etcd_instance.stop())
     return etcd_instance
 
 
