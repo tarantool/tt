@@ -69,3 +69,23 @@ func recalculateMasters(replicasets Replicasets) Replicasets {
 
 	return replicasets
 }
+
+// findInstanceByAlias finds an instance in the replicaset by alias.
+func findInstanceByAlias(replicasets Replicasets, alias string) (Replicaset, Instance, bool) {
+	return findInstance(replicasets, func(instance Instance) bool {
+		return instance.Alias == alias
+	})
+}
+
+// findInstance finds an instance in the replicaset by predicate.
+func findInstance(replicasets Replicasets,
+	predicate func(Instance) bool) (Replicaset, Instance, bool) {
+	for _, replicaset := range replicasets.Replicasets {
+		for _, instance := range replicaset.Instances {
+			if predicate(instance) {
+				return replicaset, instance, true
+			}
+		}
+	}
+	return Replicaset{}, Instance{}, false
+}
