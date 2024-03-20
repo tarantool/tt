@@ -14,6 +14,7 @@ const (
 type replicasetOrchestrator interface {
 	replicaset.Discoverer
 	replicaset.Promoter
+	replicaset.Demoter
 }
 
 // getOrchestratorInstance determinates a used orchestrator type for an instance.

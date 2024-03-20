@@ -55,6 +55,19 @@ func collectCConfig(
 	return configData, clusterConfig, nil
 }
 
+// pickTarget applies keyPicker to the targets slice and returns picked target.
+func (c *CConfigSource) pickTarget(targets []patchTarget, force bool) (patchTarget, error) {
+	targetKeys := make([]string, 0, len(targets))
+	for _, target := range targets {
+		targetKeys = append(targetKeys, target.key)
+	}
+	dstIndex, err := c.keyPicker(targetKeys, force)
+	if err != nil {
+		return patchTarget{}, err
+	}
+	return targets[dstIndex], nil
+}
+
 // Promote patches a config to promote an instance.
 func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 	configData, clusterConfig, err := collectCConfig(c.collector)
@@ -73,21 +86,54 @@ func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 	if err != nil {
 		return err
 	}
-	targetKeys := make([]string, 0, len(targets))
-	for _, target := range targets {
-		targetKeys = append(targetKeys, target.key)
-	}
-
-	dstIndex, err := c.keyPicker(targetKeys, ctx.Force)
+	target, err := c.pickTarget(targets, ctx.Force)
 	if err != nil {
 		return err
 	}
-	return c.promote(targets[dstIndex], inst)
+	return c.promote(target, inst)
+}
+
+// Demote patches a config to demote an instance.
+func (c *CConfigSource) Demote(ctx DemoteCtx) error {
+	configData, clusterConfig, err := collectCConfig(c.collector)
+	if err != nil {
+		return err
+	}
+	inst, err := getCConfigInstance(&clusterConfig, ctx.InstName)
+	if err != nil {
+		return err
+	}
+	path, depth, err := getCConfigDemotePath(inst)
+	if err != nil {
+		return err
+	}
+	targets, err := getCConfigPatchTargets(configData, path, depth)
+	if err != nil {
+		return err
+	}
+	target, err := c.pickTarget(targets, ctx.Force)
+	if err != nil {
+		return err
+	}
+	return c.demote(target, inst)
 }
 
 // promote promotes an instance by patching the specified target.
 func (c *CConfigSource) promote(target patchTarget, inst cconfigInstance) error {
 	patched, err := patchCConfigPromote(target.config, inst)
+	if err != nil {
+		return err
+	}
+	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
+	if err != nil {
+		return fmt.Errorf("failed to publish the config: %w", err)
+	}
+	return nil
+}
+
+// demote demotes an instance by patching the specified target.
+func (c *CConfigSource) demote(target patchTarget, inst cconfigInstance) error {
+	patched, err := patchCConfigDemote(target.config, inst)
 	if err != nil {
 		return err
 	}
@@ -124,6 +170,28 @@ func getCConfigPromotePath(inst cconfigInstance) (path []string, depth int, err 
 		err = fmt.Errorf(`unsupported failover: %q, supported: "manual", "off"`, failover)
 	default:
 		err = fmt.Errorf(`unknown failover, supported: "manual", "off"`)
+	}
+	return
+}
+
+// getCConfigDemotePath returns a path and it's minimum interesting depth
+// to patch the config for instance demoting.
+func getCConfigDemotePath(inst cconfigInstance) (path []string, depth int, err error) {
+	var (
+		failover       = inst.failover
+		groupName      = inst.groupName
+		replicasetName = inst.replicasetName
+		instName       = inst.name
+	)
+	switch failover {
+	case FailoverOff:
+		path = []string{"groups", groupName, "replicasets",
+			replicasetName, "instances", instName, "database", "mode"}
+		depth = len(path) - 2
+	case FailoverManual, FailoverElection:
+		err = fmt.Errorf(`unsupported failover: %q, supported: "off"`, failover)
+	default:
+		err = fmt.Errorf(`unknown failover, supported: "off"`)
 	}
 	return
 }
