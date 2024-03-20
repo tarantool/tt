@@ -43,6 +43,12 @@ var promoteCtx = clustercmd.PromoteCtx{
 	Force:    false,
 }
 
+var demoteCtx = clustercmd.DemoteCtx{
+	Username: "",
+	Password: "",
+	Force:    false,
+}
+
 var (
 	clusterIntegrityPrivateKey string
 	clusterUriHelp             = fmt.Sprintf(
@@ -106,7 +112,31 @@ func newClusterReplicasetCmd() *cobra.Command {
 		"skip selecting a key for patching")
 	integrity.RegisterWithIntegrityFlag(promoteCmd.Flags(), &clusterIntegrityPrivateKey)
 
+	demoteCmd := &cobra.Command{
+		Use:                   "demote [-f] [flags] <URI> <INSTANCE_NAME>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Demote an instance",
+		Long:                  "Demote an instance\n\n" + clusterUriHelp,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalClusterReplicasetDemoteModule, args)
+			handleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(2),
+	}
+
+	demoteCmd.Flags().StringVarP(&demoteCtx.Username, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	demoteCmd.Flags().StringVarP(&demoteCtx.Password, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+	demoteCmd.Flags().BoolVarP(&demoteCtx.Force, "force", "f", false,
+		"skip selecting a key for patching")
+	integrity.RegisterWithIntegrityFlag(demoteCmd.Flags(), &clusterIntegrityPrivateKey)
+
 	cmd.AddCommand(promoteCmd)
+	cmd.AddCommand(demoteCmd)
+
 	return cmd
 }
 
@@ -288,6 +318,23 @@ func internalClusterReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []st
 
 	promoteCtx.InstName = args[1]
 	return clustercmd.Promote(uri, promoteCtx)
+}
+
+// internalClusterReplicasetDemoteModule is a "cluster replicaset demote" command.
+func internalClusterReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	uri, err := parseUrl(args[0])
+	if err != nil {
+		return fmt.Errorf("failed to parse config source URI: %w", err)
+	}
+
+	demoteCtx.Collectors, demoteCtx.Publishers, err = createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, clusterIntegrityPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	demoteCtx.InstName = args[1]
+	return clustercmd.Demote(uri, demoteCtx)
 }
 
 // readSourceFile reads a configuration from a source file.

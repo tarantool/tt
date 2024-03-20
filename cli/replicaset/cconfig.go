@@ -99,7 +99,7 @@ type CConfigApplication struct {
 	collectors libcluster.DataCollectorFactory
 }
 
-// NewCConfigApplication creates a new CartridgeApplication object.
+// NewCConfigApplication creates a new CConfigApplication object.
 func NewCConfigApplication(
 	runningCtx running.RunningCtx,
 	collectors libcluster.DataCollectorFactory,
@@ -242,23 +242,7 @@ func (c *CConfigApplication) Promote(ctx PromoteCtx) error {
 	if err != nil {
 		return fmt.Errorf("failed to get replicasets: %w", err)
 	}
-
-	var (
-		targetReplicaset Replicaset
-		targetInstance   Instance
-		found            bool
-	)
-loop:
-	for _, replicaset := range replicasets.Replicasets {
-		for _, instance := range replicaset.Instances {
-			if instance.Alias == ctx.InstName {
-				targetReplicaset = replicaset
-				targetInstance = instance
-				found = true
-				break loop
-			}
-		}
-	}
+	targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
 	if !found {
 		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
 	}
@@ -278,17 +262,54 @@ loop:
 	if len(unfound) > 0 {
 		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unfound, ","))
 		if !ctx.Force {
-			return fmt.Errorf("all instances in the target replicast should be online, %s", msg)
+			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
 		}
 		log.Warn(msg)
 	}
 
-	isConfigPatched, err := c.promote(targetInstance.InstanceCtx, ctx)
-	if err != nil {
-		return err
+	isConfigPublished, err := c.promote(targetInstance, ctx)
+	// Check the config was published.
+	if isConfigPublished {
+		err = errors.Join(err, reloadCConfig(instances))
 	}
-	if isConfigPatched {
-		err = reloadCConfig(instances)
+	return err
+}
+
+// Demote demotes an instance in the application.
+func (c *CConfigApplication) Demote(ctx DemoteCtx) error {
+	replicasets, err := c.Discovery()
+	if err != nil {
+		return fmt.Errorf("failed to get replicasets: %w", err)
+	}
+	targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
+	if !found {
+		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+	}
+	if !targetInstance.InstanceCtxFound {
+		return fmt.Errorf("instance %q should be online", ctx.InstName)
+	}
+
+	var instances []running.InstanceCtx
+	var unfound []string
+	for _, inst := range targetReplicaset.Instances {
+		if !inst.InstanceCtxFound {
+			unfound = append(unfound, inst.Alias)
+		} else {
+			instances = append(instances, inst.InstanceCtx)
+		}
+	}
+	if len(unfound) > 0 {
+		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unfound, ","))
+		if !ctx.Force {
+			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
+		}
+		log.Warn(msg)
+	}
+
+	isConfigPublished, err := c.demote(targetInstance, targetReplicaset, ctx)
+	// Check the config was published.
+	if isConfigPublished {
+		err = errors.Join(err, reloadCConfig(instances))
 	}
 	return err
 }
@@ -330,10 +351,12 @@ func reloadCConfig(instances []running.InstanceCtx) error {
 }
 
 // promote promotes an instance in the application and returns true
-// if the instance config was patched.
-func (c *CConfigApplication) promote(instance running.InstanceCtx, ctx PromoteCtx) (bool, error) {
-	clusterCfg, err := cluster.GetClusterConfig(libcluster.NewCollectorFactory(c.collectors),
-		instance.ClusterConfigPath)
+// if the instance config was published.
+func (c *CConfigApplication) promote(instance Instance,
+	ctx PromoteCtx) (wasConfigPublished bool, err error) {
+	cluterCfgPath := instance.InstanceCtx.ClusterConfigPath
+	clusterCfg, err := cluster.GetClusterConfig(
+		libcluster.NewCollectorFactory(c.collectors), cluterCfgPath)
 	if err != nil {
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
@@ -347,31 +370,136 @@ func (c *CConfigApplication) promote(instance running.InstanceCtx, ctx PromoteCt
 		eval := func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 			return true, cconfigPromoteElection(evaler, ctx.Timeout)
 		}
-		err := EvalAny([]running.InstanceCtx{instance}, InstanceEvalFunc(eval))
+		err := EvalAny([]running.InstanceCtx{instance.InstanceCtx}, InstanceEvalFunc(eval))
 		return false, err
 	}
 
-	collector, publisher, err := cconfigCreateCollectorAndDataPublisher(
+	err = patchLocalCConfig(
+		cluterCfgPath,
 		c.collectors,
 		c.publishers,
-		instance.ClusterConfigPath,
+		func(config *libcluster.Config) (*libcluster.Config, error) {
+			return patchCConfigPromote(config, inst)
+		},
 	)
 	if err != nil {
 		return false, err
 	}
+	return true, nil
+}
 
-	config, err := collector.Collect()
+// demote demotes an instance in the application and returns true
+// if the instance config was published.
+func (c *CConfigApplication) demote(instance Instance,
+	replicaset Replicaset, ctx DemoteCtx) (wasConfigPublished bool, err error) {
+	cluterCfgPath := instance.InstanceCtx.ClusterConfigPath
+	clusterCfg, err := cluster.GetClusterConfig(libcluster.NewCollectorFactory(c.collectors),
+		cluterCfgPath)
 	if err != nil {
-		return false, fmt.Errorf("failed to collect a configuration to update: %w", err)
+		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
 
-	config, err = patchCConfigPromote(config, inst)
+	cconfigInstance, err := getCConfigInstance(&clusterCfg, ctx.InstName)
 	if err != nil {
-		return false, fmt.Errorf("failed to patch config: %w", err)
+		return false, err
+	}
+
+	if cconfigInstance.failover == FailoverElection {
+		electionMode, err := cconfigGetElectionMode(&clusterCfg, ctx.InstName)
+		if err != nil {
+			return false, err
+		}
+		if electionMode != ElectionModeCandidate {
+			return false,
+				fmt.Errorf(`unexpected election_mode: %q, "candidate" expected`, electionMode)
+		}
+		if replicaset.LeaderUUID != instance.UUID {
+			return false,
+				fmt.Errorf("an instance must be the leader of the replicaset to demote it")
+		}
+		return c.demoteElection(instance.InstanceCtx, cconfigInstance, ctx.Timeout)
+	}
+
+	err = patchLocalCConfig(
+		cluterCfgPath,
+		c.collectors,
+		c.publishers,
+		func(config *libcluster.Config) (*libcluster.Config, error) {
+			return patchCConfigDemote(config, cconfigInstance)
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// demoteElection demotes an instance in the replicaset with "election" failover.
+// https://github.com/tarantool/tarantool/issues/9855
+func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
+	cconfigInstance cconfigInstance, timeout int) (wasConfigPublished bool, err error) {
+	// Set election_mode: "voter" on the target instance.
+	err = patchLocalCConfig(
+		instanceCtx.ClusterConfigPath,
+		c.collectors,
+		c.publishers,
+		func(config *libcluster.Config) (*libcluster.Config, error) {
+			return patchCConfigElectionMode(config, cconfigInstance, ElectionModeVoter)
+		},
+	)
+	if err != nil {
+		return
+	}
+
+	wasConfigPublished = true
+	if err = reloadCConfig([]running.InstanceCtx{instanceCtx}); err != nil {
+		return
+	}
+	// Wait until an other instance is not elected.
+	evalWaitRo := func(_ running.InstanceCtx,
+		evaler connector.Evaler) (bool, error) {
+		return true, waitRO(evaler, timeout)
+	}
+	err = EvalAny([]running.InstanceCtx{instanceCtx}, InstanceEvalFunc(evalWaitRo))
+	if err != nil {
+		return
+	}
+	// Restore election_mode: "candidate" on the target instance.
+	err = patchLocalCConfig(
+		instanceCtx.ClusterConfigPath,
+		c.collectors,
+		c.publishers,
+		func(config *libcluster.Config) (*libcluster.Config, error) {
+			return patchCConfigElectionMode(config, cconfigInstance, ElectionModeCandidate)
+		},
+	)
+	return
+}
+
+// patchLocalConfig patches the local cluster config.
+func patchLocalCConfig(path string,
+	collectors libcluster.DataCollectorFactory,
+	publishers libcluster.DataPublisherFactory,
+	patchFunc func(*libcluster.Config) (*libcluster.Config, error)) error {
+	collector, publisher, err := cconfigCreateCollectorAndDataPublisher(
+		collectors,
+		publishers,
+		path,
+	)
+	if err != nil {
+		return err
+	}
+	config, err := collector.Collect()
+	if err != nil {
+		return fmt.Errorf("failed to collect a configuration to update: %w", err)
+	}
+	config, err = patchFunc(config)
+	if err != nil {
+		return fmt.Errorf("failed to patch config: %w", err)
 	}
 
 	err = libcluster.NewYamlConfigPublisher(publisher).Publish(config)
-	return true, err
+	return err
 }
 
 // cconfigCreateCollectorAndDataPublisher creates collector and data publisher
@@ -418,6 +546,33 @@ func cconfigGetFailover(clusterConfig *libcluster.ClusterConfig,
 	return failover, nil
 }
 
+// cconfigGetElectionMode extracts election_mode from the cluster config.
+// If election_mode is not set, returns a default, which corresponds to the "election" failover.
+func cconfigGetElectionMode(clusterConfig *libcluster.ClusterConfig,
+	instName string) (ElectionMode, error) {
+	var electionMode ElectionMode
+	instConfig := libcluster.Instantiate(*clusterConfig, instName)
+
+	rawElectionMode, err := instConfig.Get([]string{"replication", "election_mode"})
+	var notExistErr libcluster.NotExistError
+	if errors.As(err, &notExistErr) {
+		// This is true if failover == "election" && replica is not anonymous.
+		// https://github.com/tarantool/tarantool/blob/e01fe8f7144eebc64249ab60a83f656cb4a11dc0/src/box/lua/config/applier/box_cfg.lua#L418-L420
+		return ElectionModeCandidate, nil
+	}
+	if err != nil {
+		return electionMode,
+			fmt.Errorf("failed to get election_mode: %w", err)
+	}
+	electionModeStr, ok := rawElectionMode.(string)
+	if !ok {
+		return electionMode,
+			fmt.Errorf("unexpected election_mode type: %T, string expected", rawElectionMode)
+	}
+	electionMode = ParseElectionMode(electionModeStr)
+	return electionMode, nil
+}
+
 // patchCConfigPromote patches the config to promote an instance.
 func patchCConfigPromote(config *libcluster.Config,
 	inst cconfigInstance) (*libcluster.Config, error) {
@@ -439,6 +594,37 @@ func patchCConfigPromote(config *libcluster.Config,
 		return nil, fmt.Errorf("unexpected failover: %q", failover)
 	}
 	return config, err
+}
+
+// patchCConfigDemote patches the config to demote an instance.
+func patchCConfigDemote(config *libcluster.Config,
+	inst cconfigInstance) (*libcluster.Config, error) {
+	var (
+		failover       = inst.failover
+		groupName      = inst.groupName
+		replicasetName = inst.replicasetName
+		instName       = inst.name
+	)
+	if failover != FailoverOff {
+		return nil, fmt.Errorf("unexpected failover: %q", failover)
+	}
+	if err := config.Set([]string{"groups", groupName, "replicasets", replicasetName,
+		"instances", instName, "database", "mode"}, "ro"); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+// patchCConfigElectionMode patches the config to change an instance election_mode.
+func patchCConfigElectionMode(config *libcluster.Config,
+	inst cconfigInstance, mode ElectionMode) (*libcluster.Config, error) {
+	path := []string{"groups", inst.groupName, "replicasets", inst.replicasetName,
+		"instances", inst.name, "replication", "election_mode"}
+	err := config.Set(path, mode.String())
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }
 
 // getCConfigInstance extracts an instance from the cluster config.

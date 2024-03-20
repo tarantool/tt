@@ -34,6 +34,16 @@ var (
 	replicasetSslCiphers  string
 	replicasetForce       bool
 	replicasetTimeout     int
+
+	replicasetUriHelp = "  The URI can be specified in the following formats:\n" +
+		"  * [tcp://][username:password@][host:port]\n" +
+		"  * [unix://][username:password@]socketpath\n" +
+		"  To specify relative path without `unix://` use `./`."
+
+	replicasetEnvHelp = "The command supports the following environment variables:\n\n" +
+		"* " + connect.TarantoolUsernameEnv + " - specifies a username\n" +
+		"* " + connect.TarantoolPasswordEnv + " - specifies a password\n" +
+		"\n"
 )
 
 // newStatusCmd creates a "replicaset status" command.
@@ -41,17 +51,11 @@ func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "status [--cartridge|--config|--custom] [flags] " +
 			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
-			"  The URI can be specified in the following formats:\n" +
-			"  * [tcp://][username:password@][host:port]\n" +
-			"  * [unix://][username:password@]socketpath\n" +
-			"  To specify relative path without `unix://` use `./`.",
+			replicasetUriHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Show a replicaset status",
 		Long: "Show a replicaset status.\n\n" +
-			"The command supports the following environment variables:\n\n" +
-			"* " + connect.TarantoolUsernameEnv + " - specifies a username\n" +
-			"* " + connect.TarantoolPasswordEnv + " - specifies a password\n" +
-			"\n",
+			replicasetEnvHelp,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -71,17 +75,11 @@ func newPromoteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "promote [--cartridge|--config|--custom] [-f] [--timeout secs] [flags] " +
 			"(<APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
-			"  The URI can be specified in the following formats:\n" +
-			"  * [tcp://][username:password@][host:port]\n" +
-			"  * [unix://][username:password@]socketpath\n" +
-			"  To specify relative path without `unix://` use `./`.",
+			replicasetUriHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
 		Long: "Promote an instance.\n\n" +
-			"The command supports the following environment variables:\n\n" +
-			"* " + connect.TarantoolUsernameEnv + " - specifies a username\n" +
-			"* " + connect.TarantoolPasswordEnv + " - specifies a password\n" +
-			"\n",
+			replicasetEnvHelp,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -103,6 +101,29 @@ func newPromoteCmd() *cobra.Command {
 	return cmd
 }
 
+// newDemoteCmd creates a "replicaset demote" command.
+func newDemoteCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "demote [-f] [--timeout secs] [flags] <APP_NAME:INSTANCE_NAME>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Demote an instance",
+		Long:                  "Demote an instance.",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetDemoteModule, args)
+			handleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(1),
+	}
+
+	addOrchestratorFlags(cmd)
+	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
+		"skip instances not found locally")
+	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.DefaultTimeout, "timeout")
+	return cmd
+}
+
 // NewReplicasetCmd creates a replicaset command.
 func NewReplicasetCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -113,6 +134,7 @@ func NewReplicasetCmd() *cobra.Command {
 
 	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newPromoteCmd())
+	cmd.AddCommand(newDemoteCmd())
 
 	return cmd
 }
@@ -143,9 +165,26 @@ func addTarantoolConnectFlags(cmd *cobra.Command) {
 		`colon-separated (:) list of SSL cipher suites for the URI case`)
 }
 
-// internalReplicasetPromoteModule is a "promote" command for the replicaset module.
-func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	orchestrator, err := getOrchestrator()
+// replicasetCtx describes a context for the replicaset command.
+type replicasetCtx struct {
+	// IsApplication is true when an application was specified.
+	IsApplication bool
+	// IsInstanceConnect is true when the instance connection was established.
+	IsInstanceConnect bool
+	// InstName is an instance name.
+	InstName string
+	// RunningCtx describes running context.
+	RunningCtx running.RunningCtx
+	// Conn is a connection to the instance.
+	Conn connector.Connector
+	// Orchestrator describes specified orchestrator.
+	Orchestrator replicaset.Orchestrator
+}
+
+// replicasetFillCtx fills the replicaset command context.
+func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []string) error {
+	var err error
+	ctx.Orchestrator, err = getOrchestrator()
 	if err != nil {
 		return err
 	}
@@ -158,53 +197,64 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 		SslCaFile:   replicasetSslCaFile,
 		SslCiphers:  replicasetSslCiphers,
 	}
+	var connOpts connector.ConnectOpts
 
-	var (
-		connOpts      connector.ConnectOpts
-		runningCtx    running.RunningCtx
-		isApplication bool
-		instName      string
-	)
-
-	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err == nil {
-		var (
-			appName string
-			found   bool
-		)
-		appName, instName, found = strings.Cut(args[0], string(running.InstanceDelimiter))
-		if len(runningCtx.Instances) != 1 || !found {
-			return fmt.Errorf("specify an instance to promote")
+	if err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, args); err == nil {
+		ctx.IsApplication = true
+		if len(ctx.RunningCtx.Instances) == 1 {
+			if connectCtx.Username != "" || connectCtx.Password != "" {
+				err = fmt.Errorf("username and password are not supported" +
+					" with a connection via a control socket")
+				return err
+			}
+			connOpts = makeConnOpts(
+				connector.UnixNetwork,
+				ctx.RunningCtx.Instances[0].ConsoleSocket,
+				connectCtx,
+			)
+			ctx.IsInstanceConnect = true
+			appName, instName, found := strings.Cut(args[0], string(running.InstanceDelimiter))
+			if found {
+				// Re-fill context for an application.
+				ctx.InstName = instName
+				err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{appName})
+				if err != nil {
+					// Should not happen.
+					return err
+				}
+			}
 		}
-
-		isApplication = true
-		if connectCtx.Username != "" || connectCtx.Password != "" {
-			err = fmt.Errorf("username and password are not supported" +
-				" with a connection via a control socket")
-			return err
-		}
-		connOpts = makeConnOpts(
-			connector.UnixNetwork,
-			runningCtx.Instances[0].ConsoleSocket,
-			connectCtx,
-		)
-
-		// Re-fill context for an application.
-		if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName}); err != nil {
-			return err
-		}
-		isApplication = true
 	} else {
+		var err error
 		connOpts, _, err = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
 		if err != nil {
 			return err
 		}
+		ctx.IsInstanceConnect = true
 	}
 
-	conn, err := connector.Connect(connOpts)
-	if err != nil {
-		return fmt.Errorf("unable to establish connection: %s", err)
+	if ctx.IsInstanceConnect {
+		// Connecting to the instance.
+		var err error
+		ctx.Conn, err = connector.Connect(connOpts)
+		if err != nil {
+			return fmt.Errorf("unable to establish connection: %s", err)
+		}
 	}
-	defer conn.Close()
+
+	return nil
+}
+
+// internalReplicasetPromoteModule is a "promote" command for the replicaset module.
+func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args); err != nil {
+		return err
+	}
+	if !ctx.IsInstanceConnect {
+		return fmt.Errorf("specify an instance to promote")
+	}
+	defer ctx.Conn.Close()
 
 	collectors, publishers, err := createDataCollectorsAndDataPublishers(
 		cmdCtx.Integrity, "")
@@ -213,90 +263,64 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 	}
 
 	return replicasetcmd.Promote(replicasetcmd.PromoteCtx{
-		InstName:      instName,
+		InstName:      ctx.InstName,
 		Collectors:    collectors,
 		Publishers:    publishers,
-		IsApplication: isApplication,
-		Conn:          conn,
-		RunningCtx:    runningCtx,
-		Orchestrator:  orchestrator,
+		IsApplication: ctx.IsApplication,
+		Conn:          ctx.Conn,
+		RunningCtx:    ctx.RunningCtx,
+		Orchestrator:  ctx.Orchestrator,
 		Force:         replicasetForce,
 		Timeout:       replicasetTimeout,
 	})
 }
 
-// internalReplicasetStatusModule is a "status" command for the replicaset module.
-func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	orchestrator, err := getOrchestrator()
+// internalReplicasetDemoteModule is a "demote" command for the replicaset module.
+func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args); err != nil {
+		return err
+	}
+	if !ctx.IsApplication {
+		return fmt.Errorf("remote instance demoting is not supported")
+	}
+	if !ctx.IsInstanceConnect {
+		return fmt.Errorf("specify an instance to demote")
+	}
+	defer ctx.Conn.Close()
+
+	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, "")
 	if err != nil {
 		return err
 	}
 
-	connectCtx := connect.ConnectCtx{
-		Username:    replicasetUser,
-		Password:    replicasetPassword,
-		SslKeyFile:  replicasetSslKeyFile,
-		SslCertFile: replicasetSslCertFile,
-		SslCaFile:   replicasetSslCaFile,
-		SslCiphers:  replicasetSslCiphers,
-	}
+	return replicasetcmd.Demote(replicasetcmd.DemoteCtx{
+		InstName:     ctx.InstName,
+		Publishers:   publishers,
+		Collectors:   collectors,
+		Conn:         ctx.Conn,
+		RunningCtx:   ctx.RunningCtx,
+		Orchestrator: ctx.Orchestrator,
+		Force:        replicasetForce,
+		Timeout:      replicasetTimeout,
+	})
+}
 
-	var (
-		connOpts          connector.ConnectOpts
-		runningCtx        running.RunningCtx
-		isInstanceConnect bool
-		isApplication     bool
-	)
-	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err == nil {
-		if len(runningCtx.Instances) == 1 {
-			if connectCtx.Username != "" || connectCtx.Password != "" {
-				err = fmt.Errorf("username and password are not supported" +
-					" with a connection via a control socket")
-				return err
-			}
-			connOpts = makeConnOpts(
-				connector.UnixNetwork,
-				runningCtx.Instances[0].ConsoleSocket,
-				connectCtx,
-			)
-			isInstanceConnect = true
-			before, _, found := strings.Cut(args[0], string(running.InstanceDelimiter))
-			if found {
-				// Re-fill context for an application.
-				appName = before
-				err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName})
-				if err != nil {
-					// Should not happen.
-					return err
-				}
-			}
-		}
-		isApplication = true
-	} else {
-		var err error
-		connOpts, _, err = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
-		if err != nil {
-			return err
-		}
-		isInstanceConnect = true
+// internalReplicasetStatusModule is a "status" command for the replicaset module.
+func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args); err != nil {
+		return err
 	}
-
-	var conn connector.Connector
-	if isInstanceConnect {
-		// Connecting to the instance.
-		var err error
-		conn, err = connector.Connect(connOpts)
-		if err != nil {
-			return fmt.Errorf("unable to establish connection: %s", err)
-		}
-		defer conn.Close()
+	if ctx.IsInstanceConnect {
+		defer ctx.Conn.Close()
 	}
-
 	return replicasetcmd.Status(replicasetcmd.StatusCtx{
-		RunningCtx:    runningCtx,
-		IsApplication: isApplication,
-		Conn:          conn,
-		Orchestrator:  orchestrator,
+		IsApplication: ctx.IsApplication,
+		RunningCtx:    ctx.RunningCtx,
+		Conn:          ctx.Conn,
+		Orchestrator:  ctx.Orchestrator,
 	})
 }
 
