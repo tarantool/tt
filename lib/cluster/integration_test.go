@@ -15,19 +15,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/tests/v3/integration"
 
 	"github.com/tarantool/go-tarantool"
 
 	"github.com/tarantool/tt/lib/cluster"
 )
 
-const (
-	baseEndpoint  = "127.0.0.1:12379"
-	httpEndpoint  = "http://" + baseEndpoint
-	httpsEndpoint = "https://" + baseEndpoint
-	timeout       = 5 * time.Second
-)
+const timeout = 5 * time.Second
 
 func tcsIsSupported(t *testing.T) bool {
 	cmd := exec.Command("tarantool", "--version")
@@ -75,12 +72,13 @@ type etcdOpts struct {
 	CaFile   string
 }
 
-type etcdInstance struct {
-	Cmd *exec.Cmd
-	Dir string
+func doWithCtx(action func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return action(ctx)
 }
 
-func startEtcd(t *testing.T, endpoint string, opts etcdOpts) etcdInstance {
+func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 	t.Helper()
 
 	mydir, err := os.Getwd()
@@ -88,151 +86,119 @@ func startEtcd(t *testing.T, endpoint string, opts etcdOpts) etcdInstance {
 		t.Fatalf("Failed to get current working directory: %s", err)
 	}
 
-	inst := etcdInstance{}
-	dir, err := os.MkdirTemp("", "work_dir")
-	if err != nil {
-		t.Fatalf("Failed to create a temporary directory: %s", err)
+	var tls *transport.TLSInfo
+	if opts.CaFile != "" || opts.CertFile != "" || opts.KeyFile != "" {
+		tls = &transport.TLSInfo{}
+		if opts.CaFile != "" {
+			caPath := filepath.Join(mydir, opts.CaFile)
+			tls.TrustedCAFile = caPath
+		}
+		if opts.CertFile != "" {
+			certPath := filepath.Join(mydir, opts.CertFile)
+			tls.CertFile = certPath
+		}
+		if opts.KeyFile != "" {
+			keyPath := filepath.Join(mydir, opts.KeyFile)
+			tls.KeyFile = keyPath
+		}
 	}
-	inst.Dir = dir
-	inst.Cmd = exec.Command("etcd")
+	config := integration.ClusterConfig{Size: 1, PeerTLS: tls, UseTCP: true}
+	inst := integration.NewLazyClusterWithConfig(config)
 
-	inst.Cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("ETCD_LISTEN_CLIENT_URLS=%s", endpoint),
-		fmt.Sprintf("ETCD_ADVERTISE_CLIENT_URLS=%s", endpoint),
-		fmt.Sprintf("ETCD_DATA_DIR=%s", inst.Dir),
-	)
-	if opts.KeyFile != "" {
-		keyPath := filepath.Join(mydir, opts.KeyFile)
-		inst.Cmd.Env = append(inst.Cmd.Env,
-			fmt.Sprintf("ETCD_KEY_FILE=%s", keyPath))
-	}
-	if opts.CertFile != "" {
-		certPath := filepath.Join(mydir, opts.CertFile)
-		inst.Cmd.Env = append(inst.Cmd.Env,
-			fmt.Sprintf("ETCD_CERT_FILE=%s", certPath))
-	}
-	if opts.CaFile != "" {
-		caPath := filepath.Join(mydir, opts.CaFile)
-		inst.Cmd.Env = append(inst.Cmd.Env,
-			fmt.Sprintf("ETCD_TRUSTED_CA_FILE=%s", caPath))
-	}
-
-	// Start etcd.
-	err = inst.Cmd.Start()
-	if err != nil {
-		os.RemoveAll(inst.Dir)
-		t.Fatalf("Failed to start etcd: %s", err)
-	}
-
-	// Setup user/pass.
 	if opts.Username != "" {
-		cmd := exec.Command("etcdctl", "user", "add", opts.Username,
-			fmt.Sprintf("--new-user-password=%s", opts.Password),
-			fmt.Sprintf("--endpoints=%s", baseEndpoint))
+		etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{
+			Endpoints: inst.EndpointsV3(),
+		})
+		require.NoError(t, err)
+		defer etcd.Close()
 
-		err := cmd.Run()
-		if err != nil {
-			stopEtcd(t, inst)
-			t.Fatalf("Failed to create user: %s", err)
+		if err := doWithCtx(func(ctx context.Context) error {
+			_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
+			return err
+		}); err != nil {
+			inst.Terminate()
+			t.Fatalf("Failed to create user in etcd: %s", err)
 		}
 
 		if opts.Username != "root" {
 			// We need the root user for auth enable anyway.
-			cmd := exec.Command("etcdctl", "user", "add", "root",
-				fmt.Sprintf("--new-user-password=%s", opts.Password),
-				fmt.Sprintf("--endpoints=%s", baseEndpoint))
-
-			err := cmd.Run()
-			if err != nil {
-				stopEtcd(t, inst)
-				t.Fatalf("Failed to create root: %s", err)
+			if err := doWithCtx(func(ctx context.Context) error {
+				_, err := etcd.UserAdd(ctx, "root", "")
+				return err
+			}); err != nil {
+				inst.Terminate()
+				t.Fatalf("Failed to create root in etcd: %s", err)
 			}
 
-			// And additional permissions for a regular user.
-			cmd = exec.Command("etcdctl", "user", "grant-role", opts.Username,
-				"root", fmt.Sprintf("--endpoints=%s", baseEndpoint))
-
-			err = cmd.Run()
-			if err != nil {
-				stopEtcd(t, inst)
-				t.Fatalf("Failed to grant-role: %s", err)
+			if err := doWithCtx(func(ctx context.Context) error {
+				_, err := etcd.UserGrantRole(ctx, "root", "root")
+				return err
+			}); err != nil {
+				inst.Terminate()
+				t.Fatalf("Failed to grant root in etcd: %s", err)
 			}
 		}
 
-		cmd = exec.Command("etcdctl", "auth", "enable",
-			fmt.Sprintf("--user=root:%s", opts.Password),
-			fmt.Sprintf("--endpoints=%s", baseEndpoint))
+		if err := doWithCtx(func(ctx context.Context) error {
+			_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
+			return err
+		}); err != nil {
+			inst.Terminate()
+			t.Fatalf("Failed to grant user in etcd: %s", err)
+		}
 
-		err = cmd.Run()
-		if err != nil {
-			stopEtcd(t, inst)
-			t.Fatalf("Failed to enable auth: %s", err)
+		if err := doWithCtx(func(ctx context.Context) error {
+			_, err = etcd.AuthEnable(ctx)
+			return err
+		}); err != nil {
+			inst.Terminate()
+			t.Fatalf("Failed to enable auth in etcd: %s", err)
 		}
 	}
 
 	return inst
 }
 
-func stopEtcd(t *testing.T, inst etcdInstance) {
-	t.Helper()
-
-	if inst.Cmd != nil && inst.Cmd.Process != nil {
-		if err := inst.Cmd.Process.Kill(); err != nil {
-			t.Fatalf("Failed to kill etcd (%d) %s", inst.Cmd.Process.Pid, err)
-		}
-
-		// Wait releases any resources associated with the Process.
-		if _, err := inst.Cmd.Process.Wait(); err != nil {
-			t.Fatalf("Failed to wait for etcd process to exit, got %s", err)
-			return
-		}
-
-		inst.Cmd.Process = nil
-	}
-
-	if inst.Dir != "" {
-		if err := os.RemoveAll(inst.Dir); err != nil {
-			t.Fatalf("Failed to clean work directory, got %s", err)
-		}
-	}
-}
-
 func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	presp, err := etcd.Put(ctx, key, value)
-	cancel()
+	var (
+		presp *clientv3.PutResponse
+		err   error
+	)
+	doWithCtx(func(ctx context.Context) error {
+		presp, err = etcd.Put(ctx, key, value)
+		return nil
+	})
 	require.NoError(t, err)
 	require.NotNil(t, presp)
 }
 
 func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
 	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	resp, err := etcd.Get(ctx, key)
-	cancel()
-
+	var (
+		resp *clientv3.GetResponse
+		err  error
+	)
+	doWithCtx(func(ctx context.Context) error {
+		resp, err = etcd.Get(ctx, key)
+		return nil
+	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	if len(resp.Kvs) == 0 {
 		return []byte(""), 0
 	}
-
 	require.Len(t, resp.Kvs, 1)
 	return resp.Kvs[0].Value, resp.Kvs[0].ModRevision
 }
 
 type connectEtcdOpts struct {
-	ServerEndpoint string
-	ServerOpts     etcdOpts
-	ClientEndpoint string
-	ClientOpts     cluster.EtcdOpts
+	ServerOpts etcdOpts
+	ClientOpts cluster.EtcdOpts
 }
 
 func TestConnectEtcd(t *testing.T) {
+	// Client endpoints will be filled in the test runtime.
 	cases := []struct {
 		Name string
 		Opts connectEtcdOpts
@@ -240,71 +206,55 @@ func TestConnectEtcd(t *testing.T) {
 		{
 			Name: "base",
 			Opts: connectEtcdOpts{
-				ServerEndpoint: httpEndpoint,
-				ServerOpts:     etcdOpts{},
-				ClientEndpoint: httpEndpoint,
-				ClientOpts: cluster.EtcdOpts{
-					Endpoints: []string{httpEndpoint},
-				},
+				ServerOpts: etcdOpts{},
+				ClientOpts: cluster.EtcdOpts{},
 			},
 		},
 		{
 			Name: "auth",
 			Opts: connectEtcdOpts{
-				ServerEndpoint: httpEndpoint,
 				ServerOpts: etcdOpts{
 					Username: "root",
 					Password: "pass",
 				},
-				ClientEndpoint: httpEndpoint,
 				ClientOpts: cluster.EtcdOpts{
-					Endpoints: []string{httpEndpoint},
-					Username:  "root",
-					Password:  "pass",
+					Username: "root",
+					Password: "pass",
 				},
 			},
 		},
 		{
 			Name: "tls_ca_file",
 			Opts: connectEtcdOpts{
-				ServerEndpoint: httpsEndpoint,
 				ServerOpts: etcdOpts{
 					KeyFile:  "testdata/tls/localhost.key",
 					CertFile: "testdata/tls/localhost.crt",
 				},
-				ClientEndpoint: httpsEndpoint,
 				ClientOpts: cluster.EtcdOpts{
-					Endpoints: []string{httpsEndpoint},
-					CaFile:    "testdata/tls/ca.crt",
+					CaFile: "testdata/tls/ca.crt",
 				},
 			},
 		},
 		{
 			Name: "tls_ca_path",
 			Opts: connectEtcdOpts{
-				ServerEndpoint: httpsEndpoint,
 				ServerOpts: etcdOpts{
 					KeyFile:  "testdata/tls/localhost.key",
 					CertFile: "testdata/tls/localhost.crt",
 				},
-				ClientEndpoint: httpsEndpoint,
 				ClientOpts: cluster.EtcdOpts{
-					Endpoints: []string{httpsEndpoint},
-					CaPath:    "testdata/tls/",
+					CaPath: "testdata/tls/",
 				},
 			},
 		},
 		{
 			Name: "tls_ca_skip_verify",
 			Opts: connectEtcdOpts{
-				ServerEndpoint: httpsEndpoint,
 				ServerOpts: etcdOpts{
 					KeyFile:  "testdata/tls/localhost.key",
 					CertFile: "testdata/tls/localhost.crt",
 				},
-				ClientEndpoint: httpsEndpoint,
 				ClientOpts: cluster.EtcdOpts{
-					Endpoints:      []string{httpsEndpoint},
 					SkipHostVerify: true,
 				},
 			},
@@ -312,18 +262,15 @@ func TestConnectEtcd(t *testing.T) {
 		{
 			Name: "tls_full",
 			Opts: connectEtcdOpts{
-				ServerEndpoint: httpsEndpoint,
 				ServerOpts: etcdOpts{
 					KeyFile:  "testdata/tls/localhost.key",
 					CertFile: "testdata/tls/localhost.crt",
 					CaFile:   "testdata/tls/ca.crt",
 				},
-				ClientEndpoint: httpsEndpoint,
 				ClientOpts: cluster.EtcdOpts{
-					Endpoints: []string{httpsEndpoint},
-					KeyFile:   "testdata/tls/localhost.key",
-					CertFile:  "testdata/tls/localhost.crt",
-					CaFile:    "testdata/tls/ca.crt",
+					KeyFile:  "testdata/tls/localhost.key",
+					CertFile: "testdata/tls/localhost.crt",
+					CaFile:   "testdata/tls/ca.crt",
 				},
 			},
 		},
@@ -331,9 +278,10 @@ func TestConnectEtcd(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			inst := startEtcd(t, tc.Opts.ServerEndpoint, tc.Opts.ServerOpts)
-			defer stopEtcd(t, inst)
+			inst := startEtcd(t, tc.Opts.ServerOpts)
+			defer inst.Terminate()
 
+			tc.Opts.ClientOpts.Endpoints = inst.EndpointsV3()
 			etcd, err := cluster.ConnectEtcd(tc.Opts.ClientOpts)
 			require.NoError(t, err)
 			require.NotNil(t, etcd)
@@ -361,10 +309,10 @@ func TestConnectEtcd_invalid_endpoint(t *testing.T) {
 }
 
 func TestEtcdCollectors_single(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -394,10 +342,10 @@ func TestEtcdCollectors_single(t *testing.T) {
 }
 
 func TestEtcdAllCollector_merge(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -418,10 +366,10 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 }
 
 func TestEtcdCollectors_empty(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -447,10 +395,10 @@ func TestEtcdCollectors_empty(t *testing.T) {
 }
 
 func TestEtcdDataPublishers_Publish_single(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -478,10 +426,10 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 }
 
 func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -511,10 +459,10 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 }
 
 func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -538,10 +486,10 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 }
 
 func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -567,10 +515,10 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 }
 
 func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -595,10 +543,10 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 }
 
 func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
-	inst := startEtcd(t, httpEndpoint, etcdOpts{})
-	defer stopEtcd(t, inst)
+	inst := startEtcd(t, etcdOpts{})
+	defer inst.Terminate()
 
-	endpoints := []string{httpEndpoint}
+	endpoints := inst.EndpointsV3()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -642,11 +590,13 @@ var testsIntegrity = []struct {
 		t *testing.T,
 		signFunc cluster.SignFunc,
 		prefix, key string,
+		inst interface{},
 	) (cluster.DataPublisher, func())
 	NewCollector func(
 		t *testing.T,
 		checkFunc cluster.CheckFunc,
 		prefix, key string,
+		inst interface{},
 	) (cluster.DataCollector, func())
 }{
 	{
@@ -664,6 +614,7 @@ var testsIntegrity = []struct {
 			signFunc cluster.SignFunc,
 			prefix,
 			key string,
+			inst interface{},
 		) (cluster.DataPublisher, func()) {
 			publisherFactory := cluster.NewIntegrityDataPublisherFactory(signFunc)
 
@@ -688,6 +639,7 @@ var testsIntegrity = []struct {
 			checkFunc cluster.CheckFunc,
 			prefix,
 			key string,
+			inst interface{},
 		) (cluster.DataCollector, func()) {
 			collectorFactory := cluster.NewIntegrityDataCollectorFactory(checkFunc, nil)
 
@@ -712,22 +664,24 @@ var testsIntegrity = []struct {
 		Name:       "etcd",
 		Applicable: func(t *testing.T) bool { return true },
 		Setup: func(t *testing.T) interface{} {
-			inst := startEtcd(t, httpEndpoint, etcdOpts{})
+			inst := startEtcd(t, etcdOpts{})
 			return inst
 		},
 		Shutdown: func(t *testing.T, inst interface{}) {
-			stopEtcd(t, inst.(etcdInstance))
+			inst.(integration.LazyCluster).Terminate()
 		},
 		NewPublisher: func(
 			t *testing.T,
 			signFunc cluster.SignFunc,
 			prefix,
 			key string,
+			inst interface{},
 		) (cluster.DataPublisher, func()) {
 			publisherFactory := cluster.NewIntegrityDataPublisherFactory(signFunc)
+			etcdInst := inst.(integration.LazyCluster)
 
 			etcd, err := clientv3.New(clientv3.Config{
-				Endpoints:   []string{httpEndpoint},
+				Endpoints:   etcdInst.EndpointsV3(),
 				DialTimeout: 1 * time.Second,
 			})
 			require.NoError(t, err)
@@ -742,11 +696,13 @@ var testsIntegrity = []struct {
 			checkFunc cluster.CheckFunc,
 			prefix,
 			key string,
+			inst interface{},
 		) (cluster.DataCollector, func()) {
 			collectorFactory := cluster.NewIntegrityDataCollectorFactory(checkFunc, nil)
+			etcdInst := inst.(integration.LazyCluster)
 
 			etcd, err := clientv3.New(clientv3.Config{
-				Endpoints:   []string{httpEndpoint},
+				Endpoints:   etcdInst.EndpointsV3(),
 				DialTimeout: 60 * time.Second,
 			})
 			require.NoError(t, err)
@@ -800,14 +756,14 @@ func TestIntegrityDataPublisherKey_CollectorAll_valid(t *testing.T) {
 
 			for _, entry := range data {
 				publisher, closeConn :=
-					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source)
+					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "")
+			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -840,7 +796,7 @@ func TestIntegrityDataPublisherKey_CollectorKey_valid(t *testing.T) {
 
 			for _, entry := range data {
 				publisher, closeConn :=
-					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source)
+					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
@@ -849,7 +805,7 @@ func TestIntegrityDataPublisherKey_CollectorKey_valid(t *testing.T) {
 
 			for _, entry := range data {
 				collector, closeConn :=
-					test.NewCollector(t, validCheckFunc, testPrefix, entry.Source)
+					test.NewCollector(t, validCheckFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				result, err := collector.Collect()
@@ -884,14 +840,14 @@ func TestIntegrityDataCollectorAllPublisherAll_valid(t *testing.T) {
 
 			for _, entry := range data {
 				publisher, closeConn :=
-					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source)
+					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "")
+			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -925,14 +881,14 @@ func TestIntegrityDataCollectorKeyPublisherAll_valid(t *testing.T) {
 
 			for _, entry := range data {
 				publisher, closeConn :=
-					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source)
+					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "all")
+			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "all", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -957,7 +913,7 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 
 			const testPrefix = "/test5"
 
-			publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, "bar")
+			publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, "bar", inst)
 			defer closeConn()
 
 			exampleData1 := []byte("abcdefg")
@@ -967,7 +923,7 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 			collector, closeConn := test.NewCollector(t,
 				func([]byte, map[string][]byte, []byte) error {
 					return fmt.Errorf("any error")
-				}, testPrefix, "")
+				}, testPrefix, "", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -989,7 +945,7 @@ func TestIntegrityDataPublisher_CollectorKey_check_error(t *testing.T) {
 
 			const testPrefix = "/test6"
 
-			publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, "")
+			publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, "", inst)
 			defer closeConn()
 
 			exampleData1 := []byte("abcdefg")
@@ -999,7 +955,7 @@ func TestIntegrityDataPublisher_CollectorKey_check_error(t *testing.T) {
 			collector, closeConn := test.NewCollector(t,
 				func([]byte, map[string][]byte, []byte) error {
 					return fmt.Errorf("any error")
-				}, testPrefix, "all")
+				}, testPrefix, "all", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -1024,7 +980,7 @@ func TestIntegrityDataPublisherKey_sign_error(t *testing.T) {
 			publisher, closeConn := test.NewPublisher(t,
 				func([]byte) (map[string][]byte, []byte, error) {
 					return nil, nil, fmt.Errorf("any error")
-				}, testPrefix, "bar")
+				}, testPrefix, "bar", inst)
 			defer closeConn()
 
 			exampleData1 := []byte("abcdefg")
@@ -1049,7 +1005,7 @@ func TestIntegrityDataPublisherAll_sign_error(t *testing.T) {
 			publisher, closeConn := test.NewPublisher(t,
 				func([]byte) (map[string][]byte, []byte, error) {
 					return nil, nil, fmt.Errorf("any error")
-				}, testPrefix, "")
+				}, testPrefix, "", inst)
 			defer closeConn()
 
 			exampleData1 := []byte("abcdefg")
