@@ -120,6 +120,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"iproto", "net_msg_max"},
 	[]string{"iproto", "readahead"},
 	[]string{"iproto", "threads"},
+	[]string{"labels"},
 	[]string{"log", "file"},
 	[]string{"log", "format"},
 	[]string{"log", "level"},
@@ -984,6 +985,12 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"iproto", "threads"},
 		Validator: IntegerValidator{},
+	},
+	SchemaPath{
+		Path: []string{"labels"},
+		Validator: MakeMapValidator(
+			StringValidator{},
+			StringValidator{}),
 	},
 	SchemaPath{
 		Path:      []string{"log", "file"},
