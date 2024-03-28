@@ -63,7 +63,7 @@ def make_test_failovers_param(
         replicaset="off-failover",
         inst="off-failover-2",
         stop_inst="off-failover-1",
-        err_text="all instances in the target replicast should be online" +
+        err_text="all instances in the target replicaset should be online" +
                   ", could not connect to: off-failover-1",
         id="there is stopped instance, no -f"
     ),
@@ -137,7 +137,7 @@ def test_promote_cconfig_failovers(
     instances = list(filter(lambda x: x.startswith(replicaset), [
                      "off-failover-1", "off-failover-2",
                      "manual-failover-1", "manual-failover-2",
-                     "election-failover-1", "election-failover-2"]))
+                     "election-failover-1", "election-failover-2", "eleciton-failover-3"]))
     # Replace instances.yml to start only necessary replicaset.
     with open(os.path.join(app_path, "instances.yml"), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))

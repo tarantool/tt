@@ -175,3 +175,50 @@ func Promote(uri *url.URL, ctx PromoteCtx) error {
 	}
 	return err
 }
+
+// DemoteCtx describes the context to demote an instance.
+type DemoteCtx struct {
+	// InstName is an instance name to demote.
+	InstName string
+	// Publishers is data publisher factory.
+	Publishers libcluster.DataPublisherFactory
+	// Collectors is data collector factory.
+	Collectors libcluster.DataCollectorFactory
+	// Username defines a username for connection.
+	Username string
+	// Password defines a password for connection.
+	Password string
+	// Force true if the key selection for patching the config
+	// should be skipped.
+	Force bool
+}
+
+// Demote demotes an instance by patching the cluster config.
+func Demote(uri *url.URL, ctx DemoteCtx) error {
+	opts, err := ParseUriOpts(uri)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", uri, err)
+	}
+	connOpts := connectOpts{
+		Username: ctx.Username,
+		Password: ctx.Password,
+	}
+
+	collector, publisher, closeFunc, err := createDataCollectorAndKeyPublisher(
+		ctx.Collectors, ctx.Publishers, opts, connOpts)
+	if err != nil {
+		return err
+	}
+	defer closeFunc()
+
+	source := replicaset.NewCConfigSource(collector, publisher,
+		replicaset.KeyPicker(pickPatchKey))
+	err = source.Demote(replicaset.DemoteCtx{
+		InstName: ctx.InstName,
+		Force:    ctx.Force,
+	})
+	if err == nil {
+		log.Info("Done.")
+	}
+	return err
+}

@@ -401,3 +401,247 @@ func TestCConfigSource_Promote_mix_failovers(t *testing.T) {
 		})
 	}
 }
+
+func TestCConfigSource_Demote_collect_config_error(t *testing.T) {
+	err := fmt.Errorf("sharks chewed wires")
+	collector := newOnceMockDataCollector(nil, err)
+	source := replicaset.NewCConfigSource(collector, nil, nil)
+	actual := source.Demote(replicaset.DemoteCtx{})
+	require.ErrorIs(t, actual, err)
+}
+
+func TestCConfigSource_Demote_no_instance_error(t *testing.T) {
+	cfg := []byte(`groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}`)
+	collector := newOnceMockDataCollector([]libcluster.Data{{Value: cfg}}, nil)
+	source := replicaset.NewCConfigSource(collector, nil, nil)
+	actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
+	require.ErrorContains(t, actual,
+		`instance "instance-002" not found in the cluster configuration`)
+}
+
+func TestCConfigSource_Demote_unexpected_failover(t *testing.T) {
+	fmtSpecified := `unsupported failover: %q, supported: "off"`
+	cases := []struct {
+		failover string
+		errText  string
+	}{
+		{"election", fmt.Sprintf(fmtSpecified, "election")},
+		{"manual", fmt.Sprintf(fmtSpecified, "manual")},
+		{"curiosity", `unknown failover, supported: "off"`},
+		{"true", "unexpected failover type: bool, string expected"},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprint(tc.failover), func(t *testing.T) {
+			cfg := []byte(fmt.Sprintf(`groups:
+  group-001:
+    replication:
+      failover: %s
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002: {}`, tc.failover))
+			collector := newOnceMockDataCollector([]libcluster.Data{
+				{Value: cfg},
+			}, nil)
+			source := replicaset.NewCConfigSource(collector, nil, nil)
+			actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
+			require.ErrorContains(t, actual, tc.errText)
+		})
+	}
+}
+
+func TestCConfigSource_Demote_invalid_failover(t *testing.T) {
+	cfg := []byte(`groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        replication: 42
+        instances:
+          instance-001: {}
+          instance-002: {}`)
+	collector := newOnceMockDataCollector([]libcluster.Data{
+		{Value: cfg},
+	}, nil)
+	source := replicaset.NewCConfigSource(collector, nil, nil)
+	actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
+	require.ErrorContains(t, actual, `path ["replication"] is not a map`)
+}
+
+func TestCConfigSource_Demote_single_key(t *testing.T) {
+	keyPicker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
+		require.Equal(t, []string{"all"}, keys)
+		return 0, nil
+	})
+	dir := filepath.Join("testdata", "cconfig_source", "demote", "single_key")
+	cases := []string{"off", "off_default", "mix"}
+	for _, tc := range cases {
+		t.Run(tc, func(t *testing.T) {
+			expected := readFile(t, filepath.Join(dir, tc+"_expected.yml"),
+				cconfigSourceTestDataFS)
+			input := readFile(t, filepath.Join(dir, tc+"_init.yml"),
+				cconfigSourceTestDataFS)
+			publisher := newOnceMockDataPublisher(nil)
+			collector := newOnceMockDataCollector([]libcluster.Data{
+				{Source: "all", Value: input, Revision: revision},
+			}, nil)
+			source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
+			err := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
+			require.NoError(t, err)
+			assertPublished(t, publisher, "all", revision, expected)
+		})
+	}
+}
+
+func TestCConfigSource_Demote_many_keys(t *testing.T) {
+	dir := filepath.Join("testdata", "cconfig_source", "demote", "many_keys")
+	cases := []struct {
+		name string
+		keys []string
+	}{
+		{"priority_order", []string{"c", "b", "a"}},
+		// priority(a) = priority(C), priority(C) > priority(B).
+		{"lexi_order", []string{"a", "c", "b"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			testDir := filepath.Join(dir, tc.name)
+			kv := readKV(t, testDir, cconfigSourceTestDataFS)
+			expected, ok := kv["expected"]
+			require.True(t, ok)
+			delete(kv, "expected")
+			var data []libcluster.Data
+			for k, v := range kv {
+				data = append(data, libcluster.Data{
+					Source:   k,
+					Value:    v,
+					Revision: revision,
+				})
+			}
+			collector := newOnceMockDataCollector(data, nil)
+			publisher := newOnceMockDataPublisher(nil)
+			picker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
+				require.Equal(t, tc.keys, keys)
+				return 0, nil
+			})
+			source := replicaset.NewCConfigSource(collector, publisher, picker)
+			err := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
+			require.NoError(t, err)
+			fmt.Println(string(publisher.Data[0]))
+			assertPublished(t, publisher, tc.keys[0], revision, expected)
+		})
+	}
+}
+
+func TestCConfigSource_Demote_passes_force(t *testing.T) {
+	cfg := []byte(`groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}`)
+	keyPicker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
+		require.True(t, force)
+		return 0, nil
+	})
+	publisher := newOnceMockDataPublisher(nil)
+	collector := newOnceMockDataCollector([]libcluster.Data{
+		{Source: "all", Value: cfg},
+	}, nil)
+	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
+	err := source.Demote(replicaset.DemoteCtx{InstName: "instance-001", Force: true})
+	require.NoError(t, err)
+}
+
+func TestCConfigSource_Demote_publish_error(t *testing.T) {
+	cfg := []byte(`groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002: {}`)
+	err := fmt.Errorf("failed")
+	publisher := newOnceMockDataPublisher(err)
+	collector := newOnceMockDataCollector([]libcluster.Data{
+		{Source: "all", Value: cfg},
+	}, nil)
+	keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
+		return 0, nil
+	})
+	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
+	actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
+	require.ErrorIs(t, actual, err)
+}
+
+func TestCConfigSource_Demote_keypick_error(t *testing.T) {
+	cfg := []byte(`groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002: {}`)
+	publisher := newOnceMockDataPublisher(nil)
+	collector := newOnceMockDataCollector([]libcluster.Data{
+		{Source: "all", Value: cfg},
+	}, nil)
+	err := fmt.Errorf("it's too late")
+	keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
+		return 0, err
+	})
+	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
+	actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
+	require.ErrorIs(t, actual, err)
+}
+
+func TestCConfigSource_Demote_invalid_config(t *testing.T) {
+	cfg := []byte(`no: lala
+- 42`)
+	collector := newOnceMockDataCollector([]libcluster.Data{
+		{Source: "all", Value: cfg},
+	}, nil)
+	source := replicaset.NewCConfigSource(collector, nil, nil)
+	err := source.Promote(replicaset.PromoteCtx{})
+	require.ErrorContains(t, err, `failed to decode config from "all"`)
+}
+
+func TestCConfigSource_Demote_many_keys_choose_affects(t *testing.T) {
+	cfg := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002: {}
+`)
+	expected := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002:
+            database:
+              mode: ro
+`)
+	collector := newOnceMockDataCollector([]libcluster.Data{
+		{Source: "a", Value: cfg, Revision: 13},
+		{Source: "b", Value: cfg, Revision: revision},
+	}, nil)
+	picker := replicaset.KeyPicker(func(keys []string, _ bool) (int, error) {
+		require.Equal(t, []string{"a", "b"}, keys)
+		return 1, nil
+	})
+	publisher := newOnceMockDataPublisher(nil)
+	source := replicaset.NewCConfigSource(collector, publisher, picker)
+	err := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
+	require.NoError(t, err)
+	fmt.Println(string(publisher.Data[0]))
+	assertPublished(t, publisher, "b", revision, expected)
+}
