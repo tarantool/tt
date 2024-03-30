@@ -3,12 +3,12 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/rocks"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // NewCompletionCmd creates a new completion command.
@@ -56,11 +56,11 @@ func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 	label := []byte(`    # The user could have moved the cursor backwards on the command-line.`)
 
-	injection, err := util.ReadEmbedFile(rocks.EmbedCompletions, "completions/"+shell+"_injection")
+	injection, err := fs.ReadFile(rocks.EmbedCompletions, "completions/"+shell+"_injection")
 	if err != nil {
 		return nil, err
 	}
-	rocks, err := util.ReadEmbedFile(rocks.EmbedCompletions, "completions/"+shell+"_rocks")
+	rocks, err := fs.ReadFile(rocks.EmbedCompletions, "completions/"+shell+"_rocks")
 	if err != nil {
 		return nil, err
 	}
@@ -71,9 +71,9 @@ func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to inject LuaRocks completions")
 	}
 	res.Write(completion[:idx])
-	res.Write([]byte(injection))
+	res.Write(injection)
 	res.Write(completion[idx:])
-	res.Write([]byte(rocks))
+	res.Write(rocks)
 
 	return res.Bytes(), nil
 }

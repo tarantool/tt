@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"embed"
 	"fmt"
 	"io"
 	"io/fs"
@@ -287,21 +286,6 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 	}
 
 	return lines, nil
-}
-
-// ReadEmbedFile reads content of embed file in string mode.
-func ReadEmbedFile(fs embed.FS, path string) (string, error) {
-	content, err := ReadEmbedFileBinary(fs, path)
-	return string(content), err
-}
-
-// ReadEmbedFileBinary reads content of embed file in byte mode.
-func ReadEmbedFileBinary(fs embed.FS, path string) ([]byte, error) {
-	content, err := fs.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return content, nil
 }
 
 // AskConfirm asks the user for confirmation and returns true if yes.
