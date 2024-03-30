@@ -3,6 +3,7 @@ package rocks
 import (
 	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -276,11 +277,11 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	preload := L.GetField(L.GetField(L.Get(lua.EnvironIndex), "package"), "preload")
 
 	for modname, path := range rocks_preload {
-		ctx, err := util.ReadEmbedFile(luarocks, path)
+		ctx, err := fs.ReadFile(luarocks, path)
 		if err != nil {
 			return err
 		}
-		mod, err := L.LoadString(ctx)
+		mod, err := L.LoadString(string(ctx))
 		if err != nil {
 			return err
 		}

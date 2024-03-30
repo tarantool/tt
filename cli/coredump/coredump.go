@@ -3,6 +3,7 @@ package coredump
 import (
 	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,7 +34,7 @@ func Pack(coreName string) error {
 		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
 	}
-	content, err := util.ReadEmbedFile(corescripts, "scripts/tarabart.sh")
+	content, err := fs.ReadFile(corescripts, "scripts/tarabart.sh")
 	if err != nil {
 		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
@@ -48,7 +49,7 @@ func Pack(coreName string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Start()
-	StdinPipe.Write([]byte(content))
+	StdinPipe.Write(content)
 	StdinPipe.Close()
 	err = cmd.Wait()
 	if err == nil {
@@ -84,7 +85,7 @@ func Inspect(coreFolder string) error {
 		return fmt.Errorf("there was some problem inspecting archive. "+
 			"Error: '%v'", err)
 	}
-	content, err := util.ReadEmbedFile(corescripts, "scripts/gdb.sh")
+	content, err := fs.ReadFile(corescripts, "scripts/gdb.sh")
 	if err != nil {
 		return fmt.Errorf("there was some problem inspecting coredump. "+
 			"Error: '%v'", err)
@@ -99,7 +100,7 @@ func Inspect(coreFolder string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Start()
-	StdinPipe.Write([]byte(content))
+	StdinPipe.Write(content)
 	StdinPipe.Close()
 	err = cmd.Wait()
 	if err != nil {
