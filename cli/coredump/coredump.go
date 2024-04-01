@@ -27,19 +27,13 @@ func findFile(fileName string) (string, error) {
 }
 
 // Pack packs coredump into a tar.gz archive.
-func Pack(coreName string) error {
-	corePath, err := findFile(coreName)
-	if err != nil {
-		return fmt.Errorf("there was some problem packing archive. "+
-			"Error: '%v'", err)
-	}
+func Pack(corePath string) error {
 	script, err := corescripts.Open("scripts/tarabrt.sh")
 	if err != nil {
 		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
 	}
-	cmd := exec.Command("bash", "-s")
-	cmd.Env = append(cmd.Env, "COREFILE_ENV="+corePath)
+	cmd := exec.Command("bash", "-s", "--", "-c", corePath)
 	cmd.Stdin = script
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -2,6 +2,83 @@
 set -eu
 
 TOOL=$(basename "$0")
+HELP=$(cat <<HELP
+$0 - Tarantool Automatic Bug Reporting Tool
+
+This tool collects all required artefacts (listed below) and packs them into
+a single archive with unified format:
+  - /checklist      - the plain text file with the list of tarball contents
+  - /version        - the plain text file with \`tarantool --version' output
+  - /tarantool      - the executable binary file produced the core dump
+  - /coredump       - the core dump file produced by the executable
+  - /etc/os-release - the plain text file with OS identification data
+  - all shared libraries loaded (even via dlopen(3)) at the crash moment
+
+SYNOPSIS
+
+  $0 [-h] [-c core] [-d dir] [-e executable] [-p procID] [-t datetime]
+
+Supported options are:
+  -c COREDUMP                   Use file COREDUMP as a core dump to examine.
+                                See core(5) for more info.
+
+  -d DIRECTORY                  Create the resulting archive with the artefacts
+                                within DIRECTORY.
+
+  -e TARANTOOL                  Use file TARANTOOL as the executable file for
+                                examining with a core dump COREDUMP. If PID is
+                                specified, the one from /proc/PID/exe is chosen
+                                (see proc(5) for more info). If TARANTOOL is
+                                omitted, /usr/bin/tarantool is chosen.
+
+  -p PID                        PID of the dumped process, as seen in the PID
+                                namespace in which the given process resides
+                                (see %p in core(5) for more info). This flag
+                                have to be set when ${TOOL} is used as
+                                kernel.core_pattern pipeline script.
+
+  -t DATETIME                   Time of dump, expressed as seconds since the
+                                epoch, 1970-01-01 00:00:00 +0000 (UTC).
+
+  -h                            Shows this message and exit.
+
+USAGE
+
+  - Manual usage. User can simply pack all necessary artefacts by running the
+    following command.
+    $ $0 -c ./core -d /tmp
+
+  - Automatic usage. If user faces the failures often, one can set this script
+    as a pipe receiver in kernel.core_pattern syntax.
+    # sysctl -w kernel.core_pattern="|$0 -d /var/core -p %p -t %t"
+
+HELP
+)
+
+# Parse CLI options.
+OPTIONS=$(getopt -o c:d:e:hp:t: -n "${TOOL}" -- "$@")
+eval set -- "${OPTIONS}"
+while true; do
+	case "$1" in
+		--) shift; break;;
+		-c) COREFILE=$2; shift 2;;
+		-d) COREDIR=$2;  shift 2;;
+		-e) BINARY=$2;   shift 2;;
+		-p) PID=$2;      shift 2;;
+		-t) TIME=$2;     shift 2;;
+		-h) printf "%s\n" "${HELP}";
+			exit 0;;
+		*)  printf "Invalid option: $1\n%s\n" "${HELP}";
+			exit 1;;
+	esac
+done
+
+# Do not proceed if there are some CLI arguments left. Everything
+# should be parsed before this line.
+if [ $# -ne 0 ]; then
+	printf "Invalid argument: $1\n%s\n" "${HELP}";
+	exit 1;
+fi
 
 # Use the default values for the remaining parameters.
 BINARY=${BINARY:-/usr/bin/tarantool}
@@ -9,7 +86,7 @@ COREDIR=${COREDIR:-${PWD}}
 COREFILE=${COREFILE:-}
 PID=${PID:-}
 TIME=${TIME:-$(date +%s)}
-COREFILE=$COREFILE_ENV
+
 # XXX: This section handles the case when the script is used for
 # kernel.core_pattern. If PID is set and there is a directory in
 # procfs with this PID, the script processes the core dumped by
