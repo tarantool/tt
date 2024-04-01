@@ -3,7 +3,6 @@ package coredump
 import (
 	"embed"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,31 +33,28 @@ func Pack(coreName string) error {
 		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
 	}
-	content, err := fs.ReadFile(corescripts, "scripts/tarabrt.sh")
+	script, err := corescripts.Open("scripts/tarabrt.sh")
 	if err != nil {
 		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
 	}
 	cmd := exec.Command("bash", "-s")
-	StdinPipe, err := cmd.StdinPipe()
+	cmd.Env = append(cmd.Env, "COREFILE_ENV="+corePath)
+	cmd.Stdin = script
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Start()
 	if err != nil {
 		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
 	}
-	cmd.Env = append(cmd.Env, "COREFILE_ENV="+corePath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Start()
-	StdinPipe.Write(content)
-	StdinPipe.Close()
 	err = cmd.Wait()
-	if err == nil {
-		log.Infof("Core was successfully packed.")
-	} else {
-		err = fmt.Errorf("there was some problem packing archive. "+
+	if err != nil {
+		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
 	}
-	return err
+	log.Infof("Core was successfully packed.")
+	return nil
 }
 
 // Unpack unpacks a tar.gz archive.
@@ -69,13 +65,12 @@ func Unpack(tarName string) error {
 			"Error: '%v'", err)
 	}
 	err = util.ExtractTarGz(tarPath, ".")
-	if err == nil {
-		log.Infof("Archive was successfully unpacked. \n")
-	} else {
-		err = fmt.Errorf("there was some problem unpacking archive. "+
+	if err != nil {
+		return fmt.Errorf("there was some problem unpacking archive. "+
 			"Error: '%v'", err)
 	}
-	return err
+	log.Infof("Archive was successfully unpacked. \n")
+	return nil
 }
 
 // Inspect allows user to inspect unpacked coredump.
@@ -85,27 +80,25 @@ func Inspect(coreFolder string) error {
 		return fmt.Errorf("there was some problem inspecting archive. "+
 			"Error: '%v'", err)
 	}
-	content, err := fs.ReadFile(corescripts, "scripts/gdb.sh")
+	script, err := corescripts.Open("scripts/gdb.sh")
 	if err != nil {
 		return fmt.Errorf("there was some problem inspecting coredump. "+
 			"Error: '%v'", err)
 	}
 	cmd := exec.Command("bash", "-s")
-	StdinPipe, err := cmd.StdinPipe()
+	cmd.Env = append(cmd.Env, "COREFOLDER_ENV="+corePath)
+	cmd.Stdin = script
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Start()
 	if err != nil {
 		return fmt.Errorf("there was some problem inspecting coredump. "+
 			"Error: '%v'", err)
 	}
-	cmd.Env = append(cmd.Env, "COREFOLDER_ENV="+corePath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Start()
-	StdinPipe.Write(content)
-	StdinPipe.Close()
 	err = cmd.Wait()
 	if err != nil {
-		err = fmt.Errorf("there was some problem inspecting coredump. "+
+		return fmt.Errorf("there was some problem inspecting coredump. "+
 			"Error: '%v'", err)
 	}
-	return err
+	return nil
 }
