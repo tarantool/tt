@@ -34,7 +34,7 @@ func Pack(coreName string) error {
 		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
 	}
-	content, err := fs.ReadFile(corescripts, "scripts/tarabart.sh")
+	content, err := fs.ReadFile(corescripts, "scripts/tarabrt.sh")
 	if err != nil {
 		return fmt.Errorf("there was some problem packing archive. "+
 			"Error: '%v'", err)
