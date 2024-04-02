@@ -25,17 +25,25 @@ type StatusCtx struct {
 
 // Status shows a replicaset status.
 func Status(statusCtx StatusCtx) error {
-	orchestrator, err := getOrchestrator(statusCtx)
+	orchestratorType, err := getOrchestratorType(statusCtx)
 	if err != nil {
 		return err
 	}
 
-	var replicasets replicaset.Replicasets
+	var orchestrator replicasetOrchestrator
 	if statusCtx.IsApplication {
-		replicasets, err = replicaset.DiscoveryApplication(statusCtx.RunningCtx, orchestrator)
+		if orchestrator, err = makeApplicationOrchestrator(
+			orchestratorType, statusCtx.RunningCtx, nil, nil); err != nil {
+			return err
+		}
 	} else {
-		replicasets, err = replicaset.DiscoveryInstance(statusCtx.Conn, orchestrator)
+		if orchestrator, err = makeInstanceOrchestrator(
+			orchestratorType, statusCtx.Conn); err != nil {
+			return err
+		}
 	}
+
+	replicasets, err := orchestrator.Discovery()
 	if err != nil {
 		return err
 	}
@@ -43,8 +51,8 @@ func Status(statusCtx StatusCtx) error {
 	return statusReplicasets(replicasets)
 }
 
-// getOrchestrator determinates a used orchestrator type.
-func getOrchestrator(statusCtx StatusCtx) (replicaset.Orchestrator, error) {
+// getOrchestratorType determinates a used orchestrator type.
+func getOrchestratorType(statusCtx StatusCtx) (replicaset.Orchestrator, error) {
 	if statusCtx.Orchestrator != replicaset.OrchestratorUnknown {
 		return statusCtx.Orchestrator, nil
 	}

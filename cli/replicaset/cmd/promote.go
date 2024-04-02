@@ -41,32 +41,15 @@ func Promote(ctx PromoteCtx) error {
 		return err
 	}
 
-	var orchestrator interface {
-		replicaset.Discoverer
-		replicaset.Promoter
-	}
+	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
-		switch orchestratorType {
-		case replicaset.OrchestratorCentralizedConfig:
-			orchestrator = replicaset.NewCConfigApplication(ctx.RunningCtx, ctx.Collectors,
-				ctx.Publishers)
-		case replicaset.OrchestratorCartridge:
-			orchestrator = replicaset.NewCartridgeApplication(ctx.RunningCtx)
-		case replicaset.OrchestratorCustom:
-			fallthrough
-		default:
-			return fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
+		if orchestrator, err = makeApplicationOrchestrator(
+			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers); err != nil {
+			return err
 		}
 	} else {
-		switch orchestratorType {
-		case replicaset.OrchestratorCentralizedConfig:
-			orchestrator = replicaset.NewCConfigInstance(ctx.Conn)
-		case replicaset.OrchestratorCartridge:
-			orchestrator = replicaset.NewCartridgeInstance(ctx.Conn)
-		case replicaset.OrchestratorCustom:
-			fallthrough
-		default:
-			return fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
+		if orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn); err != nil {
+			return err
 		}
 	}
 

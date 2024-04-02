@@ -38,20 +38,10 @@ func Demote(ctx DemoteCtx) error {
 		return err
 	}
 
-	var orchestrator interface {
-		replicaset.Discoverer
-		replicaset.Demoter
-	}
-	switch orchestratorType {
-	case replicaset.OrchestratorCentralizedConfig:
-		orchestrator = replicaset.NewCConfigApplication(ctx.RunningCtx, ctx.Collectors,
-			ctx.Publishers)
-	case replicaset.OrchestratorCartridge:
-		fallthrough
-	case replicaset.OrchestratorCustom:
-		fallthrough
-	default:
-		return fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
+	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
+		ctx.RunningCtx, ctx.Collectors, ctx.Publishers)
+	if err != nil {
+		return err
 	}
 
 	log.Info("Discovery application...")

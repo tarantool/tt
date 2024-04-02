@@ -378,3 +378,11 @@ func TestCConfigInstance_Promote_error(t *testing.T) {
 	actual := instance.Promote(replicaset.PromoteCtx{})
 	require.ErrorIs(t, actual, err)
 }
+
+func TestCConfigInstance_Demote(t *testing.T) {
+	instance := replicaset.NewCConfigInstance(nil)
+	err := instance.Demote(replicaset.DemoteCtx{})
+
+	require.EqualError(t, err,
+		`demote is not supported for a single instance by "centralized config" orchestrator`)
+}

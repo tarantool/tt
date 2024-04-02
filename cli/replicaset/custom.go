@@ -65,6 +65,16 @@ func (c *CustomInstance) Discovery() (Replicasets, error) {
 	}), nil
 }
 
+// Promote is not supported for a single instance with custom orchestrator.
+func (c *CustomInstance) Promote(ctx PromoteCtx) error {
+	return newErrPromoteByInstanceNotSupported(OrchestratorCustom)
+}
+
+// Demote is not supported for a single instance with custom orchestrator.
+func (c *CustomInstance) Demote(ctx DemoteCtx) error {
+	return newErrDemoteByInstanceNotSupported(OrchestratorCustom)
+}
+
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
 	runningCtx running.RunningCtx
@@ -104,6 +114,16 @@ func (c *CustomApplication) Discovery() (Replicasets, error) {
 	}
 
 	return mergeCustomTopologies(topologies)
+}
+
+// Promote is not supported for a custom application.
+func (c *CustomApplication) Promote(ctx PromoteCtx) error {
+	return newErrPromoteByAppNotSupported(OrchestratorCustom)
+}
+
+// Demote is not supported for a custom application.
+func (c *CustomApplication) Demote(ctx DemoteCtx) error {
+	return newErrDemoteByAppNotSupported(OrchestratorCustom)
 }
 
 // getCustomInstanceTopology returns a topology for an instance.

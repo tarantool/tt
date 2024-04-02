@@ -137,6 +137,11 @@ loop:
 	return cartridgePromote(c.evaler, inst, ctx.Force, ctx.Timeout)
 }
 
+// Demote is not supported for a single instance by the cartridge orchestrator.
+func (c *CartridgeInstance) Demote(ctx DemoteCtx) error {
+	return newErrDemoteByInstanceNotSupported(OrchestratorCartridge)
+}
+
 // GetReplicasets returns a replicaset topology for a single instance with the
 // Cartridge orchestrator.
 func (c *CartridgeInstance) Discovery() (Replicasets, error) {
@@ -249,6 +254,11 @@ loop:
 
 	return cartridgePromote(MakeInstanceEvalFunc(targetInstance.InstanceCtx),
 		inst, ctx.Force, ctx.Timeout)
+}
+
+// Demote is not supported for a cartridge application.
+func (c *CartridgeApplication) Demote(ctx DemoteCtx) error {
+	return newErrDemoteByAppNotSupported(OrchestratorCartridge)
 }
 
 // getCartridgeInstanceInfo returns an additional instance information.
