@@ -81,7 +81,7 @@ def test_cluster_promote_single_key(
         assert err_text in out
         return
     assert rc == 0
-    assert 'Patch the config by the key: "/prefix/config/all"' in out
+    assert 'Patching the config by the key: "/prefix/config/all"' in out
 
     expected = kv["expected"]
     actual, _ = etcdcli.get("/prefix/config/all")
@@ -147,7 +147,7 @@ def test_cluster_promote_many_keys(
         return
 
     assert rc == 0
-    assert f'Patch the config by the key: "{to_etcd_key(exp_key)}"' in out
+    assert f'Patching the config by the key: "{to_etcd_key(exp_key)}"' in out
 
     expected_kv = kvs
     expected_kv[exp_key] = exp_config
@@ -181,7 +181,7 @@ def test_cluster_promote_key_specified(tt_cmd, etcd, tmpdir_with_cfg):
     # Despite the fact that the config for key a is more prioritized,
     # b will be patched as it is explicitly specified.
     expected_key = to_etcd_key("b")
-    assert f'Patch the config by the key: "{expected_key}"' in out
+    assert f'Patching the config by the key: "{expected_key}"' in out
 
     expected_kv = kvs
     expected_kv["b"] = exp_config
@@ -274,7 +274,7 @@ def test_cluster_promote_auth(tt_cmd, etcd, tmpdir_with_cfg, auth):
 
         rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir, env=env)
         assert rc == 0
-        assert f'Patch the config by the key: "{key}"' in out
+        assert f'Patching the config by the key: "{key}"' in out
 
         etcd.disable_auth()
         etcdcli = etcd.conn()

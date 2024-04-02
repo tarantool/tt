@@ -99,26 +99,69 @@ func assertPublished(t *testing.T, p *mockDataPublisher, key string, revision in
 	require.Equal(t, [][]byte{data}, p.Data)
 }
 
-func TestCConfigSource_Promote_collect_config_error(t *testing.T) {
-	err := fmt.Errorf("sharks chewed wires")
-	collector := newOnceMockDataCollector(nil, err)
-	source := replicaset.NewCConfigSource(collector, nil, nil)
-	actual := source.Promote(replicaset.PromoteCtx{})
-	require.ErrorIs(t, actual, err)
+func TestCConfigSource_collect_config_error(t *testing.T) {
+	cases := []struct {
+		runFunc func(*replicaset.CConfigSource) error
+	}{
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Promote(replicaset.PromoteCtx{})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Demote(replicaset.DemoteCtx{})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Expel(replicaset.ExpelCtx{})
+			},
+		},
+	}
+	for _, tc := range cases {
+		err := fmt.Errorf("sharks chewed wires")
+		collector := newOnceMockDataCollector(nil, err)
+		source := replicaset.NewCConfigSource(collector, nil, nil)
+		actual := tc.runFunc(source)
+		require.ErrorIs(t, actual, err)
+	}
 }
 
-func TestCConfigSource_Promote_no_instance_error(t *testing.T) {
+func TestCConfigSource_no_instance_error(t *testing.T) {
 	cfg := []byte(`groups:
   group-001:
     replicasets:
       replicaset-001:
         instances:
           instance-001: {}`)
-	collector := newOnceMockDataCollector([]libcluster.Data{{Value: cfg}}, nil)
-	source := replicaset.NewCConfigSource(collector, nil, nil)
-	actual := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
-	require.ErrorContains(t, actual,
-		`instance "instance-002" not found in the cluster configuration`)
+	instName := "instance-002"
+	cases := []struct {
+		runFunc func(*replicaset.CConfigSource) error
+	}{
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Promote(replicaset.PromoteCtx{InstName: instName})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Demote(replicaset.DemoteCtx{InstName: instName})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Expel(replicaset.ExpelCtx{InstName: instName})
+			},
+		},
+	}
+	for _, tc := range cases {
+		collector := newOnceMockDataCollector([]libcluster.Data{{Value: cfg}}, nil)
+		source := replicaset.NewCConfigSource(collector, nil, nil)
+		actual := tc.runFunc(source)
+		require.ErrorContains(t, actual,
+			fmt.Sprintf("instance %q not found in the cluster configuration", instName))
+	}
 }
 
 func TestCConfigSource_Promote_unexpected_failover(t *testing.T) {
@@ -199,27 +242,50 @@ func TestCConfigSource_Promote_single_key(t *testing.T) {
 	}
 }
 
-func TestCConfigSource_Promote_passes_force(t *testing.T) {
+func TestCConfigSource_passes_force(t *testing.T) {
+	instName := "instance-001"
 	cfg := []byte(`groups:
   group-001:
     replicasets:
       replicaset-001:
         instances:
           instance-001: {}`)
-	keyPicker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
-		require.True(t, force)
-		return 0, nil
-	})
-	publisher := newOnceMockDataPublisher(nil)
-	collector := newOnceMockDataCollector([]libcluster.Data{
-		{Source: "all", Value: cfg},
-	}, nil)
-	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-	err := source.Promote(replicaset.PromoteCtx{InstName: "instance-001", Force: true})
-	require.NoError(t, err)
+	cases := []struct {
+		runFunc func(*replicaset.CConfigSource) error
+	}{
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Promote(replicaset.PromoteCtx{InstName: instName, Force: true})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Demote(replicaset.DemoteCtx{InstName: instName, Force: true})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Expel(replicaset.ExpelCtx{InstName: instName, Force: true})
+			},
+		},
+	}
+	for _, tc := range cases {
+		keyPicker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
+			require.True(t, force)
+			return 0, nil
+		})
+		publisher := newOnceMockDataPublisher(nil)
+		collector := newOnceMockDataCollector([]libcluster.Data{
+			{Source: "all", Value: cfg},
+		}, nil)
+		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
+		err := tc.runFunc(source)
+		require.NoError(t, err)
+	}
 }
 
-func TestCConfigSource_Promote_publish_error(t *testing.T) {
+func TestCConfigSource_publish_error(t *testing.T) {
+	instName := "instance-002"
 	cfg := []byte(`groups:
   group-001:
     replicasets:
@@ -227,20 +293,42 @@ func TestCConfigSource_Promote_publish_error(t *testing.T) {
         instances:
           instance-001: {}
           instance-002: {}`)
-	err := fmt.Errorf("failed")
-	publisher := newOnceMockDataPublisher(err)
-	collector := newOnceMockDataCollector([]libcluster.Data{
-		{Source: "all", Value: cfg},
-	}, nil)
-	keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
-		return 0, nil
-	})
-	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-	actual := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
-	require.ErrorIs(t, actual, err)
+	cases := []struct {
+		runFunc func(*replicaset.CConfigSource) error
+	}{
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Promote(replicaset.PromoteCtx{InstName: instName})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Demote(replicaset.DemoteCtx{InstName: instName})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Expel(replicaset.ExpelCtx{InstName: instName})
+			},
+		},
+	}
+	for _, tc := range cases {
+		err := fmt.Errorf("failed")
+		publisher := newOnceMockDataPublisher(err)
+		collector := newOnceMockDataCollector([]libcluster.Data{
+			{Source: "all", Value: cfg},
+		}, nil)
+		keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
+			return 0, nil
+		})
+		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
+		actual := tc.runFunc(source)
+		require.ErrorIs(t, actual, err)
+	}
 }
 
-func TestCConfigSource_Promote_keypick_error(t *testing.T) {
+func TestCConfigSource_keypick_error(t *testing.T) {
+	instName := "instance-002"
 	cfg := []byte(`groups:
   group-001:
     replicasets:
@@ -248,28 +336,70 @@ func TestCConfigSource_Promote_keypick_error(t *testing.T) {
         instances:
           instance-001: {}
           instance-002: {}`)
-	publisher := newOnceMockDataPublisher(nil)
-	collector := newOnceMockDataCollector([]libcluster.Data{
-		{Source: "all", Value: cfg},
-	}, nil)
-	err := fmt.Errorf("it's too late")
-	keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
-		return 0, err
-	})
-	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-	actual := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
-	require.ErrorIs(t, actual, err)
+	cases := []struct {
+		runFunc func(*replicaset.CConfigSource) error
+	}{
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Promote(replicaset.PromoteCtx{InstName: instName})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Demote(replicaset.DemoteCtx{InstName: instName})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Expel(replicaset.ExpelCtx{InstName: instName})
+			},
+		},
+	}
+	for _, tc := range cases {
+		publisher := newOnceMockDataPublisher(nil)
+		collector := newOnceMockDataCollector([]libcluster.Data{
+			{Source: "all", Value: cfg},
+		}, nil)
+		err := fmt.Errorf("it's too late")
+		keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
+			return 0, err
+		})
+		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
+		actual := tc.runFunc(source)
+		require.ErrorIs(t, actual, err)
+	}
 }
 
 func TestCConfigSource_Promote_invalid_config(t *testing.T) {
 	cfg := []byte(`no: lala
 - 42`)
-	collector := newOnceMockDataCollector([]libcluster.Data{
-		{Source: "all", Value: cfg},
-	}, nil)
-	source := replicaset.NewCConfigSource(collector, nil, nil)
-	err := source.Promote(replicaset.PromoteCtx{})
-	require.ErrorContains(t, err, `failed to decode config from "all"`)
+	cases := []struct {
+		runFunc func(*replicaset.CConfigSource) error
+	}{
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Promote(replicaset.PromoteCtx{})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Demote(replicaset.DemoteCtx{})
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.Expel(replicaset.ExpelCtx{})
+			},
+		},
+	}
+	for _, tc := range cases {
+		collector := newOnceMockDataCollector([]libcluster.Data{
+			{Source: "all", Value: cfg},
+		}, nil)
+		source := replicaset.NewCConfigSource(collector, nil, nil)
+		err := tc.runFunc(source)
+		require.ErrorContains(t, err, `failed to decode config from "all"`)
+	}
 }
 
 func TestCConfigSource_Promote_many_keys(t *testing.T) {
@@ -402,28 +532,6 @@ func TestCConfigSource_Promote_mix_failovers(t *testing.T) {
 	}
 }
 
-func TestCConfigSource_Demote_collect_config_error(t *testing.T) {
-	err := fmt.Errorf("sharks chewed wires")
-	collector := newOnceMockDataCollector(nil, err)
-	source := replicaset.NewCConfigSource(collector, nil, nil)
-	actual := source.Demote(replicaset.DemoteCtx{})
-	require.ErrorIs(t, actual, err)
-}
-
-func TestCConfigSource_Demote_no_instance_error(t *testing.T) {
-	cfg := []byte(`groups:
-  group-001:
-    replicasets:
-      replicaset-001:
-        instances:
-          instance-001: {}`)
-	collector := newOnceMockDataCollector([]libcluster.Data{{Value: cfg}}, nil)
-	source := replicaset.NewCConfigSource(collector, nil, nil)
-	actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
-	require.ErrorContains(t, actual,
-		`instance "instance-002" not found in the cluster configuration`)
-}
-
 func TestCConfigSource_Demote_unexpected_failover(t *testing.T) {
 	fmtSpecified := `unsupported failover: %q, supported: "off"`
 	cases := []struct {
@@ -538,68 +646,6 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 	}
 }
 
-func TestCConfigSource_Demote_passes_force(t *testing.T) {
-	cfg := []byte(`groups:
-  group-001:
-    replicasets:
-      replicaset-001:
-        instances:
-          instance-001: {}`)
-	keyPicker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
-		require.True(t, force)
-		return 0, nil
-	})
-	publisher := newOnceMockDataPublisher(nil)
-	collector := newOnceMockDataCollector([]libcluster.Data{
-		{Source: "all", Value: cfg},
-	}, nil)
-	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-	err := source.Demote(replicaset.DemoteCtx{InstName: "instance-001", Force: true})
-	require.NoError(t, err)
-}
-
-func TestCConfigSource_Demote_publish_error(t *testing.T) {
-	cfg := []byte(`groups:
-  group-001:
-    replicasets:
-      replicaset-001:
-        instances:
-          instance-001: {}
-          instance-002: {}`)
-	err := fmt.Errorf("failed")
-	publisher := newOnceMockDataPublisher(err)
-	collector := newOnceMockDataCollector([]libcluster.Data{
-		{Source: "all", Value: cfg},
-	}, nil)
-	keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
-		return 0, nil
-	})
-	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-	actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
-	require.ErrorIs(t, actual, err)
-}
-
-func TestCConfigSource_Demote_keypick_error(t *testing.T) {
-	cfg := []byte(`groups:
-  group-001:
-    replicasets:
-      replicaset-001:
-        instances:
-          instance-001: {}
-          instance-002: {}`)
-	publisher := newOnceMockDataPublisher(nil)
-	collector := newOnceMockDataCollector([]libcluster.Data{
-		{Source: "all", Value: cfg},
-	}, nil)
-	err := fmt.Errorf("it's too late")
-	keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
-		return 0, err
-	})
-	source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
-	actual := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
-	require.ErrorIs(t, actual, err)
-}
-
 func TestCConfigSource_Demote_invalid_config(t *testing.T) {
 	cfg := []byte(`no: lala
 - 42`)
@@ -642,6 +688,38 @@ func TestCConfigSource_Demote_many_keys_choose_affects(t *testing.T) {
 	source := replicaset.NewCConfigSource(collector, publisher, picker)
 	err := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
 	require.NoError(t, err)
-	fmt.Println(string(publisher.Data[0]))
 	assertPublished(t, publisher, "b", revision, expected)
+}
+
+func TestCConfigSource_Expel_single_key(t *testing.T) {
+	cfg := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002: {}
+`)
+	collector := newOnceMockDataCollector([]libcluster.Data{
+		{Source: "a", Value: cfg, Revision: revision},
+	}, nil)
+	picker := replicaset.KeyPicker(func(keys []string, _ bool) (int, error) {
+		require.Equal(t, []string{"a"}, keys)
+		return 0, nil
+	})
+	publisher := newOnceMockDataPublisher(nil)
+	source := replicaset.NewCConfigSource(collector, publisher, picker)
+	err := source.Expel(replicaset.ExpelCtx{InstName: "instance-002"})
+	require.NoError(t, err)
+	expected := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001: {}
+          instance-002:
+            iproto:
+              listen: {}
+`)
+	assertPublished(t, publisher, "a", revision, expected)
 }
