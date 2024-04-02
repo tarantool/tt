@@ -7,10 +7,30 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/cli/running"
 )
 
 var _ replicaset.Discoverer = &replicaset.CustomInstance{}
+var _ replicaset.Promoter = &replicaset.CustomInstance{}
+var _ replicaset.Demoter = &replicaset.CustomInstance{}
+
 var _ replicaset.Discoverer = &replicaset.CustomApplication{}
+var _ replicaset.Promoter = &replicaset.CustomApplication{}
+var _ replicaset.Demoter = &replicaset.CustomApplication{}
+
+func TestCustomApplication_Promote(t *testing.T) {
+	app := replicaset.NewCustomApplication(running.RunningCtx{})
+	err := app.Promote(replicaset.PromoteCtx{})
+	assert.EqualError(t, err,
+		`promote is not supported for an application by "custom" orchestrator`)
+}
+
+func TestCustomApplication_Demote(t *testing.T) {
+	app := replicaset.NewCustomApplication(running.RunningCtx{})
+	err := app.Demote(replicaset.DemoteCtx{})
+	assert.EqualError(t, err,
+		`demote is not supported for an application by "custom" orchestrator`)
+}
 
 func TestCustomInstance_Discovery(t *testing.T) {
 	cases := []struct {
@@ -310,4 +330,18 @@ func TestCustomInstance_Discovery_errors(t *testing.T) {
 			assert.ErrorContains(t, err, tc.Expected)
 		})
 	}
+}
+
+func TestCustomInstance_Promote(t *testing.T) {
+	inst := replicaset.NewCustomInstance(nil)
+	err := inst.Promote(replicaset.PromoteCtx{})
+	assert.EqualError(t, err,
+		`promote is not supported for a single instance by "custom" orchestrator`)
+}
+
+func TestCustomInstance_Demote(t *testing.T) {
+	inst := replicaset.NewCustomInstance(nil)
+	err := inst.Demote(replicaset.DemoteCtx{})
+	assert.EqualError(t, err,
+		`demote is not supported for a single instance by "custom" orchestrator`)
 }

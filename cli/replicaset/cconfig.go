@@ -91,6 +91,12 @@ func (c *CConfigInstance) Promote(ctx PromoteCtx) error {
 	return cconfigPromoteElection(c.evaler, ctx.Timeout)
 }
 
+// Demote is not supported for a single instance by the centralized config
+// orchestrator.
+func (c *CConfigInstance) Demote(ctx DemoteCtx) error {
+	return newErrDemoteByInstanceNotSupported(OrchestratorCentralizedConfig)
+}
+
 // CConfigApplication is an application with the centralized config
 // orchestrator.
 type CConfigApplication struct {

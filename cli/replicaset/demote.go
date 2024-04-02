@@ -1,5 +1,7 @@
 package replicaset
 
+import "fmt"
+
 // DemoteCtx describes a context for an instance demoting.
 type DemoteCtx struct {
 	// InstName is an instance name to demote.
@@ -16,4 +18,18 @@ type DemoteCtx struct {
 type Demoter interface {
 	// Demote demotes an instance.
 	Demote(DemoteCtx) error
+}
+
+// newErrDemoteByInstanceNotSupported creates a new error that demote is not
+// supported by the orchestrator for a single instance.
+func newErrDemoteByInstanceNotSupported(orchestrator Orchestrator) error {
+	return fmt.Errorf("demote is not supported for a single instance by %q orchestrator",
+		orchestrator)
+}
+
+// newErrDemoteByAppNotSupported creates a new error that demote is not
+// supported by the orchestrator for an application.
+func newErrDemoteByAppNotSupported(orchestrator Orchestrator) error {
+	return fmt.Errorf("demote is not supported for an application by %q orchestrator",
+		orchestrator)
 }

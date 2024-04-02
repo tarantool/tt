@@ -10,10 +10,30 @@ import (
 
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/cli/running"
 )
 
 var _ replicaset.Discoverer = &replicaset.CartridgeInstance{}
+var _ replicaset.Promoter = &replicaset.CartridgeInstance{}
+var _ replicaset.Demoter = &replicaset.CartridgeInstance{}
+
 var _ replicaset.Discoverer = &replicaset.CartridgeApplication{}
+var _ replicaset.Promoter = &replicaset.CartridgeApplication{}
+var _ replicaset.Demoter = &replicaset.CartridgeApplication{}
+
+func TestCartridgeApplication_Demote(t *testing.T) {
+	app := replicaset.NewCartridgeApplication(running.RunningCtx{})
+	err := app.Demote(replicaset.DemoteCtx{})
+	assert.EqualError(t, err,
+		`demote is not supported for an application by "cartridge" orchestrator`)
+}
+
+func TestCartridgeInstance_Demote(t *testing.T) {
+	inst := replicaset.NewCartridgeInstance(nil)
+	err := inst.Demote(replicaset.DemoteCtx{})
+	assert.EqualError(t, err,
+		`demote is not supported for a single instance by "cartridge" orchestrator`)
+}
 
 func TestCartridgeInstance_Discovery(t *testing.T) {
 	cases := []struct {

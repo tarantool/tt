@@ -12,7 +12,12 @@ import (
 )
 
 var _ replicaset.Discoverer = &replicaset.CConfigInstance{}
+var _ replicaset.Promoter = &replicaset.CConfigInstance{}
+var _ replicaset.Demoter = &replicaset.CConfigInstance{}
+
 var _ replicaset.Discoverer = &replicaset.CConfigApplication{}
+var _ replicaset.Promoter = &replicaset.CConfigApplication{}
+var _ replicaset.Demoter = &replicaset.CConfigApplication{}
 
 func TestCConfigInstance_Discovery(t *testing.T) {
 	cases := []struct {
@@ -377,4 +382,11 @@ func TestCConfigInstance_Promote_error(t *testing.T) {
 	instance := replicaset.NewCConfigInstance(evaler)
 	actual := instance.Promote(replicaset.PromoteCtx{})
 	require.ErrorIs(t, actual, err)
+}
+
+func TestCConfigInstance_Demote(t *testing.T) {
+	instance := replicaset.NewCConfigInstance(nil)
+	err := instance.Demote(replicaset.DemoteCtx{})
+	require.EqualError(t, err,
+		`demote is not supported for a single instance by "centralized config" orchestrator`)
 }
