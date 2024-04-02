@@ -222,3 +222,49 @@ func Demote(uri *url.URL, ctx DemoteCtx) error {
 	}
 	return err
 }
+
+// ExpelCtx describes the context to expel an instance.
+type ExpelCtx struct {
+	// InstName is an instance name to demote.
+	InstName string
+	// Publishers is data publisher factory.
+	Publishers libcluster.DataPublisherFactory
+	// Collectors is data collector factory.
+	Collectors libcluster.DataCollectorFactory
+	// Username defines a username for connection.
+	Username string
+	// Password defines a password for connection.
+	Password string
+	// Force true if the key selection for patching the config
+	// should be skipped.
+	Force bool
+}
+
+// Expel expels an instance by patching the cluster config.
+func Expel(uri *url.URL, ctx ExpelCtx) error {
+	opts, err := ParseUriOpts(uri)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", uri, err)
+	}
+	connOpts := connectOpts{
+		Username: ctx.Username,
+		Password: ctx.Password,
+	}
+
+	collector, publisher, closeFunc, err := createDataCollectorAndKeyPublisher(
+		ctx.Collectors, ctx.Publishers, opts, connOpts)
+	if err != nil {
+		return err
+	}
+	defer closeFunc()
+	source := replicaset.NewCConfigSource(collector, publisher,
+		replicaset.KeyPicker(pickPatchKey))
+	err = source.Expel(replicaset.ExpelCtx{
+		InstName: ctx.InstName,
+		Force:    ctx.Force,
+	})
+	if err == nil {
+		log.Info("Done.")
+	}
+	return err
+}
