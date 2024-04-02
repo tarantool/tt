@@ -68,17 +68,21 @@ func (c *CConfigSource) pickTarget(targets []patchTarget, force bool) (patchTarg
 	return targets[dstIndex], nil
 }
 
-// Promote patches a config to promote an instance.
-func (c *CConfigSource) Promote(ctx PromoteCtx) error {
+// patchInstanceConfig runs an instance based config patching pipeline.
+func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
+	getPathFunc func(cconfigInstance) ([]string, int, error),
+	patchFunc func(*libcluster.Config, cconfigInstance) (*libcluster.Config, error),
+) error {
 	configData, clusterConfig, err := collectCConfig(c.collector)
 	if err != nil {
 		return err
 	}
-	inst, err := getCConfigInstance(&clusterConfig, ctx.InstName)
+	inst, err := getCConfigInstance(&clusterConfig, instanceName)
 	if err != nil {
 		return err
 	}
-	path, depth, err := getCConfigPromotePath(inst)
+
+	path, depth, err := getPathFunc(inst)
 	if err != nil {
 		return err
 	}
@@ -86,62 +90,56 @@ func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 	if err != nil {
 		return err
 	}
-	target, err := c.pickTarget(targets, ctx.Force)
+	target, err := c.pickTarget(targets, force)
 	if err != nil {
 		return err
 	}
-	return c.promote(target, inst)
+
+	patched, err := patchFunc(target.config, inst)
+	if err != nil {
+		return err
+	}
+	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
+	if err != nil {
+		return fmt.Errorf("failed to publish the config: %w", err)
+	}
+	return nil
+}
+
+// Promote patches a config to promote an instance.
+func (c *CConfigSource) Promote(ctx PromoteCtx) error {
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigPromotePath,
+		func(config *libcluster.Config, inst cconfigInstance) (*libcluster.Config, error) {
+			return patchCConfigPromote(config, inst)
+		},
+	)
 }
 
 // Demote patches a config to demote an instance.
 func (c *CConfigSource) Demote(ctx DemoteCtx) error {
-	configData, clusterConfig, err := collectCConfig(c.collector)
-	if err != nil {
-		return err
-	}
-	inst, err := getCConfigInstance(&clusterConfig, ctx.InstName)
-	if err != nil {
-		return err
-	}
-	path, depth, err := getCConfigDemotePath(inst)
-	if err != nil {
-		return err
-	}
-	targets, err := getCConfigPatchTargets(configData, path, depth)
-	if err != nil {
-		return err
-	}
-	target, err := c.pickTarget(targets, ctx.Force)
-	if err != nil {
-		return err
-	}
-	return c.demote(target, inst)
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigDemotePath,
+		func(config *libcluster.Config, inst cconfigInstance) (*libcluster.Config, error) {
+			return patchCConfigDemote(config, inst)
+		},
+	)
 }
 
-// promote promotes an instance by patching the specified target.
-func (c *CConfigSource) promote(target patchTarget, inst cconfigInstance) error {
-	patched, err := patchCConfigPromote(target.config, inst)
-	if err != nil {
-		return err
-	}
-	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
-	if err != nil {
-		return fmt.Errorf("failed to publish the config: %w", err)
-	}
-	return nil
-}
-
-// demote demotes an instance by patching the specified target.
-func (c *CConfigSource) demote(target patchTarget, inst cconfigInstance) error {
-	patched, err := patchCConfigDemote(target.config, inst)
-	if err != nil {
-		return err
-	}
-	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
-	if err != nil {
-		return fmt.Errorf("failed to publish the config: %w", err)
-	}
-	return nil
+// Expel patches a config to expel an instance.
+func (c *CConfigSource) Expel(ctx ExpelCtx) error {
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigExpelPath,
+		func(config *libcluster.Config, inst cconfigInstance) (*libcluster.Config, error) {
+			return patchCConfigExpel(config, inst)
+		},
+	)
 }
 
 // getCConfigPromotePath returns a path and it's minimum interesting depth
@@ -193,6 +191,20 @@ func getCConfigDemotePath(inst cconfigInstance) (path []string, depth int, err e
 	default:
 		err = fmt.Errorf(`unknown failover, supported: "off"`)
 	}
+	return
+}
+
+// getCConfigExpelPath returns a path and it's minimum interesting depth
+// to patch the config for instance expelling.
+func getCConfigExpelPath(inst cconfigInstance) (path []string, depth int, err error) {
+	var (
+		groupName      = inst.groupName
+		replicasetName = inst.replicasetName
+		instName       = inst.name
+	)
+	path = []string{"groups", groupName, "replicasets", replicasetName,
+		"instances", instName, "iproto", "listen"}
+	depth = len(path) - 2
 	return
 }
 

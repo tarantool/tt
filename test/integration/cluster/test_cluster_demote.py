@@ -40,7 +40,7 @@ def test_cluster_demote_single_key(tt_cmd, tmpdir_with_cfg, etcd):
     demote_cmd = [tt_cmd, "cluster", "rs", "demote", "-f", url, "instance-001"]
     rc, out = run_command_and_get_output(demote_cmd, cwd=tmpdir)
     assert rc == 0
-    assert f'Patch the config by the key: "{key}"' in out
+    assert f'Patching the config by the key: "{key}"' in out
 
     actual, _ = etcdcli.get(key)
     actual = actual.decode("utf-8")
@@ -70,7 +70,7 @@ def test_cluster_demote_many_keys(tt_cmd, tmpdir_with_cfg, etcd, key):
     demote_cmd = [tt_cmd, "cluster", "rs", "demote", "-f", url, "instance-002"]
     rc, out = run_command_and_get_output(demote_cmd, cwd=tmpdir)
     assert rc == 0
-    assert f'Patch the config by the key: "{b_key}"' in out
+    assert f'Patching the config by the key: "{b_key}"' in out
 
     actual, _ = etcdcli.get(a_key)
     actual = actual.decode("utf-8")
@@ -150,7 +150,7 @@ def test_cluster_demote_auth(tt_cmd, tmpdir_with_cfg, etcd, auth):
 
         rc, out = run_command_and_get_output(demote_cmd, cwd=tmpdir, env=env)
         assert rc == 0
-        assert f'Patch the config by the key: "{key}"' in out
+        assert f'Patching the config by the key: "{key}"' in out
 
         etcd.disable_auth()
         etcdcli = etcd.conn()

@@ -49,6 +49,12 @@ var demoteCtx = clustercmd.DemoteCtx{
 	Force:    false,
 }
 
+var expelCtx = clustercmd.ExpelCtx{
+	Username: "",
+	Password: "",
+	Force:    false,
+}
+
 var (
 	clusterIntegrityPrivateKey string
 	clusterUriHelp             = fmt.Sprintf(
@@ -134,8 +140,31 @@ func newClusterReplicasetCmd() *cobra.Command {
 		"skip selecting a key for patching")
 	integrity.RegisterWithIntegrityFlag(demoteCmd.Flags(), &clusterIntegrityPrivateKey)
 
+	expelCmd := &cobra.Command{
+		Use:                   "expel [-f] [flags] <URI> <INSTANCE_NAME>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Expel an instance",
+		Long:                  "Expel an instance\n\n" + clusterUriHelp,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalClusterReplicasetExpelModule, args)
+			handleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(2),
+	}
+
+	expelCmd.Flags().StringVarP(&expelCtx.Username, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	expelCmd.Flags().StringVarP(&expelCtx.Password, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+	expelCmd.Flags().BoolVarP(&expelCtx.Force, "force", "f", false,
+		"skip selecting a key for patching")
+	integrity.RegisterWithIntegrityFlag(expelCmd.Flags(), &clusterIntegrityPrivateKey)
+
 	cmd.AddCommand(promoteCmd)
 	cmd.AddCommand(demoteCmd)
+	cmd.AddCommand(expelCmd)
 
 	return cmd
 }
@@ -335,6 +364,23 @@ func internalClusterReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []str
 
 	demoteCtx.InstName = args[1]
 	return clustercmd.Demote(uri, demoteCtx)
+}
+
+// internalClusterReplicasetExpelModule is a "cluster replicaset expel" command.
+func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	uri, err := parseUrl(args[0])
+	if err != nil {
+		return fmt.Errorf("failed to parse config source URI: %w", err)
+	}
+
+	expelCtx.Collectors, expelCtx.Publishers, err = createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, clusterIntegrityPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	expelCtx.InstName = args[1]
+	return clustercmd.Expel(uri, expelCtx)
 }
 
 // readSourceFile reads a configuration from a source file.

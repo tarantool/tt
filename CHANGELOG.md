@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt cluster replicaset`: module to manage replicaset via 3.0 cluster config storage.
   * `tt cluster replicaset promote`: command to promote an instance in the replicaset.
   * `tt cluster replicaset demote`: command to demote an instance in the replicaset.
+  * `tt cluster replicaset expel`: command to expel an instance from the replicaset.
 - `tt connect --binary`: connect to instance using binary port.
 - `tt kill`: command to stop instance(s) with SIGQUIT and SIGKILL signals.
 
