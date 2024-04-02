@@ -21,6 +21,9 @@ var (
 	//go:embed lua/cartridge/edit_replicasets_body.lua
 	cartridgeEditReplicasetsBody string
 
+	//go:embed lua/cartridge/edit_instances_body.lua
+	cartridgeEditInstancesBody string
+
 	//go:embed lua/cartridge/failover_promote_body.lua
 	cartridgeFailoverPromoteBody string
 
@@ -268,7 +271,29 @@ func (c *CartridgeApplication) Demote(ctx DemoteCtx) error {
 
 // Expel expels an instance from a Cartridge replicasets.
 func (c *CartridgeApplication) Expel(ctx ExpelCtx) error {
-	return newErrExpelByAppNotSupported(OrchestratorCartridge)
+	replicasets, err := c.Discovery()
+	if err != nil {
+		return fmt.Errorf("failed to discovery: %s", err)
+	}
+
+	var (
+		uuid  string
+		found bool
+	)
+	for _, replicaset := range replicasets.Replicasets {
+		for _, instance := range replicaset.Instances {
+			if instance.Alias == ctx.InstName {
+				uuid = instance.UUID
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+	}
+
+	return cartridgeExpel(c.runningCtx, replicasets, ctx.InstName, uuid, ctx.Timeout)
 }
 
 // getCartridgeInstanceInfo returns an additional instance information.
@@ -385,6 +410,18 @@ type cartridgeEditReplicasetsOpts struct {
 	FailoverPriority []string `msgpack:"failover_priority,omitempty"`
 }
 
+// cartridgeEditInstancesOpts describes options for instances editing.
+type cartridgeEditInstancesOpts struct {
+	URI        *string  `msgpack:"uri,omitempty"`
+	UUID       *string  `msgpack:"uuid,omitempty"`
+	Zone       *string  `msgpack:"zone,omitempty"`
+	Labels     []string `msgpack:"labels,omitempty"`
+	Disabled   *bool    `msgpack:"disabled,omitempty"`
+	Electable  *bool    `msgpack:"electable,omitempty"`
+	Rebalancer *bool    `msgpack:"rebalancer,omitempty"`
+	Expelled   *bool    `msgpack:"expelled,omitempty"`
+}
+
 // cartridgeWaitHealthy waits until the cluster becomes healthy.
 func cartridgeWaitHealthy(evaler connector.Evaler, timeout int) error {
 	var reqOpts connector.RequestOpts
@@ -402,6 +439,26 @@ func cartridgeEditReplicasets(evaler connector.Evaler,
 	args := []any{opts}
 	if _, err := evaler.Eval(cartridgeEditReplicasetsBody, args, reqOpts); err != nil {
 		return fmt.Errorf("failed to edit replicasets: %w", err)
+	}
+	healthCheckIsNeeded, err := cartridgeHealthCheckIsNeeded(evaler)
+	if err != nil {
+		return err
+	}
+	if healthCheckIsNeeded {
+		if err := cartridgeWaitHealthy(evaler, timeout); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// cartridgeEditInstances edits instances in the cartridge app.
+func cartridgeEditInstances(evaler connector.Evaler,
+	opts []cartridgeEditInstancesOpts, timeout int) error {
+	var reqOpts connector.RequestOpts
+	args := []any{opts}
+	if _, err := evaler.Eval(cartridgeEditInstancesBody, args, reqOpts); err != nil {
+		return fmt.Errorf("failed to edit instances: %w", err)
 	}
 	healthCheckIsNeeded, err := cartridgeHealthCheckIsNeeded(evaler)
 	if err != nil {
@@ -464,4 +521,55 @@ func cartridgePromote(evaler connector.Evaler,
 		return fmt.Errorf("unexpected failover")
 	}
 	return waitRW(evaler, timeout)
+}
+
+// cartridgeExpel expels an instance from the replicaset.
+func cartridgeExpel(runningCtx running.RunningCtx,
+	discovered Replicasets, name, uuid string, timeout int) error {
+	discoveredNames := map[string]struct{}{}
+	for _, replicaset := range discovered.Replicasets {
+		for _, instance := range replicaset.Instances {
+			discoveredNames[instance.Alias] = struct{}{}
+		}
+	}
+
+	found := false
+	var lastErr error
+	eval := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+		if instance.InstName == name {
+			return false, nil
+		}
+		// Make sure that we don't use the expelled instance.
+		if _, ok := discoveredNames[instance.InstName]; !ok {
+			return false, nil
+		}
+		found = true
+		expelled := true
+		opts := cartridgeEditInstancesOpts{
+			UUID:     &uuid,
+			Expelled: &expelled,
+		}
+		err := cartridgeEditInstances(evaler, []cartridgeEditInstancesOpts{opts}, timeout)
+		if err != nil {
+			// Try again with another instance.
+			lastErr = err
+			return false, nil
+		}
+
+		lastErr = nil
+		return true, nil
+	}
+
+	err := EvalForeachAlive(runningCtx.Instances, InstanceEvalFunc(eval))
+	for _, e := range []error{err, lastErr} {
+		if e != nil {
+			return fmt.Errorf("failed to expel instance: %w", e)
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("not found any other instance joined to cluster")
+	}
+
+	return nil
 }

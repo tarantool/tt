@@ -3,8 +3,10 @@
 import os
 import re
 import shutil
+import time
 
 import pytest
+from cartridge_helper import cartridge_name
 
 from utils import get_tarantool_version, run_command_and_get_output, wait_file
 
@@ -83,3 +85,63 @@ Replicasets state: bootstrapped
         stop_cmd = [tt_cmd, "stop", app_name]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
         assert rc == 0
+
+
+@pytest.mark.skipif(tarantool_major_version > 2,
+                    reason="skip cartridge test for Tarantool > 2")
+def test_expel_cartridge(tt_cmd, cartridge_app):
+    status_expelled = """Orchestrator:      cartridge
+Replicasets state: bootstrapped
+
+• router
+  Failover: off
+  Provider: none
+  Master:   single
+  Roles:    failover-coordinator, vshard-router, app.roles.custom
+    ★ router localhost:3301 rw
+• s-1
+  Failover: off
+  Provider: none
+  Master:   single
+  Roles:    vshard-storage
+    ★ s1-master localhost:3302 rw
+    • s1-replica localhost:3303 read
+• s-2
+  Failover: off
+  Provider: none
+  Master:   single
+  Roles:    vshard-storage
+    ★ s2-master localhost:3304 rw
+"""
+    status_unexpelled = status_expelled + "    • s2-replica localhost:3305 read\n"
+
+    # Wait for the configurated state.
+    for _ in range(100):
+        rs_cmd = [tt_cmd, "replicaset", "status", f"{cartridge_name}:s2-master"]
+        rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
+        assert rs_rc == 0
+        if rs_out != """Orchestrator:      cartridge
+Replicasets state: uninitialized
+""":
+            break
+        time.sleep(1)
+
+        rs_cmd = [tt_cmd, "replicaset", "expel", f"{cartridge_name}:s2-replica"]
+        rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
+        assert rs_rc == 0
+        assert re.search("""   • Discovery application...*
+
+""" + status_unexpelled + """\n   • Expel instance: s2-replica
+   • Done.*
+""", rs_out)
+
+        # Check that the instance has been expelled.
+        for _ in range(100):
+            rs_cmd = [tt_cmd, "replicaset", "status", f"{cartridge_name}:s2-master"]
+            rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
+            assert rs_rc == 0
+            if rs_out != status_unexpelled:
+                # Changes are not applied immediately on the whole cluster.
+                break
+            time.sleep(1)
+        assert rs_out == status_expelled
