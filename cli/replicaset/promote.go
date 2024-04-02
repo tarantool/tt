@@ -1,5 +1,7 @@
 package replicaset
 
+import "fmt"
+
 // PromoteCtx describes a context for an instance promoting.
 type PromoteCtx struct {
 	// InstName is an instance name to promote.
@@ -16,4 +18,18 @@ type PromoteCtx struct {
 type Promoter interface {
 	// Promote promotes an instance.
 	Promote(PromoteCtx) error
+}
+
+// newErrPromoteByInstanceNotSupported creates a new error that promote is not
+// supported by the orchestrator for a single instance.
+func newErrPromoteByInstanceNotSupported(orchestrator Orchestrator) error {
+	return fmt.Errorf("promote is not supported for a single instance by %q orchestrator",
+		orchestrator)
+}
+
+// newErrPromoteByAppNotSupported creates a new error that promote is not
+// supported by the orchestrator for an application.
+func newErrPromoteByAppNotSupported(orchestrator Orchestrator) error {
+	return fmt.Errorf("promote is not supported for an application by %q orchestrator",
+		orchestrator)
 }
