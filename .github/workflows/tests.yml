@@ -10,7 +10,7 @@ on:
     types: [labeled]
 
 env:
-  GO_VERSION: '>=1.21.2'
+  GO_VERSION: '>=1.21.5'
   PYTHON_VERSION: '3.10'
 
 jobs:

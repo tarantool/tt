@@ -155,7 +155,7 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	defer func() {
 		log.Debugf("Removing container %s", containerId[:12])
 		if err := dockerClient.ContainerRemove(context.Background(), containerId,
-			types.ContainerRemoveOptions{}); err != nil {
+			container.RemoveOptions{}); err != nil {
 			log.Warnf("Failed to remove container %s", containerId[:12])
 		}
 	}()
@@ -165,13 +165,13 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	log.Debugf("The following command is going to be invoked in the container: %s.",
 		strings.Join(runOptions.Command, " "))
 	if err := dockerClient.ContainerStart(ctx, containerId,
-		types.ContainerStartOptions{}); err != nil {
+		container.StartOptions{}); err != nil {
 		cancelFunc()
 		return err
 	}
 	defer interruptHandler(cancelFunc)()
 
-	out, err := dockerClient.ContainerLogs(ctx, containerId, types.ContainerLogsOptions{
+	out, err := dockerClient.ContainerLogs(ctx, containerId, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true})
