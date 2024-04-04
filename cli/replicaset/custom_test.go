@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
@@ -284,11 +285,59 @@ func TestCustomInstance_Discovery(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCustomInstance(tc.Evaler)
-			replicasets, err := instance.Discovery()
+			replicasets, err := instance.Discovery(replicaset.SkipCache)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.Expected, replicasets)
 		})
 	}
+}
+
+func TestCustomInstance_Discovery_force(t *testing.T) {
+	evaler := &instanceMockEvaler{
+		Ret: [][]any{
+			[]any{
+				map[any]any{
+					"uuid": "foo1",
+				},
+			},
+			[]any{
+				map[any]any{
+					"uuid": "foo2",
+				},
+			},
+		},
+	}
+
+	getter := replicaset.NewCustomInstance(evaler)
+
+	replicasets, err := getter.Discovery(replicaset.SkipCache)
+	require.NoError(t, err)
+	expected := replicaset.Replicasets{
+		State:        replicaset.StateBootstrapped,
+		Orchestrator: replicaset.OrchestratorCustom,
+		Replicasets: []replicaset.Replicaset{
+			replicaset.Replicaset{
+				UUID:   "foo1",
+				Master: replicaset.MasterNo,
+			},
+		},
+	}
+	require.Equal(t, expected, replicasets)
+
+	// Force re-discovery.
+	replicasets, err = getter.Discovery(replicaset.SkipCache)
+	require.NoError(t, err)
+	expected = replicaset.Replicasets{
+		State:        replicaset.StateBootstrapped,
+		Orchestrator: replicaset.OrchestratorCustom,
+		Replicasets: []replicaset.Replicaset{
+			replicaset.Replicaset{
+				UUID:   "foo2",
+				Master: replicaset.MasterNo,
+			},
+		},
+	}
+	require.Equal(t, expected, replicasets)
 }
 
 func TestCustomInstance_Discovery_errors(t *testing.T) {
@@ -335,7 +384,7 @@ func TestCustomInstance_Discovery_errors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCustomInstance(tc.Evaler)
-			_, err := instance.Discovery()
+			_, err := instance.Discovery(replicaset.SkipCache)
 			assert.ErrorContains(t, err, tc.Expected)
 		})
 	}

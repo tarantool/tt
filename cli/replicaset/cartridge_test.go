@@ -487,11 +487,79 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCartridgeInstance(tc.Evaler)
-			replicasets, err := instance.Discovery()
+			replicasets, err := instance.Discovery(replicaset.SkipCache)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.Expected, replicasets)
 		})
 	}
+}
+
+func TestCartridgeInstance_Discovery_force(t *testing.T) {
+	evaler := &instanceMockEvaler{
+		Ret: [][]any{
+			[]any{
+				map[any]any{
+					"replicasets": []any{
+						map[any]any{
+							"uuid": "foo1",
+						},
+					},
+				},
+			},
+			[]any{
+				map[any]any{
+					"uuid": "foo1",
+					"rw":   false,
+				},
+			},
+			[]any{
+				map[any]any{
+					"replicasets": []any{
+						map[any]any{
+							"uuid": "foo2",
+						},
+					},
+				},
+			},
+			[]any{
+				map[any]any{
+					"uuid": "foo2",
+					"rw":   false,
+				},
+			},
+		},
+	}
+
+	getter := replicaset.NewCartridgeInstance(evaler)
+
+	replicasets, err := getter.Discovery(replicaset.SkipCache)
+	require.NoError(t, err)
+	expected := replicaset.Replicasets{
+		State:        replicaset.StateBootstrapped,
+		Orchestrator: replicaset.OrchestratorCartridge,
+		Replicasets: []replicaset.Replicaset{
+			replicaset.Replicaset{
+				UUID:   "foo1",
+				Master: replicaset.MasterNo,
+			},
+		},
+	}
+	require.Equal(t, expected, replicasets)
+
+	// Force re-discovery.
+	replicasets, err = getter.Discovery(replicaset.SkipCache)
+	require.NoError(t, err)
+	expected = replicaset.Replicasets{
+		State:        replicaset.StateBootstrapped,
+		Orchestrator: replicaset.OrchestratorCartridge,
+		Replicasets: []replicaset.Replicaset{
+			replicaset.Replicaset{
+				UUID:   "foo2",
+				Master: replicaset.MasterNo,
+			},
+		},
+	}
+	require.Equal(t, expected, replicasets)
 }
 
 func TestCartridgeInstance_Discovery_failover(t *testing.T) {
@@ -549,7 +617,7 @@ func TestCartridgeInstance_Discovery_failover(t *testing.T) {
 
 			getter := replicaset.NewCartridgeInstance(evaler)
 
-			replicasets, err := getter.Discovery()
+			replicasets, err := getter.Discovery(replicaset.SkipCache)
 			assert.NoError(t, err)
 			assert.Equal(t, expected, replicasets)
 		})
@@ -611,7 +679,7 @@ func TestCartridgeInstance_Discovery_provider(t *testing.T) {
 
 			getter := replicaset.NewCartridgeInstance(evaler)
 
-			replicasets, err := getter.Discovery()
+			replicasets, err := getter.Discovery(replicaset.SkipCache)
 			assert.NoError(t, err)
 			assert.Equal(t, expected, replicasets)
 		})
@@ -701,7 +769,7 @@ func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			instance := replicaset.NewCartridgeInstance(tc.Evaler)
-			_, err := instance.Discovery()
+			_, err := instance.Discovery(replicaset.SkipCache)
 			assert.ErrorContains(t, err, tc.Expected)
 		})
 	}

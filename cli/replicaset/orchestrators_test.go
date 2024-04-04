@@ -93,7 +93,7 @@ func TestReplicasetGetter_Discovery_panics_with_invalid_evaler(t *testing.T) {
 			t.Run(oc.Name+"_"+tc.Name, func(t *testing.T) {
 				getter := oc.New(tc.Evaler)
 				assert.Panics(t, func() {
-					getter.Discovery()
+					getter.Discovery(replicaset.SkipCache)
 				})
 			})
 		}

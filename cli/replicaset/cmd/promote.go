@@ -57,7 +57,7 @@ func Promote(ctx PromoteCtx) error {
 	fmt.Println()
 
 	// Get and print status.
-	replicasets, err := orchestrator.Discovery()
+	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
 	if err != nil {
 		return err
 	}

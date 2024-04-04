@@ -33,19 +33,22 @@ type customTopology struct {
 // CustomInstance is an instance with custom/unknown orchestrator. In this
 // case, we can obtain a minimum of information for a replicaset.
 type CustomInstance struct {
+	cachedDiscoverer
 	evaler connector.Evaler
 }
 
 // NewCustomInstance creates a new CustomInstance object for the evaler.
 func NewCustomInstance(evaler connector.Evaler) *CustomInstance {
-	return &CustomInstance{
+	inst := &CustomInstance{
 		evaler: evaler,
 	}
+	inst.discoverer = inst
+	return inst
 }
 
-// Discovery returns a replicasets topology for a single
+// discovery returns a replicasets topology for a single
 // instance with a custom type of orchestrator.
-func (c *CustomInstance) Discovery() (Replicasets, error) {
+func (c *CustomInstance) discovery() (Replicasets, error) {
 	topology, err := getCustomInstanceTopology("", c.evaler)
 	if err != nil {
 		return Replicasets{}, err
@@ -82,20 +85,23 @@ func (c *CustomInstance) Expel(ctx ExpelCtx) error {
 
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
+	cachedDiscoverer
 	runningCtx running.RunningCtx
 	conn       connector.Connector
 }
 
 // NewCustomApplication creates a new CustomApplication object.
 func NewCustomApplication(runningCtx running.RunningCtx) *CustomApplication {
-	return &CustomApplication{
+	app := &CustomApplication{
 		runningCtx: runningCtx,
 	}
+	app.discoverer = app
+	return app
 }
 
-// Discovery returns a replicasets configuration for an application with
+// discovery returns a replicasets configuration for an application with
 // a custom orchestrator.
-func (c *CustomApplication) Discovery() (Replicasets, error) {
+func (c *CustomApplication) discovery() (Replicasets, error) {
 	var topologies []customTopology
 
 	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(

@@ -53,19 +53,22 @@ type cconfigInstance struct {
 
 // CConfigInstance is an instance with the centralized config orchestrator.
 type CConfigInstance struct {
+	cachedDiscoverer
 	evaler connector.Evaler
 }
 
 // NewCConfigInstance create a new CConfigInstance object for the evaler.
 func NewCConfigInstance(evaler connector.Evaler) *CConfigInstance {
-	return &CConfigInstance{
+	inst := &CConfigInstance{
 		evaler: evaler,
 	}
+	inst.discoverer = inst
+	return inst
 }
 
-// Discovery returns a replicasets topology for a single instance with
+// discovery returns a replicasets topology for a single instance with
 // the centralized config orchestrator.
-func (c *CConfigInstance) Discovery() (Replicasets, error) {
+func (c *CConfigInstance) discovery() (Replicasets, error) {
 	topology, err := getCConfigInstanceTopology(c.evaler)
 	if err != nil {
 		return Replicasets{}, err
@@ -106,6 +109,7 @@ func (c *CConfigInstance) Expel(ctx ExpelCtx) error {
 // CConfigApplication is an application with the centralized config
 // orchestrator.
 type CConfigApplication struct {
+	cachedDiscoverer
 	runningCtx running.RunningCtx
 	publishers libcluster.DataPublisherFactory
 	collectors libcluster.DataCollectorFactory
@@ -116,16 +120,18 @@ func NewCConfigApplication(
 	runningCtx running.RunningCtx,
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory) *CConfigApplication {
-	return &CConfigApplication{
+	app := &CConfigApplication{
 		runningCtx: runningCtx,
 		publishers: publishers,
 		collectors: collectors,
 	}
+	app.discoverer = app
+	return app
 }
 
-// Discovery returns a replicasets topology for an application with
+// discovery returns a replicasets topology for an application with
 // the centralized config orchestrator.
-func (c *CConfigApplication) Discovery() (Replicasets, error) {
+func (c *CConfigApplication) discovery() (Replicasets, error) {
 	var topologies []cconfigTopology
 
 	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
@@ -157,7 +163,7 @@ func (c *CConfigApplication) Discovery() (Replicasets, error) {
 
 // Expel expels an instance from the cetralized config's replicasets.
 func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
-	replicasets, err := c.Discovery()
+	replicasets, err := c.Discovery(UseCache)
 	if err != nil {
 		return fmt.Errorf("failed to get replicasets: %s", err)
 	}
@@ -308,7 +314,7 @@ func updateCConfigInstances(replicaset *Replicaset, topology cconfigTopology) {
 
 // Promote promotes an instance in the application.
 func (c *CConfigApplication) Promote(ctx PromoteCtx) error {
-	replicasets, err := c.Discovery()
+	replicasets, err := c.Discovery(UseCache)
 	if err != nil {
 		return fmt.Errorf("failed to get replicasets: %w", err)
 	}
@@ -347,7 +353,7 @@ func (c *CConfigApplication) Promote(ctx PromoteCtx) error {
 
 // Demote demotes an instance in the application.
 func (c *CConfigApplication) Demote(ctx DemoteCtx) error {
-	replicasets, err := c.Discovery()
+	replicasets, err := c.Discovery(UseCache)
 	if err != nil {
 		return fmt.Errorf("failed to get replicasets: %w", err)
 	}
