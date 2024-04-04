@@ -43,7 +43,7 @@ func Status(statusCtx StatusCtx) error {
 		}
 	}
 
-	replicasets, err := orchestrator.Discovery()
+	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
 	if err != nil {
 		return err
 	}
