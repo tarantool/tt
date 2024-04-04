@@ -50,6 +50,7 @@ type cartridgeTopology struct {
 
 // CartridgeInstance is an instance with the Cartridge orchestrator.
 type CartridgeInstance struct {
+	cachedDiscoverer
 	evaler connector.Evaler
 }
 
@@ -62,9 +63,11 @@ type cartridgeInstance struct {
 
 // NewCartridgeInstance creates a new CartridgeInstance object for the evaler.
 func NewCartridgeInstance(evaler connector.Evaler) *CartridgeInstance {
-	return &CartridgeInstance{
+	inst := &CartridgeInstance{
 		evaler: evaler,
 	}
+	inst.cachedDiscoverer = newCachedDiscoverer(inst)
+	return inst
 }
 
 // getCartridgeTopology returns a cartridge topology received from an instance.
@@ -110,7 +113,7 @@ func getCartridgeReplicasets(topology cartridgeTopology) Replicasets {
 
 // Promote promotes a cartridge instance.
 func (c *CartridgeInstance) Promote(ctx PromoteCtx) error {
-	replicasets, err := c.Discovery()
+	replicasets, err := c.Discovery(false)
 	if err != nil {
 		return err
 	}
@@ -145,9 +148,9 @@ func (c *CartridgeInstance) Demote(ctx DemoteCtx) error {
 	return newErrDemoteByInstanceNotSupported(OrchestratorCartridge)
 }
 
-// GetReplicasets returns a replicaset topology for a single instance with the
+// discoveryImpl returns a replicaset topology for a single instance with the
 // Cartridge orchestrator.
-func (c *CartridgeInstance) Discovery() (Replicasets, error) {
+func (c *CartridgeInstance) discoveryImpl() (Replicasets, error) {
 	replicasets := Replicasets{
 		State:        StateUnknown,
 		Orchestrator: OrchestratorCartridge,
@@ -174,19 +177,22 @@ func (c *CartridgeInstance) Expel(ctx ExpelCtx) error {
 
 // CartridgeApplication is an application with the Cartridge orchestrator.
 type CartridgeApplication struct {
+	cachedDiscoverer
 	runningCtx running.RunningCtx
 }
 
 // NewCartridgeApplication creates a new CartridgeApplication object.
 func NewCartridgeApplication(runningCtx running.RunningCtx) *CartridgeApplication {
-	return &CartridgeApplication{
+	app := &CartridgeApplication{
 		runningCtx: runningCtx,
 	}
+	app.cachedDiscoverer = newCachedDiscoverer(app)
+	return app
 }
 
-// Discovery returns a replicaset topology for an application with
+// discoveryImpl returns a replicaset topology for an application with
 // the Cartridge orchestrator.
-func (c *CartridgeApplication) Discovery() (Replicasets, error) {
+func (c *CartridgeApplication) discoveryImpl() (Replicasets, error) {
 	replicasets := Replicasets{
 		State:        StateUnknown,
 		Orchestrator: OrchestratorCartridge,
@@ -229,7 +235,7 @@ func (c *CartridgeApplication) Discovery() (Replicasets, error) {
 
 // Promote promotes an instance in the cartridge application.
 func (c *CartridgeApplication) Promote(ctx PromoteCtx) error {
-	replicasets, err := c.Discovery()
+	replicasets, err := c.Discovery(false)
 	if err != nil {
 		return err
 	}
@@ -271,7 +277,7 @@ func (c *CartridgeApplication) Demote(ctx DemoteCtx) error {
 
 // Expel expels an instance from a Cartridge replicasets.
 func (c *CartridgeApplication) Expel(ctx ExpelCtx) error {
-	replicasets, err := c.Discovery()
+	replicasets, err := c.Discovery(false)
 	if err != nil {
 		return fmt.Errorf("failed to discovery: %s", err)
 	}
