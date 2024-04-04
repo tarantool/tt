@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `tt status`: displays the mode of the instance.
+- `tt coredump`: enhances coredump inspection:
+  * `tt coredump pack`: puts gdb.sh and GDB-extensions into the archive so that it
+  contains everything necessary for convenient coredump inspection.
+  * `tt coredump inspect`: allows archive path as an argument (archive should be
+  created with `tt coredump pack`).
+  * `tt coredump inspect`: added `-s` option to specify the location of tarantool sources.
 
 ### Added
 
