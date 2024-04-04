@@ -453,6 +453,17 @@ func Chdir(newPath string) (func() error, error) {
 // BitHas32 checks if a bit is set in b.
 func BitHas32(b, flag uint32) bool { return b&flag != 0 }
 
+// FsCopyFileChangePerms copies file from the certain FS with changing perms.
+func FsCopyFileChangePerms(fsys fs.FS, src string, dst string, perms int) error {
+	// Read data from src.
+	data, err := fs.ReadFile(fsys, src)
+	if err != nil {
+		return err
+	}
+	// Write data to dst.
+	return os.WriteFile(dst, data, fs.FileMode(perms))
+}
+
 // CopyFilePreserve copies file from source to destination with perms.
 func CopyFilePreserve(src string, dst string) error {
 	// Read all content of src to data.

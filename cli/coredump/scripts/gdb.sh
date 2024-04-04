@@ -1,7 +1,42 @@
 #!/bin/sh
 set -eu
 
-FOLDERPATH=$COREFOLDER_ENV
+TOOL=$(basename "$0")
+WORKDIR=$(dirname "$0")
+
+HELP=$(cat <<HELP
+${TOOL} - gdb wrapper loading artefacts collected via tarabrt.sh
+
+SYNOPSIS
+  $0 [-h] [-s dir]
+
+Supported options are:
+  -s DIRECTORY                  Set mapping to source.
+  -h                            Shows this message and exit.
+
+HELP
+)
+
+# Parse CLI options.
+OPTIONS=$(getopt -o hs: -n "${TOOL}" -- "$@")
+eval set -- "${OPTIONS}"
+while true; do
+	case "$1" in
+		--) shift; break;;
+		-s) SOURCES=$2; shift 2;;
+		-h) printf "%s\n" "${HELP}";
+			exit 0;;
+		*)  printf "Invalid option: $1\n%s\n" "${HELP}";
+			exit 1;;
+	esac
+done
+
+# Do not proceed if there are some CLI arguments left. Everything
+# should be parsed before this line.
+if [ $# -ne 0 ]; then
+	printf "Invalid argument: $1\n%s\n" "${HELP}"
+	exit 1
+fi
 
 # Check that gdb is installed.
 if ! command -v gdb >/dev/null; then
@@ -14,7 +49,7 @@ NOGDB
 	exit 1;
 fi
 
-VERSION=${FOLDERPATH}/version
+VERSION=${WORKDIR}/version
 
 # Check the location: if the coredump artefacts are collected via
 # `tarabrt.sh' there should be /version file in the root of the
@@ -35,7 +70,7 @@ NOARTEFACTS
 	exit 1;
 fi
 
-SOURCES=${FOLDERPATH}/sources
+SOURCES=${SOURCES:-${WORKDIR}/sources}
 
 # Check whether Tarantool sources are setup. Otherwise, leave a
 # recipe for user, how to do it.
@@ -45,7 +80,7 @@ SOURCES=${FOLDERPATH}/sources
 # is left for the user.
 if [ ! -d "${SOURCES}" ]; then
 	REGEX='Tarantool \d+\.\d+\.\d+(-(alpha|beta|rc)[0-9]+|(-entrypoint))?-\d+-g\K[a-f0-9]+'
-    REVISION=$(grep -oP "$REGEX" "$VERSION")
+	REVISION=$(grep -oP "$REGEX" "$VERSION")
 	cat <<SOURCES
 ================================================================================
 
@@ -58,19 +93,20 @@ Do not forget to properly setup the environment:
 
 ================================================================================
 SOURCES
-	exit 1;
 fi
 
 # Define the build path to be substituted with the source path.
 # XXX: Check the absolute path on the function <main> definition
 # considering it is located in src/main.cc within Tarantool repo.
-SUBPATH=$(gdb -batch -n ${FOLDERPATH}/tarantool -ex 'info line main' | \
+SUBPATH=$(gdb -batch -n ${WORKDIR}/tarantool -ex 'info line main' | \
 	grep -oP 'Line \d+ of \"\K.+(?=\/src\/main\.cc\")')
 
+ABSWORKDIR=$(realpath "$WORKDIR")
+
 # Launch gdb and load coredump with all related artefacts.
-gdb ${FOLDERPATH}/tarantool \
-    -ex "set sysroot ${FOLDERPATH}" \
-    -ex "set substitute-path ${SUBPATH} sources" \
-    -ex "add-auto-load-safe-path ${FOLDERPATH}" \
-    -ex "set auto-load libthread-db on" \
-    -ex "core ${FOLDERPATH}/coredump"
+gdb ${WORKDIR}/tarantool \
+	-ex "set sysroot ${ABSWORKDIR}" \
+	-ex "set substitute-path ${SUBPATH} ${SOURCES}" \
+	-ex "add-auto-load-safe-path ${ABSWORKDIR}" \
+	-ex "set auto-load libthread-db on" \
+	-ex "core ${WORKDIR}/coredump"

@@ -31,6 +31,9 @@ Supported options are:
                                 (see proc(5) for more info). If TARANTOOL is
                                 omitted, /usr/bin/tarantool is chosen.
 
+  -g GDBWRAPPER                 Include GDB-wrapper script GDBWRAPPER into the
+                                archive.
+
   -p PID                        PID of the dumped process, as seen in the PID
                                 namespace in which the given process resides
                                 (see %p in core(5) for more info). This flag
@@ -39,6 +42,9 @@ Supported options are:
 
   -t DATETIME                   Time of dump, expressed as seconds since the
                                 epoch, 1970-01-01 00:00:00 +0000 (UTC).
+
+  -x EXT                        Include GDB-extension EXT into the archive.
+                                This option may appear multiple times.
 
   -h                            Shows this message and exit.
 
@@ -55,8 +61,17 @@ USAGE
 HELP
 )
 
+# Assign configurable parameters with the default values.
+BINARY=/usr/bin/tarantool
+COREDIR=${PWD}
+COREFILE=
+EXTS=
+GDB=
+PID=
+TIME=$(date +%s)
+
 # Parse CLI options.
-OPTIONS=$(getopt -o c:d:e:hp:t: -n "${TOOL}" -- "$@")
+OPTIONS=$(getopt -o c:d:e:g:hp:t:x: -n "${TOOL}" -- "$@")
 eval set -- "${OPTIONS}"
 while true; do
 	case "$1" in
@@ -64,8 +79,10 @@ while true; do
 		-c) COREFILE=$2; shift 2;;
 		-d) COREDIR=$2;  shift 2;;
 		-e) BINARY=$2;   shift 2;;
+		-g) GDB=$2;      shift 2;;
 		-p) PID=$2;      shift 2;;
 		-t) TIME=$2;     shift 2;;
+		-x) EXTS=$2:$EXTS; shift 2;;
 		-h) printf "%s\n" "${HELP}";
 			exit 0;;
 		*)  printf "Invalid option: $1\n%s\n" "${HELP}";
@@ -79,13 +96,6 @@ if [ $# -ne 0 ]; then
 	printf "Invalid argument: $1\n%s\n" "${HELP}";
 	exit 1;
 fi
-
-# Use the default values for the remaining parameters.
-BINARY=${BINARY:-/usr/bin/tarantool}
-COREDIR=${COREDIR:-${PWD}}
-COREFILE=${COREFILE:-}
-PID=${PID:-}
-TIME=${TIME:-$(date +%s)}
 
 # XXX: This section handles the case when the script is used for
 # kernel.core_pattern. If PID is set and there is a directory in
@@ -210,7 +220,6 @@ ${BINARY} --version >"${VERSION}"
 
 # Collect the most important artefacts.
 {
-	echo "${TARLIST}"
 	echo "${VERSION}"
 	echo "${OSRELEASE}"
 	echo "${BINARY}"
@@ -269,24 +278,43 @@ NOLIBTHREAD_DB
 	# XXX: Not an error, proceed packing.
 fi
 
+tar_opts=
+
+# Include GDB-wrapper script
+if [ -n "${GDB}" ] && [ -f "${GDB}" ]; then
+	echo "${GDB}" >>"${TARLIST}"
+	tar_opts=$tar_opts\ --transform="s|${GDB}|/$(basename "${GDB}")|"
+fi
+
+# Include GDB-extensions (if any)
+while [ -n "${EXTS}" ]; do
+	EXT=${EXTS%%:*} # pick the first
+	if [ -f "${EXT}" ]; then
+		echo "${EXT}" >>"${TARLIST}"
+		tar_opts=$tar_opts\ --transform="s|${EXT}|/ext/$(basename "${EXT}")|"
+	else
+		[ -t 1 ] && cat <<MISSINGEXT
+Cannot include extension '${EXT}': No such file or directory.
+MISSINGEXT
+		exit 1
+	fi
+	EXTS=${EXTS#*:} # drop the first
+done
+
 # Pack everything listed in TARLIST file into a tarball. To unify
 # the archive format BINARY, COREFILE, VERSION and TARLIST are
 # renamed while packing.
 tar -czhf "${ARCHIVE}" -P -T "${TARLIST}" \
+	${tar_opts} \
 	--transform="s|${BINARY}|/tarantool|"  \
 	--transform="s|${COREFILE}|/coredump|" \
-	--transform="s|${TARLIST}|/checklist|" \
 	--transform="s|${VERSION}|/version|"   \
 	--transform="s|^|${ARCHIVENAME}|"
-
-# Strip TMPDIR prefix from the files in TARLIST, since this
-# directory will be removed at the end.
-sed "s|${TMPDIR}||g" -i "${TARLIST}"
 
 [ -t 1 ] && cat <<FINALIZE
 The resulting archive is located here: ${ARCHIVE}
 The archive contents are listed below:
-$(cat "${TARLIST}")
+$(tar -tzf "${ARCHIVE}")
 
 If you want to upload it, choose the available resource
 and run the following command:
