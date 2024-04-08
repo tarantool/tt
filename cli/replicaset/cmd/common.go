@@ -20,6 +20,7 @@ type replicasetOrchestrator interface {
 	replicaset.Promoter
 	replicaset.Demoter
 	replicaset.Expeller
+	replicaset.VShardBootstrapper
 }
 
 // makeApplicationOrchestrator creates an orchestrator for the application.
@@ -97,4 +98,15 @@ func getApplicationOrchestrator(manual replicaset.Orchestrator,
 			fmt.Errorf("unable to determinate an orchestrator type: %w", err)
 	}
 	return orchestrator, nil
+}
+
+// getOrchestratorType determines a used orchestrator.
+func getOrchestratorType(
+	orchestrator replicaset.Orchestrator,
+	conn connector.Connector,
+	runningCtx running.RunningCtx) (replicaset.Orchestrator, error) {
+	if conn != nil {
+		return getInstanceOrchestrator(orchestrator, conn)
+	}
+	return getApplicationOrchestrator(orchestrator, runningCtx)
 }

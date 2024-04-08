@@ -149,6 +149,46 @@ func newExpelCmd() *cobra.Command {
 	return cmd
 }
 
+// newBootstrapVShardCmd creates a "vshard bootstrap" command.
+func newBootstrapVShardCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "bootstrap [--cartridge|--config|--custom] [--timeout secs] [flags] " +
+			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
+			replicasetUriHelp,
+		DisableFlagsInUseLine: true,
+		Short:                 "Bootstrap vshard in the cluster",
+		Long: "Bootstrap vshard in the cluster.\n\n" +
+			replicasetEnvHelp,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetBootstrapVShardModule, args)
+			handleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(1),
+	}
+
+	addOrchestratorFlags(cmd)
+	addTarantoolConnectFlags(cmd)
+	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
+		replicasetcmd.VShardBootstrapDefaultTimeout, "timeout")
+
+	return cmd
+}
+
+// newVShardCmd creates a "replicaset vshard" subcommand.
+func newVShardCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "vshard",
+		Short:   "Manage vshard",
+		Aliases: []string{"vs"},
+	}
+
+	cmd.AddCommand(newBootstrapVShardCmd())
+	return cmd
+}
+
 // NewReplicasetCmd creates a replicaset command.
 func NewReplicasetCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -161,6 +201,7 @@ func NewReplicasetCmd() *cobra.Command {
 	cmd.AddCommand(newPromoteCmd())
 	cmd.AddCommand(newDemoteCmd())
 	cmd.AddCommand(newExpelCmd())
+	cmd.AddCommand(newVShardCmd())
 
 	return cmd
 }
@@ -382,6 +423,32 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 		RunningCtx:   ctx.RunningCtx,
 		Force:        replicasetForce,
 		Timeout:      replicasetTimeout,
+	})
+}
+
+// internalReplicasetBootstrapVShardModule is a "bootstrap" command for
+// the "replicaset vshard" module.
+func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+		return err
+	}
+	if ctx.IsInstanceConnect {
+		defer ctx.Conn.Close()
+	}
+	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
+	if err != nil {
+		return err
+	}
+	return replicasetcmd.BootstrapVShard(replicasetcmd.VShardCmdCtx{
+		IsApplication: ctx.IsApplication,
+		RunningCtx:    ctx.RunningCtx,
+		Conn:          ctx.Conn,
+		Orchestrator:  ctx.Orchestrator,
+		Publishers:    publishers,
+		Collectors:    collectors,
+		Timeout:       replicasetTimeout,
 	})
 }
 
