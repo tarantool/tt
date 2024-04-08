@@ -31,13 +31,6 @@ func TestCartridgeApplication_Demote(t *testing.T) {
 		`demote is not supported for an application by "cartridge" orchestrator`)
 }
 
-func TestCartridgeApplication_BootstrapVShard(t *testing.T) {
-	app := replicaset.NewCartridgeApplication(running.RunningCtx{})
-	err := app.BootstrapVShard(replicaset.VShardBootstrapCtx{})
-	assert.EqualError(t, err,
-		`bootstrap vshard is not supported for an application by "cartridge" orchestrator`)
-}
-
 func TestCartridgeInstance_Demote(t *testing.T) {
 	inst := replicaset.NewCartridgeInstance(nil)
 	err := inst.Demote(replicaset.DemoteCtx{})
@@ -965,11 +958,4 @@ func TestCartridgeInstance_Expel(t *testing.T) {
 	err := instance.Expel(replicaset.ExpelCtx{})
 	assert.EqualError(t, err,
 		`expel is not supported for a single instance by "cartridge" orchestrator`)
-}
-
-func TestCartridgeInstance_BootstrapVShard(t *testing.T) {
-	instance := replicaset.NewCartridgeInstance(nil)
-	err := instance.BootstrapVShard(replicaset.VShardBootstrapCtx{})
-	assert.EqualError(t, err,
-		`bootstrap vshard is not supported for a single instance by "cartridge" orchestrator`)
 }

@@ -116,10 +116,10 @@ class CartridgeApp:
         with open(os.path.join(self.workdir, cartridge_name, "replicasets.yml"), "w") as f:
             f.write(yaml.dump(self.replicasets_cfg))
 
-    def truncate(self):
+    def truncate(self, bootstrap_vshard=True):
         self.stop()
         shutil.rmtree(os.path.join(self.workdir, cartridge_name, var_path))
-        self.start()
+        self.start(boostrap_vshard=bootstrap_vshard)
 
     def create(self):
         cmd = [self.tt_cmd, "create", "-s", "cartridge", "--name", cartridge_name]
@@ -132,7 +132,7 @@ class CartridgeApp:
         assert rc == 0
         assert re.search(r"Application was successfully built", out)
 
-    def start(self):
+    def start(self, boostrap_vshard=True):
         start_cmd = [self.tt_cmd, "start", cartridge_name]
         test_env = os.environ.copy()
         # Avoid too long path.
@@ -163,15 +163,17 @@ class CartridgeApp:
         assert started is True
 
         # Bootstrap.
-        self.bootstrap()
+        self.bootstrap(bootstrap_vshard=boostrap_vshard)
 
-    def bootstrap(self):
-        cmd = [self.tt_cmd, "cartridge", "replicasets", "setup",
-               "--bootstrap-vshard",
-               "--name", cartridge_name]
+    def bootstrap(self, bootstrap_vshard=True):
+        cmd = [self.tt_cmd, "cartridge", "replicasets", "setup", "--name", cartridge_name]
+        if bootstrap_vshard:
+            cmd.append("--bootstrap-vshard")
         rc, out = run_command_and_get_output(cmd, cwd=self.workdir)
         assert rc == 0
-        assert re.search(r"Bootstrap vshard task completed successfully", out)
+        assert re.search(r"Replicasets are set up successfully", out)
+        if bootstrap_vshard:
+            assert re.search(r"Bootstrap vshard task completed successfully", out)
 
         # Wait until the instances are configured.
         for inst in self.instances:
