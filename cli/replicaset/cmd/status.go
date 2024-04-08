@@ -25,7 +25,8 @@ type StatusCtx struct {
 
 // Status shows a replicaset status.
 func Status(statusCtx StatusCtx) error {
-	orchestratorType, err := getOrchestratorType(statusCtx)
+	orchestratorType, err := getOrchestratorType(statusCtx.Orchestrator,
+		statusCtx.Conn, statusCtx.RunningCtx)
 	if err != nil {
 		return err
 	}
@@ -49,14 +50,6 @@ func Status(statusCtx StatusCtx) error {
 	}
 
 	return statusReplicasets(replicasets)
-}
-
-// getOrchestratorType determines a used orchestrator for a status context.
-func getOrchestratorType(statusCtx StatusCtx) (replicaset.Orchestrator, error) {
-	if statusCtx.Conn != nil {
-		return getInstanceOrchestrator(statusCtx.Orchestrator, statusCtx.Conn)
-	}
-	return getApplicationOrchestrator(statusCtx.Orchestrator, statusCtx.RunningCtx)
 }
 
 // statusReplicasets show the current status of known replicasets.
