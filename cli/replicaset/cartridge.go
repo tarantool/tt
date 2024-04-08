@@ -3,6 +3,7 @@ package replicaset
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -29,6 +30,9 @@ var (
 
 	//go:embed lua/cartridge/wait_healthy_body.lua
 	cartridgeWaitHealthyBody string
+
+	//go:embed lua/cartridge/bootstrap_vshard_body.lua
+	cartridgeBootstrapVShardBody string
 
 	cartridgeGetVersionBody = "return require('cartridge').VERSION or '1'"
 )
@@ -175,9 +179,13 @@ func (c *CartridgeInstance) Expel(ctx ExpelCtx) error {
 	return newErrExpelByInstanceNotSupported(OrchestratorCartridge)
 }
 
-// BootstrapVShard is not supported for a single instance by the Cartridge orchestrator.
-func (c *CartridgeInstance) BootstrapVShard(VShardBootstrapCtx) error {
-	return newErrBootstrapVShardByInstanceNotSupported(OrchestratorCartridge)
+// BootstrapVShard bootstraps the vshard for a single instance by the Cartridge orchestrator.
+func (c *CartridgeInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
+	err := cartridgeBootstrapVShard(c.evaler, ctx.Timeout)
+	if err != nil {
+		return wrapCartridgeVShardBoostrapError(err)
+	}
+	return nil
 }
 
 // CartridgeApplication is an application with the Cartridge orchestrator.
@@ -307,9 +315,26 @@ func (c *CartridgeApplication) Expel(ctx ExpelCtx) error {
 	return cartridgeExpel(c.runningCtx, replicasets, ctx.InstName, uuid, ctx.Timeout)
 }
 
-// BootstrapVShard is not supported for an application by the Cartridge orchestrator.
-func (c *CartridgeApplication) BootstrapVShard(VShardBootstrapCtx) error {
-	return newErrBootstrapVShardByAppNotSupported(OrchestratorCartridge)
+// BootstrapVShard bootstraps vshard for an application by the Cartridge orchestrator.
+func (c *CartridgeApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
+	replicasets, err := c.Discovery(UseCache)
+	if err != nil {
+		return fmt.Errorf("failed to discovery: %w", err)
+	}
+
+	var lastErr error
+	evaler := func(inst running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+		lastErr = cartridgeBootstrapVShard(evaler, ctx.Timeout)
+		// If lastErr is not nil, try again with another instance.
+		return lastErr == nil, nil
+	}
+	err = EvalForeachAliveDiscovered(c.runningCtx.Instances, replicasets, InstanceEvalFunc(evaler))
+	for _, e := range []error{err, wrapCartridgeVShardBoostrapError(lastErr)} {
+		if e != nil {
+			return fmt.Errorf("failed to bootstrap vshard: %w", e)
+		}
+	}
+	return nil
 }
 
 // getCartridgeInstanceInfo returns an additional instance information.
@@ -537,6 +562,26 @@ func cartridgePromote(evaler connector.Evaler,
 		return fmt.Errorf("unexpected failover")
 	}
 	return waitRW(evaler, timeout)
+}
+
+// cartridgeBootstrapVShard bootstraps the vshard.
+func cartridgeBootstrapVShard(evaler connector.Evaler, timeout int) error {
+	reqOpts := connector.RequestOpts{}
+	_, err := evaler.Eval(cartridgeBootstrapVShardBody, []any{timeout}, reqOpts)
+	return err
+}
+
+// wrapCartridgeVShardBoostrapError wraps a cartridge vshard bootstrap error
+// with an additional information.
+// https://github.com/tarantool/cartridge/issues/1148
+func wrapCartridgeVShardBoostrapError(err error) error {
+	if err != nil && strings.Contains(err.Error(), "Sharding config is empty") {
+		return fmt.Errorf(
+			"it's possible that there are no running instances of some configured vshard groups. "+
+				"In this case existing storages are bootstrapped, "+
+				"but Cartridge returns an error: %w", err)
+	}
+	return err
 }
 
 // cartridgeExpel expels an instance from the replicaset.
