@@ -175,6 +175,11 @@ func (c *CartridgeInstance) Expel(ctx ExpelCtx) error {
 	return newErrExpelByInstanceNotSupported(OrchestratorCartridge)
 }
 
+// BootstrapVShard is not supported for a single instance by the Cartridge orchestrator.
+func (c *CartridgeInstance) BootstrapVShard(VShardBootstrapCtx) error {
+	return newErrBootstrapVShardByInstanceNotSupported(OrchestratorCartridge)
+}
+
 // CartridgeApplication is an application with the Cartridge orchestrator.
 type CartridgeApplication struct {
 	cachedDiscoverer
@@ -300,6 +305,11 @@ func (c *CartridgeApplication) Expel(ctx ExpelCtx) error {
 	}
 
 	return cartridgeExpel(c.runningCtx, replicasets, ctx.InstName, uuid, ctx.Timeout)
+}
+
+// BootstrapVShard is not supported for an application by the Cartridge orchestrator.
+func (c *CartridgeApplication) BootstrapVShard(VShardBootstrapCtx) error {
+	return newErrBootstrapVShardByAppNotSupported(OrchestratorCartridge)
 }
 
 // getCartridgeInstanceInfo returns an additional instance information.
