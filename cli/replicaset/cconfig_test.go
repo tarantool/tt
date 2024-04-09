@@ -9,17 +9,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/cli/running"
 )
 
 var _ replicaset.Discoverer = &replicaset.CConfigInstance{}
 var _ replicaset.Promoter = &replicaset.CConfigInstance{}
 var _ replicaset.Demoter = &replicaset.CConfigInstance{}
 var _ replicaset.Expeller = &replicaset.CConfigInstance{}
+var _ replicaset.VShardBootstrapper = &replicaset.CConfigInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CConfigApplication{}
 var _ replicaset.Promoter = &replicaset.CConfigApplication{}
 var _ replicaset.Demoter = &replicaset.CConfigApplication{}
 var _ replicaset.Expeller = &replicaset.CConfigApplication{}
+var _ replicaset.VShardBootstrapper = &replicaset.CConfigApplication{}
+
+func TestCConfigApplication_BootstrapVShard(t *testing.T) {
+	app := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil)
+	err := app.BootstrapVShard(replicaset.VShardBootstrapCtx{})
+	assert.EqualError(t, err,
+		`bootstrap vshard is not supported for an application by "centralized config" orchestrator`)
+}
 
 func TestCConfigInstance_Discovery(t *testing.T) {
 	cases := []struct {
@@ -446,4 +456,11 @@ func TestCConfigInstance_Expel(t *testing.T) {
 	err := instance.Expel(replicaset.ExpelCtx{})
 	assert.EqualError(t, err,
 		`expel is not supported for a single instance by "centralized config" orchestrator`)
+}
+
+func TestCConfigInstance_BootstrapVShard(t *testing.T) {
+	instance := replicaset.NewCConfigInstance(nil)
+	err := instance.BootstrapVShard(replicaset.VShardBootstrapCtx{})
+	assert.EqualError(t, err, `bootstrap vshard is not supported for a single instance by `+
+		`"centralized config" orchestrator`)
 }

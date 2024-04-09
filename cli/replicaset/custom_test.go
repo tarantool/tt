@@ -15,11 +15,13 @@ var _ replicaset.Discoverer = &replicaset.CustomInstance{}
 var _ replicaset.Promoter = &replicaset.CustomInstance{}
 var _ replicaset.Demoter = &replicaset.CustomInstance{}
 var _ replicaset.Expeller = &replicaset.CustomInstance{}
+var _ replicaset.VShardBootstrapper = &replicaset.CustomInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CustomApplication{}
 var _ replicaset.Promoter = &replicaset.CustomApplication{}
 var _ replicaset.Demoter = &replicaset.CustomApplication{}
 var _ replicaset.Expeller = &replicaset.CustomApplication{}
+var _ replicaset.VShardBootstrapper = &replicaset.CustomApplication{}
 
 func TestCustomApplication_Promote(t *testing.T) {
 	app := replicaset.NewCustomApplication(running.RunningCtx{})
@@ -40,6 +42,13 @@ func TestCustomApplication_Expel(t *testing.T) {
 	err := instance.Expel(replicaset.ExpelCtx{})
 	assert.EqualError(t, err,
 		`expel is not supported for an application by "custom" orchestrator`)
+}
+
+func TestCustomApplication_BootstrapVShard(t *testing.T) {
+	instance := replicaset.NewCustomApplication(running.RunningCtx{})
+	err := instance.BootstrapVShard(replicaset.VShardBootstrapCtx{})
+	assert.EqualError(t, err,
+		`bootstrap vshard is not supported for an application by "custom" orchestrator`)
 }
 
 func TestCustomInstance_Discovery(t *testing.T) {
@@ -409,4 +418,11 @@ func TestCustomInstance_Expel(t *testing.T) {
 	err := instance.Expel(replicaset.ExpelCtx{})
 	assert.EqualError(t, err,
 		`expel is not supported for a single instance by "custom" orchestrator`)
+}
+
+func TestCustomInstance_BootstrapVShard(t *testing.T) {
+	instance := replicaset.NewCustomInstance(nil)
+	err := instance.BootstrapVShard(replicaset.VShardBootstrapCtx{})
+	assert.EqualError(t, err,
+		`bootstrap vshard is not supported for a single instance by "custom" orchestrator`)
 }

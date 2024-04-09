@@ -106,6 +106,12 @@ func (c *CConfigInstance) Expel(ctx ExpelCtx) error {
 	return newErrExpelByInstanceNotSupported(OrchestratorCentralizedConfig)
 }
 
+// BootstrapVShard is not supported for a single instance by the
+// centralized config orchestrator.
+func (c *CConfigInstance) BootstrapVShard(VShardBootstrapCtx) error {
+	return newErrBootstrapVShardByInstanceNotSupported(OrchestratorCentralizedConfig)
+}
+
 // CConfigApplication is an application with the centralized config
 // orchestrator.
 type CConfigApplication struct {
@@ -388,6 +394,11 @@ func (c *CConfigApplication) Demote(ctx DemoteCtx) error {
 		err = errors.Join(err, reloadCConfig(instances))
 	}
 	return err
+}
+
+// BootstrapVShard is not supported for an application by the centralized config orchestrator.
+func (c *CConfigApplication) BootstrapVShard(VShardBootstrapCtx) error {
+	return newErrBootstrapVShardByAppNotSupported(OrchestratorCentralizedConfig)
 }
 
 // cconfigPromoteElection tries to promote an instance via `box.ctl.promote()`.
