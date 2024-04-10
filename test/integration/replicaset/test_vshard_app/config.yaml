@@ -1,0 +1,51 @@
+credentials:
+  users:
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'secret'
+      roles: [replication]
+    storage:
+      password: 'secret'
+      roles: [sharding]
+
+iproto:
+  listen:
+    - uri: 'unix/:./{{ instance_name }}.iproto'
+  advertise:
+    peer:
+      login: replicator
+    sharding:
+      login: storage
+
+sharding:
+  bucket_count: 3000
+
+app:
+  file: 'init.lua'
+
+groups:
+  storages:
+    sharding:
+      roles: [storage]
+    replication:
+      failover: manual
+    replicasets:
+      storage-001:
+        leader: storage-001-a
+        instances:
+          storage-001-a: {}
+          storage-001-b: {}
+      storage-002:
+        leader: storage-002-a
+        instances:
+          storage-002-a: {}
+          storage-002-b: {}
+  routers:
+    sharding:
+      roles: [router]
+    replicasets:
+      router-001:
+        instances:
+          router-001-a: {}

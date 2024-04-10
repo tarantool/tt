@@ -22,6 +22,11 @@ var (
 
 	//go:embed lua/cconfig/promote_election.lua
 	cconfigPromoteElectionBody string
+
+	//go:embed lua/cconfig/bootstrap_vshard_body.lua
+	cconfigBootstrapVShardBody string
+
+	cconfigGetShardingRolesBody = "return require('config'):get().sharding.roles"
 )
 
 // cconfigTopology used to export topology information from a Tarantool
@@ -106,10 +111,14 @@ func (c *CConfigInstance) Expel(ctx ExpelCtx) error {
 	return newErrExpelByInstanceNotSupported(OrchestratorCentralizedConfig)
 }
 
-// BootstrapVShard is not supported for a single instance by the
-// centralized config orchestrator.
-func (c *CConfigInstance) BootstrapVShard(VShardBootstrapCtx) error {
-	return newErrBootstrapVShardByInstanceNotSupported(OrchestratorCentralizedConfig)
+// BootstrapVShard bootstraps vshard for a single instance by the centralized config
+// orchestrator.
+func (c *CConfigInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
+	err := cconfigBootstrapVShard(c.evaler, ctx.Timeout)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // CConfigApplication is an application with the centralized config
@@ -396,9 +405,44 @@ func (c *CConfigApplication) Demote(ctx DemoteCtx) error {
 	return err
 }
 
-// BootstrapVShard is not supported for an application by the centralized config orchestrator.
-func (c *CConfigApplication) BootstrapVShard(VShardBootstrapCtx) error {
-	return newErrBootstrapVShardByAppNotSupported(OrchestratorCentralizedConfig)
+// BootstrapVShard bootstraps vshard for an application by the centralized config orchestrator.
+func (c *CConfigApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
+	var (
+		lastErr error
+		found   bool
+	)
+	eval := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+		roles, err := cconfigGetShardingRoles(evaler)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to get sharding roles: %w", err)
+			// Try again with another instance.
+			return false, nil
+		}
+		isRouter := false
+		for _, role := range roles {
+			if role == "router" {
+				isRouter = true
+				break
+			}
+		}
+		if !isRouter {
+			// Try again with another instance.
+			return false, nil
+		}
+		found = true
+		lastErr = cconfigBootstrapVShard(evaler, ctx.Timeout)
+		return lastErr == nil, nil
+	}
+	err := EvalForeach(c.runningCtx.Instances, InstanceEvalFunc(eval))
+	for _, e := range []error{err, lastErr} {
+		if e != nil {
+			return e
+		}
+	}
+	if !found {
+		return fmt.Errorf("not found any vshard router in replicaset")
+	}
+	return nil
 }
 
 // cconfigPromoteElection tries to promote an instance via `box.ctl.promote()`.
@@ -410,6 +454,41 @@ func cconfigPromoteElection(evaler connector.Evaler, timeout int) error {
 		return fmt.Errorf("failed to promote via election: %w", err)
 	}
 	return waitRW(evaler, timeout)
+}
+
+// cconfigBootstrapVShard bootstraps vshard on the passed instance.
+func cconfigBootstrapVShard(evaler connector.Evaler, timeout int) error {
+	var opts connector.RequestOpts
+	_, err := evaler.Eval(cconfigBootstrapVShardBody, []any{timeout}, opts)
+	if err != nil {
+		return fmt.Errorf("failed to bootstrap vshard: %w", err)
+	}
+	return nil
+}
+
+// cconfigGetShardingRoles returns sharding roles of the passed instance.
+func cconfigGetShardingRoles(evaler connector.Evaler) ([]string, error) {
+	var opts connector.RequestOpts
+	resp, err := evaler.Eval(cconfigGetShardingRolesBody, []any{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp) != 1 {
+		return nil, fmt.Errorf("unexpected response length: %d", len(resp))
+	}
+	rolesAnyArray, ok := resp[0].([]any)
+	if !ok {
+		return nil, fmt.Errorf("unexpected response type: %T", resp[0])
+	}
+	var ret []string
+	for _, role := range rolesAnyArray {
+		if roleStr, ok := role.(string); ok {
+			ret = append(ret, roleStr)
+		} else {
+			return nil, fmt.Errorf("unexpected role type: %T", role)
+		}
+	}
+	return ret, nil
 }
 
 // reloadCConfig reloads a cluster config on the several instances.

@@ -2,15 +2,13 @@ import os
 import platform
 import signal
 import subprocess
-import tempfile
 
 import psutil
-import py
 import pytest
 from cartridge_helper import CartridgeApp
 from etcd_helper import EtcdInstance
 
-from utils import create_tt_config, kill_procs
+from utils import create_tt_config, get_tmpdir, kill_procs
 
 
 # ######## #
@@ -24,12 +22,6 @@ def sigterm_handler():
     original = signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
     yield
     signal.signal(signal.SIGTERM, original)
-
-
-def get_tmpdir(request):
-    tmpdir = py.path.local(tempfile.mkdtemp())
-    request.addfinalizer(lambda: tmpdir.remove(rec=1))
-    return str(tmpdir)
 
 
 @pytest.fixture(scope="session")

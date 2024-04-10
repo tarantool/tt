@@ -6,10 +6,10 @@ import shutil
 import pytest
 from cartridge_helper import (cartridge_name, cartridge_password,
                               cartridge_username)
-from replicaset_helpers import eval_on_instance, parse_status
+from replicaset_helpers import eval_on_instance, parse_status, stop_application
 
-from utils import (get_tarantool_version, run_command_and_get_output,
-                   wait_event, wait_file)
+from utils import (create_tt_config, get_tarantool_version, get_tmpdir,
+                   run_command_and_get_output, wait_event, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -115,6 +115,122 @@ def test_vshard_bootstrap_cartridge(cartridge_app, tt_cmd, target, flag):
     def have_buckets_created():
         expr = "vshard.storage.buckets_count() == 0"
         out = eval_on_instance(tt_cmd, cartridge_name, "s1-replica", cartridge_app.workdir, expr)
+        return out.find("false") != -1
+
+    assert wait_event(10, have_buckets_created)
+
+
+@pytest.mark.skipif(tarantool_major_version < 3,
+                    reason="skip centralized config test for Tarantool < 3")
+def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    app_name = "test_ccluster_app"
+    app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    try:
+        # Start a cluster.
+        start_cmd = [tt_cmd, "start", app_name]
+        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        assert rc == 0
+
+        for i in range(1, 6):
+            file = wait_file(os.path.join(tmpdir, app_name), f'ready-instance-00{i}', [])
+            assert file != ""
+
+        cmd = [tt_cmd, "rs", "vs", "bootstrap", app_name]
+
+        rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+
+        assert rc != 0
+        buf = io.StringIO(out)
+        assert "• Discovery application..." in buf.readline()
+        buf.readline()
+        # Skip init status in the output.
+        parse_status(buf)
+        assert "Bootstrapping vshard" in buf.readline()
+        assert "failed to get sharding roles" in buf.readline()
+    finally:
+        stop_application(tt_cmd, app_name, tmpdir, [])
+
+
+@pytest.fixture(scope="session")
+def vshard_tt_env_session(request, tt_cmd):
+    tmpdir = get_tmpdir(request)
+    create_tt_config(tmpdir, "")
+
+    # Install vshard.
+    cmd = [tt_cmd, "rocks", "install", "vshard"]
+    rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+    assert rc == 0
+    assert re.search(r"vshard .* is now installed", out)
+    return tmpdir
+
+
+vshard_cconfig_app_name = "test_vshard_app"
+
+
+@pytest.fixture
+def vshard_cconfig_app_tt_env(request, tt_cmd, vshard_tt_env_session):
+    tmpdir = vshard_tt_env_session
+    app_path = os.path.join(tmpdir, vshard_cconfig_app_name)
+
+    # Copy application.
+    shutil.copytree(os.path.join(os.path.dirname(__file__), vshard_cconfig_app_name), app_path)
+
+    # Start a cluster.
+    start_cmd = [tt_cmd, "start", vshard_cconfig_app_name]
+    rc, _ = run_command_and_get_output(start_cmd, cwd=tmpdir)
+    assert rc == 0
+
+    instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
+
+    def stop_and_clean():
+        stop_application(tt_cmd, app_name=vshard_cconfig_app_name,
+                         workdir=tmpdir, instances=instances)
+        shutil.rmtree(app_path)
+    request.addfinalizer(stop_and_clean)
+
+    for inst in instances:
+        file = wait_file(app_path, f'ready-{inst}', [])
+        assert file != ""
+    return tmpdir
+
+
+@pytest.mark.skipif(tarantool_major_version < 3,
+                    reason="skip centralized config test for Tarantool < 3")
+def test_vshard_bootstrap_cconfig_via_uri_no_router(tt_cmd, vshard_cconfig_app_tt_env):
+    tmpdir = vshard_cconfig_app_tt_env
+    cmd = [tt_cmd, "rs", "vs", "bootstrap",
+           "--username", "client", "--password", "secret",
+           os.path.join(tmpdir, vshard_cconfig_app_name, "storage-001-a.iproto")]
+    rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+    assert rc != 0
+    assert "instance must be a router to bootstrap vshard" in out
+
+
+@pytest.mark.skipif(tarantool_major_version < 3,
+                    reason="skip centralized config test for Tarantool < 3")
+@pytest.mark.parametrize("flag", [None, "--config"])
+def test_vshard_bootstrap_cconfig(tt_cmd, vshard_cconfig_app_tt_env, flag):
+    tmpdir = vshard_cconfig_app_tt_env
+    cmd = [tt_cmd, "rs", "vs", "bootstrap"]
+    if flag:
+        cmd.append(flag)
+    cmd.append(vshard_cconfig_app_name)
+    rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+
+    assert rc == 0
+    buf = io.StringIO(out)
+    assert "Discovery application..." in buf.readline()
+    buf.readline()
+    # Skip init status in the output.
+    parse_status(buf)
+    assert "Bootstrapping vshard" in buf.readline()
+    assert "Done." in buf.readline()
+
+    def have_buckets_created():
+        expr = "require('vshard').storage.buckets_count() == 0"
+        out = eval_on_instance(tt_cmd, vshard_cconfig_app_name, "storage-001-a", tmpdir, expr)
         return out.find("false") != -1
 
     assert wait_event(10, have_buckets_created)

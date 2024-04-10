@@ -4,10 +4,12 @@ import re
 import shutil
 import socket
 import subprocess
+import tempfile
 import time
 
 import netifaces
 import psutil
+import py
 import tarantool
 import yaml
 
@@ -21,6 +23,12 @@ pid_file = "tt.pid"
 log_file = "tt.log"
 initial_snap = "00000000000000000000.snap"
 initial_xlog = "00000000000000000000.xlog"
+
+
+def get_tmpdir(request):
+    tmpdir = py.path.local(tempfile.mkdtemp())
+    request.addfinalizer(lambda: tmpdir.remove(rec=1))
+    return str(tmpdir)
 
 
 def run_command_and_get_output(
