@@ -138,6 +138,9 @@ jobs:
       - name: Stop Mono server
         run: sudo systemctl kill mono-xsp4 || true
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Integration tests
         run: mage integration
 
