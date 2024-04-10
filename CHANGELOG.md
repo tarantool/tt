@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt status`: added `pretty` option for pretty-formatted table output.
 - `TT_CLI_CFG`: environment variable to specify the path to the configuration file.
 - `tt pack`: systemd unit parameterizing support.
+- `tt replicaset vshard`: module to manage vshard in the tarantool replicaset.
+  * `tt replicaset vshard bootstrap`: command to bootstrap vshard.
 
 ### Fixed
 
@@ -40,12 +42,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
  cluster config (3.0) or cartridge orchestrator.
 - `tt replicaset demote`: command to demote an instance in the tarantool replicaset with
  cluster config (3.0) orchestrator.
-- `tt replicaset expel`:  command to expel an instance from the tarantool replicaset with
- cluster config (3.0) or cartridge orchestrator.
 - `tt cluster replicaset`: module to manage replicaset via 3.0 cluster config storage.
   * `tt cluster replicaset promote`: command to promote an instance in the replicaset.
   * `tt cluster replicaset demote`: command to demote an instance in the replicaset.
-  * `tt cluster replicaset expel`: command to expel an instance from the replicaset.
 - `tt connect --binary`: connect to instance using binary port.
 - `tt kill`: command to stop instance(s) with SIGQUIT and SIGKILL signals.
 
