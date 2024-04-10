@@ -673,11 +673,13 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 // Start an Instance.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod time.Duration) error {
+	logger := createLogger(inst)
+	logger.Print("[INFO] Start") // Create a log file before any other actions.
 	if err := createInstanceDataDirectories(*inst); err != nil {
+		logger.Printf("[ERROR] failed to create a directory: %s", err)
 		return err
 	}
 
-	logger := createLogger(inst)
 	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: inst}
 	preStartAction := func() error {
 		if err := process_utils.CreatePIDFile(inst.PIDFile); err != nil {
