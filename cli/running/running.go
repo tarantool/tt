@@ -385,7 +385,12 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string,
 	for inst := range instParams {
 		instance := InstanceCtx{AppDir: appDir, ClusterConfigPath: appDirFiles.clusterCfgPath}
 		instance.InstName = getInstanceName(inst, instance.ClusterConfigPath != "")
+		instance.AppName = filepath.Base(appDir)
 		if selectedInstName != "" && instance.InstName != selectedInstName {
+			continue
+		}
+		if instance.InstName == instance.AppName {
+			log.Debugf("Skipping %q instance since it is an application name", instance.InstName)
 			continue
 		}
 		log.Debugf("Instance %q", instance.InstName)
@@ -396,7 +401,6 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string,
 				"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
 		}
 
-		instance.AppName = filepath.Base(appDir)
 		instance.SingleApp = false
 		if instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
 			appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath); err != nil {

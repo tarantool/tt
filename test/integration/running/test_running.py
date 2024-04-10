@@ -508,6 +508,7 @@ def test_no_args_usage(tt_cmd):
             assert start_rc == 0
             assert re.search(r"Starting an instance \[app1:(router|master|replica)\]", start_out)
             assert re.search(r"Starting an instance \[app2\]", start_out)
+            assert "app1:app1" not in start_out
 
             # Check status.
             inst_enabled_dir = os.path.join(test_app_path, "instances_enabled")
@@ -524,6 +525,7 @@ def test_no_args_usage(tt_cmd):
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
             status_out = extract_status(status_out)
+            assert len(status_out) == 4
             assert status_out['app1:router']["STATUS"] == "RUNNING"
             assert status_out['app1:master']["STATUS"] == "RUNNING"
             assert status_out['app1:replica']["STATUS"] == "RUNNING"
@@ -544,6 +546,7 @@ def test_no_args_usage(tt_cmd):
                              r"has been terminated.", stop_out)
             assert re.search(r"The Instance app2 \(PID = \d+\) "
                              r"has been terminated.", stop_out)
+            assert "app1:app1" not in stop_out
 
 
 def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
