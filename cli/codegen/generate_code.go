@@ -139,6 +139,14 @@ func main() {
 	if err != nil {
 		log.Errorf("error while generating file modes: %s", err)
 	}
+	err = generateFileModeFile(
+		"cli/create/builtin_templates/templates/single_instance",
+		"cli/create/builtin_templates/static/single_instance_template_filemodes_gen.go",
+		"SingleInstance",
+	)
+	if err != nil {
+		log.Errorf("error while generating file modes: %s", err)
+	}
 
 	if err = generateLuaCodeVar(); err != nil {
 		log.Errorf("error while generating lua code string variables: %s", err)
