@@ -1,0 +1,4 @@
+local app_name = "{{.name}}"
+
+local log = require('log').new(app_name)
+log.info('loaded')

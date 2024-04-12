@@ -40,6 +40,7 @@ func TestCreateValidArgsFunction(t *testing.T) {
 	templates := []string{
 		"cartridge",
 		"vshard_cluster",
+		"single_instance",
 		"archive",
 		"template2",
 		tdir1Name,

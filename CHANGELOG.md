@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt create`: added single instance application template.
 - `tt replicaset promote`: command to promote an instance in the tarantool replicaset with
  cluster config (3.0) or cartridge orchestrator.
 - `tt replicaset demote`: command to demote an instance in the tarantool replicaset with
