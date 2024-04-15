@@ -305,3 +305,46 @@ func ReplaceInstanceConfig(cconfig ClusterConfig,
 	return cconfig,
 		fmt.Errorf("cluster configuration has not an instance %q", instance)
 }
+
+// FindInstance lookups for an instance in the config.
+// If it is found, returns a group and replicaset name.
+func FindInstance(cconfig ClusterConfig, name string) (string, string, bool) {
+	for gname, group := range cconfig.Groups {
+		for rname, replicaset := range group.Replicasets {
+			for iname := range replicaset.Instances {
+				if name == iname {
+					return gname, rname, true
+				}
+			}
+		}
+	}
+	return "", "", false
+}
+
+// SetInstanceConfig sets an instance configuration.
+func SetInstanceConfig(cconfig ClusterConfig,
+	group, replicaset, instance string, iconfig *Config) (ClusterConfig, error) {
+	path := []string{groupsLabel, group,
+		replicasetsLabel, replicaset,
+		instancesLabel, instance,
+	}
+	newConfig := NewConfig()
+	newConfig.Merge(cconfig.RawConfig)
+	if err := newConfig.Set(path, iconfig); err != nil {
+		err = fmt.Errorf("failed to set configuration: %w", err)
+		return cconfig, err
+	}
+	return MakeClusterConfig(newConfig)
+}
+
+// FindGroupByReplicaset returns a group name by the replicaset name.
+func FindGroupByReplicaset(cconfig ClusterConfig, replicaset string) (string, bool) {
+	for gname, group := range cconfig.Groups {
+		for rname := range group.Replicasets {
+			if rname == replicaset {
+				return gname, true
+			}
+		}
+	}
+	return "", false
+}

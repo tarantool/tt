@@ -379,3 +379,92 @@ func TestReplaceInstanceConfig_replcase(t *testing.T) {
 	assert.Equal(t, 1, oldValue)
 	assert.Equal(t, 2, newValue)
 }
+
+func TestSetInstanceConfig(t *testing.T) {
+	path := []string{"groups", "a", "replicasets", "b", "instances", "c", "foo"}
+	cases := []struct {
+		name    string
+		setPath bool
+	}{
+		{name: "create"},
+		{name: "replace", setPath: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := cluster.NewConfig()
+			if tc.setPath {
+				err := config.Set(path, 1)
+				require.NoError(t, err)
+			}
+			old, err := cluster.MakeClusterConfig(config)
+			require.NoError(t, err)
+			replace := cluster.NewConfig()
+			err = replace.Set([]string{"foo"}, 2)
+			require.NoError(t, err)
+
+			newConfig, err := cluster.SetInstanceConfig(old, "a", "b", "c", replace)
+			require.NoError(t, err)
+
+			if tc.setPath {
+				oldValue, err := old.RawConfig.Get(path)
+				require.NoError(t, err)
+				assert.Equal(t, 1, oldValue)
+			}
+
+			newValue, err := newConfig.RawConfig.Get(path)
+			require.NoError(t, err)
+			assert.Equal(t, 2, newValue)
+		})
+	}
+}
+
+func TestFindGroupByReplicaset(t *testing.T) {
+	path := []string{"groups", "a", "replicasets", "b", "instances", "c", "foo"}
+	config := cluster.NewConfig()
+	err := config.Set(path, 1)
+	require.NoError(t, err)
+
+	clusterCfg, err := cluster.MakeClusterConfig(config)
+	require.NoError(t, err)
+
+	cases := []struct {
+		replicaset string
+		group      string
+		found      bool
+	}{
+		{"b", "a", true},
+		{"notexists", "", false},
+	}
+	for _, tc := range cases {
+		group, found := cluster.FindGroupByReplicaset(clusterCfg, tc.replicaset)
+		assert.Equal(t, tc.group, group)
+		assert.Equal(t, tc.found, found)
+	}
+}
+
+func TestFindInstance(t *testing.T) {
+	path := []string{"groups", "a", "replicasets", "b", "instances", "c", "foo"}
+	config := cluster.NewConfig()
+	err := config.Set(path, 1)
+	require.NoError(t, err)
+
+	clusterCfg, err := cluster.MakeClusterConfig(config)
+	require.NoError(t, err)
+
+	cases := []struct {
+		instance   string
+		replicaset string
+		group      string
+		found      bool
+	}{
+		{"c", "b", "a", true},
+		{"", "", "", false},
+	}
+
+	for _, tc := range cases {
+		group, replicaset, found := cluster.FindInstance(clusterCfg, tc.instance)
+		assert.Equal(t, tc.group, group)
+		assert.Equal(t, tc.replicaset, replicaset)
+		assert.Equal(t, tc.found, found)
+	}
+}
