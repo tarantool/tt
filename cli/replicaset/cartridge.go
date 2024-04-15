@@ -179,6 +179,11 @@ func (c *CartridgeInstance) Expel(ctx ExpelCtx) error {
 	return newErrExpelByInstanceNotSupported(OrchestratorCartridge)
 }
 
+// Bootstrap is not supported for a single instance by the Cartridge orchestrator.
+func (c *CartridgeInstance) Bootstrap(ctx BootstrapCtx) error {
+	return newErrBootstrapByInstanceNotSupported(OrchestratorCartridge)
+}
+
 // BootstrapVShard bootstraps the vshard for a single instance by the Cartridge orchestrator.
 func (c *CartridgeInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
 	err := cartridgeBootstrapVShard(c.evaler, ctx.Timeout)
@@ -286,6 +291,11 @@ loop:
 // Demote is not supported for an application by the Cartridge orchestrator.
 func (c *CartridgeApplication) Demote(ctx DemoteCtx) error {
 	return newErrDemoteByAppNotSupported(OrchestratorCartridge)
+}
+
+// Bootstrap is not supported for an application by the Cartridge orchestrator.
+func (c *CartridgeApplication) Bootstrap(BootstrapCtx) error {
+	return newErrBootstrapByAppNotSupported(OrchestratorCartridge)
 }
 
 // Expel expels an instance from a Cartridge replicasets.
