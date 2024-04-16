@@ -52,6 +52,40 @@ iproto:
 """
 
 
+def test_cluster_publish_in_place_instances_enabled(tt_cmd, tmpdir):
+    env_path = os.path.join(tmpdir, "app")
+    os.mkdir(env_path)
+
+    with open(os.path.join(env_path, "tt.yml"), "w") as f:
+        f.write("""\
+env:
+  instances.enabled: "."
+""")
+    with open(os.path.join(env_path, "init.lua"), "w") as f:
+        f.write("print('hello world!')")
+
+    cfg = """\
+database:
+  mode: rw
+"""
+    with open(os.path.join(env_path, "cfg.yml"), "w") as f:
+        f.write(cfg)
+
+    publish_cmd = [tt_cmd, "cluster", "publish", "app", "cfg.yml"]
+    publish_process = subprocess.Popen(
+        publish_cmd,
+        cwd=env_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    publish_output = publish_process.stdout.read()
+    assert "" == publish_output
+
+    with open(os.path.join(env_path, "config.yml")) as f:
+        assert f.read() == cfg
+
+
 @pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
 def test_cluster_publish_no_configuration(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
@@ -92,8 +126,11 @@ def test_cluster_publish_no_app(tt_cmd, tmpdir_with_cfg):
     assert "⨯ can\'t collect instance information for non_exist:" in publish_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
-def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
+@pytest.mark.parametrize("app_name, config_file", [
+    pytest.param("test_simple_app", "config.yaml"),
+    pytest.param("testsimpleapp", "config.yml"),
+])
+def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name, config_file):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
@@ -102,7 +139,7 @@ def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
         f.write(valid_cluster_cfg)
 
     app_path = os.path.join(tmpdir, app_name)
-    dst_cfg_path = os.path.join(app_path, "config.yaml")
+    dst_cfg_path = os.path.join(app_path, config_file)
 
     publish_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
@@ -122,8 +159,12 @@ def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
     assert valid_cluster_cfg == uploaded
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
-def test_cluster_publish_valid_cluster_without_app_config(tt_cmd, tmpdir_with_cfg, app_name):
+@pytest.mark.parametrize("app_name, config_file", [
+    pytest.param("test_simple_app", "config.yaml"),
+    pytest.param("testsimpleapp", "config.yml"),
+])
+def test_cluster_publish_valid_cluster_without_app_config(tt_cmd, tmpdir_with_cfg, app_name,
+                                                          config_file):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
@@ -132,7 +173,7 @@ def test_cluster_publish_valid_cluster_without_app_config(tt_cmd, tmpdir_with_cf
         f.write(valid_cluster_cfg)
 
     app_path = os.path.join(tmpdir, app_name)
-    dst_cfg_path = os.path.join(app_path, "config.yaml")
+    dst_cfg_path = os.path.join(app_path, config_file)
     os.remove(dst_cfg_path)
     publish_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
@@ -146,7 +187,8 @@ def test_cluster_publish_valid_cluster_without_app_config(tt_cmd, tmpdir_with_cf
 
     assert "" == publish_output
 
-    with open(dst_cfg_path, 'r') as f:
+    default_cfg_path = os.path.join(app_path, "config.yml")
+    with open(default_cfg_path, 'r') as f:
         uploaded = f.read()
 
     assert valid_cluster_cfg == uploaded
@@ -177,8 +219,11 @@ def test_cluster_publish_invalid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
     assert expected == publish_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
-def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg, app_name):
+@pytest.mark.parametrize("app_name, config_file", [
+    pytest.param("test_simple_app", "config.yaml"),
+    pytest.param("testsimpleapp", "config.yml"),
+])
+def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg, app_name, config_file):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
@@ -187,7 +232,7 @@ def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg, app_name
         f.write(invalid_cluster_cfg)
 
     app_path = os.path.join(tmpdir, app_name)
-    dst_cfg_path = os.path.join(app_path, "config.yaml")
+    dst_cfg_path = os.path.join(app_path, config_file)
     publish_cmd = [tt_cmd, "cluster", "publish", "--force", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         publish_cmd,
@@ -206,31 +251,12 @@ def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg, app_name
     assert invalid_cluster_cfg == uploaded
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
-def test_cluster_publish_no_instance(tt_cmd, tmpdir_with_cfg, app_name):
-    tmpdir = tmpdir_with_cfg
-    copy_app(tmpdir, app_name)
-
-    src_cfg_path = os.path.join(tmpdir, "src.yaml")
-    with open(src_cfg_path, 'w') as f:
-        f.write(valid_instance_cfg)
-
-    publish_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:non_exist", "src.yaml"]
-    instance_process = subprocess.Popen(
-        publish_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    publish_output = instance_process.stdout.read()
-
-    assert (f"⨯ can't collect instance information for {app_name}:non_exist:" +
-            " instance(s) not found") in publish_output
-
-
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
-def test_cluster_publish_instance_without_app_config(tt_cmd, tmpdir_with_cfg, app_name):
+@pytest.mark.parametrize("app_name, config_file", [
+    pytest.param("test_simple_app", "config.yaml"),
+    pytest.param("testsimpleapp", "config.yml"),
+])
+def test_cluster_publish_instance_without_app_config(tt_cmd, tmpdir_with_cfg, app_name,
+                                                     config_file):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
@@ -239,7 +265,7 @@ def test_cluster_publish_instance_without_app_config(tt_cmd, tmpdir_with_cfg, ap
         f.write(valid_instance_cfg)
 
     app_path = os.path.join(tmpdir, app_name)
-    cfg_path = os.path.join(app_path, "config.yaml")
+    cfg_path = os.path.join(app_path, config_file)
     os.remove(cfg_path)
     publish_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:master", "src.yaml"]
     instance_process = subprocess.Popen(
@@ -256,8 +282,11 @@ def test_cluster_publish_instance_without_app_config(tt_cmd, tmpdir_with_cfg, ap
             " the application") in publish_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
-def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg, app_name):
+@pytest.mark.parametrize("app_name, config_file", [
+    pytest.param("test_simple_app", "config.yaml"),
+    pytest.param("testsimpleapp", "config.yml"),
+])
+def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg, app_name, config_file):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
@@ -266,7 +295,7 @@ def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg, app_name):
         f.write(valid_instance_cfg)
 
     app_path = os.path.join(tmpdir, app_name)
-    cfg_path = os.path.join(app_path, "config.yaml")
+    cfg_path = os.path.join(app_path, config_file)
     publish_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:master", "src.yaml"]
     instance_process = subprocess.Popen(
         publish_cmd,
@@ -302,6 +331,183 @@ def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg, app_name):
 
 
 @pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_wrong_replicaset_name(tt_cmd, tmpdir_with_cfg, app_name):
+    tmpdir = tmpdir_with_cfg
+    copy_app(tmpdir, app_name)
+
+    src_cfg_path = os.path.join(tmpdir, "src.yaml")
+    with open(src_cfg_path, 'w') as f:
+        f.write(valid_instance_cfg)
+
+    publish_cmd = [tt_cmd, "cluster", "publish", "--replicaset", "unexist", f"{app_name}:master",
+                   "src.yaml"]
+    instance_process = subprocess.Popen(
+        publish_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    publish_output = instance_process.stdout.read()
+
+    expected = ' ⨯ wrong replicaset name, expected "replicaset-001", have "unexist"'
+    assert expected in publish_output
+
+
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
+def test_cluster_publish_wrong_group_name(tt_cmd, tmpdir_with_cfg, app_name):
+    tmpdir = tmpdir_with_cfg
+    copy_app(tmpdir, app_name)
+
+    src_cfg_path = os.path.join(tmpdir, "src.yaml")
+    with open(src_cfg_path, 'w') as f:
+        f.write(valid_instance_cfg)
+
+    publish_cmd = [tt_cmd, "cluster", "publish", "--group", "unexist", f"{app_name}:master",
+                   "src.yaml"]
+    instance_process = subprocess.Popen(
+        publish_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    publish_output = instance_process.stdout.read()
+
+    expected = ' ⨯ wrong group name, expected "group-001", have "unexist"'
+    assert expected in publish_output
+
+
+@pytest.mark.parametrize("app_name, config_file", [
+    pytest.param("test_simple_app", "config.yaml"),
+    pytest.param("testsimpleapp", "config.yml"),
+])
+@pytest.mark.parametrize("specify_replicaset", [True, False])
+def test_cluster_publish_new_instance_config(tt_cmd, tmpdir_with_cfg, specify_replicaset,
+                                             app_name, config_file):
+    tmpdir = tmpdir_with_cfg
+    copy_app(tmpdir, app_name)
+
+    src_cfg_path = os.path.join(tmpdir, "src.yaml")
+    with open(src_cfg_path, 'w') as f:
+        f.write(valid_instance_cfg)
+
+    app_path = os.path.join(tmpdir, app_name)
+    cfg_path = os.path.join(app_path, config_file)
+    publish_cmd = [tt_cmd, "cluster", "publish"]
+    if specify_replicaset:
+        publish_cmd.extend(["--replicaset", "replicaset-001"])
+    publish_cmd.extend([f"{app_name}:router", "src.yaml"])
+    instance_process = subprocess.Popen(
+        publish_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    publish_output = instance_process.stdout.read()
+
+    if not specify_replicaset:
+        expected = '   ⨯ replicaset name is not specified for "router" instance configuration'
+        assert expected in publish_output
+        return
+
+    assert "" == publish_output
+
+    with open(cfg_path, 'r') as f:
+        uploaded = f.read()
+
+    assert """groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3301
+          router:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3303
+          storage:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3302\n""" == uploaded
+
+
+@pytest.mark.parametrize("specify_group", [True, False])
+def test_cluster_publish_valid_new_instance_config_new_replicaset(
+        tt_cmd, tmpdir_with_cfg, specify_group):
+    app_name = "test_simple_app"
+    tmpdir = tmpdir_with_cfg
+    copy_app(tmpdir, app_name)
+
+    app_path = os.path.join(tmpdir, app_name)
+    cfg_path = os.path.join(app_path, "config.yaml")
+    src_cfg_path = os.path.join(tmpdir, "src.yaml")
+    with open(src_cfg_path, 'w') as f:
+        f.write(valid_instance_cfg)
+
+    publish_cmd = [tt_cmd, "cluster", "publish", "--replicaset", "replicaset-002"]
+    if specify_group:
+        publish_cmd.extend(["--group", "group-002"])
+    publish_cmd.extend([f"{app_name}:router", "src.yaml"])
+    instance_process = subprocess.Popen(
+        publish_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    publish_output = instance_process.stdout.read()
+
+    if not specify_group:
+        expected = '   ⨯ failed to determine the group of the "replicaset-002" replicaset'
+        assert expected in publish_output
+        return
+
+    assert "" == publish_output
+
+    with open(cfg_path, 'r') as f:
+        uploaded = f.read()
+
+    assert """groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3301
+          storage:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3302
+  group-002:
+    replicasets:
+      replicaset-002:
+        instances:
+          router:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3303\n""" == uploaded
+
+
+@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
 def test_cluster_publish_invalid_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
@@ -327,8 +533,11 @@ def test_cluster_publish_invalid_instance(tt_cmd, tmpdir_with_cfg, app_name):
     assert expected == publish_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
-def test_cluster_publish_invalid_instance_force(tt_cmd, tmpdir_with_cfg, app_name):
+@pytest.mark.parametrize("app_name, config_file", [
+    pytest.param("test_simple_app", "config.yaml"),
+    pytest.param("testsimpleapp", "config.yml"),
+])
+def test_cluster_publish_invalid_instance_force(tt_cmd, tmpdir_with_cfg, app_name, config_file):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
@@ -337,7 +546,7 @@ def test_cluster_publish_invalid_instance_force(tt_cmd, tmpdir_with_cfg, app_nam
         f.write(invalid_instance_cfg)
 
     app_path = os.path.join(tmpdir, app_name)
-    dst_cfg_path = os.path.join(app_path, "config.yaml")
+    dst_cfg_path = os.path.join(app_path, config_file)
     publish_cmd = [tt_cmd, "cluster", "publish", "--force", f"{app_name}:master",
                    "src.yaml"]
     instance_process = subprocess.Popen(
@@ -588,7 +797,8 @@ def test_cluster_publish_key_etcd(tt_cmd, tmpdir_with_cfg, etcd):
     assert valid_cluster_cfg.replace("3301", "3303") == etcd_content.decode("utf-8")
 
 
-def test_cluster_publish_instance_etcd_not_exist(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("specify_replicaset", [True, False])
+def test_cluster_publish_instance_etcd_not_exist(tt_cmd, tmpdir_with_cfg, etcd, specify_replicaset):
     tmpdir = tmpdir_with_cfg
     cluster_cfg_path = os.path.join(tmpdir, "cluster.yaml")
     with open(cluster_cfg_path, 'w') as f:
@@ -609,8 +819,11 @@ def test_cluster_publish_instance_etcd_not_exist(tt_cmd, tmpdir_with_cfg, etcd):
     publish_output = instance_process.stdout.read()
     assert "" == publish_output
 
-    publish_cmd = [tt_cmd, "cluster", "publish",
-                   f"{etcd.endpoint}/prefix?timeout=5&name=not_exist", "instance.yaml"]
+    publish_cmd = [tt_cmd, "cluster", "publish"]
+    if specify_replicaset:
+        publish_cmd.extend(["--replicaset", "replicaset-001"])
+    publish_cmd.extend([f"{etcd.endpoint}/prefix?timeout=5&name=router", "instance.yaml"])
+
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -620,6 +833,28 @@ def test_cluster_publish_instance_etcd_not_exist(tt_cmd, tmpdir_with_cfg, etcd):
     )
     publish_output = instance_process.stdout.read()
 
-    assert ('   ⨯ failed to replace an instance "not_exist" configuration ' +
-            'in a cluster configuration: cluster configuration has not an' +
-            ' instance "not_exist"\n') == publish_output
+    if not specify_replicaset:
+        expected = '   ⨯ replicaset name is not specified for "router" instance configuration'
+        assert expected in publish_output
+        return
+
+    assert "" == publish_output
+    conn = etcd.conn()
+    etcd_content, _ = conn.get('/prefix/config/all')
+    assert """groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          master:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3301
+          router:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3303\n""" == etcd_content.decode("utf-8")

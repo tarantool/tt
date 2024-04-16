@@ -74,13 +74,16 @@ def test_cluster_show_config_not_exist_app(tt_cmd, tmpdir_with_cfg):
     assert expected in show_output
 
 
-@pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
-def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg, app_name):
+@pytest.mark.parametrize("app_name, config_file", [
+    pytest.param("test_simple_app", "config.yaml"),
+    pytest.param("testsimpleapp", "config.yml"),
+])
+def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg, app_name, config_file):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
     app_path = os.path.join(tmpdir, app_name)
-    cfg_path = os.path.join(app_path, "config.yaml")
+    cfg_path = os.path.join(app_path, config_file)
     os.remove(cfg_path)
 
     show_cmd = [tt_cmd, "cluster", "show", app_name]
@@ -182,8 +185,7 @@ def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg, app
     )
     show_output = instance_process.stdout.read()
 
-    expected = (f"   ⨯ can't collect instance information for {app_name}:unknown: " +
-                "instance(s) not found")
+    expected = '   ⨯ instance "unknown" not found'
     assert expected in show_output
 
 

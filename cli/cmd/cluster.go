@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,10 +20,6 @@ import (
 	"github.com/tarantool/tt/lib/integrity"
 )
 
-const (
-	defaultConfigFileName = "config.yaml"
-)
-
 var showCtx = clustercmd.ShowCtx{
 	Username: "",
 	Password: "",
@@ -32,9 +27,11 @@ var showCtx = clustercmd.ShowCtx{
 }
 
 var publishCtx = clustercmd.PublishCtx{
-	Username: "",
-	Password: "",
-	Force:    false,
+	Username:   "",
+	Password:   "",
+	Group:      "",
+	Replicaset: "",
+	Force:      false,
 }
 
 var promoteCtx = clustercmd.PromoteCtx{
@@ -227,6 +224,9 @@ func NewClusterCmd() *cobra.Command {
 			"https://user:pass@localhost:2379/tt cluster.yaml\n" +
 			"  tt cluster publish " +
 			"https://user:pass@localhost:2379/tt?name=instance " +
+			"instance.yaml\n" +
+			"  tt cluster publish --group group --replicaset replicaset " +
+			"https://user:pass@localhost:2379/tt?name=instance " +
 			"instance.yaml",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
@@ -249,6 +249,8 @@ func NewClusterCmd() *cobra.Command {
 		"username (used as etcd credentials only)")
 	publish.Flags().StringVarP(&publishCtx.Password, "password", "p", "",
 		"password (used as etcd credentials only)")
+	publish.Flags().StringVarP(&publishCtx.Group, "group", "", "", "group name")
+	publish.Flags().StringVarP(&publishCtx.Replicaset, "replicaset", "", "", "replicaset name")
 	publish.Flags().BoolVar(&publishCtx.Force, "force", publishCtx.Force,
 		"force publish and skip validation")
 	// Integrity flags.
@@ -281,16 +283,15 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	// It looks like an application or an application:instance.
-	instanceCtx, name, err := parseAppStr(cmdCtx, args[0])
+	configPath, _, instName, err := parseAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
 	}
-
-	if instanceCtx.ClusterConfigPath == "" {
+	if configPath == "" {
 		return fmt.Errorf("cluster configuration file does not exist for the application")
 	}
 
-	return clustercmd.ShowCluster(showCtx, instanceCtx.ClusterConfigPath, name)
+	return clustercmd.ShowCluster(showCtx, configPath, instName)
 }
 
 // internalClusterPublishModule is an entrypoint for `cluster publish` command.
@@ -315,21 +316,22 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	}
 
 	// It looks like an application or an application:instance.
-	instanceCtx, name, err := parseAppStr(cmdCtx, args[0])
+	configPath, appName, instName, err := parseAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
 	}
-
-	configPath := instanceCtx.ClusterConfigPath
 	if configPath == "" {
-		if name != "" {
+		if instName != "" {
 			return fmt.Errorf("can not to update an instance configuration " +
 				"if a cluster configuration file does not exist for the application")
 		}
-		configPath = filepath.Join(instanceCtx.AppDir, defaultConfigFileName)
+		configPath, err = running.GetClusterConfigPath(cliOpts,
+			cmdCtx.Cli.ConfigDir, appName, false)
+		if err != nil {
+			return err
+		}
 	}
-
-	return clustercmd.PublishCluster(publishCtx, configPath, name)
+	return clustercmd.PublishCluster(publishCtx, configPath, instName)
 }
 
 // internalClusterReplicasetPromoteModule is a "cluster replicaset promote" command.
@@ -421,29 +423,28 @@ func parseUrl(str string) (*url.URL, error) {
 	return nil, fmt.Errorf("specified string can not be recognized as URL")
 }
 
-// parseAppStr parses a string and returns an application instance context
-// and an application instance name or an error.
-func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (running.InstanceCtx, string, error) {
-	var (
-		runningCtx running.RunningCtx
-		name       string
-	)
-
+// parseAppStr parses a string and returns an application cluster config path,
+// application name and instance name or an error.
+func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, string, error) {
 	if !isConfigExist(cmdCtx) {
-		return running.InstanceCtx{},
-			"",
+		return "", "", "",
 			fmt.Errorf("unable to resolve the application name %q: %w", appStr, errNoConfig)
 	}
 
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appStr})
+	appName, instName, _ := strings.Cut(appStr, string(running.InstanceDelimiter))
+
+	// Fill context for the entire application.
+	// publish app:inst can work even if the `inst` instance doesn't exist right now.
+	var runningCtx running.RunningCtx
+	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName})
 	if err != nil {
-		return running.InstanceCtx{}, "", err
+		return "", "", "", err
 	}
 
-	colonIds := strings.Index(appStr, string(running.InstanceDelimiter))
-	if colonIds != -1 {
-		name = runningCtx.Instances[0].InstName
+	configPath := ""
+	if len(runningCtx.Instances) != 0 {
+		configPath = runningCtx.Instances[0].ClusterConfigPath
 	}
 
-	return runningCtx.Instances[0], name, nil
+	return configPath, appName, instName, nil
 }
