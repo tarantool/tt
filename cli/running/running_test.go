@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/lib/integrity"
 	"golang.org/x/exp/slices"
@@ -410,4 +411,66 @@ func TestGetAppPath(t *testing.T) {
 		SingleApp:      false,
 	}))
 
+}
+
+func TestGetClusterConfigPath(t *testing.T) {
+	instEnabled := filepath.Join("testdata", "instances_enabled")
+	defaultCliOpts := &config.CliOpts{Env: &config.TtEnvOpts{InstancesEnabled: instEnabled}}
+	cases := []struct {
+		cliOpts     *config.CliOpts
+		ttConfigDir string
+		app         string
+		mustExist   bool
+		expected    string
+		wantErr     bool
+	}{
+		{
+			cliOpts:   defaultCliOpts,
+			app:       "cluster_app",
+			mustExist: true,
+			expected:  filepath.Join(instEnabled, "cluster_app", "config.yml"),
+		},
+		{
+			cliOpts:   &config.CliOpts{Env: &config.TtEnvOpts{InstancesEnabled: instEnabled}},
+			app:       "cluster_app_yaml_config_extension",
+			mustExist: true,
+			expected: filepath.Join(instEnabled, "cluster_app_yaml_config_extension",
+				"config.yaml"),
+		},
+		{
+			cliOpts:   defaultCliOpts,
+			app:       "single_inst",
+			mustExist: true,
+			wantErr:   true,
+		},
+		{
+			cliOpts:   defaultCliOpts,
+			app:       "single_inst",
+			mustExist: false,
+			expected:  filepath.Join(instEnabled, "single_inst", "config.yml"),
+		},
+		{
+			cliOpts: &config.CliOpts{
+				Env: &config.TtEnvOpts{
+					InstancesEnabled: ".",
+				},
+			},
+			ttConfigDir: filepath.Join(instEnabled, "cluster_app"),
+			app:         "cluster_app",
+			mustExist:   true,
+			expected:    filepath.Join(instEnabled, "cluster_app", "config.yml"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.app, func(t *testing.T) {
+			actual, err := GetClusterConfigPath(tc.cliOpts, tc.ttConfigDir, tc.app, tc.mustExist)
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
 }

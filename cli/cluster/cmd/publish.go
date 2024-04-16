@@ -25,6 +25,10 @@ type PublishCtx struct {
 	Src []byte
 	// Config is a parsed raw data configuration to publish.
 	Config *libcluster.Config
+	// Group is a group name for a new instance configuration publishing.
+	Group string
+	// Replicaset is a replicaset name for a new instance configuration publishing.
+	Replicaset string
 }
 
 // PublishUri publishes a configuration to URI.
@@ -57,7 +61,8 @@ func PublishUri(publishCtx PublishCtx, uri *url.URL) error {
 		return publisher.Publish(0, publishCtx.Src)
 	}
 
-	return replaceInstanceConfig(instance, publishCtx.Config, collector, publisher)
+	return setInstanceConfig(publishCtx.Group, publishCtx.Replicaset, instance,
+		publishCtx.Config, collector, publisher)
 }
 
 // PublishCluster publishes a configuration to the configuration path.
@@ -81,7 +86,8 @@ func PublishCluster(publishCtx PublishCtx, path, instance string) error {
 		return fmt.Errorf("failed to create a file collector: %w", err)
 	}
 
-	return replaceInstanceConfig(instance, publishCtx.Config, collector, publisher)
+	return setInstanceConfig(publishCtx.Group, publishCtx.Replicaset, instance,
+		publishCtx.Config, collector, publisher)
 }
 
 // publishCtxValidateConfig validates a source configuration from the publish
@@ -93,9 +99,9 @@ func publishCtxValidateConfig(publishCtx PublishCtx, instance string) error {
 	return nil
 }
 
-// replaceInstanceConfig replaces an instance configuration in the collected
+// setInstanceConfig sets an instance configuration in the collected
 // cluster configuration and republishes it.
-func replaceInstanceConfig(instance string, config *libcluster.Config,
+func setInstanceConfig(group, replicaset, instance string, config *libcluster.Config,
 	collector libcluster.Collector, publisher libcluster.DataPublisher) error {
 	src, err := collector.Collect()
 	if err != nil {
@@ -108,10 +114,39 @@ func replaceInstanceConfig(instance string, config *libcluster.Config,
 		return fmt.Errorf("failed to parse a target configuration: %w", err)
 	}
 
-	cconfig, err = libcluster.ReplaceInstanceConfig(cconfig, instance, config)
+	gname, rname, found := libcluster.FindInstance(cconfig, instance)
+	if found {
+		// Instance is present in the configuration.
+		if replicaset != "" && replicaset != rname {
+			return fmt.Errorf("wrong replicaset name, expected %q, have %q", rname, replicaset)
+		}
+		if group != "" && group != gname {
+			return fmt.Errorf("wrong group name, expected %q, have %q", gname, group)
+		}
+		cconfig, err = libcluster.ReplaceInstanceConfig(cconfig, instance, config)
+		if err != nil {
+			return fmt.Errorf("failed to replace an instance %q configuration "+
+				"in a cluster configuration: %w", instance, err)
+		}
+		return libcluster.NewYamlConfigPublisher(publisher).Publish(cconfig.RawConfig)
+	}
+
+	if replicaset == "" {
+		return fmt.Errorf(
+			"replicaset name is not specified for %q instance configuration", instance)
+	}
+	if group == "" {
+		// Try to determine a group.
+		var found bool
+		group, found = libcluster.FindGroupByReplicaset(cconfig, replicaset)
+		if !found {
+			return fmt.Errorf("failed to determine the group of the %q replicaset", replicaset)
+		}
+	}
+	cconfig, err = libcluster.SetInstanceConfig(cconfig, group, replicaset,
+		instance, config)
 	if err != nil {
-		return fmt.Errorf("failed to replace an instance %q configuration "+
-			"in a cluster configuration: %w", instance, err)
+		return fmt.Errorf("failed to set an instance %q configuration: %w", instance, err)
 	}
 
 	return libcluster.NewYamlConfigPublisher(publisher).Publish(cconfig.RawConfig)

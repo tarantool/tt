@@ -28,8 +28,14 @@ import (
 
 const defaultDirPerms = 0770
 
-// stateBoardInstName is cartridge stateboard instance name.
-const stateBoardInstName = "stateboard"
+const (
+	// stateBoardInstName is cartridge stateboard instance name.
+	stateBoardInstName = "stateboard"
+
+	// clusterConfigDefaultFileName is a default filename for the cluster config.
+	// When using, make sure that both "yml" and "yaml" are considered.
+	clusterConfigDefaultFileName = "config.yml"
+)
 
 var (
 	instStateStopped = process_utils.ProcStateStopped
@@ -248,7 +254,7 @@ func collectAppDirFiles(appDir string) (appDirCtx appDirCtx, err error) {
 	}
 
 	if appDirCtx.clusterCfgPath, err = util.GetYamlFileName(
-		filepath.Join(appDir, "config.yml"), false); err != nil {
+		filepath.Join(appDir, clusterConfigDefaultFileName), false); err != nil {
 		return
 	}
 
@@ -581,6 +587,32 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 	return nil
 }
 
+// GetClusterConfigPath returns a cluster config path for the application.
+// If mustExist flag is set and config is not found, ErrNotExists error is returned,
+// default config filepath is returned otherwise.
+func GetClusterConfigPath(cliOpts *config.CliOpts,
+	ttConfigDir, appName string, mustExist bool) (string, error) {
+	instEnabledPath := cliOpts.Env.InstancesEnabled
+	var appDir string
+	if instEnabledPath == "." {
+		appDir = ttConfigDir
+	} else {
+		appDir = filepath.Join(instEnabledPath, appName)
+	}
+	configPath := filepath.Join(appDir, clusterConfigDefaultFileName)
+	ret, err := util.GetYamlFileName(configPath, true)
+	if errors.Is(err, os.ErrNotExist) {
+		if mustExist {
+			return "", err
+		}
+		return configPath, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return ret, nil
+}
+
 // CollectInstancesForApps collects instances information per application.
 func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 	ttConfigDir string, integrityCtx integrity.IntegrityCtx) (
@@ -589,7 +621,6 @@ func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 	if cliOpts.Env.InstancesEnabled == "." {
 		instEnabledPath = ttConfigDir
 	}
-
 	apps := make(map[string][]InstanceCtx)
 	for _, appName := range appList {
 		appName = strings.TrimSuffix(appName, ".lua")
