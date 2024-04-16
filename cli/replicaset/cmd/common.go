@@ -21,6 +21,7 @@ type replicasetOrchestrator interface {
 	replicaset.Demoter
 	replicaset.Expeller
 	replicaset.VShardBootstrapper
+	replicaset.Bootstrapper
 }
 
 // makeApplicationOrchestrator creates an orchestrator for the application.
