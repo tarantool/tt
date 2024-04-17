@@ -45,12 +45,15 @@ end
 local failover_params = require('cartridge').failover_get_params()
 local issues = require('cartridge.issues').list_on_cluster()
 local is_critical = false
-local uuid = box.info().uuid
 
-for _, issue in pairs(issues) do
-    if issue.level == 'critical' and issue.instance_uuid == uuid then
-        is_critical = true
-        break
+if type(box.cfg) ~= 'function' then
+    local uuid = box.info().uuid
+
+    for _, issue in pairs(issues) do
+        if issue.level == 'critical' and issue.instance_uuid == uuid then
+            is_critical = true
+            break
+        end
     end
 end
 

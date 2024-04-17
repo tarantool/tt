@@ -37,7 +37,7 @@ func TestCartridgeApplication_Bootstrap(t *testing.T) {
 	app := replicaset.NewCartridgeApplication(running.RunningCtx{})
 	err := app.Bootstrap(replicaset.BootstrapCtx{})
 	assert.EqualError(t, err,
-		`bootstrap is not supported for an application by "cartridge" orchestrator`)
+		`failed to bootstrap: there are no running instances`)
 }
 
 func TestCartridgeInstance_Demote(t *testing.T) {
