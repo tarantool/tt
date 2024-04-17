@@ -87,6 +87,28 @@ def wait_inst_files(dir, inst):
     assert file != ""
 
 
+def wait_inst_start(dir, inst):
+    wait_inst_files(dir, inst)
+
+    log_dir = os.path.join(dir, cartridge_name, log_path, inst)
+    started = False
+    trying = 0
+    while not started and trying < 200:
+        if inst == "stateboard":
+            started = True
+            break
+        with open(os.path.join(log_dir, log_file), "r") as fp:
+            lines = fp.readlines()
+            lines = [line.rstrip() for line in lines]
+        for line in lines:
+            if re.search("Set default metrics endpoints", line):
+                started = True
+                break
+        time.sleep(0.05)
+        trying = trying + 1
+    assert started
+
+
 # CartridgeApp wraps tt working with cartridge application.
 class CartridgeApp:
     def __init__(self, workdir, tt_cmd) -> None:
@@ -142,38 +164,18 @@ class CartridgeApp:
         assert rc == 0
         # Wait for the full start of the cartridge.
         for inst in self.instances:
-            wait_inst_files(self.workdir, inst)
-
-            log_dir = os.path.join(self.workdir, cartridge_name, log_path, inst)
-            started = False
-            trying = 0
-            while not started and trying < 200:
-                if inst == "stateboard":
-                    started = True
-                    break
-                with open(os.path.join(log_dir, log_file), "r") as fp:
-                    lines = fp.readlines()
-                    lines = [line.rstrip() for line in lines]
-                for line in lines:
-                    if re.search("Set default metrics endpoints", line):
-                        started = True
-                        break
-                time.sleep(0.05)
-                trying = trying + 1
-        assert started is True
+            wait_inst_start(self.workdir, inst)
 
         # Bootstrap.
         self.bootstrap(bootstrap_vshard=boostrap_vshard)
 
     def bootstrap(self, bootstrap_vshard=True):
-        cmd = [self.tt_cmd, "cartridge", "replicasets", "setup", "--name", cartridge_name]
+        cmd = [self.tt_cmd, "replicaset", "bootstrap", cartridge_name]
         if bootstrap_vshard:
             cmd.append("--bootstrap-vshard")
         rc, out = run_command_and_get_output(cmd, cwd=self.workdir)
-        assert rc == 0
-        assert re.search(r"Replicasets are set up successfully", out)
-        if bootstrap_vshard:
-            assert re.search(r"Bootstrap vshard task completed successfully", out)
+        assert rc == 0, f"vshard bootstrap output: {out}"
+        assert re.search(r"Done.", out)
 
         # Wait until the instances are configured.
         for inst in self.instances:

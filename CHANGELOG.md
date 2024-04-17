@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   versions >= 3.2.
 - `tt enable`: create a symbolic link in 'instances_enabled' directory to a script or
   an application directory.
+- `tt replicaset bootstrap`: command to bootstrap a Cartridge cluster or an instance.
 
 ### Fixed
 
