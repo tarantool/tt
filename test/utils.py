@@ -345,9 +345,11 @@ def find_ports(n=1, port=8000):
     ports = []
     while len(ports) < n:
         busy = False
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            if s.connect_ex(("localhost", port)) == 0:
-                busy = True
+        for proto in [socket.AF_INET, socket.AF_INET6]:
+            with socket.socket(proto, socket.SOCK_STREAM) as s:
+                if s.connect_ex(("localhost", port)) == 0:
+                    busy = True
+                    break
         if not busy:
             ports.append(port)
         port += 1
