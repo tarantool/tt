@@ -269,6 +269,7 @@ func InitRoot() {
 		}
 	} else {
 		cmdCtx.Cli.ConfigDir = filepath.Dir(cmdCtx.Cli.ConfigPath)
+		log.Debugf("Using configuration file %q", cmdCtx.Cli.ConfigPath)
 	}
 
 	// Getting modules information.

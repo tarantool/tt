@@ -541,3 +541,16 @@ def test_launch_with_invalid_env_cfg(tt_cmd):
     rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
     assert rc == 1
     assert "specified path to the configuration file is invalid" in output
+
+
+def test_launch_with_verbose_output(tt_cmd, tmpdir):
+    tmpdir_with_flag_config = tempfile.mkdtemp()
+    try:
+        create_tt_config(tmpdir_with_flag_config, tmpdir)
+        cmd = [tt_cmd, "-c", tmpdir_with_flag_config + "/tt.yaml", "-V", "-h"]
+
+        rc, output = run_command_and_get_output(cmd, cwd=os.getcwd())
+        assert rc == 0
+        assert tmpdir_with_flag_config + "/tt.yaml" in output
+    finally:
+        shutil.rmtree(tmpdir_with_flag_config)
