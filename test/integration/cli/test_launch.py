@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import tempfile
 
@@ -495,3 +496,48 @@ def test_std_err_stream_local_launch_non_existent_dir(tt_cmd, tmpdir):
     assert tt_process.returncode == 1
     assert "failed to change working directory" not in tt_process.stdout.readline()
     assert "failed to change working directory" in tt_process.stderr.readline()
+
+
+def test_launch_with_env_cfg(tt_cmd):
+    cmd = [tt_cmd, "cfg", "dump"]
+
+    tmpdir_with_env_config = tempfile.mkdtemp()
+    tmpdir_with_flag_config = tempfile.mkdtemp()
+    try:
+        # Test 'TT_CLI_CFG' env. variable.
+        env_config_path = tmpdir_with_env_config + "/tt.yaml"
+        with open(env_config_path, "w") as f:
+            yaml.dump({"env": {"bin_dir": "foo/binaries"}}, f)
+        test_env = os.environ.copy()
+        test_env['TT_CLI_CFG'] = env_config_path
+
+        rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
+        expected_bin_dir = "bin_dir: " + tmpdir_with_env_config + "/foo/binaries"
+        assert rc == 0
+        assert expected_bin_dir in output
+
+        # Test that '-c' flag has higher priority than 'TT_CLI_CFG'.
+        flag_config_path = tmpdir_with_flag_config + "/tt.yaml"
+        with open(flag_config_path, "w") as f:
+            yaml.dump({"env": {"bin_dir": "foo/my_cool_binaries"}}, f)
+        cmd = [tt_cmd, "-c", flag_config_path, "cfg", "dump"]
+
+        rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
+        expected_bin_dir = "bin_dir: " + tmpdir_with_flag_config + "/foo/my_cool_binaries"
+        assert rc == 0
+        assert expected_bin_dir in output
+    finally:
+        shutil.rmtree(tmpdir_with_env_config)
+        shutil.rmtree(tmpdir_with_flag_config)
+
+
+def test_launch_with_invalid_env_cfg(tt_cmd):
+    cmd = [tt_cmd, "cfg", "dump"]
+
+    # Set invalid 'TT_CLI_CFG' env. variable.
+    test_env = os.environ.copy()
+    test_env['TT_CLI_CFG'] = "foo/bar"
+
+    rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
+    assert rc == 1
+    assert "specified path to the configuration file is invalid" in output
