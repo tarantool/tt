@@ -43,7 +43,7 @@ func NewCleanCmd() *cobra.Command {
 	return cleanCmd
 }
 
-func collectFiles(list []string, dirname string) ([]string, error) {
+func collectFiles(files map[string]bool, dirname string) (map[string]bool, error) {
 	err := filepath.Walk(dirname,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -51,7 +51,7 @@ func collectFiles(list []string, dirname string) ([]string, error) {
 			}
 
 			if !info.IsDir() {
-				list = append(list, path)
+				files[path] = true
 			}
 			return nil
 		})
@@ -59,28 +59,28 @@ func collectFiles(list []string, dirname string) ([]string, error) {
 		return nil, err
 	}
 
-	return list, nil
+	return files, nil
 }
 
 func clean(run *running.InstanceCtx) error {
-	removeList := []string{}
+	removeFiles := map[string]bool{}
 	confirm := false
 	var err error
 
 	for _, dir := range [...]string{run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir} {
-		removeList, err = collectFiles(removeList, dir)
+		removeFiles, err = collectFiles(removeFiles, dir)
 		if err != nil {
 			return err
 		}
 	}
 
-	if len(removeList) == 0 {
+	if len(removeFiles) == 0 {
 		log.Infof("Already cleaned.\n")
 		return nil
 	}
 
 	log.Infof("List of files to delete:\n")
-	for _, file := range removeList {
+	for file, _ := range removeFiles {
 		log.Infof("%s", file)
 	}
 
@@ -92,7 +92,7 @@ func clean(run *running.InstanceCtx) error {
 	}
 
 	if confirm || forceRemove {
-		for _, file := range removeList {
+		for file, _ := range removeFiles {
 			err = os.Remove(file)
 			if err != nil {
 				return err
