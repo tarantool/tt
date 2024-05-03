@@ -9,10 +9,10 @@ import pytest
 import yaml
 from retry import retry
 
-from utils import (config_name, control_socket, extract_status,
-                   kill_child_process, log_file, log_path, pid_file,
-                   run_command_and_get_output, run_path, wait_file,
-                   wait_instance_start, wait_instance_stop)
+from utils import (config_name, control_socket, extract_status, initial_snap,
+                   initial_xlog, kill_child_process, lib_path, log_file,
+                   log_path, pid_file, run_command_and_get_output, run_path,
+                   wait_file, wait_instance_start, wait_instance_stop)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
@@ -172,13 +172,18 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     assert instance_process_rc == 0
 
 
+def assert_file_cleaned(filepath, cmd_out):
+    assert re.search(r"• " + str(filepath), cmd_out)
+    assert os.path.exists(filepath) is False
+
+
 def test_clean(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_data_app", "test_data_app.lua")
     shutil.copy(test_app_path, tmpdir)
 
     # Start an instance.
-    start_cmd = [tt_cmd, "start", "test_app"]
+    start_cmd = [tt_cmd, "start", "test_data_app"]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=tmpdir,
@@ -189,33 +194,46 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
 
-    # Check that clean warns about application is running.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
+    # Wait until application is ready.
+    lib_dir = os.path.join(tmpdir, "test_data_app", lib_path, "test_data_app")
+    run_dir = os.path.join(tmpdir, "test_data_app", run_path, "test_data_app")
+    log_dir = os.path.join(tmpdir, "test_data_app", log_path, "test_data_app")
+
+    file = wait_file(lib_dir, initial_snap, [])
     assert file != ""
 
-    clean_cmd = [tt_cmd, "clean", "test_app", "--force"]
+    file = wait_file(lib_dir, initial_xlog, [])
+    assert file != ""
+
+    file = wait_file(run_dir, pid_file, [])
+    assert file != ""
+
+    file = wait_file(log_dir, log_file, [])
+    assert file != ""
+
+    # Check that clean warns about application is running.
+    clean_cmd = [tt_cmd, "clean", "test_data_app", "--force"]
     clean_rc, clean_out = run_command_and_get_output(clean_cmd, cwd=tmpdir)
     assert clean_rc == 0
-    assert re.search(r"instance `test_app` must be stopped", clean_out)
+    assert re.search(r"instance `test_data_app` must be stopped", clean_out)
 
     # Stop the Instance.
-    stop_cmd = [tt_cmd, "stop", "test_app"]
+    stop_cmd = [tt_cmd, "stop", "test_data_app"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
     assert stop_rc == 0
-    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
+    assert re.search(r"The Instance test_data_app \(PID = \d+\) has been terminated\.", stop_out)
 
     # Check that the process was terminated correctly.
     instance_process_rc = instance_process.wait(1)
     assert instance_process_rc == 0
 
     # Check that clean is working.
-    logfile = os.path.join(tmpdir, "test_app", log_path, "test_app", "tt.log")
-    assert os.path.exists(logfile)
     clean_rc, clean_out = run_command_and_get_output(clean_cmd, cwd=tmpdir)
     assert clean_rc == 0
-    assert re.search(r"• " + str(logfile), clean_out)
 
-    assert os.path.exists(logfile) is False
+    assert_file_cleaned(os.path.join(log_dir, log_file), clean_out)
+    assert_file_cleaned(os.path.join(lib_dir, initial_snap), clean_out)
+    assert_file_cleaned(os.path.join(lib_dir, initial_xlog), clean_out)
 
 
 def test_running_base_functionality_working_dir_app(tt_cmd):

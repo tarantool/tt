@@ -12,12 +12,15 @@ import tarantool
 import yaml
 
 var_path = "var"
+lib_path = os.path.join(var_path, "lib")
 run_path = os.path.join(var_path, "run")
 log_path = os.path.join(var_path, "log")
 config_name = "tt.yaml"
 control_socket = "tarantool.control"
 pid_file = "tt.pid"
 log_file = "tt.log"
+initial_snap = "00000000000000000000.snap"
+initial_xlog = "00000000000000000000.xlog"
 
 
 def run_command_and_get_output(
