@@ -219,10 +219,20 @@ func InitRoot() {
 	rootCmd = NewCmdRoot()
 	rootCmd.ParseFlags(os.Args[1:])
 
+	var err error
+
+	_, configPathEnvSet := os.LookupEnv("TT_CLI_CFG")
+	if cmdCtx.Cli.ConfigPath == "" && configPathEnvSet {
+		configPathEnv, err := filepath.Abs(os.Getenv("TT_CLI_CFG"))
+		if err != nil {
+			log.Fatalf("failed getting config path from environment variable: %s", err)
+		}
+		cmdCtx.Cli.ConfigPath = configPathEnv
+	}
+
 	if err := configure.ValidateCliOpts(&cmdCtx.Cli); err != nil {
 		log.Fatal(err.Error())
 	}
-	var err error
 
 	currentDir, err := os.Getwd()
 	if err != nil {

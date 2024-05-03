@@ -267,8 +267,13 @@ Taratool CLI can be launched in several modes:
 
 ### Configuration file
 
-By default, configuration file is named `tt.yaml`. With the `--cfg` flag
-you can specify the path to configuration file. Example of configuration
+By default, configuration file is named `tt.yaml`.
+
+You can specify the path to the configuration file by using the `--cfg`
+command line option or by setting the `TT_CLI_CFG` environment variable.
+The `TT_CLI_CFG` variable has a lower priority than the `--cfg` option.
+
+Example of configuration
 file format:
 
 ``` yaml

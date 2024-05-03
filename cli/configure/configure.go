@@ -340,11 +340,13 @@ func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 			return fmt.Errorf("you can specify only one of -L(--local) and -S(--system) options")
 		}
 		if cliCtx.ConfigPath != "" {
-			return fmt.Errorf("you can specify only one of -L(--local) and -с(--cfg) options")
+			return fmt.Errorf(
+				"you can specify only one of -L(--local), -с(--cfg) and 'TT_CLI_CFG' options")
 		}
 	} else {
 		if cliCtx.IsSystem && cliCtx.ConfigPath != "" {
-			return fmt.Errorf("you can specify only one of -S(--system) and -с(--cfg) options")
+			return fmt.Errorf(
+				"you can specify only one of -S(--system), -с(--cfg) and 'TT_CLI_CFG' options")
 		}
 	}
 	return nil

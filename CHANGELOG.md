@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt status`: added `pretty` option for pretty-formatted table output.
+- `TT_CLI_CFG`: environment variable to specify the path to the configuration file.
 
 ### Fixed
 
