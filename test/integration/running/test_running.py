@@ -173,7 +173,8 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
 
 
 def assert_file_cleaned(filepath, cmd_out):
-    assert re.search(r"• " + str(filepath), cmd_out)
+    # https://github.com/tarantool/tt/issues/735
+    assert len(re.findall(r"• " + str(filepath), cmd_out)) == 1
     assert os.path.exists(filepath) is False
 
 
@@ -230,6 +231,7 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     # Check that clean is working.
     clean_rc, clean_out = run_command_and_get_output(clean_cmd, cwd=tmpdir)
     assert clean_rc == 0
+    assert re.search(r"\[ERR\]", clean_out) is None
 
     assert_file_cleaned(os.path.join(log_dir, log_file), clean_out)
     assert_file_cleaned(os.path.join(lib_dir, initial_snap), clean_out)
