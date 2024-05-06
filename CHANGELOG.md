@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- `tt status`: displays the mode of the instance.
+
 ### Fixed
 
 - `tt clean` no longer tries to clean files multiple times.
