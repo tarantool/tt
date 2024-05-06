@@ -9,8 +9,8 @@ import (
 
 	"github.com/tarantool/go-tarantool"
 	"github.com/tarantool/tt/cli/cluster"
-	"github.com/tarantool/tt/cli/connect"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 // printRawClusterConfig prints a raw cluster configuration or an instance

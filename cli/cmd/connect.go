@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
+	libconnect "github.com/tarantool/tt/lib/connect"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -56,8 +57,8 @@ func NewConnectCmd() *cobra.Command {
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
 			"The command supports the following environment variables:\n\n" +
-			"* " + connect.TarantoolUsernameEnv + " - specifies a username\n" +
-			"* " + connect.TarantoolPasswordEnv + " - specifies a password\n" +
+			"* " + libconnect.TarantoolUsernameEnv + " - specifies a username\n" +
+			"* " + libconnect.TarantoolPasswordEnv + " - specifies a password\n" +
 			"\n" +
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
@@ -170,10 +171,10 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	} else if connect.IsBaseURI(args[0]) {
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
-			connectCtx.Username = os.Getenv(connect.TarantoolUsernameEnv)
+			connectCtx.Username = os.Getenv(libconnect.TarantoolUsernameEnv)
 		}
 		if connectCtx.Password == "" {
-			connectCtx.Password = os.Getenv(connect.TarantoolPasswordEnv)
+			connectCtx.Password = os.Getenv(libconnect.TarantoolPasswordEnv)
 		}
 		network, address := connect.ParseBaseURI(args[0])
 		connOpts = makeConnOpts(network, address, *connectCtx)
