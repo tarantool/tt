@@ -56,10 +56,7 @@ func NewConnectCmd() *cobra.Command {
 			"  * \\quit - quit interactive console",
 		Short: "Connect to the tarantool instance",
 		Long: "Connect to the tarantool instance.\n\n" +
-			"The command supports the following environment variables:\n\n" +
-			"* " + libconnect.TarantoolUsernameEnv + " - specifies a username\n" +
-			"* " + libconnect.TarantoolPasswordEnv + " - specifies a password\n" +
-			"\n" +
+			libconnect.EnvCredentialsHelp + "\n\n" +
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
 			`echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3`,

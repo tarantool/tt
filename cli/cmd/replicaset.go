@@ -41,11 +41,6 @@ var (
 		"  * [tcp://][username:password@][host:port]\n" +
 		"  * [unix://][username:password@]socketpath\n" +
 		"  To specify relative path without `unix://` use `./`."
-
-	replicasetEnvHelp = "The command supports the following environment variables:\n\n" +
-		"* " + libconnect.TarantoolUsernameEnv + " - specifies a username\n" +
-		"* " + libconnect.TarantoolPasswordEnv + " - specifies a password\n" +
-		"\n"
 )
 
 // newStatusCmd creates a "replicaset status" command.
@@ -57,7 +52,7 @@ func newStatusCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Show a replicaset status",
 		Long: "Show a replicaset status.\n\n" +
-			replicasetEnvHelp,
+			libconnect.EnvCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -81,7 +76,7 @@ func newPromoteCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
 		Long: "Promote an instance.\n\n" +
-			replicasetEnvHelp,
+			libconnect.EnvCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
