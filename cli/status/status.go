@@ -1,65 +1,60 @@
 package status
 
 import (
-	"fmt"
-	"strings"
-	"text/tabwriter"
+	"os"
 
-	"github.com/fatih/color"
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
 )
 
-const (
-	// colorBytesNumber is the number of bytes added to the colorized string.
-	colorBytesNumber = 9
-
-	// padding is the padding between two columns of the table.
-	padding = 5
-)
-
-var header = []string{"INSTANCE", "STATUS", "PID"}
-
 // Status writes the status as a table.
 func Status(runningCtx running.RunningCtx) error {
-	instColWidth := len(header[0])
-	sb := strings.Builder{}
-	tw := tabwriter.NewWriter(&sb, 0, 1, padding, ' ', 0)
+	ts := table.NewWriter()
+	ts.SetOutputMirror(os.Stdout)
+	ts.AppendHeader(table.Row{"INSTANCE", "STATUS", "PID", "MODE"})
 
-	fmt.Fprintln(tw, strings.Join(header, "\t"))
 	for _, run := range runningCtx.Instances {
+		row := []interface{}{}
 		fullInstanceName := running.GetAppInstanceName(run)
 		procStatus := running.Status(&run)
-		if len(fullInstanceName) > instColWidth {
-			instColWidth = len(fullInstanceName)
-		}
 
-		fmt.Fprintf(tw, "%s\t%s\t", fullInstanceName,
-			procStatus.ColorSprint(procStatus.Status))
+		row = append(row, fullInstanceName)
+		row = append(row, procStatus.ColorSprint(procStatus.Status))
 		if procStatus.Code == process_utils.ProcessRunningCode {
-			fmt.Fprintf(tw, "%d", procStatus.PID)
+			row = append(row, procStatus.PID)
 		}
-		fmt.Fprintf(tw, "\n")
+
+		conn, err := connector.Connect(connector.ConnectOpts{
+			Network: "unix",
+			Address: run.ConsoleSocket,
+		})
+		if err == nil {
+			res, err := conn.Eval("return (type(box.cfg) == 'function') or box.info.ro",
+				[]any{}, connector.RequestOpts{})
+			if err == nil && len(res) != 0 {
+				mode := res[0].(bool)
+				mode_str := "RO"
+				if !mode {
+					mode_str = "RW"
+				}
+				row = append(row, mode_str)
+			}
+		}
+		ts.AppendRow(row)
 	}
 
-	if err := tw.Flush(); err != nil {
-		return err
-	}
-
-	rawOutput := sb.String()
-	rawHeader, rest, _ := strings.Cut(rawOutput, "\n")
-
-	// Calculating the position of the `status` end in the header.
-	statusOffset := instColWidth + padding + len(header[1])
-	fmt.Print(rawHeader[:statusOffset])
-
-	var toSkip int
-	if len(runningCtx.Instances) > 0 && !color.NoColor {
-		// We need to skip the spaces that appear
-		// as a result of using color bytes, if any.
-		toSkip = colorBytesNumber
-	}
-	fmt.Println(rawHeader[statusOffset+toSkip:])
-	fmt.Print(rest)
+	ts.Style().Options.DrawBorder = false
+	ts.Style().Options.SeparateColumns = false
+	ts.Style().Options.SeparateHeader = false
+	ts.SetColumnConfigs([]table.ColumnConfig{
+		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: 2, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: 3, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: 4, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+	})
+	ts.Render()
 	return nil
 }

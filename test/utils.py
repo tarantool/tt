@@ -361,6 +361,8 @@ def extract_status(status_output):
         if fields[1] == "RUNNING":
             info["STATUS"] = fields[1]
             info["PID"] = int(fields[2])
+            if len(fields) == 4:
+                info["MODE"] = fields[3]
         else:
             info["STATUS"] = " ".join(fields[1:])
         result[instance] = info

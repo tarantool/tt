@@ -47,6 +47,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     assert status_rc == 0
     status_info = extract_status(status_out)
     assert status_info["test_app"]["STATUS"] == "RUNNING"
+    assert status_info["test_app"]["MODE"] == "RO"
 
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]
