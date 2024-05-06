@@ -14,10 +14,10 @@ import (
 	clustercmd "github.com/tarantool/tt/cli/cluster/cmd"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -86,8 +86,8 @@ You could also specify etcd/tarantool username and password with environment var
 The priority of credentials:
 environment variables < command flags < URL credentials.
 `, float64(clustercmd.DefaultUriTimeout)/float64(time.Second),
-		connect.EtcdUsernameEnv, connect.EtcdPasswordEnv,
-		connect.TarantoolUsernameEnv, connect.TarantoolPasswordEnv)
+		libconnect.EtcdUsernameEnv, libconnect.EtcdPasswordEnv,
+		libconnect.TarantoolUsernameEnv, libconnect.TarantoolPasswordEnv)
 )
 
 func newClusterReplicasetCmd() *cobra.Command {

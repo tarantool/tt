@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
+	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
 // playFlags contains flags for play command.
@@ -86,10 +87,10 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 	} else {
 		if playUsername == "" {
-			playUsername = os.Getenv(connect.TarantoolUsernameEnv)
+			playUsername = os.Getenv(libconnect.TarantoolUsernameEnv)
 		}
 		if playPassword == "" {
-			playPassword = os.Getenv(connect.TarantoolPasswordEnv)
+			playPassword = os.Getenv(libconnect.TarantoolPasswordEnv)
 		}
 	}
 

@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 	replicasetcmd "github.com/tarantool/tt/cli/replicaset/cmd"
 	"github.com/tarantool/tt/cli/running"
+	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -42,8 +43,8 @@ var (
 		"  To specify relative path without `unix://` use `./`."
 
 	replicasetEnvHelp = "The command supports the following environment variables:\n\n" +
-		"* " + connect.TarantoolUsernameEnv + " - specifies a username\n" +
-		"* " + connect.TarantoolPasswordEnv + " - specifies a password\n" +
+		"* " + libconnect.TarantoolUsernameEnv + " - specifies a username\n" +
+		"* " + libconnect.TarantoolPasswordEnv + " - specifies a password\n" +
 		"\n"
 )
 
