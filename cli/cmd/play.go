@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/checkpoint"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
@@ -80,7 +79,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		)
 	}
 
-	if connect.IsCredentialsURI(args[0]) {
+	if libconnect.IsCredentialsURI(args[0]) {
 		if playUsername != "" || playPassword != "" {
 			return errors.New("username and password are specified with" +
 				" flags and a URI")

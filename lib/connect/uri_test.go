@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 const (

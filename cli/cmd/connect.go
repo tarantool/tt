@@ -156,19 +156,19 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 				connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
 			)
 		}
-	} else if connect.IsCredentialsURI(args[0]) {
+	} else if libconnect.IsCredentialsURI(args[0]) {
 		if connectCtx.Username != "" || connectCtx.Password != "" {
 			err = fmt.Errorf("username and password are specified with" +
 				" flags and a URI")
 			return
 		}
-		newURI, user, pass := connect.ParseCredentialsURI(args[0])
-		network, address := connect.ParseBaseURI(newURI)
+		newURI, user, pass := libconnect.ParseCredentialsURI(args[0])
+		network, address := libconnect.ParseBaseURI(newURI)
 		connectCtx.Username = user
 		connectCtx.Password = pass
 		connOpts = makeConnOpts(network, address, *connectCtx)
 		connectCtx.ConnectTarget = newURI
-	} else if connect.IsBaseURI(args[0]) {
+	} else if libconnect.IsBaseURI(args[0]) {
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
 			connectCtx.Username = os.Getenv(libconnect.TarantoolUsernameEnv)
@@ -176,7 +176,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		if connectCtx.Password == "" {
 			connectCtx.Password = os.Getenv(libconnect.TarantoolPasswordEnv)
 		}
-		network, address := connect.ParseBaseURI(args[0])
+		network, address := libconnect.ParseBaseURI(args[0])
 		connOpts = makeConnOpts(network, address, *connectCtx)
 	} else {
 		err = fillErr
