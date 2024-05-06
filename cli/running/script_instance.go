@@ -19,7 +19,7 @@ import (
 
 const (
 	maxSocketPathLinux = 108
-	maxSocketPathMac   = 106
+	maxSocketPathMac   = 104
 )
 
 // scriptInstance represents a tarantool invoked with an instance script provided.
@@ -100,9 +100,9 @@ func verifySocketLength(socketPath string) error {
 	}
 
 	if socketPath != "" {
-		if len(socketPath) > maxSocketPath {
+		if len(socketPath) >= maxSocketPath {
 			return fmt.Errorf("socket path is longer than %d symbols: %q",
-				maxSocketPath, socketPath)
+				maxSocketPath-1, socketPath)
 		}
 		return nil
 	}
