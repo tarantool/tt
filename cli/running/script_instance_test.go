@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -116,6 +117,15 @@ func Test_shortenSocketPath(t *testing.T) {
 		socketPath string
 		basePath   string
 	}
+
+	maxSocketPathLen := maxSocketPathLinux
+	if runtime.GOOS == "darwin" {
+		maxSocketPathLen = maxSocketPathMac
+	}
+	dirLen := maxSocketPathLen - len("/tarantool.control") - 1
+	maxSocketPath := "/" + strings.Repeat("a", dirLen) + "/tarantool.control"
+	require.Equal(t, maxSocketPathLen, len(maxSocketPath))
+
 	tests := []struct {
 		name    string
 		args    args
@@ -165,6 +175,15 @@ func Test_shortenSocketPath(t *testing.T) {
 				basePath:   "",
 			},
 			want:    "../aaaaaaaaaa/tarantool.control",
+			wantErr: true,
+		},
+		{
+			name: "max socket path",
+			args: args{
+				socketPath: maxSocketPath,
+				basePath:   "",
+			},
+			want:    "",
 			wantErr: true,
 		},
 	}
