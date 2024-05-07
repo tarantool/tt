@@ -10,8 +10,14 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
+// StatusOpts contains options for tt status.
+type StatusOpts struct {
+	// Option for pretty-formatted table output.
+	Pretty bool
+}
+
 // Status writes the status as a table.
-func Status(runningCtx running.RunningCtx) error {
+func Status(runningCtx running.RunningCtx, opts StatusOpts) error {
 	ts := table.NewWriter()
 	ts.SetOutputMirror(os.Stdout)
 	ts.AppendHeader(table.Row{"INSTANCE", "STATUS", "PID", "MODE"})
@@ -46,9 +52,13 @@ func Status(runningCtx running.RunningCtx) error {
 		ts.AppendRow(row)
 	}
 
-	ts.Style().Options.DrawBorder = false
-	ts.Style().Options.SeparateColumns = false
-	ts.Style().Options.SeparateHeader = false
+	if opts.Pretty {
+		ts.SetStyle(table.StyleRounded)
+	} else {
+		ts.Style().Options.DrawBorder = false
+		ts.Style().Options.SeparateColumns = false
+		ts.Style().Options.SeparateHeader = false
+	}
 	ts.SetColumnConfigs([]table.ColumnConfig{
 		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 		{Number: 2, Align: text.AlignLeft, AlignHeader: text.AlignLeft},

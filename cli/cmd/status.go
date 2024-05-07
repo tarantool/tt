@@ -9,6 +9,8 @@ import (
 	"github.com/tarantool/tt/cli/status"
 )
 
+var opts status.StatusOpts
+
 // NewStatusCmd creates status command.
 func NewStatusCmd() *cobra.Command {
 	var statusCmd = &cobra.Command{
@@ -31,6 +33,8 @@ func NewStatusCmd() *cobra.Command {
 		},
 	}
 
+	statusCmd.Flags().BoolVarP(&opts.Pretty, "pretty", "p", false, "pretty-print table")
+
 	return statusCmd
 }
 
@@ -45,6 +49,6 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	err := status.Status(runningCtx)
+	err := status.Status(runningCtx, opts)
 	return err
 }
