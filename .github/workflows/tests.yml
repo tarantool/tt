@@ -193,3 +193,13 @@ jobs:
 
       - name: Run integration tests
         run: mage integration
+
+      # Etcd can be still running after integration tests when:
+      # 1. pytest recieve SIGALRM (can be caused by pytest-timeout plugin)
+      # 2. when pytest crashes
+      # In both cases finalizers are not invoked, so etcd is not stopped.
+      - name: Kill etcd, if it was left after integration tests
+        if: always()
+        run: |
+          ETCD_TT_BIN=${ETCD_PATH}etcd;
+          pkill -SIGINT -f ${ETCD_TT_BIN} || true
