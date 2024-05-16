@@ -120,7 +120,7 @@ jobs:
           path: dist
 
   create-packages-macos:
-    runs-on: macos-latest
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@master
         with:
