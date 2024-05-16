@@ -1,5 +1,6 @@
 import os
 import platform
+import signal
 import subprocess
 import tempfile
 
@@ -15,6 +16,16 @@ from utils import create_tt_config, kill_procs
 # ######## #
 # Fixtures #
 # ######## #
+@pytest.fixture(scope="session", autouse=True)
+def sigterm_handler():
+    # pytest finalizers don't run on SIGTERM.
+    # Intercept SIGTERM and send SIGINT instead.
+    # https://github.com/pytest-dev/pytest/issues/5243
+    original = signal.signal(signal.SIGTERM, signal.getsignal(signal.SIGINT))
+    yield
+    signal.signal(signal.SIGTERM, original)
+
+
 def get_tmpdir(request):
     tmpdir = py.path.local(tempfile.mkdtemp())
     request.addfinalizer(lambda: tmpdir.remove(rec=1))
