@@ -17,7 +17,7 @@ class EtcdInstance():
 
     def start(self):
         popen = subprocess.Popen(
-            ["etcd"],
+            [os.getenv("ETCD_PATH") + "etcd"],
             env={"ETCD_LISTEN_CLIENT_URLS": self.endpoint,
                  "ETCD_ADVERTISE_CLIENT_URLS": self.endpoint,
                  "PATH": os.getenv("PATH")},
