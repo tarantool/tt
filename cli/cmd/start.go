@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -37,7 +38,7 @@ func NewStartCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalStartModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

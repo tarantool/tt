@@ -25,7 +25,7 @@ func NewCleanCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalCleanModule,
 				args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

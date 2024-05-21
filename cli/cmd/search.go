@@ -5,6 +5,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/search"
+	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -24,7 +25,7 @@ func newSearchTtCmd() *cobra.Command {
 			searchCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalSearchModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 
@@ -40,7 +41,7 @@ func newSearchTarantoolCmd() *cobra.Command {
 			searchCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalSearchModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 
@@ -56,7 +57,7 @@ func newSearchTarantoolEeCmd() *cobra.Command {
 			searchCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalSearchModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 	tntCmd.Flags().BoolVar(&debug, "debug", debug,

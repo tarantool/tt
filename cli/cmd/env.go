@@ -7,6 +7,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/env"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/util"
 )
 
 // NewEnvCmd creates env command.
@@ -19,7 +20,7 @@ func NewEnvCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalEnvModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 

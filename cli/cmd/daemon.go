@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/daemon"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/process_utils"
+	"github.com/tarantool/tt/cli/util"
 )
 
 // NewDaemonCmd creates daemon command.
@@ -27,7 +28,7 @@ func NewDaemonCmd() *cobra.Command {
 
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStartModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 
@@ -41,7 +42,7 @@ func NewDaemonCmd() *cobra.Command {
 
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStopModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 
@@ -55,7 +56,7 @@ func NewDaemonCmd() *cobra.Command {
 
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonStatusModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 
@@ -69,7 +70,7 @@ func NewDaemonCmd() *cobra.Command {
 
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalDaemonRestartModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 

@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 	init_pkg "github.com/tarantool/tt/cli/init"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/util"
 )
 
 var initCtx init_pkg.InitCtx
@@ -22,7 +23,7 @@ func NewInitCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInitModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 

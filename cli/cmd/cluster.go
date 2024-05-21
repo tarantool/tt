@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/util"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
@@ -106,7 +107,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalClusterReplicasetPromoteModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(2),
 	}
@@ -127,7 +128,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalClusterReplicasetDemoteModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(2),
 	}
@@ -149,7 +150,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalClusterReplicasetExpelModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(2),
 	}
@@ -188,7 +189,7 @@ func NewClusterCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalClusterShowModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(1),
 		ValidArgsFunction: func(
@@ -232,7 +233,7 @@ func NewClusterCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalClusterPublishModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(2),
 		ValidArgsFunction: func(

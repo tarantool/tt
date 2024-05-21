@@ -26,7 +26,7 @@ func NewRestartCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalRestartModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(

@@ -5,6 +5,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/rocks"
+	"github.com/tarantool/tt/cli/util"
 )
 
 // NewRocksCmd creates rocks command.
@@ -19,7 +20,7 @@ func NewRocksCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalRocksModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 

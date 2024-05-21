@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 	replicasetcmd "github.com/tarantool/tt/cli/replicaset/cmd"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
 )
@@ -57,7 +58,7 @@ func newStatusCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalReplicasetStatusModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(1),
 	}
@@ -81,7 +82,7 @@ func newPromoteCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalReplicasetPromoteModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(1),
 	}
@@ -110,7 +111,7 @@ func newDemoteCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalReplicasetDemoteModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(1),
 	}
@@ -134,7 +135,7 @@ func newExpelCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalReplicasetExpelModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(1),
 	}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/coredump"
+	"github.com/tarantool/tt/cli/util"
 )
 
 // NewCoredumpCmd creates coredump command.
@@ -17,7 +18,7 @@ func NewCoredumpCmd() *cobra.Command {
 		Short: "pack tarantool coredump into tar.gz archive",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := coredump.Pack(args[0]); err != nil {
-				handleCmdErr(cmd, err)
+				util.HandleCmdErr(cmd, err)
 			}
 		},
 		Args: cobra.ExactArgs(1),
@@ -28,7 +29,7 @@ func NewCoredumpCmd() *cobra.Command {
 		Short: "unpack tarantool coredump tar.gz archive",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := coredump.Unpack(args[0]); err != nil {
-				handleCmdErr(cmd, err)
+				util.HandleCmdErr(cmd, err)
 			}
 		},
 		Args: cobra.ExactArgs(1),
@@ -40,7 +41,7 @@ func NewCoredumpCmd() *cobra.Command {
 		Short: "inspect tarantool coredump",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := coredump.Inspect(args[0], sourceDir); err != nil {
-				handleCmdErr(cmd, err)
+				util.HandleCmdErr(cmd, err)
 			}
 		},
 		Args: cobra.ExactArgs(1),

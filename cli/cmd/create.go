@@ -35,7 +35,7 @@ func NewCreateCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalCreateModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {

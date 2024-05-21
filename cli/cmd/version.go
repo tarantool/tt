@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
 
@@ -24,7 +25,7 @@ func NewVersionCmd() *cobra.Command {
 			args = modules.GetDefaultCmdArgs(cmd.Name())
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalVersionModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 

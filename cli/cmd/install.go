@@ -5,6 +5,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/install"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/util"
 )
 
 var installCtx install.InstallCtx
@@ -19,7 +20,7 @@ func newInstallTtCmd() *cobra.Command {
 			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 
@@ -36,7 +37,7 @@ func newInstallTarantoolCmd() *cobra.Command {
 			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 
@@ -58,7 +59,7 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 
@@ -83,7 +84,7 @@ func newInstallTarantoolDevCmd() *cobra.Command {
 			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 

@@ -64,7 +64,7 @@ func NewConnectCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalConnectModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.MinimumNArgs(1),
 		ValidArgsFunction: func(

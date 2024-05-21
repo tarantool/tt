@@ -5,6 +5,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/instances"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/util"
 )
 
 // NewInstancesCmd creates instances command.
@@ -16,7 +17,7 @@ func NewInstancesCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstancesModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(0),
 	}
