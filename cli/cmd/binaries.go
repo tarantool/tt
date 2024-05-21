@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/search"
+	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/exp/slices"
 )
 
@@ -39,7 +40,7 @@ You will need to choose version using arrow keys in your console.
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalSwitchModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 	var listCmd = &cobra.Command{
@@ -48,7 +49,7 @@ You will need to choose version using arrow keys in your console.
 		Run: func(cmd *cobra.Command, args []string) {
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalListModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 	binariesCmd.AddCommand(switchCmd)

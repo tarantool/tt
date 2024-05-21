@@ -7,6 +7,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/uninstall"
+	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -23,7 +24,7 @@ func newUninstallTtCmd() *cobra.Command {
 			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				InternalUninstallModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -50,7 +51,7 @@ func newUninstallTarantoolCmd() *cobra.Command {
 			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				InternalUninstallModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -77,7 +78,7 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				InternalUninstallModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -104,7 +105,7 @@ func newUninstallTarantoolDevCmd() *cobra.Command {
 			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				InternalUninstallModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 	}
 

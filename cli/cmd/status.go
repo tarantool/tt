@@ -7,6 +7,7 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/status"
+	"github.com/tarantool/tt/cli/util"
 )
 
 var opts status.StatusOpts
@@ -20,7 +21,7 @@ func NewStatusCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalStatusModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

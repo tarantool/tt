@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -909,4 +910,18 @@ func Min[T constraints.Ordered](a, b T) T {
 		return a
 	}
 	return b
+}
+
+// HandleCmdErr handles an error returned by command implementation.
+// If received error is of an ArgError type, usage help is printed.
+func HandleCmdErr(cmd *cobra.Command, err error) {
+	if err != nil {
+		var argError *ArgError
+		if errors.As(err, &argError) {
+			log.Error(argError.Error())
+			cmd.Usage()
+			os.Exit(1)
+		}
+		log.Fatalf(err.Error())
+	}
 }

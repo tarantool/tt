@@ -9,6 +9,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/rocks"
+	"github.com/tarantool/tt/cli/util"
 )
 
 // NewCompletionCmd creates a new completion command.
@@ -22,7 +23,7 @@ func NewCompletionCmd() *cobra.Command {
 			args = modules.GetDefaultCmdArgs(cmd.Name())
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalCompletionCmd, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		Example: `

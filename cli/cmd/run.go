@@ -5,6 +5,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -37,7 +38,7 @@ are passed after '--'.
 				}
 			}
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalRunModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Example: `
 # Print current environment Tarantool version:
