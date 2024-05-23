@@ -2,3 +2,4 @@
 skip = */rocks/third_party,*/cartridge/third_party,tarantool-static-build.patch,./cli/cluster/paths.go
 count =
 quiet-level = 3
+ignore-words-list = fo

@@ -53,7 +53,19 @@ var expelCtx = clustercmd.ExpelCtx{
 	Force:    false,
 }
 
+var switchCtx = clustercmd.SwitchCtx{
+	Username: "",
+	Password: "",
+	Wait:     false,
+	Timeout:  0,
+}
+
+var switchStatusCtx = clustercmd.SwitchStatusCtx{
+	TaskID: "",
+}
+
 var (
+	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
 	clusterUriHelp             = fmt.Sprintf(
 		`The URI specifies a etcd or tarantool config storage `+
@@ -66,6 +78,35 @@ Possible arguments:
 
 * key - a target configuration key in the prefix.
 * name - a name of an instance in the cluster configuration.
+* timeout - a request timeout in seconds (default %.1f).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a colon-separated (:) list of SSL cipher suites the connection can use.
+* verify_host - set off (default true) verification of the certificate’s name against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL certificate.
+
+You could also specify etcd/tarantool username and password with environment variables:
+* %s - specifies an etcd username
+* %s - specifies an etcd password
+* %s - specifies a tarantool username
+* %s - specifies a tarantool password
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+`, float64(clustercmd.DefaultUriTimeout)/float64(time.Second),
+		libconnect.EtcdUsernameEnv, libconnect.EtcdPasswordEnv,
+		libconnect.TarantoolUsernameEnv, libconnect.TarantoolPasswordEnv)
+	failoverUriHelp = fmt.Sprintf(
+		`The URI specifies a etcd `+
+			`connection settings in the following format:
+http(s)://[username:password@]host:port[/prefix][?arguments]
+
+* prefix - a base path to Tarantool configuration in etcd.
+
+Possible arguments:
+
 * timeout - a request timeout in seconds (default %.1f).
 * ssl_key_file - a path to a private SSL key file.
 * ssl_cert_file - a path to an SSL certificate file.
@@ -167,6 +208,57 @@ func newClusterReplicasetCmd() *cobra.Command {
 	return cmd
 }
 
+func newClusterFailoverCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "failover",
+		Short:   "Manage supervised failover",
+		Aliases: []string{"fo"},
+	}
+
+	switchCmd := &cobra.Command{
+		Use:                   "switch <URI> <INSTANCE_NAME> [flags]",
+		DisableFlagsInUseLine: true,
+		Short:                 "Switch master instance",
+		Long:                  "Switch master instance\n\n" + failoverUriHelp,
+		Example:               "tt cluster failover switch http://localhost:2379/app instance_name",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalClusterFailoverSwitchModule, args)
+			util.HandleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(2),
+	}
+
+	switchCmd.Flags().StringVarP(&switchCtx.Username, "username", "u", "",
+		"username (used as etcd credentials)")
+	switchCmd.Flags().StringVarP(&switchCtx.Password, "password", "p", "",
+		"password (used as etcd credentials)")
+	switchCmd.Flags().Uint64VarP(&switchCtx.Timeout, "timeout", "t", defaultSwitchTimeout,
+		"timeout for command execution")
+	switchCmd.Flags().BoolVarP(&switchCtx.Wait, "wait", "w", false,
+		"wait for the command to complete execution")
+
+	switchStatusCmd := &cobra.Command{
+		Use:                   "switch-status <URI> <TASK_ID>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Show master switching status",
+		Long:                  "Show master switching status\n\n" + failoverUriHelp,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalClusterFailoverSwitchStatusModule, args)
+			util.HandleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(2),
+	}
+
+	cmd.AddCommand(switchCmd)
+	cmd.AddCommand(switchStatusCmd)
+
+	return cmd
+}
+
 func NewClusterCmd() *cobra.Command {
 	clusterCmd := &cobra.Command{
 		Use:   "cluster",
@@ -259,6 +351,7 @@ func NewClusterCmd() *cobra.Command {
 
 	clusterCmd.AddCommand(publish)
 	clusterCmd.AddCommand(newClusterReplicasetCmd())
+	clusterCmd.AddCommand(newClusterFailoverCmd())
 
 	return clusterCmd
 }
@@ -384,6 +477,28 @@ func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []stri
 
 	expelCtx.InstName = args[1]
 	return clustercmd.Expel(uri, expelCtx)
+}
+
+// internalClusterFailoverSwitchModule is as "cluster failover switch" command
+func internalClusterFailoverSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	uri, err := parseUrl(args[0])
+	if err != nil {
+		return fmt.Errorf("failed to parse config source URI: %w", err)
+	}
+
+	switchCtx.InstName = args[1]
+	return clustercmd.Switch(uri, switchCtx)
+}
+
+// internalClusterFailoverSwitchStatusModule is as "cluster failover switch-status" command
+func internalClusterFailoverSwitchStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	uri, err := parseUrl(args[0])
+	if err != nil {
+		return fmt.Errorf("failed to parse config source URI: %w", err)
+	}
+
+	switchStatusCtx.TaskID = args[1]
+	return clustercmd.SwitchStatus(uri, switchStatusCtx)
 }
 
 // readSourceFile reads a configuration from a source file.
