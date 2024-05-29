@@ -74,6 +74,7 @@ jobs:
           path: dist
 
   create-packages-linux-arm64:
+    if: false
     runs-on: graviton
     strategy:
       fail-fast: false
@@ -174,7 +175,7 @@ jobs:
           path: dist
 
   draft-release:
-    needs: [create-packages-linux, create-packages-linux-arm64, create-packages-macos]
+    needs: [create-packages-linux, create-packages-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
@@ -189,7 +190,6 @@ jobs:
       - name: Make directories
         run: |
           mkdir -p ./dist-prebuilt/packages-linux
-          mkdir -p ./dist-prebuilt/packages-linux-arm64
           mkdir -p ./dist-prebuilt/packages-macos
 
       - name: Download linux binaries
@@ -199,6 +199,7 @@ jobs:
           path: ./dist-prebuilt/packages-linux
 
       - name: Download linux arm64 binaries
+        if: false
         uses: actions/download-artifact@v3
         with:
           name: packages-linux-arm64
@@ -215,15 +216,11 @@ jobs:
           rm ./dist-prebuilt/packages-linux/artifacts.json
           rm ./dist-prebuilt/packages-linux/config.yaml
           rm ./dist-prebuilt/packages-linux/metadata.json
-          rm ./dist-prebuilt/packages-linux-arm64/artifacts.json
-          rm ./dist-prebuilt/packages-linux-arm64/config.yaml
-          rm ./dist-prebuilt/packages-linux-arm64/metadata.json
           rm ./dist-prebuilt/packages-macos/artifacts.json
           rm ./dist-prebuilt/packages-macos/config.yaml
           rm ./dist-prebuilt/packages-macos/metadata.json
           rm ./dist-prebuilt/packages-macos/tt_darwin_amd64_v1/tt
           rm ./dist-prebuilt/packages-linux/tt_linux_amd64_v1/tt
-          rm ./dist-prebuilt/packages-linux-arm64/tt_linux_arm64/tt
 
       - name: Pack additional archives
         run: |
@@ -234,10 +231,8 @@ jobs:
         run: |
           cd ./dist-prebuilt
           cat ./packages-linux/tt*checksums.txt >> checksums.txt
-          cat ./packages-linux-arm64/tt*checksums.txt >> checksums.txt
           cat ./packages-macos/tt*checksums.txt >> checksums.txt
           rm ./packages-linux/tt*checksums.txt
-          rm ./packages-linux-arm64/tt*checksums.txt
           rm ./packages-macos/tt*checksums.txt
           mv checksums.txt ./packages-macos/
 
@@ -258,7 +253,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-s3:
-    needs: [create-packages-linux, create-packages-linux-arm64]
+    needs: [create-packages-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags')
     steps:
@@ -288,12 +283,14 @@ jobs:
         run: mage publishRWS && rm -rf dist
 
       - name: Download arm64 packages artifacts
+        if: false
         uses: actions/download-artifact@v2
         with:
           name: packages-linux-arm64
           path: dist
 
       - name: Publish arm64 packages to RWS
+        if: false
         env:
           RWS_URL_PART: https://rws.tarantool.org/release/modules
           RWS_AUTH: ${{ secrets.RWS_AUTH }}
