@@ -364,7 +364,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	if buildRocks {
-		err = buildAppRocks(cmdCtx, newOpts, bundleEnvPath)
+		err = buildAppRocks(cmdCtx, packCtx, newOpts, bundleEnvPath)
 		if err != nil && !os.IsNotExist(err) {
 			return "", err
 		}
@@ -538,38 +538,62 @@ func rockspecExists(root string) bool {
 	return len(rockSpecs) > 0
 }
 
-// buildAppRocks finds a rockspec file of the application and builds it.
-func buildAppRocks(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, destPath string) error {
-	if cliOpts.Env.InstancesEnabled == "." {
-		buildCtx := build.BuildCtx{BuildDir: destPath}
-		if !rockspecExists(destPath) {
-			return nil
-		}
-		if err := build.Run(cmdCtx, cliOpts, &buildCtx); err != nil {
-			return err
-		}
-		log.Infof("Rocks are built successfully")
+// buildAppInBundle builds the application if a rockspec file exists.
+func buildAppInBundle(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, appDir string) error {
+	if !rockspecExists(appDir) {
 		return nil
 	}
-	entries, err := os.ReadDir(destPath)
-	if err != nil {
-		return err
+	buildCtx := build.BuildCtx{BuildDir: appDir}
+	if err := build.Run(cmdCtx, cliOpts, &buildCtx); err != nil {
+		return fmt.Errorf("failed to build app %s: %s", filepath.Base(appDir), err)
 	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			if !rockspecExists(filepath.Join(destPath, entry.Name())) {
-				continue
-			}
-			buildCtx := build.BuildCtx{BuildDir: filepath.Join(destPath, entry.Name())}
-			err = build.Run(cmdCtx, cliOpts, &buildCtx)
-			if err != nil {
-				return err
-			}
-			log.Infof("%s rocks are built successfully", entry.Name())
+	return nil
+}
+
+// cleanupAfterBuild removes build files that are not needed for distribution.
+func cleanupAfterBuild(appDir string) {
+	// Remove rockspec files.
+	rockspecs, _ := filepath.Glob(filepath.Join(appDir, "*.rockspec"))
+	for _, rockspec := range rockspecs {
+		log.Debugf("Removing %q", rockspec)
+		if err := os.Remove(rockspec); err != nil {
+			log.Warnf("cannot remove %q: %s", rockspec, err)
 		}
 	}
 
-	return err
+	// Remove pre/post build scripts.
+	for _, buildScript := range append(build.PreBuildScripts, build.PostBuildScripts...) {
+		scriptPath := filepath.Join(appDir, buildScript)
+		if util.IsRegularFile(filepath.Join(appDir, buildScript)) {
+			log.Debugf("Removing %q", scriptPath)
+			if err := os.Remove(scriptPath); err != nil {
+				log.Warnf("cannot remove %q: %s", scriptPath, err)
+			}
+		}
+	}
+}
+
+// buildAppRocks finds a rockspec file of the application and builds it.
+func buildAppRocks(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
+	cliOpts *config.CliOpts, bundlePath string) error {
+	if cliOpts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
+		if err := buildAppInBundle(cmdCtx, cliOpts, bundlePath); err != nil {
+			return err
+		}
+		cleanupAfterBuild(bundlePath)
+	}
+
+	for appName := range packCtx.AppsInfo {
+		appDir := filepath.Join(bundlePath, appName)
+		if util.IsDir(appDir) {
+			if err := buildAppInBundle(cmdCtx, cliOpts, appDir); err != nil {
+				return err
+			}
+			cleanupAfterBuild(appDir)
+		}
+	}
+
+	return nil
 }
 
 // getVersion returns a version of the package.

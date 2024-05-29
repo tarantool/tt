@@ -876,6 +876,48 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.FileExists, "app_with_rockspec/bin/tt"},
 				{assert.FileExists, "app_with_rockspec/init.lua"},
 				{assert.FileExists, "app_with_rockspec/tt.yaml"},
+
+				// No build files.
+				{assert.NoFileExists, "app_with_rockspec/app_with_rockspec-scm-1.rockspec"},
+				{assert.NoFileExists, "app_with_rockspec/tt.pre-build"},
+				{assert.NoFileExists, "app_with_rockspec/tt.post-build"},
+				{assert.NoFileExists, "app_with_rockspec/cartridge.pre-build"},
+				{assert.NoFileExists, "app_with_rockspec/cartridge.post-build"},
+			},
+		},
+		{
+			name: "Packing app, build rocks and rename",
+			params: params{
+				configPath:    "testdata/app_with_rockspec/tt.yaml",
+				tntExecutable: tntExecutable,
+				packCtx:       PackCtx{Name: "app"},
+				build:         true,
+			},
+			wantErr: false,
+			checks: []check{
+				// Root.
+				{assert.NoDirExists, "instances.enabled"},
+				{assert.NoDirExists, "include"},
+				{assert.NoDirExists, "bin"},
+				{assert.NoFileExists, "tt.yaml"},
+				{assert.NoDirExists, "app_with_rockspec"},
+
+				// App sub-dir.
+				{assert.NoDirExists, "app/instances.enabled"},
+				{assert.NoDirExists, "app/include"},
+				{assert.NoDirExists, "app/templates"},
+				{assert.NoDirExists, "app/modules"},
+				{assert.DirExists, "app/.rocks"},
+				{assert.FileExists, "app/bin/tt"},
+				{assert.FileExists, "app/init.lua"},
+				{assert.FileExists, "app/tt.yaml"},
+
+				// No build files.
+				{assert.NoFileExists, "app/app_with_rockspec-scm-1.rockspec"},
+				{assert.NoFileExists, "app/tt.pre-build"},
+				{assert.NoFileExists, "app/tt.post-build"},
+				{assert.NoFileExists, "app/cartridge.pre-build"},
+				{assert.NoFileExists, "app/cartridge.post-build"},
 			},
 		},
 		{

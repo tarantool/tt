@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   created with `tt coredump pack`).
   * `tt coredump inspect`: added `-s` option to specify the location of tarantool sources.
 - `tt cluster publish`: ability to publish a new instance config.
+- `tt pack` does not create unnecessary directories and removes files that are required only for
+  building from the resulting package.
 
 ### Added
 
