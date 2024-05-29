@@ -378,36 +378,34 @@ $ tt pack tgz
    • Apps to pack: single_environment
    • Generating new tt.yaml for the new package.
    • Creating tarball.
-   • Bundle is packed successfully to /Users/dev/tt_demo/single_environment/single_environment_0.1.0.0.tar.gz.
+   • Bundle is packed successfully to /Users/dev/tt_demo/single_environment/single_environment_0.1.0.0.x86_64.tar.gz.
 ```
 
-The result directory structure:
+In the case of a single application, a sub-directory is created for it
+within the resulting package. This directory contains the application's code,
+`tt` configuration file, and the "bin" directory with executable files:
+`tt` and `tarantool`. The file structure of the resulting package can be
+seen below:
 
     unpacked_dir/
-    ├── bin
-    ├── include
-    ├── instances.enabled
-    │   └── single_environment -> ../single_environment
-    ├── modules
-    ├── single_environment
-    │   ├── init.lua
-    │   ├── tt.yaml
-    │   └── var
-    └── tt.yaml
+    └── single_environment
+        ├── bin
+        │   ├── tarantool
+        │   └── tt
+        ├── init.lua
+        └── tt.yaml
 
-Example of packing a multi-app environment. The source tree:
+`tt` also supports multiple applications environment. Here's how a typical
+packed environment for multiple applications looks like:
 
     bundle/
     ├── bin
     │   ├── tarantool
     │   └── tt
-    ├── include
     ├── instances.enabled
     │   ├── multi -> ../multi
     │   ├── script_app.lua -> ../script.lua
     │   └── single -> ../single
-    ├── modules
-    │   └── test_ext
     ├── multi
     │   ├── init.lua
     │   ├── instances.yaml
