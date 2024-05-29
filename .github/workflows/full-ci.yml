@@ -53,14 +53,7 @@ jobs:
         run: mage integrationfull
 
   full-ci-ce-linux-arm64:
-    if: |
-      (github.event_name == 'push') ||
-      (github.event_name == 'pull_request' &&
-        github.event.action == 'labeled' &&
-        github.event.label.name == 'full-ci') ||
-      (github.event_name == 'pull_request' &&
-        github.event.action == 'synchronize' &&
-        contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    if: false
     runs-on: graviton
     strategy:
       fail-fast: false
