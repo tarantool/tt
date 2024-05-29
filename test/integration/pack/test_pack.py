@@ -92,17 +92,20 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "test_package-0.1.0.0." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("app2", "init.lua"),
+                os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
                 os.path.join("instances.enabled", "app1"),
+                os.path.join("instances.enabled", "app2"),
                 config_name,
             ],
             "check_not_exist": [
                 os.path.join("app2", "var", "run"),
                 os.path.join("app2", "var", "log"),
                 os.path.join("app2", "var", "lib"),
+                os.path.join("app2", "app2-scm-1.rockspec"),
                 os.path.join("app1"),
             ],
             "check_env": ["", assert_default_env, assert_artifacts_env]
@@ -404,17 +407,18 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("cartridge_app", "bin", "tt"),
                 os.path.join("cartridge_app", "app", "roles", "custom.lua"),
                 os.path.join("cartridge_app", "app", "admin.lua"),
-                os.path.join("cartridge_app", "cartridge.post-build"),
-                os.path.join("cartridge_app", "cartridge.pre-build"),
                 os.path.join("cartridge_app", "init.lua"),
                 os.path.join("cartridge_app", "instances.yml"),
                 os.path.join("cartridge_app", "replicasets.yml"),
                 os.path.join("cartridge_app", "failover.yml"),
-                os.path.join("cartridge_app", "myapp-scm-1.rockspec"),
                 os.path.join("cartridge_app", ".rocks"),
                 os.path.join("cartridge_app", config_name),
             ],
-            "check_not_exist": [],
+            "check_not_exist": [
+                os.path.join("cartridge_app", "myapp-scm-1.rockspec"),
+                os.path.join("cartridge_app", "cartridge.pre-build"),
+                os.path.join("cartridge_app", "cartridge.post-build"),
+            ],
             "check_env": ["cartridge_app", assert_single_app_env, assert_artifacts_env]
         },
         {

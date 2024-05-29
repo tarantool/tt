@@ -18,15 +18,12 @@ const (
 	cmakeIncludePathEnvVar = "CMAKE_INCLUDE_PATH"
 )
 
-// getPreBuildScripts returns a slice of supported pre-build executables.
-func getPreBuildScripts() []string {
-	return []string{"tt.pre-build", "cartridge.pre-build"}
-}
-
-// getPostBuildScripts returns a slice of supported post-build executables.
-func getPostBuildScripts() []string {
-	return []string{"tt.post-build", "cartridge.post-build"}
-}
+var (
+	// PreBuildScripts is a list of pre-build script names.
+	PreBuildScripts = []string{"tt.pre-build", "cartridge.pre-build"}
+	// PostBuildScripts is a list of post-build script names.
+	PostBuildScripts = []string{"tt.post-build", "cartridge.post-build"}
+)
 
 // runBuildHook runs first existing executable from hookNames list.
 func runBuildHook(buildCtx *BuildCtx, hookNames []string) error {
@@ -57,7 +54,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 	defer cancelChdir()
 
 	// Run Pre-build.
-	if err := runBuildHook(buildCtx, getPreBuildScripts()); err != nil {
+	if err := runBuildHook(buildCtx, PreBuildScripts); err != nil {
 		return fmt.Errorf("run pre-build hook failed: %s", err)
 	}
 
@@ -103,7 +100,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 	}
 
 	// Run Post-build.
-	if err := runBuildHook(buildCtx, getPostBuildScripts()); err != nil {
+	if err := runBuildHook(buildCtx, PostBuildScripts); err != nil {
 		return fmt.Errorf("run post-build hook failed: %s", err)
 	}
 
