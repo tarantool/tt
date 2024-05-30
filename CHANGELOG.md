@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt clean` no longer tries to clean files multiple times.
 - Tarantool 3 config instance fails to use 108 symbols control socket on tt start.
+- Incorrect application name in case of explicit providing config path without directories.
 
 ## [2.2.1] - 2024-04-03
 

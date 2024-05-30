@@ -28,7 +28,11 @@ func getCliOpts(t *testing.T, configFile string) *config.CliOpts {
 	cliOpts, configPath, err := configure.GetCliOpts(configFile,
 		&mockRepository{})
 	require.NoError(t, err)
-	require.Equal(t, configFile, configPath)
+	srcStat, err := os.Stat(configFile)
+	require.NoError(t, err)
+	loadedStat, err := os.Stat(configPath)
+	require.NoError(t, err)
+	require.True(t, os.SameFile(srcStat, loadedStat))
 	return cliOpts
 }
 

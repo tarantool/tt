@@ -236,6 +236,9 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 	configPath, err := util.GetYamlFileName(configurePath, true)
 	// Before loading configure file, we'll initialize integrity checking.
 	if err == nil {
+		if configPath, err = filepath.Abs(configPath); err != nil {
+			return nil, "", fmt.Errorf("cannot determine config file path: %s", err)
+		}
 		// Config file is found, load it.
 		f, err := repository.Read(configPath)
 		if err != nil {
