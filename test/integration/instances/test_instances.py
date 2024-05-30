@@ -116,3 +116,35 @@ def test_instances_dot_directory_with_lua_file(tt_cmd):
         )
         start_output = instance_process.stdout.read()
         assert re.search("app2", start_output)
+
+
+# Test bugfix for https://github.com/tarantool/tt/issues/844
+def test_instances_dot_directory_with_app_explicit_cfg_option(tt_cmd):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_app_path_src = os.path.join(os.path.dirname(__file__), "test_app")
+        test_app_path = os.path.join(tmpdir, "test_app")
+        shutil.copytree(test_app_path_src, test_app_path)
+        config_path = os.path.join(test_app_path, "tt.yaml")
+
+        with open(config_path, "w") as f:
+            yaml.dump({"tt": {"env": {"instances_enabled": "."}}}, f)
+
+        with open(os.path.join(test_app_path, "instances.yaml"), "w") as f:
+            yaml.dump({"instance-01": {}, "instance-02": {}}, f)
+
+        # List all instances, pass relative cfg path.
+        cmd = [tt_cmd, "--cfg", "tt.yaml", "instances"]
+        instance_process = subprocess.Popen(
+            cmd,
+            cwd=test_app_path,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True
+        )
+        rc = instance_process.wait(2)
+        assert rc == 0
+        output = instance_process.stdout.read()
+        assert ". (.)" not in output
+        assert "test_app (test_app)" in output
+        assert "instance-01" in output
+        assert "instance-02" in output
