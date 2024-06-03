@@ -156,6 +156,7 @@ func PatchCC() error {
 		"006_consider_tt_run_dir.patch",
 		"007_update_project_files_search_logic.patch",
 		"008_increase_replicasets_bootstrap_attempts.patch",
+		"009_support_1.14_copy_mod_version.patch",
 	}
 
 	for _, patch := range patches {

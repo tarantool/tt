@@ -62,60 +62,250 @@ type packFileInfo struct {
 }
 
 // skipDefaults filters out sockets and git dirs.
-func skipDefaults(src string) (bool, error) {
-	fileInfo, err := os.Stat(src)
-	if err != nil {
-		return false, fmt.Errorf("failed to check the source: %s", src)
-	}
-	perm := fileInfo.Mode()
+func skipDefaults(srcInfo os.FileInfo, src string) bool {
+	perm := srcInfo.Mode()
 	if perm&os.ModeSocket != 0 {
-		return true, nil
+		return true
 	}
 
 	if strings.HasPrefix(src, ".git") ||
 		strings.Contains(src, "/.git") {
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
 }
 
-// prepeareArtifactFilters prepares a slice of filters for runtime artifacts.
-func prepeareArtifactFilters(cliOpts *config.CliOpts) []func(src string) bool {
-	filters := make([]func(src string) bool, 0)
-	if cliOpts == nil || cliOpts.App == nil {
+// appArtifactsFilters returns a slice of skip functions to avoid copying application artifacts.
+func appArtifactsFilters(cliOpts *config.CliOpts, srcAppPath string) []func(
+	srcInfo os.FileInfo, src string) bool {
+	filters := make([]func(srcInfo os.FileInfo, src string) bool, 0)
+	if cliOpts.App == nil {
 		return filters
 	}
-	trim := func(src string) string {
-		return strings.TrimRight(strings.TrimLeft(src, "."), "/")
-	}
-	for _, dataDir := range [...]string{cliOpts.App.LogDir, cliOpts.App.RunDir, cliOpts.App.WalDir,
+
+	for _, envDir := range [...]string{cliOpts.App.LogDir, cliOpts.App.RunDir, cliOpts.App.WalDir,
 		cliOpts.App.MemtxDir, cliOpts.App.VinylDir} {
-		if dataDir != "" && !filepath.IsAbs(dataDir) {
-			artifactSuffix := trim(dataDir)
-			filters = append(filters, func(src string) bool {
-				return strings.HasSuffix(src, artifactSuffix)
+		if envDir == "" {
+			continue
+		}
+		appDir := filepath.Clean(envDir)
+		if !filepath.IsAbs(envDir) {
+			appDir = util.JoinPaths(srcAppPath, envDir)
+		}
+		if fileStat, err := os.Stat(appDir); err == nil {
+			filters = append(filters, func(srcInfo os.FileInfo, src string) bool {
+				return os.SameFile(srcInfo, fileStat)
 			})
 		}
 	}
 	return filters
 }
 
-// skipArtifacts returns a filter func to filter out artifacts paths.
-func skipArtifacts(cliOpts *config.CliOpts) func(src string) (bool, error) {
-	artifactFilters := prepeareArtifactFilters(cliOpts)
+// ttEnvironmentFilters prepares a slice of filters for tt environment directories/files.
+func ttEnvironmentFilters(packCtx *PackCtx, cliOpts *config.CliOpts) []func(
+	srcInfo os.FileInfo, src string) bool {
+	filters := make([]func(srcInfo os.FileInfo, src string) bool, 0)
+	if cliOpts == nil {
+		return filters
+	}
 
-	return func(src string) (bool, error) {
-		if skip, err := skipDefaults(src); err != nil || skip {
-			return skip, err
+	envPaths := make([]string, 0, 6)
+	if cliOpts.Env != nil {
+		envPaths = append(envPaths, cliOpts.Env.IncludeDir,
+			cliOpts.Env.InstancesEnabled, cliOpts.Env.BinDir)
+	}
+	if cliOpts.Modules != nil {
+		envPaths = append(envPaths, cliOpts.Modules.Directory)
+	}
+	if cliOpts.Repo != nil {
+		envPaths = append(envPaths, cliOpts.Repo.Install)
+	}
+	for _, templatePath := range cliOpts.Templates {
+		envPaths = append(envPaths, templatePath.Path)
+	}
+	envPaths = append(envPaths, packCtx.configFilePath)
+	for _, envPath := range envPaths {
+		if envPath == "" {
+			continue
 		}
+		if fileStat, err := os.Stat(envPath); err == nil {
+			filters = append(filters, func(srcInfo os.FileInfo, src string) bool {
+				return os.SameFile(srcInfo, fileStat)
+			})
+		}
+	}
 
-		for _, shouldSkip := range artifactFilters {
-			if shouldSkip(src) {
+	return filters
+}
+
+// appSrcCopySkip returns a filter func to filter out artifacts paths.
+func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
+	srcAppPath string) func(srcinfo os.FileInfo, src, dest string) (bool, error) {
+	appCopyFilters := appArtifactsFilters(cliOpts, srcAppPath)
+	appCopyFilters = append(appCopyFilters, ttEnvironmentFilters(packCtx, cliOpts)...)
+	appCopyFilters = append(appCopyFilters, func(srcInfo os.FileInfo, src string) bool {
+		return skipDefaults(srcInfo, src)
+	})
+
+	return func(srcinfo os.FileInfo, src, dest string) (bool, error) {
+		for _, shouldSkip := range appCopyFilters {
+			if shouldSkip(srcinfo, src) {
 				return true, nil
 			}
 		}
 		return false, nil
 	}
+}
+
+// getAppNamesToPack generates application names list to pack.
+func getAppNamesToPack(packCtx *PackCtx) []string {
+	appList := make([]string, len(packCtx.AppsInfo))
+	i := 0
+	for appName := range packCtx.AppsInfo {
+		appList[i] = appName
+		i = i + 1
+	}
+	return appList
+}
+
+// updateEnvPath sets base path for the tt environment in temporary package directory.
+// By default it is a base directory passed as an argument. Or an application name sub-dir
+// in case of cartridge compat or single application environment.
+func updateEnvPath(basePath string, packCtx *PackCtx, cliOpts *config.CliOpts) (string, error) {
+	if cliOpts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
+		basePath = util.JoinPaths(basePath, packCtx.Name)
+		if err := os.MkdirAll(basePath, dirPermissions); err != nil {
+			return basePath, fmt.Errorf("cannot create bundle directory %q: %s", basePath, err)
+		}
+	}
+	return basePath, nil
+}
+
+// copyEnvModules copies tt modules.
+func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *config.CliOpts) {
+	if packCtx.WithoutModules || packCtx.CartridgeCompat || cliOpts.Modules == nil ||
+		cliOpts.Modules.Directory == "" {
+		return
+	}
+
+	if !util.IsDir(cliOpts.Modules.Directory) {
+		log.Debugf("Skip copying modules from %q: does not exist or not a directory",
+			cliOpts.Modules.Directory)
+	} else {
+		dir, err := os.Open(cliOpts.Modules.Directory)
+		if err != nil {
+			log.Warnf("cannot open %q for reading: %s", cliOpts.Modules.Directory, err)
+		}
+		if files, _ := dir.Readdir(1); len(files) == 0 {
+			return // No modules.
+		}
+		if err := copy.Copy(cliOpts.Modules.Directory,
+			util.JoinPaths(bundleEnvPath, newOpts.Modules.Directory)); err != nil {
+			log.Warnf("Failed to copy modules from %q: %s", cliOpts.Modules.Directory, err)
+		}
+	}
+}
+
+// copyBinaries copies binaries from current env to the result bundle.
+func copyBinaries(bundleEnvPath string, packCtx *PackCtx, cmdCtx *cmdcontext.CmdCtx,
+	newOpts *config.CliOpts) error {
+	if packCtx.WithoutBinaries {
+		return nil
+	}
+
+	pkgBin := bundleEnvPath
+	if !packCtx.CartridgeCompat {
+		// In cartridge compat mode copy binaries directly to the env dir.
+		pkgBin = util.JoinPaths(bundleEnvPath, newOpts.Env.BinDir)
+	}
+
+	if err := os.MkdirAll(pkgBin, dirPermissions); err != nil {
+		return fmt.Errorf("failed to create binaries directory in bundle: %s", err)
+	}
+
+	// Copy tarantool.
+	if !packCtx.TarantoolIsSystem || packCtx.WithBinaries {
+		if cmdCtx.Cli.TarantoolCli.Executable == "" {
+			log.Warnf("Skip copying tarantool binary: not found")
+		} else {
+			if err := util.CopyFileDeep(cmdCtx.Cli.TarantoolCli.Executable,
+				util.JoinPaths(pkgBin, "tarantool")); err != nil {
+				return fmt.Errorf("failed copying tarantool: %s", err)
+			}
+		}
+	}
+
+	// Copy tt.
+	ttExecutable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if err := util.CopyFileDeep(ttExecutable, util.JoinPaths(pkgBin, "tt")); err != nil {
+		return fmt.Errorf("failed copying tt: %s", err)
+	}
+	return nil
+}
+
+// getDestAppDir returns application directory in the result bundle.
+func getDestAppDir(bundleEnvPath, appName string,
+	packCtx *PackCtx, cliOpts *config.CliOpts) string {
+	if packCtx.CartridgeCompat || cliOpts.Env.InstancesEnabled == "." {
+		return bundleEnvPath
+	}
+	return filepath.Join(bundleEnvPath, appName)
+}
+
+// copyApplications copies applications from current env to the result bundle.
+func copyApplications(bundleEnvPath string, packCtx *PackCtx,
+	cliOpts, newOpts *config.CliOpts) error {
+	var err error
+	for appName, instances := range packCtx.AppsInfo {
+		if len(instances) == 0 {
+			return fmt.Errorf("application %q does not have any instances", appName)
+		}
+		inst := instances[0]
+		appPath := inst.AppDir
+		if inst.IsFileApp {
+			appPath = inst.InstanceScript
+			resolvedAppPath, err := filepath.EvalSymlinks(appPath)
+			if err != nil {
+				return err
+			}
+			if err = copy.Copy(resolvedAppPath,
+				util.JoinPaths(bundleEnvPath, filepath.Base(resolvedAppPath))); err != nil {
+				return fmt.Errorf("failed to copy application %q: %s", resolvedAppPath, err)
+			}
+		} else {
+			bundleAppDir := getDestAppDir(bundleEnvPath, appName, packCtx, cliOpts)
+			if err = copyAppSrc(packCtx, cliOpts, appPath, bundleAppDir); err != nil {
+				return err
+			}
+		}
+
+		if !packCtx.CartridgeCompat && newOpts.Env.InstancesEnabled != "." {
+			// Create applications symlink in instances enabled.
+			if err = os.MkdirAll(util.JoinPaths(bundleEnvPath, newOpts.Env.InstancesEnabled),
+				dirPermissions); err != nil {
+				return fmt.Errorf("cannot create instances.enabled directory: %s", err)
+			}
+			packagingInstEnabledDir := util.JoinPaths(bundleEnvPath, newOpts.Env.InstancesEnabled)
+			err = createAppSymlink(appPath, filepath.Base(appPath), packagingInstEnabledDir)
+			if err != nil {
+				return err
+			}
+			// Create working dir for script-only applications. This is required to do not attempt
+			// to create it on target system which may lead to permissions denied error.
+			if inst.IsFileApp {
+				workingDir := util.JoinPaths(packagingInstEnabledDir, filepath.Base(inst.AppDir))
+				if err = os.Mkdir(workingDir, dirPermissions); err != nil {
+					return fmt.Errorf(
+						"cannot create working directory %q for application: %s",
+						workingDir, err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // prepareBundle prepares a temporary directory for packing.
@@ -135,252 +325,130 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	// Create temporary directory step.
-	basePath, err := os.MkdirTemp("", "tt_pack")
+	tmpDir, err := os.MkdirTemp("", "tt_pack")
 	if err != nil {
 		return "", err
 	}
 
 	defer func() {
 		if err != nil {
-			err := os.RemoveAll(basePath)
+			err := os.RemoveAll(tmpDir)
 			if err != nil {
-				log.Warnf("Failed to remove a directory %s: %s", basePath, err)
+				log.Warnf("Failed to remove a directory %s: %s", tmpDir, err)
 			}
 		}
 	}()
+	bundleEnvPath := tmpDir
 
+	packCtx.AppList = getAppNamesToPack(packCtx)
+	log.Infof("Apps to pack: %s", strings.Join(packCtx.AppList, " "))
+
+	if bundleEnvPath, err = updateEnvPath(bundleEnvPath, packCtx, cliOpts); err != nil {
+		return "", err
+	}
 	newOpts := createNewOpts(cliOpts, *packCtx)
 
-	err = createPackageStructure(basePath, packCtx.CartridgeCompat, newOpts)
-	if err != nil {
-		return "", err
+	copyEnvModules(bundleEnvPath, packCtx, cliOpts, newOpts)
+	if err = copyBinaries(bundleEnvPath, packCtx, cmdCtx, newOpts); err != nil {
+		return "", fmt.Errorf("error copying binaries: %s", err)
 	}
 
-	// Copy modules step.
-	if !packCtx.CartridgeCompat && cliOpts.Modules != nil && cliOpts.Modules.Directory != "" &&
-		!packCtx.WithoutModules {
-		if err = copy.Copy(cliOpts.Modules.Directory,
-			util.JoinPaths(basePath, newOpts.Modules.Directory)); err != nil {
-			log.Warnf("Failed to copy modules from %q: %s", cliOpts.Modules.Directory, err)
-		}
-	}
-
-	appList := make([]string, 0, len(packCtx.AppsInfo))
-	for appName, _ := range packCtx.AppsInfo {
-		appList = append(appList, appName)
-	}
-	if packCtx.CartridgeCompat && len(appList) != 1 {
-		err = fmt.Errorf("cannot pack multiple applications in compat mode")
-		return "", err
-	}
-
-	{
-		appsToPack := strings.Join(appList, " ")
-		if packCtx.CartridgeCompat {
-			if packCtx.Name != "" {
-				// Need to change application name.
-				appList[0] = packCtx.Name
-			} else {
-				// Need to collect application name for
-				// VERSION and VERSION.lua files.
-				packCtx.Name = appList[0]
-			}
-		}
-		log.Infof("Apps to pack: %s", appsToPack)
-	}
-
-	pkgBin := util.JoinPaths(basePath, newOpts.Env.BinDir)
-	if packCtx.CartridgeCompat {
-		pkgBin = util.JoinPaths(basePath, packCtx.Name)
-	}
-	// Copy binaries step.
-	if cliOpts.Env.BinDir != "" &&
-		((!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
-			packCtx.WithBinaries) {
-		err = copyBinaries(cmdCtx.Cli.TarantoolCli, pkgBin)
-		if err != nil {
-			return "", err
-		}
-	}
-	// Copy all apps to a temp directory step.
-	for appName, instances := range packCtx.AppsInfo {
-		if len(instances) == 0 {
-			return "", fmt.Errorf("application %q does not have any instances", appName)
-		}
-		inst := instances[0]
-		appPath := inst.AppDir
-		if inst.IsFileApp {
-			appPath = inst.InstanceScript
-		}
-		if packCtx.CartridgeCompat {
-			err = copyAppSrc(appPath, appName, basePath, skipArtifacts(cliOpts))
-		} else {
-			err = copyAppSrc(appPath, filepath.Base(appPath), basePath, skipArtifacts(cliOpts))
-		}
-		if err != nil {
-			return "", err
-		}
-
-		if !packCtx.CartridgeCompat {
-			packagingInstEnabledDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled)
-			err = createAppSymlink(appPath, filepath.Base(appPath), packagingInstEnabledDir)
-			if err != nil {
-				return "", err
-			}
-			// Create working dir for script-only applications. This is required to do not attempt
-			// to create it on target system which may lead to permissions denied error.
-			if inst.IsFileApp {
-				workingDir := util.JoinPaths(packagingInstEnabledDir, filepath.Base(inst.AppDir))
-				if err = os.Mkdir(workingDir, dirPermissions); err != nil {
-					return "", fmt.Errorf(
-						"cannot create working directory %q for application: %s",
-						workingDir, err)
-				}
-			}
-		}
+	if err = copyApplications(bundleEnvPath, packCtx, cliOpts, newOpts); err != nil {
+		return "", fmt.Errorf("error copying applications: %s", err)
 	}
 
 	if packCtx.Archive.All {
-		if err = copyArtifacts(*packCtx, basePath, cmdCtx.Cli.ConfigDir,
-			cliOpts, newOpts, packCtx.AppsInfo); err != nil {
-			return "", err
+		if err = copyArtifacts(*packCtx, bundleEnvPath, newOpts, packCtx.AppsInfo); err != nil {
+			return "", fmt.Errorf("failed copying artifacts: %s", err)
 		}
 	}
 
 	if buildRocks {
-		err = buildAllRocks(cmdCtx, cliOpts, basePath)
+		err = buildAppRocks(cmdCtx, newOpts, bundleEnvPath)
 		if err != nil && !os.IsNotExist(err) {
 			return "", err
 		}
 	}
 
-	ttYamlPath := basePath
-	if packCtx.CartridgeCompat {
-		ttYamlPath = filepath.Join(ttYamlPath, appList[0])
-	}
-	writeEnv(newOpts, ttYamlPath, packCtx.CartridgeCompat)
+	writeEnv(newOpts, bundleEnvPath, packCtx.CartridgeCompat)
 	if err != nil {
 		return "", err
 	}
 
 	if packCtx.IntegrityPrivateKey != "" {
-		err = signer.Sign(basePath, appList)
+		err = signer.Sign(bundleEnvPath, packCtx.AppList)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	return basePath, nil
-}
-
-// createPackageStructure initializes a standard package structure in passed directory.
-func createPackageStructure(destPath string, cartridgeCompat bool,
-	newCliOpts *config.CliOpts) error {
-	basePaths := []string{destPath}
-
-	if !cartridgeCompat {
-		basePaths = append(
-			basePaths,
-			util.JoinPaths(destPath, newCliOpts.Env.BinDir),
-			util.JoinPaths(destPath, newCliOpts.Modules.Directory),
-			util.JoinPaths(destPath, newCliOpts.Env.IncludeDir),
-			util.JoinPaths(destPath, newCliOpts.Env.InstancesEnabled),
-		)
-	}
-
-	for _, path := range basePaths {
-		err := os.MkdirAll(path, dirPermissions)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return tmpDir, nil
 }
 
 // copyAppSrc copies a source file or directory to the directory, that will be packed.
-func copyAppSrc(appPath string, appName string, basePath string,
-	skipFunc func(src string) (bool, error)) error {
-	// In compat mode there must be only one application, so there will be no symlinks.
-	// However, without the compat flag, encountering symlink must change appName.
-	previousPath := appPath
-	appPath, err := filepath.EvalSymlinks(previousPath)
+func copyAppSrc(packCtx *PackCtx, cliOpts *config.CliOpts, srcAppPath, dstAppPath string) error {
+	resolvedAppPath, err := filepath.EvalSymlinks(srcAppPath)
 	if err != nil {
 		return err
 	}
-
-	// In compat mode will be false.
-	if previousPath != appPath {
-		appName = filepath.Base(appPath)
-	}
-
-	if _, err = os.Stat(appPath); err != nil {
+	if _, err = os.Stat(resolvedAppPath); err != nil {
 		return err
 	}
+
+	skipFunc := appSrcCopySkip(packCtx, cliOpts, resolvedAppPath)
 
 	// Copying application.
-	log.Debugf("Copying application source %q -> %q", appPath, filepath.Join(basePath, appName))
-	err = copy.Copy(appPath, filepath.Join(basePath, appName), copy.Options{
-		Skip: func(src string) (bool, error) {
-			return skipFunc(src)
-		},
-	})
-	if err != nil {
-		return err
-	}
-	return nil
+	log.Debugf("Copying application source %q -> %q", resolvedAppPath, dstAppPath)
+	return copy.Copy(resolvedAppPath, dstAppPath, copy.Options{Skip: skipFunc})
 }
 
 // copyArtifacts copies all artifacts from the current bundle configuration
 // to the passed package structure from the passed path.
-func copyArtifacts(packCtx PackCtx, basePath string,
-	configDir string, currentOpts, newOpts *config.CliOpts,
+func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
 	appsInfo map[string][]running.InstanceCtx) error {
 
-	prevAppName := ""
-	for _, instances := range appsInfo {
-		for _, inst := range instances {
-			if inst.AppName != prevAppName {
-				prevAppName = inst.AppName
+	for _, appName := range packCtx.AppList {
+		for _, inst := range appsInfo[appName] {
+			appDirName := filepath.Base(inst.AppDir)
+			destAppDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled, appDirName)
+			if packCtx.CartridgeCompat || newOpts.Env.InstancesEnabled == "." {
+				destAppDir = basePath
+			}
 
-				appDirName := filepath.Base(inst.AppDir)
-				destAppDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled, appDirName)
-				newConfigDir := basePath
-				if packCtx.CartridgeCompat {
-					destAppDir = util.JoinPaths(basePath, packCtx.Name)
-					newConfigDir = destAppDir
-				}
-
-				dstDir := func(dir string) string {
-					if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
-						return util.JoinPaths(newConfigDir, dir)
-					}
-					return util.JoinPaths(destAppDir, dir)
-				}
-				copyInfo := []struct{ src, dest string }{}
+			dstDir := func(dir string) string {
 				if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
-					copyInfo = append(copyInfo, struct{ src, dest string }{
-						src:  inst.Log,
-						dest: util.JoinPaths(dstDir(newOpts.App.LogDir), filepath.Base(inst.Log))})
-				} else {
-					copyInfo = append(copyInfo, struct{ src, dest string }{
-						src:  filepath.Dir(inst.LogDir),
-						dest: dstDir(newOpts.App.LogDir)})
+					return util.JoinPaths(basePath, dir)
 				}
-				copyInfo = append(copyInfo,
-					struct{ src, dest string }{
-						src: filepath.Dir(inst.WalDir), dest: dstDir(newOpts.App.WalDir)},
-					struct{ src, dest string }{
-						src: filepath.Dir(inst.MemtxDir), dest: dstDir(newOpts.App.MemtxDir)},
-					struct{ src, dest string }{
-						src: filepath.Dir(inst.VinylDir), dest: dstDir(newOpts.App.VinylDir)})
-				if newOpts.App.WalDir == newOpts.App.VinylDir {
-					copyInfo = copyInfo[:2]
-				}
-				for _, toCopy := range copyInfo {
-					log.Debugf("Copying %q -> %q", toCopy.src, toCopy.dest)
-					if err := copy.Copy(toCopy.src, toCopy.dest); err != nil {
-						log.Warnf("Failed to copy artifacts: %s", err)
-					}
+				return util.JoinPaths(destAppDir, dir)
+			}
+			copyInfo := []struct{ src, dest string }{}
+			if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
+				// Copy only one log file, not a directory. In case of tarantoolctl layout
+				// application's log files are placed in the same directory with different
+				// names. So to avoid copying log files of all applications, do not copy
+				// the whole log dir.
+				copyInfo = append(copyInfo, struct{ src, dest string }{
+					src:  inst.Log,
+					dest: util.JoinPaths(dstDir(newOpts.App.LogDir), filepath.Base(inst.Log))})
+			} else {
+				copyInfo = append(copyInfo, struct{ src, dest string }{
+					src:  filepath.Dir(inst.LogDir),
+					dest: dstDir(newOpts.App.LogDir)})
+			}
+			copyInfo = append(copyInfo,
+				struct{ src, dest string }{
+					src: filepath.Dir(inst.WalDir), dest: dstDir(newOpts.App.WalDir)},
+				struct{ src, dest string }{
+					src: filepath.Dir(inst.MemtxDir), dest: dstDir(newOpts.App.MemtxDir)},
+				struct{ src, dest string }{
+					src: filepath.Dir(inst.VinylDir), dest: dstDir(newOpts.App.VinylDir)})
+			if newOpts.App.WalDir == newOpts.App.VinylDir {
+				copyInfo = copyInfo[:2]
+			}
+			for _, toCopy := range copyInfo {
+				log.Debugf("Copying %q -> %q", toCopy.src, toCopy.dest)
+				if err := copy.Copy(toCopy.src, toCopy.dest); err != nil {
+					log.Warnf("Failed to copy artifacts: %s", err)
 				}
 			}
 		}
@@ -390,7 +458,7 @@ func copyArtifacts(packCtx PackCtx, basePath string,
 
 // TODO replace by tt enable
 // createAppSymlink creates a relative link for an application that must be packed.
-func createAppSymlink(appPath string, appName string, instancesEnabledDir string) error {
+func createAppSymlink(appPath, appName, instancesEnabledDir string) error {
 	var err error
 	appPath, err = filepath.EvalSymlinks(appPath)
 	if err != nil {
@@ -420,7 +488,9 @@ func createNewOpts(opts *config.CliOpts, packCtx PackCtx) *config.CliOpts {
 		cliOptsNew = configure.GetDefaultCliOpts()
 	}
 
-	cliOptsNew.Env.InstancesEnabled = configure.InstancesEnabledDirName
+	if opts.Env.InstancesEnabled != "." {
+		cliOptsNew.Env.InstancesEnabled = configure.InstancesEnabledDirName
+	}
 	cliOptsNew.Env.Restartable = opts.Env.Restartable
 	cliOptsNew.Env.TarantoolctlLayout = opts.Env.TarantoolctlLayout
 
@@ -462,57 +532,35 @@ func writeEnv(cliOpts *config.CliOpts, destPath string, cartridgeCompat bool) er
 	return nil
 }
 
-// findRocks tries to find a rockspec file, starting from the passed root directory.
-func findRocks(root string) (string, error) {
-	pattern := "*.rockspec"
-	res := ""
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		if matched, err := filepath.Match(pattern, filepath.Base(path)); err != nil {
-			return err
-		} else if matched {
-			info, err := os.Stat(path)
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return nil
-			}
-			res = path
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if res == "" {
-		return "", fmt.Errorf("rockspec not found")
-	}
-	return res, nil
+// rockspecExists tries to find a rockspec file in the passed directory.
+func rockspecExists(root string) bool {
+	rockSpecs, _ := filepath.Glob(filepath.Join(root, "*.rockspec"))
+	return len(rockSpecs) > 0
 }
 
-// buildAllRocks finds a rockspec file of the application and builds it.
-func buildAllRocks(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, destPath string) error {
+// buildAppRocks finds a rockspec file of the application and builds it.
+func buildAppRocks(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, destPath string) error {
+	if cliOpts.Env.InstancesEnabled == "." {
+		buildCtx := build.BuildCtx{BuildDir: destPath}
+		if !rockspecExists(destPath) {
+			return nil
+		}
+		if err := build.Run(cmdCtx, cliOpts, &buildCtx); err != nil {
+			return err
+		}
+		log.Infof("Rocks are built successfully")
+		return nil
+	}
 	entries, err := os.ReadDir(destPath)
 	if err != nil {
 		return err
 	}
-
 	for _, entry := range entries {
 		if entry.IsDir() {
-			rockspecPath, err := findRocks(filepath.Join(destPath, entry.Name()))
-			if err != nil && err.Error() == "rockspec not found" {
+			if !rockspecExists(filepath.Join(destPath, entry.Name())) {
 				continue
 			}
-			if err != nil {
-				return err
-			}
-			buildCtx := build.BuildCtx{BuildDir: filepath.Dir(rockspecPath)}
+			buildCtx := build.BuildCtx{BuildDir: filepath.Join(destPath, entry.Name())}
 			err = build.Run(cmdCtx, cliOpts, &buildCtx)
 			if err != nil {
 				return err
@@ -592,42 +640,6 @@ func normalizeGitVersion(packageVersion string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s.%s.%s.%s", major, minor, patch, count), nil
-}
-
-// copyBinaries copies tarantool and tt binaries from the current
-// tt environment to the passed destination path.
-func copyBinaries(tntCli cmdcontext.TarantoolCli, destPath string) error {
-	ttBin, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	realPath, err := filepath.EvalSymlinks(ttBin)
-	if err != nil {
-		log.Warnf("Failed to access %s: %s", ttBin, err)
-	}
-	if realPath != "" {
-		ttBin = realPath
-	}
-
-	err = copy.Copy(ttBin, filepath.Join(destPath, filepath.Base(ttBin)))
-	if err != nil {
-		return err
-	}
-
-	tntBin, err := filepath.EvalSymlinks(tntCli.Executable)
-	if err != nil {
-		log.Warnf("Failed to access %s: %s", tntBin, err)
-	}
-	if tntBin == "" {
-		tntBin = tntCli.Executable
-	}
-
-	err = copy.Copy(tntBin, filepath.Join(destPath, "tarantool"))
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // getPackageFileName returns the result name of the package file.

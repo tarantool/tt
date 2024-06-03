@@ -101,10 +101,10 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	// If bin_dir is not empty, we need to pack binaries built in container.
 	relEnvBinPath := configure.BinPath
 	ttPackCommandLine = []string{"/bin/bash", "-c",
-		fmt.Sprintf(`cp $(which tarantool) %s && \
-	cp $(which tt) %s && \
+		fmt.Sprintf(`mkdir ./%[1]s && cp $(which tarantool) ./%[1]s/ && \
+	cp $(which tt) ./%[1]s/ && mkdir ./include/ && \
 	cp -r /usr/local/include ./include/ && \
-	%s`, relEnvBinPath, relEnvBinPath, strings.Join(ttPackCommandLine, " "))}
+	%[2]s`, relEnvBinPath, strings.Join(ttPackCommandLine, " "))}
 
 	// Get a pack context for preparing a bundle without binaries.
 	// All binary files will be taken from the docker image.
@@ -134,8 +134,8 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
-	skipRegularFilesFunc := func(path string) (bool, error) {
-		switch filepath.Ext(path) {
+	skipRegularFilesFunc := func(srcInfo os.FileInfo, src, dest string) (bool, error) {
+		switch filepath.Ext(srcInfo.Name()) {
 		case ".deb", ".rpm", ".gz":
 			return false, nil
 		default:

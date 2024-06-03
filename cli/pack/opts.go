@@ -3,6 +3,7 @@ package pack
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/apex/log"
@@ -67,6 +68,28 @@ func getPackageName(cmdCtx cmdcontext.CmdCtx) (string, error) {
 	return filepath.Base(cmdCtx.Cli.ConfigDir), nil
 }
 
+// setBundleName sets the name of the bundle.
+func setBundleName(packCtx *PackCtx, cliOpts *config.CliOpts) {
+	if packCtx.Name != "" {
+		return
+	}
+	packCtx.Name = "package"
+	if packCtx.CartridgeCompat || cliOpts.Env.InstancesEnabled == "." {
+		packCtx.Name = packCtx.AppList[0]
+		return
+	}
+	if packCtx.configFilePath == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Warnf("failed to get current working dir: %s", err)
+			return
+		}
+		packCtx.Name = filepath.Base(cwd)
+		return
+	}
+	packCtx.Name = filepath.Base(filepath.Dir(packCtx.configFilePath))
+}
+
 // FillCtx fills pack context.
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpts,
 	args []string) error {
@@ -82,19 +105,17 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpt
 
 	packCtx.TarantoolIsSystem = cmdCtx.Cli.IsSystem
 	packCtx.TarantoolExecutable = cmdCtx.Cli.TarantoolCli.Executable
+	packCtx.configFilePath = cmdCtx.Cli.ConfigPath
 	packCtx.Type = args[0]
 
 	if err := initAppsInfo(cliOpts, cmdCtx, packCtx); err != nil {
 		return fmt.Errorf("error collect applications info: %s", err)
 	}
 
-	// If cartridge-compat is set and package name is not set, no need to set package name here,
-	// its name will be taken from the application name, which is packed in cartridge-compat mode.
-	if packCtx.Name == "" && !packCtx.CartridgeCompat {
-		var err error
-		if packCtx.Name, err = getPackageName(*cmdCtx); err != nil {
-			return fmt.Errorf("cannot get environment: %s", err)
-		}
+	setBundleName(packCtx, cliOpts)
+
+	if packCtx.CartridgeCompat && len(packCtx.AppsInfo) > 1 {
+		return fmt.Errorf("cannot pack multiple applications in cartridge compat mode")
 	}
 
 	return nil

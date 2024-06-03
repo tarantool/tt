@@ -1,3 +1,4 @@
+import filecmp
 import glob
 import os
 import re
@@ -24,9 +25,8 @@ def get_arch():
 
 
 def assert_bundle_structure(path):
-    assert os.path.isfile(os.path.join(path, config_name))
-    assert os.path.isdir(os.path.join(path, "bin"))
-    assert os.path.isdir(os.path.join(path, "modules"))
+    assert not os.path.exists(os.path.join(path, "include"))
+    assert not os.path.exists(os.path.join(path, "templates"))
 
 
 def assert_bundle_structure_compat(path):
@@ -36,29 +36,46 @@ def assert_bundle_structure_compat(path):
     assert not os.path.isdir(os.path.join(path, "var/lib"))
     assert not os.path.isdir(os.path.join(path, "var/log"))
     assert not os.path.isdir(os.path.join(path, "bin"))
-    assert not os.path.isdir(os.path.join(path, "modules"))
+    assert not os.path.exists(os.path.join(path, "include"))
+    assert not os.path.exists(os.path.join(path, "templates"))
 
 
-def assert_env(path, artifacts_in_separated_dirs, compat_mode):
+def assert_default_env(config):
+    assert config["env"]["instances_enabled"] == "instances.enabled"
+    assert config["env"]["bin_dir"] == "bin"
+
+
+def assert_cartridge_compat_env(config):
+    assert config["env"]["instances_enabled"] == "."
+    assert config["env"]["bin_dir"] == "."
+
+
+def assert_single_app_env(config):
+    assert config["env"]["instances_enabled"] == "."
+    assert config["env"]["bin_dir"] == "bin"
+
+
+def assert_artifacts_env(config):
+    assert config["app"]["wal_dir"] == "var/lib"
+    assert config["app"]["vinyl_dir"] == "var/lib"
+    assert config["app"]["memtx_dir"] == "var/lib"
+    assert config["app"]["log_dir"] == "var/log"
+    assert config["app"]["run_dir"] == "var/run"
+
+
+def assert_artifacts_separated_env(config):
+    assert config["app"]["wal_dir"] == "var/wal"
+    assert config["app"]["vinyl_dir"] == "var/vinyl"
+    assert config["app"]["memtx_dir"] == "var/snap"
+    assert config["app"]["log_dir"] == "var/log"
+    assert config["app"]["run_dir"] == "var/run"
+
+
+def assert_config(path, checks):
     with open(os.path.join(path, config_name)) as f:
         data = yaml.load(f, Loader=yaml.SafeLoader)
-        if compat_mode:
-            assert data["env"]["instances_enabled"] == "."
-            assert data["env"]["bin_dir"] == "."
-        else:
-            assert data["env"]["instances_enabled"] == "instances.enabled"
-            assert data["env"]["bin_dir"] == "bin"
-        if artifacts_in_separated_dirs:
-            assert data["app"]["wal_dir"] == "var/wal"
-            assert data["app"]["vinyl_dir"] == "var/vinyl"
-            assert data["app"]["memtx_dir"] == "var/snap"
-        else:
-            assert data["app"]["wal_dir"] == "var/lib"
-            assert data["app"]["vinyl_dir"] == "var/lib"
-            assert data["app"]["memtx_dir"] == "var/lib"
-        assert data["app"]["log_dir"] == "var/log"
-        assert data["app"]["run_dir"] == "var/run"
-        assert data["modules"]["directory"] == "modules"
+        for check in checks:
+            check(data)
     f.close()
     return True
 
@@ -80,6 +97,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
                 os.path.join("instances.enabled", "app1"),
+                config_name,
             ],
             "check_not_exist": [
                 os.path.join("app2", "var", "run"),
@@ -87,7 +105,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "var", "lib"),
                 os.path.join("app1"),
             ],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
             "name": "Test --version option.",
@@ -102,9 +120,10 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
+                config_name,
             ],
             "check_not_exist": [],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
             "name": "Test --version and --name options.",
@@ -122,10 +141,10 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
-            "name": "Test --name option.",
+            "name": "Test --filename option.",
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -140,9 +159,10 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "test_module.txt"),
             ],
             "check_not_exist": [],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
+            "name": "Test --with-binaries option.",
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -155,11 +175,13 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
                 os.path.join("modules", "test_module.txt"),
+                config_name,
             ],
             "check_not_exist": [],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
+            "name": "Test --without-modules option.",
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -172,10 +194,13 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
             ],
-            "check_not_exist": [],
-            "artifacts_in_separated_dir": False,
+            "check_not_exist": [
+                os.path.join("modules"),
+            ],
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
+            "name": "Test --without-binaries option.",
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -186,12 +211,13 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
                 os.path.join("modules", "test_module.txt"),
+                config_name,
             ],
             "check_not_exist": [
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
             ],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
             "bundle_src": "bundle8",
@@ -203,16 +229,16 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_exist": [
                 os.path.join("app_name", "VERSION"),
                 os.path.join("app_name", "VERSION.lua"),
-                os.path.join("app_name", "tt.yaml"),
+                os.path.join("app_name", config_name),
             ],
             "check_not_exist": [
                 os.path.join("bin"),
                 os.path.join("instances.enabled"),
                 os.path.join("modules"),
                 os.path.join("var"),
-                os.path.join("tt.yaml"),
+                os.path.join(config_name),
             ],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["app_name", assert_cartridge_compat_env, assert_artifacts_env]
         },
         {
             "bundle_src": "bundle1",
@@ -224,7 +250,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_exist": [
                 os.path.join("app2", "VERSION"),
                 os.path.join("app2", "VERSION.lua"),
-                os.path.join("app2", "tt.yaml"),
+                os.path.join("app2", config_name),
             ],
             "check_not_exist": [
                 os.path.join("app1"),
@@ -233,9 +259,9 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("instances_enabled"),
                 os.path.join("modules"),
                 os.path.join("var"),
-                os.path.join("tt.yaml"),
+                os.path.join(config_name),
             ],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["app2", assert_cartridge_compat_env, assert_artifacts_env]
         },
         {
             "bundle_src": "bundle9",
@@ -257,7 +283,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("var"),
                 os.path.join("tt.yaml"),
             ],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["bundle9", assert_cartridge_compat_env, assert_artifacts_env]
         },
         {
             "bundle_src": "bundle1",
@@ -288,7 +314,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_not_exist": [
                 "var",
             ],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env],
         },
         {
             "bundle_src": "bundle_with_different_data_dirs",
@@ -297,6 +323,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "args": ["--all"],
             "res_file": "bundle_with_different_data_dirs-0.1.0.0." + get_arch() + ".tar.gz",
             "check_exist": [
+                config_name,
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
@@ -321,7 +348,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "var", "lib", "wal"),
                 os.path.join("var"),
             ],
-            "artifacts_in_separated_dir": True,
+            "check_env": ["", assert_default_env, assert_artifacts_separated_env]
         },
         {
             "bundle_src": "bundle_with_git_files",
@@ -344,7 +371,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", ".gitignore"),
                 os.path.join("app2", ".gitmodules"),
             ],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
             "bundle_src": "bundle1",
@@ -363,7 +390,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_not_exist": [
                 os.path.join("app.lua"),
             ],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
             "bundle_src": "cartridge_app",
@@ -373,8 +400,8 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
             "check_exist": [
                 os.path.join("cartridge_app"),
-                os.path.join("bin", "tarantool"),
-                os.path.join("bin", "tt"),
+                os.path.join("cartridge_app", "bin", "tarantool"),
+                os.path.join("cartridge_app", "bin", "tt"),
                 os.path.join("cartridge_app", "app", "roles", "custom.lua"),
                 os.path.join("cartridge_app", "app", "admin.lua"),
                 os.path.join("cartridge_app", "cartridge.post-build"),
@@ -385,33 +412,10 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("cartridge_app", "failover.yml"),
                 os.path.join("cartridge_app", "myapp-scm-1.rockspec"),
                 os.path.join("cartridge_app", ".rocks"),
+                os.path.join("cartridge_app", config_name),
             ],
             "check_not_exist": [],
-            "artifacts_in_separated_dir": False,
-        },
-        {
-            "bundle_src": "cartridge_app",
-            "cmd": tt_cmd,
-            "pack_type": "tgz",
-            "args": ["--name", "cartridge_app", "--version", "v2"],
-            "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
-            "check_exist": [
-                os.path.join("cartridge_app"),
-                os.path.join("bin", "tarantool"),
-                os.path.join("bin", "tt"),
-                os.path.join("cartridge_app", "app", "roles", "custom.lua"),
-                os.path.join("cartridge_app", "app", "admin.lua"),
-                os.path.join("cartridge_app", "cartridge.post-build"),
-                os.path.join("cartridge_app", "cartridge.pre-build"),
-                os.path.join("cartridge_app", "init.lua"),
-                os.path.join("cartridge_app", "instances.yml"),
-                os.path.join("cartridge_app", "replicasets.yml"),
-                os.path.join("cartridge_app", "failover.yml"),
-                os.path.join("cartridge_app", "myapp-scm-1.rockspec"),
-                os.path.join("cartridge_app", ".rocks"),
-            ],
-            "check_not_exist": [],
-            "artifacts_in_separated_dir": False,
+            "check_env": ["cartridge_app", assert_single_app_env, assert_artifacts_env]
         },
         {
             "bundle_src": "bundle6",
@@ -429,7 +433,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("instances.enabled", "app", "var", "snap", "app", "artifact_memtx"),
             ],
             "check_not_exist": [],
-            "artifacts_in_separated_dir": True,
+            "check_env": ["", assert_default_env, assert_artifacts_separated_env]
         },
         {
             "bundle_src": "bundle7",
@@ -447,7 +451,70 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("instances.enabled", "app", "var", "snap", "app", "artifact_memtx"),
             ],
             "check_not_exist": [],
-            "artifacts_in_separated_dir": True,
+            "check_env": ["", assert_default_env, assert_artifacts_separated_env]
+        },
+        {
+            "name": "Single app packing",
+            "bundle_src": "single_app",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
+            "args": [],
+            "res_file": "single_app-0.1.0.0." + get_arch() + ".tar.gz",
+            "check_exist": [
+                os.path.join("single_app", "bin", "tarantool"),
+                os.path.join("single_app", "bin", "tt"),
+                os.path.join("single_app", "tt.yaml"),
+                os.path.join("single_app", "config.yaml"),
+                os.path.join("single_app", "instances.yml"),
+            ],
+            "check_not_exist": [
+                "tt.yaml",
+                "tt.yml",
+                "bin",
+                "include",
+                "instances.enabled",
+                "modules",
+                "templates",
+                os.path.join("single_app", "include"),
+                os.path.join("single_app", "modules"),
+                os.path.join("single_app", "templates"),
+                os.path.join("single_app", "distfiles"),
+                os.path.join("single_app", "instances.enabled"),
+                os.path.join("single_app", "tt.yml"),
+            ],
+            "check_env": ["single_app", assert_single_app_env, assert_artifacts_env]
+        },
+        {
+            "name": "Single app packing with name set",
+            "bundle_src": "single_app",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
+            "args": ["--name", "myapp"],
+            "res_file": "myapp-0.1.0.0." + get_arch() + ".tar.gz",
+            "check_exist": [
+                os.path.join("myapp", "bin", "tarantool"),
+                os.path.join("myapp", "bin", "tt"),
+                os.path.join("myapp", "tt.yaml"),
+                os.path.join("myapp", "config.yaml"),
+                os.path.join("myapp", "instances.yml"),
+            ],
+            "check_not_exist": [
+                "tt.yaml",
+                "tt.yml",
+                "bin",
+                "include",
+                "instances.enabled",
+                "modules",
+                "templates",
+                os.path.join("myapp", "include"),
+                os.path.join("myapp", "modules"),
+                os.path.join("myapp", "templates"),
+                os.path.join("myapp", "distfiles"),
+                os.path.join("myapp", "instances.enabled"),
+                os.path.join("myapp", "tt.yml"),
+                "single_app",
+            ],
+            "check_env": ["myapp", assert_single_app_env, assert_artifacts_env]
         },
     ]
 
@@ -491,14 +558,8 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
 
         if "--cartridge-compat" in test_case["args"]:
             assert_bundle_structure_compat(extract_path)
-            assert_env(os.path.join(extract_path, test_case["app_name"]),
-                       test_case["artifacts_in_separated_dir"], True)
         else:
             assert_bundle_structure(extract_path)
-            assert_env(extract_path, test_case["artifacts_in_separated_dir"], False)
-
-        if "--without-modules" in test_case["args"]:
-            assert not os.listdir(os.path.join(extract_path, "modules"))
 
         for file_path in test_case["check_exist"]:
             print("Check exist " + file_path + " in  "+extract_path)
@@ -506,6 +567,9 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
 
         for file_path in test_case["check_not_exist"]:
             assert not glob.glob(os.path.join(extract_path, file_path))
+
+        assert_config(os.path.join(extract_path, test_case["check_env"][0]),
+                      test_case["check_env"][1:])
 
         shutil.rmtree(extract_path)
         os.remove(package_file)
@@ -906,7 +970,7 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
     tar.close()
 
     assert_bundle_structure(extract_path)
-    assert_env(extract_path, False, False)
+    assert_config(extract_path, [assert_default_env, assert_artifacts_env])
 
     tt_is_link = os.path.islink(os.path.join(extract_path, "bin", "tt"))
     tnt_is_link = os.path.islink(os.path.join(extract_path, "bin", "tarantool"))
@@ -941,11 +1005,10 @@ def test_pack_nonexistent_modules_directory(tt_cmd, tmpdir):
                     dirs_exist_ok=True)
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz"],
+        [tt_cmd, "-V", "pack", "tgz"],
         cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
 
-    assert re.search(r"Failed to copy modules from",
-                     output)
+    assert "Skip copying modules from" in output
     assert rc == 0
 
 
@@ -1085,11 +1148,79 @@ def test_pack_deb(tt_cmd, tmpdir):
     app_systemd_template = file.read()
     file.close()
 
-    assert app_systemd_template.format(app='app1', args='app1') in output
-    assert app_systemd_template.format(app='app2@%i', args='app2:%i') in output
+    assert app_systemd_template.format(app='app1', args='app1', bundle='bundle1') in output
+    assert app_systemd_template.format(app='app2@%i', args='app2:%i', bundle='bundle1') in output
 
     # Verify Deb package content.
     verify_rpmdeb_package_content(unpacked_pkg_dir)
+
+
+@pytest.mark.docker
+def test_pack_deb_single_app(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, "single_app")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "single_app"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+
+    cmd = [tt_cmd, "pack", "deb"]
+
+    rc, output = run_command_and_get_output(
+        cmd,
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+
+    package_file_name = "single_app_0.1.0.0-1_" + get_arch() + ".deb"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    unpacked_pkg_dir = os.path.join(tmpdir, 'unpacked')
+    os.mkdir(unpacked_pkg_dir)
+
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-v', '{0}:/tmp/unpack'.format(unpacked_pkg_dir),
+                                             '-w', '/usr/src',
+                                             'jrei/systemd-ubuntu',
+                                             '/bin/bash', '-c',
+                                             '/bin/dpkg -i {0}'
+                                             '&& id tarantool '
+                                             ' && dpkg -x {0} /tmp/unpack '
+                                             ' && chown {1}:{2} /tmp/unpack -R'.
+                                             format(package_file_name, os.getuid(), os.getgid())
+                                             ])
+    assert rc == 0
+
+    assert re.search(r'uid=\d+\(tarantool\) gid=\d+\(tarantool\) groups=\d+\(tarantool\)', output)
+
+    file = open(os.path.join(os.path.dirname(__file__), 'systemd_unit_template.txt'), mode='r')
+    app_systemd_template = file.read()
+    file.close()
+
+    with open(os.path.join(tmpdir, 'instantiated_unit.txt'), "w") as f:
+        f.write(app_systemd_template.format(app='single_app@%i', args='single_app:%i',
+                                            bundle='single_app'))
+
+    assert filecmp.cmp(os.path.join(tmpdir, 'instantiated_unit.txt'),
+                       os.path.join(unpacked_pkg_dir, "usr/lib/systemd/system/single_app@.service"),
+                       False)
+
+    # Verify Deb package content.
+    env_path = os.path.join(unpacked_pkg_dir, 'usr', 'share', 'tarantool', 'single_app')
+    for path in ['tt.yaml', 'instances.yml', 'config.yaml', 'bin/tt', 'bin/tarantool']:
+        assert os.path.exists(os.path.join(env_path, path))
+
+    for path in ['include', 'templates', 'distfiles', 'modules', 'tt.yml']:
+        assert not os.path.exists(os.path.join(env_path, path))
 
 
 @pytest.mark.slow
@@ -1154,8 +1285,8 @@ def test_pack_rpm(tt_cmd, tmpdir):
     app_systemd_template = file.read()
     file.close()
 
-    assert app_systemd_template.format(app='app1', args='app1') in output
-    assert app_systemd_template.format(app='app2@%i', args='app2:%i') in output
+    assert app_systemd_template.format(app='app1', args='app1', bundle='bundle1') in output
+    assert app_systemd_template.format(app='app2@%i', args='app2:%i', bundle='bundle1') in output
 
     # Verify Deb package content.
     rc, output = run_command_and_get_output(
@@ -1167,6 +1298,79 @@ def test_pack_rpm(tt_cmd, tmpdir):
 
     assert rc == 0
     verify_rpmdeb_package_content(unpacked_pkg_dir)
+
+
+@pytest.mark.docker
+def test_pack_rpm_single_app(tt_cmd, tmpdir):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmpdir = os.path.join(tmpdir, "single_app")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "single_app"),
+                    tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmpdir
+
+    cmd = [tt_cmd, "pack", "rpm"]
+
+    rc, output = run_command_and_get_output(
+        cmd,
+        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+    assert rc == 0
+
+    package_file_name = "single_app-0.1.0.0-1." + get_arch() + ".rpm"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    unpacked_pkg_dir = os.path.join(tmpdir, 'unpacked')
+    os.mkdir(unpacked_pkg_dir)
+
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-v', '{0}:/tmp/unpack'.format(unpacked_pkg_dir),
+                                             '-w', '/usr/src',
+                                             'jrei/systemd-fedora',
+                                             '/bin/bash', '-c',
+                                             'rpm -i {0} '
+                                             '&& id tarantool '
+                                             '&& rpm2cpio {0} > /tmp/unpack/pkg.cpio'
+                                            .format(package_file_name)])
+    assert rc == 0
+
+    assert re.search(r'uid=\d+\(tarantool\) gid=\d+\(tarantool\) groups=\d+\(tarantool\)', output)
+
+    rc, output = run_command_and_get_output(
+        ['cpio', '--file', os.path.join(unpacked_pkg_dir, 'pkg.cpio'), '-idm'],
+        env=dict(os.environ, LANG='en_US.UTF-8', LC_ALL='en_US.UTF-8'),
+        cwd=unpacked_pkg_dir)
+
+    assert rc == 0
+
+    file = open(os.path.join(os.path.dirname(__file__), 'systemd_unit_template.txt'), mode='r')
+    app_systemd_template = file.read()
+    file.close()
+
+    with open(os.path.join(tmpdir, 'instantiated_unit.txt'), "w") as f:
+        f.write(app_systemd_template.format(app='single_app@%i', args='single_app:%i',
+                                            bundle='single_app'))
+
+    assert filecmp.cmp(os.path.join(tmpdir, 'instantiated_unit.txt'),
+                       os.path.join(unpacked_pkg_dir, "usr/lib/systemd/system/single_app@.service"),
+                       False)
+
+    # Verify Deb package content.
+    env_path = os.path.join(unpacked_pkg_dir, 'usr', 'share', 'tarantool', 'single_app')
+    for path in ['tt.yaml', 'instances.yml', 'config.yaml', 'bin/tt', 'bin/tarantool']:
+        assert os.path.exists(os.path.join(env_path, path))
+
+    for path in ['include', 'templates', 'distfiles', 'modules', 'tt.yml']:
+        assert not os.path.exists(os.path.join(env_path, path))
 
 
 @pytest.mark.slow
