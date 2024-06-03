@@ -21,6 +21,7 @@ import (
 	"text/template"
 
 	"github.com/apex/log"
+	"github.com/otiai10/copy"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/constraints"
 	"gopkg.in/yaml.v2"
@@ -924,4 +925,13 @@ func HandleCmdErr(cmd *cobra.Command, err error) {
 		}
 		log.Fatalf(err.Error())
 	}
+}
+
+// CopyFileDeep copies a file resolving symlinks.
+func CopyFileDeep(src, dst string) error {
+	src, err := filepath.EvalSymlinks(src)
+	if err != nil {
+		return err
+	}
+	return copy.Copy(src, dst)
 }

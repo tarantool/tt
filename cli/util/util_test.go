@@ -622,3 +622,94 @@ func TestJoinPaths(t *testing.T) {
 		})
 	}
 }
+
+func TestCopyFileDeep(t *testing.T) {
+	// Tests setup.
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "foo"), []byte{}, 0644))
+	require.NoError(t, os.Symlink("foo", filepath.Join(srcDir, "symlink1")))
+	require.NoError(t, os.Symlink("./foo", filepath.Join(srcDir, "symlink2")))
+	require.NoError(t, os.Symlink(filepath.Join(srcDir, "foo"),
+		filepath.Join(srcDir, "abs_symlink")))
+	require.NoError(t, os.Symlink("./symlink2", filepath.Join(srcDir, "link_to_link")))
+	require.NoError(t, os.Symlink("bar", filepath.Join(srcDir, "broken")))
+
+	dstDir := t.TempDir()
+
+	type args struct {
+		src string
+		dst string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "Copy file directly",
+			args: args{
+				src: filepath.Join(srcDir, "foo"),
+				dst: filepath.Join(dstDir, "foo"),
+			},
+		},
+		{
+			name: "Copy file by relative symlink",
+			args: args{
+				src: filepath.Join(srcDir, "symlink1"),
+				dst: filepath.Join(dstDir, "symlink1_foo"),
+			},
+		},
+		{
+			name: "Copy file by relative symlink case 2",
+			args: args{
+				src: filepath.Join(srcDir, "symlink2"),
+				dst: filepath.Join(dstDir, "symlink2_foo"),
+			},
+		},
+		{
+			name: "Copy file by abs symlink",
+			args: args{
+				src: filepath.Join(srcDir, "abs_symlink"),
+				dst: filepath.Join(dstDir, "abs_foo"),
+			},
+		},
+		{
+			name: "Copy file by link to link",
+			args: args{
+				src: filepath.Join(srcDir, "link_to_link"),
+				dst: filepath.Join(dstDir, "link_link_foo"),
+			},
+		},
+		{
+			name: "Copy file broken symlink",
+			args: args{
+				src: filepath.Join(srcDir, "broken"),
+				dst: filepath.Join(dstDir, "none"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing src",
+			args: args{
+				src: filepath.Join(srcDir, "bar"),
+				dst: filepath.Join(dstDir, "none"),
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := CopyFileDeep(tt.args.src, tt.args.dst)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			stat, err := os.Stat(tt.args.dst)
+			require.NoError(t, err)
+			assert.Zero(t, stat.Mode()&os.ModeSymlink)
+			require.NoError(t, os.Remove(tt.args.dst))
+		})
+	}
+}
