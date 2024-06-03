@@ -158,12 +158,12 @@ func newBootstrapVShardCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Bootstrap vshard in the cluster",
 		Long: "Bootstrap vshard in the cluster.\n\n" +
-			replicasetEnvHelp,
+			libconnect.EnvCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalReplicasetBootstrapVShardModule, args)
-			handleCmdErr(cmd, err)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(1),
 	}

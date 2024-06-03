@@ -71,6 +71,5 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
-
 	return err
 }
