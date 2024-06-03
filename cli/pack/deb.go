@@ -88,12 +88,10 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	log.Info("Creating a data directory")
 
-	packageName, err := getPackageFileName(packCtx, opts, "", false)
-	if err != nil {
-		return err
+	rootPrefix := filepath.Join(dataDirName, defaultEnvPrefix, packCtx.Name)
+	if opts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
+		rootPrefix = filepath.Dir(rootPrefix)
 	}
-
-	rootPrefix := filepath.Join(dataDirName, defaultEnvPrefix, packageName)
 	packageDataDir := filepath.Join(packageDir, dataDirName)
 
 	log.Debugf("Initialize the app directory for prefix: %s", rootPrefix)
@@ -104,7 +102,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
-	envSystemPath := filepath.Join("/", defaultEnvPrefix, packageName)
+	envSystemPath := filepath.Join("/", defaultEnvPrefix, packCtx.Name)
 	err = initSystemdDir(packCtx, packageDataDir, envSystemPath)
 	if err != nil {
 		return err
@@ -159,7 +157,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	if err != nil {
 		return err
 	}
-	packageName, err = getPackageFileName(packCtx, opts, debSuffix, true)
+	packageName, err := getPackageFileName(packCtx, opts, debSuffix, true)
 	if err != nil {
 		return err
 	}

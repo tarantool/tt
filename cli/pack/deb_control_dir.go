@@ -44,16 +44,10 @@ func createControlDir(cmdCtx cmdcontext.CmdCtx, packCtx PackCtx,
 		return err
 	}
 
-	name := packCtx.Name
-	if name == "" {
-		if name, err = getPackageName(cmdCtx); err != nil {
-			return fmt.Errorf("cannot generate package name: %s", name)
-		}
-	}
 	version := getVersion(&packCtx, opts, defaultVersion)
 
 	debControlCtx := map[string]interface{}{
-		"Name":         name,
+		"Name":         packCtx.Name,
 		"Version":      version,
 		"Maintainer":   defaultMaintainer,
 		"Architecture": runtime.GOARCH,

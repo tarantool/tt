@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=forking
-ExecStart=/usr/share/tarantool/bundle1/bin/tt -L /usr/share/tarantool/bundle1 start {args}
-ExecStop=/usr/share/tarantool/bundle1/bin/tt -L /usr/share/tarantool/bundle1 stop {args}
+ExecStart=/usr/share/tarantool/{bundle}/bin/tt -L /usr/share/tarantool/{bundle} start {args}
+ExecStop=/usr/share/tarantool/{bundle}/bin/tt -L /usr/share/tarantool/{bundle} stop {args}
 Restart=on-failure
 RestartSec=2
 User=tarantool

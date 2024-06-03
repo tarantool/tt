@@ -1,0 +1,13 @@
+diff --git a/cli/pack/app_dir.go b/cli/pack/app_dir.go
+index 5a37451..779a29d 100644
+--- a/cli/pack/app_dir.go
++++ b/cli/pack/app_dir.go
+@@ -352,7 +352,7 @@ func copyProjectFiles(dst string, ctx *context.Ctx) error {
+ 
+ 	err := copy.Copy(ctx.Project.Path, dst, copy.Options{
+ 		PreserveTimes: true,
+-		Skip: func(src string) (bool, error) {
++		Skip: func(srcInfo os.FileInfo, src, dst string) (bool, error) {
+ 			if strings.HasPrefix(src, fmt.Sprintf("%s/", ctx.Cli.CartridgeTmpDir)) {
+ 				return true, nil
+ 			}

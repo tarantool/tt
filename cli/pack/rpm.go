@@ -56,14 +56,12 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}()
 
 	bundleName := packCtx.Name
-	if bundleName == "" {
-		if bundleName, err = getPackageName(*cmdCtx); err != nil {
-			return fmt.Errorf("cannot generate package name: %s", bundleName)
-		}
-	}
 
 	packagingEnvInstallPath := filepath.Join(packageDir, "usr", "share", "tarantool",
 		bundleName)
+	if opts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
+		packagingEnvInstallPath = filepath.Dir(packagingEnvInstallPath)
+	}
 	if err := copy.Copy(bundlePath, packagingEnvInstallPath); err != nil {
 		return err
 	}

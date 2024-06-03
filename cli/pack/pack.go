@@ -38,6 +38,8 @@ type PackCtx struct {
 	IntegrityPrivateKey string
 	// Application info collected from tt env.
 	AppsInfo map[string][]running.InstanceCtx
+	// ConfigFilePath is a path to tt env configuration file.
+	configFilePath string
 }
 
 // ArchiveCtx contains flags specific for tgz type.
