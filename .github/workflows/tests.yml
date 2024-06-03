@@ -26,7 +26,7 @@ jobs:
         tarantool-version: ["1.10", "2.10", "3.0"]
       fail-fast: false
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
@@ -58,7 +58,7 @@ jobs:
       image: tarantool/testing:tt-build
       options: '--init --privileged'
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
@@ -105,14 +105,14 @@ jobs:
     steps:
         # `ref` as merge request is needed for pull_request_target because this
         # target runs in the context of the base commit of the pull request.
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         if: github.event_name == 'pull_request_target'
         with:
           fetch-depth: 0
           submodules: recursive
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         if: github.event_name != 'pull_request_target'
         with:
           fetch-depth: 0
@@ -146,7 +146,7 @@ jobs:
     runs-on: [self-hosted, macOS-13-self-hosted, x86_64, regular]
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
