@@ -138,11 +138,31 @@ func ttEnvironmentFilters(packCtx *PackCtx, cliOpts *config.CliOpts) []func(
 	return filters
 }
 
+// previousPackageFilters returns filters for the previously built packages.
+func previousPackageFilters(packCtx *PackCtx) []func(
+	srcInfo os.FileInfo, src string) bool {
+	pkgName := packCtx.Name
+	return []func(srcInfo os.FileInfo, src string) bool{
+		func(srcInfo os.FileInfo, src string) bool {
+			name := srcInfo.Name()
+			if strings.HasPrefix(name, pkgName) {
+				for _, packageSuffix := range [...]string{".rpm", ".deb", ".gz", ".tgz"} {
+					if filepath.Ext(name) == packageSuffix {
+						return true
+					}
+				}
+			}
+			return false
+		},
+	}
+}
+
 // appSrcCopySkip returns a filter func to filter out artifacts paths.
 func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 	srcAppPath string) func(srcinfo os.FileInfo, src, dest string) (bool, error) {
 	appCopyFilters := appArtifactsFilters(cliOpts, srcAppPath)
 	appCopyFilters = append(appCopyFilters, ttEnvironmentFilters(packCtx, cliOpts)...)
+	appCopyFilters = append(appCopyFilters, previousPackageFilters(packCtx)...)
 	appCopyFilters = append(appCopyFilters, func(srcInfo os.FileInfo, src string) bool {
 		return skipDefaults(srcInfo, src)
 	})
