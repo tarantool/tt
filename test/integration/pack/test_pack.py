@@ -1788,3 +1788,39 @@ def test_pack_systemd_params_params_file_bad_format(tt_cmd, tmpdir):
     package_file_name = 'systemd_params-0.1.0.0-1.' + get_arch() + '.rpm'
     package_file = os.path.join(tmpdir, package_file_name)
     assert not os.path.exists(package_file)
+
+
+@pytest.mark.notarantool
+@pytest.mark.slow
+@pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
+def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmpdir):
+    shutil.copytree(tmpdir_with_tarantool, tmpdir, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, dirs_exist_ok=True)
+
+    build_cmd = [tt_cmd, "create", "cartridge", "--name", "app", "--non-interactive"]
+    tt_process = subprocess.Popen(
+        build_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    app_dir = os.path.join(tmpdir, "app")
+    assert os.path.exists(app_dir)
+
+    build_cmd = [tt_cmd, "pack", "tgz"]
+    tt_process = subprocess.Popen(
+        build_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    tt_process.wait()
+    assert tt_process.returncode == 0
+
+    build_output = tt_process.stdout.read()
+    assert "Bundle is packed successfully" in build_output
