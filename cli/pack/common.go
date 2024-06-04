@@ -384,7 +384,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	if buildRocks {
-		err = buildAppRocks(cmdCtx, packCtx, newOpts, bundleEnvPath)
+		err = buildAppRocks(cmdCtx, packCtx, cliOpts, bundleEnvPath)
 		if err != nil && !os.IsNotExist(err) {
 			return "", err
 		}
