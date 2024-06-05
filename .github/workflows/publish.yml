@@ -149,10 +149,6 @@ jobs:
           echo "CGO_LDFLAGS=-L${GITHUB_WORKSPACE}/openssl/lib" >> $GITHUB_ENV
           echo "CGO_CFLAGS=-I${GITHUB_WORKSPACE}/openssl/include" >> $GITHUB_ENV
 
-      - name: Setup GoReleaser
-        run: |
-          brew install goreleaser
-
       - name: Set GoReleaser flags
         id: set-goreleaser-flags
         run: |
@@ -165,8 +161,10 @@ jobs:
       - name: Build packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_macOS.yml
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: v1.26.2
+          args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_macOS.yml
 
       - name: Upload packages artifacts
         uses: actions/upload-artifact@v3
@@ -248,6 +246,7 @@ jobs:
       - name: Release
         uses: goreleaser/goreleaser-action@v2
         with:
+          version: v1.26.2
           args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --config ./goreleaser/.goreleaser_publish.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
