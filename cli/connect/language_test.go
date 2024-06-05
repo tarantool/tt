@@ -2,6 +2,7 @@ package connect_test
 
 import (
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -82,7 +83,11 @@ func (evaler *inputEvaler) Eval(fun string,
 }
 
 func TestChangeLanguage_requestInputs(t *testing.T) {
-	expectedFun := "return require('console').eval(...)\n"
+	rawFun, err := os.ReadFile("./lua/eval_func_body.lua")
+	if err != nil {
+		t.Fatal("Failed to read lua file:", err)
+	}
+	expectedFun := string(rawFun)
 	expectedOpts := connector.RequestOpts{}
 	cases := []struct {
 		lang Language

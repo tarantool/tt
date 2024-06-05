@@ -218,7 +218,10 @@ func getExecutor(console *Console) func(string) {
 		}
 
 		var results []string
-		args := []interface{}{console.input}
+		needMetaInfo := console.format == formatter.TableFormat ||
+			console.format == formatter.TTableFormat
+		args := []interface{}{console.input, console.language == SQLLanguage,
+			needMetaInfo}
 		opts := connector.RequestOpts{
 			PushCallback: func(pushedData interface{}) {
 				encodedData, err := yaml.Marshal(pushedData)
@@ -233,7 +236,7 @@ func getExecutor(console *Console) func(string) {
 		}
 
 		var data string
-		if _, err := console.conn.Eval(consoleEvalFuncBody, args, opts); err != nil {
+		if _, err := console.conn.Eval(evalFuncBody, args, opts); err != nil {
 			if err == io.EOF {
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
 				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.

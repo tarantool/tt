@@ -148,6 +148,12 @@ def is_cluster_app_supported(tt_cmd, tmpdir):
     return major >= 3
 
 
+def is_tuple_format_supported(tt_cmd, tmpdir):
+    ok, major, minor, patch = get_version(tt_cmd, tmpdir)
+    assert ok
+    return major > 3 or (major == 3 and minor >= 2)
+
+
 def is_tarantool_ee():
     cmd = ["tarantool", "--version"]
     instance_process = subprocess.run(
@@ -194,6 +200,16 @@ def skip_if_tarantool_ce():
 def skip_if_cluster_app_unsupported(tt_cmd, tmpdir):
     if not is_cluster_app_supported(tt_cmd, tmpdir):
         pytest.skip("Tarantool 3.0 or above required")
+
+
+def skip_if_tuple_format_supported(tt_cmd, tmpdir):
+    if is_tuple_format_supported(tt_cmd, tmpdir):
+        pytest.skip("Tuple format is supported")
+
+
+def skip_if_tuple_format_unsupported(tt_cmd, tmpdir):
+    if not is_tuple_format_supported(tt_cmd, tmpdir):
+        pytest.skip("Tuple format is unsupported")
 
 
 def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
@@ -897,8 +913,193 @@ def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
         assert ret
         assert output == '{error = "test"};\n'
 
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true})"),
+            opts={'-x': 'lua'})
+        assert ret
+        assert output == ('{1, 21, "Flint", true};\n')
+
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_lua_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
+    skip_if_tuple_format_unsupported(tt_cmd, tmpdir_with_cfg)
+
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'lua'})
+        assert ret
+        assert output == ('{1, 21, "Flint", true};\n')
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,32,'Sparrow','Jack','cpt'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "{1,2,3},box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'lua'})
+        assert ret
+        assert output == ('{1, 21, "Flint", true}, {2, 32, "Sparrow", "Jack", '
+                          '"cpt"}, {1, 2, 3}, {3, 33, "Morgan", true};\n')
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,187,'Sparrow'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'height','number'},{'name','string'}})}),"
+                   "2002,{box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({4,35,'Blackbeard'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})}"),
+            opts={'-x': 'lua'})
+        assert ret
+        assert output == ('{1, 21, "Flint"}, {2, 187, "Sparrow"}, 2002, '
+                          '{{3, 33, "Morgan", true}, {4, 35, "Blackbeard"}};\n')
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',"
+                   "box.tuple.new({1,21,'Flint',{data={1,2}}},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'lua'})
+        assert ret
+        assert output == ('{1, 21, "Flint", {1, 21, "Flint", {data = {1, 2}}}};\n')
+
+
+def test_yaml_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
+    skip_if_tuple_format_unsupported(tt_cmd, tmpdir_with_cfg)
+
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'yaml'})
+        assert ret
+        assert output == ("---\n"
+                          "- [1, 21, 'Flint', true]\n"
+                          "...\n\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,32,'Sparrow','Jack','cpt'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "{1,2,3},box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'yaml'})
+        assert ret
+        assert output == ("---\n"
+                          "- [1, 21, 'Flint', true]\n"
+                          "- [2, 32, 'Sparrow', 'Jack', 'cpt']\n"
+                          "- - 1\n"
+                          "  - 2\n"
+                          "  - 3\n"
+                          "- [3, 33, 'Morgan', true]\n"
+                          "...\n\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,187,'Sparrow'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'height','number'},{'name','string'}})}),"
+                   "2002,{box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({4,35,'Blackbeard'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})}"),
+            opts={'-x': 'yaml'})
+        assert ret
+        assert output == ("---\n"
+                          "- [1, 21, 'Flint']\n"
+                          "- [2, 187, 'Sparrow']\n"
+                          "- 2002\n"
+                          "- - [3, 33, 'Morgan', true]\n"
+                          "  - [4, 35, 'Blackbeard']\n"
+                          "...\n\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',"
+                   "box.tuple.new({1,21,'Flint',{data={1,2}}},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'yaml'})
+        assert ret
+        assert output == ("---\n"
+                          "- [1, 21, 'Flint', [1, 21, 'Flint', {'data': [1, 2]}]]\n"
+                          "...\n\n")
 
 
 def test_table_output_format(tt_cmd, tmpdir_with_cfg):
@@ -1008,29 +1209,6 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
 
         # Execute stdin.
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
-                                              stdin="box.space.customers:select()",
-                                              opts={'-x': 'table'})
-        assert ret
-        assert output == ("+------+-----------+------+\n"
-                          "| col1 | col2      | col3 |\n"
-                          "+------+-----------+------+\n"
-                          "| 1    | Elizabeth | 12   |\n"
-                          "+------+-----------+------+\n"
-                          "| 2    | Mary      | 46   |\n"
-                          "+------+-----------+------+\n"
-                          "| 3    | David     | 33   |\n"
-                          "+------+-----------+------+\n"
-                          "| 4    | William   | 81   |\n"
-                          "+------+-----------+------+\n"
-                          "| 5    | Jack      | 35   |\n"
-                          "+------+-----------+------+\n"
-                          "| 6    | William   | 25   |\n"
-                          "+------+-----------+------+\n"
-                          "| 7    | Elizabeth | 18   |\n"
-                          "+------+-----------+------+\n")
-
-        # Execute stdin.
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
                                               stdin="{ {10,20},{30,40},true }",
                                               opts={'-x': 'table'})
         assert ret
@@ -1115,6 +1293,44 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
                           "+------+------+\n"
                           "| 50   |      |\n"
                           "+------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true})"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+-------+------+\n"
+                          "| col1 | col2 | col3  | col4 |\n"
+                          "+------+------+-------+------+\n"
+                          "| 1    | 21   | Flint | true |\n"
+                          "+------+------+-------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("{box.tuple.new({1,21,'Flint',true}),1}"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+---------------------+------+\n"
+                          "| col1                | col2 |\n"
+                          "+---------------------+------+\n"
+                          '| [1,21,"Flint",true] | 1    |\n'
+                          "+---------------------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("{box.tuple.new({1,21,'Flint',true}),{2,21,'Alex'}}"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+-------+------+\n"
+                          "| col1 | col2 | col3  | col4 |\n"
+                          "+------+------+-------+------+\n"
+                          "| 1    | 21   | Flint | true |\n"
+                          "+------+------+-------+------+\n"
+                          "| 2    | 21   | Alex  |      |\n"
+                          "+------+------+-------+------+\n")
 
         if not is_tarantool_major_one():
             # Execute stdin.
@@ -1204,6 +1420,309 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
     stop_app(tt_cmd, tmpdir, "test_app")
 
 
+def test_table_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
+    skip_if_tuple_format_supported(tt_cmd, tmpdir_with_cfg)
+
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="box.space.customers:select()",
+                                              opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+-----------+------+\n"
+                          "| col1 | col2      | col3 |\n"
+                          "+------+-----------+------+\n"
+                          "| 1    | Elizabeth | 12   |\n"
+                          "+------+-----------+------+\n"
+                          "| 2    | Mary      | 46   |\n"
+                          "+------+-----------+------+\n"
+                          "| 3    | David     | 33   |\n"
+                          "+------+-----------+------+\n"
+                          "| 4    | William   | 81   |\n"
+                          "+------+-----------+------+\n"
+                          "| 5    | Jack      | 35   |\n"
+                          "+------+-----------+------+\n"
+                          "| 6    | William   | 25   |\n"
+                          "+------+-----------+------+\n"
+                          "| 7    | Elizabeth | 18   |\n"
+                          "+------+-----------+------+\n")
+
+
+def test_table_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
+    skip_if_tuple_format_unsupported(tt_cmd, tmpdir_with_cfg)
+
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="box.space.customers:select()",
+                                              opts={'-x': 'table'})
+        assert ret
+        assert output == ("+----+-----------+-----+\n"
+                          "| id | name      | age |\n"
+                          "+----+-----------+-----+\n"
+                          "| 1  | Elizabeth | 12  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 2  | Mary      | 46  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 3  | David     | 33  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 4  | William   | 81  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 5  | Jack      | 35  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 6  | William   | 25  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 7  | Elizabeth | 18  |\n"
+                          "+----+-----------+-----+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+----+-----+-------+------+\n"
+                          "| id | age | name  | col1 |\n"
+                          "+----+-----+-------+------+\n"
+                          "| 1  | 21  | Flint | true |\n"
+                          "+----+-----+-------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("{box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),1}"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+---------------------+------+\n"
+                          "| col1                | col2 |\n"
+                          "+---------------------+------+\n"
+                          '| [1,21,"Flint",true] | 1    |\n'
+                          "+---------------------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("{box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),{2,21,'Alex'}}"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+------+------+-------+------+\n"
+                          "| col1 | col2 | col3  | col4 |\n"
+                          "+------+------+-------+------+\n"
+                          "| 1    | 21   | Flint | true |\n"
+                          "+------+------+-------+------+\n"
+                          "| 2    | 21   | Alex  |      |\n"
+                          "+------+------+-------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({12,187,'Flint',false},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'height','number'},{'name','string'}})}),"
+                   "2002,{1,2,3},box.space.customers:select()"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+----+-----+-------+------+\n"
+                          "| id | age | name  | col1 |\n"
+                          "+----+-----+-------+------+\n"
+                          "| 1  | 21  | Flint | true |\n"
+                          "+----+-----+-------+------+\n"
+                          "+----+--------+-------+-------+\n"
+                          "| id | height | name  | col1  |\n"
+                          "+----+--------+-------+-------+\n"
+                          "| 12 | 187    | Flint | false |\n"
+                          "+----+--------+-------+-------+\n"
+                          "+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "| 2002 |\n"
+                          "+------+\n"
+                          "+------+------+------+\n"
+                          "| col1 | col2 | col3 |\n"
+                          "+------+------+------+\n"
+                          "| 1    | 2    | 3    |\n"
+                          "+------+------+------+\n"
+                          "+----+-----------+-----+\n"
+                          "| id | name      | age |\n"
+                          "+----+-----------+-----+\n"
+                          "| 1  | Elizabeth | 12  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 2  | Mary      | 46  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 3  | David     | 33  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 4  | William   | 81  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 5  | Jack      | 35  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 6  | William   | 25  |\n"
+                          "+----+-----------+-----+\n"
+                          "| 7  | Elizabeth | 18  |\n"
+                          "+----+-----------+-----+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,32,'Sparrow'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "{1,2,3},box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+----+-----+---------+------+\n"
+                          "| id | age | name    | col1 |\n"
+                          "+----+-----+---------+------+\n"
+                          "| 1  | 21  | Flint   | true |\n"
+                          "+----+-----+---------+------+\n"
+                          "| 2  | 32  | Sparrow |      |\n"
+                          "+----+-----+---------+------+\n"
+                          "+------+------+------+\n"
+                          "| col1 | col2 | col3 |\n"
+                          "+------+------+------+\n"
+                          "| 1    | 2    | 3    |\n"
+                          "+------+------+------+\n"
+                          "+----+-----+--------+------+\n"
+                          "| id | age | name   | col1 |\n"
+                          "+----+-----+--------+------+\n"
+                          "| 3  | 33  | Morgan | true |\n"
+                          "+----+-----+--------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,32,'Sparrow','Jack','cpt'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "{1,2,3},box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+----+-----+---------+------+------+\n"
+                          "| id | age | name    | col1 | col2 |\n"
+                          "+----+-----+---------+------+------+\n"
+                          "| 1  | 21  | Flint   | true |      |\n"
+                          "+----+-----+---------+------+------+\n"
+                          "| 2  | 32  | Sparrow | Jack | cpt  |\n"
+                          "+----+-----+---------+------+------+\n"
+                          "+------+------+------+\n"
+                          "| col1 | col2 | col3 |\n"
+                          "+------+------+------+\n"
+                          "| 1    | 2    | 3    |\n"
+                          "+------+------+------+\n"
+                          "+----+-----+--------+------+\n"
+                          "| id | age | name   | col1 |\n"
+                          "+----+-----+--------+------+\n"
+                          "| 3  | 33  | Morgan | true |\n"
+                          "+----+-----+--------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,187,'Sparrow'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'height','number'},{'name','string'}})}),"
+                   "2002,{box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({4,35,'Blackbeard'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})}"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+----+-----+-------+\n"
+                          "| id | age | name  |\n"
+                          "+----+-----+-------+\n"
+                          "| 1  | 21  | Flint |\n"
+                          "+----+-----+-------+\n"
+                          "+----+--------+---------+\n"
+                          "| id | height | name    |\n"
+                          "+----+--------+---------+\n"
+                          "| 2  | 187    | Sparrow |\n"
+                          "+----+--------+---------+\n"
+                          "+------+\n"
+                          "| col1 |\n"
+                          "+------+\n"
+                          "| 2002 |\n"
+                          "+------+\n"
+                          "+----+-----+------------+------+\n"
+                          "| id | age | name       | col1 |\n"
+                          "+----+-----+------------+------+\n"
+                          "| 3  | 33  | Morgan     | true |\n"
+                          "+----+-----+------------+------+\n"
+                          "| 4  | 35  | Blackbeard |      |\n"
+                          "+----+-----+------------+------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',"
+                   "box.tuple.new({1,21,'Flint',{data={1,2}}},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'table'})
+        assert ret
+        assert output == ("+----+-----+-------+-------------------------------+\n"
+                          "| id | age | name  | col1                          |\n"
+                          "+----+-----+-------+-------------------------------+\n"
+                          '| 1  | 21  | Flint | [1,21,"Flint",{"data":[1,2]}] |\n'
+                          "+----+-----+-------+-------------------------------+\n")
+
+
 def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
@@ -1280,6 +1799,247 @@ def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
 
     # Stop the Instance.
     stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_ttable_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
+    skip_if_tuple_format_supported(tt_cmd, tmpdir_with_cfg)
+
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="box.space.customers:select()",
+                                              opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+-----------+------+-------+---------+"
+                          "------+---------+-----------+\n"
+                          "| col1 | 1         | 2    | 3     | 4       |"
+                          " 5    | 6       | 7         |\n"
+                          "+------+-----------+------+-------+---------+"
+                          "------+---------+-----------+\n"
+                          "| col2 | Elizabeth | Mary | David | William |"
+                          " Jack | William | Elizabeth |\n"
+                          "+------+-----------+------+-------+---------+"
+                          "------+---------+-----------+\n"
+                          "| col3 | 12        | 46   | 33    | 81      |"
+                          " 35   | 25      | 18        |\n"
+                          "+------+-----------+------+-------+---------+"
+                          "------+---------+-----------+\n")
+
+
+def test_ttable_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
+    skip_if_tuple_format_unsupported(tt_cmd, tmpdir_with_cfg)
+
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    assert file != ""
+
+    # Connect to the instance.
+    uris = ["localhost:3013", "tcp://localhost:3013"]
+    for uri in uris:
+        # Execute stdin.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri,
+                                              stdin="box.space.customers:select()",
+                                              opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+-----------+------+-------+---------+------+"
+                          "---------+-----------+\n"
+                          "| id   | 1         | 2    | 3     | 4       | 5    |"
+                          " 6       | 7         |\n"
+                          "+------+-----------+------+-------+---------+------+"
+                          "---------+-----------+\n"
+                          "| name | Elizabeth | Mary | David | William | Jack |"
+                          " William | Elizabeth |\n"
+                          "+------+-----------+------+-------+---------+------+"
+                          "---------+-----------+\n"
+                          "| age  | 12        | 46   | 33    | 81      | 35   |"
+                          " 25      | 18        |\n"
+                          "+------+-----------+------+-------+---------+------+"
+                          "---------+-----------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+-------+\n"
+                          "| id   | 1     |\n"
+                          "+------+-------+\n"
+                          "| age  | 21    |\n"
+                          "+------+-------+\n"
+                          "| name | Flint |\n"
+                          "+------+-------+\n"
+                          "| col1 | true  |\n"
+                          "+------+-------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({12,187,'Flint',false},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'height','number'},{'name','string'}})}),"
+                   "2002,{1,2,3},box.space.customers:select()"),
+            opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+-------+\n"
+                          "| id   | 1     |\n"
+                          "+------+-------+\n"
+                          "| age  | 21    |\n"
+                          "+------+-------+\n"
+                          "| name | Flint |\n"
+                          "+------+-------+\n"
+                          "| col1 | true  |\n"
+                          "+------+-------+\n"
+                          "+--------+-------+\n"
+                          "| id     | 12    |\n"
+                          "+--------+-------+\n"
+                          "| height | 187   |\n"
+                          "+--------+-------+\n"
+                          "| name   | Flint |\n"
+                          "+--------+-------+\n"
+                          "| col1   | false |\n"
+                          "+--------+-------+\n"
+                          "+------+------+\n"
+                          "| col1 | 2002 |\n"
+                          "+------+------+\n"
+                          "+------+---+\n"
+                          "| col1 | 1 |\n"
+                          "+------+---+\n"
+                          "| col2 | 2 |\n"
+                          "+------+---+\n"
+                          "| col3 | 3 |\n"
+                          "+------+---+\n"
+                          "+------+-----------+------+-------+---------+------+"
+                          "---------+-----------+\n"
+                          "| id   | 1         | 2    | 3     | 4       | 5    |"
+                          " 6       | 7         |\n"
+                          "+------+-----------+------+-------+---------+------+"
+                          "---------+-----------+\n"
+                          "| name | Elizabeth | Mary | David | William | Jack |"
+                          " William | Elizabeth |\n"
+                          "+------+-----------+------+-------+---------+------+"
+                          "---------+-----------+\n"
+                          "| age  | 12        | 46   | 33    | 81      | 35   |"
+                          " 25      | 18        |\n"
+                          "+------+-----------+------+-------+---------+------+"
+                          "---------+-----------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,32,'Sparrow','Jack','cpt'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "{1,2,3},box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})"),
+            opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+-------+---------+\n"
+                          "| id   | 1     | 2       |\n"
+                          "+------+-------+---------+\n"
+                          "| age  | 21    | 32      |\n"
+                          "+------+-------+---------+\n"
+                          "| name | Flint | Sparrow |\n"
+                          "+------+-------+---------+\n"
+                          "| col1 | true  | Jack    |\n"
+                          "+------+-------+---------+\n"
+                          "| col2 |       | cpt     |\n"
+                          "+------+-------+---------+\n"
+                          "+------+---+\n"
+                          "| col1 | 1 |\n"
+                          "+------+---+\n"
+                          "| col2 | 2 |\n"
+                          "+------+---+\n"
+                          "| col3 | 3 |\n"
+                          "+------+---+\n"
+                          "+------+--------+\n"
+                          "| id   | 3      |\n"
+                          "+------+--------+\n"
+                          "| age  | 33     |\n"
+                          "+------+--------+\n"
+                          "| name | Morgan |\n"
+                          "+------+--------+\n"
+                          "| col1 | true   |\n"
+                          "+------+--------+\n")
+
+        # Execute stdin.
+        ret, output = try_execute_on_instance(
+            tt_cmd, tmpdir, uri,
+            stdin=("box.tuple.new({1,21,'Flint'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({2,187,'Sparrow'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'height','number'},{'name','string'}})}),"
+                   "2002,{box.tuple.new({3,33,'Morgan',true},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})}),"
+                   "box.tuple.new({4,35,'Blackbeard'},"
+                   "{format=box.tuple.format.new({{'id','number'},"
+                   "{'age','number'},{'name','string'}})})}"),
+            opts={'-x': 'ttable'})
+        assert ret
+        assert output == ("+------+-------+\n"
+                          "| id   | 1     |\n"
+                          "+------+-------+\n"
+                          "| age  | 21    |\n"
+                          "+------+-------+\n"
+                          "| name | Flint |\n"
+                          "+------+-------+\n"
+                          "+--------+---------+\n"
+                          "| id     | 2       |\n"
+                          "+--------+---------+\n"
+                          "| height | 187     |\n"
+                          "+--------+---------+\n"
+                          "| name   | Sparrow |\n"
+                          "+--------+---------+\n"
+                          "+------+------+\n"
+                          "| col1 | 2002 |\n"
+                          "+------+------+\n"
+                          "+------+--------+------------+\n"
+                          "| id   | 3      | 4          |\n"
+                          "+------+--------+------------+\n"
+                          "| age  | 33     | 35         |\n"
+                          "+------+--------+------------+\n"
+                          "| name | Morgan | Blackbeard |\n"
+                          "+------+--------+------------+\n"
+                          "| col1 | true   |            |\n"
+                          "+------+--------+------------+\n")
 
 
 def test_output_format_round_switching(tt_cmd, tmpdir_with_cfg):

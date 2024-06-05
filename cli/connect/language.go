@@ -60,7 +60,7 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 	}
 
 	languageCmd := setLanguagePrefix + " " + lang.String()
-	response, err := evaler.Eval(consoleEvalFuncBody,
+	response, err := evaler.Eval(evalFuncBody,
 		[]interface{}{languageCmd},
 		connector.RequestOpts{},
 	)

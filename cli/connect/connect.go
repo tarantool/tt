@@ -97,23 +97,24 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	}
 	defer conn.Close()
 
-	var eval string
-	evalArgs := []interface{}{command}
+	evalArgs := []interface{}{command, connectCtx.Language == SQLLanguage}
 	if connectCtx.Language != DefaultLanguage {
 		// Change a language.
 		if err := ChangeLanguage(conn, connectCtx.Language); err != nil {
 			return nil, fmt.Errorf("unable to change a language: %s", err)
 		}
-		eval = consoleEvalFuncBody
+		evalArgs = append(evalArgs, false)
 	} else {
-		eval = evalFuncBody
+		needMetaInfo := connectCtx.Format == formatter.TableFormat ||
+			connectCtx.Format == formatter.TTableFormat
+		evalArgs = append(evalArgs, needMetaInfo)
 		for i := range args {
 			evalArgs = append(evalArgs, args[i])
 		}
 	}
 
 	// Execution of the command.
-	response, err := conn.Eval(eval, evalArgs, connector.RequestOpts{})
+	response, err := conn.Eval(evalFuncBody, evalArgs, connector.RequestOpts{})
 	if err != nil {
 		return nil, err
 	}
