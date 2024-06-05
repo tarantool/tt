@@ -27,7 +27,6 @@ var luaCodeFiles = []generateLuaCodeOpts{
 		PackageName: "connect",
 		FileName:    "cli/connect/lua_code_gen.go",
 		VariablesMap: map[string]string{
-			"consoleEvalFuncBody":    "cli/connect/lua/console_eval_func_body.lua",
 			"evalFuncBody":           "cli/connect/lua/eval_func_body.lua",
 			"getSuggestionsFuncBody": "cli/connect/lua/get_suggestions_func_body.lua",
 		},

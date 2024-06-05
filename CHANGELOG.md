@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt log`: a module for viewing instances logs. Supported options:
   * `--lines` number of lines to print.
   * `--follow` print appended data as log files grow.
+- `tt connect`: support format for Tarantool tuples for Tarantool
+  versions >= 3.2.
 
 ### Fixed
 

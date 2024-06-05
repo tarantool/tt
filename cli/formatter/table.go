@@ -10,12 +10,14 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
 
-// decodeYamlArr decodes yaml string as []any content.
-func decodeYamlArr(input string) ([]any, error) {
-	var decoded []any
+// lazyDecodeYaml decodes yaml string as []lazyMessage content.
+// Each array member needs to be decoded later.
+func lazyDecodeYaml(input string) ([]lazyMessage, error) {
+	var decoded []lazyMessage
 	err := yaml.Unmarshal([]byte(input), &decoded)
 	if err != nil {
 		return nil, err
@@ -40,8 +42,7 @@ func castMapToUMap(src map[any]any) unorderedMap[any] {
 		}
 	}
 	sort.Slice(sortedKeys, func(i, j int) bool {
-		return fmt.Sprintf("%v", sortedKeys[i]) <
-			fmt.Sprintf("%v", sortedKeys[j])
+		return fmt.Sprint(sortedKeys[i]) < fmt.Sprint(sortedKeys[j])
 	})
 
 	dst := createUnorderedMap[any](len(convertedSrc))
@@ -55,19 +56,6 @@ func castMapToUMap(src map[any]any) unorderedMap[any] {
 // deepCastAnyMapToStringMap casts all map[any]any to map[string]any deeply.
 func deepCastAnyMapToStringMap(v any) interface{} {
 	switch x := v.(type) {
-	case unorderedMap[any]:
-		m := createUnorderedMap[string](x.len())
-		for _, k := range x.keys {
-			v2 := x.innerMap[k]
-			switch k2 := k.(type) {
-			case string:
-				m.insert(k2, deepCastAnyMapToStringMap(v2))
-			default:
-				m.insert(fmt.Sprint(k), deepCastAnyMapToStringMap(v2))
-			}
-		}
-		v = m
-
 	case []any:
 		for i, v2 := range x {
 			x[i] = deepCastAnyMapToStringMap(v2)
@@ -353,10 +341,10 @@ func isMapKeysEqual(x unorderedMap[any], y unorderedMap[any]) bool {
 	}
 
 	sort.Slice(keysX, func(i, j int) bool {
-		return fmt.Sprintf("%v", keysX[i]) < fmt.Sprintf("%v", keysX[j])
+		return fmt.Sprint(keysX[i]) < fmt.Sprint(keysX[j])
 	})
 	sort.Slice(keysY, func(i, j int) bool {
-		return fmt.Sprintf("%v", keysY[i]) < fmt.Sprintf("%v", keysY[j])
+		return fmt.Sprint(keysY[i]) < fmt.Sprint(keysY[j])
 	})
 
 	for k, v := range keysX {
@@ -451,10 +439,23 @@ type metadataRows struct {
 // remapMetadataRows creates maps from rows with a metainformation.
 func remapMetadataRows(meta metadataRows) []any {
 	var nodes []any
+	maxLen := 0
+	for _, row := range meta.Rows {
+		if len(row) > maxLen {
+			maxLen = len(row)
+		}
+	}
 	for _, row := range meta.Rows {
 		index := 1
 		mapped := createUnorderedMap[any](len(row))
-		for i, column := range row {
+		for i := 0; i < maxLen; i++ {
+			if i >= len(row) {
+				mapped.insert(index, "")
+				index++
+				continue
+			}
+
+			column := row[i]
 			if len(meta.Metadata) > i && meta.Metadata[i].Name != "" {
 				mapped.insert(meta.Metadata[i].Name, column)
 			} else {
@@ -467,6 +468,13 @@ func remapMetadataRows(meta metadataRows) []any {
 	return nodes
 }
 
+func insertCollectedFields(fields metadataRows, nodes []any) []any {
+	if len(fields.Metadata) > 0 && len(fields.Rows) > 0 {
+		return append(nodes, remapMetadataRows(fields)...)
+	}
+	return nodes
+}
+
 // makeTableOutput returns tables as string for table/ttable output formats.
 func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 	// Handle empty input from remote console.
@@ -474,20 +482,48 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 		input = "--- ['']\n...\n"
 	}
 
-	var meta []metadataRows
 	var nodes []any
 
-	// First of all try to read it as tuples with metadata (SQL output format).
-	err := yaml.Unmarshal([]byte(input), &meta)
-	if err == nil && len(meta) > 0 && len(meta[0].Rows) > 0 && len(meta[0].Metadata) > 0 {
-		nodes = remapMetadataRows(meta[0])
-	} else {
-		// Failed. Try to read it as an array.
-		nodes, err = decodeYamlArr(input)
-		if err != nil {
-			return "", fmt.Errorf("not yaml array, cannot render tables: %s", err)
+	// We need to decode input lazy here. This is the case because we can get
+	// the input as an array, where some elements have metadata.
+	// So we need to decode input as an array first and then each element
+	// separately: as a metadataRows type or some other any value.
+	// If we decode everything as []any first, it would be problematic to
+	// convert any value to metadataRows type.
+	lazyNodes, err := lazyDecodeYaml(input)
+	if err != nil {
+		return "", fmt.Errorf("not yaml array, cannot render tables: %s", err)
+	}
+
+	var metaFields metadataRows
+
+	for _, lazyNode := range lazyNodes {
+		var meta metadataRows
+
+		// First of all, try to read it as tuples with metadata
+		// (SQL output format).
+		err = lazyNode.Unmarshal(&meta)
+		if err == nil && len(meta.Rows) > 0 && len(meta.Metadata) > 0 {
+			if slices.Equal(meta.Metadata, metaFields.Metadata) {
+				metaFields.Rows = append(metaFields.Rows, meta.Rows...)
+			} else {
+				nodes = insertCollectedFields(metaFields, nodes)
+				metaFields = meta
+			}
+		} else {
+			nodes = insertCollectedFields(metaFields, nodes)
+			metaFields = metadataRows{}
+
+			// Failed. Try to read it as an any.
+			var node any
+			err = lazyNode.Unmarshal(&node)
+			if err != nil {
+				return "", fmt.Errorf("not yaml any: %s", err)
+			}
+			nodes = append(nodes, node)
 		}
 	}
+	nodes = insertCollectedFields(metaFields, nodes)
 
 	if len(nodes) == 0 {
 		nodes = append(nodes, []any{""})
