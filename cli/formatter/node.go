@@ -12,6 +12,8 @@ const (
 // getNodeType returns renderNode type.
 func getNodeType(node any) nodeType {
 	switch node.(type) {
+	case unorderedMap[any]:
+		return mapNodeType
 	case map[any]any:
 		return mapNodeType
 	case []any:

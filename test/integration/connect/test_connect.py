@@ -1123,11 +1123,11 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
                 stdin="box.execute('select 1 as FOO, 30, 50, 4+4 as DATA')",
                 opts={'-x': 'table'})
             assert ret
-            assert output == ("+----------+----------+------+-----+\n"
-                              "| COLUMN_1 | COLUMN_2 | DATA | FOO |\n"
-                              "+----------+----------+------+-----+\n"
-                              "| 30       | 50       | 8    | 1   |\n"
-                              "+----------+----------+------+-----+\n")
+            assert output == ("+-----+----------+----------+------+\n"
+                              "| FOO | COLUMN_1 | COLUMN_2 | DATA |\n"
+                              "+-----+----------+----------+------+\n"
+                              "| 1   | 30       | 50       | 8    |\n"
+                              "+-----+----------+----------+------+\n")
 
             # Execute stdin.
             if (tarantool_major_version >= 3 or

@@ -24,16 +24,29 @@ func decodeYamlArr(input string) ([]any, error) {
 	return decoded, nil
 }
 
-// castAnyMapToStringMap casts map[any]any to map[string]any.
-func castAnyMapToStringMap(src map[any]any) map[string]any {
-	dst := make(map[string]any)
+// castMapToUMap casts map[any]any to unorderedMap[any].
+// The result will be sorted by keys.
+func castMapToUMap(src map[any]any) unorderedMap[any] {
+	convertedSrc := make(map[any]any)
+	sortedKeys := make([]any, 0, len(src))
 
 	for k, v := range src {
 		if strKey, ok := k.(string); ok {
-			dst[strKey] = v
+			convertedSrc[strKey] = v
+			sortedKeys = append(sortedKeys, strKey)
 		} else {
-			dst[fmt.Sprint(k)] = v
+			convertedSrc[fmt.Sprint(k)] = v
+			sortedKeys = append(sortedKeys, fmt.Sprint(k))
 		}
+	}
+	sort.Slice(sortedKeys, func(i, j int) bool {
+		return fmt.Sprintf("%v", sortedKeys[i]) <
+			fmt.Sprintf("%v", sortedKeys[j])
+	})
+
+	dst := createUnorderedMap[any](len(convertedSrc))
+	for _, k := range sortedKeys {
+		dst.insert(k, convertedSrc[k])
 	}
 
 	return dst
@@ -42,6 +55,24 @@ func castAnyMapToStringMap(src map[any]any) map[string]any {
 // deepCastAnyMapToStringMap casts all map[any]any to map[string]any deeply.
 func deepCastAnyMapToStringMap(v any) interface{} {
 	switch x := v.(type) {
+	case unorderedMap[any]:
+		m := createUnorderedMap[string](x.len())
+		for _, k := range x.keys {
+			v2 := x.innerMap[k]
+			switch k2 := k.(type) {
+			case string:
+				m.insert(k2, deepCastAnyMapToStringMap(v2))
+			default:
+				m.insert(fmt.Sprint(k), deepCastAnyMapToStringMap(v2))
+			}
+		}
+		v = m
+
+	case []any:
+		for i, v2 := range x {
+			x[i] = deepCastAnyMapToStringMap(v2)
+		}
+
 	case map[any]any:
 		m := map[string]any{}
 		for k, v2 := range x {
@@ -53,15 +84,6 @@ func deepCastAnyMapToStringMap(v any) interface{} {
 			}
 		}
 		v = m
-	case []any:
-		for i, v2 := range x {
-			x[i] = deepCastAnyMapToStringMap(v2)
-		}
-
-	case map[string]any:
-		for k, v2 := range x {
-			x[k] = deepCastAnyMapToStringMap(v2)
-		}
 	}
 
 	return v
@@ -152,16 +174,16 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 		}
 	}
 
-	var mapped []map[string]any
+	var mapped []unorderedMap[any]
 	for _, item := range batch {
 		item := item.([]any)
-		itemMap := make(map[string]any)
+		itemMap := createUnorderedMap[any](maxLen)
 
 		for i := 0; i < maxLen; i++ {
 			if i < len(item) {
-				itemMap[strconv.Itoa(i+1)] = item[i]
+				itemMap.insert(strconv.Itoa(i+1), item[i])
 			} else {
-				itemMap[strconv.Itoa(i+1)] = ""
+				itemMap.insert(strconv.Itoa(i+1), "")
 			}
 		}
 
@@ -209,7 +231,7 @@ func handleColumnWidth(t table.Writer, columns int, opts Opts) {
 }
 
 // createHeader creates a header row.
-func createHeader(keys []string) table.Row {
+func createHeader(keys []any) table.Row {
 	var headerRow table.Row
 	for _, headerCalVal := range keys {
 		strVal := fmt.Sprintf("%v", headerCalVal)
@@ -269,14 +291,13 @@ func createMarkdownTable(table []string, columns int, opts Opts) string {
 }
 
 // renderEqualMaps returns maps with equal keys as single table string.
-func renderEqualMaps(maps []map[string]any, transpose bool, opts Opts) (string, error) {
+func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (string, error) {
 	t := newTableWriter(opts)
 
-	var commonKeys []string
-	for mapKey := range maps[0] {
+	var commonKeys []any
+	maps[0].forEach(func(mapKey, _ any) {
 		commonKeys = append(commonKeys, mapKey)
-	}
-	sort.Strings(commonKeys)
+	})
 
 	var rows []table.Row
 	rows = append(rows, createHeader(commonKeys))
@@ -284,7 +305,7 @@ func renderEqualMaps(maps []map[string]any, transpose bool, opts Opts) (string, 
 	for _, mapVal := range maps {
 		var rowVals table.Row
 		for _, key := range commonKeys {
-			if cellValue, err := encodeCell(mapVal[key]); err != nil {
+			if cellValue, err := encodeCell(mapVal.innerMap[key]); err != nil {
 				return "", err
 			} else {
 				rowVals = append(rowVals, cellValue)
@@ -316,23 +337,28 @@ func renderEqualMaps(maps []map[string]any, transpose bool, opts Opts) (string, 
 	return t.Render() + "\n", nil
 }
 
-// isMapKeysEqual checks keys equal for maps[string]any.
-func isMapKeysEqual(x map[string]any, y map[string]any) bool {
-	var keysX, keysY []string
+// isMapKeysEqual checks keys equal for two unorderedMap[any].
+func isMapKeysEqual(x unorderedMap[any], y unorderedMap[any]) bool {
+	var keysX, keysY []any
 
-	for k := range x {
+	x.forEach(func(k, _ any) {
 		keysX = append(keysX, k)
-	}
-	for k := range y {
+	})
+	y.forEach(func(k, _ any) {
 		keysY = append(keysY, k)
-	}
+	})
 
 	if len(keysX) != len(keysY) {
 		return false
 	}
 
-	sort.Strings(keysX)
-	sort.Strings(keysY)
+	sort.Slice(keysX, func(i, j int) bool {
+		return fmt.Sprintf("%v", keysX[i]) < fmt.Sprintf("%v", keysX[j])
+	})
+	sort.Slice(keysY, func(i, j int) bool {
+		return fmt.Sprintf("%v", keysY[i]) < fmt.Sprintf("%v", keysY[j])
+	})
+
 	for k, v := range keysX {
 		if keysY[k] != v {
 			return false
@@ -347,13 +373,19 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 	if isSingleType(batch, scalarNodeType) {
 		return renderScalars(batch, transpose, opts)
 	} else if isSingleType(batch, mapNodeType) {
-		var anyMaps []map[string]any
+		var anyMaps []unorderedMap[any]
 		for _, node := range batch {
-			castedMap := castAnyMapToStringMap(node.(map[any]any))
+			var castedMap unorderedMap[any]
+			switch n := node.(type) {
+			case unorderedMap[any]:
+				castedMap = n
+			default:
+				castedMap = castMapToUMap(node.(map[any]any))
+			}
 			anyMaps = append(anyMaps, castedMap)
 		}
 
-		var mapsBatchs = make([][]map[string]any, len(anyMaps))
+		var mapsBatchs = make([][]unorderedMap[any], len(anyMaps))
 		var batchPointer = 0
 		mapsBatchs[batchPointer] = append(mapsBatchs[batchPointer], anyMaps[0])
 
@@ -421,12 +453,12 @@ func remapMetadataRows(meta metadataRows) []any {
 	var nodes []any
 	for _, row := range meta.Rows {
 		index := 1
-		mapped := make(map[any]any)
+		mapped := createUnorderedMap[any](len(row))
 		for i, column := range row {
 			if len(meta.Metadata) > i && meta.Metadata[i].Name != "" {
-				mapped[meta.Metadata[i].Name] = column
+				mapped.insert(meta.Metadata[i].Name, column)
 			} else {
-				mapped[index] = column
+				mapped.insert(index, column)
 				index++
 			}
 		}

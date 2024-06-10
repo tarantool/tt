@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   * `--lines` number of lines to print.
   * `--follow` print appended data as log files grow.
 
+### Fixed
+
+- Sorted by name order of columns for `table` and `ttable` formats.
+
 ## [2.3.1] - 2024-06-13
 
 ### Added
