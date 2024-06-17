@@ -3,7 +3,7 @@
   <img src="https://avatars2.githubusercontent.com/u/2344919?v=2&s=250" align="right">
 </a>
 
-# Tarantool CLI
+# Tarantool CLI.
 
 [![Go Reference][godoc-badge]][godoc-url]
 [![Go Report][report-badge]][report-url]
