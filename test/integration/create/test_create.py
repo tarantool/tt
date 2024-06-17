@@ -100,9 +100,6 @@ def test_create_basic_functionality(tt_cmd, tmpdir):
         # Check temporary files is removed.
         assert os.path.exists(os.path.join(app_path, "tmp_config.cfg")) is False
 
-        # Check default Dockerfile is created.
-        assert os.path.exists(os.path.join(app_path, "Dockerfile.build.tt"))
-
         # Check "--name" value is used in file name.
         assert os.path.exists(os.path.join(app_path, "app1.cfg"))
 
@@ -554,9 +551,6 @@ def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmpdir):
 
         # Check temporary files is removed.
         assert os.path.exists(os.path.join(app_path, "tmp_config.cfg")) is False
-
-        # Check default Dockerfile is created.
-        assert os.path.exists(os.path.join(app_path, "Dockerfile.build.tt"))
 
         # Check "--name" value is used in file name.
         assert os.path.exists(os.path.join(app_path, "app1.cfg"))

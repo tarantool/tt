@@ -63,7 +63,6 @@ func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 		steps.RenderTemplate{},
 		steps.RunHook{HookType: "post"},
 		steps.Cleanup{},
-		steps.CreateDockerfile{},
 		steps.MoveAppDirectory{},
 		steps.CreateAppSymlink{SymlinkDir: cliOpts.Env.InstancesEnabled},
 		steps.PrintFollowUpMessage{Writer: os.Stdout},
