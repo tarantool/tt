@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Sorted by name order of columns for `table` and `ttable` formats.
 - `tt switch tt`: does not work with `x.x.x` version format.
 
+### Changed
+
+- Do not create Dockerfile.* in application's directory.
+
 ## [2.3.1] - 2024-06-13
 
 ### Added
