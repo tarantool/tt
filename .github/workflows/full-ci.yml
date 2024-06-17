@@ -113,7 +113,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/checkout@v4
         if: github.event_name != 'pull_request_target'
@@ -226,7 +226,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/checkout@v4
         if: github.event_name != 'pull_request_target'
@@ -282,7 +282,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/checkout@v4
         if: github.event_name != 'pull_request_target'
@@ -331,7 +331,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/checkout@v4
         if: github.event_name != 'pull_request_target'
