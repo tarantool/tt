@@ -439,7 +439,7 @@ func (publisher TarantoolKeyDataPublisher) Publish(revision int64, data []byte) 
 	}
 
 	if revision != 0 {
-		txn["predicates"] = []any{"mod_revision", "==", revision}
+		txn["predicates"] = []any{[]any{"mod_revision", "==", revision, key}}
 	}
 	args := []any{txn}
 
