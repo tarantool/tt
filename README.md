@@ -644,6 +644,8 @@ Common description. For a detailed description, use `tt help command` .
 -   `env` - add current environment binaries location to the PATH variable.
 -   `replicasets` - manage replicasets.
 -   `download` - download Tarantool SDK.
+-   `enable` - create a symbolic link in 'instances_enabled' directory to a script or
+    an application directory.
 
 [godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/tt.svg
 [godoc-url]: https://pkg.go.dev/github.com/tarantool/tt

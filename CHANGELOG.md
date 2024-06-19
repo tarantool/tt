@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   * `--follow` print appended data as log files grow.
 - `tt connect`: support format for Tarantool tuples for Tarantool
   versions >= 3.2.
+- `tt enable`: create a symbolic link in 'instances_enabled' directory to a script or
+  an application directory.
 
 ### Fixed
 
