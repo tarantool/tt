@@ -2,6 +2,8 @@ import os
 import shutil
 import subprocess
 
+import yaml
+
 from utils import config_name
 
 
@@ -108,3 +110,67 @@ def test_switch_invalid_program(tt_cmd, tmpdir):
     output = install_process.stdout.read()
     assert "not supported program: nodejs" in output
     assert install_process_rc != 0
+
+
+def test_switch_tt(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tt.yaml")
+    bin_dir_path = os.path.join(tmpdir, "bin")
+    with open(config_path, "w") as f:
+        yaml.dump({"env": {"bin_dir": bin_dir_path}}, f)
+
+    fake_tt_path = os.path.join(bin_dir_path, "tt_v7.7.7")
+    os.makedirs(bin_dir_path)
+    shutil.copyfile(tt_cmd, fake_tt_path)
+
+    switch_cmd = [
+        tt_cmd,
+        "--cfg", config_path,
+        "binaries", "switch", "tt", "7.7.7"
+    ]
+
+    switch_process = subprocess.Popen(
+        switch_cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    switch_process_rc = switch_process.wait()
+    output = switch_process.stdout.read()
+    assert "Switching to tt 7.7.7" in output
+    assert switch_process_rc == 0
+
+    expected_bin = os.path.join(bin_dir_path, "tt_v7.7.7")
+    tt_bin = os.path.realpath(os.path.join(bin_dir_path, "tt"))
+    assert tt_bin == expected_bin
+
+
+def test_switch_tt_full_version_name(tt_cmd, tmpdir):
+    config_path = os.path.join(tmpdir, "tt.yaml")
+    bin_dir_path = os.path.join(tmpdir, "bin")
+    with open(config_path, "w") as f:
+        yaml.dump({"env": {"bin_dir": bin_dir_path}}, f)
+
+    fake_tt_path = os.path.join(bin_dir_path, "tt_v7.7.7")
+    os.makedirs(bin_dir_path)
+    shutil.copyfile(tt_cmd, fake_tt_path)
+
+    switch_cmd = [
+        tt_cmd,
+        "--cfg", config_path,
+        "binaries", "switch", "tt", "v7.7.7"
+    ]
+
+    switch_process = subprocess.Popen(
+        switch_cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    switch_process_rc = switch_process.wait()
+    output = switch_process.stdout.read()
+    assert "Switching to tt v7.7.7" in output
+    assert switch_process_rc == 0
+
+    expected_bin = os.path.join(bin_dir_path, "tt_v7.7.7")
+    tt_bin = os.path.realpath(os.path.join(bin_dir_path, "tt"))
+    assert tt_bin == expected_bin

@@ -91,7 +91,13 @@ func ChooseVersion(binDir string, programName string) (string, error) {
 // switchTt switches 'tt' program.
 func switchTt(switchCtx SwitchCtx) error {
 	log.Infof("Switching to %s %s.", switchCtx.ProgramName, switchCtx.Version)
-	versionStr := search.ProgramTt + version.FsSeparator + switchCtx.Version
+
+	ttVersion := switchCtx.Version
+	if !strings.HasPrefix(switchCtx.Version, "v") {
+		ttVersion = "v" + ttVersion
+	}
+	versionStr := search.ProgramTt + version.FsSeparator + ttVersion
+
 	if util.IsRegularFile(filepath.Join(switchCtx.BinDir, versionStr)) {
 		err := util.CreateSymlink(versionStr, filepath.Join(switchCtx.BinDir, "tt"), true)
 		if err != nil {
