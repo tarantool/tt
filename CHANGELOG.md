@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Sorted by name order of columns for `table` and `ttable` formats.
+- `tt switch tt`: does not work with `x.x.x` version format.
 
 ## [2.3.1] - 2024-06-13
 
