@@ -281,7 +281,7 @@ func isPackageInstalled(packageName string) bool {
 }
 
 // programDependenciesInstalled checks if dependencies are installed.
-func programDependenciesInstalled(program string) bool {
+func programDependenciesInstalled(program string) error {
 	programs := []Package{}
 	packages := []string{}
 	osName, _ := detectOsName()
@@ -303,12 +303,13 @@ func programDependenciesInstalled(program string) bool {
 			answer, err := util.AskConfirm(os.Stdin, "Unknown OS, can't check if dependencies"+
 				" are installed.\n"+
 				"Proceed without checking?")
-			if !answer || err != nil {
-				return false
+			if err != nil {
+				return err
 			}
-			if answer {
-				return true
+			if !answer {
+				return util.ErrCmdAbort
 			}
+			return nil
 		}
 	}
 	missing_pack := []string{}
@@ -333,35 +334,43 @@ func programDependenciesInstalled(program string) bool {
 
 	if len(missing_pack) != 0 || len(missing_pack_src) != 0 {
 		log.Error("The operation requires some dependencies.")
-		fmt.Println("Missing packages: " + strings.Join(missing_pack, " ") + " " +
-			strings.Join(missing_pack_src, " "))
+		var errMsg strings.Builder
+		errMsg.WriteString("Missing packages: " + strings.Join(missing_pack, " ") + " " +
+			strings.Join(missing_pack_src, " ") + "\n")
 		if osName == "darwin" {
-			fmt.Println("You can install them by running commands:")
-			fmt.Println("brew install " + strings.Join(missing_pack, " ") +
-				strings.Join(missing_pack_src, " "))
+			errMsg.WriteString(
+				"You can install them by running commands:\nbrew install " + strings.Join(
+					missing_pack,
+					" ",
+				) +
+					strings.Join(
+						missing_pack_src,
+						" ",
+					) + "\n",
+			)
 		} else if strings.Contains(osName, "CentOs") {
-			fmt.Println("You can install them by running command:")
+			errMsg.WriteString("You can install them by running command:\n")
 			if len(missing_pack) != 0 {
-				fmt.Println(" sudo yum install " + strings.Join(missing_pack, " "))
+				errMsg.WriteString(" sudo yum install " + strings.Join(missing_pack, " ") + "\n")
 			}
 			if len(missing_pack_src) != 0 {
-				fmt.Println("install from sources: " +
-					strings.Join(missing_pack_src, " "))
+				errMsg.WriteString("install from sources: " +
+					strings.Join(missing_pack_src, " ") + "\n")
 			}
 		} else if strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian") {
-			fmt.Println("You can install them by running command:")
+			errMsg.WriteString("You can install them by running command:\n")
 			if len(missing_pack) != 0 {
-				fmt.Println(" sudo apt install " + strings.Join(missing_pack, " "))
+				errMsg.WriteString(" sudo apt install " + strings.Join(missing_pack, " ") + "\n")
 			}
 			if len(missing_pack_src) != 0 {
-				fmt.Println("install from sources: " +
-					strings.Join(missing_pack_src, " "))
+				errMsg.WriteString("install from sources: " +
+					strings.Join(missing_pack_src, " ") + "\n")
 			}
 		}
-		fmt.Println("Usage: tt install -f if you already have those packages installed")
-		return false
+		errMsg.WriteString("Usage: tt install -f if you already have those packages installed")
+		return fmt.Errorf(errMsg.String())
 	}
-	return true
+	return nil
 }
 
 // downloadRepo downloads git repository.
@@ -556,8 +565,8 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	// Check tt dependencies.
 	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
-		if !programDependenciesInstalled(search.ProgramTt) {
-			return nil
+		if err := programDependenciesInstalled(search.ProgramTt); err != nil {
+			return err
 		}
 	}
 
@@ -1032,8 +1041,8 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	// Check dependencies.
 	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
-		if !programDependenciesInstalled(search.ProgramCe) {
-			return nil
+		if err := programDependenciesInstalled(search.ProgramCe); err != nil {
+			return err
 		}
 	}
 
@@ -1207,8 +1216,8 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 	// Check dependencies.
 	if !installCtx.Force {
 		log.Infof("Checking dependencies...")
-		if !programDependenciesInstalled(search.ProgramCe) {
-			return nil
+		if err := programDependenciesInstalled(search.ProgramCe); err != nil {
+			return err
 		}
 	}
 

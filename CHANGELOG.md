@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Sorted by name order of columns for `table` and `ttable` formats.
 - `tt switch tt`: does not work with `x.x.x` version format.
+- `tt install tt` returns expected exit status code on unsuccessful dependency check.
 
 ### Changed
 
