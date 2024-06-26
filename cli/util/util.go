@@ -923,6 +923,9 @@ func HandleCmdErr(cmd *cobra.Command, err error) {
 			cmd.Usage()
 			os.Exit(1)
 		}
+		if errors.Is(err, ErrCmdAbort) {
+			os.Exit(1)
+		}
 		log.Fatalf(err.Error())
 	}
 }

@@ -614,3 +614,34 @@ def test_install_tt_already_exists_with_symlink(tt_cmd, tmpdir):
     expected_bin = os.path.join(bin_path, "tt_v1.1.2")
     tarantool_bin = os.path.realpath(os.path.join(bin_path, "tt"))
     assert tarantool_bin == expected_bin
+
+
+@pytest.mark.parametrize("package_to_exclude", [
+    pytest.param("mage"),
+    pytest.param("git")
+])
+def test_install_tt_fail_exit_code_dependency_check(
+        tt_cmd,
+        tmpdir,
+        package_to_exclude):
+    # Create new PATH with excluded packages.
+    original_path = os.environ['PATH']
+    new_path = os.pathsep.join(filter(lambda dir: os.path.isdir(dir)
+                               and package_to_exclude not in os.listdir(dir),
+                               original_path.split(os.pathsep)))
+
+    # Create test config.
+    configPath = os.path.join(tmpdir, config_name)
+    with open(configPath, 'w') as f:
+        f.write('env:\n  bin_dir:\n  inc_dir:\n')
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt"]
+    install_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir,
+        env={'PATH': new_path},
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    install_process_rc = install_process.wait()
+    assert install_process_rc == 1
