@@ -8,7 +8,7 @@ from cartridge_helper import (cartridge_name, cartridge_password,
                               cartridge_username)
 from replicaset_helpers import eval_on_instance, parse_status, stop_application
 
-from utils import (create_tt_config, get_tarantool_version, get_tmpdir,
+from utils import (create_tt_config, get_tarantool_version,
                    run_command_and_get_output, wait_event, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
@@ -154,8 +154,8 @@ def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
 
 
 @pytest.fixture(scope="session")
-def vshard_tt_env_session(request, tt_cmd):
-    tmpdir = get_tmpdir(request)
+def vshard_tt_env_session(tt_cmd, tmp_path_factory):
+    tmpdir = tmp_path_factory.mktemp("vshard_tt_env_session")
     create_tt_config(tmpdir, "")
 
     # Install vshard.
@@ -172,7 +172,7 @@ vshard_cconfig_app_name = "test_vshard_app"
 @pytest.fixture
 def vshard_cconfig_app_tt_env(request, tt_cmd, vshard_tt_env_session):
     tmpdir = vshard_tt_env_session
-    app_path = os.path.join(tmpdir, vshard_cconfig_app_name)
+    app_path = tmpdir / vshard_cconfig_app_name
 
     # Copy application.
     shutil.copytree(os.path.join(os.path.dirname(__file__), vshard_cconfig_app_name), app_path)

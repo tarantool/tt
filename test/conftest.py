@@ -8,7 +8,7 @@ import pytest
 from cartridge_helper import CartridgeApp
 from etcd_helper import EtcdInstance
 
-from utils import create_tt_config, get_tmpdir, kill_procs
+from utils import create_tt_config, kill_procs
 
 
 # ######## #
@@ -35,14 +35,10 @@ def cli_config_dir():
 
 
 @pytest.fixture(scope="session")
-def session_tmpdir(request):
-    return get_tmpdir(request)
-
-
-@pytest.fixture(scope="session")
-def tt_cmd(session_tmpdir):
+def tt_cmd(tmp_path_factory):
+    tt_build_dir = tmp_path_factory.mktemp("tt_build")
     tt_base_path = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-    tt_path = os.path.join(session_tmpdir, "tt")
+    tt_path = tt_build_dir / "tt"
 
     build_env = os.environ.copy()
     build_env["TTEXE"] = tt_path
@@ -55,14 +51,14 @@ def tt_cmd(session_tmpdir):
 
 
 @pytest.fixture()
-def tmpdir_with_cfg(tmpdir):
-    create_tt_config(tmpdir, "")
-    return tmpdir
+def tmpdir_with_cfg(tmp_path):
+    create_tt_config(tmp_path, "")
+    return tmp_path.as_posix()
 
 
 @pytest.fixture(scope="session")
-def tmpdir_with_tarantool(tt_cmd, request):
-    tmpdir = get_tmpdir(request)
+def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
+    tmpdir = tmp_path_factory.mktemp("tarantool_env")
     init_cmd = [tt_cmd, "init"]
     tt_process = subprocess.Popen(
         init_cmd,
@@ -89,8 +85,8 @@ def tmpdir_with_tarantool(tt_cmd, request):
 
 
 @pytest.fixture(scope="session")
-def etcd_session(request):
-    tmpdir = get_tmpdir(request)
+def etcd_session(request, tmp_path_factory):
+    tmpdir = tmp_path_factory.mktemp("etcd")
     host = "localhost"
     port = 12388
     etcd_instance = EtcdInstance(host, port, tmpdir)
@@ -117,8 +113,8 @@ def etcd(etcd_session):
 
 
 @pytest.fixture(scope="session")
-def cartridge_app_session(request, tt_cmd):
-    tmpdir = get_tmpdir(request)
+def cartridge_app_session(request, tt_cmd, tmp_path_factory):
+    tmpdir = tmp_path_factory.mktemp("cartridge_app")
     create_tt_config(tmpdir, "")
     cartridge_app = CartridgeApp(tmpdir, tt_cmd)
     request.addfinalizer(lambda: cartridge_app.stop())
