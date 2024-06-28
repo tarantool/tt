@@ -15,7 +15,7 @@ from utils import config_name, is_valid_tarantool_installed
 def test_install_tt_unexisted_commit(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
 
-    # Create test config
+    # Create test config.
     tmp_dir = tempfile.mkdtemp(dir=tmpdir)
     tmp_name = tmp_dir.rpartition('/')[2]
     with open(configPath, 'w') as f:
@@ -55,7 +55,7 @@ def test_install_tt_unexisted_commit(tt_cmd, tmpdir):
 @pytest.mark.slow
 def test_install_tt(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
-    # Create test config
+    # Create test config.
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
@@ -89,7 +89,7 @@ def test_install_tt(tt_cmd, tmpdir):
 @pytest.mark.slow
 def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
-    # Create test config
+    # Create test config.
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
@@ -138,7 +138,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
 @pytest.mark.slow
 def test_wrong_format_hash(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
-    # Create test config
+    # Create test config.
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
@@ -182,7 +182,7 @@ def test_wrong_format_hash(tt_cmd, tmpdir):
 @pytest.mark.slow
 def test_install_tt_specific_version(tt_cmd, tmpdir):
     configPath = os.path.join(tmpdir, config_name)
-    # Create test config
+    # Create test config.
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
