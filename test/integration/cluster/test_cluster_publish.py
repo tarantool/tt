@@ -52,23 +52,23 @@ iproto:
 """
 
 
-def test_cluster_publish_in_place_instances_enabled(tt_cmd, tmpdir):
-    env_path = os.path.join(tmpdir, "app")
-    os.mkdir(env_path)
+def test_cluster_publish_in_place_instances_enabled(tt_cmd, tmp_path):
+    env_path = tmp_path / "app"
+    env_path.mkdir(0o755)
 
-    with open(os.path.join(env_path, "tt.yml"), "w") as f:
+    with open(env_path / "tt.yml", "w") as f:
         f.write("""\
 env:
   instances.enabled: "."
 """)
-    with open(os.path.join(env_path, "init.lua"), "w") as f:
+    with open(env_path / "init.lua", "w") as f:
         f.write("print('hello world!')")
 
     cfg = """\
 database:
   mode: rw
 """
-    with open(os.path.join(env_path, "cfg.yml"), "w") as f:
+    with open(env_path / "cfg.yml", "w") as f:
         f.write(cfg)
 
     publish_cmd = [tt_cmd, "cluster", "publish", "app", "cfg.yml"]
@@ -82,7 +82,7 @@ database:
     publish_output = publish_process.stdout.read()
     assert "" == publish_output
 
-    with open(os.path.join(env_path, "config.yml")) as f:
+    with open(env_path / "config.yml") as f:
         assert f.read() == cfg
 
 

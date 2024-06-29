@@ -42,184 +42,182 @@ def check_file_contains(filepath, text):
         assert text in f.read()
 
 
-def create_tnt_env_in_dir(tmpdir):
+def create_tnt_env_in_dir(tmp_path):
     # Create env file.
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmpdir))
+    with open(tmp_path / config_name, "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmp_path.as_posix()))
 
-    os.mkdir(os.path.join(tmpdir, "test.instances.enabled"))
+    os.mkdir(tmp_path / "test.instances.enabled")
 
     # Copy templates to tmp dir.
     shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"),
-                    os.path.join(tmpdir, "templates"))
+                    tmp_path / "templates")
 
 
-def test_create_basic_functionality(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_create_basic_functionality(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
-    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
-        create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
-        tt_process = subprocess.Popen(
-            create_cmd,
-            cwd=tmpdirname,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=True
-        )
-        tt_process.stdin.writelines(["\n", "\n", "weak_pwd\n", "\n"])
-        tt_process.stdin.close()
-        tt_process.wait()
-        assert tt_process.returncode == 0
+    subdir = tmp_path / "subdir"
+    subdir.mkdir(0o755)
+    create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=subdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.writelines(["\n", "\n", "weak_pwd\n", "\n"])
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
 
-        app_path = os.path.join(tmpdirname, "app1")
-        # Read rendered template.
-        check_file_text(os.path.join(app_path, "config.lua"),
-                        rendered_text.format(cookie="cookie", user_name="admin",
-                        pwd="weak_pwd", retry_count=3))
+    app_path = subdir / "app1"
+    # Read rendered template.
+    check_file_text(app_path / "config.lua",
+                    rendered_text.format(cookie="cookie", user_name="admin",
+                                         pwd="weak_pwd", retry_count=3))
 
-        # Make sure template file is removed.
-        assert os.path.exists(os.path.join(app_path, "config.lua.tt.template")) is False
+    # Make sure template file is removed.
+    assert os.path.exists(app_path / "config.lua.tt.template") is False
 
-        # Check pre/post scripts were invoked.
-        assert os.path.exists(os.path.join(app_path, "pre-script-invoked"))
-        assert os.path.exists(os.path.join(app_path, "post-script-invoked"))
+    # Check pre/post scripts were invoked.
+    assert os.path.exists(app_path / "pre-script-invoked")
+    assert os.path.exists(app_path / "post-script-invoked")
 
-        # Check template manifest file is removed.
-        assert os.path.exists(os.path.join(app_path, "MANIFEST.yaml")) is False
+    # Check template manifest file is removed.
+    assert os.path.exists(app_path / "MANIFEST.yaml") is False
 
-        # Check instantiated file name.
-        assert os.path.exists(os.path.join(app_path, "admin.txt"))
+    # Check instantiated file name.
+    assert os.path.exists(app_path / "admin.txt")
 
-        # Check origin file is removed.
-        assert os.path.exists(os.path.join(app_path, "{{.user_name}}.txt")) is False
+    # Check origin file is removed.
+    assert os.path.exists(app_path / "{{.user_name}}.txt") is False
 
-        # Check hooks directory is removed.
-        assert os.path.exists(os.path.join(app_path, "hooks")) is False
+    # Check hooks directory is removed.
+    assert os.path.exists(app_path / "hooks") is False
 
-        # Check temporary files is removed.
-        assert os.path.exists(os.path.join(app_path, "tmp_config.cfg")) is False
+    # Check temporary files is removed.
+    assert os.path.exists(app_path / "tmp_config.cfg") is False
 
-        # Check "--name" value is used in file name.
-        assert os.path.exists(os.path.join(app_path, "app1.cfg"))
+    # Check "--name" value is used in file name.
+    assert os.path.exists(app_path / "app1.cfg")
 
-        # Check symlink to application is created in instances enabled directory.
-        assert os.path.exists(os.path.join(tmpdir, "test.instances.enabled", "app1"))
-        assert os.readlink(os.path.join(tmpdir, "test.instances.enabled", "app1")) == "../" + \
-            os.path.basename(tmpdirname) + "/app1"
+    # Check symlink to application is created in instances enabled directory.
+    assert (tmp_path / "test.instances.enabled" / "app1").exists()
+    assert os.readlink(tmp_path / "test.instances.enabled" / "app1") == "../subdir/app1"
 
-        # Check output.
-        out_lines = tt_process.stdout.readlines()
+    # Check output.
+    out_lines = tt_process.stdout.readlines()
 
-        expected_lines = [
-            'Creating application in',
-            'Using template from',
-            'Cluster cookie (default: cookie): User name (default: admin): '
-            'Password: Retry count (default: 3):    • Executing pre-hook '
-            './hooks/pre-gen.sh\n',
-            'Executing post-hook ./hooks/post-gen.sh\n'
-        ]
+    expected_lines = [
+        'Creating application in',
+        'Using template from',
+        'Cluster cookie (default: cookie): User name (default: admin): '
+        'Password: Retry count (default: 3):    • Executing pre-hook '
+        './hooks/pre-gen.sh\n',
+        'Executing post-hook ./hooks/post-gen.sh\n'
+    ]
 
     for i in range(len(expected_lines)):
         assert out_lines[i].find(expected_lines[i]) != -1
 
 
-def test_vars_passed_from_cli(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_vars_passed_from_cli(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
-    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
-        create_cmd = [tt_cmd, "create", "basic", "--var", "user_name=user2", "--var",
-                      "retry_count=number", "--name", "basic"]
-        tt_process = subprocess.Popen(
-            create_cmd,
-            cwd=tmpdirname,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=True
-        )
-        tt_process.stdin.writelines(["\n", "weak_pwd\n", "5\n"])
-        tt_process.stdin.close()
-        tt_process.wait()
-        assert tt_process.returncode == 0
+    create_cmd = [tt_cmd, "create", "basic", "--var", "user_name=user2", "--var",
+                  "retry_count=number", "--name", "basic"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmp_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.writelines(["\n", "weak_pwd\n", "5\n"])
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
 
-        app_path = os.path.join(tmpdirname, "basic")
-        # Read rendered template.
-        check_file_text(os.path.join(app_path, "config.lua"),
-                        rendered_text.format(cookie="cookie", user_name="user2",
-                        pwd="weak_pwd", retry_count=5))
+    app_path = tmp_path / "basic"
+    # Read rendered template.
+    check_file_text(app_path / "config.lua",
+                    rendered_text.format(cookie="cookie", user_name="user2",
+                                         pwd="weak_pwd", retry_count=5))
 
-        # Make sure template file is removed.
-        assert os.path.exists(os.path.join(app_path, "config.lua.tt.template")) is False
+    # Make sure template file is removed.
+    assert not (app_path / "config.lua.tt.template").exists()
 
-        # Check pre/post scripts were invoked.
-        assert os.path.exists(os.path.join(app_path, "pre-script-invoked"))
-        assert os.path.exists(os.path.join(app_path, "post-script-invoked"))
+    # Check pre/post scripts were invoked.
+    assert (app_path / "pre-script-invoked").exists()
+    assert (app_path / "post-script-invoked").exists()
 
-        # Check template manifest file is removed.
-        assert os.path.exists(os.path.join(app_path, "MANIFEST.yaml")) is False
+    # Check template manifest file is removed.
+    assert not (app_path / "MANIFEST.yaml").exists()
 
-        # Check instantiated file name.
-        assert os.path.exists(os.path.join(app_path, "user2.txt"))
+    # Check instantiated file name.
+    assert (app_path / "user2.txt").exists()
 
-        # Check origin file is removed.
-        assert os.path.exists(os.path.join(app_path, "user2.txt"))
+    # Check origin file is removed.
+    assert not (app_path / "{{.user_name}}.txt").exists()
 
-        # Check output.
-        out_lines = tt_process.stdout.readlines()
-        expected_lines = [
-            'Creating application in',
-            'Using template from',
-            'Cluster cookie (default: cookie): Password: '
-            'Invalid format of retry_count variable.\n', 'Retry count (default: 3):'
-            '    • Executing pre-hook ./hooks/pre-gen.sh\n',
-            'Executing post-hook ./hooks/post-gen.sh\n'
-        ]
+    # Check output.
+    out_lines = tt_process.stdout.readlines()
+    expected_lines = [
+        'Creating application in',
+        'Using template from',
+        'Cluster cookie (default: cookie): Password: '
+        'Invalid format of retry_count variable.\n', 'Retry count (default: 3):'
+        '    • Executing pre-hook ./hooks/pre-gen.sh\n',
+        'Executing post-hook ./hooks/post-gen.sh\n'
+    ]
 
-        for i in range(len(expected_lines)):
-            assert out_lines[i].find(expected_lines[i]) != -1
-
-
-def test_noninteractive_mode(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
-
-    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
-        create_cmd = [tt_cmd, "create", "basic", "--var", "password=weak_pwd",
-                      "--non-interactive", "--name", "basic"]
-        tt_process = subprocess.Popen(
-            create_cmd,
-            cwd=tmpdirname,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=True
-        )
-        tt_process.stdin.close()
-        tt_process.wait()
-
-        app_path = os.path.join(tmpdirname, "basic")
-        # Read rendered template.
-        check_file_text(os.path.join(app_path, "config.lua"),
-                        rendered_text.format(cookie="cookie", user_name="admin",
-                        pwd="weak_pwd", retry_count=3))
-
-        # Check output.
-        out_lines = tt_process.stdout.readlines()
-        expected_lines = [
-            'Creating application in',
-            'Using template from',
-            'Executing pre-hook ./hooks/pre-gen.sh\n',
-            'Executing post-hook ./hooks/post-gen.sh\n'
-        ]
-
-        for i in range(len(expected_lines)):
-            assert out_lines[i].find(expected_lines[i]) != -1
+    for i in range(len(expected_lines)):
+        assert out_lines[i].find(expected_lines[i]) != -1
 
 
-def test_app_already_exist(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
-    os.mkdir(os.path.join(tmpdir, "app1"))
-    file_in_app = os.path.join(tmpdir, "app1", "file.txt")
+def test_noninteractive_mode(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
+
+    create_cmd = [tt_cmd, "create", "basic", "--var", "password=weak_pwd",
+                  "--non-interactive", "--name", "basic"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmp_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.close()
+    tt_process.wait()
+
+    app_path = tmp_path / "basic"
+    # Read rendered template.
+    check_file_text(app_path / "config.lua",
+                    rendered_text.format(cookie="cookie", user_name="admin",
+                                         pwd="weak_pwd", retry_count=3))
+
+    # Check output.
+    out_lines = tt_process.stdout.readlines()
+    expected_lines = [
+        'Creating application in',
+        'Using template from',
+        'Executing pre-hook ./hooks/pre-gen.sh\n',
+        'Executing post-hook ./hooks/post-gen.sh\n'
+    ]
+
+    for i in range(len(expected_lines)):
+        assert out_lines[i].find(expected_lines[i]) != -1
+
+
+def test_app_already_exist(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
+    os.mkdir(tmp_path / "app1")
+    file_in_app = tmp_path / "app1" / "file.txt"
     with open(file_in_app, "w") as f:
         f.write("text")
 
@@ -227,7 +225,7 @@ def test_app_already_exist(tt_cmd, tmpdir):
                   "--name", "app1"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -242,7 +240,7 @@ def test_app_already_exist(tt_cmd, tmpdir):
     # Check file is still there.
     assert os.path.exists(file_in_app)
 
-    app_path = os.path.join(tmpdir, "app1")
+    app_path = tmp_path / "app1"
 
     # Run the same create command but with force mode enabled.
     create_cmd.append("--force")
@@ -250,7 +248,7 @@ def test_app_already_exist(tt_cmd, tmpdir):
 
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -264,17 +262,17 @@ def test_app_already_exist(tt_cmd, tmpdir):
     assert os.path.exists(file_in_app) is False
 
     # Read rendered template.
-    check_file_text(os.path.join(app_path, "config.lua"),
+    check_file_text(app_path / "config.lua",
                     rendered_text.format(cookie="cookie", user_name="admin",
-                    pwd="weak_pwd", retry_count=3))
+                                         pwd="weak_pwd", retry_count=3))
 
 
-def run_and_check_non_interactive(tt_cmd, tmpdir, template_path, template_name, app_dir, *args):
+def run_and_check_non_interactive(tt_cmd, tmp_path, template_path, template_name, app_dir, *args):
     create_cmd = [tt_cmd, "create", template_name, "--var", "password=weak_pwd",
                   "--non-interactive", *args]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -285,9 +283,9 @@ def run_and_check_non_interactive(tt_cmd, tmpdir, template_path, template_name, 
 
     app_path = app_dir
     # Read rendered template.
-    check_file_text(os.path.join(app_path, "config.lua"),
+    check_file_text(app_path / "config.lua",
                     rendered_text.format(cookie="cookie", user_name="admin",
-                    pwd="weak_pwd", retry_count=3))
+                                         pwd="weak_pwd", retry_count=3))
 
     # Check output.
     out_lines = tt_process.stderr.readlines()
@@ -304,27 +302,27 @@ def run_and_check_non_interactive(tt_cmd, tmpdir, template_path, template_name, 
     assert len(tt_process.stdout.readlines()) == 0
 
 
-def test_template_as_archive(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_template_as_archive(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
     pack_template_cmd = ["tar", "-czvf", "../luakit.tgz", "./"]
     tar_process = subprocess.Popen(
         pack_template_cmd,
-        cwd=os.path.join(tmpdir, "templates", "basic"),
+        cwd=os.path.join(tmp_path, "templates", "basic"),
     )
     tar_process.wait()
-    shutil.copy(os.path.join(tmpdir, "templates", "luakit.tgz"),
-                os.path.join(tmpdir, "templates", "cartridge.tar.gz"))
+    shutil.copy(os.path.join(tmp_path, "templates", "luakit.tgz"),
+                os.path.join(tmp_path, "templates", "cartridge.tar.gz"))
 
-    run_and_check_non_interactive(tt_cmd, tmpdir, os.path.join(tmpdir, "templates", "luakit"),
-                                  "luakit", os.path.join(tmpdir, "app1"), "--name", "app1")
-    run_and_check_non_interactive(tt_cmd, tmpdir, os.path.join(tmpdir, "templates", "cartridge"),
-                                  "cartridge", os.path.join(tmpdir, "app2"), "--name", "app2", "-s")
+    run_and_check_non_interactive(tt_cmd, tmp_path, tmp_path / "templates" / "luakit",
+                                  "luakit", tmp_path / "app1", "--name", "app1")
+    run_and_check_non_interactive(tt_cmd, tmp_path, tmp_path / "templates" / "cartridge",
+                                  "cartridge", tmp_path / "app2", "--name", "app2", "-s")
 
 
-def test_template_search_paths(tt_cmd, tmpdir):
+def test_template_search_paths(tt_cmd, tmp_path):
     # Create env file.
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''app:
   instances_enabled: ./any-dir
   run_dir: .
@@ -336,27 +334,25 @@ templates:
 
     # Copy templates to tmp dir.
     shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"),
-                    os.path.join(tmpdir, "templates"))
-    os.mkdir(os.path.join(tmpdir, "templates2"))
-    os.mkdir(os.path.join(tmpdir, "templates3"))
+                    tmp_path / "templates")
+    os.mkdir(tmp_path / "templates2")
+    os.mkdir(tmp_path / "templates3")
 
-    pack_template_cmd = ["tar", "-czvf", os.path.join(tmpdir, "templates3", "luakit.tgz"), "./"]
+    pack_template_cmd = ["tar", "-czvf", (tmp_path / "templates3" / "luakit.tgz").as_posix(), "./"]
     tar_process = subprocess.Popen(
         pack_template_cmd,
-        cwd=os.path.join(tmpdir, "templates", "basic"),
+        cwd=tmp_path / "templates" / "basic",
     )
     tar_process.wait()
 
-    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
-        run_and_check_non_interactive(tt_cmd, tmpdirname, os.path.join(
-                                      tmpdir, "templates3", "luakit"), "luakit",
-                                      os.path.join(tmpdirname, "app1"), "--name", "app1")
+    run_and_check_non_interactive(tt_cmd, tmp_path, tmp_path / "templates3" / "luakit",
+                                  "luakit", tmp_path / "app1", "--name", "app1")
 
 
-def test_vars_file_support(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_vars_file_support(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
-    vars_file = os.path.join(tmpdir, "vars.txt")
+    vars_file = os.path.join(tmp_path, "vars.txt")
     with open(vars_file, "w") as f:
         f.write("""password=my_pwd
 user_name=admin
@@ -367,7 +363,7 @@ retry_count=6""")
                   "--name", "basic"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -377,33 +373,33 @@ retry_count=6""")
     tt_process.wait()
     assert tt_process.returncode == 0
 
-    app_path = os.path.join(tmpdir, "basic")
+    app_path = tmp_path / "basic"
     # Check if the data is taken from vars file.
-    check_file_text(os.path.join(app_path, "config.lua"),
+    check_file_text(app_path / "config.lua",
                     rendered_text.format(cookie="cookie", user_name="user2",
-                    pwd="my_pwd", retry_count=6))
+                                         pwd="my_pwd", retry_count=6))
 
     # Make sure template file is removed.
-    assert os.path.exists(os.path.join(app_path, "config.lua.tt.template")) is False
+    assert os.path.exists(app_path / "config.lua.tt.template") is False
 
     # Check pre/post scripts were invoked.
-    assert os.path.exists(os.path.join(app_path, "pre-script-invoked"))
-    assert os.path.exists(os.path.join(app_path, "post-script-invoked"))
+    assert os.path.exists(app_path / "pre-script-invoked")
+    assert os.path.exists(app_path / "post-script-invoked")
 
     # Check template manifest file is removed.
-    assert os.path.exists(os.path.join(app_path, "MANIFEST.yaml")) is False
+    assert os.path.exists(app_path / "MANIFEST.yaml") is False
 
     # Check instantiated file name.
-    assert os.path.exists(os.path.join(app_path, "user2.txt"))
+    assert os.path.exists(app_path / "user2.txt")
 
     # Check origin file is removed.
-    assert os.path.exists(os.path.join(app_path, "user2.txt"))
+    assert os.path.exists(app_path / "user2.txt")
 
     # Check output.
     out_lines = tt_process.stdout.readlines()
     expected_lines = [
         'Creating application in',
-        f'Using template from {os.path.join(tmpdir, "templates", "basic")}\n',
+        f'Using template from {os.path.join(tmp_path, "templates", "basic")}\n',
         'Executing pre-hook ./hooks/pre-gen.sh\n',
         'Executing post-hook ./hooks/post-gen.sh\n'
     ]
@@ -412,23 +408,22 @@ retry_count=6""")
         assert out_lines[i].find(expected_lines[i]) != -1
 
 
-def test_create_app_in_specified_path(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_create_app_in_specified_path(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
-    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
-        run_and_check_non_interactive(tt_cmd, tmpdirname, os.path.join(
-                                      tmpdir, "templates", "basic"), "basic",
-                                      os.path.join(tmpdirname, "app1"), "--dst",
-                                      tmpdirname, "--name", "app1")
+    dst_dir = tmp_path / "dst_dir"
+    dst_dir.mkdir(0o755)
+    run_and_check_non_interactive(tt_cmd, tmp_path, tmp_path / "templates" / "basic", "basic",
+                                  dst_dir / "app1", "--dst", dst_dir, "--name", "app1")
 
 
-def test_app_create_missing_required_args(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_app_create_missing_required_args(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
     create_cmd = [tt_cmd, "create"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -443,7 +438,7 @@ def test_app_create_missing_required_args(tt_cmd, tmpdir):
     create_cmd = [tt_cmd, "create", "basic"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -456,14 +451,14 @@ def test_app_create_missing_required_args(tt_cmd, tmpdir):
     assert first_out_line.find('application name is required') != -1
 
 
-def test_default_var_can_be_overwritten(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_default_var_can_be_overwritten(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
     create_cmd = [tt_cmd, "create", "basic", "--var", "password=pwd", "--non-interactive",
                   "--name", "app1", "--var", "name=my_name"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -473,21 +468,21 @@ def test_default_var_can_be_overwritten(tt_cmd, tmpdir):
     tt_process.wait()
     assert tt_process.returncode == 0
 
-    app_path = os.path.join(tmpdir, "app1")
-    assert os.path.exists(os.path.join(app_path, "my_name.cfg"))
+    app_path = tmp_path / "app1"
+    assert os.path.exists(app_path / "my_name.cfg")
 
 
-def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
-    app_path = os.path.join(tmpdir, "app1", "subdir")
-    os.makedirs(os.path.join(app_path, "subdir"))
+    app_path = tmp_path / "app1" / "subdir"
+    os.makedirs(app_path / "subdir")
 
     create_cmd = [tt_cmd, "create", "basic", "--var", "user_name=user2", "--var",
                   "retry_count=number", "--name", "basic"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -498,90 +493,89 @@ def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmpdir):
     tt_process.wait()
     assert tt_process.returncode == 1
 
-    assert os.path.exists(os.path.join(app_path, "subdir"))
-    assert not os.path.exists(os.path.join(app_path, "hooks"))
+    assert os.path.exists(app_path / "subdir")
+    assert not os.path.exists(app_path / "hooks")
 
 
-def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
-    os.rename(os.path.join(tmpdir, "templates", "basic", "MANIFEST.yaml"),
-              os.path.join(tmpdir, "templates", "basic", "MANIFEST.yml"))
+    os.rename(tmp_path / "templates" / "basic" / "MANIFEST.yaml",
+              tmp_path / "templates" / "basic" / "MANIFEST.yml")
 
-    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
-        create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
-        tt_process = subprocess.Popen(
-            create_cmd,
-            cwd=tmpdirname,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=True
-        )
-        tt_process.stdin.writelines(["\n", "\n", "weak_pwd\n", "\n"])
-        tt_process.stdin.close()
-        tt_process.wait()
-        assert tt_process.returncode == 0
+    create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
+    tt_process = subprocess.Popen(
+        create_cmd,
+        cwd=tmp_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.PIPE,
+        text=True
+    )
+    tt_process.stdin.writelines(["\n", "\n", "weak_pwd\n", "\n"])
+    tt_process.stdin.close()
+    tt_process.wait()
+    assert tt_process.returncode == 0
 
-        app_path = os.path.join(tmpdirname, "app1")
-        # Read rendered template.
-        check_file_text(os.path.join(app_path, "config.lua"),
-                        rendered_text.format(cookie="cookie", user_name="admin",
-                        pwd="weak_pwd", retry_count=3))
+    app_path = tmp_path / "app1"
+    # Read rendered template.
+    check_file_text(app_path / "config.lua",
+                    rendered_text.format(cookie="cookie", user_name="admin",
+                                         pwd="weak_pwd", retry_count=3))
 
-        # Make sure template file is removed.
-        assert os.path.exists(os.path.join(app_path, "config.lua.tt.template")) is False
+    # Make sure template file is removed.
+    assert os.path.exists(app_path / "config.lua.tt.template") is False
 
-        # Check pre/post scripts were invoked.
-        assert os.path.exists(os.path.join(app_path, "pre-script-invoked"))
-        assert os.path.exists(os.path.join(app_path, "post-script-invoked"))
+    # Check pre/post scripts were invoked.
+    assert os.path.exists(app_path / "pre-script-invoked")
+    assert os.path.exists(app_path / "post-script-invoked")
 
-        # Check template manifest file is removed.
-        assert os.path.exists(os.path.join(app_path, "MANIFEST.yaml")) is False
-        assert os.path.exists(os.path.join(app_path, "MANIFEST.yml")) is False
+    # Check template manifest file is removed.
+    assert os.path.exists(app_path / "MANIFEST.yaml") is False
+    assert os.path.exists(app_path / "MANIFEST.yml") is False
 
-        # Check instantiated file name.
-        assert os.path.exists(os.path.join(app_path, "admin.txt"))
+    # Check instantiated file name.
+    assert os.path.exists(app_path / "admin.txt")
 
-        # Check origin file is removed.
-        assert os.path.exists(os.path.join(app_path, "{{.user_name}}.txt")) is False
+    # Check origin file is removed.
+    assert os.path.exists(app_path / "{{.user_name}}.txt") is False
 
-        # Check hooks directory is removed.
-        assert os.path.exists(os.path.join(app_path, "hooks")) is False
+    # Check hooks directory is removed.
+    assert os.path.exists(app_path / "hooks") is False
 
-        # Check temporary files is removed.
-        assert os.path.exists(os.path.join(app_path, "tmp_config.cfg")) is False
+    # Check temporary files is removed.
+    assert os.path.exists(app_path / "tmp_config.cfg") is False
 
-        # Check "--name" value is used in file name.
-        assert os.path.exists(os.path.join(app_path, "app1.cfg"))
+    # Check "--name" value is used in file name.
+    assert os.path.exists(app_path / "app1.cfg")
 
-        # Check output.
-        out_lines = tt_process.stdout.readlines()
+    # Check output.
+    out_lines = tt_process.stdout.readlines()
 
-        expected_lines = [
-            'Creating application in',
-            'Using template from',
-            'Cluster cookie (default: cookie): User name (default: admin): '
-            'Password: Retry count (default: 3):    • Executing pre-hook '
-            './hooks/pre-gen.sh\n',
-            'Executing post-hook ./hooks/post-gen.sh\n'
-        ]
+    expected_lines = [
+        'Creating application in',
+        'Using template from',
+        'Cluster cookie (default: cookie): User name (default: admin): '
+        'Password: Retry count (default: 3):    • Executing pre-hook '
+        './hooks/pre-gen.sh\n',
+        'Executing post-hook ./hooks/post-gen.sh\n'
+    ]
 
     for i in range(len(expected_lines)):
         assert out_lines[i].find(expected_lines[i]) != -1
 
 
-def test_create_ambiguous_manifest(tt_cmd, tmpdir):
-    create_tnt_env_in_dir(tmpdir)
+def test_create_ambiguous_manifest(tt_cmd, tmp_path):
+    create_tnt_env_in_dir(tmp_path)
 
-    shutil.copy(os.path.join(tmpdir, "templates", "basic", "MANIFEST.yaml"),
-                os.path.join(tmpdir, "templates", "basic", "MANIFEST.yml"))
+    shutil.copy(os.path.join(tmp_path, "templates", "basic", "MANIFEST.yaml"),
+                os.path.join(tmp_path, "templates", "basic", "MANIFEST.yml"))
 
-    with tempfile.TemporaryDirectory(dir=tmpdir) as tmpdirname:
+    with tempfile.TemporaryDirectory(dir=tmp_path) as tmp_pathname:
         create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
         tt_process = subprocess.Popen(
             create_cmd,
-            cwd=tmpdirname,
+            cwd=tmp_pathname,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
@@ -591,7 +585,7 @@ def test_create_ambiguous_manifest(tt_cmd, tmpdir):
         assert tt_process.returncode == 1
 
         # Make sure template file is removed.
-        assert os.path.exists(os.path.join(tmpdirname, "app1")) is False
+        assert os.path.exists(os.path.join(tmp_pathname, "app1")) is False
 
         # Check output.
         out_lines = tt_process.stdout.readlines()
@@ -606,14 +600,14 @@ def test_create_ambiguous_manifest(tt_cmd, tmpdir):
         assert out_lines[i].find(expected_lines[i]) != -1
 
 
-def test_create_app_from_builtin_cartridge_template(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmpdir))
+def test_create_app_from_builtin_cartridge_template(tt_cmd, tmp_path):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmp_path))
 
     create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -627,38 +621,38 @@ def test_create_app_from_builtin_cartridge_template(tt_cmd, tmpdir):
     output = tt_process.stdout.read()
     assert output.find("Application 'app1' created successfully") != -1
 
-    app_path = os.path.join(tmpdir, "app1")
-    assert os.path.exists(os.path.join(app_path, "init.lua"))
-    assert os.access(os.path.join(app_path, "init.lua"), os.X_OK)
+    app_path = tmp_path / "app1"
+    assert os.path.exists(app_path / "init.lua")
+    assert os.access(app_path / "init.lua", os.X_OK)
     cluster_cookie = "cluster_cookie = 'foo'"
-    check_file_contains(os.path.join(app_path, "init.lua"), cluster_cookie)
+    check_file_contains(app_path / "init.lua", cluster_cookie)
 
-    assert os.path.exists(os.path.join(app_path, "app1-scm-1.rockspec"))
+    assert os.path.exists(app_path / "app1-scm-1.rockspec")
 
-    assert os.path.exists(os.path.join(app_path, "tt.pre-build"))
-    assert os.access(os.path.join(app_path, "tt.pre-build"), os.X_OK)
-    assert os.path.exists(os.path.join(app_path, "tt.post-build"))
-    assert os.access(os.path.join(app_path, "tt.post-build"), os.X_OK)
+    assert os.path.exists(app_path / "tt.pre-build")
+    assert os.access(app_path / "tt.pre-build", os.X_OK)
+    assert os.path.exists(app_path / "tt.post-build")
+    assert os.access(app_path / "tt.post-build", os.X_OK)
 
-    assert os.path.exists(os.path.join(app_path, "app", "roles", "custom.lua"))
+    assert os.path.exists(app_path / "app" / "roles" / "custom.lua")
 
-    assert os.path.exists(os.path.join(app_path, "instances.yml"))
-    assert not os.access(os.path.join(app_path, "instances.yml"), os.X_OK)
-    assert os.access(os.path.join(app_path, "instances.yml"), os.W_OK)
-    with open(os.path.join(app_path, "instances.yml"), 'r') as stream:
+    assert os.path.exists(app_path / "instances.yml")
+    assert not os.access(app_path / "instances.yml", os.X_OK)
+    assert os.access(app_path / "instances.yml", os.W_OK)
+    with open(app_path / "instances.yml", 'r') as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app1-stateboard"]["password"] == "passwd"
         assert data_loaded["app1.router"]["http_port"] == 8081
 
 
-def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmpdir))
+def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmp_path):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmp_path))
 
     create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1", "-s"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -671,22 +665,22 @@ def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmpdi
     output = tt_process.stdout.read()
     assert output.find("Application 'app1' created successfully") != -1
 
-    app_path = os.path.join(tmpdir, "app1")
+    app_path = tmp_path / "app1"
     cluster_cookie = "cluster_cookie = 'secret-cluster-cookie'"
-    check_file_contains(os.path.join(app_path, "init.lua"), cluster_cookie)
+    check_file_contains(app_path / "init.lua", cluster_cookie)
 
 
 @pytest.mark.slow
 @pytest.mark.skipif(tarantool_major_version >= 3,
                     reason="skip cartridge app tests for Tarantool 3.0")
-def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmpdir))
+def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, tmp_path):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmp_path))
 
     create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1", "--dst", "appdir"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -704,36 +698,36 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     assert output.find("tt cartridge replicasets setup --bootstrap-vshard --name app1 " +
                        "--run-dir ./app1") != -1
 
-    assert os.path.exists(os.path.join(tmpdir, "appdir"))
+    assert os.path.exists(tmp_path / "appdir")
 
-    app_path = os.path.join(tmpdir, "appdir", "app1")
-    assert os.path.exists(os.path.join(app_path, "init.lua"))
-    assert os.access(os.path.join(app_path, "init.lua"), os.X_OK)
+    app_path = tmp_path / "appdir" / "app1"
+    assert os.path.exists(app_path / "init.lua")
+    assert os.access(app_path / "init.lua", os.X_OK)
 
-    assert os.path.exists(os.path.join(app_path, "app1-scm-1.rockspec"))
+    assert os.path.exists(app_path / "app1-scm-1.rockspec")
 
-    assert os.path.exists(os.path.join(app_path, "tt.pre-build"))
-    assert os.access(os.path.join(app_path, "tt.pre-build"), os.X_OK)
-    assert os.path.exists(os.path.join(app_path, "tt.post-build"))
-    assert os.access(os.path.join(app_path, "tt.post-build"), os.X_OK)
+    assert os.path.exists(app_path / "tt.pre-build")
+    assert os.access(app_path / "tt.pre-build", os.X_OK)
+    assert os.path.exists(app_path / "tt.post-build")
+    assert os.access(app_path / "tt.post-build", os.X_OK)
 
-    assert os.path.exists(os.path.join(app_path, "app", "roles", "custom.lua"))
+    assert os.path.exists(app_path / "app" / "roles" / "custom.lua")
 
-    assert os.path.exists(os.path.join(app_path, "instances.yml"))
-    assert not os.access(os.path.join(app_path, "instances.yml"), os.X_OK)
-    assert os.access(os.path.join(app_path, "instances.yml"), os.W_OK)
-    with open(os.path.join(app_path, "instances.yml"), 'r') as stream:
+    assert os.path.exists(app_path / "instances.yml")
+    assert not os.access(app_path / "instances.yml", os.X_OK)
+    assert os.access(app_path / "instances.yml", os.W_OK)
+    with open(app_path / "instances.yml", 'r') as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app1-stateboard"]["password"] == "passwd"
         assert data_loaded["app1.router"]["http_port"] == 8081
 
-    target = os.readlink(os.path.join(tmpdir, "test.instances.enabled", "app1"))
+    target = os.readlink(os.path.join(tmp_path, "test.instances.enabled", "app1"))
     assert target == "../appdir/app1"
 
     create_cmd = [tt_cmd, "build", "app1"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -747,7 +741,7 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     start_cmd = [tt_cmd, "start", "app1"]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -756,13 +750,13 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     for line in start_output:
         assert "Starting an instance" in line
     for inst in ["router", "s1-master", "s1-replica", "s2-master", "s2-replica"]:
-        file = wait_file(os.path.join(tmpdir, "test.instances.enabled", "app1", inst),
+        file = wait_file(os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
                          pid_file, [])
         assert file != ""
 
     # Check status.
     status_cmd = [tt_cmd, "status", "app1"]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
     assert status_rc == 0
     status_info = extract_status(status_out)
     for key in status_info.keys():
@@ -770,7 +764,7 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
 
     # Stop the cartridge app.
     stop_cmd = [tt_cmd, "stop", "app1"]
-    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
     assert status_rc == 0
     assert re.search(r"The Instance app1:\w+ \(PID = \d+\) has been terminated.", stop_out)
 
@@ -787,28 +781,28 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     "replicas_count=1",
     "routers_count=0",
 ])
-def test_create_app_from_builtin_cartridge_template_errors(tt_cmd, tmpdir, var):
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmpdir))
+def test_create_app_from_builtin_cartridge_template_errors(tt_cmd, tmp_path, var):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmp_path))
 
     create_cmd = [tt_cmd, "create", "vshard_cluster", "--name", "app1",
                   "--non-interactive", "--var", var]
-    rc, _ = run_command_and_get_output(create_cmd, cwd=tmpdir)
+    rc, _ = run_command_and_get_output(create_cmd, cwd=tmp_path)
     assert rc != 0
-    assert not os.path.exists(os.path.join(tmpdir, "app1"))
+    assert not os.path.exists(tmp_path / "app1")
 
 
 @pytest.mark.slow
 @pytest.mark.skipif(tarantool_major_version < 3,
                     reason="skip centralized config test for Tarantool < 3")
-def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmpdir))
+def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmp_path))
 
     create_cmd = [tt_cmd, "create", "vshard_cluster", "--name", "app1"]
     tt_process = subprocess.Popen(
         create_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
@@ -832,17 +826,17 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmpdir):
     for line in expected_lines:
         assert output.find(line) != -1
 
-    app_path = os.path.join(tmpdir, "app1")
-    assert os.path.exists(os.path.join(app_path, "storage.lua"))
-    assert os.path.exists(os.path.join(app_path, "router.lua"))
+    app_path = tmp_path / "app1"
+    assert os.path.exists(app_path / "storage.lua")
+    assert os.path.exists(app_path / "router.lua")
 
-    assert os.path.exists(os.path.join(app_path, "app1-scm-1.rockspec"))
-    assert os.path.exists(os.path.join(app_path, "instances.yaml"))
+    assert os.path.exists(app_path / "app1-scm-1.rockspec")
+    assert os.path.exists(app_path / "instances.yaml")
 
     build_cmd = [tt_cmd, "build", "app1"]
     tt_process = subprocess.Popen(
         build_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -856,7 +850,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmpdir):
     start_cmd = [tt_cmd, "start", "app1"]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -867,13 +861,13 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmpdir):
     instances = ["storage-001-a", "storage-001-b", "storage-002-a",
                  "storage-002-b", "router-001-a"]
     for inst in instances:
-        file = wait_file(os.path.join(tmpdir, "test.instances.enabled", "app1", inst),
+        file = wait_file(os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
                          pid_file, [])
         assert file != ""
 
     # Check status.
     status_cmd = [tt_cmd, "status", "app1"]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
     assert status_rc == 0
     status_info = extract_status(status_out)
     for key in status_info.keys():
@@ -882,7 +876,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmpdir):
     def eval_cmd_func(inst, cmd):
         connect_process = subprocess.Popen(
             [tt_cmd, "connect", f"app1:{inst}", "-f-"],
-            cwd=tmpdir,
+            cwd=tmp_path,
             stdin=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
@@ -909,18 +903,18 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmpdir):
 
     # Print instances log to find out the reason in case of an assert fall.
     for inst in instances:
-        with open(os.path.join(tmpdir, "app1", inst, "tt.log")) as f:
+        with open(os.path.join(tmp_path, "app1", inst, "tt.log")) as f:
             print(inst, f.read())
 
     # Stop the vhsard_cluster app.
     stop_cmd = [tt_cmd, "stop", "app1"]
-    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
     assert stop_rc == 0
     for inst in instances:
         assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.",
                          stop_out)
 
-    with open(os.path.join(app_path, "router-001-a", "tt.log")) as f:
+    with open(app_path / "router-001-a" / "tt.log") as f:
         print("\n".join(f.readlines()))
     # Assert here to be sure that instances are stopped.
     assert can_insert, "can not insert data into the vshard cluster"

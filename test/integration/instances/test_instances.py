@@ -10,8 +10,8 @@ import yaml
 def test_instances_enabled_apps(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_app_path = os.path.join(tmpdir, "multi_app")
+    with tempfile.TemporaryDirectory() as tmp_path:
+        test_app_path = os.path.join(tmp_path, "multi_app")
         shutil.copytree(test_app_path_src, test_app_path)
 
         config_path = os.path.join(test_app_path, "tt.yaml")
@@ -36,8 +36,8 @@ def test_instances_enabled_apps(tt_cmd):
 
 
 def test_instances_no_apps(tt_cmd):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_app_path = os.path.join(tmpdir)
+    with tempfile.TemporaryDirectory() as tmp_path:
+        test_app_path = os.path.join(tmp_path)
 
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
@@ -57,8 +57,8 @@ def test_instances_no_apps(tt_cmd):
 
 
 def test_instances_missing_directory(tt_cmd):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_app_path = os.path.join(tmpdir)
+    with tempfile.TemporaryDirectory() as tmp_path:
+        test_app_path = os.path.join(tmp_path)
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
             yaml.dump({"env": {"instances_enabled": "foo/bar"}}, f)
@@ -76,11 +76,11 @@ def test_instances_missing_directory(tt_cmd):
 
 
 def test_instances_dot_directory_with_app(tt_cmd):
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmp_path:
         test_app_path_src = os.path.join(os.path.dirname(__file__), "test_app")
-        test_app_path = os.path.join(tmpdir, "test_app")
+        test_app_path = os.path.join(tmp_path, "test_app")
         shutil.copytree(test_app_path_src, test_app_path)
-        test_app_path = os.path.join(tmpdir)
+        test_app_path = os.path.join(tmp_path)
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
             yaml.dump({"tt": {"env": {"instances_enabled": "."}}}, f)
@@ -98,9 +98,9 @@ def test_instances_dot_directory_with_app(tt_cmd):
 
 
 def test_instances_dot_directory_with_lua_file(tt_cmd):
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmp_path:
         test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app", "app2.lua")
-        test_app_path = os.path.join(tmpdir)
+        test_app_path = os.path.join(tmp_path)
         shutil.copyfile(test_app_path_src, os.path.join(test_app_path, "app2.lua"))
         config_path = os.path.join(test_app_path, "tt.yaml")
         with open(config_path, "w") as f:
@@ -120,9 +120,9 @@ def test_instances_dot_directory_with_lua_file(tt_cmd):
 
 # Test bugfix for https://github.com/tarantool/tt/issues/844
 def test_instances_dot_directory_with_app_explicit_cfg_option(tt_cmd):
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmp_path:
         test_app_path_src = os.path.join(os.path.dirname(__file__), "test_app")
-        test_app_path = os.path.join(tmpdir, "test_app")
+        test_app_path = os.path.join(tmp_path, "test_app")
         shutil.copytree(test_app_path_src, test_app_path)
         config_path = os.path.join(test_app_path, "tt.yaml")
 

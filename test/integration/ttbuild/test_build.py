@@ -219,11 +219,11 @@ def test_build_spec_file_set(tt_cmd, tmpdir_with_cfg):
 
 
 @pytest.mark.parametrize("flag", [None, "-V"])
-def test_build_app_by_name(tt_cmd, tmpdir, flag):
+def test_build_app_by_name(tt_cmd, tmp_path, flag):
     init_cmd = [tt_cmd, "init"]
     tt_process = subprocess.Popen(
         init_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -231,18 +231,18 @@ def test_build_app_by_name(tt_cmd, tmpdir, flag):
     tt_process.wait()
     assert tt_process.returncode == 0
 
-    os.mkdir(os.path.join(tmpdir, "appdir"))
+    os.mkdir(os.path.join(tmp_path, "appdir"))
     app_dir = shutil.copytree(os.path.join(os.path.dirname(__file__), "apps/app1"),
-                              os.path.join(tmpdir, "appdir", "app1"))
+                              os.path.join(tmp_path, "appdir", "app1"))
 
-    os.symlink("../appdir/app1", os.path.join(tmpdir, "instances.enabled", "app1"), True)
+    os.symlink("../appdir/app1", os.path.join(tmp_path, "instances.enabled", "app1"), True)
     build_cmd = [tt_cmd]
     if flag:
         build_cmd.append(flag)
     build_cmd.extend(["build", "app1"])
     tt_process = subprocess.Popen(
         build_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True

@@ -12,11 +12,11 @@ from utils import config_name, is_valid_tarantool_installed
 
 
 @pytest.mark.slow
-def test_install_tt_unexisted_commit(tt_cmd, tmpdir):
-    configPath = os.path.join(tmpdir, config_name)
+def test_install_tt_unexisted_commit(tt_cmd, tmp_path):
+    configPath = os.path.join(tmp_path, config_name)
 
-    # Create test config.
-    tmp_dir = tempfile.mkdtemp(dir=tmpdir)
+    # Create test config
+    tmp_dir = tempfile.mkdtemp(dir=tmp_path)
     tmp_name = tmp_dir.rpartition('/')[2]
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\nrepo:\n  distfiles: "%s"' % tmp_name)
@@ -36,7 +36,7 @@ def test_install_tt_unexisted_commit(tt_cmd, tmpdir):
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "--local-repo", "tt", "2df3077"]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -53,9 +53,9 @@ def test_install_tt_unexisted_commit(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_install_tt(tt_cmd, tmpdir):
-    configPath = os.path.join(tmpdir, config_name)
-    # Create test config.
+def test_install_tt(tt_cmd, tmp_path):
+    configPath = os.path.join(tmp_path, config_name)
+    # Create test config
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
@@ -63,7 +63,7 @@ def test_install_tt(tt_cmd, tmpdir):
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt"]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -74,10 +74,10 @@ def test_install_tt(tt_cmd, tmpdir):
     assert instance_process_rc == 0
     os.remove(configPath)
 
-    installed_cmd = [tmpdir + "/bin/tt", "version"]
+    installed_cmd = [tmp_path / "bin" / "tt", "version"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=tmpdir + "/bin",
+        cwd=tmp_path / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -87,9 +87,9 @@ def test_install_tt(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
-    configPath = os.path.join(tmpdir, config_name)
-    # Create test config.
+def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
+    configPath = os.path.join(tmp_path, config_name)
+    # Create test config
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
@@ -97,7 +97,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "97c7b73"]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -107,10 +107,10 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
 
-    installed_cmd = [tmpdir + "/bin/tt", "version"]
+    installed_cmd = [tmp_path / "bin" / "tt", "version"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=tmpdir + "/bin",
+        cwd=tmp_path / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -123,7 +123,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt", "97c7b73"]
     uninstall_instance_process = subprocess.Popen(
         uninstall_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -132,13 +132,13 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmpdir):
     assert re.search(r"Removing binary...", first_output)
     second_output = uninstall_instance_process.stdout.readline()
     assert re.search(r"tt=97c7b73 is uninstalled", second_output)
-    assert not os.path.exists(os.path.join(tmpdir, "bin", "tt_97c7b73"))
+    assert not os.path.exists(os.path.join(tmp_path, "bin", "tt_97c7b73"))
 
 
 @pytest.mark.slow
-def test_wrong_format_hash(tt_cmd, tmpdir):
-    configPath = os.path.join(tmpdir, config_name)
-    # Create test config.
+def test_wrong_format_hash(tt_cmd, tmp_path):
+    configPath = os.path.join(tmp_path, config_name)
+    # Create test config
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
@@ -146,7 +146,7 @@ def test_wrong_format_hash(tt_cmd, tmpdir):
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "111"]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -164,7 +164,7 @@ def test_wrong_format_hash(tt_cmd, tmpdir):
     install_cmd_second = [tt_cmd, "--cfg", configPath, "install", "tt", "zzzzzzz"]
     instance_process_second = subprocess.Popen(
         install_cmd_second,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -180,9 +180,9 @@ def test_wrong_format_hash(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_install_tt_specific_version(tt_cmd, tmpdir):
-    configPath = os.path.join(tmpdir, config_name)
-    # Create test config.
+def test_install_tt_specific_version(tt_cmd, tmp_path):
+    configPath = os.path.join(tmp_path, config_name)
+    # Create test config
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
@@ -190,7 +190,7 @@ def test_install_tt_specific_version(tt_cmd, tmpdir):
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "2.1.2"]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -201,10 +201,10 @@ def test_install_tt_specific_version(tt_cmd, tmpdir):
     assert instance_process_rc == 0
     os.remove(configPath)
 
-    installed_cmd = [tmpdir + "/bin/tt", "version"]
+    installed_cmd = [tmp_path / "bin" / "tt", "version"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=tmpdir + "/bin",
+        cwd=tmp_path / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -214,8 +214,8 @@ def test_install_tt_specific_version(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_install_tarantool_commit(tt_cmd, tmpdir):
-    config_path = os.path.join(tmpdir, config_name)
+def test_install_tarantool_commit(tt_cmd, tmp_path):
+    config_path = os.path.join(tmp_path, config_name)
     # Create test config.
     with open(config_path, "w") as f:
         yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
@@ -238,10 +238,10 @@ def test_install_tarantool_commit(tt_cmd, tmpdir):
     # Check that the process was shutdowned correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
-    installed_cmd = [tmpdir + "/bin/tarantool", "-v"]
+    installed_cmd = [tmp_path / "bin" / "tarantool", "-v"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=os.path.join(tmpdir, "/bin"),
+        cwd=os.path.join(tmp_path, "/bin"),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -249,20 +249,20 @@ def test_install_tarantool_commit(tt_cmd, tmpdir):
 
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
-    assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
-    assert os.path.exists(os.path.join(tmpdir, "bin", "tarantool_00a9e59"))
+    assert os.path.exists(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
+    assert os.path.exists(os.path.join(tmp_path, "bin", "tarantool_00a9e59"))
 
     assert is_valid_tarantool_installed(
-        os.path.join(tmpdir, "bin"),
-        os.path.join(tmpdir, "my_inc", "include"),
-        os.path.join(tmpdir, "bin", "tarantool_00a9e59"),
-        os.path.join(tmpdir, "my_inc", "include", "tarantool_00a9e59"),
+        os.path.join(tmp_path, "bin"),
+        os.path.join(tmp_path, "my_inc", "include"),
+        os.path.join(tmp_path, "bin", "tarantool_00a9e59"),
+        os.path.join(tmp_path, "my_inc", "include", "tarantool_00a9e59"),
     )
 
 
 @pytest.mark.slow
-def test_install_tarantool(tt_cmd, tmpdir):
-    config_path = os.path.join(tmpdir, config_name)
+def test_install_tarantool(tt_cmd, tmp_path):
+    config_path = os.path.join(tmp_path, config_name)
     # Create test config.
     with open(config_path, "w") as f:
         yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
@@ -285,10 +285,10 @@ def test_install_tarantool(tt_cmd, tmpdir):
     # Check that the process was shutdowned correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
-    installed_cmd = [tmpdir + "/bin/tarantool", "-v"]
+    installed_cmd = [tmp_path / "bin" / "tarantool", "-v"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=os.path.join(tmpdir, "/bin"),
+        cwd=os.path.join(tmp_path, "/bin"),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -296,17 +296,17 @@ def test_install_tarantool(tt_cmd, tmpdir):
 
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
-    assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
-    assert os.path.exists(os.path.join(tmpdir, "bin", "tarantool_2.10.7"))
+    assert os.path.exists(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
+    assert os.path.exists(os.path.join(tmp_path, "bin", "tarantool_2.10.7"))
 
 
 @pytest.mark.slow
 @pytest.mark.docker
-def test_install_tarantool_in_docker(tt_cmd, tmpdir):
+def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    config_path = os.path.join(tmpdir, config_name)
+    config_path = os.path.join(tmp_path, config_name)
     # Create test config.
     with open(config_path, "w") as f:
         yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
@@ -328,10 +328,10 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
 
     instance_process_rc = tt_process.wait()
     assert instance_process_rc == 0
-    installed_cmd = [tmpdir + "/bin/tarantool", "-v"]
+    installed_cmd = [tmp_path / "bin" / "tarantool", "-v"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
-        cwd=os.path.join(tmpdir, "/bin"),
+        cwd=os.path.join(tmp_path, "/bin"),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -341,11 +341,11 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
     assert re.search(r"Tarantool", run_output)
 
     # Check tarantool glibc version.
-    out = subprocess.getoutput("objdump -T " + os.path.join(tmpdir, "bin", "tarantool") +
+    out = subprocess.getoutput("objdump -T " + os.path.join(tmp_path, "bin", "tarantool") +
                                " | grep -o -E 'GLIBC_[.0-9]+' | sort -V | tail -n1")
     assert out == "GLIBC_2.27"
 
-    assert os.path.exists(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
+    assert os.path.exists(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
 
 
 @pytest.mark.parametrize("tt_dir, expected_bin_path, expected_inc_path", [
@@ -362,14 +362,14 @@ def test_install_tarantool_in_docker(tt_cmd, tmpdir):
 ])
 def test_install_tarantool_dev_bin_invalid(
         tt_cmd,
-        tmpdir,
+        tmp_path,
         tt_dir,
         expected_bin_path,
         expected_inc_path):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
+    testdata_path = os.path.join(tmp_path, "testdata")
 
     for build_dir in ["build_invalid", "build_invalid2"]:
         build_path = os.path.join(testdata_path, build_dir)
@@ -427,7 +427,7 @@ def test_install_tarantool_dev_bin_invalid(
 ])
 def test_install_tarantool_dev_no_include_option(
         tt_cmd,
-        tmpdir,
+        tmp_path,
         build_dir,
         exec_rel_path,
         include_rel_path,
@@ -435,8 +435,8 @@ def test_install_tarantool_dev_no_include_option(
 ):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
+    testdata_path = os.path.join(tmp_path, "testdata")
 
     build_path = os.path.join(testdata_path, build_dir)
     install_cmd = [
@@ -478,12 +478,12 @@ def test_install_tarantool_dev_no_include_option(
     pytest.param(1, "include/tarantool", id='dir not exists')
 ])
 def test_install_tarantool_dev_include_option(
-        tt_cmd, tmpdir, rc, include_dir, tt_dir
+        tt_cmd, tmp_path, rc, include_dir, tt_dir
 ):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
+    testdata_path = os.path.join(tmp_path, "testdata")
 
     build_dir = "build_ee"
     build_path = os.path.join(testdata_path, build_dir)
@@ -512,14 +512,14 @@ def test_install_tarantool_dev_include_option(
         )
 
 
-def test_install_tarantool_already_exists(tt_cmd, tmpdir):
+def test_install_tarantool_already_exists(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
         "testdata/test_install_tarantool_already_exists"
     )
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
+    testdata_path = os.path.join(tmp_path, "testdata")
 
     tt_dir = os.path.join(testdata_path, "tt")
 
@@ -548,14 +548,14 @@ def test_install_tarantool_already_exists(tt_cmd, tmpdir):
     )
 
 
-def test_install_tt_already_exists_no_symlink(tt_cmd, tmpdir):
+def test_install_tt_already_exists_no_symlink(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
         "testdata/test_install_tt_already_exists"
     )
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
+    testdata_path = os.path.join(tmp_path, "testdata")
 
     tt_dir = os.path.join(testdata_path, "tt")
 
@@ -582,14 +582,14 @@ def test_install_tt_already_exists_no_symlink(tt_cmd, tmpdir):
     assert tarantool_bin == expected_bin
 
 
-def test_install_tt_already_exists_with_symlink(tt_cmd, tmpdir):
+def test_install_tt_already_exists_with_symlink(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
         "testdata/test_install_tt_already_exists"
     )
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
+    testdata_path = os.path.join(tmp_path, "testdata")
 
     tt_dir = os.path.join(testdata_path, "tt")
     os.symlink(tt_cmd, os.path.join(tt_dir, "bin", "tt"))
@@ -622,7 +622,7 @@ def test_install_tt_already_exists_with_symlink(tt_cmd, tmpdir):
 ])
 def test_install_tt_fail_exit_code_dependency_check(
         tt_cmd,
-        tmpdir,
+        tmp_path,
         package_to_exclude):
     # Create new PATH with excluded packages.
     original_path = os.environ['PATH']
@@ -631,13 +631,13 @@ def test_install_tt_fail_exit_code_dependency_check(
                                original_path.split(os.pathsep)))
 
     # Create test config.
-    configPath = os.path.join(tmpdir, config_name)
+    configPath = os.path.join(tmp_path, config_name)
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt"]
     install_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         env={'PATH': new_path},
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,

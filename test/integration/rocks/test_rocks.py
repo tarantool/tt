@@ -14,36 +14,36 @@ from utils import config_name, create_tt_config, run_command_and_get_output
 # ##### #
 
 
-def test_rocks_module(tt_cmd, tmpdir):
-    create_tt_config(tmpdir, tmpdir)
+def test_rocks_module(tt_cmd, tmp_path):
+    create_tt_config(tmp_path, tmp_path)
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "help"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert re.search("^Usage: tt rocks", output)
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "search", "queue"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert "Rockspecs and source rocks:\n" in output
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "install", "queue"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
-    assert os.path.isfile(f'{tmpdir}/.rocks/share/tarantool/queue/init.lua')
+    assert os.path.isfile(f'{tmp_path}/.rocks/share/tarantool/queue/init.lua')
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "doc", "queue", "--list"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert "Documentation files for queue" in output
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "pack", "queue"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert re.search("Packed: .*queue-.*[.]rock", output)
     rock_file = output.split("Packed: ")[1].strip()
@@ -51,7 +51,7 @@ def test_rocks_module(tt_cmd, tmpdir):
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "unpack", rock_file],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     rock_dir = ""
@@ -64,113 +64,113 @@ def test_rocks_module(tt_cmd, tmpdir):
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "remove", "queue"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert "Removal successful.\n" in output
 
     test_app_path = os.path.join(os.path.dirname(__file__), "files", "testapp-scm-1.rockspec")
-    shutil.copy(test_app_path, tmpdir)
+    shutil.copy(test_app_path, tmp_path)
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "make", "testapp-scm-1.rockspec"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert "testapp scm-1 is now installed" in output
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "--verbose", "list"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert "fs.current_dir()\n" in output
 
 
-def test_rocks_admin_module(tt_cmd, tmpdir):
-    repo_path = os.path.join(tmpdir, "rocks_repo")
+def test_rocks_admin_module(tt_cmd, tmp_path):
+    repo_path = os.path.join(tmp_path, "rocks_repo")
     os.mkdir(repo_path)
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "admin", "make_manifest", repo_path],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
-    assert os.path.isfile(f'{tmpdir}/rocks_repo/index.html')
-    assert os.path.isfile(f'{tmpdir}/rocks_repo/manifest')
+    assert os.path.isfile(f'{tmp_path}/rocks_repo/index.html')
+    assert os.path.isfile(f'{tmp_path}/rocks_repo/manifest')
 
     test_app_path = os.path.join(os.path.dirname(__file__), "files", "testapp-scm-1.rockspec")
-    shutil.copy(test_app_path, tmpdir)
+    shutil.copy(test_app_path, tmp_path)
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "admin", "add", "testapp-scm-1.rockspec", "--server", repo_path],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
-    assert os.path.isfile(f'{tmpdir}/rocks_repo/testapp-scm-1.rockspec')
+    assert os.path.isfile(f'{tmp_path}/rocks_repo/testapp-scm-1.rockspec')
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "admin", "remove", "testapp-scm-1.rockspec", "--server", repo_path],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
-    assert not os.path.exists(f'{tmpdir}/rocks_repo/testapp-scm-1.rockspec')
+    assert not os.path.exists(f'{tmp_path}/rocks_repo/testapp-scm-1.rockspec')
 
 
-def test_rocks_install_remote(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+def test_rocks_install_remote(tt_cmd, tmp_path):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   rocks: "repo"''')
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "install", "stat"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert "Installing http://rocks.tarantool.org/stat" in output
 
 
-def test_rocks_install_local(tt_cmd, tmpdir):
+def test_rocks_install_local(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   rocks: "repo"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
-                    os.path.join(tmpdir, "repo"))
+                    os.path.join(tmp_path, "repo"))
 
     # Disable network with unshare.
     rc, output = run_command_and_get_output(
             ["unshare", "-r", "-n", tt_cmd, "rocks", "install", "stat"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
-    assert f"Installing {tmpdir}/repo/stat-0.3.2-1.all.rock" in output
+    assert f"Installing {tmp_path}/repo/stat-0.3.2-1.all.rock" in output
 
 
-def test_rocks_install_local_if_network_is_up(tt_cmd, tmpdir):
+def test_rocks_install_local_if_network_is_up(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   rocks: "repo"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
-                    os.path.join(tmpdir, "repo"))
+                    os.path.join(tmp_path, "repo"))
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "rocks", "--only-server=repo", "install", "stat"],
-        cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+        cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
     assert "Installing repo/stat-0.3.2-1.all.rock" in output
-    assert "stat 0.3.2-1 is now installed in " + os.path.join(tmpdir, ".rocks") in output
+    assert "stat 0.3.2-1 is now installed in " + os.path.join(tmp_path, ".rocks") in output
 
 
-def test_rocks_install_local_specific_version(tt_cmd, tmpdir):
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+def test_rocks_install_local_specific_version(tt_cmd, tmp_path):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   rocks: "repo"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
-                    os.path.join(tmpdir, "repo"))
+                    os.path.join(tmp_path, "repo"))
 
     rc, output = run_command_and_get_output(
             [tt_cmd, "rocks", "install", "stat", "0.3.1-1"],
-            cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
-    assert f"Installing {tmpdir}/repo/stat-0.3.1-1.all.rock" in output
+    assert f"Installing {tmp_path}/repo/stat-0.3.1-1.all.rock" in output
 
 
 @pytest.mark.notarantool
@@ -178,7 +178,7 @@ def test_rocks_install_local_specific_version(tt_cmd, tmpdir):
 def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):
     rocks_cmd = [tt_cmd, "rocks", "install", "mysql", "2.1.3-1"]
     pwd = os.environ.get("PWD")
-    os.environ["PWD"] = tmpdir_with_tarantool
+    os.environ["PWD"] = tmpdir_with_tarantool.as_posix()
     tt_process = subprocess.Popen(
         rocks_cmd,
         cwd=tmpdir_with_tarantool,
@@ -194,51 +194,51 @@ def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):
                                        ".rocks", "lib", "tarantool", "mysql"))
 
 
-def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmpdir):
+def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   rocks: "repo"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
-                    os.path.join(tmpdir, "repo"))
+                    os.path.join(tmp_path, "repo"))
 
-    os.mkdir(os.path.join(tmpdir, "subdir"))
+    os.mkdir(os.path.join(tmp_path, "subdir"))
 
     # Disable network with unshare.
     rc, output = run_command_and_get_output(
             ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
-            cwd=os.path.join(tmpdir, "subdir"),
-            env=dict(os.environ, PWD=os.path.join(tmpdir, "subdir")))
+            cwd=os.path.join(tmp_path, "subdir"),
+            env=dict(os.environ, PWD=os.path.join(tmp_path, "subdir")))
     assert rc == 0
     print(output)
-    assert f"Installing {tmpdir}/repo/stat-0.3.2-1.all.rock" in output
-    assert "stat 0.3.2-1 is now installed in " + os.path.join(tmpdir, "subdir", ".rocks") in output
-    assert os.path.exists(os.path.join(tmpdir, "subdir", ".rocks"))
+    assert f"Installing {tmp_path}/repo/stat-0.3.2-1.all.rock" in output
+    assert f"stat 0.3.2-1 is now installed in {tmp_path / 'subdir' / '.rocks'}" in output
+    assert os.path.exists(os.path.join(tmp_path, "subdir", ".rocks"))
 
 
-def test_rocks_install_from_env_var_repo(tt_cmd, tmpdir):
+def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")
 
-    with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   distfiles: "distfiles"''')
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "repo"),
-                    os.path.join(tmpdir, "repo"))
+                    os.path.join(tmp_path, "repo"))
 
-    os.mkdir(os.path.join(tmpdir, "subdir"))
+    os.mkdir(os.path.join(tmp_path, "subdir"))
 
     # Without env and network. Must fail.
     rc, output = run_command_and_get_output(
         ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
-        cwd=os.path.join(tmpdir, "subdir"),
+        cwd=os.path.join(tmp_path, "subdir"),
         env=dict(
             os.environ,
-            PWD=os.path.join(tmpdir, "subdir")))
+            PWD=os.path.join(tmp_path, "subdir")))
 
     assert rc == 1
     assert "Error: No results matching query" in output
@@ -246,23 +246,23 @@ def test_rocks_install_from_env_var_repo(tt_cmd, tmpdir):
     # Tets with env set, no network.
     rc, output = run_command_and_get_output(
             ["unshare", "-r", "-n", tt_cmd, "-c", "../tt.yaml", "rocks", "install", "stat"],
-            cwd=os.path.join(tmpdir, "subdir"),
+            cwd=tmp_path / "subdir",
             env=dict(
                 os.environ,
-                PWD=os.path.join(tmpdir, "subdir"),
-                TT_CLI_REPO_ROCKS=f'{tmpdir}/repo'))  # Env var for rock repo directory.
+                PWD=os.path.join(tmp_path, "subdir"),
+                TT_CLI_REPO_ROCKS=f'{tmp_path}/repo'))  # Env var for rock repo directory.
     assert rc == 0
     print(output)
-    assert f"Installing {tmpdir}/repo/stat-0.3.2-1.all.rock" in output
-    assert "stat 0.3.2-1 is now installed in " + os.path.join(tmpdir, "subdir", ".rocks") in output
-    assert os.path.exists(os.path.join(tmpdir, "subdir", ".rocks"))
+    assert f"Installing {tmp_path}/repo/stat-0.3.2-1.all.rock" in output
+    assert f"stat 0.3.2-1 is now installed in {tmp_path / 'subdir' / '.rocks'}" in output
+    assert os.path.exists(os.path.join(tmp_path, "subdir", ".rocks"))
 
 
 @pytest.mark.notarantool
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
 def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tarantool):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        with open(os.path.join(tmpdir, config_name), "w") as tnt_env_file:
+    with tempfile.TemporaryDirectory() as tmp_path:
+        with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
             tnt_env_file.write('''repo:
   distfiles: "distfiles"''')
 
@@ -270,10 +270,10 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tara
         rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
         rc, output = run_command_and_get_output(
             rocks_cmd,
-            cwd=tmpdir,
+            cwd=tmp_path,
             env=dict(
                 os.environ,
-                PWD=tmpdir,
+                PWD=tmp_path,
                 PATH=os.path.join(tmpdir_with_tarantool, 'bin') + ':' + os.environ['PATH']))
 
         assert rc == 1  # Tarantool headers are not found.
@@ -283,14 +283,14 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tara
         rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
         rc, output = run_command_and_get_output(
             rocks_cmd,
-            cwd=tmpdir,
+            cwd=tmp_path,
             env=dict(
                 os.environ,
-                PWD=tmpdir,
+                PWD=tmp_path,
                 PATH=os.path.join(tmpdir_with_tarantool, 'bin') + ':' + os.environ['PATH'],
                 TT_CLI_TARANTOOL_PREFIX=os.path.join(tmpdir_with_tarantool, 'include')))
 
         assert rc == 0
         assert 'crud 1.1.1-1 is now installed' in output
 
-        assert os.path.exists(os.path.join(tmpdir, ".rocks", "share", "tarantool", "crud"))
+        assert os.path.exists(os.path.join(tmp_path, ".rocks", "share", "tarantool", "crud"))
