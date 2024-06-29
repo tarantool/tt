@@ -524,16 +524,16 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
 
 
 @pytest.mark.slow
-def test_pack_tgz_table(tt_cmd, tmpdir):
+def test_pack_tgz_table(tt_cmd, tmp_path):
     test_cases = prepare_tgz_test_cases(tt_cmd)
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
     for test_case in test_cases:
-        base_dir = os.path.join(tmpdir, test_case["bundle_src"])
+        base_dir = os.path.join(tmp_path, test_case["bundle_src"])
         print("BASEDIR: " + base_dir)
         print("ARGS: " + " ".join(test_case["args"]))
         rc, output = run_command_and_get_output(
@@ -579,14 +579,14 @@ def test_pack_tgz_table(tt_cmd, tmpdir):
         os.remove(package_file)
 
 
-def test_pack_tgz_missing_app(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle2")
+def test_pack_tgz_missing_app(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle2")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle2"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--app-list", "unexisting-app"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -595,14 +595,14 @@ def test_pack_tgz_missing_app(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_pack_tgz_files_with_compat(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle8")
+def test_pack_tgz_files_with_compat(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle8")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle8"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -628,14 +628,14 @@ def test_pack_tgz_files_with_compat(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_pack_tgz_git_version_compat(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle9")
+def test_pack_tgz_git_version_compat(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle9")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle9"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         ["git", "init"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -675,14 +675,14 @@ def test_pack_tgz_git_version_compat(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_pack_tgz_git_version_compat_with_instances(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle1")
+def test_pack_tgz_git_version_compat_with_instances(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     app_dir = os.path.join(base_dir, "app2")
 
     rc, output = run_command_and_get_output(
@@ -724,14 +724,14 @@ def test_pack_tgz_git_version_compat_with_instances(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_pack_tgz_compat_with_binaries(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle8")
+def test_pack_tgz_compat_with_binaries(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle8")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle8"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--with-binaries", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -768,14 +768,14 @@ def test_pack_tgz_compat_with_binaries(tt_cmd, tmpdir):
     assert output == "Hello World"
 
 
-def test_pack_tgz_multiple_apps_compat(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle1")
+def test_pack_tgz_multiple_apps_compat(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -783,14 +783,14 @@ def test_pack_tgz_multiple_apps_compat(tt_cmd, tmpdir):
     assert rc == 1
 
 
-def test_pack_deb_compat(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle1")
+def test_pack_deb_compat(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "dep", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -798,14 +798,14 @@ def test_pack_deb_compat(tt_cmd, tmpdir):
     assert rc == 1
 
 
-def test_pack_rpm_compat(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle1")
+def test_pack_rpm_compat(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "rpm", "--cartridge-compat"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -888,16 +888,16 @@ def prepare_rpm_test_cases(tt_cmd) -> list:
 
 
 @pytest.mark.slow
-def test_pack_rpm_deb_table(tt_cmd, tmpdir):
+def test_pack_rpm_deb_table(tt_cmd, tmp_path):
     test_cases = prepare_deb_test_cases(tt_cmd)
     test_cases.extend(prepare_rpm_test_cases(tt_cmd))
 
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
     for test_case in test_cases:
-        base_dir = os.path.join(tmpdir, test_case["bundle_src"])
+        base_dir = os.path.join(tmp_path, test_case["bundle_src"])
         rc, output = run_command_and_get_output(
             [test_case["cmd"], "pack", test_case["pack_type"], *test_case["args"]],
             cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -908,21 +908,21 @@ def test_pack_rpm_deb_table(tt_cmd, tmpdir):
         assert os.path.exists(package_file)
 
 
-def test_pack_tgz_empty_app_directory(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle2")
+def test_pack_tgz_empty_app_directory(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle2")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle2"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz", "--app-list", "empty_app"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
 
     assert rc == 1
 
-    base_dir = tmpdir
+    base_dir = tmp_path
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz"],
         cwd=base_dir, env=dict(os.environ, PWD=base_dir))
@@ -930,14 +930,14 @@ def test_pack_tgz_empty_app_directory(tt_cmd, tmpdir):
     assert rc == 1
 
 
-def test_pack_tgz_empty_enabled(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle3")
+def test_pack_tgz_empty_enabled(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle3")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle3"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     os.mkdir(os.path.join(base_dir, "generated_dir"))
 
@@ -948,14 +948,14 @@ def test_pack_tgz_empty_enabled(tt_cmd, tmpdir):
     assert rc == 1
 
 
-def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle4")
+def test_pack_tgz_links_to_binaries(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle4")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle4"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "tgz"],
@@ -985,10 +985,10 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmpdir):
     os.remove(package_file)
 
 
-def test_pack_incorrect_pack_type(tt_cmd, tmpdir):
-    tmpdir = os.path.join(tmpdir, "bundle1")
+def test_pack_incorrect_pack_type(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
@@ -997,20 +997,20 @@ def test_pack_incorrect_pack_type(tt_cmd, tmpdir):
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "de"],
-        cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+        cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
 
     assert expected_output in output
 
 
-def test_pack_nonexistent_modules_directory(tt_cmd, tmpdir):
+def test_pack_nonexistent_modules_directory(tt_cmd, tmp_path):
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle5"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "-V", "pack", "tgz"],
-        cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+        cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
 
     assert "Skip copying modules from" in output
     assert rc == 0
@@ -1083,7 +1083,7 @@ def verify_rpmdeb_package_content(pkg_dir):
 
 @pytest.mark.slow
 @pytest.mark.docker
-def test_pack_deb(tt_cmd, tmpdir):
+def test_pack_deb(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1091,26 +1091,26 @@ def test_pack_deb(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "bundle1")
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     cmd = [tt_cmd, "pack", "deb"]
 
     rc, output = run_command_and_get_output(
         cmd,
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "bundle1_0.1.0.0-1_" + get_arch() + ".deb"
     package_file = os.path.join(base_dir, package_file_name)
     assert os.path.isfile(package_file)
 
-    unpacked_pkg_dir = os.path.join(tmpdir, 'unpacked')
+    unpacked_pkg_dir = os.path.join(tmp_path, 'unpacked')
     os.mkdir(unpacked_pkg_dir)
 
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
@@ -1160,7 +1160,7 @@ def test_pack_deb(tt_cmd, tmpdir):
 
 
 @pytest.mark.docker
-def test_pack_deb_single_app(tt_cmd, tmpdir):
+def test_pack_deb_single_app(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1168,26 +1168,26 @@ def test_pack_deb_single_app(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "single_app")
+    tmp_path = os.path.join(tmp_path, "single_app")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "single_app"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     cmd = [tt_cmd, "pack", "deb"]
 
     rc, output = run_command_and_get_output(
         cmd,
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "single_app_0.1.0.0-1_" + get_arch() + ".deb"
     package_file = os.path.join(base_dir, package_file_name)
     assert os.path.isfile(package_file)
 
-    unpacked_pkg_dir = os.path.join(tmpdir, 'unpacked')
+    unpacked_pkg_dir = os.path.join(tmp_path, 'unpacked')
     os.mkdir(unpacked_pkg_dir)
 
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
@@ -1210,11 +1210,11 @@ def test_pack_deb_single_app(tt_cmd, tmpdir):
     app_systemd_template = file.read()
     file.close()
 
-    with open(os.path.join(tmpdir, 'instantiated_unit.txt'), "w") as f:
+    with open(os.path.join(tmp_path, 'instantiated_unit.txt'), "w") as f:
         f.write(app_systemd_template.format(app='single_app@%i', args='single_app:%i',
                                             bundle='single_app'))
 
-    assert filecmp.cmp(os.path.join(tmpdir, 'instantiated_unit.txt'),
+    assert filecmp.cmp(os.path.join(tmp_path, 'instantiated_unit.txt'),
                        os.path.join(unpacked_pkg_dir, "usr/lib/systemd/system/single_app@.service"),
                        False)
 
@@ -1229,7 +1229,7 @@ def test_pack_deb_single_app(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 @pytest.mark.docker
-def test_pack_rpm(tt_cmd, tmpdir):
+def test_pack_rpm(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1237,26 +1237,26 @@ def test_pack_rpm(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "bundle1")
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     cmd = [tt_cmd, "pack", "rpm"]
 
     rc, output = run_command_and_get_output(
         cmd,
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "bundle1-0.1.0.0-1." + get_arch() + ".rpm"
     package_file = os.path.join(base_dir, package_file_name)
     assert os.path.isfile(package_file)
 
-    unpacked_pkg_dir = os.path.join(tmpdir, 'unpacked')
+    unpacked_pkg_dir = os.path.join(tmp_path, 'unpacked')
     os.mkdir(unpacked_pkg_dir)
 
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
@@ -1305,7 +1305,7 @@ def test_pack_rpm(tt_cmd, tmpdir):
 
 
 @pytest.mark.docker
-def test_pack_rpm_single_app(tt_cmd, tmpdir):
+def test_pack_rpm_single_app(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1313,26 +1313,26 @@ def test_pack_rpm_single_app(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "single_app")
+    tmp_path = os.path.join(tmp_path, "single_app")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "single_app"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     cmd = [tt_cmd, "pack", "rpm"]
 
     rc, output = run_command_and_get_output(
         cmd,
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "single_app-0.1.0.0-1." + get_arch() + ".rpm"
     package_file = os.path.join(base_dir, package_file_name)
     assert os.path.isfile(package_file)
 
-    unpacked_pkg_dir = os.path.join(tmpdir, 'unpacked')
+    unpacked_pkg_dir = os.path.join(tmp_path, 'unpacked')
     os.mkdir(unpacked_pkg_dir)
 
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
@@ -1360,11 +1360,11 @@ def test_pack_rpm_single_app(tt_cmd, tmpdir):
     app_systemd_template = file.read()
     file.close()
 
-    with open(os.path.join(tmpdir, 'instantiated_unit.txt'), "w") as f:
+    with open(os.path.join(tmp_path, 'instantiated_unit.txt'), "w") as f:
         f.write(app_systemd_template.format(app='single_app@%i', args='single_app:%i',
                                             bundle='single_app'))
 
-    assert filecmp.cmp(os.path.join(tmpdir, 'instantiated_unit.txt'),
+    assert filecmp.cmp(os.path.join(tmp_path, 'instantiated_unit.txt'),
                        os.path.join(unpacked_pkg_dir, "usr/lib/systemd/system/single_app@.service"),
                        False)
 
@@ -1378,7 +1378,7 @@ def test_pack_rpm_single_app(tt_cmd, tmpdir):
 
 
 @pytest.mark.slow
-def test_pack_rpm_use_docker(tt_cmd, tmpdir):
+def test_pack_rpm_use_docker(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1386,17 +1386,17 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "bundle1")
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "rpm", "--use-docker"],
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "bundle1-0.1.0.0-1." + get_arch() + ".rpm"
@@ -1423,7 +1423,7 @@ def test_pack_rpm_use_docker(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 @pytest.mark.docker
-def test_pack_deb_use_docker_tnt_version(tt_cmd, tmpdir):
+def test_pack_deb_use_docker_tnt_version(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1431,17 +1431,17 @@ def test_pack_deb_use_docker_tnt_version(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "bundle1")
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "deb", "--use-docker", "--tarantool-version", "2.7.3"],
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "bundle1_0.1.0.0-1_" + get_arch() + ".deb"
@@ -1463,7 +1463,7 @@ def test_pack_deb_use_docker_tnt_version(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 @pytest.mark.docker
-def test_pack_rpm_use_docker_wrong_version_format(tt_cmd, tmpdir):
+def test_pack_rpm_use_docker_wrong_version_format(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1471,25 +1471,25 @@ def test_pack_rpm_use_docker_wrong_version_format(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "bundle1")
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "rpm", "--use-docker", "--tarantool-version",
             "cool.tarantool.version"],
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
 
     assert rc == 1
 
 
 @pytest.mark.slow
 @pytest.mark.docker
-def test_pack_rpm_use_docker_wrong_version(tt_cmd, tmpdir):
+def test_pack_rpm_use_docker_wrong_version(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1497,24 +1497,24 @@ def test_pack_rpm_use_docker_wrong_version(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "bundle1")
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "rpm", "--use-docker", "--tarantool-version",
             "1.239.239"],
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
 
     assert rc == 1
 
 
 @pytest.mark.slow
-def test_pack_deb_use_docker(tt_cmd, tmpdir):
+def test_pack_deb_use_docker(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1522,17 +1522,17 @@ def test_pack_deb_use_docker(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "bundle1")
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "pack", "deb", "--use-docker"],
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "bundle1_0.1.0.0-1_" + get_arch() + ".deb"
@@ -1562,7 +1562,7 @@ def test_pack_deb_use_docker(tt_cmd, tmpdir):
 
 @pytest.mark.slow
 @pytest.mark.docker
-def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmpdir):
+def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1570,25 +1570,25 @@ def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "bundle1")
+    tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
-    with open(os.path.join(tmpdir, "preinst.sh"), "w") as pre_inst:
+    with open(os.path.join(tmp_path, "preinst.sh"), "w") as pre_inst:
         pre_inst.write("echo 'hello'")
-    with open(os.path.join(tmpdir, "postinst.sh"), "w") as post_inst:
+    with open(os.path.join(tmp_path, "postinst.sh"), "w") as post_inst:
         post_inst.write("echo 'bye'")
 
-    cmd = [tt_cmd, "pack", "rpm", "--preinst", os.path.join(tmpdir, "preinst.sh"),
-           "--postinst", os.path.join(tmpdir, "postinst.sh")]
+    cmd = [tt_cmd, "pack", "rpm", "--preinst", os.path.join(tmp_path, "preinst.sh"),
+           "--postinst", os.path.join(tmp_path, "postinst.sh")]
 
     rc, output = run_command_and_get_output(
         cmd,
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "bundle1-0.1.0.0-1." + get_arch() + ".rpm"
@@ -1614,7 +1614,7 @@ echo 'bye'
 """ in output
 
 
-def test_pack_systemd_params_default_file(tt_cmd, tmpdir):
+def test_pack_systemd_params_default_file(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1622,19 +1622,19 @@ def test_pack_systemd_params_default_file(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, "systemd_params")
+    tmp_path = os.path.join(tmp_path, "systemd_params")
     shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles", "systemd_params"),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     cmd = [tt_cmd, "pack", "rpm"]
 
     rc, output = run_command_and_get_output(
         cmd,
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = "systemd_params-0.1.0.0-1." + get_arch() + ".rpm"
@@ -1642,7 +1642,7 @@ def test_pack_systemd_params_default_file(tt_cmd, tmpdir):
     assert os.path.isfile(package_file)
 
     # Unpack rpm package.
-    pkg_dir = os.path.join(tmpdir, 'unpacked')
+    pkg_dir = os.path.join(tmp_path, 'unpacked')
     os.mkdir(pkg_dir)
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
                                              '{0}:/usr/src/'.format(base_dir),
@@ -1674,7 +1674,7 @@ def test_pack_systemd_params_default_file(tt_cmd, tmpdir):
         assert 'Environment=TARANTOOL_WORKDIR=/tmp/workdir' in buf
 
 
-def test_pack_systemd_params_params_file_set(tt_cmd, tmpdir):
+def test_pack_systemd_params_params_file_set(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1682,20 +1682,20 @@ def test_pack_systemd_params_params_file_set(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, 'systemd_params')
+    tmp_path = os.path.join(tmp_path, 'systemd_params')
     shutil.copytree(os.path.join(os.path.dirname(__file__), 'test_bundles', 'systemd_params'),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    base_dir = tmpdir
+    base_dir = tmp_path
 
     cmd = [tt_cmd, 'pack', 'rpm', '--unit-params-file',
            os.path.join(os.path.dirname(__file__), 'test_bundles', 'systemd_params', 'params.yml')]
 
     rc, output = run_command_and_get_output(
         cmd,
-        cwd=base_dir, env=dict(os.environ, PWD=tmpdir))
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
     assert rc == 0
 
     package_file_name = 'systemd_params-0.1.0.0-1.' + get_arch() + '.rpm'
@@ -1703,7 +1703,7 @@ def test_pack_systemd_params_params_file_set(tt_cmd, tmpdir):
     assert os.path.isfile(package_file)
 
     # Unpack rpm package.
-    pkg_dir = os.path.join(tmpdir, 'unpacked')
+    pkg_dir = os.path.join(tmp_path, 'unpacked')
     os.mkdir(pkg_dir)
     rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
                                              '{0}:/usr/src/'.format(base_dir),
@@ -1736,7 +1736,7 @@ def test_pack_systemd_params_params_file_set(tt_cmd, tmpdir):
         assert 'Environment=TARANTOOL_WORKDIR=/tmp/workdir' in buf
 
 
-def test_pack_systemd_params_missing_params_file(tt_cmd, tmpdir):
+def test_pack_systemd_params_missing_params_file(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1744,24 +1744,24 @@ def test_pack_systemd_params_missing_params_file(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, 'systemd_params')
+    tmp_path = os.path.join(tmp_path, 'systemd_params')
     shutil.copytree(os.path.join(os.path.dirname(__file__), 'test_bundles', 'systemd_params'),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
     cmd = [tt_cmd, 'pack', 'rpm', '--unit-params-file', 'missing_params.yml']
 
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc != 0
     assert 'no such file or directory' in output
 
     package_file_name = 'systemd_params-0.1.0.0-1.' + get_arch() + '.rpm'
-    package_file = os.path.join(tmpdir, package_file_name)
+    package_file = os.path.join(tmp_path, package_file_name)
     assert not os.path.exists(package_file)
 
 
-def test_pack_systemd_params_params_file_bad_format(tt_cmd, tmpdir):
+def test_pack_systemd_params_params_file_bad_format(tt_cmd, tmp_path):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1769,38 +1769,38 @@ def test_pack_systemd_params_params_file_bad_format(tt_cmd, tmpdir):
     rc, _ = run_command_and_get_output(['docker', 'ps'])
     assert rc == 0
 
-    tmpdir = os.path.join(tmpdir, 'systemd_params')
+    tmp_path = os.path.join(tmp_path, 'systemd_params')
     shutil.copytree(os.path.join(os.path.dirname(__file__), 'test_bundles', 'systemd_params'),
-                    tmpdir, symlinks=True, ignore=None,
+                    tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, ignore_dangling_symlinks=True,
                     dirs_exist_ok=True)
 
-    with open(os.path.join(tmpdir, 'bad_params.yml'), 'w') as f:
+    with open(os.path.join(tmp_path, 'bad_params.yml'), 'w') as f:
         f.write('''FdLimit: 'string'
 ''')
 
     cmd = [tt_cmd, 'pack', 'rpm', '--unit-params-file', 'bad_params.yml']
 
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
     assert rc != 0
     assert 'failed to decode systemd unit params' in output
 
     package_file_name = 'systemd_params-0.1.0.0-1.' + get_arch() + '.rpm'
-    package_file = os.path.join(tmpdir, package_file_name)
+    package_file = os.path.join(tmp_path, package_file_name)
     assert not os.path.exists(package_file)
 
 
 @pytest.mark.notarantool
 @pytest.mark.slow
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
-def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmpdir):
-    shutil.copytree(tmpdir_with_tarantool, tmpdir, symlinks=True, ignore=None,
+def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmp_path):
+    shutil.copytree(tmpdir_with_tarantool, tmp_path, symlinks=True, ignore=None,
                     copy_function=shutil.copy2, dirs_exist_ok=True)
 
     build_cmd = [tt_cmd, "create", "cartridge", "--name", "app", "--non-interactive"]
     tt_process = subprocess.Popen(
         build_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -1808,13 +1808,13 @@ def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmpdir):
     tt_process.wait()
     assert tt_process.returncode == 0
 
-    app_dir = os.path.join(tmpdir, "app")
+    app_dir = os.path.join(tmp_path, "app")
     assert os.path.exists(app_dir)
 
     build_cmd = [tt_cmd, "pack", "tgz"]
     tt_process = subprocess.Popen(
         build_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True

@@ -3,6 +3,7 @@ import os
 import re
 import resource
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -23,20 +24,21 @@ from utils import run_command_and_get_output
 
 
 @pytest.fixture(scope="session")
-def coredump(session_tmpdir):
+def coredump(tmp_path_factory) -> Path:
+    coredump_tmpdir = tmp_path_factory.mktemp("coredump")
     with open('/proc/sys/kernel/core_pattern', 'r') as f:
         core_pattern = f.read()
 
     def apport_crash_to_coredump(crash):
-        apport_unpack_dir = os.path.join(session_tmpdir, 'apport-unpack')
+        apport_unpack_dir = coredump_tmpdir / 'apport-unpack'
         rc, output = run_command_and_get_output(['apport-unpack', crash, apport_unpack_dir])
-        return os.path.join(apport_unpack_dir, 'CoreDump')
+        return apport_unpack_dir / 'CoreDump'
 
     to_coredump = None
     if not core_pattern.startswith('|'):
         core_wildcard = core_pattern.strip().split('%')[0] + '*'
         if not os.path.isabs(core_wildcard):
-            core_wildcard = os.path.join(session_tmpdir, core_wildcard)
+            core_wildcard = coredump_tmpdir / core_wildcard
     elif re.search(r"apport", core_pattern):
         core_wildcard = os.path.join('/var/crash', '*.crash')
         to_coredump = apport_crash_to_coredump
@@ -52,7 +54,7 @@ def coredump(session_tmpdir):
         resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, rlim_core_hard))
     # Crash tarantool.
     cmd = ["tarantool", "-e", "require('ffi').cast('char *', 0)[0] = 42"]
-    rc, output = run_command_and_get_output(cmd, cwd=session_tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=coredump_tmpdir)
     # Restore ulimit -c.
     resource.setrlimit(resource.RLIMIT_CORE, (rlim_core_soft, rlim_core_hard))
     assert rc != 0
@@ -64,7 +66,7 @@ def coredump(session_tmpdir):
 
     # And move it to the temporary directory (this directory is removed
     # automatically, so there is no need to remove the coredump explicitly).
-    core_path = os.path.join(session_tmpdir, "core")
+    core_path = coredump_tmpdir / "core"
     os.rename(next(iter(new_cores)), core_path)
 
     assert os.path.exists(core_path)
@@ -73,8 +75,8 @@ def coredump(session_tmpdir):
 
 @pytest.fixture(scope="session")
 def coredump_packed(tt_cmd, coredump):
-    cmd = [tt_cmd, "coredump", "pack", coredump]
-    rc, _ = run_command_and_get_output(cmd, cwd=os.path.dirname(coredump))
+    cmd = [tt_cmd, "coredump", "pack", coredump.as_posix()]
+    rc, _ = run_command_and_get_output(cmd, cwd=coredump.parents[0])
     assert rc == 0
     files = glob.glob(os.path.join(os.path.dirname(coredump), '*.tar.gz'))
     assert len(files) == 1
@@ -92,73 +94,73 @@ def coredump_unpacked(tt_cmd, coredump_packed):
     return unpacked
 
 
-def test_coredump_pack_no_arg(tt_cmd, tmpdir):
+def test_coredump_pack_no_arg(tt_cmd, tmp_path):
     cmd = [tt_cmd, "coredump", "pack"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
     assert re.search(r"tt coredump pack", output)
 
 
-def test_coredump_pack_no_such_file(tt_cmd, tmpdir):
+def test_coredump_pack_no_such_file(tt_cmd, tmp_path):
     cmd = [tt_cmd, "coredump", "pack", "wrong_core_file"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
     assert re.search(r"pack script execution failed", output)
 
 
 @pytest.mark.skipif(os.getenv('TT_ENABLE_COREDUMP_FIXTURE') is None,
                     reason="Should be launched explicitly to control coredump it produces")
-def test_coredump_pack(tt_cmd, tmpdir, coredump):
+def test_coredump_pack(tt_cmd, tmp_path, coredump):
     cmd = [tt_cmd, "coredump", "pack", coredump]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Core was successfully packed.", output)
 
 
-def test_coredump_unpack_no_arg(tt_cmd, tmpdir):
+def test_coredump_unpack_no_arg(tt_cmd, tmp_path):
     cmd = [tt_cmd, "coredump", "unpack"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
     assert re.search(r"tt coredump unpack", output)
 
 
-def test_coredump_unpack_no_such_file(tt_cmd, tmpdir):
+def test_coredump_unpack_no_such_file(tt_cmd, tmp_path):
     cmd = [tt_cmd, "coredump", "unpack", "file_that_doesnt_exist"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
     assert re.search(r"failed to unpack", output)
 
 
 @pytest.mark.skipif(os.getenv('TT_ENABLE_COREDUMP_FIXTURE') is None,
                     reason="Should be launched explicitly to control coredump it produces")
-def test_coredump_unpack(tt_cmd, tmpdir, coredump_packed):
+def test_coredump_unpack(tt_cmd, tmp_path, coredump_packed):
     cmd = [tt_cmd, "coredump", "unpack", coredump_packed]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Archive was successfully unpacked", output)
 
 
-def test_coredump_inspect_no_arg(tt_cmd, tmpdir):
+def test_coredump_inspect_no_arg(tt_cmd, tmp_path):
     cmd = [tt_cmd, "coredump", "inspect"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
     assert re.search(r"tt coredump inspect", output)
 
 
-def test_coredump_inspect_no_such_file(tt_cmd, tmpdir):
+def test_coredump_inspect_no_such_file(tt_cmd, tmp_path):
     cmd = [tt_cmd, "coredump", "inspect", "file_that_doesnt_exist"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmpdir)
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
     assert re.search(r"failed to inspect", output)
 
 
 @pytest.mark.skipif(os.getenv('TT_ENABLE_COREDUMP_FIXTURE') is None,
                     reason="Should be launched explicitly to control coredump it produces")
-def test_coredump_inspect_packed(tt_cmd, tmpdir, coredump_packed):
+def test_coredump_inspect_packed(tt_cmd, tmp_path, coredump_packed):
     cmd = [tt_cmd, "coredump", "inspect", coredump_packed]
     process = subprocess.run(
         cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         input="\nq\n",
         text=True,
     )
@@ -167,11 +169,11 @@ def test_coredump_inspect_packed(tt_cmd, tmpdir, coredump_packed):
 
 @pytest.mark.skipif(os.getenv('TT_ENABLE_COREDUMP_FIXTURE') is None,
                     reason="Should be launched explicitly to control coredump it produces")
-def test_coredump_inspect_unpacked(tt_cmd, tmpdir, coredump_unpacked):
+def test_coredump_inspect_unpacked(tt_cmd, tmp_path, coredump_unpacked):
     cmd = [tt_cmd, "coredump", "inspect", coredump_unpacked]
     process = subprocess.run(
         cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         input="\nq\n",
         text=True,
     )

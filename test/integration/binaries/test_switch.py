@@ -7,14 +7,14 @@ import yaml
 from utils import config_name
 
 
-def test_switch(tt_cmd, tmpdir):
+def test_switch(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
         "testdata/test_tarantool"
     )
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, tmp_path / "testdata", True)
+    testdata_path = tmp_path / "testdata"
 
     tt_dir = os.path.join(testdata_path, "tt")
 
@@ -45,14 +45,14 @@ def test_switch(tt_cmd, tmpdir):
     assert tarantool_inc == expected_inc
 
 
-def test_switch_with_link(tt_cmd, tmpdir):
+def test_switch_with_link(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
         "testdata/test_tarantool_link"
     )
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, tmp_path / "testdata", True)
+    testdata_path = tmp_path / "testdata"
 
     tt_dir = os.path.join(testdata_path, "tt")
 
@@ -83,14 +83,14 @@ def test_switch_with_link(tt_cmd, tmpdir):
     assert tarantool_inc == expected_inc
 
 
-def test_switch_invalid_program(tt_cmd, tmpdir):
+def test_switch_invalid_program(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
         "testdata/test_tarantool"
     )
-    shutil.copytree(testdata_path, os.path.join(tmpdir, "testdata"), True)
-    testdata_path = os.path.join(tmpdir, "testdata")
+    shutil.copytree(testdata_path, tmp_path / "testdata", True)
+    testdata_path = tmp_path / "testdata"
 
     tt_dir = os.path.join(testdata_path, "tt")
 
@@ -112,11 +112,11 @@ def test_switch_invalid_program(tt_cmd, tmpdir):
     assert install_process_rc != 0
 
 
-def test_switch_tt(tt_cmd, tmpdir):
-    config_path = os.path.join(tmpdir, "tt.yaml")
-    bin_dir_path = os.path.join(tmpdir, "bin")
+def test_switch_tt(tt_cmd, tmp_path):
+    config_path = tmp_path / "tt.yaml"
+    bin_dir_path = tmp_path / "bin"
     with open(config_path, "w") as f:
-        yaml.dump({"env": {"bin_dir": bin_dir_path}}, f)
+        yaml.dump({"env": {"bin_dir": bin_dir_path.as_posix()}}, f)
 
     fake_tt_path = os.path.join(bin_dir_path, "tt_v7.7.7")
     os.makedirs(bin_dir_path)
@@ -144,11 +144,11 @@ def test_switch_tt(tt_cmd, tmpdir):
     assert tt_bin == expected_bin
 
 
-def test_switch_tt_full_version_name(tt_cmd, tmpdir):
-    config_path = os.path.join(tmpdir, "tt.yaml")
-    bin_dir_path = os.path.join(tmpdir, "bin")
+def test_switch_tt_full_version_name(tt_cmd, tmp_path):
+    config_path = tmp_path / "tt.yaml"
+    bin_dir_path = tmp_path / "bin"
     with open(config_path, "w") as f:
-        yaml.dump({"env": {"bin_dir": bin_dir_path}}, f)
+        yaml.dump({"env": {"bin_dir": bin_dir_path.as_posix()}}, f)
 
     fake_tt_path = os.path.join(bin_dir_path, "tt_v7.7.7")
     os.makedirs(bin_dir_path)

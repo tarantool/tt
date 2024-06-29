@@ -11,14 +11,14 @@ from utils import run_command_and_get_output
 
 
 @pytest.mark.slow_ee
-def test_search_ee(tt_cmd, tmpdir):
+def test_search_ee(tt_cmd, tmp_path):
     cmds = [
         [tt_cmd, "search", "tarantool-ee"],
         [tt_cmd, "search", "tarantool-ee", "--version=2.10"],
     ]
     for cmd in cmds:
         rc, output = run_command_and_get_output(
-            cmd, cwd=tmpdir, env=dict(os.environ, PWD=tmpdir))
+            cmd, cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
         assert re.search(r"(\d+.\d+.\d+)",
                          output)
         assert rc == 0

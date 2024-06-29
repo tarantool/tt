@@ -8,12 +8,12 @@ from utils import config_name
 
 
 @pytest.fixture(scope="function")
-def mock_env_dir(tmpdir):
-    with open(os.path.join(tmpdir, config_name), 'w') as f:
+def mock_env_dir(tmp_path):
+    with open(os.path.join(tmp_path, config_name), 'w') as f:
         f.write('env:\n  instances_enabled: ie\n')
 
     for app_n in range(2):
-        app = os.path.join(tmpdir, 'ie', f'app{app_n}')
+        app = os.path.join(tmp_path, 'ie', f'app{app_n}')
         os.makedirs(app, 0o755)
         with open(os.path.join(app, 'instances.yml'), 'w') as f:
             for i in range(4):
@@ -27,7 +27,7 @@ def mock_env_dir(tmpdir):
             with open(os.path.join(app, 'var', 'log', f'inst{i}', 'tt.log'), 'w') as f:
                 f.writelines([f'line {j}\n' for j in range(20)])
 
-    return tmpdir
+    return tmp_path
 
 
 def test_log_output_default_run(tt_cmd, mock_env_dir):

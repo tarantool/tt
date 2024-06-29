@@ -428,12 +428,12 @@ def test_running_multi_inst_app_error_cases(tt_cmd):
         assert re.search(r"can\'t collect instance information for app2", start_output)
 
 
-def test_running_reread_config(tt_cmd, tmpdir):
+def test_running_reread_config(tt_cmd, tmp_path):
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
-    shutil.copy(test_app_path, tmpdir)
+    shutil.copy(test_app_path, tmp_path)
     inst_name = "test_app"
-    config_path = os.path.join(tmpdir, config_name)
+    config_path = os.path.join(tmp_path, config_name)
 
     # Create test config with restart_on_failure true.
     with open(config_path, "w") as file:
@@ -443,21 +443,21 @@ def test_running_reread_config(tt_cmd, tmpdir):
     start_cmd = [tt_cmd, "--cfg", config_path, "start", inst_name]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), pid_file, [])
+    file = wait_file(os.path.join(tmp_path, "test_app", run_path, "test_app"), pid_file, [])
     assert file != ""
 
     # Get pid of instance.
     # This method of getting the "watchdog" PID is used because this process was forked from "start"
     # and we cannot get the "watchdog" PID from the "Popen" process.
     status_cmd = [tt_cmd, "status", inst_name]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
     assert status_rc == 0
     status_out = extract_status(status_out)
     assert status_out[inst_name]["STATUS"] == "RUNNING"
@@ -467,8 +467,8 @@ def test_running_reread_config(tt_cmd, tmpdir):
     # Wait for child process of instance to start.
     # We need to wait because watchdog starts first and only after that
     # instances starts. It is indicated by 'started' in logs.
-    log_file_path = os.path.join(tmpdir, "test_app", log_path, "test_app", "tt.log")
-    file = wait_file(os.path.join(tmpdir, "test_app", log_path, "test_app"), 'tt.log', [])
+    log_file_path = os.path.join(tmp_path, "test_app", log_path, "test_app", "tt.log")
+    file = wait_file(os.path.join(tmp_path, "test_app", log_path, "test_app"), 'tt.log', [])
     assert file != ""
     isStarted = wait_instance_start(log_file_path)
     assert isStarted is True
@@ -484,7 +484,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
 
     # Check status, it should be running, since instance restarts after failure.
     status_cmd = [tt_cmd, "status", inst_name]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
     assert status_rc == 0
     status_out = extract_status(status_out)
     assert status_out[inst_name]["STATUS"] == "RUNNING"
@@ -496,7 +496,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
     killed_childrens = 0
     while killed_childrens == 0:
         killed_childrens = kill_child_process(pid)
-    pid_path = os.path.join(tmpdir, "test_app", run_path, "test_app", pid_file)
+    pid_path = os.path.join(tmp_path, "test_app", run_path, "test_app", pid_file)
     # Wait for instance to shutdown, since instance now should shutdown after failure.
     stopped = wait_instance_stop(pid_path)
     # Check stopped, it should be 1.
@@ -507,7 +507,7 @@ def test_running_reread_config(tt_cmd, tmpdir):
     assert instance_process_rc == 0
 
     status_cmd = [tt_cmd, "status", inst_name]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
     assert status_rc == 0
     status_out = extract_status(status_out)
     assert status_out[inst_name]["STATUS"] == "NOT RUNNING"
@@ -622,12 +622,12 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
     assert isJson
 
 
-def test_running_tarantoolctl_layout(tt_cmd, tmpdir):
+def test_running_tarantoolctl_layout(tt_cmd, tmp_path):
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
-    shutil.copy(test_app_path, tmpdir)
+    shutil.copy(test_app_path, tmp_path)
 
-    config_path = os.path.join(tmpdir, config_name)
+    config_path = os.path.join(tmp_path, config_name)
     with open(config_path, "w") as file:
         yaml.dump({"env": {"tarantoolctl_layout": True}}, file)
 
@@ -635,7 +635,7 @@ def test_running_tarantoolctl_layout(tt_cmd, tmpdir):
     start_cmd = [tt_cmd, "start", "test_app"]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True
@@ -644,23 +644,23 @@ def test_running_tarantoolctl_layout(tt_cmd, tmpdir):
     assert re.search(r"Starting an instance", start_output)
 
     # Check files locations.
-    file = wait_file(os.path.join(tmpdir, run_path), 'test_app.pid', [])
+    file = wait_file(os.path.join(tmp_path, run_path), 'test_app.pid', [])
     assert file != ""
-    file = wait_file(os.path.join(tmpdir, run_path), 'test_app.control', [])
+    file = wait_file(os.path.join(tmp_path, run_path), 'test_app.control', [])
     assert file != ""
-    file = wait_file(os.path.join(tmpdir, log_path), 'test_app.log', [])
+    file = wait_file(os.path.join(tmp_path, log_path), 'test_app.log', [])
     assert file != ""
 
     # Check status.
     status_cmd = [tt_cmd, "status", "test_app"]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
     assert status_rc == 0
     status_out = extract_status(status_out)
     assert status_out["test_app"]["STATUS"] == "RUNNING"
 
     # Stop the Instance.
     stop_cmd = [tt_cmd, "stop", "test_app"]
-    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
     assert status_rc == 0
     assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
 
@@ -879,10 +879,10 @@ def test_kill(tt_cmd, tmpdir_with_cfg, cmd, input):
     (["kill", "-f"], None),
     (["kill"], "y\n"),
     ])
-def test_kill_without_app_name(tt_cmd, tmpdir, cmd, input):
+def test_kill_without_app_name(tt_cmd, tmp_path, cmd, input):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
     instances = ["master", "replica", "router"]
-    test_app_path = os.path.join(tmpdir, "multi_app")
+    test_app_path = os.path.join(tmp_path, "multi_app")
     shutil.copytree(test_app_path_src, test_app_path)
 
     # Start apps.
