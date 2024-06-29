@@ -1004,17 +1004,50 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	}
 
 	// Check if program is already installed.
+	// If it is installed, check if newest version exists.
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
 		if util.IsRegularFile(filepath.Join(binDir, versionStr)) &&
 			util.IsDir(filepath.Join(incDir, versionStr)) {
-			log.Infof("%s version of tarantool already exists, updating symlinks...", versionStr)
-			err := changeActiveTarantoolVersion(versionStr, binDir, incDir)
+			isBinExecutable, err := util.IsExecOwner(filepath.Join(binDir, versionStr))
 			if err != nil {
 				return err
 			}
-			log.Infof("Done")
-			return err
+
+			var curBinVersion, lastCommitHash string
+
+			if isBinExecutable {
+				tarantoolBin := cmdcontext.TarantoolCli{
+					Executable: filepath.Join(binDir, versionStr),
+				}
+				binVersion, err := tarantoolBin.GetVersion()
+				if err != nil {
+					return err
+				}
+
+				// We need to trim first rune to get commit hash
+				// from string structure 'g<commitHash>'.
+				curBinVersion = binVersion.Hash[1:]
+
+				lastCommitHash, err = getCommit(installCtx.Local, distfiles,
+					search.ProgramCe, tarVersion)
+				if err != nil {
+					return err
+				}
+			}
+
+			if !isBinExecutable || strings.HasPrefix(lastCommitHash, curBinVersion) {
+				log.Infof("%s version of tarantool already exists, updating symlinks...",
+					versionStr)
+				err = changeActiveTarantoolVersion(versionStr, binDir, incDir)
+				if err != nil {
+					return err
+				}
+				log.Infof("Done")
+				return nil
+			}
+
+			log.Infof("Found newest version of tarantool")
 		}
 	}
 

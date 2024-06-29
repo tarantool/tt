@@ -614,3 +614,63 @@ def test_install_tt_already_exists_with_symlink(tt_cmd, tmpdir):
     expected_bin = os.path.join(bin_path, "tt_v1.1.2")
     tarantool_bin = os.path.realpath(os.path.join(bin_path, "tt"))
     assert tarantool_bin == expected_bin
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("old_tarantool_version, expected_install_msg", [
+    pytest.param("7192bf6", "Found newest version of tarantool"),
+    pytest.param("master", "tarantool_master version of tarantool already exists")
+])
+def test_install_tarantool_fetch_latest_version(
+        tt_cmd,
+        tmpdir,
+        old_tarantool_version,
+        expected_install_msg):
+    config_path = os.path.join(tmpdir, config_name)
+    # Create test config.
+    with open(config_path, "w") as f:
+        yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
+
+    tmpdir_without_config = tempfile.mkdtemp()
+
+    # Install not latest version of tarantool by commit hash.
+    install_cmd = [tt_cmd, "--cfg", config_path, "install",
+                   "-f", "tarantool", old_tarantool_version]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir_without_config,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        text=True
+    )
+    instance_process_rc = instance_process.wait()
+    assert instance_process_rc == 0
+
+    # Renaming installed 'old' tarantool to 'master'
+    # and change symlink to old version to simulate
+    # that this is the latest version.
+    os.rename(os.path.join(tmpdir, "bin", "tarantool_" +
+              old_tarantool_version), os.path.join(tmpdir, "bin", "tarantool_master"))
+    os.remove(os.path.join(tmpdir, "bin", "tarantool"))
+    os.symlink(os.path.join(tmpdir, "bin", "tarantool_master"),
+               os.path.join(tmpdir, "bin", "tarantool"))
+    os.remove(os.path.join(tmpdir, "my_inc", "include", "tarantool"))
+    os.rename(os.path.join(tmpdir, "my_inc", "include",
+              "tarantool_" + old_tarantool_version),
+              os.path.join(tmpdir, "my_inc", "include", "tarantool_master"))
+
+    # Installing newest version.
+    install_cmd = [tt_cmd, "--cfg", config_path, "install",
+                   "-f", "tarantool", "master"]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir_without_config,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    instance_process_rc = instance_process.wait()
+    assert instance_process_rc == 0
+
+    output = instance_process.stdout.read()
+    assert expected_install_msg in output
