@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/replicaset"
+	"github.com/tarantool/tt/cli/running"
 )
 
 var _ replicaset.Discoverer = &replicaset.CConfigInstance{}
@@ -16,12 +17,28 @@ var _ replicaset.Promoter = &replicaset.CConfigInstance{}
 var _ replicaset.Demoter = &replicaset.CConfigInstance{}
 var _ replicaset.Expeller = &replicaset.CConfigInstance{}
 var _ replicaset.VShardBootstrapper = &replicaset.CConfigInstance{}
+var _ replicaset.Bootstrapper = &replicaset.CConfigInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CConfigApplication{}
 var _ replicaset.Promoter = &replicaset.CConfigApplication{}
 var _ replicaset.Demoter = &replicaset.CConfigApplication{}
 var _ replicaset.Expeller = &replicaset.CConfigApplication{}
 var _ replicaset.VShardBootstrapper = &replicaset.CConfigApplication{}
+var _ replicaset.Bootstrapper = &replicaset.CConfigApplication{}
+
+func TestCconfigApplication_Bootstrap(t *testing.T) {
+	app := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil)
+	err := app.Bootstrap(replicaset.BootstrapCtx{})
+	assert.EqualError(t, err,
+		`bootstrap is not supported for an application by "centralized config" orchestrator`)
+}
+
+func TestCConfigInstance_Bootstrap(t *testing.T) {
+	app := replicaset.NewCConfigInstance(nil)
+	err := app.Bootstrap(replicaset.BootstrapCtx{})
+	assert.EqualError(t, err,
+		`bootstrap is not supported for a single instance by "centralized config" orchestrator`)
+}
 
 func TestCConfigInstance_Discovery(t *testing.T) {
 	cases := []struct {

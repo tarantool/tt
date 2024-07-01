@@ -1,14 +1,31 @@
 import os
 import re
+import subprocess
 
 import pytest
 import yaml
 from cartridge_helper import (cartridge_name, cartridge_password,
                               cartridge_username)
 
-from utils import get_tarantool_version, run_command_and_get_output, run_path
+from utils import (get_tarantool_version, run_command_and_get_output, run_path,
+                   wait_event)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
+
+
+def eval_on_instance(tt_cmd, app_name, inst_name, workdir, eval):
+    connect_process = subprocess.Popen(
+        [tt_cmd, "connect", f"{app_name}:{inst_name}", "-f-"],
+        cwd=workdir,
+        stdin=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    connect_process.stdin.write(eval)
+    connect_process.stdin.close()
+    connect_process.wait()
+    return connect_process.stdout.read()
 
 
 @pytest.mark.skipif(tarantool_major_version >= 3,
@@ -32,12 +49,45 @@ def test_cartridge_base_functionality(tt_cmd, cartridge_app):
     assert admin_rc == 0
     assert re.search(rf'Probe "{router_uri}": OK', admin_out)
 
-    # Test replicasets list without --run-dir.
-    rs_cmd = [tt_cmd, "cartridge", "replicasets", "list", "--name", cartridge_name]
+    # Test replicasets status.
+    rs_cmd = [tt_cmd, "replicaset", "status", cartridge_name]
     rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
     assert rs_rc == 0
-    assert 'Current replica sets:' in rs_out
-    assert 'Role: failover-coordinator | vshard-router | app.roles.custom' in rs_out
+
+    expected = r"""Orchestrator:      cartridge
+Replicasets state: bootstrapped
+
+• router
+  Failover: off
+  Provider: none
+  Master:   single
+  Roles:    failover-coordinator, vshard-router, app.roles.custom
+    ★ router .* rw
+• s-1
+  Failover: off
+  Provider: none
+  Master:   single
+  Roles:    vshard-storage
+    ★ s1-master .* rw
+    • s1-replica .* read
+• s-2
+  Failover: off
+  Provider: none
+  Master:   single
+  Roles:    vshard-storage
+    ★ s2-master .* rw
+    • s2-replica-1 .* read
+    • s2-replica-2 .* read"""
+    assert re.search(expected, rs_out)
+
+    # Check that vshard is bootstrapped.
+    def have_buckets_created():
+        expr = "require('vshard').storage.buckets_count() == 0"
+        out = eval_on_instance(tt_cmd, cartridge_name, "s1-master",
+                               cartridge_app.workdir, expr)
+        return out.find("false") != -1
+
+    assert wait_event(10, have_buckets_created)
 
 
 @pytest.mark.skipif(tarantool_major_version >= 3,

@@ -88,6 +88,11 @@ func (c *CustomInstance) BootstrapVShard(VShardBootstrapCtx) error {
 	return newErrBootstrapVShardByInstanceNotSupported(OrchestratorCustom)
 }
 
+// Bootstrap is not supported for a single instance by the Custom orchestrator.
+func (c *CustomInstance) Bootstrap(BootstrapCtx) error {
+	return newErrBootstrapByInstanceNotSupported(OrchestratorCustom)
+}
+
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
 	cachedDiscoverer
@@ -150,6 +155,11 @@ func (c *CustomApplication) Expel(ctx ExpelCtx) error {
 // BootstrapVShard is not supported for an application the Custom orchestrator.
 func (c *CustomApplication) BootstrapVShard(VShardBootstrapCtx) error {
 	return newErrBootstrapVShardByAppNotSupported(OrchestratorCustom)
+}
+
+// Bootstrap is not supported for an application by the Custom orchestrator.
+func (c *CustomApplication) Bootstrap(BootstrapCtx) error {
+	return newErrBootstrapByAppNotSupported(OrchestratorCustom)
 }
 
 // getCustomInstanceTopology returns a topology for an instance.

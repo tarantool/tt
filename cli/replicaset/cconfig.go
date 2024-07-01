@@ -111,6 +111,12 @@ func (c *CConfigInstance) Expel(ctx ExpelCtx) error {
 	return newErrExpelByInstanceNotSupported(OrchestratorCentralizedConfig)
 }
 
+// Bootstrap is not supported for a single instance by the centralized config
+// orchestrator.
+func (c *CConfigInstance) Bootstrap(BootstrapCtx) error {
+	return newErrBootstrapByInstanceNotSupported(OrchestratorCentralizedConfig)
+}
+
 // BootstrapVShard bootstraps vshard for a single instance by the centralized config
 // orchestrator.
 func (c *CConfigInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
@@ -443,6 +449,12 @@ func (c *CConfigApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
 		return fmt.Errorf("not found any vshard router in replicaset")
 	}
 	return nil
+}
+
+// Bootstrap is not supported for an application by the centralized config
+// orchestrator.
+func (c *CConfigApplication) Bootstrap(BootstrapCtx) error {
+	return newErrBootstrapByAppNotSupported(OrchestratorCentralizedConfig)
 }
 
 // cconfigPromoteElection tries to promote an instance via `box.ctl.promote()`.

@@ -28,15 +28,18 @@ var (
 		replicaset.OrchestratorCustom:            &orchestratorCustom,
 	}
 
-	replicasetUser                string
-	replicasetPassword            string
-	replicasetSslKeyFile          string
-	replicasetSslCertFile         string
-	replicasetSslCaFile           string
-	replicasetSslCiphers          string
-	replicasetForce               bool
-	replicasetTimeout             int
-	replicasetIntegrityPrivateKey string
+	replicasetUser                     string
+	replicasetPassword                 string
+	replicasetSslKeyFile               string
+	replicasetSslCertFile              string
+	replicasetSslCaFile                string
+	replicasetSslCiphers               string
+	replicasetForce                    bool
+	replicasetTimeout                  int
+	replicasetIntegrityPrivateKey      string
+	replicasetBootstrapVshard          bool
+	replicasetCartridgeReplicasetsFile string
+	replicasetReplicasetName           string
 
 	replicasetUriHelp = "  The URI can be specified in the following formats:\n" +
 		"  * [tcp://][username:password@][host:port]\n" +
@@ -149,6 +152,34 @@ func newExpelCmd() *cobra.Command {
 	return cmd
 }
 
+// newBootstrapCmd creates a "replicaset bootstrap" command.
+func newBootstrapCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "bootstrap [--timeout secs] [flags] <APP_NAME|APP_NAME:INSTANCE_NAME>",
+		Short: "Bootstrap an application or instance",
+		Long:  "Bootstrap an application or instance.",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetBootstrapModule, args)
+			util.HandleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(1),
+	}
+
+	addOrchestratorFlags(cmd)
+	cmd.Flags().BoolVarP(&replicasetBootstrapVshard, "bootstrap-vshard", "", false,
+		"bootstrap vshard")
+	cmd.Flags().StringVarP(&replicasetCartridgeReplicasetsFile, "file", "", "",
+		`file where replicasets configuration is described (default "<APP_DIR>/instances.yml")`)
+	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "",
+		"", "replicaset name for an instance bootstrapping")
+	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.
+		VShardBootstrapDefaultTimeout, "timeout")
+
+	return cmd
+}
+
 // newBootstrapVShardCmd creates a "vshard bootstrap" command.
 func newBootstrapVShardCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -202,6 +233,7 @@ func NewReplicasetCmd() *cobra.Command {
 	cmd.AddCommand(newDemoteCmd())
 	cmd.AddCommand(newExpelCmd())
 	cmd.AddCommand(newVShardCmd())
+	cmd.AddCommand(newBootstrapCmd())
 
 	return cmd
 }
@@ -450,6 +482,32 @@ func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []s
 		Collectors:    collectors,
 		Timeout:       replicasetTimeout,
 	})
+}
+
+// internalReplicasetBootstrapModule is a "bootstrap" command for the "replicaset" module.
+func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	_, instName, found := strings.Cut(args[0], string(running.InstanceDelimiter))
+
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, true); err != nil {
+		return err
+	}
+	if ctx.IsInstanceConnect {
+		defer ctx.Conn.Close()
+	}
+	bootstrapCtx := replicasetcmd.BootstapCtx{
+		ReplicasetsFile: replicasetCartridgeReplicasetsFile,
+		Orchestrator:    ctx.Orchestrator,
+		RunningCtx:      ctx.RunningCtx,
+		Timeout:         replicasetTimeout,
+		BootstrapVShard: replicasetBootstrapVshard,
+		Replicaset:      replicasetReplicasetName,
+	}
+	if found {
+		bootstrapCtx.Instance = instName
+	}
+
+	return replicasetcmd.Bootstrap(bootstrapCtx)
 }
 
 // getOrchestartor returns a chosen orchestrator or an unknown one.

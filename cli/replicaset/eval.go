@@ -74,19 +74,7 @@ func EvalAny(instances []running.InstanceCtx, ievaler InstanceEvaler) error {
 // EvalForeachAliveDiscovered calls evaler for only connectable instances among discovered.
 func EvalForeachAliveDiscovered(instances []running.InstanceCtx,
 	discovered Replicasets, ievaler InstanceEvaler) error {
-	discoveredMap := map[string]struct{}{}
-	for _, replicaset := range discovered.Replicasets {
-		for _, instance := range replicaset.Instances {
-			discoveredMap[instance.Alias] = struct{}{}
-		}
-	}
-	var filteredInstances []running.InstanceCtx
-	for _, inst := range instances {
-		if _, ok := discoveredMap[inst.InstName]; ok {
-			filteredInstances = append(filteredInstances, inst)
-		}
-	}
-	return EvalForeachAlive(filteredInstances, ievaler)
+	return EvalForeachAlive(filterDiscovered(instances, discovered), ievaler)
 }
 
 // evalForeach is an internal implementation of iteration over instances with
