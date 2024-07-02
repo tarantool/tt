@@ -103,7 +103,6 @@ var (
 		"usr/lib/tmpfiles.d":     struct{}{},
 		"var":                    struct{}{},
 		"var/lib":                struct{}{},
-		"var/lib/tarantool":      struct{}{},
 		"var/run":                struct{}{},
 		"var/log":                struct{}{},
 		"etc":                    struct{}{},
