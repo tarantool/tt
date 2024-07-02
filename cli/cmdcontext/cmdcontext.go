@@ -61,6 +61,48 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	return tntCli.version, nil
 }
 
+// TtCli describes tt executable.
+type TtCli struct {
+	// Executable is a path to Tt executable.
+	Executable string
+	// Tt version.
+	version version.Version
+}
+
+// GetVersion returns and caches the tt version.
+func (ttCli *TtCli) GetVersion() (version.Version, error) {
+	if ttCli.version.Str != "" {
+		return ttCli.version, nil
+	}
+
+	if ttCli.Executable == "" {
+		return ttCli.version, fmt.Errorf(
+			"tt executable is not set, unable to get tarantool version")
+	}
+	output, err := exec.Command(ttCli.Executable, "version").Output()
+	if err != nil {
+		return ttCli.version, fmt.Errorf("failed to get tt version: %s", err)
+	}
+
+	versionLine := strings.Split(string(output), " ")
+
+	if len(versionLine) < 2 {
+		return ttCli.version, fmt.Errorf("failed to get tt version: corrupted data")
+	}
+
+	// Need to trim brackets for string structure (...)\n
+	versionLine[len(versionLine)-1] = strings.Trim(versionLine[len(versionLine)-1], "()\n")
+
+	ttVersion, err := version.Parse(versionLine[len(versionLine)-1])
+	if err != nil {
+		return ttCli.version, fmt.Errorf("failed to get tt version: %w", err)
+	}
+
+	ttCli.version = ttVersion
+
+	return ttCli.version, nil
+}
+
 // CliCtx - CLI context. Contains flags passed when starting
 // Tarantool CLI and some other parameters.
 type CliCtx struct {

@@ -527,16 +527,48 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	}
 
 	// Check if that version is already installed.
+	// If it is installed, check if newest version exists.
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
 		if util.IsRegularFile(filepath.Join(binDir, versionStr)) {
-			log.Infof("%s version of tt already exists, updating symlink...", versionStr)
-			err := util.CreateSymlink(versionStr, filepath.Join(binDir, "tt"), true)
+			isBinExecutable, err := util.IsExecOwner(filepath.Join(binDir, versionStr))
 			if err != nil {
 				return err
 			}
-			log.Infof("Done")
-			return err
+
+			var curBinVersion, lastCommitHash string
+
+			if isBinExecutable {
+				lastCommitHash, err = getCommit(installCtx.Local, distfiles,
+					search.ProgramTt, ttVersion)
+				if err != nil {
+					return err
+				}
+
+				ttBin := cmdcontext.TtCli{
+					Executable: filepath.Join(binDir, versionStr),
+				}
+				binVersion, err := ttBin.GetVersion()
+				if err != nil {
+					return err
+				}
+
+				// We need to trim first rune to get commit hash
+				// from string structure 'g<commitHash>'
+				curBinVersion = binVersion.Hash[1:]
+			}
+
+			if !isBinExecutable || strings.HasPrefix(lastCommitHash, curBinVersion) {
+				log.Infof("%s version of tt already exists, updating symlink...", versionStr)
+				err := util.CreateSymlink(versionStr, filepath.Join(binDir, search.ProgramTt), true)
+				if err != nil {
+					return err
+				}
+				log.Infof("Done")
+				return nil
+			}
+
+			log.Infof("Found newest version of tt")
 		}
 	}
 

@@ -674,3 +674,54 @@ def test_install_tarantool_fetch_latest_version(
 
     output = instance_process.stdout.read()
     assert expected_install_msg in output
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("old_tt_version, expected_install_msg", [
+    pytest.param("ff03d11", "Found newest version of tt"),
+    pytest.param("master", "tt_master version of tt already exists")
+])
+def test_install_tt_fetch_latest_version(
+        tt_cmd,
+        tmpdir,
+        old_tt_version,
+        expected_install_msg):
+    configPath = os.path.join(tmpdir, config_name)
+    # Create test config
+    with open(configPath, 'w') as f:
+        f.write('env:\n  bin_dir:\n  inc_dir:\n')
+
+    # Install not latest version of tt.
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", old_tt_version]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    # Check that the process shutdowned correctly.
+    instance_process_rc = instance_process.wait()
+    assert instance_process_rc == 0
+
+    # Renaming installed 'old' tt to 'master'
+    # to simulate that this is the latest version.
+    os.rename(os.path.join(tmpdir, "bin", "tt_" +
+              old_tt_version), os.path.join(tmpdir, "bin", "tt_master"))
+    os.remove(os.path.join(tmpdir, "bin", "tt"))
+
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "master"]
+    instance_process = subprocess.Popen(
+        install_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    instance_process_rc = instance_process.wait()
+    assert instance_process_rc == 0
+    os.remove(configPath)
+
+    install_output = instance_process.stdout.read()
+    assert expected_install_msg in install_output
