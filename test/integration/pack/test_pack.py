@@ -1063,15 +1063,15 @@ def verify_rpmdeb_package_content(pkg_dir):
             'perms': stat.S_IFREG
         },
         {
-            'path': os.path.join(pkg_dir, 'var', 'lib', 'tarantool', 'bundle1'),
+            'path': os.path.join(pkg_dir, 'var', 'lib', 'tarantool'),
             'perms': stat.S_IFDIR
         },
         {
-            'path': os.path.join(pkg_dir, 'var', 'log', 'tarantool', 'bundle1'),
+            'path': os.path.join(pkg_dir, 'var', 'log', 'tarantool'),
             'perms': stat.S_IFDIR
         },
         {
-            'path': os.path.join(pkg_dir, 'var', 'run', 'tarantool', 'bundle1'),
+            'path': os.path.join(pkg_dir, 'var', 'run', 'tarantool'),
             'perms': stat.S_IFDIR
         },
         ]
@@ -1126,6 +1126,8 @@ def test_pack_deb(tt_cmd, tmpdir):
                                              ' /usr/lib/systemd/system/app2@.service '
                                              ' /usr/share/tarantool/bundle1/tt.yaml '
                                              '&& id tarantool '
+                                             ' && stat -c "%U:%G" /var/log/tarantool '
+                                             '/var/lib/tarantool /var/run/tarantool '
                                              ' && dpkg -x {0} /tmp/unpack '
                                              ' && chown {1}:{2} /tmp/unpack -R'.
                                              format(package_file_name, os.getuid(), os.getgid())
@@ -1147,6 +1149,10 @@ def test_pack_deb(tt_cmd, tmpdir):
     assert 'wal_dir: /var/lib/tarantool/bundle1' in output
     assert 'log_dir: /var/log/tarantool/bundle1' in output
     assert 'run_dir: /var/run/tarantool/bundle1' in output
+
+    assert '''tarantool:tarantool
+tarantool:tarantool
+tarantool:tarantool''' in output
 
     file = open(os.path.join(os.path.dirname(__file__), 'systemd_unit_template.txt'), mode='r')
     app_systemd_template = file.read()
@@ -1272,6 +1278,8 @@ def test_pack_rpm(tt_cmd, tmpdir):
                                              ' /usr/lib/systemd/system/app2@.service '
                                              ' /usr/share/tarantool/bundle1/tt.yaml '
                                              '&& id tarantool '
+                                             '&& stat -c "%U:%G" /var/log/tarantool '
+                                             '/var/lib/tarantool /var/run/tarantool '
                                              '&& rpm2cpio {0} > /tmp/unpack/pkg.cpio'
                                             .format(package_file_name)])
     assert rc == 0
@@ -1291,6 +1299,10 @@ def test_pack_rpm(tt_cmd, tmpdir):
 
     assert app_systemd_template.format(app='app1', args='app1', bundle='bundle1') in output
     assert app_systemd_template.format(app='app2@%i', args='app2:%i', bundle='bundle1') in output
+
+    assert '''tarantool:tarantool
+tarantool:tarantool
+tarantool:tarantool''' in output
 
     # Verify Deb package content.
     rc, output = run_command_and_get_output(

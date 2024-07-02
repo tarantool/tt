@@ -786,13 +786,13 @@ func updatePermissions(baseDir string) func(path string, entry fs.DirEntry, err 
 func createArtifactsDirs(pkgDataDir string, packCtx *PackCtx) error {
 	for _, dirToCreate := range []string{configure.VarDataPath, configure.VarLogPath,
 		configure.VarRunPath} {
-		artifactEnvDir := filepath.Join(pkgDataDir, dirToCreate, "tarantool", packCtx.Name)
+		artifactEnvDir := filepath.Join(pkgDataDir, dirToCreate, "tarantool")
 		if err := os.MkdirAll(artifactEnvDir, dirPermissions); err != nil {
 			return fmt.Errorf("cannot create %q: %s", artifactEnvDir, err)
 		}
 	}
 	for _, dir := range [...]string{"lib", "log", "run"} {
-		packCtx.RpmDeb.pkgFilesInfo[fmt.Sprintf("var/%s/tarantool/%s", dir, packCtx.Name)] =
+		packCtx.RpmDeb.pkgFilesInfo[fmt.Sprintf("var/%s/tarantool", dir)] =
 			packFileInfo{"tarantool", "tarantool"}
 	}
 	return nil
