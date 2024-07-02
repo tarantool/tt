@@ -32,6 +32,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"compat", "box_tuple_extension"},
 	[]string{"compat", "box_tuple_new_vararg"},
 	[]string{"compat", "c_func_iproto_multireturn"},
+	[]string{"compat", "console_session_scope_vars"},
 	[]string{"compat", "fiber_channel_close_mode"},
 	[]string{"compat", "fiber_slice_default"},
 	[]string{"compat", "json_escape_forward_slash"},
@@ -46,6 +47,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"config", "etcd", "prefix"},
 	[]string{"config", "etcd", "ssl", "ca_file"},
 	[]string{"config", "etcd", "ssl", "ca_path"},
+	[]string{"config", "etcd", "ssl", "ssl_cert"},
 	[]string{"config", "etcd", "ssl", "ssl_key"},
 	[]string{"config", "etcd", "ssl", "verify_host"},
 	[]string{"config", "etcd", "ssl", "verify_peer"},
@@ -73,6 +75,8 @@ var ConfigEnvPaths = [][]string{
 	[]string{"failover", "lease_interval"},
 	[]string{"failover", "probe_interval"},
 	[]string{"failover", "renew_interval"},
+	[]string{"failover", "stateboard", "keepalive_interval"},
+	[]string{"failover", "stateboard", "renew_interval"},
 	[]string{"feedback", "crashinfo"},
 	[]string{"feedback", "enabled"},
 	[]string{"feedback", "host"},
@@ -120,6 +124,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"iproto", "net_msg_max"},
 	[]string{"iproto", "readahead"},
 	[]string{"iproto", "threads"},
+	[]string{"labels"},
 	[]string{"log", "file"},
 	[]string{"log", "format"},
 	[]string{"log", "level"},
@@ -435,6 +440,15 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	SchemaPath{
+		Path: []string{"compat", "console_session_scope_vars"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
 		Path: []string{"compat", "fiber_channel_close_mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -531,6 +545,10 @@ var TarantoolSchema = []SchemaPath{
 	},
 	SchemaPath{
 		Path:      []string{"config", "etcd", "ssl", "ca_path"},
+		Validator: StringValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"config", "etcd", "ssl", "ssl_cert"},
 		Validator: StringValidator{},
 	},
 	SchemaPath{
@@ -760,6 +778,14 @@ var TarantoolSchema = []SchemaPath{
 		Validator: NumberValidator{},
 	},
 	SchemaPath{
+		Path:      []string{"failover", "stateboard", "keepalive_interval"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"failover", "stateboard", "renew_interval"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
 		Path:      []string{"feedback", "crashinfo"},
 		Validator: BooleanValidator{},
 	},
@@ -984,6 +1010,12 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"iproto", "threads"},
 		Validator: IntegerValidator{},
+	},
+	SchemaPath{
+		Path: []string{"labels"},
+		Validator: MakeMapValidator(
+			StringValidator{},
+			StringValidator{}),
 	},
 	SchemaPath{
 		Path:      []string{"log", "file"},
