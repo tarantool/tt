@@ -195,7 +195,7 @@ func appendLdFlags(flags ...string) optsUpdater {
 
 // appendTags appends tags.
 func appendTags(args []string) ([]string, error) {
-	tags := []string{"netgo", "osusergo"}
+	tags := []string{"netgo", "osusergo", "go_tarantool_msgpack_v5"}
 
 	buildType := os.Getenv(buildTypeEnv)
 	switch BuildType(buildType) {
