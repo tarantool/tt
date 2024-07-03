@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -731,8 +732,14 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod ti
 
 // Stop the Instance.
 func Stop(run *InstanceCtx) error {
+	fullInstanceName := GetAppInstanceName(*run)
+
 	pid, err := process_utils.StopProcess(run.PIDFile)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			log.Debugf("The instance %s is already stopped", fullInstanceName)
+			return nil
+		}
 		return err
 	}
 
@@ -743,7 +750,6 @@ func Stop(run *InstanceCtx) error {
 		os.Remove(run.ConsoleSocket)
 	}
 
-	fullInstanceName := GetAppInstanceName(*run)
 	log.Infof("The Instance %s (PID = %v) has been terminated.", fullInstanceName, pid)
 
 	return nil
@@ -861,4 +867,46 @@ Cluster config path: %q`, tntVersion.Str, inst.ClusterConfigPath)
 		}
 	}
 	return true, ""
+}
+
+// StartWatchdog starts tarantool instance with watchdog.
+func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance InstanceCtx,
+	args []string) error {
+	appName := GetAppInstanceName(instance)
+	// If an instance is already running don't try to start it again.
+	// To restart an instance use tt restart command.
+	procStatus := process_utils.ProcessStatus(instance.PIDFile)
+	if procStatus.Code == process_utils.ProcStateRunning.Code {
+		log.Infof("The instance %s (PID = %d) is already running.", appName, procStatus.PID)
+		return nil
+	}
+
+	newArgs := []string{}
+	if cmdCtx.Cli.IntegrityCheck != "" {
+		newArgs = append(newArgs, "--integrity-check", cmdCtx.Cli.IntegrityCheck)
+	}
+
+	if cmdCtx.Cli.IsSystem {
+		newArgs = append(newArgs, "-S")
+	} else if cmdCtx.Cli.LocalLaunchDir != "" {
+		newArgs = append(newArgs, "-L", cmdCtx.Cli.LocalLaunchDir)
+	} else {
+		newArgs = append(newArgs, "--cfg", cmdCtx.Cli.ConfigPath)
+	}
+
+	newArgs = append(newArgs, "start", "--watchdog", appName)
+	newArgs = append(newArgs, args...)
+
+	f, err := cmdCtx.Integrity.Repository.Read(ttExecutable)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	log.Infof("Starting an instance [%s]...", appName)
+
+	wdCmd := exec.Command(ttExecutable, newArgs...)
+	// Set new pgid for watchdog process, so it will not be killed after a session is closed.
+	wdCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return wdCmd.Start()
 }

@@ -40,6 +40,7 @@ var (
 	replicasetBootstrapVshard          bool
 	replicasetCartridgeReplicasetsFile string
 	replicasetReplicasetName           string
+	rebootstrapConfirmed               bool
 
 	replicasetUriHelp = "  The URI can be specified in the following formats:\n" +
 		"  * [tcp://][username:password@][host:port]\n" +
@@ -220,6 +221,27 @@ func newVShardCmd() *cobra.Command {
 	return cmd
 }
 
+// newRebootstrapCmd creates a "replicaset rebootstrap" command.
+func newRebootstrapCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "rebootstrap <APP_NAME:INSTANCE_NAME>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Re-bootstraps an instance",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetRebootstrapModule, args)
+			util.HandleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(1),
+	}
+
+	cmd.Flags().BoolVarP(&rebootstrapConfirmed, "yes", "y", false,
+		"automatically confirm rebootstrap")
+
+	return cmd
+}
+
 // NewReplicasetCmd creates a replicaset command.
 func NewReplicasetCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -234,6 +256,7 @@ func NewReplicasetCmd() *cobra.Command {
 	cmd.AddCommand(newExpelCmd())
 	cmd.AddCommand(newVShardCmd())
 	cmd.AddCommand(newBootstrapCmd())
+	cmd.AddCommand(newRebootstrapCmd())
 
 	return cmd
 }
@@ -524,4 +547,26 @@ func getOrchestrator() (replicaset.Orchestrator, error) {
 		return orchestrator, fmt.Errorf("only one type of orchestrator can be forced")
 	}
 	return orchestrator, nil
+}
+
+// internalReplicasetRebootstrapModule is a "rebootstrap" command for the replicaset module.
+func internalReplicasetRebootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if len(args) > 1 {
+		return util.NewArgError("only one instance supported for re-bootstrap")
+	}
+	if len(args) < 1 {
+		return util.NewArgError("instance for rebootstrap is not specified")
+	}
+
+	appName, instName, found := strings.Cut(args[0], string(running.InstanceDelimiter))
+	if !found {
+		return util.NewArgError(
+			"an instance name is not specified. Please use app:instance format.")
+	}
+
+	return replicaset.Rebootstrap(*cmdCtx, *cliOpts, replicaset.RebootstrapCtx{
+		AppName:      appName,
+		InstanceName: instName,
+		Confirmed:    rebootstrapConfirmed,
+	})
 }

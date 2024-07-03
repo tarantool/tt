@@ -10,6 +10,7 @@ import netifaces
 import psutil
 import tarantool
 import yaml
+from retry import retry
 
 var_path = "var"
 lib_path = os.path.join(var_path, "lib")
@@ -511,3 +512,17 @@ def is_tarantool_ee():
     if instance_process.returncode == 0:
         return "Tarantool Enterprise" in instance_process.stdout
     return False
+
+
+@retry(Exception, tries=40, delay=0.5)
+def wait_string_in_file(file, text):
+    with open(file, "r") as fp:
+        lines = fp.readlines(100)
+        found = False
+        while len(lines) != 0 and not found:
+            for line in lines:
+                if text in line:
+                    found = True
+                    break
+            lines = fp.readlines(100)
+        assert found

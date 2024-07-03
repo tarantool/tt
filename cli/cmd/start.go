@@ -3,17 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
-	"syscall"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
@@ -59,60 +55,21 @@ func NewStartCmd() *cobra.Command {
 	return startCmd
 }
 
-// startWatchdog starts tarantool instance with watchdog.
-func startWatchdog(ttExecutable string, instance running.InstanceCtx) error {
-	appName := running.GetAppInstanceName(instance)
-	// If an instance is already running don't try to start it again.
-	// For restarting an instance use tt restart command.
-	procStatus := process_utils.ProcessStatus(instance.PIDFile)
-	if procStatus.Code == process_utils.ProcStateRunning.Code {
-		log.Infof("The instance %s (PID = %d) is already running.", appName, procStatus.PID)
-		return nil
-	}
-
-	newArgs := []string{}
-	if cmdCtx.Cli.IntegrityCheck != "" {
-		newArgs = append(newArgs, "--integrity-check", cmdCtx.Cli.IntegrityCheck)
-	}
-
-	if cmdCtx.Cli.IsSystem {
-		newArgs = append(newArgs, "-S")
-	} else if cmdCtx.Cli.LocalLaunchDir != "" {
-		newArgs = append(newArgs, "-L", cmdCtx.Cli.LocalLaunchDir)
-	} else {
-		newArgs = append(newArgs, "--cfg", cmdCtx.Cli.ConfigPath)
-	}
-
-	newArgs = append(newArgs, "start", "--watchdog", appName)
-
-	if cmdCtx.Cli.IntegrityCheck != "" {
-		newArgs = append(newArgs, "--integrity-check-period",
-			strconv.Itoa(integrityCheckPeriod))
-	}
-
-	f, err := cmdCtx.Integrity.Repository.Read(ttExecutable)
-	if err != nil {
-		return err
-	}
-	f.Close()
-
-	log.Infof("Starting an instance [%s]...", appName)
-
-	wdCmd := exec.Command(ttExecutable, newArgs...)
-	// Set new pgid for watchdog process, so it will not be killed after a session is closed.
-	wdCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	return wdCmd.Start()
-}
-
 // startInstancesUnderWatchdog starts tarantool instances under tt watchdog.
-func startInstancesUnderWatchdog(instances []running.InstanceCtx) error {
+func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) error {
 	ttBin, err := os.Executable()
 	if err != nil {
 		return err
 	}
 
+	startArgs := []string{}
+	if cmdCtx.Cli.IntegrityCheck != "" {
+		startArgs = append(startArgs, "--integrity-check-period",
+			strconv.Itoa(integrityCheckPeriod))
+	}
+
 	for _, instance := range instances {
-		if err := startWatchdog(ttBin, instance); err != nil {
+		if err := running.StartWatchdog(cmdCtx, ttBin, instance, startArgs); err != nil {
 			return err
 		}
 	}
@@ -140,7 +97,7 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if !watchdog {
-		if err := startInstancesUnderWatchdog(runningCtx.Instances); err != nil {
+		if err := startInstancesUnderWatchdog(cmdCtx, runningCtx.Instances); err != nil {
 			return err
 		}
 		return nil

@@ -59,7 +59,7 @@ func (procState ProcessState) String() string {
 // GetPIDFromFile returns PID from the PIDFile.
 func GetPIDFromFile(pidFileName string) (int, error) {
 	if _, err := os.Stat(pidFileName); err != nil {
-		return 0, fmt.Errorf(`can't "stat" the PID file. Error: "%v"`, err)
+		return 0, fmt.Errorf(`can't "stat" the PID file. Error: %w`, err)
 	}
 
 	pidFile, err := os.Open(pidFileName)
@@ -162,7 +162,7 @@ func getRunningPid(pidFile string) (int, error) {
 func StopProcess(pidFile string) (int, error) {
 	pid, err := getRunningPid(pidFile)
 	if err != nil {
-		return 0, fmt.Errorf("can't get pid of running process: %s", err)
+		return 0, fmt.Errorf("can't get pid of running process: %w", err)
 	}
 
 	if err = syscall.Kill(pid, syscall.SIGINT); err != nil {
