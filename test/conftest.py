@@ -1,5 +1,6 @@
 import os
 import platform
+import shutil
 import signal
 import subprocess
 
@@ -7,6 +8,7 @@ import etcd_helper
 import psutil
 import pytest
 from cartridge_helper import CartridgeApp
+from vshard_cluster import VshardCluster
 
 import utils
 
@@ -115,7 +117,6 @@ def etcd(etcd_session):
 @pytest.fixture(scope="session")
 def cartridge_app_session(request, tt_cmd, tmp_path_factory):
     tmpdir = tmp_path_factory.mktemp("cartridge_app")
-    utils.create_tt_config(tmpdir, "")
     cartridge_app = CartridgeApp(tmpdir, tt_cmd)
     request.addfinalizer(lambda: cartridge_app.stop())
     cartridge_app.start()
@@ -152,3 +153,19 @@ def tcs(request, tmp_path, fixture_params):
                instance_port=fixture_params.get("instance_port"))
     request.addfinalizer(lambda: inst.stop())
     return inst
+
+
+# Creates tt environment with tnt 3 vshard cluster app.
+@pytest.fixture(scope="session")
+def vshard_app_session(tt_cmd, tmp_path_factory) -> VshardCluster:
+    tmpdir = tmp_path_factory.mktemp("vshard_tt_env_session")
+    cluster_app = VshardCluster(tt_cmd, tmpdir, "vshard_app")
+    cluster_app.build()
+    return cluster_app
+
+
+@pytest.fixture
+def vshard_app(tt_cmd, tmp_path, vshard_app_session) -> VshardCluster:
+    copied_env = shutil.copytree(vshard_app_session.env_dir, tmp_path,
+                                 symlinks=True, dirs_exist_ok=True)
+    return VshardCluster(tt_cmd, copied_env, vshard_app_session.app_name)

@@ -109,7 +109,7 @@ def wait_inst_start(dir, inst):
     assert started
 
 
-# CartridgeApp wraps tt working with cartridge application.
+# CartridgeApp wraps tt environment with cartridge application.
 class CartridgeApp:
     def __init__(self, workdir, tt_cmd) -> None:
         self.workdir = workdir
@@ -128,15 +128,12 @@ class CartridgeApp:
                     break
             assert found
 
+        cmd = [self.tt_cmd, "init", "-f"]
+        rc, _ = run_command_and_get_output(cmd, cwd=self.workdir)
+        assert rc == 0
+
         self.create()
         self.build()
-
-        # Set instances config.
-        with open(os.path.join(self.workdir, cartridge_name, "instances.yml"), "w") as f:
-            f.write(yaml.dump(self.instances_cfg))
-        # Set replicasets config.
-        with open(os.path.join(self.workdir, cartridge_name, "replicasets.yml"), "w") as f:
-            f.write(yaml.dump(self.replicasets_cfg))
 
     def truncate(self, bootstrap_vshard=True):
         self.stop()
@@ -144,9 +141,16 @@ class CartridgeApp:
         self.start(boostrap_vshard=bootstrap_vshard)
 
     def create(self):
-        cmd = [self.tt_cmd, "create", "-s", "cartridge", "--name", cartridge_name]
+        cmd = [self.tt_cmd, "create", "-s", "cartridge", "--name", cartridge_name, "-f"]
         rc, _ = run_command_and_get_output(cmd, cwd=self.workdir)
         assert rc == 0
+
+        # Set instances config.
+        with open(os.path.join(self.workdir, cartridge_name, "instances.yml"), "w") as f:
+            f.write(yaml.dump(self.instances_cfg))
+        # Set replicasets config.
+        with open(os.path.join(self.workdir, cartridge_name, "replicasets.yml"), "w") as f:
+            f.write(yaml.dump(self.replicasets_cfg))
 
     def build(self):
         cmd = [self.tt_cmd, "build", cartridge_name]
