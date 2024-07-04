@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt switch tt`: does not work with `x.x.x` version format.
 - `tt install tt` returns expected exit status code on unsuccessful dependency check.
 - `tt pack`: failed to start instances using systemctl due to `permissions denied`.
+- `tt uninstall tt`: does not work with `x.y.z` version format.
 
 ### Changed
 

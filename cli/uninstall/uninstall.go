@@ -26,6 +26,8 @@ const (
 	verRegexp = "(?P<ver>.*)"
 )
 
+var errNotInstalled = errors.New("program is not installed")
+
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
 func remove(program string, programVersion string, directory string,
@@ -53,7 +55,7 @@ func remove(program string, programVersion string, directory string,
 	path := filepath.Join(directory, fileName)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return false, fmt.Errorf("there is no %s installed", program)
+		return false, errNotInstalled
 	} else if err != nil {
 		return false, fmt.Errorf("there was some problem locating %s", path)
 	}
@@ -113,11 +115,25 @@ func UninstallProgram(program string, programVersion string, binDst string, head
 		}
 	}
 
-	var isSymlinkRemoved bool
-	isSymlinkRemoved, err = remove(program, programVersion, binDst, cmdCtx)
+	versionsToDelete, err := getAllTtVersionFormats(program, programVersion)
 	if err != nil {
 		return err
 	}
+
+	var isSymlinkRemoved bool
+	for _, verToDel := range versionsToDelete {
+		isSymlinkRemoved, err = remove(program, verToDel, binDst, cmdCtx)
+		if err != nil && !errors.Is(err, errNotInstalled) {
+			return err
+		}
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return err
+	}
+
 	if strings.Contains(program, "tarantool") {
 		log.Infof("Removing headers...")
 		_, err = remove(program, programVersion, headerDst, cmdCtx)
@@ -131,6 +147,26 @@ func UninstallProgram(program string, programVersion string, binDst string, head
 		err = switchProgramToLatestVersion(program, binDst, headerDst)
 	}
 	return err
+}
+
+// getAllTtVersionFormats returns all version formats with 'v' prefix and
+// without it before x.y.z version.
+func getAllTtVersionFormats(programName, ttVersion string) ([]string, error) {
+	versionsToDelete := []string{ttVersion}
+
+	if programName == search.ProgramTt {
+		// Need to determine if we have x.y.z format in tt uninstall argument
+		// to make sure we add version prefix.
+		versionMatches, err := regexp.Match(install.MajorMinorPatchRegexp, []byte(ttVersion))
+		if err != nil {
+			return versionsToDelete, err
+		}
+		if versionMatches {
+			versionsToDelete = append(versionsToDelete, "v"+ttVersion)
+		}
+	}
+
+	return versionsToDelete, nil
 }
 
 // getDefault returns a default version of an installed program.
