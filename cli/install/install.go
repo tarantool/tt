@@ -68,11 +68,15 @@ var unwindPatch []byte
 //go:embed extra/bump-libunwind-new.patch
 var unwindPatchNew []byte
 
-// defaultDirPermissions is rights used to create folders.
-// 0755 - drwxr-xr-x
-// We need to give permission for all to execute
-// read,write for user and only read for others.
-const defaultDirPermissions = 0755
+const (
+	// defaultDirPermissions is rights used to create folders.
+	// 0755 - drwxr-xr-x
+	// We need to give permission for all to execute
+	// read,write for user and only read for others.
+	defaultDirPermissions = 0755
+
+	MajorMinorPatchRegexp = `^[0-9]+\.[0-9]+\.[0-9]+`
+)
 
 // programGitRepoUrls contains URLs of programs git repositories.
 var programGitRepoUrls = map[string]string{
@@ -494,8 +498,13 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 			if err != nil {
 				return err
 			}
+
+			versionMatches, err := regexp.Match(MajorMinorPatchRegexp, []byte(ttVersion))
+			if err != nil {
+				return err
+			}
 			for _, ver := range versions {
-				if ttVersion == ver.Str || (ttVersion[:1] != "v" && "v"+ttVersion == ver.Str) {
+				if ttVersion == ver.Str || (versionMatches && "v"+ttVersion == ver.Str) {
 					versionFound = true
 					ttVersion = ver.Str
 					break

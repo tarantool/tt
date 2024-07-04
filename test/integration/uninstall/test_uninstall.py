@@ -6,7 +6,8 @@ import subprocess
 
 import pytest
 
-from utils import config_name, is_valid_tarantool_installed
+from utils import (config_name, is_valid_tarantool_installed,
+                   run_command_and_get_output)
 
 
 def test_uninstall_tt(tt_cmd, tmp_path):
@@ -104,7 +105,7 @@ def test_uninstall_missing(tt_cmd, tmp_path):
     uninstall_output = uninstall_process.stdout.readline()
     assert re.search(r"Removing binary...", uninstall_output)
     uninstall_output = uninstall_process.stdout.readline()
-    assert re.search(r"there is no", uninstall_output)
+    assert "program is not installed" in uninstall_output
 
 
 def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
@@ -306,3 +307,44 @@ def test_uninstall_tarantool_no_switch(tt_cmd, tmp_path):
         os.path.join(testdata_path, "bin", "tarantool_2.10.4"),
         os.path.join(testdata_path, "inc", "include", "tarantool_2.10.4")
     )
+
+
+@pytest.mark.parametrize("installed_versions, version_to_uninstall", [
+    (["v1.2.3"], "1.2.3"),
+    (["v1.2.3", "1.2.3"], "1.2.3"),
+    (["v1.2.3", "1.2.3"], "v1.2.3")
+])
+def test_uninstall_tt_missing_version_character(
+        installed_versions,
+        version_to_uninstall,
+        tt_cmd,
+        tmp_path):
+    configPath = os.path.join(tmp_path, config_name)
+    # Create test config.
+    with open(configPath, 'w') as f:
+        f.write(f'env:\n bin_dir: {tmp_path}\n inc_dir:\n')
+
+    # Copying built executable to bin directory,
+    # renaming it to version and change symlink
+    # to emulate that we have installed it like
+    # tt install tt v1.2.3.
+    # We don't really install it because bug we test
+    # is fixed only for current patch. Due to
+    # binary file is changing while running this
+    # bug won't appear only for current and future versions.
+    for version in installed_versions:
+        shutil.copy(tt_cmd, os.path.join(tmp_path, f"tt_{version}"))
+    os.symlink(os.path.join(tmp_path, f"tt_{installed_versions[0]}"),
+               os.path.join(tmp_path, "tt"))
+
+    # Remove not installed program.
+    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt", version_to_uninstall]
+    uninstall_rc, uninstall_output = run_command_and_get_output(uninstall_cmd, cwd=tmp_path)
+
+    assert uninstall_rc == 0
+    assert f"tt={version_to_uninstall} is uninstalled." in uninstall_output
+
+    # Check that the passed version has been removed.
+    assert os.path.isfile(os.path.join(tmp_path, "tt_" +
+                          "v" if "v" not in version_to_uninstall else "" +
+                                       version_to_uninstall)) is False

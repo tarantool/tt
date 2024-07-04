@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/version"
 )
 
@@ -140,6 +141,55 @@ func TestSearchLatestVersion(t *testing.T) {
 			} else {
 				assert.Error(t, err)
 			}
+		})
+	}
+}
+
+func TestGetAllVersionFormats(t *testing.T) {
+	type testCase struct {
+		name             string
+		programName      string
+		ttVersion        string
+		expectedVersions []string
+		expectedError    error
+	}
+
+	cases := []testCase{
+		{
+			name:             "without prefix",
+			programName:      search.ProgramTt,
+			ttVersion:        "1.2.3",
+			expectedVersions: []string{"1.2.3", "v1.2.3"},
+			expectedError:    nil,
+		},
+		{
+			name:             "with prefix",
+			programName:      search.ProgramTt,
+			ttVersion:        "v1.2.3",
+			expectedVersions: []string{"v1.2.3"},
+			expectedError:    nil,
+		},
+		{
+			name:             "not tt program",
+			programName:      search.ProgramCe,
+			ttVersion:        "1.2.3",
+			expectedVersions: []string{"1.2.3"},
+			expectedError:    nil,
+		},
+		{
+			name:             "not <major.minor.patch> format",
+			programName:      search.ProgramCe,
+			ttVersion:        "e902206",
+			expectedVersions: []string{"e902206"},
+			expectedError:    nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ttVersions, err := getAllTtVersionFormats(tc.programName, tc.ttVersion)
+			assert.NoError(t, err)
+			assert.Equal(t, ttVersions, tc.expectedVersions)
 		})
 	}
 }
