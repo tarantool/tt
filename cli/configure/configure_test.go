@@ -214,9 +214,9 @@ func TestValidateCliOpts(t *testing.T) {
 	}
 	testData := []cliCtxTest{
 		{cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/" + ConfigName},
-			"you can specify only one of -S(--system), -с(--cfg) and 'TT_CLI_CFG' options"},
+			"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options"},
 		{cmdcontext.CliCtx{LocalLaunchDir: "/", ConfigPath: "/" + ConfigName},
-			"you can specify only one of -L(--local), -с(--cfg) and 'TT_CLI_CFG' options"},
+			"you can specify only one of -L(--local), -c(--cfg) and 'TT_CLI_CFG' options"},
 		{cmdcontext.CliCtx{IsSystem: true, LocalLaunchDir: "."},
 			"you can specify only one of -L(--local) and -S(--system) options"},
 		{cmdcontext.CliCtx{IsSystem: true}, ""},
