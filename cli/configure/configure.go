@@ -549,9 +549,12 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		return err
 	}
 
-	localCli, err := detectLocalTt(cliOpts)
-	if err != nil {
-		return err
+	var localCli string
+	if !cmdCtx.Cli.IsSelfExec {
+		localCli, err = detectLocalTt(cliOpts)
+		if err != nil {
+			return err
+		}
 	}
 
 	// We have to use the absolute path to the current binary "tt" for

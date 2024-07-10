@@ -149,6 +149,8 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		"", "Path to configuration file")
 	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.Verbose, "verbose", "V",
 		false, "Verbose output")
+	rootCmd.Flags().BoolVarP(&cmdCtx.Cli.IsSelfExec, "self", "s",
+		false, "Skip searching for other tt versions to run")
 
 	integrity.RegisterIntegrityCheckFlag(rootCmd.Flags(), &cmdCtx.Cli.IntegrityCheck)
 
