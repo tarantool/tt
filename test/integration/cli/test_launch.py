@@ -554,3 +554,35 @@ def test_launch_with_verbose_output(tt_cmd, tmp_path):
         assert tmpdir_with_flag_config + "/tt.yaml" in output
     finally:
         shutil.rmtree(tmpdir_with_flag_config)
+
+
+@pytest.mark.parametrize("expected_output, is_self_enabled", [
+    ("tt", False),
+    ("Tarantool CLI", True)
+])
+def test_launch_tt_with_self_flag(expected_output,
+                                  is_self_enabled,
+                                  tt_cmd,
+                                  tmp_path):
+    # We check if tt can be executed itself with '-s' flag.
+    # If this flag is provided we don't search for 'tt' binary file
+    # in bin dir.
+    os.mkdir(tmp_path / "bin")
+    with open(tmp_path / "bin" / "tt", 'w') as f:
+        f.write('''#!/bin/sh
+                echo "tt"''')
+    os.chmod(tmp_path / "bin" / "tt", 0o775)
+
+    configPath = tmp_path / config_name
+    # Create test config.
+    with open(configPath, 'w') as f:
+        f.write('env:\n    bin_dir: bin\n    inc_dir:\n')
+
+    cmd = [tt_cmd, "--cfg", configPath]
+    if is_self_enabled:
+        cmd.append("-s")
+    cmd.append("version")
+
+    uninstall_process_rc, cmd_output = run_command_and_get_output(cmd, cwd=tmp_path)
+    assert uninstall_process_rc == 0
+    assert expected_output in cmd_output

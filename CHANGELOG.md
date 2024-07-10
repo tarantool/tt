@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   an application directory.
 - `tt replicaset bootstrap`: command to bootstrap a Cartridge cluster or an instance.
 - `tt rs rebootstrap`: re-bootstraps an instance.
+- `-s (--self)` flag to execute `tt` itself and don't search for other `tt`s in bin_dir
+  provided in config.
 
 ### Fixed
 
