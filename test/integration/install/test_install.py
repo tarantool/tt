@@ -8,7 +8,8 @@ import tempfile
 import pytest
 import yaml
 
-from utils import config_name, is_valid_tarantool_installed
+from utils import (config_name, is_valid_tarantool_installed,
+                   run_command_and_get_output)
 
 
 @pytest.mark.slow
@@ -220,13 +221,13 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     with open(config_path, "w") as f:
         yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
 
-    tmpdir_without_config = tempfile.mkdtemp()
+    tmp_path_without_config = tempfile.mkdtemp()
 
     # Install specific tarantool's commit.
     install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", "00a9e59"]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir_without_config,
+        cwd=tmp_path_without_config,
         stderr=subprocess.STDOUT,
         # Do not use pipe for stdout, if you are not going to read from it.
         # In case of build failure, logs are printed to stdout. It fills pipe buffer and
@@ -267,13 +268,13 @@ def test_install_tarantool(tt_cmd, tmp_path):
     with open(config_path, "w") as f:
         yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
 
-    tmpdir_without_config = tempfile.mkdtemp()
+    tmp_path_without_config = tempfile.mkdtemp()
 
     # Install latest tarantool.
     install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", "2.10.7"]
     instance_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir_without_config,
+        cwd=tmp_path_without_config,
         stderr=subprocess.STDOUT,
         # Do not use pipe for stdout, if you are not going to read from it.
         # In case of build failure, logs are printed to stdout. It fills pipe buffer and
@@ -311,13 +312,13 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     with open(config_path, "w") as f:
         yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
 
-    tmpdir_without_config = tempfile.mkdtemp()
+    tmp_path_without_config = tempfile.mkdtemp()
 
     # Install latest tarantool.
     install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", "--use-docker"]
     tt_process = subprocess.Popen(
         install_cmd,
-        cwd=tmpdir_without_config,
+        cwd=tmp_path_without_config,
         stderr=subprocess.STDOUT,
         # Do not use pipe for stdout, if you are not going to read from it.
         # In case of build failure, docker logs are printed to stdout. It fills pipe buffer and
@@ -645,3 +646,57 @@ def test_install_tt_fail_exit_code_dependency_check(
     )
     install_process_rc = install_process.wait()
     assert install_process_rc == 1
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("old_tarantool_version, expected_install_msg, is_interactive", [
+    pytest.param("7192bf6", "Found newest commit of tarantool in master", True),
+    pytest.param("master", "tarantool_master version of tarantool already exists", False),
+    pytest.param("7192bf6", "tarantool_master version of tarantool already exists", False)
+])
+def test_install_tarantool_fetch_latest_version(
+        tt_cmd,
+        tmp_path,
+        old_tarantool_version,
+        expected_install_msg,
+        is_interactive):
+    config_path = os.path.join(tmp_path, config_name)
+    # Create test config.
+    with open(config_path, "w") as f:
+        yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
+
+    tmp_path_without_config = tempfile.mkdtemp()
+
+    # Install not latest version of tarantool by commit hash.
+    install_cmd = [tt_cmd, "--cfg", config_path, "install",
+                   "-f", "tarantool", old_tarantool_version, "--dynamic"]
+    instance_process_rc, _ = run_command_and_get_output(install_cmd,
+                                                        cwd=tmp_path_without_config,
+                                                        stdout=subprocess.DEVNULL)
+    assert instance_process_rc == 0
+
+    # Renaming installed 'old' tarantool to 'master'
+    # and change symlink to old version to simulate
+    # that this is the latest version.
+    os.rename(os.path.join(tmp_path, "bin", "tarantool_" +
+              old_tarantool_version), os.path.join(tmp_path, "bin", "tarantool_master"))
+    os.remove(os.path.join(tmp_path, "bin", "tarantool"))
+    os.symlink(os.path.join(tmp_path, "bin", "tarantool_master"),
+               os.path.join(tmp_path, "bin", "tarantool"))
+    os.remove(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
+    os.rename(os.path.join(tmp_path, "my_inc", "include",
+              "tarantool_" + old_tarantool_version),
+              os.path.join(tmp_path, "my_inc", "include", "tarantool_master"))
+
+    # Installing newest version.
+    install_cmd = [tt_cmd, "--cfg", config_path]
+    if not is_interactive:
+        install_cmd.append("--no-prompt")
+    install_cmd.extend(["install", "-f", "tarantool", "master", "--dynamic"])
+
+    instance_process_rc, output = run_command_and_get_output(install_cmd,
+                                                             cwd=tmp_path_without_config,
+                                                             input="y\n" if is_interactive
+                                                             is True else None)
+    assert instance_process_rc == 0
+    assert expected_install_msg in output

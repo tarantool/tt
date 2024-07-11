@@ -85,6 +85,8 @@ type CliCtx struct {
 	TarantoolCli TarantoolCli
 	// IntegrityCheck is a public key used for integrity check.
 	IntegrityCheck string
-  // This flag disables searching of other tt versions to run instead of the current one.
+	// This flag disables searching of other tt versions to run instead of the current one.
 	IsSelfExec bool
+	// NoPrompt flag needs to skip cli interaction using default behavior.
+	NoPrompt bool
 }

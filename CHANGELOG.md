@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt install tt` returns expected exit status code on unsuccessful dependency check.
 - `tt pack`: failed to start instances using systemctl due to `permissions denied`.
 - `tt uninstall tt`: does not work with `x.y.z` version format.
+- Ability to update a latest version of `master` tarantool and tt with `tt install`.
 
 ### Changed
 

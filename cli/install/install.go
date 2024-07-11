@@ -114,6 +114,10 @@ type InstallCtx struct {
 	IncDir string
 	// Install development build.
 	DevBuild bool
+	// skipMasterUpdate is set if user doesn't want to check for latest master
+	// version and update for it if master version already exists. It inherits
+	// the --no-prompt flag from global context.
+	skipMasterUpdate bool
 }
 
 // Package is a struct containing sys and install name of the package.
@@ -1022,17 +1026,40 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	}
 
 	// Check if program is already installed.
+	// If it is installed, check if newest version exists.
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
-		if util.IsRegularFile(filepath.Join(binDir, versionStr)) &&
+		pathToBin := filepath.Join(binDir, versionStr)
+		if util.IsRegularFile(pathToBin) &&
 			util.IsDir(filepath.Join(incDir, versionStr)) {
-			log.Infof("%s version of tarantool already exists, updating symlinks...", versionStr)
-			err := changeActiveTarantoolVersion(versionStr, binDir, incDir)
+
+			isBinExecutable, err := util.IsExecOwner(pathToBin)
 			if err != nil {
 				return err
 			}
-			log.Infof("Done")
-			return err
+
+			isUpdatePossible, err := isUpdatePossible(installCtx,
+				pathToBin,
+				search.ProgramCe,
+				tarVersion,
+				distfiles,
+				isBinExecutable)
+			if err != nil {
+				return err
+			}
+
+			if !isUpdatePossible {
+				log.Infof("%s version of tarantool already exists, updating symlinks...",
+					versionStr)
+				err = changeActiveTarantoolVersion(versionStr, binDir, incDir)
+				if err != nil {
+					return err
+				}
+				log.Infof("Done")
+				return nil
+			}
+
+			log.Infof("Found newest commit of tarantool in master")
 		}
 	}
 
@@ -1158,6 +1185,63 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		log.Infof("Artifacts can be found at: %s", path)
 	}
 	return nil
+}
+
+// isUpdatePossible func checks if Tt or Tarantool are 'master' version
+// and if so, asks user about checking for update to latest commit.
+// Function returns boolean variable if update of master is possible or not.
+func isUpdatePossible(installCtx InstallCtx,
+	pathToBin,
+	program,
+	progVer,
+	distfiles string,
+	isBinExecutable bool) (bool, error) {
+	var curBinHash, lastCommitHash string
+	// We need to make sure that we check newest commits only for
+	// production 'master' branch. Also we want to ask if user wants
+	// to check for updates.
+	if isBinExecutable && progVer == "master" {
+		var err error
+		answer := false
+		if !installCtx.skipMasterUpdate {
+			answer, err = util.AskConfirm(os.Stdin, "The 'master' version of the "+program+
+				" has already been installed.\n"+
+				"Would you like to update it if there are newer commits available?")
+			if err != nil {
+				return false, err
+			}
+		}
+
+		if answer {
+			lastCommitHash, err = getCommit(installCtx.Local, distfiles,
+				program, progVer)
+			if err != nil {
+				return false, err
+			}
+
+			if program == search.ProgramCe {
+				tarantoolBin := cmdcontext.TarantoolCli{
+					Executable: pathToBin,
+				}
+				binVersion, err := tarantoolBin.GetVersion()
+				if err != nil {
+					return false, err
+				}
+				// We need to trim first rune to get commit hash
+				// from string structure 'g<commitHash>'.
+				if len(binVersion.Hash) < 1 {
+					return false, fmt.Errorf("could not get commit hash of the version"+
+						"of an installed %s", program)
+				}
+				curBinHash = binVersion.Hash[1:]
+			}
+		}
+	}
+
+	if strings.HasPrefix(lastCommitHash, curBinHash) {
+		return false, nil
+	}
+	return true, nil
 }
 
 // installTarantoolEE installs selected version of tarantool-ee.
@@ -1474,6 +1558,7 @@ func Install(binDir string, includeDir string, installCtx InstallCtx,
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
 	installCtx.verbose = cmdCtx.Cli.Verbose
+	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 
 	if cmdCtx.CommandName == search.ProgramDev {
 		if len(args) != 1 {
