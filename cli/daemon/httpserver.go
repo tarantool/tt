@@ -29,7 +29,7 @@ type HTTPServer struct {
 	// to the HTTP server to shutdown correctly.
 	timeout time.Duration
 	// logger is  a log file the HTTP server will write to.
-	logger *ttlog.Logger
+	logger ttlog.Logger
 }
 
 // listenIP discovers IP address on the specified interface.
@@ -98,7 +98,7 @@ func (httpServer *HTTPServer) Timeout(timeout time.Duration) *HTTPServer {
 }
 
 // SetLogger sets a log file the HTTP server will write to.
-func (httpServer *HTTPServer) SetLogger(logger *ttlog.Logger) {
+func (httpServer *HTTPServer) SetLogger(logger ttlog.Logger) {
 	httpServer.logger = logger
 }
 

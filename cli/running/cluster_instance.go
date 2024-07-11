@@ -21,7 +21,7 @@ type clusterInstance struct {
 	// processController is a child process controller.
 	processController *processController
 	// logger represents an active logging object.
-	logger *ttlog.Logger
+	logger ttlog.Logger
 	// tarantoolPath describes the path to the tarantool binary
 	// that will be used to launch the Instance.
 	tarantoolPath string
@@ -59,7 +59,7 @@ type clusterInstance struct {
 
 // newClusterInstance creates a clusterInstance.
 func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx InstanceCtx,
-	logger *ttlog.Logger, integrityCtx integrity.IntegrityCtx,
+	logger ttlog.Logger, integrityCtx integrity.IntegrityCtx,
 	integrityChecks bool) (*clusterInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolCli.Executable); err != nil {

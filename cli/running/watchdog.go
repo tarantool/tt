@@ -17,10 +17,10 @@ import (
 // file).
 type Provider interface {
 	// CreateInstance is used to create a new instance on restart.
-	CreateInstance(logger *ttlog.Logger) (Instance, error)
+	CreateInstance(logger ttlog.Logger) (Instance, error)
 	// UpdateLogger updates the logger settings or creates a new logger,
 	// if passed nil.
-	UpdateLogger(logger *ttlog.Logger) (*ttlog.Logger, error)
+	UpdateLogger(logger ttlog.Logger) (ttlog.Logger, error)
 	// IsRestartable checks
 	IsRestartable() (bool, error)
 }
@@ -30,7 +30,7 @@ type Watchdog struct {
 	// instance describes the controlled Instance.
 	instance Instance
 	// logger represents an active logging object.
-	logger *ttlog.Logger
+	logger ttlog.Logger
 	// doneBarrier used to indicate the completion of the
 	// signal handling goroutine.
 	doneBarrier sync.WaitGroup
@@ -54,7 +54,7 @@ type Watchdog struct {
 }
 
 // NewWatchdog creates a new instance of Watchdog.
-func NewWatchdog(restartable bool, restartTimeout time.Duration, logger *ttlog.Logger,
+func NewWatchdog(restartable bool, restartTimeout time.Duration, logger ttlog.Logger,
 	provider Provider, preStartAction func() error,
 	integrityCtx integrity.IntegrityCtx, integrityCheckPeriod time.Duration) *Watchdog {
 	wd := Watchdog{
@@ -234,7 +234,7 @@ func (wd *Watchdog) startSignalHandling(ctx context.Context, cancel context.Canc
 						wd.instance.Stop(30 * time.Second)
 					}
 				case syscall.SIGQUIT:
-					wd.logger.Print("(INFO): SIGQUIT received.")
+					wd.logger.Println("(INFO): SIGQUIT received.")
 					wd.stopMutex.Lock()
 					wd.shouldStop = true
 					wd.stopMutex.Unlock()

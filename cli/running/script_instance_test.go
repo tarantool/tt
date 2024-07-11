@@ -23,7 +23,7 @@ const (
 
 // startTestInstance starts instance for the test.
 func startTestInstance(t *testing.T, app string, consoleSock string, binaryPort string,
-	logger *ttlog.Logger) *scriptInstance {
+	logger ttlog.Logger) *scriptInstance {
 	assert := assert.New(t)
 
 	// Need absolute path to the script, because working dir is changed on start.

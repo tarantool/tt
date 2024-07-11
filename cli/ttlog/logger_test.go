@@ -15,9 +15,10 @@ func TestLoggerBase(t *testing.T) {
 	fileName := filepath.Join(tmpDir, "test_log")
 
 	// Create logger.
-	opts := LoggerOpts{fileName, "watchdog"}
-	logger := NewLogger(opts)
-	// Write one test message to create a log file.
+	opts := LoggerOpts{fileName, "watchdog "}
+	logger, err := NewFileLogger(opts)
+	require.NoError(t, err)
+	// Write one test message.
 	logger.Println(`Test msg 1`)
 
 	// Check the count of the log files (must be 1).
@@ -47,9 +48,30 @@ func TestLoggerBase(t *testing.T) {
 	assert.Contains(t, contentStr, "watchdog")
 	assert.Contains(t, contentStr, "Test msg 1")
 	assert.Contains(t, contentStr, "Test msg 2")
+	assert.Contains(t, contentStr, "log file has been reopened")
 
 	content, err = os.ReadFile(fileName)
 	require.NoError(t, err)
 	contentStr = string(content)
 	assert.Contains(t, contentStr, "Test msg 3")
+	assert.Contains(t, contentStr, "log file has been reopened")
+}
+
+func TestLoggerNoDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	fileName := filepath.Join(tmpDir, "dir", "subdir", "test.log")
+
+	opts := LoggerOpts{fileName, "watchdog "}
+	logger, err := NewFileLogger(opts)
+	require.NoError(t, err)
+	logger.Println(`Test msg 1`)
+
+	require.FileExists(t, fileName)
+	assert.NoError(t, logger.Close())
+
+	content, err := os.ReadFile(fileName)
+	require.NoError(t, err)
+	contentStr := string(content)
+	assert.Contains(t, contentStr, "watchdog")
+	assert.Contains(t, contentStr, "Test msg 1")
 }

@@ -27,7 +27,7 @@ type scriptInstance struct {
 	// processController is a child process controller.
 	processController *processController
 	// logger represents an active logging object.
-	logger *ttlog.Logger
+	logger ttlog.Logger
 	// tarantoolPath describes the path to the tarantool binary
 	// that will be used to launch the Instance.
 	tarantoolPath string
@@ -62,7 +62,7 @@ type scriptInstance struct {
 var instanceLauncher []byte
 
 // newScriptInstance creates an Instance.
-func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, logger *ttlog.Logger,
+func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, logger ttlog.Logger,
 	integrityCtx integrity.IntegrityCtx, integrityChecks bool) (*scriptInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {

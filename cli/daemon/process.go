@@ -25,7 +25,7 @@ const (
 type Worker interface {
 	Start(ttPath string)
 	Stop() error
-	SetLogger(logger *ttlog.Logger)
+	SetLogger(logger ttlog.Logger)
 }
 
 // Process describes a running process.
@@ -33,7 +33,7 @@ type Process struct {
 	// logOpts are options to create a logger.
 	logOpts ttlog.LoggerOpts
 	// logger is a log file the process will write to.
-	logger *ttlog.Logger
+	logger ttlog.Logger
 	// pidFileName is a path to the process pid file.
 	pidFileName string
 	// cmdPath is a path to the command the process should perform.
@@ -94,7 +94,10 @@ func (process *Process) IsChild() bool {
 // Start starts the process.
 func (process *Process) Start() error {
 	if process.IsChild() {
-		process.logger = ttlog.NewLogger(process.logOpts)
+		var err error
+		if process.logger, err = ttlog.NewFileLogger(process.logOpts); err != nil {
+			return fmt.Errorf("failed to create log: %s", err)
+		}
 
 		if err := process_utils.CreatePIDFile(process.pidFileName); err != nil {
 			return err
