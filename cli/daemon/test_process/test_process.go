@@ -9,7 +9,7 @@ import (
 
 // TestWorker represents simple worker.
 type TestWorker struct {
-	logger *ttlog.Logger
+	logger ttlog.Logger
 	done   chan bool
 }
 
@@ -21,7 +21,7 @@ func NewTestWorker() *TestWorker {
 }
 
 // SetLogger sets worker logger.
-func (w *TestWorker) SetLogger(logger *ttlog.Logger) {
+func (w *TestWorker) SetLogger(logger ttlog.Logger) {
 	w.logger = logger
 }
 

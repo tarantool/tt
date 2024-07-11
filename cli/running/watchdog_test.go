@@ -29,7 +29,7 @@ type providerTestImpl struct {
 	// appPath is the path to the application.
 	appPath string
 	// logger describes the logger used by Watchdog.
-	logger *ttlog.Logger
+	logger ttlog.Logger
 	// dataDir used by an Instance.
 	dataDir string
 	// restartable indicates the need to restart the instance in case of a crash.
@@ -38,7 +38,7 @@ type providerTestImpl struct {
 }
 
 // createInstance reads config and creates an Instance.
-func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (Instance, error) {
+func (provider *providerTestImpl) CreateInstance(logger ttlog.Logger) (Instance, error) {
 	return newScriptInstance(provider.tarantool, InstanceCtx{
 		InstanceScript: provider.appPath,
 		AppDir:         provider.t.TempDir(),
@@ -49,7 +49,7 @@ func (provider *providerTestImpl) CreateInstance(logger *ttlog.Logger) (Instance
 }
 
 // UpdateLogger updates the logger settings or creates a new logger, if passed nil.
-func (provider *providerTestImpl) UpdateLogger(logger *ttlog.Logger) (*ttlog.Logger, error) {
+func (provider *providerTestImpl) UpdateLogger(logger ttlog.Logger) (ttlog.Logger, error) {
 	return logger, nil
 }
 

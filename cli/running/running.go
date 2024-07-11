@@ -159,7 +159,7 @@ func (provider *providerImpl) updateCtx() error {
 }
 
 // createInstance reads config and creates an Instance.
-func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (inst Instance, err error) {
+func (provider *providerImpl) CreateInstance(logger ttlog.Logger) (inst Instance, err error) {
 	if err = provider.updateCtx(); err != nil {
 		return
 	}
@@ -179,7 +179,7 @@ func (provider *providerImpl) CreateInstance(logger *ttlog.Logger) (inst Instanc
 }
 
 // isLoggerChanged checks if any of the logging parameters has been changed.
-func isLoggerChanged(logger *ttlog.Logger, instanceCtx *InstanceCtx) (bool, error) {
+func isLoggerChanged(logger ttlog.Logger, instanceCtx *InstanceCtx) (bool, error) {
 	if logger == nil {
 		return true, nil
 	}
@@ -196,14 +196,14 @@ func isLoggerChanged(logger *ttlog.Logger, instanceCtx *InstanceCtx) (bool, erro
 }
 
 // UpdateLogger updates the logger settings or creates a new logger, if passed nil.
-func (provider *providerImpl) UpdateLogger(logger *ttlog.Logger) (*ttlog.Logger, error) {
+func (provider *providerImpl) UpdateLogger(logger ttlog.Logger) (ttlog.Logger, error) {
 	updateLogger, err := isLoggerChanged(logger, provider.instanceCtx)
 	if err != nil {
 		return logger, err
 	}
 	if updateLogger {
 		logger.Close()
-		return createLogger(provider.instanceCtx), nil
+		return createLogger(provider.instanceCtx)
 	}
 	return logger, nil
 }
@@ -476,12 +476,12 @@ func cleanup(run *InstanceCtx) {
 }
 
 // createLogger prepares a logger for the watchdog and instance.
-func createLogger(run *InstanceCtx) *ttlog.Logger {
+func createLogger(run *InstanceCtx) (ttlog.Logger, error) {
 	opts := ttlog.LoggerOpts{
 		Filename: run.Log,
 		Prefix:   "Watchdog ",
 	}
-	return ttlog.NewLogger(opts)
+	return ttlog.NewFileLogger(opts)
 }
 
 // configMap is a helper structure to bind cluster config path with a pointer to value storage.
@@ -705,12 +705,14 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 // Start an Instance.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod time.Duration) error {
-	logger := createLogger(inst)
-	logger.Print("[INFO] Start") // Create a log file before any other actions.
 	if err := createInstanceDataDirectories(*inst); err != nil {
-		logger.Printf("[ERROR] failed to create a directory: %s", err)
-		return err
+		return fmt.Errorf("failed to create a directory: %s", err)
 	}
+	logger, err := createLogger(inst)
+	if err != nil {
+		return fmt.Errorf("cannot create a logger: %s", err)
+	}
+	logger.Println("[INFO] Start") // Create a log file before any other actions.
 
 	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: inst}
 	preStartAction := func() error {

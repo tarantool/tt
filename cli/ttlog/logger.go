@@ -1,10 +1,17 @@
 package ttlog
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"log"
+	"os"
+	"path/filepath"
+)
 
-	"gopkg.in/natefinch/lumberjack.v2"
+const (
+	logOpenFlags   = os.O_CREATE | os.O_WRONLY | os.O_APPEND
+	logCreatePerms = 0640
 )
 
 // LoggerOpts describes the logger options.
@@ -15,68 +22,113 @@ type LoggerOpts struct {
 	Prefix string
 }
 
-// Logger represents an active logging object.
-// A Logger can be used simultaneously from multiple goroutines;
-// it guarantees serialize access to the Writer.
-type Logger struct {
-	// Embedded logger, the functionality of which will be extended.
-	*log.Logger
-	// ljLogger is an io.WriteCloser that writes to the specified filename.
-	// Used to add logrotate functionality to log.Logger.
-	ljLogger *lumberjack.Logger
-	// opts describes the parameters that were used to create the logger.
-	opts LoggerOpts
+type Logger interface {
+	// Logger API.
+	Printf(format string, v ...any)
+	Println(v ...any)
+	Fatal(v ...any)
+	Fatalf(format string, v ...any)
+	Writer() io.Writer
+
+	// Rotate re-opens a log file.
+	Rotate() error
+	// GetOpts returns the logger options that were used during creation.
+	GetOpts() LoggerOpts
+	// Close closes a log file.
+	Close() error
 }
 
-// NewLogger creates a new object of Logger.
-func NewLogger(opts LoggerOpts) *Logger {
-	ljLogger := &lumberjack.Logger{
-		Filename:  opts.Filename,
-		Compress:  false,
-		LocalTime: true,
-	}
-	return &Logger{Logger: log.New(ljLogger, opts.Prefix, log.Flags()), ljLogger: ljLogger,
-		opts: opts}
+// writerLogger is a thin log.Logger wrapper providing the Logger interface.
+type writerLogger struct {
+	*log.Logger
 }
 
 // NewCustomLogger creates a new logger object with custom `writer`, `prefix`
-// and `flags`. Rotation does not work in this case. Such logger is widely
-// used in tests.
-func NewCustomLogger(writer io.Writer, prefix string, flags int) *Logger {
-	return &Logger{Logger: log.New(writer, "", flags), ljLogger: nil}
+// and `flags`. Rotation does not work in this case.
+func NewCustomLogger(writer io.Writer, prefix string, flags int) Logger {
+	return &writerLogger{
+		Logger: log.New(writer, prefix, flags),
+	}
 }
 
-// Rotate reopens the log file.
-func (logger *Logger) Rotate() error {
-	if logger.ljLogger == nil {
-		return nil
-	}
-
-	savedLjLogger := logger.ljLogger
-	newLjLogger := &lumberjack.Logger{
-		Filename:  logger.opts.Filename,
-		Compress:  false,
-		LocalTime: true,
-	}
-	logger.Logger = log.New(newLjLogger, logger.opts.Prefix, log.Flags())
-	logger.Println("(INFO) log file has been reopened")
-
-	if err := savedLjLogger.Close(); err != nil {
-		logger.Printf("(ERROR) failed to close previous log file: %s", err.Error())
-	}
+// Rotate is no-op for custom logger.
+func (logger *writerLogger) Rotate() error {
 	return nil
 }
 
 // GetOpts returns the parameters that were used to create the logger.
-func (logger *Logger) GetOpts() LoggerOpts {
+func (logger *writerLogger) GetOpts() LoggerOpts {
+	return LoggerOpts{Prefix: logger.Logger.Prefix()}
+}
+
+// Close implements io.Closer, no-op.
+func (logger *writerLogger) Close() error {
+	return nil
+}
+
+// fileLogger is a logger that writes log messages to the file.
+type fileLogger struct {
+	*log.Logger
+
+	logFile io.WriteCloser
+
+	// opts describes the parameters that were used to create the logger.
+	opts LoggerOpts
+}
+
+// NewFileLogger creates a new object of file logger.
+func NewFileLogger(opts LoggerOpts) (Logger, error) {
+	dir := filepath.Dir(opts.Filename)
+	if _, err := os.Stat(dir); err != nil &&
+		errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, err
+		}
+	}
+
+	file, err := os.OpenFile(opts.Filename, logOpenFlags, 0640)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open the log file %q: %s", opts.Filename, err)
+	}
+	return &fileLogger{
+		Logger:  log.New(file, opts.Prefix, log.LstdFlags),
+		opts:    opts,
+		logFile: file,
+	}, nil
+}
+
+// GetOpts returns the parameters that were used to create the logger.
+func (logger *fileLogger) GetOpts() LoggerOpts {
 	return logger.opts
 }
 
-// Close implements io.Closer, and closes the current logfile.
-func (logger *Logger) Close() error {
-	if logger.ljLogger == nil {
+// Rotate reopens the log file.
+func (logger *fileLogger) Rotate() error {
+	if logger.logFile == nil {
 		return nil
 	}
 
-	return logger.ljLogger.Close()
+	savedFile := logger.logFile
+	var err error
+
+	if logger.logFile, err = os.OpenFile(logger.opts.Filename, logOpenFlags,
+		logCreatePerms); err != nil {
+		return fmt.Errorf("cannot open the log file %q: %s", logger.opts.Filename, err)
+	}
+	logger.Logger = log.New(logger.logFile, logger.opts.Prefix, log.LstdFlags)
+	logger.Println("(INFO) log file has been reopened")
+
+	if err := savedFile.Close(); err != nil {
+		logger.Printf("(ERROR) failed to close previous log file: %s", err)
+	}
+
+	return nil
+}
+
+// Close implements io.Closer, and closes the current logfile.
+func (logger *fileLogger) Close() error {
+	if logger.logFile != nil {
+		return logger.logFile.Close()
+	}
+	return nil
 }

@@ -16,7 +16,7 @@ import (
 // DaemonHandler is used to communicate with the daemon over HTTP.
 type DaemonHandler struct {
 	cmdPath string
-	logger  *ttlog.Logger
+	logger  ttlog.Logger
 }
 
 // resResult describes a failure during the command execution.
@@ -57,7 +57,7 @@ func NewDaemonHandler(cmdPath string) *DaemonHandler {
 }
 
 // Logger sets logger for DaemonHandler.
-func (handler *DaemonHandler) Logger(logger *ttlog.Logger) *DaemonHandler {
+func (handler *DaemonHandler) Logger(logger ttlog.Logger) *DaemonHandler {
 	handler.logger = logger
 	return handler
 }
