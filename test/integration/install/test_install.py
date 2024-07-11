@@ -700,3 +700,40 @@ def test_install_tarantool_fetch_latest_version(
                                                              is True else None)
     assert instance_process_rc == 0
     assert expected_install_msg in output
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("active_symlink, expected_install_msg, is_interactive", [
+    ("tt_master", "Found newest commit of tt in master", True),
+    ("tt_master", "tt_master version of tt already exists, updating symlink...", False),
+    ("tt_v1.2.3", "Found newest commit of tt in master", True),
+])
+def test_install_tt_fetch_latest_version(active_symlink,
+                                         expected_install_msg,
+                                         is_interactive,
+                                         tt_cmd,
+                                         tmp_path):
+    config_path = os.path.join(tmp_path, config_name)
+    # Create test config
+    with open(config_path, 'w') as f:
+        f.write(f"env:\n  bin_dir: {tmp_path}\n  inc_dir:\n")
+
+    # Copying built executable to bin directory,
+    # renaming it to master and change symlink
+    # to emulate that this is master version.
+    shutil.copy(tt_cmd, os.path.join(tmp_path, "tt_master"))
+    shutil.copy(tt_cmd, os.path.join(tmp_path, "tt_v1.2.3"))
+    os.symlink(os.path.join(tmp_path, active_symlink),
+               os.path.join(tmp_path, "tt"))
+
+    install_cmd = [tt_cmd, "--cfg", config_path]
+    if not is_interactive:
+        install_cmd.append("--no-prompt")
+    install_cmd.extend(["install", "tt", "master"])
+    instance_process_rc, install_output = run_command_and_get_output(
+        install_cmd,
+        cwd=tmp_path,
+        input="y\n" if is_interactive
+        is True else None)
+    assert instance_process_rc == 0
+    assert expected_install_msg in install_output

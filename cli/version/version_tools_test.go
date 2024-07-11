@@ -217,3 +217,71 @@ func TestParseVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestParseTt(t *testing.T) {
+	type testCase struct {
+		name           string
+		inputVer       string
+		expectedVer    Version
+		isErr          bool
+		expectedErrMsg string
+	}
+
+	cases := []testCase{
+		{
+			name:     "basic",
+			inputVer: "2.3.1.f7cc1de\n",
+			expectedVer: Version{
+				Major: 2,
+				Minor: 3,
+				Patch: 1,
+				Hash:  "f7cc1de",
+				Str:   "2.3.1.f7cc1de",
+			},
+			isErr:          false,
+			expectedErrMsg: "",
+		},
+		{
+			name:           "parse error",
+			inputVer:       "2.w.1.f7cc1de",
+			expectedVer:    Version{},
+			isErr:          true,
+			expectedErrMsg: `strconv.ParseUint: parsing "w": invalid syntax`,
+		},
+		{
+			name:        "no dots in version",
+			inputVer:    "2131f7cc1de",
+			expectedVer: Version{},
+			isErr:       true,
+			expectedErrMsg: fmt.Sprintf(`failed to parse version "2131f7cc1de":` +
+				` format is not valid`),
+		},
+		{
+			name:        "version does not match",
+			inputVer:    "2.1.3.1.f7cc1de",
+			expectedVer: Version{},
+			isErr:       true,
+			expectedErrMsg: fmt.Sprintf(`the version of "2.1.3.1" does not match` +
+				` <major>.<minor>.<patch> format`),
+		},
+		{
+			name:           "hash does not match",
+			inputVer:       "2.1.3.f7cc1de_",
+			expectedVer:    Version{},
+			isErr:          true,
+			expectedErrMsg: `hash "f7cc1de_" has a wrong format`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resVer, err := ParseTt(tc.inputVer)
+			if tc.isErr {
+				assert.EqualError(t, err, tc.expectedErrMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, resVer, tc.expectedVer)
+		})
+	}
+}
