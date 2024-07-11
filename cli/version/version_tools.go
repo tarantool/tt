@@ -3,6 +3,7 @@ package version
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/tarantool/tt/cli/util"
 )
@@ -133,6 +134,52 @@ func Parse(verStr string) (Version, error) {
 	version.Str = verStr
 
 	return version, nil
+}
+
+// ParseTt parses a tt version string with format '<major>.<minor>.<patch>.<hash>'
+// and return the version value it represents.
+func ParseTt(verStr string) (Version, error) {
+	verToParse := strings.Trim(verStr, "\n")
+	sepIndex := strings.LastIndex(verToParse, ".")
+	if sepIndex == -1 {
+		return Version{}, fmt.Errorf("failed to parse version %q: format is not valid", verStr)
+	}
+
+	verStr = verToParse[:sepIndex]
+	numVersions := strings.Split(verStr, ".")
+	if len(numVersions) != 3 {
+		return Version{}, fmt.Errorf("the version of %q does not match"+
+			" <major>.<minor>.<patch> format", verStr)
+	}
+
+	var err error
+	ttVersion := Version{}
+
+	ttVersion.Major, err = util.AtoiUint64(numVersions[0])
+	if err != nil {
+		return Version{}, err
+	}
+	ttVersion.Minor, err = util.AtoiUint64(numVersions[1])
+	if err != nil {
+		return Version{}, err
+	}
+	ttVersion.Patch, err = util.AtoiUint64(numVersions[2])
+	if err != nil {
+		return Version{}, err
+	}
+
+	hashStr := verToParse[sepIndex+1:]
+	isHashValid, err := util.IsValidCommitHash(hashStr)
+	if err != nil {
+		return Version{}, err
+	}
+	if !isHashValid {
+		return Version{}, fmt.Errorf("hash %q has a wrong format", hashStr)
+	}
+	ttVersion.Hash = hashStr
+	ttVersion.Str = verToParse
+
+	return ttVersion, nil
 }
 
 // VersionSlice attaches the methods of sort.Interface to []Version, sorting from oldest to newest.

@@ -549,16 +549,38 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	}
 
 	// Check if that version is already installed.
+	// If it is installed, check if the newest version exists.
 	if !installCtx.Reinstall {
 		log.Infof("Checking existing...")
-		if util.IsRegularFile(filepath.Join(binDir, versionStr)) {
-			log.Infof("%s version of tt already exists, updating symlink...", versionStr)
-			err := util.CreateSymlink(versionStr, filepath.Join(binDir, "tt"), true)
+		pathToBin := filepath.Join(binDir, versionStr)
+		if util.IsRegularFile(pathToBin) {
+			isBinExecutable, err := util.IsExecOwner(pathToBin)
 			if err != nil {
 				return err
 			}
-			log.Infof("Done")
-			return err
+
+			isUpdatePossible, err := isUpdatePossible(installCtx,
+				pathToBin,
+				search.ProgramTt,
+				ttVersion,
+				distfiles,
+				isBinExecutable)
+			if err != nil {
+				return err
+			}
+
+			if !isUpdatePossible {
+				log.Infof("%s version of tt already exists, updating symlink...", versionStr)
+				err := util.CreateSymlink(versionStr, filepath.Join(binDir, search.ProgramTt), true)
+				if err != nil {
+					return err
+				}
+				log.Infof("Done")
+				return nil
+			}
+			log.Info("Found newest commit of tt in master")
+			// Reduce the case to a reinstallation.
+			installCtx.Reinstall = true
 		}
 	}
 
@@ -1234,6 +1256,12 @@ func isUpdatePossible(installCtx InstallCtx,
 						"of an installed %s", program)
 				}
 				curBinHash = binVersion.Hash[1:]
+			} else if program == search.ProgramTt {
+				ttVer, err := cmdcontext.GetTtVersion(pathToBin)
+				if err != nil {
+					return false, err
+				}
+				curBinHash = ttVer.Hash
 			}
 		}
 	}

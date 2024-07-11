@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 	"github.com/tarantool/tt/lib/integrity"
 )
@@ -61,6 +62,26 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	return tntCli.version, nil
 }
 
+// GetTtVersion returns version of Tt provided by its executable path.
+func GetTtVersion(pathToBin string) (version.Version, error) {
+	if !util.IsRegularFile(pathToBin) {
+		return version.Version{}, fmt.Errorf("file %q not found", pathToBin)
+	}
+
+	output, err := exec.Command(pathToBin, "--self", "version",
+		"--commit").Output()
+	if err != nil {
+		return version.Version{}, fmt.Errorf("failed to get tt version: %s", err)
+	}
+
+	ttVersion, err := version.ParseTt(string(output))
+	if err != nil {
+		return version.Version{}, err
+	}
+
+	return ttVersion, nil
+}
+
 // CliCtx - CLI context. Contains flags passed when starting
 // Tarantool CLI and some other parameters.
 type CliCtx struct {
@@ -85,7 +106,8 @@ type CliCtx struct {
 	TarantoolCli TarantoolCli
 	// IntegrityCheck is a public key used for integrity check.
 	IntegrityCheck string
-	// This flag disables searching of other tt versions to run instead of the current one.
+	// This flag disables searching of other tt versions to run
+	// instead of the current one.
 	IsSelfExec bool
 	// NoPrompt flag needs to skip cli interaction using default behavior.
 	NoPrompt bool
