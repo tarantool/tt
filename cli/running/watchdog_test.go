@@ -43,9 +43,7 @@ func (provider *providerTestImpl) CreateInstance(logger ttlog.Logger) (Instance,
 		InstanceScript: provider.appPath,
 		AppDir:         provider.t.TempDir(),
 	},
-		logger, integrity.IntegrityCtx{
-			Repository: &mockRepository{},
-		}, false)
+		StdLoggerOpt(logger))
 }
 
 // UpdateLogger updates the logger settings or creates a new logger, if passed nil.

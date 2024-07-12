@@ -8,11 +8,12 @@ type ColorPicker func() color.Color
 // DefaultColorPicker create a color picker to get a color from a default colors set.
 func DefaultColorPicker() ColorPicker {
 	var colorTable = []color.Color{
-		*color.New(color.FgCyan),
-		*color.New(color.FgGreen),
-		*color.New(color.FgMagenta),
-		*color.New(color.FgYellow),
+		*color.New(color.FgHiBlue),
+		*color.New(color.FgHiCyan),
+		*color.New(color.FgHiMagenta),
 		*color.New(color.FgBlue),
+		*color.New(color.FgCyan),
+		*color.New(color.FgMagenta),
 	}
 
 	i := 0

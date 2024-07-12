@@ -2,6 +2,7 @@ package running
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -158,24 +159,33 @@ func (provider *providerImpl) updateCtx() error {
 	return nil
 }
 
+// createInstance creates an Instance.
+func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
+	opts ...InstanceOption) (inst Instance, err error) {
+	if instanceCtx.ClusterConfigPath != "" {
+		return newClusterInstance(cmdCtx.Cli.TarantoolCli, instanceCtx, opts...)
+	}
+	return newScriptInstance(cmdCtx.Cli.TarantoolCli.Executable, instanceCtx, opts...)
+}
+
 // createInstance reads config and creates an Instance.
 func (provider *providerImpl) CreateInstance(logger ttlog.Logger) (inst Instance, err error) {
 	if err = provider.updateCtx(); err != nil {
 		return
 	}
 
-	integrityChecks := provider.cmdCtx.Cli.IntegrityCheck != ""
+	opts := []InstanceOption{StdLoggerOpt(logger)}
+	if provider.cmdCtx.Cli.IntegrityCheck != "" {
+		opts = append(opts, IntegrityOpt(provider.cmdCtx.Integrity))
+	}
 
 	if provider.instanceCtx.ClusterConfigPath != "" {
 		logger.Printf("(INFO): using %q cluster config for instance %q",
 			provider.instanceCtx.ClusterConfigPath,
 			provider.instanceCtx.InstName,
 		)
-		return newClusterInstance(provider.cmdCtx.Cli.TarantoolCli, *provider.instanceCtx,
-			logger, provider.cmdCtx.Integrity, integrityChecks)
 	}
-	return newScriptInstance(provider.cmdCtx.Cli.TarantoolCli.Executable, *provider.instanceCtx,
-		logger, provider.cmdCtx.Integrity, integrityChecks)
+	return createInstance(*provider.cmdCtx, *provider.instanceCtx, opts...)
 }
 
 // isLoggerChanged checks if any of the logging parameters has been changed.
@@ -703,6 +713,45 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	return nil
 }
 
+// RunInstance runs tarantool instance and waits for completion.
+func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCtx,
+	stdOut, stdErr io.Writer) error {
+	for _, dataDir := range [...]string{inst.WalDir, inst.VinylDir, inst.MemtxDir, inst.RunDir} {
+		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
+			return err
+		}
+	}
+
+	logger := ttlog.NewCustomLogger(stdOut, "", 0)
+	opts := []InstanceOption{
+		StdLoggerOpt(logger),
+		StdOutOpt(stdOut),
+		StdErrOpt(stdErr),
+	}
+	if cmdCtx.Cli.IntegrityCheck != "" {
+		opts = append(opts, IntegrityOpt(cmdCtx.Integrity))
+	}
+	instance, err := createInstance(*cmdCtx, inst, opts...)
+	if err != nil {
+		return fmt.Errorf("failed to create the instance %q: %s", inst.InstName, err)
+	}
+	logger.Println("(INFO) Start")
+	if err = instance.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start the instance %q: %s", inst.InstName, err)
+	}
+
+	defer func() {
+		cleanup(&inst)
+	}()
+
+	if err := process_utils.CreatePIDFile(inst.PIDFile, instance.GetPid()); err != nil {
+		instance.Stop(10 * time.Second)
+		return fmt.Errorf("cannot create the pid file %q: %s", inst.PIDFile, err)
+	}
+
+	return instance.Wait()
+}
+
 // Start an Instance.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod time.Duration) error {
 	if err := createInstanceDataDirectories(*inst); err != nil {
@@ -716,7 +765,7 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod ti
 
 	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: inst}
 	preStartAction := func() error {
-		if err := process_utils.CreatePIDFile(inst.PIDFile); err != nil {
+		if err := process_utils.CreatePIDFile(inst.PIDFile, os.Getpid()); err != nil {
 			return err
 		}
 		return nil
@@ -793,8 +842,9 @@ func Quit(run InstanceCtx) error {
 }
 
 func Run(runInfo *RunInfo) error {
-	inst := scriptInstance{tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
-		integrityCtx: runInfo.CmdCtx.Integrity}
+	inst := scriptInstance{baseInstance: baseInstance{
+		tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
+		integrityCtx:  runInfo.CmdCtx.Integrity}}
 	err := inst.Run(runInfo.RunOpts)
 	return err
 }

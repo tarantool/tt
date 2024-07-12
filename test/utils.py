@@ -526,3 +526,27 @@ def wait_string_in_file(file, text):
                     break
             lines = fp.readlines(100)
         assert found
+
+
+def wait_for_lines_in_output(stdout, expected_lines: list):
+    output = ''
+    retries = 10
+    while True:
+        line = stdout.readline()
+        if line == '':
+            if retries == 0:
+                break
+            time.sleep(0.2)
+            retries -= 1
+        else:
+            retries = 10
+            output += line
+            for expected in expected_lines:
+                if expected in line:
+                    expected_lines.remove(expected)
+                    break
+
+            if len(expected_lines) == 0:
+                break
+
+    return output

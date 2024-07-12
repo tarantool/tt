@@ -1,6 +1,7 @@
 package running
 
 import (
+	"context"
 	"os"
 	"time"
 )
@@ -8,7 +9,7 @@ import (
 // Instance describes a running tarantool instance.
 type Instance interface {
 	// Start starts the Instance with the specified parameters.
-	Start() error
+	Start(context.Context) error
 
 	// Run runs tarantool interpreter.
 	Run(opts RunOpts) error
@@ -30,4 +31,10 @@ type Instance interface {
 
 	// StopWithSignal terminates the process with specific signal.
 	StopWithSignal(waitTimeout time.Duration, usedSignal os.Signal) error
+
+	// GetPid returns instance process PID.
+	GetPid() int
+
+	// ProcessState returns completed process state.
+	ProcessState() *os.ProcessState
 }

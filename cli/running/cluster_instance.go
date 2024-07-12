@@ -1,66 +1,29 @@
 package running
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
-	"syscall"
 	"time"
 
-	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
 // clusterInstance describes tarantool 3 instance running using cluster config.
 type clusterInstance struct {
-	// processController is a child process controller.
-	processController *processController
-	// logger represents an active logging object.
-	logger ttlog.Logger
-	// tarantoolPath describes the path to the tarantool binary
-	// that will be used to launch the Instance.
-	tarantoolPath string
-	// appPath describes the path to the "init" file of an application.
-	appPath string
-	// appName describes the application name (the name of the directory
-	// where the application files are present).
-	appName string
-	// instName describes the instance name.
-	instName string
-	// walDir is a directory where write-ahead log (.xlog) files are stored.
-	walDir string
-	// memtxDir is a directory where memtx stores snapshot (.snap) files.
-	memtxDir string
-	// vinylDir is a directory where vinyl files or subdirectories will be stored.
-	vinylDir string
-	// consoleSocket is a Unix domain socket to be used as "admin port".
-	consoleSocket string
-	// binaryPort is a Unix socket to be used as "binary port"
-	binaryPort string
-	// appDir is an application directory.
-	appDir string
-	// runDir is a directory that stores various instance runtime artifacts like
-	// console socket, PID file, etc.
-	runDir string
+	baseInstance
 	// clusterConfigPath is a path of the cluster config.
 	clusterConfigPath string
-	// logDir is log files location.
-	logDir string
-	// IntegrityCtx contains information necessary to perform integrity checks.
-	integrityCtx integrity.IntegrityCtx
-	// integrityChecks tells whether integrity checks are turned on.
-	integrityChecks bool
+	runDir            string
 }
 
 // newClusterInstance creates a clusterInstance.
 func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx InstanceCtx,
-	logger ttlog.Logger, integrityCtx integrity.IntegrityCtx,
-	integrityChecks bool) (*clusterInstance, error) {
+	opts ...InstanceOption) (*clusterInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolCli.Executable); err != nil {
 		return nil, err
@@ -75,22 +38,9 @@ func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx Instan
 	}
 
 	return &clusterInstance{
-		tarantoolPath:     tarantoolCli.Executable,
-		appPath:           instanceCtx.InstanceScript,
-		appName:           instanceCtx.AppName,
-		instName:          instanceCtx.InstName,
-		consoleSocket:     instanceCtx.ConsoleSocket,
-		binaryPort:        instanceCtx.BinaryPort,
-		logger:            logger,
-		walDir:            instanceCtx.WalDir,
-		vinylDir:          instanceCtx.VinylDir,
-		memtxDir:          instanceCtx.MemtxDir,
-		appDir:            instanceCtx.AppDir,
+		baseInstance:      newBaseInstance(tarantoolCli.Executable, instanceCtx, opts...),
 		runDir:            instanceCtx.RunDir,
 		clusterConfigPath: instanceCtx.ClusterConfigPath,
-		logDir:            instanceCtx.LogDir,
-		integrityCtx:      integrityCtx,
-		integrityChecks:   integrityChecks,
 	}, nil
 }
 
@@ -103,16 +53,20 @@ func appendEnvIfNotEmpty(env []string, envVarName string, value string) []string
 }
 
 // Start starts tarantool instance with cluster config.
-func (inst *clusterInstance) Start() error {
+func (inst *clusterInstance) Start(ctx context.Context) error {
 	cmdArgs := []string{"-n", inst.instName, "-c", inst.clusterConfigPath}
 	if inst.integrityChecks {
 		cmdArgs = append(cmdArgs, "--integrity-check",
 			filepath.Join(inst.appDir, integrity.HashesFileName))
 	}
 
-	cmd := exec.Command(inst.tarantoolPath, cmdArgs...)
-	cmd.Stdout = inst.logger.Writer()
-	cmd.Stderr = inst.logger.Writer()
+	cmd := exec.CommandContext(ctx, inst.tarantoolPath, cmdArgs...)
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(os.Interrupt)
+	}
+	cmd.WaitDelay = 30 * time.Second
+	cmd.Stdout = inst.stdOut
+	cmd.Stderr = inst.stdErr
 
 	cmd.Env = os.Environ()
 	cmd.Env = appendEnvIfNotEmpty(cmd.Env, "TT_VINYL_DIR_DEFAULT", inst.vinylDir)
@@ -142,64 +96,4 @@ func (inst *clusterInstance) Start() error {
 	}
 
 	return nil
-}
-
-// Run runs tarantool instance.
-func (inst *clusterInstance) Run(opts RunOpts) error {
-	newInstanceEnv := os.Environ()
-	args := []string{inst.tarantoolPath}
-
-	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
-	if err != nil {
-		return err
-	}
-	f.Close()
-
-	args = append(args, opts.RunArgs...)
-	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
-	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)
-	if execErr != nil {
-		return execErr
-	}
-	return nil
-}
-
-// Wait waits for the process to complete.
-func (inst *clusterInstance) Wait() error {
-	if inst.processController == nil {
-		return fmt.Errorf("instance is not started")
-	}
-	return inst.processController.Wait()
-}
-
-// SendSignal sends a signal to the process.
-func (inst *clusterInstance) SendSignal(sig os.Signal) error {
-	if inst.processController == nil {
-		return fmt.Errorf("instance is not started")
-	}
-	return inst.processController.SendSignal(sig)
-}
-
-// IsAlive verifies that the instance is alive.
-func (inst *clusterInstance) IsAlive() bool {
-	if inst.processController == nil {
-		return false
-	}
-	return inst.processController.IsAlive()
-}
-
-// Stop terminates the process.
-//
-// timeout - the time that was provided to the process
-// to terminate correctly before killing it.
-func (inst *clusterInstance) Stop(waitTimeout time.Duration) error {
-	return inst.StopWithSignal(waitTimeout, os.Interrupt)
-}
-
-// StopWithSignal terminates the process with specific signal.
-func (inst *clusterInstance) StopWithSignal(waitTimeout time.Duration, usedSignal os.Signal) error {
-	if inst.processController == nil {
-		return nil
-	}
-	return inst.processController.StopWithSignal(waitTimeout, usedSignal)
 }

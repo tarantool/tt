@@ -112,7 +112,7 @@ func (wd *Watchdog) Start() error {
 			return nil
 		}
 		// Start the Instance.
-		if err := wd.instance.Start(); err != nil {
+		if err := wd.instance.Start(context.Background()); err != nil {
 			wd.logger.Printf(`(ERROR):  instance start failed: %v.`, err)
 			wd.stopMutex.Unlock()
 			break

@@ -3,6 +3,7 @@ package running
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -16,7 +17,6 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/lib/integrity"
 )
 
 var tntCli cmdcontext.TarantoolCli
@@ -77,13 +77,11 @@ func TestClusterInstance_Start(t *testing.T) {
 		InstName:          "instance-001",
 		AppDir:            tmpDir,
 		BinaryPort:        "localhost:3013",
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
-		Repository: &mockRepository{},
-	}, false)
+	}, StdLoggerOpt(ttlog.NewCustomLogger(&outputBuf, "test", 0)))
 
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
-	require.NoError(t, clusterInstance.Start())
+	require.NoError(t, clusterInstance.Start(context.Background()))
 	t.Cleanup(func() {
 		require.NoError(t, clusterInstance.Stop(stopTimeout))
 	})
@@ -121,15 +119,13 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 		ConsoleSocket:     "run/tt.control",
 		AppDir:            tmpAppDir,
 		BinaryPort:        "localhost:3013",
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
-		Repository: &mockRepository{},
-	}, false)
+	}, StdLoggerOpt(ttlog.NewCustomLogger(&outputBuf, "test", 0)))
 
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 
 	require.NoError(t, os.Mkdir(filepath.Join(tmpAppDir, "run"), 0755))
-	require.NoError(t, clusterInstance.Start())
+	require.NoError(t, clusterInstance.Start(context.Background()))
 	t.Cleanup(func() {
 		require.NoError(t, clusterInstance.Stop(stopTimeout))
 	})
@@ -171,15 +167,13 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 		AppDir:            tmpAppDir,
 		LogDir:            tmpAppDir,
 		BinaryPort:        "localhost:3013",
-	}, ttlog.NewCustomLogger(&outputBuf, "test", 0), integrity.IntegrityCtx{
-		Repository: &mockRepository{},
-	}, false)
+	}, StdLoggerOpt(ttlog.NewCustomLogger(&outputBuf, "test", 0)))
 
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 
 	require.NoError(t, os.Mkdir(filepath.Join(tmpAppDir, "run"), 0755))
-	require.NoError(t, clusterInstance.Start())
+	require.NoError(t, clusterInstance.Start(context.Background()))
 	t.Cleanup(func() {
 		require.NoError(t, clusterInstance.Stop(stopTimeout))
 	})
@@ -199,4 +193,38 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 	assert.DirExists(t, filepath.Join(tmpAppDir, "snap_dir"))
 	assert.DirExists(t, filepath.Join(tmpAppDir, "vinyl_dir"))
 	assert.NoDirExists(t, filepath.Join(tmpAppDir, "instance-002"))
+}
+
+func TestClusterInstance_StopByContext(t *testing.T) {
+	SkipForTntMajorBefore3(t)
+
+	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
+		"cluster_app", "config.yml"))
+	require.NoError(t, err)
+
+	tmpDir := t.TempDir()
+	cancelChdir, err := util.Chdir(tmpDir)
+	require.NoError(t, err)
+	defer cancelChdir()
+
+	outputBuf := bytes.Buffer{}
+	outputBuf.Grow(1024)
+	clusterInstance, err := newClusterInstance(tntCli, InstanceCtx{
+		ClusterConfigPath: configPath,
+		InstName:          "instance-001",
+		AppDir:            tmpDir,
+		BinaryPort:        "localhost:3013",
+	}, StdLoggerOpt(ttlog.NewCustomLogger(&outputBuf, "test", 0)))
+
+	require.NoError(t, err)
+	require.NotNil(t, clusterInstance)
+	ctx, cancel := context.WithCancel(context.Background())
+	require.NoError(t, clusterInstance.Start(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, clusterInstance.Stop(stopTimeout))
+	})
+	require.NoError(t, waitForMsgInBuffer(&outputBuf, "entering the event loop", 10*time.Second))
+	cancel()
+	assert.Error(t, clusterInstance.Wait(), context.Canceled)
+	assert.True(t, clusterInstance.ProcessState().Success())
 }
