@@ -11,7 +11,7 @@ import (
 
 // newProcessController create new process controller.
 func newProcessController(cmd *exec.Cmd) (*processController, error) {
-	dpc := processController{cmd: cmd}
+	dpc := processController{Cmd: cmd}
 	if err := dpc.start(); err != nil {
 		return nil, err
 	}
@@ -21,7 +21,7 @@ func newProcessController(cmd *exec.Cmd) (*processController, error) {
 // processController represents a command being run.
 type processController struct {
 	// Cmd represents an external command to run.
-	cmd *exec.Cmd
+	*exec.Cmd
 	// waitMutex is used to prevent several invokes of the "Wait"
 	// for the same process.
 	// https://github.com/golang/go/issues/28461
@@ -33,7 +33,7 @@ type processController struct {
 // start starts the process.
 func (pc *processController) start() error {
 	// Start an Instance.
-	if err := pc.cmd.Start(); err != nil {
+	if err := pc.Cmd.Start(); err != nil {
 		return err
 	}
 	pc.done = false
@@ -50,7 +50,7 @@ func (pc *processController) Wait() error {
 	// https://github.com/golang/go/issues/28461
 	pc.waitMutex.Lock()
 	defer pc.waitMutex.Unlock()
-	err := pc.cmd.Wait()
+	err := pc.Cmd.Wait()
 	if err == nil {
 		pc.done = true
 	}
@@ -59,10 +59,10 @@ func (pc *processController) Wait() error {
 
 // SendSignal sends a signal to tarantool instance.
 func (pc *processController) SendSignal(sig os.Signal) error {
-	if pc.cmd == nil || pc.cmd.Process == nil {
+	if pc.Cmd == nil || pc.Cmd.Process == nil {
 		return fmt.Errorf("the instance hasn't started yet")
 	}
-	return pc.cmd.Process.Signal(sig)
+	return pc.Cmd.Process.Signal(sig)
 }
 
 // IsAlive verifies that the Instance is alive by sending a "0" signal.
@@ -103,7 +103,7 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 	select {
 	case <-time.After(waitTimeout):
 		// Send "SIGKILL" signal
-		if err := pc.cmd.Process.Kill(); err != nil {
+		if err := pc.Cmd.Process.Kill(); err != nil {
 			return fmt.Errorf("failed to send SIGKILL to instance: %s", err)
 		} else {
 			// Wait for the process to terminate.
@@ -113,4 +113,14 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 	case err := <-waitDone:
 		return err
 	}
+}
+
+// GetPid returns process PID.
+func (pc *processController) GetPid() int {
+	return pc.Process.Pid
+}
+
+// ProcessState returns completed process state.
+func (pc *processController) ProcessState() *os.ProcessState {
+	return pc.Cmd.ProcessState
 }

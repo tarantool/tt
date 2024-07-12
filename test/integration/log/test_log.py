@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from utils import config_name
+from utils import config_name, wait_for_lines_in_output
 
 
 @pytest.fixture(scope="function")
@@ -187,31 +187,6 @@ def test_log_no_inst(tt_cmd, mock_env_dir):
     output = process.stdout.read()
 
     assert 'app0:inst4: instance(s) not found' in output
-
-
-def wait_for_lines_in_output(stdout, expected_lines):
-    output = ''
-    retries = 10
-    found = 0
-    while True:
-        line = stdout.readline()
-        if line == '':
-            if retries == 0:
-                break
-            time.sleep(0.2)
-            retries -= 1
-        else:
-            retries = 10
-            output += line
-            for expected in expected_lines:
-                if expected in line:
-                    found += 1
-                    break
-
-            if found == len(expected_lines):
-                break
-
-    return output
 
 
 def test_log_output_default_follow(tt_cmd, mock_env_dir):

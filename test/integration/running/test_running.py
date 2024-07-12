@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 
@@ -12,7 +13,8 @@ from retry import retry
 from utils import (config_name, control_socket, extract_status, initial_snap,
                    initial_xlog, kill_child_process, lib_path, log_file,
                    log_path, pid_file, run_command_and_get_output, run_path,
-                   wait_file, wait_instance_start, wait_instance_stop)
+                   wait_file, wait_for_lines_in_output, wait_instance_start,
+                   wait_instance_stop)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
@@ -927,3 +929,43 @@ def test_kill_without_app_name(tt_cmd, tmp_path, cmd, input):
     finally:
         stop = [tt_cmd, "stop"]
         run_command_and_get_output(stop, cwd=test_app_path)
+
+
+def test_start_interactive(tt_cmd, tmp_path):
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
+
+    tmp_path /= "multi_inst_app"
+    shutil.copytree(test_app_path_src, tmp_path)
+
+    start_cmd = [tt_cmd, "start", "-i"]
+    instance_process = subprocess.Popen(
+        start_cmd,
+        cwd=tmp_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    try:
+        wait_for_lines_in_output(instance_process.stdout, [
+            "multi_inst_app:router custom init file...",
+            "multi_inst_app:router multi_inst_app:router",
+            "multi_inst_app:master multi_inst_app:master",
+            "multi_inst_app:replica multi_inst_app:replica",
+            "multi_inst_app:stateboard unknown instance",
+        ])
+
+        instance_process.send_signal(signal.SIGTERM)
+
+        wait_for_lines_in_output(instance_process.stdout, [
+            "multi_inst_app:router stopped",
+            "multi_inst_app:master stopped",
+            "multi_inst_app:replica stopped",
+            "multi_inst_app:stateboard stopped",
+        ])
+
+        # Make sure no log dir created.
+        assert not (tmp_path / "var" / "log").exists()
+
+    finally:
+        run_command_and_get_output([tt_cmd, "stop"], cwd=tmp_path)
+        assert instance_process.wait(5) == 0

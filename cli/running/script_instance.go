@@ -1,18 +1,15 @@
 package running
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
-	"syscall"
 	"time"
 
-	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
 )
@@ -24,46 +21,15 @@ const (
 
 // scriptInstance represents a tarantool invoked with an instance script provided.
 type scriptInstance struct {
-	// processController is a child process controller.
-	processController *processController
-	// logger represents an active logging object.
-	logger ttlog.Logger
-	// tarantoolPath describes the path to the tarantool binary
-	// that will be used to launch the Instance.
-	tarantoolPath string
-	// appPath describes the path to the "init" file of an application.
-	appPath string
-	// appDir is an application directory.
-	appDir string
-	// appName describes the application name (the name of the directory
-	// where the application files are present).
-	appName string
-	// instName describes the instance name.
-	instName string
-	// walDir is a directory where write-ahead log (.xlog) files are stored.
-	walDir string
-	// memtxDir is a directory where memtx stores snapshot (.snap) files.
-	memtxDir string `mapstructure:"memtx_dir" yaml:"memtx_dir"`
-	// vinylDir is a directory where vinyl files or subdirectories will be stored.
-	vinylDir string `mapstructure:"vinyl_dir" yaml:"vinyl_dir"`
-	// consoleSocket is a Unix domain socket to be used as "admin port".
-	consoleSocket string
-	// binaryPort is a Unix socket to be used as "binary port"
-	binaryPort string
-	// logDir is log files location.
-	logDir string
-	// IntegrityCtx contains information necessary to perform integrity checks.
-	integrityCtx integrity.IntegrityCtx
-	// integrityChecks tells whether integrity checks are turned on.
-	integrityChecks bool
+	baseInstance
 }
 
 //go:embed lua/launcher.lua
 var instanceLauncher []byte
 
 // newScriptInstance creates an Instance.
-func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, logger ttlog.Logger,
-	integrityCtx integrity.IntegrityCtx, integrityChecks bool) (*scriptInstance, error) {
+func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, opts ...InstanceOption) (
+	*scriptInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {
 		return nil, err
@@ -75,20 +41,7 @@ func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, logger ttl
 	}
 
 	return &scriptInstance{
-		tarantoolPath:   tarantoolPath,
-		appPath:         instanceCtx.InstanceScript,
-		appName:         instanceCtx.AppName,
-		appDir:          instanceCtx.AppDir,
-		instName:        instanceCtx.InstName,
-		consoleSocket:   instanceCtx.ConsoleSocket,
-		logger:          logger,
-		walDir:          instanceCtx.WalDir,
-		vinylDir:        instanceCtx.VinylDir,
-		memtxDir:        instanceCtx.MemtxDir,
-		logDir:          instanceCtx.LogDir,
-		integrityCtx:    integrityCtx,
-		integrityChecks: integrityChecks,
-		binaryPort:      instanceCtx.BinaryPort,
+		baseInstance: newBaseInstance(tarantoolPath, instanceCtx, opts...),
 	}, nil
 }
 
@@ -137,12 +90,14 @@ func (inst *scriptInstance) setTarantoolLog(cmd *exec.Cmd) {
 }
 
 // Start starts the Instance with the specified parameters.
-func (inst *scriptInstance) Start() error {
-	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
-	if err != nil {
-		return err
+func (inst *scriptInstance) Start(ctx context.Context) error {
+	if inst.integrityChecks {
+		f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
+		if err != nil {
+			return err
+		}
+		f.Close()
 	}
-	f.Close()
 
 	cmdArgs := []string{}
 
@@ -152,9 +107,13 @@ func (inst *scriptInstance) Start() error {
 
 	cmdArgs = append(cmdArgs, "-")
 
-	cmd := exec.Command(inst.tarantoolPath, cmdArgs...)
-	cmd.Stdout = inst.logger.Writer()
-	cmd.Stderr = inst.logger.Writer()
+	cmd := exec.CommandContext(ctx, inst.tarantoolPath, cmdArgs...)
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(os.Interrupt)
+	}
+	cmd.WaitDelay = 30 * time.Second
+	cmd.Stdout = inst.stdOut
+	cmd.Stderr = inst.stdErr
 	StdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		return err
@@ -217,65 +176,4 @@ func (inst *scriptInstance) Start() error {
 	StdinPipe.Close()
 
 	return nil
-}
-
-// Run runs tarantool instance.
-func (inst *scriptInstance) Run(opts RunOpts) error {
-	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
-	if err != nil {
-		return err
-	}
-	f.Close()
-	newInstanceEnv := os.Environ()
-	args := []string{inst.tarantoolPath}
-	args = append(args, opts.RunArgs...)
-	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
-	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)
-	if execErr != nil {
-		return execErr
-	}
-	return nil
-}
-
-// Wait waits for the process completion.
-func (inst *scriptInstance) Wait() error {
-	if inst.processController == nil {
-		return fmt.Errorf("instance is not started")
-	}
-	return inst.processController.Wait()
-}
-
-// SendSignal sends a signal to tarantool instance.
-func (inst *scriptInstance) SendSignal(sig os.Signal) error {
-	if inst.processController == nil {
-		return fmt.Errorf("instance is not started")
-	}
-	return inst.processController.SendSignal(sig)
-}
-
-// IsAlive verifies that the instance is alive by sending a "0" signal.
-func (inst *scriptInstance) IsAlive() bool {
-	if inst.processController == nil {
-		return false
-	}
-	return inst.processController.IsAlive()
-}
-
-// Stop terminates the process.
-//
-// timeout - the time that was provided to the process
-// to terminate correctly before the "SIGKILL" signal is used.
-func (inst *scriptInstance) Stop(waitTimeout time.Duration) error {
-	if inst.processController == nil {
-		return nil
-	}
-	return inst.processController.Stop(waitTimeout)
-}
-
-// StopWithSignal terminates the process with specific signal.
-func (inst *scriptInstance) StopWithSignal(waitTimeout time.Duration, usedSignal os.Signal) error {
-	if inst.processController == nil {
-		return nil
-	}
-	return inst.processController.StopWithSignal(waitTimeout, usedSignal)
 }

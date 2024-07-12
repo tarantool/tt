@@ -99,7 +99,7 @@ func (process *Process) Start() error {
 			return fmt.Errorf("failed to create log: %s", err)
 		}
 
-		if err := process_utils.CreatePIDFile(process.pidFileName); err != nil {
+		if err := process_utils.CreatePIDFile(process.pidFileName, os.Getpid()); err != nil {
 			return err
 		}
 

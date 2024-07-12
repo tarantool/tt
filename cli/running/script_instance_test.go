@@ -2,6 +2,7 @@ package running
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/ttlog"
-	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (
@@ -22,8 +22,8 @@ const (
 )
 
 // startTestInstance starts instance for the test.
-func startTestInstance(t *testing.T, app string, consoleSock string, binaryPort string,
-	logger ttlog.Logger) *scriptInstance {
+func startTestInstance(t *testing.T, ctx context.Context, app string, consoleSock string,
+	binaryPort string, logger ttlog.Logger) *scriptInstance {
 	assert := assert.New(t)
 
 	// Need absolute path to the script, because working dir is changed on start.
@@ -45,16 +45,13 @@ func startTestInstance(t *testing.T, app string, consoleSock string, binaryPort 
 		VinylDir:       instTestDataDir,
 		MemtxDir:       instTestDataDir,
 		BinaryPort:     binaryPort,
-	},
-		logger, integrity.IntegrityCtx{
-			Repository: &mockRepository{},
-		}, false)
+	}, StdLoggerOpt(logger))
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	os.Setenv("started_flag_file", filepath.Join(binDir, app))
 	defer os.Remove(os.Getenv("started_flag_file"))
-	err = inst.Start()
+	err = inst.Start(ctx)
 	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
@@ -85,7 +82,8 @@ func TestInstanceBase(t *testing.T) {
 	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
 
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
-	inst := startTestInstance(t, "dumb_test_app", consoleSock, binaryPort, logger)
+	inst := startTestInstance(t, context.Background(), "dumb_test_app", consoleSock,
+		binaryPort, logger)
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	conn, err := net.Dial("unix", consoleSock)
@@ -101,7 +99,8 @@ func TestInstanceLogger(t *testing.T) {
 	defer reader.Close()
 	logger := ttlog.NewCustomLogger(writer, "", 0)
 	consoleSock := ""
-	inst := startTestInstance(t, "log_check_test_app", consoleSock, "", logger)
+	inst := startTestInstance(t, context.Background(), "log_check_test_app", consoleSock, "",
+		logger)
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	msg := "Check Log.\n"
@@ -214,7 +213,6 @@ func TestInstanceLogs(t *testing.T) {
 
 	tarantoolBin, err := exec.LookPath("tarantool")
 	require.NoError(t, err)
-	logger := ttlog.NewCustomLogger(os.Stdout, "", 0)
 
 	instTestDataDir := t.TempDir()
 	binDir := filepath.Dir(binPath)
@@ -227,10 +225,7 @@ func TestInstanceLogs(t *testing.T) {
 		MemtxDir:       instTestDataDir,
 		LogDir:         instTestDataDir,
 		BinaryPort:     binaryPort,
-	},
-		logger, integrity.IntegrityCtx{
-			Repository: &mockRepository{},
-		}, false)
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
@@ -238,7 +233,7 @@ func TestInstanceLogs(t *testing.T) {
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	os.Setenv("started_flag_file", filepath.Join(binDir, app))
 	defer os.Remove(os.Getenv("started_flag_file"))
-	err = inst.Start()
+	err = inst.Start(context.Background())
 	require.NoError(t, err)
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
@@ -247,4 +242,20 @@ func TestInstanceLogs(t *testing.T) {
 
 	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "test.sock"))
 	assert.FileExists(t, filepath.Join(filepath.Dir(binPath), "testbin.sock"))
+}
+
+func TestInstanceStopByContext(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	consoleSock := filepath.Join(tmpdir, "test.sock")
+	binaryPort := filepath.Join(tmpdir, "testbin.sock")
+
+	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	inst := startTestInstance(t, ctx, "dumb_test_app", consoleSock, binaryPort, logger)
+	t.Cleanup(func() { cleanupTestInstance(t, inst) })
+
+	cancel()
+	assert.Error(t, inst.Wait(), context.Canceled)
+	assert.True(t, inst.ProcessState().Success())
 }

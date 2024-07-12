@@ -106,7 +106,7 @@ func CheckPIDFile(pidFileName string) error {
 
 // CreatePIDFile checks that the instance PID file is absent or
 // deprecated and creates a new one. Returns an error on failure.
-func CreatePIDFile(pidFileName string) error {
+func CreatePIDFile(pidFileName string, pid int) error {
 	if err := CheckPIDFile(pidFileName); err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func CreatePIDFile(pidFileName string) error {
 	}
 	defer pidFile.Close()
 
-	if _, err = pidFile.WriteString(strconv.Itoa(os.Getpid())); err != nil {
+	if _, err = pidFile.WriteString(strconv.Itoa(pid)); err != nil {
 		return err
 	}
 
