@@ -16,7 +16,7 @@ def test_instance(request, tmp_path):
     test_app_path = os.path.join(dir, "test_file")
     lua_utils_path = os.path.join(dir, "..", "..")
     inst = TarantoolTestInstance(INSTANCE_NAME, test_app_path, lua_utils_path, tmp_path)
-    inst.start()
+    inst.start(use_lua=True)
     request.addfinalizer(lambda: inst.stop())
     return inst
 

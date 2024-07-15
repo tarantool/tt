@@ -3,7 +3,19 @@ import shutil
 import subprocess
 
 import pytest
-from etcd_helper import etcd_password, etcd_username
+
+import utils
+
+fixture_tcs_params = {
+    "path_to_cfg_dir": os.path.join(os.path.dirname(
+                                    os.path.abspath(__file__)), "test_tcs_app"),
+    "connection_test": True,
+    "connection_test_user": "client",
+    "connection_test_password": "secret",
+    "instance_name": "instance-001",
+    "instance_host": "localhost",
+    "instance_port": "3303",
+}
 
 
 def copy_app(tmpdir, app_name):
@@ -582,7 +594,7 @@ def test_cluster_publish_invalid_instance_force(tt_cmd, tmpdir_with_cfg, app_nam
                 - uri: 127.0.0.1:3302\n""" == uploaded
 
 
-def test_cluster_publish_config_etcd_not_exist(tt_cmd, tmpdir_with_cfg):
+def test_cluster_publish_config_not_exist(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
@@ -603,7 +615,7 @@ def test_cluster_publish_config_etcd_not_exist(tt_cmd, tmpdir_with_cfg):
     assert expected in publish_output
 
 
-def test_cluster_publish_config_etcd_key_not_exist(tt_cmd, tmpdir_with_cfg):
+def test_cluster_publish_config_key_not_exist(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
@@ -624,16 +636,45 @@ def test_cluster_publish_config_etcd_key_not_exist(tt_cmd, tmpdir_with_cfg):
     assert expected in publish_output
 
 
-def test_cluster_publish_config_etcd_no_auth(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize(
+    "instance_name, expected_err_msg",
+    [
+        pytest.param(
+            "etcd",
+            r"   ⨯ failed to fetch data from etcd: etcdserver: user name is empty",
+        ),
+        pytest.param(
+            "tcs",
+            r"   ⨯ failed to put data into tarantool: Execute access to"
+            " function 'config.storage.txn' is denied for user",
+        ),
+    ],
+)
+def test_cluster_publish_config_no_auth(
+    instance_name, tt_cmd, tmpdir_with_cfg, request, expected_err_msg, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(valid_cluster_cfg)
-    etcd.enable_auth()
+
+    if instance_name == "etcd":
+        instance.enable_auth()
 
     try:
-        publish_cmd = [tt_cmd, "cluster", "publish",
-                       f"{etcd.endpoint}/prefix?timeout=0.1", "src.yaml"]
+        publish_cmd = [
+            tt_cmd,
+            "cluster",
+            "publish",
+            f"{instance.endpoint}/prefix?timeout=0.1",
+            "src.yaml",
+        ]
         instance_process = subprocess.Popen(
             publish_cmd,
             cwd=tmpdir,
@@ -643,21 +684,34 @@ def test_cluster_publish_config_etcd_no_auth(tt_cmd, tmpdir_with_cfg, etcd):
         )
         publish_output = instance_process.stdout.read()
     finally:
-        etcd.disable_auth()
+        if instance_name == "etcd":
+            instance.disable_auth()
 
-    expected = (r"   ⨯ failed to fetch data from etcd: etcdserver: user name is empty")
-    assert expected in publish_output
+    assert expected_err_msg in publish_output
 
 
-def test_cluster_publish_config_etcd_bad_auth(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_publish_config_bad_auth(
+    tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(valid_cluster_cfg)
 
-    publish_cmd = [tt_cmd, "cluster", "publish",
-                   f"http://invalid_user:invalid_pass@{etcd.endpoint}/prefix?timeout=0.1",
-                   "src.yaml"]
+    publish_cmd = [
+        tt_cmd,
+        "cluster",
+        "publish",
+        f"http://invalid_user:invalid_pass@{instance.endpoint}/prefix?timeout=0.1",
+        "src.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -671,34 +725,78 @@ def test_cluster_publish_config_etcd_bad_auth(tt_cmd, tmpdir_with_cfg, etcd):
     assert expected in publish_output
 
 
-@pytest.mark.parametrize('auth', [False, "url", "flag", "env"])
-def test_cluster_publish_cluster_etcd(tt_cmd, tmpdir_with_cfg, auth, etcd):
+@pytest.mark.parametrize(
+    "auth, instance_name",
+    [
+        pytest.param(False, "etcd"),
+        pytest.param("url", "etcd"),
+        pytest.param("flag", "etcd"),
+        pytest.param("env", "etcd"),
+        pytest.param("url", "tcs"),
+        pytest.param("flag", "tcs"),
+        pytest.param("env", "tcs"),
+    ],
+)
+def test_cluster_publish_cluster(tt_cmd,
+                                 tmpdir_with_cfg,
+                                 auth,
+                                 instance_name,
+                                 request,
+                                 fixture_params):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     src_cfg_path = os.path.join(tmpdir, "src.yaml")
     with open(src_cfg_path, 'w') as f:
         f.write(valid_cluster_cfg)
 
     try:
-        if auth:
-            etcd.enable_auth()
+        if auth and instance_name == "etcd":
+            instance.enable_auth()
 
         if not auth:
             env = None
-            url = f"{etcd.endpoint}/prefix?timeout=5"
+            url = f"{instance.endpoint}/prefix?timeout=5"
             publish_cmd = [tt_cmd, "cluster", "publish", url, "src.yaml"]
         elif auth == "url":
             env = None
-            url = f"http://{etcd_username}:{etcd_password}@{etcd.host}:{etcd.port}/prefix?timeout=5"
+            url = (
+                f"http://{instance.connection_username}:{instance.connection_password}@"
+                f"{instance.host}:{instance.port}/prefix?timeout=5"
+            )
             publish_cmd = [tt_cmd, "cluster", "publish", url, "src.yaml"]
         elif auth == "flag":
             env = None
-            url = f"{etcd.endpoint}/prefix?timeout=5"
-            publish_cmd = [tt_cmd, "cluster", "publish", url, "src.yaml",
-                           "-u", etcd_username, "-p", etcd_password]
+            url = f"{instance.endpoint}/prefix?timeout=5"
+            publish_cmd = [
+                tt_cmd,
+                "cluster",
+                "publish",
+                url,
+                "src.yaml",
+                "-u",
+                instance.connection_username,
+                "-p",
+                instance.connection_password,
+            ]
         elif auth == "env":
-            env = {"TT_CLI_ETCD_USERNAME": etcd_username,
-                   "TT_CLI_ETCD_PASSWORD": etcd_password}
-            url = f"{etcd.endpoint}/prefix?timeout=5"
+            env = {
+                (
+                    "TT_CLI_ETCD_USERNAME"
+                    if instance_name == "etcd"
+                    else "TT_CLI_USERNAME"
+                ): instance.connection_username,
+                (
+                    "TT_CLI_ETCD_PASSWORD"
+                    if instance_name == "etcd"
+                    else "TT_CLI_PASSWORD"
+                ): instance.connection_password,
+            }
+            url = f"{instance.endpoint}/prefix?timeout=5"
             publish_cmd = [tt_cmd, "cluster", "publish", url, "src.yaml"]
 
         instance_process = subprocess.Popen(
@@ -711,17 +809,35 @@ def test_cluster_publish_cluster_etcd(tt_cmd, tmpdir_with_cfg, auth, etcd):
         )
         publish_output = instance_process.stdout.read()
 
-        if auth:
-            etcd.disable_auth()
-        conn = etcd.conn()
-        etcd_content, _ = conn.get('/prefix/config/all')
+        if auth and instance_name == "etcd":
+            instance.disable_auth()
+        conn = instance.conn()
+        get_response = ""
+        if instance_name == "etcd":
+            etcd_content, _ = conn.get("/prefix/config/all")
+            get_response = etcd_content.decode("utf-8")
+        else:
+            tcs_content = conn.select(
+                space_name="config_storage", key="/prefix/config/all"
+            )
+            # We need first selected value with field 'value' which is 1st index.
+            if len(tcs_content) > 0:
+                get_response = tcs_content[0][1]
         assert "" == publish_output
-        assert valid_cluster_cfg == etcd_content.decode("utf-8")
+        assert valid_cluster_cfg == get_response
     finally:
-        etcd.disable_auth()
+        if instance_name == "etcd":
+            instance.disable_auth()
 
 
-def test_cluster_publish_instance_etcd(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_publish_instance(tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     cluster_cfg_path = os.path.join(tmpdir, "cluster.yaml")
     with open(cluster_cfg_path, 'w') as f:
@@ -730,9 +846,19 @@ def test_cluster_publish_instance_etcd(tt_cmd, tmpdir_with_cfg, etcd):
     with open(instance_cfg_path, 'w') as f:
         f.write(valid_instance_cfg)
 
-    conn = etcd.conn()
-    publish_cmd = [tt_cmd, "cluster", "publish",
-                   f"{etcd.endpoint}/prefix?timeout=5", "cluster.yaml"]
+    conn = instance.conn()
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    publish_cmd = [
+        tt_cmd,
+        "cluster",
+        "publish",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5",
+        "cluster.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -743,8 +869,15 @@ def test_cluster_publish_instance_etcd(tt_cmd, tmpdir_with_cfg, etcd):
     publish_output = instance_process.stdout.read()
     assert "" == publish_output
 
-    publish_cmd = [tt_cmd, "cluster", "publish",
-                   f"{etcd.endpoint}/prefix?timeout=5&name=master", "instance.yaml"]
+    publish_cmd = [
+        tt_cmd,
+        "cluster",
+        "publish",
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix?timeout=5&name=master",
+        "instance.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -753,13 +886,28 @@ def test_cluster_publish_instance_etcd(tt_cmd, tmpdir_with_cfg, etcd):
         text=True
     )
     publish_output = instance_process.stdout.read()
-    etcd_content, _ = conn.get('/prefix/config/all')
+
+    content = ""
+    if instance_name == "etcd":
+        content, _ = conn.get("/prefix/config/all")
+        content = content.decode("utf-8")
+    else:
+        content = conn.select(space_name="config_storage", key="/prefix/config/all")
+        if len(content) > 0:
+            content = content[0][1]
 
     assert "" == publish_output
-    assert valid_cluster_cfg.replace("3301", "3303") == etcd_content.decode("utf-8")
+    assert valid_cluster_cfg.replace("3301", "3303") == content
 
 
-def test_cluster_publish_key_etcd(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_publish_key(tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     cluster_cfg_path = os.path.join(tmpdir, "cluster.yaml")
     with open(cluster_cfg_path, 'w') as f:
@@ -768,9 +916,21 @@ def test_cluster_publish_key_etcd(tt_cmd, tmpdir_with_cfg, etcd):
     with open(instance_cfg_path, 'w') as f:
         f.write(valid_instance_cfg)
 
-    conn = etcd.conn()
-    publish_cmd = [tt_cmd, "cluster", "publish",
-                   f"{etcd.endpoint}/prefix?key=anykey&timeout=5", "cluster.yaml"]
+    conn = instance.conn()
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    publish_cmd = [
+        tt_cmd,
+        "cluster",
+        "publish",
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix?key=anykey&timeout=5",
+        "cluster.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -781,8 +941,15 @@ def test_cluster_publish_key_etcd(tt_cmd, tmpdir_with_cfg, etcd):
     publish_output = instance_process.stdout.read()
     assert "" == publish_output
 
-    publish_cmd = [tt_cmd, "cluster", "publish",
-                   f"{etcd.endpoint}/prefix?key=anykey&timeout=5&name=master", "instance.yaml"]
+    publish_cmd = [
+        tt_cmd,
+        "cluster",
+        "publish",
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix?key=anykey&timeout=5&name=master",
+        "instance.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -791,14 +958,32 @@ def test_cluster_publish_key_etcd(tt_cmd, tmpdir_with_cfg, etcd):
         text=True
     )
     publish_output = instance_process.stdout.read()
-    etcd_content, _ = conn.get('/prefix/config/anykey')
+    content = ""
+    if instance_name == "etcd":
+        content, _ = conn.get("/prefix/config/anykey")
+        content = content.decode("utf-8")
+    else:
+        content = conn.select(space_name="config_storage", key="/prefix/config/anykey")
+        if len(content) > 0:
+            content = content[0][1]
 
     assert "" == publish_output
-    assert valid_cluster_cfg.replace("3301", "3303") == etcd_content.decode("utf-8")
+    assert valid_cluster_cfg.replace("3301", "3303") == content
 
 
-@pytest.mark.parametrize("specify_replicaset", [True, False])
-def test_cluster_publish_instance_etcd_not_exist(tt_cmd, tmpdir_with_cfg, etcd, specify_replicaset):
+@pytest.mark.parametrize(
+    "specify_replicaset, instance_name",
+    [pytest.param(True, "etcd"), pytest.param(False, "etcd")],
+)
+def test_cluster_publish_instance_not_exist(
+    tt_cmd, tmpdir_with_cfg, specify_replicaset, instance_name, request, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     cluster_cfg_path = os.path.join(tmpdir, "cluster.yaml")
     with open(cluster_cfg_path, 'w') as f:
@@ -807,8 +992,18 @@ def test_cluster_publish_instance_etcd_not_exist(tt_cmd, tmpdir_with_cfg, etcd, 
     with open(instance_cfg_path, 'w') as f:
         f.write(valid_instance_cfg)
 
-    publish_cmd = [tt_cmd, "cluster", "publish",
-                   f"{etcd.endpoint}/prefix?timeout=5", "cluster.yaml"]
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    publish_cmd = [
+        tt_cmd,
+        "cluster",
+        "publish",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5",
+        "cluster.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -822,26 +1017,41 @@ def test_cluster_publish_instance_etcd_not_exist(tt_cmd, tmpdir_with_cfg, etcd, 
     publish_cmd = [tt_cmd, "cluster", "publish"]
     if specify_replicaset:
         publish_cmd.extend(["--replicaset", "replicaset-001"])
-    publish_cmd.extend([f"{etcd.endpoint}/prefix?timeout=5&name=router", "instance.yaml"])
+    publish_cmd.extend(
+        [
+            "http://"
+            + creds
+            + f"{instance.host}:{instance.port}/prefix?timeout=5&name=router",
+            "instance.yaml",
+        ]
+    )
 
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     publish_output = instance_process.stdout.read()
 
     if not specify_replicaset:
-        expected = '   ⨯ replicaset name is not specified for "router" instance configuration'
+        expected = (
+            '   ⨯ replicaset name is not specified for "router" instance configuration'
+        )
         assert expected in publish_output
         return
 
     assert "" == publish_output
-    conn = etcd.conn()
-    etcd_content, _ = conn.get('/prefix/config/all')
-    assert """groups:
+    conn = instance.conn()
+    content = ""
+    if instance_name == "etcd":
+        content, _ = conn.get("/prefix/config/all")
+        content = content.decode("utf-8")
+    else:
+        content = conn.select(space_name="config_storage", key="/prefix/config/all")
+    assert (
+        """groups:
   group-001:
     replicasets:
       replicaset-001:
@@ -857,4 +1067,6 @@ def test_cluster_publish_instance_etcd_not_exist(tt_cmd, tmpdir_with_cfg, etcd, 
               mode: rw
             iproto:
               listen:
-                - uri: 127.0.0.1:3303\n""" == etcd_content.decode("utf-8")
+                - uri: 127.0.0.1:3303\n"""
+        == content
+    )

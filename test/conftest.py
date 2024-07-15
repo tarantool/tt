@@ -3,12 +3,12 @@ import platform
 import signal
 import subprocess
 
+import etcd_helper
 import psutil
 import pytest
 from cartridge_helper import CartridgeApp
-from etcd_helper import EtcdInstance
 
-from utils import create_tt_config, kill_procs
+import utils
 
 
 # ######## #
@@ -52,7 +52,7 @@ def tt_cmd(tmp_path_factory):
 
 @pytest.fixture()
 def tmpdir_with_cfg(tmp_path):
-    create_tt_config(tmp_path, "")
+    utils.create_tt_config(tmp_path, "")
     return tmp_path.as_posix()
 
 
@@ -89,7 +89,7 @@ def etcd_session(request, tmp_path_factory):
     tmpdir = tmp_path_factory.mktemp("etcd")
     host = "localhost"
     port = 12388
-    etcd_instance = EtcdInstance(host, port, tmpdir)
+    etcd_instance = etcd_helper.EtcdInstance(host, port, tmpdir)
 
     def stop_etcd_children():
         etcd_instance.stop()
@@ -97,8 +97,8 @@ def etcd_session(request, tmp_path_factory):
         # Additionally, we stop all etcd children;
         # Finalizer may execute while ectd is starting.
         me = psutil.Process()
-        kill_procs(list(filter(lambda p: p.name() == "etcd",
-                               me.children())))
+        utils.kill_procs(list(filter(lambda p: p.name() == "etcd",
+                         me.children())))
 
     request.addfinalizer(stop_etcd_children)
     etcd_instance.start()
@@ -115,7 +115,7 @@ def etcd(etcd_session):
 @pytest.fixture(scope="session")
 def cartridge_app_session(request, tt_cmd, tmp_path_factory):
     tmpdir = tmp_path_factory.mktemp("cartridge_app")
-    create_tt_config(tmpdir, "")
+    utils.create_tt_config(tmpdir, "")
     cartridge_app = CartridgeApp(tmpdir, tt_cmd)
     request.addfinalizer(lambda: cartridge_app.stop())
     cartridge_app.start()
@@ -132,3 +132,23 @@ def cartridge_app(request, cartridge_app_session):
             bootstrap_vshard = params["bootstrap_vshard"]
     cartridge_app_session.truncate(bootstrap_vshard=bootstrap_vshard)
     return cartridge_app_session
+
+
+@pytest.fixture
+def fixture_params():
+    return {}
+
+
+@pytest.fixture(scope="function")
+def tcs(request, tmp_path, fixture_params):
+    test_app_path = os.path.join(fixture_params.get("path_to_cfg_dir"), "config.yaml")
+    inst = utils.TarantoolTestInstance(test_app_path, fixture_params.get("path_to_cfg_dir"),
+                                       "", tmp_path)
+    inst.start(connection_test=fixture_params.get("connection_test"),
+               connection_test_user=fixture_params.get("connection_test_user"),
+               connection_test_password=fixture_params.get("connection_test_password"),
+               instance_name=fixture_params.get("instance_name"),
+               instance_host=fixture_params.get("instance_host"),
+               instance_port=fixture_params.get("instance_port"))
+    request.addfinalizer(lambda: inst.stop())
+    return inst

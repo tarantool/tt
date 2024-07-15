@@ -1,7 +1,7 @@
 import os
 
 import pytest
-from etcd_helper import etcd_password, etcd_username
+from etcd_helper import DEFAULT_ETCD_PASSWORD, DEFAULT_ETCD_USERNAME
 
 from utils import read_kv, run_command_and_get_output
 
@@ -257,18 +257,21 @@ def test_cluster_promote_auth(tt_cmd, etcd, tmpdir_with_cfg, auth):
 
         if auth == "url":
             env = None
-            url = f"http://{etcd_username}:{etcd_password}@{etcd.host}:{etcd.port}/prefix?timeout=5"
+            url = (
+                f"http://{DEFAULT_ETCD_USERNAME}:{DEFAULT_ETCD_PASSWORD}@"
+                f"{etcd.host}:{etcd.port}/prefix?timeout=5"
+            )
             promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
         elif auth == "flag":
             env = None
             url = f"{etcd.endpoint}/prefix?timeout=5"
             promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f",
-                           "-u", etcd_username,
-                           "-p", etcd_password,
+                           "-u", DEFAULT_ETCD_USERNAME,
+                           "-p", DEFAULT_ETCD_PASSWORD,
                            url, "instance-002"]
         elif auth == "env":
-            env = {"TT_CLI_ETCD_USERNAME": etcd_username,
-                   "TT_CLI_ETCD_PASSWORD": etcd_password}
+            env = {"TT_CLI_ETCD_USERNAME": DEFAULT_ETCD_USERNAME,
+                   "TT_CLI_ETCD_PASSWORD": DEFAULT_ETCD_PASSWORD}
             url = f"{etcd.endpoint}/prefix?timeout=5"
             promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
 

@@ -3,7 +3,9 @@ import shutil
 import subprocess
 
 import pytest
-from etcd_helper import etcd_password, etcd_username
+from test_cluster_publish import fixture_tcs_params
+
+import utils
 
 
 def copy_app(tmpdir, app_name):
@@ -212,7 +214,7 @@ iproto:
 """ in show_output
 
 
-def test_cluster_show_config_etcd_not_exist(tt_cmd, tmpdir_with_cfg):
+def test_cluster_show_config_not_exist(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
 
     show_cmd = [tt_cmd, "cluster", "show",
@@ -230,10 +232,31 @@ def test_cluster_show_config_etcd_not_exist(tt_cmd, tmpdir_with_cfg):
     assert expected in show_output
 
 
-def test_cluster_show_config_etcd_no_prefix(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize(
+    "instance_name, storage_name",
+    [pytest.param("etcd", "etcd"), pytest.param("tcs", "tarantool")],
+)
+def test_cluster_show_config_no_prefix(
+    tt_cmd, tmpdir_with_cfg, instance_name, request, storage_name, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    show_cmd = [tt_cmd, "cluster", "show",
-                f"{etcd.endpoint}/prefix?timeout=5"]
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "show",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5",
+    ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -243,15 +266,38 @@ def test_cluster_show_config_etcd_no_prefix(tt_cmd, tmpdir_with_cfg, etcd):
     )
     show_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ failed to collect a configuration: " +
-                "a configuration data not found in etcd for prefix \"/prefix/config/\"")
+    expected = (
+        r"   ⨯ failed to collect a configuration: "
+        + f'a configuration data not found in {storage_name} for prefix "/prefix/config/"'
+    )
     assert expected in show_output
 
 
-def test_cluster_show_config_etcd_no_key(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize(
+    "instance_name, storage_name",
+    [pytest.param("etcd", "etcd"), pytest.param("tcs", "tarantool")],
+)
+def test_cluster_show_config_no_key(
+    tt_cmd, tmpdir_with_cfg, instance_name, request, storage_name, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    show_cmd = [tt_cmd, "cluster", "show",
-                f"{etcd.endpoint}/prefix?key=foo&timeout=5"]
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "show",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix?key=foo&timeout=5",
+    ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -261,17 +307,43 @@ def test_cluster_show_config_etcd_no_key(tt_cmd, tmpdir_with_cfg, etcd):
     )
     show_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ failed to collect a configuration: " +
-                "a configuration data not found in etcd for key \"/prefix/config/foo\"")
+    expected = (
+        r"   ⨯ failed to collect a configuration: "
+        + f'a configuration data not found in {storage_name} for key "/prefix/config/foo"'
+    )
     assert expected in show_output
 
 
-def test_cluster_show_config_etcd_no_auth(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize(
+    "instance_name, err_msg",
+    [
+        pytest.param(
+            "etcd",
+            "   ⨯ failed to collect a configuration: "
+            + "failed to fetch data from etcd: etcdserver: user name is empty",
+        ),
+        pytest.param(
+            "tcs",
+            "   ⨯ failed to collect a configuration: "
+            + "failed to fetch data from tarantool: Execute access to function "
+            + "'config.storage.get' is denied for user"
+        ),
+    ],
+)
+def test_cluster_show_config_no_auth(
+    tt_cmd, tmpdir_with_cfg, instance_name, request, err_msg, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    etcd.enable_auth()
+    if instance_name == "etcd":
+        instance.enable_auth()
     try:
-        show_cmd = [tt_cmd, "cluster", "show",
-                    f"{etcd.endpoint}/prefix?timeout=5"]
+        show_cmd = [tt_cmd, "cluster", "show", f"{instance.endpoint}/prefix?timeout=5"]
         instance_process = subprocess.Popen(
             show_cmd,
             cwd=tmpdir,
@@ -281,20 +353,35 @@ def test_cluster_show_config_etcd_no_auth(tt_cmd, tmpdir_with_cfg, etcd):
         )
         show_output = instance_process.stdout.read()
     finally:
-        etcd.disable_auth()
+        if instance_name == "etcd":
+            instance.disable_auth()
 
-    expected = (r"   ⨯ failed to collect a configuration: " +
-                "failed to fetch data from etcd: etcdserver: user name is empty")
-    assert expected in show_output
+    assert err_msg in show_output
 
 
-def test_cluster_show_config_etcd_bad_auth(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_show_config_bad_auth(tt_cmd,
+                                      tmpdir_with_cfg,
+                                      instance_name,
+                                      request,
+                                      fixture_params):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    etcd.enable_auth()
+    if instance_name == "etcd":
+        instance.enable_auth()
 
     try:
-        show_cmd = [tt_cmd, "cluster", "show",
-                    f"http://invalid_user:invalid_pass@{etcd.endpoint}/prefix?timeout=5"]
+        show_cmd = [
+            tt_cmd,
+            "cluster",
+            "show",
+            f"http://invalid_user:invalid_pass@{instance.endpoint}/prefix?timeout=5",
+        ]
         instance_process = subprocess.Popen(
             show_cmd,
             cwd=tmpdir,
@@ -304,14 +391,34 @@ def test_cluster_show_config_etcd_bad_auth(tt_cmd, tmpdir_with_cfg, etcd):
         )
         show_output = instance_process.stdout.read()
     finally:
-        etcd.disable_auth()
+        if instance_name == "etcd":
+            instance.disable_auth()
 
     expected = (r"   ⨯ failed to establish a connection to tarantool or etcd: ")
     assert expected in show_output
 
 
-@pytest.mark.parametrize('auth', [False, "url", "flag", "env"])
-def test_cluster_show_config_etcd_cluster(tt_cmd, tmpdir_with_cfg, auth, etcd):
+@pytest.mark.parametrize(
+    "instance_name, auth",
+    [
+        pytest.param("etcd", False),
+        pytest.param("etcd", "url"),
+        pytest.param("etcd", "flag"),
+        pytest.param("etcd", "env"),
+        pytest.param("tcs", "url"),
+        pytest.param("tcs", "flag"),
+        pytest.param("tcs", "env"),
+    ],
+)
+def test_cluster_show_config_cluster(
+    tt_cmd, tmpdir_with_cfg, auth, instance_name, request, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     config = r"""groups:
   group-001:
@@ -326,29 +433,55 @@ def test_cluster_show_config_etcd_cluster(tt_cmd, tmpdir_with_cfg, auth, etcd):
                 - uri: 127.0.0.1:3301
 """
     try:
-        conn = etcd.conn()
-        conn.put('/prefix/config/', config)
+        conn = instance.conn()
+        if instance_name == "etcd":
+            conn.put("/prefix/config/all", config)
+        else:
+            conn.insert(
+                space_name="config_storage", values=["/prefix/config/all", config, 2]
+            )
 
-        if auth:
-            etcd.enable_auth()
+        if auth and instance_name == "etcd":
+            instance.enable_auth()
 
         if not auth:
             env = None
-            url = f"{etcd.endpoint}/prefix?timeout=5"
+            url = f"{instance.endpoint}/prefix?timeout=5"
             show_cmd = [tt_cmd, "cluster", "show", url]
         elif auth == "url":
             env = None
-            url = f"http://{etcd_username}:{etcd_password}@{etcd.host}:{etcd.port}/prefix?timeout=5"
+            url = (
+                f"http://{instance.connection_username}:{instance.connection_password}@"
+                f"{instance.host}:{instance.port}/prefix?timeout=5"
+            )
             show_cmd = [tt_cmd, "cluster", "show", url]
         elif auth == "flag":
             env = None
-            url = f"{etcd.endpoint}/prefix?timeout=5"
-            show_cmd = [tt_cmd, "cluster", "show", url,
-                        "-u", etcd_username, "-p", etcd_password]
+            url = f"{instance.endpoint}/prefix?timeout=5"
+            show_cmd = [
+                tt_cmd,
+                "cluster",
+                "show",
+                url,
+                "-u",
+                instance.connection_username,
+                "-p",
+                instance.connection_password,
+            ]
         elif auth == "env":
-            env = {"TT_CLI_ETCD_USERNAME": etcd_username,
-                   "TT_CLI_ETCD_PASSWORD": etcd_password}
-            url = f"{etcd.endpoint}/prefix?timeout=5"
+            env = {
+                (
+                    "TT_CLI_ETCD_USERNAME"
+                    if instance_name == "etcd"
+                    else "TT_CLI_USERNAME"
+                ): instance.connection_username,
+                (
+                    "TT_CLI_ETCD_PASSWORD"
+                    if instance_name == "etcd"
+                    else "TT_CLI_PASSWORD"
+                ): instance.connection_password,
+            }
+            url = f"{instance.endpoint}/prefix?timeout=5"
             show_cmd = [tt_cmd, "cluster", "show", url]
         instance_process = subprocess.Popen(
             show_cmd,
@@ -356,19 +489,31 @@ def test_cluster_show_config_etcd_cluster(tt_cmd, tmpdir_with_cfg, auth, etcd):
             cwd=tmpdir,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         show_output = instance_process.stdout.read()
         assert config in show_output
     finally:
-        etcd.disable_auth()
+        if instance_name == "etcd":
+            instance.disable_auth()
 
 
-def test_cluster_show_config_etcd_instance(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_show_config_instance(tt_cmd,
+                                      tmpdir_with_cfg,
+                                      instance_name,
+                                      request,
+                                      fixture_params):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
 
-    conn = etcd.conn()
-    conn.put('/prefix/config/', r"""groups:
+    conn = instance.conn()
+    config = r"""groups:
   group-001:
     replicasets:
       replicaset-001:
@@ -379,9 +524,26 @@ def test_cluster_show_config_etcd_instance(tt_cmd, tmpdir_with_cfg, etcd):
             iproto:
               listen:
                 - uri: 127.0.0.1:3301
-""")
-    show_cmd = [tt_cmd, "cluster", "show",
-                f"{etcd.endpoint}/prefix?timeout=5&name=master"]
+"""
+    if instance_name == "etcd":
+        conn.put("/prefix/config/", config)
+    else:
+        conn.insert(
+            space_name="config_storage", values=["/prefix/config/all", config, 2]
+        )
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "show",
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix?timeout=5&name=master",
+    ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -399,13 +561,37 @@ iproto:
 """ in show_output
 
 
-def test_cluster_show_config_etcd_key(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_show_config_key(tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
 
-    conn = etcd.conn()
-    conn.put('/prefix/config/anykey', valid_cluster_cfg)
-    show_cmd = [tt_cmd, "cluster", "show",
-                f"{etcd.endpoint}/prefix?key=anykey&timeout=5"]
+    conn = instance.conn()
+    if instance_name == "etcd":
+        conn.put("/prefix/config/anykey", valid_cluster_cfg)
+    else:
+        conn.insert(
+            space_name="config_storage",
+            values=["/prefix/config/anykey", valid_cluster_cfg, 2],
+        )
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "show",
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix?key=anykey&timeout=5",
+    ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -418,13 +604,39 @@ def test_cluster_show_config_etcd_key(tt_cmd, tmpdir_with_cfg, etcd):
     assert valid_cluster_cfg in show_output
 
 
-def test_cluster_show_config_etcd_key_instance(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_show_config_key_instance(
+    tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
 
-    conn = etcd.conn()
-    conn.put('/prefix/config/anykey', valid_cluster_cfg)
-    show_cmd = [tt_cmd, "cluster", "show",
-                f"{etcd.endpoint}/prefix?key=anykey&timeout=5&name=master"]
+    conn = instance.conn()
+    if instance_name == "etcd":
+        conn.put("/prefix/config/anykey", valid_cluster_cfg)
+    else:
+        conn.insert(
+            space_name="config_storage",
+            values=["/prefix/config/anykey", valid_cluster_cfg, 2],
+        )
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "show",
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix?key=anykey&timeout=5&name=master",
+    ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -442,18 +654,42 @@ iproto:
 """ in show_output
 
 
-def test_cluster_show_config_etcd_no_instance(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_show_config_no_instance(
+    tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
+):
+    if instance_name == "tcs":
+        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+            pytest.skip()
+        for k, v in fixture_tcs_params.items():
+            fixture_params[k] = v
+    instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
 
-    conn = etcd.conn()
-    conn.put('/prefix/config/', r"""groups:
+    conn = instance.conn()
+    config = r"""groups:
 group-001:
     replicasets:
     replicaset-001:
         instances:
-""")
-    show_cmd = [tt_cmd, "cluster", "show",
-                f"{etcd.endpoint}/prefix?timeout=5&name=master"]
+"""
+    if instance_name == "etcd":
+        conn.put("/prefix/config/", config)
+    else:
+        conn.insert(space_name="config_storage", values=["/prefix/config/", config, 2])
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "show",
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix?timeout=5&name=master",
+    ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,

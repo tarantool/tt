@@ -9,7 +9,8 @@ import psutil
 import pytest
 
 from utils import (control_socket, create_tt_config, get_tarantool_version,
-                   kill_procs, run_command_and_get_output, run_path, wait_file)
+                   is_tarantool_ee, kill_procs, run_command_and_get_output,
+                   run_path, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 BINARY_PORT_NAME = "tarantool.sock"
@@ -152,19 +153,6 @@ def is_tuple_format_supported(tt_cmd, tmpdir):
     ok, major, minor, patch = get_version(tt_cmd, tmpdir)
     assert ok
     return major > 3 or (major == 3 and minor >= 2)
-
-
-def is_tarantool_ee():
-    cmd = ["tarantool", "--version"]
-    instance_process = subprocess.run(
-        cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    if instance_process.returncode == 0:
-        return "Tarantool Enterprise" in instance_process.stdout
-    return False
 
 
 def is_tarantool_major_one():
