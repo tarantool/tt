@@ -209,14 +209,22 @@ class TarantoolTestInstance:
         # Copy the instance config files to the run pytest tmpdir directory.
         shutil.copytree(instance_cfg_file_dir, tmpdir, dirs_exist_ok=True)
         # Copy the lua module with the auxiliary functions required by the instance config file.
-        shutil.copy(os.path.join(path_to_lua_utils, "utils.lua"), tmpdir)
+        if os.path.isfile(os.path.join(path_to_lua_utils, "utils.lua")):
+            shutil.copy(os.path.join(path_to_lua_utils, "utils.lua"), tmpdir)
 
         self._tmpdir = tmpdir
         self._instance_cfg_file_name = instance_cfg_file_name
 
-    def start(self, connection_test=True,
-              connection_test_user='guest',
-              connection_test_password=None):
+    def start(
+        self,
+        connection_test=True,
+        connection_test_user="guest",
+        connection_test_password=None,
+        instance_name=None,
+        instance_port="",
+        instance_host="localhost",
+        use_lua=False,
+    ):
         """Starts tarantool test instance and init self.port attribute.
 
         Args:
@@ -224,6 +232,13 @@ class TarantoolTestInstance:
             made to connect to the test instance within a three second deadline. (default is True)
         connection_test_user (str): username for the connection attempt. (default is 'guest')
         connection_test_password (str): password for the connection attempt. (default is None)
+        instance_name (str): name of instance will be started. (default is None)
+        instance_port (str): port which will try to connect to instance. If check is successful,
+            set it into class field. (default is empty string)
+        instance_host (str): host which will try to connect to instance. If check is successful,
+            set it into class field. (default is empty string)
+        use_lua (bool): needs to specify if we want to start tarantool with lua configuration
+            even if tarantool major version more than 3. (default is false)
 
         Raises:
             RuntimeError:
@@ -234,21 +249,45 @@ class TarantoolTestInstance:
                 instance within three seconds deadline after port bound (an attempt to connect is
                 made if there is an option connection_test=True that is present by default).
         """
-        popen_obj = subprocess.Popen(["tarantool", self._instance_cfg_file_name], cwd=self._tmpdir)
-        file_with_port_path = str(self._tmpdir) + '/' + self._instance_cfg_file_name + '.port'
-
-        # Waiting 3 seconds for instance configure itself and dump bound port to temp file.
-        deadline = time.time() + 3
-        while time.time() < deadline:
-            if os.path.exists(file_with_port_path) and os.path.getsize(file_with_port_path) > 0:
-                break
-            time.sleep(0.1)
+        tnt_start_cmd = []
+        major_version, _ = get_tarantool_version()
+        if major_version < 3 or use_lua:
+            if instance_name != "" and (".yml" in self._instance_cfg_file_name or
+                                        ".yaml" in self._instance_cfg_file_name):
+                raise Exception("instance_name cannot be used with Tarantool version < 3")
+            tnt_start_cmd = ["tarantool", self._instance_cfg_file_name]
         else:
-            raise RuntimeError('Could not find a file with an instance bound port or empty file')
+            tnt_start_cmd = [
+                "tarantool",
+                "--name",
+                instance_name,
+                "--config",
+                self._instance_cfg_file_name,
+            ]
+        popen_obj = subprocess.Popen(tnt_start_cmd, cwd=self._tmpdir)
 
-        # Read bound port of test instance from file in temp pytest directory.
-        with open(file_with_port_path) as file_with_port:
-            instance_port = file_with_port.read()
+        # Search for file with port only if port directly not provided.
+        if len(instance_port) == 0:
+            file_with_port_path = (
+                str(self._tmpdir) + "/" + self._instance_cfg_file_name + ".port"
+            )
+            # Waiting 3 seconds for instance configure itself and dump bound port to temp file.
+            deadline = time.time() + 3
+            while time.time() < deadline:
+                if (
+                    os.path.exists(file_with_port_path)
+                    and os.path.getsize(file_with_port_path) > 0
+                ):
+                    break
+                time.sleep(0.1)
+            else:
+                raise RuntimeError(
+                    "Could not find a file with an instance bound port or empty file"
+                )
+
+            # Read bound port of test instance from file in temp pytest directory.
+            with open(file_with_port_path) as file_with_port:
+                instance_port = file_with_port.read()
 
         # Tries connect to the started instance during 3 seconds deadline with bound port.
         if connection_test:
@@ -266,7 +305,11 @@ class TarantoolTestInstance:
                 raise RuntimeError('Could not connect to the started instance with bound port')
 
         self.popen_obj = popen_obj
+        self.host = instance_host
         self.port = instance_port
+        self.connection_username = connection_test_user
+        self.connection_password = connection_test_password
+        self.endpoint = f"http://{self.host}:{self.port}"
 
     def stop(self):
         """Stops tarantool test instance by SIGKILL signal.
@@ -287,6 +330,20 @@ class TarantoolTestInstance:
                 time.sleep(0.1)
         else:
             raise RuntimeError("PID {} couldn't stop after receiving SIGKILL".format(instance.pid))
+
+    def conn(self):
+        """Connects to self instance set in class."""
+        conn = tarantool.Connection
+        try:
+            conn = tarantool.connect(
+                self.host,
+                int(self.port),
+                user=self.connection_username,
+                password=self.connection_password,
+            )
+        except Exception:
+            raise Exception("cannot connect to instance with provided params")
+        return conn
 
 
 def is_ipv4_type(address):
@@ -436,3 +493,21 @@ def read_kv(dirname):
         with open(os.path.join(dirname, filename), "r") as f:
             kvs[key] = f.read()
     return kvs
+
+
+def is_tarantool_less_3():
+    major_versoin, _ = get_tarantool_version()
+    return True if major_versoin < 3 else False
+
+
+def is_tarantool_ee():
+    cmd = ["tarantool", "--version"]
+    instance_process = subprocess.run(
+        cmd,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+    if instance_process.returncode == 0:
+        return "Tarantool Enterprise" in instance_process.stdout
+    return False

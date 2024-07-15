@@ -1,5 +1,5 @@
 import pytest
-from etcd_helper import etcd_password, etcd_username
+from etcd_helper import DEFAULT_ETCD_PASSWORD, DEFAULT_ETCD_USERNAME
 
 from utils import run_command_and_get_output
 
@@ -133,18 +133,21 @@ def test_cluster_demote_auth(tt_cmd, tmpdir_with_cfg, etcd, auth):
 
         if auth == "url":
             env = None
-            url = f"http://{etcd_username}:{etcd_password}@{etcd.host}:{etcd.port}/prefix?timeout=5"
+            url = (
+                f"http://{DEFAULT_ETCD_USERNAME}:{DEFAULT_ETCD_PASSWORD}@"
+                f"{etcd.host}:{etcd.port}/prefix?timeout=5"
+            )
             demote_cmd = [tt_cmd, "cluster", "rs", "demote", "-f", url, "instance-001"]
         elif auth == "flag":
             env = None
             url = f"{etcd.endpoint}/prefix?timeout=5"
             demote_cmd = [tt_cmd, "cluster", "rs", "demote", "-f",
-                          "-u", etcd_username,
-                          "-p", etcd_password,
+                          "-u", DEFAULT_ETCD_USERNAME,
+                          "-p", DEFAULT_ETCD_PASSWORD,
                           url, "instance-001"]
         elif auth == "env":
-            env = {"TT_CLI_ETCD_USERNAME": etcd_username,
-                   "TT_CLI_ETCD_PASSWORD": etcd_password}
+            env = {"TT_CLI_ETCD_USERNAME": DEFAULT_ETCD_USERNAME,
+                   "TT_CLI_ETCD_PASSWORD": DEFAULT_ETCD_PASSWORD}
             url = f"{etcd.endpoint}/prefix?timeout=5"
             demote_cmd = [tt_cmd, "cluster", "rs", "demote", "-f", url, "instance-001"]
 
