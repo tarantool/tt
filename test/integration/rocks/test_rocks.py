@@ -277,7 +277,7 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tara
                 PATH=os.path.join(tmpdir_with_tarantool, 'bin') + ':' + os.environ['PATH']))
 
         assert rc == 1  # Tarantool headers are not found.
-        assert re.search("Error: Failed finding Lua header files", output)
+        assert re.search("Could not find header file for TARANTOOL", output)
 
         # Set env var to find tarantool headers.
         rocks_cmd = [tt_cmd, "rocks", "install", "crud", "1.1.1-1"]
