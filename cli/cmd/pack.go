@@ -110,7 +110,9 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	checkFlags(packCtx)
+	if err := checkFlags(packCtx); err != nil {
+		return err
+	}
 
 	if packCtx.UseDocker {
 		return pack.PackInDocker(cmdCtx, packCtx, *cliOpts, os.Args)
@@ -128,7 +130,7 @@ func internalPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return nil
 }
 
-func checkFlags(packCtx *pack.PackCtx) {
+func checkFlags(packCtx *pack.PackCtx) error {
 	switch pack.PackageType(packCtx.Type) {
 	case pack.Tgz:
 		if len(packCtx.RpmDeb.Deps) > 0 {
@@ -149,4 +151,11 @@ func checkFlags(packCtx *pack.PackCtx) {
 				" but you are not packaging a tarball. Flag will be ignored")
 		}
 	}
+	// Check if --with-integrity-check and --without-binaries flags are provided
+	// simultaneously. If this is the case, return an error for safety reasons.
+	if packCtx.IntegrityPrivateKey != "" && packCtx.WithoutBinaries {
+		return fmt.Errorf("impossible combination of --with-integrity-check" +
+			" and --without-binaries flags")
+	}
+	return nil
 }
