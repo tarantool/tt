@@ -4,18 +4,10 @@ import subprocess
 
 import pytest
 
-import utils
+from utils import get_fixture_tcs_params, is_tarantool_ee, is_tarantool_less_3
 
-fixture_tcs_params = {
-    "path_to_cfg_dir": os.path.join(os.path.dirname(
-                                    os.path.abspath(__file__)), "test_tcs_app"),
-    "connection_test": True,
-    "connection_test_user": "client",
-    "connection_test_password": "secret",
-    "instance_name": "instance-001",
-    "instance_host": "localhost",
-    "instance_port": "3303",
-}
+fixture_tcs_params = get_fixture_tcs_params(os.path.join(os.path.dirname(
+                                            os.path.abspath(__file__)), "test_tcs_app"))
 
 
 def copy_app(tmpdir, app_name):
@@ -654,7 +646,7 @@ def test_cluster_publish_config_no_auth(
     instance_name, tt_cmd, tmpdir_with_cfg, request, expected_err_msg, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -695,7 +687,7 @@ def test_cluster_publish_config_bad_auth(
     tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -744,7 +736,7 @@ def test_cluster_publish_cluster(tt_cmd,
                                  request,
                                  fixture_params):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -833,7 +825,7 @@ def test_cluster_publish_cluster(tt_cmd,
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
 def test_cluster_publish_instance(tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -903,7 +895,7 @@ def test_cluster_publish_instance(tt_cmd, tmpdir_with_cfg, instance_name, reques
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
 def test_cluster_publish_key(tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -979,7 +971,7 @@ def test_cluster_publish_instance_not_exist(
     tt_cmd, tmpdir_with_cfg, specify_replicaset, instance_name, request, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v

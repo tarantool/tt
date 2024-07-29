@@ -24,6 +24,23 @@ initial_snap = "00000000000000000000.snap"
 initial_xlog = "00000000000000000000.xlog"
 
 
+def get_fixture_tcs_params(path_to_cfg, connection_test=True,
+                           connection_test_user="client",
+                           connection_test_password="secret",
+                           instance_name="instance-001",
+                           instance_host="localhost",
+                           instance_port="3303"):
+    return {
+        "path_to_cfg_dir": path_to_cfg,
+        "connection_test": connection_test,
+        "connection_test_user": connection_test_user,
+        "connection_test_password": connection_test_password,
+        "instance_name": instance_name,
+        "instance_host": instance_host,
+        "instance_port": instance_port,
+    }
+
+
 def run_command_and_get_output(
     cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, input=None, cwd=None, env=None
 ):
