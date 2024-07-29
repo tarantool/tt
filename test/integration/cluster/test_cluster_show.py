@@ -3,9 +3,11 @@ import shutil
 import subprocess
 
 import pytest
-from test_cluster_publish import fixture_tcs_params
 
-import utils
+from utils import get_fixture_tcs_params, is_tarantool_ee, is_tarantool_less_3
+
+fixture_tcs_params = get_fixture_tcs_params(os.path.join(os.path.dirname(
+                                            os.path.abspath(__file__)), "test_tcs_app"))
 
 
 def copy_app(tmpdir, app_name):
@@ -240,7 +242,7 @@ def test_cluster_show_config_no_prefix(
     tt_cmd, tmpdir_with_cfg, instance_name, request, storage_name, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -281,7 +283,7 @@ def test_cluster_show_config_no_key(
     tt_cmd, tmpdir_with_cfg, instance_name, request, storage_name, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -334,7 +336,7 @@ def test_cluster_show_config_no_auth(
     tt_cmd, tmpdir_with_cfg, instance_name, request, err_msg, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -366,7 +368,7 @@ def test_cluster_show_config_bad_auth(tt_cmd,
                                       request,
                                       fixture_params):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -414,7 +416,7 @@ def test_cluster_show_config_cluster(
     tt_cmd, tmpdir_with_cfg, auth, instance_name, request, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -505,7 +507,7 @@ def test_cluster_show_config_instance(tt_cmd,
                                       request,
                                       fixture_params):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -564,7 +566,7 @@ iproto:
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
 def test_cluster_show_config_key(tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -609,7 +611,7 @@ def test_cluster_show_config_key_instance(
     tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
@@ -659,7 +661,7 @@ def test_cluster_show_config_no_instance(
     tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
 ):
     if instance_name == "tcs":
-        if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
