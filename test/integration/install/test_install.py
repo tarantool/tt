@@ -716,13 +716,22 @@ def test_install_tt_fetch_latest_version(active_symlink,
     config_path = os.path.join(tmp_path, config_name)
     # Create test config
     with open(config_path, 'w') as f:
-        f.write(f"env:\n  bin_dir: {tmp_path}\n  inc_dir:\n")
+        f.write("env:\n  bin_dir: \n  inc_dir:\n")
 
-    # Copying built executable to bin directory,
-    # renaming it to master and change symlink
-    # to emulate that this is master version.
-    shutil.copy(tt_cmd, os.path.join(tmp_path, "tt_master"))
-    shutil.copy(tt_cmd, os.path.join(tmp_path, "tt_v1.2.3"))
+    # Create executalbe file with 'tt version --commit'
+    # functionality to emulate real work of tt. We need
+    # the following to avoid a situation where the last
+    # git commit in the master branch makes it impossible
+    # to detect the latest version which contradicts the test logic.
+    os.mkdir(os.path.join(tmp_path, "bin"))
+    with open(os.path.join(tmp_path, "bin", "tt_master"), 'a') as f:
+        f.write('''#!/bin/sh
+                echo "2.0.0.677234a"''')
+    os.chmod(os.path.join(tmp_path, "bin", "tt_master"), 0o775)
+    with open(os.path.join(tmp_path, "bin", "tt_v1.2.3"), 'a') as f:
+        f.write('''#!/bin/sh
+                echo "1.2.3.087ac72"''')
+    os.chmod(os.path.join(tmp_path, "bin", "tt_v1.2.3"), 0o775)
     os.symlink(os.path.join(tmp_path, active_symlink),
                os.path.join(tmp_path, "tt"))
 
