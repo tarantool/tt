@@ -804,19 +804,17 @@ def test_cluster_publish_cluster(tt_cmd,
         if auth and instance_name == "etcd":
             instance.disable_auth()
         conn = instance.conn()
-        get_response = ""
+        content = ""
         if instance_name == "etcd":
-            etcd_content, _ = conn.get("/prefix/config/all")
-            get_response = etcd_content.decode("utf-8")
+            content, _ = conn.get("/prefix/config/all")
+            content = content.decode("utf-8")
         else:
-            tcs_content = conn.select(
-                space_name="config_storage", key="/prefix/config/all"
-            )
+            content = conn.call("config.storage.get", "/prefix/config/all")
             # We need first selected value with field 'value' which is 1st index.
-            if len(tcs_content) > 0:
-                get_response = tcs_content[0][1]
+            if len(content) > 0:
+                content = content[0]["data"][0]["value"]
         assert "" == publish_output
-        assert valid_cluster_cfg == get_response
+        assert valid_cluster_cfg == content
     finally:
         if instance_name == "etcd":
             instance.disable_auth()
@@ -884,9 +882,9 @@ def test_cluster_publish_instance(tt_cmd, tmpdir_with_cfg, instance_name, reques
         content, _ = conn.get("/prefix/config/all")
         content = content.decode("utf-8")
     else:
-        content = conn.select(space_name="config_storage", key="/prefix/config/all")
+        content = conn.call("config.storage.get", "/prefix/config/all")
         if len(content) > 0:
-            content = content[0][1]
+            content = content[0]["data"][0]["value"]
 
     assert "" == publish_output
     assert valid_cluster_cfg.replace("3301", "3303") == content
@@ -955,9 +953,9 @@ def test_cluster_publish_key(tt_cmd, tmpdir_with_cfg, instance_name, request, fi
         content, _ = conn.get("/prefix/config/anykey")
         content = content.decode("utf-8")
     else:
-        content = conn.select(space_name="config_storage", key="/prefix/config/anykey")
+        content = conn.call("config.storage.get", "/prefix/config/anykey")
         if len(content) > 0:
-            content = content[0][1]
+            content = content[0]["data"][0]["value"]
 
     assert "" == publish_output
     assert valid_cluster_cfg.replace("3301", "3303") == content
@@ -1041,7 +1039,9 @@ def test_cluster_publish_instance_not_exist(
         content, _ = conn.get("/prefix/config/all")
         content = content.decode("utf-8")
     else:
-        content = conn.select(space_name="config_storage", key="/prefix/config/all")
+        content = conn.call("config.storage.get", "/prefix/config/all")
+        if len(content) > 0:
+            content = content[0]["data"][0]["value"]
     assert (
         """groups:
   group-001:
