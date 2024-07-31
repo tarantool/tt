@@ -8,7 +8,7 @@ require (
 	github.com/apex/log v1.9.0
 	github.com/briandowns/spinner v1.11.1
 	github.com/dave/jennifer v1.5.0
-	github.com/docker/docker v26.0.0+incompatible
+	github.com/docker/docker v26.1.4+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/google/uuid v1.4.0
 	github.com/hashicorp/go-version v1.4.0
