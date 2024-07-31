@@ -439,9 +439,7 @@ def test_cluster_show_config_cluster(
         if instance_name == "etcd":
             conn.put("/prefix/config/all", config)
         else:
-            conn.insert(
-                space_name="config_storage", values=["/prefix/config/all", config, 2]
-            )
+            conn.call("config.storage.put", "/prefix/config/all", config)
 
         if auth and instance_name == "etcd":
             instance.enable_auth()
@@ -530,9 +528,7 @@ def test_cluster_show_config_instance(tt_cmd,
     if instance_name == "etcd":
         conn.put("/prefix/config/", config)
     else:
-        conn.insert(
-            space_name="config_storage", values=["/prefix/config/all", config, 2]
-        )
+        conn.call("config.storage.put", "/prefix/config/all", config)
     creds = (
         f"{instance.connection_username}:{instance.connection_password}@"
         if instance_name == "tcs"
@@ -577,10 +573,7 @@ def test_cluster_show_config_key(tt_cmd, tmpdir_with_cfg, instance_name, request
     if instance_name == "etcd":
         conn.put("/prefix/config/anykey", valid_cluster_cfg)
     else:
-        conn.insert(
-            space_name="config_storage",
-            values=["/prefix/config/anykey", valid_cluster_cfg, 2],
-        )
+        conn.call("config.storage.put", "/prefix/config/anykey", valid_cluster_cfg)
     creds = (
         f"{instance.connection_username}:{instance.connection_password}@"
         if instance_name == "tcs"
@@ -622,10 +615,7 @@ def test_cluster_show_config_key_instance(
     if instance_name == "etcd":
         conn.put("/prefix/config/anykey", valid_cluster_cfg)
     else:
-        conn.insert(
-            space_name="config_storage",
-            values=["/prefix/config/anykey", valid_cluster_cfg, 2],
-        )
+        conn.call("config.storage.put", "/prefix/config/anykey", valid_cluster_cfg)
     creds = (
         f"{instance.connection_username}:{instance.connection_password}@"
         if instance_name == "tcs"
@@ -676,9 +666,9 @@ group-001:
         instances:
 """
     if instance_name == "etcd":
-        conn.put("/prefix/config/", config)
+        conn.put("/prefix/config/all", config)
     else:
-        conn.insert(space_name="config_storage", values=["/prefix/config/", config, 2])
+        conn.call("config.storage.put", "/prefix/config/all", config)
     creds = (
         f"{instance.connection_username}:{instance.connection_password}@"
         if instance_name == "tcs"
