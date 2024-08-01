@@ -155,6 +155,7 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		false, "Skip cli interaction using default behavior")
 
 	integrity.RegisterIntegrityCheckFlag(rootCmd.Flags(), &cmdCtx.Cli.IntegrityCheck)
+	integrity.RegisterIntegrityCheckPeriodFlag(rootCmd.Flags(), &cmdCtx.Cli.IntegrityCheckPeriod)
 
 	rootCmd.Flags().SetInterspersed(false)
 

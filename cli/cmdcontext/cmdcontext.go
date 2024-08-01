@@ -106,6 +106,8 @@ type CliCtx struct {
 	TarantoolCli TarantoolCli
 	// IntegrityCheck is a public key used for integrity check.
 	IntegrityCheck string
+	// IntegrityCheckPeriod is an period during which the integrity check is reproduced.
+	IntegrityCheckPeriod int
 	// This flag disables searching of other tt versions to run
 	// instead of the current one.
 	IsSelfExec bool

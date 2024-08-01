@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
@@ -25,7 +24,7 @@ var (
 	// In go, we can't just fork the process (reason - goroutines).
 	// So, for daemonize, we restarts the process with "watchdog" flag.
 	watchdog bool
-	// integrityCheckPeriod is a flag enables periodic integrity checks.
+	// integrityCheckPeriod is a flag that enables periodic integrity checks.
 	// The default period is 1 day.
 	integrityCheckPeriod = 24 * 60 * 60
 	// startInteractive is startInteractive mode flag. If set, the main process does not exit after
@@ -60,7 +59,7 @@ func NewStartCmd() *cobra.Command {
 	startCmd.Flags().MarkHidden("watchdog")
 	startCmd.Flags().BoolVarP(&startInteractive, "interactive", "i", false, "")
 
-	integrity.RegisterIntegrityCheckPeriodFlag(startCmd.Flags(), &integrityCheckPeriod)
+	integrity.RegisterIntegrityCheckPeriodFlag(startCmd.Flags(), &cmdCtx.Cli.IntegrityCheckPeriod)
 
 	return startCmd
 }
@@ -75,7 +74,7 @@ func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.
 	startArgs := []string{}
 	if cmdCtx.Cli.IntegrityCheck != "" {
 		startArgs = append(startArgs, "--integrity-check-period",
-			strconv.Itoa(integrityCheckPeriod))
+			strconv.FormatUint(uint64(cmdCtx.Cli.IntegrityCheckPeriod), 10))
 	}
 
 	for _, instance := range instances {
@@ -143,13 +142,11 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return nil
 	}
 
-	checkPeriod := time.Duration(0)
-
-	if cmdCtx.Cli.IntegrityCheck != "" && integrityCheckPeriod > 0 {
-		checkPeriod = time.Duration(integrityCheckPeriod * int(time.Second))
+	if cmdCtx.Cli.IntegrityCheck != "" && cmdCtx.Cli.IntegrityCheckPeriod == 0 {
+		cmdCtx.Cli.IntegrityCheckPeriod = integrityCheckPeriod
 	}
 
-	if err := running.Start(cmdCtx, &runningCtx.Instances[0], checkPeriod); err != nil {
+	if err := running.Start(cmdCtx, &runningCtx.Instances[0]); err != nil {
 		return err
 	}
 	return nil
