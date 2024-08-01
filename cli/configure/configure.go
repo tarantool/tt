@@ -352,6 +352,13 @@ func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 				"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options")
 		}
 	}
+	if len(cliCtx.IntegrityCheck) == 0 && cliCtx.IntegrityCheckPeriod != 0 {
+		return fmt.Errorf("need to specify public key in --integrity-check to " +
+			"use --integrity-check-period")
+	}
+	if cliCtx.IntegrityCheckPeriod < 0 {
+		return fmt.Errorf("--integrity-check-period must take non-negative value")
+	}
 	return nil
 }
 

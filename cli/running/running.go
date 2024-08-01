@@ -753,7 +753,7 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 }
 
 // Start an Instance.
-func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod time.Duration) error {
+func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	if err := createInstanceDataDirectories(*inst); err != nil {
 		return fmt.Errorf("failed to create a directory: %s", err)
 	}
@@ -771,7 +771,8 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx, integrityCheckPeriod ti
 		return nil
 	}
 	wd := NewWatchdog(inst.Restartable, 5*time.Second, logger,
-		&provider, preStartAction, cmdCtx.Integrity, integrityCheckPeriod)
+		&provider, preStartAction, cmdCtx.Integrity,
+		time.Duration(cmdCtx.Cli.IntegrityCheckPeriod*int(time.Second)))
 
 	defer func() {
 		cleanup(inst)
@@ -937,6 +938,7 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	if cmdCtx.Cli.IntegrityCheck != "" {
 		newArgs = append(newArgs, "--integrity-check", cmdCtx.Cli.IntegrityCheck)
 	}
+	newArgs = append(newArgs, args...)
 
 	if cmdCtx.Cli.IsSystem {
 		newArgs = append(newArgs, "-S")
@@ -947,7 +949,6 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	}
 
 	newArgs = append(newArgs, "start", "--watchdog", appName)
-	newArgs = append(newArgs, args...)
 
 	f, err := cmdCtx.Integrity.Repository.Read(ttExecutable)
 	if err != nil {
