@@ -30,7 +30,9 @@ end
 local cwd = tt_getwd()
 
 return {
+    FORCE_HARDCODED = true,
     PREFIX = get_tarantool_prefix_path(),
+    LUA = get_tarantool_path() .. "/tarantool",
     LUA_BINDIR = get_tarantool_path(),
     LUA_INCDIR = get_tarantool_include_path(),
     LUA_MODULES_LIB_SUBDIR = [[/lib/tarantool]],
