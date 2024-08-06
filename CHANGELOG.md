@@ -34,7 +34,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Do not create Dockerfile.* in application's directory.
-- Updated `luarocks` to `v3.10.0`.
 
 ## [2.3.1] - 2024-06-13
 
