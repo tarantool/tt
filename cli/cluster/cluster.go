@@ -138,7 +138,8 @@ func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 				time.Duration(tarantoolConfig.Timeout*float64(time.Second)))
 			if err != nil {
 				connectionErrors = append(connectionErrors,
-					fmt.Errorf("error when creating a colletor for endpoint %q: %w", opt.addr, err))
+					fmt.Errorf("error when creating a collector for endpoint %q: %w",
+						opt.addr, err))
 				continue
 			}
 

@@ -853,6 +853,14 @@ func patchCConfigElectionMode(config *libcluster.Config,
 	return config, nil
 }
 
+func patchCConfigAddRole(config *libcluster.Config, path []string,
+	roleNames []string) (*libcluster.Config, error) {
+	if err := config.Set(path, roleNames); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 // getCConfigInstance extracts an instance from the cluster config.
 func getCConfigInstance(
 	config *libcluster.ClusterConfig, instName string) (cconfigInstance, error) {
