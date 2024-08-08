@@ -73,8 +73,7 @@ type PromoteCtx struct {
 }
 
 // pickPatchKey prompts to select a key to patch the config.
-// If force is true, picks the first passed key.
-func pickPatchKey(keys []string, force bool) (int, error) {
+func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 	if len(keys) == 0 {
 		return 0, fmt.Errorf("no keys for the config patching")
 	}
@@ -82,7 +81,11 @@ func pickPatchKey(keys []string, force bool) (int, error) {
 		pos = 0
 		err error
 	)
-	if !force {
+	if !force && len(keys) != 1 {
+		label := "Select a key for the config patching"
+		if len(pathMsg) != 0 {
+			label = fmt.Sprintf("%s for destination path %q", label, pathMsg)
+		}
 		programSelect := promptui.Select{
 			Label:        "Select a key for the config patching",
 			Items:        keys,
