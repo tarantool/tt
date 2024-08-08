@@ -21,7 +21,7 @@ const (
 // InitCtx contains information for tt config creation.
 type InitCtx struct {
 	// SkipConfig - if set, disables cartridge & tarantoolctl config analysis,
-	// so init does not try to get directories information from exitsting config files.
+	// so init does not try to get directories information from existing config files.
 	SkipConfig bool
 	// ForceMode, if set, tt config is re-written without a question.
 	ForceMode bool

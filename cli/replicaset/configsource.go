@@ -3,6 +3,7 @@ package replicaset
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -11,6 +12,12 @@ import (
 
 // KeyPicker picks a key to patch.
 type KeyPicker func([]string, bool, string) (int, error)
+
+// path describes a path of target with its depth level in config.
+type path struct {
+	path  []string
+	depth int
+}
 
 // CConfigSource describes the cluster config source.
 type CConfigSource struct {
@@ -108,6 +115,74 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	return nil
 }
 
+// patchConfigWithRoles runs an config patching pipeline with adding roles.
+func (c *CConfigSource) patchConfigWithRoles(ctx RolesAddCtx,
+	getPathFunc func(clusterConfig libcluster.ClusterConfig,
+		ctx RolesAddCtx) (paths []path, err error),
+	patchFunc func(config *libcluster.Config, path []string,
+		roleNames []string) (*libcluster.Config, error),
+) error {
+	configData, clusterConfig, err := collectCConfig(c.collector)
+	if err != nil {
+		return err
+	}
+	paths, err := getPathFunc(clusterConfig, ctx)
+	if err != nil {
+		return err
+	}
+
+	var (
+		target  patchTarget
+		patched *libcluster.Config
+	)
+
+	for _, path := range paths {
+		value, err := clusterConfig.RawConfig.Get(path.path)
+		var notExistErr libcluster.NotExistError
+		if err != nil && !errors.As(err, &notExistErr) {
+			return err
+		}
+		var existingRoles []string
+		if value != nil {
+			existingRoles, err = parseRoles(value)
+			if err != nil {
+				return err
+			}
+		}
+		if len(existingRoles) > 0 && slices.Index(existingRoles, ctx.RoleName) != -1 {
+			return fmt.Errorf("role %q already exists in %s",
+				ctx.RoleName, strings.Join(path.path, "/"))
+		}
+		// If role is not existing in requested path, append it.
+		existingRoles = append(existingRoles, ctx.RoleName)
+
+		targets, err := getCConfigPatchTargets(configData, path.path, path.depth)
+		if err != nil {
+			return err
+		}
+		target, err = c.pickTarget(targets, ctx.Force, strings.Join(path.path, "/"))
+		if err != nil {
+			return err
+		}
+
+		curPatched, err := patchFunc(target.config, path.path, existingRoles)
+		if err != nil {
+			return err
+		}
+
+		if patched != nil {
+			patched.Merge(curPatched)
+			continue
+		}
+		patched = curPatched
+	}
+	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
+	if err != nil {
+		return fmt.Errorf("failed to publish the config: %w", err)
+	}
+	return nil
+}
+
 // Promote patches a config to promote an instance.
 func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 	return c.patchInstanceConfig(
@@ -142,6 +217,63 @@ func (c *CConfigSource) Expel(ctx ExpelCtx) error {
 			return patchCConfigExpel(config, inst)
 		},
 	)
+}
+
+// AddRole patches a config to add role to a config.
+func (c *CConfigSource) AddRole(ctx RolesAddCtx) error {
+	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, patchCConfigAddRole)
+}
+
+// getCConfigRolesPath returns a path and it's minimum interesting depth
+// to patch the config for role addition.
+func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig, ctx RolesAddCtx) ([]path, error) {
+	var paths []path
+	if ctx.IsGlobal {
+		paths = append(paths, path{
+			path:  []string{"roles"},
+			depth: 0,
+		})
+	}
+	if ctx.GroupName != "" {
+		p := []string{"groups", ctx.GroupName}
+		if _, err := clusterConfig.RawConfig.Get(p); err != nil {
+			var notExistErr libcluster.NotExistError
+			if errors.As(err, &notExistErr) {
+				return []path{}, fmt.Errorf("cannot find group %q", ctx.GroupName)
+			}
+			return []path{}, fmt.Errorf("failed to build a group path: %w", err)
+		}
+		paths = append(paths, path{
+			path:  append(p, "roles"),
+			depth: len(p),
+		})
+	}
+	if ctx.ReplicasetName != "" {
+		var group string
+		var ok bool
+		if group, ok = libcluster.FindGroupByReplicaset(clusterConfig, ctx.ReplicasetName); !ok {
+			return []path{}, fmt.Errorf("cannot find replicaset %q above group", ctx.ReplicasetName)
+		}
+		p := []string{"groups", group, "replicasets", ctx.ReplicasetName}
+		paths = append(paths, path{
+			path:  append(p, "roles"),
+			depth: len(p),
+		})
+	}
+	if ctx.InstName != "" {
+		var group, replicaset string
+		var ok bool
+		if group, replicaset, ok = libcluster.FindInstance(clusterConfig, ctx.InstName); !ok {
+			return []path{}, fmt.Errorf("cannot find instance %q above group and/or replicaset",
+				ctx.InstName)
+		}
+		p := []string{"groups", group, "replicasets", replicaset, "instances", ctx.InstName}
+		paths = append(paths, path{
+			path:  append(p, "roles"),
+			depth: len(p),
+		})
+	}
+	return paths, nil
 }
 
 // getCConfigPromotePath returns a path and it's minimum interesting depth
