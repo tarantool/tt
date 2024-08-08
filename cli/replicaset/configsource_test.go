@@ -213,7 +213,7 @@ func TestCConfigSource_Promote_invalid_failover(t *testing.T) {
 }
 
 func TestCConfigSource_Promote_single_key(t *testing.T) {
-	keyPicker := replicaset.KeyPicker(func(keys []string, _ bool) (int, error) {
+	keyPicker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 		require.Equal(t, []string{"all"}, keys)
 		return 0, nil
 	})
@@ -270,7 +270,7 @@ func TestCConfigSource_passes_force(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		keyPicker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
+		keyPicker := replicaset.KeyPicker(func(_ []string, force bool, _ string) (int, error) {
 			require.True(t, force)
 			return 0, nil
 		})
@@ -318,7 +318,7 @@ func TestCConfigSource_publish_error(t *testing.T) {
 		collector := newOnceMockDataCollector([]libcluster.Data{
 			{Source: "all", Value: cfg},
 		}, nil)
-		keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
+		keyPicker := replicaset.KeyPicker(func(_ []string, _ bool, _ string) (int, error) {
 			return 0, nil
 		})
 		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
@@ -361,7 +361,7 @@ func TestCConfigSource_keypick_error(t *testing.T) {
 			{Source: "all", Value: cfg},
 		}, nil)
 		err := fmt.Errorf("it's too late")
-		keyPicker := replicaset.KeyPicker(func([]string, bool) (int, error) {
+		keyPicker := replicaset.KeyPicker(func(_ []string, _ bool, _ string) (int, error) {
 			return 0, err
 		})
 		source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
@@ -429,7 +429,7 @@ func TestCConfigSource_Promote_many_keys(t *testing.T) {
 			}
 			collector := newOnceMockDataCollector(data, nil)
 			publisher := newOnceMockDataPublisher(nil)
-			picker := replicaset.KeyPicker(func(keys []string, _ bool) (int, error) {
+			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 				require.Equal(t, tc.keys, keys)
 				return 0, nil
 			})
@@ -464,7 +464,7 @@ func TestCConfigSource_Promote_many_keys_choose_affects(t *testing.T) {
 		{Source: "a", Value: cfg, Revision: 13},
 		{Source: "b", Value: cfg, Revision: revision},
 	}, nil)
-	picker := replicaset.KeyPicker(func(keys []string, _ bool) (int, error) {
+	picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 		require.Equal(t, []string{"a", "b"}, keys)
 		return 1, nil
 	})
@@ -520,7 +520,7 @@ func TestCConfigSource_Promote_mix_failovers(t *testing.T) {
 				{Source: "c", Value: cfg3},
 			}, nil)
 			publisher := newOnceMockDataPublisher(nil)
-			picker := replicaset.KeyPicker(func(keys []string, _ bool) (int, error) {
+			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 				require.Equal(t, []string{tc.key}, keys)
 				return 0, nil
 			})
@@ -582,7 +582,7 @@ func TestCConfigSource_Demote_invalid_failover(t *testing.T) {
 }
 
 func TestCConfigSource_Demote_single_key(t *testing.T) {
-	keyPicker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
+	keyPicker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 		require.Equal(t, []string{"all"}, keys)
 		return 0, nil
 	})
@@ -633,7 +633,7 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 			}
 			collector := newOnceMockDataCollector(data, nil)
 			publisher := newOnceMockDataPublisher(nil)
-			picker := replicaset.KeyPicker(func(keys []string, force bool) (int, error) {
+			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 				require.Equal(t, tc.keys, keys)
 				return 0, nil
 			})
@@ -680,7 +680,7 @@ func TestCConfigSource_Demote_many_keys_choose_affects(t *testing.T) {
 		{Source: "a", Value: cfg, Revision: 13},
 		{Source: "b", Value: cfg, Revision: revision},
 	}, nil)
-	picker := replicaset.KeyPicker(func(keys []string, _ bool) (int, error) {
+	picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 		require.Equal(t, []string{"a", "b"}, keys)
 		return 1, nil
 	})
@@ -703,7 +703,7 @@ func TestCConfigSource_Expel_single_key(t *testing.T) {
 	collector := newOnceMockDataCollector([]libcluster.Data{
 		{Source: "a", Value: cfg, Revision: revision},
 	}, nil)
-	picker := replicaset.KeyPicker(func(keys []string, _ bool) (int, error) {
+	picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
 		require.Equal(t, []string{"a"}, keys)
 		return 0, nil
 	})

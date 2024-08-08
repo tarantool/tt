@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 // KeyPicker picks a key to patch.
-type KeyPicker func(keys []string, force bool) (int, error)
+type KeyPicker func([]string, bool, string) (int, error)
 
 // CConfigSource describes the cluster config source.
 type CConfigSource struct {
@@ -56,12 +57,13 @@ func collectCConfig(
 }
 
 // pickTarget applies keyPicker to the targets slice and returns picked target.
-func (c *CConfigSource) pickTarget(targets []patchTarget, force bool) (patchTarget, error) {
+func (c *CConfigSource) pickTarget(targets []patchTarget, force bool,
+	pathMsg string) (patchTarget, error) {
 	targetKeys := make([]string, 0, len(targets))
 	for _, target := range targets {
 		targetKeys = append(targetKeys, target.key)
 	}
-	dstIndex, err := c.keyPicker(targetKeys, force)
+	dstIndex, err := c.keyPicker(targetKeys, force, pathMsg)
 	if err != nil {
 		return patchTarget{}, err
 	}
@@ -90,7 +92,7 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	if err != nil {
 		return err
 	}
-	target, err := c.pickTarget(targets, force)
+	target, err := c.pickTarget(targets, force, strings.Join(path, "/"))
 	if err != nil {
 		return err
 	}
