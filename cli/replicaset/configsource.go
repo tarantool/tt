@@ -3,13 +3,21 @@ package replicaset
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
+	"strings"
 
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 // KeyPicker picks a key to patch.
-type KeyPicker func(keys []string, force bool) (int, error)
+type KeyPicker func(keys []string, force bool, pathMsg string) (int, error)
+
+// path describes a path of target with its depth level in config.
+type path struct {
+	path  []string
+	depth int
+}
 
 // CConfigSource describes the cluster config source.
 type CConfigSource struct {
@@ -56,12 +64,13 @@ func collectCConfig(
 }
 
 // pickTarget applies keyPicker to the targets slice and returns picked target.
-func (c *CConfigSource) pickTarget(targets []patchTarget, force bool) (patchTarget, error) {
+func (c *CConfigSource) pickTarget(targets []patchTarget, force bool,
+	pathMsg string) (patchTarget, error) {
 	targetKeys := make([]string, 0, len(targets))
 	for _, target := range targets {
 		targetKeys = append(targetKeys, target.key)
 	}
-	dstIndex, err := c.keyPicker(targetKeys, force)
+	dstIndex, err := c.keyPicker(targetKeys, force, pathMsg)
 	if err != nil {
 		return patchTarget{}, err
 	}
@@ -90,7 +99,7 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	if err != nil {
 		return err
 	}
-	target, err := c.pickTarget(targets, force)
+	target, err := c.pickTarget(targets, force, strings.Join(path, "/"))
 	if err != nil {
 		return err
 	}
@@ -98,6 +107,71 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	patched, err := patchFunc(target.config, inst)
 	if err != nil {
 		return err
+	}
+	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
+	if err != nil {
+		return fmt.Errorf("failed to publish the config: %w", err)
+	}
+	return nil
+}
+
+// patchConfigWithRoles runs an config patching pipeline with adding roles.
+func (c *CConfigSource) patchConfigWithRoles(ctx RolesAddCtx,
+	getPathFunc func(clusterConfig libcluster.ClusterConfig,
+		ctx RolesAddCtx) (paths []path, err error),
+	patchFunc func(config *libcluster.Config, path []string,
+		roleNames []Role) (*libcluster.Config, error),
+) error {
+	configData, clusterConfig, err := collectCConfig(c.collector)
+	if err != nil {
+		return err
+	}
+	paths, err := getPathFunc(clusterConfig, ctx)
+	if err != nil {
+		return err
+	}
+
+	var target patchTarget
+	var patched *libcluster.Config
+	for _, path := range paths {
+		value, err := clusterConfig.RawConfig.Get(path.path)
+		var notExistErr libcluster.NotExistError
+		if err != nil && !errors.As(err, &notExistErr) {
+			return err
+		}
+		var existingRoles []Role
+		if value != nil {
+			existingRoles, err = parseRoles(value)
+			if err != nil {
+				return err
+			}
+		}
+		if len(existingRoles) > 0 && slices.Index(existingRoles, ctx.RoleName) != -1 {
+			return fmt.Errorf("role %q already exists in %s",
+				ctx.RoleName, strings.Join(path.path, "/"))
+		}
+		// If role is not existing in requested path, append it.
+		existingRoles = append(existingRoles, ctx.RoleName)
+
+		targets, err := getCConfigPatchTargets(configData, path.path, path.depth)
+		if err != nil {
+			return err
+		}
+		target, err = c.pickTarget(targets, ctx.Force, strings.Join(path.path, "/"))
+		if err != nil {
+			return err
+		}
+
+		curPatched, err := patchFunc(target.config, path.path, existingRoles)
+		if err != nil {
+			return err
+		}
+
+		if patched != nil {
+			patched.Merge(curPatched)
+			continue
+		}
+		patched = curPatched
 	}
 	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
 	if err != nil {
@@ -140,6 +214,63 @@ func (c *CConfigSource) Expel(ctx ExpelCtx) error {
 			return patchCConfigExpel(config, inst)
 		},
 	)
+}
+
+// AddRole patches a config to add role to a config.
+func (c *CConfigSource) AddRole(ctx RolesAddCtx) error {
+	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, patchCConfigAddRole)
+}
+
+// getCConfigRolesPath returns a path and it's minimum interesting depth
+// to patch the config for role addition.
+func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig, ctx RolesAddCtx) ([]path, error) {
+	var paths []path
+	if ctx.IsGlobal {
+		paths = append(paths, path{
+			path:  []string{"roles"},
+			depth: 0,
+		})
+	}
+	if ctx.GroupName != "" {
+		p := []string{"groups", ctx.GroupName}
+		if _, err := clusterConfig.RawConfig.Get(p); err != nil {
+			var notExistErr libcluster.NotExistError
+			if errors.As(err, &notExistErr) {
+				return []path{}, fmt.Errorf("cannot find group %q", ctx.GroupName)
+			}
+			return []path{}, err
+		}
+		paths = append(paths, path{
+			path:  append(p, "roles"),
+			depth: len(p),
+		})
+	}
+	if ctx.ReplicasetName != "" {
+		var group string
+		var ok bool
+		if group, ok = libcluster.FindGroupByReplicaset(clusterConfig, ctx.ReplicasetName); !ok {
+			return []path{}, fmt.Errorf("cannot find replicaset %q above group", ctx.ReplicasetName)
+		}
+		p := []string{"groups", group, "replicasets", ctx.ReplicasetName}
+		paths = append(paths, path{
+			path:  append(p, "roles"),
+			depth: len(p),
+		})
+	}
+	if ctx.InstName != "" {
+		var group, replicaset string
+		var ok bool
+		if group, replicaset, ok = libcluster.FindInstance(clusterConfig, ctx.InstName); !ok {
+			return []path{}, fmt.Errorf("cannot find instance %q above group and/or replicaset",
+				ctx.InstName)
+		}
+		p := []string{"groups", group, "replicasets", replicaset, "instances", ctx.InstName}
+		paths = append(paths, path{
+			path:  append(p, "roles"),
+			depth: len(p),
+		})
+	}
+	return paths, nil
 }
 
 // getCConfigPromotePath returns a path and it's minimum interesting depth

@@ -73,8 +73,10 @@ type PromoteCtx struct {
 }
 
 // pickPatchKey prompts to select a key to patch the config.
+// pathMsg is a path destination in config to patch. If it is not
+// empty path displays for user.
 // If force is true, picks the first passed key.
-func pickPatchKey(keys []string, force bool) (int, error) {
+func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 	if len(keys) == 0 {
 		return 0, fmt.Errorf("no keys for the config patching")
 	}
@@ -82,9 +84,13 @@ func pickPatchKey(keys []string, force bool) (int, error) {
 		pos = 0
 		err error
 	)
-	if !force {
+	if !force && len(keys) != 1 {
+		label := "Select a key for the config patching"
+		if len(pathMsg) != 0 {
+			label = fmt.Sprintf("%s for destination path %q", label, pathMsg)
+		}
 		programSelect := promptui.Select{
-			Label:        "Select a key for the config patching",
+			Label:        label,
 			Items:        keys,
 			HideSelected: true,
 		}
@@ -262,6 +268,64 @@ func Expel(uri *url.URL, ctx ExpelCtx) error {
 	err = source.Expel(replicaset.ExpelCtx{
 		InstName: ctx.InstName,
 		Force:    ctx.Force,
+	})
+	if err == nil {
+		log.Info("Done.")
+	}
+	return err
+}
+
+// RolesAddCtx describes the context to add role of instance.
+type RolesAddCtx struct {
+	// InstName is an instance name in which add or remove role.
+	InstName string
+	// GroupName is an replicaset name in which add or remove role.
+	GroupName string
+	// ReplicasetName is an replicaset name in which add or remove role.
+	ReplicasetName string
+	// IsGlobal is an boolean value if role needs to add in global scope.
+	IsGlobal bool
+	// RoleName is a name of role to add.
+	RoleName string
+	// Publishers is data publisher factory.
+	Publishers libcluster.DataPublisherFactory
+	// Collectors is data collector factory.
+	Collectors libcluster.DataCollectorFactory
+	// Username defines a username for connection.
+	Username string
+	// Password defines a password for connection.
+	Password string
+	// Force true if the key selection for patching the config
+	// should be skipped.
+	Force bool
+}
+
+// AddRole adds a role by patching the cluster config.
+func AddRole(uri *url.URL, ctx RolesAddCtx) error {
+	opts, err := ParseUriOpts(uri)
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", uri, err)
+	}
+	connOpts := connectOpts{
+		Username: ctx.Username,
+		Password: ctx.Password,
+	}
+
+	collector, publisher, closeFunc, err := createDataCollectorAndKeyPublisher(
+		ctx.Collectors, ctx.Publishers, opts, connOpts)
+	if err != nil {
+		return err
+	}
+	defer closeFunc()
+	source := replicaset.NewCConfigSource(collector, publisher,
+		replicaset.KeyPicker(pickPatchKey))
+	err = source.AddRole(replicaset.RolesAddCtx{
+		InstName:       ctx.InstName,
+		GroupName:      ctx.GroupName,
+		ReplicasetName: ctx.ReplicasetName,
+		IsGlobal:       ctx.IsGlobal,
+		RoleName:       replicaset.Role(ctx.RoleName),
+		Force:          ctx.Force,
 	})
 	if err == nil {
 		log.Info("Done.")
