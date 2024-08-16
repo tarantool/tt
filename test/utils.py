@@ -432,13 +432,15 @@ def extract_status(status_output):
     statuses = status_output.split("\n")
     for i in range(1, len(statuses)-1):
         summary = statuses[i]
+        if not summary:
+            break
         fields = summary.split()
         instance = fields[0]
         info = {}
         if fields[1] == "RUNNING":
             info["STATUS"] = fields[1]
             info["PID"] = int(fields[2])
-            if len(fields) == 4:
+            if len(fields) >= 4:
                 info["MODE"] = fields[3]
         else:
             info["STATUS"] = " ".join(fields[1:])
