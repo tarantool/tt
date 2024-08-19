@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/apex/log"
@@ -203,6 +204,11 @@ func (c *CartridgeInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
 		return wrapCartridgeVShardBoostrapError(err)
 	}
 	return nil
+}
+
+// RolesAdd adds role for a single instance by the Cartridge orchestrator.
+func (c *CartridgeInstance) RolesAdd(ctx RolesChangeCtx) error {
+	return newErrRolesAddByInstanceNotSupported(OrchestratorCartridge)
 }
 
 // CartridgeApplication is an application with the Cartridge orchestrator.
@@ -660,6 +666,85 @@ func (c *CartridgeApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
 		}
 	}
 	return nil
+}
+
+// RolesAdd adds role for an application by the Cartridge orchestrator.
+func (c *CartridgeApplication) RolesAdd(ctx RolesChangeCtx) error {
+	if len(c.runningCtx.Instances) == 0 {
+		return fmt.Errorf("failed to add role: there are no running instances")
+	}
+
+	targetReplicaset, err := getReplicasetByAlias(c.replicasets.Replicasets, ctx.ReplicasetName)
+	if err != nil {
+		return err
+	}
+
+	instances := filterInstances(c.runningCtx.Instances, func(
+		inst running.InstanceCtx) bool {
+		return slices.ContainsFunc(targetReplicaset.Instances, func(i Instance) bool {
+			return i.Alias == inst.InstName
+		})
+	})
+	if slices.Contains(targetReplicaset.Roles, ctx.RoleName) {
+		return fmt.Errorf("role %q already exists in replicaset %q",
+			ctx.RoleName, ctx.ReplicasetName)
+	}
+	targetReplicaset.Roles = append(targetReplicaset.Roles, ctx.RoleName)
+
+	cartridgeEditOpt := cartridgeEditReplicasetsOpts{
+		UUID:  &targetReplicaset.UUID,
+		Roles: targetReplicaset.Roles,
+	}
+	if ctx.GroupName != "" {
+		cartridgeEditOpt.VshardGroup = &ctx.GroupName
+	}
+
+	eval := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+		return true, cartridgeEditReplicasets(evaler, []cartridgeEditReplicasetsOpts{
+			cartridgeEditOpt,
+		}, ctx.Timeout)
+	}
+	if err := EvalForeach(instances, InstanceEvalFunc(eval)); err != nil {
+		return err
+	}
+
+	newReplicasets, err := c.Discovery(SkipCache)
+	if err != nil {
+		return err
+	}
+	targetReplicaset, err = getReplicasetByAlias(newReplicasets.Replicasets, ctx.ReplicasetName)
+	if err != nil {
+		return err
+	}
+
+	if len(targetReplicaset.Roles) == 0 {
+		log.Infof("Now replicaset %s has no roles enabled", ctx.ReplicasetName)
+	} else {
+		log.Infof(
+			"Replicaset %s now has these roles enabled:",
+			ctx.ReplicasetName,
+		)
+
+		for _, role := range targetReplicaset.Roles {
+			if targetReplicaset.VshardGroup != "" {
+				log.Infof("  %s (%s)", role, targetReplicaset.VshardGroup)
+			} else {
+				log.Infof("  %s", role)
+			}
+		}
+	}
+	return nil
+}
+
+// getReplicasetByAlias searches for a replicaset by its alias in discovered slice
+// of replicasets.
+func getReplicasetByAlias(replicasets []Replicaset, alias string) (Replicaset, error) {
+	for _, r := range replicasets {
+		if r.Alias == alias {
+			return r, nil
+		}
+	}
+	return Replicaset{}, fmt.Errorf("failed to find replicaset %q", alias)
 }
 
 // getCartridgeInstanceInfo returns an additional instance information.

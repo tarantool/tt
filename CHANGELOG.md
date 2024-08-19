@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt cluster replicaset roles add`: command to add roles in config scope provided by flags.
 - `tt replicaset roles remove`: command to remove roles in the tarantool replicaset with cluster
   config (3.0) or cartridge orchestrator.
+- `tt replicaset roles add`: command to add roles in the tarantool replicaset with
+ cluster config (3.0) or cartridge orchestrator.
 
 ### Fixed
 

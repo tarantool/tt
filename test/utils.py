@@ -507,6 +507,8 @@ def get_tarantool_version():
 def read_kv(dirname):
     kvs = {}
     for filename in os.listdir(dirname):
+        if not os.path.isfile(os.path.join(dirname, filename)):
+            continue
         key, _ = os.path.splitext(filename)
         with open(os.path.join(dirname, filename), "r") as f:
             kvs[key] = f.read()

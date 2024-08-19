@@ -48,6 +48,26 @@ type RolesChangeCtx struct {
 	Timeout int
 }
 
+// RolesAdder is an interface for adding roles to a replicaset.
+type RolesAdder interface {
+	// RolesAdd adds role to a replicasets by its name.
+	RolesAdd(ctx RolesChangeCtx) error
+}
+
+// newErrRolesAddByInstanceNotSupported creates a new error that 'roles add' is not
+// supported by the orchestrator for a single instance.
+func newErrRolesAddByInstanceNotSupported(orchestrator Orchestrator) error {
+	return fmt.Errorf("roles add is not supported for a single instance by %q orchestrator",
+		orchestrator)
+}
+
+// newErrRolesAddByAppNotSupported creates a new error that 'roles add' by URI is not
+// supported by the orchestrator for an application.
+func newErrRolesAddByAppNotSupported(orchestrator Orchestrator) error {
+	return fmt.Errorf("roles add is not supported for an application by %q orchestrator",
+		orchestrator)
+}
+
 // parseRoles is a function to convert roles type 'any'
 // from yaml config. Returns slice of roles and error.
 func parseRoles(value any) ([]string, error) {

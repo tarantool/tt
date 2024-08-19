@@ -21,6 +21,7 @@ local function format_topology(replicaset)
         leaderuuid = leader_uuid,
         alias = replicaset.alias,
         roles = replicaset.roles,
+        vshard_group = replicaset.vshard_group,
         instances = instances,
     }
 

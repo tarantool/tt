@@ -17,6 +17,7 @@ var _ replicaset.Demoter = &replicaset.CustomInstance{}
 var _ replicaset.Expeller = &replicaset.CustomInstance{}
 var _ replicaset.VShardBootstrapper = &replicaset.CustomInstance{}
 var _ replicaset.Bootstrapper = &replicaset.CustomInstance{}
+var _ replicaset.RolesAdder = &replicaset.CustomInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CustomApplication{}
 var _ replicaset.Promoter = &replicaset.CustomApplication{}
@@ -24,6 +25,7 @@ var _ replicaset.Demoter = &replicaset.CustomApplication{}
 var _ replicaset.Expeller = &replicaset.CustomApplication{}
 var _ replicaset.VShardBootstrapper = &replicaset.CustomApplication{}
 var _ replicaset.Bootstrapper = &replicaset.CustomApplication{}
+var _ replicaset.RolesAdder = &replicaset.CustomApplication{}
 
 func TestCustomApplication_Promote(t *testing.T) {
 	app := replicaset.NewCustomApplication(running.RunningCtx{})
@@ -58,6 +60,13 @@ func TestCustomApplication_Bootstrap(t *testing.T) {
 	err := instance.Bootstrap(replicaset.BootstrapCtx{})
 	assert.EqualError(t, err,
 		`bootstrap is not supported for an application by "custom" orchestrator`)
+}
+
+func TestCustomApplication_RolesAdd(t *testing.T) {
+	instance := replicaset.NewCustomApplication(running.RunningCtx{})
+	err := instance.RolesAdd(replicaset.RolesChangeCtx{})
+	assert.EqualError(t, err,
+		`roles add is not supported for an application by "custom" orchestrator`)
 }
 
 func TestCustomInstance_Discovery(t *testing.T) {
@@ -441,4 +450,11 @@ func TestCustomInstance_Bootstrap(t *testing.T) {
 	err := instance.Bootstrap(replicaset.BootstrapCtx{})
 	assert.EqualError(t, err,
 		`bootstrap is not supported for a single instance by "custom" orchestrator`)
+}
+
+func TestCustomInstance_RolesAdd(t *testing.T) {
+	instance := replicaset.NewCustomInstance(nil)
+	err := instance.RolesAdd(replicaset.RolesChangeCtx{})
+	assert.EqualError(t, err,
+		`roles add is not supported for a single instance by "custom" orchestrator`)
 }

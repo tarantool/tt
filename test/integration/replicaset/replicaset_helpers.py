@@ -20,15 +20,17 @@ def start_application(tt_cmd, workdir, app_name, instances):
         assert file != ""
 
 
-def stop_application(tt_cmd, app_name, workdir, instances):
+def stop_application(tt_cmd, app_name, workdir, instances, force=False):
     stop_cmd = [tt_cmd, "stop", app_name]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=workdir)
     assert stop_rc == 0
 
-    for inst in instances:
-        assert re.search(rf"The Instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
-                         stop_out)
-        assert not os.path.exists(os.path.join(workdir, run_path, app_name, inst, "tarantool.pid"))
+    if not force:
+        for inst in instances:
+            assert re.search(rf"The Instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
+                             stop_out)
+            assert not os.path.exists(os.path.join(workdir, run_path, app_name,
+                                                   inst, "tarantool.pid"))
 
 
 def eval_on_instance(tt_cmd, app_name, inst_name, workdir, eval):
@@ -107,3 +109,19 @@ def parse_status(buf: io.StringIO):
 
 def parse_yml(input):
     return yaml.safe_load(input)
+
+
+def get_group_by_replicaset_name(cluster_cfg, replicaset):
+    for gk, g in cluster_cfg["groups"].items():
+        for r in g["replicasets"].keys():
+            if r == replicaset:
+                return gk
+
+
+def get_group_replicaset_by_instance_name(cluster_cfg, instance):
+    for gk, g in cluster_cfg["groups"].items():
+        for rk, r in g["replicasets"].items():
+            for i in r["instances"].keys():
+                if i == instance:
+                    return gk, rk
+    return "", ""

@@ -8,8 +8,9 @@ from cartridge_helper import (cartridge_name, cartridge_password,
                               cartridge_username)
 from replicaset_helpers import eval_on_instance, parse_status, stop_application
 
-from utils import (create_tt_config, get_tarantool_version,
-                   run_command_and_get_output, wait_event, wait_file)
+from utils import (create_tt_config, get_tarantool_version, log_file, log_path,
+                   run_command_and_get_output, wait_event, wait_file,
+                   wait_string_in_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -193,6 +194,15 @@ def vshard_cconfig_app_tt_env(request, tt_cmd, vshard_tt_env_session):
     for inst in instances:
         file = wait_file(app_path, f'ready-{inst}', [])
         assert file != ""
+
+    wait_string_in_file(app_path / log_path / "router-001-a" / log_file,
+                        "All replicas are ok")
+    for inst in ["storage-001-a", "storage-002-a"]:
+        wait_string_in_file(app_path / log_path / inst / log_file,
+                            "leaving orphan mode")
+    for inst in ["storage-001-b", "storage-002-b"]:
+        wait_string_in_file(app_path / log_path / inst / log_file,
+                            "subscribed replica")
     return tmpdir
 
 
