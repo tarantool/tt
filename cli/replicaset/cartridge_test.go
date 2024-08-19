@@ -19,12 +19,14 @@ var _ replicaset.Demoter = &replicaset.CartridgeInstance{}
 var _ replicaset.Expeller = &replicaset.CartridgeInstance{}
 var _ replicaset.VShardBootstrapper = &replicaset.CartridgeInstance{}
 var _ replicaset.Bootstrapper = &replicaset.CartridgeInstance{}
+var _ replicaset.RolesAdder = &replicaset.CartridgeInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CartridgeApplication{}
 var _ replicaset.Promoter = &replicaset.CartridgeApplication{}
 var _ replicaset.Demoter = &replicaset.CartridgeApplication{}
 var _ replicaset.Expeller = &replicaset.CartridgeApplication{}
 var _ replicaset.Bootstrapper = &replicaset.CartridgeApplication{}
+var _ replicaset.RolesAdder = &replicaset.CartridgeApplication{}
 
 func TestCartridgeApplication_Demote(t *testing.T) {
 	app := replicaset.NewCartridgeApplication(running.RunningCtx{})
@@ -974,4 +976,11 @@ func TestCartridgeInstance_Expel(t *testing.T) {
 	err := instance.Expel(replicaset.ExpelCtx{})
 	assert.EqualError(t, err,
 		`expel is not supported for a single instance by "cartridge" orchestrator`)
+}
+
+func TestCartridgeInstance_RolesAdd(t *testing.T) {
+	inst := replicaset.NewCartridgeInstance(nil)
+	err := inst.RolesAdd(replicaset.RolesChangeCtx{})
+	assert.EqualError(t, err,
+		`roles add is not supported for a single instance by "cartridge" orchestrator`)
 }

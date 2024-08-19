@@ -93,6 +93,11 @@ func (c *CustomInstance) Bootstrap(BootstrapCtx) error {
 	return newErrBootstrapByInstanceNotSupported(OrchestratorCustom)
 }
 
+// RolesAdd is not supported for a single instance by the Custom orchestrator.
+func (c *CustomInstance) RolesAdd(RolesChangeCtx) error {
+	return newErrRolesAddByInstanceNotSupported(OrchestratorCustom)
+}
+
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
 	cachedDiscoverer
@@ -160,6 +165,11 @@ func (c *CustomApplication) BootstrapVShard(VShardBootstrapCtx) error {
 // Bootstrap is not supported for an application by the Custom orchestrator.
 func (c *CustomApplication) Bootstrap(BootstrapCtx) error {
 	return newErrBootstrapByAppNotSupported(OrchestratorCustom)
+}
+
+// RolesAdd is not supported for an application by the Custom orchestrator.
+func (c *CustomApplication) RolesAdd(RolesChangeCtx) error {
+	return newErrRolesAddByAppNotSupported(OrchestratorCustom)
 }
 
 // getCustomInstanceTopology returns a topology for an instance.

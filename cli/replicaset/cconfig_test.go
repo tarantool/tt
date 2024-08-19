@@ -18,6 +18,7 @@ var _ replicaset.Demoter = &replicaset.CConfigInstance{}
 var _ replicaset.Expeller = &replicaset.CConfigInstance{}
 var _ replicaset.VShardBootstrapper = &replicaset.CConfigInstance{}
 var _ replicaset.Bootstrapper = &replicaset.CConfigInstance{}
+var _ replicaset.RolesAdder = &replicaset.CConfigInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CConfigApplication{}
 var _ replicaset.Promoter = &replicaset.CConfigApplication{}
@@ -25,6 +26,7 @@ var _ replicaset.Demoter = &replicaset.CConfigApplication{}
 var _ replicaset.Expeller = &replicaset.CConfigApplication{}
 var _ replicaset.VShardBootstrapper = &replicaset.CConfigApplication{}
 var _ replicaset.Bootstrapper = &replicaset.CConfigApplication{}
+var _ replicaset.RolesAdder = &replicaset.CConfigApplication{}
 
 func TestCconfigApplication_Bootstrap(t *testing.T) {
 	app := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil)
@@ -465,4 +467,11 @@ func TestCConfigInstance_Expel(t *testing.T) {
 	err := instance.Expel(replicaset.ExpelCtx{})
 	assert.EqualError(t, err,
 		`expel is not supported for a single instance by "centralized config" orchestrator`)
+}
+
+func TestCConfigInstance_RolesAdd(t *testing.T) {
+	instance := replicaset.NewCConfigInstance(nil)
+	err := instance.RolesAdd(replicaset.RolesChangeCtx{})
+	assert.EqualError(t, err,
+		`roles add is not supported for a single instance by "centralized config" orchestrator`)
 }

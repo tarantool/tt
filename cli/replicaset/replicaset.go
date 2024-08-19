@@ -11,6 +11,8 @@ type Replicaset struct {
 	Alias string
 	// Roles is a list of roles of the replicaset.
 	Roles []string
+	// VShardGroup is a vshard group for cartridge cluster.
+	VshardGroup string `mapstructure:"vshard_group"`
 	// Master is a current master mode.
 	Master Master
 	// Failover is a configured failover.

@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/apex/log"
@@ -62,11 +63,11 @@ type CConfigInstance struct {
 	evaler connector.Evaler
 }
 
-// patchRoleTarget describes a content to patch a config.
+// patchRoleTarget describes a role content to patch a config.
 type patchRoleTarget struct {
 	// path is a destination to a patch target in config.
 	path []string
-	// roleNames are roles to add by path in config.
+	// roleNames are roles to set by path in config.
 	roleNames []string
 }
 
@@ -133,6 +134,12 @@ func (c *CConfigInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
 		return err
 	}
 	return nil
+}
+
+// RolesAdd is not supported for a single instance by the centralized config
+// orchestrator.
+func (c *CConfigInstance) RolesAdd(ctx RolesChangeCtx) error {
+	return newErrRolesAddByInstanceNotSupported(OrchestratorCentralizedConfig)
 }
 
 // CConfigApplication is an application with the centralized config
@@ -465,6 +472,59 @@ func (c *CConfigApplication) Bootstrap(BootstrapCtx) error {
 	return newErrBootstrapByAppNotSupported(OrchestratorCentralizedConfig)
 }
 
+// RolesAdd adds role for an application by the centralized config orchestrator.
+func (c *CConfigApplication) RolesAdd(ctx RolesChangeCtx) error {
+	replicasets, err := c.Discovery(UseCache)
+	if err != nil {
+		return fmt.Errorf("failed to get replicasets: %w", err)
+	}
+
+	var (
+		instances []running.InstanceCtx
+		unfound   []string
+	)
+
+	if ctx.InstName != "" {
+		targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
+		if !found {
+			return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
+		}
+		if !targetInstance.InstanceCtxFound {
+			return fmt.Errorf("instance %q should be online", ctx.InstName)
+		}
+		for _, inst := range targetReplicaset.Instances {
+			if !inst.InstanceCtxFound {
+				unfound = append(unfound, inst.Alias)
+				continue
+			}
+			instances = append(instances, inst.InstanceCtx)
+		}
+	} else {
+		for _, r := range c.replicasets.Replicasets {
+			for _, i := range r.Instances {
+				if !i.InstanceCtxFound {
+					unfound = append(unfound, i.Alias)
+					continue
+				}
+				instances = append(instances, i.InstanceCtx)
+			}
+		}
+	}
+	if len(unfound) > 0 {
+		msg := "could not connect to: " + strings.Join(unfound, ",")
+		if !ctx.Force {
+			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
+		}
+		log.Warn(msg)
+	}
+
+	isConfigPublished, err := c.rolesAdd(ctx)
+	if isConfigPublished {
+		err = errors.Join(err, reloadCConfig(instances))
+	}
+	return err
+}
+
 // cconfigPromoteElection tries to promote an instance via `box.ctl.promote()`.
 func cconfigPromoteElection(evaler connector.Evaler, timeout int) error {
 	args := []any{}
@@ -691,6 +751,61 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 	return
 }
 
+func (c *CConfigApplication) rolesAdd(ctx RolesChangeCtx) (bool, error) {
+	if len(c.runningCtx.Instances) == 0 {
+		return false, fmt.Errorf("there are no running instances")
+	}
+	clusterCfgPath := c.runningCtx.Instances[0].ClusterConfigPath
+	clusterCfg, err := cluster.GetClusterConfig(
+		libcluster.NewCollectorFactory(c.collectors), clusterCfgPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to get cluster config: %w", err)
+	}
+
+	paths, err := getCConfigRolesPath(clusterCfg, ctx)
+	if err != nil {
+		return false, err
+	}
+
+	pRoleTarget := make([]patchRoleTarget, 0, len(paths))
+	for _, path := range paths {
+		value, err := clusterCfg.RawConfig.Get(path.path)
+		var notExistErr libcluster.NotExistError
+		if err != nil && !errors.As(err, &notExistErr) {
+			return false, err
+		}
+		var existingRoles []string
+		if value != nil {
+			existingRoles, err = parseRoles(value)
+			if err != nil {
+				return false, err
+			}
+		}
+		if len(existingRoles) > 0 && slices.Index(existingRoles, ctx.RoleName) != -1 {
+			return false, fmt.Errorf("role %q already exists in %s",
+				ctx.RoleName, strings.Join(path.path, "/"))
+		}
+		// If the role does not exist in requested path, append it.
+		existingRoles = append(existingRoles, ctx.RoleName)
+
+		pRoleTarget = append(pRoleTarget, patchRoleTarget{
+			path:      path.path,
+			roleNames: existingRoles,
+		})
+	}
+	if err := patchLocalCConfig(
+		clusterCfgPath,
+		c.collectors,
+		c.publishers,
+		func(config *libcluster.Config) (*libcluster.Config, error) {
+			return patchCConfigEditRole(config, pRoleTarget)
+		},
+	); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // patchLocalConfig patches the local cluster config.
 func patchLocalCConfig(path string,
 	collectors libcluster.DataCollectorFactory,
@@ -862,8 +977,8 @@ func patchCConfigElectionMode(config *libcluster.Config,
 }
 
 func patchCConfigEditRole(config *libcluster.Config,
-	prt []patchRoleTarget) (*libcluster.Config, error) {
-	for _, p := range prt {
+	targets []patchRoleTarget) (*libcluster.Config, error) {
+	for _, p := range targets {
 		if err := config.Set(p.path, p.roleNames); err != nil {
 			return nil, err
 		}

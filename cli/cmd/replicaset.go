@@ -39,7 +39,10 @@ var (
 	replicasetIntegrityPrivateKey      string
 	replicasetBootstrapVshard          bool
 	replicasetCartridgeReplicasetsFile string
+	replicasetGroupName                string
 	replicasetReplicasetName           string
+	replicasetInstanceName             string
+	replicasetIsGlobal                 bool
 	rebootstrapConfirmed               bool
 
 	replicasetUriHelp = "  The URI can be specified in the following formats:\n" +
@@ -242,6 +245,54 @@ func newRebootstrapCmd() *cobra.Command {
 	return cmd
 }
 
+func newRolesCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "roles",
+		Short: "Adds or removes roles for Cartridge and Tarantool 3 orchestrator",
+	}
+
+	cmd.AddCommand(newRolesAddCmd())
+	return cmd
+}
+
+// newRolesAddCmd creates a "replicaset roles add" command.
+func newRolesAddCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "add [--cartridge|--config|--custom] [-f] [--timeout secs]" +
+			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
+		Short: "Adds a role for Cartridge and Tarantool 3 orchestrator",
+		Long:  "Adds a role for Cartridge and Tarantool 3 orchestrator",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetRolesAddModule, args)
+			util.HandleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(2),
+	}
+
+	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",
+		"name of a target replicaset")
+	cmd.Flags().StringVarP(&replicasetGroupName, "group", "g", "",
+		"name of a target group (vshard-group in the Cartridge case)")
+	cmd.Flags().StringVarP(&replicasetInstanceName, "instance", "i", "",
+		"name of a target instance")
+	cmd.Flags().BoolVarP(&replicasetIsGlobal, "global", "G", false,
+		"global config context")
+
+	addOrchestratorFlags(cmd)
+	addTarantoolConnectFlags(cmd)
+	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
+		"to force a promotion:\n"+
+			"  * config: skip instances not found locally\n"+
+			"  * cartridge: force inconsistency")
+	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
+		replicasetcmd.DefaultTimeout, "adding timeout")
+	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+
+	return cmd
+}
+
 // NewReplicasetCmd creates a replicaset command.
 func NewReplicasetCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -257,6 +308,7 @@ func NewReplicasetCmd() *cobra.Command {
 	cmd.AddCommand(newVShardCmd())
 	cmd.AddCommand(newBootstrapCmd())
 	cmd.AddCommand(newRebootstrapCmd())
+	cmd.AddCommand(newRolesCmd())
 
 	return cmd
 }
@@ -348,6 +400,31 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 					// Should not happen.
 					return err
 				}
+			}
+		}
+		// In case of adding a role when user may not provide an instance.
+		if cmdCtx.CommandName == "add" && ctx.InstName == "" {
+			if len(ctx.RunningCtx.Instances) == 0 {
+				return fmt.Errorf("there are no running instances")
+			}
+			// Trying to find alive instance to create connection with it.
+			var err error
+			for _, i := range ctx.RunningCtx.Instances {
+				connOpts = makeConnOpts(
+					connector.UnixNetwork,
+					i.ConsoleSocket,
+					connectCtx,
+				)
+				var conn connector.Connector
+				conn, err = connector.Connect(connOpts)
+				if err == nil {
+					ctx.IsInstanceConnect = true
+					conn.Close()
+					break
+				}
+			}
+			if err != nil {
+				return fmt.Errorf("cannot connect to any instance from replicaset")
 			}
 		}
 	} else {
@@ -568,5 +645,48 @@ func internalReplicasetRebootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 		AppName:      appName,
 		InstanceName: instName,
 		Confirmed:    rebootstrapConfirmed,
+	})
+}
+
+// internalReplicasetRolesAddModule is a "roles add" command for the replicaset module.
+func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+		return err
+	}
+	defer ctx.Conn.Close()
+	if ctx.IsApplication && replicasetInstanceName == "" && ctx.InstName == "" &&
+		!replicasetIsGlobal && replicasetGroupName == "" && replicasetReplicasetName == "" {
+		return fmt.Errorf("there is no destination provided in which to add role")
+	}
+	if ctx.InstName != "" && replicasetInstanceName != "" &&
+		replicasetInstanceName != ctx.InstName {
+		return fmt.Errorf("there are different instance names passed after" +
+			" app name and in flag arg")
+	}
+	if replicasetInstanceName != "" {
+		ctx.InstName = replicasetInstanceName
+	}
+
+	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	return replicasetcmd.RolesAdd(replicasetcmd.RolesAddCtx{
+		InstName:       ctx.InstName,
+		GroupName:      replicasetGroupName,
+		ReplicasetName: replicasetReplicasetName,
+		IsGlobal:       replicasetIsGlobal,
+		RoleName:       args[1],
+		Collectors:     collectors,
+		Publishers:     publishers,
+		IsApplication:  ctx.IsApplication,
+		Conn:           ctx.Conn,
+		RunningCtx:     ctx.RunningCtx,
+		Orchestrator:   ctx.Orchestrator,
+		Force:          replicasetForce,
+		Timeout:        replicasetTimeout,
 	})
 }
