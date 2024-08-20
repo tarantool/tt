@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -42,7 +43,7 @@ func (handler *DaemonHandler) callCommand(ttCmd *command) (string, error) {
 	cmd.Stdout = &stdout
 	err := cmd.Run()
 	if err != nil {
-		err = fmt.Errorf(fmt.Sprint(err) + ": " + stderr.String())
+		err = errors.New(fmt.Sprint(err) + ": " + stderr.String())
 	}
 
 	return stdout.String() + stderr.String(), err

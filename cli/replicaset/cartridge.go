@@ -2,6 +2,7 @@ package replicaset
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -721,7 +722,7 @@ func getCartridgeVersion(evaler connector.Evaler) (string, error) {
 		return "", fmt.Errorf(errPrefix+"%w", err)
 	}
 	if len(ret) != 1 {
-		return "", fmt.Errorf(errPrefix + "unexpected response length")
+		return "", errors.New(errPrefix + "unexpected response length")
 	}
 	version, ok := ret[0].(string)
 	if !ok {

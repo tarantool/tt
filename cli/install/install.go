@@ -3,6 +3,7 @@ package install
 import (
 	"bufio"
 	_ "embed"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -376,7 +377,7 @@ func programDependenciesInstalled(program string) error {
 			}
 		}
 		errMsg.WriteString("Usage: tt install -f if you already have those packages installed")
-		return fmt.Errorf(errMsg.String())
+		return errors.New(errMsg.String())
 	}
 	return nil
 }

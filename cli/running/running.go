@@ -858,12 +858,12 @@ func Status(run *InstanceCtx) process_utils.ProcessState {
 func Logrotate(run *InstanceCtx) (string, error) {
 	pid, err := process_utils.GetPIDFromFile(run.PIDFile)
 	if err != nil {
-		return "", fmt.Errorf(instStateStopped.String())
+		return "", errors.New(instStateStopped.String())
 	}
 
 	alive, err := process_utils.IsProcessAlive(pid)
 	if !alive {
-		return "", fmt.Errorf(instStateDead.String())
+		return "", errors.New(instStateDead.String())
 	}
 
 	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {
@@ -883,7 +883,7 @@ func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	cmd := exec.Command(cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
 	cmd.Stderr = &errbuff
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf(errbuff.String())
+		return errors.New(errbuff.String())
 	}
 
 	return nil
