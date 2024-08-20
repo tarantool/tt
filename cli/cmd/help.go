@@ -71,7 +71,7 @@ func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.Inter
 				return err
 			}
 
-			cmd.Printf(helpMsg)
+			cmd.Print(helpMsg)
 		}
 
 		return nil

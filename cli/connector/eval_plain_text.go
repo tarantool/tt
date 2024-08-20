@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -380,7 +381,7 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 			if len(errorStrings) > 0 {
 				errStr, found := errorStrings[0]["error"]
 				if found {
-					return "", fmt.Errorf(errStr)
+					return "", errors.New(errStr)
 				}
 			}
 
@@ -410,7 +411,7 @@ func getPlainTextEvalResLua(resBytes []byte) (string, error) {
 	luaRes := L.Env.RawGetString("res")
 
 	if luaRes.Type() == lua.LTString {
-		return "", fmt.Errorf(lua.LVAsString(luaRes))
+		return "", errors.New(lua.LVAsString(luaRes))
 	}
 
 	encodedDataLV := L.GetTable(luaRes, lua.LString("data_enc"))

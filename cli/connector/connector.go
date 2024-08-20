@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -89,7 +90,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	} else if ssl {
 		greetingConn.Close()
 		errMsg := "unencrypted connection established, but encryption required"
-		return nil, fmt.Errorf(errMsg)
+		return nil, errors.New(errMsg)
 	}
 
 	// Reset the deadline. From the SetDeadline doc:

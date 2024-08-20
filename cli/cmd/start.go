@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -132,7 +133,7 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	if canStart, reason :=
 		running.IsAbleToStartInstances(runningCtx.Instances, cmdCtx); !canStart {
-		return fmt.Errorf(reason)
+		return errors.New(reason)
 	}
 
 	if !watchdog {
