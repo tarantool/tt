@@ -25,11 +25,11 @@ valid_cluster_cfg = r"""groups:
 
 @pytest.mark.parametrize("role_args, err_msg", [
     (["http://localhost:3303"], "Error: accepts 2 arg(s), received 1"),
-    (["http://localhost:3303", "role"], "need to provide flag(s) with scope roles will added")
+    (["http://localhost:3303", "role"], "need to provide flag(s) with scope roles will removed")
 ])
-def test_cluster_rs_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, role_args, err_msg):
+def test_cluster_rs_roles_remove_missing_args(tt_cmd, tmpdir_with_cfg, role_args, err_msg):
     tmpdir = tmpdir_with_cfg
-    cmd = [tt_cmd, "cluster", "rs", "roles", "add"]
+    cmd = [tt_cmd, "cluster", "rs", "roles", "remove"]
     cmd.extend(role_args)
     rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc != 0
@@ -52,7 +52,7 @@ def test_cluster_rs_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, role_args, e
         ),
     ],
 )
-def test_cluster_rs_roles_add_no_auth(
+def test_cluster_rs_roles_remove_no_auth(
     instance_name, tt_cmd, tmpdir_with_cfg, request, expected_err_msg, fixture_params
 ):
     if instance_name == "tcs":
@@ -66,9 +66,9 @@ def test_cluster_rs_roles_add_no_auth(
         instance.enable_auth()
 
     try:
-        roles_add_cmd = [tt_cmd, "cluster", "rs", "roles", "add", "-f",
-                         f"{instance.endpoint}/prefix?timeout=0.1", "role", "-G"]
-        rc, output = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
+        roles_remove_cmd = [tt_cmd, "cluster", "rs", "roles", "remove", "-f",
+                            f"{instance.endpoint}/prefix?timeout=0.1", "role", "-G"]
+        rc, output = run_command_and_get_output(roles_remove_cmd, cwd=tmpdir_with_cfg)
         assert rc == 1
     finally:
         if instance_name == "etcd":
@@ -78,7 +78,7 @@ def test_cluster_rs_roles_add_no_auth(
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
-def test_cluster_rs_roles_add_bad_auth(
+def test_cluster_rs_roles_remove_bad_auth(
     tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
 ):
     if instance_name == "tcs":
@@ -88,10 +88,10 @@ def test_cluster_rs_roles_add_bad_auth(
             fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
 
-    roles_add_cmd = [tt_cmd, "cluster", "rs", "roles", "add",
-                     f"http://invalid_user:invalid:pass@{instance.endpoint}/prefix?timeout=0.1",
-                     "role", "-G"]
-    rc, output = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
+    roles_remove_cmd = [tt_cmd, "cluster", "rs", "roles", "remove",
+                        f"http://invalid_user:invalid:pass@{instance.endpoint}/prefix?timeout=0.1",
+                        "role", "-G"]
+    rc, output = run_command_and_get_output(roles_remove_cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
 
     expected = (r"   ⨯ failed to establish a connection to tarantool or etcd:")
@@ -122,10 +122,15 @@ def test_cluster_rs_roles_add_auth(tt_cmd,
 
     conn = instance.conn()
     key = to_etcd_key("all")
+    cfg_to_publish = valid_cluster_cfg + """\
+roles:
+  - config.storage
+"""
+    print(cfg_to_publish)
     if instance_name == "etcd":
-        conn.put(key, valid_cluster_cfg)
+        conn.put(key, cfg_to_publish)
     else:
-        conn.call("config.storage.put", key, valid_cluster_cfg)
+        conn.call("config.storage.put", key, cfg_to_publish)
     try:
         if instance_name == "etcd" and auth:
             instance.enable_auth()
@@ -133,22 +138,22 @@ def test_cluster_rs_roles_add_auth(tt_cmd,
         if not auth:
             env = None
             url = f"{instance.endpoint}/prefix?timeout=5"
-            roles_add_cmd = [tt_cmd, "cluster", "rs", "roles", "add", "-f",
-                             url, "config.storage", "-G"]
+            roles_remove_cmd = [tt_cmd, "cluster", "rs", "roles", "remove", "-f",
+                                url, "config.storage", "-G"]
         if auth == "url":
             env = None
             url = (
                 f"http://{instance.connection_username}:{instance.connection_password}@"
                 f"{instance.host}:{instance.port}/prefix?timeout=5"
             )
-            roles_add_cmd = [tt_cmd, "cluster", "rs", "roles", "add", "-f",
-                             url, "config.storage", "-G"]
+            roles_remove_cmd = [tt_cmd, "cluster", "rs", "roles", "remove", "-f",
+                                url, "config.storage", "-G"]
         elif auth == "flag":
             env = None
             url = f"{instance.endpoint}/prefix?timeout=5"
-            roles_add_cmd = [tt_cmd, "cluster", "rs", "roles", "add", "-f",
-                             "-u", instance.connection_username,
-                             "-p", instance.connection_password, url, "config.storage", "-G"]
+            roles_remove_cmd = [tt_cmd, "cluster", "rs", "roles", "remove", "-f",
+                                "-u", instance.connection_username,
+                                "-p", instance.connection_password, url, "config.storage", "-G"]
         elif auth == "env":
             env = {
                 (
@@ -163,9 +168,9 @@ def test_cluster_rs_roles_add_auth(tt_cmd,
                 ): instance.connection_password,
             }
             url = f"{instance.endpoint}/prefix?timeout=5"
-            roles_add_cmd = [tt_cmd, "cluster", "rs", "roles", "add", "-f",
-                             url, "config.storage", "-G"]
-        rc, out = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg, env=env)
+            roles_remove_cmd = [tt_cmd, "cluster", "rs", "roles", "remove", "-f",
+                                url, "config.storage", "-G"]
+        rc, out = run_command_and_get_output(roles_remove_cmd, cwd=tmpdir_with_cfg, env=env)
         assert rc == 0
         assert f'Patching the config by the key: "{key}"' in out
 
@@ -189,8 +194,7 @@ def test_cluster_rs_roles_add_auth(tt_cmd,
           instance-001:
             iproto:
               listen: {}
-roles:
-  - config.storage
+roles: []
 """
     finally:
         if instance_name == "etcd":
@@ -198,88 +202,114 @@ roles:
 
 
 @pytest.mark.parametrize("instance_name, flags, cfg, expected_cfg, err_msg", [
-    ("etcd", ["-G"], valid_cluster_cfg, valid_cluster_cfg + """\
+    ("etcd", ["-G"], valid_cluster_cfg + """\
 roles:
-  - role
+  - config.storage
+""", valid_cluster_cfg + """\
+roles: []
 """, None),
-    ("etcd", ["-g", "group-001"], valid_cluster_cfg, valid_cluster_cfg + """\
+    ("etcd", ["-g", "group-001"], valid_cluster_cfg + """\
     roles:
-      - role
+      - config.storage
+""", valid_cluster_cfg + """\
+    roles: []
 """, None),
-    ("etcd", ["-r", "replicaset-001"], valid_cluster_cfg, valid_cluster_cfg + """\
+    ("etcd", ["-r", "replicaset-001"], valid_cluster_cfg + """\
         roles:
-          - role
+          - config.storage
+""", valid_cluster_cfg + """\
+        roles: []
 """, None),
-    ("etcd", ["-i", "instance-001"], valid_cluster_cfg, valid_cluster_cfg + """\
+    ("etcd", ["-i", "instance-001"], valid_cluster_cfg + """\
             roles:
-              - role
+              - config.storage
+""", valid_cluster_cfg + """\
+            roles: []
 """, None),
     ("etcd", ["-G", "-g", "group-001", "-r", "replicaset-001", "-i", "instance-001"],
-     valid_cluster_cfg, valid_cluster_cfg + """\
+     valid_cluster_cfg + """\
             roles:
-              - role
+              - config.storage
         roles:
-          - role
+          - config.storage
     roles:
-      - role
+      - config.storage
 roles:
-  - role
+  - config.storage
+""", valid_cluster_cfg + """\
+            roles: []
+        roles: []
+    roles: []
+roles: []
 """, None),
     ("etcd", ["-G"], valid_cluster_cfg + """\
 roles:
+  - config.storage
   - other_role""", valid_cluster_cfg + """\
 roles:
   - other_role
-  - role
 """, None),
     ("etcd", ["-g", "group-001"], valid_cluster_cfg + """\
     roles:
       - role
-""", "", "cannot update roles by path [groups group-001 roles]: role \"role\" already exists"),
+""", "", "cannot update roles by path [groups group-001 roles]: role \"config.storage\" not found"),
     ("etcd", ["-g", "invalid_group"], valid_cluster_cfg, "",
      "cannot find group \"invalid_group\""),
     ("etcd", ["-r", "invalid_replicaset"], valid_cluster_cfg, "",
      "cannot find replicaset \"invalid_replicaset\" above group"),
     ("etcd", ["-i", "invalid_instance"], valid_cluster_cfg, "",
      "cannot find instance \"invalid_instance\" above group and/or replicaset"),
-    ("tcs", ["-G"], valid_cluster_cfg, valid_cluster_cfg + """\
+    ("tcs", ["-G"], valid_cluster_cfg + """\
 roles:
-  - role
+  - config.storage
+""", valid_cluster_cfg + """\
+roles: []
 """, None),
-    ("tcs", ["-g", "group-001"], valid_cluster_cfg, valid_cluster_cfg + """\
+    ("tcs", ["-g", "group-001"], valid_cluster_cfg + """\
     roles:
-      - role
+      - config.storage
+""", valid_cluster_cfg + """\
+    roles: []
 """, None),
-    ("tcs", ["-r", "replicaset-001"], valid_cluster_cfg, valid_cluster_cfg + """\
+    ("tcs", ["-r", "replicaset-001"], valid_cluster_cfg + """\
         roles:
-          - role
+          - config.storage
+""", valid_cluster_cfg + """\
+        roles: []
 """, None),
-    ("tcs", ["-i", "instance-001"], valid_cluster_cfg, valid_cluster_cfg + """\
+    ("tcs", ["-i", "instance-001"], valid_cluster_cfg + """\
             roles:
-              - role
+              - config.storage
+""", valid_cluster_cfg + """\
+            roles: []
 """, None),
     ("tcs", ["-G", "-g", "group-001", "-r", "replicaset-001", "-i", "instance-001"],
-     valid_cluster_cfg, valid_cluster_cfg + """\
+     valid_cluster_cfg + """\
             roles:
-              - role
+              - config.storage
         roles:
-          - role
+          - config.storage
     roles:
-      - role
+      - config.storage
 roles:
-  - role
+  - config.storage
+""", valid_cluster_cfg + """\
+            roles: []
+        roles: []
+    roles: []
+roles: []
 """, None),
     ("tcs", ["-G"], valid_cluster_cfg + """\
 roles:
+  - config.storage
   - other_role""", valid_cluster_cfg + """\
 roles:
   - other_role
-  - role
 """, None),
     ("tcs", ["-g", "group-001"], valid_cluster_cfg + """\
     roles:
       - role
-""", "", "cannot update roles by path [groups group-001 roles]: role \"role\" already exists"),
+""", "", "cannot update roles by path [groups group-001 roles]: role \"config.storage\" not found"),
     ("tcs", ["-g", "invalid_group"], valid_cluster_cfg, "",
      "cannot find group \"invalid_group\""),
     ("tcs", ["-r", "invalid_replicaset"], valid_cluster_cfg, "",
@@ -314,9 +344,9 @@ def test_cluster_rs_roles_add(tt_cmd,
         f"http://{instance.connection_username}:{instance.connection_password}@"
         f"{instance.host}:{instance.port}/prefix?timeout=5"
     )
-    roles_add_cmd = [tt_cmd, "cluster", "rs", "roles", "add", url, "role"]
-    roles_add_cmd.extend(flags)
-    rc, output = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
+    roles_remove_cmd = [tt_cmd, "cluster", "rs", "roles", "remove", url, "config.storage"]
+    roles_remove_cmd.extend(flags)
+    rc, output = run_command_and_get_output(roles_remove_cmd, cwd=tmpdir_with_cfg)
 
     if not err_msg:
         assert rc == 0

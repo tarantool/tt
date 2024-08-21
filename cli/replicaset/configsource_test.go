@@ -120,7 +120,12 @@ func TestCConfigSource_collect_config_error(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.AddRole(replicaset.RolesAddCtx{})
+				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.AddRole)
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.RemoveRole)
 			},
 		},
 	}
@@ -275,7 +280,8 @@ func TestCConfigSource_passes_force(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.AddRole(replicaset.RolesAddCtx{InstName: instName, Force: true})
+				return source.ChangeRole(replicaset.RolesChangeCtx{InstName: instName, Force: true},
+					replicaset.AddRole)
 			},
 		},
 	}
@@ -323,7 +329,8 @@ func TestCConfigSource_publish_error(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.AddRole(replicaset.RolesAddCtx{InstName: instName})
+				return source.ChangeRole(replicaset.RolesChangeCtx{InstName: instName},
+					replicaset.AddRole)
 			},
 		},
 	}
@@ -371,7 +378,8 @@ func TestCConfigSource_keypick_error(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.AddRole(replicaset.RolesAddCtx{InstName: instName})
+				return source.ChangeRole(replicaset.RolesChangeCtx{InstName: instName},
+					replicaset.AddRole)
 			},
 		},
 	}
@@ -413,7 +421,12 @@ func TestCConfigSource_Promote_invalid_config(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.AddRole(replicaset.RolesAddCtx{})
+				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.AddRole)
+			},
+		},
+		{
+			func(source *replicaset.CConfigSource) error {
+				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.RemoveRole)
 			},
 		},
 	}
@@ -759,17 +772,16 @@ func TestCConfigSource_AddRole(t *testing.T) {
             iproto:
               listen: {}`)
 	type tCase struct {
-		name        string
-		rolesAddCtx replicaset.RolesAddCtx
-		cfg         []byte
-		expectedCfg []byte
-		isErr       bool
-		errMsg      string
+		name           string
+		rolesChangeCtx replicaset.RolesChangeCtx
+		cfg            []byte
+		expectedCfg    []byte
+		errMsg         string
 	}
 	cases := []tCase{
 		{
 			name: "ok global",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				IsGlobal: true,
 				RoleName: "config.storage",
 			},
@@ -781,7 +793,7 @@ roles:
 		},
 		{
 			name: "ok group",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				GroupName: "group-1",
 				RoleName:  "config.storage",
 			},
@@ -793,7 +805,7 @@ roles:
 		},
 		{
 			name: "ok replicaset",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				ReplicasetName: "replicaset-001",
 				RoleName:       "config.storage",
 			},
@@ -805,7 +817,7 @@ roles:
 		},
 		{
 			name: "ok instance",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				InstName: "instance-001",
 				RoleName: "config.storage",
 			},
@@ -817,7 +829,7 @@ roles:
 		},
 		{
 			name: "ok many scopes",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				IsGlobal:       true,
 				GroupName:      "group-1",
 				ReplicasetName: "replicaset-001",
@@ -838,7 +850,7 @@ roles:
 		},
 		{
 			name: "role already exists global",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				IsGlobal: true,
 				RoleName: "config.storage",
 			},
@@ -846,12 +858,11 @@ roles:
 roles:
   - config.storage
 `)...),
-			isErr:  true,
-			errMsg: "role \"config.storage\" already exists in roles",
+			errMsg: "cannot update roles by path [roles]: role \"config.storage\" already exists",
 		},
 		{
 			name: "role already exists group",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				GroupName: "group-1",
 				RoleName:  "config.storage",
 			},
@@ -859,13 +870,12 @@ roles:
     roles:
       - config.storage
 `)...),
-			isErr: true,
-			errMsg: "role \"config.storage\" already exists in" +
-				" groups/group-1/roles",
+			errMsg: "cannot update roles by path [groups group-1 roles]: role \"config.storage\"" +
+				" already exists",
 		},
 		{
 			name: "role already exists replicaset",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				ReplicasetName: "replicaset-001",
 				RoleName:       "config.storage",
 			},
@@ -873,13 +883,12 @@ roles:
         roles:
           - config.storage
 `)...),
-			isErr: true,
-			errMsg: "role \"config.storage\" already exists in" +
-				" groups/group-1/replicasets/replicaset-001/roles",
+			errMsg: "cannot update roles by path [groups group-1 replicasets replicaset-001" +
+				" roles]: role \"config.storage\" already exists",
 		},
 		{
 			name: "role already exists instance",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				InstName: "instance-001",
 				RoleName: "config.storage",
 			},
@@ -887,35 +896,31 @@ roles:
             roles:
               - config.storage
 `)...),
-			isErr: true,
-			errMsg: "role \"config.storage\" already exists in" +
-				" groups/group-1/replicasets/replicaset-001/instances/instance-001/roles",
+			errMsg: "cannot update roles by path [groups group-1 replicasets replicaset-001" +
+				" instances instance-001 roles]: role \"config.storage\" already exists",
 		},
 		{
 			name: "group not found",
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				GroupName: "g",
 			},
 			cfg:    cfg,
-			isErr:  true,
 			errMsg: "cannot find group \"g\"",
 		},
 		{
 			name: "replicaset not found above group",
 			cfg:  cfg,
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				ReplicasetName: "r",
 			},
-			isErr:  true,
 			errMsg: "cannot find replicaset \"r\" above group",
 		},
 		{
 			name: "instance not found above group and/or replicaset",
 			cfg:  cfg,
-			rolesAddCtx: replicaset.RolesAddCtx{
+			rolesChangeCtx: replicaset.RolesChangeCtx{
 				InstName: "i",
 			},
-			isErr:  true,
 			errMsg: "cannot find instance \"i\" above group and/or replicaset",
 		},
 	}
@@ -931,8 +936,194 @@ roles:
 			publisher := newOnceMockDataPublisher(nil)
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
 
-			err := source.AddRole(tc.rolesAddCtx)
-			if tc.isErr {
+			err := source.ChangeRole(tc.rolesChangeCtx, replicaset.AddRole)
+			if tc.errMsg != "" {
+				require.EqualError(t, err, tc.errMsg)
+			} else {
+				require.NoError(t, err)
+				assertPublished(t, publisher, "a", revision, tc.expectedCfg)
+			}
+		})
+	}
+}
+
+func TestCConfigSource_RemoveRole(t *testing.T) {
+	cfg := []byte(`groups:
+  group-1:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001:
+            iproto:
+              listen: {}`)
+	type tCase struct {
+		name           string
+		rolesChangeCtx replicaset.RolesChangeCtx
+		cfg            []byte
+		expectedCfg    []byte
+		errMsg         string
+	}
+	cases := []tCase{
+		{
+			name: "ok global",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				IsGlobal: true,
+				RoleName: "config.storage",
+			},
+			cfg: append(cfg, []byte(`
+roles:
+  - config.storage
+`)...),
+			expectedCfg: append(cfg, []byte(`
+roles: []
+`)...),
+		},
+		{
+			name: "ok group",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				GroupName: "group-1",
+				RoleName:  "config.storage",
+			},
+			cfg: append(cfg, []byte(`
+    roles:
+      - config.storage
+`)...),
+			expectedCfg: append(cfg, []byte(`
+    roles: []
+`)...),
+		},
+		{
+			name: "ok replicaset",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				ReplicasetName: "replicaset-001",
+				RoleName:       "config.storage",
+			},
+			cfg: append(cfg, []byte(`
+        roles:
+          - config.storage
+`)...),
+			expectedCfg: append(cfg, []byte(`
+        roles: []
+`)...),
+		},
+		{
+			name: "ok instance",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				InstName: "instance-001",
+				RoleName: "config.storage",
+			},
+			cfg: append(cfg, []byte(`
+            roles:
+              - config.storage
+`)...),
+			expectedCfg: append(cfg, []byte(`
+            roles: []
+`)...),
+		},
+		{
+			name: "ok many scopes",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				IsGlobal:       true,
+				GroupName:      "group-1",
+				ReplicasetName: "replicaset-001",
+				InstName:       "instance-001",
+				RoleName:       "config.storage",
+			},
+			cfg: append(cfg, []byte(`
+            roles:
+              - config.storage
+        roles:
+          - config.storage
+    roles:
+      - config.storage
+roles:
+  - config.storage
+`)...),
+			expectedCfg: append(cfg, []byte(`
+            roles: []
+        roles: []
+    roles: []
+roles: []
+`)...),
+		},
+		{
+			name: "role not found global",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				IsGlobal: true,
+				RoleName: "config.storage",
+			},
+			cfg:    cfg,
+			errMsg: "cannot update roles by path [roles]: role \"config.storage\" not found",
+		},
+		{
+			name: "role not found group",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				GroupName: "group-1",
+				RoleName:  "config.storage",
+			},
+			cfg: cfg,
+			errMsg: "cannot update roles by path [groups group-1 roles]: role \"config.storage\"" +
+				" not found",
+		},
+		{
+			name: "role not found replicaset",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				ReplicasetName: "replicaset-001",
+				RoleName:       "config.storage",
+			},
+			cfg: cfg,
+			errMsg: "cannot update roles by path [groups group-1 replicasets replicaset-001" +
+				" roles]: role \"config.storage\" not found",
+		},
+		{
+			name: "role not found instance",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				InstName: "instance-001",
+				RoleName: "config.storage",
+			},
+			cfg: cfg,
+			errMsg: "cannot update roles by path [groups group-1 replicasets replicaset-001" +
+				" instances instance-001 roles]: role \"config.storage\" not found",
+		},
+		{
+			name: "group not found",
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				GroupName: "g",
+			},
+			cfg:    cfg,
+			errMsg: "cannot find group \"g\"",
+		},
+		{
+			name: "replicaset not found above group",
+			cfg:  cfg,
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				ReplicasetName: "r",
+			},
+			errMsg: "cannot find replicaset \"r\" above group",
+		},
+		{
+			name: "instance not found above group and/or replicaset",
+			cfg:  cfg,
+			rolesChangeCtx: replicaset.RolesChangeCtx{
+				InstName: "i",
+			},
+			errMsg: "cannot find instance \"i\" above group and/or replicaset",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			collector := newOnceMockDataCollector([]libcluster.Data{
+				{Source: "a", Value: tc.cfg, Revision: revision},
+			}, nil)
+			picker := replicaset.KeyPicker(func(keys []string, _ bool, _ string) (int, error) {
+				require.Equal(t, []string{"a"}, keys)
+				return 0, nil
+			})
+			publisher := newOnceMockDataPublisher(nil)
+			source := replicaset.NewCConfigSource(collector, publisher, picker)
+
+			err := source.ChangeRole(tc.rolesChangeCtx, replicaset.RemoveRole)
+			if tc.errMsg != "" {
 				require.EqualError(t, err, tc.errMsg)
 			} else {
 				require.NoError(t, err)

@@ -3,7 +3,6 @@ package replicaset
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 
@@ -11,13 +10,7 @@ import (
 )
 
 // KeyPicker picks a key to patch.
-type KeyPicker func([]string, bool, string) (int, error)
-
-// path describes a path of target with its depth level in config.
-type path struct {
-	path  []string
-	depth int
-}
+type KeyPicker func(keys []string, force bool, pathMsg string) (int, error)
 
 // CConfigSource describes the cluster config source.
 type CConfigSource struct {
@@ -34,6 +27,12 @@ func NewCConfigSource(collector libcluster.DataCollector, publisher DataPublishe
 		publisher: publisher,
 		keyPicker: keyPicker,
 	}
+}
+
+// path describes a path of target with its depth level in config.
+type path struct {
+	path  []string
+	depth int
 }
 
 // DataPublisher can publish the config by the specified key, which contains the prefix.
@@ -116,11 +115,11 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 }
 
 // patchConfigWithRoles runs an config patching pipeline with adding roles.
-func (c *CConfigSource) patchConfigWithRoles(ctx RolesAddCtx,
+func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 	getPathFunc func(clusterConfig libcluster.ClusterConfig,
-		ctx RolesAddCtx) (paths []path, err error),
-	patchFunc func(config *libcluster.Config, path []string,
-		roleNames []string) (*libcluster.Config, error),
+		ctx RolesChangeCtx) (paths []path, err error),
+	updateRolesFunc func([]string, string) ([]string, error),
+	patchFunc func(config *libcluster.Config, prt []patchRoleTarget) (*libcluster.Config, error),
 ) error {
 	configData, clusterConfig, err := collectCConfig(c.collector)
 	if err != nil {
@@ -131,10 +130,8 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesAddCtx,
 		return err
 	}
 
-	var (
-		target  patchTarget
-		patched *libcluster.Config
-	)
+	var target patchTarget
+	pRoleTarget := make([]patchRoleTarget, 0, len(paths))
 
 	for _, path := range paths {
 		value, err := clusterConfig.RawConfig.Get(path.path)
@@ -142,19 +139,17 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesAddCtx,
 		if err != nil && !errors.As(err, &notExistErr) {
 			return err
 		}
-		var existingRoles []string
+
+		var updatedRoles []string
 		if value != nil {
-			existingRoles, err = parseRoles(value)
+			updatedRoles, err = parseRoles(value)
 			if err != nil {
 				return err
 			}
 		}
-		if len(existingRoles) > 0 && slices.Index(existingRoles, ctx.RoleName) != -1 {
-			return fmt.Errorf("role %q already exists in %s",
-				ctx.RoleName, strings.Join(path.path, "/"))
+		if updatedRoles, err = updateRolesFunc(updatedRoles, ctx.RoleName); err != nil {
+			return fmt.Errorf("cannot update roles by path %s: %s", path.path, err)
 		}
-		// If role is not existing in requested path, append it.
-		existingRoles = append(existingRoles, ctx.RoleName)
 
 		targets, err := getCConfigPatchTargets(configData, path.path, path.depth)
 		if err != nil {
@@ -165,16 +160,15 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesAddCtx,
 			return err
 		}
 
-		curPatched, err := patchFunc(target.config, path.path, existingRoles)
-		if err != nil {
-			return err
-		}
+		pRoleTarget = append(pRoleTarget, patchRoleTarget{
+			path:      path.path,
+			roleNames: updatedRoles,
+		})
+	}
 
-		if patched != nil {
-			patched.Merge(curPatched)
-			continue
-		}
-		patched = curPatched
+	patched, err := patchFunc(target.config, pRoleTarget)
+	if err != nil {
+		return err
 	}
 	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
 	if err != nil {
@@ -219,14 +213,15 @@ func (c *CConfigSource) Expel(ctx ExpelCtx) error {
 	)
 }
 
-// AddRole patches a config to add role to a config.
-func (c *CConfigSource) AddRole(ctx RolesAddCtx) error {
-	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, patchCConfigAddRole)
+// ChangeRole patches a config to add role to a config.
+func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, changeRoleFunc ChangeRoleFunc) error {
+	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, changeRoleFunc, patchCConfigEditRole)
 }
 
 // getCConfigRolesPath returns a path and it's minimum interesting depth
 // to patch the config for role addition.
-func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig, ctx RolesAddCtx) ([]path, error) {
+func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig,
+	ctx RolesChangeCtx) ([]path, error) {
 	var paths []path
 	if ctx.IsGlobal {
 		paths = append(paths, path{
