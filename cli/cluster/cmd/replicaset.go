@@ -73,6 +73,9 @@ type PromoteCtx struct {
 }
 
 // pickPatchKey prompts to select a key to patch the config.
+// If force is true, picks the first passed key.
+// If there is only one key prompt not appears. Otherwise
+// appears prompt with message of path in config to patch.
 func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 	if len(keys) == 0 {
 		return 0, fmt.Errorf("no keys for the config patching")
@@ -87,7 +90,7 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 			label = fmt.Sprintf("%s for destination path %q", label, pathMsg)
 		}
 		programSelect := promptui.Select{
-			Label:        "Select a key for the config patching",
+			Label:        label,
 			Items:        keys,
 			HideSelected: true,
 		}
@@ -272,17 +275,17 @@ func Expel(uri *url.URL, ctx ExpelCtx) error {
 	return err
 }
 
-// RolesAddCtx describes the context to add role of instance.
-type RolesAddCtx struct {
-	// InstName is an instance name in which add or remove role.
+// RolesChangeCtx describes the context to add/remove role.
+type RolesChangeCtx struct {
+	// InstName is an instance name in which add/remove role.
 	InstName string
-	// GroupName is an replicaset name in which add or remove role.
+	// GroupName is an replicaset name in which add/remove role.
 	GroupName string
-	// ReplicasetName is an replicaset name in which add or remove role.
+	// ReplicasetName is an replicaset name in which add/remove role.
 	ReplicasetName string
-	// IsGlobal is an boolean value if role needs to add in global scope.
+	// IsGlobal is an boolean value if role needs to add/remove in global scope.
 	IsGlobal bool
-	// RoleName is a name of role to add.
+	// RoleName is a name of role to add/remove.
 	RoleName string
 	// Publishers is data publisher factory.
 	Publishers libcluster.DataPublisherFactory
@@ -297,8 +300,8 @@ type RolesAddCtx struct {
 	Force bool
 }
 
-// AddRole adds a role by patching the cluster config.
-func AddRole(uri *url.URL, ctx RolesAddCtx) error {
+// ChangeRole adds/removes a role by patching the cluster config.
+func ChangeRole(uri *url.URL, ctx RolesChangeCtx, changeRoleFunc replicaset.ChangeRoleFunc) error {
 	opts, err := ParseUriOpts(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
@@ -317,14 +320,14 @@ func AddRole(uri *url.URL, ctx RolesAddCtx) error {
 
 	source := replicaset.NewCConfigSource(collector, publisher,
 		replicaset.KeyPicker(pickPatchKey))
-	err = source.AddRole(replicaset.RolesAddCtx{
+	err = source.ChangeRole(replicaset.RolesChangeCtx{
 		InstName:       ctx.InstName,
 		GroupName:      ctx.GroupName,
 		ReplicasetName: ctx.ReplicasetName,
 		IsGlobal:       ctx.IsGlobal,
 		RoleName:       ctx.RoleName,
 		Force:          ctx.Force,
-	})
+	}, changeRoleFunc)
 	if err == nil {
 		log.Info("Done.")
 	}

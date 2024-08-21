@@ -14,12 +14,15 @@ import (
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
 )
+
+const addAction = true
 
 var showCtx = clustercmd.ShowCtx{
 	Username: "",
@@ -64,7 +67,7 @@ var switchStatusCtx = clustercmd.SwitchStatusCtx{
 	TaskID: "",
 }
 
-var rolesAddCtx = clustercmd.RolesAddCtx{}
+var rolesChangeCtx = clustercmd.RolesChangeCtx{}
 
 var (
 	defaultSwitchTimeout       uint64 = 30
@@ -223,24 +226,57 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Args: cobra.ExactArgs(2),
 	}
 
-	addRolesCmd.Flags().StringVarP(&rolesAddCtx.ReplicasetName, "replicaset", "r", "",
+	addRolesCmd.Flags().StringVarP(&rolesChangeCtx.ReplicasetName, "replicaset", "r", "",
 		"name of a target replicaset")
-	addRolesCmd.Flags().StringVarP(&rolesAddCtx.GroupName, "group", "g", "",
+	addRolesCmd.Flags().StringVarP(&rolesChangeCtx.GroupName, "group", "g", "",
 		"name of a target group")
-	addRolesCmd.Flags().StringVarP(&rolesAddCtx.InstName, "instance", "i", "",
+	addRolesCmd.Flags().StringVarP(&rolesChangeCtx.InstName, "instance", "i", "",
 		"name of a target instance")
-	addRolesCmd.Flags().BoolVarP(&rolesAddCtx.IsGlobal, "global", "G", false,
+	addRolesCmd.Flags().BoolVarP(&rolesChangeCtx.IsGlobal, "global", "G", false,
 		"global config context")
 
-	addRolesCmd.Flags().StringVarP(&rolesAddCtx.Username, "username", "u", "",
+	addRolesCmd.Flags().StringVarP(&rolesChangeCtx.Username, "username", "u", "",
 		"username (used as etcd/tarantool config storage credentials)")
-	addRolesCmd.Flags().StringVarP(&rolesAddCtx.Password, "password", "p", "",
+	addRolesCmd.Flags().StringVarP(&rolesChangeCtx.Password, "password", "p", "",
 		"password (used as etcd/tarantool config storage credentials)")
-	addRolesCmd.Flags().BoolVarP(&rolesAddCtx.Force, "force", "f", false,
+	addRolesCmd.Flags().BoolVarP(&rolesChangeCtx.Force, "force", "f", false,
+		"skip selecting a key for patching")
+	integrity.RegisterWithIntegrityFlag(addRolesCmd.Flags(), &clusterIntegrityPrivateKey)
+
+	removeRolesCmd := &cobra.Command{
+		Use:   "remove <URI> <ROLE_NAME> [flags]",
+		Short: "Remove role from instance, group, instance or globally",
+		Long:  "Remove role from instance, group, instance or globally\n\n" + clusterUriHelp,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalClusterReplicasetRolesRemoveModule, args)
+			util.HandleCmdErr(cmd, err)
+		},
+		Example: "tt cluster replicaset roles remove http://user:pass@localhost:3301" +
+			" roles.metrics-export --instance_name master",
+		Args: cobra.ExactArgs(2),
+	}
+
+	removeRolesCmd.Flags().StringVarP(&rolesChangeCtx.ReplicasetName, "replicaset", "r", "",
+		"name of a target replicaset")
+	removeRolesCmd.Flags().StringVarP(&rolesChangeCtx.GroupName, "group", "g", "",
+		"name of a target group")
+	removeRolesCmd.Flags().StringVarP(&rolesChangeCtx.InstName, "instance", "i", "",
+		"name of a target instance")
+	removeRolesCmd.Flags().BoolVarP(&rolesChangeCtx.IsGlobal, "global", "G", false,
+		"global config context")
+
+	removeRolesCmd.Flags().StringVarP(&rolesChangeCtx.Username, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	removeRolesCmd.Flags().StringVarP(&rolesChangeCtx.Password, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+	removeRolesCmd.Flags().BoolVarP(&rolesChangeCtx.Force, "force", "f", false,
 		"skip selecting a key for patching")
 	integrity.RegisterWithIntegrityFlag(addRolesCmd.Flags(), &clusterIntegrityPrivateKey)
 
 	rolesCmd.AddCommand(addRolesCmd)
+	rolesCmd.AddCommand(removeRolesCmd)
 
 	cmd.AddCommand(promoteCmd)
 	cmd.AddCommand(demoteCmd)
@@ -523,7 +559,7 @@ func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []stri
 
 // internalClusterReplicasetRolesAddModule is a "cluster replicaset roles add" command.
 func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if err := checkRolesAddFlags(); err != nil {
+	if err := checkRolesChangeFlags(addAction); err != nil {
 		return err
 	}
 
@@ -532,14 +568,36 @@ func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []s
 		return fmt.Errorf("failed to parse config source URI: %w", err)
 	}
 
-	rolesAddCtx.Collectors, rolesAddCtx.Publishers, err = createDataCollectorsAndDataPublishers(
-		cmdCtx.Integrity, clusterIntegrityPrivateKey)
+	rolesChangeCtx.Collectors, rolesChangeCtx.Publishers, err =
+		createDataCollectorsAndDataPublishers(cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
 		return err
 	}
 
-	rolesAddCtx.RoleName = args[1]
-	return clustercmd.AddRole(uri, rolesAddCtx)
+	rolesChangeCtx.RoleName = args[1]
+	return clustercmd.ChangeRole(uri, rolesChangeCtx, replicaset.AddRole)
+}
+
+// internalClusterReplicasetRolesRemoveModule is a "cluster replicaset roles remove" command.
+func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if err := checkRolesChangeFlags(!addAction); err != nil {
+		return err
+	}
+
+	uri, err := parseUrl(args[0])
+	if err != nil {
+		return fmt.Errorf("failed to parse config source URI: %w", err)
+	}
+
+	rolesChangeCtx.Collectors, rolesChangeCtx.Publishers, err =
+		createDataCollectorsAndDataPublishers(
+			cmdCtx.Integrity, clusterIntegrityPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	rolesChangeCtx.RoleName = args[1]
+	return clustercmd.ChangeRole(uri, rolesChangeCtx, replicaset.RemoveRole)
 }
 
 // internalClusterFailoverSwitchModule is as "cluster failover switch" command
@@ -628,12 +686,17 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, stri
 	return configPath, appName, instName, nil
 }
 
-// checkRolesAddFlags checks that flags from 'cluster rs roles add' command
+// checkRolesChangeFlags checks that flags from 'cluster rs roles add/remove' command
 // have correct values.
-func checkRolesAddFlags() error {
-	if rolesAddCtx.IsGlobal == false && rolesAddCtx.GroupName == "" &&
-		rolesAddCtx.ReplicasetName == "" && rolesAddCtx.InstName == "" {
-		return util.NewArgError("need to provide flag(s) with scope roles will added")
+func checkRolesChangeFlags(isAdd bool) error {
+	action := "added"
+	if !isAdd {
+		action = "removed"
+	}
+	if rolesChangeCtx.IsGlobal == false && rolesChangeCtx.GroupName == "" &&
+		rolesChangeCtx.ReplicasetName == "" && rolesChangeCtx.InstName == "" {
+		return util.NewArgError(fmt.Sprintf("need to provide flag(s) with scope roles will %s",
+			action))
 	}
 	return nil
 }

@@ -62,6 +62,14 @@ type CConfigInstance struct {
 	evaler connector.Evaler
 }
 
+// patchRoleTarget describes a content to patch a config.
+type patchRoleTarget struct {
+	// path is a destination to a patch target in config.
+	path []string
+	// roleNames are roles to add by path in config.
+	roleNames []string
+}
+
 // NewCConfigInstance create a new CConfigInstance object for the evaler.
 func NewCConfigInstance(evaler connector.Evaler) *CConfigInstance {
 	inst := &CConfigInstance{
@@ -853,10 +861,12 @@ func patchCConfigElectionMode(config *libcluster.Config,
 	return config, nil
 }
 
-func patchCConfigAddRole(config *libcluster.Config, path []string,
-	roleNames []string) (*libcluster.Config, error) {
-	if err := config.Set(path, roleNames); err != nil {
-		return nil, err
+func patchCConfigEditRole(config *libcluster.Config,
+	prt []patchRoleTarget) (*libcluster.Config, error) {
+	for _, p := range prt {
+		if err := config.Set(p.path, p.roleNames); err != nil {
+			return nil, err
+		}
 	}
 	return config, nil
 }
