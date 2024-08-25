@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
@@ -8,6 +9,7 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
+	"os"
 )
 
 // NewStopCmd creates stop command.
@@ -18,9 +20,10 @@ func NewStopCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalStopModule, args)
+				internalStopWithConfirmationModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -32,7 +35,40 @@ func NewStopCmd() *cobra.Command {
 		},
 	}
 
+	stopCmd.Flags().BoolVarP(&autoYes, "yes", "y", false,
+		`Automatic yes to confirmation prompt`)
+
 	return stopCmd
+}
+
+func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if !isConfigExist(cmdCtx) {
+		return errNoConfig
+	}
+
+	if !(autoYes || cmdCtx.Cli.NoPrompt) {
+		instancesToConfirm := ""
+		if len(args) == 0 {
+			instancesToConfirm = "all instances"
+		} else {
+			instancesToConfirm = fmt.Sprintf("'%s'", args[0])
+		}
+		confirmed, err := util.AskConfirm(os.Stdin, fmt.Sprintf("Confirm stop of %s",
+			instancesToConfirm))
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			log.Info("Stop is cancelled.")
+			return nil
+		}
+	}
+
+	if err := internalStopModule(cmdCtx, args); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // internalStopModule is a default stop module.

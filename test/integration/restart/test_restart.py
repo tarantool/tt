@@ -48,7 +48,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
                          pid_file, []) != ""
 
     finally:
-        app_cmd(tt_cmd, tmpdir_with_cfg, ["stop", app_name], [])
+        app_cmd(tt_cmd, tmpdir_with_cfg, ["stop", app_name], ["y\n"])
 
 
 def test_restart_with_auto_yes(tt_cmd, tmpdir_with_cfg):
@@ -75,7 +75,7 @@ def test_restart_with_auto_yes(tt_cmd, tmpdir_with_cfg):
                          pid_file, []) != ""
 
     finally:
-        app_cmd(tt_cmd, tmpdir_with_cfg, ["stop", app_name], [])
+        app_cmd(tt_cmd, tmpdir_with_cfg, ["stop", app_name], ["y\n"])
 
 
 def test_restart_no_args(tt_cmd, tmp_path):
@@ -93,4 +93,4 @@ def test_restart_no_args(tt_cmd, tmp_path):
         assert "Confirm restart of all instances [y/n]" in restart_output[0]
 
     finally:
-        app_cmd(tt_cmd, test_app_path, ["stop"], [])
+        app_cmd(tt_cmd, test_app_path, ["stop"], ["y\n"])

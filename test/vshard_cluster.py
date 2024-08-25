@@ -62,7 +62,7 @@ class VshardCluster:
         if inst is not None:
             stop_arg = stop_arg + ":" + inst
 
-        cmd = [self.tt_cmd, "stop", stop_arg]
+        cmd = [self.tt_cmd, "stop", "-y", stop_arg]
         rc, _ = run_command_and_get_output(cmd, cwd=self.env_dir)
         assert rc == 0
 

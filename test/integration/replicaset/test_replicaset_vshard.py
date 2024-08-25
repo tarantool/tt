@@ -81,7 +81,7 @@ Replicasets state: bootstrapped
    ⨯ bootstrap vshard is not supported for an application by "custom" orchestrator
 """, out)
     finally:
-        stop_cmd = [tt_cmd, "stop", app_name]
+        stop_cmd = [tt_cmd, "stop", "-y", app_name]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
         assert rc == 0
 

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt stop` confirmation prompt. `-y` option is added to accept stop without prompting.
 - `tt cluster replicaset roles add`: command to add roles in config scope provided by flags.
 - `tt replicaset roles remove`: command to remove roles in the tarantool replicaset with cluster
   config (3.0) or cartridge orchestrator.

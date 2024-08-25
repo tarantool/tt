@@ -68,7 +68,7 @@ def test_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
         expected = '⨯ bootstrap is not supported for an application by "custom" orchestrator'
         assert expected in out
     finally:
-        stop_cmd = [tt_cmd, "stop", app_name]
+        stop_cmd = [tt_cmd, "stop", "-y", app_name]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
         assert rc == 0
 
@@ -95,7 +95,7 @@ def test_bootstrap_instance_no_replicaset_specified(tt_cmd, tmpdir_with_cfg):
         assert rc != 0
         assert "⨯ the replicaset must be specified to bootstrap an instance" in out
     finally:
-        stop_cmd = [tt_cmd, "stop", app_name]
+        stop_cmd = [tt_cmd, "stop", "-y", app_name]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
         assert rc == 0
 
@@ -123,7 +123,7 @@ def test_bootstrap_app_replicaset_specified(tt_cmd, tmpdir_with_cfg):
         expected = "⨯ the replicaset can not be specified in the case of application bootstrapping"
         assert expected in out
     finally:
-        stop_cmd = [tt_cmd, "stop", app_name]
+        stop_cmd = [tt_cmd, "stop", "-y", app_name]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
         assert rc == 0
 
@@ -237,7 +237,7 @@ def test_replicaset_bootstrap_cartridge_new_instance(tt_cmd, cartridge_app):
         assert re.search(expected, out)
     finally:
         # Get rid of the tested instance.
-        stop_cmd = [tt_cmd, "stop", f"{cartridge_name}:new_inst"]
+        stop_cmd = [tt_cmd, "stop", "-y", f"{cartridge_name}:new_inst"]
         rc, out = run_command_and_get_output(stop_cmd, cwd=cartridge_app.workdir)
         with open(instances_yml_path, "w") as f:
             f.write(old_instances_yml)
