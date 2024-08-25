@@ -210,13 +210,13 @@ class CartridgeApp:
         assert re.search(r"Failover configured successfully", out)
 
     def stop(self):
-        cmd = [self.tt_cmd, "stop", cartridge_name]
+        cmd = [self.tt_cmd, "stop", "-y", cartridge_name]
         rc, _ = run_command_and_get_output(cmd, cwd=self.workdir)
         assert rc == 0
 
     def stop_inst(self, name):
         assert name in self.instances, "instance is offline"
-        cmd = [self.tt_cmd, "stop", f"{cartridge_name}:{name}"]
+        cmd = [self.tt_cmd, "stop", "-y", f"{cartridge_name}:{name}"]
         rc, _ = run_command_and_get_output(cmd, cwd=self.workdir)
         self.instances.remove(name)
         assert rc == 0

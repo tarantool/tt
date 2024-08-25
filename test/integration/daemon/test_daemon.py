@@ -218,7 +218,7 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     status_info = utils.extract_status(response.json()["res"])
     assert status_info["test_app"]["STATUS"] == "RUNNING"
 
-    body = {"command_name": "stop", "params": ["test_app"]}
+    body = {"command_name": "stop", "params": ["-y", "test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
     assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.",
@@ -291,7 +291,7 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     assert response.status_code == 200
     status_info = utils.extract_status(response.json()["res"])
     assert status_info["test_app"]["STATUS"] == "RUNNING"
-    body = {"command_name": "stop", "params": ["test_app"]}
+    body = {"command_name": "stop", "params": ["-y", "test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
     assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.",

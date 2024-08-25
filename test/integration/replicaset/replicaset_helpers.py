@@ -21,7 +21,7 @@ def start_application(tt_cmd, workdir, app_name, instances):
 
 
 def stop_application(tt_cmd, app_name, workdir, instances, force=False):
-    stop_cmd = [tt_cmd, "stop", app_name]
+    stop_cmd = [tt_cmd, "stop", "-y", app_name]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=workdir)
     assert stop_rc == 0
 

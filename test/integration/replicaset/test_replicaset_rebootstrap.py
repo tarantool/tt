@@ -109,7 +109,7 @@ s2:''')
             assert oldSnapName != os.path.basename(snaps[0])
 
     finally:
-        run_command_and_get_output([tt_cmd, "stop"], cwd=tmp_path)
+        run_command_and_get_output([tt_cmd, "stop", "-y"], cwd=tmp_path)
 
 
 @pytest.mark.skipif(tarantool_major_version < 3,

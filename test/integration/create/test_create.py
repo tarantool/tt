@@ -763,7 +763,7 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
         assert status_info[key]["STATUS"] == "RUNNING"
 
     # Stop the cartridge app.
-    stop_cmd = [tt_cmd, "stop", "app1"]
+    stop_cmd = [tt_cmd, "stop", "-y", "app1"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
     assert status_rc == 0
     assert re.search(r"The Instance app1:\w+ \(PID = \d+\) has been terminated.", stop_out)
@@ -907,7 +907,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
             print(inst, f.read())
 
     # Stop the vhsard_cluster app.
-    stop_cmd = [tt_cmd, "stop", "app1"]
+    stop_cmd = [tt_cmd, "stop", "--yes", "app1"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
     assert stop_rc == 0
     for inst in instances:

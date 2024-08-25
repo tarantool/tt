@@ -28,7 +28,7 @@ def test_demote_cconfig_failover_off(tt_cmd, tmpdir_with_cfg, force):
         start_application(tt_cmd, tmpdir, app_name, instances)
         if force:
             # Stop an instance.
-            stop_cmd = [tt_cmd, "stop", f"{app_name}:off-failover-2"]
+            stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:off-failover-2"]
             rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
             instances.remove("off-failover-2")
             assert rc == 0
@@ -161,7 +161,7 @@ def test_demote_cconfig_errors(
             box_ctl_promote(tt_cmd, app_name, "election-failover-1", tmpdir)
 
         if stop_inst:
-            stop_cmd = [tt_cmd, "stop", f"{app_name}:{stop_inst}"]
+            stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_inst}"]
             rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
             assert rc == 0
             instances.remove(stop_inst)
