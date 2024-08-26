@@ -16,11 +16,12 @@ cartridge_password = "secret-cluster-cookie"
 instances = ["router",
              "s1-master", "s1-replica",
              "s2-master", "s2-replica-1", "s2-replica-2",
-             "stateboard"]
+             "stateboard",
+             "s3-master"]
 
 
 def get_instances_cfg():
-    ports = find_ports(13)
+    ports = find_ports(15)
     cfg = {
         f"{cartridge_name}.router": {
             "advertise_uri": f"localhost:{ports[0]}",
@@ -50,6 +51,10 @@ def get_instances_cfg():
             "listen": f"localhost:{ports[12]}",
             "password": "passwd",
         },
+        f"{cartridge_name}.s3-master": {
+            "advertise_uri": f"localhost:{ports[13]}",
+            "http_port": ports[14],
+        },
     }
     return cfg
 
@@ -74,6 +79,13 @@ replicasets_cfg = {
         "all_rw": False,
         "vshard_group": "default"
     },
+    "s-3": {
+        "instances": ["s3-master"],
+        "roles": ["app.roles.custom"],
+        "weight": 1,
+        "all_rw": False,
+        "vshard_group": "default"
+    }
 }
 
 

@@ -153,6 +153,13 @@ def test_replicaset_bootstrap_cartridge_app_second_bootstrap(tt_cmd, cartridge_a
             "all_rw": False,
             "vshard_group": "default"
         },
+        "s-3": {
+            "instances": ["s3-master"],
+            "roles": ["app.roles.custom"],
+            "weight": 1,
+            "all_rw": False,
+            "vshard_group": "default"
+        }
     }
     with open(os.path.join(cartridge_app.workdir, cartridge_name, "replicasets.yml"), "w") as f:
         f.write(yaml.dump(replicasets_cfg))

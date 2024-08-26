@@ -252,6 +252,7 @@ func newRolesCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(newRolesAddCmd())
+	cmd.AddCommand(newRolesRemoveCmd())
 	return cmd
 }
 
@@ -275,6 +276,44 @@ func newRolesAddCmd() *cobra.Command {
 		"name of a target replicaset")
 	cmd.Flags().StringVarP(&replicasetGroupName, "group", "g", "",
 		"name of a target group (vshard-group in the Cartridge case)")
+	cmd.Flags().StringVarP(&replicasetInstanceName, "instance", "i", "",
+		"name of a target instance")
+	cmd.Flags().BoolVarP(&replicasetIsGlobal, "global", "G", false,
+		"global config context")
+
+	addOrchestratorFlags(cmd)
+	addTarantoolConnectFlags(cmd)
+	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
+		"to force a promotion:\n"+
+			"  * config: skip instances not found locally\n"+
+			"  * cartridge: force inconsistency")
+	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
+		replicasetcmd.DefaultTimeout, "adding timeout")
+	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
+
+	return cmd
+}
+
+// newRolesRemoveCmd creates a "replicaset roles remove" command.
+func newRolesRemoveCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use: "remove [--cartridge|--config|--custom] [-f] [--timeout secs]" +
+			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
+		Short: "Removes a role for Cartridge and Tarantool 3 orchestrator",
+		Long:  "Removes a role for Cartridge and Tarantool 3 orchestrator",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetRolesRemoveModule, args)
+			util.HandleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(2),
+	}
+
+	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",
+		"name of a target replicaset")
+	cmd.Flags().StringVarP(&replicasetGroupName, "group", "g", "",
+		"name of a target group (vhsard-group in the Cartridge case)")
 	cmd.Flags().StringVarP(&replicasetInstanceName, "instance", "i", "",
 		"name of a target instance")
 	cmd.Flags().BoolVarP(&replicasetIsGlobal, "global", "G", false,
@@ -402,8 +441,8 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 				}
 			}
 		}
-		// In case of adding a role when user may not provide an instance.
-		if cmdCtx.CommandName == "add" && ctx.InstName == "" {
+		// In case of adding/removing role when user may not provide an instance.
+		if (cmdCtx.CommandName == "add" || cmdCtx.CommandName == "remove") && ctx.InstName == "" {
 			if len(ctx.RunningCtx.Instances) == 0 {
 				return fmt.Errorf("there are no running instances")
 			}
@@ -674,7 +713,7 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 		return err
 	}
 
-	return replicasetcmd.RolesAdd(replicasetcmd.RolesAddCtx{
+	return replicasetcmd.RolesChange(replicasetcmd.RolesChangeCtx{
 		InstName:       ctx.InstName,
 		GroupName:      replicasetGroupName,
 		ReplicasetName: replicasetReplicasetName,
@@ -688,5 +727,48 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 		Orchestrator:   ctx.Orchestrator,
 		Force:          replicasetForce,
 		Timeout:        replicasetTimeout,
-	})
+	}, replicaset.RolesAdder{})
+}
+
+// internalReplicasetRolesRemoveModule is a "roles remove" command for the replicaset module.
+func internalReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+		return err
+	}
+	defer ctx.Conn.Close()
+	if ctx.IsApplication && replicasetInstanceName == "" && ctx.InstName == "" &&
+		!replicasetIsGlobal && replicasetGroupName == "" && replicasetReplicasetName == "" {
+		return fmt.Errorf("there is no destination provided where to remove role")
+	}
+	if ctx.InstName != "" && replicasetInstanceName != "" &&
+		replicasetInstanceName != ctx.InstName {
+		return fmt.Errorf("there are different instance names passed after" +
+			" app name and in flag arg")
+	}
+	if replicasetInstanceName != "" {
+		ctx.InstName = replicasetInstanceName
+	}
+
+	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	return replicasetcmd.RolesChange(replicasetcmd.RolesChangeCtx{
+		InstName:       ctx.InstName,
+		GroupName:      replicasetGroupName,
+		ReplicasetName: replicasetReplicasetName,
+		IsGlobal:       replicasetIsGlobal,
+		RoleName:       args[1],
+		Collectors:     collectors,
+		Publishers:     publishers,
+		IsApplication:  ctx.IsApplication,
+		Conn:           ctx.Conn,
+		RunningCtx:     ctx.RunningCtx,
+		Orchestrator:   ctx.Orchestrator,
+		Force:          replicasetForce,
+		Timeout:        replicasetTimeout,
+	}, replicaset.RolesRemover{})
 }

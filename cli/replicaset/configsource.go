@@ -213,9 +213,9 @@ func (c *CConfigSource) Expel(ctx ExpelCtx) error {
 	)
 }
 
-// ChangeRole patches a config to add role to a config.
-func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, changeRoleFunc ChangeRoleFunc) error {
-	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, changeRoleFunc, patchCConfigEditRole)
+// ChangeRole patches a config with addition/removing role.
+func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, action RolesChangerAction) error {
+	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, action.Change, patchCConfigEditRole)
 }
 
 // getCConfigRolesPath returns a path and it's minimum interesting depth

@@ -10,9 +10,9 @@ import (
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
-// RolesAddCtx describes the context to add a role to
+// RolesChangeCtx describes the context to add/remove role for
 // provided config scope.
-type RolesAddCtx struct {
+type RolesChangeCtx struct {
 	// InstName is an instance name in which add or remove role.
 	InstName string
 	// GroupName is a replicaset name in which add or remove role.
@@ -42,8 +42,8 @@ type RolesAddCtx struct {
 	Timeout int
 }
 
-// RolesAdd adds role with provided path target to config.
-func RolesAdd(ctx RolesAddCtx) error {
+// RolesChange adds/removes role with provided path target to config.
+func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAction) error {
 	orchestratorType, err := getInstanceOrchestrator(ctx.Orchestrator, ctx.Conn)
 	if err != nil {
 		return err
@@ -79,29 +79,40 @@ func RolesAdd(ctx RolesAddCtx) error {
 	statusReplicasets(replicasets)
 	fmt.Println()
 
+	action := []string{"Add", "to"}
+	if changeRoleAction.Action() == replicaset.RemoveAction {
+		action = []string{"Remove", "from"}
+	}
+
 	if ctx.IsGlobal {
 		if orchestratorType == replicaset.OrchestratorCartridge {
 			return fmt.Errorf("cannot pass --global (-G) flag due to cluster with cartridge")
 		} else {
-			log.Infof("Add role %s to global scope", ctx.RoleName)
+			log.Infof("%s role %s %s global scope")
 		}
 	}
-	if ctx.GroupName != "" && orchestratorType != replicaset.OrchestratorCartridge {
-		log.Infof("Add role %s to group: %s", ctx.RoleName, ctx.GroupName)
+	if ctx.GroupName != "" {
+		if orchestratorType == replicaset.OrchestratorCartridge &&
+			changeRoleAction.Action() == replicaset.RemoveAction {
+			return fmt.Errorf("cannot provide vshard-group by removing role")
+		}
+		log.Infof("%s role %s %s group: %s", action[0], ctx.RoleName, action[1], ctx.GroupName)
 	}
 	if ctx.InstName != "" {
 		if orchestratorType == replicaset.OrchestratorCartridge {
 			return fmt.Errorf("cannot pass the instance or --instance (-i) flag due to cluster" +
-				" with cartridge orchestrator can't add role into instance scope")
+				" with cartridge orchestrator can't add/remove role for instance scope")
 		} else {
-			log.Infof("Add role %s to instance: %s", ctx.RoleName, ctx.InstName)
+			log.Infof("%s role %s %s instance: %s", action[0], ctx.RoleName,
+				action[1], ctx.InstName)
 		}
 	}
 	if ctx.ReplicasetName != "" {
-		log.Infof("Add role %s to replicaset: %s", ctx.RoleName, ctx.ReplicasetName)
+		log.Infof("%s role %s %s replicaset: %s", action[0], ctx.RoleName,
+			action[1], ctx.ReplicasetName)
 	}
 
-	err = orchestrator.RolesAdd(replicaset.RolesChangeCtx{
+	err = orchestrator.RolesChange(replicaset.RolesChangeCtx{
 		InstName:       ctx.InstName,
 		GroupName:      ctx.GroupName,
 		ReplicasetName: ctx.ReplicasetName,
@@ -109,7 +120,7 @@ func RolesAdd(ctx RolesAddCtx) error {
 		RoleName:       ctx.RoleName,
 		Force:          ctx.Force,
 		Timeout:        ctx.Timeout,
-	})
+	}, changeRoleAction)
 	if err == nil {
 		log.Info("Done.")
 	}
