@@ -301,7 +301,7 @@ type RolesChangeCtx struct {
 }
 
 // ChangeRole adds/removes a role by patching the cluster config.
-func ChangeRole(uri *url.URL, ctx RolesChangeCtx, changeRoleFunc replicaset.ChangeRoleFunc) error {
+func ChangeRole(uri *url.URL, ctx RolesChangeCtx, action replicaset.RolesChangerAction) error {
 	opts, err := ParseUriOpts(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
@@ -327,7 +327,7 @@ func ChangeRole(uri *url.URL, ctx RolesChangeCtx, changeRoleFunc replicaset.Chan
 		IsGlobal:       ctx.IsGlobal,
 		RoleName:       ctx.RoleName,
 		Force:          ctx.Force,
-	}, changeRoleFunc)
+	}, action)
 	if err == nil {
 		log.Info("Done.")
 	}

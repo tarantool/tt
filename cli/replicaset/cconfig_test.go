@@ -18,7 +18,7 @@ var _ replicaset.Demoter = &replicaset.CConfigInstance{}
 var _ replicaset.Expeller = &replicaset.CConfigInstance{}
 var _ replicaset.VShardBootstrapper = &replicaset.CConfigInstance{}
 var _ replicaset.Bootstrapper = &replicaset.CConfigInstance{}
-var _ replicaset.RolesAdder = &replicaset.CConfigInstance{}
+var _ replicaset.RolesChanger = &replicaset.CConfigInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CConfigApplication{}
 var _ replicaset.Promoter = &replicaset.CConfigApplication{}
@@ -26,7 +26,7 @@ var _ replicaset.Demoter = &replicaset.CConfigApplication{}
 var _ replicaset.Expeller = &replicaset.CConfigApplication{}
 var _ replicaset.VShardBootstrapper = &replicaset.CConfigApplication{}
 var _ replicaset.Bootstrapper = &replicaset.CConfigApplication{}
-var _ replicaset.RolesAdder = &replicaset.CConfigApplication{}
+var _ replicaset.RolesChanger = &replicaset.CConfigApplication{}
 
 func TestCconfigApplication_Bootstrap(t *testing.T) {
 	app := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil)
@@ -469,9 +469,32 @@ func TestCConfigInstance_Expel(t *testing.T) {
 		`expel is not supported for a single instance by "centralized config" orchestrator`)
 }
 
-func TestCConfigInstance_RolesAdd(t *testing.T) {
+func TestCConfigInstance_RolesChange(t *testing.T) {
+	cases := []struct {
+		name         string
+		changeAction replicaset.RolesChangerAction
+		errMsg       string
+	}{
+		{
+			name:         "roles add",
+			changeAction: replicaset.RolesAdder{},
+			errMsg: "roles add is not supported for a single instance by" +
+				` "centralized config" orchestrator`,
+		},
+		{
+			name:         "roles remove",
+			changeAction: replicaset.RolesRemover{},
+			errMsg: "roles remove is not supported for a single instance by" +
+				` "centralized config" orchestrator`,
+		},
+	}
+
 	instance := replicaset.NewCConfigInstance(nil)
-	err := instance.RolesAdd(replicaset.RolesChangeCtx{})
-	assert.EqualError(t, err,
-		`roles add is not supported for a single instance by "centralized config" orchestrator`)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := instance.RolesChange(replicaset.RolesChangeCtx{}, tc.changeAction)
+			assert.EqualError(t, err, tc.errMsg)
+		})
+	}
 }

@@ -575,7 +575,7 @@ func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []s
 	}
 
 	rolesChangeCtx.RoleName = args[1]
-	return clustercmd.ChangeRole(uri, rolesChangeCtx, replicaset.AddRole)
+	return clustercmd.ChangeRole(uri, rolesChangeCtx, replicaset.RolesAdder{})
 }
 
 // internalClusterReplicasetRolesRemoveModule is a "cluster replicaset roles remove" command.
@@ -597,7 +597,7 @@ func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args 
 	}
 
 	rolesChangeCtx.RoleName = args[1]
-	return clustercmd.ChangeRole(uri, rolesChangeCtx, replicaset.RemoveRole)
+	return clustercmd.ChangeRole(uri, rolesChangeCtx, replicaset.RolesRemover{})
 }
 
 // internalClusterFailoverSwitchModule is as "cluster failover switch" command

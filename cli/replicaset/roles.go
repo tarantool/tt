@@ -5,19 +5,45 @@ import (
 	"slices"
 )
 
-// ChangeRoleFunc is a function type for addition or removing a role.
-type ChangeRoleFunc func([]string, string) ([]string, error)
+// RoleAction is a type that describes an action that will
+// happen with Roles.
+// It can be "add" action which corresponds 0 or "remove" which is 1.
+type RoleAction uint
 
-// AddRole is a function that implements addition of role.
-func AddRole(roles []string, r string) ([]string, error) {
+const (
+	AddAction RoleAction = iota
+	RemoveAction
+)
+
+// RolesChangerAction implements changing (add or remove) of roles.
+type RolesChangerAction interface {
+	// ChangeRoleFunc is a function type for addition or removing a role.
+	Change([]string, string) ([]string, error)
+	// Action is a method that returns RoleAction.
+	Action() RoleAction
+}
+
+// RolesAdder is a struct that implements addition of role.
+type RolesAdder struct{}
+
+// Change implements addition of role.
+func (RolesAdder) Change(roles []string, r string) ([]string, error) {
 	if len(roles) > 0 && slices.Index(roles, r) != -1 {
 		return []string{}, fmt.Errorf("role %q already exists", r)
 	}
 	return append(roles, r), nil
 }
 
-// RemoveRole is a function that implements removing of role.
-func RemoveRole(roles []string, r string) ([]string, error) {
+// Action implements getter of add action.
+func (RolesAdder) Action() RoleAction {
+	return AddAction
+}
+
+// RolesRemover is a struct that implements removing of role.
+type RolesRemover struct{}
+
+// Change implements removing of role.
+func (RolesRemover) Change(roles []string, r string) ([]string, error) {
 	idx := slices.Index(roles, r)
 	if idx == -1 {
 		return []string{}, fmt.Errorf("role %q not found", r)
@@ -26,6 +52,11 @@ func RemoveRole(roles []string, r string) ([]string, error) {
 		return []string{}, nil
 	}
 	return append(roles[:idx], roles[idx+1:]...), nil
+}
+
+// Action implements getter of remove action.
+func (RolesRemover) Action() RoleAction {
+	return RemoveAction
 }
 
 // RolesChangeCtx describes a context for adding/removing roles.
@@ -48,24 +79,32 @@ type RolesChangeCtx struct {
 	Timeout int
 }
 
-// RolesAdder is an interface for adding roles to a replicaset.
-type RolesAdder interface {
-	// RolesAdd adds role to a replicasets by its name.
-	RolesAdd(ctx RolesChangeCtx) error
+// RolesChanger is an interface for adding/removing roles for a replicaset.
+type RolesChanger interface {
+	// RolesChange adds/removes role for a replicasets by its name.
+	RolesChange(ctx RolesChangeCtx, action RolesChangerAction) error
 }
 
-// newErrRolesAddByInstanceNotSupported creates a new error that 'roles add' is not
+// newErrRolesChangeByInstanceNotSupported creates a new error that 'roles add/remove' is not
 // supported by the orchestrator for a single instance.
-func newErrRolesAddByInstanceNotSupported(orchestrator Orchestrator) error {
-	return fmt.Errorf("roles add is not supported for a single instance by %q orchestrator",
-		orchestrator)
+func newErrRolesChangeByInstanceNotSupported(orchestrator Orchestrator,
+	changeRoleAction RolesChangerAction) error {
+	msg := "roles %s is not supported for a single instance by %q orchestrator"
+	if changeRoleAction.Action() == RemoveAction {
+		return fmt.Errorf(msg, "remove", orchestrator)
+	}
+	return fmt.Errorf(msg, "add", orchestrator)
 }
 
-// newErrRolesAddByAppNotSupported creates a new error that 'roles add' by URI is not
+// newErrRolesChangeByAppNotSupported creates a new error that 'roles add/remove' by URI is not
 // supported by the orchestrator for an application.
-func newErrRolesAddByAppNotSupported(orchestrator Orchestrator) error {
-	return fmt.Errorf("roles add is not supported for an application by %q orchestrator",
-		orchestrator)
+func newErrRolesChangeByAppNotSupported(orchestrator Orchestrator,
+	changeRoleAction RolesChangerAction) error {
+	msg := "roles %s is not supported for an application by %q orchestrator"
+	if changeRoleAction.Action() == RemoveAction {
+		return fmt.Errorf(msg, "remove", orchestrator)
+	}
+	return fmt.Errorf(msg, "add", orchestrator)
 }
 
 // parseRoles is a function to convert roles type 'any'

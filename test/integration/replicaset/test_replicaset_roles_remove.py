@@ -14,13 +14,13 @@ from utils import get_tarantool_version, read_kv, run_command_and_get_output
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
-TEST_ROLES_ADD_PARAMS_CCONFIG = ("role_name, inst, inst_flg, group, rs, is_uri, is_global, err_msg,"
-                                 " stop_instance, is_force, is_add_role")
-TEST_ROLES_ADD_PARAMS_CARTRIDGE = ("role_name, inst_flg, group, rs, is_uri, is_global,"
-                                   " is_custom, err_msg")
+TEST_ROLES_REMOVE_PARAMS_CCONFIG = ("role_name, inst, inst_flg, group, rs, is_uri, is_global,"
+                                    " err_msg, stop_instance, is_force, patch_cfg_content")
+TEST_ROLES_REMOVE_PARAMS_CARTRIDGE = ("role_name, inst_flg, group, rs, is_uri, is_global,"
+                                      " is_custom, is_empty, err_msg")
 
 
-def make_test_roles_add_param(
+def make_test_roles_remove_param(
     is_cartridge_orchestrator,
     role_name,
     inst=None,
@@ -32,13 +32,15 @@ def make_test_roles_add_param(
     stop_instance=None,
     is_uri=False,
     is_force=False,
-    is_add_role=False,
-    is_custom=False
+    is_custom=False,
+    is_empty=True,
+    patch_cfg_content=None
 ):
     if is_cartridge_orchestrator:
-        return pytest.param(role_name, inst_flg, group, rs, is_uri, is_global, is_custom, err_msg)
+        return pytest.param(role_name, inst_flg, group, rs, is_uri, is_global, is_custom, is_empty,
+                            err_msg)
     return pytest.param(role_name, inst, inst_flg, group, rs, is_uri, is_global, err_msg,
-                        stop_instance, is_force, is_add_role)
+                        stop_instance, is_force, patch_cfg_content)
 
 
 @pytest.mark.parametrize("args, err_msg", [
@@ -46,7 +48,7 @@ def make_test_roles_add_param(
     pytest.param(["some_app", "some_role"], "can't collect instance information for some_app"),
 ])
 def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
-    cmd = [tt_cmd, "rs", "roles", "add"]
+    cmd = [tt_cmd, "rs", "roles", "remove"]
     cmd.extend(args)
     rc, out = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc != 0
@@ -55,63 +57,95 @@ def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
 
 @pytest.mark.skipif(tarantool_major_version < 3,
                     reason="skip centralized config test for Tarantool < 3")
-@pytest.mark.parametrize(TEST_ROLES_ADD_PARAMS_CCONFIG, [
-    make_test_roles_add_param(
+@pytest.mark.parametrize(TEST_ROLES_REMOVE_PARAMS_CCONFIG, [
+    make_test_roles_remove_param(
         False,
+        inst="instance-005",
+        role_name="greeter",
+        patch_cfg_content="""\
+            roles:
+              - greeter
+"""
+    ),
+    make_test_roles_remove_param(
+        False,
+        is_global=True,
+        role_name="greeter",
+        patch_cfg_content="""\
+roles:
+  - greeter
+"""
+    ),
+    make_test_roles_remove_param(
+        False,
+        group="group-002",
+        role_name="greeter",
+        patch_cfg_content="""\
+    roles:
+      - greeter
+"""
+    ),
+    make_test_roles_remove_param(
+        False,
+        rs="replicaset-002",
+        role_name="greeter",
+        patch_cfg_content="""\
+        roles:
+          - greeter
+"""
+    ),
+    make_test_roles_remove_param(
+        False,
+        inst_flg="instance-005",
+        role_name="greeter",
+        patch_cfg_content="""\
+            roles:
+              - greeter
+"""
+    ),
+    make_test_roles_remove_param(
+        False,
+        is_global=True,
+        group="group-002",
+        rs="replicaset-002",
+        inst_flg="instance-005",
+        role_name="greeter",
+        patch_cfg_content="""\
+            roles:
+              - greeter
+        roles:
+          - greeter
+    roles:
+      - greeter
+roles:
+  - greeter
+"""
+    ),
+    make_test_roles_remove_param(
+        False,
+        is_global=True,
         inst="instance-001",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        is_global=True,
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        group="group-001",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        rs="replicaset-001",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        inst_flg="instance-002",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        is_global=True,
-        group="group-001",
-        rs="replicaset-001",
-        inst_flg="instance-002",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        is_global=True,
-        inst="instance-001",
-        group="group-001",
-        rs="replicaset-001",
         inst_flg="instance-002",
         role_name="greeter",
         err_msg="there are different instance names passed after app name and in flag arg",
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         False,
         role_name="greeter",
-        err_msg="there is no destination provided in which to add role",
+        err_msg="there is no destination provided where to remove role",
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         False,
-        inst="instance-002",
+        inst="instance-005",
         role_name="greeter",
         stop_instance="instance-001",
         is_force=True,
+        patch_cfg_content="""\
+            roles:
+              - greeter
+"""
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         False,
         inst="instance-002",
         role_name="greeter",
@@ -120,22 +154,21 @@ def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
         err_msg="all instances in the target replicaset should be online," +
                 " could not connect to: instance-001",
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         False,
         inst="instance-001",
         role_name="greeter",
-        is_add_role=True,
-        err_msg="role \"greeter\" already exists"
+        err_msg="role \"greeter\" not found"
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         False,
         role_name="greeter",
         is_uri=True,
-        err_msg="roles add is not supported for a single instance by" +
+        err_msg="roles remove is not supported for a single instance by" +
                 " \"centralized config\" orchestrator",
     ),
 ])
-def test_replicaset_cconfig_roles_add(
+def test_replicaset_cconfig_roles_remove(
     role_name,
     inst,
     inst_flg,
@@ -148,11 +181,15 @@ def test_replicaset_cconfig_roles_add(
     tmpdir_with_cfg,
     is_uri,
     is_force,
-    is_add_role,
+    patch_cfg_content,
 ):
     app_name = "test_ccluster_app"
     app_path = os.path.join(tmpdir_with_cfg, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+
+    if patch_cfg_content:
+        with open(os.path.join(app_path, "config.yaml"), 'a') as f:
+            f.write(patch_cfg_content)
 
     kv = read_kv(app_path)
     instances = parse_yml(kv["instances"]).keys()
@@ -163,11 +200,6 @@ def test_replicaset_cconfig_roles_add(
         if stop_instance:
             stop_cmd = [tt_cmd, "stop", f"{app_name}:{stop_instance}"]
             rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
-            assert rc == 0
-        if is_add_role:
-            add_first_role_cmd = [tt_cmd, "rs", "roles", "add",
-                                  f"{app_name}:{inst}" if inst else app_name, role_name]
-            rc, _ = run_command_and_get_output(add_first_role_cmd, cwd=tmpdir_with_cfg)
             assert rc == 0
 
         flags = []
@@ -186,7 +218,7 @@ def test_replicaset_cconfig_roles_add(
         if is_uri:
             uri = f"client:secret@{tmpdir_with_cfg}/{app_name}/{list(instances)[0]}.iproto"
 
-        roles_add_cmd = [tt_cmd, "rs", "roles", "add",
+        roles_add_cmd = [tt_cmd, "rs", "roles", "remove",
                          (f"{app_name}:{inst}" if inst else app_name
                           if not is_uri else uri), role_name]
         if len(flags) != 0:
@@ -197,20 +229,20 @@ def test_replicaset_cconfig_roles_add(
             kv = read_kv(app_path)
             cluster_cfg = parse_yml(kv["config"])
             if is_global:
-                assert "Add role to global scope"
-                assert role_name in cluster_cfg["roles"]
+                assert "Remove role from global scope"
+                assert role_name not in cluster_cfg["roles"]
             if group:
-                assert f"Add role to group: {group}"
-                assert role_name in cluster_cfg["groups"][group]["roles"]
+                assert f"Remove role from group: {group}"
+                assert role_name not in cluster_cfg["groups"][group]["roles"]
             if rs:
-                assert f"Add role to replicaset: {rs}"
+                assert f"Remove role from replicaset: {rs}"
                 gr = get_group_by_replicaset_name(cluster_cfg, rs)
-                assert role_name in cluster_cfg["groups"][gr]["replicasets"][rs]["roles"]
+                assert role_name not in cluster_cfg["groups"][gr]["replicasets"][rs]["roles"]
             if inst_flg or inst:
                 i = inst if inst else inst_flg
-                assert f"Add role to instance: {i}"
+                assert f"Remove role from instance: {i}"
                 g, r = get_group_replicaset_by_instance_name(cluster_cfg, i)
-                assert (role_name in
+                assert (role_name not in
                         cluster_cfg["groups"][g]["replicasets"][r]["instances"][i]["roles"])
         else:
             assert rc == 1
@@ -224,23 +256,34 @@ def test_replicaset_cconfig_roles_add(
 
 @pytest.mark.skipif(tarantool_major_version >= 3,
                     reason="skip cartridge tests for Tarantool 3.0")
-@pytest.mark.parametrize(TEST_ROLES_ADD_PARAMS_CARTRIDGE, [
-    make_test_roles_add_param(
+@pytest.mark.parametrize(TEST_ROLES_REMOVE_PARAMS_CARTRIDGE, [
+    make_test_roles_remove_param(
         True,
-        rs="s-1",
-        group="default",
-        role_name="failover-coordinator",
+        rs="router",
+        role_name="app.roles.custom",
+        is_empty=False,
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
+        True,
+        rs="s-3",
+        role_name="app.roles.custom",
+    ),
+    make_test_roles_remove_param(
+        True,
+        rs="s-3",
+        role_name="app.roles.custom",
+        group="g",
+        err_msg="cannot provide vshard-group by removing role",
+    ),
+    make_test_roles_remove_param(
         True,
         rs="s-1",
-        group="default",
         role_name="failover-coordinator",
         inst_flg="s1-master",
         err_msg=("cannot pass the instance or --instance (-i) flag due to cluster"
                  " with cartridge orchestrator can't add/remove role for instance scope")
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         True,
         rs="s-1",
         group="default",
@@ -248,56 +291,57 @@ def test_replicaset_cconfig_roles_add(
         is_global=True,
         err_msg="cannot pass --global (-G) flag due to cluster with cartridge"
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         True,
         inst_flg="s-1.master",
         role_name="failover-coordinator",
         err_msg="in cartridge replicaset name must be specified via --replicaset flag"
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         True,
-        role_name="vshard-storage",
+        role_name="my_role",
         rs="s-1",
-        err_msg="failed to change role: role \"vshard-storage\" already exists",
+        err_msg="failed to change role: role \"my_role\" not found",
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         True,
         rs="unknown",
         role_name="some_role",
         err_msg="failed to find replicaset \"unknown\""
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         True,
         rs="r",
         role_name="role",
         is_custom=True,
-        err_msg="roles add is not supported for an application by \"custom\" orchestrator",
+        err_msg="roles remove is not supported for an application by \"custom\" orchestrator",
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         True,
         rs="r",
         role_name="role",
         is_custom=True,
-        err_msg="roles add is not supported for an application by \"custom\" orchestrator",
+        err_msg="roles remove is not supported for an application by \"custom\" orchestrator",
     ),
-    make_test_roles_add_param(
+    make_test_roles_remove_param(
         True,
         rs="r",
         role_name="role",
         is_uri=True,
-        err_msg="roles add is not supported for a single instance by \"cartridge\" orchestrator",
+        err_msg="roles remove is not supported for a single instance by \"cartridge\" orchestrator",
     ),
 ])
-def test_replicaset_cartridge_roles_add(tt_cmd,
-                                        cartridge_app,
-                                        role_name,
-                                        rs,
-                                        inst_flg,
-                                        group,
-                                        is_uri,
-                                        is_global,
-                                        is_custom,
-                                        err_msg):
+def test_replicaset_cartridge_roles_remove(tt_cmd,
+                                           cartridge_app,
+                                           role_name,
+                                           rs,
+                                           inst_flg,
+                                           group,
+                                           is_uri,
+                                           is_global,
+                                           is_custom,
+                                           is_empty,
+                                           err_msg):
     flags = []
     if is_global:
         flags.extend(["-G"])
@@ -313,7 +357,7 @@ def test_replicaset_cartridge_roles_add(tt_cmd,
         uri = cartridge_app.instances_cfg[f"{cartridge_name}.s1-master"]["advertise_uri"]
         uri = f"{cartridge_username}:{cartridge_password}@{uri}"
 
-    roles_add_cmd = [tt_cmd, "rs", "roles", "add"]
+    roles_add_cmd = [tt_cmd, "rs", "roles", "remove"]
     if is_custom:
         roles_add_cmd.append("--custom")
     roles_add_cmd.extend([cartridge_name if not is_uri else uri, role_name])
@@ -328,21 +372,23 @@ def test_replicaset_cartridge_roles_add(tt_cmd,
         buf.readline()
         # Skip init status in the output.
         parse_status(buf)
-        if group:
-            assert f"Add role {role_name} to group: {group}" in buf.readline()
-        assert f"Add role {role_name} to replicaset: {rs}" in buf.readline()
-        assert f"Replicaset {rs} now has these roles enabled:" in buf.readline()
-        assert role_name if group == "" else f"{role_name} ({group})" in buf.readline()
-        assert "vshard-storage (default)" in buf.readline()
+        assert f"Remove role {role_name} from replicaset: {rs}" in buf.readline()
+        if is_empty:
+            assert f"Now replicaset {rs} has no roles enabled" in buf.readline()
+        else:
+            assert f"Replicaset {rs} now has these roles enabled:" in buf.readline()
+            assert "failover-coordinator" in buf.readline()
+            assert "vshard-router" in buf.readline()
         assert "Done." in buf.readline()
 
         status_cmd = [tt_cmd, "rs", "status", cartridge_name]
         rc, out = run_command_and_get_output(status_cmd, cwd=cartridge_app.workdir)
         assert rc == 0
 
-        # Check status.
-        actual_roles = parse_status(io.StringIO(out))["replicasets"][rs]["roles"]
-        assert role_name in actual_roles
+        # Check status if there are roles left.
+        if not is_empty:
+            actual_roles = parse_status(io.StringIO(out))["replicasets"][rs]["roles"]
+            assert role_name not in actual_roles
     else:
         assert rc == 1
         assert err_msg in out

@@ -206,9 +206,10 @@ func (c *CartridgeInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
 	return nil
 }
 
-// RolesAdd adds role for a single instance by the Cartridge orchestrator.
-func (c *CartridgeInstance) RolesAdd(ctx RolesChangeCtx) error {
-	return newErrRolesAddByInstanceNotSupported(OrchestratorCartridge)
+// RolesChange adds/removes role for a single instance by the Cartridge orchestrator.
+func (c *CartridgeInstance) RolesChange(ctx RolesChangeCtx,
+	action RolesChangerAction) error {
+	return newErrRolesChangeByInstanceNotSupported(OrchestratorCartridge, action)
 }
 
 // CartridgeApplication is an application with the Cartridge orchestrator.
@@ -315,7 +316,7 @@ func (c *CartridgeApplication) Demote(ctx DemoteCtx) error {
 type cartridgeReplicasetConfig struct {
 	Alias       string   `yaml:"alias,omitempty"`
 	Instances   []string `yaml:"instances"`
-	Roles       []string `yaml:"roles"`
+	Roles       []string `yaml:"roles,omitempty"`
 	Weight      *float64 `yaml:"weight,omitempty"`
 	AllRW       *bool    `yaml:"all_rw,omitempty"`
 	VShardGroup *string  `yaml:"vshard_group,omitempty"`
@@ -668,8 +669,9 @@ func (c *CartridgeApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
 	return nil
 }
 
-// RolesAdd adds role for an application by the Cartridge orchestrator.
-func (c *CartridgeApplication) RolesAdd(ctx RolesChangeCtx) error {
+// RolesChange adds/removes role for an application by the Cartridge orchestrator.
+func (c *CartridgeApplication) RolesChange(ctx RolesChangeCtx,
+	action RolesChangerAction) error {
 	if len(c.runningCtx.Instances) == 0 {
 		return fmt.Errorf("failed to add role: there are no running instances")
 	}
@@ -685,18 +687,11 @@ func (c *CartridgeApplication) RolesAdd(ctx RolesChangeCtx) error {
 			return i.Alias == inst.InstName
 		})
 	})
-	if slices.Contains(targetReplicaset.Roles, ctx.RoleName) {
-		return fmt.Errorf("role %q already exists in replicaset %q",
-			ctx.RoleName, ctx.ReplicasetName)
-	}
-	targetReplicaset.Roles = append(targetReplicaset.Roles, ctx.RoleName)
 
-	cartridgeEditOpt := cartridgeEditReplicasetsOpts{
-		UUID:  &targetReplicaset.UUID,
-		Roles: targetReplicaset.Roles,
-	}
-	if ctx.GroupName != "" {
-		cartridgeEditOpt.VshardGroup = &ctx.GroupName
+	cartridgeEditOpt, err := getRolesChangedOpts(targetReplicaset, action,
+		ctx.RoleName, ctx.GroupName)
+	if err != nil {
+		return err
 	}
 
 	eval := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
@@ -736,7 +731,28 @@ func (c *CartridgeApplication) RolesAdd(ctx RolesChangeCtx) error {
 	return nil
 }
 
-// getReplicasetByAlias searches for a replicaset by its alias in discovered slice
+// getRolesChangedOpts adds/removes role for replicaset roles list and returns
+// options for updating a replciaset.
+func getRolesChangedOpts(targetReplicaset Replicaset, action RolesChangerAction,
+	roleName, groupName string) (cartridgeEditReplicasetsOpts, error) {
+	var err error
+	targetReplicaset.Roles, err = action.Change(targetReplicaset.Roles, roleName)
+	if err != nil {
+		return cartridgeEditReplicasetsOpts{}, fmt.Errorf("failed to change role: %w", err)
+	}
+
+	cartridgeEditOpt := cartridgeEditReplicasetsOpts{
+		UUID:  &targetReplicaset.UUID,
+		Roles: targetReplicaset.Roles,
+	}
+	if groupName != "" && action.Action() == AddAction {
+		cartridgeEditOpt.VshardGroup = &groupName
+	}
+
+	return cartridgeEditOpt, nil
+}
+
+// getReplicasetByAlias searches for replicaset by its alias in discovered slice
 // of replicasets.
 func getReplicasetByAlias(replicasets []Replicaset, alias string) (Replicaset, error) {
 	for _, r := range replicasets {
@@ -857,7 +873,7 @@ type cartridgeJoinServersOpts struct {
 type cartridgeEditReplicasetsOpts struct {
 	UUID             *string                    `msgpack:"uuid,omitempty"`
 	Alias            *string                    `msgpack:"alias,omitempty"`
-	Roles            []string                   `msgpack:"roles,omitempty"`
+	Roles            []string                   `msgpack:"roles"`
 	AllRW            *bool                      `msgpack:"all_rw,omitempty"`
 	Weight           *float64                   `msgpack:"weight,omitempty"`
 	VshardGroup      *string                    `msgpack:"vshard_group,omitempty"`

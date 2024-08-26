@@ -19,14 +19,14 @@ var _ replicaset.Demoter = &replicaset.CartridgeInstance{}
 var _ replicaset.Expeller = &replicaset.CartridgeInstance{}
 var _ replicaset.VShardBootstrapper = &replicaset.CartridgeInstance{}
 var _ replicaset.Bootstrapper = &replicaset.CartridgeInstance{}
-var _ replicaset.RolesAdder = &replicaset.CartridgeInstance{}
+var _ replicaset.RolesChanger = &replicaset.CartridgeInstance{}
 
 var _ replicaset.Discoverer = &replicaset.CartridgeApplication{}
 var _ replicaset.Promoter = &replicaset.CartridgeApplication{}
 var _ replicaset.Demoter = &replicaset.CartridgeApplication{}
 var _ replicaset.Expeller = &replicaset.CartridgeApplication{}
 var _ replicaset.Bootstrapper = &replicaset.CartridgeApplication{}
-var _ replicaset.RolesAdder = &replicaset.CartridgeApplication{}
+var _ replicaset.RolesChanger = &replicaset.CartridgeApplication{}
 
 func TestCartridgeApplication_Demote(t *testing.T) {
 	app := replicaset.NewCartridgeApplication(running.RunningCtx{})
@@ -978,9 +978,32 @@ func TestCartridgeInstance_Expel(t *testing.T) {
 		`expel is not supported for a single instance by "cartridge" orchestrator`)
 }
 
-func TestCartridgeInstance_RolesAdd(t *testing.T) {
+func TestCartridgeInstance_RolesChange(t *testing.T) {
+	cases := []struct {
+		name         string
+		changeAction replicaset.RolesChangerAction
+		errMsg       string
+	}{
+		{
+			name:         "roles add",
+			changeAction: replicaset.RolesAdder{},
+			errMsg: "roles add is not supported for a single instance by" +
+				` "cartridge" orchestrator`,
+		},
+		{
+			name:         "roles remove",
+			changeAction: replicaset.RolesRemover{},
+			errMsg: "roles remove is not supported for a single instance by" +
+				` "cartridge" orchestrator`,
+		},
+	}
+
 	inst := replicaset.NewCartridgeInstance(nil)
-	err := inst.RolesAdd(replicaset.RolesChangeCtx{})
-	assert.EqualError(t, err,
-		`roles add is not supported for a single instance by "cartridge" orchestrator`)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := inst.RolesChange(replicaset.RolesChangeCtx{}, tc.changeAction)
+			assert.EqualError(t, err, tc.errMsg)
+		})
+	}
 }

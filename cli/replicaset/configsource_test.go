@@ -120,12 +120,12 @@ func TestCConfigSource_collect_config_error(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.AddRole)
+				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.RolesAdder{})
 			},
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.RemoveRole)
+				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.RolesRemover{})
 			},
 		},
 	}
@@ -281,7 +281,7 @@ func TestCConfigSource_passes_force(t *testing.T) {
 		{
 			func(source *replicaset.CConfigSource) error {
 				return source.ChangeRole(replicaset.RolesChangeCtx{InstName: instName, Force: true},
-					replicaset.AddRole)
+					replicaset.RolesAdder{})
 			},
 		},
 	}
@@ -330,7 +330,7 @@ func TestCConfigSource_publish_error(t *testing.T) {
 		{
 			func(source *replicaset.CConfigSource) error {
 				return source.ChangeRole(replicaset.RolesChangeCtx{InstName: instName},
-					replicaset.AddRole)
+					replicaset.RolesAdder{})
 			},
 		},
 	}
@@ -379,7 +379,7 @@ func TestCConfigSource_keypick_error(t *testing.T) {
 		{
 			func(source *replicaset.CConfigSource) error {
 				return source.ChangeRole(replicaset.RolesChangeCtx{InstName: instName},
-					replicaset.AddRole)
+					replicaset.RolesAdder{})
 			},
 		},
 	}
@@ -421,12 +421,12 @@ func TestCConfigSource_Promote_invalid_config(t *testing.T) {
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.AddRole)
+				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.RolesAdder{})
 			},
 		},
 		{
 			func(source *replicaset.CConfigSource) error {
-				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.RemoveRole)
+				return source.ChangeRole(replicaset.RolesChangeCtx{}, replicaset.RolesRemover{})
 			},
 		},
 	}
@@ -936,7 +936,7 @@ roles:
 			publisher := newOnceMockDataPublisher(nil)
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
 
-			err := source.ChangeRole(tc.rolesChangeCtx, replicaset.AddRole)
+			err := source.ChangeRole(tc.rolesChangeCtx, replicaset.RolesAdder{})
 			if tc.errMsg != "" {
 				require.EqualError(t, err, tc.errMsg)
 			} else {
@@ -1122,7 +1122,7 @@ roles: []
 			publisher := newOnceMockDataPublisher(nil)
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
 
-			err := source.ChangeRole(tc.rolesChangeCtx, replicaset.RemoveRole)
+			err := source.ChangeRole(tc.rolesChangeCtx, replicaset.RolesRemover{})
 			if tc.errMsg != "" {
 				require.EqualError(t, err, tc.errMsg)
 			} else {

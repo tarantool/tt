@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/apex/log"
@@ -136,10 +135,11 @@ func (c *CConfigInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
 	return nil
 }
 
-// RolesAdd is not supported for a single instance by the centralized config
+// RolesChange is not supported for a single instance by the centralized config
 // orchestrator.
-func (c *CConfigInstance) RolesAdd(ctx RolesChangeCtx) error {
-	return newErrRolesAddByInstanceNotSupported(OrchestratorCentralizedConfig)
+func (c *CConfigInstance) RolesChange(ctx RolesChangeCtx,
+	changeRoleAction RolesChangerAction) error {
+	return newErrRolesChangeByInstanceNotSupported(OrchestratorCentralizedConfig, changeRoleAction)
 }
 
 // CConfigApplication is an application with the centralized config
@@ -472,8 +472,9 @@ func (c *CConfigApplication) Bootstrap(BootstrapCtx) error {
 	return newErrBootstrapByAppNotSupported(OrchestratorCentralizedConfig)
 }
 
-// RolesAdd adds role for an application by the centralized config orchestrator.
-func (c *CConfigApplication) RolesAdd(ctx RolesChangeCtx) error {
+// RolesChange adds/removes role for an application by the centralized config orchestrator.
+func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
+	changeRoleAction RolesChangerAction) error {
 	replicasets, err := c.Discovery(UseCache)
 	if err != nil {
 		return fmt.Errorf("failed to get replicasets: %w", err)
@@ -518,7 +519,7 @@ func (c *CConfigApplication) RolesAdd(ctx RolesChangeCtx) error {
 		log.Warn(msg)
 	}
 
-	isConfigPublished, err := c.rolesAdd(ctx)
+	isConfigPublished, err := c.rolesChange(ctx, changeRoleAction)
 	if isConfigPublished {
 		err = errors.Join(err, reloadCConfig(instances))
 	}
@@ -751,7 +752,8 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 	return
 }
 
-func (c *CConfigApplication) rolesAdd(ctx RolesChangeCtx) (bool, error) {
+func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
+	action RolesChangerAction) (bool, error) {
 	if len(c.runningCtx.Instances) == 0 {
 		return false, fmt.Errorf("there are no running instances")
 	}
@@ -781,12 +783,11 @@ func (c *CConfigApplication) rolesAdd(ctx RolesChangeCtx) (bool, error) {
 				return false, err
 			}
 		}
-		if len(existingRoles) > 0 && slices.Index(existingRoles, ctx.RoleName) != -1 {
-			return false, fmt.Errorf("role %q already exists in %s",
-				ctx.RoleName, strings.Join(path.path, "/"))
+
+		existingRoles, err = action.Change(existingRoles, ctx.RoleName)
+		if err != nil {
+			return false, fmt.Errorf("failed to change roles: %w", err)
 		}
-		// If the role does not exist in requested path, append it.
-		existingRoles = append(existingRoles, ctx.RoleName)
 
 		pRoleTarget = append(pRoleTarget, patchRoleTarget{
 			path:      path.path,

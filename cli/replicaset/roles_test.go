@@ -21,7 +21,11 @@ func TestRoles_AddRole(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := replicaset.AddRole(tc.roles, tc.roleToAdd)
+			adder := replicaset.RolesAdder{}
+
+			require.Equal(t, adder.Action(), replicaset.AddAction)
+
+			res, err := adder.Change(tc.roles, tc.roleToAdd)
 			if tc.errMsg != "" {
 				require.EqualError(t, err, tc.errMsg)
 			} else {
@@ -47,7 +51,11 @@ func TestRoles_RemoveRole(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			res, err := replicaset.RemoveRole(tc.roles, tc.roleToRemove)
+			remover := replicaset.RolesRemover{}
+
+			require.Equal(t, remover.Action(), replicaset.RemoveAction)
+
+			res, err := remover.Change(tc.roles, tc.roleToRemove)
 			if tc.errMsg != "" {
 				require.EqualError(t, err, tc.errMsg)
 			} else {
