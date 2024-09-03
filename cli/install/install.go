@@ -418,8 +418,15 @@ func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
 			return err
 		}
 	}
-	err = util.CopyFilePreserve(filepath.Join(path, "tt"), filepath.Join(binDir, version))
-	return err
+
+	binPathTt := filepath.Join(binDir, version)
+	err = util.CopyFilePreserve(filepath.Join(path, "tt"), binPathTt)
+	if err != nil {
+		return err
+	}
+	log.Infof("Tt executable is installed to: %q", binPathTt)
+
+	return nil
 }
 
 // checkCommit checks the existence of a commit by hash.
@@ -679,11 +686,15 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	}
 
 	// Set symlink.
-	err = util.CreateSymlink(versionStr, filepath.Join(binDir, "tt"), true)
+	symlinkPath := filepath.Join(binDir, "tt")
+	err = util.CreateSymlink(versionStr, symlinkPath, true)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
 	}
+
+	log.Infof("Made default by symlink %q", symlinkPath)
+	log.Info("Use the following command to add the bin_dir directory to the PATH: . <(tt env)")
 	log.Infof("Done.")
 	if installCtx.Noclean {
 		log.Infof("Artifacts can be found at: %s", path)
@@ -840,8 +851,8 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 		return fmt.Errorf("unable to create %s\n Error: %s", binDir, err)
 	}
 
-	err = util.CopyFileChangePerms(binPath, filepath.Join(binDir, version),
-		defaultDirPermissions)
+	execPath := filepath.Join(binDir, version)
+	err = util.CopyFileChangePerms(binPath, execPath, defaultDirPermissions)
 	if err != nil {
 		return err
 	}
@@ -855,8 +866,14 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string,
 	} else if err != nil {
 		return fmt.Errorf("unable to create %s\n Error: %s", includeDir, err)
 	}
+
 	err = copy.Copy(incPath, filepath.Join(includeDir, version)+"/")
-	return err
+	if err != nil {
+		return err
+	}
+	log.Infof("Tarantool executable is installed to: %q", execPath)
+
+	return nil
 }
 
 //go:embed Dockerfile.tnt.build
@@ -1203,6 +1220,8 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 		return err
 	}
 
+	log.Infof("Made default by symlink %q", filepath.Join(incDir, "tarantool"))
+	log.Info("Use the following command to add the bin_dir directory to the PATH: . <(tt env)")
 	log.Infof("Done.")
 	if installCtx.Noclean {
 		log.Infof("Artifacts can be found at: %s", path)
