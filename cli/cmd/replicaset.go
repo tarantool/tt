@@ -175,7 +175,7 @@ func newBootstrapCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&replicasetBootstrapVshard, "bootstrap-vshard", "", false,
 		"bootstrap vshard")
 	cmd.Flags().StringVarP(&replicasetCartridgeReplicasetsFile, "file", "", "",
-		`file where replicasets configuration is described (default "<APP_DIR>/instances.yml")`)
+		`file where replicasets configuration is described (default "<APP_DIR>/replicasets.yml")`)
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "",
 		"", "replicaset name for an instance bootstrapping")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.
