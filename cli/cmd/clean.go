@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -16,6 +16,7 @@ import (
 )
 
 var forceRemove bool
+var ErrCanceledByUser = errors.New("canceled by user")
 
 // NewCleanCmd creates clean command.
 func NewCleanCmd() *cobra.Command {
@@ -74,16 +75,6 @@ func clean(run *running.InstanceCtx) error {
 		}
 	}
 
-	if len(removeFiles) == 0 {
-		log.Infof("Already cleaned.\n")
-		return nil
-	}
-
-	log.Infof("List of files to delete:\n")
-	for file, _ := range removeFiles {
-		log.Infof("%s", file)
-	}
-
 	if !forceRemove {
 		confirm, err = util.AskConfirm(os.Stdin, "\nConfirm")
 		if err != nil {
@@ -97,12 +88,13 @@ func clean(run *running.InstanceCtx) error {
 			if err != nil {
 				return err
 			}
+			log.Debugf("removed %q", file)
 		}
 
 		return nil
 	}
 
-	return fmt.Errorf("canceled by user")
+	return ErrCanceledByUser
 }
 
 // internalCleanModule is a default clean module.
@@ -122,13 +114,16 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			var statusMsg string
 
 			err := clean(&run)
-			if err != nil {
+			if errors.Is(err, ErrCanceledByUser) {
+				statusMsg = ErrCanceledByUser.Error()
+			} else if err != nil {
 				statusMsg = "[ERR] " + err.Error()
 			} else {
 				statusMsg = "[OK]"
 			}
 
-			log.Infof("%s: cleaning...\t%s", run.InstName, statusMsg)
+			log.Infof("%s%c%s...\t%s", run.AppName, running.InstanceDelimiter, run.InstName,
+				statusMsg)
 		} else {
 			log.Infof("instance `%s` must be stopped", run.InstName)
 		}
