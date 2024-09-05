@@ -175,19 +175,20 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     assert instance_process_rc == 0
 
 
-def assert_file_cleaned(filepath, cmd_out):
+def assert_file_cleaned(filepath, instance_name, cmd_out):
     # https://github.com/tarantool/tt/issues/735
-    assert len(re.findall(r"• " + str(filepath), cmd_out)) == 1
+    assert len(re.findall(r"• " + instance_name, cmd_out)) == 1
     assert os.path.exists(filepath) is False
 
 
 def test_clean(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_data_app", "test_data_app.lua")
+    app_name = "test_data_app"
+    test_app_path = os.path.join(os.path.dirname(__file__), app_name, "test_data_app.lua")
     shutil.copy(test_app_path, tmpdir)
 
     # Start an instance.
-    start_cmd = [tt_cmd, "start", "test_data_app"]
+    start_cmd = [tt_cmd, "start", app_name]
     instance_process = subprocess.Popen(
         start_cmd,
         cwd=tmpdir,
@@ -199,9 +200,9 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", start_output)
 
     # Wait until application is ready.
-    lib_dir = os.path.join(tmpdir, "test_data_app", lib_path, "test_data_app")
-    run_dir = os.path.join(tmpdir, "test_data_app", run_path, "test_data_app")
-    log_dir = os.path.join(tmpdir, "test_data_app", log_path, "test_data_app")
+    lib_dir = os.path.join(tmpdir, app_name, lib_path, app_name)
+    run_dir = os.path.join(tmpdir, app_name, run_path, app_name)
+    log_dir = os.path.join(tmpdir, app_name, log_path, app_name)
 
     file = wait_file(lib_dir, initial_snap, [])
     assert file != ""
@@ -216,13 +217,13 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert file != ""
 
     # Check that clean warns about application is running.
-    clean_cmd = [tt_cmd, "clean", "test_data_app", "--force"]
+    clean_cmd = [tt_cmd, "clean", app_name, "--force"]
     clean_rc, clean_out = run_command_and_get_output(clean_cmd, cwd=tmpdir)
     assert clean_rc == 0
     assert re.search(r"instance `test_data_app` must be stopped", clean_out)
 
     # Stop the Instance.
-    stop_cmd = [tt_cmd, "stop", "-y", "test_data_app"]
+    stop_cmd = [tt_cmd, "stop", "-y", app_name]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
     assert stop_rc == 0
     assert re.search(r"The Instance test_data_app \(PID = \d+\) has been terminated\.", stop_out)
@@ -236,9 +237,9 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert clean_rc == 0
     assert re.search(r"\[ERR\]", clean_out) is None
 
-    assert_file_cleaned(os.path.join(log_dir, log_file), clean_out)
-    assert_file_cleaned(os.path.join(lib_dir, initial_snap), clean_out)
-    assert_file_cleaned(os.path.join(lib_dir, initial_xlog), clean_out)
+    assert_file_cleaned(os.path.join(log_dir, log_file), app_name, clean_out)
+    assert_file_cleaned(os.path.join(lib_dir, initial_snap), app_name, clean_out)
+    assert_file_cleaned(os.path.join(lib_dir, initial_xlog), app_name, clean_out)
 
 
 def test_running_base_functionality_working_dir_app(tt_cmd):
