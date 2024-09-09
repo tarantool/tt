@@ -51,6 +51,7 @@ func Status(runningCtx running.RunningCtx, opts StatusOpts) error {
 		}
 		ts.AppendRow(row)
 	}
+	ts.SortBy([]table.SortBy{{Name: "INSTANCE", Mode: table.Asc}})
 
 	if opts.Pretty {
 		ts.SetStyle(table.StyleRounded)
