@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
  cluster config (3.0) or cartridge orchestrator.
 - `tt replicaset roles remove`: command to remove roles in the tarantool replicaset with
  cluster config (3.0) or cartridge orchestrator.
+- `tt install tt|tarantool <version>` - allow <version> be incomplete. So `2.3` will install
+ the the last available release with specified <major=2>.<minor=3> in <version>.
 
 ### Fixed
 - Command `\set delimiter [marker]` works correctly and don't hangs `tt` console.

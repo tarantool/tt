@@ -156,10 +156,11 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
     # Check that the process shutdowned correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc != 0
-    first_output = instance_process.stdout.readline()
-    assert re.search(r"Searching in commits...", first_output)
-    second_output = instance_process.stdout.readline()
-    assert re.search(r"the hash must contain at least 7 characters", second_output)
+    assert re.search(r"Searching in versions...", instance_process.stdout.readline())
+    assert re.search(r"Searching in commits...", instance_process.stdout.readline())
+    assert re.search(
+        r"the hash must contain at least 7 characters", instance_process.stdout.readline()
+    )
 
     # Install specific tt's commit.
     install_cmd_second = [tt_cmd, "--cfg", configPath, "install", "tt", "zzzzzzz"]
@@ -181,14 +182,22 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
-def test_install_tt_specific_version(tt_cmd, tmp_path):
+@pytest.mark.parametrize(
+    "required_ver, installed_ver",
+    [
+        ("2.1.2", "2.1.2"),
+        ("v2.2", "2.2.1"),
+        ("1", "1.3.1"),
+    ]
+)
+def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, installed_ver: str):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config
     with open(configPath, 'w') as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\n')
 
     # Install latest tt.
-    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "2.1.2"]
+    install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", required_ver]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
@@ -211,7 +220,7 @@ def test_install_tt_specific_version(tt_cmd, tmp_path):
         text=True
     )
     start_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool CLI version 2.1.2", start_output)
+    assert re.search(rf"Tarantool CLI.*{installed_ver}", start_output)
 
 
 @pytest.mark.slow
@@ -262,7 +271,14 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
-def test_install_tarantool(tt_cmd, tmp_path):
+@pytest.mark.parametrize(
+    "required_ver, installed_ver",
+    [
+        ("2.10.7", "2.10.7"),
+        ("v2.10", "2.10.8"),
+    ]
+)
+def test_install_tarantool(tt_cmd, tmp_path, required_ver: str, installed_ver: str):
     config_path = os.path.join(tmp_path, config_name)
     # Create test config.
     with open(config_path, "w") as f:
@@ -271,7 +287,7 @@ def test_install_tarantool(tt_cmd, tmp_path):
     tmp_path_without_config = tempfile.mkdtemp()
 
     # Install latest tarantool.
-    install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", "2.10.7"]
+    install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", required_ver]
     instance_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path_without_config,
@@ -296,9 +312,9 @@ def test_install_tarantool(tt_cmd, tmp_path):
     )
 
     run_output = installed_program_process.stdout.readline()
-    assert re.search(r"Tarantool", run_output)
+    assert re.search(rf"Tarantool.*{installed_ver}", run_output)
     assert os.path.exists(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
-    assert os.path.exists(os.path.join(tmp_path, "bin", "tarantool_2.10.7"))
+    assert os.path.exists(os.path.join(tmp_path, "bin", f"tarantool_{installed_ver}"))
 
 
 @pytest.mark.slow

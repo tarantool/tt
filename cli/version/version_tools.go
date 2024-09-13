@@ -73,28 +73,40 @@ type Version struct {
 	BuildName  string  // Custom build name.
 }
 
-// Parse parses a version string and return the version value it represents.
-func Parse(verStr string) (Version, error) {
-	version := Version{}
-	var err error
-
-	// Part 1 (optional) -> custom build name,
+func createVersionRegexp(isStrict bool) *regexp.Regexp {
+	// Part 1 (optional) -> custom build name, started with letter (not digit)
 	// Part 2 (optional) -> gc suffix,
 	// Part 3            -> major.minor.patch version number,
 	// Part 4 (optional) -> release type and number (e.g: rc2),
 	// Part 5 (optional) -> additional commits,
 	// Part 6 (optional) -> commit hash and revision.
 	// GC suffix is not saved, since it is not part of version.
-	re := regexp.MustCompile(
-		`^((?P<buildname>.+)-)?` +
-			`v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)` +
-			`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
-			`(?:-(?P<additional>\d+))?` +
-			`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?(-gc64|-nogc64)?$`)
+	matchString := `^((?P<buildname>[^\d\.\+-].*)-)?` +
+		`v?(?:(?P<major>\d+)){1}(?:\.(?P<minor>\d+)){1}(?:\.(?P<patch>\d+)){1}` +
+		`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
+		`(?:-(?P<additional>\d+))?` +
+		`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?(-gc64|-nogc64)?$`
+	if !isStrict {
+		matchString = strings.Replace(matchString, "{1}", "?", 3)
+	}
+	return regexp.MustCompile(matchString)
+}
 
-	matches := util.FindNamedMatches(re, verStr)
+func matchVersionParts(version string, isStrict bool) (map[string]string, error) {
+	re := createVersionRegexp(isStrict)
+	matches := util.FindNamedMatches(re, version)
 	if len(matches) == 0 {
-		return version, fmt.Errorf("failed to parse version %q: format is not valid", verStr)
+		return nil, fmt.Errorf("failed to parse version %q: format is not valid", version)
+	}
+	return matches, nil
+}
+
+// Parse parses a version string and return the version value it represents.
+func Parse(verStr string) (Version, error) {
+	version := Version{}
+	matches, err := matchVersionParts(verStr, true)
+	if err != nil {
+		return version, err
 	}
 
 	if matches["buildname"] != "" {
