@@ -75,8 +75,6 @@ const (
 	// We need to give permission for all to execute
 	// read,write for user and only read for others.
 	defaultDirPermissions = 0755
-
-	MajorMinorPatchRegexp = `^[0-9]+\.[0-9]+\.[0-9]+`
 )
 
 // programGitRepoUrls contains URLs of programs git repositories.
@@ -206,20 +204,11 @@ func detectOsName() (string, error) {
 // getVersionsFromRepo returns all available versions from github repository.
 func getVersionsFromRepo(local bool, distfiles string, program string,
 	repolink string) ([]version.Version, error) {
-	versions := []version.Version{}
-	var err error
 
 	if local {
-		versions, err = search.GetVersionsFromGitLocal(filepath.Join(distfiles, program))
-	} else {
-		versions, err = search.GetVersionsFromGitRemote(repolink)
+		return search.GetVersionsFromGitLocal(filepath.Join(distfiles, program))
 	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return versions, nil
+	return search.GetVersionsFromGitRemote(repolink)
 }
 
 // getCommit returns all available commits from repository.
@@ -502,30 +491,25 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	// The tag format in tt is vX.Y.Z, but the user can use the X.Y.Z format
 	// and this option needs to be supported.
 	if ttVersion != "master" {
-		_, err := version.Parse(ttVersion)
-		if err == nil {
+		if version.IsVersion(ttVersion, false) {
 			log.Infof("Searching in versions...")
 			versions, err := getVersionsFromRepo(installCtx.Local, distfiles,
 				"tt", search.GitRepoTT)
 			if err != nil {
 				return err
 			}
-
-			versionMatches, err := regexp.Match(MajorMinorPatchRegexp, []byte(ttVersion))
+			match, err := version.MatchVersion(ttVersion, versions)
 			if err != nil {
-				return err
-			}
-			for _, ver := range versions {
-				if ttVersion == ver.Str || (versionMatches && "v"+ttVersion == ver.Str) {
-					versionFound = true
-					ttVersion = ver.Str
-					break
+				var errNotFound version.NotFoundError
+				if !errors.As(err, &errNotFound) {
+					return err
 				}
+			} else {
+				versionFound = true
+				ttVersion = match
 			}
-			if !versionFound {
-				return fmt.Errorf("%s version of tt doesn't exist", ttVersion)
-			}
-		} else {
+		}
+		if !versionFound {
 			isPullRequest, pullRequestID = util.IsPullRequest(ttVersion)
 
 			if isPullRequest {
@@ -534,13 +518,13 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 				log.Infof("Searching in commits...")
 			}
 
+			var err error
 			ttVersion, pullRequestHash, err = checkCommit(
 				ttVersion, "tt", installCtx, distfiles)
 			if err != nil {
 				return err
 			}
 		}
-
 	}
 
 	versionStr := ""
@@ -1018,24 +1002,25 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 
 	// Check that the version exists.
 	if tarVersion != "master" {
-		_, err := version.Parse(tarVersion)
-		if err == nil {
+		if version.IsVersion(tarVersion, false) {
 			log.Infof("Searching in versions...")
 			versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tarantool",
 				search.GitRepoTarantool)
 			if err != nil {
 				return err
 			}
-			for _, ver := range versions {
-				if tarVersion == ver.Str {
-					versionFound = true
-					break
+			match, err := version.MatchVersion(tarVersion, versions)
+			if err != nil {
+				var errNotFound version.NotFoundError
+				if !errors.As(err, &errNotFound) {
+					return err
 				}
+			} else {
+				versionFound = true
+				tarVersion = match
 			}
-			if !versionFound {
-				return fmt.Errorf("%s version of tarantool doesn't exist", tarVersion)
-			}
-		} else {
+		}
+		if !versionFound {
 			isPullRequest, pullRequestID = util.IsPullRequest(tarVersion)
 
 			if isPullRequest {
@@ -1044,6 +1029,7 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 				log.Infof("Searching in commits...")
 			}
 
+			var err error
 			tarVersion, pullRequestHash, err = checkCommit(
 				tarVersion, "tarantool", installCtx, distfiles)
 			if err != nil {

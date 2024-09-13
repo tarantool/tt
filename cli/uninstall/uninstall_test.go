@@ -189,7 +189,7 @@ func TestGetAllVersionFormats(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ttVersions, err := getAllTtVersionFormats(tc.programName, tc.ttVersion)
 			assert.NoError(t, err)
-			assert.Equal(t, ttVersions, tc.expectedVersions)
+			assert.Equal(t, tc.expectedVersions, ttVersions)
 		})
 	}
 }

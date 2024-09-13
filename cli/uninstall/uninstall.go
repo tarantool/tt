@@ -24,6 +24,8 @@ const (
 		search.ProgramCe + "|" +
 		search.ProgramEe + ")"
 	verRegexp = "(?P<ver>.*)"
+
+	MajorMinorPatchRegexp = `^[0-9]+\.[0-9]+\.[0-9]+`
 )
 
 var errNotInstalled = errors.New("program is not installed")
@@ -157,7 +159,7 @@ func getAllTtVersionFormats(programName, ttVersion string) ([]string, error) {
 	if programName == search.ProgramTt {
 		// Need to determine if we have x.y.z format in tt uninstall argument
 		// to make sure we add version prefix.
-		versionMatches, err := regexp.Match(install.MajorMinorPatchRegexp, []byte(ttVersion))
+		versionMatches, err := regexp.Match(MajorMinorPatchRegexp, []byte(ttVersion))
 		if err != nil {
 			return versionsToDelete, err
 		}
