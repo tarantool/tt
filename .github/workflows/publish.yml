@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: '>=1.21.5'
+  # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
+  GO_VERSION: '1.21.13'
 
 jobs:
   create-packages-linux:
