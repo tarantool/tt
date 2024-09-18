@@ -95,13 +95,15 @@ func TestInstanceLogger(t *testing.T) {
 	assert := assert.New(t)
 
 	reader, writer := io.Pipe()
-	defer writer.Close()
-	defer reader.Close()
 	logger := ttlog.NewCustomLogger(writer, "", 0)
 	consoleSock := ""
 	inst := startTestInstance(t, context.Background(), "log_check_test_app", consoleSock, "",
 		logger)
-	t.Cleanup(func() { cleanupTestInstance(t, inst) })
+	t.Cleanup(func() {
+		defer reader.Close()
+		defer writer.Close()
+		cleanupTestInstance(t, inst)
+	})
 
 	msg := "Check Log.\n"
 	msgLen := int64(len(msg))
