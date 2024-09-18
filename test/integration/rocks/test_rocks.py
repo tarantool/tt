@@ -176,7 +176,7 @@ def test_rocks_install_local_specific_version(tt_cmd, tmp_path):
 @pytest.mark.notarantool
 @pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
 def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):
-    rocks_cmd = [tt_cmd, "rocks", "install", "mysql", "2.1.3-1"]
+    rocks_cmd = [tt_cmd, "rocks", "install", "pg", "2.0.1"]
     pwd = os.environ.get("PWD")
     os.environ["PWD"] = tmpdir_with_tarantool.as_posix()
     tt_process = subprocess.Popen(
@@ -191,7 +191,7 @@ def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):
     assert tt_process.returncode == 0
 
     assert os.path.exists(os.path.join(tmpdir_with_tarantool,
-                                       ".rocks", "lib", "tarantool", "mysql"))
+                                       ".rocks", "lib", "tarantool", "pg"))
 
 
 def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmp_path):
