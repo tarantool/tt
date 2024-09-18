@@ -102,17 +102,21 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 	// Terminate the process at any cost.
 	select {
 	case <-time.After(waitTimeout):
-		// Send "SIGKILL" signal
-		if err := pc.Cmd.Process.Kill(); err != nil {
-			return fmt.Errorf("failed to send SIGKILL to instance: %s", err)
-		} else {
-			// Wait for the process to terminate.
-			<-waitDone
-			return nil
+		if pc.IsAlive() {
+			// Send "SIGKILL" signal if process is still alive.
+			if err := pc.Cmd.Process.Kill(); err != nil {
+				return fmt.Errorf("failed to send SIGKILL to instance: %s", err)
+			} else {
+				// Wait for the process to terminate.
+				<-waitDone
+				return nil
+			}
 		}
 	case err := <-waitDone:
 		return err
 	}
+
+	return nil
 }
 
 // GetPid returns process PID.
