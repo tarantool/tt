@@ -103,7 +103,7 @@ jobs:
       matrix:
         sdk-version:
           - "2.11.2-0-r609.linux.x86_64"
-          - "3.0.0-0-gf58f7d82a-r23.linux.x86_64"
+          - "3.2.0-0-r40.linux.x86_64"
       fail-fast: false
     steps:
         # `ref` as merge request is needed for pull_request_target because this
@@ -278,7 +278,7 @@ jobs:
       matrix:
         sdk-version:
           - "2.11.2-0-r609.linux.x86_64"
-          - "3.0.0-0-gf58f7d82a-r23.linux.x86_64"
+          - "3.2.0-0-r40.linux.x86_64"
       fail-fast: false
     steps:
       # `ref` as merge request is needed for pull_request_target because this
