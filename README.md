@@ -178,6 +178,7 @@ To run tests:
 -   [docker](https://docs.docker.com/engine/install/)
 -   [NodeJS](https://nodejs.org/en/download)
 -   [CMake](https://cmake.org/install/)
+-   [etcd 3+](https://etcd.io/docs/v3.5/install/)
 
 #### Build
 
@@ -222,6 +223,12 @@ TT_CLI_BUILD_SSL=shared mage build
 -   [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 
 #### Run tests
+
+Disable `etcd` service:
+``` console
+systemctl stop etcd
+systemctl disable etcd
+```
 
 Create a virtual environment and install tests requirements:
 
