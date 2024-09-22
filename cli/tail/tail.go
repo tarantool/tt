@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/apex/log"
 	"github.com/fatih/color"
 	"github.com/nxadm/tail"
 )
@@ -163,7 +164,17 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 				t.Stop()
 				t.Wait()
 				return
-			case line := <-t.Lines:
+			case line, more := <-t.Lines:
+				if !more {
+					err := t.Stop()
+					if err != nil {
+						log.Error(err.Error())
+					} else {
+						log.Errorf("The log file %q is unavailable for reading. Exiting.")
+					}
+					close(out)
+					return
+				}
 				out <- logFormatter(line.Text)
 			}
 		}
