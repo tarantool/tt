@@ -273,7 +273,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		"password (used as etcd/tarantool config storage credentials)")
 	removeRolesCmd.Flags().BoolVarP(&rolesChangeCtx.Force, "force", "f", false,
 		"skip selecting a key for patching")
-	integrity.RegisterWithIntegrityFlag(addRolesCmd.Flags(), &clusterIntegrityPrivateKey)
+	integrity.RegisterWithIntegrityFlag(removeRolesCmd.Flags(), &clusterIntegrityPrivateKey)
 
 	rolesCmd.AddCommand(addRolesCmd)
 	rolesCmd.AddCommand(removeRolesCmd)
