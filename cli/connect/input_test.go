@@ -149,7 +149,7 @@ func TestAddStmtPart(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			validator.ret = c
-			result, completed := AddStmtPart(stmt, part, validator)
+			result, completed := AddStmtPart(stmt, part, "", validator)
 			assert.Equal(t, expected, result)
 			assert.Equal(t, c, completed)
 			assert.Equal(t, expected, validator.in)
@@ -178,7 +178,71 @@ func TestAddStmtPart_luaValidator(t *testing.T) {
 	stmt := ""
 	for _, part := range parts {
 		var completed bool
-		stmt, completed = AddStmtPart(stmt, part.str, validator)
+		stmt, completed = AddStmtPart(stmt, part.str, "", validator)
+
+		assert.Equal(t, part.expected, stmt)
+		assert.Equal(t, part.completed, completed)
+	}
+}
+
+func TestAddStmtPart_luaValidator_Delimiter(t *testing.T) {
+	validator := NewLuaValidator()
+	defer validator.Close()
+
+	parts := []struct {
+		str       string
+		expected  string
+		delim     string
+		completed bool
+	}{
+		{
+			"   ",
+			"",
+			"",
+			true,
+		},
+		{
+			"for i = 1,10 do ; ",
+			"for i = 1,10 do ",
+			";",
+			false,
+		},
+		{
+			"    print(x)",
+			"for i = 1,10 do \n    print(x)",
+			"",
+			false,
+		},
+		{
+			"    local j = 5</br>  ",
+			"for i = 1,10 do \n    print(x)\n    local j = 5",
+			"</br>",
+			false,
+		},
+		{
+			"",
+			"for i = 1,10 do \n    print(x)\n    local j = 5\n",
+			";",
+			false,
+		},
+		{
+			" ",
+			"for i = 1,10 do \n    print(x)\n    local j = 5\n\n ",
+			"",
+			false,
+		},
+		{
+			"end\t***  ",
+			"for i = 1,10 do \n    print(x)\n    local j = 5\n\n \nend\t",
+			"***",
+			true,
+		},
+	}
+
+	stmt := ""
+	for _, part := range parts {
+		var completed bool
+		stmt, completed = AddStmtPart(stmt, part.str, part.delim, validator)
 
 		assert.Equal(t, part.expected, stmt)
 		assert.Equal(t, part.completed, completed)

@@ -19,6 +19,9 @@ const setTableDialect = "\\set table_format"
 // width for tables.
 const setTableColumnWidthMaxLong = "\\set table_column_width"
 
+// setDelimiter set a custom expression delimiter for Tarantool console.
+const setDelimiter = "\\set delimiter"
+
 // setTableColumnWidthMaxShort is a short command to set a maximum columnt
 // width for tables.
 const setTableColumnWidthMaxShort = "\\xw"

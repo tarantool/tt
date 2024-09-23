@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
  cluster config (3.0) or cartridge orchestrator.
 
 ### Fixed
+- Command `\set delimiter [marker]` works correctly and don't hangs `tt` console.
 
 - `tt log -f` crash on removing log directory.
 
