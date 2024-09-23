@@ -3,6 +3,7 @@ package connect
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -86,9 +87,25 @@ func (v SQLValidator) Close() error {
 	return nil
 }
 
+// cleanupDelimiter checks if the statement ends with the string `delim`. If yes, it removes it.
+// Returns true if the delimiter has been removed.
+func cleanupDelimiter(stmt string, delim string) (string, bool) {
+	if delim == "" {
+		return stmt, true
+	}
+	no_space := strings.TrimRightFunc(stmt, func(r rune) bool {
+		return unicode.IsSpace(r)
+	})
+	no_delim := strings.TrimSuffix(no_space, delim)
+	if len(no_space) > len(no_delim) {
+		return no_delim, true
+	}
+	return stmt, false
+}
+
 // AddStmtPart adds a new part of the statement. It returns a result statement
 // and true if the statement is already completed.
-func AddStmtPart(stmt, part string, validator Validator) (string, bool) {
+func AddStmtPart(stmt, part, delim string, validator Validator) (string, bool) {
 	if stmt == "" {
 		trimmed := strings.TrimSpace(part)
 		if trimmed != "" {
@@ -98,5 +115,7 @@ func AddStmtPart(stmt, part string, validator Validator) (string, bool) {
 		stmt += "\n" + part
 	}
 
-	return stmt, validator.Validate(stmt)
+	var hasDelim bool
+	stmt, hasDelim = cleanupDelimiter(stmt, delim)
+	return stmt, hasDelim && validator.Validate(stmt)
 }

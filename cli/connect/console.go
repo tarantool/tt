@@ -65,6 +65,7 @@ type Console struct {
 	executor   func(in string)
 	completer  func(in prompt.Document) []prompt.Suggest
 	validators map[Language]ValidateCloser
+	delimiter  string
 
 	prompt *prompt.Prompt
 }
@@ -197,7 +198,7 @@ func getExecutor(console *Console) func(string) {
 
 		var completed bool
 		validator := console.validators[console.language]
-		console.input, completed = AddStmtPart(console.input, in, validator)
+		console.input, completed = AddStmtPart(console.input, in, console.delimiter, validator)
 		if !completed {
 			console.livePrefixEnabled = true
 			return

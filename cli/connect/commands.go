@@ -160,7 +160,7 @@ func (command argSetCmdDecorator) Aliases() []string {
 // Run checks that there is one allowed argument and runs the command.
 func (command argSetCmdDecorator) Run(console *Console,
 	cmd string, args []string) (string, error) {
-	if len(args) != 1 || !find(command.sorted, args[0]) {
+	if len(command.sorted) > 0 && (len(args) != 1 || !find(command.sorted, args[0])) {
 		return "", fmt.Errorf("the command expects one of: %s",
 			strings.Join(command.sorted, ", "))
 	}
@@ -361,6 +361,19 @@ func setTableColumnWidthMaxFunc(console *Console,
 	return "", nil
 }
 
+// setDelimiterMarker apply delimiter to the Console object.
+func setDelimiterMarker(console *Console, cmd string, args []string) (string, error) {
+	switch len(args) {
+	case 0:
+		console.delimiter = ""
+	case 1:
+		console.delimiter = args[0]
+	default:
+		return "", fmt.Errorf("the command expects zero or single argument")
+	}
+	return "", nil
+}
+
 // switchNextFormatFunc switches to a next output format.
 func switchNextFormatFunc(console *Console, cmd string, args []string) (string, error) {
 	console.format = (1 + console.format) % formatter.FormatsAmount
@@ -451,6 +464,14 @@ var cmdInfos = []cmdInfo{
 				[]string{setTableColumnWidthMaxLong},
 				setTableColumnWidthMaxFunc,
 			),
+		),
+	},
+	cmdInfo{
+		Short: setDelimiter + " <marker>",
+		Long:  "set expression delimiter",
+		Cmd: newArgSetCmdDecorator(
+			newBaseCmd([]string{setDelimiter}, setDelimiterMarker),
+			[]string{},
 		),
 	},
 	cmdInfo{

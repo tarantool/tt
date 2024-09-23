@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 
 import psutil
 import pytest
@@ -233,6 +234,7 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
   \\set table_format <format>      -- set table format default, jira or markdown
   \\set graphics <false/true>      -- disables/enables pseudographics for table modes
   \\set table_column_width <width> -- set max column width for table/ttable
+  \\set delimiter <marker>         -- set expression delimiter
   \\xw <width>                     -- set max column width for table/ttable
   \\x                              -- switches output format cyclically
   \\x[l,t,T,y]                     -- set output format lua, table, ttable or yaml
@@ -253,6 +255,8 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
     commands["\\set graphics false"] = ""
     commands["\\set graphics true"] = ""
     commands["\\set table_column_width 1"] = ""
+    commands["\\set delimiter ;"] = ""
+    commands["\\set delimiter"] = ""
     commands["\\xw 1"] = ""
     commands["\\x"] = ""
     commands["\\xl"] = ""
@@ -331,6 +335,7 @@ def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
     commands["\\set graphics arg"] = "⨯ the command expects one boolean"
     commands["\\set table_column_width"] = "⨯ the command expects one unsigned number"
     commands["\\set table_column_width arg"] = "⨯ the command expects one unsigned number"
+    commands["\\set delimiter arg arg"] = "⨯ the command expects zero or single argument"
     commands["\\xw"] = "⨯ the command expects one unsigned number"
     commands["\\xw arg"] = "⨯ the command expects one unsigned number"
     commands["\\x arg"] = "⨯ the command does not expect arguments"
@@ -2595,3 +2600,65 @@ def test_connect_to_cluster_app(tt_cmd):
         # Stop the Instance.
         stop_app(tt_cmd, tmpdir, app_name)
         shutil.rmtree(tmpdir)
+
+
+@pytest.mark.parametrize(
+    "instance, opts, ready_file",
+    (
+        ("test_app", None, Path(run_path, "test_app", control_socket)),
+        (
+            "localhost:3013",
+            {"-u": "test", "-p": "password"},
+            Path("ready"),
+        ),
+    ),
+)
+def test_set_delimiter(
+    tt_cmd, tmpdir_with_cfg, instance: str, opts: None | dict, ready_file: Path
+):
+    input = """local a=1
+a = a + 1
+return a
+"""
+    delimiter = "</br>"
+    tmpdir = Path(tmpdir_with_cfg)
+
+    # The test application file.
+    test_app_path = Path(__file__).parent / "test_localhost_app" / "test_app.lua"
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+    # Check for start.
+    file = wait_file(tmpdir / "test_app" / ready_file.parent, ready_file.name, [])
+    assert file != ""
+
+    # Without delimiter should get an error.
+    ret, output = try_execute_on_instance(
+        tt_cmd,
+        tmpdir,
+        instance,
+        opts=opts,
+        stdin=input,
+    )
+    assert ret
+    assert "attempt to perform arithmetic on global" in output
+
+    # With delimiter expecting correct responses.
+    input = f"\\set delimiter {delimiter}\n{input}{delimiter}\n"
+    ret, output = try_execute_on_instance(
+        tt_cmd, tmpdir, instance, opts=opts, stdin=input
+    )
+    assert ret
+    assert (
+        output
+        == """---
+- 2
+...
+
+"""
+    )
+
+    # Stop the Instance.
+    stop_app(tt_cmd, tmpdir, "test_app")
