@@ -328,9 +328,9 @@ func runTestMain(m *testing.M) int {
 		WorkDir:      workDir,
 		User:         opts.User,
 		Pass:         opts.Pass,
-		WaitStart:    time.Second,
+		WaitStart:    5 * time.Second,
 		ConnectRetry: 5,
-		RetryTimeout: 200 * time.Millisecond,
+		RetryTimeout: 100 * time.Millisecond,
 	})
 	defer test_helpers.StopTarantoolWithCleanup(inst)
 	if err != nil {
