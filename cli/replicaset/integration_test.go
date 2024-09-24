@@ -19,7 +19,7 @@ import (
 )
 
 const workDir = "work_dir"
-const server = "127.0.0.1:3013"
+const server = "127.0.0.1:3015"
 const console = workDir + "/" + "console.control"
 
 var opts = tarantool.Opts{
@@ -166,7 +166,7 @@ func (e *instanceEvalerMock) Eval(instance running.InstanceCtx,
 	require.NotNil(e.T, evaler)
 	data, err := evaler.Eval("return box.cfg.listen", []any{}, connector.RequestOpts{})
 	require.NoError(e.T, err)
-	require.Equal(e.T, []any{"127.0.0.1:3013"}, data)
+	require.Equal(e.T, []any{"127.0.0.1:3015"}, data)
 
 	return e.Done, e.Error
 }
@@ -551,9 +551,9 @@ func runTestMain(m *testing.M) int {
 		WorkDir:      workDir,
 		User:         opts.User,
 		Pass:         opts.Pass,
-		WaitStart:    time.Second,
+		WaitStart:    5 * time.Second,
 		ConnectRetry: 5,
-		RetryTimeout: 200 * time.Millisecond,
+		RetryTimeout: 100 * time.Millisecond,
 	})
 	defer test_helpers.StopTarantoolWithCleanup(inst)
 	if err != nil {

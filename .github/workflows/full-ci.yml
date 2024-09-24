@@ -207,12 +207,6 @@ jobs:
           ETCD_TT_BIN=${ETCD_PATH}etcd;
           pkill -SIGINT -f ${ETCD_TT_BIN} || true
 
-      - name: Kill tarantool, if it was left
-        if: always()
-        run: |
-          TARANTOOL_BIN=${GITHUB_WORKSPACE}/bin/tarantool;
-          pkill -SIGINT -f ${TARANTOOL_BIN} || true
-
   # ee suffix means that the job runs ee integration tests.
   full-ci-macOS-ee:
     if: |
