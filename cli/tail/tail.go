@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/apex/log"
 	"github.com/fatih/color"
@@ -131,7 +132,7 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 
 // Follow sends to the channel each new line from the file as it grows.
 func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, fileName string,
-	n int) error {
+	n int, wg *sync.WaitGroup) error {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return fmt.Errorf("cannot open %q: %w", fileName, err)
@@ -157,7 +158,9 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 		return err
 	}
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			select {
 			case <-ctx.Done():
@@ -172,7 +175,6 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 					} else {
 						log.Errorf("The log file %q is unavailable for reading. Exiting.")
 					}
-					close(out)
 					return
 				}
 				out <- logFormatter(line.Text)

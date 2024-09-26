@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
@@ -74,10 +75,12 @@ func follow(instances []running.InstanceCtx, n int) error {
 	const logLinesChannelCapacity = 64
 	logLines := make(chan string, logLinesChannelCapacity)
 	tailRoutinesStarted := 0
+	// Wait group to wait for completion of all log reading routines to close the channel once.
+	var wg sync.WaitGroup
 	for _, inst := range instances {
 		if err := tail.Follow(ctx, logLines,
 			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color),
-			inst.Log, n); err != nil {
+			inst.Log, n, &wg); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
@@ -89,6 +92,10 @@ func follow(instances []running.InstanceCtx, n int) error {
 	}
 
 	if tailRoutinesStarted > 0 {
+		go func() {
+			wg.Wait()
+			close(logLines)
+		}()
 		return printLines(ctx, logLines)
 	}
 	return nil
