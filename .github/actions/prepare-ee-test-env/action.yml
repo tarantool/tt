@@ -30,6 +30,11 @@ runs:
         with:
           go-version: '${{ env.GO_VERSION }}'
 
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '${{ env.PYTHON_VERSION }}'
+
       - name: Setup Mage
         run: |
           git clone https://github.com/magefile/mage
