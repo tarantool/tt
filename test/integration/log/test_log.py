@@ -256,7 +256,7 @@ def test_log_output_default_follow_want_zero_last(tt_cmd, mock_env_dir):
     assert 'app1:inst0' not in output
 
 
-def test_log__dir_removed_after_follow(tt_cmd, mock_env_dir):
+def test_log_dir_removed_after_follow(tt_cmd, mock_env_dir):
     cmd = [tt_cmd, 'log', '-f']
     process = subprocess.Popen(
         cmd,
@@ -270,7 +270,40 @@ def test_log__dir_removed_after_follow(tt_cmd, mock_env_dir):
                              ['app0:inst0: line 19', 'app1:inst2: line 19',
                               'app0:inst1: line 19', 'app1:inst1: line 19'])
 
-    var_dir = os.path.join(mock_env_dir, 'ie', 'app0', 'var')
+    var_dir = os.path.join(mock_env_dir, 'ie')
+    assert os.path.exists(var_dir)
+    shutil.rmtree(var_dir)
+
+    assert process.wait(2) == 0
+    assert "Failed to detect creation of" in process.stdout.read()
+
+
+# There are two apps in this test: app0 and app1. After removing app0 dirs,
+# tt log -f is still able to monitor the app1 log files, so there should be no issue.
+def test_log_dir_partially_removed_after_follow(tt_cmd, mock_env_dir):
+    cmd = [tt_cmd, 'log', '-f']
+    process = subprocess.Popen(
+        cmd,
+        cwd=mock_env_dir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+
+    wait_for_lines_in_output(process.stdout,
+                             ['app0:inst0: line 19', 'app1:inst2: line 19',
+                              'app0:inst1: line 19', 'app1:inst1: line 19'])
+
+    # Remove one app log dir.
+    var_dir = os.path.join(mock_env_dir, 'ie', 'app0', 'var', 'log')
+    assert os.path.exists(var_dir)
+    shutil.rmtree(var_dir)
+
+    wait_for_lines_in_output(process.stdout, ['Failed to detect creation of'])
+    assert process.poll() is None  # Still running.
+
+    # Remove app1 log dir.
+    var_dir = os.path.join(mock_env_dir, 'ie', 'app1')
     assert os.path.exists(var_dir)
     shutil.rmtree(var_dir)
 

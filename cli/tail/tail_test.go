@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -299,7 +300,8 @@ func TestFollow(t *testing.T) {
 			defer stop()
 			in := make(chan string)
 			err = Follow(ctx, in,
-				func(str string) string { return str }, outFile.Name(), tt.nLines)
+				func(str string) string { return str }, outFile.Name(), tt.nLines,
+				&sync.WaitGroup{})
 			require.NoError(t, err)
 
 			if tt.nLines > 0 && len(tt.expectedLastLines) > 0 {
