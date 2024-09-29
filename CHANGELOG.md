@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Command `\set delimiter [marker]` works correctly and don't hangs `tt` console.
 
 - `tt log -f` crash on removing log directory.
+- `tt connect` crash due to an empty response.
 
 ### Changed
 

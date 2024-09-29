@@ -122,13 +122,20 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	// Check that the result is encoded in YAML and convert it to bytes,
 	// since the ""gopkg.in/yaml.v2" library handles YAML as an array
 	// of bytes.
-	resYAML := []byte((response[0]).(string))
+	var resYAML string
+	if len(response) > 0 {
+		if str, ok := response[0].(string); ok {
+			resYAML = str
+		} else {
+			return nil, fmt.Errorf("unexpected response type: %T", response[0])
+		}
+	}
 	var checkMock interface{}
-	if err = yaml.Unmarshal(resYAML, &checkMock); err != nil {
+	if err = yaml.Unmarshal([]byte(resYAML), &checkMock); err != nil {
 		return nil, err
 	}
 
-	return resYAML, nil
+	return []byte(resYAML), nil
 }
 
 // runConsole run a new console.
