@@ -66,13 +66,18 @@ def stop_app(tt_cmd, tmpdir, app_name):
 def try_execute_on_instance(tt_cmd, tmpdir, instance,
                             file_path=None,
                             stdin=None,
+                            stdin_as_file=False,
                             env=None,
                             opts=None,
                             args=None):
     connect_cmd = [tt_cmd, "connect", instance]
+
     if file_path is not None:
         connect_cmd.append("-f")
         connect_cmd.append(file_path)
+
+    if stdin_as_file:
+        connect_cmd.append("-f-")
 
     if opts is not None:
         for k, v in opts.items():
@@ -138,6 +143,12 @@ def get_version(tt_cmd, tmpdir):
     return False, 0, 0, 0
 
 
+def is_quit_supported(tt_cmd, tmpdir):
+    ok, major, minor, patch = get_version(tt_cmd, tmpdir)
+    assert ok
+    return major >= 2
+
+
 def is_language_supported(tt_cmd, tmpdir):
     ok, major, minor, patch = get_version(tt_cmd, tmpdir)
     assert ok
@@ -167,6 +178,11 @@ def is_tarantool_major_one():
     if instance_process.returncode == 0:
         return "Tarantool 1." in instance_process.stdout
     return False
+
+
+def skip_if_quit_unsupported(tt_cmd, tmpdir):
+    if not is_quit_supported(tt_cmd, tmpdir):
+        pytest.skip("\\q is unsupported")
 
 
 def skip_if_language_unsupported(tt_cmd, tmpdir, test_app):
@@ -355,6 +371,38 @@ def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
             assert ret
 
             assert value in output
+    finally:
+        stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_connect_and_execute_quit(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    empty_file = "empty.lua"
+
+    skip_if_quit_unsupported(tt_cmd, tmpdir)
+
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
+                     control_socket, [])
+    assert file != ""
+
+    try:
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app",
+                                              stdin="\\q",
+                                              stdin_as_file=True)
+        assert ret
+
+        assert output == "\n"
     finally:
         stop_app(tt_cmd, tmpdir, "test_app")
 
