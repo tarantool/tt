@@ -1,6 +1,7 @@
 package running
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -150,6 +151,9 @@ func (inst *baseInstance) StopWithSignal(waitTimeout time.Duration, usedSignal o
 func (inst *baseInstance) Run(opts RunOpts) error {
 	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return errors.New("tarantool executable is not found")
+		}
 		return err
 	}
 	f.Close()

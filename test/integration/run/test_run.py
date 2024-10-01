@@ -3,6 +3,10 @@ import re
 import shutil
 import subprocess
 
+import pytest
+
+from utils import config_name
+
 
 def test_run_base_functionality(tt_cmd, tmpdir_with_cfg):
     # Copy the test application to the "run" directory.
@@ -128,3 +132,23 @@ def test_run_from_input(tt_cmd, tmpdir_with_cfg):
     run_output = process.stdout.readlines()
     assert re.search(r"a\s+b\s+c", run_output[0])
     assert re.search(r"a\s+b\s+c", run_output[0])
+
+
+@pytest.mark.notarantool
+@pytest.mark.skipif(shutil.which("tarantool") is not None, reason="tarantool found in PATH")
+def test_run_without_tarantool(tt_cmd, tmp_path):
+    with open(tmp_path / config_name, "w") as f:
+        f.write('env:')
+
+    run_cmd = [tt_cmd, "run", "--version"]
+    tt_process = subprocess.Popen(
+        run_cmd,
+        cwd=tmp_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True
+    )
+
+    tt_process.wait(3)
+    assert tt_process.returncode != 0
+    assert "tarantool executable is not found" in tt_process.stdout.read()
