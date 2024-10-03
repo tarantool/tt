@@ -187,6 +187,13 @@ jobs:
         run: |
           echo "TT_CLI_TARANTOOL_PREFIX=${GITHUB_WORKSPACE}/include/" >> $GITHUB_ENV
 
+      # Sometimes CI on macOS terminates with a “docker daemon not running” error.
+      # To prevent this we set the path to the docker socket directly.
+      - name: Prepare Docker
+        run: |
+          echo "DOCKER_HOST=unix:///${HOME}/.docker/run/docker.sock" >> $GITHUB_ENV
+          docker context use default
+
       - name: Unit tests
         run: mage unit
 
