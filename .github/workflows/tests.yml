@@ -197,8 +197,10 @@ jobs:
       - name: Unit tests
         run: mage unit
 
+      # We need to override TMPDIR here because of the very long path in macOS tests
+      # which causes a very long socket path error.
       - name: Run integration tests
-        run: mage integration
+        run: TMPDIR=/tmp mage integration
 
       # Etcd can be still running after integration tests when:
       # 1. pytest recieve SIGALRM (can be caused by pytest-timeout plugin)
