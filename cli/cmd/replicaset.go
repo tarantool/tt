@@ -46,11 +46,41 @@ var (
 	replicasetIsGlobal                 bool
 	rebootstrapConfirmed               bool
 
+	chosenReplicasetAliases []string
+	lsnTimeout              int
+
 	replicasetUriHelp = "  The URI can be specified in the following formats:\n" +
 		"  * [tcp://][username:password@][host:port]\n" +
 		"  * [unix://][username:password@]socketpath\n" +
 		"  To specify relative path without `unix://` use `./`."
 )
+
+// newUpgradeCmd creates a "replicaset upgrade" command.
+func newUpgradeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "upgrade (<APP_NAME>) [flags]",
+		DisableFlagsInUseLine: true,
+		Short:                 "Upgrade tarantool cluster",
+		Long: "Upgrade tarantool cluster.\n\n" +
+			libconnect.EnvCredentialsHelp + "\n\n",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalReplicasetUpgradeModule, args)
+			util.HandleCmdErr(cmd, err)
+		},
+		Args: cobra.ExactArgs(1),
+	}
+
+	cmd.Flags().StringArrayVarP(&chosenReplicasetAliases, "replicaset", "r",
+		[]string{}, "specify the replicaset name(s) to upgrade")
+
+	cmd.Flags().IntVarP(&lsnTimeout, "timeout", "t", 5,
+		"timeout for waiting the LSN synchronization (in seconds)")
+
+	addOrchestratorFlags(cmd)
+	return cmd
+}
 
 // newStatusCmd creates a "replicaset status" command.
 func newStatusCmd() *cobra.Command {
@@ -341,6 +371,7 @@ func NewReplicasetCmd() *cobra.Command {
 		Aliases: []string{"rs"},
 	}
 
+	cmd.AddCommand(newUpgradeCmd())
 	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newPromoteCmd())
 	cmd.AddCommand(newDemoteCmd())
@@ -490,6 +521,26 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 	return nil
 }
 
+// internalReplicasetUpgradeModule is a "upgrade" command for the replicaset module.
+func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	var ctx replicasetCtx
+	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+		return err
+	}
+	if ctx.IsInstanceConnect {
+		defer ctx.Conn.Close()
+	}
+	return replicasetcmd.Upgrade(replicasetcmd.DiscoveryCtx{
+		IsApplication: ctx.IsApplication,
+		RunningCtx:    ctx.RunningCtx,
+		Conn:          ctx.Conn,
+		Orchestrator:  ctx.Orchestrator,
+	}, replicasetcmd.UpgradeOpts{
+		ChosenReplicasetAliases: chosenReplicasetAliases,
+		LsnTimeout:              lsnTimeout,
+	})
+}
+
 // internalReplicasetPromoteModule is a "promote" command for the replicaset module.
 func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
@@ -561,7 +612,7 @@ func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 	if ctx.IsInstanceConnect {
 		defer ctx.Conn.Close()
 	}
-	return replicasetcmd.Status(replicasetcmd.StatusCtx{
+	return replicasetcmd.Status(replicasetcmd.DiscoveryCtx{
 		IsApplication: ctx.IsApplication,
 		RunningCtx:    ctx.RunningCtx,
 		Conn:          ctx.Conn,
