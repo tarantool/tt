@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt log -f` crash on removing log directory.
 - `tt connect` crash due to an empty response.
+- `tt start` error on start Tarantool 3 with encrypted etcd.
 
 ### Changed
 
