@@ -129,7 +129,7 @@ type ClusterConfig struct {
 			Prefix    string   `yaml:"prefix"`
 			Ssl       struct {
 				KeyFile    string `yaml:"ssl_key"`
-				CertFile   string `yaml:"cert_file"`
+				CertFile   string `yaml:"ssl_cert"`
 				CaPath     string `yaml:"ca_path"`
 				CaFile     string `yaml:"ca_file"`
 				VerifyPeer bool   `yaml:"verify_peer"`

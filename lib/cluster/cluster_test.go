@@ -141,7 +141,7 @@ func TestMakeClusterConfig_settings(t *testing.T) {
 		expected.Config.Etcd.Prefix)
 	config.Set([]string{"config", "etcd", "ssl", "ssl_key"},
 		expected.Config.Etcd.Ssl.KeyFile)
-	config.Set([]string{"config", "etcd", "ssl", "cert_file"},
+	config.Set([]string{"config", "etcd", "ssl", "ssl_cert"},
 		expected.Config.Etcd.Ssl.CertFile)
 	config.Set([]string{"config", "etcd", "ssl", "ca_path"},
 		expected.Config.Etcd.Ssl.CaPath)
