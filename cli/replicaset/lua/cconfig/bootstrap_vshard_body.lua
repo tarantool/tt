@@ -24,7 +24,7 @@ local deadline = fiber.time() + timeout
 local ok, err
 
 while fiber.time() < deadline do
-    ok, err = vshard.router.bootstrap()
+    ok, err = vshard.router.bootstrap({timeout = timeout})
     if ok then
         break
     end
