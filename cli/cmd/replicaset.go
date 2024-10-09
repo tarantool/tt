@@ -36,6 +36,7 @@ var (
 	replicasetSslCiphers               string
 	replicasetForce                    bool
 	replicasetTimeout                  int
+	replicasetBootstrapTimeout         int
 	replicasetIntegrityPrivateKey      string
 	replicasetBootstrapVshard          bool
 	replicasetCartridgeReplicasetsFile string
@@ -178,8 +179,8 @@ func newBootstrapCmd() *cobra.Command {
 		`file where replicasets configuration is described (default "<APP_DIR>/replicasets.yml")`)
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "",
 		"", "replicaset name for an instance bootstrapping")
-	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "", replicasetcmd.
-		VShardBootstrapDefaultTimeout, "timeout")
+	cmd.Flags().IntVarP(&replicasetBootstrapTimeout, "timeout", "",
+		replicasetcmd.VShardBootstrapDefaultTimeout, "timeout")
 
 	return cmd
 }
@@ -206,7 +207,7 @@ func newBootstrapVShardCmd() *cobra.Command {
 	addOrchestratorFlags(cmd)
 	addTarantoolConnectFlags(cmd)
 	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
-	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
+	cmd.Flags().IntVarP(&replicasetBootstrapTimeout, "timeout", "",
 		replicasetcmd.VShardBootstrapDefaultTimeout, "timeout")
 
 	return cmd
@@ -619,7 +620,7 @@ func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []s
 		Orchestrator:  ctx.Orchestrator,
 		Publishers:    publishers,
 		Collectors:    collectors,
-		Timeout:       replicasetTimeout,
+		Timeout:       replicasetBootstrapTimeout,
 	})
 }
 
@@ -638,7 +639,7 @@ func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 		ReplicasetsFile: replicasetCartridgeReplicasetsFile,
 		Orchestrator:    ctx.Orchestrator,
 		RunningCtx:      ctx.RunningCtx,
-		Timeout:         replicasetTimeout,
+		Timeout:         replicasetBootstrapTimeout,
 		BootstrapVShard: replicasetBootstrapVshard,
 		Replicaset:      replicasetReplicasetName,
 	}

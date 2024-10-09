@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt start` error on start Tarantool 3 with encrypted etcd.
 - `tt replicaset vshard bootstrap` unable to bootstrap large clusters due to
   a timeout.
+- `tt replicaset vshard bootstrap` timeout was 3s instead of 10s.
 
 ### Changed
 
