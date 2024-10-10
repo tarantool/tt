@@ -1,9 +1,13 @@
+import itertools
 import os
 import re
 import shutil
 import signal
 import subprocess
 import tempfile
+import time
+from collections import namedtuple
+from datetime import datetime
 
 import psutil
 import pytest
@@ -13,7 +17,8 @@ from retry import retry
 from utils import (config_name, control_socket, extract_status, initial_snap,
                    initial_xlog, kill_child_process, lib_path, log_file,
                    log_path, pid_file, run_command_and_get_output, run_path,
-                   wait_file, wait_for_lines_in_output, wait_instance_start,
+                   wait_event, wait_file, wait_file_changed, wait_file_path,
+                   wait_for_lines_in_output, wait_instance_start,
                    wait_instance_stop, wait_string_in_file)
 
 
@@ -21,7 +26,13 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
-    shutil.copy(test_app_path, tmpdir)
+    print(test_app_path)
+    print(tmpdir)
+    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+    dst = shutil.copy(test_app_path, tmpdir)
+    os.path.exists(dst)
+    print(f"shutil.copy: dst={dst}")
+    print(f"os.path.exists(dst): {os.path.exists(dst)}")
 
     # Start an instance.
     start_cmd = [tt_cmd, "start", "test_app"]
@@ -40,7 +51,6 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     assert file != ""
 
     # Check working directory. tt creates a working dir for single instance apps using its name
-    # without .lua ext.
     file = wait_file(os.path.join(tmpdir, "test_app"), 'flag', [])
     assert file != ""
 
@@ -242,108 +252,734 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
     assert_file_cleaned(os.path.join(lib_dir, initial_xlog), app_name, clean_out)
 
 
-def test_running_base_functionality_working_dir_app(tt_cmd):
-    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
-    instances = ["router", "master", "replica", "stateboard"]
+class TtApp(object):
+    # Helper type to represent target. Commands (start, stop, etc.) treat it as following:
+    # None - no target at all (ex: tt start)
+    # Target(None) - app name only (ex: tt start some_app)
+    # Target('some_inst') - app:inst target (ex: tt start some_app:some_inst)
+    Target = namedtuple('Target', ['inst_name'])
+    # This class variable can be used when
+    app_target = Target(None)
+
+    @staticmethod
+    def match_inst_target(target, inst_name):
+        return target is None or target.inst_name is None or target.inst_name == inst_name
+
+    Input = namedtuple('Input', ['str', 'is_confirm'])
+
+    @staticmethod
+    def is_confirm(input):
+        return input is None or input.is_confirm
+
+    def __init__(self, tt_cmd, tmpdir, app_name, inst_names):
+        self.__app_name = app_name
+        self.__inst_names = inst_names
+        self.__tt_cmd = tt_cmd
+        # if False:
+        #     # Copy the test application to the "run" directory.
+        #     if os.path.isdir(app_path):
+        #         print("shutil.copytree")
+        #         shutil.copytree(app_path, tmpdir)
+        #         app_name = os.path.basename(app_path)
+        #     else:
+        #         print("shutil.copy")
+        #         shutil.copy(app_path, tmpdir)
+        #         app_name = os.path.splitext(app_path)[0]
+        #     print(f"app_path={app_path}")
+        #     print(f"app_name={app_name}")
+        #     print(f"tmpdir={tmpdir}")
+        #     print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+        app_dir = os.path.join(os.path.dirname(__file__), app_name)
+        self.__app_dir = shutil.copytree(app_dir, os.path.join(tmpdir, app_name))
+
+    def __del__(self):
+        print(f"TtApp.__del__: {datetime.now()}: self.stop() before")
+        self.stop()
+        print(f"TtApp.__del__: {datetime.now()}: self.stop() after")
+
+    def __run_tt(self, cmd, target, input=None, force_flag=None):
+        cmd = [self.__tt_cmd, cmd]
+        if input is None and force_flag is not None:
+            cmd.append(force_flag)
+        if target is not None:
+            if target.inst_name is None:
+                cmd.append(self.__app_name)
+            else:
+                cmd.append(f'{self.__app_name}:{target.inst_name}')
+        print(f"TtApp.__run_tt: cmd: {cmd}")
+        if input is not None:
+            input = input.str
+        return run_command_and_get_output(cmd, cwd=self.__app_dir, input=input)
+
+    def inst_id(self, inst_name):
+        return f"{self.__app_name}:{inst_name}"
+
+    @property
+    def app_dir(self):
+        return self.__app_dir
+
+    @property
+    def inst_names(self):
+        return self.__inst_names
+
+    def status(self, target=app_target):
+        rc, out = self.__run_tt("status", target)
+        assert rc == 0
+        return extract_status(out)
+
+    def app_path(self, *paths):
+        return os.path.join(self.app_dir, *paths)
+
+    def run_path(self, inst_name, *paths):
+        return os.path.join(self.app_dir, run_path, inst_name, *paths)
+
+    def lib_path(self, inst_name, *paths):
+        return os.path.join(self.app_dir, lib_path, inst_name, *paths)
+
+    def log_path(self, inst_name, *paths):
+        return os.path.join(self.app_dir, log_path, inst_name, *paths)
+
+    def start(self, target=app_target, post=None):
+        rc, out = self.__run_tt("start", target)
+        print(f"TtApp.start: out:\n{out}")
+        if post is not None:
+            post(self, target)
+        return rc, out
+
+    def stop(self, target=app_target, input=None):
+        return self.__run_tt("stop", target, input, "-y")
+
+    def restart(self, target=app_target, input=None, post=None):
+        rc, out = self.__run_tt("restart", target, input, "-y")
+        print(f"TtApp.restart: out:\n{out}")
+        if post is not None:
+            post(self, target)
+        return rc, out
+
+    def kill(self, target=app_target, input=None):
+        return self.__run_tt("kill", target, input, "-f")
+
+    def clean(self, target=app_target, input=None):
+        return self.__run_tt("clean", target, input, "-f")
+
+    def logrotate(self, target=app_target):
+        return self.__run_tt("logrotate", target)
+
+
+def post_start_base2(app, target):
+    for inst_name in app.inst_names:
+        if app.match_inst_target(target, inst_name):
+            assert wait_file_path(app.run_path(inst_name, pid_file))
+
+
+def post_start_base(app, target):
+    print(f'{datetime.now()}: post_start_base: enter')
+
+    files = []
+    for inst_name in app.inst_names:
+        if app.match_inst_target(target, inst_name):
+            files.append(app.run_path(inst_name, pid_file))
+
+    def files_exist():
+        print(f'{datetime.now()}: files_exist: enter')
+        for file in files:
+            if not os.path.exists(file):
+                print(f"{datetime.now()}: {file} doesn't exist...")
+                print(f'{datetime.now()}: files_exist: leave (False)')
+                return False
+            print(f"{datetime.now()}: {file} exists!")
+        print(f'{datetime.now()}: files_exist: leave (True)')
+        return True
+    print(f'{datetime.now()}: post_start_base: start waiting...')
+    return wait_event(10, files_exist, 0.1)
+
+
+def post_start_make_identical_subdir(app, target):
+    post_start_base(app, target)
+    os.mkdir(app.app_path(os.path.basename(app.app_dir)))
+
+
+def post_start_remove_app_script(app, target):
+    post_start_base(app, target)
+    time.sleep(0.5)
+    os.remove(app.app_path("init.lua"))
+
+
+def post_start_wait_for_log(app, target):
+    post_start_base(app, target)
+    for inst_name in app.inst_names:
+        if app.match_inst_target(target, inst_name):
+            assert wait_file_path(app.run_path(inst_name, log_file))
+
+
+def post_start_wait_for_data(app, target):
+    post_start_base(app, target)
+    for inst_name in app.inst_names:
+        if app.match_inst_target(target, inst_name):
+            assert wait_file_path(app.lib_path(inst_name, initial_snap))
+            assert wait_file_path(app.lib_path(inst_name, initial_xlog))
+            assert wait_file_path(app.log_file(inst_name, log_file))
+
+
+@pytest.mark.parametrize('post_start', [
+    post_start_base,
+    # post_start_make_identical_subdir,
+    # post_start_remove_app_script,
+])
+@pytest.mark.parametrize('target', [
+    None,
+    TtApp.app_target,
+    TtApp.Target("master"),
+    TtApp.Target("router"),
+])
+def test_multi_inst_base(tt_cmd, tmpdir_with_cfg, post_start, target):
+    app_name = "multi_inst_app"
+    inst_names = ["router", "master", "replica", "stateboard"]
 
     # Default temporary directory may have very long path. This can cause socket path buffer
     # overflow. Create our own temporary directory.
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_app_path = os.path.join(tmpdir, "app")
-        shutil.copytree(test_app_path_src, test_app_path)
+    # with tempfile.TemporaryDirectory() as tmpdir:
+    for tmpdir in [tmpdir_with_cfg]:
+        app = TtApp(tt_cmd, tmpdir, app_name, inst_names)
+        status = app.status()
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            assert status[inst_id]["STATUS"] == "NOT RUNNING"
 
-        for subdir in ["", "app"]:
-            if subdir != "":
-                os.mkdir(os.path.join(test_app_path, "app"))
-            # Start an instance.
-            start_cmd = [tt_cmd, "start", "app"]
-            instance_process = subprocess.Popen(
-                start_cmd,
-                cwd=test_app_path,
-                stderr=subprocess.STDOUT,
-                stdout=subprocess.PIPE,
-                text=True
-            )
-            start_output = instance_process.stdout.readline()
-            assert re.search(r"Starting an instance \[app:(router|master|replica|stateboard)\]",
-                             start_output)
+        # Regular start
+        rc, out = app.start(target, post_start)
+        assert rc == 0
+        status = app.status()
+        print(f"status: {status}")
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            if app.match_inst_target(target, inst_name):
+                assert status[inst_id]["STATUS"] == "RUNNING"
+                assert re.search(r"Starting an instance \[{}\]".format(inst_id), out)
+            else:
+                assert status[inst_id]["STATUS"] == "NOT RUNNING"
+                assert not re.search(inst_id, out)
 
-            # Check status.
-            for instName in instances:
-                print(os.path.join(test_app_path, "run", "app", instName))
-                file = wait_file(os.path.join(test_app_path, run_path, instName), pid_file, [])
-                assert file != ""
+        # Start when already running
+        rc, out = app.start(target, post_start)
+        assert rc == 0
+        old_status = status
+        print(f'old_status: {old_status}')
+        status = app.status()
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            if app.match_inst_target(target, inst_name):
+                assert status[inst_id]["STATUS"] == "RUNNING"
+                assert status[inst_id]["PID"] == old_status[inst_id]["PID"]
+                msg = r"The instance {} \(PID = \d+\) is already running.".format(inst_id)
+                assert re.search(msg, out)
+            else:
+                assert status[inst_id]["STATUS"] == "NOT RUNNING"
+                assert not re.search(inst_id, out)
 
-            status_cmd = [tt_cmd, "status", "app"]
-            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
-            assert status_rc == 0
-            status_out = extract_status(status_out)
+        # Regular stop
+        rc, out = app.stop(target)
+        print(f'app.stop: out: {out}')
+        assert rc == 0
+        status = app.status()
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            assert status[inst_id]["STATUS"] == "NOT RUNNING"
+            if app.match_inst_target(target, inst_name):
+                msg = r"The Instance {} \(PID = \d+\) has been terminated.".format(inst_id)
+                assert re.search(msg, out)
+            else:
+                assert not re.search(inst_id, out)
 
-            for instName in instances:
-                assert status_out[f"app:{instName}"]["STATUS"] == "RUNNING"
-
-            # Stop the application.
-            stop_cmd = [tt_cmd, "stop", "-y", "app"]
-            stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
-            assert stop_rc == 0
-            assert re.search(r"The Instance app:(router|master|replica|stateboard) \(PID = \d+\) "
-                             r"has been terminated.", stop_out)
-
-            # Check that the process was terminated correctly.
-            instance_process_rc = instance_process.wait(1)
-            assert instance_process_rc == 0
+        # Stop when not running
+        rc, out = app.stop(target)
+        assert rc == 0
+        status = app.status()
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            assert status[inst_id]["STATUS"] == "NOT RUNNING"
 
 
-def test_running_base_functionality_working_dir_app_no_app_name(tt_cmd):
-    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
-    instances = ["router", "master", "replica", "stateboard"]
+################################################################
+# start
+
+def check_multi_inst_start(tt_cmd, tmpdir_with_cfg, is_running, post_start, target):
+    app_name = "multi_inst_app"
+    inst_names = ["router", "master", "replica", "stateboard"]
 
     # Default temporary directory may have very long path. This can cause socket path buffer
     # overflow. Create our own temporary directory.
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_app_path = os.path.join(tmpdir, "app")
-        shutil.copytree(test_app_path_src, test_app_path)
+    # with tempfile.TemporaryDirectory() as tmpdir:
+    for tmpdir in [tmpdir_with_cfg]:
+        # Prepare the application considering is_running parameter.
+        app = TtApp(tt_cmd, tmpdir, app_name, inst_names)
+        if is_running:
+            rc, out = app.start(target, post_start)
+            assert rc == 0
+        print(f"{datetime.now()}: initial status: before")
+        status = app.status()
+        print(f"{datetime.now()}: initial status: after")
 
-        for subdir in ["", "app"]:
-            if subdir != "":
-                os.mkdir(os.path.join(test_app_path, "app"))
-            # Start an instance.
-            start_cmd = [tt_cmd, "start"]
-            instance_process = subprocess.Popen(
-                start_cmd,
-                cwd=test_app_path,
-                stderr=subprocess.STDOUT,
-                stdout=subprocess.PIPE,
-                text=True
-            )
-            start_output = instance_process.stdout.readline()
-            assert re.search(r"Starting an instance \[app:(router|master|replica|stateboard)\]",
-                             start_output)
+        # Check start.
+        rc, out = app.start(target, post_start)
+        assert rc == 0
+        old_status = status
+        print(f'old_status: {old_status}')
+        status = app.status()
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            if app.match_inst_target(target, inst_name):
+                assert status[inst_id]["STATUS"] == "RUNNING"
+                if is_running:
+                    assert status[inst_id]["PID"] == old_status[inst_id]["PID"]
+                    msg = r"The instance {} \(PID = \d+\) is already running.".format(inst_id)
+                    assert re.search(msg, out)
+                else:
+                    assert re.search(r"Starting an instance \[{}\]".format(inst_id), out)
+            else:
+                assert status[inst_id]["STATUS"] == "NOT RUNNING"
+                assert not re.search(inst_id, out)
 
-            # Check status.
-            for instName in instances:
-                print(os.path.join(test_app_path, "run", "app", instName))
-                file = wait_file(os.path.join(test_app_path, run_path, instName), pid_file, [])
-                assert file != ""
 
-            status_cmd = [tt_cmd, "status"]
-            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
-            assert status_rc == 0
-            status_out = extract_status(status_out)
+@pytest.mark.parametrize("is_running", [
+    pytest.param(True, id="RUNNING"),
+    pytest.param(False, id="NOT_RUNNING"),
+])
+@pytest.mark.parametrize("post_start", [
+    post_start_base,
+    # post_start_make_identical_subdir,
+])
+@pytest.mark.parametrize("target", [
+    pytest.param(None, id="NO_TARGET"),
+    pytest.param(TtApp.app_target, id="APP_TARGET"),
+    pytest.param(TtApp.Target("master"), id="master"),
+    pytest.param(TtApp.Target("router"), id="router"),
+])
+def test_multi_inst_start(tt_cmd, tmpdir_with_cfg, is_running, post_start, target):
+    check_multi_inst_start(tt_cmd, tmpdir_with_cfg, is_running, post_start, target)
 
-            for instName in instances:
-                assert status_out[f"app:{instName}"]["STATUS"] == "RUNNING"
 
-            # Stop the application.
-            stop_cmd = [tt_cmd, "stop", "-y"]
-            stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
-            assert stop_rc == 0
-            assert re.search(r"The Instance app:(router|master|replica|stateboard) \(PID = \d+\) "
-                             r"has been terminated.", stop_out)
+################################################################
+# restart
 
-            # Check that the process was terminated correctly.
-            instance_process_rc = instance_process.wait(1)
-            assert instance_process_rc == 0
+def check_multi_inst_restart(tt_cmd, tmpdir_with_cfg, is_running, post_start, target, input):
+    print(f"{datetime.now()}: test: enter")
+    app_name = "multi_inst_app"
+    inst_names = ["router", "master", "replica", "stateboard"]
+
+    # Default temporary directory may have very long path. This can cause socket path buffer
+    # overflow. Create our own temporary directory.
+    # with tempfile.TemporaryDirectory() as tmpdir:
+    for tmpdir in [tmpdir_with_cfg]:
+        # Prepare the application considering is_running parameter.
+        app = TtApp(tt_cmd, tmpdir, app_name, inst_names)
+        if is_running:
+            rc, out = app.start(target, post_start)
+            assert rc == 0
+        print(f"{datetime.now()}: initial status: before")
+        status = app.status()
+        print(f"{datetime.now()}: initial status: after")
+
+        # Do restart.
+        post_restart = post_start if input is None or input.is_confirm else None
+        print(f"{datetime.now()}: restart: before")
+        rc, out = app.restart(target, input, post_restart)
+        print(f"{datetime.now()}: restart: after")
+        assert rc == 0
+        old_status = status
+        status = app.status()
+        print(f"{datetime.now()}: old_status: {old_status}")
+        print(f"{datetime.now()}: status: {status}")
+
+        # Check the discarding.
+        if not app.is_confirm(input):
+            assert re.search(r"Restart is cancelled.", out)
+            for inst_name in app.inst_names:
+                inst_id = app.inst_id(inst_name)
+                assert status[inst_id]["STATUS"] == old_status[inst_id]["STATUS"]
+                if app.match_inst_target(target, inst_name) and is_running:
+                    assert status[inst_id]["PID"] == old_status[inst_id]["PID"]
+            return
+
+        if is_running:
+            # Make sure all involved PIDs are updated.
+            for inst_name in app.inst_names:
+                if app.match_inst_target(target, inst_name):
+                    inst_id = app.inst_id(inst_name)
+                    old_pid = old_status[inst_id]["PID"]
+                    wait_file_changed(app.run_path(inst_name, pid_file), str(old_pid))
+            status = app.status()
+            print(f"status*: {status}")
+
+        # Check the confirmation.
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            if app.match_inst_target(target, inst_name):
+                if is_running:
+                    assert status[inst_id]["PID"] != old_status[inst_id]["PID"]
+                    msg = r"The Instance {} \(PID = \d+\) has been terminated.".format(inst_id)
+                    assert re.search(msg, out)
+                assert status[inst_id]["STATUS"] == "RUNNING"
+                assert re.search(r"Starting an instance \[{}\]".format(inst_id), out)
+            else:
+                assert status[inst_id]["STATUS"] == "NOT RUNNING"
+                assert not re.search(inst_id, out)
+
+
+# Check restart with auto-confirmation (force restart).
+@pytest.mark.parametrize("is_running", [
+    pytest.param(True, id="RUNNING"),
+    pytest.param(False, id="NOT_RUNNING"),
+])
+@pytest.mark.parametrize("post_start", [
+    post_start_base,
+    # post_start_make_identical_subdir,
+])
+@pytest.mark.parametrize("target", [
+    pytest.param(None, id="NO_TARGET"),
+    pytest.param(TtApp.app_target, id="APP_TARGET"),
+    pytest.param(TtApp.Target("master"), id="master"),
+    pytest.param(TtApp.Target("router"), id="router"),
+])
+def test_multi_inst_restart(tt_cmd, tmpdir_with_cfg, is_running, post_start, target):
+    check_multi_inst_restart(tt_cmd, tmpdir_with_cfg, is_running, post_start, target, None)
+
+
+# Check restart with the various inputs.
+@pytest.mark.parametrize("is_running", [
+    pytest.param(True, id="RUNNING"),
+    pytest.param(False, id="NOT_RUNNING"),
+])
+@pytest.mark.parametrize("input", [
+    TtApp.Input("y\n", True),  # confirm (lowercase)
+    TtApp.Input("Y\n", True),  # confirm (uppercase)
+    TtApp.Input("nn\nny\ny\n", True),  # confirm preceded with the wrong answers
+    TtApp.Input("n\n", False),  # discard (lowercase)
+    TtApp.Input("N\n", False),  # discard (uppercase)
+    TtApp.Input("yy\nyn\nn\n", False),  # discard preceded with the wrong answers
+])
+def test_multi_inst_restart_input(tt_cmd, tmpdir_with_cfg, is_running, input):
+    check_multi_inst_restart(tt_cmd, tmpdir_with_cfg, is_running, post_start_base, TtApp.app_target,
+                             input)
+
+
+################################################################
+# stop
+
+def check_multi_inst_stop(tt_cmd, tmpdir_with_cfg, is_running, post_start, target, input):
+    print(f"{datetime.now()}: test: enter")
+    app_name = "multi_inst_app"
+    inst_names = ["router", "master", "replica", "stateboard"]
+
+    # Default temporary directory may have very long path. This can cause socket path buffer
+    # overflow. Create our own temporary directory.
+    # with tempfile.TemporaryDirectory() as tmpdir:
+    for tmpdir in [tmpdir_with_cfg]:
+        # Prepare the application considering is_running parameter.
+        app = TtApp(tt_cmd, tmpdir, app_name, inst_names)
+        if is_running:
+            rc, out = app.start(target, post_start)
+            assert rc == 0
+        print(f"{datetime.now()}: initial status: before")
+        status = app.status()
+        print(f"{datetime.now()}: initial status: after")
+
+        # Do stop.
+        print(f"{datetime.now()}: stop: before")
+        rc, out = app.stop(target, input)
+        print(f"{datetime.now()}: stop: after")
+        assert rc == 0
+        old_status = status
+        status = app.status()
+        print(f"{datetime.now()}: old_status: {old_status}")
+        print(f"{datetime.now()}: status: {status}")
+
+        # Check the discarding.
+        if not app.is_confirm(input):
+            assert re.search(r"Stop is cancelled.", out)
+            for inst_name in app.inst_names:
+                inst_id = app.inst_id(inst_name)
+                assert status[inst_id]["STATUS"] == old_status[inst_id]["STATUS"]
+                if app.match_inst_target(target, inst_name) and is_running:
+                    assert status[inst_id]["PID"] == old_status[inst_id]["PID"]
+            return
+
+        # Check the confirmation.
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            assert status[inst_id]["STATUS"] == "NOT RUNNING"
+            if app.match_inst_target(target, inst_name):
+                if is_running:
+                    msg = r"The Instance {} \(PID = \d+\) has been terminated.".format(inst_id)
+                    assert re.search(msg, out)
+            else:
+                assert not re.search(inst_id, out)
+
+
+# Check stop with auto-confirmation (force stop).
+@pytest.mark.parametrize("is_running", [
+    pytest.param(True, id="RUNNING"),
+    pytest.param(False, id="NOT_RUNNING"),
+])
+@pytest.mark.parametrize("post_start", [
+    post_start_base,
+    # post_start_make_identical_subdir,
+    post_start_remove_app_script,
+])
+@pytest.mark.parametrize("target", [
+    pytest.param(None, id="NO_TARGET"),
+    pytest.param(TtApp.app_target, id="APP_TARGET"),
+    pytest.param(TtApp.Target("master"), id="master"),
+    pytest.param(TtApp.Target("router"), id="router"),
+])
+def test_multi_inst_stop(tt_cmd, tmpdir_with_cfg, is_running, post_start, target):
+    check_multi_inst_stop(tt_cmd, tmpdir_with_cfg, is_running, post_start, target, None)
+
+
+# Check stop with the various inputs.
+@pytest.mark.parametrize("is_running", [
+    pytest.param(True, id="RUNNING"),
+    pytest.param(False, id="NOT_RUNNING"),
+])
+@pytest.mark.parametrize("input", [
+    TtApp.Input("y\n", True),  # confirm (lowercase)
+    TtApp.Input("Y\n", True),  # confirm (uppercase)
+    TtApp.Input("nn\nny\ny\n", True),  # confirm preceded with the wrong answers
+    TtApp.Input("n\n", False),  # discard (lowercase)
+    TtApp.Input("N\n", False),  # discard (uppercase)
+    TtApp.Input("yy\nyn\nn\n", False),  # discard preceded with the wrong answers
+])
+def test_multi_inst_stop_input(tt_cmd, tmpdir_with_cfg, is_running, input):
+    check_multi_inst_stop(tt_cmd, tmpdir_with_cfg, is_running, post_start_base, TtApp.app_target,
+                          input)
+
+
+################################################################
+# kill
+
+def check_multi_inst_kill(tt_cmd, tmpdir, is_running, post_start, target, input):
+    app_name = "multi_inst_app"
+    inst_names = ["router", "master", "replica", "stateboard"]
+
+    # Default temporary directory may have very long path. This can cause socket path buffer
+    # overflow. Create our own temporary directory.
+    # with tempfile.TemporaryDirectory() as tmpdir:
+    for tmpdir in [tmpdir]:
+        # Prepare the application considering is_running parameter.
+        app = TtApp(tt_cmd, tmpdir, app_name, inst_names)
+        if is_running:
+            rc, out = app.start(target, post_start)
+            assert rc == 0
+        status = app.status()
+
+        # Do kill.
+        rc, out = app.kill(target, input)
+        assert rc == 0
+        old_status = status
+        status = app.status()
+
+        # Check the discarding.
+        if not app.is_confirm(input):
+            for inst_name in app.inst_names:
+                inst_id = app.inst_id(inst_name)
+                assert status[inst_id]["STATUS"] == old_status[inst_id]["STATUS"]
+                if app.match_inst_target(target, inst_name) and is_running:
+                    assert status[inst_id]["PID"] == old_status[inst_id]["PID"]
+            return
+
+        # Check the confirmation.
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            assert status[inst_id]["STATUS"] == "NOT RUNNING"
+            if app.match_inst_target(target, inst_name):
+                if is_running:
+                    msg = r"The instance {} \(PID = \d+\) has been killed.".format(inst_id)
+                    assert re.search(msg, out)
+                else:
+                    pid_path = app.run_path(inst_name, pid_file)
+                    msg = r"failed to kill the processes:.*{}".format(pid_path)
+                    assert re.search(msg, out)
+            else:
+                assert not re.search(inst_id, out)
+
+
+# Check kill with auto-confirmation (force kill).
+@pytest.mark.parametrize("is_running", [
+    pytest.param(True, id="RUNNING"),
+    pytest.param(False, id="NOT_RUNNING"),
+])
+@pytest.mark.parametrize("post_start", [
+    post_start_base,
+    # post_start_make_identical_subdir,
+    post_start_remove_app_script,
+])
+@pytest.mark.parametrize("target", [
+    pytest.param(None, id="NO_TARGET"),
+    pytest.param(TtApp.app_target, id="APP_TARGET"),
+    pytest.param(TtApp.Target("master"), id="master"),
+    pytest.param(TtApp.Target("router"), id="router"),
+])
+def test_multi_inst_kill(tt_cmd, tmpdir_with_cfg, is_running, post_start, target):
+    check_multi_inst_kill(tt_cmd, tmpdir_with_cfg, is_running, post_start, target, None)
+
+
+# Check kill with the various inputs.
+@pytest.mark.parametrize("is_running", [
+    pytest.param(True, id="RUNNING"),
+    pytest.param(False, id="NOT_RUNNING"),
+])
+@pytest.mark.parametrize("input", [
+    TtApp.Input("y\n", True),  # confirm (lowercase)
+    TtApp.Input("Y\n", True),  # confirm (uppercase)
+    TtApp.Input("nn\nny\ny\n", True),  # confirm preceded with the wrong answers
+    TtApp.Input("n\n", False),  # discard (lowercase)
+    TtApp.Input("N\n", False),  # discard (uppercase)
+    TtApp.Input("yy\nyn\nn\n", False),  # discard preceded with the wrong answers
+])
+def test_multi_inst_kill_input(tt_cmd, tmpdir_with_cfg, is_running, input):
+    check_multi_inst_kill(tt_cmd, tmpdir_with_cfg, is_running, post_start_base, TtApp.app_target,
+                          input)
+
+
+################################################################
+# clean
+
+def check_multi_inst_clean(tt_cmd, tmpdir, post_start, target, input):
+    app_name = "test_data_app"
+    inst_names = ["router", "master", "replica", "stateboard"]
+
+    # Default temporary directory may have very long path. This can cause socket path buffer
+    # overflow. Create our own temporary directory.
+    # with tempfile.TemporaryDirectory() as tmpdir:
+    for tmpdir in [tmpdir]:
+        app = TtApp(tt_cmd, tmpdir, app_name, inst_names)
+
+        rc, out = app.start(target, post_start)
+        assert rc == 0
+
+        # Check that clean warns about application is running.
+        rc, out = app.clean(target)
+        assert rc == 0
+        status = app.status()
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            if app.match_inst_target(target, inst_name):
+                assert status[inst_id]["STATUS"] == "RUNNING"
+                msg = r"instance `{}` must be stopped".format(inst_name)
+                assert re.search(msg, out)
+            else:
+                assert status[inst_id]["STATUS"] == "NOT RUNNING"
+
+        app.stop(target)
+        assert rc == 0
+
+        # Check that clean is working.
+        rc, out = app.clean(target)  # clean when instance is running
+        assert rc == 0
+        assert status == app.status()
+        assert input is None or len(app.inst_names) == len(input.is_confirm)
+        is_confirms = itertools.repeat(True) if input is None else input.is_confirm
+        for inst_name, is_confirm in zip(app.inst_names, is_confirms):
+            if not is_confirm:
+                msg = r"{}: cleaning.[ERR] cancelled by user".format(inst_name)
+                assert re.search(msg, out)
+            else:
+                assert_file_cleaned(app.log_path(inst_name, log_file), out)
+                assert_file_cleaned(app.lib_path(inst_name, initial_snap), out)
+                assert_file_cleaned(app.lib_path(inst_name, initial_xlog), out)
+
+
+# Check clean with auto-confirmation (force clean).
+@pytest.mark.skip
+@pytest.mark.parametrize("post_start", [
+    post_start_base,
+    # post_start_make_identical_subdir,
+    post_start_remove_app_script,
+])
+@pytest.mark.parametrize("target", [
+    None,
+    TtApp.app_target,
+    TtApp.Target("master"),
+    TtApp.Target("router"),
+])
+def test_multi_inst_clean(tt_cmd, tmpdir_with_cfg, post_start, target):
+    check_multi_inst_clean(tt_cmd, tmpdir_with_cfg, post_start, target, None)
+
+
+# Check clean with the various inputs.
+@pytest.mark.skip
+@pytest.mark.parametrize("input", [
+    TtApp.Input("y\ny\nY\nY\n", [True, True, True, True]),  # confirm all
+    TtApp.Input("n\nn\nN\nN\n", [False, False, False, False]),  # discard all
+    TtApp.Input("y\nn\nN\nY\n", [True, False, False, True]),  # mix #1
+    TtApp.Input("n\ny\nY\nN\n", [False, True, True, False]),  # mix #2
+    TtApp.Input("ny\ny\nyn\nn\nY\nN\n", [True, False, True, False]),  # mixed with the wrong answers
+])
+def test_multi_inst_clean_input(tt_cmd, tmpdir_with_cfg, input):
+    check_multi_inst_clean(tt_cmd, tmpdir_with_cfg, post_start_base, TtApp.app_target, input)
+
+
+################################################################
+# logrotate
+
+@pytest.mark.skip
+@pytest.mark.parametrize('post_start', [
+    post_start_base,
+    post_start_make_identical_subdir,
+    post_start_remove_app_script,
+])
+@pytest.mark.parametrize('target', [
+    None,
+    TtApp.Target(None),
+    TtApp.Target("master"),
+    TtApp.Target("router"),
+])
+def test_multi_inst_logrotate(tt_cmd, tmpdir_with_cfg, post_start, target):
+    app_name = "multi_inst_app"
+    inst_names = ["router", "master", "replica", "stateboard"]
+
+    # Default temporary directory may have very long path. This can cause socket path buffer
+    # overflow. Create our own temporary directory.
+    # with tempfile.TemporaryDirectory() as tmpdir:
+    for tmpdir in [tmpdir_with_cfg]:
+        app = TtApp(tt_cmd, tmpdir, app_name, inst_names)
+
+        # Check logrotate when app is not running.
+        rc, out = app.logrotate(target)
+        assert rc != 0
+        assert re.search(r"NOT RUNNING", out)
+
+        # Start
+        rc, out = app.start(target)
+        assert rc == 0
+        status = app.status()
+
+        # Rename log files.
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            if status[inst_id]["STATUS"] == "RUNNING":
+                log_path = app.log_path(inst_name, log_file)
+                os.rename(log_path, log_path + '0')
+
+        # Do logrotate.
+        rc, out = app.logrotate(target, post_start)
+        assert rc == 0
+
+        # Wait for the files to be re-created.
+        for inst_name in app.inst_names:
+            inst_id = app.inst_id(inst_name)
+            log_path = app.log_path(inst_name, log_file)
+            if app.match_inst_target(target, inst_name):
+                assert status[inst_id]["STATUS"] == "RUNNING"
+                msg = r"{}: logs has been rotated. PID: \d+.".format(inst_id)
+                assert re.search(msg, out)
+                assert wait_file_path(log_path)
+                with open(log_path) as f:
+                    assert "reopened" in f.read()
+            else:
+                assert not os.path.exists(log_path)
+
+        app.stop(inst_name)
 
 
 def test_running_instance_from_multi_inst_app(tt_cmd):
