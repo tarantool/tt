@@ -187,6 +187,12 @@ def wait_event(timeout, event_func, interval=0.1):
     return False
 
 
+def wait_file_path(file_path, timeout=2, interval=0.1):
+    def is_file_exist():
+        return os.path.exists(file_path)
+    return wait_event(timeout, is_file_exist, interval)
+
+
 class TarantoolTestInstance:
     """Create test tarantool instance via subprocess.Popen with given cfg file.
 
