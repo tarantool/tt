@@ -1,3 +1,4 @@
+import glob
 import ipaddress
 import os
 import re
@@ -199,22 +200,19 @@ def wait_instance_stop(pid_path, timeout_sec=5):
     return stopped
 
 
-def wait_event(timeout, event_func, interval=0.1):
+def wait_event(timeout, event_func, interval=0.1, *event_func_args):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if event_func():
+        if event_func(*event_func_args):
             return True
         time.sleep(interval)
     return False
 
 
 def wait_files(timeout, files, interval=0.1):
-    def all_files_exist():
-        for file in files:
-            if not os.path.exists(file):
-                return False
-        return True
-    return wait_event(timeout, all_files_exist, interval)
+    def all_files_exist(files):
+        return all(map(glob.glob, files))
+    return wait_event(timeout, all_files_exist, interval, list(files))
 
 
 class TarantoolTestInstance:

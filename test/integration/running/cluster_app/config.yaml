@@ -1,0 +1,30 @@
+credentials:
+  users:
+    guest:
+      roles: [super]
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        replication:
+          bootstrap_strategy: config
+          connect_timeout: 3
+        bootstrap_leader: storage-master
+        instances:
+          storage-master:
+            iproto:
+              listen:
+                - uri: '127.0.0.1:3301'
+            database:
+              mode: rw
+            app:
+              file: 'storage.lua'
+          storage-replica:
+            iproto:
+              listen:
+                - uri: '127.0.0.1:3302'
+            database:
+              mode: rw
+            app:
+              file: 'storage.lua'
