@@ -1,0 +1,11 @@
+env:
+  instances_enabled: instances_enabled
+  restart_on_failure: true
+modules:
+  directory: modules
+app:
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: var/lib
+  memtx_dir: var/lib
+  vinyl_dir: var/lib

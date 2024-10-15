@@ -33,6 +33,8 @@ const (
 	versionLuaFileName = "VERSION.lua"
 
 	rocksManifestPath = ".rocks/share/tarantool/rocks/manifest"
+
+	ignoreFile = ".packignore"
 )
 
 var (
@@ -285,6 +287,17 @@ func copyApplications(bundleEnvPath string, packCtx *PackCtx,
 		}
 		inst := instances[0]
 		appPath := inst.AppDir
+		if !inst.IsFileApp {
+			ignorePatterns, err := readPackIgnore(appPath)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %s", ignoreFile, err)
+			}
+
+			if err = removeIgnoredFiles(appPath, ignorePatterns); err != nil {
+				return fmt.Errorf("failed to remove ignored files: %s", err)
+			}
+		}
+
 		if inst.IsFileApp {
 			appPath = inst.InstanceScript
 			resolvedAppPath, err := filepath.EvalSymlinks(appPath)
@@ -381,6 +394,16 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		if err = copyArtifacts(*packCtx, bundleEnvPath, newOpts, packCtx.AppsInfo); err != nil {
 			return "", fmt.Errorf("failed copying artifacts: %s", err)
 		}
+	}
+
+	projectPath := cmdCtx.Cli.ConfigDir
+	ignorePatterns, err := readPackIgnore(projectPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read .packignore: %s", err)
+	}
+
+	if err = removeIgnoredFiles(bundleEnvPath, ignorePatterns); err != nil {
+		return "", fmt.Errorf("failed to remove ignored files: %s", err)
 	}
 
 	if buildRocks {

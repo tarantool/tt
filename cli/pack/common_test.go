@@ -1068,6 +1068,26 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.FileExists, "app/tt.yaml"},
 			},
 		},
+		{
+			name: "Packing env with packignore",
+			params: params{
+				configPath:    "testdata/bundle_with_packignore/tt.yaml",
+				tntExecutable: tntExecutable,
+				packCtx:       PackCtx{Name: "app"},
+			},
+			wantErr: false,
+			checks: []check{
+				{assert.DirExists, "instances.enabled"},
+				{assert.NoFileExists, "instances.enabled/app"},
+
+				{assert.NoDirExists, "modules"},
+
+				{assert.DirExists, "app2"},
+				{assert.NoDirExists, "app2/var"},
+
+				{assert.NoFileExists, "app.lua"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
