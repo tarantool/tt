@@ -277,14 +277,30 @@ func getDestAppDir(bundleEnvPath, appName string,
 
 // copyApplications copies applications from current env to the result bundle.
 func copyApplications(bundleEnvPath string, packCtx *PackCtx,
-	cliOpts, newOpts *config.CliOpts) error {
-	var err error
+	cliOpts, newOpts *config.CliOpts, toIgnore map[string]struct{}) error {
 	for appName, instances := range packCtx.AppsInfo {
 		if len(instances) == 0 {
 			return fmt.Errorf("application %q does not have any instances", appName)
 		}
 		inst := instances[0]
 		appPath := inst.AppDir
+
+		projectPath := filepath.Dir(packCtx.configFilePath)
+		relAppPath, err := filepath.Rel(projectPath, appPath)
+		if err != nil {
+			return err
+		}
+		relAppPathUnix := filepath.ToSlash(relAppPath)
+
+		ignore, err := shouldIgnore(relAppPathUnix, toIgnore)
+		if err != nil {
+			return err
+		}
+		if ignore {
+			log.Infof("Application %s found in .packignore, skipping it...", appName)
+			continue
+		}
+
 		if inst.IsFileApp {
 			appPath = inst.InstanceScript
 			resolvedAppPath, err := filepath.EvalSymlinks(appPath)
@@ -363,6 +379,12 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	packCtx.AppList = getAppNamesToPack(packCtx)
 	log.Infof("Apps to pack: %s", strings.Join(packCtx.AppList, " "))
 
+	projectPath := filepath.Dir(packCtx.configFilePath)
+	ignorePatterns, err := readPackIgnore(projectPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read .packignore: %v", err)
+	}
+
 	if bundleEnvPath, err = updateEnvPath(bundleEnvPath, packCtx, cliOpts); err != nil {
 		return "", err
 	}
@@ -373,14 +395,20 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return "", fmt.Errorf("error copying binaries: %s", err)
 	}
 
-	if err = copyApplications(bundleEnvPath, packCtx, cliOpts, newOpts); err != nil {
+	if err = copyApplications(bundleEnvPath, packCtx, cliOpts,
+		newOpts, ignorePatterns); err != nil {
 		return "", fmt.Errorf("error copying applications: %s", err)
 	}
 
 	if packCtx.Archive.All {
-		if err = copyArtifacts(*packCtx, bundleEnvPath, newOpts, packCtx.AppsInfo); err != nil {
+		if err = copyArtifacts(*packCtx, bundleEnvPath, newOpts,
+			packCtx.AppsInfo, ignorePatterns); err != nil {
 			return "", fmt.Errorf("failed copying artifacts: %s", err)
 		}
+	}
+
+	if err = removeIgnoredFiles(bundleEnvPath, ignorePatterns); err != nil {
+		return "", fmt.Errorf("failed to remove ignored files: %v", err)
 	}
 
 	if buildRocks {
@@ -425,7 +453,7 @@ func copyAppSrc(packCtx *PackCtx, cliOpts *config.CliOpts, srcAppPath, dstAppPat
 // copyArtifacts copies all artifacts from the current bundle configuration
 // to the passed package structure from the passed path.
 func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
-	appsInfo map[string][]running.InstanceCtx) error {
+	appsInfo map[string][]running.InstanceCtx, toIgnore map[string]struct{}) error {
 
 	for _, appName := range packCtx.AppList {
 		for _, inst := range appsInfo[appName] {
