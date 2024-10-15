@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.5.0] - 2024-10-15
+
+Added a number of subcommands for replicaset roles,
+improved understanding of the version number to install,
+enhanced status display, and added a flag to disable interactivity when
+the application is stopped.
+Implemented a number of fixes to improve stability.
+
+### Added
+
 - `tt status`: display `config`, `box`, and `replication upstream` statuses.
   * `--details`: display detailed reports of errors and warnings from instances.
 - `tt stop` confirmation prompt. `-y` option is added to accept stop without prompting.
