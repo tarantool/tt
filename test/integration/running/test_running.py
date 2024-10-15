@@ -871,7 +871,7 @@ def test_kill(tt_cmd, tmpdir_with_cfg, cmd, input):
         process_not_running(watchdog_process)
 
     finally:
-        stop = [tt_cmd, "stop", "test_app"]
+        stop = [tt_cmd, "stop", "--yes", "test_app"]
         run_command_and_get_output(stop, cwd=tmpdir)
 
 
@@ -925,7 +925,7 @@ def test_kill_without_app_name(tt_cmd, tmp_path, cmd, input):
         assert status_out["app2"]["STATUS"] == "NOT RUNNING"
 
     finally:
-        stop = [tt_cmd, "stop"]
+        stop = [tt_cmd, "stop", "--yes"]
         run_command_and_get_output(stop, cwd=test_app_path)
 
 
@@ -965,5 +965,5 @@ def test_start_interactive(tt_cmd, tmp_path):
         assert not (tmp_path / "var" / "log").exists()
 
     finally:
-        run_command_and_get_output([tt_cmd, "stop"], cwd=tmp_path)
+        run_command_and_get_output([tt_cmd, "stop", "--yes"], cwd=tmp_path)
         assert instance_process.wait(5) == 0
