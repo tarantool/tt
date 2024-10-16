@@ -29,7 +29,6 @@ var targetDistros = []Distro{
 	{OS: "ubuntu", Dist: "bionic"}, // 18.04
 	{OS: "ubuntu", Dist: "focal"},  // 20.04
 	{OS: "ubuntu", Dist: "jammy"},  // 22.04
-	{OS: "ubuntu", Dist: "noble"},  // 24.04
 
 	{OS: "debian", Dist: "stretch"},  // 9
 	{OS: "debian", Dist: "buster"},   // 10
