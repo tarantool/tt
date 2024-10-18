@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Release packages were built using the outdated and buggy MessagePack
+  library.
+
 ## [2.5.0] - 2024-10-15
 
 Added a number of subcommands for replicaset roles,
