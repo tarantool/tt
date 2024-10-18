@@ -60,7 +60,7 @@ func cleanDataFiles(instCtx running.InstanceCtx) error {
 // and starting it again.
 func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx RebootstrapCtx) error {
 	apps, err := running.CollectInstancesForApps([]string{rbCtx.AppName}, &cliOpts,
-		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity)
+		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity, true)
 	if err != nil {
 		return fmt.Errorf("cannot collect application instances info: %s", err)
 	}

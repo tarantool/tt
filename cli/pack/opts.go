@@ -49,7 +49,7 @@ func initAppsInfo(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx, packCtx *P
 	}
 	packCtx.AppList = appList
 	packCtx.AppsInfo, err = running.CollectInstancesForApps(packCtx.AppList, cliOpts,
-		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity)
+		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity, true)
 	if err != nil {
 		return fmt.Errorf("failed to collect applications info: %s", err)
 	}

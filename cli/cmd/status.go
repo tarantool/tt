@@ -62,7 +62,7 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
-	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
+	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, false); err != nil {
 		return err
 	}
 
