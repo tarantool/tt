@@ -1,13 +1,19 @@
 import ipaddress
+import logging
 import os
 import re
 import shutil
 import socket
 import subprocess
 import time
+from pathlib import Path
+from signal import SIGHUP
+from threading import Timer
+from types import GeneratorType
 
 import netifaces
 import psutil
+import pytest
 import tarantool
 import yaml
 from retry import retry
@@ -551,25 +557,171 @@ def wait_string_in_file(file, text):
         assert found
 
 
-def wait_for_lines_in_output(stdout, expected_lines: list):
-    output = ''
-    retries = 10
-    while True:
-        line = stdout.readline()
-        if line == '':
-            if retries == 0:
-                break
-            time.sleep(0.2)
-            retries -= 1
-        else:
-            retries = 10
-            output += line
-            for expected in expected_lines:
-                if expected in line:
-                    expected_lines.remove(expected)
-                    break
+class ProcessTextPipe(subprocess.Popen):
+    __cwd: str | Path
 
-            if len(expected_lines) == 0:
+    def __init__(self, args: list | tuple, work_dir: Path, **kwargs):
+        self.__cwd = work_dir
+        command = tuple(str(a) for a in args)
+        kwargs["cwd"] = self.__cwd
+
+        # Apply default arguments for Popen
+        kwargs.setdefault("stderr", subprocess.STDOUT)
+        kwargs.setdefault("stdout", subprocess.PIPE)
+        kwargs.setdefault("bufsize", 1)  # Number in text lines
+
+        # Force to text mode
+        kwargs["text"] = True
+        kwargs["universal_newlines"] = True
+
+        super().__init__(command, **kwargs)
+
+    @property
+    def is_running(self) -> bool:
+        return self.poll() is None
+
+    def Run(self, input=None, timeout=None) -> tuple:
+        """
+        Executed until the end of the process.
+        Returns collected output in the tuple, where:
+        - [0] is return code of process
+        - [1] is content of `stdout`
+        - [2] is content of `stderr`
+        """
+        output = self.communicate(input, timeout)
+        return (self.returncode, *output)
+
+    def Stop(self, *stop_cmd, timeout=3):
+        """Ensure process is stopped"""
+        if stop_cmd:
+            subprocess.run(_make_string_list(*stop_cmd), cwd=self.__cwd)
+        code = self.poll()
+        if code is not None:
+            return code
+        self.terminate()
+        try:
+            return self.wait(timeout)
+        except subprocess.TimeoutExpired:
+            pass
+        except KeyboardInterrupt:
+            pass
+        if self.is_running:
+            self.kill()
+        return None
+
+    def __enter__(self):
+        """Calls at begin of `with`"""
+        assert self.is_running, "The process was not started"
+        return super().__enter__()
+
+    def __exit__(self, exc_type, value, traceback):
+        """Calls at end of `with`"""
+        self.Stop()
+        super().__exit__(exc_type, value, traceback)
+
+    def __del__(self):
+        """Calls at end of variable scope (like destructor)"""
+        self.Stop()
+        super().__del__()
+
+
+def _make_string_list(*args) -> list[str]:
+    result: list[str] = []
+    for s in args:
+        if isinstance(s, str):
+            result.append(s)
+        elif isinstance(s, (tuple, list)):
+            result.extend(_make_string_list(*s))
+        elif isinstance(s, (GeneratorType, filter)):
+            result.extend(_make_string_list(*tuple(s)))
+        else:
+            result.append(str(s))
+    return result
+
+
+def pipe_wait_all(
+    process: subprocess.Popen,
+    *expected_lines,
+    pipe: str = "stdout",
+    timeout=0,
+    line_timeout=1.0,
+) -> str:
+    """
+    Scans `stdout` for matches with expected strings.
+    Returns the entire collected output.
+    - expected_lines - search strings
+    - timeout - allows you to set the total time limit for waiting
+    - line_timeout - limiting the waiting time for each new line
+    """
+    expected = _make_string_list(*expected_lines)
+    output = ""
+    line_counter = 0
+    break_timeout = ""
+    total_timer: Timer | None = None
+
+    process_out = getattr(process, pipe)
+
+    assert process_out is not None, "Wrong process pipe to read stdout"
+
+    def stop_wait(counter: int | None):
+        nonlocal break_timeout
+        if counter is None:
+            break_timeout = "total timeout expecting all matches"
+        else:
+            break_timeout = f"timeout waiting next line #{counter}"
+        process.send_signal(SIGHUP)
+
+    def set_timer() -> Timer:
+        nonlocal line_counter
+        line_counter += 1
+        timer = Timer(line_timeout, stop_wait, [line_counter])
+        timer.name = "wait next line"
+        timer.start()
+        return timer
+
+    def check_expected(line) -> int:
+        nonlocal expected
+        for match in expected:
+            if match in line:
+                expected.remove(match)
                 break
+        return len(expected)
+
+    if timeout > 0:
+        total_timer = Timer(timeout, stop_wait, [None])
+        total_timer.name = "total wait stdout"
+        total_timer.start()
+
+    timer = set_timer()
+    for line in process_out:
+        if break_timeout:
+            break
+        timer.cancel()
+        timer = set_timer()
+        output += line
+        if check_expected(line) == 0:
+            break
+    timer.cancel()
+    if total_timer:
+        total_timer.cancel()
+
+    if break_timeout != "":
+        logging.getLogger(__name__).warning(
+            f"""{break_timeout} output:
+>>>>>>>>>>
+{output}<<<<<<<<<<
+expected={expected}
+"""
+        )
+        pytest.fail(break_timeout)
+
+    if len(expected) > 0:
+        logging.getLogger(__name__).error(
+            f"""Not all lines was matched: {expected} in:
+>>>>>>>>>>
+{output}<<<<<<<<<<
+"""
+        )
+        pytest.fail("Not all lines was matched")
 
     return output
