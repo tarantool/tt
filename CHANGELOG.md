@@ -27,8 +27,8 @@ Implemented a number of fixes to improve stability.
   * `--details`: display detailed reports of errors and warnings from instances.
 - `tt stop` confirmation prompt. `-y` option is added to accept stop without prompting.
 - `tt cluster replicaset roles add`: command to add roles in config scope provided by flags.
-- `tt replicaset roles remove`: command to remove roles in the tarantool replicaset with cluster
-  config (3.0) or cartridge orchestrator.
+- `tt cluster replicaset roles remove`: command to remove roles from config
+  scope provided by flags.
 - `tt replicaset roles add`: command to add roles in the tarantool replicaset with
  cluster config (3.0) or cartridge orchestrator.
 - `tt replicaset roles remove`: command to remove roles in the tarantool replicaset with
@@ -45,8 +45,6 @@ Implemented a number of fixes to improve stability.
 - `tt replicaset vshard bootstrap` unable to bootstrap large clusters due to
   a timeout.
 - `tt replicaset vshard bootstrap` timeout was 3s instead of 10s.
-
-### Changed
 
 ## [2.4.0] - 2024-08-07
 
