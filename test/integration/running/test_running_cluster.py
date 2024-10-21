@@ -7,7 +7,8 @@ import pytest
 import yaml
 
 from utils import (control_socket, extract_status, get_tarantool_version,
-                   run_command_and_get_output, run_path, wait_file)
+                   pid_file, run_command_and_get_output, run_path, wait_file,
+                   wait_instance_stop)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -98,6 +99,11 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
             text=True
         )
         start_output = instance_process.stdout.read()
+
+        # Need to wait for all instances to stop before start.
+        for instance in instances:
+            pid_path = os.path.join(tmpdir, app_name, run_path, instance, pid_file)
+            wait_instance_stop(pid_path)
 
         for inst in instances:
             assert f"Starting an instance [{app_name}:{inst}]" in start_output
