@@ -557,30 +557,6 @@ def wait_string_in_file(file, text):
         assert found
 
 
-def wait_for_lines_in_output(stdout, expected_lines: list):
-    output = ""
-    retries = 10
-    while True:
-        line = stdout.readline()
-        if line == "":
-            if retries == 0:
-                break
-            time.sleep(0.2)
-            retries -= 1
-        else:
-            retries = 10
-            output += line
-            for expected in expected_lines:
-                if expected in line:
-                    expected_lines.remove(expected)
-                    break
-
-            if len(expected_lines) == 0:
-                break
-
-    return output
-
-
 class ProcessTextPipe(subprocess.Popen):
     __cwd: str | Path
 
@@ -649,6 +625,34 @@ class ProcessTextPipe(subprocess.Popen):
         super().__del__()
 
 
+class Timeout(Timer):
+    __timeout: float
+
+    def __init__(self, name, timeout, callback, *args) -> None:
+        self.__timeout = timeout
+        if self.is_timeout:
+            super().__init__(timeout, callback, *args)
+            self.setName(name)
+
+    @property
+    def is_timeout(self) -> bool:
+        return self.__timeout > 0
+
+    def __enter__(self):
+        if self.is_timeout:
+            self.start()
+        return self
+
+    def __exit__(self, unused_exc_type, unused_value, unused_traceback) -> None:
+        _ = (unused_exc_type, unused_value, unused_traceback)
+        if self.is_timeout:
+            self.cancel()
+
+    def __del__(self) -> None:
+        if self.is_timeout:
+            self.cancel()
+
+
 def _make_string_list(*args) -> list[str]:
     result: list[str] = []
     for s in args:
@@ -668,10 +672,10 @@ def pipe_wait_all(
     *expected_lines,
     pipe: str = "stdout",
     timeout=0,
-    line_timeout=1.0,
+    line_timeout=2.0,
 ) -> str:
     """
-    Scans `stdout` for matches with expected strings.
+    Scans pipe (default=`stdout`) for matches with expected strings.
     Returns the entire collected output.
     - expected_lines - search strings
     - timeout - allows you to set the total time limit for waiting
@@ -681,10 +685,8 @@ def pipe_wait_all(
     output = ""
     line_counter = 0
     break_timeout = ""
-    total_timer: Timer | None = None
 
     process_out = getattr(process, pipe)
-
     assert process_out is not None, "Wrong process pipe to read stdout"
 
     def stop_wait(counter: int | None):
@@ -693,15 +695,7 @@ def pipe_wait_all(
             break_timeout = "total timeout expecting all matches"
         else:
             break_timeout = f"timeout waiting next line #{counter}"
-        process.send_signal(SIGHUP)
-
-    def set_timer() -> Timer:
-        nonlocal line_counter
-        line_counter += 1
-        timer = Timer(line_timeout, stop_wait, [line_counter])
-        timer.name = "wait next line"
-        timer.start()
-        return timer
+        process.send_signal(SIGHUP)  # to interrupt blocked pipe read
 
     def check_expected(line) -> int:
         nonlocal expected
@@ -711,23 +705,18 @@ def pipe_wait_all(
                 break
         return len(expected)
 
-    if timeout > 0:
-        total_timer = Timer(timeout, stop_wait, [None])
-        total_timer.name = "total wait stdout"
-        total_timer.start()
-
-    timer = set_timer()
-    for line in process_out:
-        if break_timeout:
-            break
-        timer.cancel()
-        timer = set_timer()
-        output += line
-        if check_expected(line) == 0:
-            break
-    timer.cancel()
-    if total_timer:
-        total_timer.cancel()
+    with Timeout("total wait stdout", timeout, stop_wait, [None]):
+        while True:
+            with Timeout("wait next line", line_timeout, stop_wait, [line_counter]):
+                line_counter += 1
+                line = process_out.readline()
+                if break_timeout:
+                    break
+                if line == "":
+                    continue
+                output += line
+                if check_expected(line) == 0:
+                    break
 
     if break_timeout != "":
         logging.getLogger(__name__).warning(
