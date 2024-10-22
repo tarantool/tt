@@ -43,7 +43,7 @@ def test_log_output_default_run(tt_cmd, mock_env_dir):
             expecting_lines.append(f"app1:inst{inst_n}: line {i}")
     with ProcessTextPipe((tt_cmd, "log"), mock_env_dir) as process:
         output = pipe_wait_all(process, expecting_lines)
-        assert process.wait(10) == 0, "Exit status not a success"
+        assert process.Wait(10) == 0, "Exit status not a success"
 
         assert "app0:inst3" not in output
         assert "app1:inst3" not in output
@@ -57,7 +57,7 @@ def test_log_limit_lines_count(tt_cmd, mock_env_dir):
             expecting_lines.append(f"app1:inst{inst_n}: line {i}")
     with ProcessTextPipe((tt_cmd, "log", "-n", "3"), mock_env_dir) as process:
         pipe_wait_all(process, expecting_lines)
-        assert process.wait(10) == 0, "Exit status not a success"
+        assert process.Wait(10) == 0, "Exit status not a success"
 
 
 def test_log_more_lines(tt_cmd, mock_env_dir):
@@ -69,7 +69,7 @@ def test_log_more_lines(tt_cmd, mock_env_dir):
 
     with ProcessTextPipe((tt_cmd, "log", "-n", "300"), mock_env_dir) as process:
         pipe_wait_all(process, expecting_lines)
-        assert process.wait(10) == 0, "Exit status not a success"
+        assert process.Wait(10) == 0, "Exit status not a success"
 
 
 def test_log_want_zero(tt_cmd, mock_env_dir):
@@ -91,7 +91,7 @@ def test_log_specific_instance(tt_cmd, mock_env_dir):
         assert "app0:inst0" not in output
         assert "app0:inst2" not in output
         assert "app1" not in output
-        assert process.wait(10) == 0, "Exit status not a success"
+        assert process.Wait(10) == 0, "Exit status not a success"
 
 
 def test_log_specific_app(tt_cmd, mock_env_dir):
@@ -103,13 +103,13 @@ def test_log_specific_app(tt_cmd, mock_env_dir):
     with ProcessTextPipe((tt_cmd, "log", "app1"), mock_env_dir) as process:
         output = pipe_wait_all(process, expecting_lines)
         assert "app0" not in output
-        assert process.wait(10) == 0, "Exit status not a success"
+        assert process.Wait(10) == 0, "Exit status not a success"
 
 
 def test_log_negative_lines_num(tt_cmd, mock_env_dir):
     with ProcessTextPipe((tt_cmd, "log", "-n", "-10"), mock_env_dir) as process:
         pipe_wait_all(process, "negative")
-        assert process.wait(10) != 0, "Exit status should be error code"
+        assert process.Wait(10) != 0, "Exit status should be error code"
 
 
 def test_log_no_app(tt_cmd, mock_env_dir):
@@ -180,7 +180,7 @@ def test_log_dir_removed_after_follow(tt_cmd, mock_env_dir: Path):
             shutil.rmtree(dir)
 
         pipe_wait_all(process, "Failed to detect creation of", timeout=2)
-        assert process.wait(10) == 0, "Exit status not a success"
+        assert process.Wait(10) == 0, "Exit status not a success"
 
 
 # There are two apps in this test: app0 and app1. After removing app0 dirs,
@@ -209,4 +209,4 @@ def test_log_dir_partially_removed_after_follow(tt_cmd, mock_env_dir: Path):
             shutil.rmtree(dir)
 
         pipe_wait_all(process, "Failed to detect creation of")
-        assert process.wait(10) == 0, "Exit status not a success"
+        assert process.Wait(10) == 0, "Exit status not a success"

@@ -609,10 +609,31 @@ class ProcessTextPipe(subprocess.Popen):
             self.kill()
         return None
 
+    def Wait(self, timeout=None) -> int | None:
+        try:
+            return super().wait(timeout)
+        except subprocess.TimeoutExpired as e:
+            log = logging.getLogger(__name__)
+            result_code = self.poll()
+            if result_code is not None:
+                log.warning(
+                    f"wrong timeout: process was terminated with code={result_code}!"
+                )
+                return result_code
+            log.error(f"Process Wait() timeout after {timeout} seconds; {e}")
+            if self.stdout and self.stdout.readable():
+                stdout = "\n".join(self.stdout.readlines())
+                log.warning(f"Process has stdout={stdout}")
+            if self.stderr and self.stderr.readable():
+                stderr = "\n".join(self.stderr.readlines())
+                log.warning(f"Process has stderr={stderr}")
+        return None
+
     def __enter__(self):
         """Calls at begin of `with`"""
         assert self.is_running, "The process was not started"
-        return super().__enter__()
+        super().__enter__()
+        return self
 
     def __exit__(self, exc_type, value, traceback):
         """Calls at end of `with`"""
