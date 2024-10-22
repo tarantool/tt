@@ -10,41 +10,43 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
-// StatusCtx contains information about replicaset status command execution
-// context.
-type StatusCtx struct {
+// DiscoveryCtx contains information about replicaset discovery.
+type DiscoveryCtx struct {
 	// IsApplication true if an application passed.
 	IsApplication bool
 	// RunningCtx is an application running context.
 	RunningCtx running.RunningCtx
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector
-	// Orchestrator is a forced orchestator choice.
+	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 }
 
-// Status shows a replicaset status.
-func Status(statusCtx StatusCtx) error {
-	orchestratorType, err := getOrchestratorType(statusCtx.Orchestrator,
-		statusCtx.Conn, statusCtx.RunningCtx)
+// GetReplicasets discovers and returns the list of replicasets.
+func GetReplicasets(ctx DiscoveryCtx) (replicaset.Replicasets, error) {
+	orchestratorType, err := getOrchestratorType(ctx.Orchestrator, ctx.Conn, ctx.RunningCtx)
 	if err != nil {
-		return err
+		return replicaset.Replicasets{}, err
 	}
 
 	var orchestrator replicasetOrchestrator
-	if statusCtx.IsApplication {
-		if orchestrator, err = makeApplicationOrchestrator(
-			orchestratorType, statusCtx.RunningCtx, nil, nil); err != nil {
-			return err
-		}
+	if ctx.IsApplication {
+		orchestrator, err = makeApplicationOrchestrator(orchestratorType,
+			ctx.RunningCtx, nil, nil)
 	} else {
-		if orchestrator, err = makeInstanceOrchestrator(
-			orchestratorType, statusCtx.Conn); err != nil {
-			return err
-		}
+		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
 	}
 
-	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
+	if err != nil {
+		return replicaset.Replicasets{}, err
+	}
+
+	return orchestrator.Discovery(replicaset.SkipCache)
+}
+
+// Status shows a replicaset status.
+func Status(discoveryCtx DiscoveryCtx) error {
+	replicasets, err := GetReplicasets(discoveryCtx)
 	if err != nil {
 		return err
 	}
@@ -61,7 +63,7 @@ func statusReplicasets(replicasets replicaset.Replicasets) error {
 	fmt.Println("Orchestrator:     ", replicasets.Orchestrator)
 	fmt.Println("Replicasets state:", replicasets.State)
 
-	replicasets = fillAliases(replicasets)
+	replicasets = FillAliases(replicasets)
 	replicasets = sortAliases(replicasets)
 
 	if len(replicasets.Replicasets) > 0 {
@@ -73,9 +75,9 @@ func statusReplicasets(replicasets replicaset.Replicasets) error {
 	return nil
 }
 
-// fillAliases fills missed aliases with UUID. The case: Tarantool 1.10 without
+// FillAliases fills missed aliases with UUID. The case: Tarantool 1.10 without
 // an orchestrator.
-func fillAliases(replicasets replicaset.Replicasets) replicaset.Replicasets {
+func FillAliases(replicasets replicaset.Replicasets) replicaset.Replicasets {
 	for i := range replicasets.Replicasets {
 		replicaset := &replicasets.Replicasets[i]
 		if replicaset.Alias == "" {
