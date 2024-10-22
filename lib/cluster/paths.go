@@ -37,8 +37,10 @@ var ConfigEnvPaths = [][]string{
 	[]string{"compat", "fiber_channel_close_mode"},
 	[]string{"compat", "fiber_slice_default"},
 	[]string{"compat", "json_escape_forward_slash"},
+	[]string{"compat", "replication_synchro_timeout"},
 	[]string{"compat", "sql_priv"},
 	[]string{"compat", "sql_seq_scan_default"},
+	[]string{"compat", "wal_cleanup_delay_deprecation"},
 	[]string{"compat", "yaml_pretty_multiline"},
 	[]string{"config", "context"},
 	[]string{"config", "etcd", "endpoints"},
@@ -76,6 +78,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"failover", "lease_interval"},
 	[]string{"failover", "probe_interval"},
 	[]string{"failover", "renew_interval"},
+	[]string{"failover", "replicasets"},
 	[]string{"failover", "stateboard", "keepalive_interval"},
 	[]string{"failover", "stateboard", "renew_interval"},
 	[]string{"feedback", "crashinfo"},
@@ -164,6 +167,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"replication", "skip_conflict"},
 	[]string{"replication", "sync_lag"},
 	[]string{"replication", "sync_timeout"},
+	[]string{"replication", "synchro_queue_max_size"},
 	[]string{"replication", "synchro_quorum"},
 	[]string{"replication", "synchro_timeout"},
 	[]string{"replication", "threads"},
@@ -486,6 +490,15 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	SchemaPath{
+		Path: []string{"compat", "replication_synchro_timeout"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
 		Path: []string{"compat", "sql_priv"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -496,6 +509,15 @@ var TarantoolSchema = []SchemaPath{
 	},
 	SchemaPath{
 		Path: []string{"compat", "sql_seq_scan_default"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	SchemaPath{
+		Path: []string{"compat", "wal_cleanup_delay_deprecation"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
 			[]any{
@@ -778,6 +800,16 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"failover", "renew_interval"},
 		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path: []string{"failover", "replicasets"},
+		Validator: MakeMapValidator(
+			StringValidator{},
+			MakeRecordValidator(map[string]Validator{
+				"priority": MakeMapValidator(
+					StringValidator{},
+					NumberValidator{}),
+			})),
 	},
 	SchemaPath{
 		Path:      []string{"failover", "stateboard", "keepalive_interval"},
@@ -1280,6 +1312,10 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"replication", "sync_timeout"},
 		Validator: NumberValidator{},
+	},
+	SchemaPath{
+		Path:      []string{"replication", "synchro_queue_max_size"},
+		Validator: IntegerValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"replication", "synchro_quorum"},
