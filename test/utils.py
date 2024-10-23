@@ -621,11 +621,13 @@ class ProcessTextPipe(subprocess.Popen):
                 )
                 return result_code
             log.error(f"Process Wait() timeout after {timeout} seconds; {e}")
-            if self.stdout and self.stdout.readable():
-                stdout = "\n".join(self.stdout.readlines())
-                log.warning(f"Process has stdout={stdout}")
-            if self.stderr and self.stderr.readable():
-                stderr = "\n".join(self.stderr.readlines())
+            stdout = _read_stream(self.stdout)
+            if stdout:
+                output = "\n".join(stdout)
+                log.warning(f"Process has stdout={output}")
+            stderr = _read_stream(self.stderr)
+            if stdout:
+                output = "\n".join(stderr)
                 log.warning(f"Process has stderr={stderr}")
         return None
 
@@ -648,30 +650,47 @@ class ProcessTextPipe(subprocess.Popen):
 
 class Timeout(Timer):
     __timeout: float
+    __is_running: bool
 
     def __init__(self, name, timeout, callback, *args) -> None:
         self.__timeout = timeout
+        self.__is_running = False
         if self.is_timeout:
             super().__init__(timeout, callback, *args)
             self.setName(name)
 
     @property
     def is_timeout(self) -> bool:
-        return self.__timeout > 0
+        return self.__timeout is not None and self.__timeout > 0
 
     def __enter__(self):
+        assert not self.__is_running, "This timer already in use"
         if self.is_timeout:
+            self.__is_running = True
+            logging.getLogger(__name__).debug(
+                f"Start timer='{self.name}' for {self.__timeout} seconds {self.args}"
+            )
             self.start()
         return self
 
     def __exit__(self, unused_exc_type, unused_value, unused_traceback) -> None:
         _ = (unused_exc_type, unused_value, unused_traceback)
         if self.is_timeout:
+            logging.getLogger(__name__).debug(f"Stop(1) timer='{self.name}' {self.args}")
             self.cancel()
 
     def __del__(self) -> None:
         if self.is_timeout:
+            logging.getLogger(__name__).debug(f"Stop(2) timer='{self.name}' {self.args}")
             self.cancel()
+
+
+def _read_stream(stream) -> list[str]:
+    output = []
+    if stream:
+        while stream.readable():
+            output.append(stream.readline().decode())
+    return output
 
 
 def _make_string_list(*args) -> list[str]:
