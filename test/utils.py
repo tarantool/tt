@@ -573,3 +573,17 @@ def wait_for_lines_in_output(stdout, expected_lines: list):
                 break
 
     return output
+
+
+@retry(Exception, tries=40, delay=0.5)
+def wait_pid_disappear(file, target_pid):
+    found = True
+    while found:
+        if not os.path.exists(file):
+            found = False
+            break
+        with open(file, "r") as f:
+            if target_pid not in f.readline():
+                found = False
+                break
+    assert not found
