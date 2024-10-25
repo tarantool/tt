@@ -1,6 +1,6 @@
 pytest==8.2.2
 tarantool==0.7.1
-requests==2.31.0
+requests==2.32.2
 flake8==6.1.0
 flake8-unused-arguments==0.0.6
 flake8-isort==6.1.0
