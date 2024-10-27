@@ -7,6 +7,7 @@ import (
 	"path"
 	"syscall"
 
+	"github.com/tarantool/tt/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/formatter"
 	"golang.org/x/crypto/ssh/terminal"
@@ -40,6 +41,8 @@ type ConnectCtx struct {
 	ConnectTarget string
 	// Binary port is used
 	Binary bool
+	// Evaler lua expression.
+	Evaler string
 }
 
 const (
@@ -114,7 +117,11 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	}
 
 	// Execution of the command.
-	response, err := conn.Eval(evalFuncBody, evalArgs, connector.RequestOpts{})
+	evalBody, err := luabody.GetEvalFuncBody(connectCtx.Evaler)
+	if err != nil {
+		return nil, err
+	}
+	response, err := conn.Eval(evalBody, evalArgs, connector.RequestOpts{})
 	if err != nil {
 		return nil, err
 	}

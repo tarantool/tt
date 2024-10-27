@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/tarantool/tt/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/cli/connector"
 )
 
@@ -60,7 +61,11 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 	}
 
 	languageCmd := setLanguagePrefix + " " + lang.String()
-	response, err := evaler.Eval(evalFuncBody,
+	evalBody, err := luabody.GetEvalFuncBody("")
+	if err != nil {
+		return err
+	}
+	response, err := evaler.Eval(evalBody,
 		[]interface{}{languageCmd},
 		connector.RequestOpts{},
 	)

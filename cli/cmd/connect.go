@@ -32,6 +32,7 @@ var (
 	connectSslCiphers  string
 	connectInteractive bool
 	connectBinary      bool
+	connectEvaler      string
 )
 
 // NewConnectCmd creates connect command.
@@ -102,6 +103,11 @@ func NewConnectCmd() *cobra.Command {
 		false, `enter interactive mode after executing 'FILE'`)
 	connectCmd.Flags().BoolVarP(&connectBinary, "binary", "",
 		false, `connect to instance using binary port`)
+	connectCmd.Flags().StringVar(&connectEvaler, "evaler", "",
+		`use the provided Lua expression as an interpreter for user's input of the connection.
+If the evaler code is prefixed with @, the rest should be a file name to read the evaler
+code from`)
+	connectCmd.Flags().MarkHidden("evaler")
 
 	return connectCmd
 }
@@ -197,6 +203,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		SslCiphers:  connectSslCiphers,
 		Interactive: connectInteractive,
 		Binary:      connectBinary,
+		Evaler:      connectEvaler,
 	}
 
 	var ok bool

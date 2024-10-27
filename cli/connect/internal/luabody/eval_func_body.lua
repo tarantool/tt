@@ -13,6 +13,11 @@ if is_command(cmd) or is_sql_language == true then
     return require('console').eval(cmd)
 end
 
+{{ if .evaler }}
+local function fun()
+    {{ .evaler }}
+end
+{{ else }}
 local fun, errmsg = loadstring("return "..cmd)
 if not fun then
     fun, errmsg = loadstring(cmd)
@@ -20,6 +25,7 @@ end
 if not fun then
     return yaml.encode({box.NULL})
 end
+{{ end }}
 
 local function table_pack(...)
     return {n = select('#', ...), ...}
@@ -44,7 +50,7 @@ if not ret[1] then
     if err == nil then
         err = box.NULL
     end
-    return yaml.encode({{error = err}})
+    return yaml.encode({ {error = err} })
 end
 if ret.n == 1 then
     return "---\n...\n"

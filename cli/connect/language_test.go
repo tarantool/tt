@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/cartridge-cli/cli/templates"
 	. "github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
 )
@@ -83,11 +85,12 @@ func (evaler *inputEvaler) Eval(fun string,
 }
 
 func TestChangeLanguage_requestInputs(t *testing.T) {
-	rawFun, err := os.ReadFile("./lua/eval_func_body.lua")
-	if err != nil {
-		t.Fatal("Failed to read lua file:", err)
-	}
-	expectedFun := string(rawFun)
+	rawFun, err := os.ReadFile("./internal/luabody/eval_func_body.lua")
+	require.NoError(t, err, "Failed to read lua file")
+	rawFunStr := string(rawFun)
+	expectedFun, err := templates.GetTemplatedStr(&rawFunStr, map[string]string{})
+	require.NoError(t, err, "Failed to render eval func body template")
+
 	expectedOpts := connector.RequestOpts{}
 	cases := []struct {
 		lang Language

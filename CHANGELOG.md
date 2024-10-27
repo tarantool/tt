@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New flag `--timestamp` of `tt cat` and `tt play` commands is added to specify
 operations ending with the given timestamp. This value can be specified
 as a number or using [RFC3339/RFC3339Nano](https://go.dev/src/time/format.go) time format.
+- `tt connect`: add new `--evaler` option to support for customizing
+the way user input is processed.
 
 ### Changed
 
