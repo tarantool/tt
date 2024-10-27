@@ -1,3 +1,4 @@
+import itertools
 import os
 import platform
 import re
@@ -3087,4 +3088,92 @@ return a
 
     finally:
         # Stop the Instance.
+        stop_app(tt_cmd, tmpdir, "test_app")
+
+
+@pytest.mark.skipif(tarantool_major_version == 1,
+                    reason="skip custom evaler test for Tarantool 1")
+def test_custom_evaler(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    copy_data(tmpdir, [test_app_path])
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    expected_output = '''+------------------+
+| COLUMN2          |
++------------------+
+| Hello SQL world! |
++------------------+
+'''
+    try:
+        file = wait_file(os.path.join(tmpdir, "test_app"), "ready", [])
+        assert file != ""
+
+        with open(os.path.join(tmpdir, "evaler.lua"), 'w') as f:
+            f.write("return box.execute(cmd)")
+
+        if tarantool_major_version >= 3 or (
+            tarantool_major_version == 2 and tarantool_minor_version >= 11
+        ):
+            select = "select COLUMN2 from seqscan table1 WHERE COLUMN1 = 10"
+        else:
+            select = "select COLUMN2 from table1 WHERE COLUMN1 = 10"
+
+        uris = ["localhost:3013", "tcp://localhost:3013"]
+        evalers = ["return box.execute(cmd)", os.path.join("@" + tmpdir, "evaler.lua")]
+        for uri, evaler in itertools.product(uris, evalers):
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin=select,
+                opts={"--evaler": evaler,
+                      "-x": "table"},
+            )
+
+            assert ret
+            assert output == expected_output
+
+    finally:
+        stop_app(tt_cmd, tmpdir, "test_app")
+
+
+def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
+                                                            "test_app.lua")
+    copy_data(tmpdir, [test_app_path])
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    try:
+        file = wait_file(os.path.join(tmpdir, "test_app"), "ready", [])
+        assert file != ""
+
+        uris = ["localhost:3013", "tcp://localhost:3013"]
+        for uri in uris:
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="SELECT name FROM customers WHERE id = 4",
+                opts={"--evaler": "return box.execute(cmd"},
+            )
+
+            assert not ret
+            assert "Failed to execute command" in output
+
+        ret, output = try_execute_on_instance(
+            tt_cmd,
+            tmpdir,
+            "localhost:3013",
+            stdin="SELECT name FROM customers WHERE id = 4",
+            opts={"--evaler": "@missing_file"},
+        )
+
+        assert not ret
+        assert "failed to read the evaler file: open missing_file: " \
+               "no such file or directory" in output
+
+    finally:
         stop_app(tt_cmd, tmpdir, "test_app")

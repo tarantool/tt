@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/tarantool/go-prompt"
+	"github.com/tarantool/tt/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/formatter"
 )
@@ -121,10 +122,13 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	}
 
 	// Initialize user commands executor.
-	console.executor = getExecutor(console)
+	console.executor, err = getExecutor(console, connectCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init prompt: %s", err)
+	}
 
 	// Initialize commands completer.
-	console.completer = getCompleter(console)
+	console.completer = getCompleter(console, connectCtx)
 
 	// Initialize syntax checkers.
 	luaValidator := NewLuaValidator()
@@ -182,8 +186,14 @@ func (console *Console) Close() {
 }
 
 // getExecutor returns command executor.
-func getExecutor(console *Console) func(string) {
+func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) {
 	commandsExecutor := newCmdExecutor()
+
+	evalBody, err := luabody.GetEvalFuncBody(connectCtx.Evaler)
+	if err != nil {
+		return nil, err
+	}
+
 	executor := func(in string) {
 		if console.input == "" {
 			if commandsExecutor.Execute(console, in) {
@@ -237,7 +247,7 @@ func getExecutor(console *Console) func(string) {
 		}
 
 		var data string
-		if _, err := console.conn.Eval(evalFuncBody, args, opts); err != nil {
+		if _, err := console.conn.Eval(evalBody, args, opts); err != nil {
 			if err == io.EOF {
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
 				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.
@@ -266,10 +276,16 @@ func getExecutor(console *Console) func(string) {
 		console.livePrefixEnabled = false
 	}
 
-	return executor
+	return executor, nil
 }
 
-func getCompleter(console *Console) prompt.Completer {
+func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
+	if len(connectCtx.Evaler) != 0 {
+		return func(prompt.Document) []prompt.Suggest {
+			return nil
+		}
+	}
+
 	completer := func(in prompt.Document) []prompt.Suggest {
 		if len(in.Text) == 0 {
 			return nil
@@ -295,7 +311,7 @@ func getCompleter(console *Console) prompt.Completer {
 			ResData:     &suggestionsTexts,
 		}
 
-		if _, err := console.conn.Eval(getSuggestionsFuncBody, args, opts); err != nil {
+		if _, err := console.conn.Eval(luabody.GetSuggestionsFuncBody(), args, opts); err != nil {
 			return nil
 		}
 
