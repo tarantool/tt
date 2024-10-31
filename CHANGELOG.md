@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+## [2.5.1] - 2024-10-31
+
+### Fixed
+
 - Release packages were built using the outdated and buggy MessagePack
   library.
 
