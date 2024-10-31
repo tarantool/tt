@@ -61,19 +61,29 @@ func remove(program string, programVersion string, directory string,
 	} else if err != nil {
 		return false, fmt.Errorf("there was some problem locating %s", path)
 	}
-	// Get path where symlink point.
-	resolvedPath, err := util.ResolveSymlink(linkPath)
-	if err != nil {
-		return false, fmt.Errorf("failed to resolve symlink %s: %s", linkPath, err)
-	}
+
 	var isSymlinkRemoved bool
-	// Remove symlink if it points to program.
-	if strings.Contains(resolvedPath, fileName) {
-		err = os.Remove(linkPath)
-		if err != nil {
-			return false, err
+
+	_, err = os.Lstat(linkPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return false, fmt.Errorf("failed to access %q: %w", linkPath, err)
 		}
-		isSymlinkRemoved = true
+		isSymlinkRemoved = false
+	} else {
+		// Get path where symlink point.
+		resolvedPath, err := util.ResolveSymlink(linkPath)
+		if err != nil {
+			return false, fmt.Errorf("failed to resolve symlink %q: %w", linkPath, err)
+		}
+
+		// Remove symlink if it points to program.
+		if strings.Contains(resolvedPath, fileName) {
+			if err = os.Remove(linkPath); err != nil {
+				return false, err
+			}
+			isSymlinkRemoved = true
+		}
 	}
 	err = os.RemoveAll(path)
 	if err != nil {
