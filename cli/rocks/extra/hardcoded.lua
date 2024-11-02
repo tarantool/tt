@@ -54,4 +54,5 @@ return {
         include = "include",
     },
     LOCAL_BY_DEFAULT = true,
+    FORCE_HARDCODED = true,
 }

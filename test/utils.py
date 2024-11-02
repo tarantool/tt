@@ -68,6 +68,27 @@ def create_tt_config(config_path, modules_path):
     return config_path
 
 
+def create_lua_config(tmp_path):
+    config_file = tmp_path / 'config-5.1.lua'
+    with open(config_file, "w") as f:
+        f.write('''-- LuaRocks configuration
+    rocks_trees = {
+       { name = "user", root = home .. "/.luarocks" };
+       { name = "system", root = "/usr" };
+    }
+    variables = {
+       LUA_DIR = "/usr";
+       LUA_INCDIR = "/usr/include/lua5.1";
+       LUA_BINDIR = "/usr/bin";
+       LUA_VERSION = "5.1";
+       LUA = "/usr/bin/lua5.1";
+       IS_LUA_CONFIG_USED = true
+    }
+    ''')
+
+    return config_file
+
+
 def create_external_module(module_name, directory):
     module_message = f"\"Hello, I'm {module_name} external module!\""
     with open(os.path.join(directory, f"{module_name}.sh"), "w") as f:
