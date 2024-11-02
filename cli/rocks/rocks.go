@@ -177,6 +177,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	rocks_preload := map[string]string{
 		"extra.wrapper":                    extra_path + "wrapper.lua",
 		"luarocks.core.hardcoded":          extra_path + "hardcoded.lua",
+		"luarocks.vendor.dkjson":           rocks_path + "luarocks/vendor/dkjson.lua",
 		"luarocks.core.util":               rocks_path + "luarocks/core/util.lua",
 		"luarocks.core.persist":            rocks_path + "luarocks/core/persist.lua",
 		"luarocks.core.sysdetect":          rocks_path + "luarocks/core/sysdetect.lua",
