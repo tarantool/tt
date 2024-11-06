@@ -24,7 +24,7 @@ jobs:
       (github.event_name == 'pull_request' &&
         github.event.action == 'synchronize' &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         tarantool-version: ["1.10", "2.10", "3.0"]
@@ -99,7 +99,7 @@ jobs:
         github.event.action == 'synchronize' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         sdk-version:
@@ -277,7 +277,7 @@ jobs:
         github.event.action == 'synchronize' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         sdk-version:
@@ -328,7 +328,7 @@ jobs:
         github.event.action == 'synchronize' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         tarantool-version: ["1.10", "2.10"]
@@ -374,7 +374,7 @@ jobs:
       (github.event_name == 'pull_request' &&
         github.event.action == 'synchronize' &&
         contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
