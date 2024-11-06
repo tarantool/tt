@@ -21,7 +21,7 @@ jobs:
       (github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.owner.login != 'tarantool' &&
         !contains(github.event.pull_request.labels.*.name, 'full-ci'))
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         tarantool-version: ["1.10", "2.10", "3.0"]
@@ -98,7 +98,7 @@ jobs:
         github.event.pull_request.head.repo.owner.login != 'tarantool' &&
         !contains(github.event.pull_request.labels.*.name, 'full-ci') &&
         github.event.label.name == 'ee-ci')
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         sdk-version:
