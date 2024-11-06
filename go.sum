@@ -428,8 +428,9 @@ github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.4/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
-github.com/tarantool/go-openssl v0.0.8-0.20230307065445-720eeb389195 h1:/AN3eUPsTlvF6W+Ng/8ZjnSU6o7L0H4Wb9GMks6RkzU=
 github.com/tarantool/go-openssl v0.0.8-0.20230307065445-720eeb389195/go.mod h1:M7H4xYSbzqpW/ZRBMyH0eyqQBsnhAMfsYk5mv0yid7A=
+github.com/tarantool/go-openssl v1.1.1 h1:qOCSjUXRLxlnh0e2G6sH50B3d/gYpscbY/opFqsIfaE=
+github.com/tarantool/go-openssl v1.1.1/go.mod h1:M7H4xYSbzqpW/ZRBMyH0eyqQBsnhAMfsYk5mv0yid7A=
 github.com/tarantool/go-prompt v0.2.6-tarantool h1:/dYMRBuM5nE3mleka/mqJWPf8SrJ151U+OqDlTzvES0=
 github.com/tarantool/go-prompt v0.2.6-tarantool/go.mod h1:8enZKIgoGFEQu2XPBK79TguJG2XF3SR4QU2iYI28NSo=
 github.com/tarantool/go-prompt v1.0.1 h1:88Yer6gCFylqGRrdWwikNFVbklRQsqKF7mycvGdDcj0=
