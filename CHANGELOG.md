@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+## [2.5.2] - 2024-11-07
+
+Update luarocks and libraries version.
+
+### Fixed
+
+- `tt rocks`: a wrong Lua interpreter is selected.
+
 ## [2.5.1] - 2024-10-31
 
 ### Fixed
