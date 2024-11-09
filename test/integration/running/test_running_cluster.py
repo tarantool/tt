@@ -8,7 +8,7 @@ import yaml
 
 from utils import (control_socket, extract_status, get_tarantool_version,
                    lib_path, log_path, run_command_and_get_output, run_path,
-                   wait_files, wait_pid_disappear)
+                   wait_event, wait_files, wait_pid_disappear)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -44,6 +44,18 @@ def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
         files.append(conf['pid_file'])
         files.append(conf['console_socket'])
     assert wait_files(5, files)
+
+    def are_all_box_statuses_running():
+        status_cmd = [tt_cmd, "status", app_name]
+        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=workdir)
+        assert status_rc == 0
+        status_info = extract_status(status_out)
+        for inst in instances:
+            inst_id = app_name + ":" + inst
+            if status_info[inst_id].get("BOX") != "running":
+                return False
+        return True
+    assert wait_event(5, are_all_box_statuses_running)
 
 
 def default_inst_conf(workdir, app_name, inst):
