@@ -1,0 +1,23 @@
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    command: etcd --name etcd --advertise-client-urls http://etcd:2379 --listen-client-urls http://0.0.0.0:2379 --initial-cluster-state new --enable-v2
+    networks:
+      - tarantooldb_network
+    ports:
+      - "2379:2379"
+
+  tcm-1:
+    image: tarantooldb:2x-latest
+    networks:
+      - tarantooldb_network
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./tcm.yml:/app/tarantooldb/tcm.yml
+      - ../cluster/config.yml:/app/tarantooldb/config.yml
+    command: ./tcm -c tcm.yml
+
+networks:
+  tarantooldb_network:
+    external: true

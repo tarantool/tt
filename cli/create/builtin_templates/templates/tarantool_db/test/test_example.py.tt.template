@@ -1,0 +1,51 @@
+from tdb_client import TDBClient
+from config import ClusterConfig
+{{- if eq .use_expirationd "y" }}
+from tarantool import Datetime
+from datetime import datetime
+from time import sleep
+{{- end}}
+
+def test_crud(tdb_client: TDBClient):
+    tdb_client.crud_truncate('data')
+    tdb_client.crud_insert_object('data', {"id":1, "data": "data"})
+    res_get = tdb_client.crud_get('data', [1])
+    assert len(res_get.rows) == 1
+    res = tdb_client.crud_unflatten_rows(res_get.rows, res_get.metadata)
+    assert res[0]['id'] == 1
+    assert res[0]['data'] == 'data'
+
+def test_dictionary(tdb_client: TDBClient):
+    tdb_client.dictionary_set('dict', 'key', 'value', {"wait_consistency":True})
+    v = tdb_client.dictionary_get('dict', 'key')
+    assert v[0] == "value"
+    res = tdb_client.dictionary_get_entity('dict')
+    assert res[0] == {"key":"value"}
+
+def test_config(cluster_config: ClusterConfig):
+    """
+    config manipulations
+    """
+    cfg = cluster_config.Config
+    cfg['credentials']['users']['new_user'] = {
+        "password": "password",
+        "roles": [
+            "super"
+        ],
+    }
+    cluster_config.Config = cfg
+
+{{- if eq .use_expirationd "y" }}
+
+def test_expirationd(tdb_client: TDBClient):
+    tdb_client.crud_replace_object('expiration_space', {
+        "id":1,
+        "dt":Datetime(timestamp=datetime.now().timestamp()),
+        "data":"data"
+    })
+    res_get = tdb_client.crud_get('expiration_space', [1])
+    assert len(res_get.rows) == 1
+    sleep(2.5)
+    res_get = tdb_client.crud_get('expiration_space', [1])
+    assert len(res_get.rows) == 0
+{{- end}}

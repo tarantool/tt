@@ -14,7 +14,8 @@ var FileModes = map[string]map[string]int{
 	"cartridge":       static.CartridgeFileModes,
 	"vshard_cluster":  static.VshardClusterFileModes,
 	"single_instance": static.SingleInstanceFileModes,
+	"tarantool_db":    static.TarantoolDBFileModes,
 }
 
 // Names contains built-in template names.
-var Names = [...]string{"cartridge", "vshard_cluster", "single_instance"}
+var Names = [...]string{"cartridge", "vshard_cluster", "single_instance", "tarantool_db"}

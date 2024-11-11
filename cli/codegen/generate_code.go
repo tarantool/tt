@@ -147,6 +147,15 @@ func main() {
 		log.Errorf("error while generating file modes: %s", err)
 	}
 
+	err = generateFileModeFile(
+		"cli/create/builtin_templates/templates/tarantool_db",
+		"cli/create/builtin_templates/static/tarantool_db_template_filemodes_gen.go",
+		"TarantoolDB",
+	)
+	if err != nil {
+		log.Errorf("error while generating file modes: %s", err)
+	}
+
 	if err = generateLuaCodeVar(); err != nil {
 		log.Errorf("error while generating lua code string variables: %s", err)
 	}

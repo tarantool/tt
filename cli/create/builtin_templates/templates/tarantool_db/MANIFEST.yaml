@@ -1,0 +1,7 @@
+description: Tarantool DB app
+vars:
+    - prompt: Use expirationd [y|n]
+      name: use_expirationd
+      default: 'n'
+      re: ^\w+$
+post-hook: ./hooks/post-gen.sh

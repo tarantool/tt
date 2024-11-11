@@ -1,0 +1,31 @@
+http:
+    host: 0.0.0.0
+    port: 8081
+
+storage:
+    provider: etcd
+    etcd:
+        prefix: /tcm
+        endpoints:
+            - http://etcd:2379
+security:
+  bootstrap-password: secret
+
+cluster:
+  tt-command: /app/tarantooldb/tt
+
+initial-settings:
+  clusters:
+    - name: Tarantool DB Cluster
+      id: 00000000-0000-0000-0000-000000000000
+      storage-connection:
+        provider: etcd
+        etcd-connection:
+          prefix: /tdb
+          username: client
+          password: secret
+          endpoints:
+            - http://etcd:2379
+      tarantool-connection:
+        username: "admin"
+        password: "secret-cluster-cookie"

@@ -1,0 +1,5 @@
+tarantool==1.2.0
+pytest==8.3.3
+etcd3==0.12.0 
+protobuf==3.20
+PyYAML==6.0.2

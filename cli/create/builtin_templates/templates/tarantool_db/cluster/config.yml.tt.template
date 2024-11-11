@@ -1,0 +1,121 @@
+credentials:
+  users:
+    admin:
+      password: 'secret-cluster-cookie'
+      roles: [super]
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'secret'
+      roles:
+        - replication
+        - dictionary_api_service
+    storage:
+      password: 'secret'
+      roles: [sharding]
+
+iproto:
+  advertise:
+    peer:
+      login: replicator
+    sharding:
+      login: storage
+
+sharding:
+  bucket_count: 30000
+
+roles_cfg:
+  roles.metrics-export:
+    http:
+    - endpoints:
+      - format: prometheus
+        path: /metrics
+      listen: 8081
+
+groups:
+  routers:
+    replication:
+      failover: manual
+    sharding:
+      roles: [router]
+    roles:
+      - roles.crud-router
+      - roles.metrics-export
+      - roles.dictionary-router
+    roles_cfg:
+      roles.crud-router:
+        stats: true
+        stats_driver: metrics
+        stats_quantiles: true
+        stats_quantile_tolerated_error: 0.001
+        stats_quantile_age_buckets_count: 5
+        stats_quantile_max_age_time: 180
+    replicasets:
+      router-msk:
+        leader: router-msk
+        instances:
+          router-msk:
+            iproto:
+              listen:
+                - uri: tarantool-router-msk:3301
+              advertise:
+                client: tarantool-router-msk:3301
+      router-spb:
+        leader: router-spb
+        instances:
+          router-spb:
+            iproto:
+              listen:
+                - uri: tarantool-router-spb:3301
+              advertise:
+                client: tarantool-router-spb:3301
+  storages:
+    replication:
+      failover: election
+    sharding:
+      roles: [storage]
+    roles:
+      - roles.crud-storage
+      - roles.metrics-export
+      - roles.dictionary-storage
+    {{- if eq .use_expirationd "y" }}
+      - roles.expirationd
+    roles_cfg:
+      roles.expirationd:
+        expirationd_task:
+          space: expiration_space
+          options:
+            args:
+              lifetime_in_seconds: 2
+              time_create_field: dt
+    {{- end }}
+    replicasets:
+      storage-1:
+        instances:
+          storage-1-msk:
+            iproto:
+              listen:
+                - uri: tarantool-storage-1-msk:3301
+              advertise:
+                client: tarantool-storage-1-msk:3301
+          storage-1-spb:
+            iproto:
+              listen:
+                - uri: tarantool-storage-1-spb:3301
+              advertise:
+                client: tarantool-storage-1-spb:3301
+      storage-2:
+        instances:
+          storage-2-msk:
+            iproto:
+              listen:
+                - uri: tarantool-storage-2-msk:3301
+              advertise:
+                client: tarantool-storage-2-msk:3301
+          storage-2-spb:
+            iproto:
+              listen:
+                - uri: tarantool-storage-2-spb:3301
+              advertise:
+                client: tarantool-storage-2-spb:3301

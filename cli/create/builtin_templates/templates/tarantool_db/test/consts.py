@@ -1,0 +1,14 @@
+TDB_USER='admin'
+TDB_PASSWORD='secret-cluster-cookie'
+TDB_ROUTERS=[
+    {
+        "host":"localhost",
+        "port":3301,
+    },
+    {
+        "host":"localhost",
+        "port":3302,
+    }
+]
+ETCD_HOST='localhost'
+ETCD_PORT=2379

@@ -1,0 +1,101 @@
+services:
+  tarantool-router-msk:
+    image: tarantooldb:2x-latest
+    networks:
+      - tarantooldb_network
+    ports:
+      - "3301:3301"
+    environment:
+      - TT_INSTANCE_NAME=router-msk
+      - TT_CONFIG_ETCD_ENDPOINTS=http://etcd:2379
+      - TT_CONFIG_ETCD_PREFIX=/tdb
+      - TT_CONFIG_ETCD_HTTP_REQUEST_TIMEOUT=3
+    volumes:
+      - ./migrations/:/app/tarantooldb/migrations/
+  tarantool-router-spb:
+    image: tarantooldb:2x-latest
+    networks:
+      - tarantooldb_network
+    ports:
+      - "3302:3301"
+    environment:
+      - TT_INSTANCE_NAME=router-spb
+      - TT_CONFIG_ETCD_ENDPOINTS=http://etcd:2379
+      - TT_CONFIG_ETCD_PREFIX=/tdb
+      - TT_CONFIG_ETCD_HTTP_REQUEST_TIMEOUT=3
+  tarantool-storage-1-msk:
+    image: tarantooldb:2x-latest
+    networks:
+      - tarantooldb_network
+    ports:
+      - "3303:3301"
+    environment:
+      - TT_INSTANCE_NAME=storage-1-msk
+      - TT_CONFIG_ETCD_ENDPOINTS=http://etcd:2379
+      - TT_CONFIG_ETCD_PREFIX=/tdb
+      - TT_CONFIG_ETCD_HTTP_REQUEST_TIMEOUT=3
+  tarantool-storage-1-spb:
+    image: tarantooldb:2x-latest
+    networks:
+      - tarantooldb_network
+    ports:
+      - "3304:3301"
+    environment:
+      - TT_INSTANCE_NAME=storage-1-spb
+      - TT_CONFIG_ETCD_ENDPOINTS=http://etcd:2379
+      - TT_CONFIG_ETCD_PREFIX=/tdb
+      - TT_CONFIG_ETCD_HTTP_REQUEST_TIMEOUT=3
+  tarantool-storage-2-msk:
+    image: tarantooldb:2x-latest
+    networks:
+      - tarantooldb_network
+    ports:
+      - "3306:3301"
+    environment:
+      - TT_INSTANCE_NAME=storage-2-msk
+      - TT_CONFIG_ETCD_ENDPOINTS=http://etcd:2379
+      - TT_CONFIG_ETCD_PREFIX=/tdb
+      - TT_CONFIG_ETCD_HTTP_REQUEST_TIMEOUT=3
+  tarantool-storage-2-spb:
+    image: tarantooldb:2x-latest
+    networks:
+      - tarantooldb_network
+    ports:
+      - "3307:3301"
+    environment:
+      - TT_INSTANCE_NAME=storage-2-spb
+      - TT_CONFIG_ETCD_ENDPOINTS=http://etcd:2379
+      - TT_CONFIG_ETCD_PREFIX=/tdb
+      - TT_CONFIG_ETCD_HTTP_REQUEST_TIMEOUT=3
+
+  init_host:
+    image: tarantooldb:2x-latest
+    networks:
+      - tarantooldb_network
+    volumes:
+      - ./migrations/:/app/tarantooldb/migrations/
+    depends_on:
+      - tarantool-router-msk
+      - tarantool-router-spb
+      - tarantool-storage-1-msk
+      - tarantool-storage-1-spb
+      - tarantool-storage-2-msk
+      - tarantool-storage-2-spb
+    environment:
+      - TT_CLI_USERNAME=admin
+      - TT_CLI_PASSWORD=secret-cluster-cookie
+    command: /bin/sh -c "\
+        tools/client/wait_instance_ready.sh 15 tarantool-router-msk:3301 \
+        && tools/client/wait_instance_ready.sh 15 tarantool-router-spb:3301 \
+        && tools/client/wait_instance_ready.sh 15 tarantool-storage-1-msk:3301 \
+        && tools/client/wait_instance_ready.sh 15 tarantool-storage-1-spb:3301 \
+        && tools/client/wait_instance_ready.sh 15 tarantool-storage-2-msk:3301 \
+        && tools/client/wait_instance_ready.sh 15 tarantool-storage-2-spb:3301 \
+        && tt replicaset vshard bootstrap tarantool-router-msk:3301 \
+        && tt migrations publish http://etcd:2379/tdb migrations \
+        && tt migrations apply http://etcd:2379/tdb \
+        && echo Initialize has completed successfully."
+
+networks:
+  tarantooldb_network:
+    external: true

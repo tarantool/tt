@@ -1,0 +1,43 @@
+# {{ .name }}
+
+## Настройка окружения
+
+Для запуска стенда нужен [docker образ Tarantool DB](https://www.tarantool.io/ru/tarantooldb/doc/1.x/install_and_upgrade/install/install_docker/).
+
+```bash
+docker image tag tarantooldb:<VERSION> tarantooldb:2x-latest
+```
+
+VERSION – версия Docker-образа продукта
+
+# python
+```bash
+python3 -m venv venv
+pip3 install -r test/requiremets.txt
+```
+
+## Описание стенда
+
+Кластер tarantool 3: 2 роутера, 2 репликасета по 2 реплики. Порты 3301-3307.
+
+Инстанс tcm. доступен по адресу http://localhost:8081/. Логин/Пароль admin/secret.
+
+Инстанс etcd, порт 2379.
+
+[Миграции](./cluster/migrations/scenario)
+
+[Конфиг](./cluster/config.yml)
+
+## Запуск тестов
+
+```bash
+make up
+make test
+```
+
+[Пример использования хэлперов в тестах](test/test_example.py)
+
+## Дополнительно
+
+- Документация [Tarantool DB](https://www.tarantool.io/en/tarantooldb/doc/latest/overview/)
+- Документация [конфига Tarantool 3](https://www.tarantool.io/en/doc/latest/reference/configuration/configuration_reference/)
