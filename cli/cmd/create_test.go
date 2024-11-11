@@ -41,6 +41,7 @@ func TestCreateValidArgsFunction(t *testing.T) {
 		"cartridge",
 		"vshard_cluster",
 		"single_instance",
+		"tarantool_db",
 		"archive",
 		"template2",
 		tdir1Name,
