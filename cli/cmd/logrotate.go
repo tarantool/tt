@@ -47,11 +47,10 @@ func internalLogrotateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	for _, run := range runningCtx.Instances {
-		res, err := running.Logrotate(&run)
+		err := running.Logrotate(&run)
 		if err != nil {
-			return err
+			log.Infof(err.Error())
 		}
-		log.Info(res)
 	}
 
 	return nil

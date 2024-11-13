@@ -156,7 +156,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
     os.rename(tt_log_file, os.path.join(tmpdir, log_file))
     logrotate_rc, logrotate_out = run_command_and_get_output(logrotate_cmd, cwd=tmpdir)
     assert logrotate_rc == 0
-    assert re.search(r"test_env_app: logs has been rotated. PID: \d+.", logrotate_out)
+    assert re.search(r"test_env_app \(PID = \d+\): logs has been rotated.", logrotate_out)
 
     # Wait for the files to be re-created.
     file = wait_file(os.path.dirname(tt_log_file), log_file, [])
@@ -454,9 +454,9 @@ def test_no_args_usage(tt_cmd):
             status_cmd = [tt_cmd, "logrotate"]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(r"app1:(router|master|replica): logs has been rotated. PID: \d+.",
+            assert re.search(r"app1:(router|master|replica) \(PID = \d+\): logs has been rotated.",
                              status_out)
-            assert re.search(r"app2: logs has been rotated. PID: \d+.", status_out)
+            assert re.search(r"app2 \(PID = \d+\): logs has been rotated.", status_out)
 
             # Stop all applications.
             stop_cmd = [tt_cmd, "stop", "-y"]
