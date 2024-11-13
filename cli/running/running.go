@@ -856,24 +856,27 @@ func Status(run *InstanceCtx) process_utils.ProcessState {
 }
 
 // Logrotate rotates logs of a started tarantool instance.
-func Logrotate(run *InstanceCtx) (string, error) {
+func Logrotate(run *InstanceCtx) error {
+	fullInstanceName := GetAppInstanceName(*run)
+
 	pid, err := process_utils.GetPIDFromFile(run.PIDFile)
 	if err != nil {
-		return "", errors.New(instStateStopped.String())
+		return fmt.Errorf("%s: the instance is not running, it must be started", fullInstanceName)
 	}
 
 	alive, err := process_utils.IsProcessAlive(pid)
 	if !alive {
-		return "", errors.New(instStateDead.String())
+		return errors.New(instStateDead.String())
 	}
 
 	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {
-		return "", fmt.Errorf(`can't rotate logs: "%v"`, err)
+		return fmt.Errorf(`can't rotate logs: "%v"`, err)
 	}
 
 	// Rotates logs [instance name pid]
-	fullInstanceName := GetAppInstanceName(*run)
-	return fmt.Sprintf("%s: logs has been rotated. PID: %v.", fullInstanceName, pid), nil
+	log.Infof("%s (PID = %v): logs has been rotated.", fullInstanceName, pid)
+
+	return nil
 }
 
 // Check returns the result of checking the syntax of the application file.

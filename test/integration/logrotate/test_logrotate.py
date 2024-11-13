@@ -26,19 +26,12 @@ def check_logrotate(tt, target):
 
     # Do logrotate.
     rc, out = tt.exec('logrotate', target)
-
-    # If any of the requested instances is not running return failure.
-    for inst in target_instances:
-        if inst not in tt.running_instances:
-            assert rc != 0
-            assert "NOT RUNNING" in out
-            return
+    assert rc == 0
 
     # Wait for the log files to be re-created.
     assert utils.wait_files(5, tt_helper.log_files(tt, expected_instances))
 
     # Check the instances.
-    assert rc == 0
     status = tt_helper.status(tt)
     for inst in tt.instances:
         was_running = inst in tt.running_instances
@@ -46,11 +39,16 @@ def check_logrotate(tt, target):
         if was_running:
             assert status[inst]["PID"] == orig_status[inst]["PID"]
         if inst in target_instances:
-            assert was_running
-            pid = status[inst]["PID"]
-            assert f"{inst}: logs has been rotated. PID: {pid}" in out
-            with open(tt.log_path(inst, utils.log_file)) as f:
-                assert "reopened" in f.read()
+            if was_running:
+                pid = status[inst]["PID"]
+                assert pid == orig_status[inst]["PID"]
+                assert f"{inst} (PID = {pid}): logs has been rotated." in out
+                with open(tt.log_path(inst, utils.log_file)) as f:
+                    assert "reopened" in f.read()
+            else:
+                _, sep, inst_name = inst.partition(':')
+                assert sep != ''
+                assert f"{inst_name}: the instance is not running, it must be started" in out
 
 
 def post_start_logrotate_decorator(func):
