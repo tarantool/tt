@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -710,6 +712,88 @@ func TestCopyFileDeep(t *testing.T) {
 			require.NoError(t, err)
 			assert.Zero(t, stat.Mode()&os.ModeSymlink)
 			require.NoError(t, os.Remove(tt.args.dst))
+		})
+	}
+}
+
+func TestStringToTimestamp(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		output  string
+		wantErr bool
+	}{
+		{
+			"clean",
+			"",
+			strconv.FormatUint(math.MaxUint64, 10),
+			false,
+		},
+		{
+			"int_number",
+			"123456",
+			"123456",
+			false,
+		},
+		{
+			"float_number",
+			"123456.123",
+			"123456.123",
+			false,
+		},
+		{
+			"RFC339",
+			"2022-04-28T07:22:12+00:00",
+			"1651130532.0",
+			false,
+		},
+		{
+			"RFC339Nano",
+			"2022-04-28T07:22:12.1534+00:00",
+			"1651130532.153400000",
+			false,
+		},
+		{
+			"RFC339Nano_Zone",
+			"2022-04-28T07:22:12.1534Z",
+			"1651130532.153400000",
+			false,
+		},
+		{
+			"not_number",
+			"acbdef",
+			"",
+			true,
+		},
+		{
+			"RFC339Nano_random_string",
+			"2022-0_-28A07:22:12.1534abc",
+			"",
+			true,
+		},
+		{
+			"RFC339Nano_incorrect",
+			"2022-04-28T07:22:12.1534abc",
+			"",
+			true,
+		},
+		{
+			"RFC339_incorrect",
+			"2022-04-28T07:22abc",
+			"",
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := StringToTimestamp(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.output, got)
+			}
 		})
 	}
 }

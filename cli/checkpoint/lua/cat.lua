@@ -4,6 +4,7 @@
 -- The --space flags passes through 'TT_CLI_CAT_SPACES'.
 -- The --from flag passes through 'TT_CLI_CAT_FROM'.
 -- The --to flag passes through 'TT_CLI_CAT_TO'.
+-- The --timestamp flag passes through 'TT_CLI_CAT_TIMESTAMP'.
 -- The --replica flags passes through 'TT_CLI_CAT_REPLICAS'.
 -- The --format flags passes through 'TT_CLI_CAT_FORMAT'.
 
@@ -114,20 +115,21 @@ local function find_in_list(id, list)
 end
 
 local function filter_xlog(gen, param, state, opts, cb)
-    local from, to, spaces = opts.from, opts.to, opts.space
+    local from, to, timestamp, spaces = opts.from, opts.to, opts.timestamp, opts.space
     local show_system, replicas = opts['show-system'], opts.replica
 
     for lsn, record in gen, param, state do
         local sid = record.BODY and record.BODY.space_id
         local rid = record.HEADER.replica_id
-        if replicas and #replicas == 1 and replicas[1] == rid and lsn >= to then
+        local ts = record.HEADER.timestamp or 0
+        if replicas and #replicas == 1 and replicas[1] == rid and (lsn >= to or ts >= timestamp) then
             -- Stop, as we've finished reading tuple with lsn == to
             -- and the next lsn's will be bigger.
             break
-        elseif (lsn < from) or (lsn >= to) or
-        (not spaces and sid and sid < 512 and not show_system) or
-        (spaces and (sid == nil or not find_in_list(sid, spaces))) or
-        (replicas and not find_in_list(rid, replicas)) then
+        elseif (lsn < from) or (lsn >= to) or (ts >= timestamp) or
+            (not spaces and sid and sid < 512 and not show_system) or
+            (spaces and (sid == nil or not find_in_list(sid, spaces))) or
+            (replicas and not find_in_list(rid, replicas)) then
             -- Pass this tuple, luacheck: ignore.
         else
             cb(record)
@@ -204,6 +206,13 @@ local function main()
         os.exit(1)
     end
     keyword_arguments['to'] = tonumber(to)
+
+    local timestamp = os.getenv('TT_CLI_CAT_TIMESTAMP')
+    if timestamp == nil then
+        log.error('Internal error: failed to get cat params from TT_CLI_CAT_TIMESTAMP')
+        os.exit(1)
+    end
+    keyword_arguments['timestamp'] = tonumber(timestamp)
 
     local replicas = os.getenv('TT_CLI_CAT_REPLICAS')
     if replicas ~= nil then

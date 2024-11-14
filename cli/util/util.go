@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"os/exec"
 	"os/user"
@@ -19,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
@@ -937,4 +939,31 @@ func CopyFileDeep(src, dst string) error {
 		return err
 	}
 	return copy.Copy(src, dst)
+}
+
+// StringToTimestamp transforms string with number or RFC339Nano time
+// to <sec.nanosec> timestamp string.
+func StringToTimestamp(input string) (string, error) {
+	if input == "" {
+		// Default value.
+		return strconv.FormatUint(math.MaxUint64, 10), nil
+	}
+
+	floatTimestamp, err := strconv.ParseFloat(input, 64)
+	if err == nil {
+		return strconv.FormatFloat(floatTimestamp, 'f', -1, 64), nil
+	}
+
+	// The RFC3339Nano layout also successfully parses the RFC3339 layout.
+	rfc3339NanoTs, err := time.Parse(time.RFC3339Nano, input)
+	if err != nil {
+		// Incorrect input, trigger an error.
+		return "", err
+	}
+	tsSec := rfc3339NanoTs.Unix()
+	tsNanoSec := rfc3339NanoTs.Nanosecond()
+	ts := fmt.Sprintf("%s.%s", strconv.FormatInt(tsSec, 10),
+		strconv.FormatInt(int64(tsNanoSec), 10))
+
+	return ts, nil
 }
