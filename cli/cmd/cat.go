@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -21,6 +22,7 @@ import (
 var catFlags = checkpoint.Opts{
 	From:       0,
 	To:         math.MaxUint64,
+	Timestamp:  "",
 	Space:      nil,
 	Format:     "yaml",
 	Replica:    nil,
@@ -38,10 +40,14 @@ func NewCatCmd() *cobra.Command {
 				internalCatModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Example: "tt cat /path/to/xlog --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
+			"  tt cat /path/to/snap --timestamp=1731592956.818",
 	}
 
 	catCmd.Flags().Uint64Var(&catFlags.To, "to", catFlags.To,
 		"Show operations ending with the given lsn")
+	catCmd.Flags().StringVar(&catFlags.Timestamp, "timestamp", catFlags.Timestamp,
+		"Show operations ending with the given timestamp")
 	catCmd.Flags().Uint64Var(&catFlags.From, "from", catFlags.From,
 		"Show operations starting from the given lsn")
 	catCmd.Flags().IntSliceVar(&catFlags.Space, "space", catFlags.Space,
@@ -59,13 +65,14 @@ func NewCatCmd() *cobra.Command {
 // internalCatModule is a default cat module.
 func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("it is required to specify at least one .xlog or .snap file")
+		return errors.New("it is required to specify at least one .xlog or .snap file")
 	}
 
 	// List of files is passed to lua cat script via environment variable in json format.
 	filesJson, err := json.Marshal(args)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with files: %s",
+		return util.InternalError(
+			"Internal error: problem with creating json params with files: %s",
 			version.GetVersion, err)
 	}
 
@@ -76,7 +83,8 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// List of spaces is passed to lua cat script via environment variable in json format.
 	spacesJson, err := json.Marshal(catFlags.Space)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with spaces: %s",
+		return util.InternalError(
+			"Internal error: problem with creating json params with spaces: %s",
 			version.GetVersion, err)
 	}
 	if string(spacesJson) != "null" {
@@ -86,10 +94,17 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	os.Setenv("TT_CLI_CAT_FROM", strconv.FormatUint(catFlags.From, 10))
 	os.Setenv("TT_CLI_CAT_TO", strconv.FormatUint(catFlags.To, 10))
 
+	timestamp, err := util.StringToTimestamp(catFlags.Timestamp)
+	if err != nil {
+		return fmt.Errorf("failed to parse a timestamp: %s", err)
+	}
+	os.Setenv("TT_CLI_CAT_TIMESTAMP", timestamp)
+
 	// List of replicas is passed to lua cat script via environment variable in json format.
 	replicasJson, err := json.Marshal(catFlags.Replica)
 	if err != nil {
-		util.InternalError("Internal error: problem with creating json params with replicas: %s",
+		return util.InternalError(
+			"Internal error: problem with creating json params with replicas: %s",
 			version.GetVersion, err)
 	}
 	if string(replicasJson) != "null" {

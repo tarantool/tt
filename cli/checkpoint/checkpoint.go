@@ -14,6 +14,7 @@ import (
 // Used for commands tt cat and tt play, which are checkpoint files commands.
 type Opts struct {
 	To         uint64
+	Timestamp  string
 	From       uint64
 	Space      []int
 	Format     string
