@@ -70,7 +70,7 @@ Built-in templates:
 
     $ tt create vshard_cluster --name cluster_app
 
-# Create Tarantool DB application
+# Create Tarantool DB application.
 
 	$ tt create tarantool_db --name myapp`,
 	}
