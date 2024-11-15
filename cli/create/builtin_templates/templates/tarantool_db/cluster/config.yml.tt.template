@@ -2,10 +2,13 @@ credentials:
   users:
     admin:
       password: 'secret-cluster-cookie'
-      roles: [super]
-    client:
-      password: 'secret'
-      roles: [super]
+      roles:
+        - super
+    {{- if eq .use_only_admin "y" }}
+        - replication
+        - dictionary_api_service
+        - sharding
+    {{- else}}
     replicator:
       password: 'secret'
       roles:
@@ -14,16 +17,17 @@ credentials:
     storage:
       password: 'secret'
       roles: [sharding]
+    {{- end }}
 
 iproto:
   advertise:
     peer:
-      login: replicator
+      login: {{if eq .use_only_admin "y" }}admin{{else}}replicator{{end}}
     sharding:
-      login: storage
+      login: {{if eq .use_only_admin "y" }}admin{{else}}storage{{end}}
 
 sharding:
-  bucket_count: 30000
+  bucket_count: {{ .bucket_count }}
 
 roles_cfg:
   roles.metrics-export:

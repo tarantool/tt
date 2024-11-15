@@ -1,7 +1,16 @@
 description: Tarantool DB app
 vars:
+    - prompt: Bucket count
+      name: bucket_count
+      default: '30000'
+      re: ^[1-9]\d*$
     - prompt: Use expirationd [y|n]
       name: use_expirationd
       default: 'n'
-      re: ^\w+$
+      re: ^[yn]$
+    - prompt: Use only user "admin" for sharding and replication [y|n]
+      name: use_only_admin
+      default: 'n'
+      re: ^[yn]$
+
 post-hook: ./hooks/post-gen.sh
