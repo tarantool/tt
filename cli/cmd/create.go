@@ -50,7 +50,7 @@ Built-in templates:
 	cartridge: a simple Cartridge application.
 	single_instance: Tarantool 3 application with a single instance configuration.
 	vshard_cluster: Tarantool 3 vshard cluster application.
-	tarantool_db: Tarantool DB application`,
+	tarantool_db: Tarantool DB application.`,
 		Example: `
 # Create an application app1 from a template.
 
