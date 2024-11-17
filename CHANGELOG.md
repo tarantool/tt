@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [2.5.2] - 2024-11-07
 
-Update luarocks and libraries version.
+- Update luarocks and libraries version.
 
 ### Fixed
 
@@ -32,11 +32,11 @@ Update luarocks and libraries version.
 
 ## [2.5.0] - 2024-10-15
 
-Added a number of subcommands for replicaset roles,
-improved understanding of the version number to install,
-enhanced status display, and added a flag to disable interactivity when
+- Added a number of subcommands for replicaset roles.
+- Improved understanding of the version number to install,
+- Enhanced status display, and added a flag to disable interactivity when
 the application is stopped.
-Implemented a number of fixes to improve stability.
+- Implemented a number of fixes to improve stability.
 
 ### Added
 
