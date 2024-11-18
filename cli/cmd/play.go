@@ -23,6 +23,7 @@ import (
 var playFlags = checkpoint.Opts{
 	From:       0,
 	To:         math.MaxUint64,
+	Timestamp:  "",
 	Space:      nil,
 	Replica:    nil,
 	ShowSystem: false,
@@ -46,12 +47,16 @@ func NewPlayCmd() *cobra.Command {
 				internalPlayModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Example: "tt play uri /path/to/xlog --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
+			"  tt play uri /path/to/xlog --timestamp=1731592956.818",
 	}
 
 	playCmd.Flags().StringVarP(&playUsername, "username", "u", "", "username")
 	playCmd.Flags().StringVarP(&playPassword, "password", "p", "", "password")
 	playCmd.Flags().Uint64Var(&playFlags.To, "to", playFlags.To,
 		"Show operations ending with the given lsn")
+	playCmd.Flags().StringVar(&playFlags.Timestamp, "timestamp", playFlags.Timestamp,
+		"Show operations ending with the given timestamp")
 	playCmd.Flags().Uint64Var(&playFlags.From, "from", playFlags.From,
 		"Show operations starting from the given lsn")
 	playCmd.Flags().IntSliceVar(&playFlags.Space, "space", playFlags.Space,
@@ -67,16 +72,15 @@ func NewPlayCmd() *cobra.Command {
 // internalPlayModule is a default play module.
 func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("it is required to specify an URI and at least one .xlog or .snap file")
+		return errors.New("it is required to specify an URI and at least one .xlog or .snap file")
 	}
 
 	// List of files and URI is passed to lua play script via environment variable in json format.
 	filesAndUriJson, err := json.Marshal(args)
 	if err != nil {
-		util.InternalError(
+		return util.InternalError(
 			"Internal error: problem with creating json params with files and uri: %s",
-			version.GetVersion, err,
-		)
+			version.GetVersion, err)
 	}
 
 	if libconnect.IsCredentialsURI(args[0]) {
@@ -105,11 +109,9 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// List of spaces is passed to lua play script via environment variable in json format.
 	spacesJson, err := json.Marshal(playFlags.Space)
 	if err != nil {
-		util.InternalError(
+		return util.InternalError(
 			"Internal error: problem with creating json params with spaces: %s",
-			version.GetVersion,
-			err,
-		)
+			version.GetVersion, err)
 	}
 	if string(spacesJson) != "null" {
 		os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJson))
@@ -118,14 +120,18 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	os.Setenv("TT_CLI_PLAY_FROM", strconv.FormatUint(playFlags.From, 10))
 	os.Setenv("TT_CLI_PLAY_TO", strconv.FormatUint(playFlags.To, 10))
 
+	timestamp, err := util.StringToTimestamp(playFlags.Timestamp)
+	if err != nil {
+		return fmt.Errorf("failed to parse a timestamp: %s", err)
+	}
+	os.Setenv("TT_CLI_PLAY_TIMESTAMP", timestamp)
+
 	// List of replicas is passed to lua play script via environment variable in json format.
 	replicasJson, err := json.Marshal(playFlags.Replica)
 	if err != nil {
-		util.InternalError(
+		return util.InternalError(
 			"Internal error: problem with creating json params with replicas: %s",
-			version.GetVersion,
-			err,
-		)
+			version.GetVersion, err)
 	}
 	if string(replicasJson) != "null" {
 		os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJson))
