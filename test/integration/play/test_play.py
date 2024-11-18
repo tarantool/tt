@@ -62,6 +62,77 @@ def test_play_test_remote_instance(tt_cmd, test_instance):
     assert re.search(r"[3, 'Ace of Base', 1993]", output)
 
 
+TEST_PLAY_TIMESTAMP_PARAMS_CCONFIG = ("input, play_result, found, not_found")
+
+
+def make_test_play_timestamp_param(
+    input="",
+    play_result=0,
+    found={},
+    not_found={},
+):
+    return pytest.param(input, play_result, found, not_found)
+
+
+@pytest.mark.parametrize(TEST_PLAY_TIMESTAMP_PARAMS_CCONFIG, [
+    make_test_play_timestamp_param(
+        input="abcdef",
+        play_result=1,
+        found={"failed to parse a timestamp: parsing time \"abcdef\""},
+    ),
+    make_test_play_timestamp_param(
+        input="2024-11-14T14:02:36.abc",
+        play_result=1,
+        found={"failed to parse a timestamp: parsing time \"2024-11-14T14:02:36.abc\""},
+    ),
+    make_test_play_timestamp_param(
+        input="",
+        play_result=0,
+        found={"[3, 'Ace of Base', 1993]"},
+    ),
+    make_test_play_timestamp_param(
+        input="1651130533.1534",
+        play_result=0,
+        found={"space_id: 999",
+               "[1, 'Roxette', 1986]",
+               "[2, 'Scorpions', 2015]"},
+        not_found={"Ace of Base"},
+    ),
+    make_test_play_timestamp_param(
+        input="2022-04-28T07:22:13.1534+00:00",
+        play_result=0,
+        found={"space_id: 999",
+               "[1, 'Roxette', 1986]",
+               "[2, 'Scorpions', 2015]"},
+        not_found={"Ace of Base"},
+    ),
+    make_test_play_timestamp_param(
+        input="2022-04-28T07:22:12+00:00",
+        play_result=0,
+        found={"space_id: 999",
+               "[1, 'Roxette', 1986]"},
+        not_found={"Scorpions",
+                   "Ace of Base"},
+    ),
+])
+def test_play_test_remote_instance_timestamp(tt_cmd, test_instance, input,
+                                             play_result, found, not_found):
+    # Play .xlog file to the remote instance.
+    cmd = [tt_cmd, "play", "127.0.0.1:" + test_instance.port, "test.xlog",
+           "--timestamp={0}".format(input), "--space=999"]
+    rc, output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
+    assert rc == play_result
+    if play_result == 0:
+        # Testing played .xlog file from the remote instance.
+        cmd = [tt_cmd, "cat", "00000000000000000000.xlog", "--space=999"]
+        rc, output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
+        assert rc == 0
+        for item in found:
+            assert re.search(r"{0}".format(item), output)
+        for item in not_found:
+            assert not re.search(r"{0}".format(item), output)
+
+
 @pytest.mark.parametrize("opts", [
     pytest.param({"flags": ["--username=test_user", "--password=4"]}),
     pytest.param({"flags": ["--username=fry"]}),

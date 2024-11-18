@@ -4,6 +4,7 @@
 -- The --space flags passes through 'TT_CLI_PLAY_SPACES'.
 -- The --from flag passes through 'TT_CLI_PLAY_FROM'.
 -- The --to flag passes through 'TT_CLI_PLAY_TO'.
+-- The --timestamp flag passes through 'TT_CLI_PLAY_TIMESTAMP'.
 -- The --replica flags passes through 'TT_CLI_PLAY_REPLICAS'.
 
 local log = require('log')
@@ -24,20 +25,21 @@ local function find_in_list(id, list)
 end
 
 local function filter_xlog(gen, param, state, opts, cb)
-    local from, to, spaces = opts.from, opts.to, opts.space
+    local from, to, timestamp, spaces = opts.from, opts.to, opts.timestamp, opts.space
     local show_system, replicas = opts['show-system'], opts.replica
 
     for lsn, record in gen, param, state do
         local sid = record.BODY and record.BODY.space_id
         local rid = record.HEADER.replica_id
-        if replicas and #replicas == 1 and replicas[1] == rid and lsn >= to then
+        local ts = record.HEADER.timestamp or 0
+        if replicas and #replicas == 1 and replicas[1] == rid and (lsn >= to or ts >= timestamp) then
             -- Stop, as we've finished reading tuple with lsn == to
             -- and the next lsn's will be bigger.
             break
-        elseif (lsn < from) or (lsn >= to) or
-           (not spaces and sid and sid < 512 and not show_system) or
-           (spaces and (sid == nil or not find_in_list(sid, spaces))) or
-           (replicas and not find_in_list(rid, replicas)) then
+        elseif (lsn < from) or (lsn >= to) or (ts >= timestamp) or
+            (not spaces and sid and sid < 512 and not show_system) or
+            (spaces and (sid == nil or not find_in_list(sid, spaces))) or
+            (replicas and not find_in_list(rid, replicas)) then
             -- Pass this tuple, luacheck: ignore.
         else
             cb(record)
@@ -97,7 +99,7 @@ local function main()
 
     local files_and_uri = os.getenv('TT_CLI_PLAY_FILES_AND_URI')
     if files_and_uri == nil then
-        log.error('Internal error: failed to get cat params from TT_CLI_PLAY_FILES_AND_URI')
+        log.error('Internal error: failed to get play params from TT_CLI_PLAY_FILES_AND_URI')
         os.exit(1)
     end
     positional_arguments = json.decode(files_and_uri)
@@ -117,17 +119,24 @@ local function main()
 
     local from = os.getenv('TT_CLI_PLAY_FROM')
     if from == nil then
-        log.error('Internal error: failed to get cat params from TT_CLI_PLAY_FROM')
+        log.error('Internal error: failed to get play params from TT_CLI_PLAY_FROM')
         os.exit(1)
     end
     keyword_arguments['from'] = tonumber(from)
 
     local to = os.getenv('TT_CLI_PLAY_TO')
     if to == nil then
-        log.error('Internal error: failed to get cat params from TT_CLI_PLAY_TO')
+        log.error('Internal error: failed to get play params from TT_CLI_PLAY_TO')
         os.exit(1)
     end
     keyword_arguments['to'] = tonumber(to)
+
+    local timestamp = os.getenv('TT_CLI_PLAY_TIMESTAMP')
+    if timestamp == nil then
+        log.error('Internal error: failed to get play params from TT_CLI_PLAY_TIMESTAMP')
+        os.exit(1)
+    end
+    keyword_arguments['timestamp'] = tonumber(timestamp)
 
     local replicas = os.getenv('TT_CLI_PLAY_REPLICAS')
     if replicas ~= nil then
