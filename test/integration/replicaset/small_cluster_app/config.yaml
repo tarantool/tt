@@ -1,0 +1,28 @@
+credentials:
+  users:
+    client:
+      password: 'secret'
+      roles: [super]
+    guest:
+      roles: [super]
+
+app:
+  file: 'init.lua'
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          storage-master:
+            iproto:
+              listen:
+                - uri: '127.0.0.1:3301'
+            database:
+              mode: rw
+          storage-replica:
+            iproto:
+              listen:
+                - uri: '127.0.0.1:3302'
+            database:
+              mode: ro

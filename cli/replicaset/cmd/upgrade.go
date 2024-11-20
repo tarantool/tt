@@ -62,7 +62,7 @@ func filterReplicasetsByAliases(replicasets replicaset.Replicasets,
 }
 
 // Upgrade upgrades tarantool schema.
-func Upgrade(discoveryCtx DiscoveryCtx, opts UpgradeOpts) error {
+func Upgrade(discoveryCtx DiscoveryCtx, opts UpgradeOpts, connOpts connector.ConnectOpts) error {
 	replicasets, err := getReplicasets(discoveryCtx)
 	if err != nil {
 		return err
@@ -75,12 +75,13 @@ func Upgrade(discoveryCtx DiscoveryCtx, opts UpgradeOpts) error {
 		return err
 	}
 
-	return internalUpgrade(replicasetsToUpgrade, opts.LsnTimeout)
+	return internalUpgrade(replicasetsToUpgrade, opts.LsnTimeout, connOpts)
 }
 
-func internalUpgrade(replicasets []replicaset.Replicaset, lsnTimeout int) error {
+func internalUpgrade(replicasets []replicaset.Replicaset, lsnTimeout int,
+	connOpts connector.ConnectOpts) error {
 	for _, replicaset := range replicasets {
-		err := upgradeReplicaset(replicaset, lsnTimeout)
+		err := upgradeReplicaset(replicaset, lsnTimeout, connOpts)
 		if err != nil {
 			fmt.Printf("• %s: error\n", replicaset.Alias)
 			return fmt.Errorf("replicaset %s: %w", replicaset.Alias, err)
@@ -99,7 +100,8 @@ func closeConnectors(master *instanceMeta, replicas []instanceMeta) {
 	}
 }
 
-func getInstanceConnector(instance replicaset.Instance) (connector.Connector, error) {
+func getInstanceConnector(instance replicaset.Instance,
+	connOpts connector.ConnectOpts) (connector.Connector, error) {
 	run := instance.InstanceCtx
 	fullInstanceName := running.GetAppInstanceName(run)
 	if fullInstanceName == "" {
@@ -116,32 +118,54 @@ func getInstanceConnector(instance replicaset.Instance) (connector.Connector, er
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("instance %s failed to connect via UNIX socket "+
-			": %w", fullInstanceName, err)
+		fErr := err
+		conn, err = connector.Connect(connector.ConnectOpts{
+			Network:  connOpts.Network,
+			Address:  instance.URI,
+			Username: connOpts.Username,
+			Password: connOpts.Password,
+			Ssl:      connOpts.Ssl,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("instance %s failed to connect via UNIX socket "+
+				"and uri: %w %w", fullInstanceName, err, fErr)
+		}
 	}
 	return conn, nil
 }
 
-func collectRWROInfo(replset replicaset.Replicaset) (*instanceMeta, []instanceMeta,
+func collectRWROInfo(replset replicaset.Replicaset,
+	connOpts connector.ConnectOpts) (*instanceMeta, []instanceMeta,
 	error) {
 	var master *instanceMeta = nil
 	var replicas []instanceMeta
 	for _, instance := range replset.Instances {
 		run := instance.InstanceCtx
 		fullInstanceName := running.GetAppInstanceName(run)
-		conn, err := getInstanceConnector(instance)
+		conn, err := getInstanceConnector(instance, connOpts)
 
 		if err != nil {
 			return nil, nil, err
 		}
 
-		if instance.Mode == replicaset.ModeUnknown {
-			closeConnectors(master, replicas)
-			return nil, nil, fmt.Errorf(
-				"can't determine RO/RW mode on instance: %s", fullInstanceName)
-		}
+		isRW := false
 
-		isRW := instance.Mode.String() == "rw"
+		if instance.Mode == replicaset.ModeUnknown {
+			// TODO (gh-1034): Temporary workaround for mode assignment.
+			// Ideally, the discovery code should be updated to handle
+			// this case properly.
+			res, err := conn.Eval(
+				"return (type(box.cfg) == 'function') or box.info.ro",
+				[]any{}, connector.RequestOpts{})
+			if err != nil || len(res) == 0 {
+				return nil, nil, fmt.Errorf(
+					"can't determine RO/RW mode on instance: %s",
+					fullInstanceName)
+			}
+			isRW = !res[0].(bool)
+		} else {
+			isRW = instance.Mode.String() == "rw"
+		}
 
 		if isRW && master != nil {
 			closeConnectors(master, replicas)
@@ -231,8 +255,9 @@ func snapshot(instance *instanceMeta) error {
 	return nil
 }
 
-func upgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int) error {
-	master, replicas, err := collectRWROInfo(replicaset)
+func upgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int,
+	connOpts connector.ConnectOpts) error {
+	master, replicas, err := collectRWROInfo(replicaset, connOpts)
 	if err != nil {
 		return err
 	}

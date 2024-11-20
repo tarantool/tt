@@ -58,7 +58,8 @@ var (
 // newUpgradeCmd creates a "replicaset upgrade" command.
 func newUpgradeCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "upgrade (<APP_NAME>) [flags]",
+		Use: "upgrade (<APP_NAME> | <URI>) [flags]\n\n" +
+			replicasetUriHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Upgrade tarantool cluster",
 		Long: "Upgrade tarantool cluster.\n\n" +
@@ -79,6 +80,7 @@ func newUpgradeCmd() *cobra.Command {
 		"timeout for waiting the LSN synchronization (in seconds)")
 
 	addOrchestratorFlags(cmd)
+	addTarantoolConnectFlags(cmd)
 	return cmd
 }
 
@@ -530,6 +532,18 @@ func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 	if ctx.IsInstanceConnect {
 		defer ctx.Conn.Close()
 	}
+
+	connectCtx := connect.ConnectCtx{
+		Username:    replicasetUser,
+		Password:    replicasetPassword,
+		SslKeyFile:  replicasetSslKeyFile,
+		SslCertFile: replicasetSslCertFile,
+		SslCaFile:   replicasetSslCaFile,
+		SslCiphers:  replicasetSslCiphers,
+	}
+	var connOpts connector.ConnectOpts
+	connOpts, _, _ = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
+
 	return replicasetcmd.Upgrade(replicasetcmd.DiscoveryCtx{
 		IsApplication: ctx.IsApplication,
 		RunningCtx:    ctx.RunningCtx,
@@ -538,7 +552,7 @@ func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 	}, replicasetcmd.UpgradeOpts{
 		ChosenReplicasetAliases: chosenReplicasetAliases,
 		LsnTimeout:              lsnTimeout,
-	})
+	}, connOpts)
 }
 
 // internalReplicasetPromoteModule is a "promote" command for the replicaset module.
