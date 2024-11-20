@@ -40,7 +40,7 @@ var (
 func NewPlayCmd() *cobra.Command {
 	var playCmd = &cobra.Command{
 		Use:   "play <URI> <FILE>...",
-		Short: "Play the contents of .snap/.xlog files to another Tarantool instance",
+		Short: "Play the contents of .snap/.xlog FILE(s) to another Tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -48,7 +48,7 @@ func NewPlayCmd() *cobra.Command {
 			util.HandleCmdErr(cmd, err)
 		},
 		Example: "tt play uri /path/to/xlog --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
-			"  tt play uri /path/to/xlog --timestamp=1731592956.818",
+			"  tt play uri /path/to/file.xlog /path/to/file.snap --timestamp=1731592956.818",
 	}
 
 	playCmd.Flags().StringVarP(&playUsername, "username", "u", "", "username")
