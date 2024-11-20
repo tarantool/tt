@@ -33,7 +33,7 @@ var catFlags = checkpoint.Opts{
 func NewCatCmd() *cobra.Command {
 	var catCmd = &cobra.Command{
 		Use:   "cat <FILE>...",
-		Short: "Print into stdout the contents of .snap/.xlog files",
+		Short: "Print into stdout the contents of .snap/.xlog FILE(s)",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -41,7 +41,7 @@ func NewCatCmd() *cobra.Command {
 			util.HandleCmdErr(cmd, err)
 		},
 		Example: "tt cat /path/to/xlog --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
-			"  tt cat /path/to/snap --timestamp=1731592956.818",
+			"  tt cat /path/to/file.xlog /path/to/file.snap --timestamp=1731592956.818",
 	}
 
 	catCmd.Flags().Uint64Var(&catFlags.To, "to", catFlags.To,

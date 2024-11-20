@@ -21,14 +21,6 @@ def test_instance(request, tmp_path):
     return inst
 
 
-def test_play_unset_arg(tt_cmd, tmp_path):
-    # Testing with unset uri and .xlog or .snap file.
-    cmd = [tt_cmd, "play"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
-    assert rc == 1
-    assert re.search(r"required to specify an URI and at least one .xlog or .snap file", output)
-
-
 def test_play_non_existent_uri(tt_cmd, tmp_path):
     # Testing with non-existent uri.
     cmd = [tt_cmd, "play", "127.0.0.1:0", "_"]
@@ -37,100 +29,75 @@ def test_play_non_existent_uri(tt_cmd, tmp_path):
     assert re.search(r"no connection to the host", output)
 
 
-def test_play_non_existent_file(tt_cmd, tmp_path, test_instance):
-    # Run play with non-existent file.
-    cmd = [tt_cmd, "play", "127.0.0.1:" + test_instance.port, "path-to-non-existent-file"]
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
-    assert rc == 1
-    assert re.search(r"No such file or directory", output)
-
-
-def test_play_test_remote_instance(tt_cmd, test_instance):
-    # Play .xlog file to the remote instance.
-    cmd = [tt_cmd, "play", "127.0.0.1:" + test_instance.port, "test.xlog", "--space=999"]
-    rc, output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
-    assert rc == 0
-    assert re.search(r"Play result: completed successfully", output)
-
-    # Testing played .xlog file from the remote instance.
-    cmd = [tt_cmd, "cat", "00000000000000000000.xlog", "--space=999"]
-    rc, output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
-    assert rc == 0
-    assert re.search(r"space_id: 999", output)
-    assert re.search(r"[1, 'Roxette', 1986]", output)
-    assert re.search(r"[2, 'Scorpions', 2015]", output)
-    assert re.search(r"[3, 'Ace of Base', 1993]", output)
-
-
-TEST_PLAY_TIMESTAMP_PARAMS_CCONFIG = ("input, play_result, found, not_found")
-
-
-def make_test_play_timestamp_param(
-    input="",
-    play_result=0,
-    found={},
-    not_found={},
-):
-    return pytest.param(input, play_result, found, not_found)
-
-
-@pytest.mark.parametrize(TEST_PLAY_TIMESTAMP_PARAMS_CCONFIG, [
-    make_test_play_timestamp_param(
-        input="abcdef",
-        play_result=1,
-        found={"failed to parse a timestamp: parsing time \"abcdef\""},
+@pytest.mark.parametrize("args, play_error", [
+    (
+        # Testing with unset uri and .xlog or .snap file.
+        "",
+        "required to specify an URI and at least one .xlog or .snap file",
     ),
-    make_test_play_timestamp_param(
-        input="2024-11-14T14:02:36.abc",
-        play_result=1,
-        found={"failed to parse a timestamp: parsing time \"2024-11-14T14:02:36.abc\""},
+    (
+        "path-to-non-existent-file",
+        "No such file or directory",
     ),
-    make_test_play_timestamp_param(
-        input="",
-        play_result=0,
-        found={"[3, 'Ace of Base', 1993]"},
+    (
+        ("test.xlog", "--timestamp=abcdef", "--space=999"),
+        'failed to parse a timestamp: parsing time "abcdef"',
     ),
-    make_test_play_timestamp_param(
-        input="1651130533.1534",
-        play_result=0,
-        found={"space_id: 999",
-               "[1, 'Roxette', 1986]",
-               "[2, 'Scorpions', 2015]"},
-        not_found={"Ace of Base"},
-    ),
-    make_test_play_timestamp_param(
-        input="2022-04-28T07:22:13.1534+00:00",
-        play_result=0,
-        found={"space_id: 999",
-               "[1, 'Roxette', 1986]",
-               "[2, 'Scorpions', 2015]"},
-        not_found={"Ace of Base"},
-    ),
-    make_test_play_timestamp_param(
-        input="2022-04-28T07:22:12+00:00",
-        play_result=0,
-        found={"space_id: 999",
-               "[1, 'Roxette', 1986]"},
-        not_found={"Scorpions",
-                   "Ace of Base"},
+    (
+        ("test.xlog", "--timestamp=2024-11-14T14:02:36.abc", "--space=999"),
+        'failed to parse a timestamp: parsing time "2024-11-14T14:02:36.abc"',
     ),
 ])
-def test_play_test_remote_instance_timestamp(tt_cmd, test_instance, input,
-                                             play_result, found, not_found):
+def test_play_test_remote_instance_timestamp_failed(tt_cmd, test_instance, args, play_error):
     # Play .xlog file to the remote instance.
-    cmd = [tt_cmd, "play", "127.0.0.1:" + test_instance.port, "test.xlog",
-           "--timestamp={0}".format(input), "--space=999"]
-    rc, output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
-    assert rc == play_result
-    if play_result == 0:
-        # Testing played .xlog file from the remote instance.
-        cmd = [tt_cmd, "cat", "00000000000000000000.xlog", "--space=999"]
-        rc, output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
-        assert rc == 0
-        for item in found:
-            assert re.search(r"{0}".format(item), output)
-        for item in not_found:
-            assert not re.search(r"{0}".format(item), output)
+    cmd = [tt_cmd, "play", f"127.0.0.1:{test_instance.port}"]
+    cmd.extend(args)
+    rc, play_output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
+    assert rc == 1
+    assert play_error in play_output
+
+
+@pytest.mark.parametrize("input, expected", [
+    (
+        1731592956.1182,
+        "---\n- []\n...\n\n",
+    ),
+    (
+        1731592956.8184,
+        "---\n- - [1, 0]\n  - [2, 1]\n  - [3, 2]\n  - [4, 3]\n  - [5, 4]\n  - [6, 5]\n...\n\n",
+    ),
+    (
+        "2024-11-14T14:02:36.818+00:00",
+        "---\n- - [1, 0]\n...\n\n",
+    ),
+    (
+        "2024-11-14T14:02:36+00:00",
+        "---\n- []\n...\n\n",
+    ),
+])
+def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance,
+                                              input, expected):
+    test_dir = os.path.join(os.path.dirname(__file__), "test_file/timestamp", )
+
+    # Create space and primary index.
+    cmd_space = [tt_cmd, "connect", f"test_user:secret@127.0.0.1:{test_instance.port}",
+                 "-f", f"{test_dir}/create_space.lua", "-"]
+    rc, _ = run_command_and_get_output(cmd_space, cwd=test_instance._tmpdir)
+    assert rc == 0
+
+    # Play .xlog file to the instance.
+    cmd_play = [tt_cmd, "play", f"127.0.0.1:{test_instance.port}",
+                "-u", "test_user", "-p", "secret",
+                f"{test_dir}/timestamp.xlog", f"--timestamp={input}"]
+    rc, _ = run_command_and_get_output(cmd_play, cwd=test_instance._tmpdir)
+    assert rc == 0
+
+    # Get data from the instance.
+    cmd_data = [tt_cmd, "connect", f"test_user:secret@127.0.0.1:{test_instance.port}",
+                "-f", f"{test_dir}/get_data.lua", "-"]
+    rc, cmd_output = run_command_and_get_output(cmd_data, cwd=test_instance._tmpdir)
+    assert rc == 0
+    assert cmd_output == expected
 
 
 @pytest.mark.parametrize("opts", [
@@ -153,7 +120,7 @@ def test_play_wrong_creds(tt_cmd, tmp_path, opts, test_instance):
     if "flags" in opts:
         cmd.extend(opts["flags"])
 
-    rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
+    rc, _ = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
     assert rc != 0
 
 
