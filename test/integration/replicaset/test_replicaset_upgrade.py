@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 
 import pytest
-from replicaset_helpers import stop_application
+from replicaset_helpers import start_application, stop_application
 from vshard_cluster import VshardCluster
 
 from utils import get_tarantool_version, run_command_and_get_output, wait_file
@@ -192,3 +192,26 @@ box.snapshot()
 
     finally:
         app.stop()
+
+
+@pytest.mark.skipif(tarantool_major_version < 3,
+                    reason="skip cluster instances test for Tarantool < 3")
+def test_upgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    app_name = "small_cluster_app"
+    app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    instances = ['storage-master', 'storage-replica']
+
+    try:
+        start_application(tt_cmd, tmpdir, app_name, instances)
+        uri = "tcp://client:secret@127.0.0.1:3301"
+        upgrade_cmd = [tt_cmd, "replicaset", "upgrade", uri, "-t=15"]
+        rc, out = run_command_and_get_output(upgrade_cmd, cwd=tmpdir)
+        assert rc == 0
+        assert "ok" in out
+
+    finally:
+        stop_cmd = [tt_cmd, "stop", app_name, "-y"]
+        stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+        assert stop_rc == 0

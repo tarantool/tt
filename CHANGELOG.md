@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt replicaset upgrade`: command to upgrade the schema on a Tarantool cluster.
   * `-r (--replicaset)`: specify the replicaset name(s) to upgrade.
   * `-t (--timeout)`: timeout for waiting the LSN synchronization (in seconds) (default 5).
+  * supports upgrading the database schema on remote cluster by upgrading
+  each replica set individually using `tt replicaset upgrade <URI>`.
 - New flag `--timestamp` of `tt cat` and `tt play` commands is added to specify
 operations ending with the given timestamp. This value can be specified
 as a number or using [RFC3339/RFC3339Nano](https://go.dev/src/time/format.go) time format.
