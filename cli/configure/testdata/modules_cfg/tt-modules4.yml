@@ -1,0 +1,3 @@
+# Empty config value, to use default.
+modules:
+  directory:
