@@ -1,0 +1,4 @@
+# Config with single list entry of relative path to modules directory.
+modules:
+  directory:
+  - modules-dir

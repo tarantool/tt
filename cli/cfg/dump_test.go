@@ -111,6 +111,44 @@ repo:
 			wantErr: false,
 		},
 		{
+			name: "Config dump with list modules",
+			args: args{
+				&cmdcontext.CmdCtx{
+					Cli: cmdcontext.CliCtx{
+						ConfigPath: "./testdata/tt_cfg3.yaml",
+					},
+				},
+				&DumpCtx{RawDump: false},
+				getCliOpts(t, "testdata/tt_cfg3.yaml"),
+			},
+			wantWriter: fmt.Sprintf(`./testdata/tt_cfg3.yaml:
+env:
+  bin_dir: %[1]s/bin
+  inc_dir: %[1]s/include
+  instances_enabled: %[1]s
+  restart_on_failure: false
+  tarantoolctl_layout: false
+modules:
+  directory:
+  - /root/modules
+  - /some/other/modules
+app:
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: var/lib
+  memtx_dir: var/lib
+  vinyl_dir: var/lib
+ee:
+  credential_path: ""
+templates:
+- path: %[1]s/templates
+repo:
+  rocks: ""
+  distfiles: %[1]s/distfiles
+`, configDir),
+			wantErr: false,
+		},
+		{
 			name: "Another config dump",
 			args: args{
 				&cmdcontext.CmdCtx{

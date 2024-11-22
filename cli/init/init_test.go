@@ -63,7 +63,7 @@ func checkDefaultEnv(t *testing.T, configName string, instancesEnabled string) {
 	assert.Equal(t, "var/run", cfg.App.RunDir)
 	assert.Equal(t, "var/log", cfg.App.LogDir)
 	assert.Equal(t, "bin", cfg.Env.BinDir)
-	assert.Equal(t, "modules", cfg.Modules.Directory)
+	assert.Equal(t, config.FieldStringArrayType{"modules"}, cfg.Modules.Directories)
 	assert.Equal(t, "distfiles", cfg.Repo.Install)
 	assert.Equal(t, "include", cfg.Env.IncludeDir)
 	assert.Equal(t, "templates", cfg.Templates[0].Path)

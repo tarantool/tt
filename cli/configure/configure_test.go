@@ -334,6 +334,67 @@ func TestUpdateCliOpts(t *testing.T) {
 	assert.Equal(t, "./var/lib/vinyl", cliOpts.App.VinylDir)
 	assert.Equal(t, "./var/lib/snap", cliOpts.App.MemtxDir)
 	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.Env.IncludeDir)
-	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directory)
+	assert.Equal(t, 1, len(cliOpts.Modules.Directories))
+	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directories[0])
 	assert.Equal(t, configDir, cliOpts.Env.InstancesEnabled)
+}
+
+func TestGetCliOpts_modules_directory(t *testing.T) {
+	work_dir, err := os.Getwd()
+	require.NoError(t, err)
+	work_dir = filepath.Join(work_dir, "testdata/modules_cfg")
+
+	tests := []struct {
+		name        string
+		config      string
+		modules_dir config.FieldStringArrayType
+		cfg_path    string
+	}{
+		{
+			name:        "Single string relative path",
+			config:      "tt-modules1",
+			modules_dir: []string{filepath.Join(work_dir, "modules-dir")},
+			cfg_path:    "tt-modules1.yaml",
+		},
+		{
+			name:        "Single entry list",
+			config:      "tt-modules2",
+			modules_dir: []string{filepath.Join(work_dir, "modules-dir")},
+			cfg_path:    "tt-modules2.yml",
+		},
+		{
+			name:   "Multiple entries list",
+			config: "tt-modules3.",
+			modules_dir: []string{
+				filepath.Join(work_dir, "modules-dir"),
+				"/ext/path/modules",
+				filepath.Join(work_dir, "local_modules"),
+			},
+			cfg_path: "tt-modules3.yaml",
+		},
+		{
+			name:        "Empty list = default value",
+			config:      "tt-modules4.yaml",
+			modules_dir: []string{filepath.Join(work_dir, "modules")},
+			cfg_path:    "tt-modules4.yml",
+		},
+		{
+			name:        "Single string absolute path",
+			config:      "tt-modules5.yml",
+			modules_dir: []string{"/ext/path/modules"},
+			cfg_path:    "tt-modules5.yaml",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := newMockRepository()
+			config := filepath.Join(work_dir, tt.config)
+			opts, cfg, err := GetCliOpts(config, &mockRepo)
+			require.NoError(t, err)
+			require.NotNil(t, opts.Modules)
+			require.Equal(t, tt.modules_dir, opts.Modules.Directories)
+			require.Equal(t, filepath.Join(work_dir, tt.cfg_path), cfg)
+		})
+	}
 }
