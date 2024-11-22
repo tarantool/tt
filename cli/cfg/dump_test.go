@@ -93,7 +93,8 @@ env:
   restart_on_failure: false
   tarantoolctl_layout: false
 modules:
-  directory: /root/modules
+  directory:
+  - /root/modules
 app:
   run_dir: var/run
   log_dir: var/log
@@ -129,7 +130,8 @@ env:
   restart_on_failure: false
   tarantoolctl_layout: false
 modules:
-  directory: %[1]s/my_modules
+  directory:
+  - %[1]s/my_modules
 app:
   run_dir: var/run
   log_dir: var/log
@@ -166,7 +168,8 @@ env:
   restart_on_failure: false
   tarantoolctl_layout: false
 modules:
-  directory: /root/modules
+  directory:
+  - /root/modules
 app:
   run_dir: var/run
   log_dir: var/log
