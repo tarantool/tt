@@ -115,7 +115,7 @@ func ttEnvironmentFilters(packCtx *PackCtx, cliOpts *config.CliOpts) []func(
 			cliOpts.Env.InstancesEnabled, cliOpts.Env.BinDir)
 	}
 	if cliOpts.Modules != nil {
-		envPaths = append(envPaths, cliOpts.Modules.Directory)
+		envPaths = append(envPaths, cliOpts.Modules.Directories...)
 	}
 	if cliOpts.Repo != nil {
 		envPaths = append(envPaths, cliOpts.Repo.Install)
@@ -204,24 +204,27 @@ func updateEnvPath(basePath string, packCtx *PackCtx, cliOpts *config.CliOpts) (
 // copyEnvModules copies tt modules.
 func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *config.CliOpts) {
 	if packCtx.WithoutModules || packCtx.CartridgeCompat || cliOpts.Modules == nil ||
-		cliOpts.Modules.Directory == "" {
+		len(cliOpts.Modules.Directories) == 0 {
 		return
 	}
 
-	if !util.IsDir(cliOpts.Modules.Directory) {
-		log.Debugf("Skip copying modules from %q: does not exist or not a directory",
-			cliOpts.Modules.Directory)
-	} else {
-		dir, err := os.Open(cliOpts.Modules.Directory)
-		if err != nil {
-			log.Warnf("cannot open %q for reading: %s", cliOpts.Modules.Directory, err)
-		}
-		if files, _ := dir.Readdir(1); len(files) == 0 {
-			return // No modules.
-		}
-		if err := copy.Copy(cliOpts.Modules.Directory,
-			util.JoinPaths(bundleEnvPath, newOpts.Modules.Directory)); err != nil {
-			log.Warnf("Failed to copy modules from %q: %s", cliOpts.Modules.Directory, err)
+	for _, directory := range cliOpts.Modules.Directories {
+		if !util.IsDir(directory) {
+			log.Debugf("Skip copying modules from %q: does not exist or not a directory",
+				directory)
+		} else {
+			dir, err := os.Open(directory)
+			if err != nil {
+				log.Warnf("cannot open %q for reading: %s", directory, err)
+			}
+			if files, _ := dir.Readdir(1); len(files) == 0 {
+				return // No modules.
+			}
+			// FIXME: Add working with a list https://github.com/tarantool/tt/issues/1014
+			if err := copy.Copy(directory,
+				util.JoinPaths(bundleEnvPath, newOpts.Modules.Directories[0])); err != nil {
+				log.Warnf("Failed to copy modules from %q: %s", directory, err)
+			}
 		}
 	}
 }

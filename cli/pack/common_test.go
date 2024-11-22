@@ -243,7 +243,7 @@ func Test_createNewOpts(t *testing.T) {
 					RunDir:   "var/run",
 				},
 				Modules: &config.ModulesOpts{
-					Directory: "modules",
+					Directories: []string{"modules"},
 				},
 				Repo: &config.RepoOpts{
 					Rocks:   "",
@@ -280,7 +280,7 @@ func Test_createNewOpts(t *testing.T) {
 					RunDir:   "var/run",
 				},
 				Modules: &config.ModulesOpts{
-					Directory: "modules",
+					Directories: []string{"modules"},
 				},
 				Repo: &config.RepoOpts{
 					Rocks:   "",
@@ -317,7 +317,7 @@ func Test_createNewOpts(t *testing.T) {
 					RunDir:   "/var/run/tarantool/bundle",
 				},
 				Modules: &config.ModulesOpts{
-					Directory: "modules",
+					Directories: []string{"modules"},
 				},
 				Repo: &config.RepoOpts{
 					Rocks:   "",
@@ -360,7 +360,7 @@ func Test_createNewOpts(t *testing.T) {
 					RunDir:   "var/run",
 				},
 				Modules: &config.ModulesOpts{
-					Directory: "modules",
+					Directories: []string{"modules"},
 				},
 				Repo: &config.RepoOpts{
 					Rocks:   "",
