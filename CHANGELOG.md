@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt replicaset downgrade`: command to downgrade the schema on a Tarantool
+  cluster.
+  * `-v (--version)`: (Required) specify schema version to downgrade to.
+  * `-r (--replicaset)`: specify the replicaset name(s) to upgrade.
+  * `-t (--timeout)`: timeout for waiting the LSN synchronization (in seconds)
+    (default 5).
 - `tt replicaset upgrade`: command to upgrade the schema on a Tarantool
   cluster.
   * `-r (--replicaset)`: specify the replicaset name(s) to upgrade.
