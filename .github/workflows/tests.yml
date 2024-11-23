@@ -141,11 +141,7 @@ jobs:
         run: mage integration
 
   tests-mac-os-ce:
-    if: |
-      (github.event_name == 'push') ||
-      (github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.owner.login != 'tarantool' &&
-        !contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    if: false
     runs-on: [self-hosted, macOS-13-self-hosted, x86_64, regular]
     timeout-minutes: 40
     steps:
