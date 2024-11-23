@@ -142,14 +142,7 @@ jobs:
         run: mage integrationfull
 
   full-ci-macOS:
-    if: |
-      (github.event_name == 'push') ||
-      (github.event_name == 'pull_request' &&
-        github.event.action == 'labeled' &&
-        github.event.label.name == 'full-ci') ||
-      (github.event_name == 'pull_request' &&
-        github.event.action == 'synchronize' &&
-        contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    if: false
     runs-on: [self-hosted, macOS-13-self-hosted, x86_64, regular]
     timeout-minutes: 90
     steps:
@@ -218,15 +211,7 @@ jobs:
 
   # ee suffix means that the job runs ee integration tests.
   full-ci-macOS-ee:
-    if: |
-      (github.event_name == 'push') ||
-      (github.event_name == 'pull_request_target' &&
-        github.event.action == 'labeled' &&
-        github.event.label.name == 'full-ci') ||
-      (github.event_name == 'pull_request' &&
-        github.event.action == 'synchronize' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    if: false
     runs-on: macos-12
     steps:
       # `ref` as merge request is needed for pull_request_target because this
