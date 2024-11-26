@@ -803,6 +803,10 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 		fileBaseName = strings.TrimSuffix(fileName, ".yaml")
 	case ".yml":
 		fileBaseName = strings.TrimSuffix(fileName, ".yml")
+	case ".":
+		fileBaseName = strings.TrimSuffix(fileName, ".")
+	case "":
+		fileBaseName = fileName
 	default:
 		return "", fmt.Errorf("provided file '%s' has no .yaml/.yml extension", fileName)
 	}
