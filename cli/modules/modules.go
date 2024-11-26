@@ -46,12 +46,18 @@ func fillSubCommandsInfo(cmd *cobra.Command, modulesInfo *ModulesInfo) {
 // GetModulesInfo collects information about available modules (both external and internal).
 func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command,
 	cliOpts *config.CliOpts) (ModulesInfo, error) {
-	modulesDir, err := getExternalModulesDir(cmdCtx, cliOpts)
+	modulesDirs, err := getConfigModulesDirs(cmdCtx, cliOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	externalModules, err := getExternalModules(modulesDir)
+	modulesEnvDirs, err := getEnvironmentModulesDirs()
+	if err != nil {
+		return nil, err
+	}
+	modulesDirs = append(modulesDirs, modulesEnvDirs...)
+
+	externalModules, err := getExternalModules(modulesDirs)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to get available external modules information: %s", err)
@@ -72,45 +78,69 @@ func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command,
 	return modulesInfo, nil
 }
 
-// getExternalModulesDir returns the directory where external modules are located.
-func getExternalModulesDir(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (string, error) {
+// collectDirectoriesList checks list to ensure that all items is directories.
+func collectDirectoriesList(paths []string) ([]string, error) {
+	dirs := make([]string, 0, len(paths))
+	// We return an error only if the following conditions are met:
+	// 1. If a directory field is specified;
+	// 2. Specified path exists;
+	// 3. Path points to not a directory.
+	for _, dir := range paths {
+		if info, err := os.Stat(dir); err == nil {
+			// TODO: Add warning in next patches, discussion
+			// what if the file exists, but access is denied, etc.
+			// FIXME: resolve this question while prepare list:
+			// https://github.com/tarantool/tt/issues/1014
+			if !info.IsDir() {
+				return dirs, fmt.Errorf("specified path in configuration file is not a directory")
+			}
+			dirs = append(dirs, dir)
+		}
+	}
+
+	return dirs, nil
+}
+
+// getConfigModulesDirs returns from configuration the list of directories,
+// where external modules are located.
+func getConfigModulesDirs(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) ([]string, error) {
 	// Configuration file not detected - ignore and work on.
 	// TODO: Add warning in next patches, discussion
 	// what if the file exists, but access is denied, etc.
 	if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
 		if !os.IsNotExist(err) {
-			return "", fmt.Errorf("failed to get access to configuration file: %s", err)
+			return []string{}, fmt.Errorf("failed to get access to configuration file: %s", err)
 		}
 
-		return "", nil
+		return []string{}, nil
 	}
 
 	// Unspecified `modules` field is not considered an error.
 	if cliOpts.Modules == nil {
-		return "", nil
+		return []string{}, nil
 	}
 
-	// We return an error only if the following conditions are met:
-	// 1. If a directory field is specified;
-	// 2. Specified path exists;
-	// 3. Path points to not a directory.
-	// FIXME: Add working with a list https://github.com/tarantool/tt/issues/1014
-	modulesDir := cliOpts.Modules.Directories[0]
-	if info, err := os.Stat(modulesDir); err == nil {
-		// TODO: Add warning in next patches, discussion
-		// what if the file exists, but access is denied, etc.
-		if !info.IsDir() {
-			return "", fmt.Errorf("specified path in configuration file is not a directory")
-		}
-	}
+	return collectDirectoriesList(cliOpts.Modules.Directories)
+}
 
-	return modulesDir, nil
+func getEnvironmentModulesDirs() ([]string, error) {
+	env_var := os.Getenv("TT_CLI_MODULES_PATH")
+	if env_var == "" {
+		return []string{}, nil
+	}
+	paths := strings.Split(env_var, ":")
+	return collectDirectoriesList(paths)
 }
 
 // getExternalModules returns map of available modules by
 // parsing the contents of the path folder.
-func getExternalModules(path string) (map[string]string, error) {
+func getExternalModules(paths []string) (map[string]string, error) {
 	modules := make(map[string]string)
+	if len(paths) == 0 {
+		return modules, nil
+	}
+	// FIXME: Work with list at https://github.com/tarantool/tt/issues/1014
+	path := paths[0]
 
 	// If the directory doesn't exist, it is not an error.
 	// TODO: Add warning in next patches, discussion
