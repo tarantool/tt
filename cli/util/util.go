@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -966,4 +967,49 @@ func StringToTimestamp(input string) (string, error) {
 		strconv.FormatInt(int64(tsNanoSec), 10))
 
 	return ts, nil
+}
+
+// CollectWALFiles globs files from args.
+func CollectWALFiles(paths []string) ([]string, error) {
+	if len(paths) < 1 {
+		return nil, errors.New("it is required to specify at least one .xlog/.snap file " +
+			"or directory")
+	}
+	collectedFiles := make([]string, 0)
+
+	sortSnapFilesFirst := func(left, right string) int {
+		reSnap := regexp.MustCompile(`\.snap`)
+		reXlog := regexp.MustCompile(`\.xlog`)
+		if reSnap.Match([]byte(left)) && reXlog.Match([]byte(right)) {
+			return -1
+		}
+		if reXlog.Match([]byte(left)) && reSnap.Match([]byte(right)) {
+			return 1
+		}
+		return 0
+	}
+
+	for _, path := range paths {
+		entry, err := os.Stat(path)
+		if err != nil {
+			return nil, err
+		}
+
+		if entry.IsDir() {
+			foundEntries, err := os.ReadDir(path)
+			if err != nil {
+				return nil, err
+			}
+			for _, entry := range foundEntries {
+				collectedFiles = append(collectedFiles, filepath.Join(path, entry.Name()))
+			}
+			slices.SortFunc(collectedFiles, sortSnapFilesFirst)
+
+			continue
+		}
+
+		collectedFiles = append(collectedFiles, path)
+	}
+
+	return collectedFiles, nil
 }
