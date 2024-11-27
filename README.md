@@ -649,7 +649,7 @@ Common description. For a detailed description, use `tt help command` .
 -   `binaries switch` - switch to installed binary.
 -   `cluster` - manage cluster configuration.
 -   `env` - add current environment binaries location to the PATH variable.
--   `replicasets` - manage replicasets.
+-   `replicaset` - manage replicasets.
 -   `download` - download Tarantool SDK.
 -   `enable` - create a symbolic link in 'instances_enabled' directory to a script or
     an application directory.
