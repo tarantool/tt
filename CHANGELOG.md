@@ -40,6 +40,7 @@ The release introduces `upgrade` and `downgrade` subcommands for
   time format.
 - `tt connect`: add new `--evaler` option to support for customizing the way
   user input is processed.
+- `tt cat/play`: allows to specify a list of directories to search WAL files.
 
 ### Fixed
 

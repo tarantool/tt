@@ -47,8 +47,10 @@ func NewPlayCmd() *cobra.Command {
 				internalPlayModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		Example: "tt play uri /path/to/xlog --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
-			"  tt play uri /path/to/file.xlog /path/to/file.snap --timestamp=1731592956.818",
+		Example: "tt play uri /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
+			"--timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
+			"  tt play uri /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
+			"--timestamp=1731592956.818",
 	}
 
 	playCmd.Flags().StringVarP(&playUsername, "username", "u", "", "username")
@@ -72,11 +74,22 @@ func NewPlayCmd() *cobra.Command {
 // internalPlayModule is a default play module.
 func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) < 2 {
-		return errors.New("it is required to specify an URI and at least one .xlog or .snap file")
+		return errors.New("it is required to specify an URI and at least one .xlog/.snap file " +
+			"or directory")
 	}
 
+	walFiles, err := util.CollectWALFiles(args[1:])
+	if err != nil {
+		return util.InternalError(
+			"Internal error: could not collect WAL files: %s",
+			version.GetVersion, err)
+	}
+
+	// Re-create args with the URI in the first index, and all founded files after.
+	uriAndWalFiles := append([]string{args[0]}, walFiles...)
+
 	// List of files and URI is passed to lua play script via environment variable in json format.
-	filesAndUriJson, err := json.Marshal(args)
+	filesAndUriJson, err := json.Marshal(uriAndWalFiles)
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with files and uri: %s",

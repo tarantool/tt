@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 
 import pytest
 
@@ -21,23 +22,23 @@ def test_instance(request, tmp_path):
     return inst
 
 
-def test_play_non_existent_uri(tt_cmd, tmp_path):
+def test_play_non_existent_uri(tt_cmd, test_instance, tmp_path):
     # Testing with non-existent uri.
-    cmd = [tt_cmd, "play", "127.0.0.1:0", "_"]
+    cmd = [tt_cmd, "play", "127.0.0.1:0", f"{test_instance._tmpdir}/test.xlog"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 1
-    assert re.search(r"no connection to the host", output)
+    assert re.search(r'no connection to the host "127.0.0.1:0"', output)
 
 
 @pytest.mark.parametrize("args, play_error", [
     (
         # Testing with unset uri and .xlog or .snap file.
         "",
-        "required to specify an URI and at least one .xlog or .snap file",
+        "required to specify an URI and at least one .xlog/.snap file or directory",
     ),
     (
         "path-to-non-existent-file",
-        "No such file or directory",
+        "error: could not collect WAL files",
     ),
     (
         ("test.xlog", "--timestamp=abcdef", "--space=999"),
@@ -77,7 +78,7 @@ def test_play_test_remote_instance_timestamp_failed(tt_cmd, test_instance, args,
 ])
 def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance,
                                               input, expected):
-    test_dir = os.path.join(os.path.dirname(__file__), "test_file/timestamp", )
+    test_dir = os.path.join(os.path.dirname(__file__), "test_file", )
 
     # Create space and primary index.
     cmd_space = [tt_cmd, "connect", f"test_user:secret@127.0.0.1:{test_instance.port}",
@@ -88,7 +89,7 @@ def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance,
     # Play .xlog file to the instance.
     cmd_play = [tt_cmd, "play", f"127.0.0.1:{test_instance.port}",
                 "-u", "test_user", "-p", "secret",
-                f"{test_dir}/timestamp.xlog", f"--timestamp={input}"]
+                f"{test_dir}/timestamp/timestamp.xlog", f"--timestamp={input}"]
     rc, _ = run_command_and_get_output(cmd_play, cwd=test_instance._tmpdir)
     assert rc == 0
 
@@ -98,6 +99,39 @@ def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance,
     rc, cmd_output = run_command_and_get_output(cmd_data, cwd=test_instance._tmpdir)
     assert rc == 0
     assert cmd_output == expected
+
+
+@pytest.mark.parametrize("input, expected", [
+    (
+        ("test_file/test.xlog", "test_file/test.snap", "test_file/timestamp"),
+        ('Play is processing file "test_file/test.xlog"',
+         'Play is processing file "test_file/test.snap"',
+         'Play is processing file "test_file/timestamp/timestamp.snap"',
+         'Play is processing file "test_file/timestamp/timestamp.xlog"'),
+    ),
+])
+def test_play_directories_successful(tt_cmd, test_instance,
+                                     input, expected):
+    # Copy files to the "run" directory.
+    test_src = os.path.join(os.path.dirname(__file__), "test_file")
+    test_dir = os.path.join(test_instance._tmpdir, "test_file")
+    shutil.copytree(test_src, test_dir)
+
+    # Create space and primary index.
+    cmd_space = [tt_cmd, "connect", f"test_user:secret@127.0.0.1:{test_instance.port}",
+                 "-f", f"{test_dir}/create_space.lua", "-"]
+    rc, _ = run_command_and_get_output(cmd_space, cwd=test_instance._tmpdir)
+    assert rc == 0
+
+    # Play .xlog file to the remote instance.
+    cmd = [tt_cmd, "play", f"127.0.0.1:{test_instance.port}",
+           "-u", "test_user", "-p", "secret"]
+    cmd.extend(input)
+
+    rc, cmd_output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
+    assert rc == 0
+    for item in expected:
+        assert item in cmd_output
 
 
 @pytest.mark.parametrize("opts", [

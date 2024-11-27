@@ -40,8 +40,10 @@ func NewCatCmd() *cobra.Command {
 				internalCatModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		Example: "tt cat /path/to/xlog --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
-			"  tt cat /path/to/file.xlog /path/to/file.snap --timestamp=1731592956.818",
+		Example: "tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
+			"--timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
+			"  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
+			"--timestamp=1731592956.818",
 	}
 
 	catCmd.Flags().Uint64Var(&catFlags.To, "to", catFlags.To,
@@ -68,8 +70,15 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errors.New("it is required to specify at least one .xlog or .snap file")
 	}
 
+	walFiles, err := util.CollectWALFiles(args)
+	if err != nil {
+		return util.InternalError(
+			"Internal error: could not collect WAL files: %s",
+			version.GetVersion, err)
+	}
+
 	// List of files is passed to lua cat script via environment variable in json format.
-	filesJson, err := json.Marshal(args)
+	filesJson, err := json.Marshal(walFiles)
 	if err != nil {
 		return util.InternalError(
 			"Internal error: problem with creating json params with files: %s",
