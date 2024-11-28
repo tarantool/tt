@@ -7,13 +7,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/util"
 )
 
 const (
-	helpModuleName = "help"
+	manifestFileName = "manifest"
+	mainEntryPoint   = "main"
 )
 
 // ModuleInfo stores information about Tarantool CLI module.
@@ -26,6 +29,19 @@ type ModuleInfo struct {
 
 // ModulesInfo stores information about all CLI modules.
 type ModulesInfo map[string]*ModuleInfo
+
+// modulesEntries keeps detected entry points while scan modules.
+type modulesEntries struct {
+	// Modules location path.
+	Directory string
+	// Path to manifest.yaml file.
+	Manifest string
+	// Path to `main` executable file.
+	Main string
+}
+
+// possibleModules map module name with found its entry points.
+type possibleModules map[string]modulesEntries
 
 // fillSubCommandsInfo collects information about subcommands.
 func fillSubCommandsInfo(cmd *cobra.Command, modulesInfo *ModulesInfo) {
@@ -57,7 +73,9 @@ func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command,
 	}
 	modulesDirs = append(modulesDirs, modulesEnvDirs...)
 
-	externalModules, err := getExternalModules(modulesDirs)
+	// FIXME: working with modules list at https://github.com/tarantool/tt/issues/1016
+	/* externalModules */
+	_, err = getExternalModules(modulesDirs)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to get available external modules information: %s", err)
@@ -65,13 +83,15 @@ func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command,
 
 	// External modules have a higher priority than internal.
 	modulesInfo := ModulesInfo{}
-	for name, path := range externalModules {
-		commandPath := rootCmd.Name() + " " + name
-		modulesInfo[commandPath] = &ModuleInfo{
-			IsInternal:   false,
-			ExternalPath: path,
-		}
-	}
+	// FIXME: adjust filling `modulesInfo` according results from `possibleModules` list.
+	// See: https://github.com/tarantool/tt/issues/1016
+	// for name, path := range externalModules {
+	// 	commandPath := rootCmd.Name() + " " + name
+	// 	modulesInfo[commandPath] = &ModuleInfo{
+	// 		IsInternal:   false,
+	// 		ExternalPath: path,
+	// 	}
+	// }
 
 	fillSubCommandsInfo(rootCmd, &modulesInfo)
 
@@ -132,38 +152,45 @@ func getEnvironmentModulesDirs() ([]string, error) {
 	return collectDirectoriesList(paths)
 }
 
-// getExternalModules returns map of available modules by
-// parsing the contents of the path folder.
-func getExternalModules(paths []string) (map[string]string, error) {
-	modules := make(map[string]string)
-	if len(paths) == 0 {
-		return modules, nil
+// isPossibleModule checks is exists any manifest or executable `main` file inside dir.
+func isPossibleModule(dir string) (modulesEntries, bool) {
+	is_module := false
+	entries := modulesEntries{Directory: dir}
+	manifest, _ := util.GetYamlFileName(filepath.Join(dir, manifestFileName), false)
+	if manifest != "" {
+		entries.Manifest = manifest
+		is_module = true
 	}
-	// FIXME: Work with list at https://github.com/tarantool/tt/issues/1014
-	path := paths[0]
+	if main, err := exec.LookPath(filepath.Join(dir, mainEntryPoint)); err == nil {
+		entries.Main = main
+		is_module = true
+	}
+	return entries, is_module
+}
 
-	// If the directory doesn't exist, it is not an error.
-	// TODO: Add warning in next patches, discussion
-	// what if the file exists, but access is denied, etc.
-	if _, err := os.Stat(path); err != nil {
-		if !os.IsNotExist(err) {
+// getExternalModules returns map[name] = directory of available modules by
+// parsing the contents of the list folders.
+func getExternalModules(paths []string) (possibleModules, error) {
+	modules := possibleModules{}
+	for _, path := range paths {
+		entries, err := os.ReadDir(path)
+		if err != nil {
 			return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
 		}
-
-		return nil, nil
-	}
-
-	files, err := os.ReadDir(path)
-	if err != nil {
-		return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
-	}
-
-	for _, f := range files {
-		// Ignore non executable files.
-		if path, err := exec.LookPath(filepath.Join(path, f.Name())); err == nil {
-			modules[strings.Split(f.Name(), ".")[0]] = path
+		cnt_modules := 0
+		for _, e := range entries {
+			mod_path := filepath.Join(path, e.Name())
+			if !e.IsDir() {
+				continue
+			}
+			if mod_entry, is_module := isPossibleModule(mod_path); is_module {
+				modules[e.Name()] = mod_entry
+				cnt_modules += 1
+			}
+		}
+		if cnt_modules == 0 {
+			log.Warnf("Directory %q does not have any module", path)
 		}
 	}
-
 	return modules, nil
 }
