@@ -94,8 +94,7 @@ func getExternalModulesDir(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (
 	// 1. If a directory field is specified;
 	// 2. Specified path exists;
 	// 3. Path points to not a directory.
-	// FIXME: Add working with a list https://github.com/tarantool/tt/issues/1014
-	modulesDir := cliOpts.Modules.Directories[0]
+	modulesDir := cliOpts.Modules.Directory
 	if info, err := os.Stat(modulesDir); err == nil {
 		// TODO: Add warning in next patches, discussion
 		// what if the file exists, but access is denied, etc.

@@ -1,6 +1,6 @@
 modules:
   # Directory where the external modules are stored.
-  directory: {{ .Modules.Directories }}
+  directory: {{ .Modules.Directory }}
 
 env:
   # Restart instance on failure.

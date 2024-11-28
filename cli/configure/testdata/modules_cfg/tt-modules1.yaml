@@ -1,3 +1,0 @@
-# Config with single string with relative path to modules directory.
-modules:
-  directory: modules-dir

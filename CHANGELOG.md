@@ -22,7 +22,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   time format.
 - `tt connect`: add new `--evaler` option to support for customizing the way
   user input is processed.
-- `tt.yaml`: allows to specify a list of modules directories.
 
 ### Changed
 
