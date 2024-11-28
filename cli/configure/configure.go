@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"syscall"
 
@@ -104,7 +103,7 @@ func getSystemAppOpts() *config.AppOpts {
 // GetDefaultCliOpts returns `CliOpts` filled with default values.
 func GetSystemCliOpts() *config.CliOpts {
 	modules := config.ModulesOpts{
-		Directories: []string{ModulesPath},
+		Directory: ModulesPath,
 	}
 	ee := config.EEOpts{
 		CredPath: "",
@@ -129,7 +128,7 @@ func GetSystemCliOpts() *config.CliOpts {
 // GetDefaultCliOpts returns `CliOpts` filled with default values.
 func GetDefaultCliOpts() *config.CliOpts {
 	modules := config.ModulesOpts{
-		Directories: []string{ModulesPath},
+		Directory: ModulesPath,
 	}
 	ee := config.EEOpts{
 		CredPath: "",
@@ -180,24 +179,6 @@ func adjustPathWithConfigLocation(filePath string, configDir string,
 	return filepath.Abs(filepath.Join(configDir, filePath))
 }
 
-func adjustListPathWithConfigLocation(listPaths []string, configDir string,
-	defaultDirName string) ([]string, error) {
-	if len(listPaths) == 0 {
-		listPaths = append(listPaths, defaultDirName)
-	}
-
-	result := make([]string, 0, len(listPaths))
-	for _, path := range listPaths {
-		path, err := adjustPathWithConfigLocation(path, configDir, defaultDirName)
-		if err != nil {
-			return result, err
-		}
-		result = append(result, path)
-
-	}
-	return result, nil
-}
-
 // resolveConfigPaths resolves all paths in config relative to specified location, and
 // sets uninitialized values to defaults.
 func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
@@ -230,8 +211,8 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	}
 
 	if cliOpts.Modules != nil {
-		if cliOpts.Modules.Directories, err = adjustListPathWithConfigLocation(
-			cliOpts.Modules.Directories, configDir, ModulesPath); err != nil {
+		if cliOpts.Modules.Directory, err = adjustPathWithConfigLocation(cliOpts.Modules.Directory,
+			configDir, ModulesPath); err != nil {
 			return err
 		}
 	}
@@ -244,26 +225,6 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	}
 
 	return nil
-}
-
-func decodeStringAsArrayField(from reflect.Type, to reflect.Type, value interface{}) (
-	interface{}, error) {
-	if to != reflect.TypeOf(config.FieldStringArrayType{}) || from.Kind() != reflect.String {
-		return value, nil
-	}
-	return []string{value.(string)}, nil
-}
-
-func decodeConfig(input map[string]any, cfg *config.CliOpts) error {
-	decoder_config := mapstructure.DecoderConfig{
-		Result:     cfg,
-		DecodeHook: mapstructure.ComposeDecodeHookFunc(decodeStringAsArrayField),
-	}
-	decoder, err := mapstructure.NewDecoder(&decoder_config)
-	if err != nil {
-		return err
-	}
-	return decoder.Decode(input)
 }
 
 // GetCliOpts returns Tarantool CLI options from the config file
@@ -289,7 +250,7 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 			return nil, "", fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
 		}
 
-		if err := decodeConfig(rawConfigOpts, cfg); err != nil {
+		if err := mapstructure.Decode(rawConfigOpts, &cfg); err != nil {
 			return nil, "", fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)
 		}
 

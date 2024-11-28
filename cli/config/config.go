@@ -21,15 +21,11 @@ package config
 //  ee:
 //    credential_path: path
 
-// FieldStringArrayType a custom type used with mapstructure's hook to accept values
-// as a single string as well as a list of strings.
-type FieldStringArrayType []string
-
 // ModuleOpts is used to store all module options.
 type ModulesOpts struct {
-	// Directories is a list of paths to directories where the external modules
+	// Directory is a path to directory where the external modules
 	// are stored.
-	Directories FieldStringArrayType `mapstructure:"directory" yaml:"directory"`
+	Directory string
 }
 
 // EEOpts is used to store tarantool-ee options.

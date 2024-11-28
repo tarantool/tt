@@ -1,3 +1,0 @@
-# Config with single string with absolute path to modules directory.
-modules:
-  directory: /ext/path/modules
