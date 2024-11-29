@@ -9,10 +9,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.6.0] - 2024-11-29
+
+The release introduces `upgrade` and `downgrade` subcommands for
+`tt replicaset` and adds minor improves to `tt cat`, `tt play` and
+`tt connect`.
+
+### Added
+
 - `tt replicaset downgrade`: command to downgrade the schema on a Tarantool
   cluster.
-  * `-v (--version)`: (Required) specify schema version to downgrade to.
-  * `-r (--replicaset)`: specify the replicaset name(s) to upgrade.
+  * `-v (--version)`: (required) specify schema version to downgrade to.
+  * `-r (--replicaset)`: specify the replicaset name(s) to downgrade.
   * `-t (--timeout)`: timeout for waiting the LSN synchronization (in seconds)
     (default 5).
 - `tt replicaset upgrade`: command to upgrade the schema on a Tarantool
@@ -21,15 +33,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   * `-t (--timeout)`: timeout for waiting the LSN synchronization (in seconds)
     (default 5).
   * supports upgrading the database schema on remote cluster by upgrading
-    each replica set individually using `tt replicaset upgrade <URI>`.
+    each replicaset individually using `tt replicaset upgrade <URI>`.
 - New flag `--timestamp` of `tt cat` and `tt play` commands is added to specify
   operations ending with the given timestamp. This value can be specified
   as a number or using [RFC3339/RFC3339Nano](https://go.dev/src/time/format.go)
   time format.
 - `tt connect`: add new `--evaler` option to support for customizing the way
   user input is processed.
-
-### Changed
 
 ### Fixed
 
