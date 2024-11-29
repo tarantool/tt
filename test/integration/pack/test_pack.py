@@ -1836,3 +1836,108 @@ def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmp_path):
 
     build_output = tt_process.stdout.read()
     assert "Bundle is packed successfully" in build_output
+
+
+@pytest.mark.docker
+def test_pack_deb_packignore(tt_cmd, tmp_path):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmp_path = os.path.join(tmp_path, "bundle_with_packignore")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles",
+                                 "bundle_with_packignore"),
+                    tmp_path, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmp_path
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "deb"],
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
+    assert rc == 0
+
+    package_file_name = "bundle_with_packignore_0.1.0.0-1_" + get_arch() + ".deb"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    unpacked_pkg_dir = os.path.join(tmp_path, 'unpacked')
+    os.mkdir(unpacked_pkg_dir)
+
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-v', '{0}:/tmp/unpack'.format(unpacked_pkg_dir),
+                                             '-w', '/usr/src',
+                                             'jrei/systemd-ubuntu',
+                                             '/bin/bash', '-c',
+                                             '/bin/dpkg -i {0}'
+                                             '&& id tarantool '
+                                             ' && dpkg -x {0} /tmp/unpack '
+                                             ' && chown {1}:{2} /tmp/unpack -R'.
+                                            format(package_file_name, os.getuid(), os.getgid())
+                                             ])
+    assert rc == 0
+
+    env_path = os.path.join(unpacked_pkg_dir, 'usr', 'share', 'tarantool', 'bundle_with_packignore')
+    for path in ['tt.yaml', 'instances.enabled', 'app2', 'bin/tt', 'bin/tarantool']:
+        assert os.path.exists(os.path.join(env_path, path))
+
+    for path in ['modules', 'app.lua']:
+        assert not os.path.exists(os.path.join(env_path, path))
+
+
+@pytest.mark.docker
+def test_pack_deb_app_packignore(tt_cmd, tmp_path):
+    if shutil.which('docker') is None:
+        pytest.skip("docker is not installed in this system")
+
+    # check if docker daemon is up
+    rc, _ = run_command_and_get_output(['docker', 'ps'])
+    assert rc == 0
+
+    tmp_path = os.path.join(tmp_path, "bundle_with_app_packignore")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles",
+                                 "bundle_with_app_packignore"),
+                    tmp_path, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    base_dir = tmp_path
+
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "deb"],
+        cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
+    assert rc == 0
+
+    package_file_name = "bundle_with_app_packignore_0.1.0.0-1_" + get_arch() + ".deb"
+    package_file = os.path.join(base_dir, package_file_name)
+    assert os.path.isfile(package_file)
+
+    unpacked_pkg_dir = os.path.join(tmp_path, 'unpacked')
+    os.mkdir(unpacked_pkg_dir)
+
+    rc, output = run_command_and_get_output(['docker', 'run', '--rm', '-v',
+                                             '{0}:/usr/src/'.format(base_dir),
+                                             '-v', '{0}:/tmp/unpack'.format(unpacked_pkg_dir),
+                                             '-w', '/usr/src',
+                                             'jrei/systemd-ubuntu',
+                                             '/bin/bash', '-c',
+                                             '/bin/dpkg -i {0}'
+                                             '&& id tarantool && ls -l'
+                                             ' && dpkg -x {0} /tmp/unpack '
+                                             ' && chown {1}:{2} /tmp/unpack -R'.
+                                            format(package_file_name, os.getuid(), os.getgid())
+                                             ])
+    assert rc == 0
+
+    env_path = os.path.join(unpacked_pkg_dir, 'usr', 'share', 'tarantool',
+                            'bundle_with_app_packignore')
+    for path in ['tt.yaml', 'instances.enabled', 'app2', 'bin/tt', 'bin/tarantool']:
+        assert os.path.exists(os.path.join(env_path, path))
+
+    for path in ['testfile', 'testdir']:
+        assert not os.path.exists(os.path.join(env_path, path))
