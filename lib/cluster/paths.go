@@ -37,10 +37,8 @@ var ConfigEnvPaths = [][]string{
 	[]string{"compat", "fiber_channel_close_mode"},
 	[]string{"compat", "fiber_slice_default"},
 	[]string{"compat", "json_escape_forward_slash"},
-	[]string{"compat", "replication_synchro_timeout"},
 	[]string{"compat", "sql_priv"},
 	[]string{"compat", "sql_seq_scan_default"},
-	[]string{"compat", "wal_cleanup_delay_deprecation"},
 	[]string{"compat", "yaml_pretty_multiline"},
 	[]string{"config", "context"},
 	[]string{"config", "etcd", "endpoints"},
@@ -76,12 +74,8 @@ var ConfigEnvPaths = [][]string{
 	[]string{"failover", "call_timeout"},
 	[]string{"failover", "connect_timeout"},
 	[]string{"failover", "lease_interval"},
-	[]string{"failover", "log", "file"},
-	[]string{"failover", "log", "to"},
 	[]string{"failover", "probe_interval"},
 	[]string{"failover", "renew_interval"},
-	[]string{"failover", "replicasets"},
-	[]string{"failover", "stateboard", "enabled"},
 	[]string{"failover", "stateboard", "keepalive_interval"},
 	[]string{"failover", "stateboard", "renew_interval"},
 	[]string{"feedback", "crashinfo"},
@@ -96,7 +90,6 @@ var ConfigEnvPaths = [][]string{
 	[]string{"fiber", "slice", "warn"},
 	[]string{"fiber", "too_long_threshold"},
 	[]string{"fiber", "top", "enabled"},
-	[]string{"fiber", "tx_user_pool_size"},
 	[]string{"fiber", "worker_pool_threads"},
 	[]string{"flightrec", "enabled"},
 	[]string{"flightrec", "logs_log_level"},
@@ -132,7 +125,6 @@ var ConfigEnvPaths = [][]string{
 	[]string{"iproto", "net_msg_max"},
 	[]string{"iproto", "readahead"},
 	[]string{"iproto", "threads"},
-	[]string{"isolated"},
 	[]string{"labels"},
 	[]string{"log", "file"},
 	[]string{"log", "format"},
@@ -144,7 +136,6 @@ var ConfigEnvPaths = [][]string{
 	[]string{"log", "syslog", "identity"},
 	[]string{"log", "syslog", "server"},
 	[]string{"log", "to"},
-	[]string{"lua", "memory"},
 	[]string{"memtx", "allocator"},
 	[]string{"memtx", "max_tuple_size"},
 	[]string{"memtx", "memory"},
@@ -163,10 +154,6 @@ var ConfigEnvPaths = [][]string{
 	[]string{"process", "username"},
 	[]string{"process", "work_dir"},
 	[]string{"replication", "anon"},
-	[]string{"replication", "anon_ttl"},
-	[]string{"replication", "autoexpel", "by"},
-	[]string{"replication", "autoexpel", "enabled"},
-	[]string{"replication", "autoexpel", "prefix"},
 	[]string{"replication", "bootstrap_strategy"},
 	[]string{"replication", "connect_timeout"},
 	[]string{"replication", "election_fencing_mode"},
@@ -177,7 +164,6 @@ var ConfigEnvPaths = [][]string{
 	[]string{"replication", "skip_conflict"},
 	[]string{"replication", "sync_lag"},
 	[]string{"replication", "sync_timeout"},
-	[]string{"replication", "synchro_queue_max_size"},
 	[]string{"replication", "synchro_quorum"},
 	[]string{"replication", "synchro_timeout"},
 	[]string{"replication", "threads"},
@@ -500,15 +486,6 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	SchemaPath{
-		Path: []string{"compat", "replication_synchro_timeout"},
-		Validator: MakeAllowedValidator(
-			StringValidator{},
-			[]any{
-				"old",
-				"new",
-			}),
-	},
-	SchemaPath{
 		Path: []string{"compat", "sql_priv"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -519,15 +496,6 @@ var TarantoolSchema = []SchemaPath{
 	},
 	SchemaPath{
 		Path: []string{"compat", "sql_seq_scan_default"},
-		Validator: MakeAllowedValidator(
-			StringValidator{},
-			[]any{
-				"old",
-				"new",
-			}),
-	},
-	SchemaPath{
-		Path: []string{"compat", "wal_cleanup_delay_deprecation"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
 			[]any{
@@ -804,41 +772,12 @@ var TarantoolSchema = []SchemaPath{
 		Validator: NumberValidator{},
 	},
 	SchemaPath{
-		Path:      []string{"failover", "log", "file"},
-		Validator: StringValidator{},
-	},
-	SchemaPath{
-		Path: []string{"failover", "log", "to"},
-		Validator: MakeAllowedValidator(
-			StringValidator{},
-			[]any{
-				"stderr",
-				"file",
-			}),
-	},
-	SchemaPath{
 		Path:      []string{"failover", "probe_interval"},
 		Validator: NumberValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"failover", "renew_interval"},
 		Validator: NumberValidator{},
-	},
-	SchemaPath{
-		Path: []string{"failover", "replicasets"},
-		Validator: MakeMapValidator(
-			StringValidator{},
-			MakeRecordValidator(map[string]Validator{
-				"learners": MakeArrayValidator(
-					StringValidator{}),
-				"priority": MakeMapValidator(
-					StringValidator{},
-					NumberValidator{}),
-			})),
-	},
-	SchemaPath{
-		Path:      []string{"failover", "stateboard", "enabled"},
-		Validator: BooleanValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"failover", "stateboard", "keepalive_interval"},
@@ -895,10 +834,6 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"fiber", "top", "enabled"},
 		Validator: BooleanValidator{},
-	},
-	SchemaPath{
-		Path:      []string{"fiber", "tx_user_pool_size"},
-		Validator: IntegerValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"fiber", "worker_pool_threads"},
@@ -1079,10 +1014,6 @@ var TarantoolSchema = []SchemaPath{
 		Validator: IntegerValidator{},
 	},
 	SchemaPath{
-		Path:      []string{"isolated"},
-		Validator: BooleanValidator{},
-	},
-	SchemaPath{
 		Path: []string{"labels"},
 		Validator: MakeMapValidator(
 			StringValidator{},
@@ -1160,10 +1091,6 @@ var TarantoolSchema = []SchemaPath{
 				"pipe",
 				"syslog",
 			}),
-	},
-	SchemaPath{
-		Path:      []string{"lua", "memory"},
-		Validator: IntegerValidator{},
 	},
 	SchemaPath{
 		Path: []string{"memtx", "allocator"},
@@ -1287,26 +1214,6 @@ var TarantoolSchema = []SchemaPath{
 		Validator: BooleanValidator{},
 	},
 	SchemaPath{
-		Path:      []string{"replication", "anon_ttl"},
-		Validator: NumberValidator{},
-	},
-	SchemaPath{
-		Path: []string{"replication", "autoexpel", "by"},
-		Validator: MakeAllowedValidator(
-			StringValidator{},
-			[]any{
-				"prefix",
-			}),
-	},
-	SchemaPath{
-		Path:      []string{"replication", "autoexpel", "enabled"},
-		Validator: BooleanValidator{},
-	},
-	SchemaPath{
-		Path:      []string{"replication", "autoexpel", "prefix"},
-		Validator: StringValidator{},
-	},
-	SchemaPath{
 		Path: []string{"replication", "bootstrap_strategy"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1373,10 +1280,6 @@ var TarantoolSchema = []SchemaPath{
 	SchemaPath{
 		Path:      []string{"replication", "sync_timeout"},
 		Validator: NumberValidator{},
-	},
-	SchemaPath{
-		Path:      []string{"replication", "synchro_queue_max_size"},
-		Validator: IntegerValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"replication", "synchro_quorum"},
