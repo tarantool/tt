@@ -1,7 +1,9 @@
 FROM ubuntu:18.04
 
 WORKDIR /work
-RUN apt-get update && apt-get install -y git cmake make build-essential zlib1g-dev \
+RUN apt-get update && apt-get install -y git wget make build-essential zlib1g-dev \
 libreadline-dev libncurses5-dev libssl-dev libunwind-dev libicu-dev autoconf libtool
+RUN wget https://cmake.org/files/v3.28/cmake-3.28.6-linux-x86_64.tar.gz -qO- | \
+  tar -xz -C /usr/local --strip-components=1
 RUN chown {{.uid}} /work
 COPY ./ ./
