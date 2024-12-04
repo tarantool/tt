@@ -348,3 +348,23 @@ def test_uninstall_tt_missing_version_character(
     assert os.path.isfile(os.path.join(tmp_path, "tt_" +
                           "v" if "v" not in version_to_uninstall else "" +
                                        version_to_uninstall)) is False
+
+
+def test_uninstall_tt_missing_symlink(tt_cmd, tmp_path):
+    configPath = os.path.join(tmp_path, config_name)
+    # Create test config.
+    with open(configPath, 'w') as f:
+        f.write(f'env:\n bin_dir: {tmp_path}\n inc_dir:\n')
+
+    shutil.copy(tt_cmd, os.path.join(tmp_path, "tt_94ba971"))
+
+    symlink_path = os.path.join(tmp_path, 'tt')
+    assert not os.path.exists(symlink_path)
+
+    uninstall_cmd = [tt_cmd, "uninstall", "tt", "94ba971"]
+    uninstall_rc, uninstall_output = run_command_and_get_output(uninstall_cmd, cwd=tmp_path)
+
+    assert uninstall_rc == 0
+    assert "tt=94ba971 is uninstalled." in uninstall_output
+
+    assert os.path.exists(os.path.join(tmp_path, "tt_" + "94ba971") is False)
