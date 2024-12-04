@@ -13,6 +13,8 @@ env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
   GO_VERSION: '1.21.13'
   PYTHON_VERSION: '3.10'
+  ACTIONS_RUNNER_DEBUG: true
+  ACTIONS_STEP_DEBUG: true
 
 jobs:
   full-ci-ce:

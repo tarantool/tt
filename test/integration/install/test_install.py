@@ -339,7 +339,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
         # Do not use pipe for stdout, if you are not going to read from it.
         # In case of build failure, docker logs are printed to stdout. It fills pipe buffer and
         # blocks all subsequent stdout write calls in tt, because there is no pipe reader in test.
-        stdout=subprocess.DEVNULL,
+        # ! stdout=subprocess.DEVNULL,
         text=True
     )
 
