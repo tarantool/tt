@@ -1,10 +1,16 @@
 import os
 import re
 import shutil
+import tempfile
 
 import pytest
+from integration.connect.test_connect import (start_app, stop_app,
+                                              try_execute_on_instance)
 
-from utils import TarantoolTestInstance, run_command_and_get_output
+from utils import (BINARY_PORT_NAME, TarantoolTestInstance, control_socket,
+                   create_tt_config, initial_snap, initial_xlog, lib_path,
+                   run_command_and_get_output, run_path,
+                   skip_if_cluster_app_unsupported, wait_file)
 
 # The name of instance config file within this integration tests.
 # This file should be in /test/integration/play/test_file/.
@@ -182,3 +188,116 @@ def test_play_creds(tt_cmd, tmp_path, opts, test_instance):
 
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
     assert rc == 0
+
+
+def test_play_to_single_instance_app(tt_cmd, tmp_path):
+    # The test application file.
+    app_name = "test_app"
+    test_app_path = os.path.join(os.path.dirname(__file__),
+                                 "test_file", "test_app.lua")
+    test_xlog_name = "timestamp.snap"
+    test_xlog_path = os.path.join(os.path.dirname(__file__),
+                                  "test_file", "timestamp", test_xlog_name)
+    # Copy test data into temporary directory.
+    shutil.copy(test_app_path, tmp_path)
+    shutil.copy(test_xlog_path, tmp_path)
+    shutil.copy(os.path.join(os.path.dirname(__file__),
+                             "test_file", "config.yml"), tmp_path)
+    shutil.copy(os.path.join(os.path.dirname(__file__),
+                             "test_file", "instances.yml"), tmp_path)
+    create_tt_config(tmp_path, "")
+
+    # Start an instance.
+    start_app(tt_cmd, tmp_path, "test_app", start_binary_port=True)
+    try:
+        # Check for start.
+        file = wait_file(
+            os.path.join(tmp_path, "test_app", run_path, "test_app"), control_socket, []
+        )
+        assert file != ""
+
+        # Wait until application is ready.
+        lib_dir = os.path.join(tmp_path, app_name, lib_path, app_name)
+        file = wait_file(lib_dir, initial_snap, [])
+        assert file != ""
+        file = wait_file(lib_dir, initial_xlog, [])
+        assert file != ""
+
+        # Connect to the instance and execute a script.
+        rc, _ = try_execute_on_instance(tt_cmd, tmp_path, "test_app", test_app_path)
+        assert rc
+
+        cmd = [tt_cmd, "play", "test_app", test_xlog_name]
+        rc, _ = run_command_and_get_output(cmd, cwd=tmp_path)
+        assert rc == 0
+
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmp_path, "test_app")
+
+
+def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
+    test_xlog_name = "test.xlog"
+    test_xlog_path = os.path.join(os.path.dirname(__file__),
+                                  "test_file", test_xlog_name)
+    shutil.copy(test_xlog_path, test_instance._tmpdir)
+
+    create_tt_config(test_instance._tmpdir, "")
+
+    # Start an instance.
+    start_app(tt_cmd, test_instance._tmpdir, "remote_instance_cfg", start_binary_port=False)
+
+    cmd = [tt_cmd, "play", "remote_instance_cfg", test_xlog_name]
+    rc, cmd_output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
+    assert rc == 1
+    assert "application binary port does not exist" in cmd_output
+
+
+def test_play_to_cluster_app(tt_cmd):
+    tmpdir = tempfile.mkdtemp()
+    create_tt_config(tmpdir, "")
+    skip_if_cluster_app_unsupported()
+
+    empty_file = "empty.lua"
+    app_name = "test_simple_cluster_app"
+    test_xlog_name = "test.snap"
+    # Copy the test application to the "run" directory.
+    test_app_path = os.path.join(os.path.dirname(__file__), app_name)
+    tmp_app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(test_app_path, tmp_app_path)
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", test_xlog_name)
+    # Copy test data into temporary directory.
+    for item in (empty_file_path, test_xlog_path):
+        shutil.copy(item, tmpdir)
+
+    # Start instances.
+    start_app(tt_cmd, tmpdir, app_name, True)
+    try:
+        # Check for start.
+        instances = ['master']
+        for instance in instances:
+            master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
+            file = wait_file(master_run_path, control_socket, [])
+            assert file != ""
+            file = wait_file(master_run_path, BINARY_PORT_NAME, [])
+            assert file != ""
+            file = wait_file(os.path.join(tmpdir, app_name), 'configured', [])
+            assert file != ""
+
+        # Play to the instances.
+        cmd = [tt_cmd, "play", app_name + ":master", test_xlog_name]
+        rc, cmd_output = run_command_and_get_output(cmd, cwd=tmpdir)
+        assert rc == 0
+
+        cmd = [tt_cmd, "play", app_name + ":master123", test_xlog_name]
+        rc, cmd_output = run_command_and_get_output(cmd, cwd=tmpdir)
+        assert rc == 1
+        assert ("could not resolve URI or application: " +
+                "\"test_simple_cluster_app:master123\"") in cmd_output
+
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmpdir, app_name)
+        shutil.rmtree(tmpdir)

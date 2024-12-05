@@ -9,6 +9,7 @@ import time
 
 import netifaces
 import psutil
+import pytest
 import tarantool
 import yaml
 from retry import retry
@@ -23,6 +24,7 @@ pid_file = "tt.pid"
 log_file = "tt.log"
 initial_snap = "00000000000000000000.snap"
 initial_xlog = "00000000000000000000.xlog"
+BINARY_PORT_NAME = "tarantool.sock"
 
 
 def get_fixture_tcs_params(path_to_cfg, connection_test=True,
@@ -563,6 +565,51 @@ def is_tarantool_ee():
     if instance_process.returncode == 0:
         return "Tarantool Enterprise" in instance_process.stdout
     return False
+
+
+def skip_if_tarantool_ce():
+    if not is_tarantool_ee():
+        pytest.skip("Tarantool Enterprise required")
+
+
+def is_quit_supported():
+    major, minor = get_tarantool_version()
+    return major >= 2
+
+
+def is_cluster_app_supported():
+    major, minor = get_tarantool_version()
+    return major >= 3
+
+
+def is_tuple_format_supported():
+    major, minor = get_tarantool_version()
+    return major > 3 or (major == 3 and minor >= 2)
+
+
+def is_tarantool_major_one():
+    major, minor = get_tarantool_version()
+    return major == 1
+
+
+def skip_if_quit_unsupported():
+    if not is_quit_supported():
+        pytest.skip("\\q is unsupported")
+
+
+def skip_if_cluster_app_unsupported():
+    if not is_cluster_app_supported():
+        pytest.skip("Tarantool 3.0 or above required")
+
+
+def skip_if_tuple_format_supported():
+    if is_tuple_format_supported():
+        pytest.skip("Tuple format is supported")
+
+
+def skip_if_tuple_format_unsupported():
+    if not is_tuple_format_supported():
+        pytest.skip("Tuple format is unsupported")
 
 
 @retry(Exception, tries=40, delay=0.5)

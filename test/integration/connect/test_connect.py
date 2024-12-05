@@ -10,12 +10,14 @@ from pathlib import Path
 import psutil
 import pytest
 
-from utils import (control_socket, create_tt_config, get_tarantool_version,
-                   is_tarantool_ee, kill_procs, run_command_and_get_output,
-                   run_path, wait_file)
+from utils import (BINARY_PORT_NAME, control_socket, create_tt_config,
+                   get_tarantool_version, is_tarantool_major_one, kill_procs,
+                   run_command_and_get_output, run_path,
+                   skip_if_cluster_app_unsupported, skip_if_quit_unsupported,
+                   skip_if_tarantool_ce, skip_if_tuple_format_supported,
+                   skip_if_tuple_format_unsupported, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
-BINARY_PORT_NAME = "tarantool.sock"
 
 
 @pytest.fixture(autouse=True)
@@ -122,100 +124,21 @@ def prepare_test_app_languages(tt_cmd, tmpdir):
     return "test_app", lua_file, sql_file
 
 
-def get_version(tt_cmd, tmpdir):
-    run_cmd = [tt_cmd, "run", "-v"]
-    instance_process = subprocess.run(
-        run_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    if instance_process.returncode == 0:
-        stdout = instance_process.stdout
-        full = stdout.splitlines()[0]
-        for word in re.split(r'\s', full):
-            matched = re.match(r'^\d+\.\d+\.\d+', word)
-            if matched:
-                print("Matched:")
-                print(matched)
-                version = re.split(r'\.', matched.group(0))
-                return True, int(version[0]), int(version[1]), int(version[2])
-    return False, 0, 0, 0
-
-
-def is_quit_supported(tt_cmd, tmpdir):
-    ok, major, minor, patch = get_version(tt_cmd, tmpdir)
-    assert ok
+def is_language_supported():
+    major, minor = get_tarantool_version()
     return major >= 2
-
-
-def is_language_supported(tt_cmd, tmpdir):
-    ok, major, minor, patch = get_version(tt_cmd, tmpdir)
-    assert ok
-    return major >= 2
-
-
-def is_cluster_app_supported(tt_cmd, tmpdir):
-    ok, major, minor, patch = get_version(tt_cmd, tmpdir)
-    assert ok
-    return major >= 3
-
-
-def is_tuple_format_supported(tt_cmd, tmpdir):
-    ok, major, minor, patch = get_version(tt_cmd, tmpdir)
-    assert ok
-    return major > 3 or (major == 3 and minor >= 2)
-
-
-def is_tarantool_major_one():
-    cmd = ["tarantool", "--version"]
-    instance_process = subprocess.run(
-        cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    if instance_process.returncode == 0:
-        return "Tarantool 1." in instance_process.stdout
-    return False
-
-
-def skip_if_quit_unsupported(tt_cmd, tmpdir):
-    if not is_quit_supported(tt_cmd, tmpdir):
-        pytest.skip("\\q is unsupported")
 
 
 def skip_if_language_unsupported(tt_cmd, tmpdir, test_app):
-    if not is_language_supported(tt_cmd, tmpdir):
+    if not is_language_supported():
         stop_app(tt_cmd, tmpdir, test_app)
         pytest.skip("\\set language is unsupported")
 
 
 def skip_if_language_supported(tt_cmd, tmpdir, test_app):
-    if is_language_supported(tt_cmd, tmpdir):
+    if is_language_supported():
         stop_app(tt_cmd, tmpdir, test_app)
         pytest.skip("\\set language is supported")
-
-
-def skip_if_tarantool_ce():
-    if not is_tarantool_ee():
-        pytest.skip("Tarantool Enterprise required")
-
-
-def skip_if_cluster_app_unsupported(tt_cmd, tmpdir):
-    if not is_cluster_app_supported(tt_cmd, tmpdir):
-        pytest.skip("Tarantool 3.0 or above required")
-
-
-def skip_if_tuple_format_supported(tt_cmd, tmpdir):
-    if is_tuple_format_supported(tt_cmd, tmpdir):
-        pytest.skip("Tuple format is supported")
-
-
-def skip_if_tuple_format_unsupported(tt_cmd, tmpdir):
-    if not is_tuple_format_supported(tt_cmd, tmpdir):
-        pytest.skip("Tuple format is unsupported")
 
 
 def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
@@ -379,7 +302,7 @@ def test_connect_and_execute_quit(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
 
-    skip_if_quit_unsupported(tt_cmd, tmpdir)
+    skip_if_quit_unsupported()
 
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
@@ -1053,7 +976,7 @@ def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
 
 
 def test_lua_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported(tt_cmd, tmpdir_with_cfg)
+    skip_if_tuple_format_unsupported()
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
@@ -1162,7 +1085,7 @@ def test_lua_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 
 
 def test_yaml_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported(tt_cmd, tmpdir_with_cfg)
+    skip_if_tuple_format_unsupported()
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
@@ -1668,7 +1591,7 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
 
 
 def test_table_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_supported(tt_cmd, tmpdir_with_cfg)
+    skip_if_tuple_format_supported()
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
@@ -1722,7 +1645,7 @@ def test_table_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
 
 
 def test_table_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported(tt_cmd, tmpdir_with_cfg)
+    skip_if_tuple_format_unsupported()
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
@@ -2139,7 +2062,7 @@ def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
 
 
 def test_ttable_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_supported(tt_cmd, tmpdir_with_cfg)
+    skip_if_tuple_format_supported()
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
@@ -2189,7 +2112,7 @@ def test_ttable_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
 
 
 def test_ttable_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported(tt_cmd, tmpdir_with_cfg)
+    skip_if_tuple_format_unsupported()
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
@@ -2982,7 +2905,7 @@ def test_connect_to_cluster_app(tt_cmd):
         pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
-    skip_if_cluster_app_unsupported(tt_cmd, tmpdir)
+    skip_if_cluster_app_unsupported()
 
     empty_file = "empty.lua"
     app_name = "test_simple_cluster_app"
