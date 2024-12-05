@@ -3,8 +3,12 @@ import re
 import shutil
 
 import pytest
+from integration.connect.test_connect import (start_app, stop_app,
+                                              try_execute_on_instance)
 
-from utils import TarantoolTestInstance, run_command_and_get_output
+from utils import (TarantoolTestInstance, control_socket, create_tt_config,
+                   initial_snap, initial_xlog, lib_path, log_file, log_path,
+                   pid_file, run_command_and_get_output, run_path, wait_file)
 
 # The name of instance config file within this integration tests.
 # This file should be in /test/integration/play/test_file/.
@@ -182,3 +186,74 @@ def test_play_creds(tt_cmd, tmp_path, opts, test_instance):
 
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path, env=env)
     assert rc == 0
+
+
+def test_play_to_single_instance_app(tt_cmd, tmp_path):
+    # The test application file.
+    app_name = "test_app"
+    test_app_path = os.path.join(os.path.dirname(__file__),
+                                 "test_file", "test_app.lua")
+    test_xlog_name = "timestamp.snap"
+    test_xlog_path = os.path.join(os.path.dirname(__file__),
+                                  "test_file", "timestamp", test_xlog_name)
+    # Copy test data into temporary directory.
+    shutil.copy(test_app_path, tmp_path)
+    shutil.copy(test_xlog_path, tmp_path)
+    create_tt_config(tmp_path, "")
+
+    # Start an instance.
+    start_app(tt_cmd, tmp_path, "test_app", start_binary_port=True)
+    try:
+        # Check for start.
+        file = wait_file(
+            os.path.join(tmp_path, "test_app", run_path, "test_app"), control_socket, []
+        )
+        assert file != ""
+
+        # Wait until application is ready.
+        lib_dir = os.path.join(tmp_path, app_name, lib_path, app_name)
+        run_dir = os.path.join(tmp_path, app_name, run_path, app_name)
+        log_dir = os.path.join(tmp_path, app_name, log_path, app_name)
+
+        file = wait_file(lib_dir, initial_snap, [])
+        assert file != ""
+
+        file = wait_file(lib_dir, initial_xlog, [])
+        assert file != ""
+
+        file = wait_file(run_dir, pid_file, [])
+        assert file != ""
+
+        file = wait_file(log_dir, log_file, [])
+        assert file != ""
+
+        # Connect to the instance and execute a script.
+        ret, output = try_execute_on_instance(tt_cmd, tmp_path, "test_app", test_app_path)
+        print(f">>> try_execute_on_instance: ${output}")
+        assert ret
+
+        cmd = [tt_cmd, "play", "test_app", test_xlog_name]
+        rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+        print(f">>> run_command_and_get_output: ${output}")
+        assert rc == 0
+
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmp_path, "test_app")
+
+
+# def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance, tmp_path):
+#     # Testing with non-existent uri.
+#     test_xlog_name = "test.xlog"
+#     test_xlog_path = os.path.join(os.path.dirname(__file__),
+#                                   "test_file", test_xlog_name)
+#     # Copy test data into temporary directory.
+#     shutil.copy(test_xlog_path, test_instance._tmpdir)
+
+#     create_tt_config(test_instance._tmpdir, "")
+
+#     cmd = [tt_cmd, "play", "remote_instance_cfg", test_xlog_name]
+#     rc, cmd_output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
+#     print(f">>> run_command_and_get_output: ${cmd_output}")
+#     assert rc == 1
+#     assert "application binary port does not exist" in cmd_output

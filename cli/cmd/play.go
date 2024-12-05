@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/cli/checkpoint"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 	libconnect "github.com/tarantool/tt/lib/connect"
@@ -76,6 +77,24 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) < 2 {
 		return errors.New("it is required to specify an URI and at least one .xlog/.snap file " +
 			"or directory")
+	}
+
+	if !libconnect.IsCredentialsURI(args[0]) {
+		// Try to parse as `app_name:instance`.
+		// FillCtx returns error if no instances found.
+		var runningCtx running.RunningCtx
+		if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
+			return util.InternalError(
+				"Internal error: could not parse application name: %s",
+				version.GetVersion, err)
+		}
+		_, err := os.Stat(runningCtx.Instances[0].BinaryPort)
+		if err != nil {
+			return util.InternalError(
+				"Internal error: application binary port does not exist: %s",
+				version.GetVersion, err)
+		}
+		args[0] = runningCtx.Instances[0].BinaryPort
 	}
 
 	walFiles, err := util.CollectWALFiles(args[1:])
