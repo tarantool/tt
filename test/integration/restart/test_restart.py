@@ -121,6 +121,49 @@ def check_restart(tt, target, input, is_confirm, *args):
 
 
 ################################################################
+# Simple app
+
+tt_simple_app = dict(
+    app_path='test_app.lua',
+    app_name='app',
+    post_start=tt_helper.post_start_base
+)
+
+
+# Auto-confirmation (short option).
+@pytest.mark.slow
+@pytest.mark.tt(**tt_simple_app)
+@pytest.mark.parametrize('tt_running_targets', [
+    pytest.param([], id='running:none'),
+    pytest.param(['app'], id='running:all'),
+])
+@pytest.mark.parametrize('target', [
+    None,
+    'app',
+])
+def test_restart_simple_app_auto_y(tt, target):
+    check_restart(tt, target, None, True, '-y')
+
+
+# Auto-confirmation (long option; less variations).
+@pytest.mark.tt(**dict(tt_simple_app, running_targets=['app']))
+def test_restart_simple_app_auto_yes(tt):
+    check_restart(tt, 'app', None, True, '--yes')
+
+
+# Various inputs.
+@pytest.mark.slow
+@pytest.mark.tt(**tt_simple_app)
+@pytest.mark.parametrize('tt_running_targets', [
+    pytest.param([], id='running:none'),
+    pytest.param(['app'], id='running:all'),
+])
+@pytest.mark.parametrize('input, is_confirmed', confirmation_input_params)
+def test_restart_simple_app_input(tt, input, is_confirmed):
+    check_restart(tt, 'app', input, is_confirmed)
+
+
+################################################################
 # Multi-instance
 
 tt_multi_inst_app = dict(
