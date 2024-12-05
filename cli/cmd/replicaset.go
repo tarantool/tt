@@ -497,7 +497,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 	}
 	var connOpts connector.ConnectOpts
 
-	if err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, args); err == nil {
+	if err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, args, false); err == nil {
 		ctx.IsApplication = true
 		if len(ctx.RunningCtx.Instances) == 1 {
 			if connectCtx.Username != "" || connectCtx.Password != "" {
@@ -518,7 +518,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 				}
 				// Re-fill context for an application.
 				ctx.InstName = instName
-				err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{appName})
+				err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{appName}, false)
 				if err != nil {
 					// Should not happen.
 					return err

@@ -140,7 +140,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	newArgs = args[1:]
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
-	if fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); fillErr == nil {
+	if fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, false); fillErr == nil {
 		if len(runningCtx.Instances) > 1 {
 			err = fmt.Errorf("specify instance name")
 			return

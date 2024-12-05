@@ -199,6 +199,26 @@ def test_stop_multi_inst_input(tt, target, input, is_confirmed):
     check_stop(tt, target, input, is_confirmed)
 
 
+# Instance script is missing.
+tt_multi_inst_app_no_script = dict(
+    tt_multi_inst_app,
+    post_start=tt_helper.post_start_no_script_decorator(tt_multi_inst_app['post_start']),
+)
+
+
+@pytest.mark.tt(**tt_multi_inst_app_no_script)
+@pytest.mark.parametrize('tt_running_targets', [
+    pytest.param(['app'], id='running:all'),
+    pytest.param(['app:master'], id='running:master'),
+])
+@pytest.mark.parametrize('target', [
+    'app',
+    'app:master',
+])
+def test_stop_multi_inst_no_instance_script(tt, target):
+    check_stop(tt, target, None, True, '-y')
+
+
 ################################################################
 # Cluster
 
@@ -253,3 +273,25 @@ def test_stop_cluster_auto_yes(tt):
 @pytest.mark.parametrize('input, is_confirmed', confirmation_input_params)
 def test_stop_cluster_input(tt, target, input, is_confirmed):
     check_stop(tt, target, input, is_confirmed)
+
+
+# Cluster configuration is missing.
+tt_cluster_app_no_config = dict(
+    tt_cluster_app,
+    post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app['post_start']),
+)
+
+
+@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
+@pytest.mark.slow
+@pytest.mark.tt(**tt_cluster_app_no_config)
+@pytest.mark.parametrize('tt_running_targets', [
+    pytest.param(['app'], id='running:all'),
+    pytest.param(['app:storage-master'], id='running:storage-master'),
+])
+@pytest.mark.parametrize('target', [
+    'app',
+    'app:storage-master',
+])
+def test_stop_cluster_no_config(tt, target):
+    check_stop(tt, target, None, True, '-y')

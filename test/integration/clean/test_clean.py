@@ -104,6 +104,29 @@ def test_clean_multi_inst_auto_yes(tt):
     check_clean(tt, ['app'], 'app', '--force')
 
 
+# Instance script is missing.
+tt_multi_inst_app_no_script = dict(
+    tt_multi_inst_app,
+    post_start=tt_helper.post_start_no_script_decorator(tt_multi_inst_app['post_start']),
+)
+
+
+@pytest.mark.tt(**tt_multi_inst_app_no_script)
+@pytest.mark.parametrize('tt_running_targets', [
+    pytest.param(['app'], id='running:all'),
+])
+@pytest.mark.parametrize('stop_targets', [
+    pytest.param([], id='stopped:none'),
+    pytest.param(['app'], id='stopped:all'),
+])
+@pytest.mark.parametrize('target', [
+    'app',
+    'app:master',
+])
+def test_clean_multi_inst_no_instance_script(tt, stop_targets, target):
+    check_clean(tt, stop_targets, target, '-f')
+
+
 ################################################################
 # Cluster
 
@@ -142,3 +165,25 @@ def test_clean_cluster_auto_y(tt, stop_targets, target):
 @pytest.mark.tt(**dict(tt_cluster_app, running_targets=['app']))
 def test_clean_cluster_auto_yes(tt):
     check_clean(tt, ['app'], 'app', '--force')
+
+
+# Cluster configuration is missing.
+tt_cluster_app_no_config = dict(
+    tt_cluster_app,
+    post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app['post_start']),
+)
+
+
+@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
+@pytest.mark.slow
+@pytest.mark.tt(**tt_cluster_app_no_config)
+@pytest.mark.parametrize('tt_running_targets, stop_targets', [
+    pytest.param(['app'], ['app'], id='running:all/all'),
+    pytest.param(['app'], ['app:storage-master'], id='running:all/storage-master'),
+])
+@pytest.mark.parametrize('target', [
+    'app',
+    'app:storage-master',
+])
+def test_clean_cluster_no_config(tt, stop_targets, target):
+    check_clean(tt, stop_targets, target, '-f')

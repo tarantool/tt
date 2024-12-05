@@ -78,7 +78,7 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	if confirm {
 		var runningCtx running.RunningCtx
-		if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args); err != nil {
+		if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, false); err != nil {
 			return err
 		}
 

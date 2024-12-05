@@ -845,7 +845,7 @@ def test_start_interactive(tt_cmd, tmp_path):
             "multi_inst_app:router multi_inst_app:router",
             "multi_inst_app:master multi_inst_app:master",
             "multi_inst_app:replica multi_inst_app:replica",
-            "multi_inst_app:stateboard unknown instance",
+            "multi_inst_app:stateboard multi_inst_app:stateboard",
         ])
 
         instance_process.send_signal(signal.SIGTERM)
