@@ -101,3 +101,23 @@ def post_start_cluster_decorator(func):
         # 'cluster' decoration.
         assert wait_box_status(5, tt, tt.running_instances, ['loading', 'running'])
     return wrapper_func
+
+
+def post_start_no_script_decorator(func):
+    def wrapper_func(tt):
+        func(tt)
+        # 'no_script' decoration.
+        flag_files = [tt.path(f'flag-{inst}') for inst in tt.running_instances]
+        assert utils.wait_files(5, flag_files)
+        os.remove(tt.path('init.lua'))
+    return wrapper_func
+
+
+def post_start_no_config_decorator(func):
+    def wrapper_func(tt):
+        func(tt)
+        # 'no_config' decoration.
+        flag_files = [tt.run_path(inst, 'flag') for inst in tt.running_instances]
+        assert utils.wait_files(5, flag_files)
+        os.remove(tt.path('config.yaml'))
+    return wrapper_func

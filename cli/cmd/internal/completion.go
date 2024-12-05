@@ -26,7 +26,7 @@ func ValidArgsFunction(
 	directive = cobra.ShellCompDirectiveNoFileComp
 
 	var runningCtx running.RunningCtx
-	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{}); err != nil {
+	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, nil, false); err != nil {
 		return
 	}
 
