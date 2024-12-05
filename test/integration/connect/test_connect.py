@@ -631,7 +631,7 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
         )
 
         # Connect to the instance and execute a script.
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", test_app_path)
         assert ret
 
         # Connect to the instance and execute stdout.
