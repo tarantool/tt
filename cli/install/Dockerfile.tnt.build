@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 WORKDIR /work
 RUN apt-get update && apt-get install -y git cmake make build-essential zlib1g-dev \
