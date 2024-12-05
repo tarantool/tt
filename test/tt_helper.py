@@ -6,7 +6,11 @@ import utils
 class Tt(object):
     def __init__(self, tt_cmd, app_path, instances):
         self.__tt_cmd = tt_cmd
-        self.__work_dir = app_path
+        if os.path.isdir(app_path):
+            self.__work_dir = app_path
+        else:
+            self.__work_dir = os.path.splitext(app_path)[0]
+            os.mkdir(self.__work_dir)
         self.__instances = instances
 
     @property
@@ -16,10 +20,11 @@ class Tt(object):
     def instances_of(self, *targets):
         def is_instance_of(inst, *targets):
             app_name, sep, _ = inst.partition(':')
-            assert sep != ''
             for target in targets:
                 if target is None or target == inst:
                     return True
+                if sep == '':
+                    continue
                 target_app_name, target_sep, _ = target.partition(':')
                 if target_sep == '' and target_app_name == app_name:
                     return True
@@ -41,8 +46,9 @@ class Tt(object):
         return os.path.join(self.__work_dir, *paths)
 
     def inst_path(self, inst, *paths):
-        _, sep, inst_name = inst.partition(':')
-        assert sep != ''
+        app_name, sep, inst_name = inst.partition(':')
+        if sep == '':
+            inst_name = app_name
         return os.path.join(self.path(*paths), inst_name)
 
     def run_path(self, inst, *paths):

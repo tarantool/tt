@@ -178,8 +178,13 @@ def tt_path(tmpdir_with_cfg, request):
     app_path = mark_app.kwargs['app_path']
     if not os.path.isabs(app_path):
         app_path = os.path.join(os.path.dirname(request.path), app_path)
-    app_name = mark_app.kwargs.get('app_name', os.path.basename(app_path))
-    app_path = shutil.copytree(app_path, os.path.join(tmpdir_with_cfg, app_name))
+    if os.path.isdir(app_path):
+        app_name = mark_app.kwargs.get('app_name', os.path.basename(app_path))
+        app_path = shutil.copytree(app_path, os.path.join(tmpdir_with_cfg, app_name))
+    else:
+        app_name, app_ext = os.path.splitext(os.path.basename(app_path))
+        app_name = mark_app.kwargs.get('app_name', app_name)
+        app_path = shutil.copy(app_path, os.path.join(tmpdir_with_cfg, app_name+app_ext))
     return app_path
 
 
@@ -187,9 +192,14 @@ def tt_path(tmpdir_with_cfg, request):
 def tt_instances(tt_path, request):
     mark_app = request.node.get_closest_marker('tt')
     instances = mark_app.kwargs.get('instances')
-    assert instances is not None
     app_name = os.path.basename(tt_path)
-    instances = list(map(lambda x: f'{app_name}:{x}', instances))
+    if not os.path.isdir(tt_path):
+        app_name, _ = os.path.splitext(app_name)
+        assert instances is None
+        instances = [app_name]
+    else:
+        assert instances is not None
+        instances = list(map(lambda x: f'{app_name}:{x}', instances))
     return instances
 
 
