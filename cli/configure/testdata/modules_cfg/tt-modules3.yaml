@@ -1,0 +1,6 @@
+# Multiple directory items.
+modules:
+  directory:
+    - modules-dir
+    - /ext/path/modules
+    - local_modules
