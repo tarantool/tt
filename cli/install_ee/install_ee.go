@@ -57,7 +57,7 @@ func GetTarantoolEE(cliOpts *config.CliOpts, bundleName, bundleSource string,
 
 	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w; body size=%d", err, len(resBody))
 	}
 
 	file, err := os.Create(filepath.Join(dst, bundleName))
