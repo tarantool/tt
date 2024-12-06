@@ -114,6 +114,7 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 }
 
 func TestGetRocksRepoPath(t *testing.T) {
+	os.Unsetenv(repoRocksPathEnvVarName)
 	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
 	assert.EqualValues(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
 
