@@ -518,11 +518,12 @@ def is_valid_tarantool_installed(
     return True
 
 
-def get_tarantool_version():
+def get_tarantool_version(env=None):
     try:
         tt_process = subprocess.Popen(
             ["tarantool", "--version"],
-            stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True
+            stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True,
+            env=env,
         )
     except FileNotFoundError:
         return 0, 0
