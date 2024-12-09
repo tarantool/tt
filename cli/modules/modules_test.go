@@ -1,3 +1,5 @@
+// FIXME: Create new tests https://github.com/tarantool/tt/issues/1039
+
 package modules
 
 import (
