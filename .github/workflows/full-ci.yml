@@ -51,6 +51,8 @@ jobs:
         run: sudo systemctl kill mono-xsp4 || true
 
       - name: Integration tests
+        env:
+          TT_ENABLE_COREDUMP_TESTS: '1'
         run: mage integrationfull
 
   full-ci-ce-linux-arm64:
@@ -83,6 +85,8 @@ jobs:
         run: mage unit:fullSkipDocker
 
       - name: Integration tests
+        env:
+          TT_ENABLE_COREDUMP_TESTS: '1'
         run: mage integrationfullskipdocker
 
   full-ci-sdk:
@@ -139,6 +143,8 @@ jobs:
         run: sudo systemctl kill mono-xsp4 || true
 
       - name: Integration tests
+        env:
+          TT_ENABLE_COREDUMP_TESTS: '1'
         run: mage integrationfull
 
   full-ci-macOS:

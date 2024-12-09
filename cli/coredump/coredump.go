@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/apex/log"
@@ -24,7 +25,7 @@ const packEmbedPath = "scripts/tarabrt.sh"
 const inspectEmbedPath = "scripts/gdb.sh"
 
 // Pack packs coredump into a tar.gz archive.
-func Pack(corePath string) error {
+func Pack(corePath string, executable string, outputDir string, pid uint, time string) error {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
 		return fmt.Errorf("cannot create a temporary directory for archiving: %v", err)
@@ -32,6 +33,15 @@ func Pack(corePath string) error {
 	defer os.RemoveAll(tmpDir) // Clean up on function return.
 
 	scriptArgs := []string{"-c", corePath}
+	if executable != "" {
+		scriptArgs = append(scriptArgs, "-e", executable)
+	}
+	if outputDir != "" {
+		scriptArgs = append(scriptArgs, "-d", outputDir)
+	}
+	if pid != 0 {
+		scriptArgs = append(scriptArgs, "-p", strconv.FormatUint(uint64(pid), 10))
+	}
 
 	// Prepare gdb wrapper for packing.
 	inspectPath := filepath.Join(tmpDir, filepath.Base(inspectEmbedPath))
