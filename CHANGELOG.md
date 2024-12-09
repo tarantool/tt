@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
+- `tt coredump pack`: add several options to customize dump processing:
+  * `-e,--executable path`: Tarantool executable path.
+  * `-p,--pid pid`: PID of the dumped process.
+  * `-t,--time time`: Time of dump (seconds since the Epoch).
 
 - `tt.yaml`: allows to specify a list of modules directories.
 
