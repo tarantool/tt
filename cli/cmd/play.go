@@ -13,6 +13,7 @@ import (
 	"github.com/tarantool/tt/cli/checkpoint"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 	libconnect "github.com/tarantool/tt/lib/connect"
@@ -39,7 +40,7 @@ var (
 // NewPlayCmd creates a new play command.
 func NewPlayCmd() *cobra.Command {
 	var playCmd = &cobra.Command{
-		Use:   "play <URI> <FILE>...",
+		Use:   "play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE>...",
 		Short: "Play the contents of .snap/.xlog FILE(s) to another Tarantool instance",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
@@ -49,7 +50,7 @@ func NewPlayCmd() *cobra.Command {
 		},
 		Example: "tt play uri /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
 			"--timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
-			"  tt play uri /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
+			"  tt play app_name /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
 			"--timestamp=1731592956.818",
 	}
 
@@ -76,6 +77,24 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) < 2 {
 		return errors.New("it is required to specify an URI and at least one .xlog/.snap file " +
 			"or directory")
+	}
+
+	if !libconnect.IsBaseURI(args[0]) && !libconnect.IsCredentialsURI(args[0]) {
+		// Try to parse as `app_name:instance`.
+		// FillCtx returns error if no instances found.
+		var runningCtx running.RunningCtx
+		if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, false); err != nil {
+			return util.InternalError(
+				"Internal error: could not parse application name: %s",
+				version.GetVersion, err)
+		}
+		_, err := os.Stat(runningCtx.Instances[0].BinaryPort)
+		if err != nil {
+			return util.InternalError(
+				"Internal error: application binary port does not exist: %s",
+				version.GetVersion, err)
+		}
+		args[0] = runningCtx.Instances[0].BinaryPort
 	}
 
 	walFiles, err := util.CollectWALFiles(args[1:])
