@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt coredump inspect`: fails for tarantool-ee coredump archive if the source
+  directory is missing.
+
 ## [2.6.0] - 2024-11-29
 
 The release introduces `upgrade` and `downgrade` subcommands for
