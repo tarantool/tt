@@ -38,7 +38,7 @@ def coredump(tmp_path_factory) -> Path:
     if not core_pattern.startswith('|'):
         core_wildcard = core_pattern.strip().split('%')[0] + '*'
         if not os.path.isabs(core_wildcard):
-            core_wildcard = coredump_tmpdir / core_wildcard
+            core_wildcard = os.path.join(coredump_tmpdir.as_posix(), core_wildcard)
     elif re.search(r"apport", core_pattern):
         core_wildcard = os.path.join('/var/crash', '*.crash')
         to_coredump = apport_crash_to_coredump
