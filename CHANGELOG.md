@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt.yaml`: allows to specify a list of modules directories.
+- `tt play`: support connection to a target instance by `application` name
+  or `application:instance` name.
 
 ### Changed
 
