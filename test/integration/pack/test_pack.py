@@ -55,6 +55,12 @@ def assert_single_app_env(config):
     assert config["env"]["bin_dir"] == "bin"
 
 
+def assert_vshard_app_env(config):
+    assert config["env"]["instances_enabled"] == "instances.enabled"
+    assert config["env"]["bin_dir"] == "bin"
+    assert config["env"]["inc_dir"] == "include"
+
+
 def assert_artifacts_env(config):
     assert config["app"]["wal_dir"] == "var/lib"
     assert config["app"]["vinyl_dir"] == "var/lib"
@@ -519,6 +525,36 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 "single_app",
             ],
             "check_env": ["myapp", assert_single_app_env, assert_artifacts_env]
+        },
+        {
+            "name": "Vshard app packing",
+            "bundle_src": "vshard_app",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
+            "args": ["--name", "test_app"],
+            "res_file": "test_app-0.1.0.0." + get_arch() + ".tar.gz",
+            "check_exist": [
+                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tt"),
+                os.path.join("instances.enabled", "test_app"),
+                "tt.yaml",
+                "test_app/config.yaml",
+                "test_app/instances.yaml",
+                "test_app/router.lua",
+                "test_app/storage.lua",
+            ],
+            "check_not_exist": [
+                "test_app/test_app-scm-1.rockspec",
+                "test_app/tt.yaml",
+                "include",
+                "modules",
+                "templates",
+                os.path.join("test_app", "include"),
+                os.path.join("test_app", "modules"),
+                os.path.join("test_app", "templates"),
+                os.path.join("test_app", "distfiles"),
+            ],
+            "check_env": [".", assert_vshard_app_env, assert_artifacts_env]
         },
     ]
 
