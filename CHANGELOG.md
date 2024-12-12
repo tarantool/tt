@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt coredump inspect`: fails for tarantool-ee coredump archive if the source
   directory is missing.
+- `tt pack`: fails if `etcd` or `tcs` are present in the configuration
+  and not available.
 
 ## [2.6.0] - 2024-11-29
 

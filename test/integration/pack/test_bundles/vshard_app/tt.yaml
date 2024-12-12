@@ -1,0 +1,21 @@
+env:
+  bin_dir: bin
+  inc_dir: include
+  instances_enabled: instances.enabled
+  restart_on_failure: false
+  tarantoolctl_layout: false
+modules:
+  directory: modules
+app:
+  run_dir: var/run
+  log_dir: var/log
+  wal_dir: var/lib
+  memtx_dir: var/lib
+  vinyl_dir: var/lib
+ee:
+  credential_path: ""
+templates:
+- path: templates
+repo:
+  rocks: ""
+  distfiles: distfiles
