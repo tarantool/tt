@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-from pathlib import Path
 from subprocess import PIPE, STDOUT, run
 
 import pytest
 
 AeonConnectCommand = ("aeon", "connect")
-
-FormatData = {
-    "testdata": Path(__file__).parent / "testdata",
-}
 
 
 @pytest.mark.parametrize(
@@ -21,25 +16,30 @@ FormatData = {
         ("--transport", "plain", "--sslkeyfile", "not-exits.key"),
         ("--transport", "plain", "--sslcertfile", "not-exits.key"),
         ("--transport", "plain", "--sslcafile", "not-exits.key"),
-        ("--transport", "plain", "--sslkeyfile", "{testdata}/private.key"),
-        ("--transport", "plain", "--sslcertfile", "{testdata}/certfile.key"),
-        ("--transport", "plain", "--sslcafile", "{testdata}/ca.key"),
-        (
-            "--sslkeyfile={testdata}/private.key",
-            "--sslcertfile={testdata}/certfile.key",
-        ),
-        (
-            # "ssl" mode require existed path to files.
-            "--transport=ssl",
-            "--sslkeyfile={testdata}/private.key",
-            "--sslcertfile={testdata}/certfile.key",
-            "--sslcafile={testdata}/ca.key",
-        ),
+        ("--transport", "plain", "--sslkeyfile", "{c_private}"),
+        ("--transport", "plain", "--sslcertfile", "{c_public}"),
+        ("--transport", "plain", "--sslcafile", "{ca}"),
     ],
 )
-def test_cli_arguments_success(tt_cmd, args):
-    args = (a.format(**FormatData) for a in args)
+def test_cli_plain_arguments_success(tt_cmd, aeon_plain, certificates, args):
+    args = (a.format(**certificates) for a in args)
+    print(f"aeon_server={aeon_plain}")
     result = run((tt_cmd, *AeonConnectCommand, *args))
+    assert result.returncode == 0
+
+
+def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
+    cmd = [tt_cmd, *AeonConnectCommand, f"--sslcafile={certificates['ca']}"]
+    print(f"aeon ssl mode={aeon_ssl}")
+    if aeon_ssl == "mutual-tls":
+        cmd += (
+            f"--sslkeyfile={certificates['c_private']}",
+            f"--sslcertfile={certificates['c_public']}",
+        )
+    elif aeon_ssl == "server-side":
+        cmd += ("--transport", "ssl")
+
+    result = run(cmd)
     assert result.returncode == 0
 
 
@@ -54,25 +54,25 @@ def test_cli_arguments_success(tt_cmd, args):
             (
                 "--transport=ssl",
                 "--sslkeyfile=not-exits.key",
-                "--sslcertfile={testdata}/certfile.key",
-                "--sslcafile={testdata}/ca.key",
+                "--sslcertfile={c_public}",
+                "--sslcafile={ca}",
             ),
             'not valid path to a private SSL key file="not-exits.key"',
         ),
         (
             (
                 "--transport=ssl",
-                "--sslkeyfile={testdata}/private.key",
+                "--sslkeyfile={c_private}",
                 "--sslcertfile=not-exits.key",
-                "--sslcafile={testdata}/ca.key",
+                "--sslcafile={ca}",
             ),
             'not valid path to an SSL certificate file="not-exits.key"',
         ),
         (
             (
                 "--transport=ssl",
-                "--sslkeyfile={testdata}/private.key",
-                "--sslcertfile={testdata}/certfile.key",
+                "--sslkeyfile={c_private}",
+                "--sslcertfile={c_public}",
                 "--sslcafile=not-exits.key",
             ),
             'not valid path to trusted certificate authorities (CA) file="not-exits.key"',
@@ -84,24 +84,24 @@ def test_cli_arguments_success(tt_cmd, args):
         (
             (
                 "--transport=ssl",
-                "--sslcertfile={testdata}/certfile.key",
-                "--sslcafile={testdata}/ca.key",
+                "--sslcertfile={c_public}",
+                "--sslcafile={ca}",
             ),
             "files Key and Cert must be specified both",
         ),
         (
             (
                 "--transport=ssl",
-                "--sslkeyfile={testdata}/private.key",
-                "--sslcafile={testdata}/ca.key",
+                "--sslkeyfile={c_private}",
+                "--sslcafile={ca}",
             ),
             "files Key and Cert must be specified both",
         ),
         (
             (
                 "--transport=ssl",
-                "--sslcertfile={testdata}/certfile.key",
-                "--sslcafile={testdata}/ca.key",
+                "--sslcertfile={c_public}",
+                "--sslcafile={ca}",
                 "--sslkeyfile",
             ),
             "flag needs an argument: --sslkeyfile",
@@ -109,8 +109,8 @@ def test_cli_arguments_success(tt_cmd, args):
         (
             (
                 "--transport=ssl",
-                "--sslkeyfile={testdata}/private.key",
-                "--sslcafile={testdata}/ca.key",
+                "--sslkeyfile={c_private}",
+                "--sslcafile={ca}",
                 "--sslcertfile",
             ),
             "flag needs an argument: --sslcertfile",
@@ -118,16 +118,16 @@ def test_cli_arguments_success(tt_cmd, args):
         (
             (
                 "--transport=ssl",
-                "--sslkeyfile={testdata}/private.key",
-                "--sslcertfile={testdata}/certfile.key",
+                "--sslkeyfile={c_private}",
+                "--sslcertfile={c_public}",
                 "--sslcafile",
             ),
             "flag needs an argument: --sslcafile",
         ),
     ],
 )
-def test_cli_arguments_fail(tt_cmd, args, error):
-    args = (a.format(**FormatData) for a in args)
+def test_cli_arguments_fail(tt_cmd, certificates, args, error):
+    args = (a.format(**certificates) for a in args)
     result = run(
         (tt_cmd, *AeonConnectCommand, *args),
         stderr=STDOUT,
