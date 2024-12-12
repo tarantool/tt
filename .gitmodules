@@ -7,3 +7,7 @@
 	path = cli/cartridge/third_party/cartridge-cli
 	url = https://github.com/tarantool/cartridge-cli.git
 	ignore = dirty
+[submodule "cli/aeon/protos"]
+	path = cli/aeon/protos
+	url = git@github.com:tarantool/aeon-api-protos.git
+	branch = master
