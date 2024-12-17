@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
    * Instances scripts for multi-instance applications.
    * Cluster config for tarantool3-based cluster applications.
 
+- `tt logrotate`: don't exit at non-running instance, just warn and proceed
+  with the other instances, like `tt stop` and `tt kill` do.
+
 ### Fixed
 
 - `tt coredump inspect`: fails for tarantool-ee coredump archive if the source
