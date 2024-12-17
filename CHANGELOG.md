@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt stop/kill/clean/logrotate`: no longer need:
+   * Instances scripts for multi-instance applications.
+   * Cluster config for tarantool3-based cluster applications.
+
 ### Fixed
 
 - `tt coredump inspect`: fails for tarantool-ee coredump archive if the source
