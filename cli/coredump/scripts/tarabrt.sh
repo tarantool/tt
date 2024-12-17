@@ -26,10 +26,10 @@ Supported options are:
                                 within DIRECTORY.
 
   -e TARANTOOL                  Use file TARANTOOL as the executable file for
-                                examining with a core dump COREDUMP. If PID is
-                                specified, the one from /proc/PID/exe is chosen
-                                (see proc(5) for more info). If TARANTOOL is
-                                omitted, /usr/bin/tarantool is chosen.
+                                examining with a core dump COREDUMP. By default
+                                tarantool executable path is obtained from PATH.
+                                If PID is specified, the one from /proc/PID/exe
+                                is chosen (see proc(5) for more info).
 
   -g GDBWRAPPER                 Include GDB-wrapper script GDBWRAPPER into the
                                 archive.
@@ -62,7 +62,7 @@ HELP
 )
 
 # Assign configurable parameters with the default values.
-BINARY=/usr/bin/tarantool
+BINARY=
 COREDIR=${PWD}
 COREFILE=
 EXTS=
@@ -89,6 +89,16 @@ while true; do
 			exit 1;;
 	esac
 done
+
+if [ -z "${BINARY}" ]; then
+	if ! which tarantool; then
+		[ -t 1 ] && cat <<NOEXEC
+There is no Tarantool executable found in PATH. Either make sure
+it is there or specify it explicitly with the '-e' option.
+NOEXEC
+	fi
+	BINARY=$(which tarantool)
+fi
 
 # Do not proceed if there are some CLI arguments left. Everything
 # should be parsed before this line.
@@ -175,7 +185,7 @@ fi
 # behaviours for the check below. For more info, see the highly
 # detailed answer on Stack Overflow below.
 # https://stackoverflow.com/a/55704865/4609359
-if file "${BINARY}" | grep -qvE 'executable|shared object'; then
+if file -L "${BINARY}" | grep -qvE 'executable|shared object'; then
 	[ -t 1 ] && cat <<NOTELF
 Not an ELF file: ${BINARY}
 
