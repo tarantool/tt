@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"mock/server/aeon/pb"
 	"mock/server/aeon/service"
 	"net"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/tarantool/tt/cli/aeon/pb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

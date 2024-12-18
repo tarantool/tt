@@ -3,13 +3,24 @@ module mock/server/aeon
 go 1.22.8
 
 require (
-	google.golang.org/grpc v1.68.1
-	google.golang.org/protobuf v1.35.2
+	github.com/google/uuid v1.6.0
+	github.com/tarantool/go-tarantool/v2 v2.2.0
+	github.com/tarantool/tt v1.3.1-0.20241218141955-0350dadf45f8
+	google.golang.org/grpc v1.69.0
 )
 
 require (
-	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	github.com/jedib0t/go-pretty/v6 v6.4.6 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
+	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
+	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
+	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect
+	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241216192217-9240e9c98484 // indirect
+	google.golang.org/protobuf v1.36.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
