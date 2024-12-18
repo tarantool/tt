@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-	"mock/server/aeon/pb"
 	"strings"
+
+	"github.com/tarantool/tt/cli/aeon/pb"
 )
 
 // Server mock functions: SQL[Check|Stream] accepts SQL request with string ["ok", "error", ""].
