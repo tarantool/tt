@@ -6,6 +6,21 @@ import pytest
 AeonConnectCommand = ("aeon", "connect")
 
 
+def check_tt_aeon_response(output: str):
+    expected = ["Aeon responses at", "Processing piped input", "EOF on pipe"]
+    logs = output.split("\n")
+    for line in logs:
+        print(line)
+        for e in expected:
+            if e in line:
+                expected.remove(e)
+                break
+        if len(expected) == 0:
+            return
+
+    assert False, f"Not found all expected Log records: {expected}"
+
+
 @pytest.mark.parametrize(
     "args",
     [
@@ -22,10 +37,24 @@ AeonConnectCommand = ("aeon", "connect")
     ],
 )
 def test_cli_plain_arguments_success(tt_cmd, aeon_plain, certificates, args):
-    args = (a.format(**certificates) for a in args)
-    print(f"aeon_server={aeon_plain}")
-    result = run((tt_cmd, *AeonConnectCommand, *args))
-    assert result.returncode == 0
+    cmd = [str(tt_cmd), *AeonConnectCommand]
+    cmd += (a.format(**certificates) for a in args)
+    print(f"Aeon plain at: {aeon_plain}")
+    if isinstance(aeon_plain, int):
+        cmd.append(f"localhost:{aeon_plain}")
+    else:
+        cmd.append(f"unix://{aeon_plain}")
+
+    print(f"Run: {' '.join(cmd)}")
+    tt = run(
+        cmd,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
 
 
 def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
@@ -39,8 +68,18 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
     elif aeon_ssl == "server-side":
         cmd += ("--transport", "ssl")
 
-    result = run(cmd)
-    assert result.returncode == 0
+    cmd.append("localhost:50051")
+
+    print(f"Run: {' '.join(cmd)}")
+    tt = run(
+        cmd,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
 
 
 @pytest.mark.parametrize(
