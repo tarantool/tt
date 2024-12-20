@@ -67,3 +67,8 @@ runs:
         TT_CLI_BUILD_SSL: 'static'
       run: mage build
       shell: bash
+
+    - name: Install test requirements
+      run: |
+        sudo apt -y install gdb
+      shell: bash
