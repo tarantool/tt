@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
@@ -9,7 +11,6 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
-	"os"
 )
 
 // NewStopCmd creates stop command.
@@ -78,8 +79,8 @@ func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
-	var err error
-	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, false); err != nil {
+	var err error = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
+	if err != nil {
 		return err
 	}
 
