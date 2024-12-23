@@ -26,6 +26,7 @@ require (
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-tarantool v1.12.2
+	github.com/tarantool/go-tarantool/v2 v2.2.0
 	github.com/tarantool/tt/lib/cluster v0.0.0
 	github.com/tarantool/tt/lib/integrity v0.0.0
 	github.com/vmihailenco/msgpack/v5 v5.3.5

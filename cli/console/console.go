@@ -96,9 +96,9 @@ func (c *Console) Run() error {
 
 // Close frees up resources used by the console.
 func (c *Console) Close() {
-	c.impl.Handler.Stop()
+	c.impl.Handler.Close()
 	if c.impl.History != nil {
-		c.impl.History.Stop()
+		c.impl.History.Close()
 	}
 }
 
