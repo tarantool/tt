@@ -24,9 +24,8 @@ def check_tt_aeon_response(output: str):
 @pytest.mark.parametrize(
     "args",
     [
-        (),
         ("--transport", "plain"),
-        ("--transport=plain"),
+        ("--transport=plain",),
         # "plain" mode ignores any ssl flags values.
         ("--transport", "plain", "--sslkeyfile", "not-exits.key"),
         ("--transport", "plain", "--sslcertfile", "not-exits.key"),
@@ -58,8 +57,8 @@ def test_cli_plain_arguments_success(tt_cmd, aeon_plain, certificates, args):
 
 
 def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
-    cmd = [tt_cmd, *AeonConnectCommand, f"--sslcafile={certificates['ca']}"]
-    print(f"aeon ssl mode={aeon_ssl}")
+    cmd = [str(tt_cmd), *AeonConnectCommand, f"--sslcafile={certificates['ca']}"]
+    print(f"Aeon ssl mode: {aeon_ssl}")
     if aeon_ssl == "mutual-tls":
         cmd += (
             f"--sslkeyfile={certificates['c_private']}",
@@ -85,8 +84,17 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
 @pytest.mark.parametrize(
     "args, error",
     [
+        ((), "Error: accepts 1 arg(s), received 0"),
         (
-            ("--transport", "mode"),
+            ("localhost:50051", "@aeon_unix_socket"),
+            "Error: accepts 1 arg(s), received 2",
+        ),
+        (
+            (
+                "--transport",
+                "mode",
+                "localhost:50051",
+            ),
             'Error: invalid argument "mode" for "--transport" flag',
         ),
         (
@@ -95,6 +103,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile=not-exits.key",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
+                "localhost:50051",
             ),
             'not valid path to a private SSL key file="not-exits.key"',
         ),
@@ -104,6 +113,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile={c_private}",
                 "--sslcertfile=not-exits.key",
                 "--sslcafile={ca}",
+                "localhost:50051",
             ),
             'not valid path to an SSL certificate file="not-exits.key"',
         ),
@@ -113,11 +123,15 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile={c_private}",
                 "--sslcertfile={c_public}",
                 "--sslcafile=not-exits.key",
+                "localhost:50051",
             ),
             'not valid path to trusted certificate authorities (CA) file="not-exits.key"',
         ),
         (
-            ("--sslcafile=not-exits.key",),
+            (
+                "--sslcafile=not-exits.key",
+                "localhost:50051",
+            ),
             'not valid path to trusted certificate authorities (CA) file="not-exits.key"',
         ),
         (
@@ -125,6 +139,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--transport=ssl",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
+                "localhost:50051",
             ),
             "files Key and Cert must be specified both",
         ),
@@ -133,11 +148,13 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcafile={ca}",
+                "localhost:50051",
             ),
             "files Key and Cert must be specified both",
         ),
         (
             (
+                "localhost:50051",
                 "--transport=ssl",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
@@ -147,6 +164,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
         ),
         (
             (
+                "localhost:50051",
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcafile={ca}",
@@ -156,6 +174,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
         ),
         (
             (
+                "localhost:50051",
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcertfile={c_public}",
@@ -166,9 +185,12 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
     ],
 )
 def test_cli_arguments_fail(tt_cmd, certificates, args, error):
-    args = (a.format(**certificates) for a in args)
+    cmd = [str(tt_cmd), *AeonConnectCommand]
+    cmd += (a.format(**certificates) for a in args)
+
+    print(f"Run: {' '.join(cmd)}")
     result = run(
-        (tt_cmd, *AeonConnectCommand, *args),
+        cmd,
         stderr=STDOUT,
         stdout=PIPE,
         text=True,

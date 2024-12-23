@@ -5,14 +5,17 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	aeon "github.com/tarantool/tt/cli/aeon/cmd"
+	aeon "github.com/tarantool/tt/cli/aeon"
+	aeon_cmd "github.com/tarantool/tt/cli/aeon/cmd"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/console"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
+	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
-var aeonConnectCtx = aeon.ConnectCtx{
-	Transport: aeon.TransportPlain,
+var connectCtx = aeon_cmd.ConnectCtx{
+	Transport: aeon_cmd.TransportPlain,
 }
 
 func newAeonConnectCmd() *cobra.Command {
@@ -35,15 +38,15 @@ tt aeon connect unix://<socket-path>`,
 		},
 		Args: cobra.ExactArgs(1),
 	}
-	aeonCmd.Flags().StringVar(&aeonConnectCtx.Ssl.KeyFile, "sslkeyfile", "",
+	aeonCmd.Flags().StringVar(&connectCtx.Ssl.KeyFile, "sslkeyfile", "",
 		"path to a private SSL key file")
-	aeonCmd.Flags().StringVar(&aeonConnectCtx.Ssl.CertFile, "sslcertfile", "",
+	aeonCmd.Flags().StringVar(&connectCtx.Ssl.CertFile, "sslcertfile", "",
 		"path to a SSL certificate file")
-	aeonCmd.Flags().StringVar(&aeonConnectCtx.Ssl.CaFile, "sslcafile", "",
+	aeonCmd.Flags().StringVar(&connectCtx.Ssl.CaFile, "sslcafile", "",
 		"path to a trusted certificate authorities (CA) file")
 
-	aeonCmd.Flags().Var(&aeonConnectCtx.Transport, "transport",
-		fmt.Sprintf("allowed %s", aeon.ListValidTransports()))
+	aeonCmd.Flags().Var(&connectCtx.Transport, "transport",
+		fmt.Sprintf("allowed %s", aeon_cmd.ListValidTransports()))
 	aeonCmd.RegisterFlagCompletionFunc("transport", aeonTransportCompletion)
 
 	return aeonCmd
@@ -51,8 +54,8 @@ tt aeon connect unix://<socket-path>`,
 
 func aeonTransportCompletion(cmd *cobra.Command, args []string, toComplete string) (
 	[]string, cobra.ShellCompDirective) {
-	suggest := make([]string, 0, len(aeon.ValidTransport))
-	for k, v := range aeon.ValidTransport {
+	suggest := make([]string, 0, len(aeon_cmd.ValidTransport))
+	for k, v := range aeon_cmd.ValidTransport {
 		suggest = append(suggest, string(k)+"\t"+v)
 	}
 	return suggest, cobra.ShellCompDirectiveDefault
@@ -71,36 +74,50 @@ func NewAeonCmd() *cobra.Command {
 }
 
 func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
-	if !cmd.Flags().Changed("transport") && (aeonConnectCtx.Ssl.KeyFile != "" ||
-		aeonConnectCtx.Ssl.CertFile != "" || aeonConnectCtx.Ssl.CaFile != "") {
-		aeonConnectCtx.Transport = aeon.TransportSsl
+	connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(args[0])
+
+	if !cmd.Flags().Changed("transport") && (connectCtx.Ssl.KeyFile != "" ||
+		connectCtx.Ssl.CertFile != "" || connectCtx.Ssl.CaFile != "") {
+		connectCtx.Transport = aeon_cmd.TransportSsl
 	}
 
 	checkFile := func(path string) bool {
 		return path == "" || util.IsRegularFile(path)
 	}
 
-	if aeonConnectCtx.Transport != aeon.TransportPlain {
+	if connectCtx.Transport != aeon_cmd.TransportPlain {
 		if cmd.Flags().Changed("sslkeyfile") != cmd.Flags().Changed("sslcertfile") {
 			return errors.New("files Key and Cert must be specified both")
 		}
 
-		if !checkFile(aeonConnectCtx.Ssl.KeyFile) {
+		if !checkFile(connectCtx.Ssl.KeyFile) {
 			return fmt.Errorf("not valid path to a private SSL key file=%q",
-				aeonConnectCtx.Ssl.KeyFile)
+				connectCtx.Ssl.KeyFile)
 		}
-		if !checkFile(aeonConnectCtx.Ssl.CertFile) {
+		if !checkFile(connectCtx.Ssl.CertFile) {
 			return fmt.Errorf("not valid path to an SSL certificate file=%q",
-				aeonConnectCtx.Ssl.CertFile)
+				connectCtx.Ssl.CertFile)
 		}
-		if !checkFile(aeonConnectCtx.Ssl.CaFile) {
+		if !checkFile(connectCtx.Ssl.CaFile) {
 			return fmt.Errorf("not valid path to trusted certificate authorities (CA) file=%q",
-				aeonConnectCtx.Ssl.CaFile)
+				connectCtx.Ssl.CaFile)
 		}
 	}
 	return nil
 }
 
 func internalAeonConnect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	opts := console.ConsoleOpts{
+		Handler: aeon.NewAeonHandler(connectCtx),
+		Format:  console.FormatAsTable(),
+	}
+	c, err := console.NewConsole(opts)
+	if err != nil {
+		return fmt.Errorf("can't create aeon console: %w", err)
+	}
+	err = c.Run()
+	if err != nil {
+		return fmt.Errorf("can't start aeon console: %w", err)
+	}
 	return nil
 }

@@ -32,7 +32,7 @@ type ConsoleOpts struct {
 	Handler Handler
 
 	// History if specified than save input commands with it.
-	History History
+	History HistoryKeeper
 
 	// Format options set how to formatting result.
 	Format Format
@@ -103,9 +103,9 @@ func (c *Console) Run() error {
 
 // Close frees up resources used by the console.
 func (c *Console) Close() {
-	c.impl.Handler.Stop()
+	c.impl.Handler.Close()
 	if c.impl.History != nil {
-		c.impl.History.Stop()
+		c.impl.History.Close()
 	}
 }
 
@@ -258,7 +258,7 @@ func (c *Console) getPromptOptions() []prompt.Option {
 	}
 
 	if c.impl.History != nil {
-		options = append(options, prompt.OptionHistory(c.impl.History.Command()))
+		options = append(options, prompt.OptionHistory(c.impl.History.Commands()))
 	}
 
 	return options
