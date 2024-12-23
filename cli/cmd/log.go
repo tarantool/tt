@@ -133,7 +133,8 @@ func internalLogModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	var err error
 	var runningCtx running.RunningCtx
-	if err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, false); err != nil {
+	err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadCluster)
+	if err != nil {
 		return err
 	}
 
