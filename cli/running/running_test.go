@@ -189,7 +189,7 @@ func Test_collectInstancesForApps(t *testing.T) {
 	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	require.NoError(t, err)
 	require.Contains(t, instances, appName)
 
@@ -316,7 +316,7 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Contains(t, instances, appName)
@@ -347,7 +347,7 @@ func Test_collectInstancesSingleInstanceTntCtlLayout(t *testing.T) {
 	instances, err := CollectInstancesForApps(apps, cliOpts, cfgDir,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
 	require.Contains(t, instances, appName)

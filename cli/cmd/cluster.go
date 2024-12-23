@@ -673,7 +673,7 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, stri
 	// Fill context for the entire application.
 	// publish app:inst can work even if the `inst` instance doesn't exist right now.
 	var runningCtx running.RunningCtx
-	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName}, false)
+	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName}, true)
 	if err != nil {
 		return "", "", "", err
 	}
