@@ -98,8 +98,8 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
-
-	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{args[0]}, false); err == nil {
+	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{args[0]}, running.ConfigLoadAll)
+	if err == nil {
 		if len(runningCtx.Instances) > 1 {
 			return util.InternalError(
 				"Internal error: specify instance name",

@@ -32,7 +32,8 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
-	if err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, true); err != nil {
+	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadAll)
+	if err != nil {
 		return err
 	}
 

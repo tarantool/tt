@@ -35,7 +35,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err := CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Equal(t, InstanceCtx{
@@ -50,7 +50,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances("single_inst", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Equal(t, InstanceCtx{
@@ -67,7 +67,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances(appName, instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Equal(t, 3, len(instances))
 	assert.True(t, slices.Contains(instances, InstanceCtx{
@@ -103,7 +103,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	assert.ErrorContains(t, err, "script\" doesn't exist or not a directory")
 	assert.Equal(t, 0, len(instances))
 
@@ -113,7 +113,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 
@@ -121,10 +121,24 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	assert.ErrorContains(t, err, "script.lua: permission denied")
 	assert.Equal(t, 1, len(instances))
 	require.NoError(t, os.Chmod(instancesEnabledPath, 0755))
+	// Skip instance script searching error.
+	instances, err = CollectInstances("script", instancesEnabledPath,
+		integrity.IntegrityCtx{
+			Repository: &mockRepository{},
+		}, ConfigLoadSkip)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(instances))
+	// Skip instance script searching error.
+	instances, err = CollectInstances("script", instancesEnabledPath,
+		integrity.IntegrityCtx{
+			Repository: &mockRepository{},
+		}, ConfigLoadCluster)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(instances))
 }
 
 func Test_collectAppDirFiles(t *testing.T) {
@@ -189,7 +203,7 @@ func Test_collectInstancesForApps(t *testing.T) {
 	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Contains(t, instances, appName)
 
@@ -316,7 +330,7 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Contains(t, instances, appName)
@@ -347,7 +361,7 @@ func Test_collectInstancesSingleInstanceTntCtlLayout(t *testing.T) {
 	instances, err := CollectInstancesForApps(apps, cliOpts, cfgDir,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Len(t, instances, 1)
 	require.Contains(t, instances, appName)
