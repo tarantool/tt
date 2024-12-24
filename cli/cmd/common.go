@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
+	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/util"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
 )
@@ -66,4 +69,14 @@ func createDataCollectorsAndDataPublishers(ctx integrity.IntegrityCtx,
 		return nil, nil, err
 	}
 	return collectors, publishers, err
+}
+
+func RunModuleFunc(internalModule modules.InternalFunc) func(*cobra.Command, []string) {
+	return func(cmd *cobra.Command, args []string) {
+		cmdCtx.CommandName = cmd.Name()
+		err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalModule, args)
+		if err != nil {
+			util.HandleCmdErr(cmd, err)
+		}
+	}
 }
