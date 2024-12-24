@@ -7,9 +7,7 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/pack"
-	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -17,20 +15,14 @@ import (
 var packCtx = &pack.PackCtx{}
 
 func NewPackCmd() *cobra.Command {
-	var packCmd = &cobra.Command{Use: "pack TYPE [flags] ..",
+	var packCmd = setupTtModuleCmd(internalPackModule, &cobra.Command{Use: "pack TYPE [flags] ..",
 		Short: "Pack application into a distributable bundle",
 		Long: `Pack application into a distributable bundle
 
 The supported types are: tgz, deb, rpm`,
 		ValidArgs: []string{"tgz", "deb", "rpm"},
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalPackModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
-	}
+		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	})
 
 	// Common flags.
 	packCmd.Flags().StringVar(&packCtx.Name, "name", packCtx.Name,

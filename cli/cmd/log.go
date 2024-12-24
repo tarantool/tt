@@ -11,10 +11,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/tail"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var logOpts struct {
@@ -24,15 +22,9 @@ var logOpts struct {
 
 // NewLogCmd creates log command.
 func NewLogCmd() *cobra.Command {
-	var logCmd = &cobra.Command{
+	var logCmd = setupTtModuleCmd(internalLogModule, &cobra.Command{
 		Use:   "log [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]",
 		Short: `Get logs of instance(s)`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalLogModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -42,7 +34,7 @@ func NewLogCmd() *cobra.Command {
 				running.ExtractAppNames,
 				running.ExtractInstanceNames)
 		},
-	}
+	})
 
 	logCmd.Flags().IntVarP(&logOpts.nLines, "lines", "n", 10,
 		"Count of last lines to output")
