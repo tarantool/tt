@@ -7,8 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/enable"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // NewEnableCmd creates a new enable command.
@@ -22,11 +20,7 @@ func NewEnableCmd() *cobra.Command {
 	$ tt enable Users/myuser/my_scripts/script.lua
 # Create a symbolic link in 'instances_enabled' directory to an application directory.
 	$ tt enable ../myuser/my_cool_app`,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalEnableModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run: RunModuleFunc(internalEnableModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return errors.New("provide the path to a script or application directory")

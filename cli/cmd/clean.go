@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
@@ -23,11 +22,7 @@ func NewCleanCmd() *cobra.Command {
 	var cleanCmd = &cobra.Command{
 		Use:   "clean [INSTANCE_NAME]",
 		Short: "Clean instance(s) files",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalCleanModule,
-				args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   RunModuleFunc(internalCleanModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -83,7 +78,7 @@ func clean(run *running.InstanceCtx) error {
 	}
 
 	if confirm || forceRemove {
-		for file, _ := range removeFiles {
+		for file := range removeFiles {
 			err = os.Remove(file)
 			if err != nil {
 				return err

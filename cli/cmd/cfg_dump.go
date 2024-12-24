@@ -6,8 +6,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cfg"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -19,12 +17,7 @@ func NewDumpCmd() *cobra.Command {
 	var dumpCmd = &cobra.Command{
 		Use:   "dump",
 		Short: "Print environment configuration",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalDumpModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   RunModuleFunc(internalDumpModule),
 	}
 
 	dumpCmd.Flags().BoolVarP(&rawDump, "raw", "r", false,
