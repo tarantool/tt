@@ -17,7 +17,6 @@ func newInstallTtCmd() *cobra.Command {
 		Short: "Install tt",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
 			util.HandleCmdErr(cmd, err)
@@ -35,7 +34,6 @@ func newInstallTarantoolCmd() *cobra.Command {
 		Short: "Install tarantool community edition",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
 			util.HandleCmdErr(cmd, err)
@@ -58,7 +56,6 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 		Short: "Install tarantool enterprise edition",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
 			util.HandleCmdErr(cmd, err)
@@ -84,7 +81,6 @@ func newInstallTarantoolDevCmd() *cobra.Command {
 			"  tt run # runs the binary compiled above",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			installCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalInstallModule, args)
 			util.HandleCmdErr(cmd, err)
