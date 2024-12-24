@@ -13,7 +13,6 @@ import (
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/formatter"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
@@ -61,12 +60,7 @@ func NewConnectCmd() *cobra.Command {
 			"You could pass command line arguments to the interpreted SCRIPT" +
 			" or COMMAND passed via -f flag:\n\n" +
 			`echo "print(...)" | tt connect user:pass@localhost:3013 -f- 1, 2, 3`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalConnectModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  RunModuleFunc(internalConnectModule),
 		Args: cobra.MinimumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

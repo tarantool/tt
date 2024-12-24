@@ -10,7 +10,6 @@ import (
 	"github.com/tarantool/tt/cli/create"
 	"github.com/tarantool/tt/cli/create/builtin_templates"
 	create_ctx "github.com/tarantool/tt/cli/create/context"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -32,11 +31,7 @@ func NewCreateCmd() *cobra.Command {
 	var createCmd = &cobra.Command{
 		Use:   "create <TEMPLATE_NAME> [flags]",
 		Short: "Create an application from a template",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalCreateModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   RunModuleFunc(internalCreateModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return fmt.Errorf("requires template name argument")
