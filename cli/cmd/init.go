@@ -7,8 +7,6 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
 	init_pkg "github.com/tarantool/tt/cli/init"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var initCtx init_pkg.InitCtx
@@ -20,11 +18,7 @@ func NewInitCmd() *cobra.Command {
 	var initCmd = &cobra.Command{
 		Use:   "init [flags]",
 		Short: "Create tt environment config for application in current directory",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalInitModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalInitModule),
 	}
 
 	initCmd.Flags().BoolVarP(&initCtx.SkipConfig, "skip-config", "", false,
