@@ -5,8 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
 
@@ -20,12 +18,7 @@ func NewVersionCmd() *cobra.Command {
 	var versionCmd = &cobra.Command{
 		Use:   "version",
 		Short: "Show Tarantool CLI version information",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalVersionModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalVersionModule),
 	}
 
 	versionCmd.Flags().BoolVar(&showShort, "short", false, "Show version in short format")
