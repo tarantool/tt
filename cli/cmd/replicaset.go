@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -98,19 +97,6 @@ func newDowngradeCmd() *cobra.Command {
 		Long: "Downgrade tarantool cluster.\n\n" +
 			libconnect.EnvCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			var versionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
-			if downgradeVersion == "" {
-				err := errors.New("need to specify the version to downgrade " +
-					"use --version (-v) option")
-				util.HandleCmdErr(cmd, err)
-				os.Exit(1)
-			} else if !versionPattern.MatchString(downgradeVersion) {
-				err := errors.New("--version (-v) must be in the format " +
-					"'x.x.x', where x is a number")
-				util.HandleCmdErr(cmd, err)
-				os.Exit(1)
-			}
-
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalReplicasetDowngradeModule, args)
@@ -607,6 +593,16 @@ func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 
 // internalReplicasetDowngradeModule is a "upgrade" command for the replicaset module.
 func internalReplicasetDowngradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	// Validate downgrade version.
+	var versionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+	if downgradeVersion == "" {
+		return errors.New("need to specify the version to downgrade " +
+			"use --version (-v) option")
+	} else if !versionPattern.MatchString(downgradeVersion) {
+		return errors.New("--version (-v) must be in the format " +
+			"'x.x.x', where x is a number")
+	}
+
 	var ctx replicasetCtx
 	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
 		return err
