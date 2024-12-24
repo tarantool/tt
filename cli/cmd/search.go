@@ -22,7 +22,7 @@ func newSearchTtCmd() *cobra.Command {
 		Use:   "tt",
 		Short: "Search for available tt versions",
 		Run: func(cmd *cobra.Command, args []string) {
-			searchCtx.ProgramName = cmd.Name()
+			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalSearchModule, args)
 			util.HandleCmdErr(cmd, err)
@@ -39,7 +39,7 @@ func newSearchTarantoolCmd() *cobra.Command {
 		Use:   "tarantool",
 		Short: "Search for available tarantool community edition versions",
 		Run: func(cmd *cobra.Command, args []string) {
-			searchCtx.ProgramName = cmd.Name()
+			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalSearchModule, args)
 			util.HandleCmdErr(cmd, err)
@@ -56,7 +56,7 @@ func newSearchTarantoolEeCmd() *cobra.Command {
 		Use:   "tarantool-ee",
 		Short: "Search for available tarantool enterprise edition versions",
 		Run: func(cmd *cobra.Command, args []string) {
-			searchCtx.ProgramName = cmd.Name()
+			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalSearchModule, args)
 			util.HandleCmdErr(cmd, err)
@@ -102,6 +102,7 @@ func NewSearchCmd() *cobra.Command {
 // internalSearchModule is a default search module.
 func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
+	searchCtx.ProgramName = cmdCtx.CommandName
 	if local {
 		err = search.SearchVersionsLocal(cmdCtx, cliOpts, searchCtx.ProgramName)
 	} else {
