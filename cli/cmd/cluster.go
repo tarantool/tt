@@ -13,7 +13,6 @@ import (
 	clustercmd "github.com/tarantool/tt/cli/cluster/cmd"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
@@ -146,13 +145,8 @@ func newClusterReplicasetCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
 		Long:                  "Promote an instance\n\n" + clusterUriHelp,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterReplicasetPromoteModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(2),
+		Run:                   TtModuleCmdRun(internalClusterReplicasetPromoteModule),
+		Args:                  cobra.ExactArgs(2),
 	}
 	promoteCmd.Flags().StringVarP(&promoteCtx.Username, "username", "u", "",
 		"username (used as etcd/tarantool config storage credentials)")
@@ -167,13 +161,8 @@ func newClusterReplicasetCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Demote an instance",
 		Long:                  "Demote an instance\n\n" + clusterUriHelp,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterReplicasetDemoteModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(2),
+		Run:                   TtModuleCmdRun(internalClusterReplicasetDemoteModule),
+		Args:                  cobra.ExactArgs(2),
 	}
 
 	demoteCmd.Flags().StringVarP(&demoteCtx.Username, "username", "u", "",
@@ -189,13 +178,8 @@ func newClusterReplicasetCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Expel an instance",
 		Long:                  "Expel an instance\n\n" + clusterUriHelp,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterReplicasetExpelModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(2),
+		Run:                   TtModuleCmdRun(internalClusterReplicasetExpelModule),
+		Args:                  cobra.ExactArgs(2),
 	}
 
 	expelCmd.Flags().StringVarP(&expelCtx.Username, "username", "u", "",
@@ -215,12 +199,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Use:   "add <URI> <ROLE_NAME> [flags]",
 		Short: "Add role to an instance, group or instance",
 		Long:  "Add role to an instance, group or instance\n\n" + clusterUriHelp,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterReplicasetRolesAddModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalClusterReplicasetRolesAddModule),
 		Example: "tt cluster replicaset roles add http://user:pass@localhost:3301" +
 			" roles.metrics-export --instance_name master",
 		Args: cobra.ExactArgs(2),
@@ -247,12 +226,7 @@ func newClusterReplicasetCmd() *cobra.Command {
 		Use:   "remove <URI> <ROLE_NAME> [flags]",
 		Short: "Remove role from instance, group, instance or globally",
 		Long:  "Remove role from instance, group, instance or globally\n\n" + clusterUriHelp,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterReplicasetRolesRemoveModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalClusterReplicasetRolesRemoveModule),
 		Example: "tt cluster replicaset roles remove http://user:pass@localhost:3301" +
 			" roles.metrics-export --instance_name master",
 		Args: cobra.ExactArgs(2),
@@ -299,13 +273,8 @@ func newClusterFailoverCmd() *cobra.Command {
 		Short:                 "Switch master instance",
 		Long:                  "Switch master instance\n\n" + failoverUriHelp,
 		Example:               "tt cluster failover switch http://localhost:2379/app instance_name",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterFailoverSwitchModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(2),
+		Run:                   TtModuleCmdRun(internalClusterFailoverSwitchModule),
+		Args:                  cobra.ExactArgs(2),
 	}
 
 	switchCmd.Flags().StringVarP(&switchCtx.Username, "username", "u", "",
@@ -322,13 +291,8 @@ func newClusterFailoverCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Show master switching status",
 		Long:                  "Show master switching status\n\n" + failoverUriHelp,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterFailoverSwitchStatusModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(2),
+		Run:                   TtModuleCmdRun(internalClusterFailoverSwitchStatusModule),
+		Args:                  cobra.ExactArgs(2),
 	}
 
 	cmd.AddCommand(switchCmd)
@@ -352,12 +316,7 @@ func NewClusterCmd() *cobra.Command {
 			"  tt cluster show application_name:instance_name\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt\n" +
 			"  tt cluster show https://user:pass@localhost:2379/tt?name=instance",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterShowModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  TtModuleCmdRun(internalClusterShowModule),
 		Args: cobra.ExactArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -399,12 +358,7 @@ func NewClusterCmd() *cobra.Command {
 			"  tt cluster publish --group group --replicaset replicaset " +
 			"https://user:pass@localhost:2379/tt?name=instance " +
 			"instance.yaml",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalClusterPublishModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  TtModuleCmdRun(internalClusterPublishModule),
 		Args: cobra.ExactArgs(2),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,

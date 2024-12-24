@@ -13,10 +13,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/tail"
-	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -39,12 +37,7 @@ func NewStartCmd() *cobra.Command {
 	var startCmd = &cobra.Command{
 		Use:   "start [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Start tarantool instance(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalStartModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalStartModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

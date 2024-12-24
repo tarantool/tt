@@ -3,14 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
-)
-
-var (
-	// runArgs contains command args.
-	runArgs []string
 )
 
 func newRunInfo(cmdCtx cmdcontext.CmdCtx) *running.RunInfo {
@@ -30,15 +23,13 @@ are passed after '--'.
 `,
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
 			for _, opt := range args {
 				if opt == "-h" || opt == "--help" {
 					cmd.Help()
 					return
 				}
 			}
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalRunModule, args)
-			util.HandleCmdErr(cmd, err)
+			TtModuleCmdRun(internalRunModule)(cmd, args)
 		},
 		Example: `
 # Print current environment Tarantool version:

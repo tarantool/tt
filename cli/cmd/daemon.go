@@ -6,9 +6,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/daemon"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/process_utils"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // NewDaemonCmd creates daemon command.
@@ -21,45 +19,29 @@ func NewDaemonCmd() *cobra.Command {
 	var startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "start tt daemon",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalDaemonStartModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(0),
+		Run:   TtModuleCmdRun(internalDaemonStartModule),
+		Args:  cobra.ExactArgs(0),
 	}
 
 	var stopCmd = &cobra.Command{
 		Use:   "stop",
 		Short: "stop tt daemon",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalDaemonStopModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(0),
+		Run:   TtModuleCmdRun(internalDaemonStopModule),
+		Args:  cobra.ExactArgs(0),
 	}
 
 	var statusCmd = &cobra.Command{
 		Use:   "status",
 		Short: "status of tt daemon",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalDaemonStatusModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(0),
+		Run:   TtModuleCmdRun(internalDaemonStatusModule),
+		Args:  cobra.ExactArgs(0),
 	}
 
 	var restartCmd = &cobra.Command{
 		Use:   "restart",
 		Short: "restart tt daemon",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalDaemonRestartModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(0),
+		Run:   TtModuleCmdRun(internalDaemonRestartModule),
+		Args:  cobra.ExactArgs(0),
 	}
 
 	daemonSubCommands := []*cobra.Command{

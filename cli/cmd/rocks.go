@@ -3,9 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/rocks"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // NewRocksCmd creates rocks command.
@@ -16,12 +14,7 @@ func NewRocksCmd() *cobra.Command {
 		// Disabled all flags parsing on this commands leaf.
 		// LuaRocks will handle it self.
 		DisableFlagParsing: true,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalRocksModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:                TtModuleCmdRun(internalRocksModule),
 	}
 
 	return rocksCmd

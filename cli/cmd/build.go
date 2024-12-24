@@ -4,9 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/build"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -19,12 +17,8 @@ func NewBuildCmd() *cobra.Command {
 	var buildCmd = &cobra.Command{
 		Use:   "build [<PATH> | <APP_NAME>] [flags]",
 		Short: `Build an application (default ".")`,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalBuildModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.MaximumNArgs(1),
+		Run:   TtModuleCmdRun(internalBuildModule),
+		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,

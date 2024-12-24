@@ -6,8 +6,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/download"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -24,12 +22,7 @@ func NewDownloadCmd() *cobra.Command {
 	$ tt download gc64-3.0.0-0-gf58f7d82a-r23
 # Download Tarantool SDK development build to the /tmp directory.
 	$ tt download gc64-3.0.0-beta1-2-gcbb569b4c-r612 --dev --directory-prefix /tmp`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalDownloadModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run: TtModuleCmdRun(internalDownloadModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return errors.New("to download Tarantool SDK, you need to specify the version")
