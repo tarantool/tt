@@ -5,22 +5,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // NewLogrotateCmd creates logrotate command.
 func NewLogrotateCmd() *cobra.Command {
-	var logrotateCmd = &cobra.Command{
+	var logrotateCmd = setupTtModuleCmd(internalLogrotateModule, &cobra.Command{
 		Use:   "logrotate [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Rotate logs of a started tarantool instance(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalLogrotateModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -30,7 +22,7 @@ func NewLogrotateCmd() *cobra.Command {
 				running.ExtractAppNames,
 				running.ExtractInstanceNames)
 		},
-	}
+	})
 
 	return logrotateCmd
 }

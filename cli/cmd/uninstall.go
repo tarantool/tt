@@ -5,22 +5,14 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/uninstall"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // newUninstallTtCmd creates a command to install tt.
 func newUninstallTtCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	var tntCmd = setupTtModuleCmd(InternalUninstallModule, &cobra.Command{
 		Use:   "tt [version]",
 		Short: "Uninstall tt",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -31,22 +23,16 @@ func newUninstallTtCmd() *cobra.Command {
 			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
-	}
+	})
 
 	return tntCmd
 }
 
 // newUninstallTarantoolCmd creates a command to install tarantool.
 func newUninstallTarantoolCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	var tntCmd = setupTtModuleCmd(InternalUninstallModule, &cobra.Command{
 		Use:   "tarantool [version]",
 		Short: "Uninstall tarantool community edition",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -57,22 +43,16 @@ func newUninstallTarantoolCmd() *cobra.Command {
 			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
-	}
+	})
 
 	return tntCmd
 }
 
 // newUninstallTarantoolEeCmd creates a command to install tarantool-ee.
 func newUninstallTarantoolEeCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	var tntCmd = setupTtModuleCmd(InternalUninstallModule, &cobra.Command{
 		Use:   "tarantool-ee [version]",
 		Short: "Uninstall tarantool enterprise edition",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -83,23 +63,17 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 			return uninstall.GetList(cliOpts, cmd.Name()),
 				cobra.ShellCompDirectiveNoFileComp
 		},
-	}
+	})
 
 	return tntCmd
 }
 
 // newUninstallTarantoolDevCmd creates a command to uninstall tarantool-dev.
 func newUninstallTarantoolDevCmd() *cobra.Command {
-	tntCmd := &cobra.Command{
+	tntCmd := setupTtModuleCmd(InternalUninstallModule, &cobra.Command{
 		Use:   "tarantool-dev",
 		Short: "Uninstall tarantool-dev",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-	}
+	})
 
 	return tntCmd
 }
