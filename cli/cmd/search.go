@@ -3,9 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -21,12 +19,7 @@ func newSearchTtCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
 		Use:   "tt",
 		Short: "Search for available tt versions",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalSearchModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalSearchModule),
 	}
 
 	return tntCmd
@@ -37,12 +30,7 @@ func newSearchTarantoolCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
 		Use:   "tarantool",
 		Short: "Search for available tarantool community edition versions",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalSearchModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalSearchModule),
 	}
 
 	return tntCmd
@@ -53,12 +41,7 @@ func newSearchTarantoolEeCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
 		Use:   "tarantool-ee",
 		Short: "Search for available tarantool enterprise edition versions",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalSearchModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalSearchModule),
 	}
 	tntCmd.Flags().BoolVar(&debug, "debug", debug,
 		"search for debug builds of tarantool-ee SDK")
