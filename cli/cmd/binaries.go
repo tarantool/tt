@@ -6,9 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/binary"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/exp/slices"
 )
 
@@ -43,21 +41,13 @@ You will need to choose version using arrow keys in your console.
 # Switch with program and version.
 
 	$ tt binaries switch tarantool 2.10.4`,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalSwitchModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  RunModuleFunc(internalSwitchModule),
 		Args: cobra.MatchAll(cobra.MaximumNArgs(2), binariesSwitchValidateArgs),
 	}
 	var listCmd = &cobra.Command{
 		Use:   "list",
 		Short: "Show a list of installed binaries and their versions.",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalListModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   RunModuleFunc(internalListModule),
 	}
 	binariesCmd.AddCommand(switchCmd)
 	binariesCmd.AddCommand(listCmd)

@@ -11,11 +11,9 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/replicaset"
 	replicasetcmd "github.com/tarantool/tt/cli/replicaset/cmd"
 	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/integrity"
 )
@@ -66,12 +64,7 @@ func newUpgradeCmd() *cobra.Command {
 		Short:                 "Upgrade tarantool cluster",
 		Long: "Upgrade tarantool cluster.\n\n" +
 			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetUpgradeModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  RunModuleFunc(internalReplicasetUpgradeModule),
 		Args: cobra.ExactArgs(1),
 	}
 
@@ -108,12 +101,7 @@ func newDowngradeCmd() *cobra.Command {
 		Short:                 "Downgrade tarantool cluster",
 		Long: "Downgrade tarantool cluster.\n\n" +
 			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetDowngradeModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  RunModuleFunc(internalReplicasetDowngradeModule),
 		Args: cobra.MatchAll(cobra.ExactArgs(2), validateVersion(1)),
 	}
 
@@ -138,12 +126,7 @@ func newStatusCmd() *cobra.Command {
 		Short:                 "Show a replicaset status",
 		Long: "Show a replicaset status.\n\n" +
 			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetStatusModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  RunModuleFunc(internalReplicasetStatusModule),
 		Args: cobra.ExactArgs(1),
 	}
 
@@ -162,12 +145,7 @@ func newPromoteCmd() *cobra.Command {
 		Short:                 "Promote an instance",
 		Long: "Promote an instance.\n\n" +
 			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetPromoteModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  RunModuleFunc(internalReplicasetPromoteModule),
 		Args: cobra.ExactArgs(1),
 	}
 
@@ -191,13 +169,8 @@ func newDemoteCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Demote an instance",
 		Long:                  "Demote an instance.",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetDemoteModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(1),
+		Run:                   RunModuleFunc(internalReplicasetDemoteModule),
+		Args:                  cobra.ExactArgs(1),
 	}
 
 	addOrchestratorFlags(cmd)
@@ -215,13 +188,8 @@ func newExpelCmd() *cobra.Command {
 			"<APP_NAME:INSTANCE_NAME>",
 		Short: "Expel an instance from a replicaset",
 		Long:  "Expel an instance from a replicaset.",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetExpelModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(1),
+		Run:   RunModuleFunc(internalReplicasetExpelModule),
+		Args:  cobra.ExactArgs(1),
 	}
 
 	addOrchestratorFlags(cmd)
@@ -239,13 +207,8 @@ func newBootstrapCmd() *cobra.Command {
 		Use:   "bootstrap [--timeout secs] [flags] <APP_NAME|APP_NAME:INSTANCE_NAME>",
 		Short: "Bootstrap an application or instance",
 		Long:  "Bootstrap an application or instance.",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetBootstrapModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(1),
+		Run:   RunModuleFunc(internalReplicasetBootstrapModule),
+		Args:  cobra.ExactArgs(1),
 	}
 
 	addOrchestratorFlags(cmd)
@@ -271,12 +234,7 @@ func newBootstrapVShardCmd() *cobra.Command {
 		Short:                 "Bootstrap vshard in the cluster",
 		Long: "Bootstrap vshard in the cluster.\n\n" +
 			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetBootstrapVShardModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  RunModuleFunc(internalReplicasetBootstrapVShardModule),
 		Args: cobra.ExactArgs(1),
 	}
 
@@ -307,13 +265,8 @@ func newRebootstrapCmd() *cobra.Command {
 		Use:                   "rebootstrap <APP_NAME:INSTANCE_NAME>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Re-bootstraps an instance",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetRebootstrapModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: replicasetRebootstrapValidateArgs,
+		Run:                   RunModuleFunc(internalReplicasetRebootstrapModule),
+		Args:                  replicasetRebootstrapValidateArgs,
 	}
 
 	cmd.Flags().BoolVarP(&rebootstrapConfirmed, "yes", "y", false,
@@ -340,13 +293,8 @@ func newRolesAddCmd() *cobra.Command {
 			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
 		Short: "Adds a role for Cartridge and Tarantool 3 orchestrator",
 		Long:  "Adds a role for Cartridge and Tarantool 3 orchestrator",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetRolesAddModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(2),
+		Run:   RunModuleFunc(internalReplicasetRolesAddModule),
+		Args:  cobra.ExactArgs(2),
 	}
 
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",
@@ -378,13 +326,8 @@ func newRolesRemoveCmd() *cobra.Command {
 			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
 		Short: "Removes a role for Cartridge and Tarantool 3 orchestrator",
 		Long:  "Removes a role for Cartridge and Tarantool 3 orchestrator",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalReplicasetRolesRemoveModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(2),
+		Run:   RunModuleFunc(internalReplicasetRolesRemoveModule),
+		Args:  cobra.ExactArgs(2),
 	}
 
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",
