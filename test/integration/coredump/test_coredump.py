@@ -132,27 +132,47 @@ def test_coredump_pack(tt_cmd, tmp_path, coredump):
     assert re.search(r"Core was successfully packed.", output)
 
 
+def check_tarantool_in_archive(tmp_path, expected_tarantool):
+    archives = list(tmp_path.glob("*.tar.gz"))
+    assert len(archives) == 1
+
+    # Extract Tarantool executable and check its version.
+    rc = subprocess.run(["tar", "xzf", archives[0], "--wildcards", "tarantool-core-*/tarantool"],
+                        cwd=tmp_path).returncode
+    assert rc == 0
+    unpacked_tarantools = list(tmp_path.glob("tarantool-core-*/tarantool"))
+    assert len(unpacked_tarantools) == 1
+    version = get_tarantool_version(unpacked_tarantools[0])
+    assert version == get_tarantool_version(expected_tarantool)
+
+
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 @pytest.mark.slow
 def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tmpdir_with_tarantool):
     tarantool_bin = tmpdir_with_tarantool / 'bin' / 'tarantool'
-    version_expected = get_tarantool_version(tarantool_bin)
 
     cmd = [tt_cmd, "coredump", "pack", "-e", tarantool_bin, coredump_alt]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     assert re.search(r"Core was successfully packed.", output)
-    archives = list(tmp_path.glob("*.tar.gz"))
-    assert len(archives) == 1
 
-    # Extract Tarantool executable and check its version.
-    rc = subprocess.run(["tar", "xzf", archives[0], "--wildcards", "*/tarantool"],
-                        cwd=tmp_path).returncode
+    check_tarantool_in_archive(tmp_path, tarantool_bin)
+
+
+@pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
+@pytest.mark.slow
+def test_coredump_pack_executable_tt_env(tt_cmd, tmp_path, coredump_alt, tmpdir_with_tarantool):
+    tarantool_bin = tmpdir_with_tarantool / 'bin' / 'tarantool'
+
+    assert subprocess.run([tt_cmd, "init"], cwd=tmp_path).returncode == 0
+    os.symlink(tarantool_bin, tmp_path / 'bin' / 'tarantool')
+
+    cmd = [tt_cmd, "coredump", "pack", coredump_alt]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    unpacked_tarantools = list(tmp_path.glob("*/tarantool"))
-    assert len(unpacked_tarantools) == 1
-    version = get_tarantool_version(unpacked_tarantools[0])
-    assert version == version_expected
+    assert re.search(r"Core was successfully packed.", output)
+
+    check_tarantool_in_archive(tmp_path, tarantool_bin)
 
 
 def test_coredump_unpack_no_arg(tt_cmd, tmp_path):

@@ -26,8 +26,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
    * Cluster config for tarantool3-based cluster applications.
 - `tt logrotate`: don't exit at non-running instance, just warn and proceed
   with the other instances, like `tt stop` and `tt kill` do.
-- `tt coredump pack`: by default tarantool executable path is obtained from
-  `PATH` instead of using the hardcoded path `/usr/bin/tarantool`.
+- `tt coredump pack`: if `-e` option is omitted first search tarantool
+  executable in tt environment then in `PATH` instead of using the hardcoded
+  path `/usr/bin/tarantool`.
 
 ### Fixed
 
