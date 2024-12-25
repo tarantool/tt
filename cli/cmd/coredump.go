@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/coredump"
+	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -25,15 +27,10 @@ func NewCoredumpCmd() *cobra.Command {
 		Use:   "pack COREDUMP",
 		Short: "pack tarantool coredump into tar.gz archive",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := coredump.Pack(args[0],
-				coredumpPackExecutable,
-				coredumpPackOutputDirectory,
-				coredumpPackPID,
-				coredumpPackTime,
-			)
-			if err != nil {
-				util.HandleCmdErr(cmd, err)
-			}
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalCoredumpPackModule, args)
+			util.HandleCmdErr(cmd, err)
 		},
 		Args: cobra.ExactArgs(1),
 	}
@@ -79,4 +76,18 @@ func NewCoredumpCmd() *cobra.Command {
 	)
 
 	return cmd
+}
+
+// internalCoredumpPackModule is a default "pack" command for the coredump module.
+func internalCoredumpPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	executable := coredumpPackExecutable
+	if coredumpPackExecutable == "" {
+		executable = cmdCtx.Cli.TarantoolCli.Executable
+	}
+	return coredump.Pack(args[0],
+		executable,
+		coredumpPackOutputDirectory,
+		coredumpPackPID,
+		coredumpPackTime,
+	)
 }
