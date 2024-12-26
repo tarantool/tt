@@ -107,8 +107,13 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 }
 
 func internalAeonConnect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	hist, err := console.DefaultHistoryFile()
+	if err != nil {
+		return fmt.Errorf("can't open history file: %w", err)
+	}
 	opts := console.ConsoleOpts{
 		Handler: aeon.NewAeonHandler(connectCtx),
+		History: &hist,
 		Format:  console.FormatAsTable(),
 	}
 	c, err := console.NewConsole(opts)
