@@ -129,18 +129,17 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 	}
 }
 
-// resolveConnectOpts tries to resolve the first passed argument as an instance
-// name to replace it with a control socket or as a URI with/without
-// credentials.
+// resolveConnectOpts tries to resolve target argument to replace it
+// with a control socket or as a URI with/without credentials.
 // It returns connection options and the remaining args.
 func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
-	connectCtx *connect.ConnectCtx, args []string) (
-	connOpts connector.ConnectOpts, newArgs []string, err error) {
+	connectCtx *connect.ConnectCtx, target string) (
+	connOpts connector.ConnectOpts, err error) {
 
-	newArgs = args[1:]
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
-	if fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, false); fillErr == nil {
+	fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{target}, false)
+	if fillErr == nil {
 		if len(runningCtx.Instances) > 1 {
 			err = fmt.Errorf("specify instance name")
 			return
@@ -159,19 +158,19 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 				connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
 			)
 		}
-	} else if libconnect.IsCredentialsURI(args[0]) {
+	} else if libconnect.IsCredentialsURI(target) {
 		if connectCtx.Username != "" || connectCtx.Password != "" {
 			err = fmt.Errorf("username and password are specified with" +
 				" flags and a URI")
 			return
 		}
-		newURI, user, pass := libconnect.ParseCredentialsURI(args[0])
+		newURI, user, pass := libconnect.ParseCredentialsURI(target)
 		network, address := libconnect.ParseBaseURI(newURI)
 		connectCtx.Username = user
 		connectCtx.Password = pass
 		connOpts = makeConnOpts(network, address, *connectCtx)
 		connectCtx.ConnectTarget = newURI
-	} else if libconnect.IsBaseURI(args[0]) {
+	} else if libconnect.IsBaseURI(target) {
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
 			connectCtx.Username = os.Getenv(libconnect.TarantoolUsernameEnv)
@@ -179,14 +178,14 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		if connectCtx.Password == "" {
 			connectCtx.Password = os.Getenv(libconnect.TarantoolPasswordEnv)
 		}
-		network, address := libconnect.ParseBaseURI(args[0])
+		network, address := libconnect.ParseBaseURI(target)
 		connOpts = makeConnOpts(network, address, *connectCtx)
 	} else {
 		err = fillErr
 		return
 	}
 	if connectCtx.ConnectTarget == "" {
-		connectCtx.ConnectTarget = args[0]
+		connectCtx.ConnectTarget = target
 	}
 	return
 }
@@ -214,13 +213,13 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return util.NewArgError(fmt.Sprintf("unsupported output format: %s", connectFormat))
 	}
 
-	connOpts, newArgs, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
+	connOpts, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args[0])
 	if err != nil {
 		return err
 	}
 
 	if connectFile != "" {
-		res, err := connect.Eval(connectCtx, connOpts, newArgs)
+		res, err := connect.Eval(connectCtx, connOpts, args[1:])
 		if err != nil {
 			return err
 		}
@@ -230,7 +229,7 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if !connectInteractive || !terminal.IsTerminal(syscall.Stdin) {
 			return nil
 		}
-	} else if len(newArgs) != 0 {
+	} else if len(args) != 1 {
 		return fmt.Errorf("should be specified one connection string")
 	}
 
