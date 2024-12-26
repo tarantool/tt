@@ -62,7 +62,7 @@ def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
             )
             assert file != ""
 
-        downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "-v=3.0.0"]
+        downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "3.0.0"]
 
         rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmpdir)
         assert rc == 1
@@ -97,7 +97,7 @@ def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
             assert file != ""
 
             downgrade_cmd = [
-                tt_cmd, "replicaset", "downgrade", app_name, "--custom", "-v=2.8.2"
+                tt_cmd, "replicaset", "downgrade", app_name, "2.8.2", "--custom"
             ]
             rc, out = run_command_and_get_output(downgrade_cmd, cwd=test_app_path)
             assert rc == 0
@@ -139,7 +139,7 @@ def test_cluster_replicasets(tt_cmd, tmp_path):
                 cmd_master
             )
 
-        downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "-t=15", "-v=2.11.1"]
+        downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "2.11.1", "-t=15"]
         rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmp_path)
 
         assert rc == 0
@@ -171,16 +171,16 @@ def test_downgrade_invalid_version(tt_cmd, tmp_path):
         app.build()
         app.start()
 
-        downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "-t=15", "-v=1.1.1"]
+        downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "1.1.1", "-t=15"]
         rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmp_path)
 
         assert rc == 1
         assert "Version '1.1.1' is not allowed." in out
 
-        downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "-t=15", "-v=3.0"]
+        downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "3.0", "-t=15"]
         rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmp_path)
 
-        assert "--version (-v) must be in the format 'x.x.x', where x is a number" in out
+        assert "version must be in the format 'x.x.x', where x is a number" in out
     finally:
         app.stop()
 
@@ -215,7 +215,7 @@ def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
         )
 
         uri = "tcp://client:secret@127.0.0.1:3301"
-        upgrade_cmd = [tt_cmd, "replicaset", "downgrade", uri, "-t=15", "-v=2.11.1"]
+        upgrade_cmd = [tt_cmd, "replicaset", "downgrade", uri, "2.11.1", "-t=15"]
         rc, out = run_command_and_get_output(upgrade_cmd, cwd=tmpdir)
         assert rc == 0
         assert "ok" in out
@@ -267,7 +267,7 @@ def test_downgrade_cartridge(tt_cmd, cartridge_app):
     assert wait_event(10, have_buckets_created)
 
     app_dir = cartridge_app.workdir
-    upgrade_cmd = [tt_cmd, "replicaset", "downgrade", cartridge_name, "-t=15", "-v=2.10.0"]
+    upgrade_cmd = [tt_cmd, "replicaset", "downgrade", cartridge_name, "2.10.0", "-t=15"]
     rc, out = run_command_and_get_output(upgrade_cmd, cwd=app_dir)
     assert rc == 0
     assert "ok" in out
