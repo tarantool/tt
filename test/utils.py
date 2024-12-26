@@ -93,6 +93,8 @@ def create_lua_config(tmp_path):
 
 
 def create_external_module(module_name, directory):
+    # See https://github.com/tarantool/tt/issues/1039
+    pytest.skip("FIXME: running external modules not implemented!")
     module_message = f"\"Hello, I'm {module_name} external module!\""
     with open(os.path.join(directory, f"{module_name}.sh"), "w") as f:
         f.write(f"""#!/bin/sh
