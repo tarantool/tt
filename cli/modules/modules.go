@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
@@ -188,9 +187,9 @@ func getExternalModules(paths []string) (possibleModules, error) {
 				cnt_modules += 1
 			}
 		}
-		if cnt_modules == 0 {
-			log.Warnf("Directory %q does not have any module", path)
-		}
+		//? if cnt_modules == 0 {
+		//? 	log.Warnf("Directory %q does not have any module", path)
+		//? }
 	}
 	return modules, nil
 }
