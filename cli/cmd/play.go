@@ -35,6 +35,15 @@ var (
 	playUsername string
 	// playPassword contains password flag.
 	playPassword string
+	// playSslKeyFile is a path to a private SSL key file.
+	playSslKeyFile string
+	// playSslCertFile is a path to an SSL certificate file.
+	playSslCertFile string
+	// playSslCaFile is a path to a trusted certificate authorities (CA) file.
+	playSslCaFile string
+	// playSslCiphers is a colon-separated (:) list of SSL cipher suites the
+	// connection can use.
+	playSslCiphers string
 )
 
 // NewPlayCmd creates a new play command.
@@ -56,6 +65,14 @@ func NewPlayCmd() *cobra.Command {
 
 	playCmd.Flags().StringVarP(&playUsername, "username", "u", "", "username")
 	playCmd.Flags().StringVarP(&playPassword, "password", "p", "", "password")
+	playCmd.Flags().StringVar(&playSslKeyFile, "sslkeyfile", "",
+		`path to a private SSL key file`)
+	playCmd.Flags().StringVar(&playSslCertFile, "sslcertfile", "",
+		`path to an SSL certificate file`)
+	playCmd.Flags().StringVar(&playSslCaFile, "sslcafile", "",
+		`path to a trusted certificate authorities (CA) file`)
+	playCmd.Flags().StringVar(&playSslCiphers, "sslciphers", "",
+		`colon-separated (:) list of SSL cipher suites the connection`)
 	playCmd.Flags().Uint64Var(&playFlags.To, "to", playFlags.To,
 		"Show operations ending with the given lsn")
 	playCmd.Flags().StringVar(&playFlags.Timestamp, "timestamp", playFlags.Timestamp,
@@ -143,6 +160,24 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if playPassword != "" {
 		os.Setenv("TT_CLI_PLAY_PASSWORD", playPassword)
 	}
+
+	if playSslCertFile != "" {
+		os.Setenv("TT_CLI_PLAY_SSL_CERT_FILE", playSslCertFile)
+	}
+	if playSslKeyFile != "" {
+		os.Setenv("TT_CLI_PLAY_SSL_KEY_FILE", playSslKeyFile)
+	}
+	if playSslCaFile != "" {
+		os.Setenv("TT_CLI_PLAY_SSL_CA_FILE", playSslCaFile)
+	}
+	if playSslCiphers != "" {
+		os.Setenv("TT_CLI_PLAY_SSL_CIPHERS", playSslCiphers)
+	}
+	if playSslCertFile != "" || playSslKeyFile != "" ||
+		playSslCaFile != "" || playSslCiphers != "" {
+		os.Setenv("TT_CLI_PLAY_TRANSPORT", "ssl")
+	}
+
 	os.Setenv("TT_CLI_PLAY_SHOW_SYS", strconv.FormatBool(playFlags.ShowSystem))
 
 	// List of spaces is passed to lua play script via environment variable in json format.
