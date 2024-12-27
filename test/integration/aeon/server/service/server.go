@@ -11,11 +11,7 @@ import (
 // SQLCheck returns appropriate SQLCheckStatus value: "VALID", "INVALID", "INCOMPLETE".
 // SQL[Stream] returns SQLResponse with two tuples on "ok" request and with Error other way.
 type Server struct {
-	pb.UnimplementedAeonRouterServiceServer
-}
-
-func (s *Server) Ping(ctx context.Context, in *pb.PingRequest) (*pb.PingResponse, error) {
-	return &pb.PingResponse{}, nil
+	pb.UnimplementedSQLServiceServer
 }
 
 func (s *Server) SQLCheck(ctx context.Context,
@@ -35,7 +31,7 @@ func (s *Server) SQL(ctx context.Context, in *pb.SQLRequest) (*pb.SQLResponse, e
 	return &res, nil
 }
 
-func (s *Server) SQLStream(in *pb.SQLRequest, stream pb.AeonRouterService_SQLStreamServer) error {
+func (s *Server) SQLStream(in *pb.SQLRequest, stream pb.SQLService_SQLStreamServer) error {
 	res := makeSQLResponse(in.Query)
 	stream.Send(&res)
 	return nil

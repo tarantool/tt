@@ -99,19 +99,14 @@ func getListener() net.Listener {
 	return lis
 }
 
-func exit() {
-	log.Println("Exit func")
-	syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-	os.Exit(0)
-}
-
 func main() {
 	log.Println("Start aeon mock server:", os.Args)
 
 	flag.Parse()
 
 	srv := grpc.NewServer(getServerOpts()...)
-	pb.RegisterAeonRouterServiceServer(srv, &service.Server{})
+	pb.RegisterSQLServiceServer(srv, &service.Server{})
+	pb.RegisterDiagServiceServer(srv, &service.Diag{})
 
 	// Run gRPC server.
 	wg := sync.WaitGroup{}

@@ -37,7 +37,7 @@ type ResultError struct {
 type Client struct {
 	title  string
 	conn   *grpc.ClientConn
-	client pb.AeonRouterServiceClient
+	client pb.SQLServiceClient
 }
 
 func makeAddress(ctx cmd.ConnectCtx) string {
@@ -102,13 +102,13 @@ func NewAeonHandler(ctx cmd.ConnectCtx) *Client {
 	if err != nil {
 		log.Fatalf("Fail to dial: %v", err)
 	}
-	c.client = pb.NewAeonRouterServiceClient(c.conn)
-
 	if c.ping() {
 		log.Infof("Aeon responses at %q", target)
 	} else {
 		log.Fatalf("Can't ping to Aeon at %q", target)
 	}
+
+	c.client = pb.NewSQLServiceClient(c.conn)
 	return &c
 }
 
@@ -117,7 +117,8 @@ func (c *Client) ping() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := c.client.Ping(ctx, &pb.PingRequest{})
+	diag := pb.NewDiagServiceClient(c.conn)
+	_, err := diag.Ping(ctx, &pb.PingRequest{})
 	if err != nil {
 		log.Warnf("Aeon ping %s", err)
 	}
