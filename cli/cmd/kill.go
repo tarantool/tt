@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -19,15 +18,9 @@ var dumpQuit bool
 
 // NewKillCmd creates kill command.
 func NewKillCmd() *cobra.Command {
-	var killCmd = &cobra.Command{
+	var killCmd = setupTtModuleCmd(internalKillModule, &cobra.Command{
 		Use:   "kill [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Kill tarantool instance(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalKillModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -37,7 +30,7 @@ func NewKillCmd() *cobra.Command {
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 		},
-	}
+	})
 
 	killCmd.Flags().BoolVarP(&forceKill, "force", "f", false, "do not ask for confirmation")
 	killCmd.Flags().BoolVarP(&dumpQuit, "dump", "d", false, "quit with dump")

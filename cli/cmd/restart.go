@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -19,16 +18,10 @@ var (
 
 // NewRestartCmd creates start command.
 func NewRestartCmd() *cobra.Command {
-	var restartCmd = &cobra.Command{
+	var restartCmd = setupTtModuleCmd(internalRestartModule, &cobra.Command{
 		Use:   "restart [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Restart tarantool instance(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalRestartModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.RangeArgs(0, 1),
+		Args:  cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -38,7 +31,7 @@ func NewRestartCmd() *cobra.Command {
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 		},
-	}
+	})
 
 	restartCmd.Flags().BoolVarP(&autoYes, "yes", "y", false,
 		`Automatic yes to confirmation prompt`)

@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/checkpoint"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
@@ -39,20 +38,14 @@ var (
 
 // NewPlayCmd creates a new play command.
 func NewPlayCmd() *cobra.Command {
-	var playCmd = &cobra.Command{
+	var playCmd = setupTtModuleCmd(internalPlayModule, &cobra.Command{
 		Use:   "play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE>...",
 		Short: "Play the contents of .snap/.xlog FILE(s) to another Tarantool instance",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalPlayModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		Example: "tt play localhost:3013 /path/to/file.snap /path/to/file.xlog " +
 			"/path/to/dir/ --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
 			"  tt play app:instance001 /path/to/file.snap /path/to/file.xlog " +
 			"/path/to/dir/ --timestamp=1731592956.818",
-	}
+	})
 
 	playCmd.Flags().StringVarP(&playUsername, "username", "u", "", "username")
 	playCmd.Flags().StringVarP(&playPassword, "password", "p", "", "password")

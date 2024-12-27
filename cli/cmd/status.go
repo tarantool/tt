@@ -4,17 +4,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/status"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var opts status.StatusOpts
 
 // NewStatusCmd creates status command.
 func NewStatusCmd() *cobra.Command {
-	var statusCmd = &cobra.Command{
+	var statusCmd = setupTtModuleCmd(internalStatusModule, &cobra.Command{
 		Use:   "status [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Status of the tarantool instance(s)",
 		Long: `The 'status' command provides information about the status of Tarantool instances.
@@ -32,12 +30,6 @@ Columns:
 - CONFIG: The config info status (for Tarantool 3+).
 - BOX: The box info status.
 - UPSTREAM: The replication upstream status.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalStatusModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -47,7 +39,7 @@ Columns:
 				running.ExtractAppNames,
 				running.ExtractInstanceNames)
 		},
-	}
+	})
 
 	statusCmd.Flags().BoolVarP(&opts.Pretty, "pretty", "p", false, "pretty-print table")
 	statusCmd.Flags().BoolVarP(&opts.Details, "details", "d", false, "print detailed alerts.")
