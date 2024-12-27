@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   * `-e (--executable)`: specify Tarantool executable path.
   * `-p (--pid)`: specify PID of the dumped process.
   * `-t (--time)`: specify time of dump (seconds since the Epoch).
+- `tt play`: support of the SSL parameters by using next flags:
+  * `sslkeyfile` - path to a private SSL key file,
+  * `sslcertfile` - path to an SSL certificate file,
+  * `sslcafile` - path to a trusted certificate authorities (CA) file,
+  * `sslciphers` - colon-separated list of SSL cipher suites the connection.
 
 ### Changed
 
