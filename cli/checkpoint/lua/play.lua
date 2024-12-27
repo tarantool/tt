@@ -54,7 +54,33 @@ local function play(positional_arguments, keyword_arguments, opts)
         log.error('Internal error: empty URI is provided')
         os.exit(1)
     end
-    local remote = netbox.new(uri, opts)
+
+    local remote = nil
+    if opts.transport ~= nil and opts.transport == "ssl" then
+        remote = netbox.connect(
+            {
+                uri = uri,
+                params = {
+                    transport = opts.transport,
+                    ssl_cert_file = opts.ssl_cert_file,
+                    ssl_key_file = opts.ssl_key_file,
+                    ssl_ca_file = opts.ssl_ca_file,
+                    ssl_ciphers = opts.ssl_ciphers
+                }
+            },
+            {
+                user = opts.user,
+                password = opts.password
+            }
+        )
+    else
+        -- Older versions of the netbox.connect() use specific list
+        -- of parameters: connect(uri[, opts] | host, port[, opts])
+        -- so, to save backward compatibility we shouldn't change
+        -- anything in the common case.
+        remote = netbox.new(uri, opts)
+    end
+
     if not remote:wait_connected() then
         log.error('Fatal error: no connection to the host "%s"', uri)
         os.exit(1)
@@ -149,6 +175,11 @@ local function main()
     local opts = {
         user = os.getenv('TT_CLI_PLAY_USERNAME'),
         password = os.getenv('TT_CLI_PLAY_PASSWORD'),
+        transport = os.getenv('TT_CLI_PLAY_TRANSPORT'),
+        ssl_cert_file = os.getenv('TT_CLI_PLAY_SSL_CERT_FILE'),
+        ssl_key_file = os.getenv('TT_CLI_PLAY_SSL_KEY_FILE'),
+        ssl_ca_file = os.getenv('TT_CLI_PLAY_SSL_CA_FILE'),
+        ssl_ciphers = os.getenv('TT_CLI_PLAY_SSL_CIPHERS'),
     }
     play(positional_arguments, keyword_arguments, opts)
 end

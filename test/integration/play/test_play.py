@@ -8,9 +8,12 @@ from integration.connect.test_connect import (start_app, stop_app,
                                               try_execute_on_instance)
 
 from utils import (BINARY_PORT_NAME, TarantoolTestInstance, control_socket,
-                   create_tt_config, initial_snap, initial_xlog, lib_path,
-                   run_command_and_get_output, run_path,
-                   skip_if_cluster_app_unsupported, wait_file)
+                   create_tt_config, get_tarantool_version, initial_snap,
+                   initial_xlog, lib_path, run_command_and_get_output,
+                   run_path, skip_if_cluster_app_unsupported,
+                   skip_if_tarantool_ce, wait_file)
+
+tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 # The name of instance config file within this integration tests.
 # This file should be in /test/integration/play/test_file/.
@@ -301,3 +304,46 @@ def test_play_to_cluster_app(tt_cmd):
         # Stop the Instance.
         stop_app(tt_cmd, tmpdir, app_name)
         shutil.rmtree(tmpdir)
+
+
+@pytest.mark.skipif(tarantool_major_version == 1,
+                    reason="skip TLS test for Tarantool 1.0")
+def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
+    skip_if_tarantool_ce()
+
+    tmpdir = tmpdir_with_cfg
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_ssl_app")
+    # The test file.
+    empty_file = "empty.lua"
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # File to play.
+    test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", "test.snap")
+
+    # Copy test data into temporary directory.
+    shutil.copytree(test_app_path, os.path.join(tmpdir, "test_ssl_app"))
+    shutil.copy(empty_file_path, os.path.join(tmpdir, "test_ssl_app", empty_file))
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_ssl_app")
+    try:
+        # 'ready' file should be created by application.
+        file = wait_file(os.path.join(tmpdir, "test_ssl_app"), "ready", [])
+        assert file != ""
+
+        server = "localhost:3013"
+        # Connect without SSL options.
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file)
+        assert not ret
+        assert re.search(r"   ⨯ unable to establish connection", output)
+
+        cmd = [tt_cmd, "play", "localhost:3013", test_xlog_path,
+               "--sslkeyfile=test_ssl_app/localhost.key",
+               "--sslcertfile=test_ssl_app/localhost.crt",
+               "--sslcafile=test_ssl_app/ca.crt"]
+        rc, _ = run_command_and_get_output(cmd, cwd=tmpdir)
+        assert rc == 0
+
+    finally:
+        # Stop the Instance.
+        stop_app(tt_cmd, tmpdir, "test_ssl_app")
