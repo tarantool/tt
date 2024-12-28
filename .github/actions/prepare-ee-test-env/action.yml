@@ -95,4 +95,5 @@ runs:
       - name: Install test requirements
         run: |
           sudo apt -y install gdb
+          pip3 install -r test/requirements.txt
         shell: bash
