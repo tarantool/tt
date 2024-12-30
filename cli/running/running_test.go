@@ -35,7 +35,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err := CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Equal(t, InstanceCtx{
@@ -50,7 +50,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances("single_inst", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Equal(t, InstanceCtx{
@@ -67,7 +67,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances(appName, instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	require.NoError(t, err)
 	require.Equal(t, 3, len(instances))
 	assert.True(t, slices.Contains(instances, InstanceCtx{
@@ -103,7 +103,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	assert.ErrorContains(t, err, "script\" doesn't exist or not a directory")
 	assert.Equal(t, 0, len(instances))
 
@@ -113,7 +113,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 
@@ -121,7 +121,7 @@ func Test_CollectInstances(t *testing.T) {
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
-		}, true)
+		}, false)
 	assert.ErrorContains(t, err, "script.lua: permission denied")
 	assert.Equal(t, 1, len(instances))
 	require.NoError(t, os.Chmod(instancesEnabledPath, 0755))

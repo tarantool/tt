@@ -409,19 +409,23 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string,
 		}
 		log.Debugf("Instance %q", instance.InstName)
 
-		instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
-			instance.InstName, integrityCtx)
-		if err != nil && !skipClusterConfig {
-			return instances, fmt.Errorf("error loading instance %q configuration from "+
-				"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
-		}
+		if !skipClusterConfig {
+			instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
+				instance.InstName, integrityCtx)
+			if err != nil {
+				return instances, fmt.Errorf("error loading instance %q configuration from "+
+					"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
+			}
 
-		instance.SingleApp = false
-		instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
-			appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath)
-		if err != nil && !skipClusterConfig {
-			return instances, fmt.Errorf("cannot find instance script for %q in config %q: %w ",
-				instance.InstName, appDirFiles.clusterCfgPath, err)
+			instance.SingleApp = false
+			instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
+				appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath)
+			if err != nil {
+				return instances, fmt.Errorf("cannot find instance script for %q in config %q: %w ",
+					instance.InstName, appDirFiles.clusterCfgPath, err)
+			}
+		} else {
+			instance.SingleApp = false
 		}
 		instances = append(instances, instance)
 	}
