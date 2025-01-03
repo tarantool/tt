@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
@@ -51,7 +50,6 @@ var (
 
 	chosenReplicasetAliases []string
 	lsnTimeout              int
-	downgradeVersion        string
 
 	replicasetUriHelp = "  The URI can be specified in the following formats:\n" +
 		"  * [tcp://][username:password@][host:port]\n" +
@@ -90,33 +88,33 @@ func newUpgradeCmd() *cobra.Command {
 
 // newDowngradeCmd creates a "replicaset downgrade" command.
 func newDowngradeCmd() *cobra.Command {
+	validateVersion := func(i int) cobra.PositionalArgs {
+		return func(cmd *cobra.Command, args []string) error {
+			var versionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+			if args[i] == "" {
+				return errors.New("need to specify the version to downgrade to")
+			} else if !versionPattern.MatchString(args[i]) {
+				return errors.New("version must be in the format " +
+					"'x.x.x', where x is a number")
+			}
+			return nil
+		}
+	}
+
 	cmd := &cobra.Command{
-		Use: "downgrade (<APP_NAME> | <URI>) [flags]\n\n" +
+		Use: "downgrade (<APP_NAME> | <URI>) VERSION [flags]\n\n" +
 			replicasetUriHelp,
 		DisableFlagsInUseLine: true,
 		Short:                 "Downgrade tarantool cluster",
 		Long: "Downgrade tarantool cluster.\n\n" +
 			libconnect.EnvCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
-			var versionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
-			if downgradeVersion == "" {
-				err := errors.New("need to specify the version to downgrade " +
-					"use --version (-v) option")
-				util.HandleCmdErr(cmd, err)
-				os.Exit(1)
-			} else if !versionPattern.MatchString(downgradeVersion) {
-				err := errors.New("--version (-v) must be in the format " +
-					"'x.x.x', where x is a number")
-				util.HandleCmdErr(cmd, err)
-				os.Exit(1)
-			}
-
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalReplicasetDowngradeModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MatchAll(cobra.ExactArgs(2), validateVersion(1)),
 	}
 
 	cmd.Flags().StringArrayVarP(&chosenReplicasetAliases, "replicaset", "r",
@@ -124,9 +122,6 @@ func newDowngradeCmd() *cobra.Command {
 
 	cmd.Flags().IntVarP(&lsnTimeout, "timeout", "t", 5,
 		"timeout for waiting the LSN synchronization (in seconds)")
-
-	cmd.Flags().StringVarP(&downgradeVersion, "version", "v", "",
-		"version to downgrade the schema to")
 
 	addOrchestratorFlags(cmd)
 	addTarantoolConnectFlags(cmd)
@@ -479,7 +474,7 @@ type replicasetCtx struct {
 }
 
 // replicasetFillCtx fills the replicaset command context.
-func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []string,
+func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target string,
 	isRunningCtxRequired bool) error {
 	var err error
 	ctx.Orchestrator, err = getOrchestrator()
@@ -497,7 +492,8 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 	}
 	var connOpts connector.ConnectOpts
 
-	if err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, args, false); err == nil {
+	err = running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{target}, false)
+	if err == nil {
 		ctx.IsApplication = true
 		if len(ctx.RunningCtx.Instances) == 1 {
 			if connectCtx.Username != "" || connectCtx.Password != "" {
@@ -511,7 +507,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 				connectCtx,
 			)
 			ctx.IsInstanceConnect = true
-			appName, instName, found := strings.Cut(args[0], string(running.InstanceDelimiter))
+			appName, instName, found := strings.Cut(target, string(running.InstanceDelimiter))
 			if found {
 				if instName != ctx.RunningCtx.Instances[0].InstName {
 					return fmt.Errorf("instance %q not found", instName)
@@ -554,7 +550,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 		if isRunningCtxRequired {
 			return err
 		}
-		connOpts, _, err = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
+		connOpts, err = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, target)
 		if err != nil {
 			return err
 		}
@@ -576,7 +572,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, args []str
 // internalReplicasetUpgradeModule is a "upgrade" command for the replicaset module.
 func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], false); err != nil {
 		return err
 	}
 	if ctx.IsInstanceConnect {
@@ -592,7 +588,7 @@ func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 		SslCiphers:  replicasetSslCiphers,
 	}
 	var connOpts connector.ConnectOpts
-	connOpts, _, _ = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
+	connOpts, _ = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args[0])
 
 	return replicasetcmd.Upgrade(replicasetcmd.DiscoveryCtx{
 		IsApplication: ctx.IsApplication,
@@ -607,8 +603,11 @@ func internalReplicasetUpgradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 
 // internalReplicasetDowngradeModule is a "upgrade" command for the replicaset module.
 func internalReplicasetDowngradeModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	target := args[0]
+	downgradeVersion := args[1]
+
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, target, false); err != nil {
 		return err
 	}
 	if ctx.IsInstanceConnect {
@@ -624,7 +623,7 @@ func internalReplicasetDowngradeModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 		SslCiphers:  replicasetSslCiphers,
 	}
 	var connOpts connector.ConnectOpts
-	connOpts, _, _ = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args)
+	connOpts, _ = resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, target)
 
 	return replicasetcmd.Downgrade(replicasetcmd.DiscoveryCtx{
 		IsApplication: ctx.IsApplication,
@@ -641,7 +640,7 @@ func internalReplicasetDowngradeModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 // internalReplicasetPromoteModule is a "promote" command for the replicaset module.
 func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], false); err != nil {
 		return err
 	}
 	if !ctx.IsInstanceConnect {
@@ -671,7 +670,7 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 // internalReplicasetDemoteModule is a "demote" command for the replicaset module.
 func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, true); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], true); err != nil {
 		return err
 	}
 	if !ctx.IsApplication {
@@ -703,7 +702,7 @@ func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 // internalReplicasetStatusModule is a "status" command for the replicaset module.
 func internalReplicasetStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], false); err != nil {
 		return err
 	}
 	if ctx.IsInstanceConnect {
@@ -723,7 +722,7 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 		return fmt.Errorf("the command expects argument application_name:instance_name")
 	}
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, true); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], true); err != nil {
 		return err
 	}
 	if ctx.IsInstanceConnect {
@@ -750,7 +749,7 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 // the "replicaset vshard" module.
 func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], false); err != nil {
 		return err
 	}
 	if ctx.IsInstanceConnect {
@@ -777,7 +776,7 @@ func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 	_, instName, found := strings.Cut(args[0], string(running.InstanceDelimiter))
 
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, true); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], true); err != nil {
 		return err
 	}
 	if ctx.IsInstanceConnect {
@@ -839,7 +838,7 @@ func internalReplicasetRebootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 // internalReplicasetRolesAddModule is a "roles add" command for the replicaset module.
 func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], false); err != nil {
 		return err
 	}
 	defer ctx.Conn.Close()
@@ -882,7 +881,7 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 // internalReplicasetRolesRemoveModule is a "roles remove" command for the replicaset module.
 func internalReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var ctx replicasetCtx
-	if err := replicasetFillCtx(cmdCtx, &ctx, args, false); err != nil {
+	if err := replicasetFillCtx(cmdCtx, &ctx, args[0], false); err != nil {
 		return err
 	}
 	defer ctx.Conn.Close()
