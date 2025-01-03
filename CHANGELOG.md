@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   * `-e (--executable)`: specify Tarantool executable path.
   * `-p (--pid)`: specify PID of the dumped process.
   * `-t (--time)`: specify time of dump (seconds since the Epoch).
+- `tt play`: support TLS options.
 
 ### Changed
 
