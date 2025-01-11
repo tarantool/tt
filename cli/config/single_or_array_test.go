@@ -19,6 +19,7 @@ type singleOrArrayCase[T any] struct {
 
 func testSingleOrArrayJSON[T any](t *testing.T, tests []singleOrArrayCase[T]) {
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -148,6 +149,7 @@ func TestSingleOrArrayJSON(t *testing.T) {
 
 func testSingleOrArrayYAML[T any](t *testing.T, tests []singleOrArrayCase[T]) {
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
