@@ -4,42 +4,26 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/install"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var installCtx install.InstallCtx
 
 // newInstallTtCmd creates a command to install tt.
 func newInstallTtCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	var tntCmd = setupTtModuleCmd(internalInstallModule, &cobra.Command{
 		Use:   "tt [version|commit hash|pull-request]",
 		Short: "Install tt",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			installCtx.ProgramName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalInstallModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-	}
+	})
 
 	return tntCmd
 }
 
 // newInstallTarantoolCmd creates a command to install tarantool.
 func newInstallTarantoolCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	var tntCmd = setupTtModuleCmd(internalInstallModule, &cobra.Command{
 		Use:   "tarantool [version|commit hash|pull-request]",
 		Short: "Install tarantool community edition",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			installCtx.ProgramName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalInstallModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-	}
+	})
 
 	tntCmd.Flags().BoolVarP(&installCtx.BuildInDocker, "use-docker", "", false,
 		"build tarantool in Ubuntu 18.04 docker container")
@@ -51,17 +35,10 @@ func newInstallTarantoolCmd() *cobra.Command {
 
 // newInstallTarantoolEeCmd creates a command to install tarantool-ee.
 func newInstallTarantoolEeCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	var tntCmd = setupTtModuleCmd(internalInstallModule, &cobra.Command{
 		Use:   "tarantool-ee [version]",
 		Short: "Install tarantool enterprise edition",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			installCtx.ProgramName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalInstallModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-	}
+	})
 
 	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "install development build")
 
@@ -71,7 +48,7 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 // newInstallTarantoolDevCmd creates a command to install tarantool
 // from the local build directory.
 func newInstallTarantoolDevCmd() *cobra.Command {
-	tntCmd := &cobra.Command{
+	tntCmd := setupTtModuleCmd(internalInstallModule, &cobra.Command{
 		Use:   "tarantool-dev <DIRECTORY>",
 		Short: "Install tarantool from the local build directory",
 		Example: "Assume, tarantool build directory is ~/src/tarantool/build\n" +
@@ -79,14 +56,7 @@ func newInstallTarantoolDevCmd() *cobra.Command {
 			"  make -j16 -C ~/src/tarantool/build\n" +
 			"  tt install tarantool-dev ~/src/tarantool/build\n" +
 			"  tt run # runs the binary compiled above",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			installCtx.ProgramName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalInstallModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-	}
+	})
 
 	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
 		"tarantool headers directory")

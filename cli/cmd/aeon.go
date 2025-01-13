@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 	aeon "github.com/tarantool/tt/cli/aeon/cmd"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
@@ -17,7 +16,7 @@ var aeonConnectCtx = aeon.ConnectCtx{
 }
 
 func newAeonConnectCmd() *cobra.Command {
-	var aeonCmd = &cobra.Command{
+	var aeonCmd = setupTtModuleCmd(internalAeonConnect, &cobra.Command{
 		Use:   "connect URI",
 		Short: "Connect to the aeon instance",
 		Long: "Connect to the aeon instance.\n\n" +
@@ -28,13 +27,7 @@ func newAeonConnectCmd() *cobra.Command {
 			util.HandleCmdErr(cmd, err)
 			return err
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalAeonConnect, args)
-			util.HandleCmdErr(cmd, err)
-		},
-	}
+	})
 	aeonCmd.Flags().StringVar(&aeonConnectCtx.Ssl.KeyFile, "sslkeyfile", "",
 		"path to a private SSL key file")
 	aeonCmd.Flags().StringVar(&aeonConnectCtx.Ssl.CertFile, "sslcertfile", "",

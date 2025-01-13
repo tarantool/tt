@@ -13,10 +13,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/tail"
-	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -36,15 +34,9 @@ var (
 
 // NewStartCmd creates start command.
 func NewStartCmd() *cobra.Command {
-	var startCmd = &cobra.Command{
+	var startCmd = setupTtModuleCmd(internalStartModule, &cobra.Command{
 		Use:   "start [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Start tarantool instance(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalStartModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -54,7 +46,7 @@ func NewStartCmd() *cobra.Command {
 				running.ExtractInactiveAppNames,
 				running.ExtractInactiveInstanceNames)
 		},
-	}
+	})
 
 	startCmd.Flags().BoolVar(&watchdog, "watchdog", false, "")
 	startCmd.Flags().MarkHidden("watchdog")

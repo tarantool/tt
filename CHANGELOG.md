@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt coredump pack`: if `-e` option is omitted first search tarantool
   executable in tt environment then in `PATH` instead of using the hardcoded
   path `/usr/bin/tarantool`.
+- `tt replicaset downgrade`: make version a positional argument rather than
+  using the mandatory option `-v` (`--version`)
 
 ### Fixed
 

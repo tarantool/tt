@@ -2,28 +2,22 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
-	"os"
 )
 
 // NewStopCmd creates stop command.
 func NewStopCmd() *cobra.Command {
-	var stopCmd = &cobra.Command{
+	var stopCmd = setupTtModuleCmd(internalStopWithConfirmationModule, &cobra.Command{
 		Use:   "stop [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Stop tarantool instance(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalStopWithConfirmationModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.RangeArgs(0, 1),
+		Args:  cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -33,7 +27,7 @@ func NewStopCmd() *cobra.Command {
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
 		},
-	}
+	})
 
 	stopCmd.Flags().BoolVarP(&autoYes, "yes", "y", false,
 		`Automatic yes to confirmation prompt`)
