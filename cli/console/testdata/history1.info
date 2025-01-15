@@ -1,0 +1,4 @@
+#1724939703
+box.cfg{}
+#1724939757
+box.schema.space.create("test")

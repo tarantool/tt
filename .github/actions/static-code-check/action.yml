@@ -4,16 +4,6 @@ description: "Performs static code checks."
 runs:
   using: "composite"
   steps:
-      - name: Setup python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install tests requirements
-        run: |
-          pip3 install -r test/requirements.txt
-        shell: bash
-
       - name: Log versions
         run: |
           go version
@@ -42,4 +32,3 @@ runs:
       - name: Python Linter
         run: python3 -m flake8 test
         shell: bash
-

@@ -16,4 +16,8 @@ type ConnectCtx struct {
 	Ssl Ssl
 	// Transport is a connection mode.
 	Transport Transport
+	// Network is kind of transport layer.
+	Network string
+	// Address is a connection URL, unix socket address and etc.
+	Address string
 }
