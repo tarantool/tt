@@ -126,6 +126,17 @@ type providerImpl struct {
 	instanceCtx *InstanceCtx
 }
 
+type ConfigLoad int
+
+const (
+	// Skip loading cluster config and instances scripts.
+	ConfigLoadSkip ConfigLoad = iota
+	// Cluster configuration is required.
+	ConfigLoadCluster
+	// Load cluster config and instances scripts, trigger an errors if not.
+	ConfigLoadAll
+)
+
 // GetAppPath return application path for the instance. It is a script file path in case of
 // single instance file-only app, or directory in case of directory-based application.
 func GetAppPath(instance InstanceCtx) string {
@@ -152,7 +163,8 @@ func (provider *providerImpl) updateCtx() error {
 	}
 
 	var runningCtx RunningCtx
-	if err = FillCtx(cliOpts, provider.cmdCtx, &runningCtx, args, false); err != nil {
+	if err = FillCtx(
+		cliOpts, provider.cmdCtx, &runningCtx, args, ConfigLoadSkip); err != nil {
 		return err
 	}
 	provider.instanceCtx = &runningCtx.Instances[0]
@@ -348,7 +360,7 @@ func loadInstanceConfig(configPath, instName string,
 
 // collectInstancesFromAppDir collects instances information from application directory.
 func collectInstancesFromAppDir(appDir string, selectedInstName string,
-	integrityCtx integrity.IntegrityCtx, instancesScriptsRequired bool) (
+	integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
 	[]InstanceCtx,
 	error,
 ) {
@@ -376,7 +388,7 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string,
 					InstName:       filepath.Base(appDir),
 					AppDir:         appDir,
 					SingleApp:      true}}, nil
-			} else if instancesScriptsRequired {
+			} else if loadConfig == ConfigLoadAll {
 				return nil, fmt.Errorf("require files are missing in application directory %q: "+
 					"there must be instances config or the default instance script (%q)",
 					appDir, "init.lua")
@@ -409,19 +421,21 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string,
 		}
 		log.Debugf("Instance %q", instance.InstName)
 
-		if instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
-			instance.InstName, integrityCtx); err != nil {
+		instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
+			instance.InstName, integrityCtx)
+		if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
 			return instances, fmt.Errorf("error loading instance %q configuration from "+
 				"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
 		}
 
 		instance.SingleApp = false
-		if instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
-			appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath); err != nil &&
-			instancesScriptsRequired {
+		instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
+			appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath)
+		if err != nil && loadConfig == ConfigLoadAll {
 			return instances, fmt.Errorf("cannot find instance script for %q in config %q: %w ",
 				instance.InstName, appDirFiles.clusterCfgPath, err)
 		}
+
 		instances = append(instances, instance)
 	}
 
@@ -434,7 +448,9 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string,
 
 // CollectInstances searches all instances available in application.
 func CollectInstances(appName string, applicationsDir string,
-	integrityCtx integrity.IntegrityCtx, instancesScriptsRequired bool) ([]InstanceCtx, error) {
+	integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
+	[]InstanceCtx, error,
+) {
 	// The user can select a specific instance from the application.
 	// Example: `tt status application:server`.
 	selectedInstName := ""
@@ -462,8 +478,7 @@ func CollectInstances(appName string, applicationsDir string,
 		appDir = applicationsDir
 	}
 
-	return collectInstancesFromAppDir(appDir, selectedInstName, integrityCtx,
-		instancesScriptsRequired)
+	return collectInstancesFromAppDir(appDir, selectedInstName, integrityCtx, loadConfig)
 }
 
 // cleanup removes runtime artifacts.
@@ -625,7 +640,7 @@ func GetClusterConfigPath(cliOpts *config.CliOpts,
 
 // CollectInstancesForApps collects instances information per application.
 func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
-	ttConfigDir string, integrityCtx integrity.IntegrityCtx, instancesScriptsRequired bool) (
+	ttConfigDir string, integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
 	map[string][]InstanceCtx, error) {
 	instEnabledPath := cliOpts.Env.InstancesEnabled
 	if cliOpts.Env.InstancesEnabled == "." {
@@ -635,7 +650,7 @@ func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 	for _, appName := range appList {
 		appName = strings.TrimSuffix(appName, ".lua")
 		collectedInstances, err := CollectInstances(appName, instEnabledPath, integrityCtx,
-			instancesScriptsRequired)
+			loadConfig)
 		if err != nil {
 			return apps, fmt.Errorf("can't collect instance information for %s: %w",
 				appName, err)
@@ -676,7 +691,7 @@ func createInstanceDataDirectories(instance InstanceCtx) error {
 
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
-	runningCtx *RunningCtx, args []string, instancesScriptsRequired bool) error {
+	runningCtx *RunningCtx, args []string, loadConfig ConfigLoad) error {
 	var err error
 
 	if len(args) > 1 && cmdCtx.CommandName != "run" && cmdCtx.CommandName != "connect" &&
@@ -702,8 +717,8 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		appList = append(appList, args[0])
 	}
 
-	instances, err := CollectInstancesForApps(appList, cliOpts,
-		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity, instancesScriptsRequired)
+	instances, err := CollectInstancesForApps(appList, cliOpts, cmdCtx.Cli.ConfigDir,
+		cmdCtx.Integrity, loadConfig)
 	if err != nil {
 		return err
 	}

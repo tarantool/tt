@@ -30,7 +30,8 @@ func NewBuildCmd() *cobra.Command {
 			args []string,
 			toComplete string) ([]string, cobra.ShellCompDirective) {
 			var runningCtx running.RunningCtx
-			if err := running.FillCtx(cliOpts, &cmdCtx, &runningCtx, nil, false); err != nil {
+			err := running.FillCtx(cliOpts, &cmdCtx, &runningCtx, nil, running.ConfigLoadSkip)
+			if err != nil {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
 			return running.ExtractAppNames(runningCtx.Instances),

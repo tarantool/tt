@@ -31,7 +31,7 @@ func ListInstances(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 	fmt.Printf("instances enabled directory: %s\n", cliOpts.Env.InstancesEnabled)
 
 	applications, err := running.CollectInstancesForApps(appList, cliOpts, cmdCtx.Cli.ConfigDir,
-		cmdCtx.Integrity, false)
+		cmdCtx.Integrity, running.ConfigLoadSkip)
 	if err != nil {
 		return err
 	}
