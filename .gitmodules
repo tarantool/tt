@@ -9,5 +9,5 @@
 	ignore = dirty
 [submodule "cli/aeon/protos"]
 	path = cli/aeon/protos
-	url = git@github.com:tarantool/aeon-api-protos.git
+	url = https://github.com/tarantool/aeon-api-protos.git
 	branch = master
