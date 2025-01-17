@@ -11,7 +11,7 @@ func newUninstallTtCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
 		Use:   "tt [version]",
 		Short: "Uninstall tt",
-		Run:   TtModuleCmdRun(InternalUninstallModule),
+		Run:   TtModuleCmdRun(internalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -33,7 +33,7 @@ func newUninstallTarantoolCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
 		Use:   "tarantool [version]",
 		Short: "Uninstall tarantool community edition",
-		Run:   TtModuleCmdRun(InternalUninstallModule),
+		Run:   TtModuleCmdRun(internalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -55,7 +55,7 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
 		Use:   "tarantool-ee [version]",
 		Short: "Uninstall tarantool enterprise edition",
-		Run:   TtModuleCmdRun(InternalUninstallModule),
+		Run:   TtModuleCmdRun(internalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
@@ -77,7 +77,7 @@ func newUninstallTarantoolDevCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
 		Use:   "tarantool-dev",
 		Short: "Uninstall tarantool-dev",
-		Run:   TtModuleCmdRun(InternalUninstallModule),
+		Run:   TtModuleCmdRun(internalUninstallModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
@@ -105,8 +105,8 @@ func NewUninstallCmd() *cobra.Command {
 	return uninstallCmd
 }
 
-// InternalUninstallModule is a default uninstall module.
-func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+// internalUninstallModule is a default uninstall module.
+func internalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
