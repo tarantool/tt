@@ -15,7 +15,7 @@ func uninstallProgramValidArgsFunc(cmd *cobra.Command, args []string, toComplete
 	if len(args) > 0 {
 		return []string{}, cobra.ShellCompDirectiveNoFileComp
 	}
-	return uninstall.GetList(cliOpts, cmd.Name()),
+	return uninstall.GetAvailableVersions(cmd.Name(), cliOpts.Env.BinDir),
 		cobra.ShellCompDirectiveNoFileComp
 }
 
