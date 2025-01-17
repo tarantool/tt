@@ -33,7 +33,7 @@ func TestCheckConfig(t *testing.T) {
 		{"start", internalStartModule(&cmdcontext.CmdCtx{}, nil)},
 		{"status", internalStatusModule(&cmdcontext.CmdCtx{}, nil)},
 		{"stop", internalStopModule(&cmdcontext.CmdCtx{}, nil)},
-		{"uninstall", InternalUninstallModule(&cmdcontext.CmdCtx{}, nil)},
+		{"uninstall", internalUninstallModule(&cmdcontext.CmdCtx{}, nil)},
 	}
 
 	for _, tc := range cases {
