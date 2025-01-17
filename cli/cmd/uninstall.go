@@ -23,7 +23,7 @@ func newUninstallTtCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
+				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
@@ -50,7 +50,7 @@ func newUninstallTarantoolCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
+				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
@@ -77,7 +77,7 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
+				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
 		ValidArgsFunction: func(
@@ -104,7 +104,7 @@ func newUninstallTarantoolDevCmd() *cobra.Command {
 			cmdCtx.CommandName = cmd.Name()
 			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
+				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
 	}
@@ -133,8 +133,8 @@ func NewUninstallCmd() *cobra.Command {
 	return uninstallCmd
 }
 
-// InternalUninstallModule is a default uninstall module.
-func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+// internalUninstallModule is a default uninstall module.
+func internalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
