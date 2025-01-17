@@ -147,6 +147,6 @@ func internalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	err := uninstall.UninstallProgram(programName, programVersion, cliOpts.Env.BinDir,
-		cliOpts.Env.IncludeDir+"/include", cmdCtx)
+		cliOpts.Env.IncludeDir+"/include")
 	return err
 }
