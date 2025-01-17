@@ -10,6 +10,15 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+func uninstallProgramValidArgsFunc(cmd *cobra.Command, args []string, toComplete string) (
+	[]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	return uninstall.GetList(cliOpts, cmd.Name()),
+		cobra.ShellCompDirectiveNoFileComp
+}
+
 // newUninstallTtCmd creates a command to install tt.
 func newUninstallTtCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
@@ -21,16 +30,7 @@ func newUninstallTtCmd() *cobra.Command {
 				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		ValidArgsFunction: uninstallProgramValidArgsFunc,
 	}
 
 	return tntCmd
@@ -47,16 +47,7 @@ func newUninstallTarantoolCmd() *cobra.Command {
 				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		ValidArgsFunction: uninstallProgramValidArgsFunc,
 	}
 
 	return tntCmd
@@ -73,16 +64,7 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		ValidArgsFunction: uninstallProgramValidArgsFunc,
 	}
 
 	return tntCmd
