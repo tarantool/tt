@@ -11,7 +11,6 @@ import (
 	"github.com/tarantool/tt/cli/install"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
@@ -208,18 +207,19 @@ func getDefault(program, dir string) (string, error) {
 	return ver, nil
 }
 
-// GetList generates a list of options to uninstall.
-func GetList(cliOpts *config.CliOpts, program string) []string {
+// GetAvailableVersions returns a list of the program's versions installed into
+// the binDir directory.
+func GetAvailableVersions(program string, binDir string) []string {
 	list := []string{}
 	re := regexp.MustCompile(
 		"^" + progRegexp + version.FsSeparator + verRegexp + "$",
 	)
 
-	if cliOpts.Env.BinDir == "" {
+	if binDir == "" {
 		return nil
 	}
 
-	installedPrograms, err := os.ReadDir(cliOpts.Env.BinDir)
+	installedPrograms, err := os.ReadDir(binDir)
 	if err != nil {
 		return nil
 	}
