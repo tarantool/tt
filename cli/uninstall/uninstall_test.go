@@ -25,7 +25,7 @@ func (mock *mockRepository) ValidateAll() error {
 	return nil
 }
 
-func TestGetList(t *testing.T) {
+func TestGetAvailableVersions(t *testing.T) {
 	assert := assert.New(t)
 	workDir := t.TempDir()
 
@@ -52,13 +52,13 @@ func TestGetList(t *testing.T) {
 
 	cliOpts, _, err := configure.GetCliOpts(cfgPath, &mockRepository{})
 	require.NoError(t, err)
-	result := GetList(cliOpts, "tt")
+	result := GetAvailableVersions("tt", cliOpts.Env.BinDir)
 	assert.Equal(result, []string{"1.2.3"})
 
-	result = GetList(cliOpts, "tarantool")
+	result = GetAvailableVersions("tarantool", cliOpts.Env.BinDir)
 	assert.Equal(result, []string{"1.2.10"})
 
-	result = GetList(cliOpts, "tarantool-ee")
+	result = GetAvailableVersions("tarantool-ee", cliOpts.Env.BinDir)
 	assert.Equal(result, []string{"master"})
 }
 
