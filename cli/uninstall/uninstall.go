@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/cli/install"
@@ -17,12 +18,6 @@ import (
 )
 
 const (
-	progRegexp = "(?P<prog>" +
-		search.ProgramTt + "|" +
-		search.ProgramCe + "|" +
-		search.ProgramEe + ")"
-	verRegexp = "(?P<ver>.*)"
-
 	MajorMinorPatchRegexp = `^[0-9]+\.[0-9]+\.[0-9]+`
 )
 
@@ -180,45 +175,32 @@ func getAllTtVersionFormats(programName, ttVersion string) ([]string, error) {
 
 // getDefault returns a default version of an installed program.
 func getDefault(program, dir string) (string, error) {
-	var ver string
-
-	re := regexp.MustCompile(
-		"^" + program + version.FsSeparator + verRegexp + "$",
-	)
-
-	installedPrograms, err := os.ReadDir(dir)
+	versions, err := GetAvailableVersions(program, dir)
 	if err != nil {
 		return "", err
 	}
-
-	for _, file := range installedPrograms {
-		matches := util.FindNamedMatches(re, file.Name())
-		if ver != "" {
-			return "", fmt.Errorf("%s has more than one installed version, "+
-				"please specify the version to uninstall", program)
-		} else {
-			ver = matches["ver"]
-		}
-	}
-
-	if ver == "" {
+	if len(versions) == 0 {
 		return "", fmt.Errorf("%s has no installed version", program)
 	}
-	return ver, nil
+	if len(versions) > 1 {
+		return "", fmt.Errorf("%s has more than one installed version, "+
+			"please specify the version to uninstall", program)
+	}
+	return versions[0], nil
 }
 
 // GetAvailableVersions returns a list of the program's versions installed into
 // the 'dir' directory.
-func GetAvailableVersions(program string, dir string) []string {
-	if dir == "" {
-		return nil
+func GetAvailableVersions(program string, dir string) ([]string, error) {
+	if !util.IsDir(dir) {
+		return nil, fmt.Errorf("%q is missing or not a directory", dir)
 	}
 
 	versionPrefix := filepath.Join(dir, program+version.FsSeparator)
 
 	programFiles, err := filepath.Glob(versionPrefix + "*")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	versions := []string{}
@@ -226,86 +208,55 @@ func GetAvailableVersions(program string, dir string) []string {
 		versions = append(versions, file[len(versionPrefix):])
 	}
 
-	return versions
+	return versions, nil
 }
 
 // searchLatestVersion searches for the latest installed version of the program.
-func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
-	var programsToSearch []string
-	if linkName == "tarantool" {
-		programsToSearch = []string{search.ProgramCe, search.ProgramEe}
-	} else {
-		programsToSearch = []string{linkName}
-	}
-
-	programRegex := regexp.MustCompile(
-		"^" + progRegexp + version.FsSeparator + verRegexp + "$",
-	)
-
-	binaries, err := os.ReadDir(binDst)
+func searchLatestVersion(program, binDst, headerDst string) (string, error) {
+	binVersions, err := GetAvailableVersions(program, binDst)
 	if err != nil {
 		return "", err
 	}
 
-	latestVersionInfo := version.Version{}
-	latestVersion := ""
-	hashFound := false
-	latestHash := ""
+	headerVersions, err := GetAvailableVersions(program, headerDst)
+	if err != nil {
+		return "", err
+	}
 
-	for _, binary := range binaries {
-		if binary.IsDir() {
-			continue
-		}
-		binaryName := binary.Name()
-		matches := util.FindNamedMatches(programRegex, binaryName)
+	binPrefix := filepath.Join(binDst, program+version.FsSeparator)
 
-		// Need to match for the program and version.
-		if len(matches) != 2 {
-			log.Debugf("%q skipped: unexpected format", binaryName)
+	// Find intersection and convert to version.Version
+	versions := []version.Version{}
+	for _, binVersion := range binVersions {
+		if util.IsDir(binPrefix + binVersion) {
 			continue
 		}
 
-		programName := matches["prog"]
-		// Need to find the program in the list of suitable.
-		if util.Find(programsToSearch, programName) == -1 {
-			continue
-		}
-		isRightFormat, _ := util.IsValidCommitHash(matches["ver"])
-
-		if isRightFormat {
-			if hashFound {
+		if slices.Contains(headerVersions, binVersion) {
+			ver, err := version.Parse(binVersion)
+			if err != nil {
 				continue
 			}
-			if strings.Contains(programName, "tarantool") {
-				// Check for headers.
-				if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
-					continue
-				}
-			}
-			hashFound = true
-			latestHash = binaryName
-			continue
-		}
-		ver, err := version.Parse(matches["ver"])
-		if err != nil {
-			continue
-		}
-		if strings.Contains(programName, "tarantool") {
-			// Check for headers.
-			if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
-				continue
-			}
-		}
-		// Update latest version.
-		if latestVersion == "" || version.IsLess(latestVersionInfo, ver) {
-			latestVersionInfo = ver
-			latestVersion = binaryName
+			versions = append(versions, ver)
 		}
 	}
-	if latestVersion != "" {
-		return latestVersion, nil
+
+	if len(versions) == 0 {
+		return "", nil
 	}
-	return latestHash, nil
+
+	latestVersion := slices.MaxFunc(versions, func(a, b version.Version) int {
+		if a.Str == b.Str {
+			return 0
+		}
+		isCommitHash, _ := util.IsValidCommitHash(a.Str)
+		if isCommitHash || version.IsLess(a, b) {
+			return -1
+		}
+		return 1
+	})
+
+	return program + version.FsSeparator + latestVersion.Str, nil
 }
 
 // switchProgramToLatestVersion switches the active version of the program to the latest installed.
@@ -315,7 +266,7 @@ func switchProgramToLatestVersion(program, binDst, headerDst string) error {
 		linkName = "tarantool"
 	}
 
-	progToSwitch, err := searchLatestVersion(linkName, binDst, headerDst)
+	progToSwitch, err := searchLatestVersion(program, binDst, headerDst)
 	if err != nil {
 		return err
 	}
