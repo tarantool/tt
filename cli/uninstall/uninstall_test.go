@@ -65,7 +65,7 @@ func TestGetAvailableVersions(t *testing.T) {
 func TestSearchLatestVersion(t *testing.T) {
 	type testCase struct {
 		name        string
-		linkName    string
+		program     string
 		binDst      string
 		headerDst   string
 		expectedVer string
@@ -75,42 +75,42 @@ func TestSearchLatestVersion(t *testing.T) {
 	cases := []testCase{
 		{
 			name:        "basic",
-			linkName:    "tarantool",
+			program:     "tarantool",
 			binDst:      "./testdata/bin_basic",
 			headerDst:   "./testdata/inc_basic",
 			expectedVer: "tarantool_3.0.0-entrypoint",
 		},
 		{
 			name:        "no includes",
-			linkName:    "tarantool",
+			program:     "tarantool-ee",
 			binDst:      "./testdata/bin_basic",
 			headerDst:   "./testdata/inc_invalid",
 			expectedVer: "tarantool-ee_2.8.4-0-r510",
 		},
 		{
 			name:        "tarantool-dev",
-			linkName:    "tarantool",
+			program:     "tarantool-dev",
 			binDst:      "./testdata/bin_dev",
 			headerDst:   "./testdata/inc_basic",
 			expectedVer: "",
 		},
 		{
 			name:        "hash version",
-			linkName:    "tarantool",
+			program:     "tarantool",
 			binDst:      "./testdata/bin_hash",
 			headerDst:   "./testdata/inc_hash",
 			expectedVer: "tarantool_aaaaaaa",
 		},
 		{
 			name:        "hash invalid headers",
-			linkName:    "tarantool",
+			program:     "tarantool",
 			binDst:      "./testdata/bin_hash",
 			headerDst:   "./testdata/inc_invalid_hash",
 			expectedVer: "tarantool_bbbbbbb",
 		},
 		{
 			name:        "tt, include-dir basic",
-			linkName:    "tt",
+			program:     "tt",
 			binDst:      "./testdata/bin_basic",
 			headerDst:   "./testdata/inc_basic",
 			expectedVer: "tt_2.0.0",
@@ -118,14 +118,14 @@ func TestSearchLatestVersion(t *testing.T) {
 		// Test that include dir doesn't affect the search for `tt`.
 		{
 			name:        "tt, include-dir invalid",
-			linkName:    "tt",
+			program:     "tt",
 			binDst:      "./testdata/bin_basic",
 			headerDst:   "./testdata/inc_invalid",
 			expectedVer: "tt_2.0.0",
 		},
 		{
 			name:      "filename as a bin dir",
-			linkName:  "tt",
+			program:   "tt",
 			binDst:    "./testdata/bin_basic/tarantool",
 			headerDst: "./testdata/inc_basic",
 			isErr:     true,
@@ -134,7 +134,7 @@ func TestSearchLatestVersion(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ver, err := searchLatestVersion(tc.linkName, tc.binDst, tc.headerDst)
+			ver, err := searchLatestVersion(tc.program, tc.binDst, tc.headerDst)
 			if !tc.isErr {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expectedVer, ver)
