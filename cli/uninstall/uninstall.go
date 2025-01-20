@@ -208,30 +208,25 @@ func getDefault(program, dir string) (string, error) {
 }
 
 // GetAvailableVersions returns a list of the program's versions installed into
-// the binDir directory.
-func GetAvailableVersions(program string, binDir string) []string {
-	list := []string{}
-	re := regexp.MustCompile(
-		"^" + progRegexp + version.FsSeparator + verRegexp + "$",
-	)
-
-	if binDir == "" {
+// the 'dir' directory.
+func GetAvailableVersions(program string, dir string) []string {
+	if dir == "" {
 		return nil
 	}
 
-	installedPrograms, err := os.ReadDir(binDir)
+	versionPrefix := filepath.Join(dir, program+version.FsSeparator)
+
+	programFiles, err := filepath.Glob(versionPrefix + "*")
 	if err != nil {
 		return nil
 	}
 
-	for _, file := range installedPrograms {
-		matches := util.FindNamedMatches(re, file.Name())
-		if len(matches) != 0 && matches["prog"] == program {
-			list = append(list, matches["ver"])
-		}
+	versions := []string{}
+	for _, file := range programFiles {
+		versions = append(versions, file[len(versionPrefix):])
 	}
 
-	return list
+	return versions
 }
 
 // searchLatestVersion searches for the latest installed version of the program.
