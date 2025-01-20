@@ -1,4 +1,4 @@
-package cmd
+package connect
 
 import (
 	"fmt"
@@ -6,10 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/tarantool/go-tarantool"
-
-	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
 const (
@@ -54,7 +50,8 @@ type UriOpts struct {
 }
 
 // ParseUriOpts parses options from a URI from a URL.
-func ParseUriOpts(uri *url.URL) (UriOpts, error) {
+// Accepts default username and password if they are not set in the URL.
+func ParseUriOpts(uri *url.URL, username string, password string) (UriOpts, error) {
 	if uri.Scheme == "" || uri.Host == "" {
 		return UriOpts{},
 			fmt.Errorf("URL must contain the scheme and the host parts")
@@ -79,7 +76,13 @@ func ParseUriOpts(uri *url.URL) (UriOpts, error) {
 		Ciphers:  values.Get("ssl_ciphers"),
 		Timeout:  DefaultUriTimeout,
 	}
-	if password, ok := uri.User.Password(); ok {
+	if p, ok := uri.User.Password(); ok {
+		opts.Password = p
+	}
+	// Q: Do we should keep old logic to check both username and password are empty?
+	// ? What if would be required set password from CLI while username from URL?
+	if opts.Username == "" && opts.Password == "" {
+		opts.Username = username
 		opts.Password = password
 	}
 
@@ -90,7 +93,7 @@ func ParseUriOpts(uri *url.URL) (UriOpts, error) {
 	if verifyPeerStr != "" {
 		verifyPeerStr = strings.ToLower(verifyPeerStr)
 		if verify, err := strconv.ParseBool(verifyPeerStr); err == nil {
-			if verify == false {
+			if !verify {
 				opts.SkipPeerVerify = true
 			}
 		} else {
@@ -102,7 +105,7 @@ func ParseUriOpts(uri *url.URL) (UriOpts, error) {
 	if verifyHostStr != "" {
 		verifyHostStr = strings.ToLower(verifyHostStr)
 		if verify, err := strconv.ParseBool(verifyHostStr); err == nil {
-			if verify == false {
+			if !verify {
 				opts.SkipHostVerify = true
 			}
 		} else {
@@ -121,46 +124,4 @@ func ParseUriOpts(uri *url.URL) (UriOpts, error) {
 	}
 
 	return opts, nil
-}
-
-// MakeEtcdOptsFromUriOpts create etcd connect options from URI options.
-func MakeEtcdOptsFromUriOpts(src UriOpts) libcluster.EtcdOpts {
-	var endpoints []string
-	if src.Endpoint != "" {
-		endpoints = []string{src.Endpoint}
-	}
-
-	return libcluster.EtcdOpts{
-		Endpoints:      endpoints,
-		Username:       src.Username,
-		Password:       src.Password,
-		KeyFile:        src.KeyFile,
-		CertFile:       src.CertFile,
-		CaPath:         src.CaPath,
-		CaFile:         src.CaFile,
-		SkipHostVerify: src.SkipHostVerify || src.SkipPeerVerify,
-		Timeout:        src.Timeout,
-	}
-}
-
-// MakeConnectOptsFromUriOpts create Tarantool connect options from
-// URI options.
-func MakeConnectOptsFromUriOpts(src UriOpts) (string, tarantool.Opts) {
-	opts := tarantool.Opts{
-		User: src.Username,
-		Pass: src.Password,
-		Ssl: tarantool.SslOpts{
-			KeyFile:  src.KeyFile,
-			CertFile: src.CertFile,
-			CaFile:   src.CaFile,
-			Ciphers:  src.Ciphers,
-		},
-		Timeout: src.Timeout,
-	}
-
-	if opts.Ssl != (tarantool.SslOpts{}) {
-		opts.Transport = "ssl"
-	}
-
-	return fmt.Sprintf("tcp://%s", src.Host), opts
 }

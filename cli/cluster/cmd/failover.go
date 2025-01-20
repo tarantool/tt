@@ -9,6 +9,7 @@ import (
 	"github.com/apex/log"
 	"github.com/google/uuid"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/connect"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"gopkg.in/yaml.v2"
@@ -63,7 +64,7 @@ type SwitchStatusCtx struct {
 	TaskID string
 }
 
-func makeEtcdOpts(uriOpts UriOpts) libcluster.EtcdOpts {
+func makeEtcdOpts(uriOpts connect.UriOpts) libcluster.EtcdOpts {
 	opts := libcluster.EtcdOpts{
 		Endpoints:      []string{uriOpts.Endpoint},
 		Username:       uriOpts.Username,
@@ -81,7 +82,7 @@ func makeEtcdOpts(uriOpts UriOpts) libcluster.EtcdOpts {
 
 // Switch master instance.
 func Switch(uri *url.URL, switchCtx SwitchCtx) error {
-	uriOpts, err := ParseUriOpts(uri)
+	uriOpts, err := connect.ParseUriOpts(uri, "", "")
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
@@ -173,7 +174,7 @@ func Switch(uri *url.URL, switchCtx SwitchCtx) error {
 
 // SwitchStatus shows master switching status.
 func SwitchStatus(uri *url.URL, switchCtx SwitchStatusCtx) error {
-	uriOpts, err := ParseUriOpts(uri)
+	uriOpts, err := connect.ParseUriOpts(uri, "", "")
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/go-tarantool"
 	"github.com/tarantool/tt/cli/replicaset"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/connect"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -107,7 +108,7 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 func createDataCollectorAndKeyPublisher(
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
-	opts UriOpts, connOpts connectOpts) (
+	opts connect.UriOpts) (
 	libcluster.DataCollector, replicaset.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Key, opts.Timeout
 	var (
@@ -145,7 +146,7 @@ func createDataCollectorAndKeyPublisher(
 		return nil
 	}
 
-	if err := doOnStorage(connOpts, opts, tarantoolFunc, etcdFunc); err != nil {
+	if err := doOnStorage(opts, tarantoolFunc, etcdFunc); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -154,17 +155,14 @@ func createDataCollectorAndKeyPublisher(
 
 // Promote promotes an instance by patching the cluster config.
 func Promote(uri *url.URL, ctx PromoteCtx) error {
-	opts, err := ParseUriOpts(uri)
+	opts, err := connect.ParseUriOpts(uri,
+		ctx.Username, ctx.Password)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
-	connOpts := connectOpts{
-		Username: ctx.Username,
-		Password: ctx.Password,
-	}
 
 	collector, publisher, closeFunc, err := createDataCollectorAndKeyPublisher(
-		ctx.Collectors, ctx.Publishers, opts, connOpts)
+		ctx.Collectors, ctx.Publishers, opts)
 	if err != nil {
 		return err
 	}
@@ -201,17 +199,14 @@ type DemoteCtx struct {
 
 // Demote demotes an instance by patching the cluster config.
 func Demote(uri *url.URL, ctx DemoteCtx) error {
-	opts, err := ParseUriOpts(uri)
+	opts, err := connect.ParseUriOpts(uri,
+		ctx.Username, ctx.Password)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
-	connOpts := connectOpts{
-		Username: ctx.Username,
-		Password: ctx.Password,
-	}
 
 	collector, publisher, closeFunc, err := createDataCollectorAndKeyPublisher(
-		ctx.Collectors, ctx.Publishers, opts, connOpts)
+		ctx.Collectors, ctx.Publishers, opts)
 	if err != nil {
 		return err
 	}
@@ -248,17 +243,14 @@ type ExpelCtx struct {
 
 // Expel expels an instance by patching the cluster config.
 func Expel(uri *url.URL, ctx ExpelCtx) error {
-	opts, err := ParseUriOpts(uri)
+	opts, err := connect.ParseUriOpts(uri,
+		ctx.Username, ctx.Password)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
-	connOpts := connectOpts{
-		Username: ctx.Username,
-		Password: ctx.Password,
-	}
 
 	collector, publisher, closeFunc, err := createDataCollectorAndKeyPublisher(
-		ctx.Collectors, ctx.Publishers, opts, connOpts)
+		ctx.Collectors, ctx.Publishers, opts)
 	if err != nil {
 		return err
 	}
@@ -302,17 +294,15 @@ type RolesChangeCtx struct {
 
 // ChangeRole adds/removes a role by patching the cluster config.
 func ChangeRole(uri *url.URL, ctx RolesChangeCtx, action replicaset.RolesChangerAction) error {
-	opts, err := ParseUriOpts(uri)
+	opts, err := connect.ParseUriOpts(uri,
+		ctx.Username, ctx.Password)
+
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
-	connOpts := connectOpts{
-		Username: ctx.Username,
-		Password: ctx.Password,
-	}
 
 	collector, publisher, closeFunc, err := createDataCollectorAndKeyPublisher(
-		ctx.Collectors, ctx.Publishers, opts, connOpts)
+		ctx.Collectors, ctx.Publishers, opts)
 	if err != nil {
 		return err
 	}
