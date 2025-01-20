@@ -11,8 +11,8 @@ func uninstallValidArgsFunc(cmd *cobra.Command, args []string, toComplete string
 	if len(args) > 0 {
 		return []string{}, cobra.ShellCompDirectiveNoFileComp
 	}
-	return uninstall.GetAvailableVersions(cmd.Name(), cliOpts.Env.BinDir),
-		cobra.ShellCompDirectiveNoFileComp
+	versions, _ := uninstall.GetAvailableVersions(cmd.Name(), cliOpts.Env.BinDir)
+	return versions, cobra.ShellCompDirectiveNoFileComp
 }
 
 // newUninstallTtCmd creates a command to install tt.
