@@ -9,21 +9,32 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- `tt.yaml`: allows to specify a list of modules directories.
-- Environment variable TT_CLI_MODULES_PATH can be used to specify
-  an extra path with modules.
+### Changed
+
+### Fixed
+
+## [2.7.0] - 2025-01-22
+
+The release introduces an experimental support of console for AeonDB and
+continues to improve `tt play` command.
+
+### Added
+
+- `tt aeon connect`: add support to connect Aeon database.
+- `tt play`: support of the SSL parameters by using next flags:
+  * `sslkeyfile` - path to a private SSL key file,
+  * `sslcertfile` - path to an SSL certificate file,
+  * `sslcafile` - path to a trusted certificate authorities (CA) file,
+  * `sslciphers` - colon-separated list of SSL cipher suites the connection.
 - `tt play`: support connection to a target instance by `application` name
   or `application:instance` name.
 - `tt coredump pack`: add options to customize coredump packing:
   * `-e (--executable)`: specify Tarantool executable path.
   * `-p (--pid)`: specify PID of the dumped process.
   * `-t (--time)`: specify time of dump (seconds since the Epoch).
-- `tt play`: support of the SSL parameters by using next flags:
-  * `sslkeyfile` - path to a private SSL key file,
-  * `sslcertfile` - path to an SSL certificate file,
-  * `sslcafile` - path to a trusted certificate authorities (CA) file,
-  * `sslciphers` - colon-separated list of SSL cipher suites the connection.
-- `tt aeon connect`: add support to connect Aeon database.
+- `tt.yaml`: allows to specify a list of modules directories.
+- Environment variable TT_CLI_MODULES_PATH can be used to specify
+  an extra path with modules.
 
 ### Changed
 
