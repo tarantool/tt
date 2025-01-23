@@ -1255,13 +1255,11 @@ func isUpdatePossible(installCtx InstallCtx,
 				if err != nil {
 					return false, err
 				}
-				// We need to trim first rune to get commit hash
-				// from string structure 'g<commitHash>'.
-				if len(binVersion.Hash) < 1 {
+				if len(binVersion.Hash) == 0 {
 					return false, fmt.Errorf("could not get commit hash of the version"+
 						"of an installed %s", program)
 				}
-				curBinHash = binVersion.Hash[1:]
+				curBinHash = binVersion.Hash
 			} else if program == search.ProgramTt {
 				ttVer, err := cmdcontext.GetTtVersion(pathToBin)
 				if err != nil {
