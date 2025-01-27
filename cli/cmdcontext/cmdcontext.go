@@ -30,6 +30,12 @@ type TarantoolCli struct {
 	version version.Version
 }
 
+// TcmCli describes tarantool executable.
+type TcmCli struct {
+	// Executable is a path to tcm executable.
+	Executable string
+}
+
 // GetVersion returns and caches the tarantool version.
 func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	if tntCli.version.Str != "" {
@@ -104,6 +110,8 @@ type CliCtx struct {
 	Verbose bool
 	// TarantoolCli is current tarantool cli.
 	TarantoolCli TarantoolCli
+	// Tcmcli is current tcm cli.
+	TcmCli TcmCli
 	// IntegrityCheck is a public key used for integrity check.
 	IntegrityCheck string
 	// IntegrityCheckPeriod is an period during which the integrity check is reproduced.
