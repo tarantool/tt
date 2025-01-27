@@ -1014,8 +1014,11 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmp_path):
 
     tt_is_link = os.path.islink(os.path.join(extract_path, "bin", "tt"))
     tnt_is_link = os.path.islink(os.path.join(extract_path, "bin", "tarantool"))
+    tcm_is_link = os.path.islink(os.path.join(extract_path, "bin", "tcm"))
+
     assert not tt_is_link
     assert not tnt_is_link
+    assert not tcm_is_link
 
     shutil.rmtree(extract_path)
     os.remove(package_file)

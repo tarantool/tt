@@ -385,6 +385,7 @@ func Test_prepareBundle(t *testing.T) {
 	type params struct {
 		configPath    string
 		tntExecutable string
+		tcmExecutable string
 		packCtx       PackCtx
 		build         bool
 	}
@@ -408,7 +409,10 @@ func Test_prepareBundle(t *testing.T) {
 			params: params{
 				configPath:    "testdata/env1/tt.yaml",
 				tntExecutable: "testdata/env1/bin/tarantool",
-				packCtx:       PackCtx{},
+				tcmExecutable: "testdata/env1/bin/tcm",
+				packCtx: PackCtx{
+					WithBinaries: true,
+				},
 			},
 			wantErr: false,
 			checks: []check{
@@ -416,6 +420,7 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.DirExists, "instances.enabled"},
 				{assert.FileExists, "bin/tarantool"},
 				{assert.FileExists, "bin/tt"},
+				{assert.FileExists, "bin/tcm"},
 				{assert.NoDirExists, "include"},
 				{assert.DirExists, "modules"},
 				{assert.FileExists, "tt.yaml"},
@@ -1082,6 +1087,9 @@ func Test_prepareBundle(t *testing.T) {
 					ConfigDir: filepath.Dir(configPath),
 					TarantoolCli: cmdcontext.TarantoolCli{
 						Executable: tt.params.tntExecutable,
+					},
+					TcmCli: cmdcontext.TcmCli{
+						Executable: tt.params.tcmExecutable,
 					},
 					ConfigPath: configPath,
 				},

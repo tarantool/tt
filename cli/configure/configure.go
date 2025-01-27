@@ -422,6 +422,9 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 	// Set default (system) tarantool binary, can be replaced by "local" or "system" later.
 	cmdCtx.Cli.TarantoolCli.Executable, _ = exec.LookPath("tarantool")
 
+	// Set default (system) tcm binary, can be replaced by "local" or "system" later.
+	cmdCtx.Cli.TcmCli.Executable, _ = exec.LookPath("tcm")
+
 	switch {
 	case cmdCtx.Cli.IsSystem:
 		return configureSystemCli(cmdCtx)
@@ -552,6 +555,29 @@ func detectLocalTt(cliOpts *config.CliOpts) (string, error) {
 	return localCli, nil
 }
 
+// detectLocalTcm searches for available Tcm executable.
+func detectLocalTcm(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (string, error) {
+	localTcm, err := util.JoinAbspath(cliOpts.Env.BinDir, "tcm")
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := os.Stat(localTcm); err == nil {
+		if _, err := exec.LookPath(localTcm); err != nil {
+			return "", fmt.Errorf(`found TCM binary %q isn't executable: %w`,
+				localTcm, err)
+		}
+
+		cmdCtx.Cli.TcmCli.Executable = localTcm
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("failed to get access to TCM binary file: %w", err)
+	}
+
+	log.Debugf("tcm executable found: %q", cmdCtx.Cli.TcmCli.Executable)
+
+	return localTcm, nil
+}
+
 // configureLocalCli configures Tarantool CLI if the launch is local.
 func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 	launchDir, err := os.Getwd()
@@ -592,6 +618,11 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 	}
 
 	if err = detectLocalTarantool(cmdCtx, cliOpts); err != nil {
+		return err
+	}
+
+	_, err = detectLocalTcm(cmdCtx, cliOpts)
+	if err != nil {
 		return err
 	}
 
