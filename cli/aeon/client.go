@@ -50,28 +50,29 @@ func getCertificate(args cmd.Ssl) (tls.Certificate, error) {
 }
 
 func getTlsConfig(args cmd.Ssl) (*tls.Config, error) {
-	if args.CaFile == "" {
-		return &tls.Config{
-			ClientAuth: tls.NoClientCert,
-		}, nil
-	}
+	var pool *x509.CertPool
 
-	ca, err := os.ReadFile(args.CaFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CA file: %w", err)
+	if args.CaFile != "" {
+		ca, err := os.ReadFile(args.CaFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA file: %w", err)
+		}
+
+		pool = x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(ca) {
+			return nil, errors.New("failed to append CA data")
+		}
 	}
-	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM(ca) {
-		return nil, errors.New("failed to append CA data")
-	}
+	// Else if RootCAs is nil, TLS uses the host's root CA set.
+
 	cert, err := getCertificate(args)
 	if err != nil {
 		return nil, fmt.Errorf("failed get certificate: %w", err)
 	}
+
 	return &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		RootCAs:      certPool,
+		RootCAs:      pool,
 	}, nil
 }
 
