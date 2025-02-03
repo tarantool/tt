@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt aeon connect`: add connection from the `app:insance_name`.
 - `tt tcm start`: add the tcm command.
+- `tt pack `: support `.packignore` file to specify files that should not be included
+  in package (works the same as `.gitignore`).
 
 ### Changed
 
