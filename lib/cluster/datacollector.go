@@ -3,7 +3,7 @@ package cluster
 import (
 	"time"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 

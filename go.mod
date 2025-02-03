@@ -26,7 +26,8 @@ require (
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-tarantool v1.12.2
-	github.com/tarantool/go-tarantool/v2 v2.2.0
+	github.com/tarantool/go-tarantool/v2 v2.2.1
+	github.com/tarantool/go-tlsdialer v1.0.0
 	github.com/tarantool/tt/lib/cluster v0.0.0
 	github.com/tarantool/tt/lib/integrity v0.0.0
 	github.com/vmihailenco/msgpack/v5 v5.3.5
@@ -116,6 +117,7 @@ require (
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.1.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
 	github.com/tklauser/numcpus v0.2.1 // indirect

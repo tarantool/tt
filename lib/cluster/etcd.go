@@ -129,8 +129,7 @@ func (collector EtcdAllCollector) Collect() ([]Data, error) {
 	}
 
 	if len(resp.Kvs) == 0 {
-		return nil, fmt.Errorf("a configuration data not found in etcd for prefix %q",
-			prefix)
+		return nil, CollectEmptyError{"etcd", prefix}
 	}
 
 	collected := []Data{}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
 )
 
 // TarantoolAllCollector collects data from a Tarantool for a whole prefix.
@@ -39,8 +39,7 @@ func (collector TarantoolAllCollector) Collect() ([]Data, error) {
 	}
 
 	if len(resp.Data) == 0 {
-		return nil, fmt.Errorf("a configuration data not found in tarantool for prefix %q",
-			prefix)
+		return nil, CollectEmptyError{"tarantool", prefix}
 	}
 
 	collected := []Data{}
@@ -471,18 +470,17 @@ type tarantoolGetResponse struct {
 
 // tarantoolCall retursns result of a function call via tarantool connector.
 func tarantoolCall(conn tarantool.Connector,
-	fun string, args []any, timeout time.Duration) ([][]any, error) {
+	fun string, args []any, timeout time.Duration) ([]any, error) {
 	req := tarantool.NewCallRequest(fun).Args(args)
 
 	if timeout != 0 {
-		ctx := context.Background()
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
 		req = req.Context(ctx)
 	}
 
-	var result [][]any
+	var result []any
 	if err := conn.Do(req).GetTyped(&result); err != nil {
 		return nil, err
 	}
@@ -500,11 +498,11 @@ func tarantoolGet(conn tarantool.Connector,
 	if err != nil {
 		return resp, fmt.Errorf("failed to fetch data from tarantool: %w", err)
 	}
-	if len(data) != 1 || len(data[0]) == 0 {
+	if len(data) != 1 {
 		return resp, fmt.Errorf("unexpected response from tarantool: %q", data)
 	}
 
-	if err := mapstructure.Decode(data[0][0], &resp); err != nil {
+	if err := mapstructure.Decode(data[0], &resp); err != nil {
 		return resp, fmt.Errorf("failed to map response from tarantool: %q", data[0])
 	}
 
@@ -533,11 +531,11 @@ func tarantoolTxnGet(conn tarantool.Connector,
 		return resp, fmt.Errorf("failed to fetch data from tarantool: %w", err)
 	}
 
-	if len(data) != 1 || len(data[0]) == 0 {
+	if len(data) != 1 {
 		return resp, fmt.Errorf("unexpected response from tarantool: %q", data)
 	}
 
-	if err := mapstructure.Decode(data[0][0], &resp); err != nil {
+	if err := mapstructure.Decode(data[0], &resp); err != nil {
 		return resp, fmt.Errorf("failed to map response from tarantool: %q", data[0])
 	}
 	if len(resp.Data.Responses) == 0 {
