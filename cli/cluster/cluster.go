@@ -1,12 +1,14 @@
 package cluster
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tlsdialer"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
 )
@@ -78,8 +80,9 @@ func collectEtcdConfig(collectors libcluster.CollectorFactory,
 func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 	clusterConfig libcluster.ClusterConfig) (*libcluster.Config, error) {
 	type tarantoolOpts struct {
-		addr string
-		opts tarantool.Opts
+		addr   string
+		dialer tarantool.Dialer
+		opts   tarantool.Opts
 	}
 
 	tarantoolConfig := clusterConfig.Config.Storage
@@ -92,31 +95,34 @@ func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 		} else {
 			network, address = connect.ParseBaseURI(endpoint.Uri)
 		}
-
+		addr := fmt.Sprintf("%s://%s", network, address)
 		if endpoint.Params.Transport == "" || endpoint.Params.Transport != "ssl" {
 			opts = append(opts, tarantoolOpts{
+				addr: addr,
+				dialer: tarantool.NetDialer{
+					Address:  addr,
+					User:     endpoint.Login,
+					Password: endpoint.Password,
+				},
 				opts: tarantool.Opts{
-					User:       endpoint.Login,
-					Pass:       endpoint.Password,
-					Transport:  endpoint.Params.Transport,
 					SkipSchema: true,
 				},
-				addr: fmt.Sprintf("%s://%s", network, address)})
+			})
 		} else {
 			opts = append(opts, tarantoolOpts{
+				addr: addr,
+				dialer: tlsdialer.OpenSSLDialer{
+					Address:     addr,
+					User:        endpoint.Login,
+					Password:    endpoint.Password,
+					SslKeyFile:  endpoint.Params.SslKeyFile,
+					SslCertFile: endpoint.Params.SslCertFile,
+					SslCaFile:   endpoint.Params.SslCaFile,
+					SslCiphers:  endpoint.Params.SslCiphers,
+				},
 				opts: tarantool.Opts{
-					User:      endpoint.Login,
-					Pass:      endpoint.Password,
-					Transport: endpoint.Params.Transport,
-					Ssl: tarantool.SslOpts{
-						KeyFile:  endpoint.Params.SslKeyFile,
-						CertFile: endpoint.Params.SslCertFile,
-						CaFile:   endpoint.Params.SslCaFile,
-						Ciphers:  endpoint.Params.SslCiphers,
-					},
 					SkipSchema: true,
 				},
-				addr: fmt.Sprintf("%s://%s", network, address),
 			})
 		}
 	}
@@ -124,8 +130,14 @@ func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 	var connectionErrors []error
 	cconfig := libcluster.NewConfig()
 	for _, opt := range opts {
-		conn, err := tarantool.Connect(opt.addr, opt.opts)
+		ctx := context.Background()
+		if opt.opts.Timeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, opt.opts.Timeout)
+			defer cancel()
+		}
 
+		conn, err := tarantool.Connect(ctx, opt.dialer, opt.opts)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
 				fmt.Errorf("error when connecting to endpoint %q: %w", opt.addr, err))

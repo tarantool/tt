@@ -8,7 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tlsdialer"
 
 	"github.com/tarantool/tt/cli/cluster/cmd"
 	libcluster "github.com/tarantool/tt/lib/cluster"
@@ -335,17 +336,24 @@ func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
 }
 
 func TestMakeConnectOptsFromUriOpts(t *testing.T) {
+	type Expected struct {
+		dialer tarantool.Dialer
+		opts   tarantool.Opts
+	}
 	cases := []struct {
-		Name         string
-		UriOpts      cmd.UriOpts
-		Expected     tarantool.Opts
-		ExpectedAddr string
+		Name     string
+		UriOpts  cmd.UriOpts
+		Expected Expected
 	}{
 		{
-			Name:         "empty",
-			UriOpts:      cmd.UriOpts{},
-			Expected:     tarantool.Opts{},
-			ExpectedAddr: "tcp://",
+			Name:    "empty",
+			UriOpts: cmd.UriOpts{},
+			Expected: Expected{
+				tarantool.NetDialer{
+					Address: "tcp://",
+				},
+				tarantool.Opts{},
+			},
 		},
 		{
 			Name: "ignored",
@@ -359,10 +367,14 @@ func TestMakeConnectOptsFromUriOpts(t *testing.T) {
 				SkipPeerVerify: true,
 				Timeout:        673,
 			},
-			Expected: tarantool.Opts{
-				Timeout: 673,
+			Expected: Expected{
+				tarantool.NetDialer{
+					Address: "tcp://",
+				},
+				tarantool.Opts{
+					Timeout: 673,
+				},
 			},
-			ExpectedAddr: "tcp://", // is this ok?
 		},
 		{
 			Name: "full",
@@ -383,28 +395,29 @@ func TestMakeConnectOptsFromUriOpts(t *testing.T) {
 				SkipPeerVerify: true,
 				Timeout:        2 * time.Second,
 			},
-			Expected: tarantool.Opts{
-				User:      "username",
-				Pass:      "password",
-				Timeout:   2 * time.Second,
-				Transport: "ssl",
-				Ssl: tarantool.SslOpts{
-					KeyFile:  "key_file",
-					CertFile: "cert_file",
-					CaFile:   "ca_file",
-					Ciphers:  "foo:bar:ciphers",
+			Expected: Expected{
+				tlsdialer.OpenSSLDialer{
+					Address:     "tcp://foo",
+					User:        "username",
+					Password:    "password",
+					SslKeyFile:  "key_file",
+					SslCertFile: "cert_file",
+					SslCaFile:   "ca_file",
+					SslCiphers:  "foo:bar:ciphers",
+				},
+				tarantool.Opts{
+					Timeout: 2 * time.Second,
 				},
 			},
-			ExpectedAddr: "tcp://foo",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			addr, tntOpts := cmd.MakeConnectOptsFromUriOpts(tc.UriOpts)
+			dialer, opts := cmd.MakeConnectOptsFromUriOpts(tc.UriOpts)
 
-			assert.Equal(t, tc.Expected, tntOpts)
-			assert.Equal(t, tc.ExpectedAddr, addr)
+			assert.Equal(t, tc.Expected.dialer, dialer)
+			assert.Equal(t, tc.Expected.opts, opts)
 		})
 	}
 }

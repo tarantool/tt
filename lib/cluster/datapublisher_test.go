@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
 	"github.com/tarantool/tt/lib/cluster"
 )
 

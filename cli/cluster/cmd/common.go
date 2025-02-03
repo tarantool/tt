@@ -1,13 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
 	"github.com/tarantool/tt/cli/cluster"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
@@ -144,19 +145,26 @@ type connectOpts struct {
 
 // connectTarantool establishes a connection to Tarantool.
 func connectTarantool(uriOpts UriOpts, connOpts connectOpts) (tarantool.Connector, error) {
-	addr, connectorOpts := MakeConnectOptsFromUriOpts(uriOpts)
-	if connectorOpts.User == "" && connectorOpts.Pass == "" {
-		connectorOpts.User = connOpts.Username
-		connectorOpts.Pass = connOpts.Password
-		if connectorOpts.User == "" {
-			connectorOpts.User = os.Getenv(connect.TarantoolUsernameEnv)
+	if uriOpts.Username == "" && uriOpts.Password == "" {
+		uriOpts.Username = connOpts.Username
+		uriOpts.Password = connOpts.Password
+		if uriOpts.Username == "" {
+			uriOpts.Username = os.Getenv(connect.TarantoolUsernameEnv)
 		}
-		if connectorOpts.Pass == "" {
-			connectorOpts.Pass = os.Getenv(connect.TarantoolPasswordEnv)
+		if uriOpts.Password == "" {
+			uriOpts.Password = os.Getenv(connect.TarantoolPasswordEnv)
 		}
 	}
 
-	conn, err := tarantool.Connect(addr, connectorOpts)
+	dialer, connectorOpts := MakeConnectOptsFromUriOpts(uriOpts)
+
+	ctx := context.Background()
+	if connectorOpts.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, connectorOpts.Timeout)
+		defer cancel()
+	}
+	conn, err := tarantool.Connect(ctx, dialer, connectorOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to tarantool: %w", err)
 	}

@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tlsdialer"
 
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
@@ -145,22 +146,32 @@ func MakeEtcdOptsFromUriOpts(src UriOpts) libcluster.EtcdOpts {
 
 // MakeConnectOptsFromUriOpts create Tarantool connect options from
 // URI options.
-func MakeConnectOptsFromUriOpts(src UriOpts) (string, tarantool.Opts) {
+func MakeConnectOptsFromUriOpts(src UriOpts) (tarantool.Dialer, tarantool.Opts) {
+	address := fmt.Sprintf("tcp://%s", src.Host)
+
+	var dialer tarantool.Dialer
+
+	if src.KeyFile != "" || src.CertFile != "" || src.CaFile != "" || src.Ciphers != "" {
+		dialer = tlsdialer.OpenSSLDialer{
+			Address:     address,
+			User:        src.Username,
+			Password:    src.Password,
+			SslKeyFile:  src.KeyFile,
+			SslCertFile: src.CertFile,
+			SslCaFile:   src.CaFile,
+			SslCiphers:  src.Ciphers,
+		}
+	} else {
+		dialer = tarantool.NetDialer{
+			Address:  address,
+			User:     src.Username,
+			Password: src.Password,
+		}
+	}
+
 	opts := tarantool.Opts{
-		User: src.Username,
-		Pass: src.Password,
-		Ssl: tarantool.SslOpts{
-			KeyFile:  src.KeyFile,
-			CertFile: src.CertFile,
-			CaFile:   src.CaFile,
-			Ciphers:  src.Ciphers,
-		},
 		Timeout: src.Timeout,
 	}
 
-	if opts.Ssl != (tarantool.SslOpts{}) {
-		opts.Transport = "ssl"
-	}
-
-	return fmt.Sprintf("tcp://%s", src.Host), opts
+	return dialer, opts
 }

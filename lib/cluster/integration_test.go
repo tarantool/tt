@@ -19,7 +19,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/tests/v3/integration"
 
-	"github.com/tarantool/go-tarantool"
+	"github.com/tarantool/go-tarantool/v2"
 
 	"github.com/tarantool/tt/lib/cluster"
 )
@@ -47,7 +47,9 @@ func startTcs(t *testing.T) *exec.Cmd {
 	var conn tarantool.Connector
 	// Wait for Tarantool to start.
 	for i := 0; i < 10; i++ {
-		conn, err = tarantool.Connect("127.0.0.1:3301", tarantool.Opts{})
+		conn, err = tarantool.Connect(context.Background(), tarantool.NetDialer{
+			Address: "127.0.0.1:3301",
+		}, tarantool.Opts{})
 		if err == nil {
 			defer conn.Close()
 			break
@@ -622,11 +624,13 @@ var testsIntegrity = []struct {
 				Timeout:       10 * time.Second,
 				Reconnect:     10 * time.Second,
 				MaxReconnects: 10,
-				User:          "client",
-				Pass:          "secret",
 			}
 
-			conn, err := tarantool.Connect("127.0.0.1:3301", opts)
+			conn, err := tarantool.Connect(context.Background(), tarantool.NetDialer{
+				Address:  "127.0.0.1:3301",
+				User:     "client",
+				Password: "secret",
+			}, opts)
 			require.NoError(t, err)
 
 			pub, err := publisherFactory.NewTarantool(conn, prefix, key, 1*time.Second)
@@ -647,11 +651,13 @@ var testsIntegrity = []struct {
 				Timeout:       10 * time.Second,
 				Reconnect:     10 * time.Second,
 				MaxReconnects: 10,
-				User:          "client",
-				Pass:          "secret",
 			}
 
-			conn, err := tarantool.Connect("127.0.0.1:3301", opts)
+			conn, err := tarantool.Connect(context.Background(), tarantool.NetDialer{
+				Address:  "127.0.0.1:3301",
+				User:     "client",
+				Password: "secret",
+			}, opts)
 			require.NoError(t, err)
 
 			coll, err := collectorFactory.NewTarantool(conn, prefix, key, 1*time.Second)
