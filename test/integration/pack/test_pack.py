@@ -1,11 +1,13 @@
 import filecmp
 import glob
+import itertools
 import os
 import re
 import shutil
 import stat
 import subprocess
 import tarfile
+from pathlib import Path
 
 import pytest
 import yaml
@@ -1875,3 +1877,114 @@ def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmp_path):
 
     build_output = tt_process.stdout.read()
     assert "Bundle is packed successfully" in build_output
+
+
+@pytest.mark.slow
+def test_pack_ignore(tt_cmd, tmp_path):
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "test_bundles"),
+                    tmp_path, symlinks=True, ignore=None,
+                    copy_function=shutil.copy2, ignore_dangling_symlinks=True,
+                    dirs_exist_ok=True)
+
+    bundle_src = "single_app"
+    base_dir = tmp_path / bundle_src
+
+    files_to_ignore = [
+        " ",
+        "#",
+        "#hash_name1",
+        "name1",
+        "subdir/name1",
+        "deep/nested/subdir/name1",
+        "subdir2/name1/file",
+        "name2",
+        "subdir/name3_blabla",
+        "dir1/file",
+        "subdir/dir1/file",
+        "dir2/file",
+        "subdir/dir3_blabla/file",
+        "name11",
+        "subdir/name11",
+        "deep/nested/subdir/name11",
+        "dir/name11/file_bla",
+        "dir/name11/file_blabla",
+        "dir12/name12",
+        "subdir/dir12/name12",
+        "deep/nested/subdir/dir12/name12",
+    ]
+
+    files_to_pack = [
+        "# ",
+        "#comment",
+        "#hash_name_reincluded",
+        "mismatched_name1",
+        ".mismatched_name2",
+        "subdir/mismatched_name3",
+        "deep/nested/subdir/mismatched_name4",
+        "name2_reincluded",
+        "subdir/name3_reincluded1",
+        "dir4/mismatched_dir_name",
+        "subdir/as_file/dir1",
+        "subdir/mismatched_dir2/file",
+        "dir2_reincluded/file",
+        "subdir/dir3_reincluded1/file"
+        "name12",
+        "mismatched_parent_dir/name12",
+        "deep/nested/mismatched_parent_dir/name12",
+    ]
+
+    ignore_patterns = [
+        " ",
+        "\\  ",
+        "#comment",
+        "\\#",
+        "\\#hash_name*",
+        "!#hash_name_reincluded",
+        "name1",
+        "name[2-3]*",
+        "!name2_reincluded",
+        "!name3_reincluded[1-9]",
+        "dir1/",
+        "dir[2-3]*/",
+        "!dir2_reincluded/",
+        "!dir3_reincluded[1-9]/",
+        "**/name11",
+        "**/dir12/name12",
+    ]
+
+    # Prepare .packignore layout.
+    (base_dir / ".packignore").write_text("\n".join(ignore_patterns) + "\n")
+    for f in itertools.chain(files_to_ignore, files_to_pack):
+        fpath = Path(base_dir, f)
+        fpath.parent.mkdir(parents=True, exist_ok=True)
+        fpath.write_text("")
+
+    packages_wildcard = os.path.join(base_dir, "*.tar.gz")
+    packages = set(glob.glob(packages_wildcard))
+
+    rc, _ = run_command_and_get_output(
+        [tt_cmd, "pack", "tgz"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
+    )
+    assert rc == 0
+
+    # Find the newly generated package.
+    new_packages = set(glob.glob(packages_wildcard)) - packages
+    assert len(new_packages) == 1
+    package_file = Path(next(iter(new_packages)))
+
+    extract_path = os.path.join(base_dir, "tmp")
+    os.mkdir(extract_path)
+
+    tar = tarfile.open(package_file)
+    tar.extractall(extract_path)
+    tar.close()
+
+    extract_base_dir = os.path.join(extract_path, bundle_src)
+    for file_path in [".packignore"] + files_to_ignore:
+        assert not os.path.exists(os.path.join(extract_base_dir, file_path)), \
+            f"'{os.path.join(extract_base_dir, file_path)}' unexpectedly exists"
+    for file_path in files_to_pack:
+        assert os.path.exists(os.path.join(extract_base_dir, file_path)), \
+            f"'{os.path.join(extract_base_dir, file_path)}' doesn't exist"
