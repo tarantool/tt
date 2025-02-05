@@ -69,7 +69,7 @@ jobs:
           goreleaser release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_linux.yml
 
       - name: Upload packages artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: packages-linux
           path: dist
@@ -115,7 +115,7 @@ jobs:
             --skip-publish --config ./goreleaser/.goreleaser_linux_arm64.yml
 
       - name: Upload packages artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: packages-linux-arm64
           path: dist
@@ -167,7 +167,7 @@ jobs:
           args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_macOS.yml
 
       - name: Upload packages artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: packages-macos
           path: dist
