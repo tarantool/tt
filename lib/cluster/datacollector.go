@@ -32,7 +32,7 @@ type DataCollectorFactory interface {
 		prefix, key string, timeout time.Duration) (DataCollector, error)
 	// NewTarantool creates a new data collector to collect configuration from
 	// tarantool config storage.
-	NewTarantool(conn tarantool.Connector,
+	NewTarantool(conn tarantool.Doer,
 		prefix, key string, timeout time.Duration) (DataCollector, error)
 }
 
@@ -60,7 +60,7 @@ func (factory collectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 
 // NewTarantool creates creates a new tarantool config storage configuration
 // collector.
-func (factory collectorsFactory) NewTarantool(conn tarantool.Connector,
+func (factory collectorsFactory) NewTarantool(conn tarantool.Doer,
 	prefix, key string, timeout time.Duration) (DataCollector, error) {
 	if key == "" {
 		return NewTarantoolAllCollector(conn, prefix, timeout), nil
@@ -100,7 +100,7 @@ func (factory integrityCollectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 
 // NewTarantool creates creates a new tarantool config storage configuration
 // collector with integrity checks.
-func (factory integrityCollectorsFactory) NewTarantool(conn tarantool.Connector,
+func (factory integrityCollectorsFactory) NewTarantool(conn tarantool.Doer,
 	prefix, key string, timeout time.Duration) (DataCollector, error) {
 	if key == "" {
 		return NewIntegrityTarantoolAllCollector(factory.checkFunc,

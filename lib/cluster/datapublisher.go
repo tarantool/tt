@@ -24,7 +24,7 @@ type DataPublisherFactory interface {
 		prefix, key string, timeout time.Duration) (DataPublisher, error)
 	// NewTarantool creates a new data publisher to publish data into tarantool
 	// config storage.
-	NewTarantool(conn tarantool.Connector,
+	NewTarantool(conn tarantool.Doer,
 		prefix, key string, timeout time.Duration) (DataPublisher, error)
 }
 
@@ -51,7 +51,7 @@ func (factory publishersFactory) NewEtcd(etcdcli *clientv3.Client,
 }
 
 // NewTarantool creates creates a new tarantool config storage data publisher.
-func (factory publishersFactory) NewTarantool(conn tarantool.Connector,
+func (factory publishersFactory) NewTarantool(conn tarantool.Doer,
 	prefix, key string, timeout time.Duration) (DataPublisher, error) {
 	if key == "" {
 		return NewTarantoolAllDataPublisher(conn, prefix, timeout), nil
@@ -89,7 +89,7 @@ func (factory integrityPublishersFactory) NewEtcd(etcdcli *clientv3.Client,
 
 // NewTarantool creates creates a new tarantool config storage data publisher
 // with integrity signing.
-func (factory integrityPublishersFactory) NewTarantool(conn tarantool.Connector,
+func (factory integrityPublishersFactory) NewTarantool(conn tarantool.Doer,
 	prefix, key string, timeout time.Duration) (DataPublisher, error) {
 	if key == "" {
 		return NewIntegrityTarantoolAllDataPublisher(factory.signFunc,

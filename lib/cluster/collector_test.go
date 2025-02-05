@@ -34,7 +34,7 @@ func (mock mockEtcdCollector) Collect() ([]cluster.Data, error) {
 }
 
 type mockTarantoolCollector struct {
-	conn    tarantool.Connector
+	conn    tarantool.Doer
 	prefix  string
 	key     string
 	timeout time.Duration
@@ -62,7 +62,7 @@ func (mock mockDataCollectorFactory) NewEtcd(etcdcli *clientv3.Client,
 	}, nil
 }
 
-func (mock mockDataCollectorFactory) NewTarantool(conn tarantool.Connector,
+func (mock mockDataCollectorFactory) NewTarantool(conn tarantool.Doer,
 	prefix, key string, timeout time.Duration) (cluster.DataCollector, error) {
 	return mockTarantoolCollector{
 		conn:    conn,

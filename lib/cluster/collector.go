@@ -23,7 +23,7 @@ type CollectorFactory interface {
 		prefix, key string, timeout time.Duration) (Collector, error)
 	// NewTarantool creates a new data collector to collect configuration from
 	// tarantool config storage.
-	NewTarantool(conn tarantool.Connector,
+	NewTarantool(conn tarantool.Doer,
 		prefix, key string, timeout time.Duration) (Collector, error)
 }
 
@@ -47,7 +47,7 @@ func (factory yamlDataCollectorFactoryDecorator) NewEtcd(etcdcli *clientv3.Clien
 }
 
 // NewTarantool creates a new tarantool DataCollector and wraps it.
-func (factory yamlDataCollectorFactoryDecorator) NewTarantool(conn tarantool.Connector,
+func (factory yamlDataCollectorFactoryDecorator) NewTarantool(conn tarantool.Doer,
 	prefix, key string, timeout time.Duration) (Collector, error) {
 	collector, err := factory.rawFactory.NewTarantool(conn, prefix, key, timeout)
 	return NewYamlCollectorDecorator(collector), err
