@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"math"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -422,6 +423,12 @@ func IsRegularFile(filePath string) bool {
 	}
 
 	return fileInfo.Mode().IsRegular()
+}
+
+// IsURL checks if str is a valid URL.
+func IsURL(str string) bool {
+	_, err := url.ParseRequestURI(str)
+	return err == nil
 }
 
 // Chdir changes current directory and updates PWD environment var accordingly.

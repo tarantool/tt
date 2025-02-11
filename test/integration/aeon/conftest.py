@@ -59,6 +59,24 @@ def aeon_plain(mock_aeon, tmp_path, request):
     assert aeon.wait(5) == 0, "Mock aeon server didn't stopped properly"
 
 
+@pytest.fixture(params=[50052])
+def aeon_plain_file(mock_aeon, request):
+    cmd = [mock_aeon, f"-port={request.param}"]
+
+    aeon = Popen(
+        cmd,
+        env=dict(os.environ, GRPC_GO_LOG_SEVERITY_LEVEL="info"),
+        stderr=STDOUT,
+        stdout=PIPE,
+        text=True,
+    )
+    print(wait_for_lines_in_output(aeon.stdout, ["ListenSocket created"]))
+    yield request.param
+
+    aeon.send_signal(SIGQUIT)
+    assert aeon.wait(5) == 0, "Mock aeon server didn't stopped properly"
+
+
 @pytest.fixture(params=["server-side", "mutual-tls"])
 def aeon_ssl(mock_aeon, certificates, request):
     cmd = [
