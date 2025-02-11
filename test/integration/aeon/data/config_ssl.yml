@@ -1,0 +1,131 @@
+credentials:
+  users:
+    aeon:
+      password: 'aeon-secret'
+      roles:
+      - super
+    replicator:
+      password: 'replication-secret'
+      roles:
+      - replication
+
+iproto:
+  advertise:
+    sharding:
+      login: aeon
+    peer:
+      login: replicator
+
+
+groups:
+  aeon-storages:
+    roles:
+    - aeon.storage
+    replication:
+      failover: election
+    replicasets:
+      aeon-storage-001:
+        instances:
+          aeon-storage-001-a:
+            iproto:
+              listen:
+              - uri: '3331'
+          aeon-storage-001-b:
+            iproto:
+              listen:
+              - uri: '3332'
+          aeon-storage-001-c:
+            iproto:
+              listen:
+              - uri: '3333'
+      aeon-storage-002:
+        instances:
+          aeon-storage-002-a:
+            iproto:
+              listen:
+              - uri: '3334'
+          aeon-storage-002-b:
+            iproto:
+              listen:
+              - uri: '3335'
+          aeon-storage-002-c:
+            iproto:
+              listen:
+              - uri: '3336'
+      aeon-storage-003:
+        instances:
+          aeon-storage-003-a:
+            iproto:
+              listen:
+              - uri: '3337'
+          aeon-storage-003-b:
+            iproto:
+              listen:
+              - uri: '3338'
+          aeon-storage-003-c:
+            iproto:
+              listen:
+              - uri: '3339'
+  aeon-routers:
+    roles:
+    - aeon.router
+    - aeon.grpc
+    roles_cfg:
+      aeon.grpc:
+        listen:
+          params:
+            transport: 'ssl'
+            ssl_key_file: '../server.key'
+            ssl_cert_file: '../server.crt'
+        advertise:
+          params:
+            transport: 'ssl'
+    replicasets:
+      aeon-router-001:
+        instances:
+          aeon-router-001:
+            roles_cfg:
+              aeon.grpc:
+                listen:
+                  uri: 'http://localhost:50051'
+                advertise:
+                  uri: 'http://localhost:50051'
+            iproto:
+              listen:
+              - uri: '3340'
+      aeon-router-002:
+        instances:
+          aeon-router-002:
+            roles_cfg:
+              aeon.grpc:
+                listen:
+                  uri: 'http://localhost:50052'
+                advertise:
+                  uri: 'http://localhost:50052'
+                  params:
+                    transport: 'ssl'
+                    ssl_key_file: '../server.key'
+                    ssl_cert_file: '../server.crt'
+            iproto:
+              listen:
+              - uri: '3341'
+  aeon-manager:
+    roles:
+     - aeon.manager
+    replication:
+      failover: election
+    replicasets:
+      aeon-manager:
+        instances:
+          aeon-manager-a:
+            iproto:
+              listen:
+              - uri: '3342'
+          aeon-manager-b:
+            iproto:
+              listen:
+              - uri: '3343'
+          aeon-manager-c:
+            iproto:
+              listen:
+              - uri: '3344'

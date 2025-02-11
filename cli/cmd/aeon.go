@@ -3,8 +3,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"regexp"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	aeon "github.com/tarantool/tt/cli/aeon"
 	aeoncmd "github.com/tarantool/tt/cli/aeon/cmd"
@@ -12,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/console"
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/lib/cluster"
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
@@ -26,11 +30,12 @@ var connectCtx = aeoncmd.ConnectCtx{
 
 func newAeonConnectCmd() *cobra.Command {
 	var aeonCmd = &cobra.Command{
-		Use:   "connect URI",
+		Use:   "connect [URI or PATH INSTANCE_NAME]",
 		Short: "Connect to the aeon instance",
 		Long: `Connect to the aeon instance.
-tt aeon connect localhost:50051
-tt aeon connect unix://<socket-path>`,
+		tt aeon connect localhost:50051
+		tt aeon connect unix://<socket-path>
+		tt aeon connect /path/to/config INSTANCE_NAME>`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			err := aeonConnectValidateArgs(cmd, args)
 			util.HandleCmdErr(cmd, err)
@@ -42,15 +47,15 @@ tt aeon connect unix://<socket-path>`,
 				internalAeonConnect, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		Args: cobra.ExactArgs(1),
+		Args: cobra.RangeArgs(1, 2),
 	}
+
 	aeonCmd.Flags().StringVar(&connectCtx.Ssl.KeyFile, "sslkeyfile", "",
 		"path to a private SSL key file")
 	aeonCmd.Flags().StringVar(&connectCtx.Ssl.CertFile, "sslcertfile", "",
 		"path to a SSL certificate file")
 	aeonCmd.Flags().StringVar(&connectCtx.Ssl.CaFile, "sslcafile", "",
 		"path to a trusted certificate authorities (CA) file")
-
 	aeonCmd.Flags().Var(&connectCtx.Transport, "transport",
 		fmt.Sprintf("allowed %s", aeoncmd.ListValidTransports()))
 	aeonCmd.RegisterFlagCompletionFunc("transport", aeonTransportCompletion)
@@ -80,7 +85,15 @@ func NewAeonCmd() *cobra.Command {
 }
 
 func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
-	connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(args[0])
+	if len(args) == 1 && util.IsURL(args[0]) {
+		connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(args[0])
+	} else if len(args) == 2 && util.IsRegularFile(args[0]) {
+		if err := readConfigFile(args); err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("failed to recognize a connect destination, see the command examples")
+	}
 
 	if !cmd.Flags().Changed("transport") && (connectCtx.Ssl.KeyFile != "" ||
 		connectCtx.Ssl.CertFile != "" || connectCtx.Ssl.CaFile != "") {
@@ -143,5 +156,70 @@ func internalAeonConnect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err != nil {
 		return fmt.Errorf("can't start aeon console: %w", err)
 	}
+	return nil
+}
+
+func readConfigFile(args []string) error {
+	var (
+		configPath = args[0]
+		instance   = args[1]
+	)
+
+	f, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+
+	pb := cluster.NewYamlCollector(f)
+	config, err := pb.Collect()
+	if err != nil {
+		return err
+	}
+
+	clusterConfig, err := cluster.MakeClusterConfig(config)
+	if err != nil {
+		return err
+	}
+
+	result := cluster.Instantiate(clusterConfig, instance)
+
+	// Get SSL connection.
+	dataSsl := []string{"roles_cfg", "aeon.grpc", "advertise"}
+	data, err := result.Get(dataSsl)
+	if err != nil {
+		return err
+	}
+
+	var advertise aeoncmd.Advertise
+	err = mapstructure.Decode(data, &advertise)
+	if err != nil {
+		return err
+	}
+
+	if advertise.Uri == "" {
+		return errors.New("invalid connection url")
+	}
+
+	re := regexp.MustCompile("^https?://")
+	cleanedURL := re.ReplaceAllString(advertise.Uri, "")
+
+	connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(cleanedURL)
+
+	if (advertise.Params.Transport != "ssl") && (advertise.Params.Transport != "plain") {
+		return errors.New("transport must be ssl or plain")
+	}
+
+	if advertise.Params.Transport == "ssl" {
+		connectCtx.Transport = aeoncmd.TransportSsl
+
+		connectCtx.Ssl = aeoncmd.Ssl{
+			KeyFile:  advertise.Params.KeyFile,
+			CertFile: advertise.Params.CertFile,
+			CaFile:   advertise.Params.CaFile,
+		}
+	} else if advertise.Params.Transport == "plain" {
+		connectCtx.Transport = aeoncmd.TransportPlain
+	}
+
 	return nil
 }

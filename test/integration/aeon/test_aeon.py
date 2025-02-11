@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import os
+import shutil
 from subprocess import PIPE, STDOUT, run
 
 import pytest
@@ -84,11 +86,6 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
 @pytest.mark.parametrize(
     "args, error",
     [
-        ((), "Error: accepts 1 arg(s), received 0"),
-        (
-            ("localhost:50051", "@aeon_unix_socket"),
-            "Error: accepts 1 arg(s), received 2",
-        ),
         (
             (
                 "--transport",
@@ -197,3 +194,35 @@ def test_cli_arguments_fail(tt_cmd, certificates, args, error):
     )
     assert result.returncode != 0
     assert error in result.stdout
+
+
+def test_cli_config_file_success(tt_cmd, tmp_path, aeon_plain_file):
+    tmp_path = os.path.join(tmp_path, "data")
+
+    print(f"Aeon plain at: {aeon_plain_file}")
+
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), "data"),
+        tmp_path,
+        symlinks=True,
+        ignore=None,
+        copy_function=shutil.copy2,
+        ignore_dangling_symlinks=True,
+    )
+
+    pathConfig = os.path.join(tmp_path, "config.yml")
+    assert os.path.isfile(pathConfig)
+
+    cmd = [str(tt_cmd), *AeonConnectCommand, pathConfig, "aeon-router-002"]
+    print(f"Run: {' '.join(cmd)}")
+
+    tt = run(
+        cmd,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0

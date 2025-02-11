@@ -854,3 +854,28 @@ func TestCollectWALFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestIsURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"Valid HTTP URL", "http://example.com", true},
+		{"Valid HTTPS URL", "https://example.com", true},
+		{"Valid localhost", "localhost:50051", true},
+		{"Valid HTTP localhost", "http://localhost:50051", true},
+		{"Empty string", "", false},
+		{"Invalid URL with double dots in host", "[one, two]", false},
+		{"Invalid URL with double dots in host", "invavid string", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsURL(tt.input)
+			if result != tt.expected {
+				t.Errorf("IsURL(%q) = %v; want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
