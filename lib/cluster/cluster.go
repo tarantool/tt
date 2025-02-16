@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tarantool/go-tarantool/v2"
+	libconnect "github.com/tarantool/tt/lib/connect"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -347,4 +350,47 @@ func FindGroupByReplicaset(cconfig ClusterConfig, replicaset string) (string, bo
 		}
 	}
 	return "", false
+}
+
+func CreateCollector(
+	collectors CollectorFactory,
+	connOpts ConnectOpts,
+	opts libconnect.UriOpts) (Collector, func(), error) {
+	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
+
+	var (
+		collector Collector
+		err       error
+		closeFunc func()
+	)
+
+	tarantoolFunc := func(conn tarantool.Connector) error {
+		if collectors != nil {
+			collector, err = collectors.NewTarantool(conn, prefix, key, timeout)
+			if err != nil {
+				conn.Close()
+				return fmt.Errorf("failed to create tarantool config storage collector: %w", err)
+			}
+		}
+		closeFunc = func() { conn.Close() }
+		return nil
+	}
+
+	etcdFunc := func(client *clientv3.Client) error {
+		if collectors != nil {
+			collector, err = collectors.NewEtcd(client, prefix, key, timeout)
+			if err != nil {
+				client.Close()
+				return fmt.Errorf("failed to create etcd collector: %w", err)
+			}
+		}
+		closeFunc = func() { client.Close() }
+		return nil
+	}
+
+	if err := DoOnStorage(connOpts, opts, tarantoolFunc, etcdFunc); err != nil {
+		return nil, nil, err
+	}
+
+	return collector, closeFunc, nil
 }
