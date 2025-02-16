@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,10 +14,12 @@ import (
 	aeoncmd "github.com/tarantool/tt/cli/aeon/cmd"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/console"
+	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
-	"github.com/tarantool/tt/lib/cluster"
+	libcluster "github.com/tarantool/tt/lib/cluster"
 	libconnect "github.com/tarantool/tt/lib/connect"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (
@@ -24,22 +27,46 @@ const (
 	aeonHistoryLines    = console.DefaultHistoryLines
 )
 
+var aoenHelp = libconnect.MakeURLHelp(map[string]any{
+	"service":    "etcd or tarantool config storage",
+	"param_key":  "a target configuration key in the prefix",
+	"param_name": "a name of an instance in the cluster configuration",
+	"/prefix": "key prefix (optional)," +
+		"points to a “namespace” or prefix for all key operations  " +
+		"example: If you set a key mykey, it will actually be stored as /prefix/mykey.",
+})
+
 var connectCtx = aeoncmd.ConnectCtx{
 	Transport: aeoncmd.TransportPlain,
 }
 
 func newAeonConnectCmd() *cobra.Command {
 	var aeonCmd = &cobra.Command{
-		Use:   "connect (<URI> | <PATH INSTANCE_NAME> | <APP_NAME:INSTANCE_NAME>)",
+		Use:   "connect (<URI> | <URI INSTANCE> | <PATH INSTANCE> | <APP:INSTANCE>)",
 		Short: "Connect to the aeon instance",
 		Long: `Connect to the aeon instance.
 		tt aeon connect http://localhost:50051
 		tt aeon connect unix://<socket-path>
-		tt aeon connect /path/to/config INSTANCE_NAME>`,
-		Run:  RunModuleFunc(internalAeonConnect),
+		tt aeon connect /path/to/config INSTANCE_NAME
+		tt aeon connect https://user:pass@localhost:2379/prefix INSTANCE` + "\n\n" +
+			aoenHelp,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			err := aeonConnectValidateArgs(cmd, args)
+			util.HandleCmdErr(cmd, err)
+			return err
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalAeonConnect, args)
+			util.HandleCmdErr(cmd, err)
+		},
 		Args: cobra.MatchAll(cobra.RangeArgs(1, 2), aeonConnectValidateArgs),
 	}
-
+	aeonCmd.Flags().StringVarP(&connectCtx.Username, "username", "u", "",
+		"username (used as etcd credentials only)")
+	aeonCmd.Flags().StringVarP(&connectCtx.Password, "password", "p", "",
+		"password (used as etcd credentials only)")
 	aeonCmd.Flags().StringVar(&connectCtx.Ssl.KeyFile, "sslkeyfile", "",
 		"path to a private SSL key file")
 	aeonCmd.Flags().StringVar(&connectCtx.Ssl.CertFile, "sslcertfile", "",
@@ -82,6 +109,11 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(url)
+	case len(args) == 2 && libconnect.IsCredentialsURI(args[0]):
+		err := getConfigUri(&cmdCtx, args[0], args[1])
+		if err != nil {
+			return err
+		}
 	case len(args) == 1 && !util.IsURL(args[0]):
 		configPath, _, _, err := parseAppStr(&cmdCtx, args[0])
 		if err != nil {
@@ -176,18 +208,18 @@ func readConfigFilePath(configPath string, instance string) error {
 		return err
 	}
 
-	pb := cluster.NewYamlCollector(f)
+	pb := libcluster.NewYamlCollector(f)
 	config, err := pb.Collect()
 	if err != nil {
 		return err
 	}
 
-	clusterConfig, err := cluster.MakeClusterConfig(config)
+	clusterConfig, err := libcluster.MakeClusterConfig(config)
 	if err != nil {
 		return err
 	}
 
-	result := cluster.Instantiate(clusterConfig, instance)
+	result := libcluster.Instantiate(clusterConfig, instance)
 
 	// Get SSL connection.
 	dataSsl := []string{"roles_cfg", "aeon.grpc", "advertise"}
@@ -232,6 +264,29 @@ func readConfigFilePath(configPath string, instance string) error {
 		if connectCtx.Ssl.CertFile == "" && advertise.Params.CertFile != "" {
 			connectCtx.Ssl.CertFile = util.JoinPaths(configDir, advertise.Params.CertFile)
 		}
+	}
+
+	return nil
+}
+
+func getConfigUri(cmdCtx *cmdcontext.CmdCtx, url string, instanceName string) error {
+	var dataCollectors libcluster.DataCollectorFactory
+	checkFunc, err := integrity.GetCheckFunction(cmdCtx.Integrity)
+	if err == integrity.ErrNotConfigured {
+		dataCollectors = libcluster.NewDataCollectorFactory()
+	} else if err != nil {
+		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
+	} else {
+		dataCollectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
+			func(path string) (io.ReadCloser, error) {
+				return cmdCtx.Integrity.Repository.Read(path)
+			})
+	}
+
+	aeonCollectors := libcluster.NewCollectorFactory(dataCollectors)
+
+	if uri, err := libconnect.CreateUriOpts(url); err == nil {
+		aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, aeonCollectors)
 	}
 
 	return nil

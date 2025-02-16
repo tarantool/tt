@@ -71,10 +71,6 @@ type UriOpts struct {
 	Prefix string
 	// Tag value of #fragment URL part.
 	Tag string
-	// // Key is a target key.
-	// Key string
-	// // Instance is an instance name.
-	// Instance string
 	// Username is a user name for authorization
 	Username string
 	// Password is a password for authorization

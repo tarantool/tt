@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   * `--path` - to show module executables.
 
 - `tt aeon connect` added tests for connect file/app.
+- `tt aeon connect`: add connection from the etcd/tcs config.
 - `tt pack `: support `.packignore` file to specify files that should not be included
   in package (works the same as `.gitignore`).
 - `tt tcm start`: add the tcm command.

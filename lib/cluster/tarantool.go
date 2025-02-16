@@ -3,12 +3,15 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tlsdialer"
+	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
 // TarantoolAllCollector collects data from a Tarantool for a whole prefix.
@@ -543,4 +546,64 @@ func tarantoolTxnGet(conn tarantool.Doer,
 	}
 
 	return resp, nil
+}
+
+// MakeConnectOptsFromUriOpts create Tarantool connect options from
+// URI options.
+func MakeConnectOptsFromUriOpts(src libconnect.UriOpts) (tarantool.Dialer, tarantool.Opts) {
+	address := fmt.Sprintf("tcp://%s", src.Host)
+
+	var dialer tarantool.Dialer
+
+	if src.KeyFile != "" || src.CertFile != "" || src.CaFile != "" || src.Ciphers != "" {
+		dialer = tlsdialer.OpenSSLDialer{
+			Address:     address,
+			User:        src.Username,
+			Password:    src.Password,
+			SslKeyFile:  src.KeyFile,
+			SslCertFile: src.CertFile,
+			SslCaFile:   src.CaFile,
+			SslCiphers:  src.Ciphers,
+		}
+	} else {
+		dialer = tarantool.NetDialer{
+			Address:  address,
+			User:     src.Username,
+			Password: src.Password,
+		}
+	}
+
+	opts := tarantool.Opts{
+		Timeout: src.Timeout,
+	}
+
+	return dialer, opts
+}
+
+func СonnectTarantool(uriOpts libconnect.UriOpts,
+	connOpts ConnectOpts) (tarantool.Connector, error) {
+	if uriOpts.Username == "" && uriOpts.Password == "" {
+		uriOpts.Username = connOpts.Username
+		uriOpts.Password = connOpts.Password
+		if uriOpts.Username == "" {
+			uriOpts.Username = os.Getenv(libconnect.TarantoolUsernameEnv)
+		}
+		if uriOpts.Password == "" {
+			uriOpts.Password = os.Getenv(libconnect.TarantoolPasswordEnv)
+		}
+	}
+
+	dialer, connectorOpts := MakeConnectOptsFromUriOpts(uriOpts)
+
+	ctx := context.Background()
+	if connectorOpts.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, connectorOpts.Timeout)
+		defer cancel()
+	}
+	conn, err := tarantool.Connect(ctx, dialer, connectorOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to tarantool: %w", err)
+	}
+	return conn, nil
 }
