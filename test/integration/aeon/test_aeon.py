@@ -23,6 +23,15 @@ def check_tt_aeon_response(output: str):
     assert False, f"Not found all expected Log records: {expected}"
 
 
+def copy_app(tmpdir, app_name):
+    app_path = os.path.join(tmpdir, app_name)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+
+
+def copy_file(path_file, tmpdir):
+    shutil.copy2(os.path.join(os.path.dirname(__file__), path_file), tmpdir)
+
+
 @pytest.mark.parametrize(
     "args",
     [
@@ -42,10 +51,11 @@ def test_cli_plain_arguments_success(tt_cmd, aeon_plain, certificates, args):
     cmd += (a.format(**certificates) for a in args)
     print(f"Aeon plain at: {aeon_plain}")
     if isinstance(aeon_plain, int):
-        cmd.append(f"localhost:{aeon_plain}")
+        cmd.append(f"http://localhost:{aeon_plain}")
     else:
         cmd.append(f"unix://{aeon_plain}")
 
+    print(f"unix://{aeon_plain}")
     print(f"Run: {' '.join(cmd)}")
     tt = run(
         cmd,
@@ -69,7 +79,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
     elif aeon_ssl == "server-side":
         cmd += ("--transport", "ssl")
 
-    cmd.append("localhost:50051")
+    cmd.append("http://localhost:50051")
 
     print(f"Run: {' '.join(cmd)}")
     tt = run(
@@ -90,7 +100,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
             (
                 "--transport",
                 "mode",
-                "localhost:50051",
+                "http://localhost:50051",
             ),
             'Error: invalid argument "mode" for "--transport" flag',
         ),
@@ -100,7 +110,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile=not-exits.key",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
-                "localhost:50051",
+                "http://localhost:50051",
             ),
             'not valid path to a private SSL key file="not-exits.key"',
         ),
@@ -110,7 +120,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile={c_private}",
                 "--sslcertfile=not-exits.key",
                 "--sslcafile={ca}",
-                "localhost:50051",
+                "http://localhost:50051",
             ),
             'not valid path to an SSL certificate file="not-exits.key"',
         ),
@@ -120,14 +130,14 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--sslkeyfile={c_private}",
                 "--sslcertfile={c_public}",
                 "--sslcafile=not-exits.key",
-                "localhost:50051",
+                "http://localhost:50051",
             ),
             'not valid path to trusted certificate authorities (CA) file="not-exits.key"',
         ),
         (
             (
                 "--sslcafile=not-exits.key",
-                "localhost:50051",
+                "http://localhost:50051",
             ),
             'not valid path to trusted certificate authorities (CA) file="not-exits.key"',
         ),
@@ -136,7 +146,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--transport=ssl",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
-                "localhost:50051",
+                "http://localhost:50051",
             ),
             "files Key and Cert must be specified both",
         ),
@@ -145,13 +155,13 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcafile={ca}",
-                "localhost:50051",
+                "http://localhost:50051",
             ),
             "files Key and Cert must be specified both",
         ),
         (
             (
-                "localhost:50051",
+                "http://localhost:50051",
                 "--transport=ssl",
                 "--sslcertfile={c_public}",
                 "--sslcafile={ca}",
@@ -161,7 +171,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
         ),
         (
             (
-                "localhost:50051",
+                "http://localhost:50051",
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcafile={ca}",
@@ -171,7 +181,7 @@ def test_cli_ssl_arguments_success(tt_cmd, aeon_ssl, certificates):
         ),
         (
             (
-                "localhost:50051",
+                "http://localhost:50051",
                 "--transport=ssl",
                 "--sslkeyfile={c_private}",
                 "--sslcertfile={c_public}",
@@ -196,7 +206,7 @@ def test_cli_arguments_fail(tt_cmd, certificates, args, error):
     assert error in result.stdout
 
 
-def test_cli_config_file_success(tt_cmd, tmp_path, aeon_plain_file):
+def test_cli_plain_config_file_success(tt_cmd, tmp_path, aeon_plain_file):
     tmp_path = os.path.join(tmp_path, "data")
 
     print(f"Aeon plain at: {aeon_plain_file}")
@@ -218,6 +228,53 @@ def test_cli_config_file_success(tt_cmd, tmp_path, aeon_plain_file):
 
     tt = run(
         cmd,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
+
+
+def test_cli_ssl_config_file_success(tt_cmd, tmp_path, aeon_ssl, certificates):
+    print(f"Aeon ssl mode: {aeon_ssl}")
+    for k, v in certificates.items():
+        shutil.copy2(v, tmp_path)
+
+    copy_file("data/config_ssl.yml", tmp_path)
+
+    configPath = os.path.join(tmp_path, "config_ssl.yml")
+    cmd = [str(tt_cmd), *AeonConnectCommand, configPath, "aeon-router-001"]
+
+    print(f"Run: {' '.join(cmd)}")
+
+    tt = run(
+        cmd,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
+
+
+@pytest.mark.parametrize("app_name", ["app"])
+def test_cli_plain_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_plain_file):
+    print(f"Aeon plain at: {aeon_plain_file}")
+
+    tmpdir = tmpdir_with_cfg
+    copy_app(tmpdir, app_name)
+
+    aeon_cmd = [str(tt_cmd), *AeonConnectCommand, "app:aeon-router-002"]
+    print(f"Run: {' '.join(aeon_cmd)}")
+
+    tt = run(
+        aeon_cmd,
+        cwd=tmpdir,
         capture_output=True,
         input="",
         text=True,

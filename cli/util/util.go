@@ -427,8 +427,27 @@ func IsRegularFile(filePath string) bool {
 
 // IsURL checks if str is a valid URL.
 func IsURL(str string) bool {
-	_, err := url.ParseRequestURI(str)
-	return err == nil
+	if strings.HasPrefix(str, "unix:") {
+		return true
+	}
+	u, err := url.Parse(str)
+
+	return err == nil && u.Scheme != "" && u.Host != "" && u.Opaque == "" && u.User == nil
+}
+
+// removeScheme removes the scheme from the input URL.
+func RemoveScheme(inputURL string) (string, error) {
+	parsedURL, err := url.Parse(inputURL)
+	if err != nil {
+		return "", err
+	}
+	if parsedURL.Scheme == "unix" {
+		return inputURL, nil
+	}
+	parsedURL.Scheme = ""
+
+	result := strings.Replace(parsedURL.String(), "//", "", 1)
+	return result, nil
 }
 
 // Chdir changes current directory and updates PWD environment var accordingly.

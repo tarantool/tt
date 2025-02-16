@@ -863,11 +863,15 @@ func TestIsURL(t *testing.T) {
 	}{
 		{"Valid HTTP URL", "http://example.com", true},
 		{"Valid HTTPS URL", "https://example.com", true},
-		{"Valid localhost", "localhost:50051", true},
+		{"Valid localhost", "localhost:50051", false},
 		{"Valid HTTP localhost", "http://localhost:50051", true},
+		{"Valid HTTP localhost", "tcp://localhost:50051", true},
+		{"Valid HTTPS URL user data", "https://user:pass@localhost:2379/prefix", false},
+		{"Invalid app:instance", "app:instance", false},
 		{"Empty string", "", false},
-		{"Invalid URL with double dots in host", "[one, two]", false},
-		{"Invalid URL with double dots in host", "invavid string", false},
+		{"Array", "[one, two]", false},
+		{"String", "invavid string", false},
+		{"UNIX", "unix:///var/run/tarantool/my_instance.sock", true},
 	}
 
 	for _, tt := range tests {
@@ -875,6 +879,35 @@ func TestIsURL(t *testing.T) {
 			result := IsURL(tt.input)
 			if result != tt.expected {
 				t.Errorf("IsURL(%q) = %v; want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRemoveScheme(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		wantErr  bool
+	}{
+		{"valid URL with http scheme", "http://example.com", "example.com", false},
+		{"valid URL with https scheme", "https://example.com", "example.com", false},
+		{"valid URL without scheme", "example.com", "example.com", false},
+		{"invalid URL", "://example.com", "", true},
+		{"URL with path", "http://example.com/path", "example.com/path", false},
+		{"URL with port", "http://example.com:8080", "example.com:8080", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := RemoveScheme(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("removeScheme() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.expected {
+				t.Errorf("removeScheme() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
