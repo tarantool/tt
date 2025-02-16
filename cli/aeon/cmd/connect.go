@@ -12,6 +12,10 @@ type Ssl struct {
 
 // ConnectCtx keeps context information for aeon connection.
 type ConnectCtx struct {
+	// Username defines a username for connection.
+	Username string
+	// Password defines a password for connection.
+	Password string
 	// Ssl group of paths to ssl key files.
 	Ssl Ssl
 	// Transport is a connection mode.
@@ -40,4 +44,10 @@ type AdvertiseParams struct {
 	CertFile string `mapstructure:"ssl_cert_file"`
 	// CaFile path to the trusted certificate authorities (CA) file (optional).
 	CaFile string `mapstructure:"ssl_ca_file"`
+}
+
+// connectOpts is additional connect options specified by a user.
+type connectOpts struct {
+	Username string
+	Password string
 }
