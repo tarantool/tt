@@ -12,6 +12,7 @@ from utils import wait_for_lines_in_output
 def certificates(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
     dir = tmp_path_factory.mktemp("aeon_cert")
     cmd = (Path(__file__).parent / "generate-keys.sh", dir)
+
     returncode = run(cmd).returncode
     assert returncode == 0, "Some error on generate certificates"
     cert = {
@@ -85,6 +86,7 @@ def aeon_ssl(mock_aeon, certificates, request):
         f"-key={certificates['s_private']}",
         f"-cert={certificates['s_public']}",
     ]
+
     mode = request.param
     if mode == "mutual-tls":
         cmd.append(f"-ca={certificates['ca']}")
