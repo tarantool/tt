@@ -12,6 +12,10 @@ type Ssl struct {
 
 // ConnectCtx keeps context information for aeon connection.
 type ConnectCtx struct {
+	// Username defines a username for connection.
+	Username string
+	// Password defines a password for connection.
+	Password string
 	// Ssl group of paths to ssl key files.
 	Ssl Ssl
 	// Transport is a connection mode.

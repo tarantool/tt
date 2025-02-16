@@ -5,6 +5,11 @@ from subprocess import PIPE, STDOUT, run
 
 import pytest
 
+from utils import get_fixture_tcs_params, is_tarantool_ee, is_tarantool_less_3
+
+fixture_tcs_params = get_fixture_tcs_params(os.path.join(os.path.dirname(
+                                            os.path.abspath(__file__)), "test_tcs_app"))
+
 AeonConnectCommand = ("aeon", "connect")
 
 
@@ -371,6 +376,86 @@ def test_cli_plain_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_plain_fil
         encoding="utf-8",
     )
 
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
+
+
+def test_cli_plain_tcs_success(tt_cmd, tmpdir_with_cfg, request, fixture_params, aeon_plain_file):
+
+    if is_tarantool_less_3() or not is_tarantool_ee():
+        pytest.skip()
+    for k, v in fixture_tcs_params.items():
+        fixture_params[k] = v
+    instance = request.getfixturevalue("tcs")
+    tmpdir = tmpdir_with_cfg
+
+    print(f"Aeon plain at: {aeon_plain_file}")
+    conn = instance.conn()
+
+    source_file = os.path.join(os.path.dirname(__file__), "data/config.yml")
+    file = open(source_file, "r")
+    config = file.read()
+
+    conn.call("config.storage.put", "/prefix/config/all", config)
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+    )
+
+    cmd = [
+        tt_cmd,
+        *AeonConnectCommand,
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix/",
+        "aeon-router-002",
+    ]
+    tt = run(
+        cmd,
+        cwd=tmpdir,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
+
+
+def test_cli_plain_etcd_success(tt_cmd, tmpdir_with_cfg,
+                                request, aeon_plain_file):
+
+    instance = request.getfixturevalue("etcd")
+    tmpdir = tmpdir_with_cfg
+
+    print(f"Aeon plain at: {aeon_plain_file}")
+    conn = instance.conn()
+
+    source_file = os.path.join(os.path.dirname(__file__), "data/config.yml")
+    file = open(source_file, "r")
+    config = file.read()
+
+    conn.put("/prefix/config/", config)
+
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+    )
+
+    cmd = [
+        tt_cmd,
+        *AeonConnectCommand,
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/prefix",
+        "aeon-router-002",
+    ]
+    tt = run(
+        cmd,
+        cwd=tmpdir,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
     check_tt_aeon_response(tt.stderr)
     assert tt.returncode == 0
 
