@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
   - `tt aeon connect` added tests for connect file/app.
 
+- `tt aeon connect`: add connection from the etcd/tcs config.
+
 ### Changed
 
 ### Fixed
