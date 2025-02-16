@@ -10,9 +10,14 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-var (
-	programName string
-)
+func uninstallProgramValidArgsFunc(cmd *cobra.Command, args []string, toComplete string) (
+	[]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return []string{}, cobra.ShellCompDirectiveNoFileComp
+	}
+	return uninstall.GetAvailableVersions(cmd.Name(), cliOpts.Env.BinDir),
+		cobra.ShellCompDirectiveNoFileComp
+}
 
 // newUninstallTtCmd creates a command to install tt.
 func newUninstallTtCmd() *cobra.Command {
@@ -21,21 +26,11 @@ func newUninstallTtCmd() *cobra.Command {
 		Short: "Uninstall tt",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
+				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		ValidArgsFunction: uninstallProgramValidArgsFunc,
 	}
 
 	return tntCmd
@@ -48,21 +43,11 @@ func newUninstallTarantoolCmd() *cobra.Command {
 		Short: "Uninstall tarantool community edition",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
+				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		ValidArgsFunction: uninstallProgramValidArgsFunc,
 	}
 
 	return tntCmd
@@ -75,21 +60,11 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 		Short: "Uninstall tarantool enterprise edition",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
+				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		ValidArgsFunction: func(
-			cmd *cobra.Command,
-			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
-			if len(args) > 0 {
-				return []string{}, cobra.ShellCompDirectiveNoFileComp
-			}
-			return uninstall.GetList(cliOpts, cmd.Name()),
-				cobra.ShellCompDirectiveNoFileComp
-		},
+		ValidArgsFunction: uninstallProgramValidArgsFunc,
 	}
 
 	return tntCmd
@@ -102,9 +77,8 @@ func newUninstallTarantoolDevCmd() *cobra.Command {
 		Short: "Uninstall tarantool-dev",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			programName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				InternalUninstallModule, args)
+				internalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
 	}
@@ -133,12 +107,13 @@ func NewUninstallCmd() *cobra.Command {
 	return uninstallCmd
 }
 
-// InternalUninstallModule is a default uninstall module.
-func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+// internalUninstallModule is a default uninstall module.
+func internalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
 
+	programName := cmdCtx.CommandName
 	programVersion := ""
 	if len(args) == 1 {
 		programVersion = args[0]
@@ -147,6 +122,6 @@ func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	err := uninstall.UninstallProgram(programName, programVersion, cliOpts.Env.BinDir,
-		cliOpts.Env.IncludeDir+"/include", cmdCtx)
+		cliOpts.Env.IncludeDir+"/include")
 	return err
 }
