@@ -23,7 +23,7 @@ if not fun then
     fun, errmsg = loadstring(cmd)
 end
 if not fun then
-    return yaml.encode({box.NULL})
+    return yaml.encode({ {error = errmsg} })
 end
 {{ end }}
 
