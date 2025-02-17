@@ -55,6 +55,9 @@ jobs:
 
       # These scripts will be picked up while building packages with goreleaser.
       - name: Generate ZSH and Bash completion scripts
+        env:
+          CGO_LDFLAGS: "-L${{ env.GITHUB_WORKSPACE }}/openssl/lib64"
+          CGO_CFLAGS: "-I${{ env.GITHUB_WORKSPACE }}/openssl/include"
         run: |
           mage build
           ./tt completion bash > tt-completion.bash
@@ -100,6 +103,10 @@ jobs:
 
       # These scripts will be picked up while building packages with goreleaser.
       - name: Generate ZSH and Bash completion scripts
+        env:
+          TT_CLI_BUILD_SSL: 'static'
+          CGO_LDFLAGS: "-L/opt/openssl/lib"
+          CGO_CFLAGS: "-I/opt/openssl/include"
         run: |
           mage build
           ./tt completion bash > tt-completion.bash
