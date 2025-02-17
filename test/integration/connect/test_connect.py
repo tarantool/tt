@@ -298,6 +298,42 @@ def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+def test_connect_and_handle_lua_parse_error(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    empty_file = "empty.lua"
+    # The test application file.
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_localhost_app", "test_app.lua")
+    # The test file.
+    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
+    # Copy test data into temporary directory.
+    copy_data(tmpdir, [test_app_path, empty_file_path])
+
+    # Start an instance.
+    start_app(tt_cmd, tmpdir, "test_app")
+
+    # Check for start.
+    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    assert file != ""
+
+    cmd = "hello)"
+    formats = {}
+
+    formats["yaml"] = f"""---\n- error: '[string "{cmd}"]:1: ''='' expected near '')'''\n..."""
+    formats["lua"] = f"""{{error = "[string "{cmd}"]:1: '=' expected near ')'"}};\n"""
+    formats["table"] = f"""| [string "{cmd}"]:1: '=' expected near ')' |\n"""
+    formats["ttable"] = f"""| error | [string "{cmd}"]:1: '=' expected near ')' |\n"""
+
+    try:
+        for format, expected in formats.items():
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013",
+                                                  stdin=cmd,  opts={"-x": format})
+            assert ret
+
+            assert expected in output
+    finally:
+        stop_app(tt_cmd, tmpdir, "test_app")
+
+
 def test_connect_and_execute_quit(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"

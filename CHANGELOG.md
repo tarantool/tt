@@ -27,6 +27,7 @@ TCM binary could be packed with `pack` subcommand.
 ### Fixed
 
 - `tt aeon`: did not use system CAs by default.
+- `tt connect`: return Lua parse error.
 
 ## [2.7.0] - 2025-01-22
 
