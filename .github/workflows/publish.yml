@@ -199,19 +199,19 @@ jobs:
           mkdir -p ./dist-prebuilt/packages-linux-arm64
 
       - name: Download linux binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: packages-linux
           path: ./dist-prebuilt/packages-linux
 
       - name: Download linux arm64 binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: packages-linux-arm64
           path: ./dist-prebuilt/packages-linux-arm64
 
       - name: Download macos binaries
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: packages-macos
           path: ./dist-prebuilt/packages-macos
@@ -283,7 +283,7 @@ jobs:
           go run bootstrap.go
 
       - name: Download x86_64 packages artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: packages-linux
           path: dist
@@ -295,7 +295,7 @@ jobs:
         run: mage publishRWS && rm -rf dist
 
       - name: Download arm64 packages artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: packages-linux-arm64
           path: dist
