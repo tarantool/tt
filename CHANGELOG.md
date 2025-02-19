@@ -9,10 +9,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.8.0] - 2025-02-19
+
+The release introduces an expanded ways to connect to `aeon` DB using:
+configuration file and fixing of using root certificates.
+TCM binary could be packed with `pack` subcommand.
+
+### Added
+
 - `tt pack `: added TCM file packaging.
 - `tt aeon connect`: add connection from the cluster config.
-
-### Changed
 
 ### Fixed
 
