@@ -13,6 +13,12 @@ func TestGenPort(t *testing.T) {
 	require.Equal(t, state.genPort(), 3302)
 }
 
+func TestGenMetricsPort(t *testing.T) {
+	state := newGenState()
+	require.Equal(t, state.genMetricsPort(), 8081)
+	require.Equal(t, state.genMetricsPort(), 8082)
+}
+
 func TestGenReplicasets(t *testing.T) {
 	replicasets, err := genReplicasets("name", 4, 3)
 	require.NoError(t, err)

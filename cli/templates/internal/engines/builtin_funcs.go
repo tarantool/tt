@@ -6,18 +6,25 @@ import (
 
 // genState describes template generation state.
 type genState struct {
-	port int
+	port, metricsPort int
 }
 
 // newGenState creates genState.
 func newGenState() *genState {
-	return &genState{port: 3301}
+	return &genState{port: 3301, metricsPort: 8081}
 }
 
 // genPort generates port.
 func (state *genState) genPort() int {
 	ret := state.port
 	state.port++
+	return ret
+}
+
+// genMetricsPort generates metrics port.
+func (state *genState) genMetricsPort() int {
+	ret := state.metricsPort
+	state.metricsPort++
 	return ret
 }
 
