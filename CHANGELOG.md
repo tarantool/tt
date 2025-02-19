@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added support for the `{{ metricsPort }}` construct in Go text templates.
+  This new function allows template users to generate a monitoring port value
+  directly within their templates, providing more flexibility and simplifying
+  configuration management.
+
 ### Changed
 
 ### Fixed
