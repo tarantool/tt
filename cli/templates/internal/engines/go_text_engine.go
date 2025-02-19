@@ -17,6 +17,7 @@ func makeTemplate(name string) *template.Template {
 	state := newGenState()
 	funcMap := template.FuncMap{
 		"port":        state.genPort,
+		"metricsPort": state.genMetricsPort,
 		"replicasets": genReplicasets,
 		"atoi":        strconv.Atoi,
 	}
