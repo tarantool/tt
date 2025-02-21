@@ -162,6 +162,10 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 		}
 	}
 
+	if maxLen == 0 {
+		return "", nil
+	}
+
 	var mapped []unorderedMap[any]
 	for _, item := range batch {
 		item := item.([]any)
@@ -480,6 +484,10 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 	// Handle empty input from remote console.
 	if input == "---\n- \n...\n" || input == "---\n-\n...\n" {
 		input = "--- ['']\n...\n"
+	}
+
+	if strings.Contains(input, "{}") {
+		input = "--- [{}]\n...\n"
 	}
 
 	var nodes []any
