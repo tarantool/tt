@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt connect`: return Lua parse error.
+
 ## [2.8.0] - 2025-02-19
 
 The release introduces an expanded ways to connect to `aeon` DB using:
@@ -31,7 +33,6 @@ TCM binary could be packed with `pack` subcommand.
 ### Fixed
 
 - `tt aeon`: did not use system CAs by default.
-- `tt connect`: return Lua parse error.
 
 ## [2.7.0] - 2025-01-22
 
