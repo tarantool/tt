@@ -202,7 +202,7 @@ func appendTags(args []string) ([]string, error) {
 	case BuildTypeDefault:
 		fallthrough
 	case BuildTypeNoCgo:
-		tags = append(tags, "go_tarantool_ssl_disable")
+		tags = append(tags, "go_tarantool_ssl_disable", "tt_ssl_disable")
 	case BuildTypeStatic:
 		tags = append(tags, "openssl_static")
 	case BuildTypeShared:

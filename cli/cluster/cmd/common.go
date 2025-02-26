@@ -156,7 +156,10 @@ func connectTarantool(uriOpts UriOpts, connOpts connectOpts) (tarantool.Connecto
 		}
 	}
 
-	dialer, connectorOpts := MakeConnectOptsFromUriOpts(uriOpts)
+	dialer, connectorOpts, err := MakeConnectOptsFromUriOpts(uriOpts)
+	if err != nil {
+		return nil, err
+	}
 
 	ctx := context.Background()
 	if connectorOpts.Timeout > 0 {

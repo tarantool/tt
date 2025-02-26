@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt connect`: return Lua parse error.
 - `tt connect`: panic on render empty table.
+- `tt` can be built without linking to OpenSSL.
 
 ## [2.8.0] - 2025-02-19
 
