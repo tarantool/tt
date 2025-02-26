@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt aeon connect`: add connection from the `app:insance_name`.
+- `tt tcm start`: add the tcm command.
 
 ### Changed
 
