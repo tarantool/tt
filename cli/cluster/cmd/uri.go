@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tarantool/v2"
-	"github.com/tarantool/go-tlsdialer"
 
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/dial"
 )
 
 const (
@@ -152,7 +152,7 @@ func MakeConnectOptsFromUriOpts(src UriOpts) (tarantool.Dialer, tarantool.Opts) 
 	var dialer tarantool.Dialer
 
 	if src.KeyFile != "" || src.CertFile != "" || src.CaFile != "" || src.Ciphers != "" {
-		dialer = tlsdialer.OpenSSLDialer{
+		dialer, _ = dial.New(dial.Opts{
 			Address:     address,
 			User:        src.Username,
 			Password:    src.Password,
@@ -160,7 +160,7 @@ func MakeConnectOptsFromUriOpts(src UriOpts) (tarantool.Dialer, tarantool.Opts) 
 			SslCertFile: src.CertFile,
 			SslCaFile:   src.CaFile,
 			SslCiphers:  src.Ciphers,
-		}
+		})
 	} else {
 		dialer = tarantool.NetDialer{
 			Address:  address,

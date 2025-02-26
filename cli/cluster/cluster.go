@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/tarantool/go-tarantool/v2"
-	"github.com/tarantool/go-tlsdialer"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
+	"github.com/tarantool/tt/lib/dial"
 )
 
 const (
@@ -109,17 +109,23 @@ func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 				},
 			})
 		} else {
+			dialer, err := dial.New(dial.Opts{
+				Address:         addr,
+				User:            endpoint.Login,
+				Password:        endpoint.Password,
+				SslKeyFile:      endpoint.Params.SslKeyFile,
+				SslCertFile:     endpoint.Params.SslCertFile,
+				SslCaFile:       endpoint.Params.SslCaFile,
+				SslCiphers:      endpoint.Params.SslCiphers,
+				SslPassword:     endpoint.Params.SslPassword,
+				SslPasswordFile: endpoint.Params.SslPasswordFile,
+			})
+			if err != nil {
+				return nil, err
+			}
 			opts = append(opts, tarantoolOpts{
-				addr: addr,
-				dialer: tlsdialer.OpenSSLDialer{
-					Address:     addr,
-					User:        endpoint.Login,
-					Password:    endpoint.Password,
-					SslKeyFile:  endpoint.Params.SslKeyFile,
-					SslCertFile: endpoint.Params.SslCertFile,
-					SslCaFile:   endpoint.Params.SslCaFile,
-					SslCiphers:  endpoint.Params.SslCiphers,
-				},
+				addr:   addr,
+				dialer: dialer,
 				opts: tarantool.Opts{
 					SkipSchema: true,
 				},
