@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- `tt pack `: added TCM file packaging.
-- `tt aeon connect`: add connection from the cluster config.
 - `tt aeon connect`: add connection from the `app:insance_name`.
+- `tt pack `: support `.packignore` file to specify files that should not be included
+  in package (works the same as `.gitignore`).
 
 ### Changed
 
