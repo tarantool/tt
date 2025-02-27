@@ -435,6 +435,11 @@ func IsURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != "" && u.Opaque == "" && u.User == nil
 }
 
+func IsAuthURL(str string) bool {
+	u, err := url.Parse(str)
+	return err == nil && u.Scheme != "" && u.Host != "" && u.User != nil
+}
+
 // removeScheme removes the scheme from the input URL.
 func RemoveScheme(inputURL string) (string, error) {
 	parsedURL, err := url.Parse(inputURL)

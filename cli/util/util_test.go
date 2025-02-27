@@ -912,3 +912,32 @@ func TestRemoveScheme(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAuthURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"Valid HTTP URL", "http://example.com", false},
+		{"Valid HTTPS URL", "https://example.com", false},
+		{"Valid localhost", "localhost:50051", false},
+		{"Valid HTTP localhost", "http://localhost:50051", false},
+		{"Valid HTTP localhost", "tcp://localhost:50051", false},
+		{"Valid HTTP localhost", "https://localhost:50051", false},
+		{"Valid HTTP localhost", "https://user:pass@localhost:2379/prefix", true},
+		{"Invalid app:instance", "app:instance", false},
+		{"Empty string", "", false},
+		{"Invalid URL array", "[one, two]", false},
+		{"Invalid URL string", "invavid string", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsAuthURL(tt.input)
+			if result != tt.expected {
+				t.Errorf("IsAuthURL(%q) = %v; want %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
