@@ -93,6 +93,12 @@ func TestTextRendering(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, expectedText, actualText)
 
+	templateText = "{{metricsPort}}"
+	expectedText = "8081"
+	actualText, err = engine.RenderText(templateText, nil)
+	require.NoError(t, err)
+	assert.Equal(t, expectedText, actualText)
+
 	templateText = `{{range replicasets "name" 1 1}}` +
 		"Hi, {{.Name}}! Your instances: {{ range .InstNames }}{{.}}{{end}}{{end}}"
 	expectedText = "Hi, name-001! Your instances: name-001-a"
