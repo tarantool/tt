@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
+	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
@@ -14,6 +14,7 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/console"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/cluster"
 	libconnect "github.com/tarantool/tt/lib/connect"
@@ -30,10 +31,10 @@ var connectCtx = aeoncmd.ConnectCtx{
 
 func newAeonConnectCmd() *cobra.Command {
 	var aeonCmd = &cobra.Command{
-		Use:   "connect [URI or PATH INSTANCE_NAME]",
+		Use:   "connect (<URI> | <PATH INSTANCE_NAME> | <APP_NAME:INSTANCE_NAME>)",
 		Short: "Connect to the aeon instance",
 		Long: `Connect to the aeon instance.
-		tt aeon connect localhost:50051
+		tt aeon connect http://localhost:50051
 		tt aeon connect unix://<socket-path>
 		tt aeon connect /path/to/config INSTANCE_NAME>`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
@@ -85,13 +86,29 @@ func NewAeonCmd() *cobra.Command {
 }
 
 func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
-	if len(args) == 1 && util.IsURL(args[0]) {
-		connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(args[0])
-	} else if len(args) == 2 && util.IsRegularFile(args[0]) {
-		if err := readConfigFile(args); err != nil {
+	switch {
+	case len(args) == 1 && util.IsURL(args[0]):
+		url, err := util.RemoveScheme(args[0])
+		if err != nil {
 			return err
 		}
-	} else {
+		connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(url)
+	case len(args) == 1 && !util.IsURL(args[0]):
+		configPath, _, _, err := parseAppStr(&cmdCtx, args[0])
+		if err != nil {
+			return err
+		}
+
+		_, instName, _ := strings.Cut(args[0], string(running.InstanceDelimiter))
+
+		if err := readConfigFilePath(configPath, instName); err != nil {
+			return err
+		}
+	case len(args) == 2 && util.IsRegularFile(args[0]):
+		if err := readConfigFilePath(args[0], args[1]); err != nil {
+			return err
+		}
+	default:
 		return fmt.Errorf("failed to recognize a connect destination, see the command examples")
 	}
 
@@ -159,12 +176,7 @@ func internalAeonConnect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return nil
 }
 
-func readConfigFile(args []string) error {
-	var (
-		configPath = args[0]
-		instance   = args[1]
-	)
-
+func readConfigFilePath(configPath string, instance string) error {
 	f, err := os.ReadFile(configPath)
 	if err != nil {
 		return err
@@ -200,8 +212,10 @@ func readConfigFile(args []string) error {
 		return errors.New("invalid connection url")
 	}
 
-	re := regexp.MustCompile("^https?://")
-	cleanedURL := re.ReplaceAllString(advertise.Uri, "")
+	cleanedURL, err := util.RemoveScheme(advertise.Uri)
+	if err != nil {
+		return err
+	}
 
 	connectCtx.Network, connectCtx.Address = libconnect.ParseBaseURI(cleanedURL)
 
@@ -211,14 +225,13 @@ func readConfigFile(args []string) error {
 
 	if advertise.Params.Transport == "ssl" {
 		connectCtx.Transport = aeoncmd.TransportSsl
+		configDir := filepath.Dir(configPath)
 
 		connectCtx.Ssl = aeoncmd.Ssl{
-			KeyFile:  advertise.Params.KeyFile,
-			CertFile: advertise.Params.CertFile,
-			CaFile:   advertise.Params.CaFile,
+			KeyFile:  util.JoinPaths(configDir, advertise.Params.KeyFile),
+			CertFile: util.JoinPaths(configDir, advertise.Params.CertFile),
+			CaFile:   util.JoinPaths(configDir, advertise.Params.CaFile),
 		}
-	} else if advertise.Params.Transport == "plain" {
-		connectCtx.Transport = aeoncmd.TransportPlain
 	}
 
 	return nil

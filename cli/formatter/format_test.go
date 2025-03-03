@@ -311,6 +311,45 @@ func TestFormatter_MakeOutputFormat(t *testing.T) {
 			"",
 			true,
 		},
+		{
+			// when user typed to console:
+			// localhost:xxxx> \set output table
+			// localhost:xxxx> {}
+			formatter.TableFormat,
+			"{}",
+			"\n",
+			false,
+		},
+		{
+			formatter.TableFormat,
+			"{},",
+			"\n",
+			false,
+		},
+		{
+			formatter.TableFormat,
+			"{};",
+			"\n",
+			false,
+		},
+		{
+			formatter.TableFormat,
+			"{{}}",
+			"\n",
+			false,
+		},
+		{
+			formatter.TableFormat,
+			"{{}",
+			"\n",
+			false,
+		},
+		{
+			formatter.TableFormat,
+			"{}}",
+			"\n",
+			false,
+		},
 	}
 
 	for _, c := range cases {
