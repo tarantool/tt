@@ -3,6 +3,7 @@ import os
 import platform
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,7 +16,7 @@ from utils import (BINARY_PORT_NAME, control_socket, create_tt_config,
                    run_command_and_get_output, run_path,
                    skip_if_cluster_app_unsupported, skip_if_quit_unsupported,
                    skip_if_tarantool_ce, skip_if_tuple_format_supported,
-                   skip_if_tuple_format_unsupported, wait_file)
+                   skip_if_tuple_format_unsupported, wait_file, wait_files)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -3136,3 +3137,33 @@ def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
 
     finally:
         stop_app(tt_cmd, tmpdir, "test_app")
+
+
+@pytest.mark.tt(app_path='test_single_app/test_app.lua')
+@pytest.mark.parametrize('sig', [
+    pytest.param(signal.SIGINT, id='SIGINT'),
+    pytest.param(signal.SIGQUIT, id='SIGQUIT'),
+])
+def test_disconnect_by_signal(tt, sig):
+    # Start an instance.
+    tt.exec("start", "test_app")
+    # Check for start.
+    assert wait_files(5, [tt.path('configured')])
+
+    p = tt.popen("connect", "test_app",
+                 stdin=subprocess.PIPE,
+                 stdout=subprocess.PIPE,
+                 stderr=subprocess.PIPE,
+                 universal_newlines=True)
+
+    try:
+        p.communicate("while true do end", 2)
+        # Should not reach this code.
+        assert False
+    except subprocess.TimeoutExpired:
+        p.send_signal(sig)
+
+    assert p.wait(1) is not None
+
+    # Make sure the instance is stopped.
+    tt.exec("kill", "-f", "test_app")
