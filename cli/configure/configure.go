@@ -438,17 +438,18 @@ func Cli(cmdCtx *cmdcontext.CmdCtx) error {
 
 // ExternalCmd configures external commands.
 func ExternalCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
-	modulesInfo *modules.ModulesInfo, args []string) {
-	configureExistsCmd(rootCmd, modulesInfo)
+	modulesInfo *modules.ModulesInfo, forceInternal bool, args []string) {
+	configureExistsCmd(rootCmd, modulesInfo, forceInternal)
 	configureNonExistentCmd(rootCmd, cmdCtx, modulesInfo, args)
 }
 
 // configureExistsCmd configures an external commands
 // that have internal implementation.
-func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo) {
+func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo,
+	forceInternal bool) {
 	for _, cmd := range rootCmd.Commands() {
 		if _, found := (*modulesInfo)[cmd.CommandPath()]; found {
-			cmd.DisableFlagParsing = true
+			cmd.DisableFlagParsing = !forceInternal
 		}
 	}
 }

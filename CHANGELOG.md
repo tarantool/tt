@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Arguments of an internal command are not parsed if it is forced over its existent
+  external counterpart.
+
 ## [2.8.1] - 2025-03-10
 
 The release introduces minor changes in stabilization of `tt connect`
