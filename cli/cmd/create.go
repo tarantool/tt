@@ -133,6 +133,7 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	createCtx := create_ctx.CreateCtx{
 		AppName:        appName,
+		TemplateName:   args[0],
 		ForceMode:      forceMode,
 		SilentMode:     nonInteractiveMode,
 		VarsFromCli:    *varsFromCli,
@@ -141,7 +142,7 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		CliOpts:        cliOpts,
 	}
 
-	if err := create.FillCtx(cliOpts, &createCtx, args); err != nil {
+	if err := create.FillCtx(cliOpts, &createCtx); err != nil {
 		return err
 	}
 

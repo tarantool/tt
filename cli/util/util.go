@@ -1001,10 +1001,6 @@ func StringToTimestamp(input string) (string, error) {
 
 // CollectWALFiles globs files from args.
 func CollectWALFiles(paths []string) ([]string, error) {
-	if len(paths) < 1 {
-		return nil, errors.New("it is required to specify at least one .xlog/.snap file " +
-			"or directory")
-	}
 	collectedFiles := make([]string, 0)
 
 	sortSnapFilesFirst := func(left, right string) int {

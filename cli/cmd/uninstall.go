@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
@@ -26,6 +24,7 @@ func newUninstallTtCmd() *cobra.Command {
 				InternalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -53,6 +52,7 @@ func newUninstallTarantoolCmd() *cobra.Command {
 				InternalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -80,6 +80,7 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 				InternalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
@@ -107,6 +108,7 @@ func newUninstallTarantoolDevCmd() *cobra.Command {
 				InternalUninstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.ExactArgs(0),
 	}
 
 	return tntCmd
@@ -142,8 +144,6 @@ func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	programVersion := ""
 	if len(args) == 1 {
 		programVersion = args[0]
-	} else if len(args) > 1 {
-		return fmt.Errorf("wrong number of arguments")
 	}
 
 	err := uninstall.UninstallProgram(programName, programVersion, cliOpts.Env.BinDir,

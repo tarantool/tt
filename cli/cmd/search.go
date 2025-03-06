@@ -27,6 +27,7 @@ func newSearchTtCmd() *cobra.Command {
 				internalSearchModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.ExactArgs(0),
 	}
 
 	return tntCmd
@@ -43,6 +44,7 @@ func newSearchTarantoolCmd() *cobra.Command {
 				internalSearchModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.ExactArgs(0),
 	}
 
 	return tntCmd
@@ -59,6 +61,7 @@ func newSearchTarantoolEeCmd() *cobra.Command {
 				internalSearchModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.ExactArgs(0),
 	}
 	tntCmd.Flags().BoolVar(&debug, "debug", debug,
 		"search for debug builds of tarantool-ee SDK")
