@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"sort"
 	"strings"
 	"syscall"
@@ -276,7 +277,27 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		console.livePrefixEnabled = false
 	}
 
-	return executor, nil
+	signalable_executor := func(in string) {
+		// Signal handler.
+		handleSignals := func(console *Console, stop chan struct{}) {
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, syscall.SIGINT, syscall.SIGQUIT)
+			select {
+			case <-stop:
+				return
+			case <-sig:
+				console.Close()
+				os.Exit(0)
+			}
+		}
+
+		stop := make(chan struct{})
+		go handleSignals(console, stop)
+		executor(in)
+		stop <- struct{}{}
+	}
+
+	return signalable_executor, nil
 }
 
 func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {

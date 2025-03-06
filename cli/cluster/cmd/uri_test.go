@@ -414,8 +414,9 @@ func TestMakeConnectOptsFromUriOpts(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			dialer, opts := cmd.MakeConnectOptsFromUriOpts(tc.UriOpts)
+			dialer, opts, err := cmd.MakeConnectOptsFromUriOpts(tc.UriOpts)
 
+			assert.NoError(t, err)
 			assert.Equal(t, tc.Expected.dialer, dialer)
 			assert.Equal(t, tc.Expected.opts, opts)
 		})

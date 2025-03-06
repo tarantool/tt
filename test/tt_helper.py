@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import utils
 
@@ -39,8 +40,16 @@ class Tt(object):
     def exec(self, *args, **kwargs):
         args = list(filter(lambda x: x is not None, args))
         cmd = [self.__tt_cmd, *args]
-        input = kwargs.get('input')
-        return utils.run_command_and_get_output(cmd, cwd=self.__work_dir, input=input)
+        tt_kwargs = dict(cwd=self.__work_dir)
+        tt_kwargs.update(kwargs)
+        return utils.run_command_and_get_output(cmd, **tt_kwargs)
+
+    def popen(self, *args, **kwargs):
+        args = list(filter(lambda x: x is not None, args))
+        cmd = [self.__tt_cmd, *args]
+        tt_kwargs = dict(cwd=self.__work_dir)
+        tt_kwargs.update(kwargs)
+        return subprocess.Popen(cmd, **tt_kwargs)
 
     def path(self, *paths):
         return os.path.join(self.__work_dir, *paths)
