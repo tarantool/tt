@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -26,6 +27,12 @@ func NewEnableCmd() *cobra.Command {
 				internalEnableModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return errors.New("provide the path to a script or application directory")
+			}
+			return nil
+		},
 	}
 
 	return initCmd
@@ -33,10 +40,6 @@ func NewEnableCmd() *cobra.Command {
 
 // internalEnableModule is a default enable module.
 func internalEnableModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("provide the path to a script or application directory")
-	}
-
 	if cliOpts.Env.InstancesEnabled == "." {
 		return fmt.Errorf("enabling application for instances enabled '.' is not supported")
 	}

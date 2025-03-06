@@ -1595,17 +1595,12 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) e
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 
 	if cmdCtx.CommandName == search.ProgramDev {
-		if len(args) != 1 {
-			return fmt.Errorf("exactly one build directory must be specified")
-		}
 		installCtx.buildDir = args[0]
 		return nil
 	}
 
 	if len(args) == 1 {
 		installCtx.version = args[0]
-	} else if len(args) > 1 {
-		return fmt.Errorf("invalid number of parameters")
 	}
 
 	return nil
