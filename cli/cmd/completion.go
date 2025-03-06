@@ -20,7 +20,6 @@ func NewCompletionCmd() *cobra.Command {
 		ValidArgs: []string{"bash", "zsh"},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
-			args = modules.GetDefaultCmdArgs(cmd.Name())
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalCompletionCmd, args)
 			util.HandleCmdErr(cmd, err)
