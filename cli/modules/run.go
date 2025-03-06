@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // InternalFunc is a type of function that implements
@@ -41,17 +41,17 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 		return fmt.Errorf("integrity check failed for %q: %w", info.ExternalPath, err)
 	}
 	f.Close()
-	if rc := RunExec(info.ExternalPath, args); rc != 0 {
+	if rc := RunExec(info.ExternalPath, getExternalCmdArgs(cmdCtx.CommandName)); rc != 0 {
 		os.Exit(rc)
 	}
 
 	return nil
 }
 
-// GetDefaultCmdArgs returns all arguments from the command line
+// getExternalCmdArgs returns all arguments from the command line
 // to external module that come after the command name.
-func GetDefaultCmdArgs(cmdName string) []string {
-	cmdNameIndexInArgs := util.Find(os.Args, cmdName)
+func getExternalCmdArgs(cmdName string) []string {
+	cmdNameIndexInArgs := slices.Index(os.Args, cmdName)
 	return os.Args[cmdNameIndexInArgs+1:]
 }
 
