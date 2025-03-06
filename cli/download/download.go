@@ -15,8 +15,8 @@ import (
 )
 
 type DownloadCtx struct {
-	// SDK version to download.
-	version string
+	// Version of SDK to download.
+	Version string
 	// Path where the sdk will be saved.
 	DirectoryPrefix string
 	// Download development build.
@@ -41,7 +41,7 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 
 	log.Info("Search for the requested version...")
 	ver, err := search.GetTarantoolBundleInfo(cliOpts, false,
-		downloadCtx.DevBuild, nil, downloadCtx.version)
+		downloadCtx.DevBuild, nil, downloadCtx.Version)
 	if err != nil {
 		return fmt.Errorf("cannot get SDK bundle info: %s", err)
 	}
@@ -76,16 +76,4 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	log.Infof("Downloaded to: %q", bundlePath)
 
 	return err
-}
-
-func FillCtx(cmdCtx *cmdcontext.CmdCtx, downloadCtx *DownloadCtx, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("to download Tarantool SDK, you need to specify the version")
-	} else if len(args) == 1 {
-		downloadCtx.version = args[0]
-	} else if len(args) > 1 {
-		return fmt.Errorf("invalid number of parameters")
-	}
-
-	return nil
 }

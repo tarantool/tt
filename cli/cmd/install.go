@@ -22,6 +22,7 @@ func newInstallTtCmd() *cobra.Command {
 				internalInstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.MaximumNArgs(1),
 	}
 
 	return tntCmd
@@ -39,6 +40,7 @@ func newInstallTarantoolCmd() *cobra.Command {
 				internalInstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.MaximumNArgs(1),
 	}
 
 	tntCmd.Flags().BoolVarP(&installCtx.BuildInDocker, "use-docker", "", false,
@@ -61,6 +63,7 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 				internalInstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.MaximumNArgs(1),
 	}
 
 	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "install development build")
@@ -86,6 +89,7 @@ func newInstallTarantoolDevCmd() *cobra.Command {
 				internalInstallModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.ExactArgs(1),
 	}
 
 	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",

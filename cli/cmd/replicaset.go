@@ -313,7 +313,7 @@ func newRebootstrapCmd() *cobra.Command {
 				internalReplicasetRebootstrapModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		Args: cobra.ExactArgs(1),
+		Args: replicasetRebootstrapValidateArgs,
 	}
 
 	cmd.Flags().BoolVarP(&rebootstrapConfirmed, "yes", "y", false,
@@ -813,21 +813,23 @@ func getOrchestrator() (replicaset.Orchestrator, error) {
 	return orchestrator, nil
 }
 
-// internalReplicasetRebootstrapModule is a "rebootstrap" command for the replicaset module.
-func internalReplicasetRebootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+// replicasetRebootstrapValidateArgs validates "rebootstrap" command arguments.
+func replicasetRebootstrapValidateArgs(cmd *cobra.Command, args []string) error {
 	if len(args) > 1 {
-		return util.NewArgError("only one instance supported for re-bootstrap")
+		return errors.New("only one instance supported for re-bootstrap")
 	}
 	if len(args) < 1 {
-		return util.NewArgError("instance for rebootstrap is not specified")
+		return errors.New("instance for rebootstrap is not specified")
 	}
-
-	appName, instName, found := strings.Cut(args[0], string(running.InstanceDelimiter))
-	if !found {
-		return util.NewArgError(
-			"an instance name is not specified. Please use app:instance format.")
+	if !strings.Contains(args[0], string(running.InstanceDelimiter)) {
+		return errors.New("an instance name is not specified. Please use app:instance format")
 	}
+	return nil
+}
 
+// internalReplicasetRebootstrapModule is a "rebootstrap" command for the replicaset module.
+func internalReplicasetRebootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	appName, instName, _ := strings.Cut(args[0], string(running.InstanceDelimiter))
 	return replicaset.Rebootstrap(*cmdCtx, *cliOpts, replicaset.RebootstrapCtx{
 		AppName:      appName,
 		InstanceName: instName,
