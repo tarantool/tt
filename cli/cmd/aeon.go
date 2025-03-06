@@ -37,18 +37,13 @@ func newAeonConnectCmd() *cobra.Command {
 		tt aeon connect http://localhost:50051
 		tt aeon connect unix://<socket-path>
 		tt aeon connect /path/to/config INSTANCE_NAME>`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			err := aeonConnectValidateArgs(cmd, args)
-			util.HandleCmdErr(cmd, err)
-			return err
-		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalAeonConnect, args)
 			util.HandleCmdErr(cmd, err)
 		},
-		Args: cobra.RangeArgs(1, 2),
+		Args: cobra.MatchAll(cobra.RangeArgs(1, 2), aeonConnectValidateArgs),
 	}
 
 	aeonCmd.Flags().StringVar(&connectCtx.Ssl.KeyFile, "sslkeyfile", "",
