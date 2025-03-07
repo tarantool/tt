@@ -13,7 +13,6 @@ import (
 	aeoncmd "github.com/tarantool/tt/cli/aeon/cmd"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/console"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/cluster"
@@ -42,12 +41,7 @@ func newAeonConnectCmd() *cobra.Command {
 			util.HandleCmdErr(cmd, err)
 			return err
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalAeonConnect, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  TtModuleCmdRun(internalAeonConnect),
 		Args: cobra.RangeArgs(1, 2),
 	}
 

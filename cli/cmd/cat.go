@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/checkpoint"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -34,12 +33,7 @@ func NewCatCmd() *cobra.Command {
 	var catCmd = &cobra.Command{
 		Use:   "cat <FILE>...",
 		Short: "Print into stdout the contents of .snap/.xlog FILE(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalCatModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalCatModule),
 		Example: "tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
 			"--timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
 			"  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +

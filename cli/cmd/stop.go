@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -18,13 +17,8 @@ func NewStopCmd() *cobra.Command {
 	var stopCmd = &cobra.Command{
 		Use:   "stop [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Stop tarantool instance(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalStopWithConfirmationModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.RangeArgs(0, 1),
+		Run:   TtModuleCmdRun(internalStopWithConfirmationModule),
+		Args:  cobra.RangeArgs(0, 1),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
