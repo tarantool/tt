@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt aeon connect`: add connection from the `app:insance_name`.
-- `tt tcm start`: add the tcm command.
 - Added support for the `{{ metricsPort }}` construct in Go text templates.
   This new function allows template users to generate a monitoring port value
   directly within their templates, providing more flexibility and simplifying
