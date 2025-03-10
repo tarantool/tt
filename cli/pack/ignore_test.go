@@ -15,31 +15,37 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// mapSlice is a generic slice mapper function.
-func mapSlice[T, V any](ts []T, fn func(T) V) []V {
-	result := make([]V, len(ts))
-	for i, t := range ts {
-		result[i] = fn(t)
-	}
-	return result
-}
-
-// ignoreTestData is used to define the very basic data set
+// ignorePatternCase is used to define the very basic data set
 // which then used as a source to generate the actual testcases
 // suitable for the corresponding test functions.
-type ignoreTestData struct {
-	name       string
+type ignorePatternCase struct {
 	pattern    string
 	matches    []string
 	mismatches []string
+	dirOnly    bool
+	isNegate   bool
+}
+
+type ignorePatternCases = map[string]ignorePatternCase
+
+type transformPattern func(*ignorePatternCase)
+
+// preparePatterns return copy of the given data set with the
+// transformation applied to each item.
+func preparePatterns(src ignorePatternCases, fn transformPattern) ignorePatternCases {
+	result := make(ignorePatternCases, len(src))
+	for name, tc := range src {
+		fn(&tc)
+		result[name] = tc
+	}
+	return result
 }
 
 // The 'pattern' field of any item from this data set refers to name (no path separator).
 // The 'matches'/'mismatches' fields must contain only names as well. This constraint allows
 // to expand corresponding test cases for the certain function in a more convenient way.
-var ignoreTestData_names = []ignoreTestData{
-	{
-		name:    "simple_name",
+var ignoreTestCaseNames = preparePatterns(ignorePatternCases{
+	"simple_name": {
 		pattern: "foo",
 		matches: []string{
 			"foo",
@@ -52,8 +58,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo_bla",
 		},
 	},
-	{
-		name:    "name_with_space",
+	"with_space": {
 		pattern: "foo with space",
 		matches: []string{
 			"foo with space",
@@ -66,8 +71,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo with space_bla",
 		},
 	},
-	{
-		name:    "name_ends_with_space",
+	"ends_with_space": {
 		pattern: "foo_ends_with_space\\ ",
 		matches: []string{
 			"foo_ends_with_space ",
@@ -81,8 +85,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo_ends_with_space bla",
 		},
 	},
-	{
-		name:    "name_with_brackets",
+	"with_brackets": {
 		pattern: "foo(with_brackets)",
 		matches: []string{
 			"foo(with_brackets)",
@@ -95,8 +98,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo(with_brackets)_bla",
 		},
 	},
-	{
-		name:    "name_with_curly_brackets",
+	"with_curly_brackets": {
 		pattern: "foo{with_curly_brackets}",
 		matches: []string{
 			"foo{with_curly_brackets}",
@@ -109,8 +111,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo{with_curly_brackets}_bla",
 		},
 	},
-	{
-		name:    "name_with_plus",
+	"with_plus": {
 		pattern: "f+oo",
 		matches: []string{
 			"f+oo",
@@ -124,8 +125,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_f+oo2_bla",
 		},
 	},
-	{
-		name:    "name_with_escaped_square_brackets",
+	"with_escaped_square_brackets": {
 		pattern: "foo\\[with_escaped_square_brackets\\]",
 		matches: []string{
 			"foo[with_escaped_square_brackets]",
@@ -138,8 +138,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo[with_escaped_square_brackets]2_bla",
 		},
 	},
-	{
-		name:    "name_with_escaped_question",
+	"with_escaped_question": {
 		pattern: "foo\\?with_escaped_question",
 		matches: []string{
 			"foo?with_escaped_question",
@@ -153,8 +152,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo?with_escaped_question2_bla",
 		},
 	},
-	{
-		name:    "name_with_escaped_asterisk",
+	"with_escaped_asterisk": {
 		pattern: "foo\\*with_escaped_asterisk",
 		matches: []string{
 			"foo*with_escaped_asterisk",
@@ -167,8 +165,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo*with_escaped_asterisk2_bla",
 		},
 	},
-	{
-		name:    "name_with_question_prefix",
+	"with_question_prefix": {
 		pattern: "?foo",
 		matches: []string{
 			"2foo",
@@ -184,8 +181,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_2foo_bla",
 		},
 	},
-	{
-		name:    "name_with_question_suffix",
+	"with_question_suffix": {
 		pattern: "foo?",
 		matches: []string{
 			"foo2",
@@ -200,8 +196,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo2_bla",
 		},
 	},
-	{
-		name:    "name_with_question_between",
+	"with_question_between": {
 		pattern: "f?oo",
 		matches: []string{
 			"f2oo",
@@ -216,8 +211,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_f2oo_bla",
 		},
 	},
-	{
-		name:    "name_with_asterisk_prefix",
+	"with_asterisk_prefix": {
 		pattern: "*foo",
 		matches: []string{
 			"blabla_foo",
@@ -232,8 +226,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_2foo_bla",
 		},
 	},
-	{
-		name:    "name_with_asterisk_suffix",
+	"with_asterisk_suffix": {
 		pattern: "foo*",
 		matches: []string{
 			"foo_blabla",
@@ -248,8 +241,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_2foo_bla",
 		},
 	},
-	{
-		name:    "name_with_asterisk_between",
+	"with_asterisk_between": {
 		pattern: "f*oo",
 		matches: []string{
 			"f2oo",
@@ -264,8 +256,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo2_bla",
 		},
 	},
-	{
-		name:    "name_with_range_basic",
+	"with_range_basic": {
 		pattern: "f[n-p]o",
 		matches: []string{
 			"fno",
@@ -282,8 +273,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo_bla",
 		},
 	},
-	{
-		name:    "name_with_range_inverted",
+	"with_range_inverted": {
 		pattern: "f[^n-p]o",
 		matches: []string{
 			"f2o",
@@ -297,8 +287,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"fpo",
 		},
 	},
-	{
-		name:    "name_with_set_basic",
+	"with_set_basic": {
 		pattern: "[fgm]oo",
 		matches: []string{
 			"foo",
@@ -314,8 +303,7 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_foo_bla",
 		},
 	},
-	{
-		name:    "name_with_set_inverted",
+	"with_set_inverted": {
 		pattern: "[^fgm]oo",
 		matches: []string{
 			"zoo",
@@ -331,11 +319,16 @@ var ignoreTestData_names = []ignoreTestData{
 			"bla_zoo_bla",
 		},
 	},
-}
+}, func(tc *ignorePatternCase) {
+	// Extend each case with some meaningful paths.
+	tc.matches = append(tc.matches,
+		"in_subdir/"+tc.matches[0],
+		"in/deep/nested/subdir/"+tc.matches[0],
+	)
+})
 
-var ignoreTestData_paths = []ignoreTestData{
-	{
-		name:    "name_at_depth1",
+var ignoreTestCaseWildcard = ignorePatternCases{
+	"at_depth1": {
 		pattern: "*/foo",
 		matches: []string{
 			"in_subdir/foo",
@@ -348,8 +341,7 @@ var ignoreTestData_paths = []ignoreTestData{
 			"similar_in_subdir/foo2",
 		},
 	},
-	{
-		name:    "name_at_depth2",
+	"at_depth2": {
 		pattern: "*/*/foo",
 		matches: []string{
 			"in_subdir/of_depth2/foo",
@@ -362,8 +354,7 @@ var ignoreTestData_paths = []ignoreTestData{
 			"similar_in_subdir/of_depth2/foo2",
 		},
 	},
-	{
-		name:    "under_name_depth1",
+	"under_name_depth1": {
 		pattern: "foo/*",
 		matches: []string{
 			"foo/bar",
@@ -375,8 +366,7 @@ var ignoreTestData_paths = []ignoreTestData{
 			"foo2/blabla",
 		},
 	},
-	{
-		name:    "under_name_depth2",
+	"under_name_depth2": {
 		pattern: "foo/*/*",
 		matches: []string{
 			"foo/subdir/bar",
@@ -390,8 +380,7 @@ var ignoreTestData_paths = []ignoreTestData{
 			"foo2/subdir/bar",
 		},
 	},
-	{
-		name:    "name_with_double_asterisk_leading",
+	"with_double_asterisk_leading": {
 		pattern: "**/foo",
 		matches: []string{
 			"foo",
@@ -405,8 +394,7 @@ var ignoreTestData_paths = []ignoreTestData{
 			"subdir/foo2/bar",
 		},
 	},
-	{
-		name:    "name_with_double_asterisk_trailing",
+	"with_double_asterisk_trailing": {
 		pattern: "foo/**",
 		matches: []string{
 			"foo/bar",
@@ -421,8 +409,7 @@ var ignoreTestData_paths = []ignoreTestData{
 			"similar_subdir/foo2/bar",
 		},
 	},
-	{
-		name:    "name_with_inner_double_asterisk",
+	"with_inner_double_asterisk": {
 		pattern: "foo/**/bar",
 		matches: []string{
 			"foo/bar",
@@ -441,122 +428,83 @@ var ignoreTestData_paths = []ignoreTestData{
 	},
 }
 
-type testCase_ignorePattern struct {
-	name               string
-	pattern            string
-	expectedMatches    []string
-	expectedMismatches []string
-	expectedDirOnly    bool
-	expectedIsNegate   bool
+func mergeTestCases(cases ...ignorePatternCases) ignorePatternCases {
+	result := make(ignorePatternCases)
+	for _, tc := range cases {
+		for name, data := range tc {
+			if _, ok := result[name]; ok {
+				panic("duplicate test case name: " + name)
+			}
+			result[name] = data
+		}
+	}
+	return result
 }
 
-func runTestSet_ignorePattern(t *testing.T, testCases []testCase_ignorePattern) {
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+var ignoreBaseTestCasesPattern = mergeTestCases(ignoreTestCaseNames, ignoreTestCaseWildcard)
+
+// NOTE: For a new test that is not based on basic set the below snippet can be used.
+// func Test_createIgnorePattern_someNewTest(t *testing.T) {
+//     tc := ignorePatternCase{
+//         "test_name": {...},
+//     }
+//     checkIgnorePattern(t, tc)
+// }
+
+func checkIgnorePattern(t *testing.T, cases ignorePatternCases) {
+	t.Helper()
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
 			p, err := createIgnorePattern(tc.pattern, "")
 			assert.Nil(t, err)
 			assert.NotNil(t, p.re)
-			assert.Equal(t, tc.expectedDirOnly, p.dirOnly)
-			assert.Equal(t, tc.expectedIsNegate, p.isNegate)
-			for _, s := range tc.expectedMatches {
+			assert.Equal(t, tc.dirOnly, p.dirOnly)
+			assert.Equal(t, tc.isNegate, p.isNegate)
+			for _, s := range tc.matches {
 				assert.Truef(t, p.re.MatchString(s), "%q doesn't match %s", s, p.re.String())
 			}
-			for _, s := range tc.expectedMismatches {
+			for _, s := range tc.mismatches {
 				assert.False(t, p.re.MatchString(s), "%q matches %s", s, p.re.String())
 			}
 		})
 	}
 }
 
-// Prepare basic test set for createIgnorePattern function
-var testCases_ignorePatternBasic = slices.Concat(
-	mapSlice(ignoreTestData_names, func(td ignoreTestData) testCase_ignorePattern {
-		return testCase_ignorePattern{
-			name:    td.name,
-			pattern: td.pattern,
-			// Expand with some meaningful paths (td.matches itself has no path-item).
-			expectedMatches: append(td.matches,
-				"in_subdir/"+td.matches[0],
-				"in/deep/nested/subdir/"+td.matches[0],
-			),
-			expectedMismatches: td.mismatches,
-			expectedDirOnly:    false,
-			expectedIsNegate:   false,
-		}
-	}),
-	mapSlice(ignoreTestData_paths, func(td ignoreTestData) testCase_ignorePattern {
-		return testCase_ignorePattern{
-			name:               td.name,
-			pattern:            td.pattern,
-			expectedMatches:    td.matches,
-			expectedMismatches: td.mismatches,
-			expectedDirOnly:    false,
-			expectedIsNegate:   false,
-		}
-	}),
-)
-
 func Test_createIgnorePattern_basic(t *testing.T) {
-	runTestSet_ignorePattern(t, testCases_ignorePatternBasic)
+	checkIgnorePattern(t, ignoreBaseTestCasesPattern)
 }
 
 func Test_createIgnorePattern_negate(t *testing.T) {
-	testCases := mapSlice(testCases_ignorePatternBasic,
-		func(tc testCase_ignorePattern) testCase_ignorePattern {
-			return testCase_ignorePattern{
-				name:               tc.name,
-				pattern:            "!" + tc.pattern,
-				expectedMatches:    tc.expectedMatches,
-				expectedMismatches: tc.expectedMismatches,
-				expectedDirOnly:    tc.expectedDirOnly,
-				expectedIsNegate:   true,
-			}
-		},
-	)
-	runTestSet_ignorePattern(t, testCases)
+	invertPattern := func(td *ignorePatternCase) {
+		td.pattern = "!" + td.pattern
+		td.isNegate = true
+	}
+
+	tc := preparePatterns(ignoreBaseTestCasesPattern, invertPattern)
+	checkIgnorePattern(t, tc)
 }
 
 func Test_createIgnorePattern_dirOnly(t *testing.T) {
-	testCases := mapSlice(testCases_ignorePatternBasic,
-		func(tc testCase_ignorePattern) testCase_ignorePattern {
-			return testCase_ignorePattern{
-				name:               tc.name,
-				pattern:            tc.pattern + "/",
-				expectedMatches:    tc.expectedMatches,
-				expectedMismatches: tc.expectedMismatches,
-				expectedDirOnly:    true,
-				expectedIsNegate:   tc.expectedIsNegate,
-			}
-		},
-	)
-	runTestSet_ignorePattern(t, testCases)
+	addDirSlash := func(td *ignorePatternCase) {
+		td.pattern += "/"
+		td.dirOnly = true
+	}
+
+	tc := preparePatterns(ignoreBaseTestCasesPattern, addDirSlash)
+	checkIgnorePattern(t, tc)
 }
 
 func Test_createIgnorePattern_trailingSpace(t *testing.T) {
-	testCases := mapSlice(testCases_ignorePatternBasic,
-		func(tc testCase_ignorePattern) testCase_ignorePattern {
-			return testCase_ignorePattern{
-				name:               tc.name,
-				pattern:            tc.pattern + strings.Repeat(" ", 1+len(tc.name)%3),
-				expectedMatches:    tc.expectedMatches,
-				expectedMismatches: tc.expectedMismatches,
-				expectedDirOnly:    tc.expectedDirOnly,
-				expectedIsNegate:   tc.expectedIsNegate,
-			}
-		},
-	)
-	runTestSet_ignorePattern(t, testCases)
+	addTrailingSpace := func(td *ignorePatternCase) {
+		td.pattern += strings.Repeat(" ", 1+len(td.pattern)%3)
+	}
+
+	tc := preparePatterns(ignoreBaseTestCasesPattern, addTrailingSpace)
+	checkIgnorePattern(t, tc)
 }
 
-// NOTE: For a new test that is not based on basic set the below snippet can be used.
-// func Test_createIgnorePattern_someNewTest(t *testing.T) {
-// 	testCases := []testCase_ignorePattern{
-// 		{...}
-// 	}
-// 	runTestSet_ignorePattern(t, testCases)
-// }
-
-type testCase_ignoreFilter struct {
+type ignoreFilterCase struct {
 	// Test name.
 	name string
 	// Ignore patterns.
@@ -564,32 +512,58 @@ type testCase_ignoreFilter struct {
 	// Files that are expected to be ignored/copied during copy.
 	// Make sure all of them are able to exist within a single FS (the same name should not
 	// refer to a file and a directory).
-	expectedIgnored []string
-	expectedCopied  []string
+	ignored []string
+	copied  []string
 }
 
-func runTestSet_ignoreFilter(t *testing.T, testCases []testCase_ignoreFilter) {
-	// Helper function to create mock FS for the testcase
-	createFS := func(tc testCase_ignoreFilter) fs.FS {
-		fsys := fstest.MapFS{}
-		if tc.patterns != nil {
-			fsys[ignoreFile] = &fstest.MapFile{
-				Data: []byte(strings.Join(tc.patterns, "\n")),
-				Mode: fs.FileMode(0644),
-			}
-		}
-		for _, name := range slices.Concat(tc.expectedCopied, tc.expectedIgnored) {
-			fsys[name] = &fstest.MapFile{
-				Mode: fs.FileMode(0644),
-			}
-		}
-		return fsys
+type makeFilterFromPattern func(ignorePatternCase) ignoreFilterCase
+
+func prepareFiltersFromPattern(
+	src ignorePatternCases,
+	fn makeFilterFromPattern,
+) []ignoreFilterCase {
+	result := make([]ignoreFilterCase, 0, len(src))
+	for name, tc := range src {
+		f := fn(tc)
+		f.name = name
+		result = append(result, f)
 	}
+	return result
+}
 
-	basedst := t.TempDir()
+type transformFilter func(*ignoreFilterCase)
 
-	// Do test
-	for _, tc := range testCases {
+func prepareFilters(src []ignoreFilterCase, fn transformFilter) []ignoreFilterCase {
+	result := make([]ignoreFilterCase, len(src))
+	for i, tc := range src {
+		fn(&tc)
+		result[i] = tc
+	}
+	return result
+}
+
+// createFS function to create mock FS for the testcase.
+func createFS(tc ignoreFilterCase) fs.FS {
+	f := fstest.MapFS{}
+	if tc.patterns != nil {
+		f[ignoreFile] = &fstest.MapFile{
+			Data: []byte(strings.Join(tc.patterns, "\n")),
+			Mode: fs.FileMode(0644),
+		}
+	}
+	for _, name := range slices.Concat(tc.copied, tc.ignored) {
+		f[name] = &fstest.MapFile{
+			Mode: fs.FileMode(0644),
+		}
+	}
+	return f
+}
+
+func checkIgnoreFilter(t *testing.T, cases []ignoreFilterCase) {
+	t.Helper()
+	dir := t.TempDir()
+
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fsys := createFS(tc)
 
@@ -597,7 +571,7 @@ func runTestSet_ignoreFilter(t *testing.T, testCases []testCase_ignoreFilter) {
 			assert.Nil(t, err)
 			assert.NotNil(t, filter)
 
-			dst := filepath.Join(basedst, tc.name)
+			dst := filepath.Join(dir, tc.name)
 			err = os.MkdirAll(dst, 0755)
 			if err != nil {
 				assert.Nil(t, err)
@@ -611,26 +585,25 @@ func runTestSet_ignoreFilter(t *testing.T, testCases []testCase_ignoreFilter) {
 				PermissionControl: copy.AddPermission(0755),
 			})
 			assert.Nil(t, err)
-			for _, name := range tc.expectedIgnored {
+			for _, name := range tc.ignored {
 				assert.NoFileExists(t, path.Join(dst, name))
 			}
-			for _, name := range tc.expectedCopied {
+			for _, name := range tc.copied {
 				assert.FileExists(t, path.Join(dst, name))
 			}
 		})
 	}
 }
 
-// Prepare basic test set for ignoreFilter function
-var testCases_ignoreFilterBasic = mapSlice(ignoreTestData_names,
-	func(td ignoreTestData) testCase_ignoreFilter {
-		return testCase_ignoreFilter{
-			name: td.name,
+// Prepare basic test set for ignoreFilter function.
+var ignoreBaseTestCasesFilter = prepareFiltersFromPattern(ignoreTestCaseNames,
+	func(td ignorePatternCase) ignoreFilterCase {
+		return ignoreFilterCase{
 			patterns: []string{
 				td.pattern,
 			},
 			// Expand with some meaningful paths (td.matches itself has no path-item).
-			expectedIgnored: append(td.matches,
+			ignored: append(td.matches,
 				"in_subdir/"+td.matches[0],
 				"in/deep/nested/subdir/"+td.matches[0],
 				"as_subdir/"+td.matches[0]+"/bar",
@@ -639,7 +612,7 @@ var testCases_ignoreFilterBasic = mapSlice(ignoreTestData_names,
 				"as/deep/nested/subdir/"+td.matches[0]+"/with_nested_subdir/bar",
 			),
 			// Expand with some meaningful paths (td.mismatches itself has no path-item).
-			expectedCopied: append(td.mismatches,
+			copied: append(td.mismatches,
 				"in_subdir/"+td.mismatches[0],
 				"in/deep/nested/subdir/"+td.mismatches[0],
 			),
@@ -654,71 +627,60 @@ func Test_ignoreFilter_noIgnoreFile(t *testing.T) {
 }
 
 func Test_ignoreFilter_singleBasic(t *testing.T) {
-	runTestSet_ignoreFilter(t, testCases_ignoreFilterBasic)
+	checkIgnoreFilter(t, ignoreBaseTestCasesFilter)
 }
 
 func Test_ignoreFilter_singleNegate(t *testing.T) {
 	// Single negate pattern has no effect.
-	testCases := mapSlice(testCases_ignoreFilterBasic,
-		func(tc testCase_ignoreFilter) testCase_ignoreFilter {
-			return testCase_ignoreFilter{
-				name: tc.name,
-				patterns: []string{
-					"!" + tc.patterns[0],
-				},
-				expectedIgnored: nil,
-				expectedCopied:  slices.Concat(tc.expectedCopied, tc.expectedIgnored),
-			}
-		})
-	runTestSet_ignoreFilter(t, testCases)
+	invertPattern := func(c *ignoreFilterCase) {
+		c.patterns = []string{"!" + c.patterns[0]}
+		c.copied = slices.Concat(c.copied, c.ignored)
+		c.ignored = nil
+	}
+
+	tc := prepareFilters(ignoreBaseTestCasesFilter, invertPattern)
+	checkIgnoreFilter(t, tc)
 }
 
 func Test_ignoreFilter_selfNegate(t *testing.T) {
 	// An ignore pattern followed by the same but negated (thus it just reinclude all).
-	testCases := mapSlice(testCases_ignoreFilterBasic,
-		func(tc testCase_ignoreFilter) testCase_ignoreFilter {
-			return testCase_ignoreFilter{
-				name: tc.name,
-				patterns: []string{
-					tc.patterns[0],
-					"!" + tc.patterns[0],
-				},
-				expectedIgnored: nil,
-				expectedCopied:  slices.Concat(tc.expectedCopied, tc.expectedIgnored),
-			}
-		})
-	runTestSet_ignoreFilter(t, testCases)
+	selfInvert := func(c *ignoreFilterCase) {
+		c.patterns = []string{
+			c.patterns[0],
+			"!" + c.patterns[0],
+		}
+		c.copied = slices.Concat(c.copied, c.ignored)
+		c.ignored = nil
+	}
+
+	tc := prepareFilters(ignoreBaseTestCasesFilter, selfInvert)
+	checkIgnoreFilter(t, tc)
 }
 
 func Test_ignoreFilter_negateWrongOrder(t *testing.T) {
 	// An ignore pattern followed by the same but negated (thus it just reinclude all).
-	testCases := mapSlice(testCases_ignoreFilterBasic,
-		func(tc testCase_ignoreFilter) testCase_ignoreFilter {
-			return testCase_ignoreFilter{
-				name: tc.name,
-				patterns: []string{
-					"!" + tc.patterns[0],
-					tc.patterns[0],
-				},
-				expectedIgnored: tc.expectedIgnored,
-				expectedCopied:  tc.expectedCopied,
-			}
-		})
-	runTestSet_ignoreFilter(t, testCases)
+	selfInvert := func(c *ignoreFilterCase) {
+		c.patterns = []string{
+			"!" + c.patterns[0],
+			c.patterns[0],
+		}
+	}
+
+	tc := prepareFilters(ignoreBaseTestCasesFilter, selfInvert)
+	checkIgnoreFilter(t, tc)
 }
 
 func Test_ignoreFilter_singleDirOnly(t *testing.T) {
 	// Generate test set from the common test data rather than from the ignoreFilter basic set
 	// because expectations in this case differ significantly.
-	testCases := mapSlice(ignoreTestData_names,
-		func(td ignoreTestData) testCase_ignoreFilter {
-			return testCase_ignoreFilter{
-				name: td.name,
+	tc := prepareFiltersFromPattern(ignoreTestCaseNames,
+		func(td ignorePatternCase) ignoreFilterCase {
+			return ignoreFilterCase{
 				patterns: []string{
 					td.pattern + "/",
 				},
 				// Expand with some meaningful paths (td.matches itself has no path-item).
-				expectedIgnored: []string{
+				ignored: []string{
 					td.matches[0] + "/as_dir",
 					td.matches[0] + "/as_dir_with_nested_subdir/bar",
 					"as_subdir/" + td.matches[0] + "/bar",
@@ -727,7 +689,7 @@ func Test_ignoreFilter_singleDirOnly(t *testing.T) {
 					"as/deep/nested/subdir/" + td.matches[0] + "/with_nested_subdir/bar",
 				},
 				// Expand with some meaningful paths (td.mismatches itself has no path-item).
-				expectedCopied: slices.Concat(
+				copied: slices.Concat(
 					td.matches,
 					td.mismatches,
 					[]string{
@@ -739,18 +701,19 @@ func Test_ignoreFilter_singleDirOnly(t *testing.T) {
 				),
 			}
 		})
-	runTestSet_ignoreFilter(t, testCases)
+
+	checkIgnoreFilter(t, tc)
 }
 
 func Test_ignoreFilter_multiNames(t *testing.T) {
-	testCases := []testCase_ignoreFilter{
+	tc := []ignoreFilterCase{
 		{
 			name: "any",
 			patterns: []string{
 				"name1",
 				"name2",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"name1",
 				"in_subdir/name1",
 				"in/deep/nested/subdir/name1",
@@ -762,7 +725,7 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 				"as_subdir/name2/foo",
 				"as/deep/nested/subdir/name2/bar",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"name3",
 				"name4",
 			},
@@ -773,13 +736,13 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 				"name1/",
 				"name2/",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"as_subdir/name1/foo",
 				"as/deep/nested/subdir/name1/bar",
 				"as_subdir/name2/foo",
 				"as/deep/nested/subdir/name2/bar",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"name1",
 				"in_subdir/name1",
 				"in/deep/nested/subdir/name1",
@@ -796,7 +759,7 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 				"name1",
 				"name2/",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"name1",
 				"in_subdir/name1",
 				"in/deep/nested/subdir/name1",
@@ -805,7 +768,7 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 				"as_subdir/name2/bar",
 				"as/deep/nested/subdir/name2/bar",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"name2",
 				"in_subdir/name2",
 				"in/deep/nested/subdir/name2",
@@ -814,23 +777,23 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 			},
 		},
 	}
-	runTestSet_ignoreFilter(t, testCases)
+	checkIgnoreFilter(t, tc)
 }
 
 func Test_ignoreFilter_fixedDepth(t *testing.T) {
-	testCases := []testCase_ignoreFilter{
+	tc := []ignoreFilterCase{
 		{
 			name: "name_at_depth1",
 			patterns: []string{
 				"*/foo",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"in_subdir/foo",
 				"in_another_subdir/foo",
 				"as_subdir/foo/bar",
 				"as_another_subdir/foo/bar",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"foo",
 				"in/subdir/of/another/depth/foo",
 				"as/subdir/of/another/depth/foo/bar",
@@ -844,13 +807,13 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 			patterns: []string{
 				"*/*/foo",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"in_subdir/of_depth2/foo",
 				"in_another_subdir/of_depth2/foo",
 				"as_subdir/of_depth2/foo/bar",
 				"as_another_subdir/of_depth2/foo/bar",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"foo",
 				"in/subdir/of/another/depth/foo",
 				"as/subdir/of/another/depth/foo/bar",
@@ -864,13 +827,13 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 			patterns: []string{
 				"foo/*",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"foo/bar",
 				"foo/blabla",
 				"foo/with_subdir/bar",
 				"foo/with_subdir/blabla",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"foo",
 				"as_subdir/foo/bar",
 				"as/subdir/of/another/depth/foo/bar",
@@ -883,12 +846,12 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 			patterns: []string{
 				"foo/*/*",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"foo/subdir/bar",
 				"foo/subdir/blabla",
 				"foo/another_subdir/bar",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"as_subdir/foo/subdir/bar",
 				"as/subdir/of/another/depth/foo/subdir/bar",
 				"foo/bar",
@@ -897,18 +860,18 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 			},
 		},
 	}
-	runTestSet_ignoreFilter(t, testCases)
+	checkIgnoreFilter(t, tc)
 }
 
 func Test_ignoreFilter_reinclude(t *testing.T) {
-	testCases := []testCase_ignoreFilter{
+	tc := []ignoreFilterCase{
 		{
 			name: "by_name",
 			patterns: []string{
 				"*name?",
 				"!renamed",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"name1",
 				"in_subdir/filename2",
 				"in/deep/nested/subdir/rename3",
@@ -917,7 +880,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 				"as/deep/nested/subdir/newname5/bar",
 				"as/deep/nested/subdir/newname5/renamed",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"renamed",
 				"in_subdir/renamed",
 				"as_subdir/renamed/bar",
@@ -932,7 +895,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 				"!renamed",
 				"!unnamed",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"name1",
 				"newname2",
 				"oldname3",
@@ -943,7 +906,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 				"as/deep/nested/subdir/newname5/bar",
 				"as/deep/nested/subdir/newname5/renamed",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"renamed",
 				"in_subdir/renamed",
 				"as_subdir/renamed/bar",
@@ -959,7 +922,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 				"*name?",
 				"!*named",
 			},
-			expectedIgnored: []string{
+			ignored: []string{
 				"name1",
 				"newname2",
 				"oldname3",
@@ -971,7 +934,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 				"as/deep/nested/subdir/newname5/renamed",
 				"as/deep/nested/subdir/newname5/unnamed",
 			},
-			expectedCopied: []string{
+			copied: []string{
 				"renamed",
 				"in_subdir/renamed",
 				"as_subdir/renamed/bar",
@@ -982,5 +945,5 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 			},
 		},
 	}
-	runTestSet_ignoreFilter(t, testCases)
+	checkIgnoreFilter(t, tc)
 }
