@@ -21,6 +21,7 @@ require (
 	github.com/moby/term v0.0.0-20221105221325-4eb28fa6025c
 	github.com/nxadm/tail v1.4.11
 	github.com/otiai10/copy v1.14.0
+	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
@@ -103,7 +104,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.2.0-beta.2 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.30.0 // indirect
