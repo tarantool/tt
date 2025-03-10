@@ -34,6 +34,7 @@ var targetDistros = []Distro{
 	{OS: "debian", Dist: "stretch"},  // 9
 	{OS: "debian", Dist: "buster"},   // 10
 	{OS: "debian", Dist: "bullseye"}, // 11
+	{OS: "debian", Dist: "bookworm"}, // 12
 
 	{OS: "linux-deb", Dist: "static"},
 	{OS: "linux-rpm", Dist: "static"},
