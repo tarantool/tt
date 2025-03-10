@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/apex/log"
@@ -10,6 +9,7 @@ import (
 	"github.com/tarantool/go-tarantool/v2"
 	"github.com/tarantool/tt/cli/replicaset"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/connect"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -107,9 +107,9 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 func createDataCollectorAndKeyPublisher(
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
-	opts UriOpts, connOpts connectOpts) (
+	opts connect.UriOpts, connOpts connectOpts) (
 	libcluster.DataCollector, replicaset.DataPublisher, func(), error) {
-	prefix, key, timeout := opts.Prefix, opts.Key, opts.Timeout
+	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 	var (
 		collector libcluster.DataCollector
 		publisher replicaset.DataPublisher
@@ -153,10 +153,10 @@ func createDataCollectorAndKeyPublisher(
 }
 
 // Promote promotes an instance by patching the cluster config.
-func Promote(uri *url.URL, ctx PromoteCtx) error {
-	opts, err := ParseUriOpts(uri)
+func Promote(url string, ctx PromoteCtx) error {
+	opts, err := connect.CreateUriOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", uri, err)
+		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
 	connOpts := connectOpts{
 		Username: ctx.Username,
@@ -200,10 +200,10 @@ type DemoteCtx struct {
 }
 
 // Demote demotes an instance by patching the cluster config.
-func Demote(uri *url.URL, ctx DemoteCtx) error {
-	opts, err := ParseUriOpts(uri)
+func Demote(url string, ctx DemoteCtx) error {
+	opts, err := connect.CreateUriOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", uri, err)
+		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
 	connOpts := connectOpts{
 		Username: ctx.Username,
@@ -247,10 +247,10 @@ type ExpelCtx struct {
 }
 
 // Expel expels an instance by patching the cluster config.
-func Expel(uri *url.URL, ctx ExpelCtx) error {
-	opts, err := ParseUriOpts(uri)
+func Expel(url string, ctx ExpelCtx) error {
+	opts, err := connect.CreateUriOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", uri, err)
+		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
 	connOpts := connectOpts{
 		Username: ctx.Username,
@@ -301,10 +301,10 @@ type RolesChangeCtx struct {
 }
 
 // ChangeRole adds/removes a role by patching the cluster config.
-func ChangeRole(uri *url.URL, ctx RolesChangeCtx, action replicaset.RolesChangerAction) error {
-	opts, err := ParseUriOpts(uri)
+func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAction) error {
+	opts, err := connect.CreateUriOpts(url)
 	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", uri, err)
+		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
 	connOpts := connectOpts{
 		Username: ctx.Username,
