@@ -42,7 +42,7 @@ def to_etcd_key(key):
         "etcd",
         "manual_no_leader",
         None,
-        id="failover = maual; no leader",
+        id="failover = manual; no leader",
     ),
     pytest.param(
         "etcd",
@@ -102,7 +102,7 @@ def to_etcd_key(key):
         "tcs",
         "manual_no_leader",
         None,
-        id="failover = maual; no leader",
+        id="failover = manual; no leader",
     ),
     pytest.param(
         "tcs",
