@@ -3,10 +3,8 @@ package cmd
 import (
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -72,66 +70,25 @@ var rolesChangeCtx = clustercmd.RolesChangeCtx{}
 var (
 	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
-	clusterUriHelp             = fmt.Sprintf(
-		`The URI specifies a etcd or tarantool config storage `+
-			`connection settings in the following format:
-http(s)://[username:password@]host:port[/prefix][?arguments]
+	clusterUriHelp             = libconnect.MakeURLHelp(map[string]any{
+		"service": "etcd or tarantool config storage",
+		"prefix": "a base path to Tarantool configuration in" +
+			" etcd or tarantool config storage",
+		"param_key":            "a target configuration key in the prefix",
+		"param_name":           "a name of an instance in the cluster configuration",
+		"env_TT_CLI_auth":      "Tarantool",
+		"env_TT_CLI_ETCD_auth": "Etcd",
+		"footer": `The priority of credentials:
+environment variables < command flags < URL credentials.`,
+	})
 
-* prefix - a base path to Tarantool configuration in etcd or tarantool config storage.
-
-Possible arguments:
-
-* key - a target configuration key in the prefix.
-* name - a name of an instance in the cluster configuration.
-* timeout - a request timeout in seconds (default %.1f).
-* ssl_key_file - a path to a private SSL key file.
-* ssl_cert_file - a path to an SSL certificate file.
-* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
-* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
-* ssl_ciphers - a colon-separated (:) list of SSL cipher suites the connection can use.
-* verify_host - set off (default true) verification of the certificate’s name against the host.
-* verify_peer - set off (default true) verification of the peer’s SSL certificate.
-
-You could also specify etcd/tarantool username and password with environment variables:
-* %s - specifies an etcd username
-* %s - specifies an etcd password
-* %s - specifies a tarantool username
-* %s - specifies a tarantool password
-
-The priority of credentials:
-environment variables < command flags < URL credentials.
-`, float64(clustercmd.DefaultUriTimeout)/float64(time.Second),
-		libconnect.EtcdUsernameEnv, libconnect.EtcdPasswordEnv,
-		libconnect.TarantoolUsernameEnv, libconnect.TarantoolPasswordEnv)
-	failoverUriHelp = fmt.Sprintf(
-		`The URI specifies a etcd `+
-			`connection settings in the following format:
-http(s)://[username:password@]host:port[/prefix][?arguments]
-
-* prefix - a base path to Tarantool configuration in etcd.
-
-Possible arguments:
-
-* timeout - a request timeout in seconds (default %.1f).
-* ssl_key_file - a path to a private SSL key file.
-* ssl_cert_file - a path to an SSL certificate file.
-* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
-* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
-* ssl_ciphers - a colon-separated (:) list of SSL cipher suites the connection can use.
-* verify_host - set off (default true) verification of the certificate’s name against the host.
-* verify_peer - set off (default true) verification of the peer’s SSL certificate.
-
-You could also specify etcd/tarantool username and password with environment variables:
-* %s - specifies an etcd username
-* %s - specifies an etcd password
-* %s - specifies a tarantool username
-* %s - specifies a tarantool password
-
-The priority of credentials:
-environment variables < command flags < URL credentials.
-`, float64(clustercmd.DefaultUriTimeout)/float64(time.Second),
-		libconnect.EtcdUsernameEnv, libconnect.EtcdPasswordEnv,
-		libconnect.TarantoolUsernameEnv, libconnect.TarantoolPasswordEnv)
+	failoverUriHelp = libconnect.MakeURLHelp(map[string]any{
+		"service":              "etcd",
+		"prefix":               "a base path to Tarantool configuration in etcd",
+		"env_TT_CLI_ETCD_auth": "Etcd",
+		"footer": `The priority of credentials:
+environment variables < command flags < URL credentials.`,
+	})
 )
 
 func newClusterReplicasetCmd() *cobra.Command {
@@ -450,8 +407,8 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 	showCtx.Collectors = libcluster.NewCollectorFactory(dataCollectors)
 
-	if uri, err := parseUrl(args[0]); err == nil {
-		return clustercmd.ShowUri(showCtx, uri)
+	if opts, err := libconnect.CreateUriOpts(args[0]); err == nil {
+		return clustercmd.ShowUri(showCtx, opts)
 	}
 
 	// It looks like an application or an application:instance.
@@ -483,8 +440,8 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	publishCtx.Src = data
 	publishCtx.Config = config
 
-	if uri, err := parseUrl(args[0]); err == nil {
-		return clustercmd.PublishUri(publishCtx, uri)
+	if opts, err := libconnect.CreateUriOpts(args[0]); err == nil {
+		return clustercmd.PublishUri(publishCtx, opts)
 	}
 
 	// It looks like an application or an application:instance.
@@ -508,11 +465,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 
 // internalClusterReplicasetPromoteModule is a "cluster replicaset promote" command.
 func internalClusterReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	uri, err := parseUrl(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse config source URI: %w", err)
-	}
-
+	var err error
 	promoteCtx.Collectors, promoteCtx.Publishers, err = createDataCollectorsAndDataPublishers(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
@@ -520,16 +473,12 @@ func internalClusterReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []st
 	}
 
 	promoteCtx.InstName = args[1]
-	return clustercmd.Promote(uri, promoteCtx)
+	return clustercmd.Promote(args[0], promoteCtx)
 }
 
 // internalClusterReplicasetDemoteModule is a "cluster replicaset demote" command.
 func internalClusterReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	uri, err := parseUrl(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse config source URI: %w", err)
-	}
-
+	var err error
 	demoteCtx.Collectors, demoteCtx.Publishers, err = createDataCollectorsAndDataPublishers(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
@@ -537,16 +486,12 @@ func internalClusterReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []str
 	}
 
 	demoteCtx.InstName = args[1]
-	return clustercmd.Demote(uri, demoteCtx)
+	return clustercmd.Demote(args[0], demoteCtx)
 }
 
 // internalClusterReplicasetExpelModule is a "cluster replicaset expel" command.
 func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	uri, err := parseUrl(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse config source URI: %w", err)
-	}
-
+	var err error
 	expelCtx.Collectors, expelCtx.Publishers, err = createDataCollectorsAndDataPublishers(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
@@ -554,18 +499,14 @@ func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []stri
 	}
 
 	expelCtx.InstName = args[1]
-	return clustercmd.Expel(uri, expelCtx)
+	return clustercmd.Expel(args[0], expelCtx)
 }
 
 // internalClusterReplicasetRolesAddModule is a "cluster replicaset roles add" command.
 func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if err := checkRolesChangeFlags(addAction); err != nil {
+	var err error
+	if err = checkRolesChangeFlags(addAction); err != nil {
 		return err
-	}
-
-	uri, err := parseUrl(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse config source URI: %w", err)
 	}
 
 	rolesChangeCtx.Collectors, rolesChangeCtx.Publishers, err =
@@ -575,18 +516,14 @@ func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []s
 	}
 
 	rolesChangeCtx.RoleName = args[1]
-	return clustercmd.ChangeRole(uri, rolesChangeCtx, replicaset.RolesAdder{})
+	return clustercmd.ChangeRole(args[0], rolesChangeCtx, replicaset.RolesAdder{})
 }
 
 // internalClusterReplicasetRolesRemoveModule is a "cluster replicaset roles remove" command.
 func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if err := checkRolesChangeFlags(!addAction); err != nil {
+	var err error
+	if err = checkRolesChangeFlags(!addAction); err != nil {
 		return err
-	}
-
-	uri, err := parseUrl(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse config source URI: %w", err)
 	}
 
 	rolesChangeCtx.Collectors, rolesChangeCtx.Publishers, err =
@@ -597,29 +534,19 @@ func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args 
 	}
 
 	rolesChangeCtx.RoleName = args[1]
-	return clustercmd.ChangeRole(uri, rolesChangeCtx, replicaset.RolesRemover{})
+	return clustercmd.ChangeRole(args[0], rolesChangeCtx, replicaset.RolesRemover{})
 }
 
 // internalClusterFailoverSwitchModule is as "cluster failover switch" command
 func internalClusterFailoverSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	uri, err := parseUrl(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse config source URI: %w", err)
-	}
-
 	switchCtx.InstName = args[1]
-	return clustercmd.Switch(uri, switchCtx)
+	return clustercmd.Switch(args[0], switchCtx)
 }
 
 // internalClusterFailoverSwitchStatusModule is as "cluster failover switch-status" command
 func internalClusterFailoverSwitchStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	uri, err := parseUrl(args[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse config source URI: %w", err)
-	}
-
 	switchStatusCtx.TaskID = args[1]
-	return clustercmd.SwitchStatus(uri, switchStatusCtx)
+	return clustercmd.SwitchStatus(args[0], switchStatusCtx)
 }
 
 // readSourceFile reads a configuration from a source file.
@@ -637,27 +564,6 @@ func readSourceFile(path string) ([]byte, *libcluster.Config, error) {
 	}
 
 	return data, config, nil
-}
-
-// parseUrl returns a URL, nil if string could be recognized as a URL,
-// otherwise nil, an error.
-func parseUrl(str string) (*url.URL, error) {
-	uri, err := url.Parse(str)
-
-	// The URL general form represented is:
-	// [scheme:][//[userinfo@]host][/]path[?query][#fragment]
-	// URLs that do not start with a slash after the scheme are interpreted as:
-	// scheme:opaque[?query][#fragment]
-	//
-	// So it is enough to check scheme, host and opaque to avoid to handle
-	// app:instance as a URL.
-	if err != nil {
-		return nil, err
-	}
-	if uri.Scheme != "" && uri.Host != "" && uri.Opaque == "" {
-		return uri, nil
-	}
-	return nil, fmt.Errorf("specified string can not be recognized as URL")
 }
 
 // parseAppStr parses a string and returns an application cluster config path,

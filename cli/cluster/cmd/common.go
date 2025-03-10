@@ -144,7 +144,7 @@ type connectOpts struct {
 }
 
 // connectTarantool establishes a connection to Tarantool.
-func connectTarantool(uriOpts UriOpts, connOpts connectOpts) (tarantool.Connector, error) {
+func connectTarantool(uriOpts connect.UriOpts, connOpts connectOpts) (tarantool.Connector, error) {
 	if uriOpts.Username == "" && uriOpts.Password == "" {
 		uriOpts.Username = connOpts.Username
 		uriOpts.Password = connOpts.Password
@@ -175,7 +175,7 @@ func connectTarantool(uriOpts UriOpts, connOpts connectOpts) (tarantool.Connecto
 }
 
 // connectEtcd establishes a connection to etcd.
-func connectEtcd(uriOpts UriOpts, connOpts connectOpts) (*clientv3.Client, error) {
+func connectEtcd(uriOpts connect.UriOpts, connOpts connectOpts) (*clientv3.Client, error) {
 	etcdOpts := MakeEtcdOptsFromUriOpts(uriOpts)
 	if etcdOpts.Username == "" && etcdOpts.Password == "" {
 		etcdOpts.Username = connOpts.Username
@@ -196,7 +196,7 @@ func connectEtcd(uriOpts UriOpts, connOpts connectOpts) (*clientv3.Client, error
 }
 
 // doOnStorage determines a storage based on the opts.
-func doOnStorage(connOpts connectOpts, opts UriOpts,
+func doOnStorage(connOpts connectOpts, opts connect.UriOpts,
 	tarantoolFunc func(tarantool.Connector) error, etcdFunc func(*clientv3.Client) error) error {
 	etcdcli, errEtcd := connectEtcd(opts, connOpts)
 	if errEtcd == nil {
@@ -217,8 +217,8 @@ func createPublisherAndCollector(
 	publishers libcluster.DataPublisherFactory,
 	collectors libcluster.CollectorFactory,
 	connOpts connectOpts,
-	opts UriOpts) (libcluster.DataPublisher, libcluster.Collector, func(), error) {
-	prefix, key, timeout := opts.Prefix, opts.Key, opts.Timeout
+	opts connect.UriOpts) (libcluster.DataPublisher, libcluster.Collector, func(), error) {
+	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 
 	var (
 		publisher libcluster.DataPublisher

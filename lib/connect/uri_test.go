@@ -3,6 +3,7 @@ package connect_test
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tarantool/tt/cli/connector"
@@ -221,4 +222,316 @@ func TestParseBaseURI(t *testing.T) {
 		assert.Equal(t, connector.UnixNetwork, network)
 		assert.Equal(t, homeDir+"/a/b", address)
 	})
+}
+
+func TestParseUriOpts(t *testing.T) {
+	const defaultTimeout = 3 * time.Second
+
+	cases := map[string]struct {
+		Url    string
+		Opts   connect.UriOpts
+		params map[string]string
+		Err    string
+	}{
+		"empty url": {
+			Url:  "",
+			Opts: connect.UriOpts{},
+			Err:  "URL must contain the scheme and the host parts",
+		},
+		"no scheme": {
+			Url:  "host",
+			Opts: connect.UriOpts{},
+			Err:  "URL must contain the scheme and the host parts",
+		},
+		"invalid scheme": {
+			Url:  ":host",
+			Opts: connect.UriOpts{},
+			Err:  "missing protocol scheme",
+		},
+		"no host": {
+			Url:  "scheme:///prefix",
+			Opts: connect.UriOpts{},
+			Err:  "URL must contain the scheme and the host parts",
+		},
+		"with opaque": {
+			Url:  "scheme:host.com/prefix",
+			Opts: connect.UriOpts{},
+			Err:  "URL must contain the scheme and the host parts",
+		},
+		"simple": {
+			Url: "scheme://localhost",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"with port": {
+			Url: "scheme://localhost:3013",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost:3013",
+				Host:     "localhost:3013",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"user auth": {
+			Url: "scheme://user@localhost",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Username: "user",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"user and pass": {
+			Url: "scheme://user:pass@localhost",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Username: "user",
+				Password: "pass",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"prefix root": {
+			Url: "scheme://localhost/",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Prefix:   "/",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"with prefix": {
+			Url: "scheme://localhost/prefix",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Prefix:   "/prefix",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"with prefix and fragment": {
+			Url: "scheme://localhost/prefix#Fragment",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Prefix:   "/prefix",
+				Tag:      "Fragment",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"only fragment": {
+			Url: "scheme://localhost#Fragment",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Tag:      "Fragment",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"with param key": {
+			Url: "scheme://localhost/prefix?key=anykey",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Prefix:   "/prefix",
+				Timeout:  defaultTimeout,
+				Params:   map[string]string{"key": "anykey"},
+			},
+			Err: "",
+		},
+		"with param name": {
+			Url: "scheme://localhost/prefix?name=anyname",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Prefix:   "/prefix",
+				Timeout:  defaultTimeout,
+				Params:   map[string]string{"name": "anyname"},
+			},
+			Err: "",
+		},
+		"no prefix with params": {
+			Url: "scheme://localhost?name=anyname#Fragment",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Tag:      "Fragment",
+				Timeout:  defaultTimeout,
+				Params:   map[string]string{"name": "anyname"},
+			},
+			Err: "",
+		},
+		"with empty param": {
+			Url: "scheme://localhost/prefix?name=",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Prefix:   "/prefix",
+				Timeout:  defaultTimeout,
+				Params:   map[string]string{"name": ""},
+			},
+			Err: "",
+		},
+		"ssl_key_file": {
+			Url: "scheme://localhost?ssl_key_file=/any/kfile",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				KeyFile:  "/any/kfile",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"ssl_cert_file": {
+			Url: "scheme://localhost?ssl_cert_file=/any/certfile",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				CertFile: "/any/certfile",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"ssl_ca_path": {
+			Url: "scheme://localhost?ssl_ca_path=/any/capath",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				CaPath:   "/any/capath",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"ssl_ca_file": {
+			Url: "scheme://localhost?ssl_ca_file=/any/cafile",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				CaFile:   "/any/cafile",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"verify peer and host": {
+			Url: "scheme://localhost?verify_peer=true&verify_host=true",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"verify peer and host is empty": {
+			Url: "scheme://localhost?verify_peer=&verify_host=",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"skip verify peer": {
+			Url: "scheme://localhost?verify_peer=false",
+			Opts: connect.UriOpts{
+				Endpoint:       "scheme://localhost",
+				Host:           "localhost",
+				SkipPeerVerify: true,
+				Timeout:        defaultTimeout,
+			},
+			Err: "",
+		},
+		"invalid verify_peer": {
+			Url:  "scheme://localhost?verify_peer=asd",
+			Opts: connect.UriOpts{},
+			Err:  `invalid "verify_peer" param, boolean expected:`,
+		},
+		"skip verify host": {
+			Url: "scheme://localhost?verify_host=false",
+			Opts: connect.UriOpts{
+				Endpoint:       "scheme://localhost",
+				Host:           "localhost",
+				SkipHostVerify: true,
+				Timeout:        defaultTimeout,
+			},
+			Err: "",
+		},
+		"invalid verify_host": {
+			Url:  "scheme://localhost?verify_host=asd",
+			Opts: connect.UriOpts{},
+			Err:  `invalid "verify_host" param, boolean expected:`,
+		},
+		"timeout": {
+			Url: "scheme://localhost?timeout=5.5",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Timeout:  time.Duration(float64(5.5) * float64(time.Second)),
+			},
+			Err: "",
+		},
+		"empty timeout": {
+			Url: "scheme://localhost?timeout=",
+			Opts: connect.UriOpts{
+				Endpoint: "scheme://localhost",
+				Host:     "localhost",
+				Timeout:  defaultTimeout,
+			},
+			Err: "",
+		},
+		"invalid timeout": {
+			Url:  "scheme://localhost?timeout=asd",
+			Opts: connect.UriOpts{},
+			Err:  `invalid "timeout" param, float (in seconds) expected:`,
+		},
+		"full set": {
+			Url: "scheme://user:pass@localhost:2012/prefix" +
+				"?key=anykey&name=anyname" +
+				"&ssl_key_file=kfile&ssl_cert_file=certfile" +
+				"&ssl_ca_path=capath&ssl_ca_file=cafile" +
+				"&ssl_ciphers=foo:bar:ciphers" +
+				"&verify_peer=true&verify_host=false&timeout=2" +
+				"#Fragment",
+			Opts: connect.UriOpts{
+				Endpoint:       "scheme://localhost:2012",
+				Host:           "localhost:2012",
+				Prefix:         "/prefix",
+				Tag:            "Fragment",
+				Username:       "user",
+				Password:       "pass",
+				KeyFile:        "kfile",
+				CertFile:       "certfile",
+				CaPath:         "capath",
+				CaFile:         "cafile",
+				Ciphers:        "foo:bar:ciphers",
+				SkipHostVerify: true,
+				Timeout:        time.Duration(2 * time.Second),
+				Params:         map[string]string{"key": "anykey", "name": "anyname"},
+			},
+			Err: "",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			if tc.Opts.Params == nil {
+				tc.Opts.Params = make(map[string]string)
+			}
+			opts, err := connect.CreateUriOpts(tc.Url)
+			if tc.Err != "" {
+				assert.ErrorContains(t, err, tc.Err)
+			} else {
+				assert.Equal(t, tc.Opts, opts)
+			}
+		})
+	}
 }

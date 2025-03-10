@@ -65,7 +65,7 @@ func newUpgradeCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Upgrade tarantool cluster",
 		Long: "Upgrade tarantool cluster.\n\n" +
-			libconnect.EnvCredentialsHelp + "\n\n",
+			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -107,7 +107,7 @@ func newDowngradeCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Downgrade tarantool cluster",
 		Long: "Downgrade tarantool cluster.\n\n" +
-			libconnect.EnvCredentialsHelp + "\n\n",
+			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -137,7 +137,7 @@ func newStatusCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Show a replicaset status",
 		Long: "Show a replicaset status.\n\n" +
-			libconnect.EnvCredentialsHelp + "\n\n",
+			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -161,7 +161,7 @@ func newPromoteCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Promote an instance",
 		Long: "Promote an instance.\n\n" +
-			libconnect.EnvCredentialsHelp + "\n\n",
+			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
@@ -270,7 +270,7 @@ func newBootstrapVShardCmd() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Bootstrap vshard in the cluster",
 		Long: "Bootstrap vshard in the cluster.\n\n" +
-			libconnect.EnvCredentialsHelp + "\n\n",
+			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,

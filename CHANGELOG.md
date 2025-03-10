@@ -30,6 +30,7 @@ Improvement in the work of templates.
 ### Changed
 
 - `tt connect`: allow to disconnect with `Ctrl+C` or `Ctrl+\` if script execution hung.
+- Moved `cluster.cmd.UriOpts` to `connect.UriOpts`.
 
 ### Fixed
 

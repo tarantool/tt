@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"net/url"
 
 	"github.com/tarantool/tt/cli/cluster"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 // ShowCtx contains information about cluster show command execution context.
@@ -22,12 +22,7 @@ type ShowCtx struct {
 }
 
 // ShowUri shows a configuration from URI.
-func ShowUri(showCtx ShowCtx, uri *url.URL) error {
-	uriOpts, err := ParseUriOpts(uri)
-	if err != nil {
-		return fmt.Errorf("invalid URL %q: %w", uri, err)
-	}
-
+func ShowUri(showCtx ShowCtx, opts connect.UriOpts) error {
 	connOpts := connectOpts{
 		Username: showCtx.Username,
 		Password: showCtx.Password,
@@ -35,7 +30,7 @@ func ShowUri(showCtx ShowCtx, uri *url.URL) error {
 	_, collector, cancel, err := createPublisherAndCollector(
 		nil,
 		showCtx.Collectors,
-		connOpts, uriOpts)
+		connOpts, opts)
 	if err != nil {
 		return err
 	}
@@ -46,9 +41,11 @@ func ShowUri(showCtx ShowCtx, uri *url.URL) error {
 		return fmt.Errorf("failed to collect a configuration: %w", err)
 	}
 
-	instance := uriOpts.Instance
+	instance := opts.Params["name"]
 	if showCtx.Validate {
-		err = validateRawConfig(config, instance)
+		if err = validateRawConfig(config, instance); err != nil {
+			return err
+		}
 	}
 
 	return printRawClusterConfig(config, instance, showCtx.Validate)
