@@ -6,6 +6,7 @@ import (
 
 	"github.com/tarantool/tt/cli/cluster"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 // ShowCtx contains information about cluster show command execution context.
@@ -23,7 +24,7 @@ type ShowCtx struct {
 
 // ShowUri shows a configuration from URI.
 func ShowUri(showCtx ShowCtx, uri *url.URL) error {
-	uriOpts, err := ParseUriOpts(uri)
+	uriOpts, err := connect.ParseUriOpts(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}

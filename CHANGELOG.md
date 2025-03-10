@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `tt connect`: allow to disconnect with `Ctrl+C` or `Ctrl+\` if script execution hung.
+- Moved `cluster.cmd.UriOpts` to `connect.UriOpts`.
 
 ### Fixed
 
