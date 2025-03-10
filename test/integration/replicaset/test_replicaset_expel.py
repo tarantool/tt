@@ -113,7 +113,7 @@ Replicasets state: bootstrapped
 """
     status_unexpelled = status_expelled + "    • s2-replica localhost:3305 read\n"
 
-    # Wait for the configurated state.
+    # Wait for the configured state.
     for _ in range(100):
         rs_cmd = [tt_cmd, "replicaset", "status", f"{cartridge_name}:s2-master"]
         rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)

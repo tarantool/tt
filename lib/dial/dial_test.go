@@ -38,14 +38,14 @@ func TestNew(t *testing.T) {
 			},
 		},
 		{
-			name: "deafult",
+			name: "default",
 			opts: Opts{
 				Transport: "",
 			},
 			expected: tarantool.NetDialer{},
 		},
 		{
-			name: "deafult_but_key_is_set",
+			name: "default_but_key_is_set",
 			opts: Opts{
 				SslKeyFile: "any.key",
 				Transport:  "",
