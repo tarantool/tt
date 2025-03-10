@@ -1,6 +1,7 @@
 package pack
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -33,6 +34,8 @@ const (
 	versionLuaFileName = "VERSION.lua"
 
 	rocksManifestPath = ".rocks/share/tarantool/rocks/manifest"
+
+	ignoreFile = ".packignore"
 )
 
 var (
@@ -50,6 +53,8 @@ var (
 		),
 	}
 )
+
+type skipFilter func(srcInfo os.FileInfo, src string) bool
 
 type RocksVersions map[string][]string
 
@@ -76,9 +81,8 @@ func skipDefaults(srcInfo os.FileInfo, src string) bool {
 }
 
 // appArtifactsFilters returns a slice of skip functions to avoid copying application artifacts.
-func appArtifactsFilters(cliOpts *config.CliOpts, srcAppPath string) []func(
-	srcInfo os.FileInfo, src string) bool {
-	filters := make([]func(srcInfo os.FileInfo, src string) bool, 0)
+func appArtifactsFilters(cliOpts *config.CliOpts, srcAppPath string) []skipFilter {
+	filters := make([]skipFilter, 0)
 	if cliOpts.App == nil {
 		return filters
 	}
@@ -102,9 +106,8 @@ func appArtifactsFilters(cliOpts *config.CliOpts, srcAppPath string) []func(
 }
 
 // ttEnvironmentFilters prepares a slice of filters for tt environment directories/files.
-func ttEnvironmentFilters(packCtx *PackCtx, cliOpts *config.CliOpts) []func(
-	srcInfo os.FileInfo, src string) bool {
-	filters := make([]func(srcInfo os.FileInfo, src string) bool, 0)
+func ttEnvironmentFilters(packCtx *PackCtx, cliOpts *config.CliOpts) []skipFilter {
+	filters := make([]skipFilter, 0)
 	if cliOpts == nil {
 		return filters
 	}
@@ -139,10 +142,9 @@ func ttEnvironmentFilters(packCtx *PackCtx, cliOpts *config.CliOpts) []func(
 }
 
 // previousPackageFilters returns filters for the previously built packages.
-func previousPackageFilters(packCtx *PackCtx) []func(
-	srcInfo os.FileInfo, src string) bool {
+func previousPackageFilters(packCtx *PackCtx) []skipFilter {
 	pkgName := packCtx.Name
-	return []func(srcInfo os.FileInfo, src string) bool{
+	return []skipFilter{
 		func(srcInfo os.FileInfo, src string) bool {
 			name := srcInfo.Name()
 			if strings.HasPrefix(name, pkgName) {
@@ -159,13 +161,18 @@ func previousPackageFilters(packCtx *PackCtx) []func(
 
 // appSrcCopySkip returns a filter func to filter out artifacts paths.
 func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
-	srcAppPath string) func(srcinfo os.FileInfo, src, dest string) (bool, error) {
+	srcAppPath string) (func(srcinfo os.FileInfo, src, dest string) (bool, error), error) {
 	appCopyFilters := appArtifactsFilters(cliOpts, srcAppPath)
 	appCopyFilters = append(appCopyFilters, ttEnvironmentFilters(packCtx, cliOpts)...)
 	appCopyFilters = append(appCopyFilters, previousPackageFilters(packCtx)...)
 	appCopyFilters = append(appCopyFilters, func(srcInfo os.FileInfo, src string) bool {
 		return skipDefaults(srcInfo, src)
 	})
+	if f, err := ignoreFilter(util.GetOsFS(), filepath.Join(srcAppPath, ignoreFile)); err == nil {
+		appCopyFilters = append(appCopyFilters, f)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("failed to load %q: %w", ignoreFile, err)
+	}
 
 	return func(srcinfo os.FileInfo, src, dest string) (bool, error) {
 		for _, shouldSkip := range appCopyFilters {
@@ -174,7 +181,7 @@ func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 			}
 		}
 		return false, nil
-	}
+	}, nil
 }
 
 // getAppNamesToPack generates application names list to pack.
@@ -430,7 +437,10 @@ func copyAppSrc(packCtx *PackCtx, cliOpts *config.CliOpts, srcAppPath, dstAppPat
 		return err
 	}
 
-	skipFunc := appSrcCopySkip(packCtx, cliOpts, resolvedAppPath)
+	skipFunc, err := appSrcCopySkip(packCtx, cliOpts, resolvedAppPath)
+	if err != nil {
+		return err
+	}
 
 	// Copying application.
 	log.Debugf("Copying application source %q -> %q", resolvedAppPath, dstAppPath)
