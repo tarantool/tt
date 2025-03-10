@@ -100,7 +100,7 @@ You could also specify etcd/tarantool username and password with environment var
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
-`, float64(clustercmd.DefaultUriTimeout)/float64(time.Second),
+`, float64(libconnect.DefaultUriTimeout)/float64(time.Second),
 		libconnect.EtcdUsernameEnv, libconnect.EtcdPasswordEnv,
 		libconnect.TarantoolUsernameEnv, libconnect.TarantoolPasswordEnv)
 	failoverUriHelp = fmt.Sprintf(
@@ -129,7 +129,7 @@ You could also specify etcd/tarantool username and password with environment var
 
 The priority of credentials:
 environment variables < command flags < URL credentials.
-`, float64(clustercmd.DefaultUriTimeout)/float64(time.Second),
+`, float64(libconnect.DefaultUriTimeout)/float64(time.Second),
 		libconnect.EtcdUsernameEnv, libconnect.EtcdPasswordEnv,
 		libconnect.TarantoolUsernameEnv, libconnect.TarantoolPasswordEnv)
 )

@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 // PublishCtx contains information abould cluster publish command execution
@@ -33,7 +34,7 @@ type PublishCtx struct {
 
 // PublishUri publishes a configuration to URI.
 func PublishUri(publishCtx PublishCtx, uri *url.URL) error {
-	uriOpts, err := ParseUriOpts(uri)
+	uriOpts, err := connect.ParseUriOpts(uri)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", uri, err)
 	}
