@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [2.8.1] - 2025-03-10
 
+The release introduces minor changes in stabilization of `tt connect`
+command. Expanded possibility to connect to `aeon` base.
+Improvement in the work of templates.
+
 ### Added
 
 - `tt aeon connect`: add connection from the `app:insance_name`.
