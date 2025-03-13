@@ -3,8 +3,10 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/lib/integrity"
@@ -92,6 +94,32 @@ func (h *LogHandler) HandleLog(logEntry *log.Entry) error {
 		}
 	}
 	return h.baseHandler.HandleLog(logEntry)
+}
+
+// setWriter sets the underlying writer and returns the original one.
+func (h *LogHandler) setWriter(w io.Writer) io.Writer {
+	orig := h.baseHandler.Writer
+	h.baseHandler.Writer = w
+	return orig
+}
+
+// logErrorWriterDecorator is used to decorate messages sent to writer
+// in the same way as log.Error.
+type logErrorWriterDecorator struct {
+	writer  io.Writer
+	handler *LogHandler
+}
+
+// Write decorates the original output in the same way as log.Error.
+func (d logErrorWriterDecorator) Write(p []byte) (int, error) {
+	// Setup LogHandler to write to string to get the decorated string.
+	var logdst strings.Builder
+	orig := d.handler.setWriter(&logdst)
+	log.Errorf(string(p))
+	// Restore LogHandler with the original writer.
+	d.handler.setWriter(orig)
+	// Send the decorated data.
+	return fmt.Fprint(d.writer, logdst.String())
 }
 
 // NewCmdRoot creates a new root command.
@@ -188,13 +216,17 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		panic(err.Error())
 	}
 
-	rootCmd.InitDefaultHelpCmd()
-
 	// Adjust logger color mapping (display errors with hi-intencity color and bold).
 	cli.Colors[log.ErrorLevel] = color.New(color.Bold, color.FgHiRed)
 	cli.Colors[log.FatalLevel] = color.New(color.Bold, color.FgHiRed)
 
-	log.SetHandler(&LogHandler{cli.Default})
+	logHandler := &LogHandler{cli.Default}
+
+	log.SetHandler(logHandler)
+
+	// Setup decoration for Command's error messages.
+	rootCmd.SetErr(&logErrorWriterDecorator{rootCmd.ErrOrStderr(), logHandler})
+	rootCmd.InitDefaultHelpCmd()
 
 	return rootCmd
 }
