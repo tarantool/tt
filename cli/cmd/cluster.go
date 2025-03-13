@@ -74,18 +74,18 @@ var (
 		"service": "etcd or tarantool config storage",
 		"prefix": "a base path to Tarantool configuration in" +
 			" etcd or tarantool config storage",
-		"param_key":     "a target configuration key in the prefix",
-		"param_name":    "a name of an instance in the cluster configuration",
-		"env_tarantool": true,
-		"env_etcd":      true,
+		"param_key":            "a target configuration key in the prefix",
+		"param_name":           "a name of an instance in the cluster configuration",
+		"env_TT_CLI_auth":      "Tarantool",
+		"env_TT_CLI_ETCD_auth": "Etcd",
 		"footer": `The priority of credentials:
 environment variables < command flags < URL credentials.`,
 	})
 
 	failoverUriHelp = libconnect.MakeURLHelp(map[string]any{
-		"service":  "etcd",
-		"prefix":   "a base path to Tarantool configuration in etcd",
-		"env_etcd": true,
+		"service":              "etcd",
+		"prefix":               "a base path to Tarantool configuration in etcd",
+		"env_TT_CLI_ETCD_auth": "Etcd",
 		"footer": `The priority of credentials:
 environment variables < command flags < URL credentials.`,
 	})
