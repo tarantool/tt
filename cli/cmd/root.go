@@ -28,8 +28,6 @@ var (
 	// InjectedCmds is populated with the command to be injected into root.
 	// TT-EE.
 	InjectedCmds []*cobra.Command
-
-	bold = color.New(color.Bold)
 )
 
 // GetCmdCtxPtr returns a pointer to cmdCtx, which can be used to create injected commands.
@@ -75,35 +73,25 @@ func GetModulesInfoPtr() *modules.ModulesInfo {
 	return &modulesInfo
 }
 
-// printLogEntryColored prints log entry message using level specific colors.
-func printLogEntryColored(logHandler *cli.Handler, logEntry *log.Entry) error {
-	printColor := cli.Colors[logEntry.Level]
-	level := cli.Strings[logEntry.Level]
-
-	if logEntry.Level >= log.ErrorLevel {
-		printColor = color.New(color.Bold, color.FgHiRed)
-	}
-
-	printColor.Fprintf(logHandler.Writer, "%s ", bold.Sprintf("%*s", logHandler.Padding+1, level))
-	printColor.Fprintf(logHandler.Writer, "%s\n", logEntry.Message)
-
-	return nil
-}
-
 // LogHandler is a custom log handler implementation used to print formatted error and warning
 // log messages.
-type LogHandler struct{}
-
-var defaultLogHandler = &LogHandler{}
+type LogHandler struct {
+	baseHandler *cli.Handler
+}
 
 // HandleLog performs log handling in accordance with log entry level.
-func (handler *LogHandler) HandleLog(logEntry *log.Entry) error {
-	switch logEntry.Level {
-	case log.ErrorLevel, log.WarnLevel, log.FatalLevel:
-		return printLogEntryColored(cli.Default, logEntry)
-	default:
-		return cli.Default.HandleLog(logEntry)
+func (h *LogHandler) HandleLog(logEntry *log.Entry) error {
+	if logEntry.Level >= log.WarnLevel {
+		logEntry = &log.Entry{
+			Logger:    logEntry.Logger,
+			Fields:    logEntry.Fields,
+			Level:     logEntry.Level,
+			Timestamp: logEntry.Timestamp,
+			// For warnings and errors display the whole message colored not only prefix bullet.
+			Message: cli.Colors[logEntry.Level].Sprint(logEntry.Message),
+		}
 	}
+	return h.baseHandler.HandleLog(logEntry)
 }
 
 // NewCmdRoot creates a new root command.
@@ -202,7 +190,11 @@ After that tt will be able to manage the application using 'replicaset_example' 
 
 	rootCmd.InitDefaultHelpCmd()
 
-	log.SetHandler(defaultLogHandler)
+	// Adjust logger color mapping (display errors with hi-intencity color and bold).
+	cli.Colors[log.ErrorLevel] = color.New(color.Bold, color.FgHiRed)
+	cli.Colors[log.FatalLevel] = color.New(color.Bold, color.FgHiRed)
+
+	log.SetHandler(&LogHandler{cli.Default})
 
 	return rootCmd
 }
