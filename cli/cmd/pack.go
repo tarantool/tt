@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -24,29 +25,12 @@ func NewPackCmd() *cobra.Command {
 The supported types are: tgz, deb, rpm`,
 		ValidArgs: []string{"tgz", "deb", "rpm"},
 		Run: func(cmd *cobra.Command, args []string) {
-			err := cobra.ExactArgs(1)(cmd, args)
-			if err != nil {
-				err = fmt.Errorf("incorrect combination of command parameters: %s", err.Error())
-				log.Fatalf(err.Error())
-			}
-			err = cobra.OnlyValidArgs(cmd, args)
-			if err != nil {
-				err = fmt.Errorf("incorrect combination of command parameters: %s", err.Error())
-				log.Fatalf(err.Error())
-			}
-			if packCtx.CartridgeCompat && args[0] != "tgz" {
-				err = fmt.Errorf("cartridge-compat flag can only be used while packing tgz bundle")
-				log.Fatalf(err.Error())
-			}
-			if packCtx.TarantoolVersion != "" && !packCtx.UseDocker {
-				err = fmt.Errorf("tarantool-version argument can only be " +
-					"used while packing in docker")
-				log.Fatalf(err.Error())
-			}
 			cmdCtx.CommandName = cmd.Name()
-			err = modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalPackModule, args)
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
+				internalPackModule, args)
 			util.HandleCmdErr(cmd, err)
 		},
+		Args: cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	}
 
 	// Common flags.
@@ -150,12 +134,19 @@ func checkFlags(packCtx *pack.PackCtx) error {
 			log.Warnf("You specified the --all flag," +
 				" but you are not packaging a tarball. Flag will be ignored")
 		}
+		if packCtx.CartridgeCompat {
+			return errors.New("cartridge-compat flag can only be used while packing tgz bundle")
+		}
 	}
 	// Check if --with-integrity-check and --without-binaries flags are provided
 	// simultaneously. If this is the case, return an error for safety reasons.
 	if packCtx.IntegrityPrivateKey != "" && packCtx.WithoutBinaries {
-		return fmt.Errorf("impossible combination of --with-integrity-check" +
+		return errors.New("impossible combination of --with-integrity-check" +
 			" and --without-binaries flags")
+	}
+	if packCtx.TarantoolVersion != "" && !packCtx.UseDocker {
+		return errors.New("tarantool-version argument can only be " +
+			"used while packing in docker")
 	}
 	return nil
 }
