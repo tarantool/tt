@@ -4,10 +4,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/status"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var opts status.StatusOpts
@@ -32,12 +30,7 @@ Columns:
 - CONFIG: The config info status (for Tarantool 3+).
 - BOX: The box info status.
 - UPSTREAM: The replication upstream status.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalStatusModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run: TtModuleCmdRun(internalStatusModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
