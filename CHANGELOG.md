@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt pack `: added TCM file packaging.
+- `tt aeon connect`: add connection from the cluster config.
+- `tt aeon connect`: add connection from the `app:insance_name`.
+- `tt tcm start`: add the tcm command.
+- `tt tcm start` OR `tt tcm start --path /path/to/tcm`: added the capability to run TCM in interactive mode.
+- `tt tcm start --watchdog`: implemented Watchdog mode for automatic restarting of TCM upon unexpected termination.
+
 ### Changed
 
 ### Fixed
