@@ -73,11 +73,10 @@ groups:
     roles_cfg:
       aeon.grpc:
         listen:
-          params:
-            transport: 'plain'
         advertise:
           params:
-            transport: 'plain'
+            transport: 'ssl'
+            ssl_ca_file: './ca.crt'
     replicasets:
       aeon-router-001:
         instances:
@@ -88,6 +87,8 @@ groups:
                   uri: 'http://localhost:50051'
                 advertise:
                   uri: 'http://localhost:50051'
+                  params: 
+                    transport: 'ssl'
             iproto:
               listen:
               - uri: '3340'
@@ -100,6 +101,8 @@ groups:
                   uri: 'http://localhost:50052'
                 advertise:
                   uri: 'http://localhost:50052'
+                  params:
+                    transport: 'ssl'
             iproto:
               listen:
               - uri: '3341'

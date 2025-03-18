@@ -43,6 +43,9 @@ func newAeonConnectCmd() *cobra.Command {
 			return err
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+
+			fmt.Println("this flag connectCtx.Ssl.CaFile", connectCtx.Ssl.CaFile)
+
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalAeonConnect, args)
@@ -125,6 +128,7 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("sslkeyfile") != cmd.Flags().Changed("sslcertfile") {
 			return errors.New("files Key and Cert must be specified both")
 		}
+		fmt.Println("connectCtx.Ssl.KeyFile", connectCtx.Ssl.KeyFile)
 
 		if !checkFile(connectCtx.Ssl.KeyFile) {
 			return fmt.Errorf("not valid path to a private SSL key file=%q",
@@ -227,10 +231,16 @@ func readConfigFilePath(configPath string, instance string) error {
 		connectCtx.Transport = aeoncmd.TransportSsl
 		configDir := filepath.Dir(configPath)
 
-		connectCtx.Ssl = aeoncmd.Ssl{
-			KeyFile:  util.JoinPaths(configDir, advertise.Params.KeyFile),
-			CertFile: util.JoinPaths(configDir, advertise.Params.CertFile),
-			CaFile:   util.JoinPaths(configDir, advertise.Params.CaFile),
+		if connectCtx.Ssl.CaFile == "" {
+			connectCtx.Ssl.CaFile = util.JoinPaths(configDir, advertise.Params.CaFile)
+		}
+
+		if connectCtx.Ssl.KeyFile == "" {
+			connectCtx.Ssl.KeyFile = util.JoinPaths(configDir, advertise.Params.KeyFile)
+		}
+
+		if connectCtx.Ssl.CertFile == "" {
+			connectCtx.Ssl.CertFile = util.JoinPaths(configDir, advertise.Params.CertFile)
 		}
 	}
 

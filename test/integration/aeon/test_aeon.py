@@ -262,6 +262,96 @@ def test_cli_ssl_config_file_success(tt_cmd, tmp_path, aeon_ssl, certificates):
     assert tt.returncode == 0
 
 
+def test_cli_plain_not_config_fail(tt_cmd, tmp_path, aeon_plain_file):
+    tmp_path = os.path.join(tmp_path, "data")
+
+    print(f"Aeon plain at: {aeon_plain_file}")
+
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), "data"),
+        tmp_path,
+        symlinks=True,
+        ignore=None,
+        copy_function=shutil.copy2,
+        ignore_dangling_symlinks=True,
+    )
+
+    pathConfig = os.path.join(tmp_path, "not_config.yml")
+
+    cmd = [str(tt_cmd), *AeonConnectCommand, pathConfig, "aeon-router-002"]
+    print(f"Run: {' '.join(cmd)}")
+
+    tt = run(
+        cmd,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert "failed to recognize a connect destination, see the command examples" in tt.stderr
+    assert tt.returncode != 0
+
+
+def test_cli_invalid_ssl_config_file(tt_cmd, tmp_path, aeon_ssl,):
+    print(f"Aeon ssl mode: {aeon_ssl}")
+
+    copy_file("data/invalid_config_ssl.yml", tmp_path)
+
+    configPath = os.path.join(tmp_path, "invalid_config_ssl.yml")
+    cmd = [str(tt_cmd), *AeonConnectCommand, configPath, "aeon-router-001"]
+
+    print(f"Run: {' '.join(cmd)}")
+
+    tt = run(
+        cmd,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+
+    print(f"stderr {tt.stderr}")
+
+    assert "not valid path to a private SSL key file" in tt.stderr
+    assert tt.returncode != 0
+
+
+# The test checks the handling of cases where the file contains
+# invalid SSL keys or they are missing.
+# For the test to work correctly, SSL keys are provided using specific flags.
+# This allows simulating a scenario with missing or invalid keys
+# to ensure that the system handles such cases properly.
+def test_cli_ssl_config_flag_success(tt_cmd, tmp_path, aeon_ssl, certificates):
+    print(f"Aeon ssl mode: {aeon_ssl}")
+
+    copy_file("data/invalid_config_ssl.yml", tmp_path)
+
+    configPath = os.path.join(tmp_path, "invalid_config_ssl.yml")
+    cmd = [str(tt_cmd), *AeonConnectCommand, configPath, "aeon-router-001"]
+
+    cmd += (
+            f"--sslcafile={certificates['ca']}",
+            f"--sslkeyfile={certificates['c_private']}",
+            f"--sslcertfile={certificates['c_public']}",
+        )
+
+    cmd += ("--transport", "ssl")
+
+    print(f"Run: {' '.join(cmd)}")
+
+    tt = run(
+        cmd,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
+
+
 @pytest.mark.parametrize("app_name", ["app"])
 def test_cli_plain_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_plain_file):
     print(f"Aeon plain at: {aeon_plain_file}")
@@ -275,6 +365,67 @@ def test_cli_plain_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_plain_fil
     tt = run(
         aeon_cmd,
         cwd=tmpdir,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
+
+
+@pytest.mark.parametrize("app_name", ["app_ssl"])
+def test_cli_ssl_app_flag_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, certificates):
+    print(f"Aeon ssl at: {aeon_ssl}")
+
+    tmp_path = tmpdir_with_cfg
+    copy_app(tmp_path, app_name)
+
+    for k, v in certificates.items():
+        shutil.copy2(v, tmp_path)
+
+    cmd = [str(tt_cmd), *AeonConnectCommand, "app_ssl:aeon-router-001"]
+
+    cmd += (
+        f"--sslcafile={certificates['ca']}",
+        f"--sslkeyfile={certificates['c_private']}",
+        f"--sslcertfile={certificates['c_public']}",
+    )
+
+    cmd += ("--transport", "ssl")
+    print(f"Run: {' '.join(cmd)}")
+
+    tt = run(
+        cmd,
+        cwd=tmp_path,
+        capture_output=True,
+        input="",
+        text=True,
+        encoding="utf-8",
+    )
+
+    check_tt_aeon_response(tt.stderr)
+    assert tt.returncode == 0
+
+
+@pytest.mark.parametrize("app_name", ["app_ssl"])
+def test_cli_ssl_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, certificates):
+    print(f"Aeon ssl at: {aeon_ssl}")
+
+    tmp_path = tmpdir_with_cfg
+    copy_app(tmp_path, app_name)
+
+    for k, v in certificates.items():
+        shutil.copy2(v, f"{tmp_path}/{app_name}")
+
+    cmd = [str(tt_cmd), *AeonConnectCommand, "app_ssl:aeon-router-001"]
+
+    print(f"Run: {' '.join(cmd)}")
+
+    tt = run(
+        cmd,
+        cwd=tmp_path,
         capture_output=True,
         input="",
         text=True,
