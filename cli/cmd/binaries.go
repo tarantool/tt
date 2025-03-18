@@ -6,11 +6,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/binary"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/search"
-	"github.com/tarantool/tt/cli/util"
 	"golang.org/x/exp/slices"
 )
+
+var binariesSupportedPrograms = []string{
+	search.ProgramCe,
+	search.ProgramEe,
+	search.ProgramTt,
+}
 
 // NewBinariesCmd creates binaries command.
 func NewBinariesCmd() *cobra.Command {
@@ -37,24 +41,27 @@ You will need to choose version using arrow keys in your console.
 # Switch with program and version.
 
 	$ tt binaries switch tarantool 2.10.4`,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalSwitchModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:  TtModuleCmdRun(internalSwitchModule),
+		Args: cobra.MatchAll(cobra.MaximumNArgs(2), binariesSwitchValidateArgs),
 	}
 	var listCmd = &cobra.Command{
 		Use:   "list",
 		Short: "Show a list of installed binaries and their versions.",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalListModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalListModule),
 	}
 	binariesCmd.AddCommand(switchCmd)
 	binariesCmd.AddCommand(listCmd)
 	return binariesCmd
+}
+
+// binariesSwitchValidateArgs validates non-flag arguments of 'binaries switch' command.
+func binariesSwitchValidateArgs(cmd *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		if !slices.Contains(binariesSupportedPrograms, args[0]) {
+			return fmt.Errorf("not supported program: %s", args[0])
+		}
+	}
+	return nil
 }
 
 // internalSwitchModule is a switch module.
@@ -63,38 +70,26 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 	var switchCtx binary.SwitchCtx
-	supportedPrograms := []string{search.ProgramCe, search.ProgramEe, search.ProgramTt}
-
 	var err error
-	switch len(args) {
-	case 2:
-		switchCtx.Version = args[1]
-		switchCtx.ProgramName = args[0]
-		if !slices.Contains(supportedPrograms, switchCtx.ProgramName) {
-			return fmt.Errorf("not supported program: %s", switchCtx.ProgramName)
-		}
-	case 1:
-		switchCtx.ProgramName = args[0]
-		if !slices.Contains(supportedPrograms, switchCtx.ProgramName) {
-			return fmt.Errorf("not supported program: %s", switchCtx.ProgramName)
-		}
-		switchCtx.Version, err = binary.ChooseVersion(cliOpts.Env.BinDir, switchCtx.ProgramName)
-		if err != nil {
-			return err
-		}
-	case 0:
-		switchCtx.ProgramName, err = binary.ChooseProgram(supportedPrograms)
-		if err != nil {
-			return err
-		}
-		switchCtx.Version, err = binary.ChooseVersion(cliOpts.Env.BinDir, switchCtx.ProgramName)
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("invalid number of arguments")
 
+	if len(args) > 0 {
+		switchCtx.ProgramName = args[0]
+	} else {
+		switchCtx.ProgramName, err = binary.ChooseProgram(binariesSupportedPrograms)
+		if err != nil {
+			return err
+		}
 	}
+
+	if len(args) > 1 {
+		switchCtx.Version = args[1]
+	} else {
+		switchCtx.Version, err = binary.ChooseVersion(cliOpts.Env.BinDir, switchCtx.ProgramName)
+		if err != nil {
+			return err
+		}
+	}
+
 	switchCtx.BinDir = cliOpts.Env.BinDir
 	switchCtx.IncDir = cliOpts.Env.IncludeDir
 

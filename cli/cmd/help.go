@@ -32,7 +32,6 @@ func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) err
 			return
 		}
 
-		args = modules.GetDefaultCmdArgs("help")
 		err := modules.RunCmd(cmdCtx, "tt help", &modulesInfo,
 			getInternalHelpFunc(cmd, defaultHelp), args)
 		if err != nil {

@@ -14,16 +14,9 @@ import (
 )
 
 // FillCtx fills create context.
-func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx, args []string) error {
+func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 	for _, p := range cliOpts.Templates {
 		createCtx.TemplateSearchPaths = append(createCtx.TemplateSearchPaths, p.Path)
-	}
-
-	if len(args) >= 1 {
-		createCtx.TemplateName = args[0]
-	} else {
-		return fmt.Errorf("missing template name argument. " +
-			"Try `tt create --help` for more information")
 	}
 
 	workingDir, err := os.Getwd()

@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/checkpoint"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -34,16 +33,18 @@ func NewCatCmd() *cobra.Command {
 	var catCmd = &cobra.Command{
 		Use:   "cat <FILE>...",
 		Short: "Print into stdout the contents of .snap/.xlog FILE(s)",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalCatModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalCatModule),
 		Example: "tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
 			"--timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
 			"  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
 			"--timestamp=1731592956.818",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("it is required to specify at least one .xlog/.snap file " +
+					"or directory")
+			}
+			return nil
+		},
 	}
 
 	catCmd.Flags().Uint64Var(&catFlags.To, "to", catFlags.To,
@@ -66,10 +67,6 @@ func NewCatCmd() *cobra.Command {
 
 // internalCatModule is a default cat module.
 func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	if len(args) == 0 {
-		return errors.New("it is required to specify at least one .xlog or .snap file")
-	}
-
 	walFiles, err := util.CollectWALFiles(args)
 	if err != nil {
 		return util.InternalError(

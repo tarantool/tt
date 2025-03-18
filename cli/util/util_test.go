@@ -816,8 +816,9 @@ func TestCollectWALFiles(t *testing.T) {
 		expectedErrMsg string
 	}{
 		{
-			name:           "no_file",
-			expectedErrMsg: "it is required to specify at least one .xlog/.snap file or directory",
+			name:   "no_file",
+			input:  []string{},
+			output: []string{},
 		},
 		{
 			name:           "incorrect_file",
