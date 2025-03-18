@@ -240,4 +240,10 @@ def test_rebootstrap_bad_cli_args(tt_cmd, vshard_app):
     rs_cmd = [tt_cmd, "replicaset", "rebootstrap"]
     rs_rc, out = run_command_and_get_output(rs_cmd, cwd=vshard_app.env_dir)
     assert rs_rc != 0
-    assert "accepts 1 arg(s), received 0" in out
+    assert "instance for rebootstrap is not specified" in out
+
+    # Multiple instances.
+    rs_cmd = [tt_cmd, "replicaset", "rebootstrap", "app:inst1", "app:inst2"]
+    rs_rc, out = run_command_and_get_output(rs_cmd, cwd=vshard_app.env_dir)
+    assert rs_rc != 0
+    assert "only one instance supported for re-bootstrap" in out

@@ -1255,13 +1255,11 @@ func isUpdatePossible(installCtx InstallCtx,
 				if err != nil {
 					return false, err
 				}
-				// We need to trim first rune to get commit hash
-				// from string structure 'g<commitHash>'.
-				if len(binVersion.Hash) < 1 {
+				if len(binVersion.Hash) == 0 {
 					return false, fmt.Errorf("could not get commit hash of the version"+
 						"of an installed %s", program)
 				}
-				curBinHash = binVersion.Hash[1:]
+				curBinHash = binVersion.Hash
 			} else if program == search.ProgramTt {
 				ttVer, err := cmdcontext.GetTtVersion(pathToBin)
 				if err != nil {
@@ -1591,21 +1589,17 @@ func Install(binDir string, includeDir string, installCtx InstallCtx,
 }
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
+	installCtx.ProgramName = cmdCtx.CommandName
 	installCtx.verbose = cmdCtx.Cli.Verbose
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 
-	if cmdCtx.CommandName == search.ProgramDev {
-		if len(args) != 1 {
-			return fmt.Errorf("exactly one build directory must be specified")
-		}
+	if installCtx.ProgramName == search.ProgramDev {
 		installCtx.buildDir = args[0]
 		return nil
 	}
 
 	if len(args) == 1 {
 		installCtx.version = args[0]
-	} else if len(args) > 1 {
-		return fmt.Errorf("invalid number of parameters")
 	}
 
 	return nil

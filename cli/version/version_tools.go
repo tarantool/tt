@@ -85,7 +85,7 @@ func createVersionRegexp(isStrict bool) *regexp.Regexp {
 		`v?(?:(?P<major>\d+)){1}(?:\.(?P<minor>\d+)){1}(?:\.(?P<patch>\d+)){1}` +
 		`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
 		`(?:-(?P<additional>\d+))?` +
-		`(?:-(?P<hash>g[a-f0-9]+))?(?:-r(?P<revision>\d+))?(-gc64|-nogc64)?$`
+		`(?:-g(?P<hash>[a-f0-9]+))?(?:-r(?P<revision>\d+))?(-gc64|-nogc64)?$`
 	if !isStrict {
 		matchString = strings.Replace(matchString, "{1}", "?", 3)
 	}

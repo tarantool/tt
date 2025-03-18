@@ -12,7 +12,7 @@ from utils import run_command_and_get_output
     (
         # Testing with unset .xlog or .snap file.
         "",
-        "it is required to specify at least one .xlog or .snap file",
+        "it is required to specify at least one .xlog/.snap file or directory",
     ),
     (
         "path-to-non-existent-file",

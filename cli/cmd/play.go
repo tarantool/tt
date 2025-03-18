@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/checkpoint"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
@@ -51,16 +50,12 @@ func NewPlayCmd() *cobra.Command {
 	var playCmd = &cobra.Command{
 		Use:   "play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE>...",
 		Short: "Play the contents of .snap/.xlog FILE(s) to another Tarantool instance",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalPlayModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   TtModuleCmdRun(internalPlayModule),
 		Example: "tt play localhost:3013 /path/to/file.snap /path/to/file.xlog " +
 			"/path/to/dir/ --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
 			"  tt play app:instance001 /path/to/file.snap /path/to/file.xlog " +
 			"/path/to/dir/ --timestamp=1731592956.818",
+		Args: playValidateArgs,
 	}
 
 	playCmd.Flags().StringVarP(&playUsername, "username", "u", "", "username")
@@ -89,13 +84,17 @@ func NewPlayCmd() *cobra.Command {
 	return playCmd
 }
 
-// internalPlayModule is a default play module.
-func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+// playValidateArgs validates non-flag arguments 'play' command.
+func playValidateArgs(cmd *cobra.Command, args []string) error {
 	if len(args) < 2 {
 		return errors.New("it is required to specify an URI and at least one .xlog/.snap file " +
 			"or directory")
 	}
+	return nil
+}
 
+// internalPlayModule is a default play module.
+func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{args[0]}, running.ConfigLoadAll)
