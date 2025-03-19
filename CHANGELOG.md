@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
+- `tt tcm start`: add the tcm command.
+- `tt tcm start` OR `tt tcm start --path /path/to/tcm`: added the capability to run TCM in interactive mode.
+- `tt tcm start --watchdog`: implemented Watchdog mode for automatic restarting of TCM upon unexpected termination.
 
 ### Changed
 
