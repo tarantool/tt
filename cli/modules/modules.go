@@ -5,13 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/apex/log"
-	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -19,19 +20,28 @@ const (
 	mainEntryPoint   = "main"
 )
 
-// ModuleInfo stores information about Tarantool CLI module.
-type ModuleInfo struct {
-	// Is this module internal (or external).
-	IsInternal bool
-	// Path to module (used only is module external).
-	ExternalPath string
+// Manifest stores information about Tarantool CLI module.
+type Manifest struct {
+	// Version of module.
+	Version string `yaml:"version"`
+	// Main is name of executable file.
+	Main string `yaml:"main"`
+	// Help is a short description of the module.
+	Help string `yaml:"help"`
+	// TtVersion is required a version of TT CLI (optional).
+	TtVersion string `yaml:"tt-version"`
+	// Description is a full description of the module (optional).
+	// It can be used in the future for the help command.
+	Description string `yaml:"description"`
+	// Homepage is a link to the module homepage (optional).
+	Homepage string `yaml:"homepage_url"`
 }
 
 // ModulesInfo stores information about all CLI modules.
-type ModulesInfo map[string]*ModuleInfo
+type ModulesInfo map[string]Manifest
 
-// modulesEntries keeps detected entry points while scan modules.
-type modulesEntries struct {
+// modulesEntry keeps detected entry points while scan modules.
+type modulesEntry struct {
 	// Modules location path.
 	Directory string
 	// Path to manifest.yaml file.
@@ -41,27 +51,51 @@ type modulesEntries struct {
 }
 
 // possibleModules map module name with found its entry points.
-type possibleModules map[string]modulesEntries
+type possibleModules map[string]modulesEntry
 
-// fillSubCommandsInfo collects information about subcommands.
-func fillSubCommandsInfo(cmd *cobra.Command, modulesInfo *ModulesInfo) {
-	for _, subCmd := range cmd.Commands() {
-		commandPath := subCmd.CommandPath()
-		if _, found := (*modulesInfo)[commandPath]; !found {
-			(*modulesInfo)[commandPath] = &ModuleInfo{
-				IsInternal: true,
-			}
-
-			if subCmd.HasSubCommands() {
-				fillSubCommandsInfo(subCmd, modulesInfo)
-			}
-		}
+// readManifest parses the manifest file to module requirements.
+func readManifest(dir string, manifest string) (Manifest, error) {
+	mf := Manifest{}
+	data, err := os.ReadFile(manifest)
+	if err != nil {
+		return mf, fmt.Errorf("failed to read manifest: %s", err)
 	}
+
+	if err := yaml.Unmarshal(data, &mf); err != nil {
+		return mf, fmt.Errorf("failed to parse manifest: %s", err)
+	}
+
+	mf.Main, err = exec.LookPath(filepath.Join(dir, mf.Main))
+	if err != nil {
+		return mf, fmt.Errorf("failed to find module executable: %s", err)
+	}
+
+	if mf.Version == "" {
+		return mf, fmt.Errorf("version field is mandatory for module Manifest")
+	}
+	if mf.Help == "" {
+		return mf, fmt.Errorf("help field is mandatory for module Manifest")
+	}
+
+	return mf, nil
+}
+
+func makeManifest(entry modulesEntry) (Manifest, error) {
+	if entry.Manifest != "" {
+		return readManifest(entry.Directory, entry.Manifest)
+	}
+
+	return Manifest{
+		Main: entry.Main,
+	}, nil
 }
 
 // GetModulesInfo collects information about available modules (both external and internal).
-func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command,
-	cliOpts *config.CliOpts) (ModulesInfo, error) {
+func GetModulesInfo(
+	cmdCtx *cmdcontext.CmdCtx,
+	rootCmd string,
+	cliOpts *config.CliOpts,
+) (ModulesInfo, error) {
 	modulesDirs, err := getConfigModulesDirs(cmdCtx, cliOpts)
 	if err != nil {
 		return nil, err
@@ -73,27 +107,22 @@ func GetModulesInfo(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command,
 	}
 	modulesDirs = append(modulesDirs, modulesEnvDirs...)
 
-	// FIXME: working with modules list at https://github.com/tarantool/tt/issues/1016
-	/* externalModules */
-	_, err = getExternalModules(modulesDirs)
+	externalModules, err := getExternalModules(modulesDirs)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to get available external modules information: %s", err)
 	}
 
-	// External modules have a higher priority than internal.
 	modulesInfo := ModulesInfo{}
-	// FIXME: adjust filling `modulesInfo` according results from `possibleModules` list.
-	// See: https://github.com/tarantool/tt/issues/1016
-	// for name, path := range externalModules {
-	// 	commandPath := rootCmd.Name() + " " + name
-	// 	modulesInfo[commandPath] = &ModuleInfo{
-	// 		IsInternal:   false,
-	// 		ExternalPath: path,
-	// 	}
-	// }
-
-	fillSubCommandsInfo(rootCmd, &modulesInfo)
+	for name, info := range externalModules {
+		mf, err := makeManifest(info)
+		if err != nil {
+			log.Warnf("Failed to get information about module %q: %s", name, err)
+			continue
+		}
+		commandPath := rootCmd + " " + name
+		modulesInfo[commandPath] = mf
+	}
 
 	return modulesInfo, nil
 }
@@ -107,10 +136,6 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 	// 3. Path points to not a directory.
 	for _, dir := range paths {
 		if info, err := os.Stat(dir); err == nil {
-			// TODO: Add warning in next patches, discussion
-			// what if the file exists, but access is denied, etc.
-			// FIXME: resolve this question while prepare list:
-			// https://github.com/tarantool/tt/issues/1014
 			if !info.IsDir() {
 				return dirs, fmt.Errorf("specified path in configuration file is not a directory")
 			}
@@ -124,48 +149,69 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 // getConfigModulesDirs returns from configuration the list of directories,
 // where external modules are located.
 func getConfigModulesDirs(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) ([]string, error) {
-	// Configuration file not detected - ignore and work on.
-	// TODO: Add warning in next patches, discussion
-	// what if the file exists, but access is denied, etc.
-	if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err != nil {
-		if !os.IsNotExist(err) {
-			return []string{}, fmt.Errorf("failed to get access to configuration file: %s", err)
-		}
-
+	if cmdCtx.Cli.ConfigPath == "" {
+		// Ignore cliOpts.Modules without actual configuration file.
 		return []string{}, nil
 	}
 
 	// Unspecified `modules` field is not considered an error.
-	if cliOpts.Modules == nil {
+	if cliOpts.Modules == nil || cliOpts.Modules.Directories == nil {
 		return []string{}, nil
 	}
 
 	return collectDirectoriesList(cliOpts.Modules.Directories)
 }
 
+// getEnvironmentModulesDirs returns the list of modules directory based on environment info.
 func getEnvironmentModulesDirs() ([]string, error) {
 	env_var := os.Getenv("TT_CLI_MODULES_PATH")
 	if env_var == "" {
 		return []string{}, nil
 	}
+
 	paths := strings.Split(env_var, ":")
 	return collectDirectoriesList(paths)
 }
 
 // isPossibleModule checks is exists any manifest or executable `main` file inside dir.
-func isPossibleModule(dir string) (modulesEntries, bool) {
+func isPossibleModule(dir string) (modulesEntry, bool) {
 	is_module := false
-	entries := modulesEntries{Directory: dir}
+	entries := modulesEntry{Directory: dir}
 	manifest, _ := util.GetYamlFileName(filepath.Join(dir, manifestFileName), false)
 	if manifest != "" {
 		entries.Manifest = manifest
 		is_module = true
 	}
+
 	if main, err := exec.LookPath(filepath.Join(dir, mainEntryPoint)); err == nil {
 		entries.Main = main
 		is_module = true
 	}
+
 	return entries, is_module
+}
+
+// readSubDirectories returns sorted list of subdirectories in the specified path.
+func readSubDirectories(path string) ([]string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
+	}
+
+	entries = slices.DeleteFunc(entries, func(e os.DirEntry) bool {
+		return !e.IsDir()
+	})
+
+	slices.SortFunc(entries, func(a, b os.DirEntry) int {
+		return strings.Compare(a.Name(), b.Name())
+	})
+
+	dirs := make([]string, 0, len(entries))
+	for _, e := range entries {
+		dirs = append(dirs, e.Name())
+	}
+
+	return dirs, nil
 }
 
 // getExternalModules returns map[name] = directory of available modules by
@@ -173,23 +219,23 @@ func isPossibleModule(dir string) (modulesEntries, bool) {
 func getExternalModules(paths []string) (possibleModules, error) {
 	modules := possibleModules{}
 	for _, path := range paths {
-		entries, err := os.ReadDir(path)
+		dirs, err := readSubDirectories(path)
 		if err != nil {
-			return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
+			return nil, err
 		}
-		cnt_modules := 0
-		for _, e := range entries {
-			mod_path := filepath.Join(path, e.Name())
-			if !e.IsDir() {
+
+		for _, d := range dirs {
+			mod_path := filepath.Join(path, d)
+
+			e, exists := modules[d]
+			if exists {
+				log.Warnf("Ignore duplicate module %q overlap with %q", mod_path, e.Directory)
 				continue
 			}
+
 			if mod_entry, is_module := isPossibleModule(mod_path); is_module {
-				modules[e.Name()] = mod_entry
-				cnt_modules += 1
+				modules[d] = mod_entry
 			}
-		}
-		if cnt_modules == 0 {
-			log.Warnf("Directory %q does not have any module", path)
 		}
 	}
 	return modules, nil
