@@ -1,0 +1,3 @@
+main: not_exists
+version: 1.2.3
+help: Help for the module

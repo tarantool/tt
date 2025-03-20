@@ -447,8 +447,8 @@ func ExternalCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
 // that have internal implementation.
 func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo) {
 	for _, cmd := range rootCmd.Commands() {
-		if module, ok := (*modulesInfo)[cmd.CommandPath()]; ok {
-			if !module.IsInternal {
+		if manifest, ok := (*modulesInfo)[cmd.CommandPath()]; ok {
+			if manifest != nil {
 				cmd.DisableFlagParsing = true
 			}
 		}
@@ -479,8 +479,8 @@ func configureNonExistentCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
 
 	helpCmd := util.GetHelpCommand(rootCmd)
 	externalCmdPath := rootCmd.Name() + " " + externalCmd
-	if module, ok := (*modulesInfo)[externalCmdPath]; ok {
-		if !module.IsInternal {
+	if manifest, ok := (*modulesInfo)[externalCmdPath]; ok {
+		if manifest != nil {
 			rootCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd,
 				externalCmdPath, nil))
 			helpCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, externalCmdPath,

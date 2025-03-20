@@ -39,9 +39,9 @@ func NewCompletionCmd() *cobra.Command {
 func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 	toComplete string) ([]string, cobra.ShellCompDirective) {
 	var commands []string
-	for name, info := range modulesInfo {
-		if !info.IsInternal {
-			description, err := modules.GetExternalModuleDescription(info.ExternalPath)
+	for name, manifest := range modulesInfo {
+		if manifest != nil {
+			description, err := modules.GetExternalModuleDescription(manifest.Main)
 			if err != nil {
 				description = "Failed to get description"
 			}

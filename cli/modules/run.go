@@ -27,21 +27,21 @@ type InternalFunc func(*cmdcontext.CmdCtx, []string) error
 // then tt exit with this code.
 func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 	internal InternalFunc, args []string) error {
-	info, found := (*modulesInfo)[cmdPath]
+	manifest, found := (*modulesInfo)[cmdPath]
 	if !found {
 		return fmt.Errorf("module with specified name %s isn't found", cmdPath)
 	}
 
-	if info.IsInternal || cmdCtx.Cli.ForceInternal {
+	if manifest == nil || cmdCtx.Cli.ForceInternal {
 		return internal(cmdCtx, args)
 	}
 
-	f, err := cmdCtx.Integrity.Repository.Read(info.ExternalPath)
+	f, err := cmdCtx.Integrity.Repository.Read(manifest.Main)
 	if err != nil {
-		return fmt.Errorf("integrity check failed for %q: %w", info.ExternalPath, err)
+		return fmt.Errorf("integrity check failed for %q: %w", manifest.Main, err)
 	}
 	f.Close()
-	if rc := RunExec(info.ExternalPath, args); rc != 0 {
+	if rc := RunExec(manifest.Main, args); rc != 0 {
 		os.Exit(rc)
 	}
 
