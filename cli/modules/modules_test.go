@@ -8,57 +8,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/modules"
 )
 
-func getTestRootCmd() *cobra.Command {
-	testRootCmd := &cobra.Command{
-		Use:   "root",
-		Short: "root cmd",
-
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {},
-
-		Run: func(cmd *cobra.Command, args []string) {},
-	}
-
-	var testCmd = &cobra.Command{
-		Use:   "testCmd",
-		Short: "test cmd",
-	}
-
-	var levelCmd1 = &cobra.Command{
-		Use:   "levelCmd1",
-		Short: "level 1",
-		Run:   func(cmd *cobra.Command, args []string) {},
-	}
-
-	var levelCmd2 = &cobra.Command{
-		Use:   "levelCmd2",
-		Short: "level 2",
-		Run:   func(cmd *cobra.Command, args []string) {},
-	}
-
-	testSubCommands := []*cobra.Command{
-		levelCmd1,
-		levelCmd2,
-	}
-
-	for _, cmd := range testSubCommands {
-		testCmd.AddCommand(cmd)
-	}
-
-	testRootCmd.AddCommand(testCmd)
-
-	return testRootCmd
-}
-
 func TestGetModulesInfo(t *testing.T) {
-	rootCmd := getTestRootCmd()
-
 	tests := map[string]struct {
 		config      string
 		modules     []string
@@ -69,48 +25,33 @@ func TestGetModulesInfo(t *testing.T) {
 	}{
 		"no config": {
 			config: "",
-			want: modules.ModulesInfo{
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
-			},
+			want:   modules.ModulesInfo{},
 		},
 
 		"no external modules": {
 			config:  "some/config/tt.yaml",
 			modules: []string{},
-			want: modules.ModulesInfo{
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
-			},
+			want:    modules.ModulesInfo{},
 		},
 
 		"nil modules": {
 			config:  "some/config/tt.yaml",
 			modules: nil,
-			want: modules.ModulesInfo{
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
-			},
+			want:    modules.ModulesInfo{},
 		},
 
 		"config modules": {
 			config:  "some/config/tt.yaml",
 			modules: []string{"testdata/modules1"},
 			want: modules.ModulesInfo{
-				"root ext_mod": &modules.Manifest{
+				"root ext_mod": modules.Manifest{
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
-				"root simple": &modules.Manifest{
+				"root simple": modules.Manifest{
 					Main: "testdata/modules1/simple/main",
 				},
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
 			},
 		},
 
@@ -118,22 +59,19 @@ func TestGetModulesInfo(t *testing.T) {
 			config:      "some/config/tt.yaml",
 			env_modules: "testdata/modules1:testdata/modules2",
 			want: modules.ModulesInfo{
-				"root ext_mod": &modules.Manifest{
+				"root ext_mod": modules.Manifest{
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
-				"root ext_mod2": &modules.Manifest{
+				"root ext_mod2": modules.Manifest{
 					Main:    "testdata/modules2/ext_mod2/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
-				"root simple": &modules.Manifest{
+				"root simple": modules.Manifest{
 					Main: "testdata/modules1/simple/main",
 				},
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
 			},
 		},
 
@@ -141,17 +79,14 @@ func TestGetModulesInfo(t *testing.T) {
 			config:      "",
 			env_modules: "testdata/modules1",
 			want: modules.ModulesInfo{
-				"root ext_mod": &modules.Manifest{
+				"root ext_mod": modules.Manifest{
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
-				"root simple": &modules.Manifest{
+				"root simple": modules.Manifest{
 					Main: "testdata/modules1/simple/main",
 				},
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
 			},
 		},
 
@@ -160,22 +95,19 @@ func TestGetModulesInfo(t *testing.T) {
 			modules:     []string{"testdata/modules1"},
 			env_modules: "testdata/modules2",
 			want: modules.ModulesInfo{
-				"root ext_mod": &modules.Manifest{
+				"root ext_mod": modules.Manifest{
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
-				"root ext_mod2": &modules.Manifest{
+				"root ext_mod2": modules.Manifest{
 					Main:    "testdata/modules2/ext_mod2/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
-				"root simple": &modules.Manifest{
+				"root simple": modules.Manifest{
 					Main: "testdata/modules1/simple/main",
 				},
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
 			},
 		},
 
@@ -184,17 +116,14 @@ func TestGetModulesInfo(t *testing.T) {
 			modules:     []string{"testdata/modules1"},
 			env_modules: "testdata/modules1",
 			want: modules.ModulesInfo{
-				"root ext_mod": &modules.Manifest{
+				"root ext_mod": modules.Manifest{
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
-				"root simple": &modules.Manifest{
+				"root simple": modules.Manifest{
 					Main: "testdata/modules1/simple/main",
 				},
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
 			},
 			log: []string{"Ignore duplicate module"},
 		},
@@ -202,15 +131,11 @@ func TestGetModulesInfo(t *testing.T) {
 		"wrong modules manifest": {
 			config:  "some/config/tt.yaml",
 			modules: []string{"testdata/bad_manifest"},
-			want: modules.ModulesInfo{
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
-			},
+			want:    modules.ModulesInfo{},
 			log: []string{
 				`Failed to get information about module "empty": failed to find module executable`,
 				`Failed to get information about module "not-exists":` +
-					`failed to find module executable`,
+					` failed to find module executable`,
 				`Failed to get information about module "no-ver": version field is mandatory`,
 				`Failed to get information about module "no-help": help field is mandatory`,
 				`Failed to get information about module "not-mf": failed to read manifest`,
@@ -221,30 +146,22 @@ func TestGetModulesInfo(t *testing.T) {
 		"not a directory in config ": {
 			config:  "some/config/tt.yaml",
 			modules: []string{"testdata/modules1/simple/main"},
-			want: modules.ModulesInfo{
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
-			},
-			err: "specified path in configuration file is not a directory",
+			want:    modules.ModulesInfo{},
+			err:     "specified path in configuration file is not a directory",
 		},
 
 		"not a directory in env ": {
 			config:      "some/config/tt.yaml",
 			env_modules: "testdata/modules1/simple/main",
-			want: modules.ModulesInfo{
-				"root testCmd":           nil,
-				"root testCmd levelCmd1": nil,
-				"root testCmd levelCmd2": nil,
-			},
-			err: "specified path in configuration file is not a directory",
+			want:        modules.ModulesInfo{},
+			err:         "specified path in configuration file is not a directory",
 		},
 
 		"override internal": {
 			config:  "some/config/tt.yaml",
 			modules: []string{"testdata/mod_override"},
 			want: modules.ModulesInfo{
-				"root testCmd": &modules.Manifest{
+				"root testCmd": modules.Manifest{
 					Main: "testdata/mod_override/testCmd/main",
 				},
 			},
@@ -273,7 +190,7 @@ func TestGetModulesInfo(t *testing.T) {
 				log.SetOutput(os.Stderr)
 			}()
 
-			got, err := modules.GetModulesInfo(&cmdCtx, rootCmd, &cliOpts)
+			got, err := modules.GetModulesInfo(&cmdCtx, "root", &cliOpts)
 			os.Unsetenv("TT_CLI_MODULES_PATH")
 			t.Log(buf.String())
 

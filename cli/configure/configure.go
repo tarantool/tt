@@ -447,10 +447,8 @@ func ExternalCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
 // that have internal implementation.
 func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo) {
 	for _, cmd := range rootCmd.Commands() {
-		if manifest, ok := (*modulesInfo)[cmd.CommandPath()]; ok {
-			if manifest != nil {
-				cmd.DisableFlagParsing = true
-			}
+		if _, found := (*modulesInfo)[cmd.CommandPath()]; found {
+			cmd.DisableFlagParsing = true
 		}
 	}
 }
@@ -479,13 +477,11 @@ func configureNonExistentCmd(rootCmd *cobra.Command, cmdCtx *cmdcontext.CmdCtx,
 
 	helpCmd := util.GetHelpCommand(rootCmd)
 	externalCmdPath := rootCmd.Name() + " " + externalCmd
-	if manifest, ok := (*modulesInfo)[externalCmdPath]; ok {
-		if manifest != nil {
-			rootCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd,
-				externalCmdPath, nil))
-			helpCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, externalCmdPath,
-				[]string{"--help"}))
-		}
+	if _, found := (*modulesInfo)[externalCmdPath]; found {
+		rootCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd,
+			externalCmdPath, nil))
+		helpCmd.AddCommand(newExternalCommand(cmdCtx, modulesInfo, externalCmd, externalCmdPath,
+			[]string{"--help"}))
 	}
 }
 

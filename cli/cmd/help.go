@@ -52,7 +52,7 @@ func configureHelpCommand(cmdCtx *cmdcontext.CmdCtx, rootCmd *cobra.Command) err
 // getInternalHelpFunc returns a internal implementation of help module.
 func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.InternalFunc {
 	return func(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-		switch manifest := modulesInfo[cmd.CommandPath()]; {
+		switch manifest, found := modulesInfo[cmd.CommandPath()]; {
 		// Cases when we have to run the "default" help:
 		// - `tt help` and no external help module.
 		// 	It looks strange: if we type the command `tt help`,
@@ -62,7 +62,7 @@ func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.Inter
 		// 	is enough to check cmd.Name() == "tt".
 		// - `tt help -I`
 		// - `tt --help`, `tt -h` or `tt` (look code above).
-		case cmd.Name() == "tt", manifest == nil:
+		case cmd.Name() == "tt", !found:
 			help(cmd, nil)
 		// We make a call to the external module (if it exists) with the `--help` flag.
 		default:
@@ -83,15 +83,13 @@ func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.Inter
 func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	str := ""
 	for path, manifest := range *modulesInfo {
-		if manifest != nil {
-			helpMsg, err := modules.GetExternalModuleDescription(manifest.Main)
-			if err != nil {
-				helpMsg = "description is absent"
-			}
-
-			name := strings.Split(path, " ")[1]
-			str = fmt.Sprintf("%s  %s\t%s\n", str, name, helpMsg)
+		helpMsg, err := modules.GetExternalModuleDescription(manifest)
+		if err != nil {
+			helpMsg = "description is absent"
 		}
+
+		name := strings.Split(path, " ")[1]
+		str = fmt.Sprintf("%s  %s\t%s\n", str, name, helpMsg)
 	}
 
 	if str != "" {

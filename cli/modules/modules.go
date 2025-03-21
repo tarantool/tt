@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/apex/log"
-	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
@@ -39,8 +38,7 @@ type Manifest struct {
 }
 
 // ModulesInfo stores information about all CLI modules.
-// Internal commands has the `nil` Manifest.
-type ModulesInfo map[string]*Manifest
+type ModulesInfo map[string]Manifest
 
 // modulesEntry keeps detected entry points while scan modules.
 type modulesEntry struct {
@@ -55,20 +53,6 @@ type modulesEntry struct {
 // possibleModules map module name with found its entry points.
 type possibleModules map[string]modulesEntry
 
-// fillInternalCommands collects information about subcommands.
-func fillInternalCommands(cmd *cobra.Command, modulesInfo *ModulesInfo) {
-	for _, subCmd := range cmd.Commands() {
-		commandPath := subCmd.CommandPath()
-		if _, found := (*modulesInfo)[commandPath]; !found {
-			(*modulesInfo)[commandPath] = nil
-
-			if subCmd.HasSubCommands() {
-				fillInternalCommands(subCmd, modulesInfo)
-			}
-		}
-	}
-}
-
 // readManifest parses the manifest file to module requirements.
 func readManifest(dir string, manifest string) (Manifest, error) {
 	mf := Manifest{}
@@ -76,19 +60,23 @@ func readManifest(dir string, manifest string) (Manifest, error) {
 	if err != nil {
 		return mf, fmt.Errorf("failed to read manifest: %s", err)
 	}
-	if err = yaml.Unmarshal(data, &mf); err != nil {
+
+	if err := yaml.Unmarshal(data, &mf); err != nil {
 		return mf, fmt.Errorf("failed to parse manifest: %s", err)
 	}
+
 	mf.Main, err = exec.LookPath(filepath.Join(dir, mf.Main))
 	if err != nil {
 		return mf, fmt.Errorf("failed to find module executable: %s", err)
 	}
+
 	if mf.Version == "" {
 		return mf, fmt.Errorf("version field is mandatory for module Manifest")
 	}
 	if mf.Help == "" {
 		return mf, fmt.Errorf("help field is mandatory for module Manifest")
 	}
+
 	return mf, nil
 }
 
@@ -105,7 +93,7 @@ func makeManifest(entry modulesEntry) (Manifest, error) {
 // GetModulesInfo collects information about available modules (both external and internal).
 func GetModulesInfo(
 	cmdCtx *cmdcontext.CmdCtx,
-	rootCmd *cobra.Command,
+	rootCmd string,
 	cliOpts *config.CliOpts,
 ) (ModulesInfo, error) {
 	modulesDirs, err := getConfigModulesDirs(cmdCtx, cliOpts)
@@ -125,7 +113,6 @@ func GetModulesInfo(
 			"failed to get available external modules information: %s", err)
 	}
 
-	// External modules have a higher priority than internal.
 	modulesInfo := ModulesInfo{}
 	for name, info := range externalModules {
 		mf, err := makeManifest(info)
@@ -133,11 +120,9 @@ func GetModulesInfo(
 			log.Warnf("Failed to get information about module %q: %s", name, err)
 			continue
 		}
-		commandPath := rootCmd.Name() + " " + name
-		modulesInfo[commandPath] = &mf
+		commandPath := rootCmd + " " + name
+		modulesInfo[commandPath] = mf
 	}
-	// Fill modules info for internal sub commands.
-	fillInternalCommands(rootCmd, &modulesInfo)
 
 	return modulesInfo, nil
 }
@@ -183,6 +168,7 @@ func getEnvironmentModulesDirs() ([]string, error) {
 	if env_var == "" {
 		return []string{}, nil
 	}
+
 	paths := strings.Split(env_var, ":")
 	return collectDirectoriesList(paths)
 }
@@ -196,10 +182,12 @@ func isPossibleModule(dir string) (modulesEntry, bool) {
 		entries.Manifest = manifest
 		is_module = true
 	}
+
 	if main, err := exec.LookPath(filepath.Join(dir, mainEntryPoint)); err == nil {
 		entries.Main = main
 		is_module = true
 	}
+
 	return entries, is_module
 }
 
@@ -209,16 +197,20 @@ func readSubDirectories(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
 	}
+
 	entries = slices.DeleteFunc(entries, func(e os.DirEntry) bool {
 		return !e.IsDir()
 	})
+
 	slices.SortFunc(entries, func(a, b os.DirEntry) int {
 		return strings.Compare(a.Name(), b.Name())
 	})
+
 	dirs := make([]string, 0, len(entries))
 	for _, e := range entries {
 		dirs = append(dirs, e.Name())
 	}
+
 	return dirs, nil
 }
 
@@ -231,14 +223,17 @@ func getExternalModules(paths []string) (possibleModules, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		cnt_modules := 0
 		for _, d := range dirs {
 			mod_path := filepath.Join(path, d)
+
 			e, exists := modules[d]
 			if exists {
 				log.Warnf("Ignore duplicate module %q overlap with %q", mod_path, e.Directory)
 				continue
 			}
+
 			if mod_entry, is_module := isPossibleModule(mod_path); is_module {
 				modules[d] = mod_entry
 				cnt_modules += 1

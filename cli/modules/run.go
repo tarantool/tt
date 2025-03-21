@@ -26,14 +26,14 @@ type InternalFunc func(*cmdcontext.CmdCtx, []string) error
 // If the external module returns an error code,
 // then tt exit with this code.
 func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
-	internal InternalFunc, args []string) error {
+	internal InternalFunc, args []string,
+) error {
 	manifest, found := (*modulesInfo)[cmdPath]
-	if !found {
-		return fmt.Errorf("module with specified name %s isn't found", cmdPath)
-	}
-
-	if manifest == nil || cmdCtx.Cli.ForceInternal {
-		return internal(cmdCtx, args)
+	if !found || cmdCtx.Cli.ForceInternal {
+		if internal != nil {
+			return internal(cmdCtx, args)
+		}
+		return fmt.Errorf("no internal command for %q to run", cmdPath)
 	}
 
 	f, err := cmdCtx.Integrity.Repository.Read(manifest.Main)
@@ -84,8 +84,11 @@ func GetExternalModuleHelp(module string) (string, error) {
 }
 
 // GetExternalModuleDescription calls external module with
-// the --help flag and returns an output.
-func GetExternalModuleDescription(module string) (string, error) {
-	out, err := exec.Command(module, "--description").Output()
+// the --help flag and returns an output, if no manifest help info.
+func GetExternalModuleDescription(manifest Manifest) (string, error) {
+	if manifest.Help != "" {
+		return manifest.Help, nil
+	}
+	out, err := exec.Command(manifest.Main, "--description").Output()
 	return string(out), err
 }

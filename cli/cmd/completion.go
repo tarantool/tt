@@ -37,17 +37,16 @@ func NewCompletionCmd() *cobra.Command {
 
 // RootShellCompletionCommands returns a list of external commands for autocomplete.
 func RootShellCompletionCommands(cmd *cobra.Command, args []string,
-	toComplete string) ([]string, cobra.ShellCompDirective) {
+	toComplete string,
+) ([]string, cobra.ShellCompDirective) {
 	var commands []string
 	for name, manifest := range modulesInfo {
-		if manifest != nil {
-			description, err := modules.GetExternalModuleDescription(manifest.Main)
-			if err != nil {
-				description = "Failed to get description"
-			}
-
-			commands = append(commands, fmt.Sprintf("%s\t%s", name, description))
+		description, err := modules.GetExternalModuleDescription(manifest)
+		if err != nil {
+			description = "Failed to get description"
 		}
+
+		commands = append(commands, fmt.Sprintf("%s\t%s", name, description))
 	}
 
 	return commands, cobra.ShellCompDirectiveDefault
