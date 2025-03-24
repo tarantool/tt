@@ -8,6 +8,7 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/util"
+	"gopkg.in/yaml.v3"
 )
 
 // InternalFunc is a type of function that implements
@@ -83,12 +84,25 @@ func GetExternalModuleHelp(module string) (string, error) {
 	return string(out), err
 }
 
-// GetExternalModuleDescription calls external module with
-// the --help flag and returns an output, if no manifest help info.
-func GetExternalModuleDescription(manifest Manifest) (string, error) {
-	if manifest.Help != "" {
-		return manifest.Help, nil
+// fillManifest update Manifest required fields, by calls external module `main`
+// with both `description` and `version` flags and parse reply.
+func fillManifest(manifest Manifest) (Manifest, error) {
+	out, err := exec.Command(manifest.Main, "--description", "--version").Output()
+	if err != nil {
+		return manifest, fmt.Errorf("failed to get module info: %w", err)
 	}
-	out, err := exec.Command(manifest.Main, "--description").Output()
-	return string(out), err
+
+	info := struct {
+		Version string `yaml:"version"`
+		Help    string `yaml:"help"`
+	}{}
+
+	err = yaml.Unmarshal(out, &info)
+	if err != nil {
+		return manifest, fmt.Errorf("can't parse module info: %w", err)
+	}
+
+	manifest.Version = info.Version
+	manifest.Help = info.Help
+	return manifest, nil
 }
