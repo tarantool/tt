@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "Try overriding internal modules command"

@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/rocks"
 )
 
@@ -34,12 +33,7 @@ func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 ) ([]string, cobra.ShellCompDirective) {
 	var commands []string
 	for name, manifest := range modulesInfo {
-		description, err := modules.GetExternalModuleDescription(manifest)
-		if err != nil {
-			description = "Failed to get description"
-		}
-
-		commands = append(commands, fmt.Sprintf("%s\t%s", name, description))
+		commands = append(commands, fmt.Sprintf("%s\t%s", name, manifest.Help))
 	}
 
 	return commands, cobra.ShellCompDirectiveDefault

@@ -1,2 +1,22 @@
 #!/bin/sh
+NEED_EXIT=false
+
+for var in "$@"
+do
+	case "$var" in
+		"--description")
+			echo "help: Description for simple module"
+			NEED_EXIT=true
+			;;
+		"--version")
+			echo "version: v0.0.1"
+			NEED_EXIT=true
+			;;
+	esac
+done
+
+if $NEED_EXIT; then
+	exit 0
+fi
+
 echo "Hello, simple module!"
