@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "Module without version and description support"

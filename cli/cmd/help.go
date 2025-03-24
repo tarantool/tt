@@ -78,18 +78,13 @@ func getInternalHelpFunc(cmd *cobra.Command, help DefaultHelpFunc) modules.Inter
 	}
 }
 
-// getExternalCommandString returns a pretty string
+// getExternalCommandsString returns a pretty string
 // of descriptions for external modules.
 func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	str := ""
-	for path, manifest := range *modulesInfo {
-		helpMsg, err := modules.GetExternalModuleDescription(manifest)
-		if err != nil {
-			helpMsg = "description is absent"
-		}
-
-		name := strings.Split(path, " ")[1]
-		str = fmt.Sprintf("%s  %s\t%s\n", str, name, helpMsg)
+	for _, path := range sortExternalModules() {
+		mf := (*modulesInfo)[path]
+		str += fmt.Sprintf("  %s\t%s\n", mf.Name, mf.Help)
 	}
 
 	if str != "" {
@@ -100,8 +95,7 @@ func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	return ""
 }
 
-var (
-	usageTemplate = util.Bold("USAGE") + `
+var usageTemplate = util.Bold("USAGE") + `
 {{- if (and .Runnable .HasAvailableInheritedFlags)}}
   {{.UseLine}}
 {{end -}}
@@ -130,7 +124,7 @@ var (
 {{end}}
 {{end -}}
 
-{{- if not .HasAvailableInheritedFlags}} %s
+{{- if not .HasParent}} %s
 {{end -}}
 
 {{- if .HasAvailableLocalFlags}}` + util.Bold("\nFLAGS") + `
@@ -149,4 +143,3 @@ var (
 Use "{{.CommandPath}} <command> --help" for more information about a command.
 {{end -}}
 `
-)
