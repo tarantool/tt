@@ -38,9 +38,6 @@ func newAeonConnectCmd() *cobra.Command {
 		tt aeon connect unix://<socket-path>
 		tt aeon connect /path/to/config INSTANCE_NAME>`,
 		Run: func(cmd *cobra.Command, args []string) {
-
-			fmt.Println("this flag connectCtx.Ssl.CaFile", connectCtx.Ssl.CaFile)
-
 			cmdCtx.CommandName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalAeonConnect, args)
@@ -123,7 +120,6 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("sslkeyfile") != cmd.Flags().Changed("sslcertfile") {
 			return errors.New("files Key and Cert must be specified both")
 		}
-		fmt.Println("connectCtx.Ssl.KeyFile", connectCtx.Ssl.KeyFile)
 
 		if !checkFile(connectCtx.Ssl.KeyFile) {
 			return fmt.Errorf("not valid path to a private SSL key file=%q",
