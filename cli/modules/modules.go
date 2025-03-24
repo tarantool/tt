@@ -20,8 +20,13 @@ const (
 	mainEntryPoint   = "main"
 )
 
+// disabledOverride list of internal commands that can't be overridden by external modules.
+var disabledOverride = []string{"modules"}
+
 // Manifest stores information about Tarantool CLI module.
 type Manifest struct {
+	// Name of module.
+	Name string `yaml:"-"`
 	// Version of module.
 	Version string `yaml:"version"`
 	// Main is name of executable file.
@@ -85,9 +90,7 @@ func makeManifest(entry modulesEntry) (Manifest, error) {
 		return readManifest(entry.Directory, entry.Manifest)
 	}
 
-	return Manifest{
-		Main: entry.Main,
-	}, nil
+	return fillManifest(Manifest{Main: entry.Main})
 }
 
 // GetModulesInfo collects information about available modules (both external and internal).
@@ -120,6 +123,7 @@ func GetModulesInfo(
 			log.Warnf("Failed to get information about module %q: %s", name, err)
 			continue
 		}
+		mf.Name = name
 		commandPath := rootCmd + " " + name
 		modulesInfo[commandPath] = mf
 	}
@@ -231,6 +235,10 @@ func getExternalModules(paths []string) (possibleModules, error) {
 			if exists {
 				log.Warnf("Ignore duplicate module %q overlap with %q", mod_path, e.Directory)
 				continue
+			}
+
+			if slices.Contains(disabledOverride, d) {
+				return modules, fmt.Errorf("module %q is disabled to override", d)
 			}
 
 			if mod_entry, is_module := isPossibleModule(mod_path); is_module {

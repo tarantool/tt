@@ -45,12 +45,16 @@ func TestGetModulesInfo(t *testing.T) {
 			modules: []string{"testdata/modules1"},
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
+					Name:    "ext_mod",
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
 				"root simple": modules.Manifest{
-					Main: "testdata/modules1/simple/main",
+					Name:    "simple",
+					Main:    "testdata/modules1/simple/main",
+					Help:    "Description for simple module",
+					Version: "v0.0.1",
 				},
 			},
 		},
@@ -60,17 +64,22 @@ func TestGetModulesInfo(t *testing.T) {
 			env_modules: "testdata/modules1:testdata/modules2",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
+					Name:    "ext_mod",
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
 				"root ext_mod2": modules.Manifest{
+					Name:    "ext_mod2",
 					Main:    "testdata/modules2/ext_mod2/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
 				"root simple": modules.Manifest{
-					Main: "testdata/modules1/simple/main",
+					Name:    "simple",
+					Main:    "testdata/modules1/simple/main",
+					Help:    "Description for simple module",
+					Version: "v0.0.1",
 				},
 			},
 		},
@@ -80,12 +89,16 @@ func TestGetModulesInfo(t *testing.T) {
 			env_modules: "testdata/modules1",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
+					Name:    "ext_mod",
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
 				"root simple": modules.Manifest{
-					Main: "testdata/modules1/simple/main",
+					Name:    "simple",
+					Main:    "testdata/modules1/simple/main",
+					Help:    "Description for simple module",
+					Version: "v0.0.1",
 				},
 			},
 		},
@@ -96,17 +109,22 @@ func TestGetModulesInfo(t *testing.T) {
 			env_modules: "testdata/modules2",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
+					Name:    "ext_mod",
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
 				"root ext_mod2": modules.Manifest{
+					Name:    "ext_mod2",
 					Main:    "testdata/modules2/ext_mod2/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
 				"root simple": modules.Manifest{
-					Main: "testdata/modules1/simple/main",
+					Name:    "simple",
+					Main:    "testdata/modules1/simple/main",
+					Help:    "Description for simple module",
+					Version: "v0.0.1",
 				},
 			},
 		},
@@ -117,12 +135,16 @@ func TestGetModulesInfo(t *testing.T) {
 			env_modules: "testdata/modules1",
 			want: modules.ModulesInfo{
 				"root ext_mod": modules.Manifest{
+					Name:    "ext_mod",
 					Main:    "testdata/modules1/ext_mod/command.sh",
 					Help:    "Help for the ext_mod module",
 					Version: "1.2.3",
 				},
 				"root simple": modules.Manifest{
-					Main: "testdata/modules1/simple/main",
+					Name:    "simple",
+					Main:    "testdata/modules1/simple/main",
+					Help:    "Description for simple module",
+					Version: "v0.0.1",
 				},
 			},
 			log: []string{"Ignore duplicate module"},
@@ -140,6 +162,9 @@ func TestGetModulesInfo(t *testing.T) {
 				`Failed to get information about module "no-help": help field is mandatory`,
 				`Failed to get information about module "not-mf": failed to read manifest`,
 				`Failed to get information about module "broken": failed to parse manifest`,
+				`Failed to get information about module "no_version":` +
+					` reply for --version is mandatory for module`,
+				`Failed to get information about module "simple": can't parse module info`,
 			},
 		},
 
@@ -162,9 +187,18 @@ func TestGetModulesInfo(t *testing.T) {
 			modules: []string{"testdata/mod_override"},
 			want: modules.ModulesInfo{
 				"root testCmd": modules.Manifest{
-					Main: "testdata/mod_override/testCmd/main",
+					Name:    "testCmd",
+					Main:    "testdata/mod_override/testCmd/main",
+					Help:    "Description for testCmd module",
+					Version: "v1.2.3",
 				},
 			},
+		},
+		"disabled override ": {
+			config:      "some/config/tt.yaml",
+			env_modules: "testdata/disabled_override",
+			want:        modules.ModulesInfo{},
+			err:         `module "modules" is disabled to override`,
 		},
 	}
 
