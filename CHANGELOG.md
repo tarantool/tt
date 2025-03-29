@@ -8,14 +8,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
-  - `tt aeon connect` added tests for connect file/app.
 
+- `tt aeon connect`: added tests for connect file/app.
 - `tt pack `: support `.packignore` file to specify files that should not be included
   in package (works the same as `.gitignore`).
 
 ### Changed
 
 ### Fixed
+
+- Arguments of an internal command are not parsed if it is forced over its existent
+  external counterpart.
 
 ## [2.8.1] - 2025-03-10
 
