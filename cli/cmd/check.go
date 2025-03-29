@@ -4,9 +4,7 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // NewCheckCmd creates a new check command.
@@ -14,12 +12,7 @@ func NewCheckCmd() *cobra.Command {
 	var checkCmd = &cobra.Command{
 		Use:   "check [<APPLICATION_NAME>]",
 		Short: "Check an application file for syntax errors",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalCheckModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   RunModuleFunc(internalCheckModule),
 	}
 
 	return checkCmd

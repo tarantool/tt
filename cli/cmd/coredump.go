@@ -4,8 +4,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/coredump"
-	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
 )
 
 var (
@@ -26,13 +24,8 @@ func NewCoredumpCmd() *cobra.Command {
 	var packCmd = &cobra.Command{
 		Use:   "pack COREDUMP",
 		Short: "pack tarantool coredump into tar.gz archive",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
-				internalCoredumpPackModule, args)
-			util.HandleCmdErr(cmd, err)
-		},
-		Args: cobra.ExactArgs(1),
+		Run:   RunModuleFunc(internalCoredumpPackModule),
+		Args:  cobra.ExactArgs(1),
 	}
 	packCmd.Flags().StringVarP(&coredumpPackExecutable, "executable", "e", "",
 		"Tarantool executable path")
@@ -48,23 +41,15 @@ func NewCoredumpCmd() *cobra.Command {
 	var unpackCmd = &cobra.Command{
 		Use:   "unpack ARCHIVE",
 		Short: "unpack tarantool coredump tar.gz archive",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := coredump.Unpack(args[0]); err != nil {
-				util.HandleCmdErr(cmd, err)
-			}
-		},
-		Args: cobra.ExactArgs(1),
+		Run:   RunModuleFunc(internalCoredumpUnpackModule),
+		Args:  cobra.ExactArgs(1),
 	}
 
 	var inspectCmd = &cobra.Command{
 		Use:   "inspect {ARCHIVE|DIRECTORY}",
 		Short: "inspect tarantool coredump",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := coredump.Inspect(args[0], coredumpInspectSourceDir); err != nil {
-				util.HandleCmdErr(cmd, err)
-			}
-		},
-		Args: cobra.ExactArgs(1),
+		Run:   RunModuleFunc(internalCoredumpInspectModule),
+		Args:  cobra.ExactArgs(1),
 	}
 	inspectCmd.Flags().StringVarP(&coredumpInspectSourceDir, "sourcedir", "s", "",
 		"Source directory")
@@ -90,4 +75,14 @@ func internalCoredumpPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error 
 		coredumpPackPID,
 		coredumpPackTime,
 	)
+}
+
+// internalCoredumpUnpackModule is a default "unpack" command for the coredump module.
+func internalCoredumpUnpackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	return coredump.Unpack(args[0])
+}
+
+// internalCoredumpInspectModule is a default "inspect" command for the coredump module.
+func internalCoredumpInspectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	return coredump.Inspect(args[0], coredumpInspectSourceDir)
 }
