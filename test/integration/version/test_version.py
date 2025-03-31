@@ -12,7 +12,7 @@ def check_internal_version_cmd(tt_cmd, tmp_path):
     cmd = [tt_cmd, "-I", "version", "--short"]
     rc, output = utils.run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert re.match(r"(\d+.\d+.\d+|<unknown>)", output)
+    assert re.match(r"(\d+.\d+.\d+|<unknown>)$", output)
 
     cmd = [tt_cmd, "-I", "version", "--commit"]
     rc, output = utils.run_command_and_get_output(cmd, cwd=tmp_path)
