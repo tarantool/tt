@@ -11,7 +11,20 @@ env:
   GO_VERSION: '1.22.11'
 
 jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 'master'
+          fetch-depth: 0
+
+      - name: Validation
+        run: git branch -r --contains ${{ github.ref }} | grep "origin/master"
+
   create-packages-linux:
+    needs: validate-tag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,6 +91,7 @@ jobs:
           path: dist
 
   create-packages-linux-arm64:
+    needs: validate-tag
     runs-on: graviton
     strategy:
       fail-fast: false
@@ -128,6 +142,7 @@ jobs:
           path: dist
 
   create-packages-macos:
+    needs: validate-tag
     runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
@@ -265,7 +280,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-s3:
-    needs: [create-packages-linux, create-packages-linux-arm64]
+    needs: [validate-tag, create-packages-linux, create-packages-linux-arm64]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags')
     steps:
