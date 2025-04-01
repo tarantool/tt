@@ -2,5 +2,8 @@ package tcm
 
 type TcmCtx struct {
 	Executable string
-	Watchdog   bool
+	TcmPidFile string
+
+	Watchdog       bool
+	WathdogPidFile string
 }
