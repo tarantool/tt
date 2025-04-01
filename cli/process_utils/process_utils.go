@@ -104,6 +104,27 @@ func CheckPIDFile(pidFileName string) error {
 	return nil
 }
 
+// ExistsAndRecord checks if the process with the given pidFileName exists and is alive.
+// If it does, returns true, otherwise returns false.
+// If something went wrong while trying to read the PID file, returns an error.
+func ExistsAndRecord(pidFileName string) (bool, error) {
+	if _, err := os.Stat(pidFileName); err == nil {
+		// The PID file already exists. We have to check if the process is alive.
+		pid, err := GetPIDFromFile(pidFileName)
+		if err != nil {
+			return false, fmt.Errorf(`pID file exists, but PID can't be read. Error: "%v"`, err)
+		}
+		if res, _ := IsProcessAlive(pid); res {
+			return true, nil
+		}
+	} else if !os.IsNotExist(err) {
+		return false, fmt.Errorf(`something went wrong while trying to read the PID file. Error: "%v"`,
+			err)
+	}
+
+	return false, nil
+}
+
 // CreatePIDFile checks that the instance PID file is absent or
 // deprecated and creates a new one. Returns an error on failure.
 func CreatePIDFile(pidFileName string, pid int) error {

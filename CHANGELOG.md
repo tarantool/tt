@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   allow find WAL files inside nested subdirectories.
 - `tt search tcm` - the command performs a search for tarantool cluster
   manager (TCM) in the customer zone or local `distfiles` directory.
+- `tt aeon connect`: added tests for connect file/app.
+- `tt pack `: support `.packignore` file to specify files that should not be included
+  in package (works the same as `.gitignore`).
+- `tt tcm start`: add the tcm command.
+- `tt tcm start` OR `tt tcm start --path /path/to/tcm`: added the capability to run TCM in interactive mode.
+- `tt tcm start --watchdog`: implemented Watchdog mode for automatic restarting of TCM upon unexpected termination.
+- `tt tcm status`: added command to check TCM runtime status (modes: `watchdog` or `interactive`).
 
 ### Changed
 
@@ -122,16 +129,16 @@ continues to improve `tt play` command.
 
 - `tt aeon connect`: add support to connect Aeon database.
 - `tt play`: support of the SSL parameters by using next flags:
-  * `sslkeyfile` - path to a private SSL key file,
-  * `sslcertfile` - path to an SSL certificate file,
-  * `sslcafile` - path to a trusted certificate authorities (CA) file,
-  * `sslciphers` - colon-separated list of SSL cipher suites the connection.
+  - `sslkeyfile` - path to a private SSL key file,
+  - `sslcertfile` - path to an SSL certificate file,
+  - `sslcafile` - path to a trusted certificate authorities (CA) file,
+  - `sslciphers` - colon-separated list of SSL cipher suites the connection.
 - `tt play`: support connection to a target instance by `application` name
   or `application:instance` name.
 - `tt coredump pack`: add options to customize coredump packing:
-  * `-e (--executable)`: specify Tarantool executable path.
-  * `-p (--pid)`: specify PID of the dumped process.
-  * `-t (--time)`: specify time of dump (seconds since the Epoch).
+  - `-e (--executable)`: specify Tarantool executable path.
+  - `-p (--pid)`: specify PID of the dumped process.
+  - `-t (--time)`: specify time of dump (seconds since the Epoch).
 - `tt.yaml`: allows to specify a list of modules directories.
 - Environment variable TT_CLI_MODULES_PATH can be used to specify
   an extra path with modules.
@@ -139,8 +146,8 @@ continues to improve `tt play` command.
 ### Changed
 
 - `tt stop/kill/clean/logrotate`: no longer need:
-   * Instances scripts for multi-instance applications.
-   * Cluster config for tarantool3-based cluster applications.
+  - Instances scripts for multi-instance applications.
+  - Cluster config for tarantool3-based cluster applications.
 - `tt logrotate`: don't exit at non-running instance, just warn and proceed
   with the other instances, like `tt stop` and `tt kill` do.
 - `tt coredump pack`: if `-e` option is omitted first search tarantool
@@ -166,16 +173,16 @@ The release introduces `upgrade` and `downgrade` subcommands for
 
 - `tt replicaset downgrade`: command to downgrade the schema on a Tarantool
   cluster.
-  * `-v (--version)`: (required) specify schema version to downgrade to.
-  * `-r (--replicaset)`: specify the replicaset name(s) to downgrade.
-  * `-t (--timeout)`: timeout for waiting the LSN synchronization (in seconds)
+  - `-v (--version)`: (required) specify schema version to downgrade to.
+  - `-r (--replicaset)`: specify the replicaset name(s) to downgrade.
+  - `-t (--timeout)`: timeout for waiting the LSN synchronization (in seconds)
     (default 5).
 - `tt replicaset upgrade`: command to upgrade the schema on a Tarantool
   cluster.
-  * `-r (--replicaset)`: specify the replicaset name(s) to upgrade.
-  * `-t (--timeout)`: timeout for waiting the LSN synchronization (in seconds)
+  - `-r (--replicaset)`: specify the replicaset name(s) to upgrade.
+  - `-t (--timeout)`: timeout for waiting the LSN synchronization (in seconds)
     (default 5).
-  * supports upgrading the database schema on remote cluster by upgrading
+  - supports upgrading the database schema on remote cluster by upgrading
     each replicaset individually using `tt replicaset upgrade <URI>`.
 - New flag `--timestamp` of `tt cat` and `tt play` commands is added to specify
   operations ending with the given timestamp. This value can be specified
@@ -217,7 +224,7 @@ Additionally, several fixes were implemented to improve stability.
 ### Added
 
 - `tt status`: display `config`, `box`, and `replication upstream` statuses.
-  * `--details`: display detailed reports of errors and warnings from
+  - `--details`: display detailed reports of errors and warnings from
     instances.
 - `tt stop` confirmation prompt. `-y` option is added to accept stop without
   prompting.
@@ -248,8 +255,8 @@ Additionally, several fixes were implemented to improve stability.
 ### Added
 
 - `tt log`: a module for viewing instances logs. Supported options:
-  * `--lines` number of lines to print.
-  * `--follow` print appended data as log files grow.
+  - `--lines` number of lines to print.
+  - `--follow` print appended data as log files grow.
 - `tt connect`: support format for Tarantool tuples for Tarantool
   versions >= 3.2.
 - `tt enable`: create a symbolic link in 'instances_enabled' directory to
@@ -275,7 +282,7 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Changed
 
-- Do not create Dockerfile.* in application's directory.
+- Do not create Dockerfile.\* in application's directory.
 
 ## [2.3.1] - 2024-06-13
 
@@ -289,11 +296,11 @@ Additionally, several fixes were implemented to improve stability.
 
 - `tt status`: displays the mode of the instance.
 - `tt coredump`: enhances coredump inspection:
-  * `tt coredump pack`: puts gdb.sh and GDB-extensions into the archive so
+  - `tt coredump pack`: puts gdb.sh and GDB-extensions into the archive so
     that it contains everything necessary for convenient coredump inspection.
-  * `tt coredump inspect`: allows archive path as an argument (archive should
+  - `tt coredump inspect`: allows archive path as an argument (archive should
     be created with `tt coredump pack`).
-  * `tt coredump inspect`: added `-s` option to specify the location of
+  - `tt coredump inspect`: added `-s` option to specify the location of
     tarantool sources.
 - `tt cluster publish`: ability to publish a new instance config.
 - `tt pack` does not create unnecessary directories and removes files that are
@@ -307,7 +314,7 @@ Additionally, several fixes were implemented to improve stability.
   file.
 - `tt pack`: systemd unit parameterizing support.
 - `tt replicaset vshard`: module to manage vshard in the tarantool replicaset.
-  * `tt replicaset vshard bootstrap`: command to bootstrap vshard.
+  - `tt replicaset vshard bootstrap`: command to bootstrap vshard.
 
 ### Fixed
 
@@ -330,9 +337,9 @@ Additionally, several fixes were implemented to improve stability.
   replicaset with cluster config (3.0) orchestrator.
 - `tt cluster replicaset`: module to manage replicaset via 3.0 cluster config
   storage.
-  * `tt cluster replicaset promote`: command to promote an instance in
+  - `tt cluster replicaset promote`: command to promote an instance in
     the replicaset.
-  * `tt cluster replicaset demote`: command to demote an instance in
+  - `tt cluster replicaset demote`: command to demote an instance in
     the replicaset.
 - `tt connect --binary`: connect to instance using binary port.
 - `tt kill`: command to stop instance(s) with SIGQUIT and SIGKILL signals.
@@ -392,12 +399,12 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Added
 
-- Module ``tt replicaset``, to manage replicasets:
-  - ``tt replicaset status`` to show a cluster status information.
+- Module `tt replicaset`, to manage replicasets:
+  - `tt replicaset status` to show a cluster status information.
 
 ### Changed
 
-- Disable ``tt run`` tarantool flag parsing.
+- Disable `tt run` tarantool flag parsing.
 
 ### Fixed
 
@@ -411,8 +418,8 @@ Additionally, several fixes were implemented to improve stability.
 - `tt connect` auto-completion shows directories and files when there are no
   running apps.
 - `tt rocks --server` now accepts several URL's.
-- Disable ``tt run`` tarantool flag parsing.
-- Now ``tt run`` starts instance without our wrapper.
+- Disable `tt run` tarantool flag parsing.
+- Now `tt run` starts instance without our wrapper.
 
 ### Added
 
@@ -427,7 +434,7 @@ Additionally, several fixes were implemented to improve stability.
 
 - Print log messages to stderr.
 - Global flags are required to be positioned only before child
-  commands. Example: ``tt --cfg tt.yaml install tt``.
+  commands. Example: `tt --cfg tt.yaml install tt`.
 - tt config format: separate tt environment options from application options.
 - tt version: additional version information for non-release builds.
 - Working directory is changed to an application source directory.
@@ -448,7 +455,7 @@ Additionally, several fixes were implemented to improve stability.
 - Log rotation functionality and configuration is removed from `tt`.
   `tt logrotate` command re-opens a log file and sends SIGHUP to the child
   `tarantool` processes.
-- ``tt cat``: all diagnostic messages are printed to stderr.
+- `tt cat`: all diagnostic messages are printed to stderr.
 - Print `tarantool` stdout/stderr and watchdog logs to the same log file -
   `tt.log`.
 
@@ -456,16 +463,16 @@ Additionally, several fixes were implemented to improve stability.
 
 - tt completion: added luarocks completions.
 - tarantool-ee: search and install development builds.
-- ``tt play``: ability to pass username and password via flags and environment
+- `tt play`: ability to pass username and password via flags and environment
   variables.
 - tt cluster: credentials could be passed via environment variables and command
   flags.
 
 ### Fixed
 
-- ``tt rocks``: broken ``--verbose`` option.
-- ``tt binaries``: tarantool-ee binaries not shown.
-- ``tt cluster``: recognize app:instance as a etcd URL.
+- `tt rocks`: broken `--verbose` option.
+- `tt binaries`: tarantool-ee binaries not shown.
+- `tt cluster`: recognize app:instance as a etcd URL.
 
 ## [1.3.0] - 2023-09-28
 
@@ -473,15 +480,15 @@ Additionally, several fixes were implemented to improve stability.
 
 - Use CLI arg connect string for the prompt line and the title to avoid too
   long prompt line when using 'app:instance' target format.
-- ``tt rocks``: luarocks version has been updated to 3.9.2.
+- `tt rocks`: luarocks version has been updated to 3.9.2.
 
 ### Added
 
 - `tt install tarantool/tt`: ability to install tarantool and tt from an
-  arbitrary commit. The binary has the name tt/tarantool_ + seven-digit hash.
+  arbitrary commit. The binary has the name tt/tarantool\_ + seven-digit hash.
 - New `tt pack` flag `--tarantool-version` is added to specify tarantool
   version for pack in docker. It is supported only with `--use-docker` enabled.
-- Module ``tt cluster``, to show or publish a cluster or an instance
+- Module `tt cluster`, to show or publish a cluster or an instance
   configuration.
 - `tt connect`: added command `\help` to show the help with a list of available
   commands.
@@ -560,9 +567,9 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Fixed
 
-- ``tt start`` now does not start an instance if it is already running.
-- ``tt rocks`` uses rocks repo path relative to tt environment config location.
-- ``tt connect`` now does not crash on `\q` input.
+- `tt start` now does not start an instance if it is already running.
+- `tt rocks` uses rocks repo path relative to tt environment config location.
+- `tt connect` now does not crash on `\q` input.
 
 ### Added
 
@@ -571,10 +578,10 @@ Additionally, several fixes were implemented to improve stability.
   in case of the pattern doesn't contain delimiter `:`, and suitable instances
   otherwise.
 - support tt environment directories overriding using environment variables:
-  * TT_CLI_REPO_ROCKS environment variable value is used as rocks repository
+  - TT_CLI_REPO_ROCKS environment variable value is used as rocks repository
     path if it is set and there is no tt.repo.rocks in tt configuration file or
     tt.repo.rocks directory does not include repository manifest file.
-  * TT_CLI_TARANTOOL_PREFIX environment variable value is used for as tarantool
+  - TT_CLI_TARANTOOL_PREFIX environment variable value is used for as tarantool
     installation prefix directory for rocks commands if it is set and tarantool
     executable is found in PATH.
 - smart auto-completion for `tt create`. It shows a list of built-in templates
@@ -585,39 +592,39 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Changed
 
-- ``tt install tarantool`` without version specification now installs the
+- `tt install tarantool` without version specification now installs the
   latest release.
-- ``tt install/search tarantool-ee`` now uses credentials from `tarantool.io`
+- `tt install/search tarantool-ee` now uses credentials from `tarantool.io`
   customer zone. Also, installation now requires specifying the version.
-- ``tt search tarantool-ee`` options changed. A new `--version` flag has been
+- `tt search tarantool-ee` options changed. A new `--version` flag has been
   added to allow search for a specific release. The `--dev` and `--dbg` options
   have been merged into a single `--debug` option.
-- ``tt search`` now uses subcommands for searching tarantool/tarantool-ee/tt
+- `tt search` now uses subcommands for searching tarantool/tarantool-ee/tt
   binaries
 
 ### Added
 
-- ``--dynamic`` option for `tt install tarantool` command to build non-static
+- `--dynamic` option for `tt install tarantool` command to build non-static
   tarantool executable.
 
 ### Fixed
 
-- ``tt connect`` command does not break a console after executing `os.exit()`
+- `tt connect` command does not break a console after executing `os.exit()`
   command anymore.
 
 ## [1.0.2] - 2023-04-21
 
 ### Fixed
 
-- ``tt cartridge`` command takes into account run dir path from the `tt`
+- `tt cartridge` command takes into account run dir path from the `tt`
   environment. So most of the `tt cartridge` sub-commands are able to work
   without specifying `--run-dir` option.
-- ``tt install`` command checks it's write rights to binary and include
+- `tt install` command checks it's write rights to binary and include
   directories before installing binaries.
 
 ### Changed
 
-- ``tt install/uninstall`` command line interface is updated. Program names
+- `tt install/uninstall` command line interface is updated. Program names
   have become sub-commands with their own options.
 
 ## [1.0.1] - 2023-04-04
@@ -625,7 +632,7 @@ Additionally, several fixes were implemented to improve stability.
 ### Added
 
 - A configurable variable `cluster_cookie` for `tt create cartridge` template.
-- ``tt build`` accepts application name for building.
+- `tt build` accepts application name for building.
 - Creating wal, vinyl and memtx directories for `tt pack`. If these directories
   are not located in the same directory in the environment for packing, the
   result package will contain separate snap/vinyl/wal directories for
@@ -637,9 +644,9 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Changed
 
-- ``tt uninstall`` does not ask version if only one version of a program is
+- `tt uninstall` does not ask version if only one version of a program is
   installed.
-- ``tt rocks init`` is disabled.
+- `tt rocks init` is disabled.
 
 ## [1.0.0] - 2023-03-23
 
@@ -652,10 +659,10 @@ Additionally, several fixes were implemented to improve stability.
   log file. This option affects only single instance applications.
 - An ability to set different directories for WAL, vinyl and snapshots
   artifacts.
-- ``tt instances`` command to print a list of enabled applications.
-- SSL options for ``tt connect`` command.
+- `tt instances` command to print a list of enabled applications.
+- SSL options for `tt connect` command.
 - An ability to pass arguments to a connect command.
-- ``tt binaries`` command. It shows a list of installed binaries and their
+- `tt binaries` command. It shows a list of installed binaries and their
   versions.
 
 ### Changed
@@ -669,7 +676,7 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Fixed
 
-- Output of the ``help`` with all commands.
+- Output of the `help` with all commands.
 - Allow more characters for URI credentials.
 
 ## [0.4.0] - 2022-12-31
@@ -677,8 +684,8 @@ Additionally, several fixes were implemented to improve stability.
 ### Added
 
 - Support of rocks repository specified in tt config.
-- ``cfg dump`` module. It prints tt environment configuration.
-- ``--use-docker`` option for ``tt pack`` for packing environments in docker
+- `cfg dump` module. It prints tt environment configuration.
+- `--use-docker` option for `tt pack` for packing environments in docker
   container.
 - Support of MacOS.
 
@@ -690,10 +697,10 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Added
 
-- ``tt restart`` confirmation prompt. ``-y`` option is added to accept restart
+- `tt restart` confirmation prompt. `-y` option is added to accept restart
   without prompting.
-- ``tt pack`` will generate systemd unit for rpm and deb packages.
-- ``--use-docker`` option for ``tt install`` to build Tarantool in
+- `tt pack` will generate systemd unit for rpm and deb packages.
+- `--use-docker` option for `tt install` to build Tarantool in
   Ubuntu 16.04 container.
 - Ability to use the `start/stop/restart/status/check` commands without
   arguments to interact with all instances of the environment simultaneously.
@@ -704,16 +711,16 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Changed
 
-- ``tt cartridge`` sub-commands ``create``, ``build``, ``pack`` are removed.
-- ``remove`` command is renamed to ``uninstall``.
-- Updated values in system ``tarantool.yaml`` for ``bin_dir``, ``inc_dir``
-  and ``repo: distfiles``.
+- `tt cartridge` sub-commands `create`, `build`, `pack` are removed.
+- `remove` command is renamed to `uninstall`.
+- Updated values in system `tarantool.yaml` for `bin_dir`, `inc_dir`
+  and `repo: distfiles`.
 
 ### Fixed
 
-- Working of the ``help`` module with multi-level commands (commands with
+- Working of the `help` module with multi-level commands (commands with
   several subcommands).
-- Using the system ``tarantool.yaml`` when installing from the repository.
+- Using the system `tarantool.yaml` when installing from the repository.
 
 ## [0.2.1] - 2022-11-24
 
@@ -726,16 +733,16 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Added
 
-- Module ``tt init``, to create tt environment configuration file.
-- Module ``tt daemon``, to manage the ``tt`` daemon.
+- Module `tt init`, to create tt environment configuration file.
+- Module `tt daemon`, to manage the `tt` daemon.
 - Built-in application templates support. Cartridge application template is
   added.
-- Using ``default_cfg`` from ``.tarantoolctl`` for ``tarantool.yaml``
-  generation in ``tt init``.
+- Using `default_cfg` from `.tarantoolctl` for `tarantool.yaml`
+  generation in `tt init`.
 
 ### Changed
 
-- Modules ``tt start``, ``tt connect`` and ``tt catridge`` now use relative
+- Modules `tt start`, `tt connect` and `tt catridge` now use relative
   paths for unix sockets. It allows to use socket paths longer than sun_path
   limit.(108/106 on linux/macOS) e.g foo/bar.sock -> ./bar.sock
 
@@ -743,25 +750,25 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Added
 
-- Module ``tt version``, to get information about the version of the CLI.
-- Module ``tt completion``, to generate autocompletion for a specified shell.
-- Module ``tt help``, to get information about the CLI and its modules.
-- Module ``tt start``, responsible for launching the instance according to the
+- Module `tt version`, to get information about the version of the CLI.
+- Module `tt completion`, to generate autocompletion for a specified shell.
+- Module `tt help`, to get information about the CLI and its modules.
+- Module `tt start`, responsible for launching the instance according to the
   application file.
-- Module ``tt stop``, responsible for terminating the instance.
-- Module ``tt status``, to get information about the state of the instance.
-- Module ``tt restart``, responsible for restarting of the instance.
-- Module ``tt logrotate``, to rotate instance logs.
-- Module ``tt check``, to check an application file for syntax errors.
-- Module ``tt connect``, used to connect to a running instance.
-- Module ``tt rocks``, LuaRocks package manager.
-- Module ``tt cat``, to print into stdout the contents of .snap/.xlog files.
-- Module ``tt play``, to play the contents of .snap/.xlog files to another
+- Module `tt stop`, responsible for terminating the instance.
+- Module `tt status`, to get information about the state of the instance.
+- Module `tt restart`, responsible for restarting of the instance.
+- Module `tt logrotate`, to rotate instance logs.
+- Module `tt check`, to check an application file for syntax errors.
+- Module `tt connect`, used to connect to a running instance.
+- Module `tt rocks`, LuaRocks package manager.
+- Module `tt cat`, to print into stdout the contents of .snap/.xlog files.
+- Module `tt play`, to play the contents of .snap/.xlog files to another
   Tarantool instance.
-- Module ``tt coredump``, to pack/unpack/inspect tarantool coredump.
-- Module ``tt run``, to start tarantool instance using tt wrapper.
-- Module ``tt search``, to show available tt/tarantool versions.
-- Module ``tt create``, to create an application from a template.
-- Module ``tt build``, to build an application.
-- Module ``tt install``, to install tarantool/tt.
-- Module ``tt remove``, to remove tarantool/tt.
+- Module `tt coredump`, to pack/unpack/inspect tarantool coredump.
+- Module `tt run`, to start tarantool instance using tt wrapper.
+- Module `tt search`, to show available tt/tarantool versions.
+- Module `tt create`, to create an application from a template.
+- Module `tt build`, to build an application.
+- Module `tt install`, to install tarantool/tt.
+- Module `tt remove`, to remove tarantool/tt.
