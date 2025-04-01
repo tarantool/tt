@@ -8,10 +8,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 
 ### Added
-  - `tt aeon connect` added tests for connect file/app.
 
+- `tt aeon connect` added tests for connect file/app.
 - `tt pack `: support `.packignore` file to specify files that should not be included
   in package (works the same as `.gitignore`).
+- `tt tcm start`: add the tcm command.
+- `tt tcm start` OR `tt tcm start --path /path/to/tcm`: added the capability to run TCM in interactive mode.
+- `tt tcm start --watchdog`: implemented Watchdog mode for automatic restarting of TCM upon unexpected termination.
 
 ### Changed
 
