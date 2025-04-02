@@ -38,7 +38,7 @@ func PublishUri(publishCtx PublishCtx, opts connect.UriOpts) error {
 		return err
 	}
 
-	connOpts := connectOpts{
+	connOpts := libcluster.ConnectOpts{
 		Username: publishCtx.Username,
 		Password: publishCtx.Password,
 	}
