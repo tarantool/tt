@@ -1,19 +1,16 @@
 package cmd
 
 import (
-	"strings"
-
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/util"
+	"golang.org/x/exp/slices"
 )
 
 // ExternalCmd configures external commands.
-func configureExternalCmd(rootCmd *cobra.Command,
-	modulesInfo *modules.ModulesInfo, forceInternal bool, args []string) {
+func configureExternalCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo,
+	forceInternal bool) {
 	configureExistsCmd(rootCmd, modulesInfo, forceInternal)
-	configureNonExistentCmd(rootCmd, modulesInfo, args)
+	configureNonExistentCmd(rootCmd, modulesInfo)
 }
 
 // configureExistsCmd configures an external commands
@@ -29,54 +26,33 @@ func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo
 
 // configureNonExistentCmd configures an external command that
 // has no internal implementation within the Tarantool CLI.
-func configureNonExistentCmd(rootCmd *cobra.Command,
-	modulesInfo *modules.ModulesInfo, args []string) {
-	// Since the user can pass flags, to determine the name of
-	// an external command we have to take the first non-flag argument.
-	externalCmd := args[0]
-	for _, name := range args {
-		if !strings.HasPrefix(name, "-") && name != "help" {
-			externalCmd = name
-			break
-		}
-	}
-
+func configureNonExistentCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo) {
 	// We avoid overwriting existing commands - we should add a command only
 	// if it doesn't have an internal implementation in Tarantool CLI.
+	// So first collect list of internal command names.
+	internalCmdNames := []string{"help"}
 	for _, cmd := range rootCmd.Commands() {
-		if cmd.Name() == externalCmd {
-			return
-		}
+		internalCmdNames = append(internalCmdNames, cmd.Name())
 	}
 
-	helpCmd := util.GetHelpCommand(rootCmd)
-	externalCmdPath := rootCmd.Name() + " " + externalCmd
-	if _, found := (*modulesInfo)[externalCmdPath]; found {
-		rootCmd.AddCommand(newExternalCommand(modulesInfo, externalCmd,
-			externalCmdPath, nil))
-		helpCmd.AddCommand(newExternalCommand(modulesInfo, externalCmd, externalCmdPath,
-			[]string{"--help"}))
+	// Add external command only if it doesn't have an internal implementation in Tarantool CLI.
+	for _, manifest := range *modulesInfo {
+		if !slices.Contains(internalCmdNames, manifest.Name) {
+			rootCmd.AddCommand(newExternalCmd(manifest))
+		}
 	}
 }
 
-// newExternalCommand returns a pointer to a new external
+// newExternalCmd returns a pointer to a new external
 // command that will call modules.RunCmd.
-func newExternalCommand(modulesInfo *modules.ModulesInfo,
-	cmdName, cmdPath string, addArgs []string) *cobra.Command {
-	cmd := &cobra.Command{
-		Use: cmdName,
-		Run: func(cmd *cobra.Command, args []string) {
-			if addArgs != nil {
-				args = append(args, addArgs...)
-			}
-
-			cmdCtx.Cli.ForceInternal = false
-			if err := modules.RunCmd(&cmdCtx, cmdPath, modulesInfo, nil, args); err != nil {
-				log.Fatalf(err.Error())
-			}
-		},
+func newExternalCmd(manifest modules.Manifest) *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:                manifest.Name,
+		Run:                RunModuleFunc(nil),
+		DisableFlagParsing: true,
 	}
-
-	cmd.DisableFlagParsing = true
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		cmd.Print(manifest.Help)
+	})
 	return cmd
 }
