@@ -30,11 +30,8 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 	internal InternalFunc, args []string,
 ) error {
 	manifest, found := (*modulesInfo)[cmdPath]
-	if !found || cmdCtx.Cli.ForceInternal {
-		if internal != nil {
-			return internal(cmdCtx, args)
-		}
-		return fmt.Errorf("no internal command for %q to run", cmdPath)
+	if !found || (cmdCtx.Cli.ForceInternal && internal != nil) {
+		return internal(cmdCtx, args)
 	}
 
 	f, err := cmdCtx.Integrity.Repository.Read(manifest.Main)

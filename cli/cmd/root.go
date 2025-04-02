@@ -228,7 +228,6 @@ After that tt will be able to manage the application using 'replicaset_example' 
 
 	// Setup decoration for Command's error messages.
 	rootCmd.SetErr(&logErrorWriterDecorator{rootCmd.ErrOrStderr(), logHandler})
-	rootCmd.InitDefaultHelpCmd()
 
 	return rootCmd
 }
@@ -314,13 +313,8 @@ func InitRoot() {
 
 	// External commands must be configured in a special way.
 	// This is necessary, for example, so that we can pass arguments to these commands.
-	if len(os.Args) > 1 {
-		configureExternalCmd(rootCmd, &modulesInfo, cmdCtx.Cli.ForceInternal, os.Args[1:])
-	}
+	configureExternalCmd(rootCmd, &modulesInfo, cmdCtx.Cli.ForceInternal)
 
 	// Configure help command.
-	err = configureHelpCommand(&cmdCtx, rootCmd)
-	if err != nil {
-		log.Fatalf("Failed to set up help command: %s", err)
-	}
+	configureHelpCommand(rootCmd, &modulesInfo)
 }
