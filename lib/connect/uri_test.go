@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/lib/connect"
 )
 
@@ -45,6 +44,8 @@ var validCredentialsUris = []string{
 	testUserPass + "@../a",
 	testUserPass + "@~/a",
 	testUserPass + "@//path",
+	"https://" + testUserPass + "@localhost:2379/prefix",
+	"https://" + testUserPass + "@localhost:2379",
 }
 
 var invalidBaseUris = []string{
@@ -194,14 +195,14 @@ func TestParseBaseURI(t *testing.T) {
 		network string
 		address string
 	}{
-		{"localhost:3013", connector.TCPNetwork, "localhost:3013"},
-		{"tcp://localhost:3013", connector.TCPNetwork, "localhost:3013"},
-		{"./path/to/socket", connector.UnixNetwork, "./path/to/socket"},
-		{"/path/to/socket", connector.UnixNetwork, "/path/to/socket"},
-		{"unix:///path/to/socket", connector.UnixNetwork, "/path/to/socket"},
-		{"unix://..//path/to/socket", connector.UnixNetwork, "..//path/to/socket"},
-		{"..//path", connector.UnixNetwork, "..//path"},
-		{"some_uri", connector.TCPNetwork, "some_uri"}, // Keeps unchanged
+		{"localhost:3013", connect.TCPNetwork, "localhost:3013"},
+		{"tcp://localhost:3013", connect.TCPNetwork, "localhost:3013"},
+		{"./path/to/socket", connect.UnixNetwork, "./path/to/socket"},
+		{"/path/to/socket", connect.UnixNetwork, "/path/to/socket"},
+		{"unix:///path/to/socket", connect.UnixNetwork, "/path/to/socket"},
+		{"unix://..//path/to/socket", connect.UnixNetwork, "..//path/to/socket"},
+		{"..//path", connect.UnixNetwork, "..//path"},
+		{"some_uri", connect.TCPNetwork, "some_uri"}, // Keeps unchanged
 	}
 
 	for _, tc := range cases {
@@ -215,11 +216,11 @@ func TestParseBaseURI(t *testing.T) {
 	t.Run("starts from ~", func(t *testing.T) {
 		homeDir, _ := os.UserHomeDir()
 		network, address := connect.ParseBaseURI("unix://~/a/b")
-		assert.Equal(t, connector.UnixNetwork, network)
+		assert.Equal(t, connect.UnixNetwork, network)
 		assert.Equal(t, homeDir+"/a/b", address)
 
 		network, address = connect.ParseBaseURI("~/a/b")
-		assert.Equal(t, connector.UnixNetwork, network)
+		assert.Equal(t, connect.UnixNetwork, network)
 		assert.Equal(t, homeDir+"/a/b", address)
 	})
 }

@@ -31,9 +31,8 @@ var aoenHelp = libconnect.MakeURLHelp(map[string]any{
 	"service":    "etcd or tarantool config storage",
 	"param_key":  "a target configuration key in the prefix",
 	"param_name": "a name of an instance in the cluster configuration",
-	"/prefix": "key prefix (optional)," +
-		"points to a “namespace” or prefix for all key operations  " +
-		"example: If you set a key mykey, it will actually be stored as /prefix/mykey.",
+	"prefix": "key prefix (optional)," +
+		" points to a “namespace” or prefix for all key operations",
 })
 
 var connectCtx = aeoncmd.ConnectCtx{

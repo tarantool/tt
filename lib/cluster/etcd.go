@@ -834,7 +834,7 @@ func СonnectEtcdUriOpts(uriOpts libconnect.UriOpts, connOpts ConnectOpts) (*cli
 	return etcdcli, nil
 }
 
-// doOnStorage determines a storage based on the opts.
+// DoOnStorage determines a storage based on the opts.
 func DoOnStorage(connOpts ConnectOpts, opts libconnect.UriOpts,
 	tarantoolFunc func(tarantool.Connector) error, etcdFunc func(*clientv3.Client) error) error {
 	etcdcli, errEtcd := СonnectEtcdUriOpts(opts, connOpts)

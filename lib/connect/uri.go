@@ -10,8 +10,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+)
 
-	"github.com/tarantool/tt/cli/connector"
+const (
+	TCPNetwork  = "tcp"
+	UnixNetwork = "unix"
 )
 
 const (
@@ -134,8 +137,11 @@ func IsCredentialsURI(str string) bool {
 	// user:password@/path
 	// user:password@./path
 	pathReStr := userpassRe + `@` + systemPathPrefixRe + `[^\./].*`
+	// https://user:password@host:port
+	// https://user:password@host
+	httpsReStr := `(http|https)://` + userpassRe + `@([\w\.-]+(:\d+)?)(/[\w\-\./~]*)?`
 
-	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
+	uriReStr := "^((" + tcpReStr + ")|(" + httpsReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
 	return uriRe.MatchString(str)
 }
@@ -148,21 +154,21 @@ func ParseBaseURI(uri string) (string, string) {
 
 	switch {
 	case uriLen > 0 && (uri[0] == '.' || uri[0] == '/' || uri[0] == '~'):
-		network = connector.UnixNetwork
+		network = UnixNetwork
 		address = uri
 	case uriLen >= 7 && uri[0:7] == "unix://":
-		network = connector.UnixNetwork
+		network = UnixNetwork
 		address = uri[7:]
 	case uriLen >= 6 && uri[0:6] == "tcp://":
-		network = connector.TCPNetwork
+		network = TCPNetwork
 		address = uri[6:]
 	default:
-		network = connector.TCPNetwork
+		network = TCPNetwork
 		address = uri
 	}
 
 	// In the case of a complex uri, shell expansion does not occur, so do it manually.
-	if network == connector.UnixNetwork &&
+	if network == UnixNetwork &&
 		strings.HasPrefix(address, "~/") {
 		if homeDir, err := os.UserHomeDir(); err == nil {
 			address = filepath.Join(homeDir, address[2:])
