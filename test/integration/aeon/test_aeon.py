@@ -406,9 +406,10 @@ def test_cli_plain_tcs_success(tt_cmd, tmpdir_with_cfg, request, fixture_params,
         *AeonConnectCommand,
         "http://"
         + creds
-        + f"{instance.host}:{instance.port}/prefix/",
+        + f"{instance.host}:{instance.port}/prefix",
         "aeon-router-002",
     ]
+
     tt = run(
         cmd,
         cwd=tmpdir,

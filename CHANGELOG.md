@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- The following functions were moved from `cluster/cmd` to `lib/cluster`:
+  * CreateCollector           → lib/cluster/cluster.go,
+  * ConnectEtcdUriOpts        → lib/cluster/etcd.go,
+  * DoOnStorage               → lib/cluster/etcd.go,
+  * MakeEtcdOptsFromUriOpts   → lib/cluster/etcd.go,
+  * MakeConnectOptsFromUriOpts → lib/cluster/tarantool.go,
+  * ConnectTarantool          → lib/cluster/tarantool.go.
+- Added new submodule `lib/connect`.
+
 ### Fixed
 
 - `tt pack`: added TCM packing when executing the tt pack command, except for the
