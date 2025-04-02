@@ -318,7 +318,7 @@ func InitRoot() {
 	}
 
 	// Configure help command.
-	err = configureHelpCommand(&cmdCtx, rootCmd)
+	err = configureHelpCommand(rootCmd, &modulesInfo)
 	if err != nil {
 		log.Fatalf("Failed to set up help command: %s", err)
 	}
