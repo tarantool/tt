@@ -3,7 +3,6 @@ package cmd
 import (
 	"strings"
 
-	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/modules"
 )
@@ -50,8 +49,7 @@ func configureNonExistentCmd(rootCmd *cobra.Command,
 
 	externalCmdPath := rootCmd.Name() + " " + externalCmd
 	if _, found := (*modulesInfo)[externalCmdPath]; found {
-		rootCmd.AddCommand(newExternalCommand(modulesInfo, externalCmd,
-			externalCmdPath))
+		rootCmd.AddCommand(newExternalCmd(externalCmd))
 	}
 }
 
@@ -65,20 +63,14 @@ func externalCmdHelpFunc(cmd *cobra.Command, args []string) {
 	cmd.Print(helpMsg)
 }
 
-// newExternalCommand returns a pointer to a new external
+// newExternalCmd returns a pointer to a new external
 // command that will call modules.RunCmd.
-func newExternalCommand(modulesInfo *modules.ModulesInfo,
-	cmdName, cmdPath string) *cobra.Command {
-	cmd := &cobra.Command{
-		Use: cmdName,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.Cli.ForceInternal = false
-			if err := modules.RunCmd(&cmdCtx, cmdPath, modulesInfo, nil, args); err != nil {
-				log.Fatalf(err.Error())
-			}
-		},
+func newExternalCmd(cmdName string) *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:                cmdName,
+		Run:                RunModuleFunc(nil),
+		DisableFlagParsing: true,
 	}
-	cmd.DisableFlagParsing = true
 	cmd.SetHelpFunc(externalCmdHelpFunc)
 	return cmd
 }
