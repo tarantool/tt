@@ -13,3 +13,7 @@ protobuf==3.20.3
 importlib-metadata<4.3
 pytest-timeout==2.2.0
 retry==0.9.2
+# HOTFIX: Workaround to avoid cmake warning that appears after upgrading cmake on CI runners.
+# The warning occurs during CI tests in 'checks' repo and finally leads to CI failure.
+# REMOVE IT as soon as proper fixes are applied to 'checks' and all dependent repos.
+cmake==3.15.3
