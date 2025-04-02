@@ -315,7 +315,7 @@ func InitRoot() {
 	// External commands must be configured in a special way.
 	// This is necessary, for example, so that we can pass arguments to these commands.
 	if len(os.Args) > 1 {
-		configure.ExternalCmd(rootCmd, &cmdCtx, &modulesInfo, cmdCtx.Cli.ForceInternal, os.Args[1:])
+		configureExternalCmd(rootCmd, &modulesInfo, cmdCtx.Cli.ForceInternal, os.Args[1:])
 	}
 
 	// Configure help command.
