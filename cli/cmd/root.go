@@ -211,6 +211,7 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		NewLogCmd(),
 		NewEnableCmd(),
 		NewAeonCmd(),
+		NewModulesCmd(),
 	)
 	if err := injectCmds(rootCmd); err != nil {
 		panic(err.Error())

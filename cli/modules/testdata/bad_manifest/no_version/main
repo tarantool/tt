@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "help: only description reply; no version"
