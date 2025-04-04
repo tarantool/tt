@@ -216,15 +216,15 @@ func readConfigFilePath(configPath string, instance string) error {
 		connectCtx.Transport = aeoncmd.TransportSsl
 		configDir := filepath.Dir(configPath)
 
-		if connectCtx.Ssl.CaFile == "" {
+		if connectCtx.Ssl.CaFile == "" && advertise.Params.CaFile != "" {
 			connectCtx.Ssl.CaFile = util.JoinPaths(configDir, advertise.Params.CaFile)
 		}
 
-		if connectCtx.Ssl.KeyFile == "" {
+		if connectCtx.Ssl.KeyFile == "" && advertise.Params.KeyFile != "" {
 			connectCtx.Ssl.KeyFile = util.JoinPaths(configDir, advertise.Params.KeyFile)
 		}
 
-		if connectCtx.Ssl.CertFile == "" {
+		if connectCtx.Ssl.CertFile == "" && advertise.Params.CertFile != "" {
 			connectCtx.Ssl.CertFile = util.JoinPaths(configDir, advertise.Params.CertFile)
 		}
 	}

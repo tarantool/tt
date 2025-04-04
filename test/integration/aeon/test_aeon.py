@@ -313,7 +313,7 @@ def test_cli_invalid_ssl_config_file(tt_cmd, tmp_path, aeon_ssl,):
 
     print(f"stderr {tt.stderr}")
 
-    assert "not valid path to a private SSL key file" in tt.stderr
+    assert "Error: not valid path to trusted certificate authorities" in tt.stderr
     assert tt.returncode != 0
 
 
