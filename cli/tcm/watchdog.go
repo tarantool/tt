@@ -17,31 +17,39 @@ import (
 // Watchdog manages the lifecycle of a process.
 type Watchdog struct {
 	// The command to execute and monitor.
-	cmd *exec.Cmd
+	Cmd *exec.Cmd
 	// Time to wait before restarting the process.
-	restartTimeout time.Duration
+	RestartTimeout time.Duration
 	// Flag to indicate if the Watchdog should stop.
-	shouldStop bool
-	// Mutex to protect access to shouldStop.
-	stopMutex sync.Mutex
+	ShouldStop bool
+	// Mutex to protect access to ShouldStop.
+	StopMutex sync.Mutex
 	// WaitGroup to wait for all goroutines to finish.
-	doneBarrier sync.WaitGroup
+	DoneBarrier sync.WaitGroup
 	// File to store the process PID.
-	pidFile string
+	PidFile string
 }
 
 // NewWatchdog creates a new Watchdog instance.
-func NewWatchdog(restartTimeout time.Duration) (*Watchdog, error) {
+func NewWatchdog(RestartTimeout time.Duration) (*Watchdog, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	filePath := filepath.Join(wd, "tcm/pidFile.pid")
+
 	return &Watchdog{
-		restartTimeout: restartTimeout,
-		pidFile:        "tcm/pidFile.pid",
+		RestartTimeout: RestartTimeout,
+		PidFile:        filePath,
 	}, nil
 }
 
+
 // Start starts the process and monitors its execution.
 func (wd *Watchdog) Start(bin string, args ...string) error {
-	wd.doneBarrier.Add(1)
-	defer wd.doneBarrier.Done()
+	wd.DoneBarrier.Add(1)
+	defer wd.DoneBarrier.Done()
 
 	signalCtx, signalCancel := context.WithCancel(context.Background())
 	defer signalCancel()
@@ -49,19 +57,19 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 	go wd.handleSignals(signalCtx, signalCancel)
 
 	for {
-		wd.stopMutex.Lock()
-		if wd.shouldStop {
-			wd.stopMutex.Unlock()
+		wd.StopMutex.Lock()
+		if wd.ShouldStop {
+			wd.StopMutex.Unlock()
 			return nil
 		}
-		wd.stopMutex.Unlock()
+		wd.StopMutex.Unlock()
 
-		wd.cmd = exec.Command(bin, args...)
-		wd.cmd.Stdout = os.Stdout
-		wd.cmd.Stderr = os.Stderr
+		wd.Cmd = exec.Command(bin, args...)
+		wd.Cmd.Stdout = os.Stdout
+		wd.Cmd.Stderr = os.Stderr
 
 		log.Println("(INFO): Starting process...")
-		if err := wd.cmd.Start(); err != nil {
+		if err := wd.Cmd.Start(); err != nil {
 			log.Printf("(ERROR): Failed to start process: %v\n", err)
 			return err
 		}
@@ -71,7 +79,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 			return err
 		}
 
-		err := wd.cmd.Wait()
+		err := wd.Cmd.Wait()
 		if err != nil {
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
@@ -84,33 +92,38 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 			log.Println("(INFO): Process completed successfully.")
 		}
 
-		wd.stopMutex.Lock()
-		if wd.shouldStop {
-			wd.stopMutex.Unlock()
+		wd.StopMutex.Lock()
+		if wd.ShouldStop {
+			wd.StopMutex.Unlock()
 			return nil
 		}
-		wd.stopMutex.Unlock()
+		wd.StopMutex.Unlock()
 
-		log.Printf("(INFO): Waiting for %s before restart...\n", wd.restartTimeout)
-		time.Sleep(wd.restartTimeout)
+		log.Printf("(INFO): Waiting for %s before restart...\n", wd.RestartTimeout)
+		time.Sleep(wd.RestartTimeout)
 	}
 }
 
 // Stop stops the process and shuts down the Watchdog.
 func (wd *Watchdog) Stop() {
-	wd.stopMutex.Lock()
-	wd.shouldStop = true
-	if wd.cmd != nil && wd.cmd.Process != nil {
+	wd.StopMutex.Lock()
+
+	wd.ShouldStop = true
+	if wd.Cmd != nil && wd.Cmd.Process != nil {
 		log.Println("(INFO): Stopping process...")
-		if err := wd.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		if err := wd.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			log.Printf("(ERROR): Failed to stop process: %v\n", err)
 		}
 	}
-	wd.stopMutex.Unlock()
 
-	wd.doneBarrier.Wait()
-	os.RemoveAll(filepath.Dir(wd.pidFile))
-	log.Println("(INFO): Watchdog stopped.")
+	wd.StopMutex.Unlock()
+
+	err := os.Remove(wd.PidFile)
+	if err != nil {
+		log.Printf("(ERROR): Failed to remove PID file: %v\n", err)
+	}
+
+	wd.DoneBarrier.Wait()
 }
 
 // handleSignals listens for OS signals and stops the Watchdog gracefully.
@@ -130,19 +143,19 @@ func (wd *Watchdog) handleSignals(ctx context.Context, cancel context.CancelFunc
 
 // writePIDToFile writes the PID of the process to a file.
 func (wd *Watchdog) writePIDToFile() error {
-	if wd.cmd == nil || wd.cmd.Process == nil {
+	if wd.Cmd == nil || wd.Cmd.Process == nil {
 		return errors.New("process is not running")
 	}
 
-	pid := wd.cmd.Process.Pid
+	pid := wd.Cmd.Process.Pid
 	pidData := fmt.Sprintf("%d", pid)
 
-	dir := filepath.Dir(wd.pidFile)
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+	dir := filepath.Dir(wd.PidFile)
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
-	file, err := os.Create(wd.pidFile)
+	file, err := os.Create(wd.PidFile)
 	if err != nil {
 		return fmt.Errorf("failed to create PID file: %v", err)
 	}
@@ -153,6 +166,6 @@ func (wd *Watchdog) writePIDToFile() error {
 		return err
 	}
 
-	log.Printf("(INFO): PID %d written to %s\n", pid, wd.pidFile)
+	log.Printf("(INFO): PID %d written to %s\n", pid, wd.PidFile)
 	return nil
 }

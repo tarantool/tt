@@ -21,7 +21,7 @@ func TestWatchdogStartProcess(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	_, err = os.Stat(watchdog.pidFile)
+	_, err = os.Stat(watchdog.PidFile)
 	require.NoError(t, err)
 
 	watchdog.Stop()
@@ -38,7 +38,7 @@ func TestWatchdogRestartProcess(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	_, err = os.Stat(watchdog.pidFile)
+	_, err = os.Stat(watchdog.PidFile)
 	require.NoError(t, err)
 
 	watchdog.Stop()
@@ -54,8 +54,8 @@ func TestWritePIDToFile(t *testing.T) {
 	defer cmd.Process.Kill()
 
 	watchdog := &Watchdog{
-		cmd:     cmd,
-		pidFile: pidFile,
+		Cmd:     cmd,
+		PidFile: pidFile,
 	}
 
 	err = watchdog.writePIDToFile()

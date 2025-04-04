@@ -2,13 +2,17 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"time"
 
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/modules"
+	"github.com/tarantool/tt/cli/process_utils"
 	tcmCmd "github.com/tarantool/tt/cli/tcm"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -35,6 +39,23 @@ func newTcmStartCmd() *cobra.Command {
 	return tcmCmd
 }
 
+func newTcmStatusCmd() *cobra.Command {
+	var tcmCmd = &cobra.Command{
+		Use:   "status",
+		Short: "Status tcm application",
+		Long: `Status to the tcm.
+		tt tcm status`,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdCtx.CommandName = cmd.Name()
+			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalTcmStatus, args)
+			util.HandleCmdErr(cmd, err)
+
+		},
+	}
+
+	return tcmCmd
+}
+
 func NewTcmCmd() *cobra.Command {
 	var tcmCmd = &cobra.Command{
 		Use:   "tcm",
@@ -42,6 +63,7 @@ func NewTcmCmd() *cobra.Command {
 	}
 	tcmCmd.AddCommand(
 		newTcmStartCmd(),
+		newTcmStatusCmd(),
 	)
 	return tcmCmd
 }
@@ -64,6 +86,9 @@ func startTcmUnderWatchDog() error {
 	if err != nil {
 		return err
 	}
+
+	tcmCtx.PidFile = wd.PidFile
+	fmt.Println("tcmCtx.PidFile", tcmCtx.PidFile)
 
 	if err := wd.Start(tcmCtx.Executable); err != nil {
 		return err
@@ -94,4 +119,35 @@ func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	return nil
+}
+
+func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	// TODO проверить есть ли tcm?
+	fmt.Println("run tcm status command")
+	ts := table.NewWriter()
+	ts.SetOutputMirror(os.Stdout)
+	ts.AppendHeader(
+		table.Row{"INSTANCE", "STATUS", "PID"})
+
+	ts.SetColumnConfigs([]table.ColumnConfig{
+		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: 2, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: 3, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+		{Number: 4, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
+	})
+
+	status := process_utils.ProcessStatus(tcmCtx.PidFile)
+
+	fmt.Println("tcmCtx.PidFile cmd status", tcmCtx.PidFile)
+	fmt.Println("tcmCtx cmd status", tcmCtx)
+
+	fmt.Println("status.Status", status.Status)
+	fmt.Println("status.Pid", status.PID)
+
+	ts.AppendRows([]table.Row{
+		{"tcm", status.Status, status.PID},
+	})
+	ts.Render()
+	return nil
+
 }
