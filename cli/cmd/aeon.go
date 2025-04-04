@@ -94,7 +94,12 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	case len(args) == 2 && util.IsRegularFile(args[0]):
-		if err := readConfigFilePath(args[0], args[1]); err != nil {
+		configPath, err := filepath.Abs(args[0])
+		if err != nil {
+			return err
+		}
+
+		if err := readConfigFilePath(configPath, args[1]); err != nil {
 			return err
 		}
 	default:
@@ -216,15 +221,15 @@ func readConfigFilePath(configPath string, instance string) error {
 		connectCtx.Transport = aeoncmd.TransportSsl
 		configDir := filepath.Dir(configPath)
 
-		if connectCtx.Ssl.CaFile == "" {
+		if connectCtx.Ssl.CaFile == "" && advertise.Params.CaFile != "" {
 			connectCtx.Ssl.CaFile = util.JoinPaths(configDir, advertise.Params.CaFile)
 		}
 
-		if connectCtx.Ssl.KeyFile == "" {
+		if connectCtx.Ssl.KeyFile == "" && advertise.Params.KeyFile != "" {
 			connectCtx.Ssl.KeyFile = util.JoinPaths(configDir, advertise.Params.KeyFile)
 		}
 
-		if connectCtx.Ssl.CertFile == "" {
+		if connectCtx.Ssl.CertFile == "" && advertise.Params.CertFile != "" {
 			connectCtx.Ssl.CertFile = util.JoinPaths(configDir, advertise.Params.CertFile)
 		}
 	}
