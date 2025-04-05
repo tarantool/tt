@@ -23,7 +23,7 @@ type ShowCtx struct {
 
 // ShowUri shows a configuration from URI.
 func ShowUri(showCtx ShowCtx, opts connect.UriOpts) error {
-	connOpts := connectOpts{
+	connOpts := libcluster.ConnectOpts{
 		Username: showCtx.Username,
 		Password: showCtx.Password,
 	}

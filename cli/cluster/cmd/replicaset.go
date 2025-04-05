@@ -107,7 +107,7 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 func createDataCollectorAndKeyPublisher(
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
-	opts connect.UriOpts, connOpts connectOpts) (
+	opts connect.UriOpts, connOpts libcluster.ConnectOpts) (
 	libcluster.DataCollector, replicaset.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 	var (
@@ -145,7 +145,7 @@ func createDataCollectorAndKeyPublisher(
 		return nil
 	}
 
-	if err := doOnStorage(connOpts, opts, tarantoolFunc, etcdFunc); err != nil {
+	if err := libcluster.DoOnStorage(connOpts, opts, tarantoolFunc, etcdFunc); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -158,7 +158,7 @@ func Promote(url string, ctx PromoteCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := connectOpts{
+	connOpts := libcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
 	}
@@ -205,7 +205,7 @@ func Demote(url string, ctx DemoteCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := connectOpts{
+	connOpts := libcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
 	}
@@ -252,7 +252,7 @@ func Expel(url string, ctx ExpelCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := connectOpts{
+	connOpts := libcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
 	}
@@ -306,7 +306,7 @@ func ChangeRole(url string, ctx RolesChangeCtx, action replicaset.RolesChangerAc
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-	connOpts := connectOpts{
+	connOpts := libcluster.ConnectOpts{
 		Username: ctx.Username,
 		Password: ctx.Password,
 	}

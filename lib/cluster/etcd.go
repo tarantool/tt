@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tarantool/go-tarantool/v2"
+	libconnect "github.com/tarantool/tt/lib/connect"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -803,4 +805,68 @@ func isSameDirSymlink(f fs.DirEntry, dir string) bool {
 
 	target, err := os.Readlink(filepath.Join(dir, f.Name()))
 	return err == nil && !strings.Contains(target, "/")
+}
+
+// ConnectOpts is additional connect options specified by a user.
+type ConnectOpts struct {
+	Username string
+	Password string
+}
+
+// connectEtcd establishes a connection to etcd.
+func СonnectEtcdUriOpts(uriOpts libconnect.UriOpts, connOpts ConnectOpts) (*clientv3.Client, error) {
+	etcdOpts := MakeEtcdOptsFromUriOpts(uriOpts)
+	if etcdOpts.Username == "" && etcdOpts.Password == "" {
+		etcdOpts.Username = connOpts.Username
+		etcdOpts.Password = connOpts.Password
+		if etcdOpts.Username == "" {
+			etcdOpts.Username = os.Getenv(libconnect.EtcdUsernameEnv)
+		}
+		if etcdOpts.Password == "" {
+			etcdOpts.Password = os.Getenv(libconnect.EtcdPasswordEnv)
+		}
+	}
+
+	etcdcli, err := ConnectEtcd(etcdOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to etcd: %w", err)
+	}
+	return etcdcli, nil
+}
+
+// doOnStorage determines a storage based on the opts.
+func DoOnStorage(connOpts ConnectOpts, opts libconnect.UriOpts,
+	tarantoolFunc func(tarantool.Connector) error, etcdFunc func(*clientv3.Client) error) error {
+	etcdcli, errEtcd := СonnectEtcdUriOpts(opts, connOpts)
+	if errEtcd == nil {
+		return etcdFunc(etcdcli)
+	}
+
+	conn, errTarantool := СonnectTarantool(opts, connOpts)
+	if errTarantool == nil {
+		return tarantoolFunc(conn)
+	}
+
+	return fmt.Errorf("failed to establish a connection to tarantool or etcd: %w, %w",
+		errTarantool, errEtcd)
+}
+
+// MakeEtcdOptsFromUriOpts create etcd connect options from URI options.
+func MakeEtcdOptsFromUriOpts(src libconnect.UriOpts) EtcdOpts {
+	var endpoints []string
+	if src.Endpoint != "" {
+		endpoints = []string{src.Endpoint}
+	}
+
+	return EtcdOpts{
+		Endpoints:      endpoints,
+		Username:       src.Username,
+		Password:       src.Password,
+		KeyFile:        src.KeyFile,
+		CertFile:       src.CertFile,
+		CaPath:         src.CaPath,
+		CaFile:         src.CaFile,
+		SkipHostVerify: src.SkipHostVerify || src.SkipPeerVerify,
+		Timeout:        src.Timeout,
+	}
 }
