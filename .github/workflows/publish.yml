@@ -13,15 +13,16 @@ env:
 jobs:
   validate-tag:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags')
     steps:
       - uses: actions/checkout@v4
         with:
           ref: 'master'
           fetch-depth: 0
+        if: startsWith(github.ref, 'refs/tags')
 
       - name: Validation
         run: git branch -r --contains ${{ github.ref }} | grep "origin/master"
+        if: startsWith(github.ref, 'refs/tags')
 
   create-packages-linux:
     needs: validate-tag
