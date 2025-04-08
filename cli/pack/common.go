@@ -275,14 +275,12 @@ func copyBinaries(bundleEnvPath string, packCtx *PackCtx, cmdCtx *cmdcontext.Cmd
 	}
 
 	// Copy tcm.
-	if packCtx.WithBinaries {
-		if cmdCtx.Cli.TcmCli.Executable == "" {
-			log.Warnf("Skip copying tcm binary: not found")
-		} else {
-			if err := util.CopyFileDeep(cmdCtx.Cli.TcmCli.Executable,
-				util.JoinPaths(pkgBin, "tcm")); err != nil {
-				return fmt.Errorf("failed copying tcm: %w", err)
-			}
+	if cmdCtx.Cli.TcmCli.Executable == "" {
+		log.Warnf("Skip copying tcm binary: not found")
+	} else {
+		if err := util.CopyFileDeep(cmdCtx.Cli.TcmCli.Executable,
+			util.JoinPaths(pkgBin, "tcm")); err != nil {
+			return fmt.Errorf("failed copying tcm: %w", err)
 		}
 	}
 	return nil

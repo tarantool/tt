@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt pack`: added TCM packing when executing the tt pack command, except for the
+  flag without-binaries in this case TCM will not be in the archive.
+
 - Arguments of an internal command are not parsed if it is forced over its existent
   external counterpart.
 
