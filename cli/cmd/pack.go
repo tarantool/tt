@@ -37,9 +37,10 @@ The supported types are: tgz, deb, rpm`,
 	packCmd.Flags().StringVar(&packCtx.FileName, "filename", packCtx.FileName,
 		"Explicitly set filename of the bundle")
 	packCmd.Flags().BoolVar(&packCtx.WithoutBinaries, "without-binaries",
-		packCtx.WithoutBinaries, "Don't include tarantool and tt binaries to the result package")
+		packCtx.WithoutBinaries, "Don't include tarantool,"+
+			"tt and tcm binaries to the result package")
 	packCmd.Flags().BoolVar(&packCtx.WithBinaries, "with-binaries", packCtx.WithoutBinaries,
-		"Include tarantool and tt binaries to the result package")
+		"Include tarantool, tt and tcm binaries to the result package")
 	packCmd.Flags().BoolVar(&packCtx.CartridgeCompat, "cartridge-compat", false,
 		"Pack cartridge cli compatible archive (only for tgz type)")
 	packCmd.Flags().BoolVar(&packCtx.WithoutModules, "without-modules",
