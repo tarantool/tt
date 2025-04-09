@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Arguments of an internal command are not parsed if it is forced over its existent
   external counterpart.
 - aeon: fix SSL paths configuration for aeon connection.
+- `tt pack rpm`: failed to pack if only one of `--preinst`/`--postinst` options is specified.
 
 ## [2.8.1] - 2025-03-10
 

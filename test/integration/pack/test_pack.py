@@ -1614,7 +1614,12 @@ def test_pack_deb_use_docker(tt_cmd, tmp_path):
 
 @pytest.mark.slow
 @pytest.mark.docker
-def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmp_path):
+@pytest.mark.parametrize('preinst, postinst', [
+    pytest.param(True, False, id='preinst_only'),
+    pytest.param(False, True, id='postinst_only'),
+    pytest.param(True, True, id='both'),
+])
+def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmp_path, preinst, postinst):
     if shutil.which('docker') is None:
         pytest.skip("docker is not installed in this system")
 
@@ -1630,13 +1635,18 @@ def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmp_path):
 
     base_dir = tmp_path
 
-    with open(os.path.join(tmp_path, "preinst.sh"), "w") as pre_inst:
-        pre_inst.write("echo 'hello'")
-    with open(os.path.join(tmp_path, "postinst.sh"), "w") as post_inst:
-        post_inst.write("echo 'bye'")
-
-    cmd = [tt_cmd, "pack", "rpm", "--preinst", os.path.join(tmp_path, "preinst.sh"),
-           "--postinst", os.path.join(tmp_path, "postinst.sh")]
+    # Compose command line.
+    cmd = [tt_cmd, "pack", "rpm"]
+    if preinst:
+        script = os.path.join(tmp_path, "preinst.sh")
+        cmd += ["--preinst", script]
+        with open(script, "w") as f:
+            f.write("echo 'hello'")
+    if postinst:
+        script = os.path.join(tmp_path, "postinst.sh")
+        cmd += ["--postinst", script]
+        with open(script, "w") as f:
+            f.write("echo 'bye'")
 
     rc, output = run_command_and_get_output(
         cmd,
@@ -1656,11 +1666,14 @@ def test_pack_rpm_with_pre_and_post_inst(tt_cmd, tmp_path):
                                             .format(package_file_name)])
     assert rc == 0
 
-    assert """preinstall scriptlet (using /bin/sh):
+    if preinst:
+        assert """preinstall scriptlet (using /bin/sh):
 SYSUSER=tarantool
 """ in output
-    assert "echo 'hello'" in output
-    assert """postinstall scriptlet (using /bin/sh):
+        assert "echo 'hello'" in output
+
+    if postinst:
+        assert """postinstall scriptlet (using /bin/sh):
 
 echo 'bye'
 """ in output

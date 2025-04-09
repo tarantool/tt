@@ -106,7 +106,7 @@ func addPreAndPostInstallScriptsRPM(rpmHeader *rpmTagSetType,
 	}
 
 	postInstScript := postInstScriptContent
-	if preInst != "" {
+	if postInst != "" {
 		userPostInstBytes, err := os.ReadFile(postInst)
 		if err != nil {
 			return fmt.Errorf("error reading postinst file %q: %s", postInst, err)
