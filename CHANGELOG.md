@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.9.0] - 2025-04-10
+
+The release introduces advanced features to connect to the Aeon database
+and start tcm commands. Further improvements on packaging the customized
+application. Major changes on working with external modules.
+
+### Added
+
 - `tt aeon connect` added tests for connect file/app.
 - `tt modules list` added command to show available modules.
   If support extra flags:
@@ -17,11 +29,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt aeon connect` added tests for connect file/app.
 - `tt aeon connect`: add connection from the etcd/tcs config.
-- `tt pack `: support `.packignore` file to specify files that should not be included
-  in package (works the same as `.gitignore`).
+- `tt pack `: support `.packignore` file to specify files that should
+  not be included in package (works the same as `.gitignore`).
 - `tt tcm start`: add the tcm command.
-- `tt tcm start` OR `tt tcm start --path /path/to/tcm`: added the capability to run TCM in interactive mode.
-- `tt tcm start --watchdog`: implemented Watchdog mode for automatic restarting of TCM upon unexpected termination.
+- `tt tcm start` OR `tt tcm start --path /path/to/tcm`: added the capability
+  to run TCM in interactive mode.
+- `tt tcm start --watchdog`: implemented Watchdog mode for automatic
+  restarting of TCM upon unexpected termination.
 
 ### Changed
 
@@ -36,13 +50,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- `tt pack`: added TCM packing when executing the tt pack command, except for the
-  flag without-binaries in this case TCM will not be in the archive.
+- `tt pack`: added TCM packing when executing the tt pack command, except
+  for the flag without-binaries in this case TCM will not be in the archive.
 
-- Arguments of an internal command are not parsed if it is forced over its existent
-  external counterpart.
+- Arguments of an internal command are not parsed if it is forced over its
+  existent external counterpart.
 - aeon: fix SSL paths configuration for aeon connection.
-- `tt pack rpm`: failed to pack if only one of `--preinst`/`--postinst` options is specified.
+- `tt pack rpm`: failed to pack if only one of `--preinst`/`--postinst`
+  options is specified.
 
 ## [2.8.1] - 2025-03-10
 
@@ -60,7 +75,8 @@ Improvement in the work of templates.
 
 ### Changed
 
-- `tt connect`: allow to disconnect with `Ctrl+C` or `Ctrl+\` if script execution hung.
+- `tt connect`: allow to disconnect with `Ctrl+C` or `Ctrl+\`
+  if script execution hung.
 - Moved `cluster.cmd.UriOpts` to `connect.UriOpts`.
 
 ### Fixed
