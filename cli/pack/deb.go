@@ -187,6 +187,8 @@ func createDebianBinary(packageDir string) error {
 	if err != nil {
 		return err
 	}
+	defer debBin.Close()
+
 	_, err = debBin.Write([]byte(debianBinaryFileContent))
 	if err != nil {
 		return err
