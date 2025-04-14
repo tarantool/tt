@@ -1,7 +1,6 @@
 package pack
 
 import (
-	"errors"
 	"io/fs"
 	"os"
 	"path"
@@ -16,6 +15,16 @@ import (
 )
 
 // spell-checker:ignore blabla fooo
+
+// transformSlice is a generic mapper function that returns slice with all items
+// mapped from the originals with fn function.
+func transformSlice[S ~[]E0, E0, E any](src S, fn func(E0) E) []E {
+	result := make([]E, len(src))
+	for i, v := range src {
+		result[i] = fn(v)
+	}
+	return result
+}
 
 // transformMapValues is a generic mapper function that returns map with the same keys
 // and values mapped from the originals with fn function.
@@ -421,6 +430,8 @@ type ignoreFilterCase struct {
 	// Every item here denotes file (not directory).
 	ignored []string
 	copied  []string
+	// Nodes that represents nested .packignore files (if any).
+	children []ignoreFilterCase
 }
 
 type ignoreFilterCases map[string]ignoreFilterCase
@@ -445,22 +456,49 @@ func (tc ignoreFilterCase) createFS(t *testing.T) fs.FS {
 	}
 
 	fsys := fstest.MapFS{}
-	tc.createFiles(fsys)
+	tc.createFiles(fsys, tc.dir)
 	return fsys
 }
 
-func (tc ignoreFilterCase) createFiles(fsys fstest.MapFS) {
+func (tc ignoreFilterCase) createFiles(fsys fstest.MapFS, prefix string) {
 	if tc.patterns != nil {
-		fsys[filepath.Join(tc.dir, ignoreFile)] = &fstest.MapFile{
+		fsys[filepath.Join(prefix, ignoreFile)] = &fstest.MapFile{
 			Data: []byte(strings.Join(tc.patterns, "\n")),
 			Mode: fs.FileMode(0o644),
 		}
 	}
 	for _, name := range slices.Concat(tc.copied, tc.ignored) {
-		fsys[filepath.Join(tc.dir, name)] = &fstest.MapFile{
+		fsys[filepath.Join(prefix, name)] = &fstest.MapFile{
 			Mode: fs.FileMode(0o644),
 		}
 	}
+
+	// Create files for nested .packignore recursively.
+	for _, child := range tc.children {
+		child.createFiles(fsys, filepath.Join(prefix, child.dir))
+	}
+}
+
+func (tc ignoreFilterCase) filesToCopy() []string {
+	files := tc.copied
+	for _, child := range tc.children {
+		childFiles := transformSlice(child.filesToCopy(), func(file string) string {
+			return filepath.Join(child.dir, file)
+		})
+		files = append(files, childFiles...)
+	}
+	return files
+}
+
+func (tc ignoreFilterCase) filesToIgnore() []string {
+	files := slices.Concat([]string{ignoreFile}, tc.ignored)
+	for _, child := range tc.children {
+		childFiles := transformSlice(child.filesToIgnore(), func(file string) string {
+			return filepath.Join(child.dir, file)
+		})
+		files = append(files, childFiles...)
+	}
+	return files
 }
 
 func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
@@ -475,8 +513,7 @@ func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
 
 			fsys := tc.createFS(t)
 
-			patternsFile := filepath.Join(tc.dir, ignoreFile)
-			filter, err := ignoreFilter(fsys, patternsFile)
+			filter, err := createIgnoreFilter(fsys, tc.dir, ignoreFile)
 			assert.Nil(t, err)
 			assert.NotNil(t, filter)
 
@@ -487,15 +524,15 @@ func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
 			err = copy.Copy(tc.dir, dst, copy.Options{
 				FS: fsys,
 				Skip: func(srcInfo os.FileInfo, src, dest string) (bool, error) {
-					return filter(srcInfo, src), nil
+					return filter.shouldSkip(srcInfo, src), nil
 				},
 				PermissionControl: copy.AddPermission(0o755),
 			})
 			assert.Nil(t, err)
-			for _, name := range tc.ignored {
+			for _, name := range tc.filesToIgnore() {
 				assert.NoFileExists(t, path.Join(dst, name))
 			}
-			for _, name := range tc.copied {
+			for _, name := range tc.filesToCopy() {
 				assert.FileExists(t, path.Join(dst, name))
 			}
 		})
@@ -532,18 +569,17 @@ var ignoreFilterBaseCases = transformMapValues(ignoreTestData_namesOnly,
 		}
 	})
 
-func Test_ignoreFilter_noIgnoreFile(t *testing.T) {
-	f, err := ignoreFilter(fstest.MapFS{}, ignoreFile)
-	assert.NotNil(t, err)
-	assert.True(t, errors.Is(err, fs.ErrNotExist))
-	assert.Nil(t, f)
+func Test_createIgnoreFilter_noIgnoreFile(t *testing.T) {
+	f, err := createIgnoreFilter(fstest.MapFS{}, "", ignoreFile)
+	assert.Nil(t, err)
+	assert.NotNil(t, f)
 }
 
-func Test_ignoreFilter_singleBasic(t *testing.T) {
+func Test_createIgnoreFilter_singleBasic(t *testing.T) {
 	checkIgnoreFilter(t, ignoreFilterBaseCases)
 }
 
-func Test_ignoreFilter_singleNegate(t *testing.T) {
+func Test_createIgnoreFilter_singleNegate(t *testing.T) {
 	// Single negate pattern has no effect (i.e. all files are copied).
 	toSingleNegate := func(tc ignoreFilterCase) ignoreFilterCase {
 		return ignoreFilterCase{
@@ -559,7 +595,7 @@ func Test_ignoreFilter_singleNegate(t *testing.T) {
 	checkIgnoreFilter(t, testCases)
 }
 
-func Test_ignoreFilter_selfNegate(t *testing.T) {
+func Test_createIgnoreFilter_selfNegate(t *testing.T) {
 	// An ignore pattern followed by the same but negated (thus it just reinclude all).
 	toSelfNegate := func(tc ignoreFilterCase) ignoreFilterCase {
 		return ignoreFilterCase{
@@ -576,7 +612,7 @@ func Test_ignoreFilter_selfNegate(t *testing.T) {
 	checkIgnoreFilter(t, testCases)
 }
 
-func Test_ignoreFilter_negateWrongOrder(t *testing.T) {
+func Test_createIgnoreFilter_negateWrongOrder(t *testing.T) {
 	// A negate pattern in a wrong position doesn't affect the original result.
 	toWrongOrderNegate := func(tc ignoreFilterCase) ignoreFilterCase {
 		return ignoreFilterCase{
@@ -593,7 +629,7 @@ func Test_ignoreFilter_negateWrongOrder(t *testing.T) {
 	checkIgnoreFilter(t, testCases)
 }
 
-func Test_ignoreFilter_singleDir(t *testing.T) {
+func Test_createIgnoreFilter_singleDir(t *testing.T) {
 	// Generate test set from the common test data rather than from the base set
 	// because result for this set differ significantly from the original.
 	testCases := transformMapValues(ignoreTestData_namesOnly,
@@ -629,7 +665,7 @@ func Test_ignoreFilter_singleDir(t *testing.T) {
 	checkIgnoreFilter(t, testCases)
 }
 
-func Test_ignoreFilter_multiNames(t *testing.T) {
+func Test_createIgnoreFilter_multiNames(t *testing.T) {
 	testCases := ignoreFilterCases{
 		"any": {
 			dir: "src",
@@ -704,7 +740,7 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 	checkIgnoreFilter(t, testCases)
 }
 
-func Test_ignoreFilter_fixedDepth(t *testing.T) {
+func Test_createIgnoreFilter_fixedDepth(t *testing.T) {
 	testCases := ignoreFilterCases{
 		"name_at_depth1": {
 			dir: "src",
@@ -786,7 +822,7 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 	checkIgnoreFilter(t, testCases)
 }
 
-func Test_ignoreFilter_reinclude(t *testing.T) {
+func Test_createIgnoreFilter_reinclude(t *testing.T) {
 	testCases := ignoreFilterCases{
 		"by_name": {
 			dir: "src",
@@ -871,7 +907,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 	checkIgnoreFilter(t, testCases)
 }
 
-func Test_ignoreFilter_doubleAsterisk(t *testing.T) {
+func Test_createIgnoreFilter_doubleAsterisk(t *testing.T) {
 	testCases := ignoreFilterCases{
 		"leading": {
 			dir: "src",
@@ -931,7 +967,7 @@ func Test_ignoreFilter_doubleAsterisk(t *testing.T) {
 	checkIgnoreFilter(t, testCases)
 }
 
-func Test_ignoreFilter_srcDirWithRegExpSymbols(t *testing.T) {
+func Test_createIgnoreFilter_srcDirWithRegExpSymbols(t *testing.T) {
 	testCases := transformMapValues(map[string]string{
 		"backslash":                  "src\\",
 		"round_brackets":             "src(subtitle)",
@@ -969,5 +1005,115 @@ func Test_ignoreFilter_srcDirWithRegExpSymbols(t *testing.T) {
 			},
 		}
 	})
+	checkIgnoreFilter(t, testCases)
+}
+
+func Test_createIgnoreFilter_nested(t *testing.T) {
+	testCases := map[string]ignoreFilterCase{
+		"single_child": {
+			dir:      "src",
+			patterns: []string{"root"},
+			ignored:  []string{"root"},
+			copied:   []string{"child", "another_mismatch"},
+			children: []ignoreFilterCase{
+				{
+					dir:      "dir_child",
+					patterns: []string{"child"},
+					ignored:  []string{"child", "root"},
+					copied:   []string{"another_mismatch"},
+				},
+			},
+		},
+		"nested_dir_child": {
+			dir:      "src",
+			patterns: []string{"root"},
+			ignored:  []string{"root"},
+			copied:   []string{"child", "another_mismatch"},
+			children: []ignoreFilterCase{
+				{
+					dir:      "nested/dir_child",
+					patterns: []string{"child"},
+					ignored:  []string{"child", "root"},
+					copied:   []string{"another_mismatch"},
+				},
+			},
+		},
+		"siblings": {
+			dir:      "src",
+			patterns: []string{"root"},
+			ignored:  []string{"root"},
+			copied:   []string{"child1", "child2", "another_mismatch"},
+			children: []ignoreFilterCase{
+				{
+					dir:      "dir_child1",
+					patterns: []string{"child1"},
+					ignored:  []string{"child1", "root"},
+					copied:   []string{"child2", "another_mismatch"},
+				},
+				{
+					dir:      "dir_child2",
+					patterns: []string{"child2"},
+					ignored:  []string{"child2", "root"},
+					copied:   []string{"child1", "another_mismatch"},
+				},
+			},
+		},
+		"grandchild": {
+			dir:      "src",
+			patterns: []string{"root"},
+			ignored:  []string{"root"},
+			copied:   []string{"child", "grandchild", "another_mismatch"},
+			children: []ignoreFilterCase{
+				{
+					dir:      "dir_child",
+					patterns: []string{"child"},
+					ignored:  []string{"child", "root"},
+					copied:   []string{"grandchild", "another_mismatch"},
+					children: []ignoreFilterCase{
+						{
+							dir:      "dir_grandchild",
+							patterns: []string{"grandchild"},
+							ignored:  []string{"grandchild", "child", "root"},
+							copied:   []string{"another_mismatch"},
+						},
+					},
+				},
+			},
+		},
+		"orphan": {
+			dir:      "src",
+			patterns: nil,
+			ignored:  nil,
+			copied:   []string{"root", "child", "another_mismatch"},
+			children: []ignoreFilterCase{
+				{
+					dir:      "dir_child",
+					patterns: []string{"child"},
+					ignored:  []string{"child"},
+					copied:   []string{"root", "another_mismatch"},
+				},
+			},
+		},
+		"reinclude": {
+			dir:      "src",
+			patterns: []string{"root"},
+			ignored:  []string{"root"},
+			copied:   []string{"child1", "child2", "another_mismatch"},
+			children: []ignoreFilterCase{
+				{
+					dir:      "nested/dir_child1",
+					patterns: []string{"child1", "!root"},
+					ignored:  []string{"child1"},
+					copied:   []string{"root", "child2", "another_mismatch"},
+				},
+				{
+					dir:      "nested/dir_child2",
+					patterns: []string{"child2"},
+					ignored:  []string{"child2", "root"},
+					copied:   []string{"child1", "another_mismatch"},
+				},
+			},
+		},
+	}
 	checkIgnoreFilter(t, testCases)
 }
