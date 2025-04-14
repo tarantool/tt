@@ -9,7 +9,7 @@ on:
 
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.22.11'
+  GO_VERSION: '1.23.8'
 
 jobs:
   update:
