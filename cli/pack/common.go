@@ -168,6 +168,7 @@ func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 	appCopyFilters = append(appCopyFilters, func(srcInfo os.FileInfo, src string) bool {
 		return skipDefaults(srcInfo, src)
 	})
+	fmt.Printf("appSrcCopySkip: srcAppPath=%s\n", srcAppPath)
 	if f, err := ignoreFilter(util.GetOsFS(), filepath.Join(srcAppPath, ignoreFile)); err == nil {
 		appCopyFilters = append(appCopyFilters, f)
 	} else if !errors.Is(err, fs.ErrNotExist) {
@@ -298,6 +299,7 @@ func getDestAppDir(bundleEnvPath, appName string,
 // copyApplications copies applications from current env to the result bundle.
 func copyApplications(bundleEnvPath string, packCtx *PackCtx,
 	cliOpts, newOpts *config.CliOpts) error {
+	fmt.Printf("copyApplications: bundleEnvPath=%s\n", bundleEnvPath)
 	var err error
 	for appName, instances := range packCtx.AppsInfo {
 		if len(instances) == 0 {
@@ -317,6 +319,7 @@ func copyApplications(bundleEnvPath string, packCtx *PackCtx,
 			}
 		} else {
 			bundleAppDir := getDestAppDir(bundleEnvPath, appName, packCtx, cliOpts)
+			fmt.Printf("copyApplications: bundleAppDir=%s\n", bundleAppDir)
 			if err = copyAppSrc(packCtx, cliOpts, appPath, bundleAppDir); err != nil {
 				return err
 			}
@@ -427,6 +430,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 // copyAppSrc copies a source file or directory to the directory, that will be packed.
 func copyAppSrc(packCtx *PackCtx, cliOpts *config.CliOpts, srcAppPath, dstAppPath string) error {
+	fmt.Printf("copyAppSrc: %q -> %q\n", srcAppPath, dstAppPath)
 	resolvedAppPath, err := filepath.EvalSymlinks(srcAppPath)
 	if err != nil {
 		return err

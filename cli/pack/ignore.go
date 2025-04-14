@@ -12,6 +12,73 @@ import (
 	"strings"
 )
 
+type ignoreFileFilter struct {
+	patternsFile string
+	patterns     []ignorePattern
+	parent       *ignoreFileFilter
+	children     map[string]*ignoreFileFilter
+}
+
+func NewIgnoreFileFilter(fsys fs.FS, root string, patternsFile string) (*ignoreFileFilter, error) {
+	retunrn nil, nil
+}
+
+func NewIgnoreFileFilter(fsys fs.FS, root string, patternsFile string) (*ignoreFileFilter, error) {
+	return createIgnoreFileFilter(fsys, patternsFile, nil)
+}
+
+func createIgnoreFileFilter(fsys fs.FS, patternsFile string, parent *ignoreFileFilter) (
+	*ignoreFileFilter, error) {
+	patterns, err := loadIgnorePatterns(fsys, patternsFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// According to .gitignore documentation "the last matching pattern decides the outcome"
+	// so we need to iterate in reverse order until the first match.
+	slices.Reverse(patterns)
+
+	f := &ignoreFileFilter{
+		patternsFile: patternsFile,
+		patterns:     patterns,
+		parent:       parent,
+	}
+
+	root := filepath.Dir(patternsFile)
+	fileName := filepath.Base(patternsFile)
+	fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
+		if d.Name() == fileName && !d.IsDir() {
+			child, err := createIgnoreFileFilter(fsys, path, f)
+			if err != nil {
+				return err
+			}
+			f.children[filepath.Dir(path)] = child
+			return fs.SkipDir
+		}
+		return nil
+	})
+
+	return f, nil
+}
+
+func (f *ignoreFileFilter) match(info os.FileInfo, path string) (match, negate bool) {
+	if src == patternsFile {
+		return true
+	}
+
+	for _, p := range f.patterns {
+		isApplicable := info.IsDir() || !p.dirOnly
+		if isApplicable && p.re.MatchString(path) {
+			return !p.isNegate
+		}
+	}
+	if f.parent == nil {
+		return true
+	}
+	return f.parent.match(info, path)
+
+}
+
 // ignorePattern corresponds to a single ignore pattern from .packignore file.
 type ignorePattern struct {
 	// re holds the "matching" part of ignore pattern (i.e. w/o trailing spaces, directory and
@@ -135,5 +202,28 @@ func ignoreFilter(fsys fs.FS, patternsFile string) (skipFilter, error) {
 			}
 		}
 		return false
+	}, nil
+}
+
+// ignoreFilter returns filter function that implements .gitignore approach of filtering files.
+func ignoreFilter2(fsys fs.FS, patternsFile string) (skipFilter, error) {
+	patterns, err := loadIgnorePatterns(fsys, patternsFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// According to .gitignore documentation "the last matching pattern decides the outcome"
+	// so we need to iterate in reverse order until the first match.
+	slices.Reverse(patterns)
+
+	var m map[string]*cascadeFileFilterNode
+	node := f
+	for k, v := range node.children {
+		m[v.patternsFile] = v
+	}
+
+	return func(srcInfo os.FileInfo, src string) bool {
+		f := findFilter(src)
+		return f.match(srcInfo, src)
 	}, nil
 }
