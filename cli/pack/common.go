@@ -1,7 +1,6 @@
 package pack
 
 import (
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -167,17 +166,18 @@ func previousPackageFilters(packCtx *PackCtx) []skipFilter {
 func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 	srcAppPath string,
 ) (func(srcInfo os.FileInfo, src, dest string) (bool, error), error) {
+	f, err := createIgnoreFilter(util.GetOsFS(), srcAppPath, ignoreFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize packignore filter: %w", err)
+	}
+
 	appCopyFilters := appArtifactsFilters(cliOpts, srcAppPath)
 	appCopyFilters = append(appCopyFilters, ttEnvironmentFilters(packCtx, cliOpts)...)
 	appCopyFilters = append(appCopyFilters, previousPackageFilters(packCtx)...)
 	appCopyFilters = append(appCopyFilters, func(srcInfo os.FileInfo, src string) bool {
 		return skipDefaults(srcInfo, src)
 	})
-	if f, err := ignoreFilter(util.GetOsFS(), filepath.Join(srcAppPath, ignoreFile)); err == nil {
-		appCopyFilters = append(appCopyFilters, f)
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("failed to load %q: %w", ignoreFile, err)
-	}
+	appCopyFilters = append(appCopyFilters, f.shouldSkip)
 
 	return func(srcInfo os.FileInfo, src, dest string) (bool, error) {
 		for _, shouldSkip := range appCopyFilters {
