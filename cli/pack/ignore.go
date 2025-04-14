@@ -3,6 +3,7 @@ package pack
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -11,6 +12,57 @@ import (
 	"slices"
 	"strings"
 )
+
+type ignoreFilter struct {
+	patternsFileName string
+	rootDir          string
+	rootNode         *ignoreFilterNode
+}
+
+func createIgnoreFilter(fsys fs.FS, rootDir string, patternsFileName string) (
+	*ignoreFilter,
+	error,
+) {
+	patternsFile := filepath.Join(rootDir, patternsFileName)
+	rootNode, err := createIgnoreFilterNode(fsys, patternsFile, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ignoreFilter{
+		patternsFileName: patternsFileName,
+		rootDir:          rootDir,
+		rootNode:         rootNode,
+	}, nil
+}
+
+func (f ignoreFilter) shouldSkip(info os.FileInfo, path string) bool {
+	_, err := filepath.Rel(f.rootDir, path)
+	if err != nil {
+		return false
+	}
+
+	if !info.IsDir() && info.Name() == f.patternsFileName {
+		return true
+	}
+
+	// Find the deepest node that is applicable to path.
+	node := findNodeForPath(f.rootNode, path)
+
+	return node.shouldSkip(info, path)
+}
+
+// findNodeForPath finds the deepest node that is applicable to path.
+func findNodeForPath(root *ignoreFilterNode, path string) *ignoreFilterNode {
+	for childDir, child := range root.children {
+		_, err := filepath.Rel(childDir, path)
+		if err != nil {
+			return findNodeForPath(child, path)
+		}
+	}
+
+	return root
+}
 
 // ignorePattern corresponds to a single ignore pattern from .packignore file.
 type ignorePattern struct {
@@ -109,13 +161,25 @@ func loadIgnorePatterns(fsys fs.FS, patternsFile string) ([]ignorePattern, error
 
 		patterns = append(patterns, p)
 	}
+
 	return patterns, nil
 }
 
-// ignoreFilter returns filter function that implements .gitignore approach of filtering files.
-func ignoreFilter(fsys fs.FS, patternsFile string) (skipFilter, error) {
+type ignoreFilterNode struct {
+	patterns []ignorePattern
+	parent   *ignoreFilterNode
+	children map[string]*ignoreFilterNode
+}
+
+func createIgnoreFilterNode(fsys fs.FS, patternsFile string, parent *ignoreFilterNode) (
+	*ignoreFilterNode,
+	error,
+) {
+	// There is a special condition for the root node that allows patternsFile to be missed
+	// in a root-directory. The other nodes don't have this option since for all of them
+	// construction is initiated by the presence of corresponding patternsFile.
 	patterns, err := loadIgnorePatterns(fsys, patternsFile)
-	if err != nil {
+	if err != nil && !(parent == nil && errors.Is(err, fs.ErrNotExist)) {
 		return nil, err
 	}
 
@@ -123,17 +187,50 @@ func ignoreFilter(fsys fs.FS, patternsFile string) (skipFilter, error) {
 	// so we need to iterate in reverse order until the first match.
 	slices.Reverse(patterns)
 
-	return func(srcInfo os.FileInfo, src string) bool {
-		// Skip ignore file itself.
-		if src == patternsFile {
-			return true
-		}
-		for _, p := range patterns {
-			isApplicable := srcInfo.IsDir() || !p.dirOnly
-			if isApplicable && p.re.MatchString(src) {
-				return !p.isNegate
+	f := &ignoreFilterNode{
+		patterns: patterns,
+		parent:   parent,
+		children: nil,
+	}
+
+	// Walk down the directories to find all the children.
+	root := filepath.Dir(patternsFile)
+	patternsFileName := filepath.Base(patternsFile)
+	err = fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
+		if d.Name() == patternsFileName && !d.IsDir() {
+			child, err := createIgnoreFilterNode(fsys, path, f)
+			if err != nil {
+				return err
 			}
+			if f.children == nil {
+				f.children = make(map[string]*ignoreFilterNode)
+			}
+			f.children[filepath.Dir(path)] = child
+			return fs.SkipDir
 		}
-		return false
-	}, nil
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
+}
+
+// shouldSkip searches the tree from this node towards root for the first pattern
+// that matches path and returns true if it's regular one (i.e. non-negative)
+// and false otherwise. If no match found it returns false as well.
+func (node *ignoreFilterNode) shouldSkip(info os.FileInfo, path string) bool {
+	for _, p := range node.patterns {
+		isApplicable := info.IsDir() || !p.dirOnly
+		if isApplicable && p.re.MatchString(path) {
+			return !p.isNegate
+		}
+	}
+
+	if node.parent != nil {
+		return node.parent.shouldSkip(info, path)
+	}
+
+	return false
 }

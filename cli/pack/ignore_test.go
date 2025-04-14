@@ -900,3 +900,59 @@ func Test_ignoreFilter_doubleAsterisk(t *testing.T) {
 	}
 	checkIgnoreFilter(t, testCases)
 }
+
+type ignoreFilterCascadeCase struct {
+	// Ignore patterns.
+	patterns map[string][]string
+	// Files that are expected to be ignored/copied during copy.
+	// Every item here denotes file (not directory).
+	ignored []string
+	copied  []string
+}
+
+func Test_ignoreFilter_cascade(t *testing.T) {
+	cases := map[string]struct {
+		ignoreFilterCase
+		nestedPatternsFile map[string][]string
+	}{
+		"simple": {
+			ignoreFilterCase: ignoreFilterCase{
+				patterns: []string{
+					"foo",
+				},
+				ignored: []string{
+					"foo/bar",
+					"foo/subdir/bar",
+					"foo/deep/nested/subdir/bar",
+				},
+				copied: []string{
+					"foo/bar2",
+					"foo/with_subdir/bar2",
+					"foo/with/deep/nested/subdir/bar2",
+					"foo2",
+					"similar_in_subdir/foo2",
+					"similar/in/deep/nested/subdir/foo2",
+					"subdir/foo2/bar",
+				},
+			},
+			nestedPatternsFile: map[string][]string{
+				"foo": []string{
+					"bar",
+				},
+			},
+		},
+	}
+
+	// Single negate pattern has no effect (i.e. all files are copied).
+	toSingleNegate := func(tc ignoreFilterCase) ignoreFilterCase {
+		return ignoreFilterCase{
+			patterns: []string{
+				"!" + tc.patterns[0],
+			},
+			ignored: nil,
+			copied:  slices.Concat(tc.copied, tc.ignored),
+		}
+	}
+	testCases := transformMapValues(ignoreFilterBaseCases, toSingleNegate)
+	checkIgnoreFilter(t, testCases)
+}
