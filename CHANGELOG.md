@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+## [2.9.1] - 2025-04-15
+
+The release includes minor fixes identified by Svacer and CVE linters.
+
 ## [2.9.0] - 2025-04-10
 
 The release introduces advanced features to connect to the Aeon database
