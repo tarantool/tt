@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt tcm start` OR `tt tcm start --path /path/to/tcm`: added the capability to run TCM in interactive mode.
 - `tt tcm start --watchdog`: implemented Watchdog mode for automatic restarting of TCM upon unexpected termination.
 - `tt tcm status`: added command to check TCM runtime status (modes: `watchdog` or `interactive`).
+- `tt tcm stop`: add command for graceful termination of TCM processes (modes: `watchdog` or `interactive`).
 
 ### Changed
 

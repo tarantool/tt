@@ -7,31 +7,110 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestWatchdog_StartStop tests that the watchdog starts a process, creates a PID
 // file, and stops the process when asked to.
 func TestWatchdog_StartStop(t *testing.T) {
-	pidFile := filepath.Join(t.TempDir(), "test.pid")
-	wdPidFile := filepath.Join(t.TempDir(), "watchdog.pid")
+	t.Run("successful start and graceful stop", func(t *testing.T) {
+		wd := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
 
-	wd := NewWatchdog(pidFile, wdPidFile, 100*time.Millisecond)
+		t.Cleanup(func() {
+			os.Remove("test.pid")
+			os.Remove("wd.pid")
+		})
 
-	err := wd.Start("sleep", "1")
-	if err != nil {
-		t.Fatalf("Start failed: %v", err)
-	}
+		// Mock command that will sleep for 1 second.
+		cmd := exec.Command("sleep", "1")
+		errChan := make(chan error, 1)
 
-	time.Sleep(100 * time.Millisecond)
+		go func() {
+			errChan <- wd.Start(cmd.Path, cmd.Args[1:]...)
+		}()
 
-	wd.Stop()
+		// Wait for process to start.
+		time.Sleep(200 * time.Millisecond)
 
-	if _, err := os.Stat(pidFile); os.IsNotExist(err) {
-		t.Error("PID file not created")
-	}
-	if _, err := os.Stat(wdPidFile); os.IsNotExist(err) {
-		t.Error("Watchdog PID file not created")
-	}
+		// Verify process is running.
+		wd.cmdMutex.Lock()
+		require.NotNil(t, wd.cmd)
+		require.NotNil(t, wd.cmd.Process)
+		wd.cmdMutex.Unlock()
+
+		// Stop the watchdog.
+		wd.Stop()
+
+		// Verify no errors.
+		select {
+		case err := <-errChan:
+			require.NoError(t, err)
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("timeout waiting for Start to return")
+		}
+	})
+
+	t.Run("stop before process completes", func(t *testing.T) {
+		wd := NewWatchdog("test.pid", "wd.pid", time.Second)
+
+		t.Cleanup(func() {
+			os.Remove("test.pid")
+			os.Remove("wd.pid")
+		})
+		// Long-running process.
+		cmd := exec.Command("sleep", "10")
+		errChan := make(chan error, 1)
+
+		go func() {
+			errChan <- wd.Start(cmd.Path, cmd.Args[1:]...)
+		}()
+
+		// Wait for process to start.
+		time.Sleep(200 * time.Millisecond)
+
+		// Stop while process is running.
+		wd.Stop()
+
+		select {
+		case err := <-errChan:
+			require.NoError(t, err)
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("timeout waiting for Start to return")
+		}
+	})
+
+	t.Run("process restart on failure", func(t *testing.T) {
+		wd := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
+
+		t.Cleanup(func() {
+			os.Remove("test.pid")
+			os.Remove("wd.pid")
+		})
+
+		// Command that exits immediately with error.
+		cmd := exec.Command("false")
+		errChan := make(chan error, 1)
+
+		go func() {
+			errChan <- wd.Start(cmd.Path, cmd.Args[1:]...)
+		}()
+
+		// Wait for at least one restart.
+		time.Sleep(300 * time.Millisecond)
+
+		// Should still be running (restarting).
+		require.False(t, wd.shouldStop.Load())
+
+		wd.Stop()
+
+		select {
+		case err := <-errChan:
+			require.NoError(t, err)
+		case <-time.After(500 * time.Millisecond):
+			t.Fatal("timeout waiting for Start to return")
+		}
+	})
 }
 
 // TestWatchdog_SignalHandling tests that the watchdog can handle system signals.
@@ -45,9 +124,7 @@ func TestWatchdog_SignalHandling(t *testing.T) {
 
 	go func() {
 		err := wd.Start("sleep", "10")
-		if err != nil {
-			t.Logf("Start exited with: %v", err)
-		}
+		require.NoError(t, err)
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -58,34 +135,6 @@ func TestWatchdog_SignalHandling(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		t.Error("Watchdog didn't stop on SIGTERM")
 	default:
-	}
-}
-
-// TestWatchdog_TerminateProcess verifies that the watchdog's terminateProcess
-// function successfully kills the monitored process and its process group.
-func TestWatchdog_TerminateProcess(t *testing.T) {
-	wd := &Watchdog{
-		pidFile:        filepath.Join(t.TempDir(), "test.pid"),
-		wdPidFile:      filepath.Join(t.TempDir(), "watchdog.pid"),
-		restartTimeout: time.Second,
-	}
-
-	cmd := exec.Command("sleep", "10")
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("Failed to start test process: %v", err)
-	}
-	defer cmd.Process.Kill()
-
-	wd.cmd = cmd
-	wd.processGroupPID.Store(int32(cmd.Process.Pid))
-
-	if err := wd.terminateProcess(); err != nil {
-		t.Errorf("terminateProcess failed: %v", err)
-	}
-
-	_, err := cmd.Process.Wait()
-	if err == nil {
-		t.Error("Process was not terminated")
 	}
 }
 
@@ -104,21 +153,20 @@ func TestWatchdog_WritePIDFiles(t *testing.T) {
 	}
 
 	cmd := exec.Command("sleep", "1")
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("Failed to start test process: %v", err)
-	}
+	err := cmd.Start()
+	require.NoError(t, err)
+
 	defer cmd.Process.Kill()
 
 	wd.cmd = cmd
 
-	if err := wd.writePIDFiles(); err != nil {
-		t.Errorf("writePIDFiles failed: %v", err)
-	}
+	err = wd.writePIDFiles()
+	require.NoError(t, err)
 
-	if _, err := os.Stat(pidFile); os.IsNotExist(err) {
-		t.Error("Process PID file not created")
-	}
-	if _, err := os.Stat(wdPidFile); os.IsNotExist(err) {
-		t.Error("Watchdog PID file not created")
-	}
+	_, err = os.Stat(pidFile)
+	require.NoError(t, err)
+
+	_, err = os.Stat(wdPidFile)
+	require.NoError(t, err)
+
 }

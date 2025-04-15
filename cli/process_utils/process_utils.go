@@ -118,8 +118,8 @@ func ExistsAndRecord(pidFileName string) (bool, error) {
 			return true, nil
 		}
 	} else if !os.IsNotExist(err) {
-		return false, fmt.Errorf(`something went wrong while trying to read the PID file. Error: "%v"`,
-			err)
+		return false, fmt.Errorf(`something went wrong while trying to read the`+
+			`PID file. Error: "%v"`, err)
 	}
 
 	return false, nil
