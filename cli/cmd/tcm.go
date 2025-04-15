@@ -13,18 +13,16 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/process_utils"
 	tcmCmd "github.com/tarantool/tt/cli/tcm"
-	"github.com/tarantool/tt/cli/util"
 	libwatchdog "github.com/tarantool/tt/lib/watchdog"
 )
 
 var tcmCtx = tcmCmd.TcmCtx{}
 
 const (
-	tcmPidFile      = "tcmPidFile.pid"
-	watchdogPidFile = "watchdogPidFile.pid"
+	tcmPidFile      = "tcm.pid"
+	watchdogPidFile = "watchdog.pid"
 )
 
 func newTcmStartCmd() *cobra.Command {
@@ -34,11 +32,7 @@ func newTcmStartCmd() *cobra.Command {
 		Long: `Start to the tcm.
 		tt tcm start --watchdog
 		tt tcm start --path`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalStartTcm, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run: RunModuleFunc(internalStartTcm),
 	}
 	tcmCmd.Flags().StringVar(&tcmCtx.Executable, "path", "", "the path to the tcm binary file")
 	tcmCmd.Flags().BoolVar(&tcmCtx.Watchdog, "watchdog", false, "enables the watchdog")
@@ -52,11 +46,7 @@ func newTcmStatusCmd() *cobra.Command {
 		Short: "Status tcm application",
 		Long: `Status to the tcm.
 		tt tcm status`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalTcmStatus, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run: RunModuleFunc(internalTcmStatus),
 	}
 	return tcmCmd
 }
@@ -66,11 +56,7 @@ func newTcmStopCmd() *cobra.Command {
 		Use:   "stop",
 		Short: "Stop tcm application",
 		Long:  `Stop to the tcm. tt tcm stop`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdCtx.CommandName = cmd.Name()
-			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalTcmStop, args)
-			util.HandleCmdErr(cmd, err)
-		},
+		Run:   RunModuleFunc(internalTcmStop),
 	}
 	return tcmCmd
 }
@@ -178,13 +164,13 @@ func internalTcmStop(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		log.Println("Watchdog and TCM stoped")
+		log.Println("Watchdog and TCM stopped")
 	} else {
 		_, err := process_utils.StopProcess(tcmPidFile)
 		if err != nil {
 			return err
 		}
-		log.Println("TCM stoped")
+		log.Println("TCM stopped")
 	}
 
 	return nil

@@ -1,12 +1,8 @@
 
-<<<<<<< HEAD
-from subprocess import PIPE, Popen
-=======
 import os
 from subprocess import PIPE, STDOUT, Popen, run
->>>>>>> d913784 (tcm: add the tt tcm status command)
 
-from utils import skip_if_tarantool_ce, wait_for_lines_in_output
+from utils import skip_if_tcm_not_supported, wait_for_lines_in_output
 
 TcmStartCommand = ("tcm", "start")
 TcmStartWatchdogCommand = ("tcm", "start", "--watchdog")
@@ -15,7 +11,7 @@ TcmStopCommand = ("tcm", "stop")
 
 
 def test_tcm_start_success(tt_cmd, tmp_path):
-    skip_if_tarantool_ce()
+    skip_if_tcm_not_supported()
 
     start_cmd = [tt_cmd, *TcmStartCommand]
     print(f"Run: {start_cmd}")
@@ -33,9 +29,9 @@ def test_tcm_start_success(tt_cmd, tmp_path):
 
     assert tcm.pid
 
-    with open(os.path.join(tmp_path, 'tcmPidFile.pid'), 'r') as f:
+    with open(os.path.join(tmp_path, 'tcm.pid'), 'r') as f:
         tcm_pid = f.read().strip()
-    assert f'(INFO): Interactive process PID {tcm_pid} written to tcmPidFile.pid' in output.strip()
+    assert f'(INFO): Interactive process PID {tcm_pid} written to tcm.pid' in output.strip()
 
     cmdStatus = [str(tt_cmd), *TcmStatusCommand]
     print(f"Run: {' '.join(cmdStatus)}")
@@ -66,12 +62,12 @@ def test_tcm_start_success(tt_cmd, tmp_path):
 
     output = wait_for_lines_in_output(stop.stdout, ["TCM"])
 
-    assert "TCM stoped" in output.strip()
+    assert "TCM stopped" in output.strip()
     assert tcm.poll() is not None
 
 
 def test_tcm_start_with_watchdog_success(tt_cmd, tmp_path):
-    skip_if_tarantool_ce()
+    skip_if_tcm_not_supported()
 
     cmd = [str(tt_cmd), *TcmStartWatchdogCommand]
     print(f"Run: {' '.join(cmd)}")
@@ -100,7 +96,7 @@ def test_tcm_start_with_watchdog_success(tt_cmd, tmp_path):
         stderr=STDOUT,
     )
 
-    with open(os.path.join(tmp_path, 'tcmPidFile.pid'), 'r') as f:
+    with open(os.path.join(tmp_path, 'tcm.pid'), 'r') as f:
         tcm_pid = f.read().strip()
 
     assert "TCM" and "RUNNING" and tcm_pid in status.stdout
@@ -110,8 +106,6 @@ def test_tcm_start_with_watchdog_success(tt_cmd, tmp_path):
 
     assert tcm.pid is not None
     assert tcm.poll() is not None
-
-    skip_if_tarantool_ce()
 
     start_cmd = [tt_cmd, *TcmStartCommand]
     print(f"Run: {start_cmd}")
@@ -128,9 +122,9 @@ def test_tcm_start_with_watchdog_success(tt_cmd, tmp_path):
     output = wait_for_lines_in_output(tcm.stdout, ["(INFO):Process PID"])
     assert tcm.pid
 
-    with open(os.path.join(tmp_path, 'tcmPidFile.pid'), 'r') as f:
+    with open(os.path.join(tmp_path, 'tcm.pid'), 'r') as f:
         tcm_pid = f.read().strip()
-    assert f'(INFO): Interactive process PID {tcm_pid} written to tcmPidFile.pid' in output.strip()
+    assert f'(INFO): Interactive process PID {tcm_pid} written to tcm.pid' in output.strip()
 
     tcmDouble = Popen(
         start_cmd,
