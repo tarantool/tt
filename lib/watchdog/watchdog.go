@@ -15,18 +15,31 @@ import (
 	"github.com/tarantool/tt/cli/process_utils"
 )
 
+// Watchdog manages a child process, ensuring reliable startup, automatic restarts on failure,
+// and graceful shutdown. It handles system signals, maintains PID file consistency,
+// and provides thread-safe operations for concurrent process management.
 type Watchdog struct {
-	cmd            *exec.Cmd
+	// cmd is the child process command (protected by cmdMutex).
+	cmd *exec.Cmd
+	// restartTimeout defines delay before restart (0 = immediate).
 	restartTimeout time.Duration
-	shouldStop     atomic.Bool
-	doneBarrier    sync.WaitGroup
-	pidFile        string
-	wdPidFile      string
-
-	cmdMutex        sync.Mutex
-	pidFileMutex    sync.Mutex
-	signalChan      chan os.Signal
+	// shouldStop is atomic flag to prevent restarts when true.
+	shouldStop atomic.Bool
+	// doneBarrier waits for goroutines during shutdown.
+	doneBarrier sync.WaitGroup
+	// pidFile stores child process PID (protected by pidFileMutex).
+	pidFile string
+	// wdPidFile stores watchdog's own PID.
+	wdPidFile string
+	// cmdMutex guards cmd operations.
+	cmdMutex sync.Mutex
+	// pidFileMutex protects PID file access.
+	pidFileMutex sync.Mutex
+	// signalChan receives termination signals.
+	signalChan chan os.Signal
+	// processGroupPID stores Process Group ID for cleanup.
 	processGroupPID atomic.Int32
+	// startupComplete signals successful child process start.
 	startupComplete chan struct{}
 }
 
@@ -47,25 +60,25 @@ func NewWatchdog(pidFile, wdPidFile string, restartTimeout time.Duration) *Watch
 // Start begins monitoring and managing the target process.
 // It handles process execution, restart logic, and signal processing.
 func (wd *Watchdog) Start(bin string, args ...string) error {
-	// Add to wait group to track active goroutines
+	// Add to wait group to track active goroutines.
 	wd.doneBarrier.Add(1)
-	// Ensure we decrement wait group when done
+	// Ensure we decrement wait group when done.
 	defer wd.doneBarrier.Done()
 
-	// Create context for graceful shutdown
+	// Create context for graceful shutdown.
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure context is canceled when we exit
+	defer cancel() // Ensure context is canceled when we exit.
 
-	// Register signal handler for termination signals
+	// Register signal handler for termination signals.
 	signal.Notify(wd.signalChan, syscall.SIGINT, syscall.SIGTERM)
-	// Clean up signal handlers when done
+	// Clean up signal handlers when done.
 	defer signal.Stop(wd.signalChan)
 
-	// Signal handling goroutine
+	// Signal handling goroutine.
 	go func() {
 		select {
 		case sig := <-wd.signalChan:
-			// Only process signal if not already stopping
+			// Only process signal if not already stopping.
 			if !wd.shouldStop.Load() {
 				log.Printf("(INFO): Received signal: %v", sig)
 				wd.Stop()
@@ -74,20 +87,20 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		}
 	}()
 
-	// Main process management loop
+	// Main process management loop.
 	for {
-		// Check if we should stop before each iteration
+		// Check if we should stop before each iteration.
 		if wd.shouldStop.Load() {
 			return nil
 		}
 
-		// Start the managed process
+		// Start the managed process.
 		wd.cmdMutex.Lock()
 		wd.cmd = exec.Command(bin, args...)
-		// Create new process group for proper signal handling
+		// Create new process group for proper signal handling.
 		wd.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-		// Start the process
+		// Start the process.
 		if err := wd.cmd.Start(); err != nil {
 			wd.cmdMutex.Unlock()
 			log.Printf("(ERROR): Failed to start process: %v", err)
@@ -101,25 +114,25 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		// Write PID files after successful start
 		if err := wd.writePIDFiles(); err != nil {
 			log.Printf("(ERROR): Failed to write PID files: %v", err)
-			_ = wd.terminateProcess() // Clean up if PID files fail
+			_ = wd.terminateProcess() // Clean up if PID files fail.
 			return err
 		}
 
 		log.Println("(INFO): Process started successfully")
-		close(wd.startupComplete) // Signal that startup is complete
+		close(wd.startupComplete) // Signal that startup is complete.
 
-		// Wait for process completion in separate goroutine
+		// Wait for process completion in separate goroutine.
 		waitChan := make(chan error, 1)
 		go func() { waitChan <- wd.cmd.Wait() }()
 
 		select {
 		case err := <-waitChan:
-			// Check for stop signal after process exits
+			// Check for stop signal after process exits.
 			if wd.shouldStop.Load() {
 				return nil
 			}
 
-			// Handle process exit status
+			// Handle process exit status.
 			if err != nil {
 				if errors.As(err, new(*exec.ExitError)) {
 					log.Printf("(WARN): Process exited with error: %v", err)
@@ -132,12 +145,12 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 			}
 
 		case <-ctx.Done():
-			// Context canceled - terminate process
+			// Context canceled - terminate process.
 			_ = wd.terminateProcess()
 			return nil
 		}
 
-		// Check stop condition again before restart
+		// Check stop condition again before restart.
 		if wd.shouldStop.Load() {
 			return nil
 		}
@@ -146,13 +159,13 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		log.Printf("(INFO): Waiting %s before restart...", wd.restartTimeout)
 		select {
 		case <-time.After(wd.restartTimeout):
-			// Continue to next iteration after timeout
+			// Continue to next iteration after timeout.
 		case <-ctx.Done():
-			// Exit if context canceled during wait
+			// Exit if context canceled during wait.
 			return nil
 		}
 
-		// Reset startup complete channel for next iteration
+		// Reset startup complete channel for next iteration.
 		wd.startupComplete = make(chan struct{})
 	}
 }
@@ -163,32 +176,32 @@ func (wd *Watchdog) Stop() {
 	// Atomically set shouldStop flag to prevent multiple concurrent stops
 	// CompareAndSwap ensures only one goroutine can execute the stop sequence
 	if !wd.shouldStop.CompareAndSwap(false, true) {
-		return // Already stopping or stopped
+		return // Already stopping or stopped.
 	}
 
-	// Ensure process startup is complete before attempting to stop
-	// This prevents races during process initialization
+	// Ensure process startup is complete before attempting to stop.
+	// This prevents races during process initialization.
 	select {
 	case <-wd.startupComplete:
-		// Normal case - startup already completed
+		// Normal case - startup already completed.
 	default:
-		// Startup still in progress - wait for completion
+		// Startup still in progress - wait for completion.
 		log.Println("(INFO): Waiting for process startup...")
 		<-wd.startupComplete
 	}
 
-	// Terminate the managed process
+	// Terminate the managed process.
 	_ = wd.terminateProcess()
 
-	// Clean up signal handling
+	// Clean up signal handling.
 	signal.Stop(wd.signalChan)
 	close(wd.signalChan)
 
-	// Wait for all goroutines to complete
-	// This ensures we don't exit while signal handlers are still running
+	// Wait for all goroutines to complete.
+	// This ensures we don't exit while signal handlers are still running.
 	wd.doneBarrier.Wait()
 
-	// Final log message indicating successful shutdown
+	// Final log message indicating successful shutdown.
 	log.Println("(INFO): Watchdog stopped.")
 }
 
@@ -205,7 +218,7 @@ func (wd *Watchdog) terminateProcess() error {
 
 	pgid := int(wd.processGroupPID.Load())
 
-	// Send SIGTERM to entire process group if available (preferred method)
+	// Send SIGTERM to entire process group if available (preferred method).
 	if pgid > 0 {
 		return syscall.Kill(-pgid, syscall.SIGTERM)
 	}

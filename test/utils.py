@@ -581,6 +581,14 @@ def is_cluster_app_supported():
     return major >= 3
 
 
+def skip_if_tcm_not_supported():
+    if not is_tarantool_ee():
+        pytest.skip("Tarantool Enterprise required")
+
+    if is_tarantool_less_3():
+        pytest.skip("TCM not supported")
+
+
 def is_tuple_format_supported():
     major, minor = get_tarantool_version()
     return major > 3 or (major == 3 and minor >= 2)
