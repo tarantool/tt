@@ -6,6 +6,7 @@ import shutil
 import socket
 import subprocess
 import time
+from pathlib import Path
 
 import netifaces
 import psutil
@@ -63,10 +64,15 @@ def run_command_and_get_output(
     return process.returncode, process.stdout
 
 
-def create_tt_config(config_path, modules_path):
-    config_path = os.path.join(config_path, config_name)
+def create_tt_config(config_path: Path, modules_path: Path | str | list[Path | str]) -> Path:
+    if not isinstance(config_path, Path):
+        config_path = Path(config_path)
+    config_path.mkdir(parents=True, exist_ok=True)
+    config_path = config_path / config_name
+    if isinstance(modules_path, Path):
+        modules_path = str(modules_path)
     with open(config_path, "w") as f:
-        yaml.dump({"modules": {"directory": f"{modules_path}"}}, f)
+        yaml.dump({"modules": {"directory": modules_path}}, f)
 
     return config_path
 
@@ -92,25 +98,16 @@ def create_lua_config(tmp_path):
     return config_file
 
 
-def create_external_module(module_name, directory):
-    # See https://github.com/tarantool/tt/issues/1039
-    pytest.skip("FIXME: running external modules not implemented!")
-    module_message = f"\"Hello, I'm {module_name} external module!\""
-    with open(os.path.join(directory, f"{module_name}.sh"), "w") as f:
-        f.write(f"""#!/bin/sh
-            if [ "$1" = "--help" ]; then
-                echo Help for external {module_name} module
-            elif [ "$1" = "--description" ]; then
-                echo Description for external module {module_name}
-            else
-                echo {module_message}
-            fi
-
-            echo List of passed args: $@""")
-
-    os.chmod(os.path.join(directory, f"{module_name}.sh"), 0o777)
-
-    return module_message.strip('"')
+def create_external_module(module: str, directory: Path) -> str:
+    executable = directory / module / "main"
+    module_message = f"Hello, I'm {module} external module!"
+    with open(Path(__file__).parent / "module.py.tt", "r") as t:
+        src = t.read()
+        executable.parent.mkdir(parents=True, exist_ok=True)
+        with open(executable, "w") as f:
+            f.write(src.format(module_message=module_message, module_name=module))
+    os.chmod(executable, 0o755)
+    return module_message
 
 
 def wait_file(dir_name, file_pattern, exclude_list, timeout_sec=10):

@@ -227,7 +227,7 @@ func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *co
 			if files, _ := dir.Readdir(1); len(files) == 0 {
 				return // No modules.
 			}
-			// FIXME: Add working with a list https://github.com/tarantool/tt/issues/1014
+			// FIXME: Add working with a list https://jira.vk.team/browse/TNTP-2506
 			if err := copy.Copy(directory,
 				util.JoinPaths(bundleEnvPath, newOpts.Modules.Directories[0])); err != nil {
 				log.Warnf("Failed to copy modules from %q: %s", directory, err)
