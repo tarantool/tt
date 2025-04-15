@@ -172,7 +172,6 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 		cfg.Env.BinDir,
 		cfg.Repo.Install,
 	}
-	// FIXME: Need select only internal directories https://github.com/tarantool/tt/issues/1014
 	directoriesToCreate = append(directoriesToCreate, cfg.Modules.Directories...)
 	for _, templatesPathOpts := range cfg.Templates {
 		directoriesToCreate = append(directoriesToCreate, templatesPathOpts.Path)
