@@ -30,6 +30,6 @@ def test_version_cmd(tt_cmd, tmp_path):
 
 
 def test_version_internal_over_external(tt_cmd, tmp_path):
-    utils.create_external_module("version", tmp_path)
-    utils.create_tt_config(tmp_path, tmp_path)
+    utils.create_external_module("version", tmp_path / "modules")
+    utils.create_tt_config(tmp_path, "modules")
     check_internal_version_cmd(tt_cmd, tmp_path)

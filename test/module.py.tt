@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+from argparse import ArgumentParser
+from sys import argv as ARGV
+
+parser = ArgumentParser(description="Help for external {module_name} module", add_help=False)
+parser.add_argument("--help", action="store_true", help="Show this help message and exit")
+parser.add_argument("--description", action="store_true", help="Show short description")
+parser.add_argument("--version", action="store_true", help="Show module version")
+args, extra_args = parser.parse_known_args()
+
+if args.help:
+    print("Help for external {module_name} module")
+else:
+    if args.version:
+        print("version: 0.0.1")
+    if args.description:
+        print("help: Description for external module {module_name}")
+
+if not (args.version or args.description or args.help):
+    print("{module_message}")
+print("List of passed args:", *ARGV[1:])
