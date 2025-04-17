@@ -3,15 +3,10 @@ package search
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
-	"sort"
-	"strings"
 
 	"github.com/apex/log"
-	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
@@ -37,178 +32,18 @@ type SearchCtx struct {
 	ProgramName string
 	// Search for development builds.
 	DevBuilds bool
+
+	platformInformer PlatformInformer
+	tntIoDoer        TntIoDoer
 }
 
-const (
-	GitRepoTarantool = "https://github.com/tarantool/tarantool.git"
-	GitRepoTT        = "https://github.com/tarantool/tt.git"
-)
-
-// isMasked function checks that the given version of tarantool is masked.
-func isMasked(version version.Version) bool {
-	// Mask all versions below 1.10: deprecated.
-	if version.Major == 1 && version.Minor < 10 {
-		return true
+// NewSearchCtx creates a new SearchCtx with default production values.
+func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
+	return SearchCtx{
+		Filter:           SearchRelease,
+		platformInformer: informer,
+		tntIoDoer:        doer,
 	}
-
-	// Mask all versions below 1.10.11: static build is not supported.
-	if version.Major == 1 && version.Minor == 10 && version.Patch < 11 {
-		return true
-	}
-
-	// Mask all versions below 2.7: static build is not supported.
-	if version.Major == 2 && version.Minor < 7 {
-		return true
-	}
-
-	// Mask 2.10.1 version: https://github.com/orgs/tarantool/discussions/7646.
-	if version.Major == 2 && version.Minor == 10 && version.Patch == 1 {
-		return true
-	}
-
-	// Mask all 2.X.0 below 2.10.0: technical tags.
-	if version.Major == 2 && version.Minor < 10 && version.Patch == 0 {
-		return true
-	}
-
-	return false
-}
-
-// GetVersionsFromGitRemote returns sorted versions list from specified remote git repo.
-func GetVersionsFromGitRemote(repo string) ([]version.Version, error) {
-	versions := []version.Version{}
-
-	if _, err := exec.LookPath("git"); err != nil {
-		return nil, fmt.Errorf("'git' is required for 'tt search' to work")
-	}
-
-	output, err := exec.Command("git", "ls-remote", "--tags", "--refs", repo).Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get versions from %s: %s", repo, err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-
-	// No tags found.
-	if len(lines) == 1 && lines[0] == "" {
-		return versions, nil
-	}
-
-	for _, line := range lines {
-		slashIdx := strings.LastIndex(line, "/")
-		if slashIdx == -1 {
-			return nil, fmt.Errorf("unexpected Data from %s", repo)
-		} else {
-			slashIdx += 1
-		}
-		ver := line[slashIdx:]
-		version, err := version.Parse(ver)
-		if err != nil {
-			continue
-		}
-		if isMasked(version) && repo == GitRepoTarantool {
-			continue
-		}
-		versions = append(versions, version)
-	}
-
-	sort.Stable(version.VersionSlice(versions))
-
-	return versions, nil
-}
-
-// GetCommitFromGitLocal returns hash or pr/ID info from specified local git repo.
-func GetCommitFromGitLocal(repo string, input string) (string, error) {
-	if _, err := exec.LookPath("git"); err != nil {
-		return "", fmt.Errorf("unable to get commits: `git` command is missing")
-	}
-
-	isPullRequest, pullRequestID := util.IsPullRequest(input)
-
-	if isPullRequest {
-		commandStr := "pull/" + pullRequestID +
-			"/head:" + input
-		cmd := exec.Command("git", "fetch", "origin", commandStr)
-		cmd.Dir = repo
-		err := cmd.Run()
-		if err != nil {
-			return "", err
-		}
-	}
-
-	cmd := exec.Command("git", "show", input, "--quiet")
-	cmd.Dir = repo
-
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-
-	hash := strings.Split(lines[0], " ")[1]
-
-	return hash, nil
-}
-
-// GetCommitFromGitRemote returns hash or pr/ID info from specified remote git repo.
-func GetCommitFromGitRemote(repo string, input string) (string, error) {
-	if _, err := exec.LookPath("git"); err != nil {
-		return "", fmt.Errorf("unable to get commits: `git` command is missing")
-	}
-
-	tempRepoPath, err := os.MkdirTemp("", "tt_install_repo")
-	if err != nil {
-		return "", fmt.Errorf("failed to get commits from %q: %s", repo, err)
-	}
-
-	defer os.RemoveAll(tempRepoPath)
-
-	cmd := exec.Command("git", "clone", "--filter=blob:none", "--no-checkout",
-		"--single-branch", repo, tempRepoPath)
-
-	err = cmd.Run()
-	if err != nil {
-		return "", fmt.Errorf("unable to get commits: git clone failed: %w", err)
-	}
-
-	return GetCommitFromGitLocal(tempRepoPath, input)
-}
-
-// GetVersionsFromGitLocal returns sorted versions list from specified local git repo.
-func GetVersionsFromGitLocal(repo string) ([]version.Version, error) {
-	versions := []version.Version{}
-
-	if _, err := exec.LookPath("git"); err != nil {
-		return nil, fmt.Errorf("'git' is required for 'tt search' to work")
-	}
-
-	output, err := exec.Command("git", "-C", repo, "tag").Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get versions from %s: %s", repo, err)
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-
-	// No tags found.
-	if len(lines) == 1 && lines[0] == "" {
-		return versions, nil
-	}
-
-	for _, line := range lines {
-		version, err := version.Parse(line)
-		if err != nil {
-			continue
-		}
-		if isMasked(version) && strings.Contains(repo, "tarantool") {
-			continue
-		}
-		versions = append(versions, version)
-	}
-
-	sort.Stable(version.VersionSlice(versions))
-
-	return versions, nil
 }
 
 // printVersion prints the version and labels:
@@ -235,271 +70,34 @@ func printVersion(bindir string, program string, versionStr string) {
 }
 
 // SearchVersions outputs available versions of program.
-func SearchVersions(cmdCtx *cmdcontext.CmdCtx, searchCtx SearchCtx,
-	cliOpts *config.CliOpts, program string) error {
-	var repo string
-	versions := []version.Version{}
-
-	if program == ProgramCe {
-		repo = GitRepoTarantool
-	} else if program == ProgramTt {
-		repo = GitRepoTT
-	}
+func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
+	prg := searchCtx.ProgramName
+	log.Infof("Available versions of " + prg + ":")
 
 	var err error
-	log.Infof("Available versions of " + program + ":")
-	if program == ProgramEe {
-		searchCtx.Package = "enterprise"
-		bundles, _, err := FetchBundlesInfo(searchCtx, cliOpts)
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
-
-		for _, bundle := range bundles {
-			printVersion(cliOpts.Env.BinDir, program, bundle.Version.Str)
-		}
-		return nil
+	var vers version.VersionSlice
+	switch prg {
+	case ProgramCe:
+		vers, err = searchVersionsGit(cliOpts, prg, GitRepoTarantool)
+	case ProgramTt:
+		vers, err = searchVersionsGit(cliOpts, prg, GitRepoTT)
+	case ProgramEe, ProgramTcm: // Group of API-based searches
+		vers, err = searchVersionsTntIo(cliOpts, &searchCtx)
+	default:
+		return fmt.Errorf("remote search for program '%s' is not implemented", prg)
 	}
 
-	versions, err = GetVersionsFromGitRemote(repo)
-	if err != nil {
-		log.Fatalf(err.Error())
-	}
-
-	for _, version := range versions {
-		printVersion(cliOpts.Env.BinDir, program, version.Str)
-	}
-
-	printVersion(cliOpts.Env.BinDir, program, "master")
-
-	return err
-}
-
-// RunCommandAndGetOutputInDir returns output of command.
-func RunCommandAndGetOutputInDir(program string, dir string, args ...string) (string, error) {
-	cmd := exec.Command(program, args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(string(out)), nil
-}
-
-// SearchVersionsLocal outputs available versions of program from distfiles directory.
-func SearchVersionsLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, program string) error {
-	var err error
-	if cliOpts.Repo == nil {
-		cliOpts.Repo = &config.RepoOpts{Install: "", Rocks: ""}
-	}
-	localDir := cliOpts.Repo.Install
-	if localDir == "" {
-		configDir := filepath.Dir(cmdCtx.Cli.ConfigPath)
-		localDir = filepath.Join(configDir, "distfiles")
-	}
-
-	localFiles, err := os.ReadDir(localDir)
 	if err != nil {
 		return err
 	}
 
-	if program == ProgramCe {
-		if _, err = os.Stat(localDir + "/tarantool"); !os.IsNotExist(err) {
-			log.Infof("Available versions of " + program + ":")
-			versions, err := GetVersionsFromGitLocal(localDir + "/tarantool")
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
-
-			for _, version := range versions {
-				printVersion(cliOpts.Env.BinDir, program, version.Str)
-			}
-			printVersion(cliOpts.Env.BinDir, program, "master")
-		}
-	} else if program == ProgramTt {
-		if _, err = os.Stat(localDir + "/tt"); !os.IsNotExist(err) {
-			log.Infof("Available versions of " + program + ":")
-			versions, err := GetVersionsFromGitLocal(localDir + "/tt")
-			if err != nil {
-				log.Fatalf(err.Error())
-			}
-
-			for _, version := range versions {
-				printVersion(cliOpts.Env.BinDir, program, version.Str)
-			}
-			printVersion(cliOpts.Env.BinDir, program, "master")
-		}
-	} else if program == ProgramEe {
-		files := []string{}
-		for _, v := range localFiles {
-			if strings.Contains(v.Name(), "tarantool-enterprise-sdk") && !v.IsDir() {
-				files = append(files, v.Name())
-			}
-		}
-
-		log.Infof("Available versions of " + program + ":")
-		bundles, err := FetchBundlesInfoLocal(files)
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
-
-		for _, bundle := range bundles {
-			printVersion(cliOpts.Env.BinDir, program, bundle.Version.Str)
-		}
-	} else {
-		return fmt.Errorf("search supports only tarantool/tarantool-ee/tt")
+	if vers.Len() == 0 {
+		log.Infof("No versions found for %s.", prg)
+		return nil // It's not an error if nothing is found.
 	}
 
-	return err
-}
-
-// compileVersionRegexp compiles a regular expression for cutting version from SDK bundle names.
-func compileVersionRegexp() (*regexp.Regexp, error) {
-	matchRe := "^(?P<tarball>tarantool-enterprise-sdk-(?P<version>.*r[0-9]{1,3}).*\\.tar\\.gz)$"
-
-	re := regexp.MustCompile(matchRe)
-
-	return re, nil
-}
-
-// getBundles collects a list of information about all available tarantool-ee
-// bundles from tarantool.io api reply.
-func getBundles(rawBundleInfoList map[string][]string, flags SearchFlags) (BundleInfoSlice,
-	error) {
-	bundles := BundleInfoSlice{}
-
-	re, err := compileVersionRegexp()
-	if err != nil {
-		return nil, err
+	for _, v := range vers {
+		printVersion(cliOpts.Env.BinDir, prg, v.Str)
 	}
-
-	for release, pkgs := range rawBundleInfoList {
-		for _, pkg := range pkgs {
-			parsedData := util.FindNamedMatches(re, pkg)
-			if len(parsedData) == 0 {
-				continue
-			}
-
-			version, err := version.Parse(parsedData["version"])
-			if err != nil {
-				return nil, err
-			}
-
-			version.Tarball = pkg
-			eeVer := BundleInfo{
-				Version: version,
-				Package: "enterprise",
-				Release: release,
-			}
-
-			switch flags {
-			case SearchRelease:
-				if strings.Contains(pkg, "-debug-") {
-					continue
-				}
-			case SearchDebug:
-				if !strings.Contains(pkg, "-debug-") {
-					continue
-				}
-			}
-
-			bundles = append(bundles, eeVer)
-		}
-	}
-
-	if len(bundles) == 0 {
-		return nil, fmt.Errorf("no packages found for this OS or release version")
-	}
-
-	sort.Sort(bundles)
-
-	return bundles, nil
-}
-
-// FetchBundlesInfoLocal returns slice of information about all tarantool-ee
-// bundles available locally. The result will be sorted in ascending order.
-func FetchBundlesInfoLocal(files []string) ([]BundleInfo, error) {
-	versions := BundleInfoSlice{}
-
-	re, err := compileVersionRegexp()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, file := range files {
-		parsedData := util.FindNamedMatches(re, file)
-		if len(parsedData) == 0 {
-			continue
-		}
-
-		version, err := version.Parse(parsedData["version"])
-		if err != nil {
-			return nil, err
-		}
-
-		version.Tarball = file
-		eeVer := BundleInfo{Version: version}
-		versions = append(versions, eeVer)
-	}
-
-	sort.Sort(versions)
-
-	return versions, nil
-}
-
-// FetchBundlesInfo returns slice of information about all available tarantool-ee bundles.
-// The result will be sorted in ascending order.
-func FetchBundlesInfo(searchCtx SearchCtx, cliOpts *config.CliOpts) ([]BundleInfo,
-	string, error) {
-	bundleReferences, token, err := tntIoGetPkgVersions(cliOpts, searchCtx)
-	if err != nil {
-		return nil, "", err
-	}
-
-	bundles, err := getBundles(bundleReferences, searchCtx.Filter)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return bundles, token, nil
-}
-
-// GetTarantoolBundleInfo returns the available EE SDK bundle for user's OS,
-// corresponding to the passed expected version argument.
-func GetTarantoolBundleInfo(cliOpts *config.CliOpts, local bool, devBuild bool,
-	files []string, expectedVersion string) (BundleInfo, error) {
-	bundles := BundleInfoSlice{}
-	var err error
-
-	if local {
-		bundles, err = FetchBundlesInfoLocal(files)
-		if expectedVersion == "" {
-			return bundles[bundles.Len()-1], nil
-		}
-		for _, bundle := range bundles {
-			if bundle.Version.Str == expectedVersion {
-				return bundle, nil
-			}
-		}
-	} else {
-		var token string
-		searchCtx := SearchCtx{
-			Filter:    SearchAll,
-			Package:   "enterprise",
-			DevBuilds: devBuild,
-		}
-		bundles, token, err = FetchBundlesInfo(searchCtx, cliOpts)
-		if err != nil {
-			return BundleInfo{}, err
-		}
-		for _, bundle := range bundles {
-			if bundle.Version.Str == expectedVersion {
-				bundle.Token = token
-				return bundle, nil
-			}
-		}
-	}
-
-	return BundleInfo{}, fmt.Errorf("%s version doesn't exist", expectedVersion)
+	return nil
 }

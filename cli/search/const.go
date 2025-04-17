@@ -5,4 +5,5 @@ const (
 	ProgramEe  = "tarantool-ee"
 	ProgramTt  = "tt"
 	ProgramDev = "tarantool-dev"
+	ProgramTcm = "tcm"
 )
