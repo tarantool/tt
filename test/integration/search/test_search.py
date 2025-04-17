@@ -50,12 +50,12 @@ def test_version_cmd_local(tt_cmd, tmp_path):
     cmd = [tt_cmd, "search", "--local-repo", "tarantool"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert re.search(r"Available versions of tarantool:", output)
+    assert re.search(r"Available local versions of tarantool:", output)
 
     cmd = [tt_cmd, "search", "--local-repo", "tt"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
-    assert re.search(r"Available versions of tt:", output)
+    assert re.search(r"Available local versions of tt:", output)
 
     cmd = [tt_cmd, "search", "--local-repo", "git"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)

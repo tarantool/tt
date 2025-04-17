@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt search tcm` - the command performs a search for tarantool cluster
+  manager (TCM) in the customer zone or local `distfiles` directory.
+
 ### Changed
 
 ### Fixed

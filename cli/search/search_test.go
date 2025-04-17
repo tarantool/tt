@@ -40,7 +40,7 @@ func Test_getBundles(t *testing.T) {
 				map[string][]string{"2.10": {pkgRelease}},
 				SearchRelease,
 			},
-			want: []BundleInfo{
+			want: BundleInfoSlice{
 				{
 					Version: version.Version{
 						Major:      2,
@@ -66,7 +66,7 @@ func Test_getBundles(t *testing.T) {
 				map[string][]string{"2.10": {pkgDebug}},
 				SearchDebug,
 			},
-			want: []BundleInfo{
+			want: BundleInfoSlice{
 				{
 					Version: version.Version{
 						Major:      2,
@@ -107,7 +107,11 @@ func Test_getBundles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := getBundles(tt.args.rawBundleInfoList, tt.args.flags)
+			sCtx := SearchCtx{
+				ProgramName: ProgramEe,
+				Filter:      tt.args.flags,
+			}
+			got, err := getBundles(tt.args.rawBundleInfoList, &sCtx)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getBundles() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -201,4 +205,18 @@ func Test_GetCommitFromGitRemote(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewSearchCtx(t *testing.T) {
+	t.Run("Valid context", func(t *testing.T) {
+		got := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
+		require.NotNil(t, got)
+		assert.Equal(t, got.Filter, SearchRelease)
+		assert.Equal(t, got.ProgramName, "")
+		assert.Equal(t, got.Package, "")
+		assert.Equal(t, got.ReleaseVersion, "")
+		assert.Equal(t, got.DevBuilds, false)
+		assert.Implements(t, (*PlatformInformer)(nil), got.platformInformer)
+		assert.Implements(t, (*TntIoDoer)(nil), got.tntIoDoer)
+	})
 }
