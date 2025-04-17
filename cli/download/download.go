@@ -40,7 +40,7 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	}
 
 	log.Info("Search for the requested version...")
-	ver, err := search.GetTarantoolBundleInfo(cliOpts, false,
+	ver, err := search.GetEeBundleInfo(cliOpts, false,
 		downloadCtx.DevBuild, nil, downloadCtx.Version)
 	if err != nil {
 		return fmt.Errorf("cannot get SDK bundle info: %s", err)

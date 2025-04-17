@@ -40,7 +40,7 @@ func Test_getBundles(t *testing.T) {
 				map[string][]string{"2.10": {pkgRelease}},
 				SearchRelease,
 			},
-			want: []BundleInfo{
+			want: BundleInfoSlice{
 				{
 					Version: version.Version{
 						Major:      2,
@@ -66,7 +66,7 @@ func Test_getBundles(t *testing.T) {
 				map[string][]string{"2.10": {pkgDebug}},
 				SearchDebug,
 			},
-			want: []BundleInfo{
+			want: BundleInfoSlice{
 				{
 					Version: version.Version{
 						Major:      2,
@@ -107,7 +107,11 @@ func Test_getBundles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := getBundles(tt.args.rawBundleInfoList, tt.args.flags)
+			sCtx := SearchCtx{
+				ProgramName: ProgramEe,
+				Filter:      tt.args.flags,
+			}
+			got, err := getBundles(tt.args.rawBundleInfoList, &sCtx)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getBundles() error = %v, wantErr %v", err, tt.wantErr)
 				return
