@@ -1326,7 +1326,7 @@ func installTarantoolEE(binDir string, includeDir string, installCtx InstallCtx,
 		}
 	}
 
-	ver, err := search.GetTarantoolBundleInfo(cliOpts, installCtx.Local,
+	ver, err := search.GetEeBundleInfo(cliOpts, installCtx.Local,
 		installCtx.DevBuild, files, tarVersion)
 	if err != nil {
 		return err
