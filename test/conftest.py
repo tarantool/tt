@@ -3,6 +3,7 @@ import platform
 import shutil
 import signal
 import subprocess
+from pathlib import Path
 
 import etcd_helper
 import psutil
@@ -38,7 +39,7 @@ def cli_config_dir():
 
 
 @pytest.fixture(scope="session")
-def tt_cmd(tmp_path_factory):
+def tt_cmd(tmp_path_factory) -> Path:
     tt_build_dir = tmp_path_factory.mktemp("tt_build")
     tt_base_path = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
     tt_path = tt_build_dir / "tt"
