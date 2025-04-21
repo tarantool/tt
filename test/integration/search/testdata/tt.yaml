@@ -1,0 +1,4 @@
+repo:
+  # The directory where the installation files are stored has been changed
+  # to not match the default `distfiles` of the config.
+  distfiles: distfiles.test

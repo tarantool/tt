@@ -54,7 +54,7 @@ func searchVersionsLocalSDK(program, localDir string) (
 	case ProgramEe:
 		prefix = "tarantool-enterprise-sdk-"
 	case ProgramTcm:
-		prefix = "tcm-sdk-" // FIXME: it needs to adjust for TCM.
+		prefix = "tcm-"
 	default:
 		// Should not happen if called correctly, but good practice to handle.
 		return nil, fmt.Errorf("local SDK file search not supported for %s", program)
