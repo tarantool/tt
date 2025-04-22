@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -179,11 +180,10 @@ func parseSQLResponse(resp *pb.SQLResponse) any {
 		return resultType{}
 	}
 	res := resultType{
-		names: make([]string, len(resp.TupleFormat.Names)),
+		names: slices.Clone(resp.TupleFormat.Names),
 		rows:  make([]resultRow, len(resp.Tuples)),
 	}
-	for i, n := range resp.TupleFormat.Names {
-		res.names[i] = n
+	for i := range resp.Tuples {
 		res.rows[i] = make([]any, 0, len(resp.TupleFormat.Names))
 	}
 
