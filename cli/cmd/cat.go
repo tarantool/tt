@@ -26,18 +26,20 @@ var catFlags = checkpoint.Opts{
 	Format:     "yaml",
 	Replica:    nil,
 	ShowSystem: false,
+	Recursive:  false,
 }
 
 // NewCatCmd creates a new cat command.
 func NewCatCmd() *cobra.Command {
 	var catCmd = &cobra.Command{
-		Use:   "cat <FILE>...",
+		Use:   "cat <FILE|DIR>...",
 		Short: "Print into stdout the contents of .snap/.xlog FILE(s)",
 		Run:   RunModuleFunc(internalCatModule),
 		Example: "tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
 			"--timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
 			"  tt cat /path/to/file.snap /path/to/file.xlog /path/to/dir/ " +
-			"--timestamp=1731592956.818",
+			"--timestamp=1731592956.818\n" +
+			"  tt cat --recursive /path/to/dir1 /path/to/dir2",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return errors.New("it is required to specify at least one .xlog/.snap file " +
@@ -61,13 +63,15 @@ func NewCatCmd() *cobra.Command {
 		"Filter the output by replica id. May be passed more than once")
 	catCmd.Flags().BoolVar(&catFlags.ShowSystem, "show-system", catFlags.ShowSystem,
 		"Show the contents of system spaces")
+	catCmd.Flags().BoolVarP(&catFlags.Recursive, "recursive", "r", catFlags.Recursive,
+		"Process WAL files in directories recursively")
 
 	return catCmd
 }
 
 // internalCatModule is a default cat module.
 func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	walFiles, err := util.CollectWALFiles(args)
+	walFiles, err := util.CollectWalFiles(args, catFlags.Recursive)
 	if err != nil {
 		return util.InternalError(
 			"Internal error: could not collect WAL files: %s",

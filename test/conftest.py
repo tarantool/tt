@@ -9,6 +9,7 @@ import etcd_helper
 import psutil
 import pytest
 from cartridge_helper import CartridgeApp
+from pytest import TempPathFactory
 from tt_helper import Tt
 from vshard_cluster import VshardCluster
 
@@ -39,17 +40,20 @@ def cli_config_dir():
 
 
 @pytest.fixture(scope="session")
-def tt_cmd(tmp_path_factory) -> Path:
+def tt_cmd(tmp_path_factory: TempPathFactory) -> Path:
     tt_build_dir = tmp_path_factory.mktemp("tt_build")
     tt_base_path = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
     tt_path = tt_build_dir / "tt"
 
     build_env = os.environ.copy()
-    build_env["TTEXE"] = tt_path
+    build_env["TTEXE"] = str(tt_path)
     build_env.setdefault("TT_CLI_BUILD_SSL", "static")
 
-    process = subprocess.run(["mage", "-v", "build"], cwd=tt_base_path, env=build_env)
+    process = subprocess.run(["mage", "-v", "build"], cwd=tt_base_path, env=build_env, text=True)
     assert process.returncode == 0, "Failed to build Tarantool CLI executable"
+
+    process = subprocess.run([tt_path, "version"], cwd=tt_base_path, text=True)
+    assert process.returncode == 0, "Failed to check Tarantool CLI version"
 
     return tt_path
 

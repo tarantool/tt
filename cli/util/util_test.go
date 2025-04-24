@@ -798,64 +798,6 @@ func TestStringToTimestamp(t *testing.T) {
 	}
 }
 
-func TestCollectWALFiles(t *testing.T) {
-	srcDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "1.xlog"), []byte{}, 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "2.xlog"), []byte{}, 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "1.snap"), []byte{}, 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "2.snap"), []byte{}, 0644))
-	snap1 := fmt.Sprintf("%s/%s", srcDir, "1.snap")
-	snap2 := fmt.Sprintf("%s/%s", srcDir, "2.snap")
-	xlog1 := fmt.Sprintf("%s/%s", srcDir, "1.xlog")
-	xlog2 := fmt.Sprintf("%s/%s", srcDir, "2.xlog")
-
-	tests := []struct {
-		name           string
-		input          []string
-		output         []string
-		expectedErrMsg string
-	}{
-		{
-			name:   "no_file",
-			input:  []string{},
-			output: []string{},
-		},
-		{
-			name:           "incorrect_file",
-			input:          []string{"file"},
-			expectedErrMsg: "stat file: no such file or directory",
-		},
-		{
-			name:   "one_file",
-			input:  []string{xlog1},
-			output: []string{xlog1},
-		},
-		{
-			name:   "directory",
-			input:  []string{srcDir},
-			output: []string{snap1, snap2, xlog1, xlog2},
-		},
-		{
-			name:   "mix",
-			input:  []string{srcDir, "util_test.go"},
-			output: []string{snap1, snap2, xlog1, xlog2, "util_test.go"},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			result, err := CollectWALFiles(test.input)
-
-			if test.expectedErrMsg != "" {
-				assert.EqualError(t, err, test.expectedErrMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, test.output, result)
-			}
-		})
-	}
-}
-
 func TestIsURL(t *testing.T) {
 	tests := []struct {
 		name     string

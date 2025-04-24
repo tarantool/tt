@@ -2,6 +2,7 @@ import datetime
 import io
 import os
 import shutil
+from pathlib import Path
 
 import pytest
 
@@ -44,45 +45,44 @@ def test_cat_args_tests_failed(tt_cmd, tmp_path, args, expected_error):
     ),
     (
         ("test.xlog", "test.snap"),
-        ('Result of cat: the file "test.xlog" is processed below',
-         'Result of cat: the file "test.snap" is processed below'),
+        ('Result of cat: the file "{tmp}/test.xlog" is processed below',
+         'Result of cat: the file "{tmp}/test.snap" is processed below'),
     ),
 ])
 def test_cat_args_tests_successed(tt_cmd, tmp_path, args, expected):
     # Copy the .xlog file to the "run" directory.
-    test_xlog_file = os.path.join(os.path.dirname(__file__), "test_file", "test.xlog")
-    test_snap_file = os.path.join(os.path.dirname(__file__), "test_file", "test.snap")
-    shutil.copy(test_xlog_file, tmp_path)
-    shutil.copy(test_snap_file, tmp_path)
+    test_data = Path(__file__).parent / "test_file"
+    shutil.copy(test_data / "test.xlog", tmp_path)
+    shutil.copy(test_data / "test.snap", tmp_path)
 
     cmd = [tt_cmd, "cat"]
     cmd.extend(args)
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     for item in expected:
+        item = item.format(tmp=tmp_path)
         assert item in output
 
 
 @pytest.mark.parametrize("args, expected", [
     (
         ("test_file/test.xlog", "test_file/test.snap", "test_file"),
-        ('Result of cat: the file "test_file/test.xlog" is processed below',
-         'Result of cat: the file "test_file/test.snap" is processed below',
-         'Result of cat: the file "test_file/timestamp.snap" is processed below',
-         'Result of cat: the file "test_file/timestamp.xlog" is processed below'),
+        ('Result of cat: the file "{tmp}/test_file/test.xlog" is processed below',
+         'Result of cat: the file "{tmp}/test_file/test.snap" is processed below',
+         'Result of cat: the file "{tmp}/test_file/timestamp.snap" is processed below',
+         'Result of cat: the file "{tmp}/test_file/timestamp.xlog" is processed below'),
     ),
 ])
-def test_cat_directories_tests_successed(tt_cmd, tmp_path, args, expected):
+def test_cat_directories_tests_successed(tt_cmd, tmp_path: Path, args, expected):
     # Copy files to the "run" directory.
-    test_src = os.path.join(os.path.dirname(__file__), "test_file")
-    test_dir = os.path.join(tmp_path, "test_file")
-    shutil.copytree(test_src, test_dir)
+    shutil.copytree(Path(__file__).parent / "test_file", tmp_path / "test_file")
 
     cmd = [tt_cmd, "cat"]
     cmd.extend(args)
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc == 0
     for item in expected:
+        item = item.format(tmp=tmp_path)
         assert item in output
 
 
