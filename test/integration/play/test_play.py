@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import tempfile
+from pathlib import Path
 
 import pytest
 from integration.connect.test_connect import (start_app, stop_app,
@@ -21,7 +22,7 @@ INSTANCE_NAME = "remote_instance_cfg.lua"
 
 
 @pytest.fixture
-def test_instance(request, tmp_path):
+def test_instance(request, tmp_path) -> TarantoolTestInstance:
     dir = os.path.dirname(__file__)
     test_app_path = os.path.join(dir, "test_file")
     lua_utils_path = os.path.join(dir, "..", "..")
@@ -110,25 +111,38 @@ def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance,
     assert cmd_output == expected
 
 
-@pytest.mark.parametrize("input, expected", [
-    (
-        ("test_file/test.xlog", "test_file/test.snap", "test_file/timestamp"),
-        ('Play is processing file "test_file/test.xlog"',
-         'Play is processing file "test_file/test.snap"',
-         'Play is processing file "test_file/timestamp/timestamp.snap"',
-         'Play is processing file "test_file/timestamp/timestamp.xlog"'),
-    ),
-])
-def test_play_directories_successful(tt_cmd, test_instance,
-                                     input, expected):
+@pytest.mark.parametrize(
+    "input, expected",
+    [
+        (
+            ("test_file/test.xlog", "test_file/test.snap", "test_file/timestamp"),
+            (
+                'Play is processing file "{tmp}/test_file/test.xlog"',
+                'Play is processing file "{tmp}/test_file/test.snap"',
+                'Play is processing file "{tmp}/test_file/timestamp/timestamp.snap"',
+                'Play is processing file "{tmp}/test_file/timestamp/timestamp.xlog"',
+            ),
+        ),
+    ],
+)
+def test_play_directories_successful(
+    tt_cmd: Path, test_instance: TarantoolTestInstance, input, expected
+):
     # Copy files to the "run" directory.
-    test_src = os.path.join(os.path.dirname(__file__), "test_file")
-    test_dir = os.path.join(test_instance._tmpdir, "test_file")
-    shutil.copytree(test_src, test_dir)
+    shutil.copytree(
+        Path(__file__).parent / "test_file",
+        test_instance._tmpdir / "test_file",
+    )
 
     # Create space and primary index.
-    cmd_space = [tt_cmd, "connect", f"test_user:secret@127.0.0.1:{test_instance.port}",
-                 "-f", f"{test_dir}/create_space.lua", "-"]
+    cmd_space = [
+        tt_cmd,
+        "connect",
+        f"test_user:secret@127.0.0.1:{test_instance.port}",
+        "-f",
+        "test_file/create_space.lua",
+        "-",
+    ]
     rc, _ = run_command_and_get_output(cmd_space, cwd=test_instance._tmpdir)
     assert rc == 0
 
@@ -140,6 +154,7 @@ def test_play_directories_successful(tt_cmd, test_instance,
     rc, cmd_output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
     assert rc == 0
     for item in expected:
+        item = item.format(tmp=test_instance._tmpdir)
         assert item in cmd_output
 
 

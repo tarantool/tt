@@ -20,6 +20,7 @@ type Opts struct {
 	Format     string
 	Replica    []int
 	ShowSystem bool
+	Recursive  bool
 }
 
 // Cat print the contents of .snap/.xlog files.

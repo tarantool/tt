@@ -27,6 +27,7 @@ var playFlags = checkpoint.Opts{
 	Space:      nil,
 	Replica:    nil,
 	ShowSystem: false,
+	Recursive:  false,
 }
 
 var (
@@ -48,13 +49,14 @@ var (
 // NewPlayCmd creates a new play command.
 func NewPlayCmd() *cobra.Command {
 	var playCmd = &cobra.Command{
-		Use:   "play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE>...",
+		Use:   "play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE|DIR>...",
 		Short: "Play the contents of .snap/.xlog FILE(s) to another Tarantool instance",
 		Run:   RunModuleFunc(internalPlayModule),
 		Example: "tt play localhost:3013 /path/to/file.snap /path/to/file.xlog " +
 			"/path/to/dir/ --timestamp 2024-11-13T14:02:36.818700000+00:00\n" +
 			"  tt play app:instance001 /path/to/file.snap /path/to/file.xlog " +
-			"/path/to/dir/ --timestamp=1731592956.818",
+			"/path/to/dir/ --timestamp=1731592956.818\n" +
+			"  tt play --recursive app:instance001 /path/to/dir1 /path/to/dir2",
 		Args: playValidateArgs,
 	}
 
@@ -80,6 +82,8 @@ func NewPlayCmd() *cobra.Command {
 		"Filter the output by replica id. May be passed more than once")
 	playCmd.Flags().BoolVar(&playFlags.ShowSystem, "show-system", playFlags.ShowSystem,
 		"Show the contents of system spaces")
+	playCmd.Flags().BoolVarP(&playFlags.Recursive, "recursive", "r", playFlags.Recursive,
+		"Process WAL files in directories recursively")
 
 	return playCmd
 }
@@ -134,7 +138,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			version.GetVersion, args[0], err)
 	}
 
-	walFiles, err := util.CollectWALFiles(args[1:])
+	walFiles, err := util.CollectWalFiles(args[1:], playFlags.Recursive)
 	if err != nil {
 		return util.InternalError(
 			"Internal error: could not collect WAL files: %s",
