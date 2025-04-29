@@ -71,6 +71,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"database", "mode"},
 	[]string{"database", "replicaset_uuid"},
 	[]string{"database", "txn_isolation"},
+	[]string{"database", "txn_synchro_timeout"},
 	[]string{"database", "txn_timeout"},
 	[]string{"database", "use_mvcc_engine"},
 	[]string{"failover", "call_timeout"},
@@ -174,6 +175,7 @@ var ConfigEnvPaths = [][]string{
 	[]string{"replication", "election_timeout"},
 	[]string{"replication", "failover"},
 	[]string{"replication", "peers"},
+	[]string{"replication", "reconnect_timeout"},
 	[]string{"replication", "skip_conflict"},
 	[]string{"replication", "sync_lag"},
 	[]string{"replication", "sync_timeout"},
@@ -784,6 +786,10 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	SchemaPath{
+		Path:      []string{"database", "txn_synchro_timeout"},
+		Validator: NumberValidator{},
+	},
+	SchemaPath{
 		Path:      []string{"database", "txn_timeout"},
 		Validator: NumberValidator{},
 	},
@@ -1221,6 +1227,7 @@ var TarantoolSchema = []SchemaPath{
 					"luajit",
 					"clock",
 					"event_loop",
+					"cpu_extended",
 				})),
 	},
 	SchemaPath{
@@ -1246,6 +1253,7 @@ var TarantoolSchema = []SchemaPath{
 					"luajit",
 					"clock",
 					"event_loop",
+					"cpu_extended",
 				})),
 	},
 	SchemaPath{
@@ -1314,6 +1322,7 @@ var TarantoolSchema = []SchemaPath{
 				"auto",
 				"config",
 				"supervised",
+				"native",
 				"legacy",
 			}),
 	},
@@ -1361,6 +1370,10 @@ var TarantoolSchema = []SchemaPath{
 		Path: []string{"replication", "peers"},
 		Validator: MakeArrayValidator(
 			StringValidator{}),
+	},
+	SchemaPath{
+		Path:      []string{"replication", "reconnect_timeout"},
+		Validator: NumberValidator{},
 	},
 	SchemaPath{
 		Path:      []string{"replication", "skip_conflict"},
