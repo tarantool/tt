@@ -28,8 +28,8 @@ type SearchCtx struct {
 	Package string
 	// Release version to look for.
 	ReleaseVersion string
-	// Program name
-	ProgramName string
+	// Program type of program to search for.
+	Program ProgramType
 	// Search for development builds.
 	DevBuilds bool
 
@@ -49,17 +49,12 @@ func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
 // printVersion prints the version and labels:
 // * if the package is installed: [installed]
 // * if the package is installed and in use: [active]
-func printVersion(bindir string, program string, versionStr string) {
+func printVersion(bindir string, program ProgramType, versionStr string) {
 	if _, err := os.Stat(filepath.Join(bindir,
-		program+version.FsSeparator+versionStr)); err == nil {
-		target := ""
-		if program == ProgramEe {
-			target, _ = util.ResolveSymlink(filepath.Join(bindir, "tarantool"))
-		} else {
-			target, _ = util.ResolveSymlink(filepath.Join(bindir, program))
-		}
+		program.String()+version.FsSeparator+versionStr)); err == nil {
+		target, _ := util.ResolveSymlink(filepath.Join(bindir, program.Exec()))
 
-		if path.Base(target) == program+version.FsSeparator+versionStr {
+		if path.Base(target) == program.String()+version.FsSeparator+versionStr {
 			fmt.Printf("%s [active]\n", versionStr)
 		} else {
 			fmt.Printf("%s [installed]\n", versionStr)
@@ -71,16 +66,16 @@ func printVersion(bindir string, program string, versionStr string) {
 
 // SearchVersions outputs available versions of program.
 func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
-	prg := searchCtx.ProgramName
-	log.Infof("Available versions of " + prg + ":")
+	prg := searchCtx.Program
+	log.Infof("Available versions of %s:", prg)
 
 	var err error
 	var vers version.VersionSlice
 	switch prg {
 	case ProgramCe:
-		vers, err = searchVersionsGit(cliOpts, prg, GitRepoTarantool)
+		vers, err = searchVersionsGit(cliOpts, GitRepoTarantool)
 	case ProgramTt:
-		vers, err = searchVersionsGit(cliOpts, prg, GitRepoTT)
+		vers, err = searchVersionsGit(cliOpts, GitRepoTT)
 	case ProgramEe, ProgramTcm: // Group of API-based searches
 		vers, err = searchVersionsTntIo(cliOpts, &searchCtx)
 	default:

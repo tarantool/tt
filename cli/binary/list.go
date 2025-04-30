@@ -31,19 +31,16 @@ func printVersion(versionString string) {
 }
 
 // ParseBinaries seeks through fileList returning array of found versions of program.
-func ParseBinaries(fileList []fs.DirEntry, programName string,
+func ParseBinaries(fileList []fs.DirEntry, program search.ProgramType,
 	binDir string) ([]version.Version, error) {
 	var binaryVersions []version.Version
 
-	symlinkName := programName
-	if programName == search.ProgramEe || programName == search.ProgramDev {
-		symlinkName = search.ProgramCe
-	}
+	symlinkName := program.Exec()
 
 	binActive := ""
 	programPath := filepath.Join(binDir, symlinkName)
 	if fileInfo, err := os.Lstat(programPath); err == nil {
-		if programName == search.ProgramDev &&
+		if program == search.ProgramDev &&
 			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
 			binActive, isTarantoolBinary, err := install.IsTarantoolDev(programPath, binDir)
 			if err != nil {
@@ -51,10 +48,10 @@ func ParseBinaries(fileList []fs.DirEntry, programName string,
 			}
 			if isTarantoolBinary {
 				binaryVersions = append(binaryVersions,
-					version.Version{Str: programName + " -> " + binActive + " [active]"})
+					version.Version{Str: program.String() + " -> " + binActive + " [active]"})
 			}
 			return binaryVersions, nil
-		} else if programName == search.ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0 {
+		} else if program == search.ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0 {
 			tntCli := cmdcontext.TarantoolCli{Executable: programPath}
 			binaryVersion, err := tntCli.GetVersion()
 			if err != nil {
@@ -71,7 +68,7 @@ func ParseBinaries(fileList []fs.DirEntry, programName string,
 		}
 	}
 
-	versionPrefix := programName + version.FsSeparator
+	versionPrefix := program.String() + version.FsSeparator
 	var err error
 	for _, f := range fileList {
 		if strings.HasPrefix(f.Name(), versionPrefix) {
@@ -111,22 +108,22 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error
 		return fmt.Errorf("error reading directory %q: %s", binDir, err)
 	}
 
-	programs := [...]string{
+	programs := [...]search.ProgramType{
 		search.ProgramTt,
 		search.ProgramCe,
 		search.ProgramDev,
 		search.ProgramEe,
 	}
 	fmt.Println("List of installed binaries:")
-	for _, programName := range programs {
-		binaryVersions, err := ParseBinaries(binDirFilesList, programName, binDir)
+	for _, program := range programs {
+		binaryVersions, err := ParseBinaries(binDirFilesList, program, binDir)
 		if err != nil {
 			return err
 		}
 
 		if len(binaryVersions) > 0 {
 			sort.Stable(sort.Reverse(version.VersionSlice(binaryVersions)))
-			log.Infof(programName + ":")
+			log.Infof(program.String() + ":")
 			for _, binVersion := range binaryVersions {
 				printVersion(binVersion.Str)
 			}

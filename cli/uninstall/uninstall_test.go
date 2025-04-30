@@ -148,7 +148,7 @@ func TestSearchLatestVersion(t *testing.T) {
 func TestGetAllVersionFormats(t *testing.T) {
 	type testCase struct {
 		name             string
-		programName      string
+		program          search.ProgramType
 		ttVersion        string
 		expectedVersions []string
 		expectedError    error
@@ -157,28 +157,28 @@ func TestGetAllVersionFormats(t *testing.T) {
 	cases := []testCase{
 		{
 			name:             "without prefix",
-			programName:      search.ProgramTt,
+			program:          search.ProgramTt,
 			ttVersion:        "1.2.3",
 			expectedVersions: []string{"1.2.3", "v1.2.3"},
 			expectedError:    nil,
 		},
 		{
 			name:             "with prefix",
-			programName:      search.ProgramTt,
+			program:          search.ProgramTt,
 			ttVersion:        "v1.2.3",
 			expectedVersions: []string{"v1.2.3"},
 			expectedError:    nil,
 		},
 		{
 			name:             "not tt program",
-			programName:      search.ProgramCe,
+			program:          search.ProgramCe,
 			ttVersion:        "1.2.3",
 			expectedVersions: []string{"1.2.3"},
 			expectedError:    nil,
 		},
 		{
 			name:             "not <major.minor.patch> format",
-			programName:      search.ProgramCe,
+			program:          search.ProgramCe,
 			ttVersion:        "e902206",
 			expectedVersions: []string{"e902206"},
 			expectedError:    nil,
@@ -187,7 +187,7 @@ func TestGetAllVersionFormats(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ttVersions, err := getAllTtVersionFormats(tc.programName, tc.ttVersion)
+			ttVersions, err := getAllTtVersionFormats(tc.program, tc.ttVersion)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedVersions, ttVersions)
 		})

@@ -98,8 +98,8 @@ type InstallCtx struct {
 	Local bool
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
-	// ProgramName is a program name to install.
-	ProgramName string
+	// ProgramType is a program type to install.
+	ProgramType search.ProgramType
 	// verbose flag enables verbose logging.
 	verbose bool
 	// Version of the program to install.
@@ -279,7 +279,7 @@ func isPackageInstalled(packageName string) bool {
 }
 
 // programDependenciesInstalled checks if dependencies are installed.
-func programDependenciesInstalled(program string) error {
+func programDependenciesInstalled(program search.ProgramType) error {
 	programs := []Package{}
 	packages := []string{}
 	osName, _ := detectOsName()
@@ -530,12 +530,12 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	versionStr := ""
 
 	if versionFound {
-		versionStr = search.ProgramTt + version.FsSeparator + ttVersion
+		versionStr = search.ProgramTt.Exec() + version.FsSeparator + ttVersion
 	} else {
 		if isPullRequest {
-			versionStr = search.ProgramTt + version.FsSeparator + pullRequestHash
+			versionStr = search.ProgramTt.Exec() + version.FsSeparator + pullRequestHash
 		} else {
-			versionStr = search.ProgramTt + version.FsSeparator +
+			versionStr = search.ProgramTt.Exec() + version.FsSeparator +
 				ttVersion[0:util.Min(len(ttVersion), util.MinCommitHashLength)]
 		}
 	}
@@ -563,7 +563,8 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 
 			if !isUpdatePossible {
 				log.Infof("%s version of tt already exists, updating symlink...", versionStr)
-				err := util.CreateSymlink(versionStr, filepath.Join(binDir, search.ProgramTt), true)
+				err := util.CreateSymlink(versionStr,
+					filepath.Join(binDir, search.ProgramTt.Exec()), true)
 				if err != nil {
 					return err
 				}
@@ -912,8 +913,8 @@ func installTarantoolInDocker(tntVersion, binDir, incDir string, installCtx Inst
 	if installCtx.verbose {
 		tntInstallCommandLine = append(tntInstallCommandLine, "-V")
 	}
-	tntInstallCommandLine = append(tntInstallCommandLine, "install", "-f", search.ProgramCe,
-		tntVersion)
+	tntInstallCommandLine = append(tntInstallCommandLine, "install", "-f",
+		search.ProgramCe.Exec(), tntVersion)
 	if installCtx.Reinstall {
 		tntInstallCommandLine = append(tntInstallCommandLine, "--reinstall")
 	}
@@ -1041,12 +1042,12 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 	versionStr := ""
 
 	if versionFound {
-		versionStr = search.ProgramCe + version.FsSeparator + tarVersion
+		versionStr = search.ProgramCe.String() + version.FsSeparator + tarVersion
 	} else {
 		if isPullRequest {
-			versionStr = search.ProgramCe + version.FsSeparator + pullRequestHash
+			versionStr = search.ProgramCe.String() + version.FsSeparator + pullRequestHash
 		} else {
-			versionStr = search.ProgramCe + version.FsSeparator +
+			versionStr = search.ProgramCe.String() + version.FsSeparator +
 				tarVersion[0:util.Min(len(tarVersion), util.MinCommitHashLength)]
 		}
 	}
@@ -1219,11 +1220,12 @@ func installTarantool(binDir string, incDir string, installCtx InstallCtx,
 // and if so, asks user about checking for update to latest commit.
 // Function returns boolean variable if update of master is possible or not.
 func isUpdatePossible(installCtx InstallCtx,
-	pathToBin,
-	program,
+	pathToBin string,
+	program search.ProgramType,
 	progVer,
 	distfiles string,
-	isBinExecutable bool) (bool, error) {
+	isBinExecutable bool,
+) (bool, error) {
 	var curBinHash, lastCommitHash string
 	// We need to make sure that we check newest commits only for
 	// production 'master' branch. Also we want to ask if user wants
@@ -1232,8 +1234,8 @@ func isUpdatePossible(installCtx InstallCtx,
 		var err error
 		answer := false
 		if !installCtx.skipMasterUpdate {
-			answer, err = util.AskConfirm(os.Stdin, "The 'master' version of the "+program+
-				" has already been installed.\n"+
+			answer, err = util.AskConfirm(os.Stdin, "The 'master' version of the "+
+				program.String()+" has already been installed.\n"+
 				"Would you like to update it if there are newer commits available?")
 			if err != nil {
 				return false, err
@@ -1242,7 +1244,7 @@ func isUpdatePossible(installCtx InstallCtx,
 
 		if answer {
 			lastCommitHash, err = getCommit(installCtx.Local, distfiles,
-				program, progVer)
+				program.String(), progVer)
 			if err != nil {
 				return false, err
 			}
@@ -1584,18 +1586,18 @@ func Install(binDir string, includeDir string, installCtx InstallCtx,
 		err = installTarantoolDev(binDir, includeDir, installCtx.buildDir,
 			installCtx.IncDir)
 	default:
-		return fmt.Errorf("unknown application: %s", installCtx.ProgramName)
+		return fmt.Errorf("unknown application: %s", installCtx.ProgramType)
 	}
 
 	return err
 }
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
-	installCtx.ProgramName = cmdCtx.CommandName
+	installCtx.ProgramType = search.NewProgramType(cmdCtx.CommandName)
 	installCtx.verbose = cmdCtx.Cli.Verbose
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 
-	if installCtx.ProgramName == search.ProgramDev {
+	if installCtx.ProgramType == search.ProgramDev {
 		installCtx.buildDir = args[0]
 		return nil
 	}
