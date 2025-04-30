@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   allow find WAL files inside nested subdirectories.
 - `tt search tcm` - the command performs a search for tarantool cluster
   manager (TCM) in the customer zone or local `distfiles` directory.
+- `tt install tcm` - the command performs an install for tarantool cluster
+  manager (TCM) from the customer zone or local `distfiles` directory.
 - `tt tcm status`: added command to check TCM runtime status (modes: `watchdog` or `interactive`).
 - `tt tcm stop`: add command for graceful termination of TCM processes (modes: `watchdog` or `interactive`).
 
