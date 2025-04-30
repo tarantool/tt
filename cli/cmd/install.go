@@ -52,6 +52,19 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 	return tntCmd
 }
 
+func newInstallTcmCmd() *cobra.Command {
+	var tntCmd = &cobra.Command{
+		Use:   search.ProgramTcm.String() + " [version]",
+		Short: "Install tarantool cluster manager",
+		Run:   RunModuleFunc(internalInstallModule),
+		Args:  cobra.MaximumNArgs(1),
+	}
+
+	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "install development build")
+
+	return tntCmd
+}
+
 // newInstallTarantoolDevCmd creates a command to install tarantool
 // from the local build directory.
 func newInstallTarantoolDevCmd() *cobra.Command {
@@ -92,7 +105,7 @@ func NewInstallCmd() *cobra.Command {
 	}
 	installCmd.Flags().BoolVarP(&installCtx.Force, "force", "f", false,
 		"don't do a dependency check before installing")
-	installCmd.Flags().BoolVarP(&installCtx.Noclean, "no-clean", "", false,
+	installCmd.Flags().BoolVarP(&installCtx.KeepTemp, "no-clean", "", false,
 		"don't delete temporary files")
 	installCmd.Flags().BoolVarP(&installCtx.Reinstall, "reinstall", "", false, "reinstall program")
 	installCmd.Flags().BoolVarP(&installCtx.Local, "local-repo", "", false,
@@ -103,6 +116,7 @@ func NewInstallCmd() *cobra.Command {
 		newInstallTarantoolCmd(),
 		newInstallTarantoolEeCmd(),
 		newInstallTarantoolDevCmd(),
+		newInstallTcmCmd(),
 	)
 
 	return installCmd
@@ -119,7 +133,6 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	err = install.Install(cliOpts.Env.BinDir, cliOpts.Env.IncludeDir,
-		installCtx, cliOpts.Repo.Install, cliOpts)
+	err = install.Install(installCtx, cliOpts)
 	return err
 }

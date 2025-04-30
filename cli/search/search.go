@@ -25,6 +25,7 @@ type SearchCtx struct {
 	// Filter out which builds of tarantool-ee must be included in the result of search.
 	Filter SearchFlags
 	// What package to look for.
+	// FIXME: It looks like this is not needed here, as it is then auto filled via [GetApiPackage].
 	Package string
 	// Release version to look for.
 	ReleaseVersion string
