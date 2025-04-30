@@ -8,7 +8,7 @@ import (
 )
 
 // getPackageName returns the package name at tarantool.io for the given program.
-func getPackageName(program string) string {
+func getPackageName(program ProgramType) string {
 	switch program {
 	case ProgramEe:
 		return "enterprise"

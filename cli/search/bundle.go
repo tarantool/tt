@@ -79,7 +79,7 @@ func Less(verLeft, verRight version.Version) bool {
 }
 
 // compileVersionRegexp compiles a regular expression for cutting version from SDK bundle names.
-func compileVersionRegexp(prg string) (*regexp.Regexp, error) {
+func compileVersionRegexp(prg ProgramType) (*regexp.Regexp, error) {
 	var expr string
 
 	switch prg {
@@ -107,7 +107,7 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 
 	bundles := BundleInfoSlice{}
 
-	re, err := compileVersionRegexp(searchCtx.ProgramName)
+	re, err := compileVersionRegexp(searchCtx.Program)
 	if err != nil {
 		return nil, err
 	}

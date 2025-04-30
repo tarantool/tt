@@ -18,11 +18,12 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
+var progRegexp = "(?P<prog>" +
+	search.ProgramTt.String() + "|" +
+	search.ProgramCe.String() + "|" +
+	search.ProgramEe.String() + ")"
+
 const (
-	progRegexp = "(?P<prog>" +
-		search.ProgramTt + "|" +
-		search.ProgramCe + "|" +
-		search.ProgramEe + ")"
 	verRegexp = "(?P<ver>.*)"
 
 	MajorMinorPatchRegexp = `^[0-9]+\.[0-9]+\.[0-9]+`
@@ -32,19 +33,13 @@ var errNotInstalled = errors.New("program is not installed")
 
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
-func remove(program string, programVersion string, directory string,
+func remove(program search.ProgramType, programVersion string, directory string,
 	cmdCtx *cmdcontext.CmdCtx) (bool, error) {
 	var linkPath string
 	var err error
 
-	if program == search.ProgramCe || program == search.ProgramEe {
-		if linkPath, err = util.JoinAbspath(directory, "tarantool"); err != nil {
-			return false, err
-		}
-	} else {
-		if linkPath, err = util.JoinAbspath(directory, program); err != nil {
-			return false, err
-		}
+	if linkPath, err = util.JoinAbspath(directory, program.Exec()); err != nil {
+		return false, err
 	}
 
 	if _, err := os.Stat(directory); os.IsNotExist(err) {
@@ -53,7 +48,7 @@ func remove(program string, programVersion string, directory string,
 		return false, fmt.Errorf("there was some problem with %s directory", directory)
 	}
 
-	fileName := program + version.FsSeparator + programVersion
+	fileName := program.String() + version.FsSeparator + programVersion
 	path := filepath.Join(directory, fileName)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -94,7 +89,11 @@ func remove(program string, programVersion string, directory string,
 }
 
 // UninstallProgram uninstalls program and symlinks.
-func UninstallProgram(program string, programVersion string, binDst string, headerDst string,
+func UninstallProgram(
+	program search.ProgramType,
+	programVersion string,
+	binDst string,
+	headerDst string,
 	cmdCtx *cmdcontext.CmdCtx) error {
 	log.Infof("Removing binary...")
 	var err error
@@ -146,7 +145,7 @@ func UninstallProgram(program string, programVersion string, binDst string, head
 		return err
 	}
 
-	if strings.Contains(program, "tarantool") {
+	if program.IsTarantool() {
 		log.Infof("Removing headers...")
 		_, err = remove(program, programVersion, headerDst, cmdCtx)
 		if err != nil {
@@ -163,10 +162,10 @@ func UninstallProgram(program string, programVersion string, binDst string, head
 
 // getAllTtVersionFormats returns all version formats with 'v' prefix and
 // without it before x.y.z version.
-func getAllTtVersionFormats(programName, ttVersion string) ([]string, error) {
+func getAllTtVersionFormats(program search.ProgramType, ttVersion string) ([]string, error) {
 	versionsToDelete := []string{ttVersion}
 
-	if programName == search.ProgramTt {
+	if program == search.ProgramTt {
 		// Need to determine if we have x.y.z format in tt uninstall argument
 		// to make sure we add version prefix.
 		versionMatches, err := regexp.Match(MajorMinorPatchRegexp, []byte(ttVersion))
@@ -182,11 +181,11 @@ func getAllTtVersionFormats(programName, ttVersion string) ([]string, error) {
 }
 
 // getDefault returns a default version of an installed program.
-func getDefault(program, dir string) (string, error) {
+func getDefault(program search.ProgramType, dir string) (string, error) {
 	var ver string
 
 	re := regexp.MustCompile(
-		"^" + program + version.FsSeparator + verRegexp + "$",
+		"^" + program.String() + version.FsSeparator + verRegexp + "$",
 	)
 
 	installedPrograms, err := os.ReadDir(dir)
@@ -240,7 +239,7 @@ func GetList(cliOpts *config.CliOpts, program string) []string {
 func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 	var programsToSearch []string
 	if linkName == "tarantool" {
-		programsToSearch = []string{search.ProgramCe, search.ProgramEe}
+		programsToSearch = []string{search.ProgramCe.String(), search.ProgramEe.String()}
 	} else {
 		programsToSearch = []string{linkName}
 	}
@@ -316,11 +315,8 @@ func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 }
 
 // switchProgramToLatestVersion switches the active version of the program to the latest installed.
-func switchProgramToLatestVersion(program, binDst, headerDst string) error {
-	linkName := program
-	if program == search.ProgramCe || program == search.ProgramEe || program == search.ProgramDev {
-		linkName = "tarantool"
-	}
+func switchProgramToLatestVersion(program search.ProgramType, binDst, headerDst string) error {
+	linkName := program.Exec()
 
 	progToSwitch, err := searchLatestVersion(linkName, binDst, headerDst)
 	if err != nil {

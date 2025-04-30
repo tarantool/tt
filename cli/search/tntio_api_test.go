@@ -149,7 +149,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 	defer os.Unsetenv("TT_CLI_EE_PASSWORD")
 
 	tests := map[string]struct {
-		program          string
+		program          search.ProgramType
 		platform         platformInfo
 		specificVersion  string
 		devBuilds        bool
@@ -342,7 +342,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 		"unknown_os": {
 			program:  search.ProgramTcm,
 			platform: platformInfo{arch: "x86_64", os: util.OsUnknown},
-			errMsg: "failed to fetch bundle info for " + search.ProgramTcm +
+			errMsg: "failed to fetch bundle info for " + search.ProgramTcm.String() +
 				": failed to get OS type for API: unsupported OS: " +
 				strconv.Itoa(int(util.OsUnknown)),
 		},
@@ -412,7 +412,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 
 			// Create SearchCtx with the configured mock.
 			sCtx := search.NewSearchCtx(&tt.platform, &mockDoer)
-			sCtx.ProgramName = tt.program
+			sCtx.Program = tt.program
 			sCtx.ReleaseVersion = tt.specificVersion
 			sCtx.DevBuilds = tt.devBuilds
 			if tt.searchDebug {
@@ -434,16 +434,16 @@ func TestSearchVersions_TntIo(t *testing.T) {
 				require.Error(t, err, "Expected an error, but got nil")
 				require.Contains(t, err.Error(), tt.errMsg,
 					"Expected error message does not match")
-			} else {
-				require.NoError(t, err, "Expected no error, but got: %v", err)
-				require.Contains(t,
-					gotLog,
-					"info Available versions of "+tt.program+":",
-					"No info log found")
-
-				t.Logf("Output:\n%s", gotOutput)
-				checkOutputVersionOrder(t, gotOutput, tt.expectedVersions)
+				return
 			}
+			require.NoError(t, err, "Expected no error, but got: %v", err)
+			require.Contains(t,
+				gotLog,
+				"info Available versions of "+tt.program.String()+":",
+				"No info log found")
+
+			t.Logf("Output:\n%s", gotOutput)
+			checkOutputVersionOrder(t, gotOutput, tt.expectedVersions)
 		})
 	}
 }

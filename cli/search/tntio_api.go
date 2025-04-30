@@ -118,7 +118,7 @@ func getOsForApi(informer PlatformInformer) (string, error) {
 }
 
 // getArchForApi determines the architecture type string required by the tarantool.io API.
-func getArchForApi(informer PlatformInformer, program string) (string, error) {
+func getArchForApi(informer PlatformInformer, program ProgramType) (string, error) {
 	arch, err := informer.GetArch()
 	if err != nil {
 		return "", fmt.Errorf("failed to get architecture: %w", err)
@@ -182,7 +182,7 @@ func buildApiQuery(searchCtx *SearchCtx, credentials install_ee.UserCredentials)
 		buildType = "dev"
 	}
 
-	arch, err := getArchForApi(searchCtx.platformInformer, searchCtx.ProgramName)
+	arch, err := getArchForApi(searchCtx.platformInformer, searchCtx.Program)
 	if err != nil {
 		return apiRequest{}, fmt.Errorf("failed to get architecture: %w", err)
 	}

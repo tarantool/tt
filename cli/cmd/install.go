@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/install"
+	"github.com/tarantool/tt/cli/search"
 )
 
 var installCtx install.InstallCtx
@@ -11,7 +12,7 @@ var installCtx install.InstallCtx
 // newInstallTtCmd creates a command to install tt.
 func newInstallTtCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
-		Use:   "tt [version|commit hash|pull-request]",
+		Use:   search.ProgramTt.String() + " [version|commit hash|pull-request]",
 		Short: "Install tt",
 		Run:   RunModuleFunc(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
@@ -23,7 +24,7 @@ func newInstallTtCmd() *cobra.Command {
 // newInstallTarantoolCmd creates a command to install tarantool.
 func newInstallTarantoolCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
-		Use:   "tarantool [version|commit hash|pull-request]",
+		Use:   search.ProgramCe.String() + " [version|commit hash|pull-request]",
 		Short: "Install tarantool community edition",
 		Run:   RunModuleFunc(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
@@ -40,7 +41,7 @@ func newInstallTarantoolCmd() *cobra.Command {
 // newInstallTarantoolEeCmd creates a command to install tarantool-ee.
 func newInstallTarantoolEeCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
-		Use:   "tarantool-ee [version]",
+		Use:   search.ProgramEe.String() + " [version]",
 		Short: "Install tarantool enterprise edition",
 		Run:   RunModuleFunc(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),

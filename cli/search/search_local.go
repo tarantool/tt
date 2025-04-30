@@ -15,7 +15,7 @@ import (
 
 // searchVersionsLocalGit handles searching versions from a local Git repository clone.
 // It returns a slice of versions found.
-func searchVersionsLocalGit(program, repoPath string) (
+func searchVersionsLocalGit(program ProgramType, repoPath string) (
 	version.VersionSlice, error,
 ) {
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
@@ -34,7 +34,7 @@ func searchVersionsLocalGit(program, repoPath string) (
 
 // searchVersionsLocalSDK handles searching versions from locally available SDK bundle files.
 // It returns a slice of versions found.
-func searchVersionsLocalSDK(program, localDir string) (
+func searchVersionsLocalSDK(program ProgramType, dir string) (
 	version.VersionSlice, error,
 ) {
 	localFiles, err := os.ReadDir(localDir)
@@ -86,7 +86,7 @@ func searchVersionsLocalSDK(program, localDir string) (
 // fetchBundlesInfoLocal returns slice of information about all tarantool-ee or tcm
 // bundles available locally. The result will be sorted in ascending order.
 // Needs 'program' parameter to select correct regex.
-func fetchBundlesInfoLocal(files []string, program string) (BundleInfoSlice, error) {
+func fetchBundlesInfoLocal(files []string, program ProgramType) (BundleInfoSlice, error) {
 	re, err := compileVersionRegexp(program)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile regex for %s: %w", program, err)
@@ -129,7 +129,7 @@ func getBaseDirectory(cfgPath string, repo *config.RepoOpts) string {
 
 // SearchVersionsLocal outputs available versions of program found locally.
 func SearchVersionsLocal(searchCtx SearchCtx, cliOpts *config.CliOpts, cfgPath string) error {
-	prg := searchCtx.ProgramName
+	prg := searchCtx.Program
 	log.Infof("Available local versions of %s:", prg)
 
 	localDir := getBaseDirectory(cfgPath, cliOpts.Repo)

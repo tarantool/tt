@@ -21,7 +21,6 @@ func newModulesListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List available modules",
 		Run: func(cmd *cobra.Command, args []string) {
-			searchCtx.ProgramName = cmd.Name()
 			err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo,
 				internalModulesList, args)
 			util.HandleCmdErr(cmd, err)
