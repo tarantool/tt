@@ -155,7 +155,7 @@ func TntIoMakePkgURI(Package string, Release string,
 		buildType = "dev"
 	}
 
-	// FIXME: use platformInformer from Search Context.
+	// FIXME: use [PlatformInformer] from [SearchCtx].
 	informer := &realInfo{}
 	arch, err := getArchForApi(informer, ProgramEe)
 	if err != nil {

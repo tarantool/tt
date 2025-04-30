@@ -109,6 +109,8 @@ func Test_getBundles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sCtx := SearchCtx{
 				Program: ProgramEe,
+				Package: "enterprise",
+				Filter:  tt.args.flags,
 			}
 			got, err := getBundles(tt.args.rawBundleInfoList, &sCtx)
 			if (err != nil) != tt.wantErr {

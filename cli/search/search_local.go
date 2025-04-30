@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -37,41 +38,7 @@ func searchVersionsLocalGit(program ProgramType, repoPath string) (
 func searchVersionsLocalSDK(program ProgramType, dir string) (
 	version.VersionSlice, error,
 ) {
-	localFiles, err := os.ReadDir(localDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			log.Debugf("Local directory %s not found, cannot search for local SDK files.", localDir)
-			// The directory doesn't exist, it's not an error for searching.
-			return nil, nil
-		}
-		// Other errors (e.g., permissions) are actual errors.
-		return nil, fmt.Errorf("failed to read local directory %s: %w", localDir, err)
-	}
-
-	files := []string{}
-	var prefix string
-	switch program {
-	case ProgramEe:
-		prefix = "tarantool-enterprise-sdk-"
-	case ProgramTcm:
-		prefix = "tcm-"
-	default:
-		// Should not happen if called correctly, but good practice to handle.
-		return nil, fmt.Errorf("local SDK file search not supported for %s", program)
-	}
-
-	for _, v := range localFiles {
-		if strings.Contains(v.Name(), prefix) && !v.IsDir() {
-			files = append(files, v.Name())
-		}
-	}
-
-	if len(files) == 0 {
-		log.Debugf("No local SDK files found for %s in %s", program, localDir)
-		return nil, nil
-	}
-
-	bundles, err := fetchBundlesInfoLocal(files, program)
+	bundles, err := FindLocalBundles(program, os.DirFS(dir))
 	if err != nil {
 		return nil, err
 	}
@@ -80,12 +47,12 @@ func searchVersionsLocalSDK(program ProgramType, dir string) (
 	for i, bundle := range bundles {
 		versions[i] = bundle.Version
 	}
+
 	return versions, nil
 }
 
 // fetchBundlesInfoLocal returns slice of information about all tarantool-ee or tcm
 // bundles available locally. The result will be sorted in ascending order.
-// Needs 'program' parameter to select correct regex.
 func fetchBundlesInfoLocal(files []string, program ProgramType) (BundleInfoSlice, error) {
 	re, err := compileVersionRegexp(program)
 	if err != nil {
@@ -104,17 +71,57 @@ func fetchBundlesInfoLocal(files []string, program ProgramType) (BundleInfoSlice
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse version from file %s: %w", file, err)
 		}
-		ver.Tarball = file
 
+		ver.Tarball = file
 		versions = append(versions, BundleInfo{Version: ver})
 	}
 
 	sort.Sort(versions)
-
 	return versions, nil
 }
 
-// getBaseDirectory determines the base directory for local search (usually 'distfiles').
+// FindLocalBundles finds and parses local SDK bundle files for a given program.
+func FindLocalBundles(program ProgramType, fsys fs.FS) (BundleInfoSlice, error) {
+	localFiles, err := fs.ReadDir(fsys, ".")
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Debugf("Directory not found, cannot search for local SDK files")
+			// The directory doesn't exist, it's not an error for searching.
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	files := []string{}
+	var prefix string
+	switch program {
+	case ProgramEe:
+		prefix = "tarantool-enterprise-sdk-"
+	case ProgramTcm:
+		prefix = "tcm-"
+	default:
+		return nil, fmt.Errorf("local SDK file search not supported for %q", program)
+	}
+
+	for _, v := range localFiles {
+		if strings.Contains(v.Name(), prefix) && !v.IsDir() {
+			files = append(files, v.Name())
+		}
+	}
+
+	if len(files) == 0 {
+		log.Debugf("No local SDK files found for %q", program)
+		return nil, nil
+	}
+
+	bundles, err := fetchBundlesInfoLocal(files, program)
+	if err != nil {
+		return nil, err
+	}
+	return bundles, nil
+}
+
+// getBaseDirectory determines the base directory for local search.
 func getBaseDirectory(cfgPath string, repo *config.RepoOpts) string {
 	localDir := ""
 	if repo != nil && repo.Install != "" {
@@ -123,6 +130,7 @@ func getBaseDirectory(cfgPath string, repo *config.RepoOpts) string {
 		configDir := filepath.Dir(cfgPath)
 		localDir = filepath.Join(configDir, "distfiles")
 	}
+
 	log.Debugf("Using local search directory: %s", localDir)
 	return localDir
 }
@@ -164,20 +172,4 @@ func SearchVersionsLocal(searchCtx SearchCtx, cliOpts *config.CliOpts, cfgPath s
 	}
 
 	return nil
-}
-
-func getSdkBundleInfoLocal(files []string, expectedVersion string) (BundleInfo, error) {
-	bundles, err := fetchBundlesInfoLocal(files, ProgramEe)
-	if err != nil {
-		return BundleInfo{}, err
-	}
-	if expectedVersion == "" {
-		return bundles[bundles.Len()-1], nil
-	}
-	for _, bundle := range bundles {
-		if bundle.Version.Str == expectedVersion {
-			return bundle, nil
-		}
-	}
-	return BundleInfo{}, fmt.Errorf("%s version doesn't exist locally", expectedVersion)
 }

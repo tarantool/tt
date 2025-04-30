@@ -6,13 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/apex/log"
+	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/search"
@@ -394,13 +395,14 @@ func TestSearchVersions_TntIo(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			originalStdout := os.Stdout
-			var logBuf bytes.Buffer
-			log.SetOutput(&logBuf)
+			handler := memory.New()
+			log.SetHandler(handler)
+			log.SetLevel(log.DebugLevel)
+
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 			defer func() {
 				os.Stdout = originalStdout
-				log.SetOutput(os.Stderr)
 			}()
 
 			// Configure the mockDoer for this specific test case.
@@ -426,8 +428,12 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			_, readErr := outBuf.ReadFrom(r)
 			require.NoError(t, readErr, "Failed to read from stdout pipe")
 			gotOutput := outBuf.String()
-			gotLog := logBuf.String()
 
+			var logBuilder strings.Builder
+			for _, entry := range handler.Entries {
+				logBuilder.WriteString(fmt.Sprintf("%s %s\n", entry.Level, entry.Message))
+			}
+			gotLog := logBuilder.String()
 			t.Logf("Log:\n%s", gotLog)
 
 			if tt.errMsg != "" {
