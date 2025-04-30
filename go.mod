@@ -26,12 +26,12 @@ require (
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-tarantool v1.12.2
-	github.com/tarantool/go-tarantool/v2 v2.2.1
+	github.com/tarantool/go-tarantool/v2 v2.3.2
 	github.com/tarantool/go-tlsdialer v1.0.0
 	github.com/tarantool/tt/lib/cluster v0.0.0
 	github.com/tarantool/tt/lib/connect v0.0.0-0
 	github.com/tarantool/tt/lib/integrity v0.0.0
-	github.com/vmihailenco/msgpack/v5 v5.3.5
+	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.1-0.20230219103905-71163b697a8f
 	go.etcd.io/etcd/api/v3 v3.5.12
 	go.etcd.io/etcd/client/pkg/v3 v3.5.12
