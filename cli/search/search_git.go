@@ -186,7 +186,7 @@ func GetVersionsFromGitLocal(repo string) (version.VersionSlice, error) {
 }
 
 // searchVersionsGit handles searching versions from a remote Git repository.
-func searchVersionsGit(cliOpts *config.CliOpts, program, repo string) (
+func searchVersionsGit(cliOpts *config.CliOpts, repo string) (
 	version.VersionSlice, error,
 ) {
 	versions, err := GetVersionsFromGitRemote(repo)

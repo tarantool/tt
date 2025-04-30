@@ -8,6 +8,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/otiai10/copy"
 	"github.com/stretchr/testify/assert"
+	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
 )
 
@@ -30,7 +31,7 @@ func TestSwitchTarantool(t *testing.T) {
 	var testCtx SwitchCtx
 	testCtx.IncDir = filepath.Join(tempDir, "include")
 	testCtx.BinDir = filepath.Join(tempDir, "bin")
-	testCtx.ProgramName = "tarantool"
+	testCtx.ProgramType = search.NewProgramType("tarantool")
 	testCtx.Version = "2.10.3"
 	err = Switch(testCtx)
 	assert.Nil(t, err)
@@ -48,17 +49,17 @@ func TestSwitchUnknownProgram(t *testing.T) {
 	var testCtx SwitchCtx
 	testCtx.IncDir = filepath.Join(".", "include")
 	testCtx.BinDir = filepath.Join(".", "bin")
-	testCtx.ProgramName = "tarantool-foo"
+	testCtx.ProgramType = search.NewProgramType("tarantool-foo")
 	testCtx.Version = "2.10.3"
 	err := Switch(testCtx)
-	assert.Equal(t, err.Error(), "unknown application: tarantool-foo")
+	assert.Equal(t, err.Error(), "unknown application: unknown(0)")
 }
 
 func TestSwitchNotInstalledVersion(t *testing.T) {
 	var testCtx SwitchCtx
 	testCtx.IncDir = filepath.Join(".", "include")
 	testCtx.BinDir = filepath.Join(".", "bin")
-	testCtx.ProgramName = "tarantool"
+	testCtx.ProgramType = search.NewProgramType("tarantool")
 	testCtx.Version = "2.10.3"
 	err := Switch(testCtx)
 	assert.Equal(t, err.Error(), "tarantool 2.10.3 is not installed in current environment")

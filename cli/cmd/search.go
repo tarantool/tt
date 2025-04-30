@@ -15,7 +15,7 @@ var (
 // newSearchTtCmd creates a command to search tt.
 func newSearchTtCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   search.ProgramTt,
+		Use:   search.ProgramTt.String(),
 		Short: "Search for available tt versions",
 		Run:   RunModuleFunc(internalSearchModule),
 		Args:  cobra.ExactArgs(0),
@@ -27,7 +27,7 @@ func newSearchTtCmd() *cobra.Command {
 // newSearchTarantoolCmd creates a command to search tarantool.
 func newSearchTarantoolCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   search.ProgramCe,
+		Use:   search.ProgramCe.String(),
 		Short: "Search for available tarantool community edition versions",
 		Run:   RunModuleFunc(internalSearchModule),
 		Args:  cobra.ExactArgs(0),
@@ -39,7 +39,7 @@ func newSearchTarantoolCmd() *cobra.Command {
 // newSearchTarantoolEeCmd creates a command to search tarantool-ee.
 func newSearchTarantoolEeCmd() *cobra.Command {
 	tntCmd := &cobra.Command{
-		Use:   search.ProgramEe,
+		Use:   search.ProgramEe.String(),
 		Short: "Search for available tarantool enterprise edition versions",
 		Run:   RunModuleFunc(internalSearchModule),
 		Args:  cobra.ExactArgs(0),
@@ -57,7 +57,7 @@ func newSearchTarantoolEeCmd() *cobra.Command {
 // newSearchTcmCmd creates a command to search tcm.
 func newSearchTcmCmd() *cobra.Command {
 	tcmCmd := &cobra.Command{
-		Use:   search.ProgramTcm,
+		Use:   search.ProgramTcm.String(),
 		Short: "Search for available tarantool cluster manager versions",
 		Run:   RunModuleFunc(internalSearchModule),
 		Args:  cobra.ExactArgs(0),
@@ -104,7 +104,7 @@ func NewSearchCmd() *cobra.Command {
 // internalSearchModule is a default search module.
 func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
-	searchCtx.ProgramName = cmdCtx.CommandName
+	searchCtx.Program = search.NewProgramType(cmdCtx.CommandName)
 	if local {
 		err = search.SearchVersionsLocal(searchCtx, cliOpts, cmdCtx.Cli.ConfigPath)
 	} else {

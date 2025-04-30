@@ -11,18 +11,18 @@ import (
 )
 
 var binariesSupportedPrograms = []string{
-	search.ProgramCe,
-	search.ProgramEe,
-	search.ProgramTt,
+	search.ProgramCe.String(),
+	search.ProgramEe.String(),
+	search.ProgramTt.String(),
 }
 
 // NewBinariesCmd creates binaries command.
 func NewBinariesCmd() *cobra.Command {
-	var binariesCmd = &cobra.Command{
+	binariesCmd := &cobra.Command{
 		Use: "binaries",
 	}
 
-	var switchCmd = &cobra.Command{
+	switchCmd := &cobra.Command{
 		Use:   "switch [program] [version]",
 		Short: "Switch to installed binary",
 		Example: `
@@ -44,7 +44,7 @@ You will need to choose version using arrow keys in your console.
 		Run:  RunModuleFunc(internalSwitchModule),
 		Args: cobra.MatchAll(cobra.MaximumNArgs(2), binariesSwitchValidateArgs),
 	}
-	var listCmd = &cobra.Command{
+	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "Show a list of installed binaries and their versions.",
 		Run:   RunModuleFunc(internalListModule),
@@ -73,9 +73,9 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
 
 	if len(args) > 0 {
-		switchCtx.ProgramName = args[0]
+		switchCtx.ProgramType = search.NewProgramType(args[0])
 	} else {
-		switchCtx.ProgramName, err = binary.ChooseProgram(binariesSupportedPrograms)
+		switchCtx.ProgramType, err = binary.ChooseProgram(binariesSupportedPrograms)
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) > 1 {
 		switchCtx.Version = args[1]
 	} else {
-		switchCtx.Version, err = binary.ChooseVersion(cliOpts.Env.BinDir, switchCtx.ProgramName)
+		switchCtx.Version, err = binary.ChooseVersion(cliOpts.Env.BinDir, switchCtx.ProgramType)
 		if err != nil {
 			return err
 		}
