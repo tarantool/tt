@@ -6,10 +6,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +18,8 @@ import (
 	"go.etcd.io/etcd/tests/v3/integration"
 
 	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tarantool/v2/test_helpers"
+	tcs_helper "github.com/tarantool/go-tarantool/v2/test_helpers/tcs"
 
 	"github.com/tarantool/tt/lib/cluster"
 )
@@ -27,43 +27,24 @@ import (
 const timeout = 5 * time.Second
 
 func tcsIsSupported(t *testing.T) bool {
-	cmd := exec.Command("tarantool", "--version")
-
-	out, err := cmd.Output()
-	require.NoError(t, err)
-
-	expected := "Tarantool Enterprise 3"
-
-	return strings.HasPrefix(string(out), expected)
-}
-
-func startTcs(t *testing.T) *exec.Cmd {
-	cmd := exec.Command("tarantool", "--name", "master",
-		"--config", "testdata/config.yml",
-		"testdata/init.lua")
-	err := cmd.Start()
-	require.NoError(t, err)
-
-	var conn tarantool.Connector
-	// Wait for Tarantool to start.
-	for i := 0; i < 10; i++ {
-		conn, err = tarantool.Connect(context.Background(), tarantool.NetDialer{
-			Address: "127.0.0.1:3301",
-		}, tarantool.Opts{})
-		if err == nil {
-			defer conn.Close()
-			break
-		}
-		time.Sleep(time.Second)
+	ok, err := test_helpers.IsTcsSupported()
+	if err != nil {
+		t.Fatalf("Failed to check if TCS is supported: %s", err)
 	}
-	require.NoError(t, err)
-
-	return cmd
+	return ok
 }
 
-func stopTcs(t *testing.T, cmd *exec.Cmd) {
-	err := cmd.Process.Kill()
-	require.NoError(t, err)
+func startTcs(t *testing.T) *tcs_helper.TCS {
+	tcs := tcs_helper.StartTesting(t, 3301)
+	return &tcs
+}
+
+func stopTcs(t *testing.T, inst any) {
+	tcs, ok := inst.(*tcs_helper.TCS)
+	if !ok {
+		t.Fatalf("Shutdown expected *tcs_helper.TCS, got %T", inst)
+	}
+	tcs.Stop()
 }
 
 type etcdOpts struct {
@@ -605,11 +586,11 @@ var testsIntegrity = []struct {
 		Name:       "tarantool",
 		Applicable: tcsIsSupported,
 		Setup: func(t *testing.T) interface{} {
-			command := startTcs(t)
-			return command
+			inst := startTcs(t)
+			return inst
 		},
 		Shutdown: func(t *testing.T, inst interface{}) {
-			stopTcs(t, inst.(*exec.Cmd))
+			stopTcs(t, inst)
 		},
 		NewPublisher: func(
 			t *testing.T,
@@ -618,6 +599,11 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataPublisher, func()) {
+			tcs, ok := inst.(*tcs_helper.TCS)
+			if !ok {
+				t.Fatalf("NewPublisher expected *tcs_helper.TCS, got %T", inst)
+			}
+
 			publisherFactory := cluster.NewIntegrityDataPublisherFactory(signFunc)
 
 			opts := tarantool.Opts{
@@ -626,11 +612,7 @@ var testsIntegrity = []struct {
 				MaxReconnects: 10,
 			}
 
-			conn, err := tarantool.Connect(context.Background(), tarantool.NetDialer{
-				Address:  "127.0.0.1:3301",
-				User:     "client",
-				Password: "secret",
-			}, opts)
+			conn, err := tarantool.Connect(context.Background(), tcs.Dialer(), opts)
 			require.NoError(t, err)
 
 			pub, err := publisherFactory.NewTarantool(conn, prefix, key, 1*time.Second)
@@ -645,6 +627,10 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataCollector, func()) {
+			tcs, ok := inst.(*tcs_helper.TCS)
+			if !ok {
+				t.Fatalf("NewCollector expected *tcs_helper.TCS, got %T", inst)
+			}
 			collectorFactory := cluster.NewIntegrityDataCollectorFactory(checkFunc, nil)
 
 			opts := tarantool.Opts{
@@ -653,11 +639,7 @@ var testsIntegrity = []struct {
 				MaxReconnects: 10,
 			}
 
-			conn, err := tarantool.Connect(context.Background(), tarantool.NetDialer{
-				Address:  "127.0.0.1:3301",
-				User:     "client",
-				Password: "secret",
-			}, opts)
+			conn, err := tarantool.Connect(context.Background(), tcs.Dialer(), opts)
 			require.NoError(t, err)
 
 			coll, err := collectorFactory.NewTarantool(conn, prefix, key, 1*time.Second)
@@ -761,8 +743,7 @@ func TestIntegrityDataPublisherKey_CollectorAll_valid(t *testing.T) {
 			}
 
 			for _, entry := range data {
-				publisher, closeConn :=
-					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
+				publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
@@ -801,8 +782,8 @@ func TestIntegrityDataPublisherKey_CollectorKey_valid(t *testing.T) {
 			}
 
 			for _, entry := range data {
-				publisher, closeConn :=
-					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
+				publisher, closeConn := test.NewPublisher(
+					t, validSignFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
@@ -810,8 +791,8 @@ func TestIntegrityDataPublisherKey_CollectorKey_valid(t *testing.T) {
 			}
 
 			for _, entry := range data {
-				collector, closeConn :=
-					test.NewCollector(t, validCheckFunc, testPrefix, entry.Source, inst)
+				collector, closeConn := test.NewCollector(
+					t, validCheckFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				result, err := collector.Collect()
@@ -845,8 +826,7 @@ func TestIntegrityDataCollectorAllPublisherAll_valid(t *testing.T) {
 			}
 
 			for _, entry := range data {
-				publisher, closeConn :=
-					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
+				publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
@@ -886,8 +866,7 @@ func TestIntegrityDataCollectorKeyPublisherAll_valid(t *testing.T) {
 			}
 
 			for _, entry := range data {
-				publisher, closeConn :=
-					test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
+				publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
