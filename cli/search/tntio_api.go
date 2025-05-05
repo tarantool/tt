@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/util"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 const (
@@ -174,7 +174,7 @@ func TntIoMakePkgURI(Package string, Release string,
 }
 
 // buildApiQuery constructs the query string for the tarantool.io API.
-func buildApiQuery(searchCtx *SearchCtx, credentials install_ee.UserCredentials) (
+func buildApiQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
 	apiRequest, error,
 ) {
 	buildType := "release"
@@ -265,7 +265,7 @@ func parseApiResponse(respBody []byte) (map[string][]string, error) {
 }
 
 // tntIoGetPkgVersions returns a list of versions of the requested package for the given host.
-func tntIoGetPkgVersions(credentials install_ee.UserCredentials, searchCtx *SearchCtx) (
+func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchCtx) (
 	map[string][]string, error,
 ) {
 	if searchCtx.tntIoDoer == nil {

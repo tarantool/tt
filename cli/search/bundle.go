@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 // BundleInfo is a structure that contains specific information about SDK bundle.
@@ -167,7 +167,7 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 			searchCtx.Program)
 	}
 
-	credentials, err := install_ee.GetCreds(cliOpts)
+	credentials, err := connect.GetCreds(cliOpts)
 	if err != nil {
 		return nil, err
 	}
