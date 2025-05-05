@@ -1,4 +1,4 @@
-package install_ee
+package connect
 
 import (
 	"fmt"
