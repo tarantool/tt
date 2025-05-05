@@ -8,7 +8,7 @@ import (
 )
 
 // GetApiPackage returns the package name at tarantool.io for the given program.
-func GetApiPackage(program ProgramType) string {
+func GetApiPackage(program Program) string {
 	switch program {
 	case ProgramEe:
 		return "enterprise"

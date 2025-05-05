@@ -148,7 +148,7 @@ func TestSearchLatestVersion(t *testing.T) {
 func TestGetAllVersionFormats(t *testing.T) {
 	type testCase struct {
 		name             string
-		program          search.ProgramType
+		program          search.Program
 		ttVersion        string
 		expectedVersions []string
 		expectedError    error

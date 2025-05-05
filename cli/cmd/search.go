@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/search"
@@ -104,14 +106,16 @@ func NewSearchCmd() *cobra.Command {
 // internalSearchModule is a default search module.
 func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
-	searchCtx.Program = search.NewProgramType(cmdCtx.CommandName)
-	if local {
-		err = search.SearchVersionsLocal(searchCtx, cliOpts, cmdCtx.Cli.ConfigPath)
-	} else {
-		if debug {
-			searchCtx.Filter = search.SearchDebug
-		}
-		err = search.SearchVersions(searchCtx, cliOpts)
+	if searchCtx.Program, err = search.ParseProgram(cmdCtx.CommandName); err != nil {
+		return fmt.Errorf("failed to search: %w", err)
 	}
-	return err
+
+	if local {
+		return search.SearchVersionsLocal(searchCtx, cliOpts, cmdCtx.Cli.ConfigPath)
+	}
+
+	if debug {
+		searchCtx.Filter = search.SearchDebug
+	}
+	return search.SearchVersions(searchCtx, cliOpts)
 }

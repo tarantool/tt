@@ -23,8 +23,8 @@ type SwitchCtx struct {
 	BinDir string
 	// IncDir is a directory witch stores include files.
 	IncDir string
-	// ProgramType is a program name to switch to.
-	ProgramType search.ProgramType
+	// Program is a program name to switch to.
+	Program search.Program
 	// Version of the program to switch to.
 	Version string
 }
@@ -34,24 +34,29 @@ const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;" +
 	"[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
 
 func cleanString(str string) string {
-	var re = regexp.MustCompile(ansi)
+	re := regexp.MustCompile(ansi)
 	return re.ReplaceAllString(str, "")
 }
 
 // ChooseProgram shows a menu in terminal to choose program for switch.
-func ChooseProgram(supportedPrograms []string) (search.ProgramType, error) {
+func ChooseProgram(supportedPrograms []string) (search.Program, error) {
 	programSelect := promptui.Select{
 		Label:        "Select program",
 		Items:        supportedPrograms,
 		HideSelected: true,
 	}
-	_, program, err := programSelect.Run()
 
-	return search.NewProgramType(program), err
+	var program string
+	var err error
+	if _, program, err = programSelect.Run(); err != nil {
+		return search.ProgramUnknown, fmt.Errorf("failed to choose program: %w", err)
+	}
+
+	return search.ParseProgram(program)
 }
 
 // ChooseVersion shows a menu in terminal to choose version of program to switch to.
-func ChooseVersion(binDir string, program search.ProgramType) (string, error) {
+func ChooseVersion(binDir string, program search.Program) (string, error) {
 	binDirFilesList, err := os.ReadDir(binDir)
 
 	if len(binDirFilesList) == 0 || errors.Is(err, fs.ErrNotExist) {
@@ -90,7 +95,7 @@ func ChooseVersion(binDir string, program search.ProgramType) (string, error) {
 
 // switchTt switches 'tt' program.
 func switchTt(switchCtx SwitchCtx) error {
-	log.Infof("Switching to %s %s.", switchCtx.ProgramType, switchCtx.Version)
+	log.Infof("Switching to %s %s.", switchCtx.Program, switchCtx.Version)
 
 	ttVersion := switchCtx.Version
 	if !strings.HasPrefix(switchCtx.Version, "v") {
@@ -106,14 +111,14 @@ func switchTt(switchCtx SwitchCtx) error {
 		log.Infof("Done")
 	} else {
 		return fmt.Errorf("%s %s is not installed in current environment",
-			switchCtx.ProgramType, switchCtx.Version)
+			switchCtx.Program, switchCtx.Version)
 	}
 	return nil
 }
 
 // switchTarantool switches 'tarantool' program.
 func switchTarantool(switchCtx SwitchCtx, enterprise bool) error {
-	log.Infof("Switching to %s %s.", switchCtx.ProgramType, switchCtx.Version)
+	log.Infof("Switching to %s %s.", switchCtx.Program, switchCtx.Version)
 	var versionStr string
 	if enterprise {
 		versionStr = search.ProgramEe.String() + version.FsSeparator + switchCtx.Version
@@ -135,7 +140,7 @@ func switchTarantool(switchCtx SwitchCtx, enterprise bool) error {
 		log.Infof("Done")
 	} else {
 		return fmt.Errorf("%s %s is not installed in current environment",
-			switchCtx.ProgramType, switchCtx.Version)
+			switchCtx.Program, switchCtx.Version)
 	}
 	return nil
 }
@@ -144,7 +149,7 @@ func switchTarantool(switchCtx SwitchCtx, enterprise bool) error {
 func Switch(switchCtx SwitchCtx) error {
 	var err error
 
-	switch switchCtx.ProgramType {
+	switch switchCtx.Program {
 	case search.ProgramTt:
 		err = switchTt(switchCtx)
 	case search.ProgramCe:
@@ -152,7 +157,7 @@ func Switch(switchCtx SwitchCtx) error {
 	case search.ProgramEe:
 		err = switchTarantool(switchCtx, true)
 	default:
-		return fmt.Errorf("unknown application: %s", switchCtx.ProgramType)
+		return fmt.Errorf("unknown application: %s", switchCtx.Program)
 	}
 
 	return err

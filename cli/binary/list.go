@@ -31,7 +31,7 @@ func printVersion(versionString string) {
 }
 
 // ParseBinaries seeks through fileList returning array of found versions of program.
-func ParseBinaries(fileList []fs.DirEntry, program search.ProgramType,
+func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 	binDir string) ([]version.Version, error) {
 	var binaryVersions []version.Version
 
@@ -108,7 +108,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error
 		return fmt.Errorf("error reading directory %q: %s", binDir, err)
 	}
 
-	programs := [...]search.ProgramType{
+	programs := [...]search.Program{
 		search.ProgramTt,
 		search.ProgramCe,
 		search.ProgramDev,

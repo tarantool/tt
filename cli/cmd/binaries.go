@@ -73,9 +73,11 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
 
 	if len(args) > 0 {
-		switchCtx.ProgramType = search.NewProgramType(args[0])
+		if switchCtx.Program, err = search.ParseProgram(args[0]); err != nil {
+			return fmt.Errorf("failed to switch module: %w", err)
+		}
 	} else {
-		switchCtx.ProgramType, err = binary.ChooseProgram(binariesSupportedPrograms)
+		switchCtx.Program, err = binary.ChooseProgram(binariesSupportedPrograms)
 		if err != nil {
 			return err
 		}
@@ -84,7 +86,7 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if len(args) > 1 {
 		switchCtx.Version = args[1]
 	} else {
-		switchCtx.Version, err = binary.ChooseVersion(cliOpts.Env.BinDir, switchCtx.ProgramType)
+		switchCtx.Version, err = binary.ChooseVersion(cliOpts.Env.BinDir, switchCtx.Program)
 		if err != nil {
 			return err
 		}

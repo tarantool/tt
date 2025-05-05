@@ -64,11 +64,16 @@ func checkInstallDirs(binDir, includeDir string) error {
 
 // checkExistingInstallation checks if the specific version of the program is already installed.
 // Returns true if the installation exists, false otherwise.
-func checkExistingInstallation(versionStr, binDir, includeDir string) (bool, error) {
-	binPath := filepath.Join(binDir, versionStr)
-	incPath := filepath.Join(includeDir, versionStr)
+func checkExistingInstallation(bp *bundleParams) (bool, error) {
+	binPath := filepath.Join(bp.opts.Env.BinDir, bp.prgVersion)
+	incPath := filepath.Join(bp.inst.IncDir, bp.prgVersion)
 
 	binExists := util.IsRegularFile(binPath)
+
+	if !bp.inst.Program.IsTarantool() {
+		log.Debugf("Checking existence: bin=%s (%t)", binPath, binExists)
+		return binExists, nil
+	}
 	incExists := util.IsDir(incPath)
 
 	log.Debugf("Checking existence: bin=%s (%t), inc=%s (%t)",
@@ -98,7 +103,7 @@ func prepareTemporaryDirs(bp *bundleParams) error {
 }
 
 // checkDependencies checks if the required system dependencies are installed.
-func checkDependencies(program search.ProgramType, force bool) error {
+func checkDependencies(program search.Program, force bool) error {
 	if force {
 		log.Debugf("Skipping dependency check due to --force flag.")
 		return nil
@@ -138,20 +143,21 @@ func copyBundle(bp *bundleParams) error {
 func downloadBundle(bp *bundleParams) error {
 	bundleName := bp.bundleInfo.Version.Tarball
 
-	// FIXME: Call with [search.SearchCtx] and the correct [search.PlatformInformer] is provided.
-	bundleSource, err := search.TntIoMakePkgURI(
-		search.GetApiPackage(bp.inst.Program),
-		bp.bundleInfo.Release,
-		bundleName,
-		bp.inst.DevBuild,
+	searchCtx := search.NewSearchCtx(
+		search.NewPlatformInformer(),
+		install_ee.NewTntIoDownloader(bp.bundleInfo.Token),
 	)
+	searchCtx.Program = bp.inst.Program
+	searchCtx.DevBuilds = bp.inst.DevBuild
+	searchCtx.ReleaseVersion = bp.bundleInfo.Release
+
+	bundleSource, err := search.TntIoMakePkgURI(&searchCtx, bundleName)
 	if err != nil {
 		return fmt.Errorf("failed to construct bundle download URI: %w", err)
 	}
 
 	log.Infof("Downloading %s... (%s)", bp.inst.Program, bundleSource)
-	err = install_ee.DownloadBundle(
-		bp.opts, bundleName, bundleSource, bp.bundleInfo.Token, bp.tmpDir)
+	err = install_ee.DownloadBundle(&searchCtx, bundleName, bundleSource, bp.tmpDir)
 	if err != nil {
 		fmt.Fprintf(bp.logFile, "Error downloading bundle: %v\n", err)
 		return fmt.Errorf("failed to download bundle: %w", err)
@@ -181,7 +187,7 @@ func unpackBundle(bundlePath string, logFile io.Writer) error {
 }
 
 // getSubDirForProgram returns the subdirectory inside archive for the specified program type.
-func getSubDirForProgram(program search.ProgramType) string {
+func getSubDirForProgram(program search.Program) string {
 	switch program {
 	case search.ProgramEe:
 		return "tarantool-enterprise"
@@ -193,7 +199,7 @@ func getSubDirForProgram(program search.ProgramType) string {
 }
 
 // findBundlePathsInDir makes path to binary and include directory.
-func findBundlePathsInDir(baseDir string, program search.ProgramType) (
+func findBundlePathsInDir(baseDir string, program search.Program) (
 	string, string, error,
 ) {
 	subDir := getSubDirForProgram(program)
@@ -280,11 +286,27 @@ func copyNewArtifacts(bp *bundleParams) error {
 	return nil
 }
 
+// changeActiveBundleVersion changes symlinks to the specified bundle executable version.
+func changeActiveBundleVersion(bp *bundleParams) error {
+	execPath := filepath.Join(bp.opts.Env.BinDir, bp.inst.Program.Exec())
+	err := util.CreateSymlink(bp.prgVersion, execPath, true)
+	if err != nil {
+		return err
+	}
+
+	if util.IsDir(filepath.Join(bp.inst.IncDir, bp.prgVersion)) {
+		incPath := filepath.Join(bp.inst.IncDir, bp.inst.Program.Exec())
+		return util.CreateSymlink(bp.prgVersion, incPath, true)
+	}
+
+	return nil
+}
+
 // updateSymlinks updates the default symlinks to point to the newly installed version.
 // Uses the existing changeActiveTarantoolVersion function.
 func updateSymlinks(bp *bundleParams) error {
 	log.Infof("Updating symlinks to point to %s...", bp.prgVersion)
-	err := changeActiveTarantoolVersion(bp.prgVersion, bp.opts.Env.BinDir, bp.inst.IncDir)
+	err := changeActiveBundleVersion(bp)
 	if err != nil {
 		log.Errorf("Failed to update symlinks: %v", err)
 		return fmt.Errorf("failed to update symlinks: %w", err)
@@ -428,11 +450,11 @@ func installBundleProgram(installCtx *InstallCtx, cliOpts *config.CliOpts) error
 
 	if !bp.inst.Reinstall {
 		log.Infof("Checking existing installation...")
-		exists, err := checkExistingInstallation(bp.prgVersion,
-			bp.opts.Env.BinDir, bp.inst.IncDir)
+		exists, err := checkExistingInstallation(&bp)
 		if err != nil {
 			return fmt.Errorf("failed to check existing installation: %w", err)
 		}
+
 		if exists {
 			log.Infof("%s version %s already exists.", bp.inst.Program, bp.prgVersion)
 			return updateSymlinks(&bp)

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/search"
@@ -9,7 +11,7 @@ import (
 
 // newUninstallTtCmd creates a command to install tt.
 func newUninstallTtCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	tntCmd := &cobra.Command{
 		Use:   "tt [version]",
 		Short: "Uninstall tt",
 		Run:   RunModuleFunc(InternalUninstallModule),
@@ -17,7 +19,8 @@ func newUninstallTtCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			if len(args) > 0 {
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
@@ -39,7 +42,8 @@ func newUninstallTarantoolCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			if len(args) > 0 {
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
@@ -61,7 +65,8 @@ func newUninstallTarantoolEeCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			if len(args) > 0 {
 				return []string{}, cobra.ShellCompDirectiveNoFileComp
 			}
@@ -87,7 +92,7 @@ func newUninstallTarantoolDevCmd() *cobra.Command {
 
 // NewUninstallCmd creates uninstall command.
 func NewUninstallCmd() *cobra.Command {
-	var uninstallCmd = &cobra.Command{
+	uninstallCmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Uninstalls a program",
 		Example: `
@@ -112,13 +117,16 @@ func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
-	program := search.NewProgramType(cmdCtx.CommandName)
+	program, err := search.ParseProgram(cmdCtx.CommandName)
+	if err != nil {
+		return fmt.Errorf("failed to uninstall: %w", err)
+	}
+
 	programVersion := ""
 	if len(args) == 1 {
 		programVersion = args[0]
 	}
 
-	err := uninstall.UninstallProgram(program, programVersion, cliOpts.Env.BinDir,
+	return uninstall.UninstallProgram(program, programVersion, cliOpts.Env.BinDir,
 		cliOpts.Env.IncludeDir+"/include", cmdCtx)
-	return err
 }

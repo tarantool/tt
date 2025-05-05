@@ -33,7 +33,7 @@ var errNotInstalled = errors.New("program is not installed")
 
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
-func remove(program search.ProgramType, programVersion string, directory string,
+func remove(program search.Program, programVersion string, directory string,
 	cmdCtx *cmdcontext.CmdCtx) (bool, error) {
 	var linkPath string
 	var err error
@@ -90,7 +90,7 @@ func remove(program search.ProgramType, programVersion string, directory string,
 
 // UninstallProgram uninstalls program and symlinks.
 func UninstallProgram(
-	program search.ProgramType,
+	program search.Program,
 	programVersion string,
 	binDst string,
 	headerDst string,
@@ -162,7 +162,7 @@ func UninstallProgram(
 
 // getAllTtVersionFormats returns all version formats with 'v' prefix and
 // without it before x.y.z version.
-func getAllTtVersionFormats(program search.ProgramType, ttVersion string) ([]string, error) {
+func getAllTtVersionFormats(program search.Program, ttVersion string) ([]string, error) {
 	versionsToDelete := []string{ttVersion}
 
 	if program == search.ProgramTt {
@@ -181,7 +181,7 @@ func getAllTtVersionFormats(program search.ProgramType, ttVersion string) ([]str
 }
 
 // getDefault returns a default version of an installed program.
-func getDefault(program search.ProgramType, dir string) (string, error) {
+func getDefault(program search.Program, dir string) (string, error) {
 	var ver string
 
 	re := regexp.MustCompile(
@@ -315,7 +315,7 @@ func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 }
 
 // switchProgramToLatestVersion switches the active version of the program to the latest installed.
-func switchProgramToLatestVersion(program search.ProgramType, binDst, headerDst string) error {
+func switchProgramToLatestVersion(program search.Program, binDst, headerDst string) error {
 	linkName := program.Exec()
 
 	progToSwitch, err := searchLatestVersion(linkName, binDst, headerDst)

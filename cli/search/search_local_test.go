@@ -50,7 +50,7 @@ func (m mockFS) Open(name string) (fs.File, error) {
 
 func TestFindLocalBundles(t *testing.T) {
 	tests := map[string]struct {
-		program         search.ProgramType
+		program         search.Program
 		files           []fs.DirEntry
 		expectedVersion version.VersionSlice
 		errMsg          string

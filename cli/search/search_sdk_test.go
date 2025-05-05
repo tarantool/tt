@@ -9,7 +9,7 @@ import (
 
 func TestGetApiPackage(t *testing.T) {
 	tests := map[string]struct {
-		input    search.ProgramType
+		input    search.Program
 		expected string
 	}{
 		"tarantool enterprise edition": {
@@ -38,7 +38,7 @@ func TestGetApiPackage(t *testing.T) {
 		},
 
 		"unknown program": {
-			input:    search.NewProgramType("unknown"),
+			input:    search.ProgramUnknown,
 			expected: "",
 		},
 	}
