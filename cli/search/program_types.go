@@ -2,20 +2,20 @@ package search
 
 import "fmt"
 
-// ProgramType represents a strictly typed enum for program types.
-type ProgramType int
+// Program represents a strictly typed enum for program types.
+type Program int
 
 const (
-	ProgramUnknown ProgramType = iota
-	ProgramCe                  // tarantool
-	ProgramEe                  // tarantool-ee
-	ProgramTt                  // tt
-	ProgramDev                 // tarantool-dev
-	ProgramTcm                 // tcm
+	ProgramUnknown Program = iota
+	ProgramCe              // tarantool
+	ProgramEe              // tarantool-ee
+	ProgramTt              // tt
+	ProgramDev             // tarantool-dev
+	ProgramTcm             // tcm
 )
 
-// programTypeToExec contains executables matched for each ProgramType.
-var programTypeToExec = map[ProgramType]string{
+// programToExec contains executables matched for each Program types.
+var programToExec = map[Program]string{
 	ProgramCe:  "tarantool",
 	ProgramEe:  "tarantool",
 	ProgramTt:  "tt",
@@ -23,8 +23,8 @@ var programTypeToExec = map[ProgramType]string{
 	ProgramTcm: "tcm",
 }
 
-// programTypeToString contains string representations for each type.
-var programTypeToString = map[ProgramType]string{
+// programToString contains string representations for each type.
+var programToString = map[Program]string{
 	ProgramCe:  "tarantool",
 	ProgramEe:  "tarantool-ee",
 	ProgramDev: "tarantool-dev",
@@ -32,41 +32,41 @@ var programTypeToString = map[ProgramType]string{
 	ProgramTcm: "tcm",
 }
 
-// stringToProgramType contains the reverse mapping for efficient lookup.
-var stringToProgramType = make(map[string]ProgramType, len(programTypeToString))
+// stringToProgram contains the reverse mapping for efficient lookup.
+var stringToProgram = make(map[string]Program, len(programToString))
 
 // init initialize the reverse map.
 func init() {
-	for k, v := range programTypeToString {
-		stringToProgramType[v] = k
+	for k, v := range programToString {
+		stringToProgram[v] = k
 	}
 }
 
-// String returns a string representation of ProgramType.
-func (p ProgramType) String() string {
-	if s, ok := programTypeToString[p]; ok {
+// String returns a string representation of Program type.
+func (p Program) String() string {
+	if s, ok := programToString[p]; ok {
 		return s
 	}
 	return fmt.Sprintf("unknown(%d)", p)
 }
 
-// NewProgramType converts the string to ProgramType.
-func NewProgramType(s string) ProgramType {
-	if p, ok := stringToProgramType[s]; ok {
-		return p
+// ParseProgram converts the string to Program type.
+func ParseProgram(s string) (Program, error) {
+	if p, ok := stringToProgram[s]; ok {
+		return p, nil
 	}
-	return ProgramUnknown
+	return ProgramUnknown, fmt.Errorf("unknown program: %q", s)
 }
 
-// Exec returns an executable name of the ProgramType.
-func (p ProgramType) Exec() string {
-	if s, ok := programTypeToExec[p]; ok {
+// Exec returns an executable name of the Program.
+func (p Program) Exec() string {
+	if s, ok := programToExec[p]; ok {
 		return s
 	}
 	return fmt.Sprintf("unknown(%d)", p)
 }
 
-// IsTarantool checks if the ProgramType is a Tarantool program.
-func (p ProgramType) IsTarantool() bool {
+// IsTarantool checks if the Program is kind of Tarantool program.
+func (p Program) IsTarantool() bool {
 	return p == ProgramCe || p == ProgramEe || p == ProgramDev
 }

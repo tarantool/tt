@@ -30,27 +30,28 @@ type SearchCtx struct {
 	// Release version to look for.
 	ReleaseVersion string
 	// Program type of program to search for.
-	Program ProgramType
+	Program Program
 	// Search for development builds.
 	DevBuilds bool
+	// TntIoDoer tarantool.io API handler with interface of TntIoDoer.
+	TntIoDoer TntIoDoer
 
 	platformInformer PlatformInformer
-	tntIoDoer        TntIoDoer
 }
 
 // NewSearchCtx creates a new SearchCtx with default production values.
 func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
 	return SearchCtx{
 		Filter:           SearchRelease,
+		TntIoDoer:        doer,
 		platformInformer: informer,
-		tntIoDoer:        doer,
 	}
 }
 
 // printVersion prints the version and labels:
 // * if the package is installed: [installed]
 // * if the package is installed and in use: [active]
-func printVersion(bindir string, program ProgramType, versionStr string) {
+func printVersion(bindir string, program Program, versionStr string) {
 	if _, err := os.Stat(filepath.Join(bindir,
 		program.String()+version.FsSeparator+versionStr)); err == nil {
 		target, _ := util.ResolveSymlink(filepath.Join(bindir, program.Exec()))

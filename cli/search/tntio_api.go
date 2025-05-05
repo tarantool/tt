@@ -118,7 +118,7 @@ func getOsForApi(informer PlatformInformer) (string, error) {
 }
 
 // getArchForApi determines the architecture type string required by the tarantool.io API.
-func getArchForApi(informer PlatformInformer, program ProgramType) (string, error) {
+func getArchForApi(informer PlatformInformer, program Program) (string, error) {
 	arch, err := informer.GetArch()
 	if err != nil {
 		return "", fmt.Errorf("failed to get architecture: %w", err)
@@ -144,31 +144,40 @@ func getArchForApi(informer PlatformInformer, program ProgramType) (string, erro
 	return "", fmt.Errorf("unsupported architecture: %s", arch)
 }
 
-// TntIoMakePkgURI generates a URI for downloading a package.
-func TntIoMakePkgURI(Package string, Release string,
-	Tarball string, DevBuilds bool,
-) (string, error) {
-	var uri string
-	buildType := "release"
+func getBuildType(isDev bool) string {
+	if isDev {
+		return "dev"
+	}
+	return "release"
+}
 
-	if DevBuilds {
-		buildType = "dev"
+// TntIoMakePkgURI generates a URI for downloading a package.
+func TntIoMakePkgURI(searchCtx *SearchCtx, Tarball string) (string, error) {
+	var uri string
+
+	if searchCtx.platformInformer == nil {
+		return "", fmt.Errorf("no platform informer was applied")
 	}
 
-	// FIXME: use [PlatformInformer] from [SearchCtx].
-	informer := &realInfo{}
-	arch, err := getArchForApi(informer, ProgramEe)
+	arch, err := getArchForApi(searchCtx.platformInformer, searchCtx.Program)
 	if err != nil {
 		return "", err
 	}
 
-	osType, err := getOsForApi(informer)
+	osType, err := getOsForApi(searchCtx.platformInformer)
 	if err != nil {
 		return "", err
 	}
 
 	uri = fmt.Sprintf("%s/%s/%s/%s/%s/%s/%s",
-		PkgURI, Package, buildType, osType, arch, Release, Tarball)
+		PkgURI,
+		GetApiPackage(searchCtx.Program),
+		getBuildType(searchCtx.DevBuilds),
+		osType,
+		arch,
+		searchCtx.ReleaseVersion,
+		Tarball,
+	)
 
 	return uri, nil
 }
@@ -177,10 +186,7 @@ func TntIoMakePkgURI(Package string, Release string,
 func buildApiQuery(searchCtx *SearchCtx, credentials connect.UserCredentials) (
 	apiRequest, error,
 ) {
-	buildType := "release"
-	if searchCtx.DevBuilds {
-		buildType = "dev"
-	}
+	buildType := getBuildType(searchCtx.DevBuilds)
 
 	arch, err := getArchForApi(searchCtx.platformInformer, searchCtx.Program)
 	if err != nil {
@@ -268,7 +274,7 @@ func parseApiResponse(respBody []byte) (map[string][]string, error) {
 func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchCtx) (
 	map[string][]string, error,
 ) {
-	if searchCtx.tntIoDoer == nil {
+	if searchCtx.TntIoDoer == nil {
 		return nil, fmt.Errorf("no tarantool.io doer was applied")
 	}
 	if searchCtx.platformInformer == nil {
@@ -280,7 +286,7 @@ func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchC
 		return nil, err
 	}
 
-	resp, err := sendApiRequest(request, searchCtx.tntIoDoer)
+	resp, err := sendApiRequest(request, searchCtx.TntIoDoer)
 	if err != nil {
 		return nil, err
 	}

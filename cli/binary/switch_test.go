@@ -31,7 +31,8 @@ func TestSwitchTarantool(t *testing.T) {
 	var testCtx SwitchCtx
 	testCtx.IncDir = filepath.Join(tempDir, "include")
 	testCtx.BinDir = filepath.Join(tempDir, "bin")
-	testCtx.ProgramType = search.NewProgramType("tarantool")
+	testCtx.Program, err = search.ParseProgram("tarantool")
+	assert.NoError(t, err)
 	testCtx.Version = "2.10.3"
 	err = Switch(testCtx)
 	assert.Nil(t, err)
@@ -46,21 +47,25 @@ func TestSwitchTarantool(t *testing.T) {
 }
 
 func TestSwitchUnknownProgram(t *testing.T) {
+	var err error
 	var testCtx SwitchCtx
 	testCtx.IncDir = filepath.Join(".", "include")
 	testCtx.BinDir = filepath.Join(".", "bin")
-	testCtx.ProgramType = search.NewProgramType("tarantool-foo")
+	testCtx.Program, err = search.ParseProgram("tarantool-foo")
+	assert.Error(t, err)
 	testCtx.Version = "2.10.3"
-	err := Switch(testCtx)
+	err = Switch(testCtx)
 	assert.Equal(t, err.Error(), "unknown application: unknown(0)")
 }
 
 func TestSwitchNotInstalledVersion(t *testing.T) {
+	var err error
 	var testCtx SwitchCtx
 	testCtx.IncDir = filepath.Join(".", "include")
 	testCtx.BinDir = filepath.Join(".", "bin")
-	testCtx.ProgramType = search.NewProgramType("tarantool")
+	testCtx.Program, err = search.ParseProgram("tarantool")
+	assert.NoError(t, err)
 	testCtx.Version = "2.10.3"
-	err := Switch(testCtx)
+	err = Switch(testCtx)
 	assert.Equal(t, err.Error(), "tarantool 2.10.3 is not installed in current environment")
 }

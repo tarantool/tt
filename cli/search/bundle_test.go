@@ -18,7 +18,7 @@ func TestFetchBundlesInfo(t *testing.T) {
 	defer os.Unsetenv("TT_CLI_EE_PASSWORD")
 
 	tests := map[string]struct {
-		program         search.ProgramType
+		program         search.Program
 		platform        platformInfo
 		doerContent     map[string][]string
 		specificVersion string

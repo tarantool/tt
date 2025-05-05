@@ -98,7 +98,7 @@ type InstallCtx struct {
 	// BuildInDocker is set if tarantool must be built in docker container.
 	BuildInDocker bool
 	// Program is a program type to install.
-	Program search.ProgramType
+	Program search.Program
 	// verbose flag enables verbose logging.
 	verbose bool
 	// Version of the program to install.
@@ -280,7 +280,7 @@ func isPackageInstalled(packageName string) bool {
 }
 
 // programDependenciesInstalled checks if dependencies are installed.
-func programDependenciesInstalled(program search.ProgramType) error {
+func programDependenciesInstalled(program search.Program) error {
 	programs := []Package{}
 	packages := []string{}
 	osName, _ := detectOsName()
@@ -872,13 +872,16 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string) 
 		return fmt.Errorf("unable to create %s\n Error: %s", includeDir, err)
 	}
 
-	if !strings.HasSuffix(incPath, "/") {
-		// Note: copy.Copy expects the directory path to end with '/'.
-		incPath += "/"
-	}
-	err = copy.Copy(incPath, filepath.Join(includeDir, version)+"/")
-	if err != nil {
-		return err
+	if incPath != "" {
+		if !strings.HasSuffix(incPath, "/") {
+			// Note: copy.Copy expects the directory path to end with '/'.
+			incPath += "/"
+		}
+
+		err = copy.Copy(incPath, filepath.Join(includeDir, version)+"/")
+		if err != nil {
+			return err
+		}
 	}
 	log.Infof("Tarantool executable is installed to: %q", execPath)
 
@@ -1245,7 +1248,7 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 // Function returns boolean variable if update of master is possible or not.
 func isUpdatePossible(installCtx InstallCtx,
 	pathToBin string,
-	program search.ProgramType,
+	program search.Program,
 	progVer,
 	distfiles string,
 	isBinExecutable bool,
@@ -1462,7 +1465,11 @@ func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 }
 
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, installCtx *InstallCtx, args []string) error {
-	installCtx.Program = search.NewProgramType(cmdCtx.CommandName)
+	var err error
+	if installCtx.Program, err = search.ParseProgram(cmdCtx.CommandName); err != nil {
+		return fmt.Errorf("failed create context: %w", err)
+	}
+
 	installCtx.verbose = cmdCtx.Cli.Verbose
 	installCtx.skipMasterUpdate = cmdCtx.Cli.NoPrompt
 

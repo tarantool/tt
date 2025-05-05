@@ -7,9 +7,40 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tarantool/tt/cli/config"
+	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
 )
+
+// httpDoer is a struct that implements the search.TntIoDoer interface using the http package.
+type httpDoer struct {
+	client *http.Client
+	token  string
+}
+
+// Do implement TntIoDoer interface.
+// It sends an HTTP request and returns Body data from HTTP response.
+func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
+	res, err := d.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP request error: %s", http.StatusText(res.StatusCode))
+	}
+
+	respBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read API response body: %w", err)
+	}
+
+	return respBody, nil
+}
+
+func (d *httpDoer) Token() string {
+	return d.token
+}
 
 // validateDestination checks if the destination path exists and is a directory.
 func validateDestination(dst string) error {
@@ -35,17 +66,19 @@ func addSessionIdCookie(req *http.Request, token string) {
 	}
 }
 
-// createHttpClient configures and returns an HTTP client suitable for downloading bundles.
-func createHttpClient(token string) *http.Client {
-	client := &http.Client{
-		Timeout: 0,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			req.Host = req.URL.Hostname()
-			addSessionIdCookie(req, token)
-			return nil
+// NewTntIoDownloader configures and returns an HTTP client suitable for downloading bundles.
+func NewTntIoDownloader(token string) *httpDoer {
+	return &httpDoer{
+		client: &http.Client{
+			Timeout: 0,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				req.Host = req.URL.Hostname()
+				addSessionIdCookie(req, token)
+				return nil
+			},
 		},
+		token: token,
 	}
-	return client
 }
 
 // createHttpRequest creates a new GET HTTP request with the necessary headers and cookies.
@@ -77,10 +110,7 @@ func executeRequestAndCheckResponse(client *http.Client, req *http.Request) (io.
 }
 
 // saveResponseBodyToFile creates the destination file and copies the response body content into it.
-// It ensures the response body is closed and handles potential file writing errors.
-func saveResponseBodyToFile(body io.ReadCloser, destFilePath string) (errRet error) {
-	defer body.Close()
-
+func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 	file, err := os.Create(destFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", destFilePath, err)
@@ -93,7 +123,7 @@ func saveResponseBodyToFile(body io.ReadCloser, destFilePath string) (errRet err
 		}
 	}()
 
-	_, err = io.Copy(file, body)
+	_, err = file.Write(body)
 	if err != nil {
 		file.Close()
 		os.Remove(destFilePath)
@@ -105,20 +135,21 @@ func saveResponseBodyToFile(body io.ReadCloser, destFilePath string) (errRet err
 
 // DownloadBundle downloads a bundle file from the given source URL into the destination directory.
 // It handles potential redirects and uses the provided token for authentication via cookies.
-func DownloadBundle(cliOpts *config.CliOpts, bundleName, bundleSource string,
-	token string, dst string,
-) error {
+func DownloadBundle(searchCtx *search.SearchCtx, bundleName, bundleSource, dst string) error {
+	if searchCtx.TntIoDoer == nil {
+		return fmt.Errorf("no tarantool.io doer was applied")
+	}
+
 	if err := validateDestination(dst); err != nil {
 		return err
 	}
 
-	client := createHttpClient(token)
-	req, err := createHttpRequest(bundleSource, token)
+	req, err := createHttpRequest(bundleSource, searchCtx.TntIoDoer.Token())
 	if err != nil {
 		return err
 	}
 
-	responseBody, err := executeRequestAndCheckResponse(client, req)
+	responseBody, err := searchCtx.TntIoDoer.Do(req)
 	if err != nil {
 		return err
 	}
