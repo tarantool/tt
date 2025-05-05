@@ -872,13 +872,16 @@ func copyBuildedTarantool(binPath, incPath, binDir, includeDir, version string) 
 		return fmt.Errorf("unable to create %s\n Error: %s", includeDir, err)
 	}
 
-	if !strings.HasSuffix(incPath, "/") {
-		// Note: copy.Copy expects the directory path to end with '/'.
-		incPath += "/"
-	}
-	err = copy.Copy(incPath, filepath.Join(includeDir, version)+"/")
-	if err != nil {
-		return err
+	if incPath != "" {
+		if !strings.HasSuffix(incPath, "/") {
+			// Note: copy.Copy expects the directory path to end with '/'.
+			incPath += "/"
+		}
+
+		err = copy.Copy(incPath, filepath.Join(includeDir, version)+"/")
+		if err != nil {
+			return err
+		}
 	}
 	log.Infof("Tarantool executable is installed to: %q", execPath)
 

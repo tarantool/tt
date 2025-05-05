@@ -101,8 +101,8 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 	BundleInfoSlice, error,
 ) {
 	token := ""
-	if searchCtx.tntIoDoer != nil {
-		token = searchCtx.tntIoDoer.Token()
+	if searchCtx.TntIoDoer != nil {
+		token = searchCtx.TntIoDoer.Token()
 	}
 
 	bundles := BundleInfoSlice{}

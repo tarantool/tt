@@ -78,14 +78,21 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	}
 
 	log.Infof("Downloading %s...", bundleName)
-	bundleSource, err := search.TntIoMakePkgURI(ver.Package, ver.Release,
-		bundleName, downloadCtx.DevBuild)
+	searchCtx := search.NewSearchCtx(
+		search.NewPlatformInformer(),
+		install_ee.NewTntIoDownloader(ver.Token),
+	)
+	searchCtx.Program = search.ProgramEe
+	searchCtx.DevBuilds = downloadCtx.DevBuild
+	searchCtx.ReleaseVersion = ver.Release
+
+	bundleSource, err := search.TntIoMakePkgURI(&searchCtx, bundleName)
 	if err != nil {
 		return fmt.Errorf("failed to make URI for downloading: %s", err)
 	}
 
-	err = install_ee.DownloadBundle(cliOpts, bundleName, bundleSource,
-		ver.Token, downloadCtx.DirectoryPrefix)
+	err = install_ee.DownloadBundle(&searchCtx,
+		bundleName, bundleSource, downloadCtx.DirectoryPrefix)
 	if err != nil {
 		return fmt.Errorf("download error: %s", err)
 	}

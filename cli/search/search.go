@@ -33,17 +33,18 @@ type SearchCtx struct {
 	Program ProgramType
 	// Search for development builds.
 	DevBuilds bool
+	// TntIoDoer tarantool.io API handler with interface of TntIoDoer.
+	TntIoDoer TntIoDoer
 
 	platformInformer PlatformInformer
-	tntIoDoer        TntIoDoer
 }
 
 // NewSearchCtx creates a new SearchCtx with default production values.
 func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
 	return SearchCtx{
 		Filter:           SearchRelease,
+		TntIoDoer:        doer,
 		platformInformer: informer,
-		tntIoDoer:        doer,
 	}
 }
 

@@ -218,6 +218,6 @@ func TestNewSearchCtx(t *testing.T) {
 		assert.Equal(t, got.ReleaseVersion, "")
 		assert.Equal(t, got.DevBuilds, false)
 		assert.Implements(t, (*PlatformInformer)(nil), got.platformInformer)
-		assert.Implements(t, (*TntIoDoer)(nil), got.tntIoDoer)
+		assert.Implements(t, (*TntIoDoer)(nil), got.TntIoDoer)
 	})
 }
