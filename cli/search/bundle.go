@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/install_ee"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 // BundleInfo is a structure that contains specific information about SDK bundle.
@@ -79,7 +79,7 @@ func Less(verLeft, verRight version.Version) bool {
 }
 
 // compileVersionRegexp compiles a regular expression for cutting version from SDK bundle names.
-func compileVersionRegexp(prg string) (*regexp.Regexp, error) {
+func compileVersionRegexp(prg ProgramType) (*regexp.Regexp, error) {
 	var expr string
 
 	switch prg {
@@ -101,13 +101,13 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 	BundleInfoSlice, error,
 ) {
 	token := ""
-	if searchCtx.tntIoDoer != nil {
-		token = searchCtx.tntIoDoer.Token()
+	if searchCtx.TntIoDoer != nil {
+		token = searchCtx.TntIoDoer.Token()
 	}
 
 	bundles := BundleInfoSlice{}
 
-	re, err := compileVersionRegexp(searchCtx.ProgramName)
+	re, err := compileVersionRegexp(searchCtx.Program)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 			version.Tarball = pkg
 			eeVer := BundleInfo{
 				Version: version,
-				Package: "enterprise",
+				Package: searchCtx.Package,
 				Release: release,
 				Token:   token,
 			}
@@ -156,12 +156,18 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 	return bundles, nil
 }
 
-// fetchBundlesInfo returns slice of information about all available tarantool-ee bundles.
+// FetchBundlesInfo returns slice of information about all available tarantool-ee bundles.
 // The result will be sorted in ascending order.
-func fetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
+func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 	BundleInfoSlice, error,
 ) {
-	credentials, err := install_ee.GetCreds(cliOpts)
+	searchCtx.Package = GetApiPackage(searchCtx.Program)
+	if searchCtx.Package == "" {
+		return nil, fmt.Errorf("there is no tarantool.io package for program: %s",
+			searchCtx.Program)
+	}
+
+	credentials, err := connect.GetCreds(cliOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -177,4 +183,24 @@ func fetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 	}
 
 	return bundles, nil
+}
+
+// SelectVersion selects a specific version from the list of available bundles.
+// If no version is specified, it returns the latest version.
+func SelectVersion(bs BundleInfoSlice, ver string) (BundleInfo, error) {
+	if bs == nil || bs.Len() == 0 {
+		return BundleInfo{}, fmt.Errorf("no available versions")
+	}
+	if ver == "" {
+		// No version specified, return the latest one.
+		return bs[bs.Len()-1], nil
+	}
+
+	for _, bundle := range bs {
+		if bundle.Version.Str == ver {
+			return bundle, nil
+		}
+	}
+
+	return BundleInfo{}, fmt.Errorf("%q version doesn't found", ver)
 }

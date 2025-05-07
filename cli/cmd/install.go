@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/install"
+	"github.com/tarantool/tt/cli/search"
 )
 
 var installCtx install.InstallCtx
@@ -11,7 +12,7 @@ var installCtx install.InstallCtx
 // newInstallTtCmd creates a command to install tt.
 func newInstallTtCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
-		Use:   "tt [version|commit hash|pull-request]",
+		Use:   search.ProgramTt.String() + " [version|commit hash|pull-request]",
 		Short: "Install tt",
 		Run:   RunModuleFunc(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
@@ -23,7 +24,7 @@ func newInstallTtCmd() *cobra.Command {
 // newInstallTarantoolCmd creates a command to install tarantool.
 func newInstallTarantoolCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
-		Use:   "tarantool [version|commit hash|pull-request]",
+		Use:   search.ProgramCe.String() + " [version|commit hash|pull-request]",
 		Short: "Install tarantool community edition",
 		Run:   RunModuleFunc(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
@@ -40,8 +41,21 @@ func newInstallTarantoolCmd() *cobra.Command {
 // newInstallTarantoolEeCmd creates a command to install tarantool-ee.
 func newInstallTarantoolEeCmd() *cobra.Command {
 	var tntCmd = &cobra.Command{
-		Use:   "tarantool-ee [version]",
+		Use:   search.ProgramEe.String() + " [version]",
 		Short: "Install tarantool enterprise edition",
+		Run:   RunModuleFunc(internalInstallModule),
+		Args:  cobra.MaximumNArgs(1),
+	}
+
+	tntCmd.Flags().BoolVar(&installCtx.DevBuild, "dev", false, "install development build")
+
+	return tntCmd
+}
+
+func newInstallTcmCmd() *cobra.Command {
+	var tntCmd = &cobra.Command{
+		Use:   search.ProgramTcm.String() + " [version]",
+		Short: "Install tarantool claster manager",
 		Run:   RunModuleFunc(internalInstallModule),
 		Args:  cobra.MaximumNArgs(1),
 	}
@@ -91,7 +105,7 @@ func NewInstallCmd() *cobra.Command {
 	}
 	installCmd.Flags().BoolVarP(&installCtx.Force, "force", "f", false,
 		"don't do a dependency check before installing")
-	installCmd.Flags().BoolVarP(&installCtx.Noclean, "no-clean", "", false,
+	installCmd.Flags().BoolVarP(&installCtx.KeepTemp, "no-clean", "", false,
 		"don't delete temporary files")
 	installCmd.Flags().BoolVarP(&installCtx.Reinstall, "reinstall", "", false, "reinstall program")
 	installCmd.Flags().BoolVarP(&installCtx.Local, "local-repo", "", false,
@@ -102,6 +116,7 @@ func NewInstallCmd() *cobra.Command {
 		newInstallTarantoolCmd(),
 		newInstallTarantoolEeCmd(),
 		newInstallTarantoolDevCmd(),
+		newInstallTcmCmd(),
 	)
 
 	return installCmd
@@ -118,7 +133,6 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	err = install.Install(cliOpts.Env.BinDir, cliOpts.Env.IncludeDir,
-		installCtx, cliOpts.Repo.Install, cliOpts)
+	err = install.Install(installCtx, cliOpts)
 	return err
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
+	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/uninstall"
 )
 
@@ -30,8 +31,8 @@ func newUninstallTtCmd() *cobra.Command {
 
 // newUninstallTarantoolCmd creates a command to install tarantool.
 func newUninstallTarantoolCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
-		Use:   "tarantool [version]",
+	tntCmd := &cobra.Command{
+		Use:   search.ProgramCe.String() + " [version]",
 		Short: "Uninstall tarantool community edition",
 		Run:   RunModuleFunc(InternalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
@@ -52,8 +53,8 @@ func newUninstallTarantoolCmd() *cobra.Command {
 
 // newUninstallTarantoolEeCmd creates a command to install tarantool-ee.
 func newUninstallTarantoolEeCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
-		Use:   "tarantool-ee [version]",
+	tntCmd := &cobra.Command{
+		Use:   search.ProgramEe.String() + " [version]",
 		Short: "Uninstall tarantool enterprise edition",
 		Run:   RunModuleFunc(InternalUninstallModule),
 		Args:  cobra.MaximumNArgs(1),
@@ -111,13 +112,13 @@ func InternalUninstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
-	programName := cmdCtx.CommandName
+	program := search.NewProgramType(cmdCtx.CommandName)
 	programVersion := ""
 	if len(args) == 1 {
 		programVersion = args[0]
 	}
 
-	err := uninstall.UninstallProgram(programName, programVersion, cliOpts.Env.BinDir,
+	err := uninstall.UninstallProgram(program, programVersion, cliOpts.Env.BinDir,
 		cliOpts.Env.IncludeDir+"/include", cmdCtx)
 	return err
 }

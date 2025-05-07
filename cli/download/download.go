@@ -23,9 +23,28 @@ type DownloadCtx struct {
 	DevBuild bool
 }
 
+// searchSDKVersionToDownload wrapper to call search package.
+func searchSDKVersionToDownload(downloadCtx DownloadCtx, cliOpts *config.CliOpts) (
+	search.BundleInfo, error,
+) {
+	log.Info("Search for the requested version...")
+	searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
+	searchCtx.Program = search.ProgramEe
+	searchCtx.Filter = search.SearchAll
+	searchCtx.Package = "enterprise"
+	searchCtx.DevBuilds = downloadCtx.DevBuild
+
+	bundles, err := search.FetchBundlesInfo(&searchCtx, cliOpts)
+	if err != nil {
+		return search.BundleInfo{}, fmt.Errorf("cannot get SDK bundles list: %s", err)
+	}
+	return search.SelectVersion(bundles, downloadCtx.Version)
+}
+
 // DownloadSDK Downloads and saves the SDK.
 func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
-	cliOpts *config.CliOpts) error {
+	cliOpts *config.CliOpts,
+) error {
 	var err error
 
 	if len(downloadCtx.DirectoryPrefix) == 0 {
@@ -39,11 +58,9 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 		return fmt.Errorf("bad directory prefix: %s", err)
 	}
 
-	log.Info("Search for the requested version...")
-	ver, err := search.GetEeBundleInfo(cliOpts, false,
-		downloadCtx.DevBuild, nil, downloadCtx.Version)
+	ver, err := searchSDKVersionToDownload(downloadCtx, cliOpts)
 	if err != nil {
-		return fmt.Errorf("cannot get SDK bundle info: %s", err)
+		return fmt.Errorf("no version for download: %s", err)
 	}
 
 	bundleName := ver.Version.Tarball
@@ -61,14 +78,21 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 	}
 
 	log.Infof("Downloading %s...", bundleName)
-	bundleSource, err := search.TntIoMakePkgURI(ver.Package, ver.Release,
-		bundleName, downloadCtx.DevBuild)
+	searchCtx := search.NewSearchCtx(
+		search.NewPlatformInformer(),
+		install_ee.NewTntIoDownloader(ver.Token),
+	)
+	searchCtx.Program = search.ProgramEe
+	searchCtx.DevBuilds = downloadCtx.DevBuild
+	searchCtx.ReleaseVersion = ver.Release
+
+	bundleSource, err := search.TntIoMakePkgURI(&searchCtx, bundleName)
 	if err != nil {
 		return fmt.Errorf("failed to make URI for downloading: %s", err)
 	}
 
-	err = install_ee.GetTarantoolEE(cliOpts, bundleName, bundleSource,
-		ver.Token, downloadCtx.DirectoryPrefix)
+	err = install_ee.DownloadBundle(searchCtx.TntIoDoer,
+		bundleName, bundleSource, downloadCtx.DirectoryPrefix)
 	if err != nil {
 		return fmt.Errorf("download error: %s", err)
 	}

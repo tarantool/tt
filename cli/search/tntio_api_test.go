@@ -6,13 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/apex/log"
+	"github.com/apex/log/handlers/memory"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/search"
@@ -149,7 +150,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 	defer os.Unsetenv("TT_CLI_EE_PASSWORD")
 
 	tests := map[string]struct {
-		program          string
+		program          search.ProgramType
 		platform         platformInfo
 		specificVersion  string
 		devBuilds        bool
@@ -342,7 +343,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 		"unknown_os": {
 			program:  search.ProgramTcm,
 			platform: platformInfo{arch: "x86_64", os: util.OsUnknown},
-			errMsg: "failed to fetch bundle info for " + search.ProgramTcm +
+			errMsg: "failed to fetch bundle info for " + search.ProgramTcm.String() +
 				": failed to get OS type for API: unsupported OS: " +
 				strconv.Itoa(int(util.OsUnknown)),
 		},
@@ -394,13 +395,14 @@ func TestSearchVersions_TntIo(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			originalStdout := os.Stdout
-			var logBuf bytes.Buffer
-			log.SetOutput(&logBuf)
+			handler := memory.New()
+			log.SetHandler(handler)
+			log.SetLevel(log.DebugLevel)
+
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 			defer func() {
 				os.Stdout = originalStdout
-				log.SetOutput(os.Stderr)
 			}()
 
 			// Configure the mockDoer for this specific test case.
@@ -412,7 +414,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 
 			// Create SearchCtx with the configured mock.
 			sCtx := search.NewSearchCtx(&tt.platform, &mockDoer)
-			sCtx.ProgramName = tt.program
+			sCtx.Program = tt.program
 			sCtx.ReleaseVersion = tt.specificVersion
 			sCtx.DevBuilds = tt.devBuilds
 			if tt.searchDebug {
@@ -426,24 +428,148 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			_, readErr := outBuf.ReadFrom(r)
 			require.NoError(t, readErr, "Failed to read from stdout pipe")
 			gotOutput := outBuf.String()
-			gotLog := logBuf.String()
 
+			var logBuilder strings.Builder
+			for _, entry := range handler.Entries {
+				logBuilder.WriteString(fmt.Sprintf("%s %s\n", entry.Level, entry.Message))
+			}
+			gotLog := logBuilder.String()
 			t.Logf("Log:\n%s", gotLog)
 
 			if tt.errMsg != "" {
 				require.Error(t, err, "Expected an error, but got nil")
 				require.Contains(t, err.Error(), tt.errMsg,
 					"Expected error message does not match")
-			} else {
-				require.NoError(t, err, "Expected no error, but got: %v", err)
-				require.Contains(t,
-					gotLog,
-					"info Available versions of "+tt.program+":",
-					"No info log found")
-
-				t.Logf("Output:\n%s", gotOutput)
-				checkOutputVersionOrder(t, gotOutput, tt.expectedVersions)
+				return
 			}
+			require.NoError(t, err, "Expected no error, but got: %v", err)
+			require.Contains(t,
+				gotLog,
+				"info Available versions of "+tt.program.String()+":",
+				"No info log found")
+
+			t.Logf("Output:\n%s", gotOutput)
+			checkOutputVersionOrder(t, gotOutput, tt.expectedVersions)
+		})
+	}
+}
+
+func TestTntIoMakePkgURI(t *testing.T) {
+	type args struct {
+		platform  *platformInfo
+		program   search.ProgramType
+		version   string
+		devBuilds bool
+		tarball   string
+	}
+	tests := map[string]struct {
+		args     args
+		expected string
+		errMsg   string
+	}{
+		"tcm x86 linux": {
+			args: args{
+				platform: &platformInfo{arch: "x86_64", os: util.OsLinux},
+				program:  search.ProgramTcm,
+				version:  "1.3",
+				tarball:  "tcm.tar.gz",
+			},
+			// nolint: lll
+			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/tarantool-cluster-manager/release/linux/amd64/1.3/tcm.tar.gz",
+		},
+
+		"tcm arm macos": {
+			args: args{
+				platform:  &platformInfo{arch: "aarch64", os: util.OsMacos},
+				program:   search.ProgramTcm,
+				version:   "1.1",
+				devBuilds: true,
+				tarball:   "tcm.tar.gz",
+			},
+			// nolint: lll
+			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/tarantool-cluster-manager/dev/macos/arm64/1.1/tcm.tar.gz",
+		},
+
+		"tarantool x86 linux": {
+			args: args{
+				platform: &platformInfo{arch: "x86_64", os: util.OsLinux},
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			// nolint: lll
+			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/enterprise/release/linux/x86_64/3.0/tarantool.tar.gz",
+		},
+
+		"tarantool arm macos": {
+			args: args{
+				platform:  &platformInfo{arch: "aarch64", os: util.OsMacos},
+				program:   search.ProgramEe,
+				version:   "3.3",
+				devBuilds: true,
+				tarball:   "tarantool.tar.gz",
+			},
+			// nolint: lll
+			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/enterprise/dev/macos/aarch64/3.3/tarantool.tar.gz",
+		},
+
+		"no platform informer": {
+			args: args{
+				platform: nil,
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			errMsg: "no platform informer was applied",
+		},
+
+		"wrong arch": {
+			args: args{
+				platform: &platformInfo{arch: "arm", os: util.OsLinux},
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			errMsg: "unsupported architecture: arm",
+		},
+
+		"empty arch": {
+			args: args{
+				platform: &platformInfo{arch: "", os: util.OsLinux},
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			errMsg: "failed to get architecture: mock architecture not applied",
+		},
+
+		"wrong os": {
+			args: args{
+				platform: &platformInfo{arch: "x86_64", os: util.OsUnknown},
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			errMsg: "unsupported OS: " + strconv.Itoa(int(util.OsUnknown)),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			sCtx := search.NewSearchCtx(tt.args.platform, nil)
+			sCtx.Program = tt.args.program
+			sCtx.ReleaseVersion = tt.args.version
+			sCtx.DevBuilds = tt.args.devBuilds
+
+			got, err := search.TntIoMakePkgURI(&sCtx, tt.args.tarball)
+			if tt.errMsg != "" {
+				require.Error(t, err, "Expected an error, but got nil")
+				require.Contains(t, err.Error(), tt.errMsg,
+					"Expected error message does not match")
+				return
+			}
+			require.NoError(t, err, "Expected no error, but got: %v", err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }

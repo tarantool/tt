@@ -5,7 +5,7 @@ go 1.23.8
 require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tarantool/go-tarantool/v2 v2.2.1
+	github.com/tarantool/go-tarantool/v2 v2.3.2
 	github.com/tarantool/tt/lib/connect v0.0.0-0
 	go.etcd.io/etcd/api/v3 v3.5.12
 	go.etcd.io/etcd/client/pkg/v3 v3.5.12
@@ -46,6 +46,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.0.0 // indirect
+	github.com/tarantool/tt v1.3.1 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/bbolt v1.3.8 // indirect
@@ -62,6 +63,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.20.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
+	golang.org/x/term v0.29.0 // indirect
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -76,7 +78,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tarantool/go-tlsdialer v1.0.0
-	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
+	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.etcd.io/etcd/tests/v3 v3.5.12
 	go.uber.org/atomic v1.7.0 // indirect
