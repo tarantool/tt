@@ -453,3 +453,123 @@ func TestSearchVersions_TntIo(t *testing.T) {
 		})
 	}
 }
+
+func TestTntIoMakePkgURI(t *testing.T) {
+	type args struct {
+		platform  *platformInfo
+		program   search.Program
+		version   string
+		devBuilds bool
+		tarball   string
+	}
+	tests := map[string]struct {
+		args     args
+		expected string
+		errMsg   string
+	}{
+		"tcm x86 linux": {
+			args: args{
+				platform: &platformInfo{arch: "x86_64", os: util.OsLinux},
+				program:  search.ProgramTcm,
+				version:  "1.3",
+				tarball:  "tcm.tar.gz",
+			},
+			// nolint: lll
+			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/tarantool-cluster-manager/release/linux/amd64/1.3/tcm.tar.gz",
+		},
+
+		"tcm arm macos": {
+			args: args{
+				platform:  &platformInfo{arch: "aarch64", os: util.OsMacos},
+				program:   search.ProgramTcm,
+				version:   "1.1",
+				devBuilds: true,
+				tarball:   "tcm.tar.gz",
+			},
+			// nolint: lll
+			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/tarantool-cluster-manager/dev/macos/arm64/1.1/tcm.tar.gz",
+		},
+
+		"tarantool x86 linux": {
+			args: args{
+				platform: &platformInfo{arch: "x86_64", os: util.OsLinux},
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			// nolint: lll
+			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/enterprise/release/linux/x86_64/3.0/tarantool.tar.gz",
+		},
+
+		"tarantool arm macos": {
+			args: args{
+				platform:  &platformInfo{arch: "aarch64", os: util.OsMacos},
+				program:   search.ProgramEe,
+				version:   "3.3",
+				devBuilds: true,
+				tarball:   "tarantool.tar.gz",
+			},
+			// nolint: lll
+			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/enterprise/dev/macos/aarch64/3.3/tarantool.tar.gz",
+		},
+
+		"no platform informer": {
+			args: args{
+				platform: nil,
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			errMsg: "no platform informer was applied",
+		},
+
+		"wrong arch": {
+			args: args{
+				platform: &platformInfo{arch: "arm", os: util.OsLinux},
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			errMsg: "unsupported architecture: arm",
+		},
+
+		"empty arch": {
+			args: args{
+				platform: &platformInfo{arch: "", os: util.OsLinux},
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			errMsg: "failed to get architecture: mock architecture not applied",
+		},
+
+		"wrong os": {
+			args: args{
+				platform: &platformInfo{arch: "x86_64", os: util.OsUnknown},
+				program:  search.ProgramEe,
+				version:  "3.0",
+				tarball:  "tarantool.tar.gz",
+			},
+			errMsg: "unsupported OS: " + strconv.Itoa(int(util.OsUnknown)),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			sCtx := search.NewSearchCtx(tt.args.platform, nil)
+			sCtx.Program = tt.args.program
+			sCtx.ReleaseVersion = tt.args.version
+			sCtx.DevBuilds = tt.args.devBuilds
+
+			got, err := search.TntIoMakePkgURI(&sCtx, tt.args.tarball)
+			if tt.errMsg != "" {
+				require.Error(t, err, "Expected an error, but got nil")
+				require.Contains(t, err.Error(), tt.errMsg,
+					"Expected error message does not match")
+				return
+			}
+			require.NoError(t, err, "Expected no error, but got: %v", err)
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}

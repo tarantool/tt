@@ -157,7 +157,7 @@ func downloadBundle(bp *bundleParams) error {
 	}
 
 	log.Infof("Downloading %s... (%s)", bp.inst.Program, bundleSource)
-	err = install_ee.DownloadBundle(&searchCtx, bundleName, bundleSource, bp.tmpDir)
+	err = install_ee.DownloadBundle(searchCtx.TntIoDoer, bundleName, bundleSource, bp.tmpDir)
 	if err != nil {
 		fmt.Fprintf(bp.logFile, "Error downloading bundle: %v\n", err)
 		return fmt.Errorf("failed to download bundle: %w", err)
