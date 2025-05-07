@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"github.com/tarantool/tt/cli/util"
@@ -155,7 +156,7 @@ func getBuildType(isDev bool) string {
 func TntIoMakePkgURI(searchCtx *SearchCtx, Tarball string) (string, error) {
 	var uri string
 
-	if searchCtx.platformInformer == nil {
+	if searchCtx.platformInformer == nil || reflect.ValueOf(searchCtx.platformInformer).IsNil() {
 		return "", fmt.Errorf("no platform informer was applied")
 	}
 

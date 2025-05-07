@@ -91,7 +91,7 @@ func DownloadSDK(cmdCtx *cmdcontext.CmdCtx, downloadCtx DownloadCtx,
 		return fmt.Errorf("failed to make URI for downloading: %s", err)
 	}
 
-	err = install_ee.DownloadBundle(&searchCtx,
+	err = install_ee.DownloadBundle(searchCtx.TntIoDoer,
 		bundleName, bundleSource, downloadCtx.DirectoryPrefix)
 	if err != nil {
 		return fmt.Errorf("download error: %s", err)

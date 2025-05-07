@@ -1443,7 +1443,7 @@ func Install(installCtx InstallCtx, cliOpts *config.CliOpts) error {
 		}
 	}
 	includeDir = filepath.Join(includeDir, "include")
-	if installCtx.IncDir == "" {
+	if installCtx.IncDir == "" && installCtx.Program != search.ProgramDev {
 		installCtx.IncDir = includeDir
 	}
 

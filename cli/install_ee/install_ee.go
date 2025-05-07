@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/tarantool/tt/cli/search"
 	"github.com/tarantool/tt/cli/util"
@@ -93,22 +94,6 @@ func createHttpRequest(bundleSource, token string) (*http.Request, error) {
 	return req, nil
 }
 
-// executeRequestAndCheckResponse executes the HTTP request and checks the response status.
-// It returns the response body if the status is OK. Caller is responsible for closing it.
-func executeRequestAndCheckResponse(client *http.Client, req *http.Request) (io.ReadCloser, error) {
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		res.Body.Close()
-		return nil, fmt.Errorf("HTTP request error: %s", http.StatusText(res.StatusCode))
-	}
-
-	return res.Body, nil
-}
-
 // saveResponseBodyToFile creates the destination file and copies the response body content into it.
 func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 	file, err := os.Create(destFilePath)
@@ -135,8 +120,8 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 
 // DownloadBundle downloads a bundle file from the given source URL into the destination directory.
 // It handles potential redirects and uses the provided token for authentication via cookies.
-func DownloadBundle(searchCtx *search.SearchCtx, bundleName, bundleSource, dst string) error {
-	if searchCtx.TntIoDoer == nil {
+func DownloadBundle(doer search.TntIoDoer, bundleName, bundleSource, dst string) error {
+	if doer == nil || reflect.ValueOf(doer).IsNil() {
 		return fmt.Errorf("no tarantool.io doer was applied")
 	}
 
@@ -144,12 +129,12 @@ func DownloadBundle(searchCtx *search.SearchCtx, bundleName, bundleSource, dst s
 		return err
 	}
 
-	req, err := createHttpRequest(bundleSource, searchCtx.TntIoDoer.Token())
+	req, err := createHttpRequest(bundleSource, doer.Token())
 	if err != nil {
 		return err
 	}
 
-	responseBody, err := searchCtx.TntIoDoer.Do(req)
+	responseBody, err := doer.Do(req)
 	if err != nil {
 		return err
 	}
