@@ -155,17 +155,6 @@ func ParseYAML(path string) (map[string]interface{}, error) {
 	return raw, nil
 }
 
-// GetHelpCommand returns the help command for the passed cmd argument.
-func GetHelpCommand(cmd *cobra.Command) *cobra.Command {
-	for _, subcmd := range cmd.Commands() {
-		if subcmd.Name() == "help" {
-			return subcmd
-		}
-	}
-
-	return nil
-}
-
 // GetHomeDir returns current home directory.
 func GetHomeDir() (string, error) {
 	usr, err := user.Current()
