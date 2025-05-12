@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   manager (TCM) in the customer zone or local `distfiles` directory.
 - `tt install tcm` - the command performs an install for tarantool cluster
   manager (TCM) from the customer zone or local `distfiles` directory.
+- `tt uninstall tcm [version]` - the command removes installed tarantool
+  cluster manager from the `bin` directory.
 - `tt tcm status`: added command to check TCM runtime status (modes: `watchdog` or `interactive`).
 - `tt tcm stop`: add command for graceful termination of TCM processes (modes: `watchdog` or `interactive`).
 

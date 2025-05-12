@@ -90,6 +90,29 @@ func newUninstallTarantoolDevCmd() *cobra.Command {
 	return tntCmd
 }
 
+// newUninstallTcmCmd creates a command to install tarantool-ee.
+func newUninstallTcmCmd() *cobra.Command {
+	tntCmd := &cobra.Command{
+		Use:   search.ProgramTcm.String() + " [version]",
+		Short: "Uninstall tarantool cluster manager",
+		Run:   RunModuleFunc(InternalUninstallModule),
+		Args:  cobra.MaximumNArgs(1),
+		ValidArgsFunction: func(
+			cmd *cobra.Command,
+			args []string,
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return []string{}, cobra.ShellCompDirectiveNoFileComp
+			}
+			return uninstall.GetList(cliOpts, cmd.Name()),
+				cobra.ShellCompDirectiveNoFileComp
+		},
+	}
+
+	return tntCmd
+}
+
 // NewUninstallCmd creates uninstall command.
 func NewUninstallCmd() *cobra.Command {
 	uninstallCmd := &cobra.Command{
@@ -106,6 +129,7 @@ func NewUninstallCmd() *cobra.Command {
 		newUninstallTarantoolCmd(),
 		newUninstallTarantoolEeCmd(),
 		newUninstallTarantoolDevCmd(),
+		newUninstallTcmCmd(),
 	)
 
 	return uninstallCmd
