@@ -118,6 +118,8 @@ func JoinAbspath(paths ...string) (string, error) {
 }
 
 // Find find index of specified string in the slice.
+//
+// Deprecated: use [slices.Index] or [slices.Contains] instead.
 func Find(src []string, find string) int {
 	for i, elem := range src {
 		if find == elem {
