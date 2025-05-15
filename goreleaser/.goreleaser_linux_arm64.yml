@@ -125,7 +125,7 @@ nfpms:
         dst: /usr/lib/systemd/system/replicaset_example@.service
         packager: rpm
 
-      # ZSH and Bash autocompletion scripts get placed in appropriate directories
+      # ZSH, Bash and Fish autocompletion scripts get placed in appropriate directories
       # and get activated automatically with restarting corresponding shell after
       # the package installation.
       # Sources:
@@ -135,6 +135,8 @@ nfpms:
         dst: "/usr/share/bash-completion/completions/tt"
       - src: "tt-completion.zsh"
         dst: "/usr/share/zsh/vendor-completions/_tt"
+      - src: "tt-completion.fish"
+        dst: "/usr/share/fish/completions/tt.fish"
 
     overrides:
       rpm:
