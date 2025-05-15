@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/tarantool/tt/cli/install"
@@ -18,13 +19,10 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
-var progRegexp = "(?P<prog>" +
-	search.ProgramTt.String() + "|" +
-	search.ProgramCe.String() + "|" +
-	search.ProgramEe.String() + ")"
-
 const (
-	verRegexp = "(?P<ver>.*)"
+	progRegexp = "(?P<prog>.+)"
+
+	verRegexp = "(?P<ver>.+)"
 
 	MajorMinorPatchRegexp = `^[0-9]+\.[0-9]+\.[0-9]+`
 )
@@ -34,7 +32,8 @@ var errNotInstalled = errors.New("program is not installed")
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
 func remove(program search.Program, programVersion string, directory string,
-	cmdCtx *cmdcontext.CmdCtx) (bool, error) {
+	cmdCtx *cmdcontext.CmdCtx,
+) (bool, error) {
 	var linkPath string
 	var err error
 
@@ -94,7 +93,8 @@ func UninstallProgram(
 	programVersion string,
 	binDst string,
 	headerDst string,
-	cmdCtx *cmdcontext.CmdCtx) error {
+	cmdCtx *cmdcontext.CmdCtx,
+) error {
 	log.Infof("Removing binary...")
 	var err error
 
@@ -236,12 +236,12 @@ func GetList(cliOpts *config.CliOpts, program string) []string {
 }
 
 // searchLatestVersion searches for the latest installed version of the program.
-func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
-	var programsToSearch []string
-	if linkName == "tarantool" {
-		programsToSearch = []string{search.ProgramCe.String(), search.ProgramEe.String()}
-	} else {
-		programsToSearch = []string{linkName}
+//
+// Note: Searching `tarantool` EE or Dev versions may lead to found the latest CE version.
+func searchLatestVersion(program search.Program, binDst, headerDst string) (string, error) {
+	programsToSearch := []string{program.Exec()}
+	if program.IsTarantool() && program.Exec() != program.String() {
+		programsToSearch = append(programsToSearch, program.String())
 	}
 
 	programRegex := regexp.MustCompile(
@@ -255,7 +255,6 @@ func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 
 	latestVersionInfo := version.Version{}
 	latestVersion := ""
-	hashFound := false
 	latestHash := ""
 
 	for _, binary := range binaries {
@@ -272,31 +271,31 @@ func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 		}
 
 		programName := matches["prog"]
+
 		// Need to find the program in the list of suitable.
-		if util.Find(programsToSearch, programName) == -1 {
+		if !slices.Contains(programsToSearch, programName) {
 			continue
 		}
-		isRightFormat, _ := util.IsValidCommitHash(matches["ver"])
-
-		if isRightFormat {
-			if hashFound {
+		if latestHash == "" {
+			isHash, _ := util.IsValidCommitHash(matches["ver"])
+			if isHash {
+				if program.IsTarantool() {
+					// Same version of headers is required to activate the Tarantool binary.
+					if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
+						continue
+					}
+				}
+				latestHash = binaryName
 				continue
 			}
-			if strings.Contains(programName, "tarantool") {
-				// Check for headers.
-				if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
-					continue
-				}
-			}
-			hashFound = true
-			latestHash = binaryName
-			continue
 		}
+
 		ver, err := version.Parse(matches["ver"])
 		if err != nil {
+			log.Debugf("%q skipped: wrong version format", binaryName)
 			continue
 		}
-		if strings.Contains(programName, "tarantool") {
+		if program.IsTarantool() {
 			// Check for headers.
 			if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
 				continue
@@ -318,7 +317,7 @@ func searchLatestVersion(linkName, binDst, headerDst string) (string, error) {
 func switchProgramToLatestVersion(program search.Program, binDst, headerDst string) error {
 	linkName := program.Exec()
 
-	progToSwitch, err := searchLatestVersion(linkName, binDst, headerDst)
+	progToSwitch, err := searchLatestVersion(program, binDst, headerDst)
 	if err != nil {
 		return err
 	}
