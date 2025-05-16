@@ -113,6 +113,7 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error
 		search.ProgramCe,
 		search.ProgramDev,
 		search.ProgramEe,
+		search.ProgramTcm,
 	}
 	fmt.Println("List of installed binaries:")
 	for _, program := range programs {
