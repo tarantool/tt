@@ -32,7 +32,7 @@ def test_switch(tt_cmd, tmp_path):
     )
     install_process_rc = install_process.wait()
     output = install_process.stdout.read()
-    assert "Switching to tarantool 2.10.3" in output
+    assert "Switching to tarantool_2.10.3" in output
     assert install_process_rc == 0
 
     bin_path = os.path.join(tt_dir, "bin")
@@ -70,7 +70,7 @@ def test_switch_with_link(tt_cmd, tmp_path):
     )
     install_process_rc = install_process.wait()
     output = install_process.stdout.read()
-    assert "Switching to tarantool 2.10.3" in output
+    assert "Switching to tarantool_2.10.3" in output
     assert install_process_rc == 0
 
     bin_path = os.path.join(tt_dir, "bin")
@@ -136,7 +136,7 @@ def test_switch_tt(tt_cmd, tmp_path):
     )
     switch_process_rc = switch_process.wait()
     output = switch_process.stdout.read()
-    assert "Switching to tt 7.7.7" in output
+    assert "Switching to tt_v7.7.7" in output
     assert switch_process_rc == 0
 
     expected_bin = os.path.join(bin_dir_path, "tt_v7.7.7")
@@ -168,7 +168,7 @@ def test_switch_tt_full_version_name(tt_cmd, tmp_path):
     )
     switch_process_rc = switch_process.wait()
     output = switch_process.stdout.read()
-    assert "Switching to tt v7.7.7" in output
+    assert "Switching to tt_v7.7.7" in output
     assert switch_process_rc == 0
 
     expected_bin = os.path.join(bin_dir_path, "tt_v7.7.7")

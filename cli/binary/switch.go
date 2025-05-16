@@ -93,72 +93,66 @@ func ChooseVersion(binDir string, program search.Program) (string, error) {
 	return version, err
 }
 
-// switchTt switches 'tt' program.
-func switchTt(switchCtx SwitchCtx) error {
-	log.Infof("Switching to %s %s.", switchCtx.Program, switchCtx.Version)
+// switchHeaders makes symlink for required version of headers.
+func switchHeaders(switchCtx *SwitchCtx, versionStr string) error {
+	includeDir := filepath.Join(switchCtx.IncDir, "include")
 
-	ttVersion := switchCtx.Version
-	if !strings.HasPrefix(switchCtx.Version, "v") {
-		ttVersion = "v" + ttVersion
+	if !util.IsDir(filepath.Join(includeDir, versionStr)) {
+		return fmt.Errorf("headers %s is not installed in current environment", versionStr)
 	}
-	versionStr := search.ProgramTt.String() + version.FsSeparator + ttVersion
 
-	if util.IsRegularFile(filepath.Join(switchCtx.BinDir, versionStr)) {
-		err := util.CreateSymlink(versionStr, filepath.Join(switchCtx.BinDir, "tt"), true)
-		if err != nil {
-			return fmt.Errorf("failed to switch version: %s", err)
-		}
-		log.Infof("Done")
-	} else {
-		return fmt.Errorf("%s %s is not installed in current environment",
-			switchCtx.Program, switchCtx.Version)
+	err := util.CreateSymlink(versionStr,
+		filepath.Join(includeDir, switchCtx.Program.Exec()),
+		true)
+	if err != nil {
+		return fmt.Errorf("failed create symlink: %s", err)
 	}
 	return nil
 }
 
-// switchTarantool switches 'tarantool' program.
-func switchTarantool(switchCtx SwitchCtx, enterprise bool) error {
-	log.Infof("Switching to %s %s.", switchCtx.Program, switchCtx.Version)
-	var versionStr string
-	if enterprise {
-		versionStr = search.ProgramEe.String() + version.FsSeparator + switchCtx.Version
-	} else {
-		versionStr = search.ProgramCe.String() + version.FsSeparator + switchCtx.Version
+// switchBinary makes symlink for required binary version.
+func switchBinary(switchCtx *SwitchCtx, versionStr string) error {
+	newBinary := filepath.Join(switchCtx.BinDir, versionStr)
+	if !util.IsRegularFile(newBinary) {
+		return fmt.Errorf("binary %s is not installed in current environment", newBinary)
 	}
-	if util.IsRegularFile(filepath.Join(switchCtx.BinDir, versionStr)) &&
-		util.IsDir(filepath.Join(switchCtx.IncDir, "include", versionStr)) {
-		err := util.CreateSymlink(versionStr, filepath.Join(switchCtx.BinDir,
-			"tarantool"), true)
-		if err != nil {
-			return fmt.Errorf("failed to switch version: %s", err)
-		}
-		err = util.CreateSymlink(versionStr, filepath.Join(switchCtx.IncDir,
-			"include", "tarantool"), true)
-		if err != nil {
-			return fmt.Errorf("failed to switch version: %s", err)
-		}
-		log.Infof("Done")
-	} else {
-		return fmt.Errorf("%s %s is not installed in current environment",
-			switchCtx.Program, switchCtx.Version)
+
+	err := util.CreateSymlink(versionStr,
+		filepath.Join(switchCtx.BinDir, switchCtx.Program.Exec()),
+		true)
+	if err != nil {
+		return fmt.Errorf("failed create symlink: %s", err)
 	}
 	return nil
 }
 
 // Switch switches binaries.
-func Switch(switchCtx SwitchCtx) error {
-	var err error
-
+func Switch(switchCtx *SwitchCtx) error {
 	switch switchCtx.Program {
 	case search.ProgramTt:
-		err = switchTt(switchCtx)
-	case search.ProgramCe:
-		err = switchTarantool(switchCtx, false)
-	case search.ProgramEe:
-		err = switchTarantool(switchCtx, true)
-	default:
+		if !strings.HasPrefix(switchCtx.Version, "v") {
+			switchCtx.Version = "v" + switchCtx.Version
+		}
+
+	case search.ProgramUnknown:
 		return fmt.Errorf("unknown application: %s", switchCtx.Program)
 	}
 
-	return err
+	versionStr := switchCtx.Program.String() + version.FsSeparator + switchCtx.Version
+	log.Infof("Switching to %s", versionStr)
+
+	err := switchBinary(switchCtx, versionStr)
+	if err != nil {
+		return fmt.Errorf("failed to switch binary: %s", err)
+	}
+
+	if switchCtx.Program.IsTarantool() {
+		err = switchHeaders(switchCtx, versionStr)
+		if err != nil {
+			return fmt.Errorf("failed to switch headers: %s", err)
+		}
+	}
+
+	log.Infof("Done")
+	return nil
 }
