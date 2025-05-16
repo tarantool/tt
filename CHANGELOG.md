@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   manager (TCM) from the customer zone or local `distfiles` directory.
 - `tt tcm status`: added command to check TCM runtime status (modes: `watchdog` or `interactive`).
 - `tt tcm stop`: add command for graceful termination of TCM processes (modes: `watchdog` or `interactive`).
+- Add support manage installed `tcm` versions via `tt binaries` CLI.
 
 ### Changed
 

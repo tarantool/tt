@@ -14,12 +14,14 @@ var binariesSupportedPrograms = []string{
 	search.ProgramCe.String(),
 	search.ProgramEe.String(),
 	search.ProgramTt.String(),
+	search.ProgramTcm.String(),
 }
 
 // NewBinariesCmd creates binaries command.
 func NewBinariesCmd() *cobra.Command {
 	binariesCmd := &cobra.Command{
-		Use: "binaries",
+		Use:   "binaries",
+		Short: "Manage installed binaries",
 	}
 
 	switchCmd := &cobra.Command{
@@ -41,8 +43,9 @@ You will need to choose version using arrow keys in your console.
 # Switch with program and version.
 
 	$ tt binaries switch tarantool 2.10.4`,
-		Run:  RunModuleFunc(internalSwitchModule),
-		Args: cobra.MatchAll(cobra.MaximumNArgs(2), binariesSwitchValidateArgs),
+		Run:       RunModuleFunc(internalSwitchModule),
+		Args:      cobra.MatchAll(cobra.MaximumNArgs(2), binariesSwitchValidateArgs),
+		ValidArgs: binariesSupportedPrograms,
 	}
 	listCmd := &cobra.Command{
 		Use:   "list",
@@ -95,7 +98,7 @@ func internalSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	switchCtx.BinDir = cliOpts.Env.BinDir
 	switchCtx.IncDir = cliOpts.Env.IncludeDir
 
-	err = binary.Switch(switchCtx)
+	err = binary.Switch(&switchCtx)
 	return err
 }
 
