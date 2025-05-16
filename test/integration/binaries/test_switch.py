@@ -1,176 +1,130 @@
-import os
-import shutil
-import subprocess
+from pathlib import Path
+from shutil import copyfile, copytree
+from typing import Optional
 
-import yaml
+import pytest
 
-from utils import config_name
+from utils import config_name, run_command_and_get_output
+
+DATA_DIR = Path(__file__).parent / "testdata"
 
 
-def test_switch(tt_cmd, tmp_path):
-    # Copy test files.
-    testdata_path = os.path.join(
-        os.path.dirname(__file__),
-        "testdata/test_tarantool"
-    )
-    shutil.copytree(testdata_path, tmp_path / "testdata", True)
-    testdata_path = tmp_path / "testdata"
+def assert_active_binaries(symlink: Path, expected: str, inc_subdir: Optional[str]):
+    expected_name = f"{symlink.name}_{expected}"
+    bin = symlink.resolve()
+    bin_expected = symlink.with_name(expected_name)
+    assert bin == bin_expected
 
-    tt_dir = os.path.join(testdata_path, "tt")
+    if inc_subdir:
+        includes = symlink.parents[1] / inc_subdir / "include"
+        inc_actual = includes / symlink.name
+        assert inc_actual.is_symlink()
+        inc_actual = inc_actual.resolve()
+        inc_expected = includes / expected_name
+        assert inc_expected == inc_actual
 
-    install_cmd = [
+
+@pytest.mark.parametrize(
+    "program, version, includes",
+    [
+        pytest.param("tarantool", "2.10.3", "inc", id="tarantool"),
+        pytest.param("tcm", "1.2.0-11-g2d0a0f495", None, id="tcm"),
+        pytest.param("tt", "v0.1.0", None, id="tt"),
+    ],
+)
+def test_switch(
+    tt_cmd: Path, tmp_path: Path, program: str, version: str, includes: Optional[str]
+) -> None:
+    copytree(DATA_DIR / "no_active", tmp_path, symlinks=True, dirs_exist_ok=True)
+
+    cmd = [
         tt_cmd,
-        "--cfg", os.path.join(tt_dir, config_name),
-        "binaries", "switch", "tarantool", "2.10.3"
+        "binaries",
+        "switch",
+        program,
+        version,
     ]
 
-    install_process = subprocess.Popen(
-        install_cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
+
+    assert rc == 0
+    assert f"Switching to {program}_{version}" in output
+    assert_active_binaries(tmp_path / "bin" / program, version, includes)
+
+
+@pytest.mark.parametrize(
+    "program, version, includes",
+    [
+        pytest.param("tarantool", "2.10.3", "inc", id="tarantool"),
+        pytest.param("tcm", "1.2.0-11-g2d0a0f495", None, id="tcm"),
+        pytest.param("tt", "v0.1.0", None, id="tt"),
+    ],
+)
+def test_switch_with_link(
+    tt_cmd: Path, tmp_path: Path, program: str, version: str, includes: Optional[str]
+) -> None:
+    copytree(
+        DATA_DIR / "active_links",
+        tmp_path,
+        symlinks=True,
+        dirs_exist_ok=True,
     )
-    install_process_rc = install_process.wait()
-    output = install_process.stdout.read()
-    assert "Switching to tarantool_2.10.3" in output
-    assert install_process_rc == 0
 
-    bin_path = os.path.join(tt_dir, "bin")
-    expected_bin = os.path.join(bin_path, "tarantool_2.10.3")
-    tarantool_bin = os.path.realpath(os.path.join(bin_path, "tarantool"))
-    inc_path = os.path.join(tt_dir, "inc/include")
-    expected_inc = os.path.join(inc_path, "tarantool_2.10.3")
-    tarantool_inc = os.path.realpath(os.path.join(inc_path, "tarantool"))
-    assert tarantool_bin == expected_bin
-    assert tarantool_inc == expected_inc
-
-
-def test_switch_with_link(tt_cmd, tmp_path):
-    # Copy test files.
-    testdata_path = os.path.join(
-        os.path.dirname(__file__),
-        "testdata/test_tarantool_link"
-    )
-    shutil.copytree(testdata_path, tmp_path / "testdata", True)
-    testdata_path = tmp_path / "testdata"
-
-    tt_dir = os.path.join(testdata_path, "tt")
-
-    install_cmd = [
+    cmd = [
         tt_cmd,
-        "--cfg", os.path.join(tt_dir, config_name),
-        "binaries", "switch", "tarantool", "2.10.3"
+        "--self",  # Note: don't use tt from test data environment.
+        "binaries",
+        "switch",
+        program,
+        version,
     ]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
 
-    install_process = subprocess.Popen(
-        install_cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    install_process_rc = install_process.wait()
-    output = install_process.stdout.read()
-    assert "Switching to tarantool_2.10.3" in output
-    assert install_process_rc == 0
-
-    bin_path = os.path.join(tt_dir, "bin")
-    expected_bin = os.path.join(bin_path, "tarantool_2.10.3")
-    tarantool_bin = os.path.realpath(os.path.join(bin_path, "tarantool"))
-    inc_path = os.path.join(tt_dir, "inc/include")
-    expected_inc = os.path.join(inc_path, "tarantool_2.10.3")
-    tarantool_inc = os.path.realpath(os.path.join(inc_path, "tarantool"))
-    assert tarantool_bin == expected_bin
-    assert tarantool_inc == expected_inc
+    assert rc == 0
+    assert f"Switching to {program}_{version}" in output
+    assert_active_binaries(tmp_path / "bin" / program, version, includes)
 
 
 def test_switch_invalid_program(tt_cmd, tmp_path):
-    # Copy test files.
-    testdata_path = os.path.join(
-        os.path.dirname(__file__),
-        "testdata/test_tarantool"
-    )
-    shutil.copytree(testdata_path, tmp_path / "testdata", True)
-    testdata_path = tmp_path / "testdata"
+    copytree(DATA_DIR / "no_active", tmp_path, symlinks=True, dirs_exist_ok=True)
 
-    tt_dir = os.path.join(testdata_path, "tt")
-
-    install_cmd = [
+    cmd = [
         tt_cmd,
-        "--cfg", os.path.join(tt_dir, config_name),
-        "binaries", "switch", "nodejs", "2.10.3"
+        "binaries",
+        "switch",
+        "nodejs",
+        "2.10.3",
     ]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
 
-    install_process = subprocess.Popen(
-        install_cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    install_process_rc = install_process.wait()
-    output = install_process.stdout.read()
+    assert rc != 0
     assert "not supported program: nodejs" in output
-    assert install_process_rc != 0
 
 
-def test_switch_tt(tt_cmd, tmp_path):
-    config_path = tmp_path / "tt.yaml"
-    bin_dir_path = tmp_path / "bin"
-    with open(config_path, "w") as f:
-        yaml.dump({"env": {"bin_dir": bin_dir_path.as_posix()}}, f)
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        pytest.param("v", id="full_version"),
+        pytest.param("", id="short_version"),
+    ],
+)
+def test_switch_tt(tt_cmd, tmp_path, prefix):
+    copyfile(DATA_DIR / "no_active" / config_name, tmp_path / config_name)
+    fake_tt = tmp_path / "bin" / "tt_v7.7.7"
+    fake_tt.parent.mkdir()
+    copyfile(tt_cmd, fake_tt)
 
-    fake_tt_path = os.path.join(bin_dir_path, "tt_v7.7.7")
-    os.makedirs(bin_dir_path)
-    shutil.copyfile(tt_cmd, fake_tt_path)
-
-    switch_cmd = [
+    cmd = [
         tt_cmd,
-        "--cfg", config_path,
-        "binaries", "switch", "tt", "7.7.7"
+        "binaries",
+        "switch",
+        "tt",
+        f"{prefix}7.7.7",
     ]
+    rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
 
-    switch_process = subprocess.Popen(
-        switch_cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    switch_process_rc = switch_process.wait()
-    output = switch_process.stdout.read()
+    assert rc == 0
     assert "Switching to tt_v7.7.7" in output
-    assert switch_process_rc == 0
 
-    expected_bin = os.path.join(bin_dir_path, "tt_v7.7.7")
-    tt_bin = os.path.realpath(os.path.join(bin_dir_path, "tt"))
-    assert tt_bin == expected_bin
-
-
-def test_switch_tt_full_version_name(tt_cmd, tmp_path):
-    config_path = tmp_path / "tt.yaml"
-    bin_dir_path = tmp_path / "bin"
-    with open(config_path, "w") as f:
-        yaml.dump({"env": {"bin_dir": bin_dir_path.as_posix()}}, f)
-
-    fake_tt_path = os.path.join(bin_dir_path, "tt_v7.7.7")
-    os.makedirs(bin_dir_path)
-    shutil.copyfile(tt_cmd, fake_tt_path)
-
-    switch_cmd = [
-        tt_cmd,
-        "--cfg", config_path,
-        "binaries", "switch", "tt", "v7.7.7"
-    ]
-
-    switch_process = subprocess.Popen(
-        switch_cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True
-    )
-    switch_process_rc = switch_process.wait()
-    output = switch_process.stdout.read()
-    assert "Switching to tt_v7.7.7" in output
-    assert switch_process_rc == 0
-
-    expected_bin = os.path.join(bin_dir_path, "tt_v7.7.7")
-    tt_bin = os.path.realpath(os.path.join(bin_dir_path, "tt"))
-    assert tt_bin == expected_bin
+    expected_tt = (tmp_path / "bin" / "tt").resolve()
+    assert fake_tt == expected_tt
