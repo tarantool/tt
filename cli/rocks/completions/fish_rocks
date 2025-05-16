@@ -1,0 +1,436 @@
+# Fish completions for tt rocks
+
+# Global options for 'rocks'
+function __fish_rocks_global_options
+    echo -e "-h\tShow this help message and exit"
+    echo -e "--help\tShow this help message and exit"
+    echo -e "--version\tShow version info and exit"
+    echo -e "--dev\tEnable the sub-repositories in rocks servers for rockspecs of in-development versions"
+    echo -e "--server\tFetch rocks/rockspecs from this server (takes priority over config file)"
+    echo -e "--from\tFetch rocks/rockspecs from this server (takes priority over config file)"
+    echo -e "--only-server\tFetch rocks/rockspecs from this server only (overrides any entries in the config file)"
+    echo -e "--only-from\tFetch rocks/rockspecs from this server only (overrides any entries in the config file)"
+    echo -e "--only-sources\tRestrict downloads to paths matching the given URL"
+    echo -e "--only-sources-from\tRestrict downloads to paths matching the given URL"
+    echo -e "--namespace\tSpecify the rocks server namespace to use"
+    echo -e "--lua-dir\tWhich Lua installation to use"
+    echo -e "--lua-version\tWhich Lua version to use"
+    echo -e "--tree\tWhich tree to operate on"
+    echo -e "--to\tWhich tree to operate on"
+    echo -e "--local\tUse the tree in the user's home directory"
+    echo -e "--global\tUse the system tree when local_by_default is true"
+    echo -e "--no-project\tDo not use project tree even if running from a project folder"
+    echo -e "--verbose\tDisplay verbose output of commands executed"
+    echo -e "--timeout\tTimeout on network operations, in seconds"
+    echo -e "--project-tree\tSpecify project tree"
+    echo -e "--pack-binary-rock\tPack binary rock"
+    echo -e "--branch\tSpecify branch"
+    echo -e "--sign\tSign the rock"
+end
+
+# Options for 'rocks build' and 'rocks make'
+function __fish_rocks_build_make_options
+    __fish_rocks_global_options
+    echo -e "--only-deps\tInstall only the dependencies of the rock"
+    echo -e "--deps-only\tInstall only the dependencies of the rock"
+    echo -e "--pin\tPin exact dependencies or create a luarocks.lock file"
+    echo -e "--no-install\tDo not install the rock"
+    echo -e "--no-doc\tInstall the rock without its documentation"
+    echo -e "--keep\tDo not remove previously installed versions of the rock"
+    echo -e "--force\tForce removal of previously installed versions"
+    echo -e "--force-fast\tLike --force, but performs a forced removal without reporting dependency issues"
+    echo -e "--verify\tVerify signature of the rockspec or src.rock being built"
+    echo -e "--check-lua-versions\tReport if rock is available for another Lua version"
+    echo -e "--no-manifest\tSkip creating/updating the manifest"
+    echo -e "--chdir\tSpecify a source directory of the rock"
+    echo -e "--deps-mode\tHow to handle dependencies (all one order none)"
+    echo -e "--nodeps\tIgnore dependencies"
+end
+
+# Options for 'rocks config'
+function __fish_rocks_config_options
+    __fish_rocks_global_options
+    echo -e "--scope\tThe scope indicates which config file should be rewritten (system user project)"
+    echo -e "--unset\tDelete the key from the configuration file"
+    echo -e "--json\tOutput as JSON"
+    echo -e "--lua-incdir\tConfigure Lua include directory"
+    echo -e "--lua-libdir\tConfigure Lua library directory"
+    echo -e "--lua-ver\tConfigure Lua version"
+    echo -e "--system-config\tPath to system config"
+    echo -e "--user-config\tPath to user config"
+    echo -e "--rock-trees\tConfigure rock trees"
+end
+
+# Options for 'rocks doc'
+function __fish_rocks_doc_options
+    __fish_rocks_global_options
+    echo -e "--home\tOpen the home page of project"
+    echo -e "--list\tList documentation files only"
+    echo -e "--porcelain\tProduce machine-friendly output"
+end
+
+# Options for 'rocks download'
+function __fish_rocks_download_options
+    __fish_rocks_global_options
+    echo -e "--all\tDownload all files if there are multiple matches"
+    echo -e "--source\tDownload .src.rock if available"
+    echo -e "--rockspec\tDownload .rockspec if available"
+    echo -e "--arch\tDownload rock for a specific architecture"
+    echo -e "--check-lua-versions\tReport if rock is available for another Lua version"
+end
+
+# Options for 'rocks install'
+function __fish_rocks_install_options
+    __fish_rocks_global_options
+    echo -e "--keep\tDo not remove previously installed versions"
+    echo -e "--force\tForce removal of previously installed versions"
+    echo -e "--force-fast\tLike --force, but performs a forced removal"
+    echo -e "--only-deps\tInstall only the dependencies of the rock"
+    echo -e "--deps-only\tInstall only the dependencies of the rock"
+    echo -e "--no-doc\tInstall the rock without its documentation"
+    echo -e "--verify\tVerify signature of the rockspec or src.rock being built"
+    echo -e "--check-lua-versions\tReport if rock is available for another Lua version"
+    echo -e "--deps-mode\tHow to handle dependencies (all one order none)"
+    echo -e "--nodeps\tIgnore dependencies"
+    echo -e "--no-manifest\tSkip creating/updating the manifest"
+    echo -e "--pin\tCreate a luarocks.lock file"
+end
+
+# Options for 'rocks lint'
+function __fish_rocks_lint_options
+    __fish_rocks_global_options
+end
+
+# Options for 'rocks list'
+function __fish_rocks_list_options
+    __fish_rocks_global_options
+    echo -e "--outdated\tList only rocks for which there is a higher version available"
+    echo -e "--porcelain\tProduce machine-friendly output"
+end
+
+# Options for 'rocks make_manifest' or 'make-manifest'
+function __fish_rocks_make_manifest_options
+    __fish_rocks_global_options
+    echo -e "--local-tree\tDo not write versioned versions of the manifest file"
+    echo -e "--deps-mode\tHow to handle dependencies (all one order none)"
+    echo -e "--nodeps\tIgnore dependencies"
+end
+
+# Options for 'rocks new_version' or 'new-version'
+function __fish_rocks_new_version_options
+    __fish_rocks_global_options
+    echo -e "--dir\tOutput directory for the new rockspec"
+    echo -e "--tag\tNew SCM tag"
+end
+
+# Options for 'rocks pack'
+function __fish_rocks_pack_options
+    __fish_rocks_global_options
+    # --sign is already global
+end
+
+# Options for 'rocks purge'
+function __fish_rocks_purge_options
+    __fish_rocks_global_options
+    echo -e "--old-versions\tKeep the highest-numbered version of each rock and remove others"
+    echo -e "--force\tForce removal if it would break dependencies"
+    echo -e "--force-fast\tLike --force, but performs a forced removal"
+end
+
+# Options for 'rocks remove'
+function __fish_rocks_remove_options
+    __fish_rocks_global_options
+    echo -e "--force\tForce removal if it would break dependencies"
+    echo -e "--force-fast\tPerform a forced removal without reporting dependency issues"
+    echo -e "--deps-mode\tHow to handle dependencies (all one order none)"
+    echo -e "--nodeps\tIgnore dependencies"
+end
+
+# Options for 'rocks search'
+function __fish_rocks_search_options
+    __fish_rocks_global_options
+    echo -e "--source\tReturn only rockspecs and source rocks"
+    echo -e "--binary\tReturn only pure Lua and binary rocks"
+    echo -e "--all\tList all contents of the server suitable to this platform"
+    echo -e "--porcelain\tReturn a machine readable format"
+end
+
+# Options for 'rocks show'
+function __fish_rocks_show_options
+    __fish_rocks_global_options
+    echo -e "--home\tShow home page of project"
+    echo -e "--modules\tShow all modules provided by the package"
+    echo -e "--deps\tShow packages the package depends on"
+    echo -e "--build-deps\tShow build-only dependencies for the package"
+    echo -e "--test-deps\tShow dependencies for testing the package"
+    echo -e "--rockspec\tShow the full path of the rockspec file"
+    echo -e "--mversion\tShow the package version"
+    echo -e "--rock-tree\tShow local tree where rock is installed"
+    echo -e "--rock-namespace\tShow rock namespace"
+    echo -e "--rock-dir\tShow data directory of the installed rock"
+    echo -e "--rock-license\tShow rock license"
+    echo -e "--issues\tShow URL for project's issue tracker"
+    echo -e "--labels\tList the labels of the rock"
+    echo -e "--porcelain\tProduce machine-friendly output"
+end
+
+# Options for 'rocks test'
+function __fish_rocks_test_options
+    __fish_rocks_global_options
+    echo -e "--prepare\tOnly install dependencies needed for testing, do not run test"
+    echo -e "--test-type\tSpecify the test suite type manually"
+end
+
+# Options for 'rocks unpack'
+function __fish_rocks_unpack_options
+    __fish_rocks_global_options
+    echo -e "--force\tUnpack files even if the output directory already exists"
+    echo -e "--check-lua-versions\tReport if rock is available for another Lua version"
+end
+
+# Options for 'rocks which'
+function __fish_rocks_which_options
+    __fish_rocks_global_options
+end
+
+# Options for 'rocks write_rockspec' or 'write-rockspec'
+function __fish_rocks_write_rockspec_options
+    __fish_rocks_global_options
+    echo -e "--output\tWrite the rockspec with the given filename"
+    echo -e "--license\tA license string, such as \"MIT/X11\""
+    echo -e "--summary\tA short one-line description summary"
+    echo -e "--detailed\tA longer description string"
+    echo -e "--homepage\tProject homepage"
+    echo -e "--lua-versions\tSupported Lua versions (e.g., 5.1 5.1,5.2)"
+    echo -e "--rockspec-format\tRockspec format version, such as \"1.0\""
+    echo -e "--tag\tTag to use"
+    echo -e "--lib\tA comma-separated list of libraries to link to"
+end
+
+# Main completion function for 'rocks'
+function __fish_rocks_complete
+    set -l tokens (commandline -opc)
+    set -l current_word (commandline -ct)
+    set -l prev_word
+    if test (count $tokens) -gt 1; set prev_word $tokens[-1]; end
+
+    set -l sub_command
+    # tt rocks <sub_command> ...
+    # tokens[1] is tt, tokens[2] is rocks
+    if test (count $tokens) -ge 3
+        set sub_command $tokens[3]
+    end
+
+    if string match -q -- "-*" "$current_word"
+        switch "$sub_command"
+            case "build" "make"
+                __fish_rocks_build_make_options
+            case "config"
+                __fish_rocks_config_options
+            case "doc"
+                __fish_rocks_doc_options
+            case "download"
+                __fish_rocks_download_options
+            case "install"
+                __fish_rocks_install_options
+            case "lint"
+                __fish_rocks_lint_options
+            case "list"
+                __fish_rocks_list_options
+            case "make_manifest" "make-manifest"
+                __fish_rocks_make_manifest_options
+            case "new_version" "new-version"
+                __fish_rocks_new_version_options
+            case "pack"
+                __fish_rocks_pack_options
+            case "purge"
+                __fish_rocks_purge_options
+            case "remove"
+                __fish_rocks_remove_options
+            case "search"
+                __fish_rocks_search_options
+            case "show"
+                __fish_rocks_show_options
+            case "test"
+                __fish_rocks_test_options
+            case "unpack"
+                __fish_rocks_unpack_options
+            case "which"
+                __fish_rocks_which_options
+            case "write_rockspec" "write-rockspec"
+                __fish_rocks_write_rockspec_options
+            case "*" # No subcommand or unknown, or completing option for 'rocks' itself
+                __fish_rocks_global_options
+        end
+    else if test -z "$sub_command" -o "$prev_word" = "rocks" # Completing the subcommand itself
+        __fish_rocks_commands
+    else
+        # Argument completion (e.g., file paths, specific values)
+        switch "$prev_word"
+            case "--server" "--from" "--only-server" "--only-from" \
+                 "--only-sources" "--only-sources-from" "--namespace" \
+                 "--lua-dir" "--lua-version" "--tree" "--to" "--timeout" \
+                 "--project-tree" "--branch" "--chdir" "--arch" \
+                 "--dir" "--tag" "--output" "--license" "--summary" \
+                 "--detailed" "--homepage" "--rockspec-format" "--lib" \
+                 "--test-type"
+                __fish_complete_path "$current_word"
+            case "--deps-mode"
+                echo -e "all\tAll dependencies"
+                echo -e "one\tOne level of dependencies"
+                echo -e "order\tOrder dependencies"
+                echo -e "none\tNo dependencies"
+            case "--scope"
+                echo -e "system\tSystem scope"
+                echo -e "user\tUser scope"
+                echo -e "project\tProject scope"
+            case "--lua-versions"
+                for v in 5.1 5.2 5.3 5.4 "5.1,5.2" "5.2,5.3" "5.3,5.4" "5.1,5.2,5.3" "5.2,5.3,5.4" "5.1,5.2,5.3,5.4"
+                    echo -e "$v\tLua version(s) $v"
+                end
+            case "*"
+                 # Default: complete rock names or file paths
+                 # For commands like install, build, show, etc.
+                 __fish_complete_path "$current_word"
+        end
+    end
+end
+
+# Commands for 'rocks'
+function __fish_rocks_commands
+    echo -e "help\tShow help for commands"
+    echo -e "admin\tLuaRocks repository administration interface"
+    echo -e "build\tBuild/compile a rock"
+    echo -e "config\tQuery information about the LuaRocks configuration"
+    echo -e "doc\tShow documentation for an installed rock"
+    echo -e "download\tDownload a specific rock file from a rocks server"
+    echo -e "install\tInstall a rock"
+    echo -e "lint\tCheck syntax of a rockspec"
+    echo -e "list\tList currently installed rocks"
+    echo -e "make\tCompile package in current directory using a rockspec"
+    echo -e "make_manifest\tCompile a manifest file for a repository"
+    echo -e "make-manifest\t(alias for make_manifest)"
+    echo -e "new_version\tAuto-write a rockspec for a new version of a rock"
+    echo -e "new-version\t(alias for new_version)"
+    echo -e "pack\tCreate a rock, packing sources or binaries"
+    echo -e "purge\tRemove all installed rocks from a tree"
+    echo -e "remove\tUninstall a rock"
+    echo -e "search\tQuery the LuaRocks servers"
+    echo -e "show\tShow information about an installed rock"
+    echo -e "test\tRun the test suite in the current directory"
+    echo -e "unpack\tUnpack the contents of a rock"
+    echo -e "which\tTell which file corresponds to a given module name"
+    echo -e "write_rockspec\tWrite a template for a rockspec file"
+    echo -e "write-rockspec\t(alias for write_rockspec)"
+end
+
+# Global options for 'rocks admin'
+function __fish_rocks_admin_global_options
+    echo -e "-h\tShow this help message and exit"
+    echo -e "--help\tShow this help message and exit"
+    echo -e "--version\tShow version info and exit"
+    echo -e "--dev\tEnable the sub-repositories in rocks servers"
+    echo -e "--server\tFetch rocks/rockspecs from this server"
+    echo -e "--from\t(alias for --server)"
+    echo -e "--only-server\tFetch rocks/rockspecs from this server only"
+    echo -e "--only-from\t(alias for --only-server)"
+    echo -e "--only-sources\tRestrict downloads to paths matching the given URL"
+    echo -e "--only-sources-from\t(alias for --only-sources)"
+    echo -e "--namespace\tSpecify the rocks server namespace to use"
+    echo -e "--lua-dir\tWhich Lua installation to use"
+    echo -e "--lua-version\tWhich Lua version to use"
+    echo -e "--tree\tWhich tree to operate on"
+    echo -e "--to\t(alias for --tree)"
+    echo -e "--local\tUse the tree in the user's home directory"
+    echo -e "--global\tUse the system tree when local_by_default is true"
+    echo -e "--no-project\tDo not use project tree"
+    echo -e "--verbose\tDisplay verbose output"
+    echo -e "--timeout\tTimeout on network operations, in seconds"
+    echo -e "--project-tree\tSpecify project tree"
+end
+
+# Options for 'rocks admin add'
+function __fish_rocks_admin_add_options
+    __fish_rocks_admin_global_options
+    echo -e "--no-refresh\tDo not refresh the local cache"
+    echo -e "--index\tProduce an index.html file for the manifest"
+end
+
+# Options for 'rocks admin make_manifest' or 'make-manifest'
+function __fish_rocks_admin_make_manifest_options
+    __fish_rocks_admin_global_options
+    echo -e "--local-tree\tDo not write versioned versions of the manifest file"
+    echo -e "--deps-mode\tHow to handle dependencies (all one order none)"
+    echo -e "--nodeps\tIgnore dependencies"
+end
+
+# Options for 'rocks admin refresh_cache' or 'refresh-cache'
+function __fish_rocks_admin_refresh_cache_options
+    __fish_rocks_admin_global_options
+    # --from is already global for admin
+end
+
+# Options for 'rocks admin remove'
+function __fish_rocks_admin_remove_options
+    __fish_rocks_admin_global_options
+    echo -e "--no-refresh\tDo not refresh the local cache"
+end
+
+# Main completion function for 'rocks admin'
+function __fish_rocks_admin_complete
+    set -l tokens (commandline -opc)
+    set -l current_word (commandline -ct)
+    set -l prev_word
+    if test (count $tokens) -gt 1; set prev_word $tokens[-1]; end
+
+    set -l sub_command_admin
+    # tt rocks admin <sub_command_admin> ...
+    # tokens[1] is tt, tokens[2] is rocks, tokens[3] is admin
+    if test (count $tokens) -ge 4
+        set sub_command_admin $tokens[4]
+    end
+
+    if string match -q -- "-*" "$current_word"
+        switch "$sub_command_admin"
+            case "add"
+                __fish_rocks_admin_add_options
+            case "make_manifest" "make-manifest"
+                __fish_rocks_admin_make_manifest_options
+            case "refresh_cache" "refresh-cache"
+                __fish_rocks_admin_refresh_cache_options
+            case "remove"
+                __fish_rocks_admin_remove_options
+            case "*" # No subcommand or unknown, or completing option for 'admin' itself
+                __fish_rocks_admin_global_options
+        end
+    else if test -z "$sub_command_admin" -o "$prev_word" = "admin" # Completing the admin subcommand itself
+        __fish_rocks_admin_commands
+    else
+        # Argument completion for admin subcommands
+        switch "$prev_word"
+            case "--server" "--from" "--only-server" "--only-from" \
+                 "--only-sources" "--only-sources-from" "--namespace" \
+                 "--lua-dir" "--lua-version" "--tree" "--to" "--timeout" \
+                 "--project-tree"
+                __fish_complete_path "$current_word"
+            case "--deps-mode"
+                 echo -e "all\tAll dependencies"
+                 echo -e "one\tOne level of dependencies"
+                 echo -e "order\tOrder dependencies"
+                 echo -e "none\tNo dependencies"
+            case "*" # Default file completion for args of admin commands (e.g. rockspec files for add/remove)
+                 __fish_complete_path "$current_word"
+        end
+    end
+end
+
+# Commands for 'rocks admin'
+function __fish_rocks_admin_commands
+    echo -e "help\tShow help for commands"
+    echo -e "add\tAdd a rock or rockspec to a rocks server"
+    echo -e "make_manifest\tCompile a manifest file for a repository"
+    echo -e "make-manifest\t(alias for make_manifest)"
+    echo -e "refresh_cache\tRefresh local cache of a remote rocks server"
+    echo -e "refresh-cache\t(alias for refresh_cache)"
+    echo -e "remove\tRemove a rock or rockspec from a rocks server"
+end

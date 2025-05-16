@@ -49,7 +49,7 @@ runs:
         build-essential ninja-build \
         lua5.1 luarocks lcov \
         ruby-dev liblz4-dev  autoconf \
-        automake libtool
+        automake libtool zsh fish
         sudo luarocks install luacheck 0.26.1
         sudo gem install coveralls-lcov
         sudo pip3 install tarantool

@@ -1,0 +1,38 @@
+# This file should be sourced by the main tt fish completion script,
+# or fish_rocks.fish should be in a directory included in $fish_complete_path.
+# For standalone testing, you might need to source fish_rocks.fish explicitly:
+# source (dirname (status --current-filename))/fish_rocks.fish
+
+# Helper to check if the command is 'tt rocks ...'
+function __fish_is_tt_rocks
+    set -l tokens (commandline -opc)
+    if test (count $tokens) -ge 2; and test "$tokens[1]" = "tt"; and test "$tokens[2]" = "rocks"
+        return 0
+    end
+    return 1
+end
+
+# Helper to check if the command is 'tt rocks admin ...'
+function __fish_is_tt_rocks_admin
+    set -l tokens (commandline -opc)
+    if test (count $tokens) -ge 3; and test "$tokens[1]" = "tt"; and test "$tokens[2]" = "rocks"; and test "$tokens[3]" = "admin"
+        return 0
+    end
+    return 1
+end
+
+# Completion for 'rocks' itself after 'tt'
+# Condition: current command is 'tt' and we are at the second token.
+complete -c tt -n 'set -l tkns (commandline -opc); test (count $tkns) -eq 1 -a "$tkns[1]" = "tt"' -f -a "rocks" -d "LuaRocks package manager"
+
+# Completion for 'admin' after 'tt rocks'
+# Condition: current command is 'tt rocks' and we are at the third token.
+complete -c tt -n 'set -l tkns (commandline -opc); test (count $tkns) -eq 2 -a "$tkns[1]" = "tt" -a "$tkns[2]" = "rocks"' -f -a "(__fish_rocks_commands)" -d "Rocks command" # Offer all rocks commands, including admin
+
+# Completion for 'tt rocks admin ...' subcommands and options
+# Condition: current command starts with 'tt rocks admin'
+complete -c tt -n '__fish_is_tt_rocks_admin' -f -a '(__fish_rocks_admin_complete)'
+
+# Completion for 'tt rocks ...' subcommands and options (excluding admin path if already handled)
+# Condition: current command starts with 'tt rocks' AND NOT 'tt rocks admin'
+complete -c tt -n '__fish_is_tt_rocks; and not __fish_is_tt_rocks_admin' -f -a '(__fish_rocks_complete)'
