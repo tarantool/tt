@@ -244,3 +244,71 @@ def test_vshard_bootstrap_cconfig(tt_cmd, vshard_cconfig_app_tt_env, flag):
         return out.find("false") != -1
 
     assert wait_event(10, have_buckets_created)
+
+
+vshard_cconfig_app_name_timeout = "test_vshard_app_timeout"
+
+
+@pytest.fixture
+def vshard_cconfig_app_timeout_tt_env(request, tt_cmd, vshard_tt_env_session):
+    tmpdir = vshard_tt_env_session
+    app_path = tmpdir / vshard_cconfig_app_name_timeout
+
+    # Copy application.
+    shutil.copytree(os.path.join(os.path.dirname(__file__),
+                    vshard_cconfig_app_name_timeout), app_path)
+
+    # Start a cluster.
+    start_cmd = [tt_cmd, "start", vshard_cconfig_app_name_timeout]
+    rc, _ = run_command_and_get_output(start_cmd, cwd=tmpdir)
+    assert rc == 0
+
+    instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
+
+    def stop_and_clean():
+        stop_application(tt_cmd, app_name=vshard_cconfig_app_name_timeout,
+                         workdir=tmpdir, instances=instances, force=True)
+        shutil.rmtree(app_path)
+    request.addfinalizer(stop_and_clean)
+
+    return tmpdir
+
+
+@pytest.mark.skipif(tarantool_major_version < 3,
+                    reason="skip centralized config test for Tarantool < 3")
+def test_vshard_bootstrap_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
+    tmpdir = vshard_cconfig_app_timeout_tt_env
+
+    cmd_sleep = ["sleep", "0.5"]
+    rc, out = run_command_and_get_output(cmd_sleep, cwd=tmpdir)
+    assert rc == 0
+
+    cmd = [tt_cmd, "rs", "vs", "bootstrap", "--timeout", "5"]
+    cmd.append("--config")
+    cmd.append(vshard_cconfig_app_name_timeout)
+
+    rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+    assert rc == 0
+    assert "Discovery application..." in out
+    assert "Replicasets state: bootstrapped" in out
+    assert "Bootstrapping vshard" in out
+    assert "Done." in out
+
+
+@pytest.mark.skipif(tarantool_major_version < 3,
+                    reason="skip centralized config test for Tarantool < 3")
+def test_vshard_bootstrap_not_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
+    tmpdir = vshard_cconfig_app_timeout_tt_env
+
+    cmd_sleep = ["sleep", "0.5"]
+    rc, out = run_command_and_get_output(cmd_sleep, cwd=tmpdir)
+    assert rc == 0
+
+    cmd = [tt_cmd, "rs", "vs", "bootstrap", "--timeout", "1"]
+    cmd.append("--config")
+    cmd.append(vshard_cconfig_app_name_timeout)
+
+    rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+    assert rc == 1
+    assert "failed to bootstrap vshard" in out
+    assert "attempt to index field '_configdata_applied' (a nil value)" in out
