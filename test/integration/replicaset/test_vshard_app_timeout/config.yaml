@@ -1,0 +1,65 @@
+credentials:
+  users:
+    client:
+      password: 'secret'
+      roles: [super]
+    replicator:
+      password: 'secret'
+      roles: [replication]
+    storage:
+      password: 'secret'
+      roles: [sharding]
+
+iproto:
+  advertise:
+    peer:
+      login: replicator
+    sharding:
+      login: storage
+
+sharding:
+  bucket_count: 3000
+
+groups:
+  storages:
+    app:
+      module: storage
+    sharding:
+      roles: [storage]
+    replication:
+      failover: manual
+    replicasets: 
+      storage-001:
+        leader: storage-001-a
+        instances: 
+          storage-001-a:
+            iproto:
+              listen:
+                - uri: localhost:3301
+          storage-001-b:
+            iproto:
+              listen:
+                - uri: localhost:3302
+      storage-002:
+        leader: storage-002-a
+        instances: 
+          storage-002-a:
+            iproto:
+              listen:
+                - uri: localhost:3303
+          storage-002-b:
+            iproto:
+              listen:
+                - uri: localhost:3304
+  routers:
+    app:
+      module: router
+    sharding:
+      roles: [router]
+    replicasets: 
+      router-001:
+        instances: 
+          router-001-a:
+            iproto:
+              listen:
+                - uri: localhost:3305

@@ -141,7 +141,7 @@ def test_list_available_modules_path(tt_cmd, tmp_path):
     assert rc == 0
     expected = ""
     for module in sorted(modules):
-        expected += f"{module} - { tmp_path / 'modules' / module / 'main'}\n"
+        expected += f"{module} - {tmp_path / 'modules' / module / 'main'}\n"
     assert expected == output
 
 
@@ -161,5 +161,5 @@ def test_list_available_modules_version_and_path(tt_cmd, tmp_path):
     assert rc == 0
     expected = ""
     for module in sorted(modules):
-        expected += f"0.0.1\t{module} - { tmp_path / 'modules' / module / 'main'}\n"
+        expected += f"0.0.1\t{module} - {tmp_path / 'modules' / module / 'main'}\n"
     assert expected == output

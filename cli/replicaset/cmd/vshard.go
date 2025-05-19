@@ -2,8 +2,10 @@ package replicasetcmd
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/apex/log"
+	"github.com/avast/retry-go"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
@@ -34,6 +36,18 @@ type VShardCmdCtx struct {
 	Timeout int
 }
 
+func discoverApp(orchestrator replicasetOrchestrator) error {
+	// Get and print status.
+	replicasets, err := orchestrator.Discovery(true)
+	if err != nil {
+		return err
+	}
+
+	statusReplicasets(replicasets)
+
+	return nil
+}
+
 // BootstrapVShard bootstraps vshard in the cluster.
 func BootstrapVShard(ctx VShardCmdCtx) error {
 	orchestratorType, err := getOrchestratorType(ctx.Orchestrator, ctx.Conn, ctx.RunningCtx)
@@ -57,12 +71,17 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 	log.Info("Discovery application...")
 	fmt.Println("")
 
-	// Get and print status.
-	replicasets, err := orchestrator.Discovery(true)
-	if err != nil {
-		return err
+	retryOpts := []retry.Option{
+		retry.Delay(1 * time.Second),
+		retry.Attempts(uint(ctx.Timeout)),
+		retry.LastErrorOnly(true),
 	}
-	statusReplicasets(replicasets)
+	discoverAppFunc := func() error {
+		return discoverApp(orchestrator)
+	}
+	if err := retry.Do(discoverAppFunc, retryOpts...); err != nil {
+		return fmt.Errorf("failed to bootstrap vshard: %s", err)
+	}
 
 	fmt.Println("")
 	log.Info("Bootstrapping vshard")
