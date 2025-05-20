@@ -1,0 +1,100 @@
+version: "2"
+run:
+  build-tags:
+    - go_tarantool_ssl_disable
+    - tt_ssl_disable
+    - integration
+    - mage
+
+linters:
+  default: none
+  enable:
+    #! fast linters for pre-commit hook
+    - godot # Check comments ends with a period (https://golangci-lint.run/usage/linters/#godot)
+    - funlen # Checks for long functions (https://golangci-lint.run/usage/linters/#funlen)
+    - gocyclo # Checks the cyclomatic complexity of functions (https://golangci-lint.run/usage/linters/#gocyclo)
+    - maintidx # Measures the maintainability of functions (https://golangci-lint.run/usage/linters/#maintidx)
+    - nakedret # Limit naked returns function length (https://golangci-lint.run/usage/linters/#nakedret)
+    - ineffassign # Assignments are not used (https://golangci-lint.run/usage/linters/#ineffassign)
+    - misspell # Finds misspelled words (https://golangci-lint.run/usage/linters/#misspell)
+    - lll # Checks for long lines (https://golangci-lint.run/usage/linters/#lll)
+    - whitespace # Checks for newlines for functions, if, for, etc (https://golangci-lint.run/usage/linters/#whitespace)
+    - wsl # Add or remove empty lines (https://golangci-lint.run/usage/linters/#wsl)
+
+    #! slow linters for manual and CI testing
+    - goconst # Finds "magic numbers" that could be replaced by a constant (https://golangci-lint.run/usage/linters/#goconst)
+    - gocritic # Diagnostics for bugs, performance and style issues (https://golangci-lint.run/usage/linters/#gocritic)
+    - unused # Finds unused variables, constants, functions and types (https://golangci-lint.run/usage/linters/#unused)
+    - unparam # Reports unused function parameters (https://golangci-lint.run/usage/linters/#unparam)
+    - govet # Examine code and reports suspicious constructs (https://golangci-lint.run/usage/linters/#govet)
+    - staticcheck # Static analysis of code (https://golangci-lint.run/usage/linters/#staticcheck)
+    - usetesting # Reports about testing package alternative (https://golangci-lint.run/usage/linters/#usetesting)
+    - thelper # Ensure tests helpers are start with t.Helper() (https://golangci-lint.run/usage/linters/#thelper)
+    - wrapcheck # Checks for wrapped errors (https://golangci-lint.run/usage/linters/#wrapcheck)
+
+  settings:
+    gocyclo:
+      min-complexity: 15
+
+    lll:
+      line-length: 100
+      tab-width: 4
+
+    whitespace:
+      multi-if: true
+      multi-func: true
+
+    wsl:
+      # See https://golangci-lint.run/usage/linters/#wsl
+      # And https://github.com/bombsimon/wsl/blob/master/doc/configuration.md
+      allow-assign-and-call: false
+      allow-multiline-assign: false
+      force-case-trailing-whitespace: 2
+      allow-cuddle-used-in-block: true
+      force-err-cuddling: true
+
+    wrapcheck:
+      report-internal-errors: true
+
+    goconst:
+      min-occurrences: 2
+      numbers: true
+      min: 2
+      max: 2
+      ignore-calls: true
+      find-duplicates: true
+      eval-const-expressions: true
+
+    nakedret:
+      max-func-lines: 15
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+
+    rules:
+      - path: _test\.go
+        linters:
+          - goconst
+          - funlen
+          - gocyclo
+          - maintidx
+
+      - source: "(?i)\t*// (see )?https?://"
+        linters:
+          - lll
+
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  exclusions:
+    # Disable `golangci-lint` formats Go files.
+    paths:
+      - \.go$
