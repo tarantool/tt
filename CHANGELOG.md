@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   period.
 - `pack` with modules include only under root `tt` environment directory.
   Modules outside of the directory with `tt.yaml` will be ignored.
+- `tt connect|replicaset|cluster|aeon|play`: fixed using of IPv6 in instance URI.
 
 ## [2.9.1] - 2025-04-15
 

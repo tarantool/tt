@@ -40,12 +40,26 @@ class Tt(object):
         tt_kwargs.update(kwargs)
         return utils.run_command_and_get_output(cmd, **tt_kwargs)
 
-    def popen(self, *args, **kwargs):
+    def run(self, *args, **kwargs):
+        """Works like subprocess.run (actually it is invoked), but:
+        1. Command arguments are passed as separate function arguments and starts with the one
+        that follows executable argument (None arguments are filtered out)
+        2. Other default values are used for several keywords, namely:
+            cwd=<APP_DIR>,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        3. 'env' is merged with the original environment instead of using it as standalone env.
+        """
         args = list(filter(lambda x: x is not None, args))
         cmd = [self.__tt_cmd, *args]
-        tt_kwargs = dict(cwd=self.__work_dir)
-        tt_kwargs.update(kwargs)
-        return subprocess.Popen(cmd, **tt_kwargs)
+        return subprocess.run(cmd, **self.__tt_kwargs(**kwargs))
+
+    def popen(self, *args, **kwargs):
+        """Works like subprocess.Popen with the same difference as in Tt.run."""
+        args = list(filter(lambda x: x is not None, args))
+        cmd = [self.__tt_cmd, *args]
+        return subprocess.Popen(cmd, **self.__tt_kwargs(**kwargs))
 
     def path(self, *paths):
         return os.path.join(self.__work_dir, *paths)
@@ -64,6 +78,20 @@ class Tt(object):
 
     def log_path(self, inst, *paths):
         return os.path.join(self.inst_path(inst, utils.log_path), *paths)
+
+    def __tt_kwargs(self, **kwargs):
+        tt_kwargs = dict(
+            cwd=self.__work_dir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        tt_kwargs.update(kwargs)
+        if "env" in kwargs:
+            tt_env = os.environ.copy()
+            tt_env.update(kwargs["env"])
+            tt_kwargs["env"] = tt_env
+        return tt_kwargs
 
 
 def status(tt, *args):
