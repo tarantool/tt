@@ -170,9 +170,7 @@ To run tests:
 
 -   [Python3](https://www.python.org/downloads/)
 -   [pytest](https://docs.pytest.org/en/7.2.x/getting-started.html#get-started)
--   [flake8](https://pypi.org/project/flake8/)
--   [flake8-isort](https://pypi.org/project/flake8-isort/)
--   [flake8-unused-arguments](https://pypi.org/project/flake8-unused-arguments/)
+-   [ruff](https://pypi.org/project/ruff/)
 -   [golangci-lint](https://golangci-lint.run/usage/install/#local-installation)
 -   [lichen](https://github.com/uw-labs/lichen#install)
 -   [docker](https://docs.docker.com/engine/install/)

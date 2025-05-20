@@ -284,8 +284,16 @@ func CheckLicenses() error {
 	return nil
 }
 
+type Lint mg.Namespace
+
 // Run golang and python linters.
-func Lint() error {
+func (Lint) Full() error {
+	mg.Deps(Lint.Golang, Lint.Python)
+	return nil
+}
+
+// Run golang linters.
+func (Lint) Golang() error {
 	fmt.Println("Running golangci-lint...")
 
 	mg.Deps(PatchCC)
@@ -305,10 +313,14 @@ func Lint() error {
 		}
 		os.Chdir(root)
 	}
+	return nil
+}
 
-	fmt.Println("Running flake8...")
+// Run python linters.
+func (Lint) Python() error {
+	fmt.Println("Running Ruff...")
 
-	if err := sh.RunV(pythonExecutableName, "-m", "flake8", "test"); err != nil {
+	if err := sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test"); err != nil {
 		return err
 	}
 
@@ -450,12 +462,12 @@ func Codespell() error {
 
 // Run all tests together, excluding slow and unit integration tests.
 func Test() {
-	mg.SerialDeps(Lint, CheckLicenses, Unit.Default, Integration)
+	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Default, Integration)
 }
 
 // Run all tests together.
 func TestFull() {
-	mg.SerialDeps(Lint, CheckLicenses, Unit.Full, IntegrationFull)
+	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Full, IntegrationFull)
 }
 
 // Cleanup directory.
