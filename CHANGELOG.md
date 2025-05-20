@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt cat|play <DIR>` with directories handles only `.snap` or `.xlog` files.
 - `rs vshard bootstrap`: ignore an error and retry within `timeout` flag
   period.
+- `tt connect|replicaset`: fixed using of IPv6 in instance URI.
 
 ## [2.9.1] - 2025-04-15
 
