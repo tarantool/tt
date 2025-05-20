@@ -251,6 +251,22 @@ To run full set of tests:
 mage testfull
 ```
 
+### Commit changes
+
+The project uses [pre-commit](https://pre-commit.com/) to check code before committing.
+After activating the virtual environment for [run tests](#run-tests), the `pre-commit` hooks must be installed in the repository:
+
+``` console
+pre-commit install
+```
+
+Now you will perform automatic checks at every commit.
+The first time you use `pre-commit` it will install the dependencies needed for it to work, which may take some time.
+Subsequent runs will be much faster.
+
+If errors were found, the commit will fail. If the errors can be corrected automatically, you will receive modified files to add to the commit, checking for correctness.
+In other cases you will get a message with errors that need to be corrected manually.
+
 ## Configuration
 
 Taratool CLI can be launched in several modes:
@@ -438,7 +454,7 @@ Arguments of Tarantool CLI:
 
 ### Autocompletion
 
-You can generate autocompletion for `bash` or `zsh` shell:
+You can generate autocompletion for `bash`, `zsh` and `fish` shell:
 
 ``` console
 . <(tt completion bash)

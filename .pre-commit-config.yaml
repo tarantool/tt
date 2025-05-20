@@ -1,0 +1,138 @@
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        stages: [pre-commit]
+        # Ignore some Yaml's with following pattern in `testdata` subdirectories.
+        exclude: testdata/.*?(?:invalid|bad|broken|wrong)[^/]*\.ya?ml$
+      - id: check-merge-conflict
+        stages: [pre-commit]
+      - id: no-commit-to-branch
+        stages: [pre-commit]
+        args: [--branch, master, --pattern, release/.*]
+      - id: file-contents-sorter
+        name: "Sort cspell dictionary"
+        stages: [pre-commit]
+        files: ".cspell_project-words.txt"
+        args: [--ignore-case, --unique]
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        name: "Check for common misspellings"
+        stages: [pre-commit]
+        types_or: [go, python, lua]
+        additional_dependencies:
+          - tomli
+
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v9.0.1
+    hooks:
+      - id: cspell
+        name: "Spell-checking documentation files"
+        stages: [pre-commit]
+        args:
+          [--config=.cspell-precommit.json, --show-context, --show-suggestions]
+        types_or: [markdown]
+        additional_dependencies:
+          - "@cspell/dict-markdown"
+          - "@cspell/dict-ru_ru"
+
+      - id: cspell
+        name: "Spell-checking commit message"
+        stages: [commit-msg]
+        args:
+          [--config=.cspell-precommit.json, --show-context, --show-suggestions]
+        additional_dependencies:
+          - "@cspell/dict-ru_ru"
+      # TODO: add words from [.go, .py] with "errors" to `.cspell_project-words.txt` (#TNTP-3105).
+      # - id: cspell
+      #   name: "Py: Spell check files"
+      #   types: [python]
+      #   additional_dependencies:
+      #     - "@cspell/dict-python"
+      # - id: cspell
+      #   name: "Go: Spell check files"
+      #   types: [go]
+      #   additional_dependencies:
+      #     - "@cspell/dict-golang"
+
+  - repo: local
+    hooks:
+      - id: go-format
+        language: golang
+        types: [go]
+        name: "Go: formatting sources"
+        stages: [pre-commit]
+        exclude: \.pb\.go$
+        entry: bash -c "GOFUMPT_SPLIT_LONG_LINES=on gofumpt $@"
+        args: [-e, -w, -extra]
+        additional_dependencies:
+          - mvdan.cc/gofumpt@v0.8.0
+
+  - repo: https://github.com/segmentio/golines
+    rev: fc305205784a70b4cfc17397654f4c94e3153ce4
+    hooks:
+      - id: golines
+        name: "Go: shorten long lines"
+        stages: [pre-commit]
+        exclude: \.pb\.go$
+        args: [--max-len=100, --tab-len=4, --no-reformat-tags]
+
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.1.6
+    hooks:
+      - id: golangci-lint
+        name: "Go: verify sources"
+        description: |
+          Checking only `staged` changes, added to be committed.
+          Issue `golangci-lint` command does not have an option to accept specified list of files.
+        pass_filenames: false
+        stages: [pre-commit]
+        args: [--fast-only, --config=golint-precommit.yml]
+
+      - id: golangci-lint-full
+        name: "Go: full verify sources"
+        description: "Command to run: `pre-commit run --hook-stage manual golangci-lint-full`"
+        stages: [manual]
+        args: [--config=golint-precommit.yml]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.11
+    hooks:
+      - id: ruff-format
+        name: "Py: Run the formatter"
+        stages: [pre-commit]
+        files: test/.*\.py$
+
+      - id: ruff-check
+        name: "Py: Run the linter"
+        args: [--fix]
+        stages: [pre-commit]
+        files: test/.*\.py$
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.18.1
+    hooks:
+      - id: markdownlint-cli2
+        name: "MD: check markdown files"
+        stages: [pre-commit]
+        # TODO: configure the rules and fix the rest of the .md files (#TNTP-3107).
+        files: CHANGELOG.md
+        args: [--fix]
+
+  - repo: https://github.com/jorisroovers/gitlint
+    rev: v0.19.1
+    hooks:
+      - id: gitlint
+        name: "Verify commit message format"
+        stages: [commit-msg]
+        args: [--staged, --config, .gitlint-precommit.ini, --msg-filename]
