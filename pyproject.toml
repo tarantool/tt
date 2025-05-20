@@ -1,0 +1,17 @@
+[tool.codespell]
+skip = 'go.sum, **/go.sum, **/third_party, tarantool-*, mage'
+ignore-words-list = ["fo"]
+count = false
+quiet-level = 3
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# See https://docs.astral.sh/ruff/rules/ for a complete list of rules.
+select = ["ARG", "COM", "E", "F", "I", "Q", "PERF", "RET", "RUF", "W"]
+# To avoid RUF001 error add required unicode characters to the `allowed-confusables` list.
+allowed-confusables = ["•", "⨯"]
+
+[tool.ruff.lint.isort]
+known-local-folder = ["utils"]
