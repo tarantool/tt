@@ -2,6 +2,7 @@ pytest==8.2.2
 tarantool==0.7.1
 requests==2.32.2
 ruff==0.11.11
+pre-commit==4.2.0
 psutil==5.7.0
 pyyaml==6.0.1
 codespell==2.4.1
