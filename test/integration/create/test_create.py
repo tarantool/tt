@@ -7,8 +7,9 @@ import tempfile
 import pytest
 import yaml
 
-from utils import (config_name, extract_status, get_tarantool_version,
-                   pid_file, run_command_and_get_output, wait_event, wait_file)
+import utils
+from utils import (config_name, extract_status, pid_file,
+                   run_command_and_get_output, wait_event, wait_file)
 
 tt_config_text = '''env:
   instances_enabled: test.instances.enabled
@@ -27,9 +28,6 @@ conf_path = '/etc/{user_name}/conf.lua'
 password={pwd}
 attempts={retry_count}
 '''
-
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
 def check_file_text(filepath, text):
@@ -671,8 +669,7 @@ def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmp_p
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge app tests for Tarantool 3.0")
+@utils.skipif_cartridge_unsupported
 def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path))
@@ -793,8 +790,7 @@ def test_create_app_from_builtin_cartridge_template_errors(tt_cmd, tmp_path, var
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path))

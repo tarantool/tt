@@ -8,6 +8,7 @@ from cartridge_helper import cartridge_name
 from replicaset_helpers import start_application, stop_application
 from vshard_cluster import VshardCluster
 
+import utils
 from utils import (get_tarantool_version, run_command_and_get_output,
                    wait_event, wait_file)
 
@@ -42,9 +43,7 @@ def run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd):
     return output
 
 
-@pytest.mark.skipif(
-    tarantool_major_version < 3, reason="skip centralized config test for Tarantool < 3"
-)
+@utils.skipif_cluster_app_unsupported
 def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
@@ -107,8 +106,7 @@ def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
             stop_application(tt_cmd, app_name, test_app_path, [])
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip test with cluster config for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_cluster_replicasets(tt_cmd, tmp_path):
     app_name = "vshard_app"
     replicasets = {
@@ -162,8 +160,7 @@ def test_cluster_replicasets(tt_cmd, tmp_path):
         app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip test with cluster config for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_downgrade_invalid_version(tt_cmd, tmp_path):
     app_name = "vshard_app"
     app = VshardCluster(tt_cmd, tmp_path, app_name)
@@ -185,8 +182,7 @@ def test_downgrade_invalid_version(tt_cmd, tmp_path):
         app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"

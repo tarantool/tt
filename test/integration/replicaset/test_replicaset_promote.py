@@ -9,10 +9,8 @@ from replicaset_helpers import (box_ctl_promote, eval_on_instance,
                                 parse_status, parse_yml, start_application,
                                 stop_application)
 
-from utils import (get_tarantool_version, read_kv, run_command_and_get_output,
-                   wait_event)
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
+import utils
+from utils import read_kv, run_command_and_get_output, wait_event
 
 tnt_username = "client"
 tnt_password = "secret"
@@ -35,8 +33,7 @@ def make_test_failovers_param(
                         args, id=id)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize(TEST_FAILOVERS_PARAMS, [
     make_test_failovers_param(
         key="off_promote_rw",
@@ -194,8 +191,7 @@ def test_promote_cconfig_failovers(
         stop_application(tt_cmd, app_name, tmpdir, instances)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize("election_mode", ["voter", "off"])
 def test_promote_cconfig_election_errors(
     tt_cmd,
@@ -235,8 +231,7 @@ def test_promote_cconfig_election_errors(
         stop_application(tt_cmd, app_name, tmpdir, instances)
 
 
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge tests for Tarantool 3.0")
+@utils.skipif_cartridge_unsupported
 def test_promote_cartridge_no_instance(tt_cmd, cartridge_app):
     workdir = cartridge_app.workdir
     cmd = [tt_cmd, "rs", "promote", f"{cartridge_name}:unknown"]
@@ -286,8 +281,7 @@ def promote_cartridge_failovers_test_helper(tt_cmd, cartridge_app, failover):
     assert actual["mode"] == "rw"
 
 
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge tests for Tarantool 3.0")
+@utils.skipif_cartridge_unsupported
 @pytest.mark.parametrize("failover", [
     pytest.param({"mode": "disabled"}, id="disabled"),
     pytest.param({"mode": "eventual"}, id="eventual"),
@@ -297,15 +291,13 @@ def test_promote_cartridge_failovers(tt_cmd, cartridge_app, failover):
     promote_cartridge_failovers_test_helper(tt_cmd, cartridge_app, failover)
 
 
-@pytest.mark.skipif(tarantool_major_version >= 3 or tarantool_major_version < 2,
-                    reason="skip cartridge tests for Tarantool 3.0 | " +
-                    "Tarantool < 2 does not support raft")
+@utils.skipif_raft_unsupported
+@utils.skipif_cartridge_unsupported
 def test_promote_cartridge_failover_raft(tt_cmd, cartridge_app):
     promote_cartridge_failovers_test_helper(tt_cmd, cartridge_app, {"mode": "raft"})
 
 
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge tests for Tarantool 3.0")
+@utils.skipif_cartridge_unsupported
 def test_promote_cartridge_stopped(tt_cmd, cartridge_app):
     failover_param = stateful_failover_param
     failover_param["stateboard_params"]["uri"] = cartridge_app.uri["stateboard"]
@@ -338,8 +330,7 @@ def test_promote_cartridge_stopped(tt_cmd, cartridge_app):
     assert actual["mode"] == "rw"
 
 
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge tests for Tarantool 3.0")
+@utils.skipif_cartridge_unsupported
 def test_promote_cartridge_remote(tt_cmd, cartridge_app):
     replicaset = "s-1"
     inst = "s1-replica"

@@ -6,7 +6,8 @@ import time
 import pytest
 from cartridge_helper import cartridge_name
 
-from utils import get_tarantool_version, run_command_and_get_output, wait_file
+import utils
+from utils import get_tarantool_version, run_command_and_get_output
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -56,7 +57,7 @@ def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), 'ready', [])
+        file = utils.wait_file(os.path.join(tmpdir, app_name), 'ready', [])
         assert file != ""
 
         expel_cmd = [tt_cmd, "replicaset", "expel"]
@@ -85,8 +86,7 @@ Replicasets state: bootstrapped
         assert rc == 0
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@utils.skipif_cartridge_unsupported
 def test_expel_cartridge(tt_cmd, cartridge_app):
     status_expelled = """Orchestrator:      cartridge
 Replicasets state: bootstrapped
@@ -145,8 +145,7 @@ Replicasets state: uninitialized
         assert rs_out == status_expelled
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize("flag", [None, "--config"])
 def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
@@ -160,7 +159,7 @@ def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(os.path.join(tmpdir, app_name), f'ready-instance-00{i}', [])
+            file = utils.wait_file(os.path.join(tmpdir, app_name), f'ready-instance-00{i}', [])
             assert file != ""
 
         expel_cmd = [tt_cmd, "replicaset", "expel"]

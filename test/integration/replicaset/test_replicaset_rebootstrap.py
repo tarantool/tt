@@ -7,14 +7,14 @@ from cartridge_helper import cartridge_name
 from replicaset_helpers import eval_on_instance
 from retry import retry
 
+import utils
 from utils import (get_tarantool_version, lib_path, log_file, log_path,
                    run_command_and_get_output, wait_string_in_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@utils.skipif_cartridge_unsupported
 def test_rebootstrap_cartridge_instance(tt_cmd, cartridge_app):
     inst_name = "s2-replica-1"
     lib_dir = Path(cartridge_app.workdir).joinpath(cartridge_name, lib_path, inst_name)
@@ -112,8 +112,7 @@ s2:''')
         run_command_and_get_output([tt_cmd, "stop", "-y"], cwd=tmp_path)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cconfig test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize(
     "flags,input",
     [
@@ -157,8 +156,7 @@ def test_rebootstrap_cconfig_replicaset(tt_cmd, vshard_app, flags, input):
         vshard_app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cconfig test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_rebootstrap_not_confirmed(tt_cmd, vshard_app):
     try:
         vshard_app.start()
@@ -184,8 +182,7 @@ def test_rebootstrap_not_confirmed(tt_cmd, vshard_app):
         vshard_app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cconfig test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_rebootstrap_already_stopped(tt_cmd, vshard_app):
     try:
         vshard_app.start()

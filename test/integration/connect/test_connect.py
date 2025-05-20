@@ -1,6 +1,5 @@
 import itertools
 import os
-import platform
 import re
 import shutil
 import signal
@@ -11,12 +10,10 @@ from pathlib import Path
 import psutil
 import pytest
 
+import utils
 from utils import (BINARY_PORT_NAME, control_socket, create_tt_config,
                    get_tarantool_version, is_tarantool_major_one, kill_procs,
-                   run_command_and_get_output, run_path,
-                   skip_if_cluster_app_unsupported, skip_if_quit_unsupported,
-                   skip_if_tarantool_ce, skip_if_tuple_format_supported,
-                   skip_if_tuple_format_unsupported, wait_file, wait_files)
+                   run_command_and_get_output, run_path, wait_file, wait_files)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -130,16 +127,14 @@ def is_language_supported():
     return major >= 2
 
 
-def skip_if_language_unsupported(tt_cmd, tmpdir, test_app):
-    if not is_language_supported():
-        stop_app(tt_cmd, tmpdir, test_app)
-        pytest.skip("\\set language is unsupported")
-
-
-def skip_if_language_supported(tt_cmd, tmpdir, test_app):
-    if is_language_supported():
-        stop_app(tt_cmd, tmpdir, test_app)
-        pytest.skip("\\set language is supported")
+skipif_language_unsupported = pytest.mark.skipif(
+    not is_language_supported(),
+    reason="\\set language is unsupported",
+)
+skipif_language_supported = pytest.mark.skipif(
+    is_language_supported(),
+    reason="\\set language is supported",
+    )
 
 
 def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
@@ -335,11 +330,10 @@ def test_connect_and_handle_lua_parse_error(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_quit_unsupported
 def test_connect_and_execute_quit(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
-
-    skip_if_quit_unsupported()
 
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
@@ -418,9 +412,8 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_tarantool_ce
 def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
-    skip_if_tarantool_ce()
-
     tmpdir = tmpdir_with_cfg
     empty_file = "empty.lua"
     # The test application file.
@@ -785,12 +778,11 @@ def test_connect_language_default_lua(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, test_app)
 
 
+@skipif_language_unsupported
 def test_connect_language_lua(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
     try:
-        skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
-
         # Execute Lua-code.
         opts = {"-l": "lua"}
         ret, output = try_execute_on_instance(
@@ -813,12 +805,11 @@ def test_connect_language_lua(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, test_app)
 
 
+@skipif_language_unsupported
 def test_connect_language_sql(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
     try:
-        skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
-
         # Execute Lua-code.
         opts = {"-l": "sql"}
         ret, output = try_execute_on_instance(
@@ -841,12 +832,11 @@ def test_connect_language_sql(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, test_app)
 
 
+@skipif_language_unsupported
 def test_connect_language_l_equal_language(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
     try:
-        skip_if_language_unsupported(tt_cmd, tmpdir, test_app)
-
         for opt in ["-l", "--language"]:
             # Execute Lua-code.
             opts = {opt: "sql"}
@@ -894,12 +884,11 @@ def test_connect_language_invalid(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, test_app)
 
 
+@skipif_language_supported
 def test_connect_language_set_if_unsupported(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     test_app, lua_file, sql_file = prepare_test_app_languages(tt_cmd, tmpdir)
     try:
-        skip_if_language_supported(tt_cmd, tmpdir, test_app)
-
         # Execute Lua-code.
         opts = {"-l": "lua"}
         ret, output = try_execute_on_instance(
@@ -1012,9 +1001,8 @@ def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_tuple_format_unsupported
 def test_lua_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
@@ -1121,9 +1109,8 @@ def test_lua_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_tuple_format_unsupported
 def test_yaml_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
@@ -1627,9 +1614,8 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_tuple_format_supported
 def test_table_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_supported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
@@ -1681,9 +1667,8 @@ def test_table_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_tuple_format_unsupported
 def test_table_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
@@ -2098,9 +2083,8 @@ def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_tuple_format_supported
 def test_ttable_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_supported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
@@ -2148,9 +2132,8 @@ def test_ttable_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_tuple_format_unsupported
 def test_ttable_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
-    skip_if_tuple_format_unsupported()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
@@ -2738,9 +2721,8 @@ def test_output_format_tables_dialects(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
+@utils.skipif_macos
 def test_connect_to_single_instance_app_binary(tt_cmd):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
     empty_file = "empty.lua"
@@ -2795,9 +2777,8 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
+@utils.skipif_macos
 def test_connect_to_multi_instances_app_binary(tt_cmd):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
     app_name = "test_multi_app"
@@ -2844,9 +2825,8 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
+@utils.skipif_macos
 def test_connect_to_instance_binary_missing_port(tt_cmd):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
     empty_file = "empty.lua"
@@ -2888,9 +2868,8 @@ def test_connect_to_instance_binary_missing_port(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
+@utils.skipif_macos
 def test_connect_to_instance_binary_port_is_broken(tt_cmd):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
     empty_file = "empty.lua"
@@ -2937,12 +2916,11 @@ def test_connect_to_instance_binary_port_is_broken(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
+@utils.skipif_macos
+@utils.skipif_cluster_app_unsupported
 def test_connect_to_cluster_app(tt_cmd):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
-    skip_if_cluster_app_unsupported()
 
     empty_file = "empty.lua"
     app_name = "test_simple_cluster_app"

@@ -7,14 +7,14 @@ import yaml
 from cartridge_helper import cartridge_name, wait_inst_start
 from replicaset_helpers import eval_on_instance
 
+import utils
 from utils import (find_ports, get_tarantool_version,
                    run_command_and_get_output, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom test for Tarantool > 2")
+@utils.skipif_cartridge_unsupported
 @pytest.mark.parametrize("case", [["--config", "--custom"],
                                   ["--custom", "--cartridge"],
                                   ["--config", "--cartridge"],
@@ -128,8 +128,7 @@ def test_bootstrap_app_replicaset_specified(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@utils.skipif_cartridge_unsupported
 @pytest.mark.parametrize("flag", [None, "--cartridge"])
 def test_replicaset_bootstrap_cartridge_app_second_bootstrap(tt_cmd, cartridge_app, flag):
     # Change the config.
@@ -189,8 +188,7 @@ def test_replicaset_bootstrap_cartridge_app_second_bootstrap(tt_cmd, cartridge_a
     assert re.search(r"2\n.*3", out)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@utils.skipif_cartridge_unsupported
 def test_replicaset_bootstrap_cartridge_instance_bootstrapped_already(tt_cmd, cartridge_app):
     cmd = [tt_cmd, "rs", "bootstrap", "--replicaset", "s1", f"{cartridge_name}:s1-master"]
     rc, out = run_command_and_get_output(cmd, cwd=cartridge_app.workdir)
@@ -201,8 +199,9 @@ def test_replicaset_bootstrap_cartridge_instance_bootstrapped_already(tt_cmd, ca
 # There is an issue on Tarantool 1.10 with joining to replicaset if join attempt
 # is too early. It does not retry to bootstrap and fails immediately if currently
 # bootstrapping replicas does not know about the new one. Skip this test for 1.10.
-@pytest.mark.skipif(tarantool_major_version > 2 or tarantool_major_version < 2,
-                    reason="skip cartridge test for Tarantool major != 2")
+@pytest.mark.skipif(tarantool_major_version < 2,
+                    reason="joining to replicaset works incorrectly for Tarantool 1.10")
+@utils.skipif_cartridge_unsupported
 def test_replicaset_bootstrap_cartridge_new_instance(tt_cmd, cartridge_app):
     instances_yml_path = os.path.join(cartridge_app.workdir, cartridge_name, "instances.yml")
     with open(instances_yml_path, "r") as f:

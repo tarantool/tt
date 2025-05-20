@@ -1,5 +1,4 @@
 import os
-import platform
 import re
 import shutil
 import subprocess
@@ -7,6 +6,7 @@ import tempfile
 
 import pytest
 
+import utils
 from utils import (config_name, create_lua_config, create_tt_config,
                    run_command_and_get_output)
 
@@ -121,10 +121,8 @@ def test_rocks_install_remote(tt_cmd, tmp_path):
     assert "Installing http://rocks.tarantool.org/stat" in output
 
 
+@utils.skipif_macos
 def test_rocks_install_local(tt_cmd, tmp_path):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported")
-
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   rocks: "repo"''')
@@ -140,10 +138,8 @@ def test_rocks_install_local(tt_cmd, tmp_path):
     assert f"Installing {tmp_path}/repo/stat-0.3.2-1.all.rock" in output
 
 
+@utils.skipif_macos
 def test_rocks_install_local_if_network_is_up(tt_cmd, tmp_path):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported")
-
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   rocks: "repo"''')
@@ -195,10 +191,8 @@ def test_rock_install_without_system_tarantool(tt_cmd, tmpdir_with_tarantool):
                                        ".rocks", "lib", "tarantool", "pg"))
 
 
+@utils.skipif_macos
 def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmp_path):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported")
-
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   rocks: "repo"''')
@@ -220,10 +214,8 @@ def test_rocks_install_from_dir_with_no_repo(tt_cmd, tmp_path):
     assert os.path.exists(os.path.join(tmp_path, "subdir", ".rocks"))
 
 
+@utils.skipif_macos
 def test_rocks_install_from_env_var_repo(tt_cmd, tmp_path):
-    if platform.system() == "Darwin":
-        pytest.skip("/set platform is unsupported")
-
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write('''repo:
   distfiles: "distfiles"''')
