@@ -105,7 +105,8 @@ type UriOpts struct {
 func IsBaseURI(str string) bool {
 	// tcp://host:port
 	// host:port
-	tcpReStr := `(tcp://)?([\w\\.-]+:\d+)`
+	hostReStr := `(?:([\w\\.-]+)|(\[[\w:]+\]))`
+	tcpReStr := `(tcp://)?(` + hostReStr + `:\d+)`
 	// unix://../path
 	// unix://~/path
 	// unix:///path
@@ -126,7 +127,8 @@ func IsBaseURI(str string) bool {
 func IsCredentialsURI(str string) bool {
 	// tcp://user:password@host:port
 	// user:password@host:port
-	tcpReStr := `(tcp://)?` + userpassRe + `@([\w\.-]+:\d+)`
+	hostReStr := `(?:([\w\\.-]+)|(\[[\w:%]+\]))`
+	tcpReStr := `(tcp://)?` + userpassRe + `@(` + hostReStr + `:\d+)`
 	// unix://user:password@../path
 	// unix://user:password@~/path
 	// unix://user:password@/path
