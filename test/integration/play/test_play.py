@@ -21,6 +21,7 @@ from utils import (
     skip_if_cluster_app_unsupported,
     skip_if_tarantool_ce,
     wait_file,
+    wait_files,
 )
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
@@ -418,3 +419,37 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     finally:
         # Stop the Instance.
         stop_app(tt_cmd, tmpdir, "test_ssl_app")
+
+
+@pytest.mark.tt(
+    app_path="test_simple_cluster_app",
+    instances=["master"],
+)
+@pytest.mark.parametrize("with_scheme", [
+    pytest.param(True, id="with-scheme"),
+    pytest.param(False, id="no-scheme"),
+])
+@pytest.mark.parametrize("uri", [
+    pytest.param("localhost:3013", id="hostname"),
+    pytest.param("127.0.0.1:3013", id="ipv4"),
+    pytest.param("[::1]:3013", id="ipv6"),
+])
+def test_play_to_cluster_app_by_uri(tt, with_scheme, uri):
+    skip_if_cluster_app_unsupported()
+
+    if with_scheme:
+        uri = f"tcp://{uri}"
+    file_to_play = Path(__file__) / "test_file" / "test.snap"
+
+    # Start instances.
+    p = tt.run(
+        "start",
+        env={"TT_IPROTO_LISTEN": f'[{{"uri":"{uri}"}}]'},
+    )
+    # Check for start.
+    assert p.returncode == 0
+    assert wait_files(5, [tt.path("configured")])
+
+    # Play to the instance.
+    p = tt.run("play", uri, file_to_play)
+    assert p.returncode == 0

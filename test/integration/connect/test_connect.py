@@ -3098,6 +3098,40 @@ def test_connect_to_cluster_app(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
+@pytest.mark.tt(
+    app_path="test_simple_cluster_app",
+    instances=["master"],
+)
+@pytest.mark.parametrize("with_scheme", [
+    pytest.param(True, id="with-scheme"),
+    pytest.param(False, id="no-scheme"),
+])
+@pytest.mark.parametrize("uri", [
+    pytest.param("127.0.0.1:3013", id="ipv4"),
+    pytest.param("[::1]:3013", id="ipv6"),
+])
+def test_connect_to_cluster_app_by_uri(tt, with_scheme, uri):
+    if platform.system() == "Darwin":
+        pytest.skip("/set platform is unsupported by test")
+    skip_if_cluster_app_unsupported()
+    # Start instances.
+    p = tt.run(
+        "start",
+        env={"TT_IPROTO_LISTEN": f'[{{"uri":"{uri}"}}]'},
+    )
+    # Check for start.
+    assert p.returncode == 0
+    assert wait_files(5, [tt.path("configured")])
+
+    # Connect to the instance and execute stdin.
+    p = tt.run(
+        "connect", f"tcp://{uri}" if with_scheme else uri,
+        input="2+2",
+    )
+    assert p.returncode == 0
+    assert p.stdout == "---\n- 4\n...\n\n"
+
+
 @pytest.mark.parametrize(
     "instance, opts, ready_file",
     (
