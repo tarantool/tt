@@ -392,7 +392,7 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
         assert re.search(r"   ⨯ unable to establish connection", output)
 
         # Connect to the instance.
-        uris = ["localhost:3013", "tcp://localhost:3013"]
+        uris = ["localhost:3013", "tcp://localhost:3013", "[::]:3013", "tcp://[::]:3013"]
         for uri in uris:
             # Execute a script.
             ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file)
