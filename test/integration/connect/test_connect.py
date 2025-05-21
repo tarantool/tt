@@ -2650,59 +2650,56 @@ def test_output_format_tables_dialects(tt_cmd, tmpdir_with_cfg):
         assert file != ""
 
         # Connect to the instance.
-        uris = ["localhost:3013"]
+        uris = ["localhost:3013", "tcp://localhost:3013"]
         for uri in uris:
-            # Connect to the instance.
-            uris = ["localhost:3013", "tcp://localhost:3013"]
-            for uri in uris:
-                # Execute stdin.
-                ret, output = try_execute_on_instance(
-                    tt_cmd,
-                    tmpdir,
-                    uri,
-                    stdin=(
-                        "\\xw 5 \n \\set table_format markdown \n"
-                        "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n"
-                        "\\xw 0 \n"
-                        "\\xT \n"
-                        "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n"
-                        "\\set table_format jira \n"
-                        "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n"
-                        "\\xt \n"
-                        "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n"
-                        "\\xy \n"
-                        "\\set table_format jira \n"
-                    ),
-                    opts={"-x": "table"},
-                )
-                assert ret
-                print(output)
-                assert output == (
-                    "| | | |\n"
-                    "|-|-|-|\n"
-                    "| col1 | col2 | col3 |\n"
-                    "| 10 | 20 | 30 |\n"
-                    "| 40 | 50 | 60 |\n"
-                    "| 70 | 80 |  |\n"
-                    "| nil | 10000+0000+0 |  |\n"
-                    "\n"
-                    "| | | | | |\n"
-                    "|-|-|-|-|-|\n"
-                    "| col1 | 10 | 40 | 70 | nil |\n"
-                    "| col2 | 20 | 50 | 80 | 1000000000 |\n"
-                    "| col3 | 30 | 60 |  |  |\n"
-                    "\n"
-                    "| col1 | 10 | 40 | 70 | nil |\n"
-                    "| col2 | 20 | 50 | 80 | 1000000000 |\n"
-                    "| col3 | 30 | 60 |  |  |\n"
-                    "\n"
-                    "| col1 | col2 | col3 |\n"
-                    "| 10 | 20 | 30 |\n"
-                    "| 40 | 50 | 60 |\n"
-                    "| 70 | 80 |  |\n"
-                    "| nil | 1000000000 |  |\n"
-                    "\n"
-                )
+            # Execute stdin.
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin=(
+                    "\\xw 5 \n \\set table_format markdown \n"
+                    "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n"
+                    "\\xw 0 \n"
+                    "\\xT \n"
+                    "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n"
+                    "\\set table_format jira \n"
+                    "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n"
+                    "\\xt \n"
+                    "{10,20,30}, {40,50,60}, {70, 80}, {box.NULL, 1000000000}\n"
+                    "\\xy \n"
+                    "\\set table_format jira \n"
+                ),
+                opts={"-x": "table"},
+            )
+            assert ret
+            print(output)
+            assert output == (
+                "| | | |\n"
+                "|-|-|-|\n"
+                "| col1 | col2 | col3 |\n"
+                "| 10 | 20 | 30 |\n"
+                "| 40 | 50 | 60 |\n"
+                "| 70 | 80 |  |\n"
+                "| nil | 10000+0000+0 |  |\n"
+                "\n"
+                "| | | | | |\n"
+                "|-|-|-|-|-|\n"
+                "| col1 | 10 | 40 | 70 | nil |\n"
+                "| col2 | 20 | 50 | 80 | 1000000000 |\n"
+                "| col3 | 30 | 60 |  |  |\n"
+                "\n"
+                "| col1 | 10 | 40 | 70 | nil |\n"
+                "| col2 | 20 | 50 | 80 | 1000000000 |\n"
+                "| col3 | 30 | 60 |  |  |\n"
+                "\n"
+                "| col1 | col2 | col3 |\n"
+                "| 10 | 20 | 30 |\n"
+                "| 40 | 50 | 60 |\n"
+                "| 70 | 80 |  |\n"
+                "| nil | 1000000000 |  |\n"
+                "\n"
+            )
 
     finally:
         # Stop the Instance.
