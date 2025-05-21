@@ -139,13 +139,10 @@ skipif_language_supported = pytest.mark.skipif(
 
 def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_localhost_app", "test_app.lua")
-    # The test file.
-    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     # Copy test data into temporary directory.
-    copy_data(tmpdir, [test_app_path, empty_file_path])
+    copy_data(tmpdir, [test_app_path])
 
     commands = {}
     help_output = """
@@ -241,13 +238,10 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
 
 def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_localhost_app", "test_app.lua")
-    # The test file.
-    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     # Copy test data into temporary directory.
-    copy_data(tmpdir, [test_app_path, empty_file_path])
+    copy_data(tmpdir, [test_app_path])
 
     # Start an instance.
     start_app(tt_cmd, tmpdir, "test_app")
@@ -296,13 +290,10 @@ def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
 
 def test_connect_and_handle_lua_parse_error(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_localhost_app", "test_app.lua")
-    # The test file.
-    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     # Copy test data into temporary directory.
-    copy_data(tmpdir, [test_app_path, empty_file_path])
+    copy_data(tmpdir, [test_app_path])
 
     # Start an instance.
     start_app(tt_cmd, tmpdir, "test_app")
@@ -333,14 +324,11 @@ def test_connect_and_handle_lua_parse_error(tt_cmd, tmpdir_with_cfg):
 @utils.skipif_quit_unsupported
 def test_connect_and_execute_quit(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    empty_file = "empty.lua"
 
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
-    # The test file.
-    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     # Copy test data into temporary directory.
-    copy_data(tmpdir, [test_app_path, empty_file_path])
+    copy_data(tmpdir, [test_app_path])
 
     # Start an instance.
     start_app(tt_cmd, tmpdir, "test_app")
@@ -2782,15 +2770,10 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
     app_name = "test_multi_app"
-    empty_file = "empty.lua"
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), app_name)
     tmp_app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(test_app_path, tmp_app_path)
-    # The test file.
-    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
-    # Copy test data into temporary directory.
-    copy_data(tmpdir, [empty_file_path])
 
     # Start instances.
     start_app(tt_cmd, tmpdir, app_name, True)
@@ -2829,13 +2812,10 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
 def test_connect_to_instance_binary_missing_port(tt_cmd):
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
-    empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
-    # The test file.
-    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     # Copy test data into temporary directory.
-    copy_data(tmpdir, [test_app_path, empty_file_path])
+    copy_data(tmpdir, [test_app_path])
 
     # Start an instance.
     start_app(tt_cmd, tmpdir, "test_app", True)
@@ -2872,13 +2852,10 @@ def test_connect_to_instance_binary_missing_port(tt_cmd):
 def test_connect_to_instance_binary_port_is_broken(tt_cmd):
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
-    empty_file = "empty.lua"
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_single_app", "test_app.lua")
-    # The test file.
-    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     # Copy test data into temporary directory.
-    copy_data(tmpdir, [test_app_path, empty_file_path])
+    copy_data(tmpdir, [test_app_path])
 
     # Start an instance.
     start_app(tt_cmd, tmpdir, "test_app", True)
@@ -2922,16 +2899,11 @@ def test_connect_to_cluster_app(tt_cmd):
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
 
-    empty_file = "empty.lua"
     app_name = "test_simple_cluster_app"
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), app_name)
     tmp_app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(test_app_path, tmp_app_path)
-    # The test file.
-    empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
-    # Copy test data into temporary directory.
-    copy_data(tmpdir, [empty_file_path])
 
     # Start instances.
     start_app(tt_cmd, tmpdir, app_name, True)
