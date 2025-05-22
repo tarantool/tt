@@ -3,7 +3,7 @@ index 1282c47..0432ba6 100644
 --- a/cli/commands/create.go
 +++ b/cli/commands/create.go
 @@ -51,7 +51,7 @@ func runCreateCommand(cmd *cobra.Command, args []string) error {
- 
+
  	// get project path
  	basePath := cmd.Flags().Arg(0)
 -	ctx.Project.Path, err = getNewProjectPath(basePath, os.Getenv(project.EnvInstAvailable))
@@ -18,16 +18,16 @@ index 551e56a..0a5227d 100644
 @@ -11,7 +11,7 @@ import (
  	"github.com/tarantool/cartridge-cli/cli/version"
  )
- 
+
 -const EnvInstAvailable = "TT_INST_AVAILABLE"
 +const EnvInstEnabled = "TT_INST_ENABLED"
- 
+
  func FillCtx(ctx *context.Ctx) error {
  	var err error
 @@ -28,9 +28,9 @@ func FillCtx(ctx *context.Ctx) error {
  		ctx.Running.AppDir = filepath.Join(ctx.Running.AppDir, ctx.Project.Name)
  	}
- 
+
 -	instAvail := os.Getenv(EnvInstAvailable)
 -	if instAvail != "" {
 -		ctx.Running.AppDir = filepath.Join(instAvail, ctx.Project.Name)
@@ -35,5 +35,5 @@ index 551e56a..0a5227d 100644
 +	if instEnabled != "" {
 +		ctx.Running.AppDir = filepath.Join(instEnabled, ctx.Project.Name)
  	}
- 
+
  	ctx.Replicasets.File = filepath.Join(ctx.Running.AppDir, "replicasets.yml")

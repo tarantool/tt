@@ -5,7 +5,7 @@ index a2953b829..4762d5611 100644
 @@ -28,13 +28,11 @@ stack_break_f(char *ptr)
  	return sum;
  }
- 
+
 -static char stack_buf[SIGSTKSZ];
 -
  static int

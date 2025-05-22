@@ -64,7 +64,7 @@ RUN wget -P /tmp/ https://github.com/openssl/openssl/releases/download/openssl-3
     && tar -xvf /tmp/openssl-3.0.8.tar.gz -C /tmp/ \
     && cd /tmp/openssl-3.0.8 \
     && ./Configure --prefix=/opt/openssl no-shared \
-    && make -j \ 
+    && make -j \
     && make install \
     && rm -rf /tmp/*
 
@@ -77,4 +77,4 @@ RUN ETCD_VER=v3.5.9 \
 
 RUN curl -L https://tarantool.io/iqJapRm/release/3/installer.sh | bash \
     && apt install -y tarantool tarantool-dev \
-    && apt clean    
+    && apt clean

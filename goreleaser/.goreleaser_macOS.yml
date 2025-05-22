@@ -49,4 +49,3 @@ archives:
 
 snapshot:
   name_template: "{{ .Tag }}-{{ .ShortCommit }}"
-
