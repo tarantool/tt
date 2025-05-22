@@ -151,7 +151,7 @@ func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
 	return resp.Kvs[0].Value, resp.Kvs[0].ModRevision
 }
 
-func renderEtcdAppConfig(t *testing.T, endpoint string, src string, dst string) {
+func renderEtcdAppConfig(t *testing.T, endpoint, src, dst string) {
 	engine := templates.NewDefaultEngine()
 	err := engine.RenderFile(src, dst, map[string]string{
 		"endpoint": endpoint,

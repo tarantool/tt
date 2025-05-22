@@ -21,11 +21,13 @@ var corescripts embed.FS
 //go:embed extensions
 var extensions embed.FS
 
-const packEmbedPath = "scripts/tarabrt.sh"
-const inspectEmbedPath = "scripts/gdb.sh"
+const (
+	packEmbedPath    = "scripts/tarabrt.sh"
+	inspectEmbedPath = "scripts/gdb.sh"
+)
 
 // Pack packs coredump into a tar.gz archive.
-func Pack(corePath string, executable string, outputDir string, pid uint, time string) error {
+func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
 		return fmt.Errorf("cannot create a temporary directory for archiving: %v", err)
@@ -45,7 +47,7 @@ func Pack(corePath string, executable string, outputDir string, pid uint, time s
 
 	// Prepare gdb wrapper for packing.
 	inspectPath := filepath.Join(tmpDir, filepath.Base(inspectEmbedPath))
-	err = util.FsCopyFileChangePerms(corescripts, inspectEmbedPath, inspectPath, 0755)
+	err = util.FsCopyFileChangePerms(corescripts, inspectEmbedPath, inspectPath, 0o755)
 	if err != nil {
 		return fmt.Errorf("failed to put the inspecting script into the archive: %v", err)
 	}
@@ -60,7 +62,7 @@ func Pack(corePath string, executable string, outputDir string, pid uint, time s
 	for _, extEntry := range extEntries {
 		extSrc := filepath.Join(extDirName, extEntry.Name())
 		extDst := filepath.Join(tmpDir, extEntry.Name())
-		err = util.FsCopyFileChangePerms(extensions, extSrc, extDst, 0644)
+		err = util.FsCopyFileChangePerms(extensions, extSrc, extDst, 0o644)
 		if err != nil {
 			return fmt.Errorf("failed to put GDB-extension into the archive: %v", err)
 		}
@@ -95,7 +97,7 @@ func Unpack(archivePath string) error {
 }
 
 // Inspect allows user to inspect coredump.
-func Inspect(archiveOrDir string, sourceDir string) error {
+func Inspect(archiveOrDir, sourceDir string) error {
 	stat, err := os.Stat(archiveOrDir)
 	if err != nil {
 		return fmt.Errorf("failed to inspect: %v", err)
@@ -104,7 +106,6 @@ func Inspect(archiveOrDir string, sourceDir string) error {
 	var dir string
 	if stat.IsDir() {
 		dir = archiveOrDir
-
 	} else {
 		// It seems archive was specified, so try to unpack into
 		// temporary directory.
@@ -130,7 +131,7 @@ func Inspect(archiveOrDir string, sourceDir string) error {
 	_, err = os.Stat(scriptPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		// If the wrapper is missing in archive, then use the embedded one.
-		err = util.FsCopyFileChangePerms(corescripts, inspectEmbedPath, scriptPath, 0755)
+		err = util.FsCopyFileChangePerms(corescripts, inspectEmbedPath, scriptPath, 0o755)
 	}
 
 	if err != nil {

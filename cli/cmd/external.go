@@ -8,7 +8,8 @@ import (
 
 // configureExternalCmd configures external commands.
 func configureExternalCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo,
-	forceInternal bool) {
+	forceInternal bool,
+) {
 	configureExistsCmd(rootCmd, modulesInfo, forceInternal)
 	configureNonExistentCmd(rootCmd, modulesInfo)
 }
@@ -28,7 +29,8 @@ func externalModuleHelpFunc(manifest modules.Manifest) func(*cobra.Command, []st
 // configureExistsCmd configures an external commands
 // that have internal implementation.
 func configureExistsCmd(rootCmd *cobra.Command, modulesInfo *modules.ModulesInfo,
-	forceInternal bool) {
+	forceInternal bool,
+) {
 	for _, cmd := range rootCmd.Commands() {
 		if manifest, found := (*modulesInfo)[cmd.CommandPath()]; found {
 			cmd.DisableFlagParsing = !forceInternal
@@ -59,7 +61,7 @@ func configureNonExistentCmd(rootCmd *cobra.Command, modulesInfo *modules.Module
 // newExternalCmd returns a pointer to a new external
 // command that will call modules.RunCmd.
 func newExternalCmd(manifest modules.Manifest) *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:                manifest.Name,
 		Run:                RunModuleFunc(nil),
 		DisableFlagParsing: true,

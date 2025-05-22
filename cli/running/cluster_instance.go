@@ -23,7 +23,8 @@ type clusterInstance struct {
 
 // newClusterInstance creates a clusterInstance.
 func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx InstanceCtx,
-	opts ...InstanceOption) (*clusterInstance, error) {
+	opts ...InstanceOption,
+) (*clusterInstance, error) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolCli.Executable); err != nil {
 		return nil, err
@@ -45,7 +46,7 @@ func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx Instan
 }
 
 // appendEnvIfNotEmpty appends environment variable setting if value is not empty.
-func appendEnvIfNotEmpty(env []string, envVarName string, value string) []string {
+func appendEnvIfNotEmpty(env []string, envVarName, value string) []string {
 	if value != "" {
 		env = append(env, fmt.Sprintf("%s=%s", envVarName, value))
 	}

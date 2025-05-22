@@ -12,7 +12,7 @@ var opts status.StatusOpts
 
 // NewStatusCmd creates status command.
 func NewStatusCmd() *cobra.Command {
-	var statusCmd = &cobra.Command{
+	statusCmd := &cobra.Command{
 		Use:   "status [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Status of the tarantool instance(s)",
 		Long: `The 'status' command provides information about the status of Tarantool instances.
@@ -34,7 +34,8 @@ Columns:
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractAppNames,

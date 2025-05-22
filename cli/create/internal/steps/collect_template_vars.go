@@ -22,7 +22,8 @@ type CollectTemplateVarsFromUser struct {
 
 // Run collects template variables from user in interactive mode.
 func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
-	createCtx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {
+	createCtx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx,
+) error {
 	var err error
 	if !templateCtx.IsManifestPresent {
 		return nil

@@ -36,7 +36,8 @@ type PackDependencies []PackDependency
 
 // createControlDir creates a control directory that contains control file, postinst and preinst.
 func createControlDir(cmdCtx cmdcontext.CmdCtx, packCtx PackCtx,
-	opts *config.CliOpts, destDirPath string) error {
+	opts *config.CliOpts, destDirPath string,
+) error {
 	log.Debug("Create DEB control file")
 
 	err := os.MkdirAll(destDirPath, dirPermissions)

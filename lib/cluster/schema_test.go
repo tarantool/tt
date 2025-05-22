@@ -118,8 +118,10 @@ func TestValidate_instance_schema(t *testing.T) {
 
 	var validateErr cluster.ValidateError
 	require.ErrorAs(t, err, &validateErr)
-	assert.Equal(t, []string{"credentials", "roles", "foo", "privileges",
-		"permissions"}, validateErr.Path())
+	assert.Equal(t, []string{
+		"credentials", "roles", "foo", "privileges",
+		"permissions",
+	}, validateErr.Path())
 
 	require.Len(t, validateErr.Unwrap(), 1)
 	assert.EqualError(t, validateErr.Unwrap()[0],

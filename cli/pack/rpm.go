@@ -15,12 +15,12 @@ import (
 
 // rpmPacker is a structure that implements Packer interface
 // with specific rpm packing behavior.
-type rpmPacker struct {
-}
+type rpmPacker struct{}
 
 // Run packs a bundle into rpm package.
 func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
-	opts *config.CliOpts) error {
+	opts *config.CliOpts,
+) error {
 	var err error
 
 	if err := util.CheckRequiredBinaries("cpio"); err != nil {
@@ -91,7 +91,6 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	err = packRpm(cmdCtx, packCtx, opts, packageDir, resPackagePath)
-
 	if err != nil {
 		return fmt.Errorf("failed to create RPM package: %s", err)
 	}

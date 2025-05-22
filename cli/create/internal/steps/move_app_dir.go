@@ -11,12 +11,12 @@ import (
 )
 
 // MoveAppDirectory represents temporary application directory move step.
-type MoveAppDirectory struct {
-}
+type MoveAppDirectory struct{}
 
 // Run moves temporary application directory to destination.
 func (MoveAppDirectory) Run(createCtx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	if templateCtx.TargetAppPath == "" {
 		return nil
 	}

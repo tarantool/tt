@@ -12,21 +12,25 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
-var _ replicaset.Discoverer = &replicaset.CConfigInstance{}
-var _ replicaset.Promoter = &replicaset.CConfigInstance{}
-var _ replicaset.Demoter = &replicaset.CConfigInstance{}
-var _ replicaset.Expeller = &replicaset.CConfigInstance{}
-var _ replicaset.VShardBootstrapper = &replicaset.CConfigInstance{}
-var _ replicaset.Bootstrapper = &replicaset.CConfigInstance{}
-var _ replicaset.RolesChanger = &replicaset.CConfigInstance{}
+var (
+	_ replicaset.Discoverer         = &replicaset.CConfigInstance{}
+	_ replicaset.Promoter           = &replicaset.CConfigInstance{}
+	_ replicaset.Demoter            = &replicaset.CConfigInstance{}
+	_ replicaset.Expeller           = &replicaset.CConfigInstance{}
+	_ replicaset.VShardBootstrapper = &replicaset.CConfigInstance{}
+	_ replicaset.Bootstrapper       = &replicaset.CConfigInstance{}
+	_ replicaset.RolesChanger       = &replicaset.CConfigInstance{}
+)
 
-var _ replicaset.Discoverer = &replicaset.CConfigApplication{}
-var _ replicaset.Promoter = &replicaset.CConfigApplication{}
-var _ replicaset.Demoter = &replicaset.CConfigApplication{}
-var _ replicaset.Expeller = &replicaset.CConfigApplication{}
-var _ replicaset.VShardBootstrapper = &replicaset.CConfigApplication{}
-var _ replicaset.Bootstrapper = &replicaset.CConfigApplication{}
-var _ replicaset.RolesChanger = &replicaset.CConfigApplication{}
+var (
+	_ replicaset.Discoverer         = &replicaset.CConfigApplication{}
+	_ replicaset.Promoter           = &replicaset.CConfigApplication{}
+	_ replicaset.Demoter            = &replicaset.CConfigApplication{}
+	_ replicaset.Expeller           = &replicaset.CConfigApplication{}
+	_ replicaset.VShardBootstrapper = &replicaset.CConfigApplication{}
+	_ replicaset.Bootstrapper       = &replicaset.CConfigApplication{}
+	_ replicaset.RolesChanger       = &replicaset.CConfigApplication{}
+)
 
 func TestCconfigApplication_Bootstrap(t *testing.T) {
 	app := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil)
@@ -52,7 +56,7 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 			Name: "simplest",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid": "foo",
 						},
@@ -63,7 +67,7 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCentralizedConfig,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:   "foo",
 						Master: replicaset.MasterNo,
 					},
@@ -74,7 +78,7 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 			Name: "no_instances",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -90,7 +94,7 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCentralizedConfig,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
@@ -104,7 +108,7 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 			Name: "single_instance",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -127,14 +131,14 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCentralizedConfig,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
 						Master:     replicaset.MasterUnknown,
 						Failover:   replicaset.FailoverElection,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "otherinstanceuuid",
 								URI:   "anyuri",
@@ -148,7 +152,7 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 			Name: "single_master",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -171,14 +175,14 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCentralizedConfig,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
 						Master:     replicaset.MasterSingle,
 						Failover:   replicaset.FailoverSupervised,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "someinstanceuuid",
 								URI:   "anyuri",
@@ -193,7 +197,7 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 			Name: "single_replica",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -216,14 +220,14 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCentralizedConfig,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
 						Master:     replicaset.MasterNo,
 						Failover:   replicaset.FailoverManual,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "someinstanceuuid",
 								URI:   "anyuri",
@@ -238,7 +242,7 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 			Name: "multi_instances",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -266,20 +270,20 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCentralizedConfig,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
 						Master:     replicaset.MasterUnknown,
 						Failover:   replicaset.FailoverSupervised,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "someinstanceuuid",
 								URI:   "anyuri",
 								Mode:  replicaset.ModeRW,
 							},
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "otherinstanceuuid",
 								URI:   "anyuri",
@@ -305,12 +309,12 @@ func TestCConfigInstance_Discovery(t *testing.T) {
 func TestCConfigInstance_Discovery_force(t *testing.T) {
 	evaler := &instanceMockEvaler{
 		Ret: [][]any{
-			[]any{
+			{
 				map[any]any{
 					"uuid": "foo1",
 				},
 			},
-			[]any{
+			{
 				map[any]any{
 					"uuid": "foo2",
 				},
@@ -326,7 +330,7 @@ func TestCConfigInstance_Discovery_force(t *testing.T) {
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCentralizedConfig,
 		Replicasets: []replicaset.Replicaset{
-			replicaset.Replicaset{
+			{
 				UUID:   "foo1",
 				Master: replicaset.MasterNo,
 			},
@@ -341,7 +345,7 @@ func TestCConfigInstance_Discovery_force(t *testing.T) {
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCentralizedConfig,
 		Replicasets: []replicaset.Replicaset{
-			replicaset.Replicaset{
+			{
 				UUID:   "foo2",
 				Master: replicaset.MasterNo,
 			},
@@ -366,7 +370,7 @@ func TestCConfigInstance_Discovery_failover(t *testing.T) {
 		t.Run(tc.Failover, func(t *testing.T) {
 			evaler := &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":     "foo",
 							"failover": tc.Failover,
@@ -378,7 +382,7 @@ func TestCConfigInstance_Discovery_failover(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCentralizedConfig,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:     "foo",
 						Master:   replicaset.MasterNo,
 						Failover: tc.Expected,
@@ -413,19 +417,19 @@ func TestCConfigInstance_Discovery_errors(t *testing.T) {
 		},
 		{
 			Name:     "empty_response",
-			Evaler:   &instanceMockEvaler{Ret: [][]any{[]any{}}},
+			Evaler:   &instanceMockEvaler{Ret: [][]any{{}}},
 			Expected: "unexpected response: []",
 		},
 		{
 			Name:     "too_big_response",
-			Evaler:   &instanceMockEvaler{Ret: [][]any{[]any{"foo", "bar"}}},
+			Evaler:   &instanceMockEvaler{Ret: [][]any{{"foo", "bar"}}},
 			Expected: "unexpected response: [foo bar]",
 		},
 		{
 			Name: "invalid_response",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"instances": 123,
 						},

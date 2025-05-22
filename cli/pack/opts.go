@@ -92,7 +92,8 @@ func setBundleName(packCtx *PackCtx, cliOpts *config.CliOpts) {
 
 // FillCtx fills pack context.
 func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpts,
-	args []string) error {
+	args []string,
+) error {
 	if len(args) < 1 {
 		return fmt.Errorf("package type is not provided")
 	}

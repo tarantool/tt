@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultDirPermissions = os.FileMode(0750)
+	defaultDirPermissions = os.FileMode(0o750)
 )
 
 // InitCtx contains information for tt config creation.
@@ -161,7 +161,7 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 		return err
 	}
 
-	err = os.WriteFile(configPath, []byte(ttYamlContent), 0644)
+	err = os.WriteFile(configPath, []byte(ttYamlContent), 0o644)
 	if err != nil {
 		return err
 	}

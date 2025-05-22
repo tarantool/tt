@@ -25,7 +25,8 @@ type commandHistory struct {
 // If format doesn't contain timestamps, it sets the current timestamp
 // for each command.
 func parseHistoryCells(
-	lines []string) (commands []string, timestamps []int64) {
+	lines []string,
+) (commands []string, timestamps []int64) {
 	timestampRegex := regexp.MustCompile(`^#\d+$`)
 
 	// startPos is the first position of a timestamp.
@@ -97,7 +98,7 @@ func (history *commandHistory) writeToFile() error {
 	for i, command := range history.commands {
 		historyContent.WriteString(fmt.Sprintf("#%d\n%s\n", history.timestamps[i], command))
 	}
-	if err := os.WriteFile(history.filepath, historyContent.Bytes(), 0640); err != nil {
+	if err := os.WriteFile(history.filepath, historyContent.Bytes(), 0o640); err != nil {
 		return fmt.Errorf("failed to write to history file: %s", err)
 	}
 

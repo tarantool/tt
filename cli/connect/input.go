@@ -69,8 +69,7 @@ func (s *LuaValidator) Close() error {
 }
 
 // SQLValidator implements ValidateCloser interface for the SQL language.
-type SQLValidator struct {
-}
+type SQLValidator struct{}
 
 // NewSQLValidator return a SQLValidator object.
 func NewSQLValidator() *SQLValidator {
@@ -89,7 +88,7 @@ func (v SQLValidator) Close() error {
 
 // cleanupDelimiter checks if the statement ends with the string `delim`. If yes, it removes it.
 // Returns true if the delimiter has been removed.
-func cleanupDelimiter(stmt string, delim string) (string, bool) {
+func cleanupDelimiter(stmt, delim string) (string, bool) {
 	if delim == "" {
 		return stmt, true
 	}

@@ -110,7 +110,7 @@ func (h *History) writeToFile() error {
 	for i, c := range h.commands {
 		buff.WriteString(fmt.Sprintf("#%d\n%s\n", h.timestamps[i], c))
 	}
-	if err := os.WriteFile(h.filepath, buff.Bytes(), 0640); err != nil {
+	if err := os.WriteFile(h.filepath, buff.Bytes(), 0o640); err != nil {
 		return fmt.Errorf("failed to write to history file: %s", err)
 	}
 

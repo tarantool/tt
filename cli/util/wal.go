@@ -18,7 +18,7 @@ const (
 )
 
 // hasExt checks if the file name ends with the given suffix and is longer than the suffix itself.
-func hasExt(f string, s string) bool {
+func hasExt(f, s string) bool {
 	return strings.HasSuffix(f, s) && len(f) > len(s)
 }
 

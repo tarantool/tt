@@ -13,19 +13,22 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-var forceKill bool
-var dumpQuit bool
+var (
+	forceKill bool
+	dumpQuit  bool
+)
 
 // NewKillCmd creates kill command.
 func NewKillCmd() *cobra.Command {
-	var killCmd = &cobra.Command{
+	killCmd := &cobra.Command{
 		Use:   "kill [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Kill tarantool instance(s)",
 		Run:   RunModuleFunc(internalKillModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,

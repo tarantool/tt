@@ -158,7 +158,8 @@ type IntegrityEtcdAllCollector struct {
 // NewIntegrityEtcdAllCollector creates a new collector for etcd from the
 // whole prefix with integrity checks.
 func NewIntegrityEtcdAllCollector(checkFunc CheckFunc,
-	getter EtcdTxnGetter, prefix string, timeout time.Duration) IntegrityEtcdAllCollector {
+	getter EtcdTxnGetter, prefix string, timeout time.Duration,
+) IntegrityEtcdAllCollector {
 	return IntegrityEtcdAllCollector{
 		getter:    getter,
 		prefix:    prefix,
@@ -273,7 +274,8 @@ type EtcdKeyCollector struct {
 // NewEtcdKeyCollector creates a new collector for etcd from a key from
 // a prefix.
 func NewEtcdKeyCollector(getter EtcdGetter, prefix, key string,
-	timeout time.Duration) EtcdKeyCollector {
+	timeout time.Duration,
+) EtcdKeyCollector {
 	return EtcdKeyCollector{
 		getter:  getter,
 		prefix:  prefix,
@@ -332,7 +334,8 @@ type IntegrityEtcdKeyCollector struct {
 // additional integrity checks from a key from a prefix.
 func NewIntegrityEtcdKeyCollector(checkFunc CheckFunc,
 	getter EtcdTxnGetter, prefix, key string,
-	timeout time.Duration) IntegrityEtcdKeyCollector {
+	timeout time.Duration,
+) IntegrityEtcdKeyCollector {
 	return IntegrityEtcdKeyCollector{
 		getter:    getter,
 		prefix:    prefix,
@@ -361,7 +364,6 @@ func (collector IntegrityEtcdKeyCollector) Collect() ([]Data, error) {
 		clientv3.OpGet(hashesPrefix, clientv3.WithPrefix()),
 		clientv3.OpGet(sigKey),
 	).Commit()
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from etcd: %w", err)
 	}
@@ -420,7 +422,8 @@ type EtcdAllDataPublisher struct {
 // NewEtcdAllDataPublisher creates a new EtcdAllDataPublisher object to publish
 // a data to etcd with the prefix during the timeout.
 func NewEtcdAllDataPublisher(getter EtcdTxnGetter,
-	prefix string, timeout time.Duration) EtcdAllDataPublisher {
+	prefix string, timeout time.Duration,
+) EtcdAllDataPublisher {
 	return EtcdAllDataPublisher{
 		getter:  getter,
 		prefix:  prefix,
@@ -501,7 +504,6 @@ func (publisher EtcdAllDataPublisher) Publish(revision int64, data []byte) error
 
 		// And try to execute the transaction.
 		tresp, err := txn.Then(opts...).Commit()
-
 		if err != nil {
 			return fmt.Errorf("failed to put data into etcd: %w", err)
 		}
@@ -525,7 +527,8 @@ type IntegrityEtcdAllDataPublisher struct {
 // object to publish a signed data to etcd with the prefix during the timeout.
 func NewIntegrityEtcdAllDataPublisher(signFunc SignFunc,
 	getter EtcdTxnGetter,
-	prefix string, timeout time.Duration) IntegrityEtcdAllDataPublisher {
+	prefix string, timeout time.Duration,
+) IntegrityEtcdAllDataPublisher {
 	return IntegrityEtcdAllDataPublisher{
 		getter:   getter,
 		prefix:   prefix,
@@ -649,8 +652,11 @@ func (publisher IntegrityEtcdAllDataPublisher) Publish(revision int64, data []by
 		}
 
 		// Construct and execute a transaction. Otherwise, we'll get a new set of keys.
-		resp, err =
-			publisher.getter.Txn(ctx).If(cmps...).Then(txnPutOps...).Else(txnGetOps...).Commit()
+		resp, err = publisher.getter.Txn(ctx).
+			If(cmps...).
+			Then(txnPutOps...).
+			Else(txnGetOps...).
+			Commit()
 		if err != nil {
 			return fmt.Errorf("failed to put data into etcd: %w", err)
 		}
@@ -678,7 +684,8 @@ type EtcdKeyDataPublisher struct {
 // NewEtcdKeyDataPublisher creates a new EtcdKeyDataPublisher object to publish
 // a data to etcd with the prefix and key during the timeout.
 func NewEtcdKeyDataPublisher(getter EtcdTxnGetter,
-	prefix, key string, timeout time.Duration) EtcdKeyDataPublisher {
+	prefix, key string, timeout time.Duration,
+) EtcdKeyDataPublisher {
 	return EtcdKeyDataPublisher{
 		getter:  getter,
 		prefix:  prefix,
@@ -691,7 +698,8 @@ func NewEtcdKeyDataPublisher(getter EtcdTxnGetter,
 // to publish a signed data to etcd with the prefix and key during the timeout.
 func NewIntegrityEtcdKeyDataPublisher(signFunc SignFunc,
 	getter EtcdTxnGetter,
-	prefix, key string, timeout time.Duration) EtcdKeyDataPublisher {
+	prefix, key string, timeout time.Duration,
+) EtcdKeyDataPublisher {
 	return EtcdKeyDataPublisher{
 		getter:   getter,
 		prefix:   prefix,
@@ -814,7 +822,10 @@ type ConnectOpts struct {
 }
 
 // connectEtcd establishes a connection to etcd.
-func СonnectEtcdUriOpts(uriOpts libconnect.UriOpts, connOpts ConnectOpts) (*clientv3.Client, error) {
+func СonnectEtcdUriOpts(
+	uriOpts libconnect.UriOpts,
+	connOpts ConnectOpts,
+) (*clientv3.Client, error) {
 	etcdOpts := MakeEtcdOptsFromUriOpts(uriOpts)
 	if etcdOpts.Username == "" && etcdOpts.Password == "" {
 		etcdOpts.Username = connOpts.Username
@@ -836,7 +847,8 @@ func СonnectEtcdUriOpts(uriOpts libconnect.UriOpts, connOpts ConnectOpts) (*cli
 
 // DoOnStorage determines a storage based on the opts.
 func DoOnStorage(connOpts ConnectOpts, opts libconnect.UriOpts,
-	tarantoolFunc func(tarantool.Connector) error, etcdFunc func(*clientv3.Client) error) error {
+	tarantoolFunc func(tarantool.Connector) error, etcdFunc func(*clientv3.Client) error,
+) error {
 	etcdcli, errEtcd := СonnectEtcdUriOpts(opts, connOpts)
 	if errEtcd == nil {
 		return etcdFunc(etcdcli)

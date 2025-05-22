@@ -28,7 +28,7 @@ func waitProcessChanges() {
 }
 
 // cleanupDaemonFiles cleans up daemon artifacts.
-func cleanupDaemonFiles(logFilename string, pidFilename string) {
+func cleanupDaemonFiles(logFilename, pidFilename string) {
 	if _, err := os.Stat(logFilename); !os.IsNotExist(err) {
 		os.Remove(logFilename)
 	}

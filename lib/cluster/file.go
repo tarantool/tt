@@ -86,7 +86,7 @@ func (publisher FileDataPublisher) Publish(revision int64, data []byte) error {
 			publisher.path)
 	}
 
-	err := os.WriteFile(publisher.path, data, 0644)
+	err := os.WriteFile(publisher.path, data, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to publish data into %q: %w",
 			publisher.path, err)

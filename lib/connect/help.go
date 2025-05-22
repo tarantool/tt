@@ -94,7 +94,7 @@ The command supports the following environment variables:
 	envAuth := map[string]template.HTML{}
 	envVars := map[string]template.HTML{}
 
-	makeEnvVars := func(key string, info string) {
+	makeEnvVars := func(key, info string) {
 		h := template.HTML(info)
 		if strings.HasSuffix(key, "_auth") {
 			envAuth[strings.TrimSuffix(key, "_auth")] = h

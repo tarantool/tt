@@ -64,7 +64,8 @@ func (command baseCmd) Aliases() []string {
 
 // Run executes the command.
 func (command baseCmd) Run(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	return command.run(console, cmd, args)
 }
 
@@ -101,7 +102,8 @@ func (command combinedCmd) Aliases() []string {
 
 // Run picks a command based on the command string and executes it.
 func (command combinedCmd) Run(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	return command.cmds[cmd].Run(console, cmd, args)
 }
 
@@ -125,7 +127,8 @@ func (command noArgsCmdDecorator) Aliases() []string {
 
 // Run checks that there is no arguments and runs the command.
 func (command noArgsCmdDecorator) Run(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	if len(args) != 0 {
 		return "", fmt.Errorf("the command does not expect arguments")
 	}
@@ -159,7 +162,8 @@ func (command argSetCmdDecorator) Aliases() []string {
 
 // Run checks that there is one allowed argument and runs the command.
 func (command argSetCmdDecorator) Run(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	if len(command.sorted) > 0 && (len(args) != 1 || !find(command.sorted, args[0])) {
 		return "", fmt.Errorf("the command expects one of: %s",
 			strings.Join(command.sorted, ", "))
@@ -189,7 +193,8 @@ func (command argUnsignedCmdDecorator) Aliases() []string {
 
 // Run checks that there is one unsigned number argument and runs the command.
 func (command argUnsignedCmdDecorator) Run(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	if len(args) != 1 {
 		return "", errNotUnsigned
 	}
@@ -221,7 +226,8 @@ func (command argBooleanCmdDecorator) Aliases() []string {
 
 // Run checks that there is one boolean argument and runs the command.
 func (command argBooleanCmdDecorator) Run(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	if len(args) != 1 {
 		return "", errNotBoolean
 	}
@@ -293,7 +299,8 @@ func (command helpCmd) Aliases() []string {
 
 // Run runs the help command.
 func (command helpCmd) Run(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	return command.help, nil
 }
 
@@ -337,7 +344,8 @@ func setTableDialectFunc(console *Console, cmd string, args []string) (string, e
 
 // setGraphicsFunc sets the graphics mode on/off.
 func setGraphicsFunc(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	val, err := strconv.ParseBool(args[0])
 	if err != nil {
 		// It should not happen in practice.
@@ -350,7 +358,8 @@ func setGraphicsFunc(console *Console,
 
 // setMaxTableWidthFunc sets the maximum table width for the console.
 func setTableColumnWidthMaxFunc(console *Console,
-	cmd string, args []string) (string, error) {
+	cmd string, args []string,
+) (string, error) {
 	val, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
 		// It should not happen in practice.
@@ -413,7 +422,7 @@ func setQuitFunc(console *Console, cmd string, arg []string) (string, error) {
 
 // cmdInfos is a list of allowed commands.
 var cmdInfos = []cmdInfo{
-	cmdInfo{
+	{
 		Short: setLanguage + " <language>",
 		Long:  "set language lua (default) or sql",
 		Cmd: newArgSetCmdDecorator(
@@ -421,7 +430,7 @@ var cmdInfos = []cmdInfo{
 			[]string{LuaLanguage.String(), SQLLanguage.String()},
 		),
 	},
-	cmdInfo{
+	{
 		Short: setFormatLong + " <format>",
 		Long:  "set format lua, table, ttable or yaml (default)",
 		Cmd: newArgSetCmdDecorator(
@@ -434,7 +443,7 @@ var cmdInfos = []cmdInfo{
 			},
 		),
 	},
-	cmdInfo{
+	{
 		Short: setTableDialect + " <format>",
 		Long:  "set table format default, jira or markdown",
 		Cmd: newArgSetCmdDecorator(
@@ -446,7 +455,7 @@ var cmdInfos = []cmdInfo{
 			},
 		),
 	},
-	cmdInfo{
+	{
 		Short: setGraphics + " <false/true>",
 		Long:  "disables/enables pseudographics for table modes",
 		Cmd: newArgBooleanCmdDecorator(
@@ -456,7 +465,7 @@ var cmdInfos = []cmdInfo{
 			),
 		),
 	},
-	cmdInfo{
+	{
 		Short: setTableColumnWidthMaxLong + " <width>",
 		Long:  "set max column width for table/ttable",
 		Cmd: newArgUnsignedCmdDecorator(
@@ -466,7 +475,7 @@ var cmdInfos = []cmdInfo{
 			),
 		),
 	},
-	cmdInfo{
+	{
 		Short: setDelimiter + " <marker>",
 		Long:  "set expression delimiter",
 		Cmd: newArgSetCmdDecorator(
@@ -474,7 +483,7 @@ var cmdInfos = []cmdInfo{
 			[]string{},
 		),
 	},
-	cmdInfo{
+	{
 		Short: setTableColumnWidthMaxShort + " <width>",
 		Long:  "set max column width for table/ttable",
 		Cmd: newArgUnsignedCmdDecorator(
@@ -484,7 +493,7 @@ var cmdInfos = []cmdInfo{
 			),
 		),
 	},
-	cmdInfo{
+	{
 		Short: setNextFormat,
 		Long:  "switches output format cyclically",
 		Cmd: newNoArgsCmdDecorator(
@@ -494,7 +503,7 @@ var cmdInfos = []cmdInfo{
 			),
 		),
 	},
-	cmdInfo{
+	{
 		Short: "\\x[l,t,T,y]",
 		Long:  "set output format lua, table, ttable or yaml",
 		Cmd: newCombinedCmd([]cmd{
@@ -524,7 +533,7 @@ var cmdInfos = []cmdInfo{
 			),
 		}),
 	},
-	cmdInfo{
+	{
 		Short: "\\x[g,G]",
 		Long:  "disables/enables pseudographics for table modes",
 		Cmd: newCombinedCmd([]cmd{
@@ -542,7 +551,7 @@ var cmdInfos = []cmdInfo{
 			),
 		}),
 	},
-	cmdInfo{
+	{
 		Short: getShortcutsList,
 		Long:  "show available hotkeys and shortcuts",
 		Cmd: newNoArgsCmdDecorator(
@@ -551,7 +560,7 @@ var cmdInfos = []cmdInfo{
 	},
 	// The Tarantool console has `\quit` command, but it requires execute
 	// access.
-	cmdInfo{
+	{
 		Short: strings.Join(setQuit, ", "),
 		Long:  "quit from the console",
 		Cmd: newNoArgsCmdDecorator(

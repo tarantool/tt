@@ -9,8 +9,7 @@ import (
 	"text/template"
 )
 
-type GoTextEngine struct {
-}
+type GoTextEngine struct{}
 
 // makeTemplate creates template for rendering.
 func makeTemplate(name string) *template.Template {
@@ -25,7 +24,7 @@ func makeTemplate(name string) *template.Template {
 }
 
 // RenderFile renders srcPath template to dstPath using go text/template engine.
-func (GoTextEngine) RenderFile(srcPath string, dstPath string, data interface{}) error {
+func (GoTextEngine) RenderFile(srcPath, dstPath string, data interface{}) error {
 	stat, err := os.Stat(srcPath)
 	if err != nil {
 		return fmt.Errorf("error getting file info %s: %s", srcPath, err)

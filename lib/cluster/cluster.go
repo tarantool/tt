@@ -251,7 +251,7 @@ func Instances(cluster ClusterConfig) []string {
 	instances := []string{}
 	for _, group := range cluster.Groups {
 		for _, replicaset := range group.Replicasets {
-			for iname, _ := range replicaset.Instances {
+			for iname := range replicaset.Instances {
 				instances = append(instances, iname)
 			}
 		}
@@ -284,12 +284,14 @@ func Instantiate(cluster ClusterConfig, name string) *Config {
 
 // ReplaceInstanceConfig replaces an instance configuration.
 func ReplaceInstanceConfig(cconfig ClusterConfig,
-	instance string, iconfig *Config) (ClusterConfig, error) {
+	instance string, iconfig *Config,
+) (ClusterConfig, error) {
 	for gname, group := range cconfig.Groups {
 		for rname, replicaset := range group.Replicasets {
-			for iname, _ := range replicaset.Instances {
+			for iname := range replicaset.Instances {
 				if instance == iname {
-					path := []string{groupsLabel, gname,
+					path := []string{
+						groupsLabel, gname,
 						replicasetsLabel, rname,
 						instancesLabel, iname,
 					}
@@ -326,8 +328,10 @@ func FindInstance(cconfig ClusterConfig, name string) (string, string, bool) {
 
 // SetInstanceConfig sets an instance configuration.
 func SetInstanceConfig(cconfig ClusterConfig,
-	group, replicaset, instance string, iconfig *Config) (ClusterConfig, error) {
-	path := []string{groupsLabel, group,
+	group, replicaset, instance string, iconfig *Config,
+) (ClusterConfig, error) {
+	path := []string{
+		groupsLabel, group,
 		replicasetsLabel, replicaset,
 		instancesLabel, instance,
 	}
@@ -355,7 +359,8 @@ func FindGroupByReplicaset(cconfig ClusterConfig, replicaset string) (string, bo
 func CreateCollector(
 	collectors CollectorFactory,
 	connOpts ConnectOpts,
-	opts libconnect.UriOpts) (Collector, func(), error) {
+	opts libconnect.UriOpts,
+) (Collector, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 
 	var (

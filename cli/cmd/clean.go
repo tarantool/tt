@@ -14,19 +14,22 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-var forceRemove bool
-var ErrCanceledByUser = errors.New("canceled by user")
+var (
+	forceRemove       bool
+	ErrCanceledByUser = errors.New("canceled by user")
+)
 
 // NewCleanCmd creates clean command.
 func NewCleanCmd() *cobra.Command {
-	var cleanCmd = &cobra.Command{
+	cleanCmd := &cobra.Command{
 		Use:   "clean [INSTANCE_NAME]",
 		Short: "Clean instance(s) files",
 		Run:   RunModuleFunc(internalCleanModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractAppNames,

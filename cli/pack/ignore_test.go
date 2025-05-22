@@ -443,12 +443,12 @@ func ignoreFilterCreateMockFS(t *testing.T, tc ignoreFilterCase) fs.FS {
 	if tc.patterns != nil {
 		fsys[ignoreFile] = &fstest.MapFile{
 			Data: []byte(strings.Join(tc.patterns, "\n")),
-			Mode: fs.FileMode(0644),
+			Mode: fs.FileMode(0o644),
 		}
 	}
 	for _, name := range slices.Concat(tc.copied, tc.ignored) {
 		fsys[name] = &fstest.MapFile{
-			Mode: fs.FileMode(0644),
+			Mode: fs.FileMode(0o644),
 		}
 	}
 	return fsys
@@ -467,7 +467,7 @@ func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
 			assert.NotNil(t, filter)
 
 			dst := filepath.Join(basedst, name)
-			err = os.MkdirAll(dst, 0755)
+			err = os.MkdirAll(dst, 0o755)
 			assert.Nil(t, err)
 
 			err = copy.Copy(".", dst, copy.Options{
@@ -475,7 +475,7 @@ func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
 				Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
 					return filter(srcinfo, src), nil
 				},
-				PermissionControl: copy.AddPermission(0755),
+				PermissionControl: copy.AddPermission(0o755),
 			})
 			assert.Nil(t, err)
 			for _, name := range tc.ignored {

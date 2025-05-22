@@ -17,12 +17,12 @@ func Test_dirsAreWriteable(t *testing.T) {
 	}
 	tmpDirNonWriteableForAll := t.TempDir()
 	// dr-xr-xr-x mode.
-	permissions := 0555
+	permissions := 0o555
 	require.NoError(t, os.Chmod(tmpDirNonWriteableForAll, os.FileMode(permissions)))
 
 	tmpDirNonWriteableExceptOwner := t.TempDir()
 	// drwxr-xr-x mode.
-	permissions = 0755
+	permissions = 0o755
 	require.NoError(t, os.Chmod(tmpDirNonWriteableExceptOwner, os.FileMode(permissions)))
 
 	type args struct {
@@ -58,12 +58,12 @@ func Test_subDirIsWritable(t *testing.T) {
 	}
 	tmpDirNonWriteableForAll := t.TempDir()
 	// dr-xr-xr-x mode.
-	permissions := 0555
+	permissions := 0o555
 	require.NoError(t, os.Chmod(tmpDirNonWriteableForAll, os.FileMode(permissions)))
 
 	tmpDirNonWriteableExceptOwner := t.TempDir()
 	// drwxr-xr-x mode.
-	permissions = 0755
+	permissions = 0o755
 	require.NoError(t, os.Chmod(tmpDirNonWriteableExceptOwner, os.FileMode(permissions)))
 
 	type args struct {
@@ -147,13 +147,13 @@ func Test_installTarantoolDev(t *testing.T) {
 		os.MkdirAll(filepath.Join(buildDir1, "src"), os.ModePerm)
 		binaryPath1 := filepath.Join(buildDir1, "src/tarantool")
 		os.Create(binaryPath1)
-		os.Chmod(binaryPath1, 0700)
+		os.Chmod(binaryPath1, 0o700)
 
 		buildDir2 := filepath.Join(tempsDir, "build_invalid")
 		os.MkdirAll(filepath.Join(buildDir2, "tarantool/src"), os.ModePerm)
 		binaryPath2 := filepath.Join(buildDir2, "tarantool/src/tarantool")
 		os.Create(binaryPath2)
-		os.Chmod(binaryPath2, 0700)
+		os.Chmod(binaryPath2, 0o700)
 
 		return tempsDir
 	}

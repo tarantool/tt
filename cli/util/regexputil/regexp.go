@@ -12,7 +12,7 @@ var varPattern = regexp.MustCompile(`{{\s*([^ ]+)\s*}}`)
 
 // ApplyVars replaces '{{ key }}' in str string by a value from the data map.
 func ApplyVars(templateStr string, data map[string]string) (string, error) {
-	var missingVars = make(map[string]bool, 0)
+	missingVars := make(map[string]bool, 0)
 	renderedStr := varPattern.ReplaceAllStringFunc(templateStr, func(varNameStr string) string {
 		if subMatches := varPattern.FindStringSubmatch(varNameStr); subMatches != nil {
 			if val, found := data[subMatches[1]]; !found {

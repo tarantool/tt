@@ -239,7 +239,7 @@ func createHeader(keys []any) table.Row {
 
 // transposeRows performs table rows transpose.
 func transposeRows(rowsRaw []table.Row) []table.Row {
-	var rowsRawTransposedCap = 0
+	rowsRawTransposedCap := 0
 	for _, row := range rowsRaw {
 		if len(row) > rowsRawTransposedCap {
 			rowsRawTransposedCap = len(row)
@@ -273,7 +273,7 @@ func createMarkdownTable(table []string, columns int, opts Opts) string {
 	separator += "|"
 
 	var result string
-	for _, rows := range [][]string{[]string{empty, separator}, table} {
+	for _, rows := range [][]string{{empty, separator}, table} {
 		for _, row := range rows {
 			result += row + "\n"
 		}
@@ -330,7 +330,7 @@ func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (strin
 }
 
 // isMapKeysEqual checks keys equal for two unorderedMap[any].
-func isMapKeysEqual(x unorderedMap[any], y unorderedMap[any]) bool {
+func isMapKeysEqual(x, y unorderedMap[any]) bool {
 	var keysX, keysY []any
 
 	x.forEach(func(k, _ any) {
@@ -377,8 +377,8 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 			anyMaps = append(anyMaps, castedMap)
 		}
 
-		var mapsBatchs = make([][]unorderedMap[any], len(anyMaps))
-		var batchPointer = 0
+		mapsBatchs := make([][]unorderedMap[any], len(anyMaps))
+		batchPointer := 0
 		mapsBatchs[batchPointer] = append(mapsBatchs[batchPointer], anyMaps[0])
 
 		for i := 0; i < len(anyMaps)-1; i++ {
@@ -428,7 +428,6 @@ func renderBatches(batches [][]any, transpose bool, opts Opts) (string, error) {
 	}
 
 	return result, nil
-
 }
 
 type metadataField struct {
@@ -538,8 +537,8 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 	}
 
 	// The code tries to combine multiple values into a one batch by type.
-	var batches = make([][]any, len(nodes))
-	var batchPointer = 0
+	batches := make([][]any, len(nodes))
+	batchPointer := 0
 	batches[batchPointer] = append(batches[batchPointer], nodes[0])
 	for i := 0; i < len(nodes)-1; i++ {
 		if !isNodeTypeEqual(nodes[i], nodes[i+1]) {

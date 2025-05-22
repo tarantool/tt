@@ -18,7 +18,8 @@ type CreateAppSymlink struct {
 
 // Run creates a symbolic link to the new application in instances enabled directory.
 func (createSymlinkStep CreateAppSymlink) Run(createCtx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	if createSymlinkStep.SymlinkDir == "." {
 		log.Debug("No need to create a symlink for application in current directory.")
 		return nil
@@ -33,7 +34,7 @@ func (createSymlinkStep CreateAppSymlink) Run(createCtx *create_ctx.CreateCtx,
 	}
 
 	// drwxr-x--- permissions.
-	if err = util.CreateDirectory(createSymlinkStep.SymlinkDir, fs.FileMode(0750)); err != nil {
+	if err = util.CreateDirectory(createSymlinkStep.SymlinkDir, fs.FileMode(0o750)); err != nil {
 		return nil
 	}
 

@@ -483,21 +483,22 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.NoDirExists, "instances.enabled/script_app/var/log"},
 				{assert.NoDirExists, "instances.enabled/script_app/var/run"},
 
-				{func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool {
-					cliOpts, _, err := configure.GetCliOpts(filepath.Join(path, "tt.yaml"),
-						&mockRepository{})
-					if assert.NoError(t, err) {
-						assert.Equal(t, filepath.Join(path, "instances.enabled"),
-							cliOpts.Env.InstancesEnabled)
-						assert.Equal(t, filepath.Join(path, "include"), cliOpts.Env.IncludeDir)
-						assert.Equal(t, "var/lib", cliOpts.App.WalDir)
-						assert.Equal(t, "var/lib", cliOpts.App.VinylDir)
-						assert.Equal(t, "var/lib", cliOpts.App.MemtxDir)
-						assert.Equal(t, "var/log", cliOpts.App.LogDir)
-						assert.Equal(t, "var/run", cliOpts.App.RunDir)
-					}
-					return true
-				},
+				{
+					func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool {
+						cliOpts, _, err := configure.GetCliOpts(filepath.Join(path, "tt.yaml"),
+							&mockRepository{})
+						if assert.NoError(t, err) {
+							assert.Equal(t, filepath.Join(path, "instances.enabled"),
+								cliOpts.Env.InstancesEnabled)
+							assert.Equal(t, filepath.Join(path, "include"), cliOpts.Env.IncludeDir)
+							assert.Equal(t, "var/lib", cliOpts.App.WalDir)
+							assert.Equal(t, "var/lib", cliOpts.App.VinylDir)
+							assert.Equal(t, "var/lib", cliOpts.App.MemtxDir)
+							assert.Equal(t, "var/log", cliOpts.App.LogDir)
+							assert.Equal(t, "var/run", cliOpts.App.RunDir)
+						}
+						return true
+					},
 					".",
 				},
 			},
@@ -1034,7 +1035,8 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.NoDirExists, "app1"},
 
 				// App2.
-				{assert.FileExists, "app2/init.lua"}},
+				{assert.FileExists, "app2/init.lua"},
+			},
 		},
 		{
 			name: "Broken binary symlink",

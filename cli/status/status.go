@@ -80,12 +80,16 @@ func newInstanceStatusMap() map[string]interface{} {
 	}
 }
 
-var instances = map[string]map[string]interface{}{}
-var instancesAlerts = map[string][]string{}
-var uuid2name = map[string]string{}
+var (
+	instances       = map[string]map[string]interface{}{}
+	instancesAlerts = map[string][]string{}
+	uuid2name       = map[string]string{}
+)
 
-var printYellow = color.New(color.FgYellow).SprintFunc()
-var printRed = color.New(color.FgRed).SprintFunc()
+var (
+	printYellow = color.New(color.FgYellow).SprintFunc()
+	printRed    = color.New(color.FgRed).SprintFunc()
+)
 
 func processReplicationInfo(fullInstanceName string, instanceState instanceState) {
 	for _, repl := range instanceState.ReplicationInfo {
@@ -172,7 +176,6 @@ func Status(runningCtx running.RunningCtx, opts StatusOpts) error {
 		var instanceState instanceState
 		res, err := conn.Eval(filterComments(instanceInfoLuaScript), []any{},
 			connector.RequestOpts{})
-
 		if err != nil {
 			instancesAlerts[fullInstanceName] = append(
 				instancesAlerts[fullInstanceName],

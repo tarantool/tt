@@ -13,8 +13,10 @@ import (
 )
 
 func TestCleanString(t *testing.T) {
-	testStrings := []string{util.Bold(color.GreenString("3.0.0")), color.BlueString("2.1.1"),
-		"1.10", util.Bold("2.1.3")}
+	testStrings := []string{
+		util.Bold(color.GreenString("3.0.0")), color.BlueString("2.1.1"),
+		"1.10", util.Bold("2.1.3"),
+	}
 	expectedStrings := []string{"3.0.0", "2.1.1", "1.10", "2.1.3"}
 	for i := range testStrings {
 		assert.Equal(t, cleanString(testStrings[i]), expectedStrings[i])
