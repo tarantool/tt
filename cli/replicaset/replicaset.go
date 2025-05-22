@@ -65,7 +65,7 @@ func recalculateMaster(replicaset *Replicaset) {
 // recalculateMasters recalculates Replicaset.Master field for all replicasets
 // according to instances information.
 func recalculateMasters(replicasets Replicasets) Replicasets {
-	for i, _ := range replicasets.Replicasets {
+	for i := range replicasets.Replicasets {
 		recalculateMaster(&replicasets.Replicasets[i])
 	}
 
@@ -81,7 +81,8 @@ func findInstanceByAlias(replicasets Replicasets, alias string) (Replicaset, Ins
 
 // findInstance finds an instance in the replicaset by predicate.
 func findInstance(replicasets Replicasets,
-	predicate func(Instance) bool) (Replicaset, Instance, bool) {
+	predicate func(Instance) bool,
+) (Replicaset, Instance, bool) {
 	for _, replicaset := range replicasets.Replicasets {
 		for _, instance := range replicaset.Instances {
 			if predicate(instance) {

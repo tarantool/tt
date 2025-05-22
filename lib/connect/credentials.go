@@ -61,7 +61,7 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 	}
 
 	// Check file permissions. Error if `group` or `other` bits are set.
-	if info.Mode().Perm()&os.FileMode(0077) != 0 {
+	if info.Mode().Perm()&os.FileMode(0o077) != 0 {
 		return res, fmt.Errorf("permissions %q for %q are too open.\n\t%s\n\t%s %s'",
 			info.Mode(),
 			path,

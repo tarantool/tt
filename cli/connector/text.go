@@ -20,7 +20,8 @@ func NewTextConnector(conn net.Conn) *TextConnector {
 
 // Eval sends an eval request.
 func (conn *TextConnector) Eval(expr string, args []interface{},
-	opts RequestOpts) ([]interface{}, error) {
+	opts RequestOpts,
+) ([]interface{}, error) {
 	evalOpts := EvalPlainTextOpts{
 		PushCallback: opts.PushCallback,
 		ReadTimeout:  opts.ReadTimeout,

@@ -71,8 +71,10 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
 
-	provider := providerTestImpl{tarantool: tarantoolBin, appPath: appPath, logger: logger,
-		dataDir: dataDir, restartable: restartable, t: t}
+	provider := providerTestImpl{
+		tarantool: tarantoolBin, appPath: appPath, logger: logger,
+		dataDir: dataDir, restartable: restartable, t: t,
+	}
 	testPreAction := func() error { return nil }
 	wd := NewWatchdog(restartable, wdTestRestartTimeout, logger, &provider, testPreAction,
 		integrity.IntegrityCtx{

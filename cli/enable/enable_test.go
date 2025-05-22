@@ -18,7 +18,8 @@ func TestEnableBase(t *testing.T) {
 	err := copy.Copy("./testdata", tempDir)
 	assert.Nil(t, err)
 	cliOpts := &config.CliOpts{
-		Env: &config.TtEnvOpts{InstancesEnabled: filepath.Join(tempDir, "in_en")}}
+		Env: &config.TtEnvOpts{InstancesEnabled: filepath.Join(tempDir, "in_en")},
+	}
 
 	// Test enable application.
 	appPath := filepath.Join(tempDir, "test_app")
@@ -41,7 +42,8 @@ func TestEnableNoFile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	cliOpts := &config.CliOpts{
-		Env: &config.TtEnvOpts{InstancesEnabled: filepath.Join(tempDir, "in_en")}}
+		Env: &config.TtEnvOpts{InstancesEnabled: filepath.Join(tempDir, "in_en")},
+	}
 
 	// Test enable script.
 	appPath := filepath.Join(tempDir, "test_script", "test.foo")
@@ -55,7 +57,8 @@ func TestEnableWrongScript(t *testing.T) {
 	err := copy.Copy("./testdata", tempDir)
 	assert.Nil(t, err)
 	cliOpts := &config.CliOpts{
-		Env: &config.TtEnvOpts{InstancesEnabled: filepath.Join(tempDir, "in_en")}}
+		Env: &config.TtEnvOpts{InstancesEnabled: filepath.Join(tempDir, "in_en")},
+	}
 
 	// Test enable script.
 	appPath := filepath.Join(tempDir, "test_script", "foo.foo")
@@ -70,7 +73,8 @@ func TestEnableDirNotApp(t *testing.T) {
 	err := os.Mkdir(appPath, defaultDirPermissions)
 	assert.Nil(t, err)
 	cliOpts := &config.CliOpts{
-		Env: &config.TtEnvOpts{InstancesEnabled: filepath.Join(tempDir, "in_en")}}
+		Env: &config.TtEnvOpts{InstancesEnabled: filepath.Join(tempDir, "in_en")},
+	}
 
 	// Test enable empty directory.
 	err = Enable(appPath, cliOpts)

@@ -40,7 +40,7 @@ var connectCtx = aeoncmd.ConnectCtx{
 }
 
 func newAeonConnectCmd() *cobra.Command {
-	var aeonCmd = &cobra.Command{
+	aeonCmd := &cobra.Command{
 		Use:   "connect (<URI> | <URI INSTANCE> | <PATH INSTANCE> | <APP:INSTANCE>)",
 		Short: "Connect to the aeon instance",
 		Long: `Connect to the aeon instance.
@@ -80,7 +80,8 @@ func newAeonConnectCmd() *cobra.Command {
 }
 
 func aeonTransportCompletion(cmd *cobra.Command, args []string, toComplete string) (
-	[]string, cobra.ShellCompDirective) {
+	[]string, cobra.ShellCompDirective,
+) {
 	suggest := make([]string, 0, len(aeoncmd.ValidTransport))
 	for k, v := range aeoncmd.ValidTransport {
 		suggest = append(suggest, string(k)+"\t"+v)
@@ -90,7 +91,7 @@ func aeonTransportCompletion(cmd *cobra.Command, args []string, toComplete strin
 
 // NewAeonCmd() create new aeon command.
 func NewAeonCmd() *cobra.Command {
-	var aeonCmd = &cobra.Command{
+	aeonCmd := &cobra.Command{
 		Use:   "aeon",
 		Short: "Manage aeon application",
 	}
@@ -201,7 +202,7 @@ func internalAeonConnect(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	return nil
 }
 
-func readConfigFilePath(configPath string, instance string) error {
+func readConfigFilePath(configPath, instance string) error {
 	f, err := os.ReadFile(configPath)
 	if err != nil {
 		return err
@@ -268,7 +269,7 @@ func readConfigFilePath(configPath string, instance string) error {
 	return nil
 }
 
-func getConfigUri(cmdCtx *cmdcontext.CmdCtx, url string, instanceName string) error {
+func getConfigUri(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
 	var dataCollectors libcluster.DataCollectorFactory
 	checkFunc, err := integrity.GetCheckFunction(cmdCtx.Integrity)
 	if err == integrity.ErrNotConfigured {

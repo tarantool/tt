@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	dirPermissions  = 0750
-	filePermissions = 0666
+	dirPermissions  = 0o750
+	filePermissions = 0o666
 
 	defaultVersion     = "0.1.0"
 	defaultLongVersion = "0.1.0.0"
@@ -39,21 +39,19 @@ const (
 	ignoreFile = ".packignore"
 )
 
-var (
-	versionRgxps = []*regexp.Regexp{
-		regexp.MustCompile(`^(?P<Major>\d+)$`),
-		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)$`),
-		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)$`),
-		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)$`),
-		regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Hash>g\w+)$`),
-		regexp.MustCompile(
-			`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)-(?P<Hash>g\w+)$`,
-		),
-		regexp.MustCompile(
-			`^v(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)-(?P<Hash>g\w+)$`,
-		),
-	}
-)
+var versionRgxps = []*regexp.Regexp{
+	regexp.MustCompile(`^(?P<Major>\d+)$`),
+	regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)$`),
+	regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)$`),
+	regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)$`),
+	regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Hash>g\w+)$`),
+	regexp.MustCompile(
+		`^(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)-(?P<Hash>g\w+)$`,
+	),
+	regexp.MustCompile(
+		`^v(?P<Major>\d+)\.(?P<Minor>\d+)\.(?P<Patch>\d+)-(?P<Count>\d+)-(?P<Hash>g\w+)$`,
+	),
+}
 
 type skipFilter func(srcInfo os.FileInfo, src string) bool
 
@@ -88,8 +86,10 @@ func appArtifactsFilters(cliOpts *config.CliOpts, srcAppPath string) []skipFilte
 		return filters
 	}
 
-	for _, envDir := range [...]string{cliOpts.App.LogDir, cliOpts.App.RunDir, cliOpts.App.WalDir,
-		cliOpts.App.MemtxDir, cliOpts.App.VinylDir} {
+	for _, envDir := range [...]string{
+		cliOpts.App.LogDir, cliOpts.App.RunDir, cliOpts.App.WalDir,
+		cliOpts.App.MemtxDir, cliOpts.App.VinylDir,
+	} {
 		if envDir == "" {
 			continue
 		}
@@ -162,7 +162,8 @@ func previousPackageFilters(packCtx *PackCtx) []skipFilter {
 
 // appSrcCopySkip returns a filter func to filter out artifacts paths.
 func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
-	srcAppPath string) (func(srcinfo os.FileInfo, src, dest string) (bool, error), error) {
+	srcAppPath string,
+) (func(srcinfo os.FileInfo, src, dest string) (bool, error), error) {
 	appCopyFilters := appArtifactsFilters(cliOpts, srcAppPath)
 	appCopyFilters = append(appCopyFilters, ttEnvironmentFilters(packCtx, cliOpts)...)
 	appCopyFilters = append(appCopyFilters, previousPackageFilters(packCtx)...)
@@ -244,7 +245,8 @@ func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *co
 
 // copyBinaries copies binaries from current env to the result bundle.
 func copyBinaries(bundleEnvPath string, packCtx *PackCtx, cmdCtx *cmdcontext.CmdCtx,
-	newOpts *config.CliOpts) error {
+	newOpts *config.CliOpts,
+) error {
 	if packCtx.WithoutBinaries {
 		return nil
 	}
@@ -294,7 +296,8 @@ func copyBinaries(bundleEnvPath string, packCtx *PackCtx, cmdCtx *cmdcontext.Cmd
 
 // getDestAppDir returns application directory in the result bundle.
 func getDestAppDir(bundleEnvPath, appName string,
-	packCtx *PackCtx, cliOpts *config.CliOpts) string {
+	packCtx *PackCtx, cliOpts *config.CliOpts,
+) string {
 	if packCtx.CartridgeCompat || cliOpts.Env.InstancesEnabled == "." {
 		return bundleEnvPath
 	}
@@ -303,7 +306,8 @@ func getDestAppDir(bundleEnvPath, appName string,
 
 // copyApplications copies applications from current env to the result bundle.
 func copyApplications(bundleEnvPath string, packCtx *PackCtx,
-	cliOpts, newOpts *config.CliOpts) error {
+	cliOpts, newOpts *config.CliOpts,
+) error {
 	var err error
 	for appName, instances := range packCtx.AppsInfo {
 		if len(instances) == 0 {
@@ -357,14 +361,14 @@ func copyApplications(bundleEnvPath string, packCtx *PackCtx,
 // prepareBundle prepares a temporary directory for packing.
 // Returns a path to the prepared directory or error if it failed.
 func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
-	cliOpts *config.CliOpts, buildRocks bool) (string, error) {
+	cliOpts *config.CliOpts, buildRocks bool,
+) (string, error) {
 	var err error
 	var signer integrity.Signer = nil
 
 	// If integrity checks are enabled, create an IntegritySigner.
 	if packCtx.IntegrityPrivateKey != "" {
 		signer, err = integrity.NewSigner(packCtx.IntegrityPrivateKey)
-
 		if err != nil {
 			return "", err
 		}
@@ -462,8 +466,8 @@ func copyAppSrc(packCtx *PackCtx, cliOpts *config.CliOpts, srcAppPath, dstAppPat
 // copyArtifacts copies all artifacts from the current bundle configuration
 // to the passed package structure from the passed path.
 func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
-	appsInfo map[string][]running.InstanceCtx) error {
-
+	appsInfo map[string][]running.InstanceCtx,
+) error {
 	for _, appName := range packCtx.AppList {
 		for _, inst := range appsInfo[appName] {
 			appDirName := filepath.Base(inst.AppDir)
@@ -486,19 +490,24 @@ func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
 				// the whole log dir.
 				copyInfo = append(copyInfo, struct{ src, dest string }{
 					src:  inst.Log,
-					dest: util.JoinPaths(dstDir(newOpts.App.LogDir), filepath.Base(inst.Log))})
+					dest: util.JoinPaths(dstDir(newOpts.App.LogDir), filepath.Base(inst.Log)),
+				})
 			} else {
 				copyInfo = append(copyInfo, struct{ src, dest string }{
 					src:  filepath.Dir(inst.LogDir),
-					dest: dstDir(newOpts.App.LogDir)})
+					dest: dstDir(newOpts.App.LogDir),
+				})
 			}
 			copyInfo = append(copyInfo,
 				struct{ src, dest string }{
-					src: filepath.Dir(inst.WalDir), dest: dstDir(newOpts.App.WalDir)},
+					src: filepath.Dir(inst.WalDir), dest: dstDir(newOpts.App.WalDir),
+				},
 				struct{ src, dest string }{
-					src: filepath.Dir(inst.MemtxDir), dest: dstDir(newOpts.App.MemtxDir)},
+					src: filepath.Dir(inst.MemtxDir), dest: dstDir(newOpts.App.MemtxDir),
+				},
 				struct{ src, dest string }{
-					src: filepath.Dir(inst.VinylDir), dest: dstDir(newOpts.App.VinylDir)})
+					src: filepath.Dir(inst.VinylDir), dest: dstDir(newOpts.App.VinylDir),
+				})
 			if newOpts.App.WalDir == newOpts.App.VinylDir {
 				copyInfo = copyInfo[:2]
 			}
@@ -537,8 +546,10 @@ func createNewOpts(opts *config.CliOpts, packCtx PackCtx) *config.CliOpts {
 	var cliOptsNew *config.CliOpts
 	if packCtx.Type == Rpm || packCtx.Type == Deb {
 		cliOptsNew = configure.GetSystemCliOpts()
-		for _, varPath := range []*string{&cliOptsNew.App.WalDir, &cliOptsNew.App.MemtxDir,
-			&cliOptsNew.App.VinylDir, &cliOptsNew.App.RunDir, &cliOptsNew.App.LogDir} {
+		for _, varPath := range []*string{
+			&cliOptsNew.App.WalDir, &cliOptsNew.App.MemtxDir,
+			&cliOptsNew.App.VinylDir, &cliOptsNew.App.RunDir, &cliOptsNew.App.LogDir,
+		} {
 			*varPath = filepath.Join(*varPath, packCtx.Name)
 		}
 	} else {
@@ -632,7 +643,8 @@ func cleanupAfterBuild(appDir string) {
 
 // buildAppRocks finds a rockspec file of the application and builds it.
 func buildAppRocks(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
-	cliOpts *config.CliOpts, bundlePath string) error {
+	cliOpts *config.CliOpts, bundlePath string,
+) error {
 	if cliOpts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
 		if err := buildAppInBundle(cmdCtx, cliOpts, bundlePath); err != nil {
 			return err
@@ -660,7 +672,7 @@ func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) s
 	if packCtx.Version == "" {
 		// Get version from git only if packing an application from the current directory,
 		// or packing with cartridge-compat enabled.
-		var appPath = opts.Env.InstancesEnabled
+		appPath := opts.Env.InstancesEnabled
 		if opts.Env.InstancesEnabled != "." && packCtx.CartridgeCompat {
 			appPath = filepath.Join(appPath, packCtx.Name)
 		}
@@ -686,10 +698,10 @@ func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) s
 
 // normalizeGitVersion edits raw version from `git describe` command.
 func normalizeGitVersion(packageVersion string) (string, error) {
-	var major = "0"
-	var minor = "0"
-	var patch = "0"
-	var count = ""
+	major := "0"
+	minor := "0"
+	patch := "0"
+	count := ""
 
 	matched := false
 	for _, r := range versionRgxps {
@@ -725,7 +737,8 @@ func normalizeGitVersion(packageVersion string) (string, error) {
 
 // getPackageFileName returns the result name of the package file.
 func getPackageFileName(packCtx *PackCtx, opts *config.CliOpts, suffix string,
-	addVersion bool) (string, error) {
+	addVersion bool,
+) (string, error) {
 	var packageName string
 
 	if packCtx.FileName != "" {
@@ -780,14 +793,14 @@ func LuaGetRocksVersions(appDirPath string) (RocksVersions, error) {
 			return nil, fmt.Errorf("failed to read manifest file: dependencies is not a table")
 		}
 
-		depsLTable.ForEach(func(depNameL lua.LValue, depInfoL lua.LValue) {
+		depsLTable.ForEach(func(depNameL, depInfoL lua.LValue) {
 			depName := depNameL.String()
 
 			depInfoLTable, ok := depInfoL.(*lua.LTable)
 			if !ok {
 				log.Warnf("Failed to get %s dependency info", depName)
 			} else {
-				depInfoLTable.ForEach(func(depVersionL lua.LValue, _ lua.LValue) {
+				depInfoLTable.ForEach(func(depVersionL, _ lua.LValue) {
 					rocksVersionsMap[depName] = append(rocksVersionsMap[depName],
 						depVersionL.String())
 				})
@@ -810,7 +823,7 @@ func LuaGetRocksVersions(appDirPath string) (RocksVersions, error) {
 func updatePermissions(baseDir string) func(path string, entry fs.DirEntry, err error) error {
 	return func(path string, entry fs.DirEntry, err error) error {
 		if entry.IsDir() {
-			if err := os.Chmod(filepath.Join(baseDir, path), 0755); err != nil {
+			if err := os.Chmod(filepath.Join(baseDir, path), 0o755); err != nil {
 				log.Warnf("failed to to change permissions of %q: %s", path, err)
 			}
 		}
@@ -821,16 +834,20 @@ func updatePermissions(baseDir string) func(path string, entry fs.DirEntry, err 
 // createArtifactsDirs creates /var/<dir>/tarantool/<env> artifact directories in rpm/deb package
 // and sets owner and group info for these directories.
 func createArtifactsDirs(pkgDataDir string, packCtx *PackCtx) error {
-	for _, dirToCreate := range []string{configure.VarDataPath, configure.VarLogPath,
-		configure.VarRunPath} {
+	for _, dirToCreate := range []string{
+		configure.VarDataPath, configure.VarLogPath,
+		configure.VarRunPath,
+	} {
 		artifactEnvDir := filepath.Join(pkgDataDir, dirToCreate, "tarantool")
 		if err := os.MkdirAll(artifactEnvDir, dirPermissions); err != nil {
 			return fmt.Errorf("cannot create %q: %s", artifactEnvDir, err)
 		}
 	}
 	for _, dir := range [...]string{"lib", "log", "run"} {
-		packCtx.RpmDeb.pkgFilesInfo[fmt.Sprintf("var/%s/tarantool", dir)] =
-			packFileInfo{"tarantool", "tarantool"}
+		packCtx.RpmDeb.pkgFilesInfo[fmt.Sprintf("var/%s/tarantool", dir)] = packFileInfo{
+			"tarantool",
+			"tarantool",
+		}
 	}
 	return nil
 }

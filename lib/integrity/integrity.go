@@ -6,11 +6,9 @@ import (
 	"github.com/spf13/pflag"
 )
 
-var (
-	// ErrNotConfigured is reported when integrity check is not configured
-	// in the command context.
-	ErrNotConfigured = errors.New("integrity check is not configured")
-)
+// ErrNotConfigured is reported when integrity check is not configured
+// in the command context.
+var ErrNotConfigured = errors.New("integrity check is not configured")
 
 // IntegrityCtx is context required for integrity checks.
 type IntegrityCtx struct {
@@ -46,7 +44,7 @@ func RegisterIntegrityCheckFlag(flagset *pflag.FlagSet, dst *string) {}
 func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {}
 
 // InitializeIntegrityCheck is a noop setup of integrity checking.
-func InitializeIntegrityCheck(publicKeyPath string, configDir string) (IntegrityCtx, error) {
+func InitializeIntegrityCheck(publicKeyPath, configDir string) (IntegrityCtx, error) {
 	if publicKeyPath != "" {
 		return IntegrityCtx{}, errors.New("integrity checks should never be initialized in ce")
 	}
@@ -59,13 +57,15 @@ func InitializeIntegrityCheck(publicKeyPath string, configDir string) (Integrity
 // GetCheckFunction returns a function that checks a map of hashes and a
 // signature of a data.
 func GetCheckFunction(ctx IntegrityCtx) (
-	func(data []byte, hashes map[string][]byte, sign []byte) error, error) {
+	func(data []byte, hashes map[string][]byte, sign []byte) error, error,
+) {
 	return nil, ErrNotConfigured
 }
 
 // GetSignFunction returns a function that creates a map of hashes and a
 // signature for a data for the private key in the path.
 func GetSignFunction(privateKeyPath string) (
-	func(data []byte) (map[string][]byte, []byte, error), error) {
+	func(data []byte) (map[string][]byte, []byte, error), error,
+) {
 	return nil, errors.New("sign function should never be created in ce")
 }

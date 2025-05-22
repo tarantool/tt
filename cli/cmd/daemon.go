@@ -11,33 +11,33 @@ import (
 
 // NewDaemonCmd creates daemon command.
 func NewDaemonCmd() *cobra.Command {
-	var daemonCmd = &cobra.Command{
+	daemonCmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "Perform manipulations with the tt daemon (experimental)",
 	}
 
-	var startCmd = &cobra.Command{
+	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "start tt daemon",
 		Run:   RunModuleFunc(internalDaemonStartModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
-	var stopCmd = &cobra.Command{
+	stopCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "stop tt daemon",
 		Run:   RunModuleFunc(internalDaemonStopModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
-	var statusCmd = &cobra.Command{
+	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "status of tt daemon",
 		Run:   RunModuleFunc(internalDaemonStatusModule),
 		Args:  cobra.ExactArgs(0),
 	}
 
-	var restartCmd = &cobra.Command{
+	restartCmd := &cobra.Command{
 		Use:   "restart",
 		Short: "restart tt daemon",
 		Run:   RunModuleFunc(internalDaemonRestartModule),

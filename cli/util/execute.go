@@ -23,7 +23,7 @@ type emptyStruct struct{}
 type readyChan chan emptyStruct
 
 // execOwnerPerm is a bitmask to check owner exec bit.
-const execOwnerPerm uint32 = 0100
+const execOwnerPerm uint32 = 0o100
 
 var (
 	spinnerPicture    = spinner.CharSets[9]
@@ -40,7 +40,8 @@ func sendReady(readyChannel readyChan) {
 // startAndWaitCommand executes a command.
 // and sends `ready` flag to the channel before return.
 func startAndWaitCommand(cmd *exec.Cmd, readyChannel readyChan,
-	workGroup *sync.WaitGroup, err *error) {
+	workGroup *sync.WaitGroup, err *error,
+) {
 	defer workGroup.Done()
 	defer sendReady(readyChannel)
 
@@ -165,8 +166,9 @@ func PrintFromStart(file *os.File) error {
 
 // ExecuteCommandStdin executes program with given args in verbose or quiet mode
 // and sends stdinData to stdin pipe.
-func ExecuteCommandGetOutput(program string, workDir string, stdinData []byte,
-	args ...string) ([]byte, error) {
+func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
+	args ...string,
+) ([]byte, error) {
 	cmd := exec.Command(program, args...)
 
 	var out bytes.Buffer

@@ -17,7 +17,7 @@ func TestTarantoolCli_GetVersion(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tmpDir, "tnt.sh"),
 		[]byte(`#!/bin/bash
 echo "Tarantool 2.11.0"`),
-		0755)
+		0o755)
 	require.NoError(t, err)
 
 	expectedVersion, err := version.Parse("2.11.0")
@@ -32,7 +32,7 @@ echo "Tarantool 2.11.0"`),
 	err = os.WriteFile(filepath.Join(tmpDir, "tnt.sh"),
 		[]byte(`#!/bin/bash
 echo "Tarantool 3.0.0"`),
-		0755)
+		0o755)
 	require.NoError(t, err)
 
 	tntVersion, err = tntCli.GetVersion()
@@ -59,7 +59,7 @@ func TestTarantoolCli_GetVersionErrCases(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tmpDir, "tnt.sh"),
 		[]byte(`#!/bin/bash
 echo "Tarantool version bad format"`),
-		0755)
+		0o755)
 	require.NoError(t, err)
 
 	tntCli := TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
@@ -72,7 +72,7 @@ echo "Tarantool version bad format"`),
 		[]byte(`#!/bin/bash
 echo "Tarantool 2.11.0"
 exit 1`),
-		0755)
+		0o755)
 	require.NoError(t, err)
 
 	tntCli = TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
@@ -143,7 +143,7 @@ func TestTtCli_GetVersion(t *testing.T) {
 			err := os.WriteFile(filepath.Join(tmpDir, "tt.sh"),
 				[]byte(fmt.Sprintf(`#!/bin/bash
     echo "%s"`, tc.versionToCheck)),
-				0755)
+				0o755)
 			require.NoError(t, err)
 
 			ttVersion, err := GetTtVersion(filepath.Join(tmpDir, "tt.sh"))

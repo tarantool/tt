@@ -22,7 +22,7 @@ import (
 const (
 	// defaultDirPermissions is permissions for new directories.
 	// 0755 - drwxr-xr-x
-	defaultDirPermissions = os.FileMode(0755)
+	defaultDirPermissions = os.FileMode(0o755)
 	// dockerFileName is a default Dockerfile file name.
 	dockerFileName = "Dockerfile"
 )
@@ -62,8 +62,9 @@ func interruptHandler(cancelFunc context.CancelFunc) (stopSignalProcessing func(
 }
 
 // buildDockerImage builds docker image.
-func buildDockerImage(dockerClient *client.Client, imageTag string, buildContextDir string,
-	verbose bool, writer io.Writer) error {
+func buildDockerImage(dockerClient *client.Client, imageTag, buildContextDir string,
+	verbose bool, writer io.Writer,
+) error {
 	buildCtx, err := archive.TarWithOptions(buildContextDir, &archive.TarOptions{})
 	if err != nil {
 		return err
@@ -174,7 +175,8 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	out, err := dockerClient.ContainerLogs(ctx, containerId, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
-		Follow:     true})
+		Follow:     true,
+	})
 	if err != nil {
 		return err
 	}

@@ -43,7 +43,8 @@ func (factory publishersFactory) NewFile(path string) (DataPublisher, error) {
 
 // NewEtcd creates a new etcd data publisher.
 func (factory publishersFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration) (DataPublisher, error) {
+	prefix, key string, timeout time.Duration,
+) (DataPublisher, error) {
 	if key == "" {
 		return NewEtcdAllDataPublisher(etcdcli, prefix, timeout), nil
 	}
@@ -52,7 +53,8 @@ func (factory publishersFactory) NewEtcd(etcdcli *clientv3.Client,
 
 // NewTarantool creates creates a new tarantool config storage data publisher.
 func (factory publishersFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration) (DataPublisher, error) {
+	prefix, key string, timeout time.Duration,
+) (DataPublisher, error) {
 	if key == "" {
 		return NewTarantoolAllDataPublisher(conn, prefix, timeout), nil
 	}
@@ -80,7 +82,8 @@ func (factory integrityPublishersFactory) NewFile(path string) (DataPublisher, e
 
 // NewEtcd creates a new etcd data publisher with integrity signing.
 func (factory integrityPublishersFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration) (DataPublisher, error) {
+	prefix, key string, timeout time.Duration,
+) (DataPublisher, error) {
 	if key == "" {
 		return NewIntegrityEtcdAllDataPublisher(factory.signFunc, etcdcli, prefix, timeout), nil
 	}
@@ -90,7 +93,8 @@ func (factory integrityPublishersFactory) NewEtcd(etcdcli *clientv3.Client,
 // NewTarantool creates creates a new tarantool config storage data publisher
 // with integrity signing.
 func (factory integrityPublishersFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration) (DataPublisher, error) {
+	prefix, key string, timeout time.Duration,
+) (DataPublisher, error) {
 	if key == "" {
 		return NewIntegrityTarantoolAllDataPublisher(factory.signFunc,
 			conn, prefix, timeout), nil

@@ -69,7 +69,8 @@ func decodeValue(val *pb.Value) (any, error) {
 			Min:    casted.IntervalValue.Min,
 			Sec:    casted.IntervalValue.Sec,
 			Nsec:   casted.IntervalValue.Nsec,
-			Adjust: datetime.Adjust(casted.IntervalValue.Adjust)}
+			Adjust: datetime.Adjust(casted.IntervalValue.Adjust),
+		}
 		return res, nil
 	case *pb.Value_ArrayValue:
 		array := val.GetArrayValue()

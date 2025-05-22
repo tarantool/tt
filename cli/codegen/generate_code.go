@@ -65,7 +65,7 @@ func generateLuaCodeVar() error {
 // var FileModes = map[string]int {
 // "filename": filemode,
 // }
-func generateFileModeFile(path string, filename string, varNamePrefix string) error {
+func generateFileModeFile(path, filename, varNamePrefix string) error {
 	goFile := jen.NewFile("static")
 	goFile.Comment("This file is generated! DO NOT EDIT\n")
 
@@ -95,7 +95,6 @@ func getFileModes(root string) (map[string]int, error) {
 
 		if !fileInfo.IsDir() {
 			rel, err := filepath.Rel(root, filePath)
-
 			if err != nil {
 				return err
 			}
@@ -105,7 +104,6 @@ func getFileModes(root string) (map[string]int, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

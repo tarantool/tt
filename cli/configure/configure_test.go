@@ -76,12 +76,12 @@ func TestConfigureCli(t *testing.T) {
 	assert.Nil(err)
 	require.NoError(t, os.WriteFile(expectedConfigPath, []byte(`env:
   bin_dir: "."
-`), 0644))
+`), 0o644))
 
 	// Create local tarantool and check that it is found during configuration.
 	expectedTarantoolPath := filepath.Join(cmdCtx.Cli.LocalLaunchDir, "tarantool")
 	assert.Nil(os.WriteFile(
-		expectedTarantoolPath, []byte("I am [fake] local Tarantool!"), 0777,
+		expectedTarantoolPath, []byte("I am [fake] local Tarantool!"), 0o777,
 	))
 
 	defer os.Remove(expectedTarantoolPath)
@@ -111,7 +111,7 @@ func TestConfigureCli(t *testing.T) {
 	expectedConfigPath = filepath.Join(filepath.Dir(dir), ConfigName)
 
 	assert.Nil(os.WriteFile(
-		expectedConfigPath, []byte("app:"), 0755,
+		expectedConfigPath, []byte("app:"), 0o755,
 	))
 
 	defer os.Remove(expectedConfigPath)
@@ -213,12 +213,18 @@ func TestValidateCliOpts(t *testing.T) {
 		errString string
 	}
 	testData := []cliCtxTest{
-		{cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/" + ConfigName},
-			"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options"},
-		{cmdcontext.CliCtx{LocalLaunchDir: "/", ConfigPath: "/" + ConfigName},
-			"you can specify only one of -L(--local), -c(--cfg) and 'TT_CLI_CFG' options"},
-		{cmdcontext.CliCtx{IsSystem: true, LocalLaunchDir: "."},
-			"you can specify only one of -L(--local) and -S(--system) options"},
+		{
+			cmdcontext.CliCtx{IsSystem: true, ConfigPath: "/" + ConfigName},
+			"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options",
+		},
+		{
+			cmdcontext.CliCtx{LocalLaunchDir: "/", ConfigPath: "/" + ConfigName},
+			"you can specify only one of -L(--local), -c(--cfg) and 'TT_CLI_CFG' options",
+		},
+		{
+			cmdcontext.CliCtx{IsSystem: true, LocalLaunchDir: "."},
+			"you can specify only one of -L(--local) and -S(--system) options",
+		},
 		{cmdcontext.CliCtx{IsSystem: true}, ""},
 		{cmdcontext.CliCtx{LocalLaunchDir: "."}, ""},
 		{cmdcontext.CliCtx{ConfigPath: ConfigName}, ""},
@@ -281,13 +287,13 @@ func TestGetSystemConfigPath(t *testing.T) {
 
 func TestGetConfigPath(t *testing.T) {
 	tempDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "a", "b"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "a", "b"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", ConfigName), []byte(""),
-		0664))
+		0o664))
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "a", "tt.yml"), []byte(""),
-		0664))
+		0o664))
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tt.yaml"), []byte(""),
-		0664))
+		0o664))
 
 	if wd, err := os.Getwd(); err == nil {
 		require.NoError(t, os.Chdir(filepath.Join(tempDir, "a", "b")))

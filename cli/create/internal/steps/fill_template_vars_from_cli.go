@@ -22,12 +22,12 @@ func parseVarDefinition(varDefText string) (struct{ name, value string }, error)
 }
 
 // FillTemplateVarsFromCli represents a step for collecting variables from command line args.
-type FillTemplateVarsFromCli struct {
-}
+type FillTemplateVarsFromCli struct{}
 
 // Run collects variables passed using command line args.
 func (FillTemplateVarsFromCli) Run(createCtx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	for _, varDefiniton := range createCtx.VarsFromCli {
 		varDef, err := parseVarDefinition(varDefiniton)
 		if err != nil {

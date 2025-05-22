@@ -51,7 +51,8 @@ func (factory collectorsFactory) NewFile(path string) (DataCollector, error) {
 
 // NewEtcd creates a new etcd configuration collector.
 func (factory collectorsFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration) (DataCollector, error) {
+	prefix, key string, timeout time.Duration,
+) (DataCollector, error) {
 	if key == "" {
 		return NewEtcdAllCollector(etcdcli, prefix, timeout), nil
 	}
@@ -61,7 +62,8 @@ func (factory collectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 // NewTarantool creates creates a new tarantool config storage configuration
 // collector.
 func (factory collectorsFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration) (DataCollector, error) {
+	prefix, key string, timeout time.Duration,
+) (DataCollector, error) {
 	if key == "" {
 		return NewTarantoolAllCollector(conn, prefix, timeout), nil
 	}
@@ -77,7 +79,8 @@ type integrityCollectorsFactory struct {
 // NewIntegrityDataCollectorFactory creates a new DataCollectorFactory with
 // integrity checks.
 func NewIntegrityDataCollectorFactory(checkFunc CheckFunc,
-	fileReadFunc FileReadFunc) DataCollectorFactory {
+	fileReadFunc FileReadFunc,
+) DataCollectorFactory {
 	return integrityCollectorsFactory{
 		checkFunc:    checkFunc,
 		fileReadFunc: fileReadFunc,
@@ -91,7 +94,8 @@ func (factory integrityCollectorsFactory) NewFile(path string) (DataCollector, e
 
 // NewEtcd creates a new etcd configuration collector with integrity checks.
 func (factory integrityCollectorsFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration) (DataCollector, error) {
+	prefix, key string, timeout time.Duration,
+) (DataCollector, error) {
 	if key == "" {
 		return NewIntegrityEtcdAllCollector(factory.checkFunc, etcdcli, prefix, timeout), nil
 	}
@@ -101,7 +105,8 @@ func (factory integrityCollectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 // NewTarantool creates creates a new tarantool config storage configuration
 // collector with integrity checks.
 func (factory integrityCollectorsFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration) (DataCollector, error) {
+	prefix, key string, timeout time.Duration,
+) (DataCollector, error) {
 	if key == "" {
 		return NewIntegrityTarantoolAllCollector(factory.checkFunc,
 			conn, prefix, timeout), nil

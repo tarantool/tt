@@ -10,14 +10,15 @@ import (
 
 // NewLogrotateCmd creates logrotate command.
 func NewLogrotateCmd() *cobra.Command {
-	var logrotateCmd = &cobra.Command{
+	logrotateCmd := &cobra.Command{
 		Use:   "logrotate [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Rotate logs of a started tarantool instance(s)",
 		Run:   RunModuleFunc(internalLogrotateModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractAppNames,

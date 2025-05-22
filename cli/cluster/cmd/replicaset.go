@@ -23,7 +23,8 @@ func (publisher dataKeyPublisher) Publish(key string, revision int64, data []byt
 
 // makeTarantoolPublisher creates publisher that publishes into tarantool.
 func makeTarantoolPublisher(factory libcluster.DataPublisherFactory,
-	conn tarantool.Connector, prefix string, timeout time.Duration) replicaset.DataPublisher {
+	conn tarantool.Connector, prefix string, timeout time.Duration,
+) replicaset.DataPublisher {
 	return dataKeyPublisher(func(key string, revision int64, data []byte) error {
 		var err error
 		key, err = libcluster.GetStorageKey(prefix, key)
@@ -40,7 +41,8 @@ func makeTarantoolPublisher(factory libcluster.DataPublisherFactory,
 
 // makeEtcdPublisher creates publisher that publishes into etcd.
 func makeEtcdPublisher(factory libcluster.DataPublisherFactory,
-	client *clientv3.Client, prefix string, timeout time.Duration) replicaset.DataPublisher {
+	client *clientv3.Client, prefix string, timeout time.Duration,
+) replicaset.DataPublisher {
 	return dataKeyPublisher(func(key string, revision int64, data []byte) error {
 		var err error
 		key, err = libcluster.GetStorageKey(prefix, key)
@@ -108,7 +110,8 @@ func createDataCollectorAndKeyPublisher(
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
 	opts connect.UriOpts, connOpts libcluster.ConnectOpts) (
-	libcluster.DataCollector, replicaset.DataPublisher, func(), error) {
+	libcluster.DataCollector, replicaset.DataPublisher, func(), error,
+) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 	var (
 		collector libcluster.DataCollector

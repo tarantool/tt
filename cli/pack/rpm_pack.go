@@ -64,7 +64,8 @@ import (
 // packRpm creates an RPM archive in resPackagePath
 // that contains files from packageDir.
 func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, packageDir,
-	resPackagePath string) error {
+	resPackagePath string,
+) error {
 	var err error
 
 	relPaths, err := getSortedRelPaths(packageDir)
@@ -186,7 +187,6 @@ func getSortedRelPaths(srcDir string) ([]string, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

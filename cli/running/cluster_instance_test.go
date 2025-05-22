@@ -107,7 +107,7 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 	defer cancelChdir()
 
 	tmpAppDir := filepath.Join(tmpDir, "appdir")
-	require.NoError(t, os.Mkdir(tmpAppDir, 0755))
+	require.NoError(t, os.Mkdir(tmpAppDir, 0o755))
 	outputBuf := bytes.Buffer{}
 	outputBuf.Grow(1024)
 	clusterInstance, err := newClusterInstance(tntCli, InstanceCtx{
@@ -124,7 +124,7 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 
-	require.NoError(t, os.Mkdir(filepath.Join(tmpAppDir, "run"), 0755))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpAppDir, "run"), 0o755))
 	require.NoError(t, clusterInstance.Start(context.Background()))
 	t.Cleanup(func() {
 		require.NoError(t, clusterInstance.Stop(stopTimeout))
@@ -154,7 +154,7 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 	defer cancelChdir()
 
 	tmpAppDir := filepath.Join(tmpDir, "appdir")
-	require.NoError(t, os.Mkdir(tmpAppDir, 0755))
+	require.NoError(t, os.Mkdir(tmpAppDir, 0o755))
 	outputBuf := bytes.Buffer{}
 	outputBuf.Grow(1024)
 	clusterInstance, err := newClusterInstance(tntCli, InstanceCtx{
@@ -172,7 +172,7 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, clusterInstance)
 
-	require.NoError(t, os.Mkdir(filepath.Join(tmpAppDir, "run"), 0755))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpAppDir, "run"), 0o755))
 	require.NoError(t, clusterInstance.Start(context.Background()))
 	t.Cleanup(func() {
 		require.NoError(t, clusterInstance.Stop(stopTimeout))

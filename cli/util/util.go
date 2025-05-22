@@ -132,14 +132,14 @@ func Find(src []string, find string) int {
 
 // InternalError shows error information, version of tt and call stack.
 func InternalError(format string, f VersionFunc, err ...interface{}) error {
-	internalErrorFmt :=
-		`whoops! It looks like something is wrong with this version of Tarantool CLI.
+	errorFmt := `whoops! It looks like something is wrong with this version of Tarantool CLI.
 Error: %s
 Version: %s
 Stacktrace:
 %s`
 	version := f(false, false)
-	return fmt.Errorf(internalErrorFmt, fmt.Sprintf(format, err...), version, debug.Stack())
+
+	return fmt.Errorf(errorFmt, fmt.Sprintf(format, err...), version, debug.Stack())
 }
 
 // ParseYAML parse yaml file at specified path.
@@ -208,9 +208,9 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 
 	buf := make([]byte, bufSize)
 
-	var filePos = fileSize - bufSize
+	filePos := fileSize - bufSize
 	var lastNewLinePos int64 = 0
-	var newLinesN = 0
+	newLinesN := 0
 
 	// Check last symbol of the last line.
 
@@ -475,7 +475,7 @@ func Chdir(newPath string) (func() error, error) {
 func BitHas32(b, flag uint32) bool { return b&flag != 0 }
 
 // FsCopyFileChangePerms copies file from the certain FS with changing perms.
-func FsCopyFileChangePerms(fsys fs.FS, src string, dst string, perms int) error {
+func FsCopyFileChangePerms(fsys fs.FS, src, dst string, perms int) error {
 	// Read data from src.
 	data, err := fs.ReadFile(fsys, src)
 	if err != nil {
@@ -486,7 +486,7 @@ func FsCopyFileChangePerms(fsys fs.FS, src string, dst string, perms int) error 
 }
 
 // CopyFilePreserve copies file from source to destination with perms.
-func CopyFilePreserve(src string, dst string) error {
+func CopyFilePreserve(src, dst string) error {
 	// Read all content of src to data.
 	info, err := os.Stat(src)
 	if err != nil {
@@ -502,7 +502,7 @@ func CopyFilePreserve(src string, dst string) error {
 }
 
 // CopyFileChangePerms copies file from source to destination with changing perms.
-func CopyFileChangePerms(src string, dst string, perms int) error {
+func CopyFileChangePerms(src, dst string, perms int) error {
 	// Read all content of src to data.
 	_, err := os.Stat(src)
 	if err != nil {
@@ -588,7 +588,7 @@ func ExtractTar(tarName string) error {
 				//    user:   read/write/execute
 				//    group:  read/execute
 				//    others: read/execute
-				os.MkdirAll(dir+header.Name[0:pos], 0755)
+				os.MkdirAll(dir+header.Name[0:pos], 0o755)
 			}
 			outFile, err := os.Create(dir + header.Name)
 			if err != nil {
@@ -611,7 +611,8 @@ func ExtractTar(tarName string) error {
 
 // ExecuteCommand executes program with given args in verbose or quiet mode.
 func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir string,
-	args ...string) error {
+	args ...string,
+) error {
 	cmd := exec.Command(program, args...)
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
@@ -638,7 +639,8 @@ func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir st
 // ExecuteCommandStdin executes program with given args in verbose or quiet mode
 // and sends stdinData to stdin pipe.
 func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workDir string,
-	stdinData []byte, args ...string) error {
+	stdinData []byte, args ...string,
+) error {
 	cmd := exec.Command(program, args...)
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
@@ -679,7 +681,7 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 
 // CreateSymlink creates newName as a symbolic link to oldName. Overwrites existing if overwrite
 // flag is set.
-func CreateSymlink(oldName string, newName string, overwrite bool) error {
+func CreateSymlink(oldName, newName string, overwrite bool) error {
 	if _, err := os.Stat(newName); err == nil {
 		if !overwrite {
 			return fmt.Errorf("symbolic link cannot be created: '%s' already exists", newName)
@@ -850,7 +852,7 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 
 // InstantiateFileFromTemplate accepts the path to file,
 // template content and parameters for its filling.
-func InstantiateFileFromTemplate(templatePath string, templateContent string, params any) error {
+func InstantiateFileFromTemplate(templatePath, templateContent string, params any) error {
 	file, err := os.Create(templatePath)
 	if err != nil {
 		return err
@@ -884,7 +886,7 @@ func InstantiateFileFromTemplate(templatePath string, templateContent string, pa
 }
 
 // CollectAppList collects all the supposed applications in passed appsPath directory.
-func CollectAppList(baseDir string, appsPath string, verbose bool) ([]string, error) {
+func CollectAppList(baseDir, appsPath string, verbose bool) ([]string, error) {
 	if appsPath == "." {
 		// Check whether base directory is application.
 		if IsApp(baseDir) {

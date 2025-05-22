@@ -6,7 +6,7 @@ import (
 
 // NewCfgCmd creates a new cfg command.
 func NewCfgCmd() *cobra.Command {
-	var cfgCmd = &cobra.Command{
+	cfgCmd := &cobra.Command{
 		Use:                   "cfg <command> [command flags]",
 		DisableFlagParsing:    true,
 		DisableFlagsInUseLine: true,

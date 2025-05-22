@@ -42,11 +42,11 @@ type PlainTextEvalRes struct {
 // Function should return `interface{}`, `string` (res, err)
 // to be correctly processed.
 func callPlainTextConn(conn net.Conn, funcName string, args []interface{},
-	opts EvalPlainTextOpts) ([]interface{}, error) {
+	opts EvalPlainTextOpts,
+) ([]interface{}, error) {
 	evalFunc, err := util.GetTextTemplatedStr(&callFuncTmpl, map[string]string{
 		"FunctionName": funcName,
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate call function template: %s", err)
 	}
@@ -58,7 +58,8 @@ func callPlainTextConn(conn net.Conn, funcName string, args []interface{},
 // Function should return `interface{}`, `string` (res, err)
 // to be correctly processed.
 func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{},
-	opts EvalPlainTextOpts) ([]interface{}, error) {
+	opts EvalPlainTextOpts,
+) ([]interface{}, error) {
 	if err := formatAndSendEvalFunc(conn, funcBody, args, evalFuncTmpl); err != nil {
 		return nil, err
 	}
@@ -82,7 +83,8 @@ func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{},
 }
 
 func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{},
-	evalFuncTmpl string) error {
+	evalFuncTmpl string,
+) error {
 	if args == nil {
 		args = []interface{}{}
 	}
@@ -96,7 +98,6 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{},
 		"FunctionBody": funcBody,
 		"ArgsEncoded":  fmt.Sprintf("%x", argsEncoded),
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to instantiate eval function template: %s", err)
 	}
@@ -207,7 +208,8 @@ func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error
 }
 
 func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
-	readTimeout time.Duration) ([]byte, error) {
+	readTimeout time.Duration,
+) ([]byte, error) {
 	tmp := make([]byte, 256)
 	data := make([]byte, 0)
 
@@ -384,7 +386,6 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 					return "", errors.New(errStr)
 				}
 			}
-
 		}
 
 		return "", fmt.Errorf("failed to parse eval result: %s", err)

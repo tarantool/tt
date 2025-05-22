@@ -743,7 +743,13 @@ func TestIntegrityDataPublisherKey_CollectorAll_valid(t *testing.T) {
 			}
 
 			for _, entry := range data {
-				publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
+				publisher, closeConn := test.NewPublisher(
+					t,
+					validSignFunc,
+					testPrefix,
+					entry.Source,
+					inst,
+				)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
@@ -826,7 +832,13 @@ func TestIntegrityDataCollectorAllPublisherAll_valid(t *testing.T) {
 			}
 
 			for _, entry := range data {
-				publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
+				publisher, closeConn := test.NewPublisher(
+					t,
+					validSignFunc,
+					testPrefix,
+					entry.Source,
+					inst,
+				)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
@@ -866,7 +878,13 @@ func TestIntegrityDataCollectorKeyPublisherAll_valid(t *testing.T) {
 			}
 
 			for _, entry := range data {
-				publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, entry.Source, inst)
+				publisher, closeConn := test.NewPublisher(
+					t,
+					validSignFunc,
+					testPrefix,
+					entry.Source,
+					inst,
+				)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)

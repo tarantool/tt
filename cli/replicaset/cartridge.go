@@ -208,7 +208,8 @@ func (c *CartridgeInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
 
 // RolesChange adds/removes role for a single instance by the Cartridge orchestrator.
 func (c *CartridgeInstance) RolesChange(ctx RolesChangeCtx,
-	action RolesChangerAction) error {
+	action RolesChangerAction,
+) error {
 	return newErrRolesChangeByInstanceNotSupported(OrchestratorCartridge, action)
 }
 
@@ -340,7 +341,8 @@ func parseYaml[T any](filename string) (T, error) {
 
 // getCartridgeReplicasetsConfig extracts a replicasets config.
 func getCartridgeReplicasetsConfig(appDir,
-	filename string) (map[string]cartridgeReplicasetConfig, string, error) {
+	filename string,
+) (map[string]cartridgeReplicasetConfig, string, error) {
 	if filename == "" {
 		filename = filepath.Join(appDir, defaultCartridgeReplicasetsFilename)
 	}
@@ -357,7 +359,8 @@ func getCartridgeReplicasetsConfig(appDir,
 
 // getCartridgeInstancesConfig extracts a instances config.
 func getCartridgeInstancesConfig(appName,
-	appDir string) (map[string]cartridgeInstanceConfig, error) {
+	appDir string,
+) (map[string]cartridgeInstanceConfig, error) {
 	filename, err := util.GetYamlFileName(
 		filepath.Join(appDir, defaultCartridgeInstancesFilename), true)
 	if err != nil {
@@ -429,7 +432,8 @@ func (c *CartridgeApplication) Bootstrap(ctx BootstrapCtx) error {
 				}
 			}
 			instances = filterInstances(c.runningCtx.Instances, func(
-				inst running.InstanceCtx) bool {
+				inst running.InstanceCtx,
+			) bool {
 				_, ok := cfgInstNames[inst.InstName]
 				return ok
 			})
@@ -459,7 +463,8 @@ func (c *CartridgeApplication) Bootstrap(ctx BootstrapCtx) error {
 // bootstrapInstance bootstrap an instance.
 func (c *CartridgeApplication) bootstrapInstance(instanceName, replicasetName string,
 	evaler connector.Evaler, discovered Replicasets,
-	instancesCfg map[string]cartridgeInstanceConfig, timeout int) error {
+	instancesCfg map[string]cartridgeInstanceConfig, timeout int,
+) error {
 	if replicasetName == "" {
 		return fmt.Errorf("a replicaset name is empty")
 	}
@@ -499,8 +504,8 @@ func (c *CartridgeApplication) bootstrapInstance(instanceName, replicasetName st
 func (c *CartridgeApplication) bootstrapReplicasets(evaler connector.Evaler, discovered Replicasets,
 	replicasetsCfg map[string]cartridgeReplicasetConfig,
 	instancesCfg map[string]cartridgeInstanceConfig,
-	timeout int) error {
-
+	timeout int,
+) error {
 	majorVer, err := getCartridgeMajorVersion(evaler)
 	if err != nil {
 		return fmt.Errorf("failed to get cartridge major version: %w", err)
@@ -549,7 +554,8 @@ func (c *CartridgeApplication) bootstrapReplicasets(evaler connector.Evaler, dis
 // It lookups for an instance in the UUID map and if an instance is not found,
 // generates new UUID and adds the instance to the join options.
 func getCartridgeJoinServersOpts(instancesCfg map[string]cartridgeInstanceConfig,
-	instances []string, instancesUUID map[string]string) ([]cartridgeJoinServersOpts, error) {
+	instances []string, instancesUUID map[string]string,
+) ([]cartridgeJoinServersOpts, error) {
 	opts := make([]cartridgeJoinServersOpts, 0)
 	for _, instance := range instances {
 		if _, UUIDExists := instancesUUID[instance]; UUIDExists {
@@ -574,7 +580,8 @@ func getCartridgeJoinServersOpts(instancesCfg map[string]cartridgeInstanceConfig
 func updateCartridgeReplicasets(evaler connector.Evaler, discovered Replicasets,
 	replicasetCfg map[string]cartridgeReplicasetConfig,
 	instancesCfg map[string]cartridgeInstanceConfig,
-	timeout int) error {
+	timeout int,
+) error {
 	instanceUUID := map[string]string{}
 	replicasetUUID := map[string]string{}
 	for _, replicaset := range discovered.Replicasets {
@@ -671,7 +678,8 @@ func (c *CartridgeApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
 
 // RolesChange adds/removes role for an application by the Cartridge orchestrator.
 func (c *CartridgeApplication) RolesChange(ctx RolesChangeCtx,
-	action RolesChangerAction) error {
+	action RolesChangerAction,
+) error {
 	if len(c.runningCtx.Instances) == 0 {
 		return fmt.Errorf("failed to add role: there are no running instances")
 	}
@@ -682,7 +690,8 @@ func (c *CartridgeApplication) RolesChange(ctx RolesChangeCtx,
 	}
 
 	instances := filterInstances(c.runningCtx.Instances, func(
-		inst running.InstanceCtx) bool {
+		inst running.InstanceCtx,
+	) bool {
 		return slices.ContainsFunc(targetReplicaset.Instances, func(i Instance) bool {
 			return i.Alias == inst.InstName
 		})
@@ -734,7 +743,8 @@ func (c *CartridgeApplication) RolesChange(ctx RolesChangeCtx,
 // getRolesChangedOpts adds/removes role for replicaset roles list and returns
 // options for updating a replciaset.
 func getRolesChangedOpts(targetReplicaset Replicaset, action RolesChangerAction,
-	roleName, groupName string) (cartridgeEditReplicasetsOpts, error) {
+	roleName, groupName string,
+) (cartridgeEditReplicasetsOpts, error) {
 	var err error
 	targetReplicaset.Roles, err = action.Change(targetReplicaset.Roles, roleName)
 	if err != nil {
@@ -765,7 +775,8 @@ func getReplicasetByAlias(replicasets []Replicaset, alias string) (Replicaset, e
 
 // getCartridgeInstanceInfo returns an additional instance information.
 func getCartridgeInstanceInfo(
-	evaler connector.Evaler) (uuid string, rw bool, err error) {
+	evaler connector.Evaler,
+) (uuid string, rw bool, err error) {
 	info := []struct {
 		UUID string
 		RW   bool
@@ -790,13 +801,14 @@ func getCartridgeInstanceInfo(
 // updateCartridgeInstance receives and updates an additional instance
 // information about the instance in the replicasets.
 func updateCartridgeInstance(evaler connector.Evaler,
-	ictx *running.InstanceCtx, replicasets Replicasets) (Replicasets, error) {
+	ictx *running.InstanceCtx, replicasets Replicasets,
+) (Replicasets, error) {
 	uuid, rw, err := getCartridgeInstanceInfo(evaler)
 	if err != nil {
 		return replicasets, err
 	}
 	for _, replicaset := range replicasets.Replicasets {
-		for i, _ := range replicaset.Instances {
+		for i := range replicaset.Instances {
 			if replicaset.Instances[i].UUID == uuid {
 				if rw {
 					replicaset.Instances[i].Mode = ModeRW
@@ -905,7 +917,8 @@ func cartridgeWaitHealthy(evaler connector.Evaler, timeout int) error {
 
 // cartridgeEditReplicasets edits replicasets topology in the cartridge app.
 func cartridgeEditReplicasets(evaler connector.Evaler,
-	opts []cartridgeEditReplicasetsOpts, timeout int) error {
+	opts []cartridgeEditReplicasetsOpts, timeout int,
+) error {
 	var reqOpts connector.RequestOpts
 	args := []any{opts}
 	if _, err := evaler.Eval(cartridgeEditReplicasetsBody, args, reqOpts); err != nil {
@@ -925,7 +938,8 @@ func cartridgeEditReplicasets(evaler connector.Evaler,
 
 // cartridgeEditInstances edits instances in the cartridge app.
 func cartridgeEditInstances(evaler connector.Evaler,
-	opts []cartridgeEditInstancesOpts, timeout int) error {
+	opts []cartridgeEditInstancesOpts, timeout int,
+) error {
 	var reqOpts connector.RequestOpts
 	args := []any{opts}
 	if _, err := evaler.Eval(cartridgeEditInstancesBody, args, reqOpts); err != nil {
@@ -963,7 +977,8 @@ func cartridgeFailoverPromote(evaler connector.Evaler, opts cartridgeFailoverPro
 // cartridgePromote promotes an instance in the cartridge replicaset.
 // https://www.tarantool.io/en/doc/2.11/book/cartridge/cartridge_dev/#manual-leader-promotion
 func cartridgePromote(evaler connector.Evaler,
-	inst cartridgeInstance, force bool, timeout int) error {
+	inst cartridgeInstance, force bool, timeout int,
+) error {
 	switch inst.Failover {
 	case FailoverOff, FailoverEventual:
 		opts := cartridgeEditReplicasetsOpts{
@@ -1016,8 +1031,8 @@ func wrapCartridgeVShardBoostrapError(err error) error {
 
 // cartridgeExpel expels an instance from the replicaset.
 func cartridgeExpel(runningCtx running.RunningCtx,
-	discovered Replicasets, name, uuid string, timeout int) error {
-
+	discovered Replicasets, name, uuid string, timeout int,
+) error {
 	found := false
 	var lastErr error
 	eval := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {

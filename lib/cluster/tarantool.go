@@ -24,7 +24,8 @@ type TarantoolAllCollector struct {
 // NewTarantoolAllCollector creates a new collector for Tarantool from the
 // whole prefix.
 func NewTarantoolAllCollector(conn tarantool.Doer, prefix string,
-	timeout time.Duration) TarantoolAllCollector {
+	timeout time.Duration,
+) TarantoolAllCollector {
 	return TarantoolAllCollector{
 		conn:    conn,
 		prefix:  prefix,
@@ -70,7 +71,8 @@ type IntegrityTarantoolAllCollector struct {
 // whole prefix.
 func NewIntegrityTarantoolAllCollector(checkFunc CheckFunc,
 	conn tarantool.Doer, prefix string,
-	timeout time.Duration) IntegrityTarantoolAllCollector {
+	timeout time.Duration,
+) IntegrityTarantoolAllCollector {
 	return IntegrityTarantoolAllCollector{
 		checkFunc: checkFunc,
 		conn:      conn,
@@ -181,7 +183,8 @@ type TarantoolKeyCollector struct {
 // NewTarantoolKeyCollector creates a new collector for Tarantool from a key
 // from a prefix.
 func NewTarantoolKeyCollector(conn tarantool.Doer, prefix, key string,
-	timeout time.Duration) TarantoolKeyCollector {
+	timeout time.Duration,
+) TarantoolKeyCollector {
 	return TarantoolKeyCollector{
 		conn:    conn,
 		prefix:  prefix,
@@ -233,7 +236,8 @@ type IntegrityTarantoolKeyCollector struct {
 // a key from a prefix with integrity checks.
 func NewIntegrityTarantoolKeyCollector(checkFunc CheckFunc,
 	conn tarantool.Doer, prefix, key string,
-	timeout time.Duration) IntegrityTarantoolKeyCollector {
+	timeout time.Duration,
+) IntegrityTarantoolKeyCollector {
 	return IntegrityTarantoolKeyCollector{
 		checkFunc: checkFunc,
 		conn:      conn,
@@ -291,7 +295,7 @@ func (collector IntegrityTarantoolKeyCollector) Collect() ([]Data, error) {
 	}
 
 	return []Data{
-		Data{
+		{
 			Source: valueKey,
 			Value:  []byte(value),
 		},
@@ -309,7 +313,8 @@ type TarantoolAllDataPublisher struct {
 // NewTarantoolAllDataPublisher creates a new TarantoolAllDataPublisher object
 // to publish a data to Tarantool with the prefix during the timeout.
 func NewTarantoolAllDataPublisher(conn tarantool.Doer,
-	prefix string, timeout time.Duration) TarantoolAllDataPublisher {
+	prefix string, timeout time.Duration,
+) TarantoolAllDataPublisher {
 	return TarantoolAllDataPublisher{
 		conn:    conn,
 		prefix:  prefix,
@@ -323,7 +328,8 @@ func NewTarantoolAllDataPublisher(conn tarantool.Doer,
 func NewIntegrityTarantoolAllDataPublisher(signFunc SignFunc,
 	conn tarantool.Doer,
 	prefix string,
-	timeout time.Duration) TarantoolAllDataPublisher {
+	timeout time.Duration,
+) TarantoolAllDataPublisher {
 	return TarantoolAllDataPublisher{
 		conn:     conn,
 		prefix:   prefix,
@@ -389,7 +395,8 @@ type TarantoolKeyDataPublisher struct {
 // NewTarantoolKeyDataPublisher creates a new TarantoolKeyDataPublisher object
 // to publish a data to Tarantool with the prefix and key during the timeout.
 func NewTarantoolKeyDataPublisher(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration) TarantoolKeyDataPublisher {
+	prefix, key string, timeout time.Duration,
+) TarantoolKeyDataPublisher {
 	return TarantoolKeyDataPublisher{
 		conn:    conn,
 		prefix:  prefix,
@@ -404,7 +411,8 @@ func NewTarantoolKeyDataPublisher(conn tarantool.Doer,
 func NewIntegrityTarantoolKeyDataPublisher(signFunc SignFunc,
 	conn tarantool.Doer,
 	prefix, key string,
-	timeout time.Duration) TarantoolKeyDataPublisher {
+	timeout time.Duration,
+) TarantoolKeyDataPublisher {
 	return TarantoolKeyDataPublisher{
 		conn:     conn,
 		prefix:   prefix,
@@ -473,7 +481,8 @@ type tarantoolGetResponse struct {
 
 // tarantoolCall retursns result of a function call via tarantool connector.
 func tarantoolCall(conn tarantool.Doer,
-	fun string, args []any, timeout time.Duration) ([]any, error) {
+	fun string, args []any, timeout time.Duration,
+) ([]any, error) {
 	req := tarantool.NewCallRequest(fun).Args(args)
 
 	if timeout != 0 {
@@ -492,7 +501,8 @@ func tarantoolCall(conn tarantool.Doer,
 }
 
 func tarantoolGet(conn tarantool.Doer,
-	path string, timeout time.Duration) (tarantoolGetResponse, error) {
+	path string, timeout time.Duration,
+) (tarantoolGetResponse, error) {
 	resp := tarantoolGetResponse{}
 
 	args := []any{path}
@@ -515,7 +525,8 @@ func tarantoolGet(conn tarantool.Doer,
 // tarantoolTxnGet returns a data from a tarantool config storage for a set
 // of prefixes and keys.
 func tarantoolTxnGet(conn tarantool.Doer,
-	paths []string, timeout time.Duration) (tarantoolTxnGetResponse, error) {
+	paths []string, timeout time.Duration,
+) (tarantoolTxnGetResponse, error) {
 	resp := tarantoolTxnGetResponse{}
 
 	onSuccess := []any{}
@@ -529,7 +540,6 @@ func tarantoolTxnGet(conn tarantool.Doer,
 	}
 
 	data, err := tarantoolCall(conn, "config.storage.txn", args, timeout)
-
 	if err != nil {
 		return resp, fmt.Errorf("failed to fetch data from tarantool: %w", err)
 	}
@@ -581,7 +591,8 @@ func MakeConnectOptsFromUriOpts(src libconnect.UriOpts) (tarantool.Dialer, taran
 }
 
 func СonnectTarantool(uriOpts libconnect.UriOpts,
-	connOpts ConnectOpts) (tarantool.Connector, error) {
+	connOpts ConnectOpts,
+) (tarantool.Connector, error) {
 	if uriOpts.Username == "" && uriOpts.Password == "" {
 		uriOpts.Username = connOpts.Username
 		uriOpts.Password = connOpts.Password

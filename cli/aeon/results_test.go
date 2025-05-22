@@ -115,7 +115,8 @@ Error: Name of error
 		t.Run(tt.name, func(t *testing.T) {
 			e := resultError{&pb.Error{
 				Name: tt.fields.name,
-				Msg:  tt.fields.msg}}
+				Msg:  tt.fields.msg,
+			}}
 			got, err := e.Format(console.Format{})
 			require.NoError(t, err)
 			if got != tt.want {

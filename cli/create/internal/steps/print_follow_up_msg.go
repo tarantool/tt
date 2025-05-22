@@ -15,7 +15,8 @@ type PrintFollowUpMessage struct {
 
 // Run prints application template follow-up message.
 func (printFollowUpMsgStep PrintFollowUpMessage) Run(createCtx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	if templateCtx.IsManifestPresent && templateCtx.Manifest.FollowUpMessage != "" &&
 		!createCtx.SilentMode {
 		templateEngine := templates.NewDefaultEngine()

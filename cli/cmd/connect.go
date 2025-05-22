@@ -36,7 +36,7 @@ var (
 
 // NewConnectCmd creates connect command.
 func NewConnectCmd() *cobra.Command {
-	var connectCmd = &cobra.Command{
+	connectCmd := &cobra.Command{
 		Use: "connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
 			" [flags] [-f <FILE>] [-- ARGS]\n" +
 			"  COMMAND | tt connect (<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)" +
@@ -65,7 +65,8 @@ func NewConnectCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
@@ -128,8 +129,8 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 // It returns connection options and the remaining args.
 func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	connectCtx *connect.ConnectCtx, target string) (
-	connOpts connector.ConnectOpts, err error) {
-
+	connOpts connector.ConnectOpts, err error,
+) {
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
 	fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{target},

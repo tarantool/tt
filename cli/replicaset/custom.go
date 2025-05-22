@@ -58,7 +58,7 @@ func (c *CustomInstance) discovery() (Replicasets, error) {
 		State:        StateBootstrapped,
 		Orchestrator: OrchestratorCustom,
 		Replicasets: []Replicaset{
-			Replicaset{
+			{
 				UUID:       topology.UUID,
 				LeaderUUID: topology.LeaderUUID,
 				Alias:      topology.Alias,
@@ -125,7 +125,7 @@ func (c *CustomApplication) discovery() (Replicasets, error) {
 			if err != nil {
 				return true, err
 			}
-			for i, _ := range topology.Instances {
+			for i := range topology.Instances {
 				if topology.Instances[i].UUID == topology.InstanceUUID {
 					topology.Instances[i].InstanceCtx = ictx
 					topology.Instances[i].InstanceCtxFound = true
@@ -169,13 +169,15 @@ func (c *CustomApplication) Bootstrap(BootstrapCtx) error {
 
 // RolesChange is not supported for an application by the Custom orchestrator.
 func (c *CustomApplication) RolesChange(_ RolesChangeCtx,
-	action RolesChangerAction) error {
+	action RolesChangerAction,
+) error {
 	return newErrRolesChangeByAppNotSupported(OrchestratorCustom, action)
 }
 
 // getCustomInstanceTopology returns a topology for an instance.
 func getCustomInstanceTopology(name string,
-	evaler connector.Evaler) (customTopology, error) {
+	evaler connector.Evaler,
+) (customTopology, error) {
 	var topology customTopology
 
 	args := []any{}
@@ -193,7 +195,7 @@ func getCustomInstanceTopology(name string,
 		return topology, fmt.Errorf("failed to parse a response: %w", err)
 	}
 
-	for i, _ := range topology.Instances {
+	for i := range topology.Instances {
 		if topology.Instances[i].UUID == topology.InstanceUUID {
 			if topology.InstanceRW {
 				topology.Instances[i].Mode = ModeRW
@@ -219,7 +221,7 @@ func mergeCustomTopologies(topologies []customTopology) (Replicasets, error) {
 
 	for _, topology := range topologies {
 		var replicaset *Replicaset
-		for i, _ := range replicasets.Replicasets {
+		for i := range replicasets.Replicasets {
 			if topology.UUID == replicasets.Replicasets[i].UUID {
 				replicaset = &replicasets.Replicasets[i]
 				break
@@ -246,7 +248,7 @@ func mergeCustomTopologies(topologies []customTopology) (Replicasets, error) {
 func updateCustomInstances(replicaset *Replicaset, topology customTopology) {
 	for _, tinstance := range topology.Instances {
 		var instance *Instance
-		for i, _ := range replicaset.Instances {
+		for i := range replicaset.Instances {
 			if tinstance.UUID == replicaset.Instances[i].UUID {
 				instance = &replicaset.Instances[i]
 			}

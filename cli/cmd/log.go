@@ -22,14 +22,15 @@ var logOpts struct {
 
 // NewLogCmd creates log command.
 func NewLogCmd() *cobra.Command {
-	var logCmd = &cobra.Command{
+	logCmd := &cobra.Command{
 		Use:   "log [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]",
 		Short: `Get logs of instance(s)`,
 		Run:   RunModuleFunc(internalLogModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractAppNames,

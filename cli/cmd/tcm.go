@@ -26,7 +26,7 @@ const (
 )
 
 func newTcmStartCmd() *cobra.Command {
-	var tcmCmd = &cobra.Command{
+	tcmCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start tcm application",
 		Long: `Start to the tcm.
@@ -41,7 +41,7 @@ func newTcmStartCmd() *cobra.Command {
 }
 
 func newTcmStatusCmd() *cobra.Command {
-	var tcmCmd = &cobra.Command{
+	tcmCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Status tcm application",
 		Long: `Status to the tcm.
@@ -52,7 +52,7 @@ func newTcmStatusCmd() *cobra.Command {
 }
 
 func newTcmStopCmd() *cobra.Command {
-	var tcmCmd = &cobra.Command{
+	tcmCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "Stop tcm application",
 		Long:  `Stop to the tcm. tt tcm stop`,
@@ -62,7 +62,7 @@ func newTcmStopCmd() *cobra.Command {
 }
 
 func NewTcmCmd() *cobra.Command {
-	var tcmCmd = &cobra.Command{
+	tcmCmd := &cobra.Command{
 		Use:   "tcm",
 		Short: "Manage tcm application",
 	}

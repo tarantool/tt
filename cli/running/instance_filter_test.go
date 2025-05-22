@@ -59,8 +59,10 @@ func TestCompletionHelpers(t *testing.T) {
 		{
 			name: "active instances",
 			tf:   ExtractActiveInstanceNames,
-			expected: []string{"single_run",
-				"app1:master", "app1:replica", "app3:stateboard"},
+			expected: []string{
+				"single_run",
+				"app1:master", "app1:replica", "app3:stateboard",
+			},
 		},
 		{
 			name: "inactive instances",
@@ -68,7 +70,8 @@ func TestCompletionHelpers(t *testing.T) {
 			expected: []string{
 				"single_stopped",
 				"app2:master", "app2:replica1", "app2:replica2",
-				"app3:master", "app3:replica1"},
+				"app3:master", "app3:replica1",
+			},
 		},
 		{
 			name:     "active apps",

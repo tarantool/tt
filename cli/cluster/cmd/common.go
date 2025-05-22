@@ -15,7 +15,8 @@ import (
 // printRawClusterConfig prints a raw cluster configuration or an instance
 // configuration if the instance name is specified.
 func printRawClusterConfig(config *libcluster.Config,
-	instance string, validate bool) error {
+	instance string, validate bool,
+) error {
 	cconfig, err := libcluster.MakeClusterConfig(config)
 	if err != nil {
 		return err
@@ -36,7 +37,8 @@ func printRawClusterConfig(config *libcluster.Config,
 // printClusterConfig prints a full-merged cluster configuration or an instance
 // configuration if the instance name is specified.
 func printClusterConfig(cconfig libcluster.ClusterConfig,
-	instance string, validate bool) error {
+	instance string, validate bool,
+) error {
 	if instance == "" {
 		var err error
 		if validate {
@@ -51,7 +53,8 @@ func printClusterConfig(cconfig libcluster.ClusterConfig,
 
 // printInstanceConfig prints an instance configuration in the cluster.
 func printInstanceConfig(config libcluster.ClusterConfig,
-	instance string, full, validate bool) error {
+	instance string, full, validate bool,
+) error {
 	if !libcluster.HasInstance(config, instance) {
 		return fmt.Errorf("instance %q not found", instance)
 	}
@@ -140,7 +143,8 @@ func createPublisherAndCollector(
 	publishers libcluster.DataPublisherFactory,
 	collectors libcluster.CollectorFactory,
 	connOpts libcluster.ConnectOpts,
-	opts libconnect.UriOpts) (libcluster.DataPublisher, libcluster.Collector, func(), error) {
+	opts libconnect.UriOpts,
+) (libcluster.DataPublisher, libcluster.Collector, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 
 	var (

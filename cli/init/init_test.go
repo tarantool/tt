@@ -49,7 +49,7 @@ func TestLoadCartridgeNonExistentConfig(t *testing.T) {
 	require.Equal(t, configData{}, actualDirInfo)
 }
 
-func checkDefaultEnv(t *testing.T, configName string, instancesEnabled string) {
+func checkDefaultEnv(t *testing.T, configName, instancesEnabled string) {
 	rawConfigOpts, err := util.ParseYAML(configName)
 	require.NoError(t, err)
 
@@ -277,7 +277,7 @@ func TestInitRunFailCreateResultFile(t *testing.T) {
 	_, err = os.Create(configure.ConfigName)
 	require.NoError(t, err)
 	// Make target file read-only.
-	require.NoError(t, os.Chmod(configure.ConfigName, 0400))
+	require.NoError(t, os.Chmod(configure.ConfigName, 0o400))
 
 	require.Error(t, Run(&InitCtx{}))
 }
@@ -399,8 +399,10 @@ func TestCheckExistingConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "", fileName)
 
-	fileName, err = checkExistingConfig(&InitCtx{reader: strings.NewReader("n\n"),
-		ForceMode: true})
+	fileName, err = checkExistingConfig(&InitCtx{
+		reader:    strings.NewReader("n\n"),
+		ForceMode: true,
+	})
 	assert.NoError(t, err)
 	assert.Equal(t, configure.ConfigName, fileName)
 }

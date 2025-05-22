@@ -24,7 +24,8 @@ type MockEtcdGetter struct {
 }
 
 func (g *MockEtcdGetter) Get(ctx context.Context, key string,
-	opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
+	opts ...clientv3.OpOption,
+) (*clientv3.GetResponse, error) {
 	g.Ctx = ctx
 	g.Key = key
 	g.Opts = opts
@@ -158,7 +159,7 @@ func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 	}{
 		{
 			Kvs: []*mvccpb.KeyValue{
-				&mvccpb.KeyValue{
+				{
 					Key:         []byte("k"),
 					Value:       []byte("f: a\nb: a\n"),
 					ModRevision: 1,
@@ -172,12 +173,12 @@ func TestEtcdAllCollector_Collect_merge(t *testing.T) {
 		},
 		{
 			Kvs: []*mvccpb.KeyValue{
-				&mvccpb.KeyValue{
+				{
 					Key:         []byte("k"),
 					Value:       []byte("f: a\nb: a\n"),
 					ModRevision: 1,
 				},
-				&mvccpb.KeyValue{
+				{
 					Key:         []byte("k"),
 					Value:       []byte("f: b\nb: b\nc: b\n"),
 					ModRevision: 2,
@@ -290,7 +291,7 @@ func TestEtcdKeyCollector_Collect_getter_inputs(t *testing.T) {
 func TestEtcdKeyCollector_Collect_key(t *testing.T) {
 	mock := &MockEtcdGetter{
 		Kvs: []*mvccpb.KeyValue{
-			&mvccpb.KeyValue{
+			{
 				Key:         []byte("k"),
 				Value:       []byte("f: a\nb: a\n"),
 				ModRevision: 1,
@@ -313,12 +314,12 @@ func TestEtcdKeyCollector_Collect_key(t *testing.T) {
 func TestEtcdKeyCollector_Collect_too_many(t *testing.T) {
 	mock := &MockEtcdGetter{
 		Kvs: []*mvccpb.KeyValue{
-			&mvccpb.KeyValue{
+			{
 				Key:         []byte("k"),
 				Value:       []byte("f: a\nb: a\n"),
 				ModRevision: 1,
 			},
-			&mvccpb.KeyValue{
+			{
 				Key:         []byte("k"),
 				Value:       []byte("f: b\nb: b\nc: b\n"),
 				ModRevision: 2,
@@ -383,13 +384,13 @@ func TestEtcdAllDataPublisher_Publish_txn_inputs(t *testing.T) {
 			Mock: &MockEtcdTxnGetter{
 				MockEtcdGetter: MockEtcdGetter{
 					Kvs: []*mvccpb.KeyValue{
-						&mvccpb.KeyValue{
+						{
 							Key: []byte("foo"),
 						},
-						&mvccpb.KeyValue{
+						{
 							Key: []byte("foo"),
 						},
-						&mvccpb.KeyValue{
+						{
 							Key: []byte("foo"),
 						},
 					},
@@ -403,13 +404,13 @@ func TestEtcdAllDataPublisher_Publish_txn_inputs(t *testing.T) {
 			Mock: &MockEtcdTxnGetter{
 				MockEtcdGetter: MockEtcdGetter{
 					Kvs: []*mvccpb.KeyValue{
-						&mvccpb.KeyValue{
+						{
 							Key: []byte("foo"),
 						},
-						&mvccpb.KeyValue{
+						{
 							Key: []byte("foo"),
 						},
-						&mvccpb.KeyValue{
+						{
 							Key: []byte("/foo/config/all"),
 						},
 					},

@@ -14,7 +14,7 @@ import (
 // 0755 - drwxr-xr-x
 // We need to give permission for all to execute
 // read,write for user and only read for others.
-const defaultDirPermissions = 0755
+const defaultDirPermissions = 0o755
 
 // Enable creates a symbolic link in 'instances_enabled' directory
 // to a script or an application directory.

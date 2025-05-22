@@ -14,7 +14,7 @@ var (
 
 // NewBuildCmd builds an application.
 func NewBuildCmd() *cobra.Command {
-	var buildCmd = &cobra.Command{
+	buildCmd := &cobra.Command{
 		Use:   "build [<PATH> | <APP_NAME>] [flags]",
 		Short: `Build an application (default ".")`,
 		Run:   RunModuleFunc(internalBuildModule),
@@ -22,7 +22,8 @@ func NewBuildCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			var runningCtx running.RunningCtx
 			err := running.FillCtx(cliOpts, &cmdCtx, &runningCtx, nil, running.ConfigLoadSkip)
 			if err != nil {

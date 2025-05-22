@@ -15,7 +15,8 @@ import (
 // generateRunDirForCartridge is a helper function for cartridge compatibility. It generates
 // run directory path using instances enabled, run dir and app name info.
 func generateRunDirForCartridge(env config.TtEnvOpts, configDir, runDir, appName string) (
-	string, error) {
+	string, error,
+) {
 	if filepath.IsAbs(runDir) {
 		return util.JoinAbspath(runDir, appName)
 	}
@@ -35,7 +36,7 @@ func generateRunDirForCartridge(env config.TtEnvOpts, configDir, runDir, appName
 
 // NewCartridgeCmd chains commands from cartridge-cli to our corba tree.
 func NewCartridgeCmd() *cobra.Command {
-	var cartridgeCmd = &cobra.Command{
+	cartridgeCmd := &cobra.Command{
 		Use:   "cartridge",
 		Short: "Manage cartridge application",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

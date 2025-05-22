@@ -11,7 +11,7 @@ import (
 
 // NewEnableCmd creates a new enable command.
 func NewEnableCmd() *cobra.Command {
-	var initCmd = &cobra.Command{
+	initCmd := &cobra.Command{
 		Use: "enable <APP_PATH> | <SCRIPT_PATH>",
 		Short: "Create a symbolic link in 'instances_enabled' directory " +
 			"to a script or an application directory",

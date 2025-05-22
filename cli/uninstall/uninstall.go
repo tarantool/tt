@@ -31,7 +31,7 @@ var errNotInstalled = errors.New("program is not installed")
 
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
-func remove(program search.Program, programVersion string, directory string,
+func remove(program search.Program, programVersion, directory string,
 	cmdCtx *cmdcontext.CmdCtx,
 ) (bool, error) {
 	var linkPath string

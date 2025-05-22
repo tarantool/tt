@@ -96,7 +96,8 @@ type systemdUnitParams struct {
 }
 
 func loadUserUnitParams(unitParams *systemdUnitParams, packCtx *PackCtx,
-	inst running.InstanceCtx) error {
+	inst running.InstanceCtx,
+) error {
 	// First check systemd params file in application directory and if it does not exist, check
 	// params file path in the pack context.
 	unitParamsFile := util.JoinPaths(inst.AppDir, unitParamsFileName)
@@ -123,7 +124,8 @@ func loadUserUnitParams(unitParams *systemdUnitParams, packCtx *PackCtx,
 // getUnitParams checks if there is a passed unit params file in context and
 // returns its content. Otherwise, it returns the default params.
 func getUnitParams(packCtx *PackCtx, pathToEnv string,
-	inst running.InstanceCtx) (systemdUnitParams, error) {
+	inst running.InstanceCtx,
+) (systemdUnitParams, error) {
 	ttBinary := getTTBinary(packCtx, pathToEnv)
 
 	unitParams := systemdUnitParams{

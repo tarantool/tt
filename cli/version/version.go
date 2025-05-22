@@ -24,7 +24,7 @@ var (
 )
 
 // GetVersion return string with Tarantool CLI version info.
-func GetVersion(showShort bool, needCommit bool) string {
+func GetVersion(showShort, needCommit bool) string {
 	var version string
 
 	if gitTag == "" {
