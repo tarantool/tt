@@ -122,8 +122,7 @@ type Validator interface {
 }
 
 // AnyValidator allows any values, but not nil.
-type AnyValidator struct {
-}
+type AnyValidator struct{}
 
 // Validate returns the value if it is not nil or an error.
 func (validator AnyValidator) Validate(value any) (any, error) {
@@ -135,8 +134,7 @@ func (validator AnyValidator) Validate(value any) (any, error) {
 }
 
 // StringValidator allows only string-compatible values.
-type StringValidator struct {
-}
+type StringValidator struct{}
 
 // Validate returns a string value or an error.
 func (validator StringValidator) Validate(value any) (any, error) {
@@ -154,8 +152,7 @@ func (validator StringValidator) Validate(value any) (any, error) {
 }
 
 // BooleanValidator allows only boolean-compatible values.
-type BooleanValidator struct {
-}
+type BooleanValidator struct{}
 
 // Validate returns a boolean value or an error.
 func (validator BooleanValidator) Validate(value any) (any, error) {
@@ -184,8 +181,7 @@ func (validator BooleanValidator) Validate(value any) (any, error) {
 }
 
 // IntegerValidator allows only integer-compatible values.
-type IntegerValidator struct {
-}
+type IntegerValidator struct{}
 
 // Validate returns an integer value or an error.
 func (validator IntegerValidator) Validate(value any) (any, error) {
@@ -209,8 +205,7 @@ func (validator IntegerValidator) Validate(value any) (any, error) {
 }
 
 // NumberValidator allows only number-compatible values.
-type NumberValidator struct {
-}
+type NumberValidator struct{}
 
 // Validate returns a number value or an error.
 func (validator NumberValidator) Validate(value any) (any, error) {
@@ -393,7 +388,7 @@ type MapValidator struct {
 
 // MakeMapValidator create a new MapValidator object with specified a key and
 // a value validator.
-func MakeMapValidator(key Validator, value Validator) MapValidator {
+func MakeMapValidator(key, value Validator) MapValidator {
 	return MapValidator{
 		key:   key,
 		value: value,

@@ -202,7 +202,7 @@ func detectOsName() (string, error) {
 }
 
 // getVersionsFromRepo returns all available versions from github repository.
-func getVersionsFromRepo(local bool, distfiles string, program string,
+func getVersionsFromRepo(local bool, distfiles, program string,
 	repolink string,
 ) ([]version.Version, error) {
 	if local {
@@ -212,7 +212,7 @@ func getVersionsFromRepo(local bool, distfiles string, program string,
 }
 
 // getCommit returns all available commits from repository.
-func getCommit(local bool, distfiles string, programName string,
+func getCommit(local bool, distfiles, programName string,
 	line string,
 ) (string, error) {
 	commit := ""
@@ -388,7 +388,7 @@ func programDependenciesInstalled(program search.Program) error {
 }
 
 // downloadRepo downloads git repository.
-func downloadRepo(repoLink string, tag string, dst string, logFile *os.File, verbose bool) error {
+func downloadRepo(repoLink, tag, dst string, logFile *os.File, verbose bool) error {
 	gitCloneArgs := make([]string, 0, 10)
 	if tag == "master" {
 		gitCloneArgs = append(gitCloneArgs, "clone", repoLink,
@@ -436,7 +436,7 @@ func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
 }
 
 // checkCommit checks the existence of a commit by hash.
-func checkCommit(input string, programName string, installCtx InstallCtx,
+func checkCommit(input, programName string, installCtx InstallCtx,
 	distfiles string,
 ) (string, string, error) {
 	pullRequestHash := ""
@@ -470,7 +470,7 @@ func checkCommit(input string, programName string, installCtx InstallCtx,
 }
 
 // gitCheckout switches to commit/tag, initializes and updates submodules.
-func gitCheckout(repoDir string, checkout string, verbose bool, logWriter io.Writer) error {
+func gitCheckout(repoDir, checkout string, verbose bool, logWriter io.Writer) error {
 	err := util.ExecuteCommand("git", verbose, logWriter, repoDir, "checkout", checkout)
 	if err != nil {
 		return fmt.Errorf("failed to checkout: %s", err)
@@ -706,7 +706,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 }
 
 // patchTarantool applies patches to specific versions of tarantool.
-func patchTarantool(srcPath string, tarVersion string,
+func patchTarantool(srcPath, tarVersion string,
 	installCtx InstallCtx, logFile *os.File,
 ) error {
 	log.Infof("Patching tarantool...")
@@ -752,7 +752,7 @@ func patchTarantool(srcPath string, tarVersion string,
 }
 
 // prepareCmakeOpts prepares cmake command line options for tarantool building.
-func prepareCmakeOpts(buildPath string, tntVersion string,
+func prepareCmakeOpts(buildPath, tntVersion string,
 	installCtx InstallCtx,
 ) ([]string, error) {
 	cmakeOpts := []string{".."}
@@ -796,7 +796,7 @@ func prepareMakeOpts(installCtx InstallCtx) []string {
 }
 
 // buildTarantool builds tarantool from source. Returns a path, where build artifacts are placed.
-func buildTarantool(srcPath string, tarVersion string,
+func buildTarantool(srcPath, tarVersion string,
 	installCtx InstallCtx, logFile *os.File,
 ) (string, error) {
 	buildPath := filepath.Join(srcPath, "/static-build/build")
@@ -825,7 +825,7 @@ func buildTarantool(srcPath string, tarVersion string,
 }
 
 // copyLocalTarantool finds and copies local tarantool folder to tmp folder.
-func copyLocalTarantool(distfiles string, path string, tarVersion string,
+func copyLocalTarantool(distfiles, path, tarVersion string,
 	installCtx InstallCtx, logFile *os.File,
 ) error {
 	var err error
@@ -1337,7 +1337,7 @@ func searchTarantoolHeaders(buildDir, includeDir string) (string, error) {
 }
 
 // installTarantoolDev installs tarantool from the local build directory.
-func installTarantoolDev(ttBinDir string, ttIncludeDir, buildDir,
+func installTarantoolDev(ttBinDir, ttIncludeDir, buildDir,
 	includeDir string,
 ) error {
 	var err error

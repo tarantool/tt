@@ -37,7 +37,8 @@ type syncInfo struct {
 // filterReplicasetsByAliases filters the given replicaset list by chosen aliases and
 // returns chosen replicasets. If a non-existent alias is found, it returns an error.
 func filterReplicasetsByAliases(replicasets replicaset.Replicasets,
-	chosenReplicasetAliases []string) ([]replicaset.Replicaset, error) {
+	chosenReplicasetAliases []string,
+) ([]replicaset.Replicaset, error) {
 	// If no aliases are provided, return all replicasets.
 	if len(chosenReplicasetAliases) == 0 {
 		return replicasets.Replicasets, nil
@@ -79,7 +80,8 @@ func Upgrade(discoveryCtx DiscoveryCtx, opts UpgradeOpts, connOpts connector.Con
 }
 
 func internalUpgrade(replicasets []replicaset.Replicaset, lsnTimeout int,
-	connOpts connector.ConnectOpts) error {
+	connOpts connector.ConnectOpts,
+) error {
 	for _, replicaset := range replicasets {
 		err := upgradeReplicaset(replicaset, lsnTimeout, connOpts)
 		if err != nil {
@@ -101,7 +103,8 @@ func closeConnectors(master *instanceMeta, replicas []instanceMeta) {
 }
 
 func getInstanceConnector(instance replicaset.Instance,
-	connOpts connector.ConnectOpts) (connector.Connector, error) {
+	connOpts connector.ConnectOpts,
+) (connector.Connector, error) {
 	run := instance.InstanceCtx
 	fullInstanceName := running.GetAppInstanceName(run)
 	if fullInstanceName == "" {
@@ -116,7 +119,6 @@ func getInstanceConnector(instance replicaset.Instance,
 		Network: "unix",
 		Address: run.ConsoleSocket,
 	})
-
 	if err != nil {
 		fErr := err
 		conn, err = connector.Connect(connector.ConnectOpts{
@@ -136,14 +138,14 @@ func getInstanceConnector(instance replicaset.Instance,
 
 func collectRWROInfo(replset replicaset.Replicaset,
 	connOpts connector.ConnectOpts) (*instanceMeta, []instanceMeta,
-	error) {
+	error,
+) {
 	var master *instanceMeta = nil
 	var replicas []instanceMeta
 	for _, instance := range replset.Instances {
 		run := instance.InstanceCtx
 		fullInstanceName := running.GetAppInstanceName(run)
 		conn, err := getInstanceConnector(instance, connOpts)
-
 		if err != nil {
 			return nil, nil, err
 		}
@@ -256,7 +258,8 @@ func snapshot(instance *instanceMeta) error {
 }
 
 func upgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int,
-	connOpts connector.ConnectOpts) error {
+	connOpts connector.ConnectOpts,
+) error {
 	master, replicas, err := collectRWROInfo(replicaset, connOpts)
 	if err != nil {
 		return err

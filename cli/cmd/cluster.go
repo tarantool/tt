@@ -278,7 +278,8 @@ func NewClusterCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
@@ -320,7 +321,8 @@ func NewClusterCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
@@ -480,12 +482,16 @@ func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args 
 		return err
 	}
 
-	rolesChangeCtx.Collectors, rolesChangeCtx.Publishers, err =
-		createDataCollectorsAndDataPublishers(
-			cmdCtx.Integrity, clusterIntegrityPrivateKey)
+	col, pub, err := createDataCollectorsAndDataPublishers(
+		cmdCtx.Integrity,
+		clusterIntegrityPrivateKey,
+	)
 	if err != nil {
 		return err
 	}
+
+	rolesChangeCtx.Collectors = col
+	rolesChangeCtx.Publishers = pub
 
 	rolesChangeCtx.RoleName = args[1]
 	return clustercmd.ChangeRole(args[0], rolesChangeCtx, replicaset.RolesRemover{})

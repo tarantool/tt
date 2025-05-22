@@ -4,9 +4,7 @@ import (
 	"errors"
 )
 
-var (
-	errFailedToConnect = errors.New("failed to connect to any instance")
-)
+var errFailedToConnect = errors.New("failed to connect to any instance")
 
 // Pool is a very simple connection pool. It uses a one active connection
 // and switches to another on an error.

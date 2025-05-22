@@ -48,7 +48,7 @@ var (
 
 // NewPlayCmd creates a new play command.
 func NewPlayCmd() *cobra.Command {
-	var playCmd = &cobra.Command{
+	playCmd := &cobra.Command{
 		Use:   "play (<URI> | <APP_NAME> | <APP_NAME:INSTANCE_NAME>) <FILE|DIR>...",
 		Short: "Play the contents of .snap/.xlog FILE(s) to another Tarantool instance",
 		Run:   RunModuleFunc(internalPlayModule),

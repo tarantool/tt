@@ -17,13 +17,12 @@ import (
 )
 
 // CopyAppTemplate represents template -> app directory copy step.
-type CopyAppTemplate struct {
-}
+type CopyAppTemplate struct{}
 
 // Returns a file perm for path from fileModes. Or default perm if data is missing in modes map.
 func getFileMode(path string, dirEntry fs.DirEntry, fileModes map[string]int) fs.FileMode {
-	const defaultDirPerm = 0755  // drwxr-xr-x
-	const defaultFilePerm = 0660 // -rw-rw----
+	const defaultDirPerm = 0o755  // drwxr-xr-x
+	const defaultFilePerm = 0o660 // -rw-rw----
 	if dirEntry.IsDir() {
 		return defaultDirPerm
 	}
@@ -77,7 +76,8 @@ func copyEmbedFs(srcFs fs.FS, dst string, fileModes map[string]int) error {
 
 // Run copies/extracts application template to target application directory.
 func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	templateName := createCtx.TemplateName
 
 	// Search for template in template paths.

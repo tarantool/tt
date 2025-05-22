@@ -119,9 +119,9 @@ func TestExtractTemplateArchive(t *testing.T) {
 	workDir := t.TempDir()
 
 	srcDir := filepath.Join(workDir, "src")
-	require.NoError(t, os.Mkdir(srcDir, 0755))
+	require.NoError(t, os.Mkdir(srcDir, 0o755))
 
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file1.txt"), []byte("text"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "file1.txt"), []byte("text"), 0o644))
 
 	createCtx.TemplateSearchPaths = []string{workDir}
 	templateCtx.AppPath = filepath.Join(dstDir, "app1")
@@ -148,13 +148,13 @@ func TestCopyEmbeddedFs(t *testing.T) {
 	templateFs, err := fs.Sub(templateTestFs, "testdata/copy_template/templates/basic")
 	require.NoError(t, err)
 	require.NoError(t, copyEmbedFs(templateFs, tmpDir, map[string]int{
-		"init.lua": 0600,
-		"echo.sh":  0755,
+		"init.lua": 0o600,
+		"echo.sh":  0o755,
 	}))
 	assert.FileExists(t, filepath.Join(tmpDir, "init.lua"))
 	assert.FileExists(t, filepath.Join(tmpDir, "subdir", "file.txt"))
 	assert.FileExists(t, filepath.Join(tmpDir, "echo.sh"))
 	stat, err := os.Stat(filepath.Join(tmpDir, "echo.sh"))
 	require.NoError(t, err)
-	assert.True(t, stat.Mode().Perm()&0110 != 0)
+	assert.True(t, stat.Mode().Perm()&0o110 != 0)
 }

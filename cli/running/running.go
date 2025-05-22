@@ -28,7 +28,7 @@ import (
 	"github.com/tarantool/tt/lib/integrity"
 )
 
-const defaultDirPerms = 0770
+const defaultDirPerms = 0o770
 
 const (
 	// stateBoardInstName is cartridge stateboard instance name.
@@ -178,7 +178,8 @@ func (provider *providerImpl) updateCtx() error {
 
 // createInstance creates an Instance.
 func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
-	opts ...InstanceOption) (inst Instance, err error) {
+	opts ...InstanceOption,
+) (inst Instance, err error) {
 	if instanceCtx.ClusterConfigPath != "" {
 		return newClusterInstance(cmdCtx.Cli.TarantoolCli, instanceCtx, opts...)
 	}
@@ -245,9 +246,11 @@ func (provider *providerImpl) IsRestartable() (bool, error) {
 }
 
 // searchApplicationScript searches for application script in a directory.
-func searchApplicationScript(applicationsDir string, appName string) (InstanceCtx, error) {
-	instCtx := InstanceCtx{AppName: appName, InstName: appName, SingleApp: true,
-		IsFileApp: true, AppDir: util.JoinPaths(applicationsDir, appName)}
+func searchApplicationScript(applicationsDir, appName string) (InstanceCtx, error) {
+	instCtx := InstanceCtx{
+		AppName: appName, InstName: appName, SingleApp: true,
+		IsFileApp: true, AppDir: util.JoinPaths(applicationsDir, appName),
+	}
 
 	luaPath := filepath.Join(applicationsDir, appName+".lua")
 	if _, err := os.Stat(luaPath); err != nil {
@@ -314,7 +317,8 @@ func getInstanceName(fullInstanceName string, isClusterInstance bool) string {
 
 // findInstanceScriptInAppDir searches for instance script.
 func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript string) (
-	string, error) {
+	string, error,
+) {
 	if clusterCfgPath != "" {
 		// TODO: add searching for app: file: script from instance config.
 		return "", nil
@@ -332,7 +336,8 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 
 // loadInstanceConfig load instance configuration from cluster config.
 func loadInstanceConfig(configPath, instName string,
-	integrityCtx integrity.IntegrityCtx) (libcluster.InstanceConfig, error) {
+	integrityCtx integrity.IntegrityCtx,
+) (libcluster.InstanceConfig, error) {
 	var instCfg libcluster.InstanceConfig
 	if configPath == "" {
 		return instCfg, nil
@@ -364,7 +369,7 @@ func loadInstanceConfig(configPath, instName string,
 }
 
 // collectInstancesFromAppDir collects instances information from application directory.
-func collectInstancesFromAppDir(appDir string, selectedInstName string,
+func collectInstancesFromAppDir(appDir, selectedInstName string,
 	integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
 	[]InstanceCtx,
 	error,
@@ -392,7 +397,8 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string,
 					AppName:        filepath.Base(appDir),
 					InstName:       filepath.Base(appDir),
 					AppDir:         appDir,
-					SingleApp:      true}}, nil
+					SingleApp:      true,
+				}}, nil
 			} else if loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts {
 				return nil, fmt.Errorf("require files are missing in application directory %q: "+
 					"there must be instances config or the default instance script (%q)",
@@ -452,7 +458,7 @@ func collectInstancesFromAppDir(appDir string, selectedInstName string,
 }
 
 // CollectInstances searches all instances available in application.
-func CollectInstances(appName string, applicationsDir string,
+func CollectInstances(appName, applicationsDir string,
 	integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
 	[]InstanceCtx, error,
 ) {
@@ -524,7 +530,8 @@ type configMap[T any] struct {
 // mapValuesFromConfig get values specified by paths from cfg config and stores them by pointers
 // and modifying with mapFunc.
 func mapValuesFromConfig[T any](cfg *libcluster.Config, mapFunc func(val T) (T, error),
-	maps ...configMap[T]) error {
+	maps ...configMap[T],
+) error {
 	for _, cfgMapping := range maps {
 		value, err := cfg.Get(cfgMapping.path)
 		if err != nil {
@@ -594,7 +601,6 @@ func setInstCtxFromClusterConfig(instance *InstanceCtx) error {
 			configMap[string]{[]string{"vinyl", "dir"}, &instance.VinylDir},
 			configMap[string]{[]string{"snapshot", "dir"}, &instance.MemtxDir},
 			configMap[string]{[]string{"console", "socket"}, &instance.ConsoleSocket})
-
 	}
 	return nil
 }
@@ -621,7 +627,8 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 // If mustExist flag is set and config is not found, ErrNotExists error is returned,
 // default config filepath is returned otherwise.
 func GetClusterConfigPath(cliOpts *config.CliOpts,
-	ttConfigDir, appName string, mustExist bool) (string, error) {
+	ttConfigDir, appName string, mustExist bool,
+) (string, error) {
 	instEnabledPath := cliOpts.Env.InstancesEnabled
 	var appDir string
 	if instEnabledPath == "." {
@@ -646,7 +653,8 @@ func GetClusterConfigPath(cliOpts *config.CliOpts,
 // CollectInstancesForApps collects instances information per application.
 func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 	ttConfigDir string, integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
-	map[string][]InstanceCtx, error) {
+	map[string][]InstanceCtx, error,
+) {
 	instEnabledPath := cliOpts.Env.InstancesEnabled
 	if cliOpts.Env.InstancesEnabled == "." {
 		instEnabledPath = ttConfigDir
@@ -663,7 +671,7 @@ func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 
 		apps[appName] = make([]InstanceCtx, 0, len(collectedInstances))
 		for _, inst := range collectedInstances {
-			var instance = inst
+			instance := inst
 
 			if err = setInstCtxFromTtConfig(&instance, cliOpts, ttConfigDir); err != nil {
 				return apps, err
@@ -685,8 +693,10 @@ func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 
 // createInstanceDataDirectories creates directories for data and runtime artifacts.
 func createInstanceDataDirectories(instance InstanceCtx) error {
-	for _, dataDir := range [...]string{instance.WalDir, instance.VinylDir,
-		instance.MemtxDir, instance.RunDir, instance.LogDir} {
+	for _, dataDir := range [...]string{
+		instance.WalDir, instance.VinylDir,
+		instance.MemtxDir, instance.RunDir, instance.LogDir,
+	} {
 		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
 			return err
 		}
@@ -696,7 +706,8 @@ func createInstanceDataDirectories(instance InstanceCtx) error {
 
 // FillCtx fills the RunningCtx context.
 func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
-	runningCtx *RunningCtx, args []string, loadConfig ConfigLoad) error {
+	runningCtx *RunningCtx, args []string, loadConfig ConfigLoad,
+) error {
 	var err error
 
 	if len(args) > 1 && cmdCtx.CommandName != "run" && cmdCtx.CommandName != "connect" &&
@@ -736,7 +747,8 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 // RunInstance runs tarantool instance and waits for completion.
 func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCtx,
-	stdOut, stdErr io.Writer) error {
+	stdOut, stdErr io.Writer,
+) error {
 	for _, dataDir := range [...]string{inst.WalDir, inst.VinylDir, inst.MemtxDir, inst.RunDir} {
 		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
 			return err
@@ -866,7 +878,8 @@ func Quit(run InstanceCtx) error {
 func Run(runInfo *RunInfo) error {
 	inst := scriptInstance{baseInstance: baseInstance{
 		tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
-		integrityCtx:  runInfo.CmdCtx.Integrity}}
+		integrityCtx:  runInfo.CmdCtx.Integrity,
+	}}
 	err := inst.Run(runInfo.RunOpts)
 	return err
 }
@@ -928,7 +941,8 @@ func GetAppInstanceName(instance InstanceCtx) string {
 
 // IsAbleToStartInstances checks if it is possible to start instances.
 func IsAbleToStartInstances(instances []InstanceCtx, cmdCtx *cmdcontext.CmdCtx) (
-	bool, string) {
+	bool, string,
+) {
 	tntVersion, err := cmdCtx.Cli.TarantoolCli.GetVersion()
 	if err != nil {
 		return false, err.Error()
@@ -948,7 +962,8 @@ Cluster config path: %q`, tntVersion.Str, inst.ClusterConfigPath)
 
 // StartWatchdog starts tarantool instance with watchdog.
 func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance InstanceCtx,
-	args []string) error {
+	args []string,
+) error {
 	appName := GetAppInstanceName(instance)
 	// If an instance is already running don't try to start it again.
 	// To restart an instance use tt restart command.

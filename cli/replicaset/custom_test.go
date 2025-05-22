@@ -11,21 +11,25 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
-var _ replicaset.Discoverer = &replicaset.CustomInstance{}
-var _ replicaset.Promoter = &replicaset.CustomInstance{}
-var _ replicaset.Demoter = &replicaset.CustomInstance{}
-var _ replicaset.Expeller = &replicaset.CustomInstance{}
-var _ replicaset.VShardBootstrapper = &replicaset.CustomInstance{}
-var _ replicaset.Bootstrapper = &replicaset.CustomInstance{}
-var _ replicaset.RolesChanger = &replicaset.CustomInstance{}
+var (
+	_ replicaset.Discoverer         = &replicaset.CustomInstance{}
+	_ replicaset.Promoter           = &replicaset.CustomInstance{}
+	_ replicaset.Demoter            = &replicaset.CustomInstance{}
+	_ replicaset.Expeller           = &replicaset.CustomInstance{}
+	_ replicaset.VShardBootstrapper = &replicaset.CustomInstance{}
+	_ replicaset.Bootstrapper       = &replicaset.CustomInstance{}
+	_ replicaset.RolesChanger       = &replicaset.CustomInstance{}
+)
 
-var _ replicaset.Discoverer = &replicaset.CustomApplication{}
-var _ replicaset.Promoter = &replicaset.CustomApplication{}
-var _ replicaset.Demoter = &replicaset.CustomApplication{}
-var _ replicaset.Expeller = &replicaset.CustomApplication{}
-var _ replicaset.VShardBootstrapper = &replicaset.CustomApplication{}
-var _ replicaset.Bootstrapper = &replicaset.CustomApplication{}
-var _ replicaset.RolesChanger = &replicaset.CustomApplication{}
+var (
+	_ replicaset.Discoverer         = &replicaset.CustomApplication{}
+	_ replicaset.Promoter           = &replicaset.CustomApplication{}
+	_ replicaset.Demoter            = &replicaset.CustomApplication{}
+	_ replicaset.Expeller           = &replicaset.CustomApplication{}
+	_ replicaset.VShardBootstrapper = &replicaset.CustomApplication{}
+	_ replicaset.Bootstrapper       = &replicaset.CustomApplication{}
+	_ replicaset.RolesChanger       = &replicaset.CustomApplication{}
+)
 
 func TestCustomApplication_Promote(t *testing.T) {
 	app := replicaset.NewCustomApplication(running.RunningCtx{})
@@ -101,7 +105,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 			Name: "simplest",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid": "foo",
 						},
@@ -112,7 +116,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCustom,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:   "foo",
 						Master: replicaset.MasterNo,
 					},
@@ -123,7 +127,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 			Name: "no_instances",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -138,7 +142,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCustom,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
@@ -151,7 +155,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 			Name: "single_instance",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -173,13 +177,13 @@ func TestCustomInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCustom,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
 						Master:     replicaset.MasterUnknown,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "otherinstanceuuid",
 								URI:   "anyuri",
@@ -193,7 +197,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 			Name: "single_master",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -215,13 +219,13 @@ func TestCustomInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCustom,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
 						Master:     replicaset.MasterSingle,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "someinstanceuuid",
 								URI:   "anyuri",
@@ -236,7 +240,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 			Name: "single_replica",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -258,13 +262,13 @@ func TestCustomInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCustom,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
 						Master:     replicaset.MasterNo,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "someinstanceuuid",
 								URI:   "anyuri",
@@ -279,7 +283,7 @@ func TestCustomInstance_Discovery(t *testing.T) {
 			Name: "multi_instances",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"uuid":         "somereplicasetuuid",
 							"leaderuuid":   "someleaderuuid",
@@ -306,19 +310,19 @@ func TestCustomInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCustom,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:       "somereplicasetuuid",
 						LeaderUUID: "someleaderuuid",
 						Alias:      "somealias",
 						Master:     replicaset.MasterUnknown,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "someinstanceuuid",
 								URI:   "anyuri",
 								Mode:  replicaset.ModeRW,
 							},
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "otherinstanceuuid",
 								URI:   "anyuri",
@@ -344,12 +348,12 @@ func TestCustomInstance_Discovery(t *testing.T) {
 func TestCustomInstance_Discovery_force(t *testing.T) {
 	evaler := &instanceMockEvaler{
 		Ret: [][]any{
-			[]any{
+			{
 				map[any]any{
 					"uuid": "foo1",
 				},
 			},
-			[]any{
+			{
 				map[any]any{
 					"uuid": "foo2",
 				},
@@ -365,7 +369,7 @@ func TestCustomInstance_Discovery_force(t *testing.T) {
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCustom,
 		Replicasets: []replicaset.Replicaset{
-			replicaset.Replicaset{
+			{
 				UUID:   "foo1",
 				Master: replicaset.MasterNo,
 			},
@@ -380,7 +384,7 @@ func TestCustomInstance_Discovery_force(t *testing.T) {
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCustom,
 		Replicasets: []replicaset.Replicaset{
-			replicaset.Replicaset{
+			{
 				UUID:   "foo2",
 				Master: replicaset.MasterNo,
 			},
@@ -407,19 +411,19 @@ func TestCustomInstance_Discovery_errors(t *testing.T) {
 		},
 		{
 			Name:     "empty_response",
-			Evaler:   &instanceMockEvaler{Ret: [][]any{[]any{}}},
+			Evaler:   &instanceMockEvaler{Ret: [][]any{{}}},
 			Expected: "unexpected response: []",
 		},
 		{
 			Name:     "too_big_response",
-			Evaler:   &instanceMockEvaler{Ret: [][]any{[]any{"foo", "bar"}}},
+			Evaler:   &instanceMockEvaler{Ret: [][]any{{"foo", "bar"}}},
 			Expected: "unexpected response: [foo bar]",
 		},
 		{
 			Name: "invalid_response",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"instances": 123,
 						},

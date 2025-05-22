@@ -15,7 +15,7 @@ var (
 
 // NewVersionCmd creates a new version command.
 func NewVersionCmd() *cobra.Command {
-	var versionCmd = &cobra.Command{
+	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Show Tarantool CLI version information",
 		Run:   RunModuleFunc(internalVersionModule),

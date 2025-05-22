@@ -69,11 +69,11 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 	require.NoError(t, copy.Copy("testdata/cartridge", srcAppDir))
 
 	dstAppDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dstAppDir, "parent", "apps"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dstAppDir, "parent", "apps"), 0o755))
 
 	// Make parent dir read-only.
-	require.NoError(t, os.Chmod(filepath.Join(dstAppDir, "parent"), 0444))
-	defer os.Chmod(filepath.Join(dstAppDir, "parent"), 0755)
+	require.NoError(t, os.Chmod(filepath.Join(dstAppDir, "parent"), 0o444))
+	defer os.Chmod(filepath.Join(dstAppDir, "parent"), 0o755)
 
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "parent", "apps")
 	templateCtx.AppPath = srcAppDir
@@ -82,7 +82,7 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 		fmt.Sprintf("stat %[1]s: permission denied", templateCtx.TargetAppPath))
 
 	// Check subdir is still there.
-	os.Chmod(filepath.Join(dstAppDir, "parent"), 0755)
+	os.Chmod(filepath.Join(dstAppDir, "parent"), 0o755)
 	require.DirExists(t, templateCtx.TargetAppPath)
 }
 

@@ -159,22 +159,22 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: false,
 		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
-	}, data: &tntOkData}] =
-		prefixOutput{
-			prefix: "/usr",
-			err:    nil,
-		}
+	}, data: &tntOkData}] = prefixOutput{
+		prefix: "/usr",
+		err:    nil,
+	}
 
-	testCases[prefixInput{cli: cmdcontext.CliCtx{
-		IsTarantoolBinFromRepo: false,
-		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
-	},
+	testCases[prefixInput{
+		cli: cmdcontext.CliCtx{
+			IsTarantoolBinFromRepo: false,
+			TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
+		},
 		data:         &tntOkData,
-		tntPrefixEnv: "/tnt/prefix"}] =
-		prefixOutput{
-			prefix: "/tnt/prefix",
-			err:    nil,
-		}
+		tntPrefixEnv: "/tnt/prefix",
+	}] = prefixOutput{
+		prefix: "/tnt/prefix",
+		err:    nil,
+	}
 
 	tntBadData0 := []byte("#!/bin/sh\n" +
 		"echo 'Tarantool 2.10.2-0-gb924f0b\n" +
@@ -184,10 +184,9 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: false,
 		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
-	}, data: &tntBadData0}] =
-		prefixOutput{
-			err: fmt.Errorf("failed to get prefix path: regexp does not match"),
-		}
+	}, data: &tntBadData0}] = prefixOutput{
+		err: fmt.Errorf("failed to get prefix path: regexp does not match"),
+	}
 
 	tntBadData1 := []byte("#!/bin/sh\n" +
 		"echo 'Tarantool 2.10.2-0-gb924f0b\n" +
@@ -196,25 +195,25 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 	testCases[prefixInput{cli: cmdcontext.CliCtx{
 		IsTarantoolBinFromRepo: false,
 		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
-	}, data: &tntBadData1}] =
-		prefixOutput{
-			err: fmt.Errorf("failed to get prefix path: expected more data"),
-		}
+	}, data: &tntBadData1}] = prefixOutput{
+		err: fmt.Errorf("failed to get prefix path: expected more data"),
+	}
 
 	appOpts := config.TtEnvOpts{IncludeDir: "hdr"}
 	cliOpts := config.CliOpts{Env: &appOpts}
 
-	testCases[prefixInput{cli: cmdcontext.CliCtx{
-		IsTarantoolBinFromRepo: true,
-		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
-	},
+	testCases[prefixInput{
+		cli: cmdcontext.CliCtx{
+			IsTarantoolBinFromRepo: true,
+			TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
+		},
 		cliOpts:      &cliOpts,
 		data:         &tntOkData,
-		tntPrefixEnv: "/tnt/prefix"}] =
-		prefixOutput{
-			prefix: cwd + "/hdr",
-			err:    nil,
-		}
+		tntPrefixEnv: "/tnt/prefix",
+	}] = prefixOutput{
+		prefix: cwd + "/hdr",
+		err:    nil,
+	}
 
 	for input, output := range testCases {
 		os.Unsetenv(tarantoolPrefixEnvVarName)
@@ -225,7 +224,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		require.NoError(t, err)
 		tntFile.Close()
 
-		err = os.Chmod(tntFile.Name(), 0755)
+		err = os.Chmod(tntFile.Name(), 0o755)
 		require.NoError(t, err)
 
 		if input.tntPrefixEnv != "" {

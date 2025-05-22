@@ -16,7 +16,7 @@ func TestConnectPool_failed_to_connect(t *testing.T) {
 		{"nil", nil},
 		{"empty", []connector.ConnectOpts{}},
 		{"unreachetable", []connector.ConnectOpts{
-			connector.ConnectOpts{
+			{
 				Network: connector.TCPNetwork,
 				Address: "unreachetable",
 			},

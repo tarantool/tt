@@ -14,7 +14,7 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
-func compareFiles(t *testing.T, resultFile string, expectedFile string) {
+func compareFiles(t *testing.T, resultFile, expectedFile string) {
 	actualContent, err := os.ReadFile(resultFile)
 	require.NoError(t, err)
 	actualContentStr := string(actualContent)
@@ -279,7 +279,7 @@ func Test_getUnitParams(t *testing.T) {
 			},
 			prepare: func() error {
 				err := os.WriteFile(filepath.Join(testDir, "partly-params.yaml"),
-					[]byte("FdLimit: 1024\n"), 0666)
+					[]byte("FdLimit: 1024\n"), 0o666)
 				return err
 			},
 		},
@@ -318,7 +318,7 @@ func Test_getUnitParams(t *testing.T) {
 					[]byte("FdLimit: 1024\n"+
 						"TT: /usr/bin/tt\n"+
 						"ConfigPath: /test/path\n"+
-						"AppName: testEnv\n"), 0666)
+						"AppName: testEnv\n"), 0o666)
 				return err
 			},
 		},
@@ -351,7 +351,7 @@ func Test_getUnitParams(t *testing.T) {
 					[]byte(`FdLimit: 1024
 instance-env:
   INSTANCE: "%i"
-  TARANTOOL_WORKDIR: "/tmp"`), 0664)
+  TARANTOOL_WORKDIR: "/tmp"`), 0o664)
 			},
 		},
 		{
@@ -394,18 +394,18 @@ instance-env:
 					[]byte(`FdLimit: 1024
 instance-env:
   INSTANCE: "%i"
-  TARANTOOL_WORKDIR: "/tmp"`), 0664)
+  TARANTOOL_WORKDIR: "/tmp"`), 0o664)
 				if err != nil {
 					return err
 				}
-				if err = os.Mkdir(filepath.Join(testDir, "appDir"), 0775); err != nil {
+				if err = os.Mkdir(filepath.Join(testDir, "appDir"), 0o775); err != nil {
 					return err
 				}
 				if err = os.WriteFile(filepath.Join(testDir, "appDir", "systemd-unit-params.yml"),
 					[]byte(`FdLimit: 128
 instance-env:
   INSTANCE: "inst"
-  TARANTOOL_WORKDIR: "/tmp/workdir"`), 0664); err != nil {
+  TARANTOOL_WORKDIR: "/tmp/workdir"`), 0o664); err != nil {
 					return err
 				}
 				return nil

@@ -176,7 +176,7 @@ func TestFileDataPublisher_Publish_data_exist_file(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "testfile")
 
-	err := os.WriteFile(path, []byte("bar"), 0664)
+	err := os.WriteFile(path, []byte("bar"), 0o664)
 	require.NoError(t, err)
 	fi, err := os.Lstat(path)
 	require.NoError(t, err)

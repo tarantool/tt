@@ -41,14 +41,16 @@ func (factory yamlDataCollectorFactoryDecorator) NewFile(path string) (Collector
 
 // NewEtcd creates a new etcd DataCollector and wraps it.
 func (factory yamlDataCollectorFactoryDecorator) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration) (Collector, error) {
+	prefix, key string, timeout time.Duration,
+) (Collector, error) {
 	collector, err := factory.rawFactory.NewEtcd(etcdcli, prefix, key, timeout)
 	return NewYamlCollectorDecorator(collector), err
 }
 
 // NewTarantool creates a new tarantool DataCollector and wraps it.
 func (factory yamlDataCollectorFactoryDecorator) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration) (Collector, error) {
+	prefix, key string, timeout time.Duration,
+) (Collector, error) {
 	collector, err := factory.rawFactory.NewTarantool(conn, prefix, key, timeout)
 	return NewYamlCollectorDecorator(collector), err
 }

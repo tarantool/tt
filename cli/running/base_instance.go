@@ -55,7 +55,8 @@ type baseInstance struct {
 }
 
 func newBaseInstance(tarantoolPath string, instanceCtx InstanceCtx,
-	opts ...InstanceOption) baseInstance {
+	opts ...InstanceOption,
+) baseInstance {
 	baseInst := baseInstance{
 		tarantoolPath: tarantoolPath,
 		appPath:       instanceCtx.InstanceScript,

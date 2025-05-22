@@ -32,22 +32,23 @@ func TestFindNamedMatches(t *testing.T) {
 
 	testCases := make(map[inputValue]outputValue)
 
-	testCases[inputValue{re: regexp.MustCompile("(?P<user>.*):(?P<pass>.*)"), data: "toor:1234"}] =
-		outputValue{
-			result: map[string]string{
-				"user": "toor",
-				"pass": "1234",
-			},
-		}
+	iv := inputValue{re: regexp.MustCompile("(?P<user>.*):(?P<pass>.*)"), data: "toor:1234"}
+	testCases[iv] = outputValue{
+		result: map[string]string{
+			"user": "toor",
+			"pass": "1234",
+		},
+	}
 
-	testCases[inputValue{re: regexp.MustCompile("(?P<user>.*):(?P<pass>[a-z]+)?"),
-		data: "toor:1234"}] =
-		outputValue{
-			result: map[string]string{
-				"user": "toor",
-				"pass": "",
-			},
-		}
+	testCases[inputValue{
+		re:   regexp.MustCompile("(?P<user>.*):(?P<pass>[a-z]+)?"),
+		data: "toor:1234",
+	}] = outputValue{
+		result: map[string]string{
+			"user": "toor",
+			"pass": "",
+		},
+	}
 
 	for input, output := range testCases {
 		result := FindNamedMatches(input.re, input.data)
@@ -92,22 +93,22 @@ func TestCreateDirectory(t *testing.T) {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
 	tempDir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(tempDir, "dir1"), 0750))
+	require.NoError(t, os.Mkdir(filepath.Join(tempDir, "dir1"), 0o750))
 
 	// Existing dir.
-	assert.NoError(t, CreateDirectory(filepath.Join(tempDir, "dir1"), 0750))
+	assert.NoError(t, CreateDirectory(filepath.Join(tempDir, "dir1"), 0o750))
 	// Non-existent dir.
-	assert.NoError(t, CreateDirectory(filepath.Join(tempDir, "dir2"), 0750))
+	assert.NoError(t, CreateDirectory(filepath.Join(tempDir, "dir2"), 0o750))
 
 	f, err := os.Create(filepath.Join(tempDir, "file"))
 	require.NoError(t, err)
 	defer f.Close()
-	assert.Error(t, CreateDirectory(f.Name(), 0750))
+	assert.Error(t, CreateDirectory(f.Name(), 0o750))
 
 	// Permissions denied.
-	require.NoError(t, os.Chmod(tempDir, 0444))
-	defer os.Chmod(tempDir, 0777)
-	assert.Error(t, CreateDirectory(filepath.Join(tempDir, "dir3"), 0750))
+	require.NoError(t, os.Chmod(tempDir, 0o444))
+	defer os.Chmod(tempDir, 0o777)
+	assert.Error(t, CreateDirectory(filepath.Join(tempDir, "dir3"), 0o750))
 }
 
 func TestWriteYaml(t *testing.T) {
@@ -308,7 +309,8 @@ func TestIsApp(t *testing.T) {
 		t.Run(testCase.testName, func(t *testing.T) {
 			path, err := testCase.createFunc()
 			require.NoError(t, err, "no error expected")
-			assert.Equal(t, testCase.isApp, IsApp(path), "Unexpected result of application check")
+			assert.Equal(t, testCase.isApp, IsApp(path),
+				"Unexpected result of application check")
 		})
 	}
 }
@@ -318,14 +320,14 @@ func TestGetYamlFileName(t *testing.T) {
 
 	// Create tarantool.yaml file.
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tarantool.yaml"), []byte("tt:"),
-		0664))
+		0o664))
 	fileName, err := GetYamlFileName(filepath.Join(tempDir, "tarantool.yml"), true)
 	assert.NoError(t, err)
 	assert.Equal(t, filepath.Join(tempDir, "tarantool.yaml"), fileName)
 
 	// Create tarantool.yml file. File selection ambiguity.
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tarantool.yml"), []byte("tt:"),
-		0664))
+		0o664))
 	fileName, err = GetYamlFileName(filepath.Join(tempDir, "tarantool.yml"), true)
 	assert.Error(t, err)
 	assert.Equal(t, "", fileName)
@@ -400,7 +402,7 @@ func TestInstantiateFileFromTemplate(t *testing.T) {
 
 func TestCollectAppList(t *testing.T) {
 	testDir := t.TempDir()
-	var defaultPaths = []string{
+	defaultPaths := []string{
 		"var",
 		"log",
 		"run",
@@ -628,7 +630,7 @@ func TestJoinPaths(t *testing.T) {
 func TestCopyFileDeep(t *testing.T) {
 	// Tests setup.
 	srcDir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "foo"), []byte{}, 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "foo"), []byte{}, 0o644))
 	require.NoError(t, os.Symlink("foo", filepath.Join(srcDir, "symlink1")))
 	require.NoError(t, os.Symlink("./foo", filepath.Join(srcDir, "symlink2")))
 	require.NoError(t, os.Symlink(filepath.Join(srcDir, "foo"),

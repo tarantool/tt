@@ -75,8 +75,8 @@ type inputEvaler struct {
 }
 
 func (evaler *inputEvaler) Eval(fun string,
-	args []interface{}, opts connector.RequestOpts) ([]interface{}, error) {
-
+	args []interface{}, opts connector.RequestOpts,
+) ([]interface{}, error) {
 	evaler.fun = fun
 	evaler.args = args
 	evaler.opts = opts
@@ -118,7 +118,8 @@ type outputEvaler struct {
 }
 
 func (evaler outputEvaler) Eval(f string, a []interface{},
-	o connector.RequestOpts) ([]interface{}, error) {
+	o connector.RequestOpts,
+) ([]interface{}, error) {
 	return evaler.ret, evaler.err
 }
 

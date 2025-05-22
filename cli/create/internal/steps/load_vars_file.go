@@ -12,12 +12,12 @@ import (
 )
 
 // LoadVarsFile represents variables file load step.
-type LoadVarsFile struct {
-}
+type LoadVarsFile struct{}
 
 // Run collects variables passed using command line args.
 func (LoadVarsFile) Run(ctx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	if ctx.VarsFile == "" { // Skip if no file specified.
 		return nil
 	}

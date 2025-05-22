@@ -30,7 +30,7 @@ type Release struct {
 }
 
 // newRelease create new Release base on passed data.
-func newRelease(release string, releaseNum string) (Release, error) {
+func newRelease(release, releaseNum string) (Release, error) {
 	newRelease := Release{Type: TypeRelease, str: release}
 	if release != "" {
 		switch release {
@@ -203,13 +203,17 @@ func (v VersionSlice) Len() int {
 }
 
 // IsLess returns true if verLeft is less than verRight.
-func IsLess(verLeft Version, verRight Version) bool {
-	left := []uint64{verLeft.Major, verLeft.Minor,
+func IsLess(verLeft, verRight Version) bool {
+	left := []uint64{
+		verLeft.Major, verLeft.Minor,
 		verLeft.Patch, uint64(verLeft.Release.Type),
-		verLeft.Release.Num, verLeft.Additional, verLeft.Revision}
-	right := []uint64{verRight.Major, verRight.Minor,
+		verLeft.Release.Num, verLeft.Additional, verLeft.Revision,
+	}
+	right := []uint64{
+		verRight.Major, verRight.Minor,
 		verRight.Patch, uint64(verRight.Release.Type),
-		verRight.Release.Num, verRight.Additional, verRight.Revision}
+		verRight.Release.Num, verRight.Additional, verRight.Revision,
+	}
 
 	largestLen := util.Max(len(left), len(right))
 

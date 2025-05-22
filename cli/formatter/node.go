@@ -24,6 +24,6 @@ func getNodeType(node any) nodeType {
 }
 
 // isNodeTypeEqual checks renderNode equal.
-func isNodeTypeEqual(x any, y any) bool {
+func isNodeTypeEqual(x, y any) bool {
 	return getNodeType(x) == getNodeType(y)
 }

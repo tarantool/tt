@@ -61,7 +61,7 @@ func TestManifestInvalidYaml(t *testing.T) {
 	workDir := t.TempDir()
 
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, app_template.DefaultManifestName),
-		[]byte(`Description: [`), 0644))
+		[]byte(`Description: [`), 0o644))
 
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()

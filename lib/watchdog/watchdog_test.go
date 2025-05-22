@@ -149,5 +149,4 @@ func TestWatchdog_WritePIDFiles(t *testing.T) {
 
 	_, err = os.Stat(wdPidFile)
 	require.NoError(t, err)
-
 }

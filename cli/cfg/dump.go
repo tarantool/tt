@@ -38,7 +38,8 @@ func dumpRaw(writer io.Writer, cmdCtx *cmdcontext.CmdCtx) error {
 
 // dumpConfiguration prints tt env configuration with all resolved paths.
 func dumpConfiguration(writer io.Writer, cmdCtx *cmdcontext.CmdCtx,
-	cliOpts *config.CliOpts) error {
+	cliOpts *config.CliOpts,
+) error {
 	if cmdCtx.Cli.ConfigPath != "" {
 		if _, err := os.Stat(cmdCtx.Cli.ConfigPath); err == nil {
 			writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
@@ -50,7 +51,8 @@ func dumpConfiguration(writer io.Writer, cmdCtx *cmdcontext.CmdCtx,
 
 // RunDump prints tt configuration.
 func RunDump(writer io.Writer, cmdCtx *cmdcontext.CmdCtx, dumpCtx *DumpCtx,
-	cliOpts *config.CliOpts) error {
+	cliOpts *config.CliOpts,
+) error {
 	if dumpCtx.RawDump {
 		return dumpRaw(writer, cmdCtx)
 	}

@@ -18,9 +18,11 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
-const workDir = "work_dir"
-const server = "127.0.0.1:3015"
-const console = workDir + "/" + "console.control"
+const (
+	workDir = "work_dir"
+	server  = "127.0.0.1:3015"
+	console = workDir + "/" + "console.control"
+)
 
 var opts = tarantool.Opts{
 	Timeout: 500 * time.Millisecond,
@@ -159,7 +161,8 @@ type instanceEvalerMock struct {
 }
 
 func (e *instanceEvalerMock) Eval(instance running.InstanceCtx,
-	evaler connector.Evaler) (bool, error) {
+	evaler connector.Evaler,
+) (bool, error) {
 	e.Instances = append(e.Instances, instance)
 
 	// Ensure that we already connected to the instance.
@@ -191,11 +194,11 @@ func TestEvalForeach(t *testing.T) {
 			"multiple",
 			[]running.InstanceCtx{
 				connectable,
-				running.InstanceCtx{
+				{
 					AppName:       "bar",
 					ConsoleSocket: console,
 				},
-				running.InstanceCtx{
+				{
 					AppName:       "bar2",
 					ConsoleSocket: console,
 				},
@@ -221,7 +224,7 @@ func TestEvalForeachAlive_stops_after_failed_to_connect(t *testing.T) {
 	}
 	instances := []running.InstanceCtx{
 		validInstance,
-		running.InstanceCtx{
+		{
 			AppName:       "app",
 			InstName:      "instance",
 			ConsoleSocket: "unreachetable",
@@ -281,7 +284,7 @@ func TestEvalForeach_error(t *testing.T) {
 		{
 			"no_connection",
 			[]running.InstanceCtx{
-				running.InstanceCtx{
+				{
 					AppName:       "app",
 					InstName:      "inst",
 					ConsoleSocket: "unreachetable",
@@ -323,7 +326,7 @@ func TestEvalForeachAlive(t *testing.T) {
 			"multiple",
 			[]running.InstanceCtx{
 				connectable,
-				running.InstanceCtx{
+				{
 					AppName:       "bar",
 					ConsoleSocket: console,
 				},
@@ -331,7 +334,7 @@ func TestEvalForeachAlive(t *testing.T) {
 			},
 			[]running.InstanceCtx{
 				connectable,
-				running.InstanceCtx{
+				{
 					AppName:       "bar",
 					ConsoleSocket: console,
 				},
@@ -341,12 +344,12 @@ func TestEvalForeachAlive(t *testing.T) {
 		{
 			"with_errors",
 			[]running.InstanceCtx{
-				running.InstanceCtx{ConsoleSocket: "foo"},
+				{ConsoleSocket: "foo"},
 				connectable,
-				running.InstanceCtx{ConsoleSocket: "foo"},
-				running.InstanceCtx{ConsoleSocket: "foo"},
+				{ConsoleSocket: "foo"},
+				{ConsoleSocket: "foo"},
 				connectable,
-				running.InstanceCtx{ConsoleSocket: "foo"},
+				{ConsoleSocket: "foo"},
 			},
 			[]running.InstanceCtx{
 				connectable,
@@ -411,15 +414,15 @@ func TestEvalForeachAlive_error(t *testing.T) {
 		{
 			"no_connection",
 			[]running.InstanceCtx{
-				running.InstanceCtx{ConsoleSocket: "unreachetable"},
+				{ConsoleSocket: "unreachetable"},
 			},
 			"failed to connect to any instance",
 		},
 		{
 			"no_connections",
 			[]running.InstanceCtx{
-				running.InstanceCtx{ConsoleSocket: "unreachetable1"},
-				running.InstanceCtx{ConsoleSocket: "unreachetable2"},
+				{ConsoleSocket: "unreachetable1"},
+				{ConsoleSocket: "unreachetable2"},
 			},
 			"failed to connect to any instance",
 		},
@@ -460,9 +463,9 @@ func TestEvalAny(t *testing.T) {
 		{
 			"with_errors",
 			[]running.InstanceCtx{
-				running.InstanceCtx{ConsoleSocket: "foo"},
+				{ConsoleSocket: "foo"},
 				connectable,
-				running.InstanceCtx{ConsoleSocket: "foo"},
+				{ConsoleSocket: "foo"},
 				connectable,
 			},
 		},
@@ -480,7 +483,7 @@ func TestEvalAny(t *testing.T) {
 
 func TestEvalAny_ignore_evaler_done(t *testing.T) {
 	instances := []running.InstanceCtx{
-		running.InstanceCtx{
+		{
 			AppName:       "foo",
 			ConsoleSocket: console,
 		},
@@ -497,7 +500,7 @@ func TestEvalAny_ignore_evaler_done(t *testing.T) {
 
 func TestEvalAny_stop_after_evaler_error(t *testing.T) {
 	instances := []running.InstanceCtx{
-		running.InstanceCtx{
+		{
 			AppName:       "foo",
 			ConsoleSocket: console,
 		},
@@ -522,15 +525,15 @@ func TestEvalAny_error(t *testing.T) {
 		{
 			"no_connection",
 			[]running.InstanceCtx{
-				running.InstanceCtx{ConsoleSocket: "unreachetable"},
+				{ConsoleSocket: "unreachetable"},
 			},
 			"failed to connect to any instance",
 		},
 		{
 			"no_connections",
 			[]running.InstanceCtx{
-				running.InstanceCtx{ConsoleSocket: "unreachetable1"},
-				running.InstanceCtx{ConsoleSocket: "unreachetable2"},
+				{ConsoleSocket: "unreachetable1"},
+				{ConsoleSocket: "unreachetable2"},
 			},
 			"failed to connect to any instance",
 		},

@@ -38,8 +38,7 @@ var defaultEnvPrefix = filepath.Join("usr", "share", "tarantool")
 
 // debPacker is a structure that implements Packer interface
 // with specific deb packing behavior.
-type debPacker struct {
-}
+type debPacker struct{}
 
 // DEB package is an ar archive that contains debian-binary, control.tar.gz and data.tar.gz files
 
@@ -49,7 +48,8 @@ type debPacker struct {
 
 // Run packs a bundle into deb package.
 func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
-	opts *config.CliOpts) error {
+	opts *config.CliOpts,
+) error {
 	var err error
 
 	// If ar is not installed on the system (e.g. MacOS by default)
@@ -214,10 +214,12 @@ func getTntTTAsDeps(cmdCtx *cmdcontext.CmdCtx) (PackDependencies, error) {
 	return PackDependencies{
 		PackDependency{
 			Name:      "tarantool",
-			Relations: []DepRelation{{Relation: "==", Version: tntVer}}},
+			Relations: []DepRelation{{Relation: "==", Version: tntVer}},
+		},
 		PackDependency{
 			Name:      "tt",
-			Relations: []DepRelation{{Relation: "==", Version: ttVer}}},
+			Relations: []DepRelation{{Relation: "==", Version: ttVer}},
+		},
 	}, nil
 }
 

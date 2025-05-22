@@ -64,7 +64,8 @@ func TestMakeClusterConfig_replicaset(t *testing.T) {
 func TestMakeClusterConfig_instance(t *testing.T) {
 	config := cluster.NewConfig()
 	config.Set([]string{
-		"groups", "g", "replicasets", "r", "instances", "i", "foo"}, "bar")
+		"groups", "g", "replicasets", "r", "instances", "i", "foo",
+	}, "bar")
 	cconfig, err := cluster.MakeClusterConfig(config)
 	require.NoError(t, err)
 	require.NotNil(t, cconfig.RawConfig)
@@ -214,11 +215,14 @@ func TestInstances(t *testing.T) {
 	config.Set([]string{"groups", "g", "foo"}, "bar")
 	config.Set([]string{"groups", "g", "replicasets", "rr", "foo"}, "bar")
 	config.Set([]string{
-		"groups", "g", "replicasets", "r", "instances", "a", "foo"}, "bar")
+		"groups", "g", "replicasets", "r", "instances", "a", "foo",
+	}, "bar")
 	config.Set([]string{
-		"groups", "g", "replicasets", "rr", "instances", "b", "foo"}, "bar")
+		"groups", "g", "replicasets", "rr", "instances", "b", "foo",
+	}, "bar")
 	config.Set([]string{
-		"groups", "g", "foo"}, "bar")
+		"groups", "g", "foo",
+	}, "bar")
 	cconfig, err := cluster.MakeClusterConfig(config)
 	require.NoError(t, err)
 	require.NotNil(t, cconfig.RawConfig)
@@ -268,7 +272,8 @@ type expectedInstantiate struct {
 }
 
 func assertExpectedInstantiate(t *testing.T,
-	config *cluster.Config, expected []expectedInstantiate) {
+	config *cluster.Config, expected []expectedInstantiate,
+) {
 	t.Helper()
 
 	expectedPaths := [][]string{}

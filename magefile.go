@@ -119,7 +119,6 @@ func applyPatch(path string) error {
 	out, err := sh.Output(
 		"patch", "-d", cartridgePath, "-N", "-p1", "--dry-run", "-V", "none", "-i", path,
 	)
-
 	// If an error is returned, one of two things has happened:
 	// the patch has already been applied or an error has occurred.
 	if err != nil {
@@ -383,7 +382,7 @@ func (Unit) Coverage() error {
 	coverageDirInfo, err := os.Stat(coverDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(coverDir, 0750); err != nil {
+			if err := os.MkdirAll(coverDir, 0o750); err != nil {
 				return err
 			}
 		} else {
@@ -398,7 +397,8 @@ func (Unit) Coverage() error {
 	err = runUnitTests([]string{
 		"-tags", "integration,integration_docker",
 		"-cover",
-		"-args", fmt.Sprintf(`-test.gocoverdir=%s`, coverDir)})
+		"-args", fmt.Sprintf(`-test.gocoverdir=%s`, coverDir),
+	})
 	if err != nil {
 		return err
 	}
@@ -494,7 +494,6 @@ func Generate() error {
 // GenerateGoCode generates code from lua files.
 func GenerateGoCode() error {
 	err := sh.RunWith(getBuildEnvironment(), goExecutableName, "run", generateModePath)
-
 	if err != nil {
 		return err
 	}

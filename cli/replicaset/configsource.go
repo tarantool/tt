@@ -21,7 +21,8 @@ type CConfigSource struct {
 
 // NewCConfigSource creates CConfigSource.
 func NewCConfigSource(collector libcluster.DataCollector, publisher DataPublisher,
-	keyPicker KeyPicker) *CConfigSource {
+	keyPicker KeyPicker,
+) *CConfigSource {
 	return &CConfigSource{
 		collector: collector,
 		publisher: publisher,
@@ -43,7 +44,8 @@ type DataPublisher interface {
 
 // collectConfig fetches and merges the config data.
 func collectCConfig(
-	collector libcluster.DataCollector) ([]libcluster.Data, libcluster.ClusterConfig, error) {
+	collector libcluster.DataCollector,
+) ([]libcluster.Data, libcluster.ClusterConfig, error) {
 	var clusterConfig libcluster.ClusterConfig
 
 	configData, err := collector.Collect()
@@ -64,7 +66,8 @@ func collectCConfig(
 
 // pickTarget applies keyPicker to the targets slice and returns picked target.
 func (c *CConfigSource) pickTarget(targets []patchTarget, force bool,
-	pathMsg string) (patchTarget, error) {
+	pathMsg string,
+) (patchTarget, error) {
 	targetKeys := make([]string, 0, len(targets))
 	for _, target := range targets {
 		targetKeys = append(targetKeys, target.key)
@@ -221,7 +224,8 @@ func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, action RolesChangerAction
 // getCConfigRolesPath returns a path and it's minimum interesting depth
 // to patch the config for role addition.
 func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig,
-	ctx RolesChangeCtx) ([]path, error) {
+	ctx RolesChangeCtx,
+) ([]path, error) {
 	var paths []path
 	if ctx.IsGlobal {
 		paths = append(paths, path{
@@ -286,12 +290,16 @@ func getCConfigPromotePath(inst cconfigInstance) (path []string, depth int, err 
 	)
 	switch failover {
 	case FailoverOff:
-		path = []string{"groups", groupName, "replicasets",
-			replicasetName, "instances", instName, "database", "mode"}
+		path = []string{
+			"groups", groupName, "replicasets",
+			replicasetName, "instances", instName, "database", "mode",
+		}
 		depth = len(path) - 2
 	case FailoverManual:
-		path = []string{"groups", groupName, "replicasets",
-			replicasetName, "leader"}
+		path = []string{
+			"groups", groupName, "replicasets",
+			replicasetName, "leader",
+		}
 		depth = len(path) - 1
 	case FailoverElection:
 		err = fmt.Errorf(`unsupported failover: %q, supported: "manual", "off"`, failover)
@@ -312,8 +320,10 @@ func getCConfigDemotePath(inst cconfigInstance) (path []string, depth int, err e
 	)
 	switch failover {
 	case FailoverOff:
-		path = []string{"groups", groupName, "replicasets",
-			replicasetName, "instances", instName, "database", "mode"}
+		path = []string{
+			"groups", groupName, "replicasets",
+			replicasetName, "instances", instName, "database", "mode",
+		}
 		depth = len(path) - 2
 	case FailoverManual, FailoverElection:
 		err = fmt.Errorf(`unsupported failover: %q, supported: "off"`, failover)
@@ -331,8 +341,10 @@ func getCConfigExpelPath(inst cconfigInstance) (path []string, depth int, err er
 		replicasetName = inst.replicasetName
 		instName       = inst.name
 	)
-	path = []string{"groups", groupName, "replicasets", replicasetName,
-		"instances", instName, "iproto", "listen"}
+	path = []string{
+		"groups", groupName, "replicasets", replicasetName,
+		"instances", instName, "iproto", "listen",
+	}
 	depth = len(path) - 2
 	return
 }
@@ -357,7 +369,8 @@ func (target patchTarget) greater(oth patchTarget) bool {
 // getCConfigPatchTargets extracts patch target from the config data.
 // It returns the slice contains targets in the priority order.
 func getCConfigPatchTargets(data []libcluster.Data,
-	path []string, depth int) ([]patchTarget, error) {
+	path []string, depth int,
+) ([]patchTarget, error) {
 	var targets []patchTarget
 	for _, item := range data {
 		config, err := libcluster.NewYamlCollector(item.Value).Collect()
@@ -389,7 +402,8 @@ const noDepth = -1
 // getCConfigPathDepth returns the maximum depth of the path contained in the config.
 // If it is less than lowerDepth, it returns noDepth.
 func getCConfigPathDepth(config *libcluster.Config,
-	path []string, lowerDepth int) (int, error) {
+	path []string, lowerDepth int,
+) (int, error) {
 	for i := len(path); i >= lowerDepth; i-- {
 		_, err := config.Get(path[:i])
 		var notExistErr libcluster.NotExistError

@@ -11,7 +11,7 @@ var installCtx install.InstallCtx
 
 // newInstallTtCmd creates a command to install tt.
 func newInstallTtCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	tntCmd := &cobra.Command{
 		Use:   search.ProgramTt.String() + " [version|commit hash|pull-request]",
 		Short: "Install tt",
 		Run:   RunModuleFunc(internalInstallModule),
@@ -23,7 +23,7 @@ func newInstallTtCmd() *cobra.Command {
 
 // newInstallTarantoolCmd creates a command to install tarantool.
 func newInstallTarantoolCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	tntCmd := &cobra.Command{
 		Use:   search.ProgramCe.String() + " [version|commit hash|pull-request]",
 		Short: "Install tarantool community edition",
 		Run:   RunModuleFunc(internalInstallModule),
@@ -40,7 +40,7 @@ func newInstallTarantoolCmd() *cobra.Command {
 
 // newInstallTarantoolEeCmd creates a command to install tarantool-ee.
 func newInstallTarantoolEeCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	tntCmd := &cobra.Command{
 		Use:   search.ProgramEe.String() + " [version]",
 		Short: "Install tarantool enterprise edition",
 		Run:   RunModuleFunc(internalInstallModule),
@@ -53,7 +53,7 @@ func newInstallTarantoolEeCmd() *cobra.Command {
 }
 
 func newInstallTcmCmd() *cobra.Command {
-	var tntCmd = &cobra.Command{
+	tntCmd := &cobra.Command{
 		Use:   search.ProgramTcm.String() + " [version]",
 		Short: "Install tarantool cluster manager",
 		Run:   RunModuleFunc(internalInstallModule),
@@ -87,7 +87,7 @@ func newInstallTarantoolDevCmd() *cobra.Command {
 
 // NewInstallCmd creates install command.
 func NewInstallCmd() *cobra.Command {
-	var installCmd = &cobra.Command{
+	installCmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install program",
 		Example: `

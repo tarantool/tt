@@ -60,7 +60,8 @@ type orchestratorEvalerMock struct {
 }
 
 func (m orchestratorEvalerMock) Eval(expr string,
-	args []any, opts connector.RequestOpts) ([]any, error) {
+	args []any, opts connector.RequestOpts,
+) ([]any, error) {
 	return m.ret, m.err
 }
 
@@ -87,9 +88,9 @@ func TestEvalOrchestrator(t *testing.T) {
 func TestEvalOrchestrator_invalid_response(t *testing.T) {
 	cases := [][]any{
 		nil,
-		[]any{},
-		[]any{1},
-		[]any{"cartridge", 2},
+		{},
+		{1},
+		{"cartridge", 2},
 	}
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {

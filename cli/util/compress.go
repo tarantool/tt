@@ -21,7 +21,7 @@ func makeTarGzReader(archive *os.File) (*tar.Reader, error) {
 }
 
 // ExtractTarGz extracts tar.gz archive.
-func ExtractTarGz(tarName string, dstDir string) error {
+func ExtractTarGz(tarName, dstDir string) error {
 	archive, err := os.Open(tarName)
 	if err != nil {
 		return err
@@ -53,7 +53,7 @@ func ExtractTarGz(tarName string, dstDir string) error {
 				//    user:   read/write/execute
 				//    group:  read/execute
 				//    others: read/execute
-				os.MkdirAll(filepath.Join(dstDir, dirName), 0755)
+				os.MkdirAll(filepath.Join(dstDir, dirName), 0o755)
 			}
 			outFile, err := os.OpenFile(filepath.Join(dstDir, header.Name),
 				os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode().Perm())

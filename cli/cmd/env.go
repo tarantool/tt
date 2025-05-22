@@ -10,7 +10,7 @@ import (
 
 // NewEnvCmd creates env command.
 func NewEnvCmd() *cobra.Command {
-	var envCmd = &cobra.Command{
+	envCmd := &cobra.Command{
 		Use:   "env",
 		Short: "Add current environment binaries location to the PATH variable",
 		Long: "Add current environment binaries location to the PATH variable.\n" +

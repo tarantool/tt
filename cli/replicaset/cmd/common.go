@@ -30,7 +30,8 @@ func makeApplicationOrchestrator(
 	orchestratorType replicaset.Orchestrator,
 	runningCtx running.RunningCtx,
 	collectors libcluster.DataCollectorFactory,
-	publishers libcluster.DataPublisherFactory) (replicasetOrchestrator, error) {
+	publishers libcluster.DataPublisherFactory,
+) (replicasetOrchestrator, error) {
 	var (
 		orchestrator replicasetOrchestrator
 		err          error
@@ -50,7 +51,8 @@ func makeApplicationOrchestrator(
 
 // makeInstanceOrchestrator creates an orchestrator for the single instance.
 func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
-	conn connector.Connector) (replicasetOrchestrator, error) {
+	conn connector.Connector,
+) (replicasetOrchestrator, error) {
 	var (
 		orchestrator replicasetOrchestrator
 		err          error
@@ -70,7 +72,8 @@ func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
 
 // getInstanceOrchestrator determines a used orchestrator type for an instance.
 func getInstanceOrchestrator(manual replicaset.Orchestrator,
-	conn connector.Connector) (replicaset.Orchestrator, error) {
+	conn connector.Connector,
+) (replicaset.Orchestrator, error) {
 	if manual != replicaset.OrchestratorUnknown {
 		return manual, nil
 	}
@@ -80,7 +83,8 @@ func getInstanceOrchestrator(manual replicaset.Orchestrator,
 
 // getApplicationOrchestrator determines a used orchestrator type for an application.
 func getApplicationOrchestrator(manual replicaset.Orchestrator,
-	runningCtx running.RunningCtx) (replicaset.Orchestrator, error) {
+	runningCtx running.RunningCtx,
+) (replicaset.Orchestrator, error) {
 	if manual != replicaset.OrchestratorUnknown {
 		return manual, nil
 	}
@@ -106,7 +110,8 @@ func getApplicationOrchestrator(manual replicaset.Orchestrator,
 func getOrchestratorType(
 	orchestrator replicaset.Orchestrator,
 	conn connector.Connector,
-	runningCtx running.RunningCtx) (replicaset.Orchestrator, error) {
+	runningCtx running.RunningCtx,
+) (replicaset.Orchestrator, error) {
 	if conn != nil {
 		return getInstanceOrchestrator(orchestrator, conn)
 	}

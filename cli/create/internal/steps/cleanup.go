@@ -11,12 +11,12 @@ import (
 )
 
 // Cleanup represents application directory cleanup step.
-type Cleanup struct {
-}
+type Cleanup struct{}
 
 // Run removes all files/directories, except files in the include list.
 func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	if !templateCtx.IsManifestPresent {
 		log.Debug("No manifest. Skipping clean up step.")
 		return nil

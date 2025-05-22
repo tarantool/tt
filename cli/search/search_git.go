@@ -92,7 +92,7 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 }
 
 // GetCommitFromGitLocal returns hash or pr/ID info from specified local git repo.
-func GetCommitFromGitLocal(repo string, input string) (string, error) {
+func GetCommitFromGitLocal(repo, input string) (string, error) {
 	if _, err := exec.LookPath("git"); err != nil {
 		return "", errors.New("unable to get commits: `git` command is missing")
 	}
@@ -126,7 +126,7 @@ func GetCommitFromGitLocal(repo string, input string) (string, error) {
 }
 
 // GetCommitFromGitRemote returns hash or pr/ID info from specified remote git repo.
-func GetCommitFromGitRemote(repo string, input string) (string, error) {
+func GetCommitFromGitRemote(repo, input string) (string, error) {
 	if _, err := exec.LookPath("git"); err != nil {
 		return "", errors.New("unable to get commits: `git` command is missing")
 	}

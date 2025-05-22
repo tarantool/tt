@@ -180,13 +180,12 @@ func (tagSet *rpmTagSetType) addTags(tags ...rpmTagType) {
 
 // packTagSet packs all passed tags into a buffer and returns it.
 func packTagSet(tagSet rpmTagSetType, regionTagID int) (*bytes.Buffer, error) {
-	var tagsData = bytes.NewBuffer(nil)
-	var tagsIndex = bytes.NewBuffer(nil)
+	tagsData := bytes.NewBuffer(nil)
+	tagsIndex := bytes.NewBuffer(nil)
 
 	// tagsData and tagsIndex
 	for _, tag := range tagSet {
 		packed, err := packTag(tag)
-
 		if err != nil {
 			return nil, err
 		}
@@ -211,7 +210,7 @@ func packTagSet(tagSet rpmTagSetType, regionTagID int) (*bytes.Buffer, error) {
 	regionTagIndex := getPackedTagIndex(regionTagID, rpmTypeBin, tagsData.Len(), 16)
 
 	// resIndex is regionTagIndex + tagsIndex
-	var resIndex = bytes.NewBuffer(nil)
+	resIndex := bytes.NewBuffer(nil)
 	if err := util.ConcatBuffers(resIndex, regionTagIndex, tagsIndex); err != nil {
 		return nil, err
 	}
@@ -221,7 +220,7 @@ func packTagSet(tagSet rpmTagSetType, regionTagID int) (*bytes.Buffer, error) {
 	regionTagData := getPackedTagIndex(regionTagID, rpmTypeBin, -tagsNum*16, 16)
 
 	// resData is tagsData + regionTagData
-	var resData = bytes.NewBuffer(nil)
+	resData := bytes.NewBuffer(nil)
 	if err := util.ConcatBuffers(resData, tagsData, regionTagData); err != nil {
 		return nil, err
 	}
@@ -230,7 +229,7 @@ func packTagSet(tagSet rpmTagSetType, regionTagID int) (*bytes.Buffer, error) {
 	tagSetHeader := getTagSetHeader(tagsNum, resData.Len())
 
 	// res is tagSetHeader + resIndex + resData
-	var res = bytes.NewBuffer(nil)
+	res := bytes.NewBuffer(nil)
 	if err := util.ConcatBuffers(res, tagSetHeader, resIndex, resData); err != nil {
 		return nil, err
 	}
@@ -239,7 +238,7 @@ func packTagSet(tagSet rpmTagSetType, regionTagID int) (*bytes.Buffer, error) {
 }
 
 // getPackedTagIndex packs a passed tag index into a buffer and returns it.
-func getPackedTagIndex(tagID int, tagType rpmValueType, offset int, count int) *bytes.Buffer {
+func getPackedTagIndex(tagID int, tagType rpmValueType, offset, count int) *bytes.Buffer {
 	tagIndex := packValues(
 		int32(tagID),
 		int32(tagType),
@@ -251,7 +250,7 @@ func getPackedTagIndex(tagID int, tagType rpmValueType, offset int, count int) *
 }
 
 // getPackedTagIndex packs a tags set header into a buffer and returns it.
-func getTagSetHeader(tagsNum int, dataLen int) *bytes.Buffer {
+func getTagSetHeader(tagsNum, dataLen int) *bytes.Buffer {
 	tagSetHeader := packValues(
 		headerMagic,
 		byte(versionByte),

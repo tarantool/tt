@@ -22,8 +22,9 @@ const (
 )
 
 // startTestInstance starts instance for the test.
-func startTestInstance(t *testing.T, ctx context.Context, app string, consoleSock string,
-	binaryPort string, logger ttlog.Logger) *scriptInstance {
+func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock string,
+	binaryPort string, logger ttlog.Logger,
+) *scriptInstance {
 	assert := assert.New(t)
 
 	// Need absolute path to the script, because working dir is changed on start.

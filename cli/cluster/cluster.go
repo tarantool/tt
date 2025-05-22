@@ -31,7 +31,8 @@ var (
 // collectEtcdConfig collects a configuration from etcd with options from
 // the cluster configuration.
 func collectEtcdConfig(collectors libcluster.CollectorFactory,
-	clusterConfig libcluster.ClusterConfig) (*libcluster.Config, error) {
+	clusterConfig libcluster.ClusterConfig,
+) (*libcluster.Config, error) {
 	etcdConfig := clusterConfig.Config.Etcd
 	opts := libcluster.EtcdOpts{
 		Endpoints: etcdConfig.Endpoints,
@@ -78,7 +79,8 @@ func collectEtcdConfig(collectors libcluster.CollectorFactory,
 // collectTarantoolConfig collects a configuration from tarantool config
 // storage with options from the tarantool configuration.
 func collectTarantoolConfig(collectors libcluster.CollectorFactory,
-	clusterConfig libcluster.ClusterConfig) (*libcluster.Config, error) {
+	clusterConfig libcluster.ClusterConfig,
+) (*libcluster.Config, error) {
 	type tarantoolOpts struct {
 		addr   string
 		dialer tarantool.Dialer
@@ -169,7 +171,8 @@ func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 // variables as sources. The function returns a cluster config as is, without
 // merging of settings from scopes: global, group, replicaset, instance.
 func GetClusterConfig(collectors libcluster.CollectorFactory,
-	path string) (libcluster.ClusterConfig, error) {
+	path string,
+) (libcluster.ClusterConfig, error) {
 	ret := libcluster.ClusterConfig{}
 	if path == "" {
 		return ret, fmt.Errorf("a configuration file must be set")
@@ -230,7 +233,8 @@ func GetClusterConfig(collectors libcluster.CollectorFactory,
 // name from a cluster config. It merges the configuration from all configured
 // sources and scopes: environment, global, group, replicaset, instance.
 func GetInstanceConfig(cluster libcluster.ClusterConfig,
-	instance string) (libcluster.InstanceConfig, error) {
+	instance string,
+) (libcluster.InstanceConfig, error) {
 	if !libcluster.HasInstance(cluster, instance) {
 		return libcluster.InstanceConfig{},
 			fmt.Errorf("an instance %q not found", instance)

@@ -16,7 +16,7 @@ import (
 var packCtx = &pack.PackCtx{}
 
 func NewPackCmd() *cobra.Command {
-	var packCmd = &cobra.Command{
+	packCmd := &cobra.Command{
 		Use:   "pack TYPE [flags] ..",
 		Short: "Pack application into a distributable bundle",
 		Long: `Pack application into a distributable bundle

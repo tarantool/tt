@@ -31,7 +31,7 @@ var catFlags = checkpoint.Opts{
 
 // NewCatCmd creates a new cat command.
 func NewCatCmd() *cobra.Command {
-	var catCmd = &cobra.Command{
+	catCmd := &cobra.Command{
 		Use:   "cat <FILE|DIR>...",
 		Short: "Print into stdout the contents of .snap/.xlog FILE(s)",
 		Run:   RunModuleFunc(internalCatModule),

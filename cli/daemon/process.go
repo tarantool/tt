@@ -137,7 +137,6 @@ func (process *Process) Stop() {
 	_ = os.Unsetenv(process.DaemonTag)
 
 	err := <-done
-
 	if err != nil {
 		process.logger.Println(err.Error())
 		os.Exit(1)

@@ -83,7 +83,7 @@ func newUpgradeCmd() *cobra.Command {
 func newDowngradeCmd() *cobra.Command {
 	validateVersion := func(i int) cobra.PositionalArgs {
 		return func(cmd *cobra.Command, args []string) error {
-			var versionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+			versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 			if args[i] == "" {
 				return errors.New("need to specify the version to downgrade to")
 			} else if !versionPattern.MatchString(args[i]) {
@@ -418,7 +418,8 @@ type replicasetCtx struct {
 
 // replicasetFillCtx fills the replicaset command context.
 func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target string,
-	isRunningCtxRequired bool, loadConfig running.ConfigLoad) error {
+	isRunningCtxRequired bool, loadConfig running.ConfigLoad,
+) error {
 	var err error
 	ctx.Orchestrator, err = getOrchestrator()
 	if err != nil {

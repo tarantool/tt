@@ -13,20 +13,24 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
-var _ replicaset.Discoverer = &replicaset.CartridgeInstance{}
-var _ replicaset.Promoter = &replicaset.CartridgeInstance{}
-var _ replicaset.Demoter = &replicaset.CartridgeInstance{}
-var _ replicaset.Expeller = &replicaset.CartridgeInstance{}
-var _ replicaset.VShardBootstrapper = &replicaset.CartridgeInstance{}
-var _ replicaset.Bootstrapper = &replicaset.CartridgeInstance{}
-var _ replicaset.RolesChanger = &replicaset.CartridgeInstance{}
+var (
+	_ replicaset.Discoverer         = &replicaset.CartridgeInstance{}
+	_ replicaset.Promoter           = &replicaset.CartridgeInstance{}
+	_ replicaset.Demoter            = &replicaset.CartridgeInstance{}
+	_ replicaset.Expeller           = &replicaset.CartridgeInstance{}
+	_ replicaset.VShardBootstrapper = &replicaset.CartridgeInstance{}
+	_ replicaset.Bootstrapper       = &replicaset.CartridgeInstance{}
+	_ replicaset.RolesChanger       = &replicaset.CartridgeInstance{}
+)
 
-var _ replicaset.Discoverer = &replicaset.CartridgeApplication{}
-var _ replicaset.Promoter = &replicaset.CartridgeApplication{}
-var _ replicaset.Demoter = &replicaset.CartridgeApplication{}
-var _ replicaset.Expeller = &replicaset.CartridgeApplication{}
-var _ replicaset.Bootstrapper = &replicaset.CartridgeApplication{}
-var _ replicaset.RolesChanger = &replicaset.CartridgeApplication{}
+var (
+	_ replicaset.Discoverer   = &replicaset.CartridgeApplication{}
+	_ replicaset.Promoter     = &replicaset.CartridgeApplication{}
+	_ replicaset.Demoter      = &replicaset.CartridgeApplication{}
+	_ replicaset.Expeller     = &replicaset.CartridgeApplication{}
+	_ replicaset.Bootstrapper = &replicaset.CartridgeApplication{}
+	_ replicaset.RolesChanger = &replicaset.CartridgeApplication{}
+)
 
 func TestCartridgeApplication_Demote(t *testing.T) {
 	app := replicaset.NewCartridgeApplication(running.RunningCtx{})
@@ -66,7 +70,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "no_replicasets",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{},
 					},
 				},
@@ -81,7 +85,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "empty_replicasets",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"replicasets": []any{},
 						},
@@ -98,7 +102,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "simplest",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"replicasets": []any{
 								map[any]any{
@@ -107,7 +111,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "bar",
 							"rw":   false,
@@ -119,7 +123,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:   "foo",
 						Master: replicaset.MasterNo,
 					},
@@ -130,7 +134,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "no_instances",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"failover": "disabled",
 							"provider": "none",
@@ -143,7 +147,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "someinstanceuuid",
 							"rw":   false,
@@ -155,7 +159,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:          "somereplicasetuuid",
 						LeaderUUID:    "someleaderuuid",
 						Alias:         "somealias",
@@ -170,7 +174,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "single_instance",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"failover": "disabled",
 							"provider": "tarantool",
@@ -190,7 +194,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "someinstanceuuid",
 							"rw":   false,
@@ -202,7 +206,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:          "somereplicasetuuid",
 						LeaderUUID:    "someleaderuuid",
 						Alias:         "somealias",
@@ -210,7 +214,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 						Failover:      replicaset.FailoverOff,
 						StateProvider: replicaset.StateProviderTarantool,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "otherinstanceuuid",
 								URI:   "anyuri",
@@ -224,7 +228,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "single_master",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"failover": "disabled",
 							"provider": "tarantool",
@@ -244,7 +248,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "someinstanceuuid",
 							"rw":   true,
@@ -256,7 +260,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:          "somereplicasetuuid",
 						LeaderUUID:    "someleaderuuid",
 						Alias:         "somealias",
@@ -264,7 +268,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 						Failover:      replicaset.FailoverOff,
 						StateProvider: replicaset.StateProviderTarantool,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "someinstanceuuid",
 								URI:   "anyuri",
@@ -279,7 +283,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "single_replica",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"failover": "disabled",
 							"provider": "tarantool",
@@ -299,7 +303,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "someinstanceuuid",
 							"rw":   false,
@@ -311,7 +315,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:          "somereplicasetuuid",
 						LeaderUUID:    "someleaderuuid",
 						Alias:         "somealias",
@@ -319,7 +323,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 						Failover:      replicaset.FailoverOff,
 						StateProvider: replicaset.StateProviderTarantool,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance",
 								UUID:  "someinstanceuuid",
 								URI:   "anyuri",
@@ -334,7 +338,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "multi_instances",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"failover": "disabled",
 							"provider": "tarantool",
@@ -359,7 +363,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "someinstanceuuid1",
 							"rw":   true,
@@ -371,7 +375,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:          "somereplicasetuuid",
 						LeaderUUID:    "someleaderuuid",
 						Alias:         "somealias",
@@ -379,13 +383,13 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 						Failover:      replicaset.FailoverOff,
 						StateProvider: replicaset.StateProviderTarantool,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance1",
 								UUID:  "someinstanceuuid1",
 								URI:   "anyuri1",
 								Mode:  replicaset.ModeRW,
 							},
-							replicaset.Instance{
+							{
 								Alias: "instance2",
 								UUID:  "someinstanceuuid2",
 								URI:   "anyuri2",
@@ -400,7 +404,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 			Name: "multi_replicasets",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"failover": "disabled",
 							"provider": "tarantool",
@@ -442,7 +446,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "someinstanceuuid1",
 							"rw":   true,
@@ -454,7 +458,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:          "somereplicasetuuid1",
 						LeaderUUID:    "someleaderuuid1",
 						Alias:         "somealias1",
@@ -462,13 +466,13 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 						Failover:      replicaset.FailoverOff,
 						StateProvider: replicaset.StateProviderTarantool,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance1",
 								UUID:  "someinstanceuuid1",
 								URI:   "anyuri1",
 								Mode:  replicaset.ModeRW,
 							},
-							replicaset.Instance{
+							{
 								Alias: "instance2",
 								UUID:  "someinstanceuuid2",
 								URI:   "anyuri2",
@@ -476,7 +480,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 							},
 						},
 					},
-					replicaset.Replicaset{
+					{
 						UUID:          "somereplicasetuuid2",
 						LeaderUUID:    "someleaderuuid2",
 						Alias:         "somealias2",
@@ -484,13 +488,13 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 						Failover:      replicaset.FailoverOff,
 						StateProvider: replicaset.StateProviderTarantool,
 						Instances: []replicaset.Instance{
-							replicaset.Instance{
+							{
 								Alias: "instance3",
 								UUID:  "someinstanceuuid3",
 								URI:   "anyuri3",
 								Mode:  replicaset.ModeUnknown,
 							},
-							replicaset.Instance{
+							{
 								Alias: "instance4",
 								UUID:  "someinstanceuuid4",
 								URI:   "anyuri4",
@@ -516,7 +520,7 @@ func TestCartridgeInstance_Discovery(t *testing.T) {
 func TestCartridgeInstance_Discovery_force(t *testing.T) {
 	evaler := &instanceMockEvaler{
 		Ret: [][]any{
-			[]any{
+			{
 				map[any]any{
 					"replicasets": []any{
 						map[any]any{
@@ -525,13 +529,13 @@ func TestCartridgeInstance_Discovery_force(t *testing.T) {
 					},
 				},
 			},
-			[]any{
+			{
 				map[any]any{
 					"uuid": "foo1",
 					"rw":   false,
 				},
 			},
-			[]any{
+			{
 				map[any]any{
 					"replicasets": []any{
 						map[any]any{
@@ -540,7 +544,7 @@ func TestCartridgeInstance_Discovery_force(t *testing.T) {
 					},
 				},
 			},
-			[]any{
+			{
 				map[any]any{
 					"uuid": "foo2",
 					"rw":   false,
@@ -557,7 +561,7 @@ func TestCartridgeInstance_Discovery_force(t *testing.T) {
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCartridge,
 		Replicasets: []replicaset.Replicaset{
-			replicaset.Replicaset{
+			{
 				UUID:   "foo1",
 				Master: replicaset.MasterNo,
 			},
@@ -572,7 +576,7 @@ func TestCartridgeInstance_Discovery_force(t *testing.T) {
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCartridge,
 		Replicasets: []replicaset.Replicaset{
-			replicaset.Replicaset{
+			{
 				UUID:   "foo2",
 				Master: replicaset.MasterNo,
 			},
@@ -596,7 +600,7 @@ func TestCartridgeInstance_Discovery_failover(t *testing.T) {
 		t.Run(tc.Failover, func(t *testing.T) {
 			evaler := &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"failover": tc.Failover,
 							"replicasets": []any{
@@ -609,7 +613,7 @@ func TestCartridgeInstance_Discovery_failover(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "bar",
 							"rw":   false,
@@ -621,12 +625,12 @@ func TestCartridgeInstance_Discovery_failover(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:     "foo1",
 						Master:   replicaset.MasterNo,
 						Failover: tc.Expected,
 					},
-					replicaset.Replicaset{
+					{
 						UUID:     "foo2",
 						Master:   replicaset.MasterNo,
 						Failover: tc.Expected,
@@ -658,7 +662,7 @@ func TestCartridgeInstance_Discovery_provider(t *testing.T) {
 		t.Run(tc.Provider, func(t *testing.T) {
 			evaler := &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"provider": tc.Provider,
 							"replicasets": []any{
@@ -671,7 +675,7 @@ func TestCartridgeInstance_Discovery_provider(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"uuid": "bar",
 							"rw":   false,
@@ -683,12 +687,12 @@ func TestCartridgeInstance_Discovery_provider(t *testing.T) {
 				State:        replicaset.StateBootstrapped,
 				Orchestrator: replicaset.OrchestratorCartridge,
 				Replicasets: []replicaset.Replicaset{
-					replicaset.Replicaset{
+					{
 						UUID:          "foo1",
 						Master:        replicaset.MasterNo,
 						StateProvider: tc.Expected,
 					},
-					replicaset.Replicaset{
+					{
 						UUID:          "foo2",
 						Master:        replicaset.MasterNo,
 						StateProvider: tc.Expected,
@@ -723,22 +727,24 @@ func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 		},
 		{
 			Name:     "empty_response",
-			Evaler:   &instanceMockEvaler{Ret: [][]any{[]any{}}},
+			Evaler:   &instanceMockEvaler{Ret: [][]any{{}}},
 			Expected: "unexpected response: []",
 		},
 		{
 			Name:     "too_big_response",
-			Evaler:   &instanceMockEvaler{Ret: [][]any{[]any{"foo", "bar"}}},
+			Evaler:   &instanceMockEvaler{Ret: [][]any{{"foo", "bar"}}},
 			Expected: "unexpected response: [foo bar]",
 		},
 		{
 			Name: "invalid_response",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{map[any]any{
-						"replicasets": 123,
+					{
+						map[any]any{
+							"replicasets": 123,
+						},
 					},
-					}},
+				},
 			},
 			Expected: "failed to parse a response",
 		},
@@ -746,7 +752,7 @@ func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 			Name: "invalid_instance_info_response",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"replicasets": []any{
 								map[any]any{
@@ -755,7 +761,7 @@ func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 							},
 						},
 					},
-					[]any{
+					{
 						map[any]any{
 							"rw": "foo",
 						},
@@ -768,7 +774,7 @@ func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 			Name: "instance_info_error",
 			Evaler: &instanceMockEvaler{
 				Ret: [][]any{
-					[]any{
+					{
 						map[any]any{
 							"replicasets": []any{
 								map[any]any{
@@ -777,7 +783,7 @@ func TestCartridgeInstance_Discovery_errors(t *testing.T) {
 							},
 						},
 					},
-					[]any{},
+					{},
 				},
 				Error: []error{nil, errors.New("foo")},
 			},

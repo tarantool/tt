@@ -12,11 +12,11 @@ import (
 )
 
 // RenderTemplate represents template render step.
-type RenderTemplate struct {
-}
+type RenderTemplate struct{}
 
 func render(templateCtx *app_template.TemplateCtx, templateFileNamePattern *regexp.Regexp,
-	filePath string, fileInfo os.FileInfo) error {
+	filePath string, fileInfo os.FileInfo,
+) error {
 	if !fileInfo.Mode().IsDir() {
 		if matches := templateFileNamePattern.FindStringSubmatch(
 			fileInfo.Name()); matches != nil {

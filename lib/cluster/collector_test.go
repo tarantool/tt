@@ -53,7 +53,8 @@ func (mock mockDataCollectorFactory) NewFile(path string) (cluster.DataCollector
 }
 
 func (mock mockDataCollectorFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration) (cluster.DataCollector, error) {
+	prefix, key string, timeout time.Duration,
+) (cluster.DataCollector, error) {
 	return mockEtcdCollector{
 		etcdcli: etcdcli,
 		prefix:  prefix,
@@ -63,7 +64,8 @@ func (mock mockDataCollectorFactory) NewEtcd(etcdcli *clientv3.Client,
 }
 
 func (mock mockDataCollectorFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration) (cluster.DataCollector, error) {
+	prefix, key string, timeout time.Duration,
+) (cluster.DataCollector, error) {
 	return mockTarantoolCollector{
 		conn:    conn,
 		prefix:  prefix,

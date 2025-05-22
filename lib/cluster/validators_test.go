@@ -325,7 +325,7 @@ func TestSequenceValidator_errors(t *testing.T) {
 }
 
 func TestSequenceValidator_empty(t *testing.T) {
-	var anyValue = 123
+	anyValue := 123
 	value, err := cluster.MakeSequenceValidator().Validate(anyValue)
 
 	assert.Equal(t, anyValue, value)

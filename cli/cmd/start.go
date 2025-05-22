@@ -34,14 +34,15 @@ var (
 
 // NewStartCmd creates start command.
 func NewStartCmd() *cobra.Command {
-	var startCmd = &cobra.Command{
+	startCmd := &cobra.Command{
 		Use:   "start [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Start tarantool instance(s)",
 		Run:   RunModuleFunc(internalStartModule),
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractInactiveAppNames,
@@ -125,8 +126,7 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	if canStart, reason :=
-		running.IsAbleToStartInstances(runningCtx.Instances, cmdCtx); !canStart {
+	if canStart, reason := running.IsAbleToStartInstances(runningCtx.Instances, cmdCtx); !canStart {
 		return errors.New(reason)
 	}
 

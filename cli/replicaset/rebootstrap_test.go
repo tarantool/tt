@@ -14,20 +14,21 @@ func Test_cleanDataFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	require.NoError(t, os.WriteFile(
-		filepath.Join(tmpDir, "000.xlog"), []byte{}, 0755))
+		filepath.Join(tmpDir, "000.xlog"), []byte{}, 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(tmpDir, "000.snap"), []byte{}, 0755))
+		filepath.Join(tmpDir, "000.snap"), []byte{}, 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(tmpDir, "000.vylog"), []byte{}, 0755))
+		filepath.Join(tmpDir, "000.vylog"), []byte{}, 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(tmpDir, "000.txt"), []byte{}, 0755))
+		filepath.Join(tmpDir, "000.txt"), []byte{}, 0o755))
 	require.NoError(t, os.Mkdir(
-		filepath.Join(tmpDir, "dir.snap"), 0755))
+		filepath.Join(tmpDir, "dir.snap"), 0o755))
 
 	require.NoError(t, cleanDataFiles(running.InstanceCtx{
 		WalDir:   tmpDir,
 		MemtxDir: tmpDir,
-		VinylDir: tmpDir}))
+		VinylDir: tmpDir,
+	}))
 	assert.NoFileExists(t, filepath.Join(tmpDir, "000.xlog"))
 	assert.NoFileExists(t, filepath.Join(tmpDir, "000.snap"))
 	assert.NoFileExists(t, filepath.Join(tmpDir, "000.vylog"))
