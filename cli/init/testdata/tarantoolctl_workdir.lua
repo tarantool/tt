@@ -9,4 +9,3 @@ default_cfg = {
 }
 
 instance_dir = workdir
-

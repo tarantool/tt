@@ -38,17 +38,17 @@ index cd1c78541..146926715 100644
      int EVP_DigestFinal_ex(EVP_MD_CTX *ctx, unsigned char *md, unsigned int *s);
 -    const EVP_MD *EVP_get_digestbyname(const char *name);
 +    const EVP_MD *tnt_EVP_get_digestbyname(const char *name);
- 
+
      typedef struct {} HMAC_CTX;
      HMAC_CTX *tnt_HMAC_CTX_new(void);
 @@ -46,7 +46,7 @@ ffi.cdef[[
      int tnt_EVP_CIPHER_key_length(const EVP_CIPHER *cipher);
- 
+
      int EVP_CIPHER_block_size(const EVP_CIPHER *cipher);
 -    const EVP_CIPHER *EVP_get_cipherbyname(const char *name);
 +    const EVP_CIPHER *tnt_EVP_get_cipherbyname(const char *name);
  ]]
- 
+
  ffi.C.tnt_openssl_init();
 @@ -61,7 +61,7 @@ for class, name in pairs({
      sha = 'SHA', sha1 = 'SHA1', sha224 = 'SHA224',
