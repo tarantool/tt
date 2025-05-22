@@ -10,7 +10,7 @@ the [Github Issues page](https://github.com/tarantool/tt/issues).
 
 ## Do not set the box.cfg.background
 
-`tt start` daemonizes a Tarantool process itself. The [box.cfg.background
+`tt start` daemonize a Tarantool process itself. The [box.cfg.background
 setting][cfg-background] does the same thing from a Tarantool process. These
 features conflict with each other. As a result, `tt status` shows an invalid
 status of a Tarantool instance, and it is unable to stop the instance

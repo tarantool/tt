@@ -269,7 +269,7 @@ In other cases you will get a message with errors that need to be corrected manu
 
 ## Configuration
 
-Taratool CLI can be launched in several modes:
+Tarantool CLI can be launched in several modes:
 
 -   System launch (flag `-S`) - the working directory is current,
     configuration file searched in `/etc/tarantool` directory.
