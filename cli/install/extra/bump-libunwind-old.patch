@@ -8,6 +8,6 @@ index 9a2f85052..bc73496e5 100644
  set(READLINE_VERSION 8.0)
 -set(UNWIND_VERSION 1.3-rc1)
 +set(UNWIND_VERSION 1.6.2)
- 
+
  # Pass -isysroot=<SDK_PATH> option on Mac OS to a preprocessor and a C
  # compiler to find header files installed with an SDK.

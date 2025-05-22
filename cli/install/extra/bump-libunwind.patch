@@ -10,6 +10,6 @@ index 598c42bbc..e853f3364 100644
 -set(UNWIND_HASH f09b670de5db6430a3de666e6aed60e3)
 +set(UNWIND_VERSION 1.6.2)
 +set(UNWIND_HASH f625b6a98ac1976116c71708a73dc44a)
- 
+
  # Pass -isysroot=<SDK_PATH> option on Mac OS to a preprocessor and a C
  # compiler to find header files installed with an SDK.

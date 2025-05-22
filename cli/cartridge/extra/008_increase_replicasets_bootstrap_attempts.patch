@@ -3,11 +3,10 @@ index 225dc36..b8c0a46 100644
 --- a/cli/replicasets/setup.go
 +++ b/cli/replicasets/setup.go
 @@ -99,7 +99,7 @@ func Setup(ctx *context.Ctx, args []string) error {
- 
+
  		retryOpts := []retry.Option{
  			retry.MaxDelay(1 * time.Second),
 -			retry.Attempts(5),
 +			retry.Attempts(10),
  			retry.LastErrorOnly(true),
  		}
- 
