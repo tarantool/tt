@@ -96,7 +96,7 @@ Improvement in the work of templates.
 
 ### Added
 
-- `tt aeon connect`: add connection from the `app:insance_name`.
+- `tt aeon connect`: add connection from the `app:instance_name`.
 - Added support for the `{{ metricsPort }}` construct in Go text templates.
   This new function allows template users to generate a monitoring port value
   directly within their templates, providing more flexibility and simplifying
@@ -321,7 +321,7 @@ Additionally, several fixes were implemented to improve stability.
 - `tt status`: added `pretty` option for pretty-formatted table output.
 - `TT_CLI_CFG`: environment variable to specify the path to the configuration
   file.
-- `tt pack`: systemd unit parameterizing support.
+- `tt pack`: systemd unit parameterize support.
 - `tt replicaset vshard`: module to manage vshard in the tarantool replicaset.
   * `tt replicaset vshard bootstrap`: command to bootstrap vshard.
 
@@ -457,7 +457,7 @@ Additionally, several fixes were implemented to improve stability.
 - Enable logging to file by default for `tarantool` cluster instances.
   Default log file name for an instance is `tarantool.log`. `tarantool`'s
   stdout/stderr and `tt` logs go to `tt.log` file.
-- Remove URI with creds from console title and prompt.
+- Remove URI with credentials from console title and prompt.
 - Ignore app-instance delimiters for Tarantool 3.0 instances.
 - Don't use dash as an app-instance delimiter. At the same time,
   `cartridge_app-stateboard` treated as a special case.

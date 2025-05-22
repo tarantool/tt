@@ -1,4 +1,4 @@
-# Update Aaon proto submodule
+# Update Aeon proto submodule
 In case of updating the communication protocol with the Aeon server, the following manual actions are required:
 1. Update `proto` files and re-generate new `.go` sources.
 2. Make appropriate corrections to the `tt aeon connect` application code.
@@ -15,11 +15,11 @@ go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 ## Update submodule from repository
 Get fresh files from the `master` branch.
 ```sh
-cd tt/cli/aeon/protos
+cd tt/cli/aeon/protoc
 git co master
 git pull
 cd ..
-git add protos
+git add protoc
 ```
 
 ## Regenerate `pb` modules
