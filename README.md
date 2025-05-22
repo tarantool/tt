@@ -253,7 +253,7 @@ mage testfull
 
 ## Configuration
 
-Taratool CLI can be launched in several modes:
+Tarantool CLI can be launched in several modes:
 
 -   System launch (flag `-S`) - the working directory is current,
     configuration file searched in `/etc/tarantool` directory.
