@@ -21,10 +21,16 @@ from utils import run_command_and_get_output
     ],
 )
 def test_install_ee(
-    tt_cmd: Path, tmp_path: Path, prog: str, exec: str, incl: Optional[str]
+    tt_cmd: Path,
+    tmp_path: Path,
+    prog: str,
+    exec: str,
+    incl: Optional[str],
 ) -> None:
     rc, output = run_command_and_get_output(
-        [tt_cmd, "init"], cwd=tmp_path, env=dict(os.environ, PWD=tmp_path)
+        [tt_cmd, "init"],
+        cwd=tmp_path,
+        env=dict(os.environ, PWD=tmp_path),
     )
     assert rc == 0
 
@@ -61,10 +67,16 @@ def test_install_ee(
     ],
 )
 def test_install_ee_dev(
-    tt_cmd: Path, tmp_path: Path, prog: str, exec: str, incl: Optional[str]
+    tt_cmd: Path,
+    tmp_path: Path,
+    prog: str,
+    exec: str,
+    incl: Optional[str],
 ) -> None:
     rc, output = run_command_and_get_output(
-        [tt_cmd, "init"], cwd=tmp_path, env=dict(os.environ, PWD=tmp_path)
+        [tt_cmd, "init"],
+        cwd=tmp_path,
+        env=dict(os.environ, PWD=tmp_path),
     )
     assert rc == 0
 

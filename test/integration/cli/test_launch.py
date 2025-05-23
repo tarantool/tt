@@ -7,8 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from utils import (config_name, create_external_module, create_tt_config,
-                   run_command_and_get_output)
+from utils import config_name, create_external_module, create_tt_config, run_command_and_get_output
 
 # Some of the tests below should check the behavior
 # of modules that have an internal implementation.
@@ -112,13 +111,13 @@ def test_launch_local_tt_executable(tt_cmd, tmp_path):
 
     tt_message = "Hello, I'm CLI exec!"
     with open(os.path.join(tmp_path, "bin/tt"), "w") as f:
-        f.write(f"#!/bin/sh\necho \"{tt_message}\"")
+        f.write(f'#!/bin/sh\necho "{tt_message}"')
 
     # tt found but not executable - there should be an error.
     commands = [
         [tt_cmd, "version"],
         [tt_cmd, "-L", tmp_path, "version"],
-        [tt_cmd, "version", "--cfg", tmp_path / config_name]
+        [tt_cmd, "version", "--cfg", tmp_path / config_name],
     ]
 
     for cmd in commands:
@@ -140,12 +139,9 @@ def test_launch_local_tt_executable_in_parent_dir(tt_cmd, tmp_path):
 
     tt_message = "Hello, I'm CLI exec!"
     with open(tmp_path / "bin" / "tt", "w") as f:
-        f.write(f"#!/bin/sh\necho \"{tt_message}\"")
+        f.write(f'#!/bin/sh\necho "{tt_message}"')
 
-    commands = [
-        [tt_cmd, "version"],
-        [tt_cmd, "-L", tmp_path, "version"]
-    ]
+    commands = [[tt_cmd, "version"], [tt_cmd, "-L", tmp_path, "version"]]
 
     tmpdir_without_config = tempfile.mkdtemp(dir=tmp_path)
     os.chmod(tmp_path / "bin" / "tt", 0o777)
@@ -164,13 +160,10 @@ def test_launch_local_tt_executable_relative_bin_dir(tt_cmd, tmp_path):
 
     tt_message = "Hello, I'm CLI exec!"
     with open(tmp_path / "binaries" / "tt", "w") as f:
-        f.write(f"#!/bin/sh\necho \"{tt_message}\"")
+        f.write(f'#!/bin/sh\necho "{tt_message}"')
     os.chmod(tmp_path / "binaries" / "tt", 0o777)
 
-    commands = [
-        [tt_cmd, "version"],
-        [tt_cmd, "-L", tmp_path, "version"]
-    ]
+    commands = [[tt_cmd, "version"], [tt_cmd, "-L", tmp_path, "version"]]
 
     with tempfile.TemporaryDirectory(dir=tmp_path) as tmp_working_dir:
         for cmd in commands:
@@ -189,7 +182,7 @@ def test_launch_local_tt_missing_executable(tt_cmd, tmp_path):
     commands = [
         [tt_cmd, "version"],
         [tt_cmd, "-L", tmp_path, "version"],
-        [tt_cmd, "--cfg", config_path, "version"]
+        [tt_cmd, "--cfg", config_path, "version"],
     ]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -208,12 +201,12 @@ def test_launch_local_tarantool(tt_cmd, tmp_path):
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
     with open(tmp_path / "binaries" / "tarantool", "w") as f:
-        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+        f.write(f'#!/bin/sh\necho "{tarantool_message}"')
     os.chmod(tmp_path / "binaries" / "tarantool", 0o777)
 
     commands = [
         [tt_cmd, "-L", tmp_path, "run", "--version"],
-        [tt_cmd, "--cfg", config_path, "run", "--version"]
+        [tt_cmd, "--cfg", config_path, "run", "--version"],
     ]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -236,7 +229,7 @@ def test_launch_local_tarantool_missing_in_bin_dir(tt_cmd, tmp_path):
 
     commands_external = [
         [tt_cmd, "-L", tmp_path, "run", "--version"],
-        [tt_cmd, "--cfg", config_path, "run", "--version"]
+        [tt_cmd, "--cfg", config_path, "run", "--version"],
     ]
 
     for cmd in commands_intmp:
@@ -262,7 +255,7 @@ def test_launch_local_launch_tarantool_with_config_in_parent_dir(tt_cmd, tmp_pat
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
     with open(os.path.join(tmp_path, "binaries/tarantool"), "w") as f:
-        f.write(f"#!/bin/sh\ntouch file.txt\necho \"{tarantool_message}\"")
+        f.write(f'#!/bin/sh\ntouch file.txt\necho "{tarantool_message}"')
     os.chmod(os.path.join(tmp_path, "binaries/tarantool"), 0o777)
 
     commands = [
@@ -286,7 +279,7 @@ def test_launch_local_launch_tarantool_with_yml_config_in_parent_dir(tt_cmd, tmp
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
     with open(os.path.join(tmp_path, "binaries/tarantool"), "w") as f:
-        f.write(f"#!/bin/sh\ntouch file.txt\necho \"{tarantool_message}\"")
+        f.write(f'#!/bin/sh\ntouch file.txt\necho "{tarantool_message}"')
     os.chmod(os.path.join(tmp_path, "binaries/tarantool"), 0o777)
 
     commands = [
@@ -304,21 +297,19 @@ def test_launch_local_launch_tarantool_with_yml_config_in_parent_dir(tt_cmd, tmp
 def test_launch_system_tarantool(tt_cmd, tmp_path):
     config_path = os.path.join(tmp_path, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"modules": {"directory": f"{tmp_path}"},
-                   "env": {"bin_dir": "./binaries"}}, f)
+        yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
     with open(os.path.join(tmp_path, "binaries/tarantool"), "w") as f:
-        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+        f.write(f'#!/bin/sh\necho "{tarantool_message}"')
     os.chmod(os.path.join(tmp_path, "binaries/tarantool"), 0o777)
 
     command = [tt_cmd, "-S", "run"]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         with open(os.path.join(tmp_working_dir, config_name), "w") as f:
-            yaml.dump({"modules": {"directory": f"{tmp_path}"},
-                       "env": {"bin_dir": ""}}, f)
+            yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": ""}}, f)
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmp_path
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
@@ -329,21 +320,19 @@ def test_launch_system_tarantool(tt_cmd, tmp_path):
 def test_launch_system_tarantool_yml_system_config(tt_cmd, tmp_path):
     config_path = os.path.join(tmp_path, config_name.replace("yaml", "yml"))
     with open(config_path, "w") as f:
-        yaml.dump({"modules": {"directory": f"{tmp_path}"},
-                   "env": {"bin_dir": "./binaries"}}, f)
+        yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": "./binaries"}}, f)
 
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
     with open(os.path.join(tmp_path, "binaries/tarantool"), "w") as f:
-        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+        f.write(f'#!/bin/sh\necho "{tarantool_message}"')
     os.chmod(os.path.join(tmp_path, "binaries/tarantool"), 0o777)
 
     command = [tt_cmd, "-S", "run"]
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
         with open(os.path.join(tmp_working_dir, config_name.replace("yaml", "yml")), "w") as f:
-            yaml.dump({"tt": {"modules": {"directory": f"{tmp_path}"},
-                       "env": {"bin_dir": ""}}}, f)
+            yaml.dump({"tt": {"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": ""}}}, f)
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmp_path
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
@@ -354,8 +343,7 @@ def test_launch_system_tarantool_yml_system_config(tt_cmd, tmp_path):
 def test_launch_system_tarantool_missing_executable(tt_cmd, tmp_path):
     config_path = os.path.join(tmp_path, config_name)
     with open(config_path, "w") as f:
-        yaml.dump({"modules": {"directory": f"{tmp_path}"},
-                   "env": {"bin_dir": "./binaries"}}, f)
+        yaml.dump({"modules": {"directory": f"{tmp_path}"}, "env": {"bin_dir": "./binaries"}}, f)
 
     command = [tt_cmd, "-S", "run", "--version"]
 
@@ -375,7 +363,7 @@ def test_launch_system_config_not_loaded_if_local_enabled(tt_cmd, tmp_path):
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
     with open(os.path.join(tmp_path, "binaries/tarantool"), "w") as f:
-        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+        f.write(f'#!/bin/sh\necho "{tarantool_message}"')
     os.chmod(os.path.join(tmp_path, "binaries/tarantool"), 0o777)
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
@@ -395,12 +383,11 @@ def test_launch_system_config_not_loaded_if_cfg_specified_is_missing(tt_cmd, tmp
     os.mkdir(tmp_path / "binaries")
     tarantool_message = "Hello, I'm Tarantool"
     with open(os.path.join(tmp_path, "binaries/tarantool"), "w") as f:
-        f.write(f"#!/bin/sh\necho \"{tarantool_message}\"")
+        f.write(f'#!/bin/sh\necho "{tarantool_message}"')
     os.chmod(os.path.join(tmp_path, "binaries/tarantool"), 0o777)
 
     with tempfile.TemporaryDirectory() as tmp_working_dir:
-        command = [tt_cmd, "-c", os.path.join(tmp_working_dir, config_name), "run",
-                   "--version"]
+        command = [tt_cmd, "-c", os.path.join(tmp_working_dir, config_name), "run", "--version"]
         my_env = os.environ.copy()
         my_env["TT_SYSTEM_CONFIG_DIR"] = tmp_path
         rc, output = run_command_and_get_output(command, cwd=tmp_working_dir, env=my_env)
@@ -490,7 +477,7 @@ def test_std_err_stream_local_launch_non_existent_dir(tt_cmd, tmp_path):
         stderr=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -510,7 +497,7 @@ def test_launch_with_env_cfg(tt_cmd):
         with open(env_config_path, "w") as f:
             yaml.dump({"env": {"bin_dir": "foo/binaries"}}, f)
         test_env = os.environ.copy()
-        test_env['TT_CLI_CFG'] = env_config_path
+        test_env["TT_CLI_CFG"] = env_config_path
 
         rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
         expected_bin_dir = "bin_dir: " + tmpdir_with_env_config + "/foo/binaries"
@@ -537,7 +524,7 @@ def test_launch_with_invalid_env_cfg(tt_cmd):
 
     # Set invalid 'TT_CLI_CFG' env. variable.
     test_env = os.environ.copy()
-    test_env['TT_CLI_CFG'] = "foo/bar"
+    test_env["TT_CLI_CFG"] = "foo/bar"
 
     rc, output = run_command_and_get_output(cmd, cwd=os.getcwd(), env=test_env)
     assert rc == 1
@@ -557,27 +544,24 @@ def test_launch_with_verbose_output(tt_cmd, tmp_path):
         shutil.rmtree(tmpdir_with_flag_config)
 
 
-@pytest.mark.parametrize("expected_output, is_self_enabled", [
-    ("tt", False),
-    ("Tarantool CLI", True)
-])
-def test_launch_tt_with_self_flag(expected_output,
-                                  is_self_enabled,
-                                  tt_cmd,
-                                  tmp_path):
+@pytest.mark.parametrize(
+    "expected_output, is_self_enabled",
+    [("tt", False), ("Tarantool CLI", True)],
+)
+def test_launch_tt_with_self_flag(expected_output, is_self_enabled, tt_cmd, tmp_path):
     # We check if tt can be executed itself with '-s' flag.
     # If this flag is provided we don't search for 'tt' binary file
     # in bin dir.
     os.mkdir(tmp_path / "bin")
-    with open(tmp_path / "bin" / "tt", 'w') as f:
+    with open(tmp_path / "bin" / "tt", "w") as f:
         f.write('''#!/bin/sh
                 echo "tt"''')
     os.chmod(tmp_path / "bin" / "tt", 0o775)
 
     configPath = tmp_path / config_name
     # Create test config.
-    with open(configPath, 'w') as f:
-        f.write('env:\n    bin_dir: bin\n    inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("env:\n    bin_dir: bin\n    inc_dir:\n")
 
     cmd = [tt_cmd, "--cfg", configPath]
     if is_self_enabled:
@@ -605,7 +589,9 @@ def test_local_launch_find_env_modules(tt_cmd, tmp_path):
     cmd = [tt_cmd, *modules]
 
     rc, output = run_command_and_get_output(
-        cmd, cwd=cfg_env, env={"TT_CLI_MODULES_PATH": str(tmp_path / "ext_modules")}
+        cmd,
+        cwd=cfg_env,
+        env={"TT_CLI_MODULES_PATH": str(tmp_path / "ext_modules")},
     )
     assert rc == 0
     assert f"{module_message}\nList of passed args: version\n" == output
@@ -629,9 +615,7 @@ def test_local_launch_two_env_modules(tt_cmd, tmp_path):
 
     rc, output = run_command_and_get_output(
         cmd,
-        env={
-            "TT_CLI_MODULES_PATH": f"{modules_path / 'modules1'}:{modules_path / 'modules2'}"
-        },
+        env={"TT_CLI_MODULES_PATH": f"{modules_path / 'modules1'}:{modules_path / 'modules2'}"},
     )
     assert rc == 0
     assert f"{module_message}\nList of passed args: version\n" == output

@@ -3,21 +3,28 @@ import os
 import shutil
 
 import pytest
-from cartridge_helper import (cartridge_name, cartridge_password,
-                              cartridge_username)
+from cartridge_helper import cartridge_name, cartridge_password, cartridge_username
 from integration.replicaset.replicaset_helpers import (
-    get_group_by_replicaset_name, get_group_replicaset_by_instance_name,
-    parse_status, parse_yml, start_application, stop_application)
+    get_group_by_replicaset_name,
+    get_group_replicaset_by_instance_name,
+    parse_status,
+    parse_yml,
+    start_application,
+    stop_application,
+)
 
 from utils import get_tarantool_version, read_kv, run_command_and_get_output
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
-TEST_ROLES_ADD_PARAMS_CCONFIG = ("role_name, inst, inst_flg, group, rs, is_uri, is_global, err_msg,"
-                                 " stop_instance, is_force, is_add_role")
-TEST_ROLES_ADD_PARAMS_CARTRIDGE = ("role_name, inst_flg, group, rs, is_uri, is_global,"
-                                   " is_custom, err_msg")
+TEST_ROLES_ADD_PARAMS_CCONFIG = (
+    "role_name, inst, inst_flg, group, rs, is_uri, is_global, err_msg,"
+    " stop_instance, is_force, is_add_role"
+)
+TEST_ROLES_ADD_PARAMS_CARTRIDGE = (
+    "role_name, inst_flg, group, rs, is_uri, is_global, is_custom, err_msg"
+)
 
 
 def make_test_roles_add_param(
@@ -33,18 +40,32 @@ def make_test_roles_add_param(
     is_uri=False,
     is_force=False,
     is_add_role=False,
-    is_custom=False
+    is_custom=False,
 ):
     if is_cartridge_orchestrator:
         return pytest.param(role_name, inst_flg, group, rs, is_uri, is_global, is_custom, err_msg)
-    return pytest.param(role_name, inst, inst_flg, group, rs, is_uri, is_global, err_msg,
-                        stop_instance, is_force, is_add_role)
+    return pytest.param(
+        role_name,
+        inst,
+        inst_flg,
+        group,
+        rs,
+        is_uri,
+        is_global,
+        err_msg,
+        stop_instance,
+        is_force,
+        is_add_role,
+    )
 
 
-@pytest.mark.parametrize("args, err_msg", [
-    pytest.param(["some_role"], "Error: accepts 2 arg(s), received 1"),
-    pytest.param(["some_app", "some_role"], "can't collect instance information for some_app"),
-])
+@pytest.mark.parametrize(
+    "args, err_msg",
+    [
+        pytest.param(["some_role"], "Error: accepts 2 arg(s), received 1"),
+        pytest.param(["some_app", "some_role"], "can't collect instance information for some_app"),
+    ],
+)
 def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
     cmd = [tt_cmd, "rs", "roles", "add"]
     cmd.extend(args)
@@ -53,88 +74,93 @@ def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
     assert err_msg in out
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
-@pytest.mark.parametrize(TEST_ROLES_ADD_PARAMS_CCONFIG, [
-    make_test_roles_add_param(
-        False,
-        inst="instance-001",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        is_global=True,
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        group="group-001",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        rs="replicaset-001",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        inst_flg="instance-002",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        is_global=True,
-        group="group-001",
-        rs="replicaset-001",
-        inst_flg="instance-002",
-        role_name="greeter",
-    ),
-    make_test_roles_add_param(
-        False,
-        is_global=True,
-        inst="instance-001",
-        group="group-001",
-        rs="replicaset-001",
-        inst_flg="instance-002",
-        role_name="greeter",
-        err_msg="there are different instance names passed after app name and in flag arg",
-    ),
-    make_test_roles_add_param(
-        False,
-        role_name="greeter",
-        err_msg="there is no destination provided in which to add role",
-    ),
-    make_test_roles_add_param(
-        False,
-        inst="instance-002",
-        role_name="greeter",
-        stop_instance="instance-001",
-        is_force=True,
-    ),
-    make_test_roles_add_param(
-        False,
-        inst="instance-002",
-        role_name="greeter",
-        rs="replicaset-001",
-        stop_instance="instance-001",
-        err_msg="all instances in the target replicaset should be online," +
-                " could not connect to: instance-001",
-    ),
-    make_test_roles_add_param(
-        False,
-        inst="instance-001",
-        role_name="greeter",
-        is_add_role=True,
-        err_msg="role \"greeter\" already exists"
-    ),
-    make_test_roles_add_param(
-        False,
-        role_name="greeter",
-        is_uri=True,
-        err_msg="roles add is not supported for a single instance by" +
-                " \"centralized config\" orchestrator",
-    ),
-])
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
+@pytest.mark.parametrize(
+    TEST_ROLES_ADD_PARAMS_CCONFIG,
+    [
+        make_test_roles_add_param(
+            False,
+            inst="instance-001",
+            role_name="greeter",
+        ),
+        make_test_roles_add_param(
+            False,
+            is_global=True,
+            role_name="greeter",
+        ),
+        make_test_roles_add_param(
+            False,
+            group="group-001",
+            role_name="greeter",
+        ),
+        make_test_roles_add_param(
+            False,
+            rs="replicaset-001",
+            role_name="greeter",
+        ),
+        make_test_roles_add_param(
+            False,
+            inst_flg="instance-002",
+            role_name="greeter",
+        ),
+        make_test_roles_add_param(
+            False,
+            is_global=True,
+            group="group-001",
+            rs="replicaset-001",
+            inst_flg="instance-002",
+            role_name="greeter",
+        ),
+        make_test_roles_add_param(
+            False,
+            is_global=True,
+            inst="instance-001",
+            group="group-001",
+            rs="replicaset-001",
+            inst_flg="instance-002",
+            role_name="greeter",
+            err_msg="there are different instance names passed after app name and in flag arg",
+        ),
+        make_test_roles_add_param(
+            False,
+            role_name="greeter",
+            err_msg="there is no destination provided in which to add role",
+        ),
+        make_test_roles_add_param(
+            False,
+            inst="instance-002",
+            role_name="greeter",
+            stop_instance="instance-001",
+            is_force=True,
+        ),
+        make_test_roles_add_param(
+            False,
+            inst="instance-002",
+            role_name="greeter",
+            rs="replicaset-001",
+            stop_instance="instance-001",
+            err_msg="all instances in the target replicaset should be online,"
+            + " could not connect to: instance-001",
+        ),
+        make_test_roles_add_param(
+            False,
+            inst="instance-001",
+            role_name="greeter",
+            is_add_role=True,
+            err_msg='role "greeter" already exists',
+        ),
+        make_test_roles_add_param(
+            False,
+            role_name="greeter",
+            is_uri=True,
+            err_msg="roles add is not supported for a single instance by"
+            + ' "centralized config" orchestrator',
+        ),
+    ],
+)
 def test_replicaset_cconfig_roles_add(
     role_name,
     inst,
@@ -165,8 +191,14 @@ def test_replicaset_cconfig_roles_add(
             rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
             assert rc == 0
         if is_add_role:
-            add_first_role_cmd = [tt_cmd, "rs", "roles", "add",
-                                  f"{app_name}:{inst}" if inst else app_name, role_name]
+            add_first_role_cmd = [
+                tt_cmd,
+                "rs",
+                "roles",
+                "add",
+                f"{app_name}:{inst}" if inst else app_name,
+                role_name,
+            ]
             rc, _ = run_command_and_get_output(add_first_role_cmd, cwd=tmpdir_with_cfg)
             assert rc == 0
 
@@ -184,11 +216,16 @@ def test_replicaset_cconfig_roles_add(
 
         uri = None
         if is_uri:
-            uri = f"client:secret@{tmpdir_with_cfg}/{app_name}/{list(instances)[0]}.iproto"
+            uri = f"client:secret@{tmpdir_with_cfg}/{app_name}/{next(iter(instances))}.iproto"
 
-        roles_add_cmd = [tt_cmd, "rs", "roles", "add",
-                         (f"{app_name}:{inst}" if inst else app_name
-                          if not is_uri else uri), role_name]
+        roles_add_cmd = [
+            tt_cmd,
+            "rs",
+            "roles",
+            "add",
+            (f"{app_name}:{inst}" if inst else app_name if not is_uri else uri),
+            role_name,
+        ]
         if len(flags) != 0:
             roles_add_cmd.extend(flags)
         rc, out = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
@@ -210,94 +247,104 @@ def test_replicaset_cconfig_roles_add(
                 i = inst if inst else inst_flg
                 assert f"Add role to instance: {i}"
                 g, r = get_group_replicaset_by_instance_name(cluster_cfg, i)
-                assert (role_name in
-                        cluster_cfg["groups"][g]["replicasets"][r]["instances"][i]["roles"])
+                assert (
+                    role_name in cluster_cfg["groups"][g]["replicasets"][r]["instances"][i]["roles"]
+                )
         else:
             assert rc == 1
             assert err_msg in out
     finally:
-        stop_application(tt_cmd,
-                         app_name,
-                         tmpdir_with_cfg, instances,
-                         force=True if stop_instance else False)
+        stop_application(
+            tt_cmd,
+            app_name,
+            tmpdir_with_cfg,
+            instances,
+            force=True if stop_instance else False,
+        )
 
 
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge tests for Tarantool 3.0")
-@pytest.mark.parametrize(TEST_ROLES_ADD_PARAMS_CARTRIDGE, [
-    make_test_roles_add_param(
-        True,
-        rs="s-1",
-        group="default",
-        role_name="failover-coordinator",
-    ),
-    make_test_roles_add_param(
-        True,
-        rs="s-1",
-        group="default",
-        role_name="failover-coordinator",
-        inst_flg="s1-master",
-        err_msg=("cannot pass the instance or --instance (-i) flag due to cluster"
-                 " with cartridge orchestrator can't add/remove role for instance scope")
-    ),
-    make_test_roles_add_param(
-        True,
-        rs="s-1",
-        group="default",
-        role_name="failover-coordinator",
-        is_global=True,
-        err_msg="cannot pass --global (-G) flag due to cluster with cartridge"
-    ),
-    make_test_roles_add_param(
-        True,
-        inst_flg="s-1.master",
-        role_name="failover-coordinator",
-        err_msg="in cartridge replicaset name must be specified via --replicaset flag"
-    ),
-    make_test_roles_add_param(
-        True,
-        role_name="vshard-storage",
-        rs="s-1",
-        err_msg="failed to change role: role \"vshard-storage\" already exists",
-    ),
-    make_test_roles_add_param(
-        True,
-        rs="unknown",
-        role_name="some_role",
-        err_msg="failed to find replicaset \"unknown\""
-    ),
-    make_test_roles_add_param(
-        True,
-        rs="r",
-        role_name="role",
-        is_custom=True,
-        err_msg="roles add is not supported for an application by \"custom\" orchestrator",
-    ),
-    make_test_roles_add_param(
-        True,
-        rs="r",
-        role_name="role",
-        is_custom=True,
-        err_msg="roles add is not supported for an application by \"custom\" orchestrator",
-    ),
-    make_test_roles_add_param(
-        True,
-        rs="r",
-        role_name="role",
-        is_uri=True,
-        err_msg="roles add is not supported for a single instance by \"cartridge\" orchestrator",
-    ),
-])
-def test_replicaset_cartridge_roles_add(tt_cmd,
-                                        cartridge_app,
-                                        role_name,
-                                        rs,
-                                        inst_flg,
-                                        group,
-                                        is_uri,
-                                        is_global,
-                                        is_custom,
-                                        err_msg):
+@pytest.mark.skipif(tarantool_major_version >= 3, reason="skip cartridge tests for Tarantool 3.0")
+@pytest.mark.parametrize(
+    TEST_ROLES_ADD_PARAMS_CARTRIDGE,
+    [
+        make_test_roles_add_param(
+            True,
+            rs="s-1",
+            group="default",
+            role_name="failover-coordinator",
+        ),
+        make_test_roles_add_param(
+            True,
+            rs="s-1",
+            group="default",
+            role_name="failover-coordinator",
+            inst_flg="s1-master",
+            err_msg=(
+                "cannot pass the instance or --instance (-i) flag due to cluster"
+                " with cartridge orchestrator can't add/remove role for instance scope"
+            ),
+        ),
+        make_test_roles_add_param(
+            True,
+            rs="s-1",
+            group="default",
+            role_name="failover-coordinator",
+            is_global=True,
+            err_msg="cannot pass --global (-G) flag due to cluster with cartridge",
+        ),
+        make_test_roles_add_param(
+            True,
+            inst_flg="s-1.master",
+            role_name="failover-coordinator",
+            err_msg="in cartridge replicaset name must be specified via --replicaset flag",
+        ),
+        make_test_roles_add_param(
+            True,
+            role_name="vshard-storage",
+            rs="s-1",
+            err_msg='failed to change role: role "vshard-storage" already exists',
+        ),
+        make_test_roles_add_param(
+            True,
+            rs="unknown",
+            role_name="some_role",
+            err_msg='failed to find replicaset "unknown"',
+        ),
+        make_test_roles_add_param(
+            True,
+            rs="r",
+            role_name="role",
+            is_custom=True,
+            err_msg='roles add is not supported for an application by "custom" orchestrator',
+        ),
+        make_test_roles_add_param(
+            True,
+            rs="r",
+            role_name="role",
+            is_custom=True,
+            err_msg='roles add is not supported for an application by "custom" orchestrator',
+        ),
+        make_test_roles_add_param(
+            True,
+            rs="r",
+            role_name="role",
+            is_uri=True,
+            err_msg='roles add is not supported for a single instance by "cartridge" orchestrator',
+        ),
+    ],
+)
+def test_replicaset_cartridge_roles_add(
+    tt_cmd,
+    cartridge_app,
+    role_name,
+    rs,
+    inst_flg,
+    group,
+    is_uri,
+    is_global,
+    is_custom,
+    err_msg,
+):
     flags = []
     if is_global:
         flags.extend(["-G"])

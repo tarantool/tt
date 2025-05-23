@@ -8,11 +8,10 @@ from cartridge_helper import cartridge_name
 from replicaset_helpers import start_application, stop_application
 from vshard_cluster import VshardCluster
 
-from utils import (get_tarantool_version, run_command_and_get_output,
-                   wait_event, wait_file)
+from utils import get_tarantool_version, run_command_and_get_output, wait_event, wait_file
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
-cmd_master = '''box.space._schema:run_triggers(false)
+cmd_master = """box.space._schema:run_triggers(false)
 box.space._schema:delete('replicaset_name')
 box.space._schema:run_triggers(true)
 
@@ -23,7 +22,7 @@ box.atomic(function()
     end
 end)
 box.space._cluster:run_triggers(true)
-'''
+"""
 
 
 def run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd):
@@ -38,12 +37,12 @@ def run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd):
     )
     instance_process.stdin.writelines([cmd])
     instance_process.stdin.close()
-    output = instance_process.stdout.read()
-    return output
+    return instance_process.stdout.read()
 
 
 @pytest.mark.skipif(
-    tarantool_major_version < 3, reason="skip centralized config test for Tarantool < 3"
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
 )
 def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
@@ -57,9 +56,7 @@ def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(
-                os.path.join(tmpdir, app_name), f"ready-instance-00{i}", []
-            )
+            file = wait_file(os.path.join(tmpdir, app_name), f"ready-instance-00{i}", [])
             assert file != ""
 
         downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "3.0.0"]
@@ -76,7 +73,7 @@ def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
 # see https://www.tarantool.io/ru/doc/latest/release/2.11.0/#downgrading-a-database
 @pytest.mark.skipif(
     tarantool_major_version < 2 or (tarantool_major_version == 2 and tarantool_minor_version < 11),
-    reason="The oldest release available for downgrade is 2.8.2"
+    reason="The oldest release available for downgrade is 2.8.2",
 )
 def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
     app_name = "single-t2-app"
@@ -96,9 +93,7 @@ def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
             file = wait_file(test_app_path, "ready", [])
             assert file != ""
 
-            downgrade_cmd = [
-                tt_cmd, "replicaset", "downgrade", app_name, "2.8.2", "--custom"
-            ]
+            downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "2.8.2", "--custom"]
             rc, out = run_command_and_get_output(downgrade_cmd, cwd=test_app_path)
             assert rc == 0
             # Out is `• <uuid>: ok` because the instance has no name.
@@ -107,8 +102,10 @@ def test_downgrade_t2_app_dummy_replicaset(tt_cmd):
             stop_application(tt_cmd, app_name, test_app_path, [])
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip test with cluster config for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip test with cluster config for Tarantool < 3",
+)
 def test_cluster_replicasets(tt_cmd, tmp_path):
     app_name = "vshard_app"
     replicasets = {
@@ -121,23 +118,18 @@ def test_cluster_replicasets(tt_cmd, tmp_path):
         app.build()
         app.start()
         # This is necessary to downgrade a Tarantool 3.x cluster to 2.x.
-        for _, replicaset in replicasets.items():
+        for replicaset in replicasets.values():
             for replica in replicaset:
                 out = run_command_on_instance(
                     tt_cmd,
                     tmp_path,
                     f"{app_name}:{replica}",
-                    "box.cfg{force_recovery=true} return box.cfg.force_recovery"
+                    "box.cfg{force_recovery=true} return box.cfg.force_recovery",
                 )
                 assert "true" in out
 
-        for _, replicaset in replicasets.items():
-            _ = run_command_on_instance(
-                tt_cmd,
-                tmp_path,
-                f"{app_name}:{replicaset[0]}",
-                cmd_master
-            )
+        for replicaset in replicasets.values():
+            _ = run_command_on_instance(tt_cmd, tmp_path, f"{app_name}:{replicaset[0]}", cmd_master)
 
         downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "2.11.1", "-t=15"]
         rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmp_path)
@@ -155,15 +147,17 @@ def test_cluster_replicasets(tt_cmd, tmp_path):
             tt_cmd,
             tmp_path,
             f"{app_name}:storage-001-a",
-            "box.schema.space.create('example_space')"
+            "box.schema.space.create('example_space')",
         )
         assert "error: Your schema version is 2.11.1" in out
     finally:
         app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip test with cluster config for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip test with cluster config for Tarantool < 3",
+)
 def test_downgrade_invalid_version(tt_cmd, tmp_path):
     app_name = "vshard_app"
     app = VshardCluster(tt_cmd, tmp_path, app_name)
@@ -185,14 +179,16 @@ def test_downgrade_invalid_version(tt_cmd, tmp_path):
         app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip cluster instances test for Tarantool < 3",
+)
 def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
-    instances = ['storage-master', 'storage-replica']
+    instances = ["storage-master", "storage-replica"]
 
     try:
         start_application(tt_cmd, tmpdir, app_name, instances)
@@ -203,16 +199,11 @@ def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
                 tt_cmd,
                 tmpdir,
                 f"{app_name}:{inst}",
-                "box.cfg{force_recovery=true} return box.cfg.force_recovery"
+                "box.cfg{force_recovery=true} return box.cfg.force_recovery",
             )
             assert "true" in out
 
-        _ = run_command_on_instance(
-            tt_cmd,
-            tmpdir,
-            f"{app_name}:{instances[0]}",
-            cmd_master
-        )
+        _ = run_command_on_instance(tt_cmd, tmpdir, f"{app_name}:{instances[0]}", cmd_master)
 
         uri = "tcp://client:secret@127.0.0.1:3301"
         upgrade_cmd = [tt_cmd, "replicaset", "downgrade", uri, "2.11.1", "-t=15"]
@@ -225,7 +216,7 @@ def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
             tt_cmd,
             tmpdir,
             f"{app_name}:{instances[0]}",
-            "box.schema.space.create('example_space')"
+            "box.schema.space.create('example_space')",
         )
         assert "error: Your schema version is 2.11.1" in out
 
@@ -255,13 +246,13 @@ def eval_on_instance(tt_cmd, app_name, inst_name, workdir, eval):
 # Also cartridge is not supported for Tarantool 3.
 @pytest.mark.skipif(
     (tarantool_major_version != 2 or tarantool_minor_version != 11),
-    reason="skip cartridge test for Tarantool < 2.11 or Tarantool >= 3")
+    reason="skip cartridge test for Tarantool < 2.11 or Tarantool >= 3",
+)
 def test_downgrade_cartridge(tt_cmd, cartridge_app):
     # Check that vshard is bootstrapped.
     def have_buckets_created():
         expr = "require('vshard').storage.buckets_count() == 0"
-        out = eval_on_instance(tt_cmd, cartridge_name, "s1-master",
-                               cartridge_app.workdir, expr)
+        out = eval_on_instance(tt_cmd, cartridge_name, "s1-master", cartridge_app.workdir, expr)
         return out.find("false") != -1
 
     assert wait_event(10, have_buckets_created)

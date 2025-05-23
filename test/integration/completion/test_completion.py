@@ -48,7 +48,7 @@ tt_root_command: set[str] = set(
         "kill",
         "restart",
         "tcm",
-    )
+    ),
 )
 
 # Define test cases in tuple: (input line to complete; set of expected completions).
@@ -230,15 +230,11 @@ def get_completions_from_shell(
         print("STDOUT:", process.stdout)
         assert False, f"Failed to run {completion.shell} helper script."
 
-    return set(
-        line.split("\t")[0] for line in process.stdout.splitlines() if line.strip()
-    )
+    return set(line.split("\t")[0] for line in process.stdout.splitlines() if line.strip())
 
 
 @pytest.mark.skip_unimplemented
-@pytest.mark.parametrize(
-    "input_line, expected", (*ROCKS_TEST_CASES, *ROOT_TT_TEST_CASES)
-)
+@pytest.mark.parametrize("input_line, expected", (*ROCKS_TEST_CASES, *ROOT_TT_TEST_CASES))
 def test_actual_completions(
     tt_cmd: Path,
     completion: Completion,

@@ -9,17 +9,20 @@ import pytest
 from utils import run_command_and_get_output
 
 
-@pytest.mark.parametrize("args, expected_error", [
-    (
-        # Testing with unset .xlog or .snap file.
-        "",
-        "it is required to specify at least one .xlog/.snap file or directory",
-    ),
-    (
-        "path-to-non-existent-file",
-        "error: could not collect WAL files",
-    ),
-])
+@pytest.mark.parametrize(
+    "args, expected_error",
+    [
+        (
+            # Testing with unset .xlog or .snap file.
+            "",
+            "it is required to specify at least one .xlog/.snap file or directory",
+        ),
+        (
+            "path-to-non-existent-file",
+            "error: could not collect WAL files",
+        ),
+    ],
+)
 def test_cat_args_tests_failed(tt_cmd, tmp_path, args, expected_error):
     # Copy the .xlog file to the "run" directory.
     test_xlog_file = os.path.join(os.path.dirname(__file__), "test_file", "test.xlog")
@@ -34,21 +37,26 @@ def test_cat_args_tests_failed(tt_cmd, tmp_path, args, expected_error):
     assert expected_error in output
 
 
-@pytest.mark.parametrize("args, expected", [
-    (
-        ("test.snap", "--show-system", "--space=320", "--space=296", "--from=423", "--to=513"),
-        ("lsn: 423", "lsn: 512", "space_id: 320", "space_id: 296"),
-    ),
-    (
-        ("test.xlog", "--show-system", "--replica=1"),
-        ("replica_id: 1"),
-    ),
-    (
-        ("test.xlog", "test.snap"),
-        ('Result of cat: the file "{tmp}/test.xlog" is processed below',
-         'Result of cat: the file "{tmp}/test.snap" is processed below'),
-    ),
-])
+@pytest.mark.parametrize(
+    "args, expected",
+    [
+        (
+            ("test.snap", "--show-system", "--space=320", "--space=296", "--from=423", "--to=513"),
+            ("lsn: 423", "lsn: 512", "space_id: 320", "space_id: 296"),
+        ),
+        (
+            ("test.xlog", "--show-system", "--replica=1"),
+            ("replica_id: 1"),
+        ),
+        (
+            ("test.xlog", "test.snap"),
+            (
+                'Result of cat: the file "{tmp}/test.xlog" is processed below',
+                'Result of cat: the file "{tmp}/test.snap" is processed below',
+            ),
+        ),
+    ],
+)
 def test_cat_args_tests_successed(tt_cmd, tmp_path, args, expected):
     # Copy the .xlog file to the "run" directory.
     test_data = Path(__file__).parent / "test_file"
@@ -64,15 +72,20 @@ def test_cat_args_tests_successed(tt_cmd, tmp_path, args, expected):
         assert item in output
 
 
-@pytest.mark.parametrize("args, expected", [
-    (
-        ("test_file/test.xlog", "test_file/test.snap", "test_file"),
-        ('Result of cat: the file "{tmp}/test_file/test.xlog" is processed below',
-         'Result of cat: the file "{tmp}/test_file/test.snap" is processed below',
-         'Result of cat: the file "{tmp}/test_file/timestamp.snap" is processed below',
-         'Result of cat: the file "{tmp}/test_file/timestamp.xlog" is processed below'),
-    ),
-])
+@pytest.mark.parametrize(
+    "args, expected",
+    [
+        (
+            ("test_file/test.xlog", "test_file/test.snap", "test_file"),
+            (
+                'Result of cat: the file "{tmp}/test_file/test.xlog" is processed below',
+                'Result of cat: the file "{tmp}/test_file/test.snap" is processed below',
+                'Result of cat: the file "{tmp}/test_file/timestamp.snap" is processed below',
+                'Result of cat: the file "{tmp}/test_file/timestamp.xlog" is processed below',
+            ),
+        ),
+    ],
+)
 def test_cat_directories_tests_successed(tt_cmd, tmp_path: Path, args, expected):
     # Copy files to the "run" directory.
     shutil.copytree(Path(__file__).parent / "test_file", tmp_path / "test_file")
@@ -86,16 +99,19 @@ def test_cat_directories_tests_successed(tt_cmd, tmp_path: Path, args, expected)
         assert item in output
 
 
-@pytest.mark.parametrize("input, error", [
-    (
-        "abcdef",
-        'failed to parse a timestamp: parsing time "abcdef"',
-    ),
-    (
-        "2024-11-14T14:02:36.abc",
-        'failed to parse a timestamp: parsing time "2024-11-14T14:02:36.abc"',
-    ),
-])
+@pytest.mark.parametrize(
+    "input, error",
+    [
+        (
+            "abcdef",
+            'failed to parse a timestamp: parsing time "abcdef"',
+        ),
+        (
+            "2024-11-14T14:02:36.abc",
+            'failed to parse a timestamp: parsing time "2024-11-14T14:02:36.abc"',
+        ),
+    ],
+)
 def test_cat_test_timestamp_failed(tt_cmd, tmp_path, input, error):
     # Copy the .xlog file to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_file", "timestamp.xlog")
@@ -107,12 +123,15 @@ def test_cat_test_timestamp_failed(tt_cmd, tmp_path, input, error):
     assert error in output
 
 
-@pytest.mark.parametrize("input", [
-    1731592956.1182,
-    1731592956.8182,
-    "2024-11-14T14:02:36.818+00:00",
-    "2024-11-14T14:02:35+00:00",
-])
+@pytest.mark.parametrize(
+    "input",
+    [
+        1731592956.1182,
+        1731592956.8182,
+        "2024-11-14T14:02:36.818+00:00",
+        "2024-11-14T14:02:35+00:00",
+    ],
+)
 def test_cat_test_timestamp_successed(tt_cmd, tmp_path, input):
     # Copy the .xlog file to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_file", "timestamp.xlog")
@@ -133,6 +152,6 @@ def test_cat_test_timestamp_successed(tt_cmd, tmp_path, input):
     buf = io.StringIO(output)
     while (line := buf.readline()) != "":
         if "timestamp:" in line:
-            index = line.find(':')
-            record_ts = line[index+1:].strip()
+            index = line.find(":")
+            record_ts = line[index + 1 :].strip()
             assert input_ts > float(record_ts)

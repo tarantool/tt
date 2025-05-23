@@ -23,7 +23,7 @@ def test_enable_application(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     enable_process.wait()
 
@@ -38,7 +38,7 @@ def test_enable_application(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     instances_output = instance_process.stdout.read()
     assert re.search("test_app", instances_output)
@@ -61,7 +61,7 @@ def test_enable_script(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     enable_process.wait()
 
@@ -76,7 +76,7 @@ def test_enable_script(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     instances_output = instance_process.stdout.read()
     assert re.search("test.lua", instances_output)
@@ -98,7 +98,7 @@ def test_enable_invalid_path(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     enable_process.wait()
     enable_output = enable_process.stdout.read()
@@ -120,7 +120,7 @@ def test_enable_no_path(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     enable_process.wait()
     enable_output = enable_process.stdout.read()
@@ -143,7 +143,7 @@ def test_enable_instances_enable_not_exist(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     enable_process.wait()
     enable_output = enable_process.stdout.read()
@@ -160,7 +160,7 @@ def test_enable_instances_enable_not_exist(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     instances_output = instance_process.stdout.read()
     assert re.search("test.lua", instances_output)
@@ -182,7 +182,7 @@ def test_enable_invalid_script(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     enable_process.wait()
     enable_output = enable_process.stdout.read()
@@ -193,7 +193,7 @@ def test_enable_instances_enabled_dot(tt_cmd, tmp_path):
     test_path = os.path.join(tmp_path)
     config_path = os.path.join(test_path, "tt.yaml")
     with open(config_path, "w") as f:
-        yaml.dump({"env": {"instances_enabled": '.'}}, f)
+        yaml.dump({"env": {"instances_enabled": "."}}, f)
     fakeApp = open(os.path.join(test_path, "init.lua"), "a")
     fakeApp.write("I am an app!")
     fakeApp.close()
@@ -206,7 +206,7 @@ def test_enable_instances_enabled_dot(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     enable_process.wait()
     enable_output = enable_process.stdout.read()
@@ -229,7 +229,7 @@ def test_enable_application_dir_empty(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     enable_process.wait()
 

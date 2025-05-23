@@ -1,5 +1,4 @@
-from utils import (create_external_module, create_tt_config,
-                   run_command_and_get_output)
+from utils import create_external_module, create_tt_config, run_command_and_get_output
 
 
 def test_show_available_modules(tt_cmd, tmp_path):
@@ -35,7 +34,9 @@ def test_show_available_modules_with_env(tt_cmd, tmp_path):
         create_external_module(module, tmp_path / "ext_modules")
 
     rc, output = run_command_and_get_output(
-        tt_cmd, cwd=cfg_dir, env={"TT_CLI_MODULES_PATH": str(tmp_path / "ext_modules")}
+        tt_cmd,
+        cwd=cfg_dir,
+        env={"TT_CLI_MODULES_PATH": str(tmp_path / "ext_modules")},
     )
     assert rc == 0
     assert "EXTERNAL COMMANDS" in output
@@ -141,7 +142,7 @@ def test_list_available_modules_path(tt_cmd, tmp_path):
     assert rc == 0
     expected = ""
     for module in sorted(modules):
-        expected += f"{module} - { tmp_path / 'modules' / module / 'main'}\n"
+        expected += f"{module} - {tmp_path / 'modules' / module / 'main'}\n"
     assert expected == output
 
 
@@ -161,5 +162,5 @@ def test_list_available_modules_version_and_path(tt_cmd, tmp_path):
     assert rc == 0
     expected = ""
     for module in sorted(modules):
-        expected += f"0.0.1\t{module} - { tmp_path / 'modules' / module / 'main'}\n"
+        expected += f"0.0.1\t{module} - {tmp_path / 'modules' / module / 'main'}\n"
     assert expected == output
