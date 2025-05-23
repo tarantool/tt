@@ -30,6 +30,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Fixed a crash in `tt aeon connect` when processing responses
   from certain SQL commands.
 - `tt cat|play <DIR>` with directories handles only `.snap` or `.xlog` files.
+- `pack` with modules include only internal modules in the `tt` environment.
+  Modules out side of directory with `tt.yaml` will be ignored.
 
 ## [2.9.1] - 2025-04-15
 
