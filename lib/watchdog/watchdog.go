@@ -3,7 +3,6 @@ package watchdog
 import (
 	"context"
 	"errors"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/process_utils"
 )
 
@@ -80,7 +80,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		case sig := <-wd.signalChan:
 			// Only process signal if not already stopping.
 			if !wd.shouldStop.Load() {
-				log.Printf("(INFO): Received signal: %v", sig)
+				log.Infof("Received signal: %v", sig)
 				wd.Stop()
 			}
 		case <-ctx.Done():
@@ -103,7 +103,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		// Start the process.
 		if err := wd.cmd.Start(); err != nil {
 			wd.cmdMutex.Unlock()
-			log.Printf("(ERROR): Failed to start process: %v", err)
+			log.Errorf("Failed to start process: %v", err)
 			return err
 		}
 
@@ -113,12 +113,12 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 
 		// Write PID files after successful start
 		if err := wd.writePIDFiles(); err != nil {
-			log.Printf("(ERROR): Failed to write PID files: %v", err)
+			log.Errorf("Failed to write PID files: %v", err)
 			_ = wd.terminateProcess() // Clean up if PID files fail.
 			return err
 		}
 
-		log.Println("(INFO): Process started successfully")
+		log.Infof("Process started successfully")
 		close(wd.startupComplete) // Signal that startup is complete.
 
 		// Wait for process completion in separate goroutine.
@@ -135,13 +135,13 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 			// Handle process exit status.
 			if err != nil {
 				if errors.As(err, new(*exec.ExitError)) {
-					log.Printf("(WARN): Process exited with error: %v", err)
+					log.Warnf("Process exited with error: %v", err)
 				} else {
-					log.Printf("(ERROR): Process failed: %v", err)
+					log.Errorf("Process failed: %v", err)
 					return err
 				}
 			} else {
-				log.Println("(INFO): Process completed successfully.")
+				log.Infof("Process completed successfully.")
 			}
 
 		case <-ctx.Done():
@@ -156,7 +156,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		}
 
 		// Wait before restarting
-		log.Printf("(INFO): Waiting %s before restart...", wd.restartTimeout)
+		log.Infof("Waiting %s before restart...", wd.restartTimeout)
 		select {
 		case <-time.After(wd.restartTimeout):
 			// Continue to next iteration after timeout.
@@ -186,7 +186,7 @@ func (wd *Watchdog) Stop() {
 		// Normal case - startup already completed.
 	default:
 		// Startup still in progress - wait for completion.
-		log.Println("(INFO): Waiting for process startup...")
+		log.Infof("Waiting for process startup...")
 		<-wd.startupComplete
 	}
 
@@ -202,7 +202,7 @@ func (wd *Watchdog) Stop() {
 	wd.doneBarrier.Wait()
 
 	// Final log message indicating successful shutdown.
-	log.Println("(INFO): Watchdog stopped.")
+	log.Infof("Watchdog stopped.")
 }
 
 // terminateProcess sends a termination signal to the managed process.
@@ -214,7 +214,7 @@ func (wd *Watchdog) terminateProcess() error {
 		return nil
 	}
 
-	log.Println("(INFO): Stopping process...")
+	log.Infof("Stopping process...")
 
 	pgid := int(wd.processGroupPID.Load())
 
@@ -238,7 +238,8 @@ func (wd *Watchdog) writePIDFiles() error {
 	if err := process_utils.CreatePIDFile(wd.pidFile, wd.cmd.Process.Pid); err != nil {
 		return err
 	}
-	log.Printf("(INFO): Process PID %d written to %s", wd.cmd.Process.Pid, wd.pidFile)
+
+	log.Infof("Process PID %d written to %s", wd.cmd.Process.Pid, wd.pidFile)
 
 	if isExistsAndRecord, _ := process_utils.ExistsAndRecord(wd.wdPidFile); !isExistsAndRecord {
 		if err := process_utils.CreatePIDFile(wd.wdPidFile, os.Getpid()); err != nil {
@@ -246,7 +247,7 @@ func (wd *Watchdog) writePIDFiles() error {
 		}
 	}
 
-	log.Printf("(INFO): Watchdog PID %d written to %s", os.Getpid(), wd.wdPidFile)
+	log.Infof("Watchdog PID %d written to %s", os.Getpid(), wd.wdPidFile)
 
 	return nil
 }

@@ -29,6 +29,34 @@ def sigterm_handler():
     signal.signal(signal.SIGTERM, original)
 
 
+def pytest_addoption(parser) -> None:
+    parser.addoption(
+        "--tt-cmd",
+        metavar="TT_CMD",
+        type=Path,
+        help="Use precompiled `tt` version (don't build from source)",
+    )
+    parser.addoption(
+        "--update-testdata",
+        metavar="TEST_PATH",
+        type=Path,
+        help='Update "golden" data files for specified test(s)',
+    )
+
+
+@pytest.fixture(scope="module")
+def update_testdata(request: pytest.FixtureRequest) -> bool:
+    """
+    True if test module should update test data files.
+    This fixture depends on the value of `--update-testdata` path specified.
+    If current test module is relative to the path, it should rebuild own test data files.
+    """
+    val = request.config.getoption("--update-testdata")
+    if val is None or not isinstance(val, Path):
+        return False
+    return request.node.path.is_relative_to(val.resolve())
+
+
 @pytest.fixture(scope="session")
 def cli_config_dir():
     if platform.system() == "Darwin":
@@ -40,7 +68,16 @@ def cli_config_dir():
 
 
 @pytest.fixture(scope="session")
-def tt_cmd(tmp_path_factory: TempPathFactory) -> Path:
+def tt_cmd(tmp_path_factory: TempPathFactory, request: pytest.FixtureRequest) -> Path:
+    tt_path = request.config.getoption("--tt-cmd")
+    if tt_path is not None:
+        if tt_path.is_file() and os.access(tt_path, os.X_OK):
+            return tt_path.resolve()
+        pytest.fail(
+            f"Invalid '--tt-cmd' option: {tt_path}. "
+            "It should be a path to the precompiled `tt` binary.",
+        )
+
     tt_build_dir = tmp_path_factory.mktemp("tt_build")
     tt_base_path = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
     tt_path = tt_build_dir / "tt"

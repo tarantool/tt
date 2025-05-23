@@ -17,8 +17,29 @@ import (
 
 const blockSize = 8192
 
-// LogFormatter is a function used to format log string before output.
-type LogFormatter func(str string) string
+// Reader is an interface for reading the last `lines` lines from a file.
+type Reader interface {
+	// Read reads the last `lines` lines from the file and returns a channel with raw strings.
+	Read(ctx context.Context, lines int) (<-chan string, error)
+}
+
+type tailer struct {
+	name string
+}
+
+// NewTailReader creates a new Tailer that reads the last lines from the file with [tail] library.
+func NewTailReader(fileName string) Reader {
+	return &tailer{name: fileName}
+}
+
+// Read implements the Tailer interface.
+func (t *tailer) Read(ctx context.Context, lines int) (<-chan string, error) {
+	fmt := func(s string) string {
+		return s
+	}
+
+	return TailN(ctx, fmt, t.name, lines)
+}
 
 // NewLogFormatter creates a function to make log prefix colored.
 func NewLogFormatter(prefix string, color color.Color) LogFormatter {
@@ -31,6 +52,9 @@ func NewLogFormatter(prefix string, color color.Color) LogFormatter {
 		return buf.String()
 	}
 }
+
+// LogFormatter is a function used to format log string before output.
+type LogFormatter func(str string) string
 
 // newTailReader returns a reader for last count lines.
 func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Reader, int64, error) {
