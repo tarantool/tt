@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added support for completion with shell `fish` see
   the command `tt completion fish`.
 - Repository use `pre-commit` hooks to check code style.
+- Added support for showing TCM logs with `tt tcm log` command.
 
 ### Changed
 

@@ -42,7 +42,7 @@ linters:
 
     whitespace:
       multi-if: true
-      multi-func: true
+      multi-func: false
 
     wsl:
       # See https://golangci-lint.run/usage/linters/#wsl

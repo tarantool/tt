@@ -1,0 +1,14 @@
+{"msg":"version: 1.2.3","level":"INFO","time":"1001","source":{"file":"source.go","line":123,"function":"handler"}}
+{"time":"1002","level":"INFO","source":{"file":"source.go","line":123,"function":"handler"},"msg":"connecting to storage..."}
+{"time":"1003","level":"INFO","source":{"file":"source.go","line":123,"function":"handler"},"msg":"connected to storage"}
+{"time":"1004","level":"INFO","source":{"file":"source.go","line":123,"function":"handler"},"msg":"validation storage entities..."}
+{"level":"INFO","time":"1005","msg":"storage entities validated","source":{"file":"source.go","line":123,"function":"handler"}}
+{"time":"1006","level":"INFO","msg":"schema is up to date"}
+{"time":"1007","level":"INFO","source":{"file":"source.go","line":123,"function":"handler"},"msg":"stop to watch audit log settings","endpoints":["http://127.0.0.1:2379"]}
+1008 TRACE Not Json message line
+{"time":"1009","level":"INFO","msg":"","key":"TCM_CLUSTER_TT_COMMAND","val":"tt"}
+{"time":"1010","level":"INFO","msg":"    ","key":"TCM_STORAGE_TARANTOOL_EMBED_CONFIG","val":"\ncredentials:\n  users:\n    replicator:\n      password: '******'\n      roles: [replication]\niproto:\n  advertise:\n    peer:\n      login: replicator\nreplication:\n  failover: election\n  timeout: 0.1\n  synchro_timeout: 0.1\n"}
+{"time":"1011","level":"INFO","source":{"file":"source.go","line":123,"function":"handler"},"msg":"build setting","path":"github.com/smacker/go-tree-sitter","version":"v0.0.0-20240625050157","sum":""}
+{"time":"1012","level":"WARN","source":{"file":"source.go","line":123,"function":"handler"},"msg":"retrying of unary invoker failed","target":"etcd-endpoints://0xc00048a1e0/127.0.0.1:2379","attempt":0,"error":"rpc error: code = Canceled"}
+{"time":"1013","level":"","msg":"","key":"TCM_HTTP_TLS_CURVE_PREFERENCES","val":null}
+{"time":"1014","level":"DEBUG","msg":"Broken json records", source: source.go}}

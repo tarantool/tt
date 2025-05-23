@@ -1,0 +1,50 @@
+[94m{[0m
+  [94mtime[0m: [1m1001[0m
+  [94mlevel[0m: INFO
+  [94mmsg[0m: [3mversion: 1.2.3[0m
+  [94msource[0m: [2m{[0m
+    [94mfile[0m: [2m"source.go",[0m
+    [94mfunction[0m: [2m"handler",[0m
+    [94mline[0m: [2m123[0m
+[2m  }[0m
+[94m}[0m
+[96m{[0m
+  [96mtime[0m: [1m1002[0m
+  [96mlevel[0m: INFO
+  [96mmsg[0m: [3mconnecting to storage...[0m
+  [96msource[0m: [2m{[0m
+    [96mfile[0m: [2m"source.go",[0m
+    [96mfunction[0m: [2m"handler",[0m
+    [96mline[0m: [2m123[0m
+[2m  }[0m
+[96m}[0m
+[95m{[0m
+  [95mtime[0m: [1m1003[0m
+  [95mlevel[0m: INFO
+  [95mmsg[0m: [3mconnected to storage[0m
+  [95msource[0m: [2m{[0m
+    [95mfile[0m: [2m"source.go",[0m
+    [95mfunction[0m: [2m"handler",[0m
+    [95mline[0m: [2m123[0m
+[2m  }[0m
+[95m}[0m
+[34m{[0m
+  [34mtime[0m: [1m1004[0m
+  [34mlevel[0m: INFO
+  [34mmsg[0m: [3mvalidation storage entities...[0m
+  [34msource[0m: [2m{[0m
+    [34mfile[0m: [2m"source.go",[0m
+    [34mfunction[0m: [2m"handler",[0m
+    [34mline[0m: [2m123[0m
+[2m  }[0m
+[34m}[0m
+[36m{[0m
+  [36mtime[0m: [1m1005[0m
+  [36mlevel[0m: INFO
+  [36mmsg[0m: [3mstorage entities validated[0m
+  [36msource[0m: [2m{[0m
+    [36mfile[0m: [2m"source.go",[0m
+    [36mfunction[0m: [2m"handler",[0m
+    [36mline[0m: [2m123[0m
+[2m  }[0m
+[36m}[0m

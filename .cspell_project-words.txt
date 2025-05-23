@@ -36,6 +36,7 @@ Svacer
 tarantool
 tarantoolctl
 tarantools
+tcm
 testdata
 testfull
 TNTP

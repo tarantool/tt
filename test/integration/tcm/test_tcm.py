@@ -24,13 +24,13 @@ def test_tcm_start_success(tt_cmd, tmp_path):
         stderr=STDOUT,
     )
 
-    output = wait_for_lines_in_output(tcm.stdout, ["(INFO):Process PID"])
+    output = wait_for_lines_in_output(tcm.stdout, ["process PID"])
 
     assert tcm.pid
 
     with open(os.path.join(tmp_path, "tcm.pid"), "r") as f:
         tcm_pid = f.read().strip()
-    assert f"(INFO): Interactive process PID {tcm_pid} written to tcm.pid" in output.strip()
+    assert f'• Interactive process PID {tcm_pid} written to "tcm.pid"' in output.strip()
 
     cmdStatus = [str(tt_cmd), *TcmStatusCommand]
     print(f"Run: {' '.join(cmdStatus)}")
@@ -80,8 +80,8 @@ def test_tcm_start_with_watchdog_success(tt_cmd, tmp_path):
         stderr=STDOUT,
     )
 
-    output = wait_for_lines_in_output(tcm.stdout, ["(INFO): Process started successfully"])
-    assert "(INFO): Process started successfully" in output.strip()
+    output = wait_for_lines_in_output(tcm.stdout, ["Process started successfully"])
+    assert "• Process started successfully" in output.strip()
 
     cmdStatus = [str(tt_cmd), *TcmStatusCommand]
     print(f"Run: {' '.join(cmdStatus)}")
@@ -118,12 +118,12 @@ def test_tcm_start_with_watchdog_success(tt_cmd, tmp_path):
         stderr=STDOUT,
     )
 
-    output = wait_for_lines_in_output(tcm.stdout, ["(INFO):Process PID"])
+    output = wait_for_lines_in_output(tcm.stdout, ["process PID"])
     assert tcm.pid
 
     with open(os.path.join(tmp_path, "tcm.pid"), "r") as f:
         tcm_pid = f.read().strip()
-    assert f"(INFO): Interactive process PID {tcm_pid} written to tcm.pid" in output.strip()
+    assert f'• Interactive process PID {tcm_pid} written to "tcm.pid"' in output.strip()
 
     tcmDouble = Popen(
         start_cmd,
@@ -134,5 +134,5 @@ def test_tcm_start_with_watchdog_success(tt_cmd, tmp_path):
         stderr=STDOUT,
     )
 
-    output = wait_for_lines_in_output(tcmDouble.stdout, ["(INFO):Process PID"])
+    output = wait_for_lines_in_output(tcmDouble.stdout, ["process PID"])
     assert tcm.pid
