@@ -14,7 +14,7 @@ func newRunInfo(cmdCtx cmdcontext.CmdCtx) *running.RunInfo {
 
 // NewRunCmd creates run command.
 func NewRunCmd() *cobra.Command {
-	var runCmd = &cobra.Command{
+	runCmd := &cobra.Command{
 		Use:   "run [SCRIPT.lua [flags] [-- ARGS]]",
 		Short: "Run Tarantool instance",
 		Long: `Run Tarantool instance.

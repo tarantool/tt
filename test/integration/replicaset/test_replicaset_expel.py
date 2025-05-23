@@ -11,12 +11,17 @@ from utils import get_tarantool_version, run_command_and_get_output, wait_file
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
-@pytest.mark.parametrize("case", [["--config", "--custom"],
-                                  ["--custom", "--cartridge"],
-                                  ["--config", "--cartridge"],
-                                  ["--config", "--custom", "--cartridge"]])
+@pytest.mark.parametrize(
+    "case",
+    [
+        ["--config", "--custom"],
+        ["--custom", "--cartridge"],
+        ["--config", "--cartridge"],
+        ["--config", "--custom", "--cartridge"],
+    ],
+)
 def test_expel_orchestrators_force_mix(tt_cmd, tmpdir_with_cfg, case):
-    status_cmd = [tt_cmd, "replicaset", "expel"] + case + ["app:instance"]
+    status_cmd = [tt_cmd, "replicaset", "expel", *case, "app:instance"]
     rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
     assert re.search(r"   ⨯ only one type of orchestrator can be forced", out)
@@ -41,8 +46,7 @@ def test_expel_no_instance(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"   ⨯ instance \"unexist\" not found", out)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 @pytest.mark.parametrize("flag", [None, "--custom"])
 def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
@@ -56,7 +60,7 @@ def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), 'ready', [])
+        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
         assert file != ""
 
         expel_cmd = [tt_cmd, "replicaset", "expel"]
@@ -66,7 +70,8 @@ def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
 
         rc, out = run_command_and_get_output(expel_cmd, cwd=tmpdir)
         assert rc == 1
-        assert re.search(r"""  • Discovery application...*
+        assert re.search(
+            r"""  • Discovery application...*
 
 Orchestrator:      custom
 Replicasets state: bootstrapped
@@ -78,15 +83,16 @@ Replicasets state: bootstrapped
 
    • Expel instance: test_custom_app
    ⨯ expel is not supported for an application by "custom" orchestrator
-""", out)
+""",
+            out,
+        )
     finally:
         stop_cmd = [tt_cmd, "stop", "-y", app_name]
         rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
         assert rc == 0
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip cartridge test for Tarantool > 2")
 def test_expel_cartridge(tt_cmd, cartridge_app):
     status_expelled = """Orchestrator:      cartridge
 Replicasets state: bootstrapped
@@ -118,20 +124,28 @@ Replicasets state: bootstrapped
         rs_cmd = [tt_cmd, "replicaset", "status", f"{cartridge_name}:s2-master"]
         rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
         assert rs_rc == 0
-        if rs_out != """Orchestrator:      cartridge
+        if (
+            rs_out
+            != """Orchestrator:      cartridge
 Replicasets state: uninitialized
-""":
+"""
+        ):
             break
         time.sleep(1)
 
         rs_cmd = [tt_cmd, "replicaset", "expel", f"{cartridge_name}:s2-replica"]
         rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
         assert rs_rc == 0
-        assert re.search("""   • Discovery application...*
+        assert re.search(
+            """   • Discovery application...*
 
-""" + status_unexpelled + """\n   • Expel instance: s2-replica
+"""
+            + status_unexpelled
+            + """\n   • Expel instance: s2-replica
    • Done.*
-""", rs_out)
+""",
+            rs_out,
+        )
 
         # Check that the instance has been expelled.
         for _ in range(100):
@@ -145,8 +159,10 @@ Replicasets state: uninitialized
         assert rs_out == status_expelled
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
 @pytest.mark.parametrize("flag", [None, "--config"])
 def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
@@ -160,7 +176,7 @@ def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(os.path.join(tmpdir, app_name), f'ready-instance-00{i}', [])
+            file = wait_file(os.path.join(tmpdir, app_name), f"ready-instance-00{i}", [])
             assert file != ""
 
         expel_cmd = [tt_cmd, "replicaset", "expel"]
@@ -170,7 +186,8 @@ def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
 
         rc, out = run_command_and_get_output(expel_cmd, cwd=tmpdir)
         assert rc == 0
-        assert re.search("""   • Discovery application...*
+        assert re.search(
+            """   • Discovery application...*
 
 Orchestrator:      centralized config
 Replicasets state: bootstrapped
@@ -189,13 +206,16 @@ Replicasets state: bootstrapped
 
    • Expel instance: instance-003
    • Done.*
-""", out)
+""",
+            out,
+        )
 
         # Check that the instance has been expelled.
         status_cmd = [tt_cmd, "replicaset", "status", app_name]
         rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
         assert rc == 0
-        assert """Orchestrator:      centralized config
+        assert (
+            """Orchestrator:      centralized config
 Replicasets state: bootstrapped
 
 • replicaset-001
@@ -208,7 +228,9 @@ Replicasets state: bootstrapped
   Master:   multi
     • instance-004 unix/:./instance-004.iproto rw
     • instance-005 unix/:./instance-005.iproto rw
-""" == out
+"""
+            == out
+        )
 
     finally:
         stop_cmd = [tt_cmd, "stop", "-y", app_name]

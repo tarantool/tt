@@ -6,8 +6,10 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-type requiredField uint8
-type requiredFields []requiredField
+type (
+	requiredField  uint8
+	requiredFields []requiredField
+)
 
 const (
 	// Values according order of Fields in regex from `matchVersionParts()`.
@@ -119,7 +121,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 // compareVersions compares with two Version according list of fields.
 //
 // Return `true` if all required version components the same.
-func compareVersions(ref Version, other Version, fields requiredFields) bool {
+func compareVersions(ref, other Version, fields requiredFields) bool {
 	for _, m := range fields {
 		isMatch := false
 		switch m {

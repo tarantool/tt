@@ -64,7 +64,6 @@ func walkMatch(root string, patterns []string) ([]string, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -74,12 +73,11 @@ func walkMatch(root string, patterns []string) ([]string, error) {
 
 // getPatterns returns patterns to select goreleaser build artifacts.
 func getPatterns(distro Distro) ([]string, error) {
-
 	if distro.OS == "el" || distro.OS == "fedora" || distro.OS == "linux-rpm" {
 		return []string{"*.rpm"}, nil
 	}
 
-	if distro.OS == "ubuntu" || distro.OS == "debian" || distro.OS == "linux-deb"{
+	if distro.OS == "ubuntu" || distro.OS == "debian" || distro.OS == "linux-deb" {
 		return []string{"*.deb", "*.dsc"}, nil
 	}
 

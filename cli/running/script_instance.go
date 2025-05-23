@@ -29,7 +29,8 @@ var instanceLauncher []byte
 
 // newScriptInstance creates an Instance.
 func newScriptInstance(tarantoolPath string, instanceCtx InstanceCtx, opts ...InstanceOption) (
-	*scriptInstance, error) {
+	*scriptInstance, error,
+) {
 	// Check if tarantool binary exists.
 	if _, err := exec.LookPath(tarantoolPath); err != nil {
 		return nil, err
@@ -64,7 +65,7 @@ func verifySocketLength(socketPath string) error {
 
 // shortenSocketPath reduces the length of console socket path.
 // It became common that console socket path is longer than 108/106 (on linux/macOs).
-func shortenSocketPath(socketPath string, basePath string) (string, error) {
+func shortenSocketPath(socketPath, basePath string) (string, error) {
 	if err := verifySocketLength(socketPath); err == nil {
 		return socketPath, nil
 	}

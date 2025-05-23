@@ -32,5 +32,4 @@ func Test_convertVersionToStringForInstall(t *testing.T) {
 	ver, err = version.Parse("3.0.0-alpha2-24-g4916389a3")
 	require.NoError(t, err)
 	assert.Equal(t, "3.0.0-alpha2", getVersionStringForInstall(ver))
-
 }

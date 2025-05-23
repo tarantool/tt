@@ -59,7 +59,7 @@ type modulesEntry struct {
 type possibleModules map[string]modulesEntry
 
 // readManifest parses the manifest file to module requirements.
-func readManifest(dir string, manifest string) (Manifest, error) {
+func readManifest(dir, manifest string) (Manifest, error) {
 	mf := Manifest{}
 	data, err := os.ReadFile(manifest)
 	if err != nil {

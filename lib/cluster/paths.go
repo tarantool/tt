@@ -7,268 +7,268 @@
 package cluster
 
 var ConfigEnvPaths = [][]string{
-	[]string{"app", "cfg"},
-	[]string{"app", "file"},
-	[]string{"app", "module"},
-	[]string{"audit_log", "extract_key"},
-	[]string{"audit_log", "file"},
-	[]string{"audit_log", "filter"},
-	[]string{"audit_log", "format"},
-	[]string{"audit_log", "nonblock"},
-	[]string{"audit_log", "pipe"},
-	[]string{"audit_log", "spaces"},
-	[]string{"audit_log", "syslog", "facility"},
-	[]string{"audit_log", "syslog", "identity"},
-	[]string{"audit_log", "syslog", "server"},
-	[]string{"audit_log", "to"},
-	[]string{"compat", "binary_data_decoding"},
-	[]string{"compat", "box_cfg_replication_sync_timeout"},
-	[]string{"compat", "box_consider_system_spaces_synchronous"},
-	[]string{"compat", "box_error_serialize_verbose"},
-	[]string{"compat", "box_error_unpack_type_and_code"},
-	[]string{"compat", "box_info_cluster_meaning"},
-	[]string{"compat", "box_session_push_deprecation"},
-	[]string{"compat", "box_space_execute_priv"},
-	[]string{"compat", "box_space_max"},
-	[]string{"compat", "box_tuple_extension"},
-	[]string{"compat", "box_tuple_new_vararg"},
-	[]string{"compat", "c_func_iproto_multireturn"},
-	[]string{"compat", "console_session_scope_vars"},
-	[]string{"compat", "fiber_channel_close_mode"},
-	[]string{"compat", "fiber_slice_default"},
-	[]string{"compat", "json_escape_forward_slash"},
-	[]string{"compat", "replication_synchro_timeout"},
-	[]string{"compat", "sql_priv"},
-	[]string{"compat", "sql_seq_scan_default"},
-	[]string{"compat", "wal_cleanup_delay_deprecation"},
-	[]string{"compat", "yaml_pretty_multiline"},
-	[]string{"config", "context"},
-	[]string{"config", "etcd", "endpoints"},
-	[]string{"config", "etcd", "http", "request", "timeout"},
-	[]string{"config", "etcd", "http", "request", "unix_socket"},
-	[]string{"config", "etcd", "password"},
-	[]string{"config", "etcd", "prefix"},
-	[]string{"config", "etcd", "ssl", "ca_file"},
-	[]string{"config", "etcd", "ssl", "ca_path"},
-	[]string{"config", "etcd", "ssl", "ssl_cert"},
-	[]string{"config", "etcd", "ssl", "ssl_key"},
-	[]string{"config", "etcd", "ssl", "verify_host"},
-	[]string{"config", "etcd", "ssl", "verify_peer"},
-	[]string{"config", "etcd", "username"},
-	[]string{"config", "etcd", "watchers", "reconnect_max_attempts"},
-	[]string{"config", "etcd", "watchers", "reconnect_timeout"},
-	[]string{"config", "reload"},
-	[]string{"config", "storage", "endpoints"},
-	[]string{"config", "storage", "prefix"},
-	[]string{"config", "storage", "reconnect_after"},
-	[]string{"config", "storage", "timeout"},
-	[]string{"console", "enabled"},
-	[]string{"console", "socket"},
-	[]string{"credentials", "roles"},
-	[]string{"credentials", "users"},
-	[]string{"database", "hot_standby"},
-	[]string{"database", "instance_uuid"},
-	[]string{"database", "mode"},
-	[]string{"database", "replicaset_uuid"},
-	[]string{"database", "txn_isolation"},
-	[]string{"database", "txn_synchro_timeout"},
-	[]string{"database", "txn_timeout"},
-	[]string{"database", "use_mvcc_engine"},
-	[]string{"failover", "call_timeout"},
-	[]string{"failover", "connect_timeout"},
-	[]string{"failover", "lease_interval"},
-	[]string{"failover", "log", "file"},
-	[]string{"failover", "log", "to"},
-	[]string{"failover", "probe_interval"},
-	[]string{"failover", "renew_interval"},
-	[]string{"failover", "replicasets"},
-	[]string{"failover", "stateboard", "enabled"},
-	[]string{"failover", "stateboard", "keepalive_interval"},
-	[]string{"failover", "stateboard", "renew_interval"},
-	[]string{"feedback", "crashinfo"},
-	[]string{"feedback", "enabled"},
-	[]string{"feedback", "host"},
-	[]string{"feedback", "interval"},
-	[]string{"feedback", "metrics_collect_interval"},
-	[]string{"feedback", "metrics_limit"},
-	[]string{"feedback", "send_metrics"},
-	[]string{"fiber", "io_collect_interval"},
-	[]string{"fiber", "slice", "err"},
-	[]string{"fiber", "slice", "warn"},
-	[]string{"fiber", "too_long_threshold"},
-	[]string{"fiber", "top", "enabled"},
-	[]string{"fiber", "tx_user_pool_size"},
-	[]string{"fiber", "worker_pool_threads"},
-	[]string{"flightrec", "enabled"},
-	[]string{"flightrec", "logs_log_level"},
-	[]string{"flightrec", "logs_max_msg_size"},
-	[]string{"flightrec", "logs_size"},
-	[]string{"flightrec", "metrics_interval"},
-	[]string{"flightrec", "metrics_period"},
-	[]string{"flightrec", "requests_max_req_size"},
-	[]string{"flightrec", "requests_max_res_size"},
-	[]string{"flightrec", "requests_size"},
-	[]string{"iproto", "advertise", "client"},
-	[]string{"iproto", "advertise", "peer", "login"},
-	[]string{"iproto", "advertise", "peer", "params", "ssl_ca_file"},
-	[]string{"iproto", "advertise", "peer", "params", "ssl_cert_file"},
-	[]string{"iproto", "advertise", "peer", "params", "ssl_ciphers"},
-	[]string{"iproto", "advertise", "peer", "params", "ssl_key_file"},
-	[]string{"iproto", "advertise", "peer", "params", "ssl_password"},
-	[]string{"iproto", "advertise", "peer", "params", "ssl_password_file"},
-	[]string{"iproto", "advertise", "peer", "params", "transport"},
-	[]string{"iproto", "advertise", "peer", "password"},
-	[]string{"iproto", "advertise", "peer", "uri"},
-	[]string{"iproto", "advertise", "sharding", "login"},
-	[]string{"iproto", "advertise", "sharding", "params", "ssl_ca_file"},
-	[]string{"iproto", "advertise", "sharding", "params", "ssl_cert_file"},
-	[]string{"iproto", "advertise", "sharding", "params", "ssl_ciphers"},
-	[]string{"iproto", "advertise", "sharding", "params", "ssl_key_file"},
-	[]string{"iproto", "advertise", "sharding", "params", "ssl_password"},
-	[]string{"iproto", "advertise", "sharding", "params", "ssl_password_file"},
-	[]string{"iproto", "advertise", "sharding", "params", "transport"},
-	[]string{"iproto", "advertise", "sharding", "password"},
-	[]string{"iproto", "advertise", "sharding", "uri"},
-	[]string{"iproto", "listen"},
-	[]string{"iproto", "net_msg_max"},
-	[]string{"iproto", "readahead"},
-	[]string{"iproto", "threads"},
-	[]string{"isolated"},
-	[]string{"labels"},
-	[]string{"log", "file"},
-	[]string{"log", "format"},
-	[]string{"log", "level"},
-	[]string{"log", "modules"},
-	[]string{"log", "nonblock"},
-	[]string{"log", "pipe"},
-	[]string{"log", "syslog", "facility"},
-	[]string{"log", "syslog", "identity"},
-	[]string{"log", "syslog", "server"},
-	[]string{"log", "to"},
-	[]string{"lua", "memory"},
-	[]string{"memtx", "allocator"},
-	[]string{"memtx", "max_tuple_size"},
-	[]string{"memtx", "memory"},
-	[]string{"memtx", "min_tuple_size"},
-	[]string{"memtx", "slab_alloc_factor"},
-	[]string{"memtx", "slab_alloc_granularity"},
-	[]string{"memtx", "sort_threads"},
-	[]string{"metrics", "exclude"},
-	[]string{"metrics", "include"},
-	[]string{"metrics", "labels"},
-	[]string{"process", "background"},
-	[]string{"process", "coredump"},
-	[]string{"process", "pid_file"},
-	[]string{"process", "strip_core"},
-	[]string{"process", "title"},
-	[]string{"process", "username"},
-	[]string{"process", "work_dir"},
-	[]string{"replication", "anon"},
-	[]string{"replication", "anon_ttl"},
-	[]string{"replication", "autoexpel", "by"},
-	[]string{"replication", "autoexpel", "enabled"},
-	[]string{"replication", "autoexpel", "prefix"},
-	[]string{"replication", "bootstrap_strategy"},
-	[]string{"replication", "connect_timeout"},
-	[]string{"replication", "election_fencing_mode"},
-	[]string{"replication", "election_mode"},
-	[]string{"replication", "election_timeout"},
-	[]string{"replication", "failover"},
-	[]string{"replication", "peers"},
-	[]string{"replication", "reconnect_timeout"},
-	[]string{"replication", "skip_conflict"},
-	[]string{"replication", "sync_lag"},
-	[]string{"replication", "sync_timeout"},
-	[]string{"replication", "synchro_queue_max_size"},
-	[]string{"replication", "synchro_quorum"},
-	[]string{"replication", "synchro_timeout"},
-	[]string{"replication", "threads"},
-	[]string{"replication", "timeout"},
-	[]string{"roles"},
-	[]string{"roles_cfg"},
-	[]string{"security", "auth_delay"},
-	[]string{"security", "auth_retries"},
-	[]string{"security", "auth_type"},
-	[]string{"security", "disable_guest"},
-	[]string{"security", "password_enforce_digits"},
-	[]string{"security", "password_enforce_lowercase"},
-	[]string{"security", "password_enforce_specialchars"},
-	[]string{"security", "password_enforce_uppercase"},
-	[]string{"security", "password_history_length"},
-	[]string{"security", "password_lifetime_days"},
-	[]string{"security", "password_min_length"},
-	[]string{"security", "secure_erasing"},
-	[]string{"sharding", "bucket_count"},
-	[]string{"sharding", "connection_outdate_delay"},
-	[]string{"sharding", "discovery_mode"},
-	[]string{"sharding", "failover_ping_timeout"},
-	[]string{"sharding", "lock"},
-	[]string{"sharding", "rebalancer_disbalance_threshold"},
-	[]string{"sharding", "rebalancer_max_receiving"},
-	[]string{"sharding", "rebalancer_max_sending"},
-	[]string{"sharding", "rebalancer_mode"},
-	[]string{"sharding", "roles"},
-	[]string{"sharding", "sched_move_quota"},
-	[]string{"sharding", "sched_ref_quota"},
-	[]string{"sharding", "shard_index"},
-	[]string{"sharding", "sync_timeout"},
-	[]string{"sharding", "weight"},
-	[]string{"sharding", "zone"},
-	[]string{"snapshot", "by", "interval"},
-	[]string{"snapshot", "by", "wal_size"},
-	[]string{"snapshot", "count"},
-	[]string{"snapshot", "dir"},
-	[]string{"snapshot", "snap_io_rate_limit"},
-	[]string{"sql", "cache_size"},
-	[]string{"vinyl", "bloom_fpr"},
-	[]string{"vinyl", "cache"},
-	[]string{"vinyl", "defer_deletes"},
-	[]string{"vinyl", "dir"},
-	[]string{"vinyl", "max_tuple_size"},
-	[]string{"vinyl", "memory"},
-	[]string{"vinyl", "page_size"},
-	[]string{"vinyl", "range_size"},
-	[]string{"vinyl", "read_threads"},
-	[]string{"vinyl", "run_count_per_level"},
-	[]string{"vinyl", "run_size_ratio"},
-	[]string{"vinyl", "timeout"},
-	[]string{"vinyl", "write_threads"},
-	[]string{"wal", "cleanup_delay"},
-	[]string{"wal", "dir"},
-	[]string{"wal", "dir_rescan_delay"},
-	[]string{"wal", "ext", "new"},
-	[]string{"wal", "ext", "old"},
-	[]string{"wal", "ext", "spaces"},
-	[]string{"wal", "max_size"},
-	[]string{"wal", "mode"},
-	[]string{"wal", "queue_max_size"},
-	[]string{"wal", "retention_period"},
+	{"app", "cfg"},
+	{"app", "file"},
+	{"app", "module"},
+	{"audit_log", "extract_key"},
+	{"audit_log", "file"},
+	{"audit_log", "filter"},
+	{"audit_log", "format"},
+	{"audit_log", "nonblock"},
+	{"audit_log", "pipe"},
+	{"audit_log", "spaces"},
+	{"audit_log", "syslog", "facility"},
+	{"audit_log", "syslog", "identity"},
+	{"audit_log", "syslog", "server"},
+	{"audit_log", "to"},
+	{"compat", "binary_data_decoding"},
+	{"compat", "box_cfg_replication_sync_timeout"},
+	{"compat", "box_consider_system_spaces_synchronous"},
+	{"compat", "box_error_serialize_verbose"},
+	{"compat", "box_error_unpack_type_and_code"},
+	{"compat", "box_info_cluster_meaning"},
+	{"compat", "box_session_push_deprecation"},
+	{"compat", "box_space_execute_priv"},
+	{"compat", "box_space_max"},
+	{"compat", "box_tuple_extension"},
+	{"compat", "box_tuple_new_vararg"},
+	{"compat", "c_func_iproto_multireturn"},
+	{"compat", "console_session_scope_vars"},
+	{"compat", "fiber_channel_close_mode"},
+	{"compat", "fiber_slice_default"},
+	{"compat", "json_escape_forward_slash"},
+	{"compat", "replication_synchro_timeout"},
+	{"compat", "sql_priv"},
+	{"compat", "sql_seq_scan_default"},
+	{"compat", "wal_cleanup_delay_deprecation"},
+	{"compat", "yaml_pretty_multiline"},
+	{"config", "context"},
+	{"config", "etcd", "endpoints"},
+	{"config", "etcd", "http", "request", "timeout"},
+	{"config", "etcd", "http", "request", "unix_socket"},
+	{"config", "etcd", "password"},
+	{"config", "etcd", "prefix"},
+	{"config", "etcd", "ssl", "ca_file"},
+	{"config", "etcd", "ssl", "ca_path"},
+	{"config", "etcd", "ssl", "ssl_cert"},
+	{"config", "etcd", "ssl", "ssl_key"},
+	{"config", "etcd", "ssl", "verify_host"},
+	{"config", "etcd", "ssl", "verify_peer"},
+	{"config", "etcd", "username"},
+	{"config", "etcd", "watchers", "reconnect_max_attempts"},
+	{"config", "etcd", "watchers", "reconnect_timeout"},
+	{"config", "reload"},
+	{"config", "storage", "endpoints"},
+	{"config", "storage", "prefix"},
+	{"config", "storage", "reconnect_after"},
+	{"config", "storage", "timeout"},
+	{"console", "enabled"},
+	{"console", "socket"},
+	{"credentials", "roles"},
+	{"credentials", "users"},
+	{"database", "hot_standby"},
+	{"database", "instance_uuid"},
+	{"database", "mode"},
+	{"database", "replicaset_uuid"},
+	{"database", "txn_isolation"},
+	{"database", "txn_synchro_timeout"},
+	{"database", "txn_timeout"},
+	{"database", "use_mvcc_engine"},
+	{"failover", "call_timeout"},
+	{"failover", "connect_timeout"},
+	{"failover", "lease_interval"},
+	{"failover", "log", "file"},
+	{"failover", "log", "to"},
+	{"failover", "probe_interval"},
+	{"failover", "renew_interval"},
+	{"failover", "replicasets"},
+	{"failover", "stateboard", "enabled"},
+	{"failover", "stateboard", "keepalive_interval"},
+	{"failover", "stateboard", "renew_interval"},
+	{"feedback", "crashinfo"},
+	{"feedback", "enabled"},
+	{"feedback", "host"},
+	{"feedback", "interval"},
+	{"feedback", "metrics_collect_interval"},
+	{"feedback", "metrics_limit"},
+	{"feedback", "send_metrics"},
+	{"fiber", "io_collect_interval"},
+	{"fiber", "slice", "err"},
+	{"fiber", "slice", "warn"},
+	{"fiber", "too_long_threshold"},
+	{"fiber", "top", "enabled"},
+	{"fiber", "tx_user_pool_size"},
+	{"fiber", "worker_pool_threads"},
+	{"flightrec", "enabled"},
+	{"flightrec", "logs_log_level"},
+	{"flightrec", "logs_max_msg_size"},
+	{"flightrec", "logs_size"},
+	{"flightrec", "metrics_interval"},
+	{"flightrec", "metrics_period"},
+	{"flightrec", "requests_max_req_size"},
+	{"flightrec", "requests_max_res_size"},
+	{"flightrec", "requests_size"},
+	{"iproto", "advertise", "client"},
+	{"iproto", "advertise", "peer", "login"},
+	{"iproto", "advertise", "peer", "params", "ssl_ca_file"},
+	{"iproto", "advertise", "peer", "params", "ssl_cert_file"},
+	{"iproto", "advertise", "peer", "params", "ssl_ciphers"},
+	{"iproto", "advertise", "peer", "params", "ssl_key_file"},
+	{"iproto", "advertise", "peer", "params", "ssl_password"},
+	{"iproto", "advertise", "peer", "params", "ssl_password_file"},
+	{"iproto", "advertise", "peer", "params", "transport"},
+	{"iproto", "advertise", "peer", "password"},
+	{"iproto", "advertise", "peer", "uri"},
+	{"iproto", "advertise", "sharding", "login"},
+	{"iproto", "advertise", "sharding", "params", "ssl_ca_file"},
+	{"iproto", "advertise", "sharding", "params", "ssl_cert_file"},
+	{"iproto", "advertise", "sharding", "params", "ssl_ciphers"},
+	{"iproto", "advertise", "sharding", "params", "ssl_key_file"},
+	{"iproto", "advertise", "sharding", "params", "ssl_password"},
+	{"iproto", "advertise", "sharding", "params", "ssl_password_file"},
+	{"iproto", "advertise", "sharding", "params", "transport"},
+	{"iproto", "advertise", "sharding", "password"},
+	{"iproto", "advertise", "sharding", "uri"},
+	{"iproto", "listen"},
+	{"iproto", "net_msg_max"},
+	{"iproto", "readahead"},
+	{"iproto", "threads"},
+	{"isolated"},
+	{"labels"},
+	{"log", "file"},
+	{"log", "format"},
+	{"log", "level"},
+	{"log", "modules"},
+	{"log", "nonblock"},
+	{"log", "pipe"},
+	{"log", "syslog", "facility"},
+	{"log", "syslog", "identity"},
+	{"log", "syslog", "server"},
+	{"log", "to"},
+	{"lua", "memory"},
+	{"memtx", "allocator"},
+	{"memtx", "max_tuple_size"},
+	{"memtx", "memory"},
+	{"memtx", "min_tuple_size"},
+	{"memtx", "slab_alloc_factor"},
+	{"memtx", "slab_alloc_granularity"},
+	{"memtx", "sort_threads"},
+	{"metrics", "exclude"},
+	{"metrics", "include"},
+	{"metrics", "labels"},
+	{"process", "background"},
+	{"process", "coredump"},
+	{"process", "pid_file"},
+	{"process", "strip_core"},
+	{"process", "title"},
+	{"process", "username"},
+	{"process", "work_dir"},
+	{"replication", "anon"},
+	{"replication", "anon_ttl"},
+	{"replication", "autoexpel", "by"},
+	{"replication", "autoexpel", "enabled"},
+	{"replication", "autoexpel", "prefix"},
+	{"replication", "bootstrap_strategy"},
+	{"replication", "connect_timeout"},
+	{"replication", "election_fencing_mode"},
+	{"replication", "election_mode"},
+	{"replication", "election_timeout"},
+	{"replication", "failover"},
+	{"replication", "peers"},
+	{"replication", "reconnect_timeout"},
+	{"replication", "skip_conflict"},
+	{"replication", "sync_lag"},
+	{"replication", "sync_timeout"},
+	{"replication", "synchro_queue_max_size"},
+	{"replication", "synchro_quorum"},
+	{"replication", "synchro_timeout"},
+	{"replication", "threads"},
+	{"replication", "timeout"},
+	{"roles"},
+	{"roles_cfg"},
+	{"security", "auth_delay"},
+	{"security", "auth_retries"},
+	{"security", "auth_type"},
+	{"security", "disable_guest"},
+	{"security", "password_enforce_digits"},
+	{"security", "password_enforce_lowercase"},
+	{"security", "password_enforce_specialchars"},
+	{"security", "password_enforce_uppercase"},
+	{"security", "password_history_length"},
+	{"security", "password_lifetime_days"},
+	{"security", "password_min_length"},
+	{"security", "secure_erasing"},
+	{"sharding", "bucket_count"},
+	{"sharding", "connection_outdate_delay"},
+	{"sharding", "discovery_mode"},
+	{"sharding", "failover_ping_timeout"},
+	{"sharding", "lock"},
+	{"sharding", "rebalancer_disbalance_threshold"},
+	{"sharding", "rebalancer_max_receiving"},
+	{"sharding", "rebalancer_max_sending"},
+	{"sharding", "rebalancer_mode"},
+	{"sharding", "roles"},
+	{"sharding", "sched_move_quota"},
+	{"sharding", "sched_ref_quota"},
+	{"sharding", "shard_index"},
+	{"sharding", "sync_timeout"},
+	{"sharding", "weight"},
+	{"sharding", "zone"},
+	{"snapshot", "by", "interval"},
+	{"snapshot", "by", "wal_size"},
+	{"snapshot", "count"},
+	{"snapshot", "dir"},
+	{"snapshot", "snap_io_rate_limit"},
+	{"sql", "cache_size"},
+	{"vinyl", "bloom_fpr"},
+	{"vinyl", "cache"},
+	{"vinyl", "defer_deletes"},
+	{"vinyl", "dir"},
+	{"vinyl", "max_tuple_size"},
+	{"vinyl", "memory"},
+	{"vinyl", "page_size"},
+	{"vinyl", "range_size"},
+	{"vinyl", "read_threads"},
+	{"vinyl", "run_count_per_level"},
+	{"vinyl", "run_size_ratio"},
+	{"vinyl", "timeout"},
+	{"vinyl", "write_threads"},
+	{"wal", "cleanup_delay"},
+	{"wal", "dir"},
+	{"wal", "dir_rescan_delay"},
+	{"wal", "ext", "new"},
+	{"wal", "ext", "old"},
+	{"wal", "ext", "spaces"},
+	{"wal", "max_size"},
+	{"wal", "mode"},
+	{"wal", "queue_max_size"},
+	{"wal", "retention_period"},
 }
 
 var TarantoolSchema = []SchemaPath{
-	SchemaPath{
+	{
 		Path: []string{"app", "cfg"},
 		Validator: MakeMapValidator(
 			StringValidator{},
 			AnyValidator{}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"app", "file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"app", "module"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"audit_log", "extract_key"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"audit_log", "file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"audit_log", "filter"},
 		Validator: MakeArrayValidator(
 			MakeAllowedValidator(
@@ -311,7 +311,7 @@ var TarantoolSchema = []SchemaPath{
 					"compatibility",
 				})),
 	},
-	SchemaPath{
+	{
 		Path: []string{"audit_log", "format"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -321,32 +321,32 @@ var TarantoolSchema = []SchemaPath{
 				"csv",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"audit_log", "nonblock"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"audit_log", "pipe"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"audit_log", "spaces"},
 		Validator: MakeArrayValidator(
 			StringValidator{}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"audit_log", "syslog", "facility"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"audit_log", "syslog", "identity"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"audit_log", "syslog", "server"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"audit_log", "to"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -357,7 +357,7 @@ var TarantoolSchema = []SchemaPath{
 				"syslog",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "binary_data_decoding"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -366,7 +366,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_cfg_replication_sync_timeout"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -375,7 +375,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_consider_system_spaces_synchronous"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -384,7 +384,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_error_serialize_verbose"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -393,7 +393,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_error_unpack_type_and_code"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -402,7 +402,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_info_cluster_meaning"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -411,7 +411,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_session_push_deprecation"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -420,7 +420,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_space_execute_priv"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -429,7 +429,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_space_max"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -438,7 +438,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_tuple_extension"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -447,7 +447,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "box_tuple_new_vararg"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -456,7 +456,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "c_func_iproto_multireturn"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -465,7 +465,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "console_session_scope_vars"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -474,7 +474,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "fiber_channel_close_mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -483,7 +483,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "fiber_slice_default"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -492,7 +492,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "json_escape_forward_slash"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -501,7 +501,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "replication_synchro_timeout"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -510,7 +510,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "sql_priv"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -519,7 +519,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "sql_seq_scan_default"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -528,7 +528,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "wal_cleanup_delay_deprecation"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -537,7 +537,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"compat", "yaml_pretty_multiline"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -546,7 +546,7 @@ var TarantoolSchema = []SchemaPath{
 				"new",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"config", "context"},
 		Validator: MakeMapValidator(
 			StringValidator{},
@@ -562,64 +562,64 @@ var TarantoolSchema = []SchemaPath{
 				"env":    StringValidator{},
 			})),
 	},
-	SchemaPath{
+	{
 		Path: []string{"config", "etcd", "endpoints"},
 		Validator: MakeArrayValidator(
 			StringValidator{}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "http", "request", "timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "http", "request", "unix_socket"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "password"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "prefix"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "ssl", "ca_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "ssl", "ca_path"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "ssl", "ssl_cert"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "ssl", "ssl_key"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "ssl", "verify_host"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "ssl", "verify_peer"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "username"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "watchers", "reconnect_max_attempts"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "etcd", "watchers", "reconnect_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"config", "reload"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -628,7 +628,7 @@ var TarantoolSchema = []SchemaPath{
 				"manual",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"config", "storage", "endpoints"},
 		Validator: MakeArrayValidator(
 			MakeRecordValidator(map[string]Validator{
@@ -651,27 +651,27 @@ var TarantoolSchema = []SchemaPath{
 				"login": StringValidator{},
 			})),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "storage", "prefix"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "storage", "reconnect_after"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"config", "storage", "timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"console", "enabled"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"console", "socket"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"credentials", "roles"},
 		Validator: MakeMapValidator(
 			StringValidator{},
@@ -712,7 +712,7 @@ var TarantoolSchema = []SchemaPath{
 					StringValidator{}),
 			})),
 	},
-	SchemaPath{
+	{
 		Path: []string{"credentials", "users"},
 		Validator: MakeMapValidator(
 			StringValidator{},
@@ -754,15 +754,15 @@ var TarantoolSchema = []SchemaPath{
 					})),
 			})),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"database", "hot_standby"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"database", "instance_uuid"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"database", "mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -771,11 +771,11 @@ var TarantoolSchema = []SchemaPath{
 				"rw",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"database", "replicaset_uuid"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"database", "txn_isolation"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -785,35 +785,35 @@ var TarantoolSchema = []SchemaPath{
 				"best-effort",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"database", "txn_synchro_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"database", "txn_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"database", "use_mvcc_engine"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "call_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "connect_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "lease_interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "log", "file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"failover", "log", "to"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -822,15 +822,15 @@ var TarantoolSchema = []SchemaPath{
 				"file",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "probe_interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "renew_interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"failover", "replicasets"},
 		Validator: MakeMapValidator(
 			StringValidator{},
@@ -842,79 +842,79 @@ var TarantoolSchema = []SchemaPath{
 					NumberValidator{}),
 			})),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "stateboard", "enabled"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "stateboard", "keepalive_interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"failover", "stateboard", "renew_interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"feedback", "crashinfo"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"feedback", "enabled"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"feedback", "host"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"feedback", "interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"feedback", "metrics_collect_interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"feedback", "metrics_limit"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"feedback", "send_metrics"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"fiber", "io_collect_interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"fiber", "slice", "err"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"fiber", "slice", "warn"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"fiber", "too_long_threshold"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"fiber", "top", "enabled"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"fiber", "tx_user_pool_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"fiber", "worker_pool_threads"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"flightrec", "enabled"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"flightrec", "logs_log_level"},
 		Validator: MakeAllowedValidator(
 			IntegerValidator{},
@@ -929,67 +929,67 @@ var TarantoolSchema = []SchemaPath{
 				7,
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"flightrec", "logs_max_msg_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"flightrec", "logs_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"flightrec", "metrics_interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"flightrec", "metrics_period"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"flightrec", "requests_max_req_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"flightrec", "requests_max_res_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"flightrec", "requests_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "client"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "login"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_ca_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_cert_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_ciphers"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_key_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_password"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "params", "ssl_password_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"iproto", "advertise", "peer", "params", "transport"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -998,43 +998,43 @@ var TarantoolSchema = []SchemaPath{
 				"ssl",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "password"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "peer", "uri"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "login"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_ca_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_cert_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_ciphers"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_key_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_password"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "params", "ssl_password_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"iproto", "advertise", "sharding", "params", "transport"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1043,15 +1043,15 @@ var TarantoolSchema = []SchemaPath{
 				"ssl",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "password"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "advertise", "sharding", "uri"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"iproto", "listen"},
 		Validator: MakeArrayValidator(
 			MakeRecordValidator(map[string]Validator{
@@ -1072,33 +1072,33 @@ var TarantoolSchema = []SchemaPath{
 				}),
 			})),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "net_msg_max"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "readahead"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"iproto", "threads"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"isolated"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"labels"},
 		Validator: MakeMapValidator(
 			StringValidator{},
 			StringValidator{}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"log", "file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"log", "format"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1107,7 +1107,7 @@ var TarantoolSchema = []SchemaPath{
 				"json",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"log", "level"},
 		Validator: MakeAllowedValidator(
 			MakeSequenceValidator(NumberValidator{}, StringValidator{}),
@@ -1130,33 +1130,33 @@ var TarantoolSchema = []SchemaPath{
 				"debug",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"log", "modules"},
 		Validator: MakeMapValidator(
 			StringValidator{},
 			MakeSequenceValidator(NumberValidator{}, StringValidator{})),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"log", "nonblock"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"log", "pipe"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"log", "syslog", "facility"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"log", "syslog", "identity"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"log", "syslog", "server"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"log", "to"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1167,11 +1167,11 @@ var TarantoolSchema = []SchemaPath{
 				"syslog",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"lua", "memory"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"memtx", "allocator"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1180,31 +1180,31 @@ var TarantoolSchema = []SchemaPath{
 				"system",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"memtx", "max_tuple_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"memtx", "memory"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"memtx", "min_tuple_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"memtx", "slab_alloc_factor"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"memtx", "slab_alloc_granularity"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"memtx", "sort_threads"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"metrics", "exclude"},
 		Validator: MakeArrayValidator(
 			MakeAllowedValidator(
@@ -1230,7 +1230,7 @@ var TarantoolSchema = []SchemaPath{
 					"cpu_extended",
 				})),
 	},
-	SchemaPath{
+	{
 		Path: []string{"metrics", "include"},
 		Validator: MakeArrayValidator(
 			MakeAllowedValidator(
@@ -1256,49 +1256,49 @@ var TarantoolSchema = []SchemaPath{
 					"cpu_extended",
 				})),
 	},
-	SchemaPath{
+	{
 		Path: []string{"metrics", "labels"},
 		Validator: MakeMapValidator(
 			StringValidator{},
 			StringValidator{}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"process", "background"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"process", "coredump"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"process", "pid_file"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"process", "strip_core"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"process", "title"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"process", "username"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"process", "work_dir"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "anon"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "anon_ttl"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"replication", "autoexpel", "by"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1306,15 +1306,15 @@ var TarantoolSchema = []SchemaPath{
 				"prefix",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "autoexpel", "enabled"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "autoexpel", "prefix"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"replication", "bootstrap_strategy"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1326,11 +1326,11 @@ var TarantoolSchema = []SchemaPath{
 				"legacy",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "connect_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"replication", "election_fencing_mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1340,7 +1340,7 @@ var TarantoolSchema = []SchemaPath{
 				"strict",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"replication", "election_mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1351,11 +1351,11 @@ var TarantoolSchema = []SchemaPath{
 				"candidate",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "election_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"replication", "failover"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1366,67 +1366,67 @@ var TarantoolSchema = []SchemaPath{
 				"supervised",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"replication", "peers"},
 		Validator: MakeArrayValidator(
 			StringValidator{}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "reconnect_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "skip_conflict"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "sync_lag"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "sync_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "synchro_queue_max_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "synchro_quorum"},
 		Validator: MakeSequenceValidator(NumberValidator{}, StringValidator{}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "synchro_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "threads"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"replication", "timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"roles"},
 		Validator: MakeArrayValidator(
 			StringValidator{}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"roles_cfg"},
 		Validator: MakeMapValidator(
 			StringValidator{},
 			AnyValidator{}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "auth_delay"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "auth_retries"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"security", "auth_type"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1435,51 +1435,51 @@ var TarantoolSchema = []SchemaPath{
 				"pap-sha256",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "disable_guest"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "password_enforce_digits"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "password_enforce_lowercase"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "password_enforce_specialchars"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "password_enforce_uppercase"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "password_history_length"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "password_lifetime_days"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "password_min_length"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"security", "secure_erasing"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "bucket_count"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "connection_outdate_delay"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"sharding", "discovery_mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1489,27 +1489,27 @@ var TarantoolSchema = []SchemaPath{
 				"once",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "failover_ping_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "lock"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "rebalancer_disbalance_threshold"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "rebalancer_max_receiving"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "rebalancer_max_sending"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"sharding", "rebalancer_mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1519,7 +1519,7 @@ var TarantoolSchema = []SchemaPath{
 				"off",
 			}),
 	},
-	SchemaPath{
+	{
 		Path: []string{"sharding", "roles"},
 		Validator: MakeArrayValidator(
 			MakeAllowedValidator(
@@ -1530,127 +1530,127 @@ var TarantoolSchema = []SchemaPath{
 					"rebalancer",
 				})),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "sched_move_quota"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "sched_ref_quota"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "shard_index"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "sync_timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "weight"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sharding", "zone"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"snapshot", "by", "interval"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"snapshot", "by", "wal_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"snapshot", "count"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"snapshot", "dir"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"snapshot", "snap_io_rate_limit"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"sql", "cache_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "bloom_fpr"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "cache"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "defer_deletes"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "dir"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "max_tuple_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "memory"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "page_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "range_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "read_threads"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "run_count_per_level"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "run_size_ratio"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "timeout"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"vinyl", "write_threads"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"wal", "cleanup_delay"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"wal", "dir"},
 		Validator: StringValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"wal", "dir_rescan_delay"},
 		Validator: NumberValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"wal", "ext", "new"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"wal", "ext", "old"},
 		Validator: BooleanValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"wal", "ext", "spaces"},
 		Validator: MakeMapValidator(
 			StringValidator{},
@@ -1659,11 +1659,11 @@ var TarantoolSchema = []SchemaPath{
 				"new": BooleanValidator{},
 			})),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"wal", "max_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path: []string{"wal", "mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -1673,11 +1673,11 @@ var TarantoolSchema = []SchemaPath{
 				"fsync",
 			}),
 	},
-	SchemaPath{
+	{
 		Path:      []string{"wal", "queue_max_size"},
 		Validator: IntegerValidator{},
 	},
-	SchemaPath{
+	{
 		Path:      []string{"wal", "retention_period"},
 		Validator: NumberValidator{},
 	},

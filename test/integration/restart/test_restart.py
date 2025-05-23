@@ -29,7 +29,7 @@ def app_cmd(tt_cmd, tmpdir_with_cfg, cmd, input):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     tt_process.stdin.writelines(input)
@@ -74,6 +74,7 @@ def wait_pid_files_changed(tt, instances, orig_status):
             if pid is None or pid == orig_pid:
                 return False
         return True
+
     return utils.wait_event(5, all_pids_changed)
 
 
@@ -82,7 +83,7 @@ def check_restart(tt, target, input, is_confirm, *args):
     orig_status = tt_helper.status(tt)
 
     # Do restart.
-    rc, out = tt.exec('restart', target, *args, input=input)
+    rc, out = tt.exec("restart", target, *args, input=input)
     assert rc == 0
 
     # Check the confirmation prompt.
@@ -123,95 +124,112 @@ def check_restart(tt, target, input, is_confirm, *args):
 ################################################################
 # Simple app
 
-tt_simple_app = dict(
-    app_path='test_app.lua',
-    app_name='app',
-    post_start=tt_helper.post_start_base
-)
+tt_simple_app = dict(app_path="test_app.lua", app_name="app", post_start=tt_helper.post_start_base)
 
 
 # Auto-confirmation (short option).
 @pytest.mark.slow
 @pytest.mark.tt(**tt_simple_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+    ],
+)
 def test_restart_simple_app_auto_y(tt, target):
-    check_restart(tt, target, None, True, '-y')
+    check_restart(tt, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_simple_app, running_targets=['app']))
+@pytest.mark.tt(**dict(tt_simple_app, running_targets=["app"]))
 def test_restart_simple_app_auto_yes(tt):
-    check_restart(tt, 'app', None, True, '--yes')
+    check_restart(tt, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.slow
 @pytest.mark.tt(**tt_simple_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-])
-@pytest.mark.parametrize('input, is_confirmed', confirmation_input_params)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+    ],
+)
+@pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
 def test_restart_simple_app_input(tt, input, is_confirmed):
-    check_restart(tt, 'app', input, is_confirmed)
+    check_restart(tt, "app", input, is_confirmed)
 
 
 ################################################################
 # Multi-instance
 
 tt_multi_inst_app = dict(
-    app_path='multi_inst_app',
-    app_name='app',
-    instances=['router', 'master', 'replica', 'stateboard'],
+    app_path="multi_inst_app",
+    app_name="app",
+    instances=["router", "master", "replica", "stateboard"],
     post_start=tt_helper.post_start_base,
 )
 
 
 # Auto-confirmation (short option).
 @pytest.mark.tt(**tt_multi_inst_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:master'], id='running:master'),
-    pytest.param(['app:master', 'app:router'], id='running:master_router'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:master',
-    'app:router',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:master"], id="running:master"),
+        pytest.param(["app:master", "app:router"], id="running:master_router"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:master",
+        "app:router",
+    ],
+)
 def test_restart_multi_inst_auto_y(tt, target):
-    check_restart(tt, target, None, True, '-y')
+    check_restart(tt, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_multi_inst_app, running_target=['app']))
+@pytest.mark.tt(**dict(tt_multi_inst_app, running_target=["app"]))
 def test_restart_multi_inst_auto_yes(tt):
-    check_restart(tt, 'app', None, True, '--yes')
+    check_restart(tt, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.slow
 @pytest.mark.tt(**tt_multi_inst_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:master',
-    'app:router',
-])
-@pytest.mark.parametrize('input, is_confirmed', confirmation_input_params)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:master",
+        "app:router",
+    ],
+)
+@pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
 def test_restart_multi_inst_input(tt, target, input, is_confirmed):
     check_restart(tt, target, input, is_confirmed)
 
@@ -220,9 +238,9 @@ def test_restart_multi_inst_input(tt, target, input, is_confirmed):
 # Cluster
 
 tt_cluster_app = dict(
-    app_path='cluster_app',
-    app_name='app',
-    instances=['storage-master', 'storage-replica'],
+    app_path="cluster_app",
+    app_name="app",
+    instances=["storage-master", "storage-replica"],
     post_start=tt_helper.post_start_cluster_decorator(tt_helper.post_start_base),
 )
 
@@ -231,42 +249,54 @@ tt_cluster_app = dict(
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:storage-master'], id='running:storage-master'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:storage-master',
-    'app:storage-replica',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:storage-master"], id="running:storage-master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:storage-master",
+        "app:storage-replica",
+    ],
+)
 def test_restart_cluster_auto_y(tt, target):
-    check_restart(tt, target, None, True, '-y')
+    check_restart(tt, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt(**dict(tt_cluster_app, running_targets=['app']))
+@pytest.mark.tt(**dict(tt_cluster_app, running_targets=["app"]))
 def test_restart_cluster_auto_yes(tt):
-    check_restart(tt, 'app', None, True, '--yes')
+    check_restart(tt, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:storage-master',
-    'app:storage-replica',
-])
-@pytest.mark.parametrize('input, is_confirmed', confirmation_input_params)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:storage-master",
+        "app:storage-replica",
+    ],
+)
+@pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
 def test_restart_cluster_input(tt, target, input, is_confirmed):
     check_restart(tt, target, input, is_confirmed)

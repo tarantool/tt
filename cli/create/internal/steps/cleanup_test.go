@@ -16,7 +16,8 @@ func TestCleanUp(t *testing.T) {
 
 	require.Nil(t, copy.Copy("testdata/cleanup", workDir))
 
-	filesToRemove := []string{filepath.Join(workDir, "file1.txt"),
+	filesToRemove := []string{
+		filepath.Join(workDir, "file1.txt"),
 		filepath.Join(workDir, "subdir", "file2.txt"),
 	}
 
@@ -46,7 +47,8 @@ func TestCleanUpKeepSubdir(t *testing.T) {
 
 	require.Nil(t, copy.Copy("testdata/cleanup", workDir))
 
-	filesToKeep := []string{filepath.Join(workDir, "keep_it.txt"),
+	filesToKeep := []string{
+		filepath.Join(workDir, "keep_it.txt"),
 		filepath.Join(workDir, "admin.txt"),
 		filepath.Join(workDir, "subdir", "file2.txt"),
 	}

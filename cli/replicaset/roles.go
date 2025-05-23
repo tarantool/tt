@@ -88,7 +88,8 @@ type RolesChanger interface {
 // newErrRolesChangeByInstanceNotSupported creates a new error that 'roles add/remove' is not
 // supported by the orchestrator for a single instance.
 func newErrRolesChangeByInstanceNotSupported(orchestrator Orchestrator,
-	changeRoleAction RolesChangerAction) error {
+	changeRoleAction RolesChangerAction,
+) error {
 	msg := "roles %s is not supported for a single instance by %q orchestrator"
 	if changeRoleAction.Action() == RemoveAction {
 		return fmt.Errorf(msg, "remove", orchestrator)
@@ -99,7 +100,8 @@ func newErrRolesChangeByInstanceNotSupported(orchestrator Orchestrator,
 // newErrRolesChangeByAppNotSupported creates a new error that 'roles add/remove' by URI is not
 // supported by the orchestrator for an application.
 func newErrRolesChangeByAppNotSupported(orchestrator Orchestrator,
-	changeRoleAction RolesChangerAction) error {
+	changeRoleAction RolesChangerAction,
+) error {
 	msg := "roles %s is not supported for an application by %q orchestrator"
 	if changeRoleAction.Action() == RemoveAction {
 		return fmt.Errorf(msg, "remove", orchestrator)

@@ -17,17 +17,22 @@ import (
 	. "github.com/tarantool/tt/cli/connector"
 )
 
-const workDir = "work_dir"
-const server = "127.0.0.1:3013"
-const serverTls = "127.0.0.1:3014"
-const console = workDir + "/" + "console.control"
+const (
+	workDir   = "work_dir"
+	server    = "127.0.0.1:3013"
+	serverTls = "127.0.0.1:3014"
+	console   = workDir + "/" + "console.control"
+)
 
-var tarantoolEe bool
-var opts = tarantool.Opts{
-	Timeout: 500 * time.Millisecond,
-	User:    "test",
-	Pass:    "password",
-}
+var (
+	tarantoolEe bool
+	opts        = tarantool.Opts{
+		Timeout: 500 * time.Millisecond,
+		User:    "test",
+		Pass:    "password",
+	}
+)
+
 var sslOpts = SslOpts{
 	KeyFile:  "testdata/localhost.key",
 	CertFile: "testdata/localhost.crt",
@@ -252,13 +257,13 @@ var poolCases = []struct {
 	{
 		Name: "single",
 		Opts: []ConnectOpts{
-			ConnectOpts{
+			{
 				Network:  "tcp",
 				Address:  "unreachetable",
 				Username: "test",
 				Password: "password",
 			},
-			ConnectOpts{
+			{
 				Network:  "tcp",
 				Address:  server,
 				Username: "test",
@@ -269,7 +274,7 @@ var poolCases = []struct {
 	{
 		Name: "with_invalid",
 		Opts: []ConnectOpts{
-			ConnectOpts{
+			{
 				Network:  "tcp",
 				Address:  server,
 				Username: "test",

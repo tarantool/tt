@@ -5,7 +5,7 @@ index 9b56d17..e16dd14 100644
 @@ -136,10 +136,6 @@ func (process *Process) SetPidAndStatus() {
  		return
  	}
- 
+
 -	if name != "tarantool" {
 -		log.Warnf("Process %s does not seem to be tarantool", name)
 -	}

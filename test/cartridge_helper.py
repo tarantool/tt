@@ -6,23 +6,36 @@ import time
 
 import yaml
 
-from utils import (find_ports, log_file, log_path, pid_file,
-                   run_command_and_get_output, run_path, var_path, wait_file)
+from utils import (
+    find_ports,
+    log_file,
+    log_path,
+    pid_file,
+    run_command_and_get_output,
+    run_path,
+    var_path,
+    wait_file,
+)
 
 cartridge_name = "cartridge_app"
 cartridge_username = "admin"
 cartridge_password = "secret-cluster-cookie"
 
-instances = ["router",
-             "s1-master", "s1-replica",
-             "s2-master", "s2-replica-1", "s2-replica-2",
-             "stateboard",
-             "s3-master"]
+instances = [
+    "router",
+    "s1-master",
+    "s1-replica",
+    "s2-master",
+    "s2-replica-1",
+    "s2-replica-2",
+    "stateboard",
+    "s3-master",
+]
 
 
 def get_instances_cfg():
     ports = find_ports(15)
-    cfg = {
+    return {
         f"{cartridge_name}.router": {
             "advertise_uri": f"localhost:{ports[0]}",
             "http_port": ports[1],
@@ -56,7 +69,6 @@ def get_instances_cfg():
             "http_port": ports[14],
         },
     }
-    return cfg
 
 
 replicasets_cfg = {
@@ -70,22 +82,22 @@ replicasets_cfg = {
         "roles": ["vshard-storage"],
         "weight": 1,
         "all_rw": False,
-        "vshard_group": "default"
+        "vshard_group": "default",
     },
     "s-2": {
         "instances": ["s2-master", "s2-replica-1", "s2-replica-2"],
         "roles": ["vshard-storage"],
         "weight": 1,
         "all_rw": False,
-        "vshard_group": "default"
+        "vshard_group": "default",
     },
     "s-3": {
         "instances": ["s3-master"],
         "roles": ["app.roles.custom"],
         "weight": 1,
         "all_rw": False,
-        "vshard_group": "default"
-    }
+        "vshard_group": "default",
+    },
 }
 
 
@@ -205,8 +217,10 @@ class CartridgeApp:
                     lines = fp.readlines()
                     lines = [line.rstrip() for line in lines]
                 for line in lines:
-                    if re.search(r"Instance state changed: ConfiguringRoles -> RolesConfigured",
-                                 line):
+                    if re.search(
+                        r"Instance state changed: ConfiguringRoles -> RolesConfigured",
+                        line,
+                    ):
                         configured = True
                         break
                 time.sleep(0.05)

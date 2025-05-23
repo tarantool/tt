@@ -12,12 +12,12 @@ import (
 )
 
 // CreateTemporaryAppDirectory represents create temporary application directory step.
-type CreateTemporaryAppDirectory struct {
-}
+type CreateTemporaryAppDirectory struct{}
 
 // Run creates temporary application directory.
 func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	var appDirectory string
 	var err error
 

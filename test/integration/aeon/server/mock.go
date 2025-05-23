@@ -6,13 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"mock/server/aeon/service"
 	"net"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
 	"syscall"
+
+	"mock/server/aeon/service"
 
 	"github.com/tarantool/tt/cli/aeon/pb"
 

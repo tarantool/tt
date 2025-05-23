@@ -7,12 +7,12 @@ import (
 )
 
 // SetPredefinedVariables represents a step for setting pre-defined variables.
-type SetPredefinedVariables struct {
-}
+type SetPredefinedVariables struct{}
 
 // Run sets predefined variables values.
 func (SetPredefinedVariables) Run(createCtx *create_ctx.CreateCtx,
-	templateCtx *app_template.TemplateCtx) error {
+	templateCtx *app_template.TemplateCtx,
+) error {
 	templateCtx.Vars["name"] = createCtx.AppName
 	if createCtx.CliOpts != nil && createCtx.CliOpts.App != nil {
 		templateCtx.Vars["rundir"] = util.RelativeToCurrentWorkingDir(createCtx.CliOpts.App.RunDir)

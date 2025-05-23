@@ -33,5 +33,5 @@ groups:
         instances:
           instance-001:
             iproto:
-              listen: 
+              listen:
               - uri: '127.0.0.1:3303'

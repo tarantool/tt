@@ -14,12 +14,12 @@ import (
 
 // archivePacker is a structure that implements Packer interface
 // with specific archive packing behavior.
-type archivePacker struct {
-}
+type archivePacker struct{}
 
 // Run of ArchivePacker packs the bundle into tarball.
 func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
-	opts *config.CliOpts) error {
+	opts *config.CliOpts,
+) error {
 	bundlePath, err := prepareBundle(cmdCtx, packCtx, opts, true)
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func generateVersionLuaFile(bundlePath string, packCtx *PackCtx) error {
 	}
 
 	err := os.WriteFile(versionLuaFilePath,
-		[]byte(fmt.Sprintf("return '%s'", packCtx.Version)), 0644)
+		[]byte(fmt.Sprintf("return '%s'", packCtx.Version)), 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write VERSION.lua file %s: %s", versionLuaFilePath, err)
 	}
@@ -132,7 +132,7 @@ func generateVersionFile(bundlePath string, cmdCtx *cmdcontext.CmdCtx, packCtx *
 	}
 
 	versionFilePath := filepath.Join(bundlePath, packCtx.Name, versionFileName)
-	err = os.WriteFile(versionFilePath, []byte(strings.Join(versionFileLines, "\n")+"\n"), 0644)
+	err = os.WriteFile(versionFilePath, []byte(strings.Join(versionFileLines, "\n")+"\n"), 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write VERSION file %s: %s", versionFilePath, err)
 	}

@@ -3,7 +3,7 @@ index dcea75c..9058c16 100644
 --- a/cli/admin/common.go
 +++ b/cli/admin/common.go
 @@ -2,7 +2,6 @@ package admin
- 
+
  import (
  	"fmt"
 -	"io/ioutil"
@@ -13,7 +13,7 @@ index dcea75c..9058c16 100644
 @@ -140,31 +139,30 @@ func getInstanceSocketPaths(ctx *context.Ctx) ([]string, error) {
  		return nil, fmt.Errorf("%s is not a directory", ctx.Running.RunDir)
  	}
- 
+
 -	runFiles, err := ioutil.ReadDir(ctx.Running.RunDir)
 -	if err != nil {
 -		return nil, fmt.Errorf("Failed to list the run directory: %s", err)
@@ -24,7 +24,7 @@ index dcea75c..9058c16 100644
 -	}
 -
  	instanceSocketPaths := []string{}
- 
+
 -	appInstanceSocketPrefix := fmt.Sprintf("%s.", ctx.Project.Name)
 -	controlSocketSuffix := ".control"
 -	for _, runFile := range runFiles {
@@ -62,7 +62,7 @@ index dcea75c..9058c16 100644
 +	if err != nil {
 +		return nil, err
  	}
- 
+
  	if len(instanceSocketPaths) == 0 {
 diff --git a/cli/commands/create.go b/cli/commands/create.go
 index c3b5730..1282c47 100644
@@ -74,10 +74,10 @@ index c3b5730..1282c47 100644
  	"github.com/tarantool/cartridge-cli/cli/create/templates"
 +	"github.com/tarantool/cartridge-cli/cli/project"
  )
- 
+
  var CartridgeCliCreate *cobra.Command
 @@ -50,7 +51,7 @@ func runCreateCommand(cmd *cobra.Command, args []string) error {
- 
+
  	// get project path
  	basePath := cmd.Flags().Arg(0)
 -	ctx.Project.Path, err = getNewProjectPath(basePath)
@@ -88,11 +88,11 @@ index c3b5730..1282c47 100644
 @@ -76,9 +77,14 @@ func runCreateCommand(cmd *cobra.Command, args []string) error {
  	return nil
  }
- 
+
 -func getNewProjectPath(basePath string) (string, error) {
 +func getNewProjectPath(basePath string, instPath string) (string, error) {
  	var err error
- 
+
 +	// Parameter `instances_available` from tt.yaml has a priority.
 +	if instPath != "" {
 +		basePath = instPath
@@ -107,12 +107,12 @@ index 4e1a12f..bd576d0 100644
 +++ b/cli/project/files.go
 @@ -52,7 +52,7 @@ type FlagOpts struct {
  }
- 
+
  func GetInstanceID(ctx *context.Ctx, instanceName string) string {
 -	return fmt.Sprintf("%s.%s", ctx.Project.Name, instanceName)
 +	return fmt.Sprintf("%s/%s", instanceName, instanceName)
  }
- 
+
  func GetInstanceWorkDir(ctx *context.Ctx, instanceName string) string {
 diff --git a/cli/project/project.go b/cli/project/project.go
 index d06ad10..551e56a 100644
@@ -121,12 +121,12 @@ index d06ad10..551e56a 100644
 @@ -11,6 +11,8 @@ import (
  	"github.com/tarantool/cartridge-cli/cli/version"
  )
- 
+
 +const EnvInstAvailable = "TT_INST_AVAILABLE"
 +
  func FillCtx(ctx *context.Ctx) error {
  	var err error
- 
+
 @@ -23,8 +25,17 @@ func FillCtx(ctx *context.Ctx) error {
  		if err != nil {
  			return fmt.Errorf("Failed to get current directory: %s", err)
@@ -138,7 +138,7 @@ index d06ad10..551e56a 100644
 +	if instAvail != "" {
 +		ctx.Running.AppDir = filepath.Join(instAvail, ctx.Project.Name)
  	}
- 
+
 +	ctx.Replicasets.File = filepath.Join(ctx.Running.AppDir, "replicasets.yml")
 +	ctx.Running.ConfPath = filepath.Join(ctx.Running.AppDir, "instances.yml")
 +

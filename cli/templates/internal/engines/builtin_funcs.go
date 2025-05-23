@@ -43,7 +43,8 @@ const (
 func genReplicasets(
 	baseName string,
 	replicasetsNumber int,
-	replicasetSize int) ([]replicaset, error) {
+	replicasetSize int,
+) ([]replicaset, error) {
 	if replicasetsNumber <= 0 || replicasetsNumber > maxReplicasetsNumber {
 		return nil, fmt.Errorf("replicasetsNumber must be in [%d, %d]", 0, maxReplicasetsNumber)
 	}

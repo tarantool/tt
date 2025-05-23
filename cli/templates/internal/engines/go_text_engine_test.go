@@ -13,9 +13,11 @@ const templateText = `cluster_cookie={{.cluster_cookie}}
 login={{ .login }}
 password={{ .password }}`
 
-const templateFileName = "origin.lua.tt.template"
-const resultFileName = "origin.lua"
-const fileMode = os.FileMode(0640)
+const (
+	templateFileName = "origin.lua.tt.template"
+	resultFileName   = "origin.lua"
+	fileMode         = os.FileMode(0o640)
+)
 
 const testWorkDirName = "work-dir"
 
@@ -60,7 +62,7 @@ func TestTemplateFileRenderMissingValues(t *testing.T) {
 	workDir := t.TempDir()
 
 	srcFileName := filepath.Join(workDir, templateFileName)
-	require.NoError(t, os.WriteFile(srcFileName, []byte(templateText), 0666))
+	require.NoError(t, os.WriteFile(srcFileName, []byte(templateText), 0o666))
 
 	dstFileName := filepath.Join(workDir, resultFileName)
 	data := map[string]string{"cluster_cookie": "test_cookie"} // login & password are missing
@@ -73,8 +75,10 @@ func TestTemplateFileRenderMissingValues(t *testing.T) {
 func TestTextRendering(t *testing.T) {
 	templateText := `{{.hello}} {{.world}}!`
 	expectedText := `Hello world!`
-	data := map[string]string{"hello": "Hello",
-		"world": "world"}
+	data := map[string]string{
+		"hello": "Hello",
+		"world": "world",
+	}
 	engine := GoTextEngine{}
 	actualText, err := engine.RenderText(templateText, data)
 	require.NoError(t, err)

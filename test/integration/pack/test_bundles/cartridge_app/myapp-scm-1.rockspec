@@ -11,4 +11,3 @@ dependencies = {
 build = {
     type = 'none';
 }
-

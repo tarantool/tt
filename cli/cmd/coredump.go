@@ -16,12 +16,12 @@ var (
 
 // NewCoredumpCmd creates coredump command.
 func NewCoredumpCmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "coredump",
 		Short: "Perform manipulations with the tarantool coredumps",
 	}
 
-	var packCmd = &cobra.Command{
+	packCmd := &cobra.Command{
 		Use:   "pack COREDUMP",
 		Short: "pack tarantool coredump into tar.gz archive",
 		Run:   RunModuleFunc(internalCoredumpPackModule),
@@ -38,14 +38,14 @@ func NewCoredumpCmd() *cobra.Command {
 			"the given process resides (see %p in core(5) for more info). This flag\n"+
 			"is to be used when tt is used as kernel.core_pattern pipeline script")
 
-	var unpackCmd = &cobra.Command{
+	unpackCmd := &cobra.Command{
 		Use:   "unpack ARCHIVE",
 		Short: "unpack tarantool coredump tar.gz archive",
 		Run:   RunModuleFunc(internalCoredumpUnpackModule),
 		Args:  cobra.ExactArgs(1),
 	}
 
-	var inspectCmd = &cobra.Command{
+	inspectCmd := &cobra.Command{
 		Use:   "inspect {ARCHIVE|DIRECTORY}",
 		Short: "inspect tarantool coredump",
 		Run:   RunModuleFunc(internalCoredumpInspectModule),

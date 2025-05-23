@@ -68,7 +68,7 @@ func TestParseBinariesNoSymlink(t *testing.T) {
 	}
 
 	// Tarantool exists, but not executable.
-	require.NoError(t, os.Chmod(filepath.Join(tmpDir, "tarantool"), 0440))
+	require.NoError(t, os.Chmod(filepath.Join(tmpDir, "tarantool"), 0o440))
 	versions, err = ParseBinaries(fileList, search.ProgramEe, tmpDir)
 	require.NoError(t, err)
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
@@ -78,7 +78,7 @@ func TestParseBinariesNoSymlink(t *testing.T) {
 		assert.Equal(t, expectedSortedVersions[i], versions[i].Str)
 	}
 
-	require.NoError(t, os.Chmod(filepath.Join(tmpDir, "tarantool"), 0440))
+	require.NoError(t, os.Chmod(filepath.Join(tmpDir, "tarantool"), 0o440))
 	_, err = ParseBinaries(fileList, search.ProgramCe, tmpDir)
 	require.ErrorContains(t, err, "failed to get tarantool version")
 }

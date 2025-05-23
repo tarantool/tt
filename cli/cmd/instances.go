@@ -8,7 +8,7 @@ import (
 
 // NewInstancesCmd creates instances command.
 func NewInstancesCmd() *cobra.Command {
-	var instancesCmd = &cobra.Command{
+	instancesCmd := &cobra.Command{
 		Use:   "instances",
 		Short: "Show list of enabled applications",
 		Run:   RunModuleFunc(internalInstancesModule),

@@ -204,7 +204,8 @@ func TestAddDependenciesDeb(t *testing.T) {
 					Relation: ">=",
 					Version:  "1.0.1",
 				},
-			}},
+			},
+		},
 	}
 	addDependenciesDeb(testDebControlCtx, testDeps)
 	require.Equalf(t, (*testDebControlCtx)["Depends"], resultDepends,

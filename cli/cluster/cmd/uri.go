@@ -35,7 +35,7 @@ func MakeEtcdOptsFromUriOpts(src connect.UriOpts) libcluster.EtcdOpts {
 func MakeConnectOptsFromUriOpts(src connect.UriOpts) (tarantool.Dialer, tarantool.Opts, error) {
 	address := fmt.Sprintf("tcp://%s", src.Host)
 
-	var dialer, err = dial.New(dial.Opts{
+	dialer, err := dial.New(dial.Opts{
 		Address:     address,
 		User:        src.Username,
 		Password:    src.Password,

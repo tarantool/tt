@@ -40,7 +40,8 @@ func waitRO(eval connector.Evaler, timeout int) error {
 
 // filterDiscovered filters only discovered instances from the instances bunch.
 func filterDiscovered(instances []running.InstanceCtx,
-	discovered Replicasets) []running.InstanceCtx {
+	discovered Replicasets,
+) []running.InstanceCtx {
 	discoveredMap := map[string]struct{}{}
 	for _, replicaset := range discovered.Replicasets {
 		for _, instance := range replicaset.Instances {
@@ -55,7 +56,8 @@ func filterDiscovered(instances []running.InstanceCtx,
 
 // filterInstances filter instances with the predicate.
 func filterInstances(instances []running.InstanceCtx,
-	filter func(running.InstanceCtx) bool) []running.InstanceCtx {
+	filter func(running.InstanceCtx) bool,
+) []running.InstanceCtx {
 	var filtered []running.InstanceCtx
 	for _, instance := range instances {
 		if filter(instance) {

@@ -14,7 +14,7 @@ import (
 
 // NewStopCmd creates stop command.
 func NewStopCmd() *cobra.Command {
-	var stopCmd = &cobra.Command{
+	stopCmd := &cobra.Command{
 		Use:   "stop [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Stop tarantool instance(s)",
 		Run:   RunModuleFunc(internalStopWithConfirmationModule),
@@ -22,7 +22,8 @@ func NewStopCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,

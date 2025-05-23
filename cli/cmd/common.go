@@ -59,7 +59,8 @@ func createDataPublishers(privateKey string) (libcluster.DataPublisherFactory, e
 
 // createDataCollectorsAndDataPublishers combines data collectors and publishers creating.
 func createDataCollectorsAndDataPublishers(ctx integrity.IntegrityCtx,
-	privateKey string) (libcluster.DataCollectorFactory, libcluster.DataPublisherFactory, error) {
+	privateKey string,
+) (libcluster.DataCollectorFactory, libcluster.DataPublisherFactory, error) {
 	collectors, err := createDataCollectors(ctx)
 	if err != nil {
 		return nil, nil, err

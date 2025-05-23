@@ -47,7 +47,8 @@ type InstanceEvalFunc func(instance running.InstanceCtx,
 
 // Eval helps to satisfy the InstanceEvaler insterface.
 func (fun InstanceEvalFunc) Eval(instance running.InstanceCtx,
-	evaler connector.Evaler) (bool, error) {
+	evaler connector.Evaler,
+) (bool, error) {
 	return fun(instance, evaler)
 }
 
@@ -73,14 +74,16 @@ func EvalAny(instances []running.InstanceCtx, ievaler InstanceEvaler) error {
 
 // EvalForeachAliveDiscovered calls evaler for only connectable instances among discovered.
 func EvalForeachAliveDiscovered(instances []running.InstanceCtx,
-	discovered Replicasets, ievaler InstanceEvaler) error {
+	discovered Replicasets, ievaler InstanceEvaler,
+) error {
 	return EvalForeachAlive(filterDiscovered(instances, discovered), ievaler)
 }
 
 // evalForeach is an internal implementation of iteration over instances with
 // an evaler object.
 func evalForeach(instances []running.InstanceCtx,
-	ievaler InstanceEvaler, skipConnectError bool) error {
+	ievaler InstanceEvaler, skipConnectError bool,
+) error {
 	if len(instances) == 0 {
 		return fmt.Errorf("no instances to connect")
 	}

@@ -21,11 +21,11 @@ def check_logrotate(tt, target):
         if inst not in tt.running_instances:
             continue
         log_path = tt.log_path(inst, utils.log_file)
-        os.rename(log_path, log_path + '0')
+        os.rename(log_path, log_path + "0")
         expected_instances.append(inst)
 
     # Do logrotate.
-    rc, out = tt.exec('logrotate', target)
+    rc, out = tt.exec("logrotate", target)
     assert rc == 0
 
     # Wait for the log files to be re-created.
@@ -46,8 +46,8 @@ def check_logrotate(tt, target):
                 with open(tt.log_path(inst, utils.log_file)) as f:
                     assert "reopened" in f.read()
             else:
-                _, sep, inst_name = inst.partition(':')
-                assert sep != ''
+                _, sep, inst_name = inst.partition(":")
+                assert sep != ""
                 assert f"{inst_name}: the instance is not running, it must be started" in out
 
 
@@ -56,6 +56,7 @@ def post_start_logrotate_decorator(func):
         func(tt)
         # 'logrotate' decoration.
         utils.wait_files(5, tt_helper.log_files(tt, tt.running_instances))
+
     return wrapper_func
 
 
@@ -63,26 +64,32 @@ def post_start_logrotate_decorator(func):
 # Multi-instance
 
 tt_multi_inst_app = dict(
-    app_path='multi_inst_app',
-    app_name='app',
-    instances=['router', 'master', 'replica', 'stateboard'],
+    app_path="multi_inst_app",
+    app_name="app",
+    instances=["router", "master", "replica", "stateboard"],
     post_start=post_start_logrotate_decorator(tt_helper.post_start_base),
 )
 
 
 @pytest.mark.tt(**tt_multi_inst_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:master'], id='running:master'),
-    pytest.param(['app:master', 'app:router'], id='running:master_router'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:master',
-    'app:router',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:master"], id="running:master"),
+        pytest.param(["app:master", "app:router"], id="running:master_router"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:master",
+        "app:router",
+    ],
+)
 def test_logrotate_multi_inst(tt, target):
     check_logrotate(tt, target)
 
@@ -90,19 +97,25 @@ def test_logrotate_multi_inst(tt, target):
 # Instance script is missing.
 tt_multi_inst_app_no_script = dict(
     tt_multi_inst_app,
-    post_start=tt_helper.post_start_no_script_decorator(tt_multi_inst_app['post_start']),
+    post_start=tt_helper.post_start_no_script_decorator(tt_multi_inst_app["post_start"]),
 )
 
 
 @pytest.mark.tt(**tt_multi_inst_app_no_script)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:master'], id='running:master'),
-])
-@pytest.mark.parametrize('target', [
-    'app',
-    'app:master',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:master"], id="running:master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        "app",
+        "app:master",
+    ],
+)
 def test_logrotate_multi_inst_no_instance_script(tt, target):
     check_logrotate(tt, target)
 
@@ -111,27 +124,33 @@ def test_logrotate_multi_inst_no_instance_script(tt, target):
 # Cluster
 
 tt_cluster_app = dict(
-    app_path='cluster_app',
-    app_name='app',
-    instances=['storage-master', 'storage-replica'],
-    post_start=tt_helper.post_start_cluster_decorator(tt_multi_inst_app['post_start']),
+    app_path="cluster_app",
+    app_name="app",
+    instances=["storage-master", "storage-replica"],
+    post_start=tt_helper.post_start_cluster_decorator(tt_multi_inst_app["post_start"]),
 )
 
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:storage-master'], id='running:storage-master'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:storage-master',
-    'app:storage-replica',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:storage-master"], id="running:storage-master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:storage-master",
+        "app:storage-replica",
+    ],
+)
 def test_logrotate_cluster(tt, target):
     check_logrotate(tt, target)
 
@@ -139,20 +158,26 @@ def test_logrotate_cluster(tt, target):
 # Cluster configuration is missing.
 tt_cluster_app_no_config = dict(
     tt_cluster_app,
-    post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app['post_start']),
+    post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app["post_start"]),
 )
 
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app_no_config)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:storage-master'], id='running:storage-master'),
-])
-@pytest.mark.parametrize('target', [
-    'app',
-    'app:storage-master',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:storage-master"], id="running:storage-master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        "app",
+        "app:storage-master",
+    ],
+)
 def test_logrotate_cluster_no_config(tt, target):
     check_logrotate(tt, target)

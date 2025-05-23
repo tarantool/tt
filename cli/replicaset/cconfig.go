@@ -91,7 +91,7 @@ func (c *CConfigInstance) discovery() (Replicasets, error) {
 		State:        StateBootstrapped,
 		Orchestrator: OrchestratorCentralizedConfig,
 		Replicasets: []Replicaset{
-			Replicaset{
+			{
 				UUID:       topology.UUID,
 				LeaderUUID: topology.LeaderUUID,
 				Alias:      topology.Alias,
@@ -138,7 +138,8 @@ func (c *CConfigInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
 // RolesChange is not supported for a single instance by the centralized config
 // orchestrator.
 func (c *CConfigInstance) RolesChange(ctx RolesChangeCtx,
-	changeRoleAction RolesChangerAction) error {
+	changeRoleAction RolesChangerAction,
+) error {
 	return newErrRolesChangeByInstanceNotSupported(OrchestratorCentralizedConfig, changeRoleAction)
 }
 
@@ -155,7 +156,8 @@ type CConfigApplication struct {
 func NewCConfigApplication(
 	runningCtx running.RunningCtx,
 	collectors libcluster.DataCollectorFactory,
-	publishers libcluster.DataPublisherFactory) *CConfigApplication {
+	publishers libcluster.DataPublisherFactory,
+) *CConfigApplication {
 	app := &CConfigApplication{
 		runningCtx: runningCtx,
 		publishers: publishers,
@@ -176,7 +178,7 @@ func (c *CConfigApplication) discovery() (Replicasets, error) {
 			if err != nil {
 				return true, err
 			}
-			for i, _ := range topology.Instances {
+			for i := range topology.Instances {
 				if topology.Instances[i].UUID == topology.InstanceUUID {
 					topology.Instances[i].InstanceCtx = ictx
 					topology.Instances[i].InstanceCtxFound = true
@@ -263,7 +265,7 @@ func getCConfigInstanceTopology(evaler connector.Evaler) (cconfigTopology, error
 		return topology, fmt.Errorf("failed to parse a response: %w", err)
 	}
 
-	for i, _ := range topology.Instances {
+	for i := range topology.Instances {
 		if topology.Instances[i].UUID == topology.InstanceUUID {
 			if topology.InstanceRW {
 				topology.Instances[i].Mode = ModeRW
@@ -286,7 +288,7 @@ func mergeCConfigTopologies(topologies []cconfigTopology) (Replicasets, error) {
 
 	for _, topology := range topologies {
 		var replicaset *Replicaset
-		for i, _ := range replicasets.Replicasets {
+		for i := range replicasets.Replicasets {
 			if topology.UUID == replicasets.Replicasets[i].UUID {
 				replicaset = &replicasets.Replicasets[i]
 				break
@@ -308,7 +310,7 @@ func mergeCConfigTopologies(topologies []cconfigTopology) (Replicasets, error) {
 	}
 
 	// Clear expelled instances.
-	for i, _ := range replicasets.Replicasets {
+	for i := range replicasets.Replicasets {
 		unexpelled := []Instance{}
 		for _, instance := range replicasets.Replicasets[i].Instances {
 			if instance.URI != "" {
@@ -326,7 +328,7 @@ func mergeCConfigTopologies(topologies []cconfigTopology) (Replicasets, error) {
 func updateCConfigInstances(replicaset *Replicaset, topology cconfigTopology) {
 	for _, tinstance := range topology.Instances {
 		var instance *Instance
-		for i, _ := range replicaset.Instances {
+		for i := range replicaset.Instances {
 			if tinstance.UUID == replicaset.Instances[i].UUID {
 				instance = &replicaset.Instances[i]
 			}
@@ -474,7 +476,8 @@ func (c *CConfigApplication) Bootstrap(BootstrapCtx) error {
 
 // RolesChange adds/removes role for an application by the centralized config orchestrator.
 func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
-	changeRoleAction RolesChangerAction) error {
+	changeRoleAction RolesChangerAction,
+) error {
 	replicasets, err := c.Discovery(UseCache)
 	if err != nil {
 		return fmt.Errorf("failed to get replicasets: %w", err)
@@ -486,7 +489,8 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 	)
 
 	if ctx.InstName != "" {
-		targetReplicaset, targetInstance, found := findInstanceByAlias(replicasets, ctx.InstName)
+		targetReplicaset, targetInstance, found :=
+			findInstanceByAlias(replicasets, ctx.InstName)
 		if !found {
 			return fmt.Errorf("instance %q not found in a configured replicaset", ctx.InstName)
 		}
@@ -600,7 +604,8 @@ func reloadCConfig(instances []running.InstanceCtx) error {
 // promote promotes an instance in the application and returns true
 // if the instance config was published.
 func (c *CConfigApplication) promote(instance Instance,
-	ctx PromoteCtx) (wasConfigPublished bool, err error) {
+	ctx PromoteCtx,
+) (wasConfigPublished bool, err error) {
 	cluterCfgPath := instance.InstanceCtx.ClusterConfigPath
 	clusterCfg, err := cluster.GetClusterConfig(
 		libcluster.NewCollectorFactory(c.collectors), cluterCfgPath)
@@ -638,7 +643,8 @@ func (c *CConfigApplication) promote(instance Instance,
 // demote demotes an instance in the application and returns true
 // if the instance config was published.
 func (c *CConfigApplication) demote(instance Instance,
-	replicaset Replicaset, ctx DemoteCtx) (wasConfigPublished bool, err error) {
+	replicaset Replicaset, ctx DemoteCtx,
+) (wasConfigPublished bool, err error) {
 	cluterCfgPath := instance.InstanceCtx.ClusterConfigPath
 	clusterCfg, err := cluster.GetClusterConfig(libcluster.NewCollectorFactory(c.collectors),
 		cluterCfgPath)
@@ -713,7 +719,8 @@ func (c *CConfigApplication) expel(instance running.InstanceCtx, name string) (b
 // demoteElection demotes an instance in the replicaset with "election" failover.
 // https://github.com/tarantool/tarantool/issues/9855
 func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
-	cconfigInstance cconfigInstance, timeout int) (wasConfigPublished bool, err error) {
+	cconfigInstance cconfigInstance, timeout int,
+) (wasConfigPublished bool, err error) {
 	// Set election_mode: "voter" on the target instance.
 	err = patchLocalCConfig(
 		instanceCtx.ClusterConfigPath,
@@ -733,7 +740,8 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 	}
 	// Wait until an other instance is not elected.
 	evalWaitRo := func(_ running.InstanceCtx,
-		evaler connector.Evaler) (bool, error) {
+		evaler connector.Evaler,
+	) (bool, error) {
 		return true, waitRO(evaler, timeout)
 	}
 	err = EvalAny([]running.InstanceCtx{instanceCtx}, InstanceEvalFunc(evalWaitRo))
@@ -753,7 +761,8 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 }
 
 func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
-	action RolesChangerAction) (bool, error) {
+	action RolesChangerAction,
+) (bool, error) {
 	if len(c.runningCtx.Instances) == 0 {
 		return false, fmt.Errorf("there are no running instances")
 	}
@@ -811,7 +820,8 @@ func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
 func patchLocalCConfig(path string,
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
-	patchFunc func(*libcluster.Config) (*libcluster.Config, error)) error {
+	patchFunc func(*libcluster.Config) (*libcluster.Config, error),
+) error {
 	collector, publisher, err := cconfigCreateCollectorAndDataPublisher(
 		collectors,
 		publishers,
@@ -838,7 +848,8 @@ func patchLocalCConfig(path string,
 func cconfigCreateCollectorAndDataPublisher(
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
-	clusterCfgPath string) (libcluster.Collector, libcluster.DataPublisher, error) {
+	clusterCfgPath string,
+) (libcluster.Collector, libcluster.DataPublisher, error) {
 	collector, err := libcluster.NewCollectorFactory(collectors).NewFile(clusterCfgPath)
 	if err != nil {
 		return nil, nil,
@@ -854,7 +865,8 @@ func cconfigCreateCollectorAndDataPublisher(
 
 // cconfigGetFailover extracts the instance replicaset failover.
 func cconfigGetFailover(clusterConfig *libcluster.ClusterConfig,
-	instName string) (Failover, error) {
+	instName string,
+) (Failover, error) {
 	var failover Failover
 	instConfig := libcluster.Instantiate(*clusterConfig, instName)
 
@@ -880,7 +892,8 @@ func cconfigGetFailover(clusterConfig *libcluster.ClusterConfig,
 // cconfigGetElectionMode extracts election_mode from the cluster config.
 // If election_mode is not set, returns a default, which corresponds to the "election" failover.
 func cconfigGetElectionMode(clusterConfig *libcluster.ClusterConfig,
-	instName string) (ElectionMode, error) {
+	instName string,
+) (ElectionMode, error) {
 	var electionMode ElectionMode
 	instConfig := libcluster.Instantiate(*clusterConfig, instName)
 
@@ -906,7 +919,8 @@ func cconfigGetElectionMode(clusterConfig *libcluster.ClusterConfig,
 
 // patchCConfigPromote patches the config to promote an instance.
 func patchCConfigPromote(config *libcluster.Config,
-	inst cconfigInstance) (*libcluster.Config, error) {
+	inst cconfigInstance,
+) (*libcluster.Config, error) {
 	var err error
 	var (
 		failover       = inst.failover
@@ -916,11 +930,15 @@ func patchCConfigPromote(config *libcluster.Config,
 	)
 	switch failover {
 	case FailoverOff:
-		err = config.Set([]string{"groups", groupName, "replicasets", replicasetName,
-			"instances", instName, "database", "mode"}, "rw")
+		err = config.Set([]string{
+			"groups", groupName, "replicasets", replicasetName,
+			"instances", instName, "database", "mode",
+		}, "rw")
 	case FailoverManual:
-		err = config.Set([]string{"groups", groupName, "replicasets", replicasetName,
-			"leader"}, instName)
+		err = config.Set([]string{
+			"groups", groupName, "replicasets", replicasetName,
+			"leader",
+		}, instName)
 	default:
 		return nil, fmt.Errorf("unexpected failover: %q", failover)
 	}
@@ -933,14 +951,17 @@ func patchCConfigPromote(config *libcluster.Config,
 // It set up:
 // instance.iproto.listen = {}
 func patchCConfigExpel(config *libcluster.Config,
-	inst cconfigInstance) (*libcluster.Config, error) {
+	inst cconfigInstance,
+) (*libcluster.Config, error) {
 	var (
 		groupName      = inst.groupName
 		replicasetName = inst.replicasetName
 		instName       = inst.name
 	)
-	if err := config.Set([]string{"groups", groupName, "replicasets", replicasetName,
-		"instances", instName, "iproto", "listen"}, map[any]any{}); err != nil {
+	if err := config.Set([]string{
+		"groups", groupName, "replicasets", replicasetName,
+		"instances", instName, "iproto", "listen",
+	}, map[any]any{}); err != nil {
 		return nil, err
 	}
 	return config, nil
@@ -948,7 +969,8 @@ func patchCConfigExpel(config *libcluster.Config,
 
 // patchCConfigDemote patches the config to demote an instance.
 func patchCConfigDemote(config *libcluster.Config,
-	inst cconfigInstance) (*libcluster.Config, error) {
+	inst cconfigInstance,
+) (*libcluster.Config, error) {
 	var (
 		failover       = inst.failover
 		groupName      = inst.groupName
@@ -958,8 +980,10 @@ func patchCConfigDemote(config *libcluster.Config,
 	if failover != FailoverOff {
 		return nil, fmt.Errorf("unexpected failover: %q", failover)
 	}
-	if err := config.Set([]string{"groups", groupName, "replicasets", replicasetName,
-		"instances", instName, "database", "mode"}, "ro"); err != nil {
+	if err := config.Set([]string{
+		"groups", groupName, "replicasets", replicasetName,
+		"instances", instName, "database", "mode",
+	}, "ro"); err != nil {
 		return nil, err
 	}
 	return config, nil
@@ -967,9 +991,12 @@ func patchCConfigDemote(config *libcluster.Config,
 
 // patchCConfigElectionMode patches the config to change an instance election_mode.
 func patchCConfigElectionMode(config *libcluster.Config,
-	inst cconfigInstance, mode ElectionMode) (*libcluster.Config, error) {
-	path := []string{"groups", inst.groupName, "replicasets", inst.replicasetName,
-		"instances", inst.name, "replication", "election_mode"}
+	inst cconfigInstance, mode ElectionMode,
+) (*libcluster.Config, error) {
+	path := []string{
+		"groups", inst.groupName, "replicasets", inst.replicasetName,
+		"instances", inst.name, "replication", "election_mode",
+	}
 	err := config.Set(path, mode.String())
 	if err != nil {
 		return nil, err
@@ -978,7 +1005,8 @@ func patchCConfigElectionMode(config *libcluster.Config,
 }
 
 func patchCConfigEditRole(config *libcluster.Config,
-	targets []patchRoleTarget) (*libcluster.Config, error) {
+	targets []patchRoleTarget,
+) (*libcluster.Config, error) {
 	for _, p := range targets {
 		if err := config.Set(p.path, p.roleNames); err != nil {
 			return nil, err
@@ -989,7 +1017,8 @@ func patchCConfigEditRole(config *libcluster.Config,
 
 // getCConfigInstance extracts an instance from the cluster config.
 func getCConfigInstance(
-	config *libcluster.ClusterConfig, instName string) (cconfigInstance, error) {
+	config *libcluster.ClusterConfig, instName string,
+) (cconfigInstance, error) {
 	var (
 		inst  cconfigInstance
 		found bool

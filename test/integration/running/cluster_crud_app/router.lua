@@ -16,4 +16,3 @@ local crud = require('crud')
 crud.init_router()
 
 box.schema.user.grant('guest', 'read,write,execute', 'universe', nil, {if_not_exists = true})
-

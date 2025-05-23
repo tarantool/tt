@@ -338,5 +338,4 @@ func TestFollow(t *testing.T) {
 			}
 		})
 	}
-
 }

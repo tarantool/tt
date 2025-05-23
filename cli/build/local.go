@@ -68,7 +68,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 	// Run rocks make.
 	log.Infof("Running rocks make")
 
-	var savedStdoutFd = syscall.Stdout
+	savedStdoutFd := syscall.Stdout
 	if !cmdCtx.Cli.Verbose {
 		// Redirect stdout to /dev/null.
 		if savedStdoutFd, err = syscall.Dup(syscall.Stdout); err != nil {
@@ -77,7 +77,7 @@ func buildLocal(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, buildCtx *Bu
 		defer syscall.Close(savedStdoutFd)
 
 		var devNull *os.File = nil
-		if devNull, err = os.OpenFile(os.DevNull, os.O_WRONLY, 0666); err != nil {
+		if devNull, err = os.OpenFile(os.DevNull, os.O_WRONLY, 0o666); err != nil {
 			return err
 		}
 		defer devNull.Close()

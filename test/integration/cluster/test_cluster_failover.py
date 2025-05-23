@@ -16,14 +16,20 @@ def test_cluster_failover_switch_etcd(tt_cmd, tmpdir_with_cfg, etcd):
     tmpdir = tmpdir_with_cfg
 
     conn = etcd.conn()
-    switch_cmd = [tt_cmd, "cluster", "failover", "switch",
-                  f"{etcd.endpoint}/prefix", "some_instance"]
+    switch_cmd = [
+        tt_cmd,
+        "cluster",
+        "failover",
+        "switch",
+        f"{etcd.endpoint}/prefix",
+        "some_instance",
+    ]
     ps_switch = subprocess.Popen(
         switch_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     switch_output = ps_switch.stdout.read()
     assert re.search(r"To check the switching status, run", switch_output)
@@ -39,14 +45,22 @@ def test_cluster_failover_switch_timeout_etcd(tt_cmd, tmpdir_with_cfg, etcd):
     tmpdir = tmpdir_with_cfg
 
     conn = etcd.conn()
-    switch_cmd = [tt_cmd, "cluster", "failover", "switch",
-                  f"{etcd.endpoint}/prefix", "some_instance", "--timeout", "42"]
+    switch_cmd = [
+        tt_cmd,
+        "cluster",
+        "failover",
+        "switch",
+        f"{etcd.endpoint}/prefix",
+        "some_instance",
+        "--timeout",
+        "42",
+    ]
     ps_switch = subprocess.Popen(
         switch_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     switch_output = ps_switch.stdout.read()
     assert re.search(r"To check the switching status, run", switch_output)
@@ -62,28 +76,40 @@ def test_cluster_failover_switch_status_etcd(tt_cmd, tmpdir_with_cfg, etcd):
     tmpdir = tmpdir_with_cfg
 
     _ = etcd.conn()
-    switch_cmd = [tt_cmd, "cluster", "failover", "switch",
-                  f"{etcd.endpoint}/prefix", "some_instance"]
+    switch_cmd = [
+        tt_cmd,
+        "cluster",
+        "failover",
+        "switch",
+        f"{etcd.endpoint}/prefix",
+        "some_instance",
+    ]
     ps_switch = subprocess.Popen(
         switch_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     switch_output = ps_switch.stdout.read()
     assert re.search(r"To check the switching status, run", switch_output)
 
     task_id = switch_output.split(" ")[-1].strip()
 
-    status_cmd = [tt_cmd, "cluster", "failover", "switch-status",
-                  f"{etcd.endpoint}/prefix", task_id]
+    status_cmd = [
+        tt_cmd,
+        "cluster",
+        "failover",
+        "switch-status",
+        f"{etcd.endpoint}/prefix",
+        task_id,
+    ]
     ps_status = subprocess.Popen(
         status_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     status_output = ps_status.stdout.read()
@@ -94,14 +120,23 @@ def test_cluster_failover_switch_timeout_wait_etcd(tt_cmd, tmpdir_with_cfg, etcd
     tmpdir = tmpdir_with_cfg
 
     _ = etcd.conn()
-    switch_cmd = [tt_cmd, "cluster", "failover", "switch",
-                  f"{etcd.endpoint}/prefix", "some_instance", "--timeout", "1", "--wait"]
+    switch_cmd = [
+        tt_cmd,
+        "cluster",
+        "failover",
+        "switch",
+        f"{etcd.endpoint}/prefix",
+        "some_instance",
+        "--timeout",
+        "1",
+        "--wait",
+    ]
     ps_switch = subprocess.Popen(
         switch_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     switch_output = ps_switch.stdout.read()
     assert re.search(r"Timeout for command execution reached", switch_output)

@@ -28,7 +28,7 @@ var (
 
 // NewCreateCmd creates an application from a template.
 func NewCreateCmd() *cobra.Command {
-	var createCmd = &cobra.Command{
+	createCmd := &cobra.Command{
 		Use:   "create <TEMPLATE_NAME> [flags]",
 		Short: "Create an application from a template",
 		Run:   RunModuleFunc(internalCreateModule),
@@ -84,7 +84,8 @@ Built-in templates:
 func createValidArgsFunction(
 	_ *cobra.Command,
 	args []string,
-	toComplete string) ([]string, cobra.ShellCompDirective) {
+	toComplete string,
+) ([]string, cobra.ShellCompDirective) {
 	if len(args) != 0 {
 		return nil, cobra.ShellCompDirectiveDefault
 	}

@@ -24,12 +24,12 @@ def run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd):
     )
     instance_process.stdin.writelines([cmd])
     instance_process.stdin.close()
-    output = instance_process.stdout.read()
-    return output
+    return instance_process.stdout.read()
 
 
 @pytest.mark.skipif(
-    tarantool_major_version < 3, reason="skip centralized config test for Tarantool < 3"
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
 )
 def test_upgrade_multi_master(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
@@ -43,9 +43,7 @@ def test_upgrade_multi_master(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(
-                os.path.join(tmpdir, app_name), f"ready-instance-00{i}", []
-            )
+            file = wait_file(os.path.join(tmpdir, app_name), f"ready-instance-00{i}", [])
             assert file != ""
 
         status_cmd = [tt_cmd, "replicaset", "upgrade", app_name]
@@ -93,8 +91,10 @@ def test_upgrade_t2_app_dummy_replicaset(tt_cmd):
             stop_application(tt_cmd, app_name, test_app_path, [])
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip test with cluster config for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip test with cluster config for Tarantool < 3",
+)
 def test_upgrade_downgraded_cluster_replicasets(tt_cmd, tmp_path):
     app_name = "vshard_app"
     replicasets = {
@@ -106,7 +106,7 @@ def test_upgrade_downgraded_cluster_replicasets(tt_cmd, tmp_path):
     try:
         app.build()
         app.start()
-        cmd_master = '''box.space._schema:run_triggers(false)
+        cmd_master = """box.space._schema:run_triggers(false)
 box.space._schema:delete('replicaset_name')
 box.space._schema:run_triggers(true)
 
@@ -119,43 +119,38 @@ end)
 box.space._cluster:run_triggers(true)
 box.schema.downgrade('2.11.1')
 box.snapshot()
-        '''
+        """
 
         # Downgrade cluster.
-        for _, replicaset in replicasets.items():
+        for replicaset in replicasets.values():
             for replica in replicaset:
                 out = run_command_on_instance(
                     tt_cmd,
                     tmp_path,
                     f"{app_name}:{replica}",
-                    "box.cfg{force_recovery=true} return box.cfg.force_recovery"
+                    "box.cfg{force_recovery=true} return box.cfg.force_recovery",
                 )
                 assert "true" in out
 
-        for _, replicaset in replicasets.items():
-            _ = run_command_on_instance(
-                tt_cmd,
-                tmp_path,
-                f"{app_name}:{replicaset[0]}",
-                cmd_master
-            )
+        for replicaset in replicasets.values():
+            _ = run_command_on_instance(tt_cmd, tmp_path, f"{app_name}:{replicaset[0]}", cmd_master)
 
-        for _, replicaset in replicasets.items():
+        for replicaset in replicasets.values():
             if len(replicaset) == 2:
                 _ = run_command_on_instance(
                     tt_cmd,
                     tmp_path,
                     f"{app_name}:{replicaset[1]}",
-                    "box.snapshot()"
+                    "box.snapshot()",
                 )
 
-        for _, replicaset in replicasets.items():
+        for replicaset in replicasets.values():
             for replica in replicaset:
                 out = run_command_on_instance(
                     tt_cmd,
                     tmp_path,
                     f"{app_name}:{replica}",
-                    "box.cfg{force_recovery=false} return box.cfg.force_recovery"
+                    "box.cfg{force_recovery=false} return box.cfg.force_recovery",
                 )
                 assert "false" in out
 
@@ -164,7 +159,7 @@ box.snapshot()
             tt_cmd,
             tmp_path,
             f"{app_name}:storage-001-a",
-            "box.schema.space.create('example_space')"
+            "box.schema.space.create('example_space')",
         )
         assert "error: Your schema version is 2.11.1" in out
 
@@ -186,7 +181,7 @@ box.snapshot()
             tt_cmd,
             tmp_path,
             f"{app_name}:storage-001-a",
-            "box.schema.space.create('example_space')"
+            "box.schema.space.create('example_space')",
         )
         assert "name: example_space" in out
 
@@ -194,14 +189,16 @@ box.snapshot()
         app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip cluster instances test for Tarantool < 3",
+)
 def test_upgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
-    instances = ['storage-master', 'storage-replica']
+    instances = ["storage-master", "storage-replica"]
 
     try:
         start_application(tt_cmd, tmpdir, app_name, instances)

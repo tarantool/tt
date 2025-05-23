@@ -15,7 +15,8 @@ type Server struct {
 }
 
 func (s *Server) SQLCheck(ctx context.Context,
-	request *pb.SQLRequest) (*pb.SQLCheckResponse, error) {
+	request *pb.SQLRequest,
+) (*pb.SQLCheckResponse, error) {
 	status := pb.SQLCheckStatus_SQL_QUERY_INCOMPLETE
 	switch strings.ToLower(request.Query) {
 	case "ok":

@@ -154,7 +154,7 @@ func TestPackTag(t *testing.T) {
 	packed, err = packTag(errNullTag)
 	assert.EqualError(err, "NULL value should be nil")
 
-	//BIN
+	// BIN
 	errBinTag := rpmTagType{
 		Type:  rpmTypeBin,
 		Value: []int16{1},
@@ -163,7 +163,7 @@ func TestPackTag(t *testing.T) {
 	packed, err = packTag(errBinTag)
 	assert.EqualError(err, "BIN and CHAR values should be []byte")
 
-	//STRING
+	// STRING
 	errStringTag := rpmTagType{
 		Type:  rpmTypeString,
 		Value: []int16{1},
@@ -172,7 +172,7 @@ func TestPackTag(t *testing.T) {
 	packed, err = packTag(errStringTag)
 	assert.EqualError(err, "STRING value should be string")
 
-	//ARRAY STRING
+	// ARRAY STRING
 	errArrStringTag := rpmTagType{
 		Type:  rpmTypeStringArray,
 		Value: []int16{1},

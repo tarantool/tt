@@ -19,8 +19,11 @@ def test_check_non_existent_file(tt_cmd, tmpdir_with_cfg):
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
     assert re.search(r"can\'t collect instance information for path-to-non-existent-file", output)
-    assert re.search(f"\"{os.path.join(tmpdir_with_cfg, 'path-to-non-existent-file')}\" " +
-                     "doesn\'t exist or not a directory", output)
+    assert re.search(
+        f'"{os.path.join(tmpdir_with_cfg, "path-to-non-existent-file")}" '
+        + "doesn't exist or not a directory",
+        output,
+    )
 
 
 def test_check_incorrect_syntax_file(tt_cmd, tmpdir_with_cfg):
@@ -29,7 +32,7 @@ def test_check_incorrect_syntax_file(tt_cmd, tmpdir_with_cfg):
     shutil.copy(test_app_path, tmpdir_with_cfg)
 
     # Testing application file with incorrect syntax.
-    cmd = [tt_cmd, "check", 'incorrect_syntax']
+    cmd = [tt_cmd, "check", "incorrect_syntax"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
     assert re.search(r"syntax errors detected:", output)
@@ -41,7 +44,7 @@ def test_check_correct_syntax_file(tt_cmd, tmpdir_with_cfg):
     shutil.copy(test_app_path, tmpdir_with_cfg)
 
     # Testing application file with correct syntax.
-    cmd = [tt_cmd, "check", 'correct_syntax']
+    cmd = [tt_cmd, "check", "correct_syntax"]
     rc, output = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc == 0
     assert re.search(r"is OK", output)

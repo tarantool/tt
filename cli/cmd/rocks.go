@@ -8,7 +8,7 @@ import (
 
 // NewRocksCmd creates rocks command.
 func NewRocksCmd() *cobra.Command {
-	var rocksCmd = &cobra.Command{
+	rocksCmd := &cobra.Command{
 		Use:   "rocks",
 		Short: "LuaRocks package manager",
 		// Disabled all flags parsing on this commands leaf.

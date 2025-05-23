@@ -22,47 +22,43 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	testCases := make(map[getCredsFromFileInputValue]getCredsFromFileOutputValue)
 
-	testCases[getCredsFromFileInputValue{path: "./testdata/nonexisting"}] =
-		getCredsFromFileOutputValue{
-			result: UserCredentials{},
-			err:    fmt.Errorf("open ./testdata/nonexisting: no such file or directory"),
-		}
+	testCases[getCredsFromFileInputValue{path: "./testdata/nonexisting"}] = getCredsFromFileOutputValue{
+		result: UserCredentials{},
+		err:    fmt.Errorf("open ./testdata/nonexisting: no such file or directory"),
+	}
 
 	file, err := os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
 	file.WriteString("user\npass")
 	defer os.Remove(file.Name())
 
-	testCases[getCredsFromFileInputValue{path: file.Name()}] =
-		getCredsFromFileOutputValue{
-			result: UserCredentials{
-				Username: "user",
-				Password: "pass",
-			},
-			err: nil,
-		}
+	testCases[getCredsFromFileInputValue{path: file.Name()}] = getCredsFromFileOutputValue{
+		result: UserCredentials{
+			Username: "user",
+			Password: "pass",
+		},
+		err: nil,
+	}
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
 	file.WriteString("")
 	defer os.Remove(file.Name())
 
-	testCases[getCredsFromFileInputValue{path: file.Name()}] =
-		getCredsFromFileOutputValue{
-			result: UserCredentials{},
-			err:    fmt.Errorf("login not set"),
-		}
+	testCases[getCredsFromFileInputValue{path: file.Name()}] = getCredsFromFileOutputValue{
+		result: UserCredentials{},
+		err:    fmt.Errorf("login not set"),
+	}
 
 	file, err = os.CreateTemp("/tmp", "tt-unittest-*.bat")
 	assert.Nil(err)
 	file.WriteString("user")
 	defer os.Remove(file.Name())
 
-	testCases[getCredsFromFileInputValue{path: file.Name()}] =
-		getCredsFromFileOutputValue{
-			result: UserCredentials{},
-			err:    fmt.Errorf("password not set"),
-		}
+	testCases[getCredsFromFileInputValue{path: file.Name()}] = getCredsFromFileOutputValue{
+		result: UserCredentials{},
+		err:    fmt.Errorf("password not set"),
+	}
 
 	for input, output := range testCases {
 		creds, err := getCredsFromFile(input.path)

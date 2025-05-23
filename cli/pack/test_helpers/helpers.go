@@ -19,7 +19,7 @@ func CreateFiles(destPath string, paths []string) error {
 func CreateDirs(destPath string, paths []string) error {
 	var err error
 	for _, item := range paths {
-		err = os.MkdirAll(filepath.Join(destPath, item), 0750)
+		err = os.MkdirAll(filepath.Join(destPath, item), 0o750)
 		if err != nil {
 			return err
 		}
