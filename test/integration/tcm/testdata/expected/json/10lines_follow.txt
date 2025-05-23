@@ -1,0 +1,260 @@
+{
+  time: 1003
+  level: INFO
+  msg: connected to storage
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/server.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).Serve",
+    line: 210
+  }
+}
+{
+  time: 1004
+  level: INFO
+  msg: validation storage entities...
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/server.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).Serve",
+    line: 212
+  }
+}
+{
+  time: 1005
+  level: INFO
+  msg: storage entities validated
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/server.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).Serve",
+    line: 222
+  }
+}
+{
+  time: 1006
+  level: INFO
+  msg: schema is up to date
+  source: {
+    file: "tarantool-cluster-manager/internal/pkg/storage/storage.go",
+    function: "tarantool-cluster-manager/internal/pkg/storage.(*StorageImpl).Bootstrap",
+    line: 339
+  }
+}
+{
+  time: 1007
+  level: INFO
+  msg: stop to watch auditlog settings
+  endpoints: [
+    "http://127.0.0.1:2379"
+  ],
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/background.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).WatchAuditlogSettings",
+    line: 42
+  }
+}
+{
+  time: 1008
+  level: INFO
+  key/val: TCM_CLUSTER_TT_COMMAND=tt
+  source: {
+    file: "tarantool-cluster-manager/internal/pkg/utils/struct.go",
+    function: "tarantool-cluster-manager/internal/pkg/utils.Display",
+    line: 74
+  }
+}
+{
+  time: 1009
+  level: INFO
+  msg: "    "
+  key/val: TCM_STORAGE_TARANTOOL_EMBED_CONFIG=
+credentials:
+  users:
+    replicator:
+      password: '******'
+      roles: [replication]
+    client:
+      password: '******'
+      privileges:
+        - permissions: [execute]
+          universe: true
+        - permissions: [read, write]
+          spaces: [config_storage, config_storage_meta]
+
+iproto:
+  advertise:
+    peer:
+      login: replicator
+
+replication:
+  failover: election
+  timeout: 0.1
+  synchro_timeout: 0.1
+
+database:
+  use_mvcc_engine: true
+
+groups:
+  group-001:
+    replicasets:
+      replicaset-001:
+        instances:
+          instance-001:
+            iproto:
+              listen:
+                - uri: "unix/:/tmp/tnt_config_instance.sock"
+              advertise:
+                client: "unix/:/tmp/tnt_config_instance.sock"
+            roles:
+              - config.storage
+  source: {
+    file: "tarantool-cluster-manager/internal/pkg/utils/struct.go",
+    function: "tarantool-cluster-manager/internal/pkg/utils.Display",
+    line: 74
+  }
+}
+{
+  time: 1010
+  level: INFO
+  msg: build setting
+  path: "github.com/smacker/go-tree-sitter",
+  source: {
+    file: "tarantool-cluster-manager/cmd/tcm/tcm.go",
+    function: "tarantool-cluster-manager/cmd/tcm.TcmMain",
+    line: 329
+  },
+  sum: "",
+  version: "v0.0.0-20240625050157-a31a98a7c0f6"
+}
+{
+  time: 1011
+  level: WARN
+  msg: retrying of unary invoker failed
+  attempt: 0,
+  error: "rpc error: code = Canceled desc = context canceled",
+  source: {
+    file: "go.etcd.io/etcd/client/v3@v3.5.15/retry_interceptor.go",
+    function: "go.etcd.io/etcd/client/v3.(*Client).unaryClientInterceptor.func1",
+    line: 63
+  },
+  target: "etcd-endpoints://0xc00048a1e0/127.0.0.1:2379"
+}
+{
+  time: 1012
+  key/val: TCM_HTTP_TLS_CURVE_PREFERENCES=<nil>
+  source: {
+    file: "tarantool-cluster-manager/internal/pkg/utils/struct.go",
+    function: "tarantool-cluster-manager/internal/pkg/utils.Display",
+    line: 61
+  }
+}
+---=== EOF(1) ===---
+{
+  time: 2001
+  level: INFO
+  msg: version: 1.3.1-0-g074b5ffa
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/server.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).Serve",
+    line: 181
+  }
+}
+{
+  time: 2002
+  level: INFO
+  msg: connecting to storage...
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/server.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).Serve",
+    line: 203
+  }
+}
+{
+  time: 2003
+  level: INFO
+  msg: connected to storage
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/server.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).Serve",
+    line: 210
+  }
+}
+{
+  time: 2004
+  level: INFO
+  msg: validation storage entities...
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/server.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).Serve",
+    line: 212
+  }
+}
+{
+  time: 2005
+  level: INFO
+  msg: storage entities validated
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/server.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).Serve",
+    line: 222
+  }
+}
+{
+  time: 2006
+  level: INFO
+  msg: schema is up to date
+  source: {
+    file: "tarantool-cluster-manager/internal/pkg/storage/storage.go",
+    function: "tarantool-cluster-manager/internal/pkg/storage.(*StorageImpl).Bootstrap",
+    line: 339
+  }
+}
+{
+  time: 2007
+  level: INFO
+  msg: stop to watch auditlog settings
+  endpoints: [
+    "http://127.0.0.1:2379"
+  ],
+  source: {
+    file: "tarantool-cluster-manager/internal/app/tcm/server/background.go",
+    function: "tarantool-cluster-manager/internal/app/tcm/server.(*TcmAPI).WatchAuditlogSettings",
+    line: 42
+  }
+}
+{
+  time: 2008
+  level: INFO
+  msg: "\n\n\n"
+  key/val: TCM_CLUSTER_TT_COMMAND=tt
+  source: {
+    file: "tarantool-cluster-manager/internal/pkg/utils/struct.go",
+    function: "tarantool-cluster-manager/internal/pkg/utils.Display",
+    line: 74
+  }
+}
+{
+  time: 2009
+  level: INFO
+  msg: build setting
+  path: "github.com/smacker/go-tree-sitter",
+  source: {
+    file: "tarantool-cluster-manager/cmd/tcm/tcm.go",
+    function: "tarantool-cluster-manager/cmd/tcm.TcmMain",
+    line: 329
+  },
+  sum: "",
+  version: "v0.0.0-20240625050157-a31a98a7c0f6"
+}
+{
+  time: 2010
+  level: WARN
+  msg: retrying of unary invoker failed
+  attempt: 0,
+  error: "rpc error: code = Canceled desc = context canceled",
+  source: {
+    file: "go.etcd.io/etcd/client/v3@v3.5.15/retry_interceptor.go",
+    function: "go.etcd.io/etcd/client/v3.(*Client).unaryClientInterceptor.func1",
+    line: 63
+  },
+  target: "etcd-endpoints://0xc00048a1e0/127.0.0.1:2379"
+}
+---=== EOF(2) ===---

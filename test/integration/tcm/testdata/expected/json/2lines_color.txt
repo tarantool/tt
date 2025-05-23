@@ -1,0 +1,22 @@
+[94m{[0m
+  [94mtime[0m: [1m1011[0m
+  [94mlevel[0m: WARN
+  [94mmsg[0m: [3mretrying of unary invoker failed[0m
+  [94mattempt[0m: [2m0,[0m
+  [94merror[0m: [2m"rpc error: code = Canceled desc = context canceled",[0m
+  [94msource[0m: [2m{[0m
+    [94mfile[0m: [2m"go.etcd.io/etcd/client/v3@v3.5.15/retry_interceptor.go",[0m
+    [94mfunction[0m: [2m"go.etcd.io/etcd/client/v3.(*Client).unaryClientInterceptor.func1",[0m
+    [94mline[0m: [2m63[0m
+[2m  },[0m
+  [94mtarget[0m: [2m"etcd-endpoints://0xc00048a1e0/127.0.0.1:2379"[0m
+[94m}[0m
+[96m{[0m
+  [96mtime[0m: [1m1012[0m
+  [96mkey/val[0m: [4mTCM_HTTP_TLS_CURVE_PREFERENCES[0m=[3m<nil>[0m
+  [96msource[0m: [2m{[0m
+    [96mfile[0m: [2m"tarantool-cluster-manager/internal/pkg/utils/struct.go",[0m
+    [96mfunction[0m: [2m"tarantool-cluster-manager/internal/pkg/utils.Display",[0m
+    [96mline[0m: [2m61[0m
+[2m  }[0m
+[96m}[0m

@@ -1,0 +1,35 @@
+{
+  time: 1010
+  level: INFO
+  msg: build setting
+  path: "github.com/smacker/go-tree-sitter",
+  source: {
+    file: "tarantool-cluster-manager/cmd/tcm/tcm.go",
+    function: "tarantool-cluster-manager/cmd/tcm.TcmMain",
+    line: 329
+  },
+  sum: "",
+  version: "v0.0.0-20240625050157-a31a98a7c0f6"
+}
+{
+  time: 1011
+  level: WARN
+  msg: retrying of unary invoker failed
+  attempt: 0,
+  error: "rpc error: code = Canceled desc = context canceled",
+  source: {
+    file: "go.etcd.io/etcd/client/v3@v3.5.15/retry_interceptor.go",
+    function: "go.etcd.io/etcd/client/v3.(*Client).unaryClientInterceptor.func1",
+    line: 63
+  },
+  target: "etcd-endpoints://0xc00048a1e0/127.0.0.1:2379"
+}
+{
+  time: 1012
+  key/val: TCM_HTTP_TLS_CURVE_PREFERENCES=<nil>
+  source: {
+    file: "tarantool-cluster-manager/internal/pkg/utils/struct.go",
+    function: "tarantool-cluster-manager/internal/pkg/utils.Display",
+    line: 61
+  }
+}

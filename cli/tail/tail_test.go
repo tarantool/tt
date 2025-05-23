@@ -228,6 +228,94 @@ five
 	}
 }
 
+func TestTailReader_interface(t *testing.T) {
+	type args struct {
+		n int
+	}
+
+	tmpDir := t.TempDir()
+
+	fiveLines := `one
+two
+three
+four
+five
+`
+
+	tests := []struct {
+		name    string
+		text    string
+		args    args
+		check   func(str string)
+		wantErr bool
+	}{
+		{
+			name: "Last 3 lines",
+			text: fiveLines,
+			args: args{
+				n: 3,
+			},
+			check:   linesChecker(t, []string{"three", "four", "five"}),
+			wantErr: false,
+		},
+		{
+			name: "No last new-line, want 3",
+			text: fiveLines[:len(fiveLines)-1],
+			args: args{
+				n: 3,
+			},
+			check:   linesChecker(t, []string{"three", "four", "five"}),
+			wantErr: false,
+		},
+		{
+			name: "Empty, want 3",
+			text: "",
+			args: args{
+				n: 3,
+			},
+			check:   linesChecker(t, []string{}),
+			wantErr: false,
+		},
+		{
+			name: "Only new-lines, wamt 3",
+			text: "\n\n\n\n\n\n\n\n\n",
+			args: args{
+				n: 3,
+			},
+			check:   linesChecker(t, []string{"", "", ""}),
+			wantErr: false,
+		},
+		{
+			name: "Only new-lines, want 0",
+			text: "\n\n\n\n\n\n\n\n\n",
+			args: args{
+				n: 0,
+			},
+			check:   linesChecker(t, []string{}),
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outFile, err := os.CreateTemp(tmpDir, "*.txt")
+			require.NoError(t, err)
+
+			defer outFile.Close()
+			outFile.WriteString(tt.text)
+			outFile.Close()
+
+			r := NewTailReader(outFile.Name())
+			in, err := r.Read(context.Background(), tt.args.n)
+			assert.NoError(t, err)
+
+			for line := range in {
+				tt.check(line)
+			}
+		})
+	}
+}
+
 func TestPrintLastNLinesFileDoesNotExist(t *testing.T) {
 	in, err := TailN(context.Background(), func(str string) string {
 		return str

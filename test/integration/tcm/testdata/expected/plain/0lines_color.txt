@@ -1,0 +1,10 @@
+1012 INF schema is up to date
+1013 INF bootstrapped tcm storage
+1014 INF creating cluster pool...
+1015 INF cluster pool created
+1016 INF cluster pool start watching
+1017 INF update stateboards started
+1018 INF creating auditlog from settings from storage...
+1019 INF start to watch acl endpoints=[http://127.0.0.1:2379]
+1020 WRN retrying of unary invoker failed target=etcd-endpoints://0xc000418000/127.0.0.1:2379 attempt=0 error="rpc error: code = Canceled desc = latest balancer error: last connection error: connection error: desc = \"transport: Error while dialing: dial tcp 127.0.0.1:2379: connect: connection refused\""
+1021 ERR fail to get entity from etcd path=/cluster/ err="context canceled"

@@ -1,0 +1,124 @@
+[94m{[0m
+  [94mtime[0m: [1m1001[0m
+  [94mlevel[0m: INFO
+  [94mmsg[0m: [3mversion: 1.2.3[0m
+  [94msource[0m: [2m{[0m
+    [94mfile[0m: [2m"source.go",[0m
+    [94mfunction[0m: [2m"handler",[0m
+    [94mline[0m: [2m123[0m
+[2m  }[0m
+[94m}[0m
+[96m{[0m
+  [96mtime[0m: [1m1002[0m
+  [96mlevel[0m: INFO
+  [96mmsg[0m: [3mconnecting to storage...[0m
+  [96msource[0m: [2m{[0m
+    [96mfile[0m: [2m"source.go",[0m
+    [96mfunction[0m: [2m"handler",[0m
+    [96mline[0m: [2m123[0m
+[2m  }[0m
+[96m}[0m
+[95m{[0m
+  [95mtime[0m: [1m1003[0m
+  [95mlevel[0m: INFO
+  [95mmsg[0m: [3mconnected to storage[0m
+  [95msource[0m: [2m{[0m
+    [95mfile[0m: [2m"source.go",[0m
+    [95mfunction[0m: [2m"handler",[0m
+    [95mline[0m: [2m123[0m
+[2m  }[0m
+[95m}[0m
+[34m{[0m
+  [34mtime[0m: [1m1004[0m
+  [34mlevel[0m: INFO
+  [34mmsg[0m: [3mvalidation storage entities...[0m
+  [34msource[0m: [2m{[0m
+    [34mfile[0m: [2m"source.go",[0m
+    [34mfunction[0m: [2m"handler",[0m
+    [34mline[0m: [2m123[0m
+[2m  }[0m
+[34m}[0m
+[36m{[0m
+  [36mtime[0m: [1m1005[0m
+  [36mlevel[0m: INFO
+  [36mmsg[0m: [3mstorage entities validated[0m
+  [36msource[0m: [2m{[0m
+    [36mfile[0m: [2m"source.go",[0m
+    [36mfunction[0m: [2m"handler",[0m
+    [36mline[0m: [2m123[0m
+[2m  }[0m
+[36m}[0m
+[35m{[0m
+  [35mtime[0m: [1m1006[0m
+  [35mlevel[0m: INFO
+  [35mmsg[0m: [3mschema is up to date[0m
+[35m}[0m
+[94m{[0m
+  [94mtime[0m: [1m1007[0m
+  [94mlevel[0m: INFO
+  [94mmsg[0m: [3mstop to watch audit log settings[0m
+  [94mendpoints[0m: [2m[[0m
+[2m    "http://127.0.0.1:2379"[0m
+[2m  ],[0m
+  [94msource[0m: [2m{[0m
+    [94mfile[0m: [2m"source.go",[0m
+    [94mfunction[0m: [2m"handler",[0m
+    [94mline[0m: [2m123[0m
+[2m  }[0m
+[94m}[0m
+1008 TRACE Not Json message line
+[96m{[0m
+  [96mtime[0m: [1m1009[0m
+  [96mlevel[0m: INFO
+  [96mkey/val[0m: [4mTCM_CLUSTER_TT_COMMAND[0m=[3mtt[0m
+[96m}[0m
+[95m{[0m
+  [95mtime[0m: [1m1010[0m
+  [95mlevel[0m: INFO
+  [95mmsg[0m: [3m"    "[0m
+  [95mkey/val[0m: [4mTCM_STORAGE_TARANTOOL_EMBED_CONFIG[0m=[3m
+credentials:
+  users:
+    replicator:
+      password: '******'
+      roles: [replication]
+iproto:
+  advertise:
+    peer:
+      login: replicator
+replication:
+  failover: election
+  timeout: 0.1
+  synchro_timeout: 0.1[0m
+[95m}[0m
+[34m{[0m
+  [34mtime[0m: [1m1011[0m
+  [34mlevel[0m: INFO
+  [34mmsg[0m: [3mbuild setting[0m
+  [34mpath[0m: [2m"github.com/smacker/go-tree-sitter",[0m
+  [34msource[0m: [2m{[0m
+    [34mfile[0m: [2m"source.go",[0m
+    [34mfunction[0m: [2m"handler",[0m
+    [34mline[0m: [2m123[0m
+[2m  },[0m
+  [34msum[0m: [2m"",[0m
+  [34mversion[0m: [2m"v0.0.0-20240625050157"[0m
+[34m}[0m
+[36m{[0m
+  [36mtime[0m: [1m1012[0m
+  [36mlevel[0m: WARN
+  [36mmsg[0m: [3mretrying of unary invoker failed[0m
+  [36mattempt[0m: [2m0,[0m
+  [36merror[0m: [2m"rpc error: code = Canceled",[0m
+  [36msource[0m: [2m{[0m
+    [36mfile[0m: [2m"source.go",[0m
+    [36mfunction[0m: [2m"handler",[0m
+    [36mline[0m: [2m123[0m
+[2m  },[0m
+  [36mtarget[0m: [2m"etcd-endpoints://0xc00048a1e0/127.0.0.1:2379"[0m
+[36m}[0m
+[35m{[0m
+  [35mtime[0m: [1m1013[0m
+  [35mkey/val[0m: [4mTCM_HTTP_TLS_CURVE_PREFERENCES[0m=[3m<nil>[0m
+[35m}[0m
+{"time":"1014","level":"DEBUG","msg":"Broken json records", source: source.go}}
