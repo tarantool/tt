@@ -1,11 +1,16 @@
 import pytest
 from tarantool.connection import os
 
-from utils import (get_fixture_tcs_params, is_tarantool_ee,
-                   is_tarantool_less_3, run_command_and_get_output)
+from utils import (
+    get_fixture_tcs_params,
+    is_tarantool_ee,
+    is_tarantool_less_3,
+    run_command_and_get_output,
+)
 
-fixture_tcs_params = get_fixture_tcs_params(os.path.join(os.path.dirname(
-                                            os.path.abspath(__file__)), "test_tcs_app"))
+fixture_tcs_params = get_fixture_tcs_params(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_tcs_app"),
+)
 
 
 def to_etcd_key(key):
@@ -51,9 +56,9 @@ def test_cluster_demote_single_key(tt_cmd, tmpdir_with_cfg, instance_name, reque
     else:
         conn.call("config.storage.put", key, cfg1)
     creds = (
-            f"{instance.connection_username}:{instance.connection_password}@"
-            if instance_name == "tcs"
-            else ""
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
     )
     url = "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5"
     demote_cmd = [tt_cmd, "cluster", "rs", "demote", "-f", url, "instance-001"]
@@ -69,7 +74,9 @@ def test_cluster_demote_single_key(tt_cmd, tmpdir_with_cfg, instance_name, reque
         content = conn.call("config.storage.get", key)
         if len(content) > 0:
             content = content[0]["data"][0]["value"]
-    assert content == """\
+    assert (
+        content
+        == """\
 groups:
   group-001:
     replicasets:
@@ -79,20 +86,26 @@ groups:
             database:
               mode: ro
 """
+    )
 
 
-@pytest.mark.parametrize("instance_name, key", [
-    ("etcd", None),
-    ("etcd", "b"),
-    ("tcs", None),
-    ("tcs", "b"),
-])
-def test_cluster_demote_many_keys(tt_cmd,
-                                  tmpdir_with_cfg,
-                                  key,
-                                  instance_name,
-                                  request,
-                                  fixture_params):
+@pytest.mark.parametrize(
+    "instance_name, key",
+    [
+        ("etcd", None),
+        ("etcd", "b"),
+        ("tcs", None),
+        ("tcs", "b"),
+    ],
+)
+def test_cluster_demote_many_keys(
+    tt_cmd,
+    tmpdir_with_cfg,
+    key,
+    instance_name,
+    request,
+    fixture_params,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -110,10 +123,10 @@ def test_cluster_demote_many_keys(tt_cmd,
         conn.call("config.storage.put", a_key, cfg1)
         conn.call("config.storage.put", b_key, cfg2)
     creds = (
-            f"{instance.connection_username}:{instance.connection_password}@"
-            if instance_name == "tcs"
-            else ""
-        )
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
     url = "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5"
     if key:
         url = f"{url}&key={key}"
@@ -139,7 +152,9 @@ def test_cluster_demote_many_keys(tt_cmd,
         content = conn.call("config.storage.get", b_key)
         if len(content) > 0:
             content = content[0]["data"][0]["value"]
-    assert content == """\
+    assert (
+        content
+        == """\
 groups:
   group-001:
     replicasets:
@@ -149,20 +164,32 @@ groups:
             database:
               mode: ro
 """
+    )
 
 
-@pytest.mark.parametrize("instance_name, err_msg", [
-    ("etcd", "⨯ failed to collect cluster config: " +
-             "failed to fetch data from etcd: etcdserver: user name is empty"),
-    ("tcs", "⨯ failed to collect cluster config: failed to fetch data from tarantool:" +
-            " Execute access to function 'config.storage.get' is denied for user 'guest'")
-])
-def test_cluster_demote_no_auth(tt_cmd,
-                                tmpdir_with_cfg,
-                                instance_name,
-                                fixture_params,
-                                request,
-                                err_msg):
+@pytest.mark.parametrize(
+    "instance_name, err_msg",
+    [
+        (
+            "etcd",
+            "⨯ failed to collect cluster config: "
+            + "failed to fetch data from etcd: etcdserver: user name is empty",
+        ),
+        (
+            "tcs",
+            "⨯ failed to collect cluster config: failed to fetch data from tarantool:"
+            + " Execute access to function 'config.storage.get' is denied for user 'guest'",
+        ),
+    ],
+)
+def test_cluster_demote_no_auth(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    fixture_params,
+    request,
+    err_msg,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -184,18 +211,29 @@ def test_cluster_demote_no_auth(tt_cmd,
             instance.disable_auth()
 
 
-@pytest.mark.parametrize("instance_name, err_msg", [
-    ("etcd", "failed to connect to etcd: " +
-             "etcdserver: authentication failed, invalid user ID or password"),
-    ("tcs", "failed to establish a connection to tarantool or etcd:" +
-            " failed to connect to tarantool: failed to authenticate:")
-])
-def test_cluster_demote_bad_auth(tt_cmd,
-                                 tmpdir_with_cfg,
-                                 instance_name,
-                                 err_msg,
-                                 fixture_params,
-                                 request):
+@pytest.mark.parametrize(
+    "instance_name, err_msg",
+    [
+        (
+            "etcd",
+            "failed to connect to etcd: "
+            + "etcdserver: authentication failed, invalid user ID or password",
+        ),
+        (
+            "tcs",
+            "failed to establish a connection to tarantool or etcd:"
+            + " failed to connect to tarantool: failed to authenticate:",
+        ),
+    ],
+)
+def test_cluster_demote_bad_auth(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    err_msg,
+    fixture_params,
+    request,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -219,14 +257,17 @@ def test_cluster_demote_bad_auth(tt_cmd,
             instance.disable_auth()
 
 
-@pytest.mark.parametrize("instance_name, auth", [
-    ("etcd", "url"),
-    ("etcd", "flag"),
-    ("etcd", "env"),
-    ("tcs", "url"),
-    ("tcs", "flag"),
-    ("tcs", "env"),
-])
+@pytest.mark.parametrize(
+    "instance_name, auth",
+    [
+        ("etcd", "url"),
+        ("etcd", "flag"),
+        ("etcd", "env"),
+        ("tcs", "url"),
+        ("tcs", "flag"),
+        ("tcs", "env"),
+    ],
+)
 def test_cluster_demote_auth(tt_cmd, tmpdir_with_cfg, instance_name, auth, fixture_params, request):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -255,21 +296,26 @@ def test_cluster_demote_auth(tt_cmd, tmpdir_with_cfg, instance_name, auth, fixtu
         elif auth == "flag":
             env = None
             url = f"{instance.endpoint}/prefix?timeout=5"
-            demote_cmd = [tt_cmd, "cluster", "rs", "demote", "-f",
-                          "-u", instance.connection_username,
-                          "-p", instance.connection_password,
-                          url, "instance-001"]
+            demote_cmd = [
+                tt_cmd,
+                "cluster",
+                "rs",
+                "demote",
+                "-f",
+                "-u",
+                instance.connection_username,
+                "-p",
+                instance.connection_password,
+                url,
+                "instance-001",
+            ]
         elif auth == "env":
             env = {
                 (
-                    "TT_CLI_ETCD_USERNAME"
-                    if instance_name == "etcd"
-                    else "TT_CLI_USERNAME"
+                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
                 ): instance.connection_username,
                 (
-                    "TT_CLI_ETCD_PASSWORD"
-                    if instance_name == "etcd"
-                    else "TT_CLI_PASSWORD"
+                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
                 ): instance.connection_password,
             }
             url = f"{instance.endpoint}/prefix?timeout=5"
@@ -291,7 +337,9 @@ def test_cluster_demote_auth(tt_cmd, tmpdir_with_cfg, instance_name, auth, fixtu
             content = conn.call("config.storage.get", key)
             if len(content) > 0:
                 content = content[0]["data"][0]["value"]
-        assert content == """\
+        assert (
+            content
+            == """\
 groups:
   group-001:
     replicasets:
@@ -301,6 +349,7 @@ groups:
             database:
               mode: ro
 """
+        )
 
     finally:
         if instance_name == "etcd":

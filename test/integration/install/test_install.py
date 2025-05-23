@@ -8,8 +8,7 @@ import tempfile
 import pytest
 import yaml
 
-from utils import (config_name, is_valid_tarantool_installed,
-                   run_command_and_get_output)
+from utils import config_name, is_valid_tarantool_installed, run_command_and_get_output
 
 
 @pytest.mark.slow
@@ -18,8 +17,8 @@ def test_install_tt_unexisted_commit(tt_cmd, tmp_path):
 
     # Create test config
     tmp_dir = tempfile.mkdtemp(dir=tmp_path)
-    tmp_name = tmp_dir.rpartition('/')[2]
-    with open(configPath, 'w') as f:
+    tmp_name = tmp_dir.rpartition("/")[2]
+    with open(configPath, "w") as f:
         f.write('env:\n  bin_dir:\n  inc_dir:\nrepo:\n  distfiles: "%s"' % tmp_name)
 
     os.makedirs(tmp_dir + "/tt")
@@ -30,7 +29,7 @@ def test_install_tt_unexisted_commit(tt_cmd, tmp_path):
         cwd=tmp_dir + "/tt",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     # Install tt.
@@ -40,7 +39,7 @@ def test_install_tt_unexisted_commit(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     # Check that the process shutdowned correctly.
@@ -57,8 +56,8 @@ def test_install_tt_unexisted_commit(tt_cmd, tmp_path):
 def test_install_tt(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config
-    with open(configPath, 'w') as f:
-        f.write('env:\n  bin_dir:\n  inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("env:\n  bin_dir:\n  inc_dir:\n")
 
     # Install latest tt.
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt"]
@@ -67,7 +66,7 @@ def test_install_tt(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     # Check that the process shutdowned correctly.
@@ -81,7 +80,7 @@ def test_install_tt(tt_cmd, tmp_path):
         cwd=tmp_path / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool CLI version \d+.\d+.\d+", start_output)
@@ -91,8 +90,8 @@ def test_install_tt(tt_cmd, tmp_path):
 def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config
-    with open(configPath, 'w') as f:
-        f.write('env:\n  bin_dir:\n  inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("env:\n  bin_dir:\n  inc_dir:\n")
 
     # Install specific tt's commit.
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "97c7b73"]
@@ -101,7 +100,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     # Check that the process shutdowned correctly.
@@ -114,7 +113,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
         cwd=tmp_path / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool CLI version 2.1.1", start_output)
@@ -127,7 +126,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     first_output = uninstall_instance_process.stdout.readline()
     assert re.search(r"Removing binary...", first_output)
@@ -140,8 +139,8 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
 def test_wrong_format_hash(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config
-    with open(configPath, 'w') as f:
-        f.write('env:\n  bin_dir:\n  inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("env:\n  bin_dir:\n  inc_dir:\n")
 
     # Install specific tt's commit.
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", "111"]
@@ -150,7 +149,7 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     # Check that the process shutdowned correctly.
@@ -159,7 +158,8 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
     assert re.search(r"Searching in versions...", instance_process.stdout.readline())
     assert re.search(r"Searching in commits...", instance_process.stdout.readline())
     assert re.search(
-        r"the hash must contain at least 7 characters", instance_process.stdout.readline()
+        r"the hash must contain at least 7 characters",
+        instance_process.stdout.readline(),
     )
 
     # Install specific tt's commit.
@@ -169,7 +169,7 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     # Check that the process shutdowned correctly.
@@ -188,13 +188,13 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
         ("2.1.2", "2.1.2"),
         ("v2.2", "2.2.1"),
         ("1", "1.3.1"),
-    ]
+    ],
 )
 def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, installed_ver: str):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config
-    with open(configPath, 'w') as f:
-        f.write('env:\n  bin_dir:\n  inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("env:\n  bin_dir:\n  inc_dir:\n")
 
     # Install latest tt.
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt", required_ver]
@@ -203,7 +203,7 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, instal
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     # Check that the process shutdowned correctly.
@@ -217,7 +217,7 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, instal
         cwd=tmp_path / "bin",
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = installed_program_process.stdout.readline()
     assert re.search(rf"Tarantool CLI.*{installed_ver}", start_output)
@@ -242,7 +242,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
         # In case of build failure, logs are printed to stdout. It fills pipe buffer and
         # blocks all subsequent stdout write calls in tt, because there is no pipe reader in test.
         stdout=subprocess.DEVNULL,
-        text=True
+        text=True,
     )
 
     # Check that the process was shutdowned correctly.
@@ -254,7 +254,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
         cwd=os.path.join(tmp_path, "/bin"),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     run_output = installed_program_process.stdout.readline()
@@ -276,7 +276,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     [
         ("2.10.7", "2.10.7"),
         ("v2.10", "2.10.8"),
-    ]
+    ],
 )
 def test_install_tarantool(tt_cmd, tmp_path, required_ver: str, installed_ver: str):
     config_path = os.path.join(tmp_path, config_name)
@@ -296,7 +296,7 @@ def test_install_tarantool(tt_cmd, tmp_path, required_ver: str, installed_ver: s
         # In case of build failure, logs are printed to stdout. It fills pipe buffer and
         # blocks all subsequent stdout write calls in tt, because there is no pipe reader in test.
         stdout=subprocess.DEVNULL,
-        text=True
+        text=True,
     )
 
     # Check that the process was shutdowned correctly.
@@ -308,7 +308,7 @@ def test_install_tarantool(tt_cmd, tmp_path, required_ver: str, installed_ver: s
         cwd=os.path.join(tmp_path, "/bin"),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     run_output = installed_program_process.stdout.readline()
@@ -340,7 +340,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
         # In case of build failure, docker logs are printed to stdout. It fills pipe buffer and
         # blocks all subsequent stdout write calls in tt, because there is no pipe reader in test.
         stdout=subprocess.DEVNULL,
-        text=True
+        text=True,
     )
 
     instance_process_rc = tt_process.wait()
@@ -351,38 +351,45 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
         cwd=os.path.join(tmp_path, "/bin"),
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
 
     # Check tarantool glibc version.
-    out = subprocess.getoutput("objdump -T " + os.path.join(tmp_path, "bin", "tarantool") +
-                               " | grep -o -E 'GLIBC_[.0-9]+' | sort -V | tail -n1")
+    out = subprocess.getoutput(
+        "objdump -T "
+        + os.path.join(tmp_path, "bin", "tarantool")
+        + " | grep -o -E 'GLIBC_[.0-9]+' | sort -V | tail -n1",
+    )
     assert out == "GLIBC_2.27"
 
     assert os.path.exists(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
 
 
-@pytest.mark.parametrize("tt_dir, expected_bin_path, expected_inc_path", [
-    pytest.param(
-        "tt_basic",
-        os.path.join("bin", "tarantool_2.10.8"),
-        os.path.join("inc", "include", "tarantool_2.10.8")
-    ),
-    pytest.param(
-        "tt_empty",
-        None,
-        None,
-    )
-])
+@pytest.mark.parametrize(
+    "tt_dir, expected_bin_path, expected_inc_path",
+    [
+        pytest.param(
+            "tt_basic",
+            os.path.join("bin", "tarantool_2.10.8"),
+            os.path.join("inc", "include", "tarantool_2.10.8"),
+        ),
+        pytest.param(
+            "tt_empty",
+            None,
+            None,
+        ),
+    ],
+)
 def test_install_tarantool_dev_bin_invalid(
-        tt_cmd,
-        tmp_path,
-        tt_dir,
-        expected_bin_path,
-        expected_inc_path):
+    tt_cmd,
+    tmp_path,
+    tt_dir,
+    expected_bin_path,
+    expected_inc_path,
+):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
@@ -392,15 +399,17 @@ def test_install_tarantool_dev_bin_invalid(
         build_path = os.path.join(testdata_path, build_dir)
         install_cmd = [
             tt_cmd,
-            "--cfg", os.path.join(testdata_path, tt_dir, config_name),
-            "install", "tarantool-dev",
-            build_path
+            "--cfg",
+            os.path.join(testdata_path, tt_dir, config_name),
+            "install",
+            "tarantool-dev",
+            build_path,
         ]
         install_process = subprocess.Popen(
             install_cmd,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         install_process_rc = install_process.wait()
         output = install_process.stdout.read()
@@ -416,39 +425,34 @@ def test_install_tarantool_dev_bin_invalid(
             os.path.join(testdata_path, tt_dir, "bin"),
             os.path.join(testdata_path, tt_dir, "inc", "include"),
             expected_bin_path,
-            expected_inc_path
+            expected_inc_path,
         )
 
 
-@pytest.mark.parametrize("tt_dir", [
-    "tt_basic",
-    "tt_empty",
-    "tt_invalid"
-])
-@pytest.mark.parametrize("build_dir, exec_rel_path, include_rel_path", [
-    pytest.param(
-        "build_ce",
-        os.path.join("src", "tarantool"),
-        os.path.join("tarantool-prefix", "include", "tarantool")
-    ),
-    pytest.param(
-        "build_ee",
-        os.path.join("tarantool", "src", "tarantool"),
-        None
-    ),
-    pytest.param(
-        "build_static",
-        os.path.join("tarantool-prefix", "bin", "tarantool"),
-        os.path.join("tarantool-prefix", "include", "tarantool")
-    )
-])
+@pytest.mark.parametrize("tt_dir", ["tt_basic", "tt_empty", "tt_invalid"])
+@pytest.mark.parametrize(
+    "build_dir, exec_rel_path, include_rel_path",
+    [
+        pytest.param(
+            "build_ce",
+            os.path.join("src", "tarantool"),
+            os.path.join("tarantool-prefix", "include", "tarantool"),
+        ),
+        pytest.param("build_ee", os.path.join("tarantool", "src", "tarantool"), None),
+        pytest.param(
+            "build_static",
+            os.path.join("tarantool-prefix", "bin", "tarantool"),
+            os.path.join("tarantool-prefix", "include", "tarantool"),
+        ),
+    ],
+)
 def test_install_tarantool_dev_no_include_option(
-        tt_cmd,
-        tmp_path,
-        build_dir,
-        exec_rel_path,
-        include_rel_path,
-        tt_dir
+    tt_cmd,
+    tmp_path,
+    build_dir,
+    exec_rel_path,
+    include_rel_path,
+    tt_dir,
 ):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
@@ -458,9 +462,11 @@ def test_install_tarantool_dev_no_include_option(
     build_path = os.path.join(testdata_path, build_dir)
     install_cmd = [
         tt_cmd,
-        "--cfg", os.path.join(testdata_path, tt_dir, config_name),
-        "install", "tarantool-dev",
-        build_path
+        "--cfg",
+        os.path.join(testdata_path, tt_dir, config_name),
+        "install",
+        "tarantool-dev",
+        build_path,
     ]
     install_process = subprocess.Popen(
         install_cmd,
@@ -473,9 +479,7 @@ def test_install_tarantool_dev_no_include_option(
 
     expected_include_symlink = None
     if include_rel_path is not None:
-        expected_include_symlink = os.path.join(
-            testdata_path, build_dir, include_rel_path
-        )
+        expected_include_symlink = os.path.join(testdata_path, build_dir, include_rel_path)
 
     assert is_valid_tarantool_installed(
         os.path.join(testdata_path, tt_dir, "bin"),
@@ -485,18 +489,15 @@ def test_install_tarantool_dev_no_include_option(
     )
 
 
-@pytest.mark.parametrize("tt_dir", [
-     "tt_basic",
-     "tt_empty",
-     "tt_invalid"
-])
-@pytest.mark.parametrize("rc, include_dir", [
-    pytest.param(0, "custom_include/tarantool", id='dir exists'),
-    pytest.param(1, "include/tarantool", id='dir not exists')
-])
-def test_install_tarantool_dev_include_option(
-        tt_cmd, tmp_path, rc, include_dir, tt_dir
-):
+@pytest.mark.parametrize("tt_dir", ["tt_basic", "tt_empty", "tt_invalid"])
+@pytest.mark.parametrize(
+    "rc, include_dir",
+    [
+        pytest.param(0, "custom_include/tarantool", id="dir exists"),
+        pytest.param(1, "include/tarantool", id="dir not exists"),
+    ],
+)
+def test_install_tarantool_dev_include_option(tt_cmd, tmp_path, rc, include_dir, tt_dir):
     # Copy test files.
     testdata_path = os.path.join(os.path.dirname(__file__), "testdata")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
@@ -506,16 +507,19 @@ def test_install_tarantool_dev_include_option(
     build_path = os.path.join(testdata_path, build_dir)
     install_cmd = [
         tt_cmd,
-        "--cfg", os.path.join(testdata_path, tt_dir, config_name),
-        "install", "tarantool-dev",
+        "--cfg",
+        os.path.join(testdata_path, tt_dir, config_name),
+        "install",
+        "tarantool-dev",
         build_path,
-        "--include-dir", os.path.join(build_path, include_dir)
+        "--include-dir",
+        os.path.join(build_path, include_dir),
     ]
 
     install_process = subprocess.Popen(
         install_cmd,
         stderr=subprocess.STDOUT,
-        stdout=subprocess.DEVNULL
+        stdout=subprocess.DEVNULL,
     )
     install_process_rc = install_process.wait()
     assert install_process_rc == rc
@@ -533,7 +537,7 @@ def test_install_tarantool_already_exists(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
-        "testdata/test_install_tarantool_already_exists"
+        "testdata/test_install_tarantool_already_exists",
     )
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
     testdata_path = os.path.join(tmp_path, "testdata")
@@ -542,15 +546,18 @@ def test_install_tarantool_already_exists(tt_cmd, tmp_path):
 
     install_cmd = [
         tt_cmd,
-        "--cfg", os.path.join(tt_dir, config_name),
-        "install", "tarantool", "1.10.13"
+        "--cfg",
+        os.path.join(tt_dir, config_name),
+        "install",
+        "tarantool",
+        "1.10.13",
     ]
 
     install_process = subprocess.Popen(
         install_cmd,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     install_process_rc = install_process.wait()
     output = install_process.stdout.read()
@@ -569,24 +576,20 @@ def test_install_tt_already_exists_no_symlink(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
-        "testdata/test_install_tt_already_exists"
+        "testdata/test_install_tt_already_exists",
     )
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
     testdata_path = os.path.join(tmp_path, "testdata")
 
     tt_dir = os.path.join(testdata_path, "tt")
 
-    install_cmd = [
-        tt_cmd,
-        "--cfg", os.path.join(tt_dir, config_name),
-        "install", "tt", "1.1.2"
-    ]
+    install_cmd = [tt_cmd, "--cfg", os.path.join(tt_dir, config_name), "install", "tt", "1.1.2"]
 
     install_process = subprocess.Popen(
         install_cmd,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     install_process_rc = install_process.wait()
     output = install_process.stdout.read()
@@ -603,24 +606,20 @@ def test_install_tt_already_exists_with_symlink(tt_cmd, tmp_path):
     # Copy test files.
     testdata_path = os.path.join(
         os.path.dirname(__file__),
-        "testdata/test_install_tt_already_exists"
+        "testdata/test_install_tt_already_exists",
     )
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
     testdata_path = os.path.join(tmp_path, "testdata")
 
     tt_dir = os.path.join(testdata_path, "tt")
     os.symlink(tt_cmd, os.path.join(tt_dir, "bin", "tt"))
-    install_cmd = [
-        tt_cmd,
-        "--cfg", os.path.join(tt_dir, config_name),
-        "install", "tt", "1.1.2"
-    ]
+    install_cmd = [tt_cmd, "--cfg", os.path.join(tt_dir, config_name), "install", "tt", "1.1.2"]
 
     install_process = subprocess.Popen(
         install_cmd,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     install_process_rc = install_process.wait()
     output = install_process.stdout.read()
@@ -633,49 +632,50 @@ def test_install_tt_already_exists_with_symlink(tt_cmd, tmp_path):
     assert tarantool_bin == expected_bin
 
 
-@pytest.mark.parametrize("package_to_exclude", [
-    pytest.param("mage"),
-    pytest.param("git")
-])
-def test_install_tt_fail_exit_code_dependency_check(
-        tt_cmd,
-        tmp_path,
-        package_to_exclude):
+@pytest.mark.parametrize("package_to_exclude", [pytest.param("mage"), pytest.param("git")])
+def test_install_tt_fail_exit_code_dependency_check(tt_cmd, tmp_path, package_to_exclude):
     # Create new PATH with excluded packages.
-    original_path = os.environ['PATH']
-    new_path = os.pathsep.join(filter(lambda dir: os.path.isdir(dir)
-                               and package_to_exclude not in os.listdir(dir),
-                               original_path.split(os.pathsep)))
+    original_path = os.environ["PATH"]
+    new_path = os.pathsep.join(
+        filter(
+            lambda dir: os.path.isdir(dir) and package_to_exclude not in os.listdir(dir),
+            original_path.split(os.pathsep),
+        ),
+    )
 
     # Create test config.
     configPath = os.path.join(tmp_path, config_name)
-    with open(configPath, 'w') as f:
-        f.write('env:\n  bin_dir:\n  inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("env:\n  bin_dir:\n  inc_dir:\n")
     install_cmd = [tt_cmd, "--cfg", configPath, "install", "tt"]
     install_process = subprocess.Popen(
         install_cmd,
         cwd=tmp_path,
-        env={'PATH': new_path},
+        env={"PATH": new_path},
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     install_process_rc = install_process.wait()
     assert install_process_rc == 1
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("old_tarantool_version, expected_install_msg, is_interactive", [
-    pytest.param("7192bf6", "Found newest commit of tarantool in master", True),
-    pytest.param("master", "tarantool_master version of tarantool already exists", False),
-    pytest.param("7192bf6", "tarantool_master version of tarantool already exists", False)
-])
+@pytest.mark.parametrize(
+    "old_tarantool_version, expected_install_msg, is_interactive",
+    [
+        pytest.param("7192bf6", "Found newest commit of tarantool in master", True),
+        pytest.param("master", "tarantool_master version of tarantool already exists", False),
+        pytest.param("7192bf6", "tarantool_master version of tarantool already exists", False),
+    ],
+)
 def test_install_tarantool_fetch_latest_version(
-        tt_cmd,
-        tmp_path,
-        old_tarantool_version,
-        expected_install_msg,
-        is_interactive):
+    tt_cmd,
+    tmp_path,
+    old_tarantool_version,
+    expected_install_msg,
+    is_interactive,
+):
     config_path = os.path.join(tmp_path, config_name)
     # Create test config.
     with open(config_path, "w") as f:
@@ -684,25 +684,40 @@ def test_install_tarantool_fetch_latest_version(
     tmp_path_without_config = tempfile.mkdtemp()
 
     # Install not latest version of tarantool by commit hash.
-    install_cmd = [tt_cmd, "--cfg", config_path, "install",
-                   "-f", "tarantool", old_tarantool_version, "--dynamic"]
-    instance_process_rc, _ = run_command_and_get_output(install_cmd,
-                                                        cwd=tmp_path_without_config,
-                                                        stdout=subprocess.DEVNULL)
+    install_cmd = [
+        tt_cmd,
+        "--cfg",
+        config_path,
+        "install",
+        "-f",
+        "tarantool",
+        old_tarantool_version,
+        "--dynamic",
+    ]
+    instance_process_rc, _ = run_command_and_get_output(
+        install_cmd,
+        cwd=tmp_path_without_config,
+        stdout=subprocess.DEVNULL,
+    )
     assert instance_process_rc == 0
 
     # Renaming installed 'old' tarantool to 'master'
     # and change symlink to old version to simulate
     # that this is the latest version.
-    os.rename(os.path.join(tmp_path, "bin", "tarantool_" +
-              old_tarantool_version), os.path.join(tmp_path, "bin", "tarantool_master"))
+    os.rename(
+        os.path.join(tmp_path, "bin", "tarantool_" + old_tarantool_version),
+        os.path.join(tmp_path, "bin", "tarantool_master"),
+    )
     os.remove(os.path.join(tmp_path, "bin", "tarantool"))
-    os.symlink(os.path.join(tmp_path, "bin", "tarantool_master"),
-               os.path.join(tmp_path, "bin", "tarantool"))
+    os.symlink(
+        os.path.join(tmp_path, "bin", "tarantool_master"),
+        os.path.join(tmp_path, "bin", "tarantool"),
+    )
     os.remove(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
-    os.rename(os.path.join(tmp_path, "my_inc", "include",
-              "tarantool_" + old_tarantool_version),
-              os.path.join(tmp_path, "my_inc", "include", "tarantool_master"))
+    os.rename(
+        os.path.join(tmp_path, "my_inc", "include", "tarantool_" + old_tarantool_version),
+        os.path.join(tmp_path, "my_inc", "include", "tarantool_master"),
+    )
 
     # Installing newest version.
     install_cmd = [tt_cmd, "--cfg", config_path]
@@ -710,28 +725,34 @@ def test_install_tarantool_fetch_latest_version(
         install_cmd.append("--no-prompt")
     install_cmd.extend(["install", "-f", "tarantool", "master", "--dynamic"])
 
-    instance_process_rc, output = run_command_and_get_output(install_cmd,
-                                                             cwd=tmp_path_without_config,
-                                                             input="y\n" if is_interactive
-                                                             is True else None)
+    instance_process_rc, output = run_command_and_get_output(
+        install_cmd,
+        cwd=tmp_path_without_config,
+        input="y\n" if is_interactive is True else None,
+    )
     assert instance_process_rc == 0
     assert expected_install_msg in output
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("active_symlink, expected_install_msg, is_interactive", [
-    ("tt_master", "Found newest commit of tt in master", True),
-    ("tt_master", "tt_master version of tt already exists, updating symlink...", False),
-    ("tt_v1.2.3", "Found newest commit of tt in master", True),
-])
-def test_install_tt_fetch_latest_version(active_symlink,
-                                         expected_install_msg,
-                                         is_interactive,
-                                         tt_cmd,
-                                         tmp_path):
+@pytest.mark.parametrize(
+    "active_symlink, expected_install_msg, is_interactive",
+    [
+        ("tt_master", "Found newest commit of tt in master", True),
+        ("tt_master", "tt_master version of tt already exists, updating symlink...", False),
+        ("tt_v1.2.3", "Found newest commit of tt in master", True),
+    ],
+)
+def test_install_tt_fetch_latest_version(
+    active_symlink,
+    expected_install_msg,
+    is_interactive,
+    tt_cmd,
+    tmp_path,
+):
     config_path = os.path.join(tmp_path, config_name)
     # Create test config
-    with open(config_path, 'w') as f:
+    with open(config_path, "w") as f:
         f.write("env:\n  bin_dir: \n  inc_dir:\n")
 
     # Create executalbe file with 'tt version --commit'
@@ -740,16 +761,15 @@ def test_install_tt_fetch_latest_version(active_symlink,
     # git commit in the master branch makes it impossible
     # to detect the latest version which contradicts the test logic.
     os.mkdir(os.path.join(tmp_path, "bin"))
-    with open(os.path.join(tmp_path, "bin", "tt_master"), 'a') as f:
+    with open(os.path.join(tmp_path, "bin", "tt_master"), "a") as f:
         f.write('''#!/bin/sh
                 echo "2.0.0.677234a"''')
     os.chmod(os.path.join(tmp_path, "bin", "tt_master"), 0o775)
-    with open(os.path.join(tmp_path, "bin", "tt_v1.2.3"), 'a') as f:
+    with open(os.path.join(tmp_path, "bin", "tt_v1.2.3"), "a") as f:
         f.write('''#!/bin/sh
                 echo "1.2.3.087ac72"''')
     os.chmod(os.path.join(tmp_path, "bin", "tt_v1.2.3"), 0o775)
-    os.symlink(os.path.join(tmp_path, active_symlink),
-               os.path.join(tmp_path, "tt"))
+    os.symlink(os.path.join(tmp_path, active_symlink), os.path.join(tmp_path, "tt"))
 
     install_cmd = [tt_cmd, "--cfg", config_path]
     if not is_interactive:
@@ -758,7 +778,7 @@ def test_install_tt_fetch_latest_version(active_symlink,
     instance_process_rc, install_output = run_command_and_get_output(
         install_cmd,
         cwd=tmp_path,
-        input="y\n" if is_interactive
-        is True else None)
+        input="y\n" if is_interactive is True else None,
+    )
     assert instance_process_rc == 0
     assert expected_install_msg in install_output

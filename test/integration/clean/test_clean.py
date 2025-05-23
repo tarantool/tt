@@ -14,14 +14,14 @@ skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
 def check_clean(tt, stop_targets, target, *args):
     # Stop the specified targets.
     for target in stop_targets:
-        rc, _ = tt.exec('stop', target, '-y')
+        rc, _ = tt.exec("stop", target, "-y")
         assert rc == 0
 
     # Store original state.
     orig_status = tt_helper.status(tt)
 
     # Do clean.
-    rc, out = tt.exec('clean', target, *args)
+    rc, out = tt.exec("clean", target, *args)
     assert rc == 0
 
     stop_instances = tt.instances_of(*stop_targets)
@@ -35,7 +35,7 @@ def check_clean(tt, stop_targets, target, *args):
         if was_running and inst not in stop_instances:
             assert status[inst]["PID"] == orig_status[inst]["PID"]
         if inst in target_instances:
-            inst_name = inst.partition(':')[2]
+            inst_name = inst.partition(":")[2]
             msg = f"instance `{inst_name}` must be stopped"
             if was_running:
                 if inst in stop_instances:
@@ -57,12 +57,16 @@ def post_start_clean_decorator(func):
         func(tt)
         # 'clean' decoration.
         # 'router' instance doesn't produce data files.
-        data_instances = filter(lambda x: 'router' not in x, tt.running_instances)
-        assert utils.wait_files(5, itertools.chain(
-            tt_helper.log_files(tt, tt.running_instances),
-            tt_helper.snap_files(tt, data_instances),
-            tt_helper.wal_files(tt, data_instances),
-        ))
+        data_instances = filter(lambda x: "router" not in x, tt.running_instances)
+        assert utils.wait_files(
+            5,
+            itertools.chain(
+                tt_helper.log_files(tt, tt.running_instances),
+                tt_helper.snap_files(tt, data_instances),
+                tt_helper.wal_files(tt, data_instances),
+            ),
+        )
+
     return wrapper_func
 
 
@@ -70,9 +74,9 @@ def post_start_clean_decorator(func):
 # Multi-instance
 
 tt_multi_inst_app = dict(
-    app_path='multi_inst_data_app',
-    app_name='app',
-    instances=['router', 'master', 'replica', 'stateboard'],
+    app_path="multi_inst_data_app",
+    app_name="app",
+    instances=["router", "master", "replica", "stateboard"],
     post_start=post_start_clean_decorator(tt_helper.post_start_base),
 )
 
@@ -80,61 +84,76 @@ tt_multi_inst_app = dict(
 # Auto-confirmation (short option).
 @pytest.mark.slow
 @pytest.mark.tt(**tt_multi_inst_app)
-@pytest.mark.parametrize('tt_running_targets, stop_targets', [
-    pytest.param([], [], id='running:none/none'),
-    pytest.param(['app'], [], id='running:all/none'),
-    pytest.param(['app'], ['app'], id='running:all/all'),
-    pytest.param(['app:master'], ['app:master'], id='running:master/master'),
-    pytest.param(['app'], ['app:master'], id='running:all/master'),
-    pytest.param(['app'], ['app:master', 'app:router'], id='running:all/master,router'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:master',
-    'app:router',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets, stop_targets",
+    [
+        pytest.param([], [], id="running:none/none"),
+        pytest.param(["app"], [], id="running:all/none"),
+        pytest.param(["app"], ["app"], id="running:all/all"),
+        pytest.param(["app:master"], ["app:master"], id="running:master/master"),
+        pytest.param(["app"], ["app:master"], id="running:all/master"),
+        pytest.param(["app"], ["app:master", "app:router"], id="running:all/master,router"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:master",
+        "app:router",
+    ],
+)
 def test_clean_multi_inst_auto_y(tt, stop_targets, target):
-    check_clean(tt, stop_targets, target, '-f')
+    check_clean(tt, stop_targets, target, "-f")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_multi_inst_app, running_targets=['app']))
+@pytest.mark.tt(**dict(tt_multi_inst_app, running_targets=["app"]))
 def test_clean_multi_inst_auto_yes(tt):
-    check_clean(tt, ['app'], 'app', '--force')
+    check_clean(tt, ["app"], "app", "--force")
 
 
 # Instance script is missing.
 tt_multi_inst_app_no_script = dict(
     tt_multi_inst_app,
-    post_start=tt_helper.post_start_no_script_decorator(tt_multi_inst_app['post_start']),
+    post_start=tt_helper.post_start_no_script_decorator(tt_multi_inst_app["post_start"]),
 )
 
 
 @pytest.mark.tt(**tt_multi_inst_app_no_script)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param(['app'], id='running:all'),
-])
-@pytest.mark.parametrize('stop_targets', [
-    pytest.param([], id='stopped:none'),
-    pytest.param(['app'], id='stopped:all'),
-])
-@pytest.mark.parametrize('target', [
-    'app',
-    'app:master',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param(["app"], id="running:all"),
+    ],
+)
+@pytest.mark.parametrize(
+    "stop_targets",
+    [
+        pytest.param([], id="stopped:none"),
+        pytest.param(["app"], id="stopped:all"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        "app",
+        "app:master",
+    ],
+)
 def test_clean_multi_inst_no_instance_script(tt, stop_targets, target):
-    check_clean(tt, stop_targets, target, '-f')
+    check_clean(tt, stop_targets, target, "-f")
 
 
 ################################################################
 # Cluster
 
 tt_cluster_app = dict(
-    app_path='cluster_app',
-    app_name='app',
-    instances=['storage-master', 'storage-replica'],
-    post_start=tt_helper.post_start_cluster_decorator(tt_multi_inst_app['post_start']),
+    app_path="cluster_app",
+    app_name="app",
+    instances=["storage-master", "storage-replica"],
+    post_start=tt_helper.post_start_cluster_decorator(tt_multi_inst_app["post_start"]),
 )
 
 
@@ -142,48 +161,63 @@ tt_cluster_app = dict(
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app)
-@pytest.mark.parametrize('tt_running_targets, stop_targets', [
-    pytest.param([], [], id='running:none/none'),
-    pytest.param(['app'], [], id='running:all/none'),
-    pytest.param(['app'], ['app'], id='running:all/all'),
-    pytest.param(['app:storage-master'], ['app:storage-master'],
-                 id='running:storage-master/storage-master'),
-    pytest.param(['app'], ['app:storage-master'], id='running:all/storage-master'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:storage-master',
-    'app:storage-replica',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets, stop_targets",
+    [
+        pytest.param([], [], id="running:none/none"),
+        pytest.param(["app"], [], id="running:all/none"),
+        pytest.param(["app"], ["app"], id="running:all/all"),
+        pytest.param(
+            ["app:storage-master"],
+            ["app:storage-master"],
+            id="running:storage-master/storage-master",
+        ),
+        pytest.param(["app"], ["app:storage-master"], id="running:all/storage-master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:storage-master",
+        "app:storage-replica",
+    ],
+)
 def test_clean_cluster_auto_y(tt, stop_targets, target):
-    check_clean(tt, stop_targets, target, '-f')
+    check_clean(tt, stop_targets, target, "-f")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt(**dict(tt_cluster_app, running_targets=['app']))
+@pytest.mark.tt(**dict(tt_cluster_app, running_targets=["app"]))
 def test_clean_cluster_auto_yes(tt):
-    check_clean(tt, ['app'], 'app', '--force')
+    check_clean(tt, ["app"], "app", "--force")
 
 
 # Cluster configuration is missing.
 tt_cluster_app_no_config = dict(
     tt_cluster_app,
-    post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app['post_start']),
+    post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app["post_start"]),
 )
 
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app_no_config)
-@pytest.mark.parametrize('tt_running_targets, stop_targets', [
-    pytest.param(['app'], ['app'], id='running:all/all'),
-    pytest.param(['app'], ['app:storage-master'], id='running:all/storage-master'),
-])
-@pytest.mark.parametrize('target', [
-    'app',
-    'app:storage-master',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets, stop_targets",
+    [
+        pytest.param(["app"], ["app"], id="running:all/all"),
+        pytest.param(["app"], ["app:storage-master"], id="running:all/storage-master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        "app",
+        "app:storage-master",
+    ],
+)
 def test_clean_cluster_no_config(tt, stop_targets, target):
-    check_clean(tt, stop_targets, target, '-f')
+    check_clean(tt, stop_targets, target, "-f")

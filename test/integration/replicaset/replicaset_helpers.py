@@ -16,7 +16,7 @@ def start_application(tt_cmd, workdir, app_name, instances):
 
     assert rc == 0
     for inst in instances:
-        file = wait_file(os.path.join(workdir, app_name), f'ready-{inst}', [])
+        file = wait_file(os.path.join(workdir, app_name), f"ready-{inst}", [])
         assert file != ""
 
 
@@ -27,10 +27,13 @@ def stop_application(tt_cmd, app_name, workdir, instances, force=False):
 
     if not force:
         for inst in instances:
-            assert re.search(rf"The Instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
-                             stop_out)
-            assert not os.path.exists(os.path.join(workdir, run_path, app_name,
-                                                   inst, "tarantool.pid"))
+            assert re.search(
+                rf"The Instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
+                stop_out,
+            )
+            assert not os.path.exists(
+                os.path.join(workdir, run_path, app_name, inst, "tarantool.pid"),
+            )
 
 
 def eval_on_instance(tt_cmd, app_name, inst_name, workdir, eval):
@@ -54,6 +57,7 @@ def box_ctl_promote(tt_cmd, app_name, inst_name, workdir):
     def is_leader_elected():
         out = eval_on_instance(tt_cmd, app_name, inst_name, workdir, "box.info.ro")
         return out.find("false") != -1
+
     assert wait_event(10, is_leader_elected)
 
 
@@ -65,7 +69,7 @@ def parse_status(buf: io.StringIO):
         if line is None:
             line = next()
         ind = line.find(c)
-        return line[:ind].strip(), line[ind+1:].strip()
+        return line[:ind].strip(), line[ind + 1 :].strip()
 
     _, orchestrator = cut()
     _, state = cut()
@@ -86,7 +90,7 @@ def parse_status(buf: io.StringIO):
         instances = {}
         while line.startswith("    "):
             is_leader = line.startswith("    ★")
-            line = line[len("    ★ "):]
+            line = line[len("    ★ ") :]
 
             name, rest = cut(line, " ")
             listen, mode = cut(rest, " ")
@@ -116,6 +120,7 @@ def get_group_by_replicaset_name(cluster_cfg, replicaset):
         for r in g["replicasets"].keys():
             if r == replicaset:
                 return gk
+    return ""
 
 
 def get_group_replicaset_by_instance_name(cluster_cfg, instance):

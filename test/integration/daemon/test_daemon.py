@@ -21,11 +21,7 @@ def kill_remain_processes_wrapper(tt_cmd):
     yield
 
     # Kill a test daemon/instance if it was not stopped due to a failed test.
-    tt_proc = subprocess.Popen(
-        ['pgrep', '-f', tt_cmd],
-        stdout=subprocess.PIPE,
-        shell=False
-    )
+    tt_proc = subprocess.Popen(["pgrep", "-f", tt_cmd], stdout=subprocess.PIPE, shell=False)
     response = tt_proc.communicate()[0]
     procs = [psutil.Process(int(pid)) for pid in response.split()]
 
@@ -40,13 +36,13 @@ def test_daemon_base_functionality(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_out = daemon_process.stdout.readline()
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "tt_daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
@@ -59,13 +55,13 @@ def test_daemon_base_functionality(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_again_out = daemon_process_2.stdout.readline()
     assert re.search(r"the process already exists. PID: \d+.", start_again_out)
 
     # Check status. PID has not been changed after second start.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "tt_daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out2 = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
@@ -91,13 +87,13 @@ def test_restart(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_out = daemon_process.stdout.readline()
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "tt_daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
@@ -111,7 +107,7 @@ def test_restart(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     restart_out = daemon_process_2.stdout.readline()
     assert re.search(r"The Daemon \(PID = \d+\) has been terminated.", restart_out)
@@ -119,7 +115,7 @@ def test_restart(tt_cmd, tmp_path):
     assert re.search(r"Starting tt daemon...", restart_out)
 
     # Check status of the new daemon.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "tt_daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
@@ -139,11 +135,11 @@ def test_restart(tt_cmd, tmp_path):
 
 def test_daemon_with_cfg(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, "tt_daemon.yaml"), "w") as tnt_env_file:
-        line = '''
+        line = """
         daemon:
             log_dir: "log"
             pidfile: "daemon.pid"
-        '''
+        """
         tnt_env_file.write(line)
 
     # Start daemon.
@@ -153,13 +149,13 @@ def test_daemon_with_cfg(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_out = daemon_process.stdout.readline()
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status of the daemon.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), 'daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
@@ -190,13 +186,13 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_out = daemon_process.stdout.readline()
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "tt_daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
@@ -208,8 +204,11 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
 
-    file = utils.wait_file(os.path.join(tmp_path, "test_app", utils.run_path, "test_app"),
-                           utils.pid_file, [])
+    file = utils.wait_file(
+        os.path.join(tmp_path, "test_app", utils.run_path, "test_app"),
+        utils.pid_file,
+        [],
+    )
     assert file != ""
 
     body = {"command_name": "status", "params": ["test_app"]}
@@ -221,8 +220,10 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     body = {"command_name": "stop", "params": ["-y", "test_app"]}
     response = requests.post(default_url, json=body)
     assert response.status_code == 200
-    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.",
-                     response.json()["res"])
+    assert re.search(
+        r"The Instance test_app \(PID = \d+\) has been terminated.",
+        response.json()["res"],
+    )
 
     # Stop daemon.
     stop_cmd = [tt_cmd, "daemon", "stop"]
@@ -245,11 +246,11 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     port = utils.find_port()
 
     with open(os.path.join(tmp_path, "tt_daemon.yaml"), "w") as tnt_env_file:
-        line = '''
+        line = """
         daemon:
             listen_interface: {}
             port: {}
-        '''.format(iface, port)
+        """.format(iface, port)
         tnt_env_file.write(line)
 
     # Start daemon.
@@ -259,13 +260,13 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_out = daemon_process.stdout.readline()
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), 'tt_daemon.pid', [])
+    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "tt_daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
     status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
@@ -282,8 +283,11 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     assert response.status_code == 200
     assert re.search(r"Starting an instance", response.json()["res"])
 
-    file = utils.wait_file(os.path.join(tmp_path, "test_app", utils.run_path, "test_app"),
-                           utils.pid_file, [])
+    file = utils.wait_file(
+        os.path.join(tmp_path, "test_app", utils.run_path, "test_app"),
+        utils.pid_file,
+        [],
+    )
     assert file != ""
 
     body = {"command_name": "status", "params": ["test_app"]}
@@ -294,8 +298,10 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     body = {"command_name": "stop", "params": ["-y", "test_app"]}
     response = requests.post(url, json=body)
     assert response.status_code == 200
-    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.",
-                     response.json()["res"])
+    assert re.search(
+        r"The Instance test_app \(PID = \d+\) has been terminated.",
+        response.json()["res"],
+    )
 
     # Stop daemon.
     stop_cmd = [tt_cmd, "daemon", "stop"]

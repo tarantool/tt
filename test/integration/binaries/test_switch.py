@@ -33,7 +33,11 @@ def assert_active_binaries(symlink: Path, expected: str, inc_subdir: Optional[st
     ],
 )
 def test_switch(
-    tt_cmd: Path, tmp_path: Path, program: str, version: str, includes: Optional[str]
+    tt_cmd: Path,
+    tmp_path: Path,
+    program: str,
+    version: str,
+    includes: Optional[str],
 ) -> None:
     copytree(DATA_DIR / "no_active", tmp_path, symlinks=True, dirs_exist_ok=True)
 
@@ -61,7 +65,11 @@ def test_switch(
     ],
 )
 def test_switch_with_link(
-    tt_cmd: Path, tmp_path: Path, program: str, version: str, includes: Optional[str]
+    tt_cmd: Path,
+    tmp_path: Path,
+    program: str,
+    version: str,
+    includes: Optional[str],
 ) -> None:
     copytree(
         DATA_DIR / "active_links",

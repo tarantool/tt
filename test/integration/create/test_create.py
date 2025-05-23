@@ -7,26 +7,33 @@ import tempfile
 import pytest
 import yaml
 
-from utils import (config_name, extract_status, get_tarantool_version,
-                   pid_file, run_command_and_get_output, wait_event, wait_file)
+from utils import (
+    config_name,
+    extract_status,
+    get_tarantool_version,
+    pid_file,
+    run_command_and_get_output,
+    wait_event,
+    wait_file,
+)
 
-tt_config_text = '''env:
+tt_config_text = """env:
   instances_enabled: test.instances.enabled
 app:
   run_dir: .
   log_dir: .
 templates:
-  - path: ./templates'''
+  - path: ./templates"""
 
 
-rendered_text = '''#! /usr/bin/env tarantool
+rendered_text = """#! /usr/bin/env tarantool
 
 cluster_cookie = {cookie}
 user_name = {user_name}
 conf_path = '/etc/{user_name}/conf.lua'
 password={pwd}
 attempts={retry_count}
-'''
+"""
 
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
@@ -50,8 +57,7 @@ def create_tnt_env_in_dir(tmp_path):
     os.mkdir(tmp_path / "test.instances.enabled")
 
     # Copy templates to tmp dir.
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"),
-                    tmp_path / "templates")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"), tmp_path / "templates")
 
 
 def test_create_basic_functionality(tt_cmd, tmp_path):
@@ -66,7 +72,7 @@ def test_create_basic_functionality(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["\n", "\n", "weak_pwd\n", "\n"])
     tt_process.stdin.close()
@@ -75,9 +81,10 @@ def test_create_basic_functionality(tt_cmd, tmp_path):
 
     app_path = subdir / "app1"
     # Read rendered template.
-    check_file_text(app_path / "config.lua",
-                    rendered_text.format(cookie="cookie", user_name="admin",
-                                         pwd="weak_pwd", retry_count=3))
+    check_file_text(
+        app_path / "config.lua",
+        rendered_text.format(cookie="cookie", user_name="admin", pwd="weak_pwd", retry_count=3),
+    )
 
     # Make sure template file is removed.
     assert os.path.exists(app_path / "config.lua.tt.template") is False
@@ -112,12 +119,12 @@ def test_create_basic_functionality(tt_cmd, tmp_path):
     out_lines = tt_process.stdout.readlines()
 
     expected_lines = [
-        'Creating application in',
-        'Using template from',
-        'Cluster cookie (default: cookie): User name (default: admin): '
-        'Password: Retry count (default: 3):    • Executing pre-hook '
-        './hooks/pre-gen.sh\n',
-        'Executing post-hook ./hooks/post-gen.sh\n'
+        "Creating application in",
+        "Using template from",
+        "Cluster cookie (default: cookie): User name (default: admin): "
+        "Password: Retry count (default: 3):    • Executing pre-hook "
+        "./hooks/pre-gen.sh\n",
+        "Executing post-hook ./hooks/post-gen.sh\n",
     ]
 
     for i in range(len(expected_lines)):
@@ -127,15 +134,24 @@ def test_create_basic_functionality(tt_cmd, tmp_path):
 def test_vars_passed_from_cli(tt_cmd, tmp_path):
     create_tnt_env_in_dir(tmp_path)
 
-    create_cmd = [tt_cmd, "create", "basic", "--var", "user_name=user2", "--var",
-                  "retry_count=number", "--name", "basic"]
+    create_cmd = [
+        tt_cmd,
+        "create",
+        "basic",
+        "--var",
+        "user_name=user2",
+        "--var",
+        "retry_count=number",
+        "--name",
+        "basic",
+    ]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["\n", "weak_pwd\n", "5\n"])
     tt_process.stdin.close()
@@ -144,9 +160,10 @@ def test_vars_passed_from_cli(tt_cmd, tmp_path):
 
     app_path = tmp_path / "basic"
     # Read rendered template.
-    check_file_text(app_path / "config.lua",
-                    rendered_text.format(cookie="cookie", user_name="user2",
-                                         pwd="weak_pwd", retry_count=5))
+    check_file_text(
+        app_path / "config.lua",
+        rendered_text.format(cookie="cookie", user_name="user2", pwd="weak_pwd", retry_count=5),
+    )
 
     # Make sure template file is removed.
     assert not (app_path / "config.lua.tt.template").exists()
@@ -167,12 +184,11 @@ def test_vars_passed_from_cli(tt_cmd, tmp_path):
     # Check output.
     out_lines = tt_process.stdout.readlines()
     expected_lines = [
-        'Creating application in',
-        'Using template from',
-        'Cluster cookie (default: cookie): Password: '
-        'Invalid format of retry_count variable.\n', 'Retry count (default: 3):'
-        '    • Executing pre-hook ./hooks/pre-gen.sh\n',
-        'Executing post-hook ./hooks/post-gen.sh\n'
+        "Creating application in",
+        "Using template from",
+        "Cluster cookie (default: cookie): Password: Invalid format of retry_count variable.\n",
+        "Retry count (default: 3):    • Executing pre-hook ./hooks/pre-gen.sh\n",
+        "Executing post-hook ./hooks/post-gen.sh\n",
     ]
 
     for i in range(len(expected_lines)):
@@ -182,32 +198,41 @@ def test_vars_passed_from_cli(tt_cmd, tmp_path):
 def test_noninteractive_mode(tt_cmd, tmp_path):
     create_tnt_env_in_dir(tmp_path)
 
-    create_cmd = [tt_cmd, "create", "basic", "--var", "password=weak_pwd",
-                  "--non-interactive", "--name", "basic"]
+    create_cmd = [
+        tt_cmd,
+        "create",
+        "basic",
+        "--var",
+        "password=weak_pwd",
+        "--non-interactive",
+        "--name",
+        "basic",
+    ]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
 
     app_path = tmp_path / "basic"
     # Read rendered template.
-    check_file_text(app_path / "config.lua",
-                    rendered_text.format(cookie="cookie", user_name="admin",
-                                         pwd="weak_pwd", retry_count=3))
+    check_file_text(
+        app_path / "config.lua",
+        rendered_text.format(cookie="cookie", user_name="admin", pwd="weak_pwd", retry_count=3),
+    )
 
     # Check output.
     out_lines = tt_process.stdout.readlines()
     expected_lines = [
-        'Creating application in',
-        'Using template from',
-        'Executing pre-hook ./hooks/pre-gen.sh\n',
-        'Executing post-hook ./hooks/post-gen.sh\n'
+        "Creating application in",
+        "Using template from",
+        "Executing pre-hook ./hooks/pre-gen.sh\n",
+        "Executing post-hook ./hooks/post-gen.sh\n",
     ]
 
     for i in range(len(expected_lines)):
@@ -221,15 +246,24 @@ def test_app_already_exist(tt_cmd, tmp_path):
     with open(file_in_app, "w") as f:
         f.write("text")
 
-    create_cmd = [tt_cmd, "create", "basic", "--name", "app1", "--var", "password=weak_pwd",
-                  "--name", "app1"]
+    create_cmd = [
+        tt_cmd,
+        "create",
+        "basic",
+        "--name",
+        "app1",
+        "--var",
+        "password=weak_pwd",
+        "--name",
+        "app1",
+    ]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -252,7 +286,7 @@ def test_app_already_exist(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -262,38 +296,47 @@ def test_app_already_exist(tt_cmd, tmp_path):
     assert os.path.exists(file_in_app) is False
 
     # Read rendered template.
-    check_file_text(app_path / "config.lua",
-                    rendered_text.format(cookie="cookie", user_name="admin",
-                                         pwd="weak_pwd", retry_count=3))
+    check_file_text(
+        app_path / "config.lua",
+        rendered_text.format(cookie="cookie", user_name="admin", pwd="weak_pwd", retry_count=3),
+    )
 
 
 def run_and_check_non_interactive(tt_cmd, tmp_path, template_path, template_name, app_dir, *args):
-    create_cmd = [tt_cmd, "create", template_name, "--var", "password=weak_pwd",
-                  "--non-interactive", *args]
+    create_cmd = [
+        tt_cmd,
+        "create",
+        template_name,
+        "--var",
+        "password=weak_pwd",
+        "--non-interactive",
+        *args,
+    ]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmp_path,
         stderr=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
 
     app_path = app_dir
     # Read rendered template.
-    check_file_text(app_path / "config.lua",
-                    rendered_text.format(cookie="cookie", user_name="admin",
-                                         pwd="weak_pwd", retry_count=3))
+    check_file_text(
+        app_path / "config.lua",
+        rendered_text.format(cookie="cookie", user_name="admin", pwd="weak_pwd", retry_count=3),
+    )
 
     # Check output.
     out_lines = tt_process.stderr.readlines()
     expected_lines = [
-        'Creating application in',
-        'Using template from {}'.format(template_path),
-        'Executing pre-hook ./hooks/pre-gen.sh\n',
-        'Executing post-hook ./hooks/post-gen.sh\n'
+        "Creating application in",
+        "Using template from {}".format(template_path),
+        "Executing pre-hook ./hooks/pre-gen.sh\n",
+        "Executing post-hook ./hooks/post-gen.sh\n",
     ]
 
     for i in range(len(expected_lines)):
@@ -311,30 +354,46 @@ def test_template_as_archive(tt_cmd, tmp_path):
         cwd=os.path.join(tmp_path, "templates", "basic"),
     )
     tar_process.wait()
-    shutil.copy(os.path.join(tmp_path, "templates", "luakit.tgz"),
-                os.path.join(tmp_path, "templates", "cartridge.tar.gz"))
+    shutil.copy(
+        os.path.join(tmp_path, "templates", "luakit.tgz"),
+        os.path.join(tmp_path, "templates", "cartridge.tar.gz"),
+    )
 
-    run_and_check_non_interactive(tt_cmd, tmp_path, tmp_path / "templates" / "luakit",
-                                  "luakit", tmp_path / "app1", "--name", "app1")
-    run_and_check_non_interactive(tt_cmd, tmp_path, tmp_path / "templates" / "cartridge",
-                                  "cartridge", tmp_path / "app2", "--name", "app2", "-s")
+    run_and_check_non_interactive(
+        tt_cmd,
+        tmp_path,
+        tmp_path / "templates" / "luakit",
+        "luakit",
+        tmp_path / "app1",
+        "--name",
+        "app1",
+    )
+    run_and_check_non_interactive(
+        tt_cmd,
+        tmp_path,
+        tmp_path / "templates" / "cartridge",
+        "cartridge",
+        tmp_path / "app2",
+        "--name",
+        "app2",
+        "-s",
+    )
 
 
 def test_template_search_paths(tt_cmd, tmp_path):
     # Create env file.
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write('''app:
+        tnt_env_file.write("""app:
   instances_enabled: ./any-dir
   run_dir: .
   log_dir: .
 templates:
   - path: ./templates
   - path: ./templates2
-  - path: ./templates3''')
+  - path: ./templates3""")
 
     # Copy templates to tmp dir.
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"),
-                    tmp_path / "templates")
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"), tmp_path / "templates")
     os.mkdir(tmp_path / "templates2")
     os.mkdir(tmp_path / "templates3")
 
@@ -345,8 +404,15 @@ templates:
     )
     tar_process.wait()
 
-    run_and_check_non_interactive(tt_cmd, tmp_path, tmp_path / "templates3" / "luakit",
-                                  "luakit", tmp_path / "app1", "--name", "app1")
+    run_and_check_non_interactive(
+        tt_cmd,
+        tmp_path,
+        tmp_path / "templates3" / "luakit",
+        "luakit",
+        tmp_path / "app1",
+        "--name",
+        "app1",
+    )
 
 
 def test_vars_file_support(tt_cmd, tmp_path):
@@ -358,16 +424,25 @@ def test_vars_file_support(tt_cmd, tmp_path):
 user_name=admin
 retry_count=6""")
 
-    create_cmd = [tt_cmd, "create", "basic", "--var", "user_name=user2",
-                  "--vars-file", vars_file, "--non-interactive",
-                  "--name", "basic"]
+    create_cmd = [
+        tt_cmd,
+        "create",
+        "basic",
+        "--var",
+        "user_name=user2",
+        "--vars-file",
+        vars_file,
+        "--non-interactive",
+        "--name",
+        "basic",
+    ]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -375,9 +450,10 @@ retry_count=6""")
 
     app_path = tmp_path / "basic"
     # Check if the data is taken from vars file.
-    check_file_text(app_path / "config.lua",
-                    rendered_text.format(cookie="cookie", user_name="user2",
-                                         pwd="my_pwd", retry_count=6))
+    check_file_text(
+        app_path / "config.lua",
+        rendered_text.format(cookie="cookie", user_name="user2", pwd="my_pwd", retry_count=6),
+    )
 
     # Make sure template file is removed.
     assert os.path.exists(app_path / "config.lua.tt.template") is False
@@ -398,10 +474,10 @@ retry_count=6""")
     # Check output.
     out_lines = tt_process.stdout.readlines()
     expected_lines = [
-        'Creating application in',
-        f'Using template from {os.path.join(tmp_path, "templates", "basic")}\n',
-        'Executing pre-hook ./hooks/pre-gen.sh\n',
-        'Executing post-hook ./hooks/post-gen.sh\n'
+        "Creating application in",
+        f"Using template from {os.path.join(tmp_path, 'templates', 'basic')}\n",
+        "Executing pre-hook ./hooks/pre-gen.sh\n",
+        "Executing post-hook ./hooks/post-gen.sh\n",
     ]
 
     for i in range(len(expected_lines)):
@@ -413,8 +489,17 @@ def test_create_app_in_specified_path(tt_cmd, tmp_path):
 
     dst_dir = tmp_path / "dst_dir"
     dst_dir.mkdir(0o755)
-    run_and_check_non_interactive(tt_cmd, tmp_path, tmp_path / "templates" / "basic", "basic",
-                                  dst_dir / "app1", "--dst", dst_dir, "--name", "app1")
+    run_and_check_non_interactive(
+        tt_cmd,
+        tmp_path,
+        tmp_path / "templates" / "basic",
+        "basic",
+        dst_dir / "app1",
+        "--dst",
+        dst_dir,
+        "--name",
+        "app1",
+    )
 
 
 def test_app_create_missing_required_args(tt_cmd, tmp_path):
@@ -427,7 +512,7 @@ def test_app_create_missing_required_args(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -442,27 +527,37 @@ def test_app_create_missing_required_args(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
     assert tt_process.returncode == 1
     first_out_line = tt_process.stdout.readline()
-    assert first_out_line.find('application name is required') != -1
+    assert first_out_line.find("application name is required") != -1
 
 
 def test_default_var_can_be_overwritten(tt_cmd, tmp_path):
     create_tnt_env_in_dir(tmp_path)
 
-    create_cmd = [tt_cmd, "create", "basic", "--var", "password=pwd", "--non-interactive",
-                  "--name", "app1", "--var", "name=my_name"]
+    create_cmd = [
+        tt_cmd,
+        "create",
+        "basic",
+        "--var",
+        "password=pwd",
+        "--non-interactive",
+        "--name",
+        "app1",
+        "--var",
+        "name=my_name",
+    ]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -478,15 +573,24 @@ def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmp_path):
     app_path = tmp_path / "app1" / "subdir"
     os.makedirs(app_path / "subdir")
 
-    create_cmd = [tt_cmd, "create", "basic", "--var", "user_name=user2", "--var",
-                  "retry_count=number", "--name", "basic"]
+    create_cmd = [
+        tt_cmd,
+        "create",
+        "basic",
+        "--var",
+        "user_name=user2",
+        "--var",
+        "retry_count=number",
+        "--name",
+        "basic",
+    ]
     tt_process = subprocess.Popen(
         create_cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["\n", "pwd\n"])
     tt_process.stdin.close()
@@ -500,8 +604,10 @@ def test_app_dir_is_not_removed_on_interrupt(tt_cmd, tmp_path):
 def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmp_path):
     create_tnt_env_in_dir(tmp_path)
 
-    os.rename(tmp_path / "templates" / "basic" / "MANIFEST.yaml",
-              tmp_path / "templates" / "basic" / "MANIFEST.yml")
+    os.rename(
+        tmp_path / "templates" / "basic" / "MANIFEST.yaml",
+        tmp_path / "templates" / "basic" / "MANIFEST.yml",
+    )
 
     create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
     tt_process = subprocess.Popen(
@@ -510,7 +616,7 @@ def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["\n", "\n", "weak_pwd\n", "\n"])
     tt_process.stdin.close()
@@ -519,9 +625,10 @@ def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmp_path):
 
     app_path = tmp_path / "app1"
     # Read rendered template.
-    check_file_text(app_path / "config.lua",
-                    rendered_text.format(cookie="cookie", user_name="admin",
-                                         pwd="weak_pwd", retry_count=3))
+    check_file_text(
+        app_path / "config.lua",
+        rendered_text.format(cookie="cookie", user_name="admin", pwd="weak_pwd", retry_count=3),
+    )
 
     # Make sure template file is removed.
     assert os.path.exists(app_path / "config.lua.tt.template") is False
@@ -553,12 +660,12 @@ def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmp_path):
     out_lines = tt_process.stdout.readlines()
 
     expected_lines = [
-        'Creating application in',
-        'Using template from',
-        'Cluster cookie (default: cookie): User name (default: admin): '
-        'Password: Retry count (default: 3):    • Executing pre-hook '
-        './hooks/pre-gen.sh\n',
-        'Executing post-hook ./hooks/post-gen.sh\n'
+        "Creating application in",
+        "Using template from",
+        "Cluster cookie (default: cookie): User name (default: admin): "
+        "Password: Retry count (default: 3):    • Executing pre-hook "
+        "./hooks/pre-gen.sh\n",
+        "Executing post-hook ./hooks/post-gen.sh\n",
     ]
 
     for i in range(len(expected_lines)):
@@ -568,8 +675,10 @@ def test_create_basic_functionality_with_yml_manifest(tt_cmd, tmp_path):
 def test_create_ambiguous_manifest(tt_cmd, tmp_path):
     create_tnt_env_in_dir(tmp_path)
 
-    shutil.copy(os.path.join(tmp_path, "templates", "basic", "MANIFEST.yaml"),
-                os.path.join(tmp_path, "templates", "basic", "MANIFEST.yml"))
+    shutil.copy(
+        os.path.join(tmp_path, "templates", "basic", "MANIFEST.yaml"),
+        os.path.join(tmp_path, "templates", "basic", "MANIFEST.yml"),
+    )
 
     with tempfile.TemporaryDirectory(dir=tmp_path) as tmp_pathname:
         create_cmd = [tt_cmd, "create", "basic", "--name", "app1"]
@@ -579,7 +688,7 @@ def test_create_ambiguous_manifest(tt_cmd, tmp_path):
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
-            text=True
+            text=True,
         )
         tt_process.wait()
         assert tt_process.returncode == 1
@@ -591,9 +700,9 @@ def test_create_ambiguous_manifest(tt_cmd, tmp_path):
         out_lines = tt_process.stdout.readlines()
 
         expected_lines = [
-            'Creating application in',
-            'Using template from',
-            '⨯ more than one YAML files are found:'
+            "Creating application in",
+            "Using template from",
+            "⨯ more than one YAML files are found:",
         ]
 
     for i in range(len(expected_lines)):
@@ -611,7 +720,7 @@ def test_create_app_from_builtin_cartridge_template(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["foo\n"])
     tt_process.stdin.close()
@@ -639,7 +748,7 @@ def test_create_app_from_builtin_cartridge_template(tt_cmd, tmp_path):
     assert os.path.exists(app_path / "instances.yml")
     assert not os.access(app_path / "instances.yml", os.X_OK)
     assert os.access(app_path / "instances.yml", os.W_OK)
-    with open(app_path / "instances.yml", 'r') as stream:
+    with open(app_path / "instances.yml", "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app1-stateboard"]["password"] == "passwd"
         assert data_loaded["app1.router"]["http_port"] == 8081
@@ -656,7 +765,7 @@ def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmp_p
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -671,8 +780,10 @@ def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmp_p
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge app tests for Tarantool 3.0")
+@pytest.mark.skipif(
+    tarantool_major_version >= 3,
+    reason="skip cartridge app tests for Tarantool 3.0",
+)
 def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path))
@@ -684,7 +795,7 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["\n"])
     tt_process.stdin.close()
@@ -695,8 +806,12 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     assert output.find("Build and start 'app1' application") != -1
     assert output.find("$ tt build app1") != -1
     assert output.find("$ tt start app1") != -1
-    assert output.find("tt cartridge replicasets setup --bootstrap-vshard --name app1 " +
-                       "--run-dir ./app1") != -1
+    assert (
+        output.find(
+            "tt cartridge replicasets setup --bootstrap-vshard --name app1 " + "--run-dir ./app1",
+        )
+        != -1
+    )
 
     assert os.path.exists(tmp_path / "appdir")
 
@@ -716,7 +831,7 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     assert os.path.exists(app_path / "instances.yml")
     assert not os.access(app_path / "instances.yml", os.X_OK)
     assert os.access(app_path / "instances.yml", os.W_OK)
-    with open(app_path / "instances.yml", 'r') as stream:
+    with open(app_path / "instances.yml", "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app1-stateboard"]["password"] == "passwd"
         assert data_loaded["app1.router"]["http_port"] == 8081
@@ -730,12 +845,12 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
     build_output = tt_process.stdout.readlines()
-    assert "Application was successfully built" in build_output[len(build_output)-1]
+    assert "Application was successfully built" in build_output[len(build_output) - 1]
 
     # Start cartridge app.
     start_cmd = [tt_cmd, "start", "app1"]
@@ -744,14 +859,17 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.readlines()
     for line in start_output:
         assert "Starting an instance" in line
     for inst in ["router", "s1-master", "s1-replica", "s2-master", "s2-replica"]:
-        file = wait_file(os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
-                         pid_file, [])
+        file = wait_file(
+            os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
+            pid_file,
+            [],
+        )
         assert file != ""
 
     # Check status.
@@ -773,28 +891,41 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     assert instance_process_rc == 0
 
 
-@pytest.mark.parametrize("var", [
-    "bucket_count=str",
-    "bucket_count=-1",
-    "bucket_count=0",
-    "replicasets_count=0",
-    "replicas_count=1",
-    "routers_count=0",
-])
+@pytest.mark.parametrize(
+    "var",
+    [
+        "bucket_count=str",
+        "bucket_count=-1",
+        "bucket_count=0",
+        "replicasets_count=0",
+        "replicas_count=1",
+        "routers_count=0",
+    ],
+)
 def test_create_app_from_builtin_cartridge_template_errors(tt_cmd, tmp_path, var):
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path))
 
-    create_cmd = [tt_cmd, "create", "vshard_cluster", "--name", "app1",
-                  "--non-interactive", "--var", var]
+    create_cmd = [
+        tt_cmd,
+        "create",
+        "vshard_cluster",
+        "--name",
+        "app1",
+        "--non-interactive",
+        "--var",
+        var,
+    ]
     rc, _ = run_command_and_get_output(create_cmd, cwd=tmp_path)
     assert rc != 0
     assert not os.path.exists(tmp_path / "app1")
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
 def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path))
@@ -806,7 +937,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["3000\n", "2\n", "2\n", "1\n"])
     tt_process.stdin.close()
@@ -821,7 +952,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         "$ tt start app1",
         "Application 'app1' created successfully",
         "Pay attention that default passwords were generated,",
-        "you can change it in the config.yaml."
+        "you can change it in the config.yaml.",
     ]
     for line in expected_lines:
         assert output.find(line) != -1
@@ -839,12 +970,12 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
     build_output = tt_process.stdout.readlines()
-    assert "Application was successfully built" in build_output[len(build_output)-1]
+    assert "Application was successfully built" in build_output[len(build_output) - 1]
 
     # Start vshard cluster app.
     start_cmd = [tt_cmd, "start", "app1"]
@@ -853,16 +984,18 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.readlines()
     for line in start_output:
         assert "Starting an instance" in line
-    instances = ["storage-001-a", "storage-001-b", "storage-002-a",
-                 "storage-002-b", "router-001-a"]
+    instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
     for inst in instances:
-        file = wait_file(os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
-                         pid_file, [])
+        file = wait_file(
+            os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
+            pid_file,
+            [],
+        )
         assert file != ""
 
     # Check status.
@@ -911,8 +1044,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
     assert stop_rc == 0
     for inst in instances:
-        assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.",
-                         stop_out)
+        assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.", stop_out)
 
     with open(app_path / "router-001-a" / "tt.log") as f:
         print("\n".join(f.readlines()))

@@ -12,7 +12,7 @@ def check_start(tt, target):
     orig_status = tt_helper.status(tt)
 
     # Do start.
-    rc, out = tt.exec('start', target)
+    rc, out = tt.exec("start", target)
     assert rc == 0
     assert utils.wait_files(5, tt_helper.pid_files(tt, tt.instances_of(target)))
 
@@ -44,27 +44,33 @@ def check_start(tt, target):
 # Multi-instance
 
 tt_multi_inst_app = dict(
-    app_path='multi_inst_app',
-    app_name='app',
-    instances=['router', 'master', 'replica', 'stateboard'],
+    app_path="multi_inst_app",
+    app_name="app",
+    instances=["router", "master", "replica", "stateboard"],
     post_start=tt_helper.post_start_base,
 )
 
 
 # Auto-confirmation (short option).
 @pytest.mark.tt(**tt_multi_inst_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:master'], id='running:master'),
-    pytest.param(['app:master', 'app:router'], id='running:master_router'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:master',
-    'app:router',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:master"], id="running:master"),
+        pytest.param(["app:master", "app:router"], id="running:master_router"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:master",
+        "app:router",
+    ],
+)
 def test_start_multi_inst(tt, target):
     check_start(tt, target)
 
@@ -73,9 +79,9 @@ def test_start_multi_inst(tt, target):
 # Cluster
 
 tt_cluster_app = dict(
-    app_path='cluster_app',
-    app_name='app',
-    instances=['storage-master', 'storage-replica'],
+    app_path="cluster_app",
+    app_name="app",
+    instances=["storage-master", "storage-replica"],
     post_start=tt_helper.post_start_cluster_decorator(tt_helper.post_start_base),
 )
 
@@ -84,16 +90,22 @@ tt_cluster_app = dict(
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:storage-master'], id='running:storage-master'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:storage-master',
-    'app:storage-replica',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:storage-master"], id="running:storage-master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:storage-master",
+        "app:storage-replica",
+    ],
+)
 def test_start_cluster(tt, target):
     check_start(tt, target)

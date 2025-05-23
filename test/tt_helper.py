@@ -20,22 +20,18 @@ class Tt(object):
 
     def instances_of(self, *targets):
         def is_instance_of(inst, *targets):
-            app_name, sep, _ = inst.partition(':')
+            app_name, sep, _ = inst.partition(":")
             for target in targets:
                 if target is None or target == inst:
                     return True
-                if sep == '':
+                if sep == "":
                     continue
-                target_app_name, target_sep, _ = target.partition(':')
-                if target_sep == '' and target_app_name == app_name:
+                target_app_name, target_sep, _ = target.partition(":")
+                if target_sep == "" and target_app_name == app_name:
                     return True
             return False
 
-        instances = []
-        for inst in self.instances:
-            if is_instance_of(inst, *targets):
-                instances.append(inst)
-        return instances
+        return [inst for inst in self.instances if is_instance_of(inst, *targets)]
 
     def exec(self, *args, **kwargs):
         args = list(filter(lambda x: x is not None, args))
@@ -55,8 +51,8 @@ class Tt(object):
         return os.path.join(self.__work_dir, *paths)
 
     def inst_path(self, inst, *paths):
-        app_name, sep, inst_name = inst.partition(':')
-        if sep == '':
+        app_name, sep, inst_name = inst.partition(":")
+        if sep == "":
             inst_name = app_name
         return os.path.join(self.path(*paths), inst_name)
 
@@ -71,7 +67,7 @@ class Tt(object):
 
 
 def status(tt, *args):
-    rc, out = tt.exec('status', *args)
+    rc, out = tt.exec("status", *args)
     assert rc == 0
     return utils.extract_status(out)
 
@@ -85,19 +81,26 @@ def log_files(tt, instances):
 
 
 def snap_files(tt, instances):
-    return [tt.lib_path(inst, '*.snap') for inst in instances]
+    return [tt.lib_path(inst, "*.snap") for inst in instances]
 
 
 def wal_files(tt, instances):
-    return [tt.lib_path(inst, '*.xlog') for inst in instances]
+    return [tt.lib_path(inst, "*.xlog") for inst in instances]
 
 
 def wait_box_status(timeout, tt, instances, accepatable_statuses, interval=0.1):
     def are_all_box_statuses_acceptable(tt, instances, accepatable_statuses):
         status_ = status(tt)
         return all([(status_[inst].get("BOX") in accepatable_statuses) for inst in instances])
-    return utils.wait_event(timeout, are_all_box_statuses_acceptable, interval,
-                            tt, instances, accepatable_statuses)
+
+    return utils.wait_event(
+        timeout,
+        are_all_box_statuses_acceptable,
+        interval,
+        tt,
+        instances,
+        accepatable_statuses,
+    )
 
 
 def post_start_base(tt):
@@ -108,7 +111,8 @@ def post_start_cluster_decorator(func):
     def wrapper_func(tt):
         func(tt)
         # 'cluster' decoration.
-        assert wait_box_status(5, tt, tt.running_instances, ['loading', 'running'])
+        assert wait_box_status(5, tt, tt.running_instances, ["loading", "running"])
+
     return wrapper_func
 
 
@@ -116,9 +120,10 @@ def post_start_no_script_decorator(func):
     def wrapper_func(tt):
         func(tt)
         # 'no_script' decoration.
-        flag_files = [tt.path(f'flag-{inst}') for inst in tt.running_instances]
+        flag_files = [tt.path(f"flag-{inst}") for inst in tt.running_instances]
         assert utils.wait_files(5, flag_files)
-        os.remove(tt.path('init.lua'))
+        os.remove(tt.path("init.lua"))
+
     return wrapper_func
 
 
@@ -126,7 +131,8 @@ def post_start_no_config_decorator(func):
     def wrapper_func(tt):
         func(tt)
         # 'no_config' decoration.
-        flag_files = [tt.run_path(inst, 'flag') for inst in tt.running_instances]
+        flag_files = [tt.run_path(inst, "flag") for inst in tt.running_instances]
         assert utils.wait_files(5, flag_files)
-        os.remove(tt.path('config.yaml'))
+        os.remove(tt.path("config.yaml"))
+
     return wrapper_func

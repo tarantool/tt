@@ -28,12 +28,15 @@ initial_xlog = "00000000000000000000.xlog"
 BINARY_PORT_NAME = "tarantool.sock"
 
 
-def get_fixture_tcs_params(path_to_cfg, connection_test=True,
-                           connection_test_user="client",
-                           connection_test_password="secret",
-                           instance_name="instance-001",
-                           instance_host="localhost",
-                           instance_port="3303"):
+def get_fixture_tcs_params(
+    path_to_cfg,
+    connection_test=True,
+    connection_test_user="client",
+    connection_test_password="secret",
+    instance_name="instance-001",
+    instance_host="localhost",
+    instance_port="3303",
+):
     return {
         "path_to_cfg_dir": path_to_cfg,
         "connection_test": connection_test,
@@ -46,7 +49,12 @@ def get_fixture_tcs_params(path_to_cfg, connection_test=True,
 
 
 def run_command_and_get_output(
-    cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, input=None, cwd=None, env=None
+    cmd,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    input=None,
+    cwd=None,
+    env=None,
 ):
     process = subprocess.run(
         cmd,
@@ -55,7 +63,7 @@ def run_command_and_get_output(
         stderr=stderr,
         stdout=stdout,
         text=True,
-        input=input
+        input=input,
     )
 
     # This print is here to make running tests with -s flag more verbose
@@ -78,9 +86,9 @@ def create_tt_config(config_path: Path, modules_path: Path | str | list[Path | s
 
 
 def create_lua_config(tmp_path):
-    config_file = tmp_path / 'config-5.1.lua'
+    config_file = tmp_path / "config-5.1.lua"
     with open(config_file, "w") as f:
-        f.write('''-- LuaRocks configuration
+        f.write("""-- LuaRocks configuration
     rocks_trees = {
        { name = "user", root = home .. "/.luarocks" };
        { name = "system", root = "/usr" };
@@ -93,7 +101,7 @@ def create_lua_config(tmp_path):
        LUA = "/usr/bin/lua5.1";
        IS_LUA_CONFIG_USED = true
     }
-    ''')
+    """)
 
     return config_file
 
@@ -213,6 +221,7 @@ def wait_event(timeout, event_func, interval=0.1, *event_func_args):
 def wait_files(timeout, files, interval=0.1):
     def all_files_exist(files):
         return all(map(glob.glob, files))
+
     return wait_event(timeout, all_files_exist, interval, list(files))
 
 
@@ -299,8 +308,9 @@ class TarantoolTestInstance:
         tnt_start_cmd = []
         major_version, _ = get_tarantool_version()
         if major_version < 3 or use_lua:
-            if instance_name != "" and (".yml" in self._instance_cfg_file_name or
-                                        ".yaml" in self._instance_cfg_file_name):
+            if instance_name != "" and (
+                ".yml" in self._instance_cfg_file_name or ".yaml" in self._instance_cfg_file_name
+            ):
                 raise Exception("instance_name cannot be used with Tarantool version < 3")
             tnt_start_cmd = ["tarantool", self._instance_cfg_file_name]
         else:
@@ -315,21 +325,16 @@ class TarantoolTestInstance:
 
         # Search for file with port only if port directly not provided.
         if len(instance_port) == 0:
-            file_with_port_path = (
-                str(self._tmpdir) + "/" + self._instance_cfg_file_name + ".port"
-            )
+            file_with_port_path = str(self._tmpdir) + "/" + self._instance_cfg_file_name + ".port"
             # Waiting 3 seconds for instance configure itself and dump bound port to temp file.
             deadline = time.time() + 3
             while time.time() < deadline:
-                if (
-                    os.path.exists(file_with_port_path)
-                    and os.path.getsize(file_with_port_path) > 0
-                ):
+                if os.path.exists(file_with_port_path) and os.path.getsize(file_with_port_path) > 0:
                     break
                 time.sleep(0.1)
             else:
                 raise RuntimeError(
-                    "Could not find a file with an instance bound port or empty file"
+                    "Could not find a file with an instance bound port or empty file",
                 )
 
             # Read bound port of test instance from file in temp pytest directory.
@@ -341,15 +346,18 @@ class TarantoolTestInstance:
             deadline = time.time() + 3
             while time.time() < deadline:
                 try:
-                    conn = tarantool.connect("localhost", int(instance_port),
-                                             user=connection_test_user,
-                                             password=connection_test_password)
+                    conn = tarantool.connect(
+                        "localhost",
+                        int(instance_port),
+                        user=connection_test_user,
+                        password=connection_test_password,
+                    )
                     conn.close()
                     break
                 except tarantool.NetworkError:
                     time.sleep(0.1)
             else:
-                raise RuntimeError('Could not connect to the started instance with bound port')
+                raise RuntimeError("Could not connect to the started instance with bound port")
 
         self.popen_obj = popen_obj
         self.host = instance_host
@@ -370,11 +378,10 @@ class TarantoolTestInstance:
         # Waiting for the completion of the process with 3 second timeout.
         deadline = time.time() + 3
         while time.time() < deadline:
-            if not psutil.pid_exists(instance.pid) or instance.status() == 'zombie':
+            if not psutil.pid_exists(instance.pid) or instance.status() == "zombie":
                 # There is no more instance process or it is zombie.
                 break
-            else:
-                time.sleep(0.1)
+            time.sleep(0.1)
         else:
             raise RuntimeError("PID {} couldn't stop after receiving SIGKILL".format(instance.pid))
 
@@ -410,8 +417,8 @@ def get_test_iface():
 
     for iface in ifaces[1:]:
         addrs = netifaces.ifaddresses(iface)
-        for _, addr in addrs.items():
-            if is_ipv4_type(addr[0]['addr']):
+        for addr in addrs.values():
+            if is_ipv4_type(addr[0]["addr"]):
                 return iface
 
     # loopback
@@ -430,8 +437,7 @@ def proc_by_pidfile(filename):
 def get_process_conn(pidfile, port):
     proc = proc_by_pidfile(pidfile)
     for conn in proc.connections():
-        if conn.status == 'LISTEN' and conn.laddr.port == port \
-                and is_ipv4_type(conn.laddr.ip):
+        if conn.status == "LISTEN" and conn.laddr.port == port and is_ipv4_type(conn.laddr.ip):
             return conn
 
     return None
@@ -459,7 +465,7 @@ def find_port(port=8000):
 def extract_status(status_output):
     result = {}
     statuses = status_output.split("\n")
-    for i in range(1, len(statuses)-1):
+    for i in range(1, len(statuses) - 1):
         summary = statuses[i]
         if not summary:
             break
@@ -479,38 +485,29 @@ def extract_status(status_output):
     return result
 
 
-def is_valid_tarantool_installed(
-        bin_path,
-        inc_path,
-        expected_bin=None,
-        expected_inc=None
-):
+def is_valid_tarantool_installed(bin_path, inc_path, expected_bin=None, expected_inc=None):
     tarantool_binary_symlink = os.path.join(bin_path, "tarantool")
     tarantool_include_symlink = os.path.join(inc_path, "tarantool")
 
     if expected_bin is None:
         if os.path.exists(tarantool_binary_symlink):
-            tarantool_bin = os.path.realpath(
-                os.path.join(bin_path, "tarantool"))
+            tarantool_bin = os.path.realpath(os.path.join(bin_path, "tarantool"))
             print(f"tarantool binary {tarantool_bin} is unexpected")
             return False
     else:
         tarantool_bin = os.path.realpath(os.path.join(bin_path, "tarantool"))
         if tarantool_bin != expected_bin:
-            print(f"tarantool binary {tarantool_bin} is unexpected,"
-                  f" expected: {expected_bin}")
+            print(f"tarantool binary {tarantool_bin} is unexpected, expected: {expected_bin}")
             return False
 
     if expected_inc is not None:
         tarantool_inc = os.path.realpath(tarantool_include_symlink)
         if tarantool_inc != expected_inc:
-            print(f"tarantool include {tarantool_inc} is unexpected,"
-                  f" expected: {expected_bin}")
+            print(f"tarantool include {tarantool_inc} is unexpected, expected: {expected_bin}")
             return False
     else:
         if os.path.exists(tarantool_include_symlink):
-            tarantool_inc = os.path.realpath(
-                os.path.join(inc_path, "tarantool"))
+            tarantool_inc = os.path.realpath(os.path.join(inc_path, "tarantool"))
             print(f"tarantool include {tarantool_inc} is unexpected")
             return False
 
@@ -521,7 +518,9 @@ def get_tarantool_version(tarantool_bin="tarantool"):
     try:
         tt_process = subprocess.Popen(
             [tarantool_bin, "--version"],
-            stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
         )
     except FileNotFoundError:
         return 0, 0
@@ -534,7 +533,7 @@ def get_tarantool_version(tarantool_bin="tarantool"):
 
     assert match is not None
 
-    return int(match.group('major')), int(match.group('minor'))
+    return int(match.group("major")), int(match.group("minor"))
 
 
 def read_kv(dirname):
@@ -559,7 +558,7 @@ def is_tarantool_ee():
         cmd,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     if instance_process.returncode == 0:
         return "Tarantool Enterprise" in instance_process.stdout
@@ -634,11 +633,11 @@ def wait_string_in_file(file, text):
 
 
 def wait_for_lines_in_output(stdout, expected_lines: list):
-    output = ''
+    output = ""
     retries = 10
     while True:
         line = stdout.readline()
-        if line == '':
+        if line == "":
             if retries == 0:
                 break
             time.sleep(0.2)

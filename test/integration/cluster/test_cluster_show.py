@@ -6,8 +6,9 @@ import pytest
 
 from utils import get_fixture_tcs_params, is_tarantool_ee, is_tarantool_less_3
 
-fixture_tcs_params = get_fixture_tcs_params(os.path.join(os.path.dirname(
-                                            os.path.abspath(__file__)), "test_tcs_app"))
+fixture_tcs_params = get_fixture_tcs_params(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_tcs_app"),
+)
 
 
 def copy_app(tmpdir, app_name):
@@ -70,18 +71,21 @@ def test_cluster_show_config_not_exist_app(tt_cmd, tmpdir_with_cfg):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ can't collect instance information for unknown:")
+    expected = r"   ⨯ can't collect instance information for unknown:"
     assert expected in show_output
 
 
-@pytest.mark.parametrize("app_name, config_file", [
-    pytest.param("test_simple_app", "config.yaml"),
-    pytest.param("testsimpleapp", "config.yml"),
-])
+@pytest.mark.parametrize(
+    "app_name, config_file",
+    [
+        pytest.param("test_simple_app", "config.yaml"),
+        pytest.param("testsimpleapp", "config.yml"),
+    ],
+)
 def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg, app_name, config_file):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
@@ -96,11 +100,11 @@ def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg, app_nam
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ cluster configuration file does not exist for the application")
+    expected = r"   ⨯ cluster configuration file does not exist for the application"
     assert expected in show_output
 
 
@@ -115,7 +119,7 @@ def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg, app_name):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
@@ -133,7 +137,7 @@ def test_cluster_show_config_app_validate_no_error(tt_cmd, tmpdir_with_cfg, app_
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
@@ -151,7 +155,7 @@ def test_cluster_show_config_app_validate_error(tt_cmd, tmpdir_with_cfg):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
     expected = r"""groups:
@@ -185,7 +189,7 @@ def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg, app
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
@@ -204,33 +208,35 @@ def test_cluster_show_config_app_instance(tt_cmd, tmpdir_with_cfg, app_name):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
-    assert r"""database:
+    assert (
+        r"""database:
   mode: rw
 iproto:
   listen:
     - uri: 127.0.0.1:3302
-""" in show_output
+"""
+        in show_output
+    )
 
 
 def test_cluster_show_config_not_exist(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
 
-    show_cmd = [tt_cmd, "cluster", "show",
-                "https://localhost:12344/prefix?timeout=0.1"]
+    show_cmd = [tt_cmd, "cluster", "show", "https://localhost:12344/prefix?timeout=0.1"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
-    expected = (r"   ⨯ failed to establish a connection to tarantool or etcd:")
+    expected = r"   ⨯ failed to establish a connection to tarantool or etcd:"
     assert expected in show_output
 
 
@@ -239,7 +245,12 @@ def test_cluster_show_config_not_exist(tt_cmd, tmpdir_with_cfg):
     [pytest.param("etcd", "etcd"), pytest.param("tcs", "tarantool")],
 )
 def test_cluster_show_config_no_prefix(
-    tt_cmd, tmpdir_with_cfg, instance_name, request, storage_name, fixture_params
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+    storage_name,
+    fixture_params,
 ):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -264,7 +275,7 @@ def test_cluster_show_config_no_prefix(
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
@@ -280,7 +291,12 @@ def test_cluster_show_config_no_prefix(
     [pytest.param("etcd", "etcd"), pytest.param("tcs", "tarantool")],
 )
 def test_cluster_show_config_no_key(
-    tt_cmd, tmpdir_with_cfg, instance_name, request, storage_name, fixture_params
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+    storage_name,
+    fixture_params,
 ):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -305,7 +321,7 @@ def test_cluster_show_config_no_key(
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
@@ -328,12 +344,17 @@ def test_cluster_show_config_no_key(
             "tcs",
             "   ⨯ failed to collect a configuration: "
             + "failed to fetch data from tarantool: Execute access to function "
-            + "'config.storage.get' is denied for user"
+            + "'config.storage.get' is denied for user",
         ),
     ],
 )
 def test_cluster_show_config_no_auth(
-    tt_cmd, tmpdir_with_cfg, instance_name, request, err_msg, fixture_params
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+    err_msg,
+    fixture_params,
 ):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -351,7 +372,7 @@ def test_cluster_show_config_no_auth(
             cwd=tmpdir,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         show_output = instance_process.stdout.read()
     finally:
@@ -362,11 +383,13 @@ def test_cluster_show_config_no_auth(
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
-def test_cluster_show_config_bad_auth(tt_cmd,
-                                      tmpdir_with_cfg,
-                                      instance_name,
-                                      request,
-                                      fixture_params):
+def test_cluster_show_config_bad_auth(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+    fixture_params,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -389,14 +412,14 @@ def test_cluster_show_config_bad_auth(tt_cmd,
             cwd=tmpdir,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         show_output = instance_process.stdout.read()
     finally:
         if instance_name == "etcd":
             instance.disable_auth()
 
-    expected = (r"   ⨯ failed to establish a connection to tarantool or etcd: ")
+    expected = r"   ⨯ failed to establish a connection to tarantool or etcd: "
     assert expected in show_output
 
 
@@ -413,7 +436,12 @@ def test_cluster_show_config_bad_auth(tt_cmd,
     ],
 )
 def test_cluster_show_config_cluster(
-    tt_cmd, tmpdir_with_cfg, auth, instance_name, request, fixture_params
+    tt_cmd,
+    tmpdir_with_cfg,
+    auth,
+    instance_name,
+    request,
+    fixture_params,
 ):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -471,14 +499,10 @@ def test_cluster_show_config_cluster(
         elif auth == "env":
             env = {
                 (
-                    "TT_CLI_ETCD_USERNAME"
-                    if instance_name == "etcd"
-                    else "TT_CLI_USERNAME"
+                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
                 ): instance.connection_username,
                 (
-                    "TT_CLI_ETCD_PASSWORD"
-                    if instance_name == "etcd"
-                    else "TT_CLI_PASSWORD"
+                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
                 ): instance.connection_password,
             }
             url = f"{instance.endpoint}/prefix?timeout=5"
@@ -499,11 +523,13 @@ def test_cluster_show_config_cluster(
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
-def test_cluster_show_config_instance(tt_cmd,
-                                      tmpdir_with_cfg,
-                                      instance_name,
-                                      request,
-                                      fixture_params):
+def test_cluster_show_config_instance(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+    fixture_params,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -538,25 +564,26 @@ def test_cluster_show_config_instance(tt_cmd,
         tt_cmd,
         "cluster",
         "show",
-        "http://"
-        + creds
-        + f"{instance.host}:{instance.port}/prefix?timeout=5&name=master",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5&name=master",
     ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
-    assert r"""database:
+    assert (
+        r"""database:
   mode: rw
 iproto:
   listen:
     - uri: 127.0.0.1:3301
-""" in show_output
+"""
+        in show_output
+    )
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
@@ -583,16 +610,14 @@ def test_cluster_show_config_key(tt_cmd, tmpdir_with_cfg, instance_name, request
         tt_cmd,
         "cluster",
         "show",
-        "http://"
-        + creds
-        + f"{instance.host}:{instance.port}/prefix?key=anykey&timeout=5",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix?key=anykey&timeout=5",
     ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
@@ -601,7 +626,11 @@ def test_cluster_show_config_key(tt_cmd, tmpdir_with_cfg, instance_name, request
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
 def test_cluster_show_config_key_instance(
-    tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+    fixture_params,
 ):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -634,21 +663,28 @@ def test_cluster_show_config_key_instance(
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 
-    assert r"""database:
+    assert (
+        r"""database:
   mode: rw
 iproto:
   listen:
     - uri: 127.0.0.1:3301
-""" in show_output
+"""
+        in show_output
+    )
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
 def test_cluster_show_config_no_instance(
-    tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+    fixture_params,
 ):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -678,16 +714,14 @@ group-001:
         tt_cmd,
         "cluster",
         "show",
-        "http://"
-        + creds
-        + f"{instance.host}:{instance.port}/prefix?timeout=5&name=master",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5&name=master",
     ]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     show_output = instance_process.stdout.read()
 

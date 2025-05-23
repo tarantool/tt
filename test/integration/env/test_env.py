@@ -7,8 +7,8 @@ from utils import config_name
 def test_env_output(tt_cmd, tmp_path):
     configPath = tmp_path / config_name
     # Create test config
-    with open(configPath, 'w') as f:
-        f.write('env:\n  bin_dir:\n  inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("env:\n  bin_dir:\n  inc_dir:\n")
     binDir = tmp_path / "bin"
     tarantoolDir = "TARANTOOL_DIR=" + (tmp_path / "include" / "include").as_posix()
 
@@ -18,7 +18,7 @@ def test_env_output(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     # Check that the process shutdowned correctly.
