@@ -11,12 +11,23 @@ from pathlib import Path
 import psutil
 import pytest
 
-from utils import (BINARY_PORT_NAME, control_socket, create_tt_config,
-                   get_tarantool_version, is_tarantool_major_one, kill_procs,
-                   run_command_and_get_output, run_path,
-                   skip_if_cluster_app_unsupported, skip_if_quit_unsupported,
-                   skip_if_tarantool_ce, skip_if_tuple_format_supported,
-                   skip_if_tuple_format_unsupported, wait_file, wait_files)
+from utils import (
+    BINARY_PORT_NAME,
+    control_socket,
+    create_tt_config,
+    get_tarantool_version,
+    is_tarantool_major_one,
+    kill_procs,
+    run_command_and_get_output,
+    run_path,
+    skip_if_cluster_app_unsupported,
+    skip_if_quit_unsupported,
+    skip_if_tarantool_ce,
+    skip_if_tuple_format_supported,
+    skip_if_tuple_format_unsupported,
+    wait_file,
+    wait_files,
+)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -26,11 +37,7 @@ def kill_remain_processes_wrapper(tt_cmd):
     # Run test.
     yield
 
-    tt_proc = subprocess.Popen(
-        ['pgrep', '-f', tt_cmd],
-        stdout=subprocess.PIPE,
-        shell=False
-    )
+    tt_proc = subprocess.Popen(["pgrep", "-f", tt_cmd], stdout=subprocess.PIPE, shell=False)
     response = tt_proc.communicate()[0]
     procs = [psutil.Process(int(pid)) for pid in response.split()]
 
@@ -46,7 +53,7 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
     test_env = os.environ.copy()
     # Set empty TT_LISTEN, so no binary port will be created.
     if start_binary_port is False:
-        test_env['TT_LISTEN'] = ''
+        test_env["TT_LISTEN"] = ""
 
     # Start an instance.
     start_cmd = [tt_cmd, "start", app_name]
@@ -56,7 +63,7 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
-        env=test_env
+        env=test_env,
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
@@ -67,13 +74,17 @@ def stop_app(tt_cmd, tmpdir, app_name):
     run_command_and_get_output(stop_cmd, cwd=tmpdir)
 
 
-def try_execute_on_instance(tt_cmd, tmpdir, instance,
-                            file_path=None,
-                            stdin=None,
-                            stdin_as_file=False,
-                            env=None,
-                            opts=None,
-                            args=None):
+def try_execute_on_instance(
+    tt_cmd,
+    tmpdir,
+    instance,
+    file_path=None,
+    stdin=None,
+    stdin_as_file=False,
+    env=None,
+    opts=None,
+    args=None,
+):
     connect_cmd = [tt_cmd, "connect", instance]
 
     if file_path is not None:
@@ -89,8 +100,7 @@ def try_execute_on_instance(tt_cmd, tmpdir, instance,
             connect_cmd.append(v)
 
     if args is not None:
-        for arg in args:
-            connect_cmd.append(arg)
+        connect_cmd.extend(args)
 
     instance_process = subprocess.run(
         connect_cmd,
@@ -120,7 +130,7 @@ def prepare_test_app_languages(tt_cmd, tmpdir):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app"), 'configured', [])
+    file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
     return "test_app", lua_file, sql_file
 
@@ -231,7 +241,7 @@ def test_connect_and_get_commands_outputs(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
     try:
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+        file = wait_file(os.path.join(tmpdir, "test_app"), "ready", [])
         assert file != ""
 
         for key, value in commands.items():
@@ -258,7 +268,7 @@ def test_connect_and_get_commands_errors(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    file = wait_file(os.path.join(tmpdir, "test_app"), "ready", [])
     assert file != ""
 
     commands = {}
@@ -313,7 +323,7 @@ def test_connect_and_handle_lua_parse_error(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, 'test_app'), 'ready', [])
+    file = wait_file(os.path.join(tmpdir, "test_app"), "ready", [])
     assert file != ""
 
     cmd = "hello)"
@@ -326,8 +336,13 @@ def test_connect_and_handle_lua_parse_error(tt_cmd, tmpdir_with_cfg):
 
     try:
         for format, expected in formats.items():
-            ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013",
-                                                  stdin=cmd,  opts={"-x": format})
+            ret, output = try_execute_on_instance(
+                tt_cmd,
+                tmpdir,
+                "localhost:3013",
+                stdin=cmd,
+                opts={"-x": format},
+            )
             assert ret
 
             assert expected in output
@@ -352,14 +367,17 @@ def test_connect_and_execute_quit(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
-                     control_socket, [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), control_socket, [])
     assert file != ""
 
     try:
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app",
-                                              stdin="\\q",
-                                              stdin_as_file=True)
+        ret, output = try_execute_on_instance(
+            tt_cmd,
+            tmpdir,
+            "test_app",
+            stdin="\\q",
+            stdin_as_file=True,
+        )
         assert ret
 
         assert output == "\n"
@@ -385,9 +403,7 @@ def test_connect_to_localhost_app(tt_cmd, tmpdir_with_cfg):
         assert file != ""
 
         # Connect to a wrong instance.
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "localhost:6666", empty_file
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:6666", empty_file)
         assert not ret
         assert re.search(r"   ⨯ unable to establish connection", output)
 
@@ -451,9 +467,7 @@ def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
             "--sslcertfile": "test_ssl_app/localhost.crt",
             "--sslcafile": "test_ssl_app/ca.crt",
         }
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, server, empty_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file, opts=opts)
         assert ret
 
     finally:
@@ -481,7 +495,11 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
         # Connect with a wrong credentials.
         opts = {"-u": "test", "-p": "wrong_password"}
         ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts
+            tt_cmd,
+            tmpdir,
+            "localhost:3013",
+            empty_file,
+            opts=opts,
         )
         assert not ret
         assert re.search(r"   ⨯ unable to establish connection", output)
@@ -494,16 +512,18 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
 
         # Connect with a wrong credentials via environment variables.
         env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "localhost:3013", empty_file, env=env
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, env=env)
         assert not ret
         assert re.search(r"   ⨯ unable to establish connection", output)
 
         # Connect with a valid credentials.
         opts = {"-u": "test", "-p": "password"}
         ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts
+            tt_cmd,
+            tmpdir,
+            "localhost:3013",
+            empty_file,
+            opts=opts,
         )
         assert ret
 
@@ -514,16 +534,19 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
 
         # Connect with a valid credentials via environment variables.
         env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "password"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "localhost:3013", empty_file, env=env
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "localhost:3013", empty_file, env=env)
         assert ret
 
         # Connect with a valid credentials and wrong environment variables.
         env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
         opts = {"-u": "test", "-p": "password"}
         ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts, env=env
+            tt_cmd,
+            tmpdir,
+            "localhost:3013",
+            empty_file,
+            opts=opts,
+            env=env,
         )
         assert ret
 
@@ -537,27 +560,33 @@ def test_connect_to_localhost_app_credentials(tt_cmd, tmpdir_with_cfg):
         env = {"TT_CLI_PASSWORD": "password"}
         opts = {"-u": "test"}
         ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts, env=env
+            tt_cmd,
+            tmpdir,
+            "localhost:3013",
+            empty_file,
+            opts=opts,
+            env=env,
         )
         assert ret
 
         env = {"TT_CLI_USERNAME": "test"}
         opts = {"-p": "password"}
         ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "localhost:3013", empty_file, opts=opts, env=env
+            tt_cmd,
+            tmpdir,
+            "localhost:3013",
+            empty_file,
+            opts=opts,
+            env=env,
         )
         assert ret
 
         # Connect with a valid credentials via flags and via URL.
         opts = {"-u": "test", "-p": "password"}
         uri = "test:password@localhost:3013"
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, uri, empty_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, uri, empty_file, opts=opts)
         assert not ret
-        assert re.search(
-            r"   ⨯ username and password are specified with flags and a URI", output
-        )
+        assert re.search(r"   ⨯ username and password are specified with flags and a URI", output)
 
     finally:
         # Stop the Instance.
@@ -578,17 +607,13 @@ def test_connect_to_single_instance_app(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
     try:
         # Check for start.
-        file = wait_file(
-            os.path.join(tmpdir, "test_app", run_path, "test_app"), control_socket, []
-        )
+        file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), control_socket, [])
         assert file != ""
 
         # Connect to a wrong instance.
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, "any_app", empty_file)
         assert not ret
-        assert re.search(
-            r"   ⨯ can\'t collect instance information for any_app", output
-        )
+        assert re.search(r"   ⨯ can\'t collect instance information for any_app", output)
 
         # Connect to the instance and execute a script.
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file)
@@ -625,16 +650,12 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
     start_app(tt_cmd, tmpdir, "test_app")
     try:
         # Check for start.
-        file = wait_file(
-            os.path.join(tmpdir, "test_app", run_path, "test_app"), control_socket, []
-        )
+        file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), control_socket, [])
         assert file != ""
 
         # Connect with a wrong credentials.
         opts = {"-u": "test", "-p": "wrong_password"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "test_app", empty_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, opts=opts)
         assert not ret
         assert re.search(
             r"   ⨯ username and password are not supported with a"
@@ -644,9 +665,7 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
 
         # Connect with a valid credentials.
         opts = {"-u": "test", "-p": "password"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "test_app", empty_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, opts=opts)
         assert not ret
         assert re.search(
             r"   ⨯ username and password are not supported with a"
@@ -656,9 +675,7 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
 
         # Connect with environment variables.
         env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, "test_app", empty_file, env=env
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, "test_app", empty_file, env=env)
         assert ret
 
     finally:
@@ -668,7 +685,7 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
 
 def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    instances = ['master', 'replica', 'router']
+    instances = ["master", "replica", "router"]
     app_name = "test_multi_app"
     empty_file = "empty.lua"
     # Copy the test application to the "run" directory.
@@ -693,9 +710,7 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
         non_exist = app_name + ":" + "any_name"
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, non_exist, empty_file)
         assert not ret
-        assert re.search(
-            rf"   ⨯ can't collect instance information for {non_exist}", output
-        )
+        assert re.search(rf"   ⨯ can't collect instance information for {non_exist}", output)
 
         # Connect to instances.
         for instance in instances:
@@ -732,9 +747,7 @@ def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
         # Connect with a wrong credentials.
         full_name = app_name + ":master"
         opts = {"-u": "test", "-p": "wrong_password"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, full_name, empty_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, full_name, empty_file, opts=opts)
         assert not ret
         assert re.search(
             r"   ⨯ username and password are not supported with a"
@@ -745,9 +758,7 @@ def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
         # Connect with a valid credentials.
         full_name = app_name + ":master"
         opts = {"-u": "test", "-p": "password"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, full_name, empty_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, full_name, empty_file, opts=opts)
         assert not ret
         assert re.search(
             r"   ⨯ username and password are not supported with a"
@@ -757,9 +768,7 @@ def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
 
         # Connect with environment variables.
         env = {"TT_CLI_USERNAME": "test", "TT_CLI_PASSWORD": "wrong_password"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, full_name, empty_file, env=env
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, full_name, empty_file, env=env)
         assert ret
 
     finally:
@@ -793,18 +802,14 @@ def test_connect_language_lua(tt_cmd, tmpdir_with_cfg):
 
         # Execute Lua-code.
         opts = {"-l": "lua"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, test_app, lua_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
         assert ret
         assert re.search(r"Hello, world", output)
 
         # Execute SQL-code.
         for lang in ["lua", "LuA", "LUA"]:
             opts = {"-l": lang}
-            ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, test_app, sql_file, opts=opts
-            )
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
             assert ret
             assert re.search(r"metadata:", output) is None
 
@@ -821,18 +826,14 @@ def test_connect_language_sql(tt_cmd, tmpdir_with_cfg):
 
         # Execute Lua-code.
         opts = {"-l": "sql"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, test_app, lua_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
         assert ret
         assert re.search(r"Hello, world", output) is None
 
         # Execute SQL-code.
         for lang in ["sql", "SqL", "SQL"]:
             opts = {"-l": lang}
-            ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, test_app, sql_file, opts=opts
-            )
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
             assert ret
             assert re.search(r"metadata:", output)
 
@@ -850,17 +851,13 @@ def test_connect_language_l_equal_language(tt_cmd, tmpdir_with_cfg):
         for opt in ["-l", "--language"]:
             # Execute Lua-code.
             opts = {opt: "sql"}
-            ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, test_app, lua_file, opts=opts
-            )
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
             assert ret
             assert re.search(r"Hello, world", output) is None
 
             # Execute SQL-code.
             opts = {opt: "sql"}
-            ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, test_app, sql_file, opts=opts
-            )
+            ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
             assert ret
             assert re.search(r"metadata:", output)
 
@@ -875,17 +872,13 @@ def test_connect_language_invalid(tt_cmd, tmpdir_with_cfg):
     try:
         # Execute Lua-code.
         opts = {"-l": "invalid"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, test_app, lua_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
         assert not ret
         assert re.search(r"   ⨯ unsupported language: invalid", output)
 
         # Execute SQL-code.
         opts = {"-l": "invalid"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, test_app, sql_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
         assert not ret
         assert re.search(r"   ⨯ unsupported language: invalid", output)
 
@@ -902,23 +895,15 @@ def test_connect_language_set_if_unsupported(tt_cmd, tmpdir_with_cfg):
 
         # Execute Lua-code.
         opts = {"-l": "lua"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, test_app, lua_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, lua_file, opts=opts)
         assert not ret
-        assert re.search(
-            r"   ⨯ unable to change a language: unexpected response:", output
-        )
+        assert re.search(r"   ⨯ unable to change a language: unexpected response:", output)
 
         # Execute SQL-code.
         opts = {"-l": "sql"}
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, test_app, sql_file, opts=opts
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, test_app, sql_file, opts=opts)
         assert not ret
-        assert re.search(
-            r"   ⨯ unable to change a language: unexpected response:", output
-        )
+        assert re.search(r"   ⨯ unable to change a language: unexpected response:", output)
 
     finally:
         # Stop the Instance.
@@ -928,8 +913,11 @@ def test_connect_language_set_if_unsupported(tt_cmd, tmpdir_with_cfg):
 def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -945,35 +933,55 @@ def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
         for uri in uris:
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="2+2", opts={"-x": "lua"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="2+2",
+                opts={"-x": "lua"},
             )
             assert ret
             assert output == "4;\n"
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="\n", opts={"-x": "lua"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="\n",
+                opts={"-x": "lua"},
             )
             assert ret
             assert output == ";\n"
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="1,2,3", opts={"-x": "lua"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="1,2,3",
+                opts={"-x": "lua"},
             )
             assert ret
             assert output == "1, 2, 3;\n"
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin='1,"2",3', opts={"-x": "lua"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin='1,"2",3',
+                opts={"-x": "lua"},
             )
             assert ret
             assert output == '1, "2", 3;\n'
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="{1, 2,   3}", opts={"-x": "lua"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="{1, 2,   3}",
+                opts={"-x": "lua"},
             )
             assert ret
             assert output == "{1, 2, 3};\n"
@@ -991,7 +999,11 @@ def test_output_format_lua(tt_cmd, tmpdir_with_cfg):
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin='error("test")', opts={"-x": "lua"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin='error("test")',
+                opts={"-x": "lua"},
             )
             assert ret
             assert output == '{error = "test"};\n'
@@ -1017,8 +1029,11 @@ def test_lua_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -1126,8 +1141,11 @@ def test_yaml_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -1154,7 +1172,7 @@ def test_yaml_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
                 opts={"-x": "yaml"},
             )
             assert ret
-            assert output == ("---\n" "- [1, 21, 'Flint', true]\n" "...\n\n")
+            assert output == ("---\n- [1, 21, 'Flint', true]\n...\n\n")
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
@@ -1235,9 +1253,7 @@ def test_yaml_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
             )
             assert ret
             assert output == (
-                "---\n"
-                "- [1, 21, 'Flint', [1, 21, 'Flint', {'data': [1, 2]}]]\n"
-                "...\n\n"
+                "---\n- [1, 21, 'Flint', [1, 21, 'Flint', {'data': [1, 2]}]]\n...\n\n"
             )
 
     finally:
@@ -1248,8 +1264,11 @@ def test_yaml_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 def test_table_output_format(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -1265,16 +1284,22 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
         for uri in uris:
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="2+2", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="2+2",
+                opts={"-x": "table"},
             )
             assert ret
-            assert output == (
-                "+------+\n" "| col1 |\n" "+------+\n" "| 4    |\n" "+------+\n"
-            )
+            assert output == ("+------+\n| col1 |\n+------+\n| 4    |\n+------+\n")
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="1,2,3", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="1,2,3",
+                opts={"-x": "table"},
             )
             assert ret
             assert output == (
@@ -1291,7 +1316,11 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="{1,2,3}", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="{1,2,3}",
+                opts={"-x": "table"},
             )
             assert ret
             assert output == (
@@ -1344,7 +1373,11 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="{ {10,20},{30,40} }", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="{ {10,20},{30,40} }",
+                opts={"-x": "table"},
             )
             assert ret
             assert output == (
@@ -1359,7 +1392,11 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="{10,20},{30,40}", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="{10,20},{30,40}",
+                opts={"-x": "table"},
             )
             assert ret
             assert output == (
@@ -1391,7 +1428,11 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="{10,20},{30,40},true", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="{10,20},{30,40},true",
+                opts={"-x": "table"},
             )
             assert ret
             assert output == (
@@ -1579,48 +1620,58 @@ def test_table_output_format(tt_cmd, tmpdir_with_cfg):
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="error('test')", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="error('test')",
+                opts={"-x": "table"},
             )
             assert ret
-            assert output == (
-                "+-------+\n" "| error |\n" "+-------+\n" "| test  |\n" "+-------+\n"
-            )
+            assert output == ("+-------+\n| error |\n+-------+\n| test  |\n+-------+\n")
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin=" ", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin=" ",
+                opts={"-x": "table"},
             )
             assert ret
-            assert output == (
-                "+------+\n" "| col1 |\n" "+------+\n" "|      |\n" "+------+\n"
-            )
+            assert output == ("+------+\n| col1 |\n+------+\n|      |\n+------+\n")
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="nil", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="nil",
+                opts={"-x": "table"},
             )
             assert ret
-            assert output == (
-                "+------+\n" "| col1 |\n" "+------+\n" "| nil  |\n" "+------+\n"
-            )
+            assert output == ("+------+\n| col1 |\n+------+\n| nil  |\n+------+\n")
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="{{{2+2}}}", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="{{{2+2}}}",
+                opts={"-x": "table"},
             )
             assert ret
-            assert output == (
-                "+------+\n" "| col1 |\n" "+------+\n" "| [4]  |\n" "+------+\n"
-            )
+            assert output == ("+------+\n| col1 |\n+------+\n| [4]  |\n+------+\n")
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="{{{{2+2}}}}", opts={"-x": "table"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="{{{{2+2}}}}",
+                opts={"-x": "table"},
             )
             assert ret
-            assert output == (
-                "+-------+\n" "| col1  |\n" "+-------+\n" "| [[4]] |\n" "+-------+\n"
-            )
+            assert output == ("+-------+\n| col1  |\n+-------+\n| [[4]] |\n+-------+\n")
 
     finally:
         # Stop the Instance.
@@ -1632,8 +1683,11 @@ def test_table_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -1686,8 +1740,11 @@ def test_table_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2009,8 +2066,11 @@ def test_table_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2029,21 +2089,25 @@ def test_ttable_output_format(tt_cmd, tmpdir_with_cfg):
         for uri in uris:
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="2+2", opts={"-x": "ttable"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="2+2",
+                opts={"-x": "ttable"},
             )
             assert ret
-            assert output == ("+------+---+\n" "| col1 | 4 |\n" "+------+---+\n")
+            assert output == ("+------+---+\n| col1 | 4 |\n+------+---+\n")
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="1,2,3", opts={"-x": "ttable"}
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="1,2,3",
+                opts={"-x": "ttable"},
             )
             assert ret
-            assert output == (
-                "+------+---+---+---+\n"
-                "| col1 | 1 | 2 | 3 |\n"
-                "+------+---+---+---+\n"
-            )
+            assert output == ("+------+---+---+---+\n| col1 | 1 | 2 | 3 |\n+------+---+---+---+\n")
 
             # Execute stdin.
             ret, output = try_execute_on_instance(
@@ -2103,8 +2167,11 @@ def test_ttable_output_format_for_tuples_no_format(tt_cmd, tmpdir_with_cfg):
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2153,8 +2220,11 @@ def test_ttable_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2389,8 +2459,11 @@ def test_ttable_output_format_for_tuples(tt_cmd, tmpdir_with_cfg):
 def test_output_format_round_switching(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2406,7 +2479,10 @@ def test_output_format_round_switching(tt_cmd, tmpdir_with_cfg):
         for uri in uris:
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="\n \\x \n\n \\x \n\n \\x \n\n \\x \n\n"
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="\n \\x \n\n \\x \n\n \\x \n\n \\x \n\n",
             )
             assert ret
             assert output == (
@@ -2435,8 +2511,11 @@ def test_output_format_round_switching(tt_cmd, tmpdir_with_cfg):
 def test_output_format_short_named_selecting(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2452,7 +2531,10 @@ def test_output_format_short_named_selecting(tt_cmd, tmpdir_with_cfg):
         for uri in uris:
             # Execute stdin.
             ret, output = try_execute_on_instance(
-                tt_cmd, tmpdir, uri, stdin="\n \\xl \n\n \\xt \n\n \\xT \n\n \\xy \n\n"
+                tt_cmd,
+                tmpdir,
+                uri,
+                stdin="\n \\xl \n\n \\xt \n\n \\xT \n\n \\xy \n\n",
             )
             assert ret
             assert output == (
@@ -2481,8 +2563,11 @@ def test_output_format_short_named_selecting(tt_cmd, tmpdir_with_cfg):
 def test_output_format_full_named_selecting(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2536,8 +2621,11 @@ def test_output_format_full_named_selecting(tt_cmd, tmpdir_with_cfg):
 def test_output_format_tables_pseudo_graphic_disable(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2589,8 +2677,11 @@ def test_output_format_tables_pseudo_graphic_disable(tt_cmd, tmpdir_with_cfg):
 def test_output_format_tables_width_option(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2666,8 +2757,11 @@ def test_output_format_tables_width_option(tt_cmd, tmpdir_with_cfg):
 def test_output_format_tables_dialects(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     # The test application file.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     # Copy test data into temporary directory.
     copy_data(tmpdir, [test_app_path])
 
@@ -2755,10 +2849,9 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
     start_app(tt_cmd, tmpdir, "test_app", True)
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
-                     BINARY_PORT_NAME, [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), BINARY_PORT_NAME, [])
     assert file != ""
-    file = wait_file(os.path.join(tmpdir, 'test_app'), 'configured', [])
+    file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
 
     # Remove console socket
@@ -2766,8 +2859,18 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
 
     # Connect to the instance and execute a script.
     try:
-        connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password",
-                       "-f", empty_file]
+        connect_cmd = [
+            tt_cmd,
+            "connect",
+            "test_app",
+            "--binary",
+            "-u",
+            "test",
+            "-p",
+            "password",
+            "-f",
+            empty_file,
+        ]
         instance_process = subprocess.run(
             connect_cmd,
             cwd=tmpdir,
@@ -2785,7 +2888,7 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
-            input="2+2"
+            input="2+2",
         )
         assert instance_process.returncode == 0
         assert instance_process.stdout == "---\n- 4\n...\n\n"
@@ -2815,7 +2918,7 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
     start_app(tt_cmd, tmpdir, app_name, True)
     try:
         # Check for start.
-        instances = ['master', 'replica', 'router']
+        instances = ["master", "replica", "router"]
         for instance in instances:
             master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
             file = wait_file(master_run_path, control_socket, [])
@@ -2826,15 +2929,23 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
             assert file != ""
 
         # Connect to the instance and execute stdin.
-        connect_cmd = [tt_cmd, "connect", app_name + ":master", "--binary",
-                       "-u", "test", "-p", "password"]
+        connect_cmd = [
+            tt_cmd,
+            "connect",
+            app_name + ":master",
+            "--binary",
+            "-u",
+            "test",
+            "-p",
+            "password",
+        ]
         instance_process = subprocess.run(
             connect_cmd,
             cwd=tmpdir,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
-            input="2+2"
+            input="2+2",
         )
         assert instance_process.returncode == 0
         assert instance_process.stdout == "---\n- 4\n...\n\n"
@@ -2861,10 +2972,9 @@ def test_connect_to_instance_binary_missing_port(tt_cmd):
     start_app(tt_cmd, tmpdir, "test_app", True)
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
-                     BINARY_PORT_NAME, [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), BINARY_PORT_NAME, [])
     assert file != ""
-    file = wait_file(os.path.join(tmpdir, 'test_app'), 'configured', [])
+    file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
 
     # Remove binary port.
@@ -2879,7 +2989,7 @@ def test_connect_to_instance_binary_missing_port(tt_cmd):
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
-            input="2+2"
+            input="2+2",
         )
         assert instance_process.returncode == 1
     finally:
@@ -2905,17 +3015,18 @@ def test_connect_to_instance_binary_port_is_broken(tt_cmd):
     start_app(tt_cmd, tmpdir, "test_app", True)
 
     # Check for start.
-    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"),
-                     BINARY_PORT_NAME, [])
+    file = wait_file(os.path.join(tmpdir, "test_app", run_path, "test_app"), BINARY_PORT_NAME, [])
     assert file != ""
-    file = wait_file(os.path.join(tmpdir, 'test_app'), 'configured', [])
+    file = wait_file(os.path.join(tmpdir, "test_app"), "configured", [])
     assert file != ""
 
     # Remove binary port.
     os.remove(os.path.join(tmpdir, "test_app", run_path, "test_app", BINARY_PORT_NAME))
     # Create fake binary port.
-    fake_binary_port = open(os.path.join(tmpdir, "test_app", run_path,
-                                         "test_app", BINARY_PORT_NAME), "a")
+    fake_binary_port = open(
+        os.path.join(tmpdir, "test_app", run_path, "test_app", BINARY_PORT_NAME),
+        "a",
+    )
     fake_binary_port.write("I am totally not a binary port.")
     fake_binary_port.close()
 
@@ -2928,7 +3039,7 @@ def test_connect_to_instance_binary_port_is_broken(tt_cmd):
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
-            input="2+2"
+            input="2+2",
         )
         assert instance_process.returncode == 1
     finally:
@@ -2959,14 +3070,14 @@ def test_connect_to_cluster_app(tt_cmd):
     start_app(tt_cmd, tmpdir, app_name, True)
     try:
         # Check for start.
-        instances = ['master']
+        instances = ["master"]
         for instance in instances:
             master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
             file = wait_file(master_run_path, control_socket, [])
             assert file != ""
             file = wait_file(master_run_path, BINARY_PORT_NAME, [])
             assert file != ""
-            file = wait_file(os.path.join(tmpdir, app_name), 'configured', [])
+            file = wait_file(os.path.join(tmpdir, app_name), "configured", [])
             assert file != ""
 
         # Connect to the instance and execute stdin.
@@ -2977,7 +3088,7 @@ def test_connect_to_cluster_app(tt_cmd):
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
-            input="2+2"
+            input="2+2",
         )
         assert instance_process.returncode == 0
         assert instance_process.stdout == "---\n- 4\n...\n\n"
@@ -2998,9 +3109,7 @@ def test_connect_to_cluster_app(tt_cmd):
         ),
     ),
 )
-def test_set_delimiter(
-    tt_cmd, tmpdir_with_cfg, instance: str, opts: None | dict, ready_file: Path
-):
+def test_set_delimiter(tt_cmd, tmpdir_with_cfg, instance: str, opts: None | dict, ready_file: Path):
     input = """local a=1
 a = a + 1
 return a
@@ -3033,9 +3142,7 @@ return a
 
         # With delimiter expecting correct responses.
         input = f"\\set delimiter {delimiter}\n{input}{delimiter}\n"
-        ret, output = try_execute_on_instance(
-            tt_cmd, tmpdir, instance, opts=opts, stdin=input
-        )
+        ret, output = try_execute_on_instance(tt_cmd, tmpdir, instance, opts=opts, stdin=input)
         assert ret
         assert (
             output
@@ -3051,26 +3158,28 @@ return a
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
-@pytest.mark.skipif(tarantool_major_version == 1,
-                    reason="skip custom evaler test for Tarantool 1")
+@pytest.mark.skipif(tarantool_major_version == 1, reason="skip custom evaler test for Tarantool 1")
 def test_custom_evaler(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     copy_data(tmpdir, [test_app_path])
     start_app(tt_cmd, tmpdir, "test_app")
 
-    expected_output = '''+------------------+
+    expected_output = """+------------------+
 | COLUMN2          |
 +------------------+
 | Hello SQL world! |
 +------------------+
-'''
+"""
     try:
         file = wait_file(os.path.join(tmpdir, "test_app"), "ready", [])
         assert file != ""
 
-        with open(os.path.join(tmpdir, "evaler.lua"), 'w') as f:
+        with open(os.path.join(tmpdir, "evaler.lua"), "w") as f:
             f.write("return box.execute(cmd)")
 
         if tarantool_major_version >= 3 or (
@@ -3088,8 +3197,7 @@ def test_custom_evaler(tt_cmd, tmpdir_with_cfg):
                 tmpdir,
                 uri,
                 stdin=select,
-                opts={"--evaler": evaler,
-                      "-x": "table"},
+                opts={"--evaler": evaler, "-x": "table"},
             )
 
             assert ret
@@ -3101,8 +3209,11 @@ def test_custom_evaler(tt_cmd, tmpdir_with_cfg):
 
 def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_output_format_app",
-                                                            "test_app.lua")
+    test_app_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_output_format_app",
+        "test_app.lua",
+    )
     copy_data(tmpdir, [test_app_path])
     start_app(tt_cmd, tmpdir, "test_app")
 
@@ -3132,29 +3243,36 @@ def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
         )
 
         assert not ret
-        assert "failed to read the evaler file: open missing_file: " \
-               "no such file or directory" in output
+        assert (
+            "failed to read the evaler file: open missing_file: no such file or directory" in output
+        )
 
     finally:
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
-@pytest.mark.tt(app_path='test_single_app/test_app.lua')
-@pytest.mark.parametrize('sig', [
-    pytest.param(signal.SIGINT, id='SIGINT'),
-    pytest.param(signal.SIGQUIT, id='SIGQUIT'),
-])
+@pytest.mark.tt(app_path="test_single_app/test_app.lua")
+@pytest.mark.parametrize(
+    "sig",
+    [
+        pytest.param(signal.SIGINT, id="SIGINT"),
+        pytest.param(signal.SIGQUIT, id="SIGQUIT"),
+    ],
+)
 def test_disconnect_by_signal(tt, sig):
     # Start an instance.
     tt.exec("start", "test_app")
     # Check for start.
-    assert wait_files(5, [tt.path('configured')])
+    assert wait_files(5, [tt.path("configured")])
 
-    p = tt.popen("connect", "test_app",
-                 stdin=subprocess.PIPE,
-                 stdout=subprocess.PIPE,
-                 stderr=subprocess.PIPE,
-                 universal_newlines=True)
+    p = tt.popen(
+        "connect",
+        "test_app",
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+    )
 
     try:
         p.communicate("while true do end", 2)

@@ -10,11 +10,25 @@ import pytest
 import yaml
 from retry import retry
 
-from utils import (config_name, control_socket, extract_status, initial_snap,
-                   initial_xlog, kill_child_process, lib_path, log_file,
-                   log_path, pid_file, run_command_and_get_output, run_path,
-                   wait_file, wait_for_lines_in_output, wait_instance_start,
-                   wait_instance_stop, wait_string_in_file)
+from utils import (
+    config_name,
+    control_socket,
+    extract_status,
+    initial_snap,
+    initial_xlog,
+    kill_child_process,
+    lib_path,
+    log_file,
+    log_path,
+    pid_file,
+    run_command_and_get_output,
+    run_path,
+    wait_file,
+    wait_for_lines_in_output,
+    wait_instance_start,
+    wait_instance_stop,
+    wait_string_in_file,
+)
 
 
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
@@ -30,7 +44,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
@@ -41,7 +55,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
 
     # Check working directory. tt creates a working dir for single instance apps using its name
     # without .lua ext.
-    file = wait_file(os.path.join(tmpdir, "test_app"), 'flag', [])
+    file = wait_file(os.path.join(tmpdir, "test_app"), "flag", [])
     assert file != ""
 
     status_cmd = [tt_cmd, "status", "test_app"]
@@ -75,7 +89,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
@@ -96,7 +110,7 @@ def test_restart(tt_cmd, tmpdir_with_cfg):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     restart_output = instance_process_2.stdout.readline()
     assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", restart_output)
@@ -139,7 +153,7 @@ def test_logrotate(tt_cmd, tmpdir_with_cfg):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
@@ -194,7 +208,7 @@ def test_clean(tt_cmd, tmpdir_with_cfg):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
@@ -258,7 +272,7 @@ def test_running_instance_from_multi_inst_app(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         start_output = instance_process.stdout.readline()
         assert re.search(r"Starting an instance \[app:router\]", start_output)
@@ -307,7 +321,7 @@ def test_running_multi_inst_app_error_cases(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         instance_process.wait(1)
         start_output = instance_process.stdout.readline()
@@ -320,7 +334,7 @@ def test_running_multi_inst_app_error_cases(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         instance_process.wait(1)
         start_output = instance_process.stdout.readline()
@@ -345,7 +359,7 @@ def test_running_reread_config(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
@@ -367,7 +381,7 @@ def test_running_reread_config(tt_cmd, tmp_path):
     # We need to wait because watchdog starts first and only after that
     # instances starts. It is indicated by 'started' in logs.
     log_file_path = os.path.join(tmp_path, "test_app", log_path, "test_app", "tt.log")
-    file = wait_file(os.path.join(tmp_path, "test_app", log_path, "test_app"), 'tt.log', [])
+    file = wait_file(os.path.join(tmp_path, "test_app", log_path, "test_app"), "tt.log", [])
     assert file != ""
     isStarted = wait_instance_start(log_file_path)
     assert isStarted is True
@@ -433,12 +447,14 @@ def test_no_args_usage(tt_cmd):
             # Check status.
             inst_enabled_dir = os.path.join(test_app_path, "instances_enabled")
             for instName in ["master", "replica", "router"]:
-                file = wait_file(os.path.join(inst_enabled_dir, "app1", run_path, instName),
-                                 pid_file, [])
+                file = wait_file(
+                    os.path.join(inst_enabled_dir, "app1", run_path, instName),
+                    pid_file,
+                    [],
+                )
                 assert file != ""
 
-            file = wait_file(os.path.join(inst_enabled_dir, "app2", run_path, "app2"),
-                             pid_file, [])
+            file = wait_file(os.path.join(inst_enabled_dir, "app2", run_path, "app2"), pid_file, [])
             assert file != ""
 
             status_cmd = [tt_cmd, "status"]
@@ -446,26 +462,34 @@ def test_no_args_usage(tt_cmd):
             assert status_rc == 0
             status_out = extract_status(status_out)
             assert len(status_out) == 4
-            assert status_out['app1:router']["STATUS"] == "RUNNING"
-            assert status_out['app1:master']["STATUS"] == "RUNNING"
-            assert status_out['app1:replica']["STATUS"] == "RUNNING"
-            assert status_out['app2']["STATUS"] == "RUNNING"
+            assert status_out["app1:router"]["STATUS"] == "RUNNING"
+            assert status_out["app1:master"]["STATUS"] == "RUNNING"
+            assert status_out["app1:replica"]["STATUS"] == "RUNNING"
+            assert status_out["app2"]["STATUS"] == "RUNNING"
 
             status_cmd = [tt_cmd, "logrotate"]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(r"app1:(router|master|replica) \(PID = \d+\): logs has been rotated.",
-                             status_out)
+            assert re.search(
+                r"app1:(router|master|replica) \(PID = \d+\): logs has been rotated.",
+                status_out,
+            )
             assert re.search(r"app2 \(PID = \d+\): logs has been rotated.", status_out)
 
             # Stop all applications.
             stop_cmd = [tt_cmd, "stop", "-y"]
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
             assert stop_rc == 0
-            assert re.search(r"The Instance app1:(router|master|replica) \(PID = \d+\) "
-                             r"has been terminated.", stop_out)
-            assert re.search(r"The Instance app2 \(PID = \d+\) "
-                             r"has been terminated.", stop_out)
+            assert re.search(
+                r"The Instance app1:(router|master|replica) \(PID = \d+\) "
+                r"has been terminated.",
+                stop_out,
+            )
+            assert re.search(
+                r"The Instance app2 \(PID = \d+\) "
+                r"has been terminated.",
+                stop_out,
+            )
             assert "app1:app1" not in stop_out
 
 
@@ -488,14 +512,17 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
-            env=my_env
+            env=my_env,
         )
         start_output = instance_process.stdout.readline()
         assert re.search(r"Starting an instance", start_output)
 
         # Check status.
-        file = wait_file(os.path.join(tmpdir, "test_env_app", run_path, "test_env_app"),
-                         pid_file, [])
+        file = wait_file(
+            os.path.join(tmpdir, "test_env_app", run_path, "test_env_app"),
+            pid_file,
+            [],
+        )
         assert file != ""
         status_cmd = [tt_cmd, "status", "test_env_app"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
@@ -534,17 +561,17 @@ def test_running_tarantoolctl_layout(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.readline()
     assert re.search(r"Starting an instance", start_output)
 
     # Check files locations.
-    file = wait_file(os.path.join(tmp_path, run_path), 'test_app.pid', [])
+    file = wait_file(os.path.join(tmp_path, run_path), "test_app.pid", [])
     assert file != ""
-    file = wait_file(os.path.join(tmp_path, run_path), 'test_app.control', [])
+    file = wait_file(os.path.join(tmp_path, run_path), "test_app.control", [])
     assert file != ""
-    file = wait_file(os.path.join(tmp_path, log_path), 'test_app.log', [])
+    file = wait_file(os.path.join(tmp_path, log_path), "test_app.log", [])
     assert file != ""
 
     # Check status.
@@ -584,12 +611,14 @@ def test_running_start(tt_cmd):
                 cwd=test_app_path,
                 stderr=subprocess.STDOUT,
                 stdout=subprocess.PIPE,
-                text=True
+                text=True,
             )
             for i in range(0, 3):
                 start_output = instance_process.stdout.readline()
-                assert re.search(r"Starting an instance \[app:(router|master|replica|stateboard)\]",
-                                 start_output)
+                assert re.search(
+                    r"Starting an instance \[app:(router|master|replica|stateboard)\]",
+                    start_output,
+                )
 
             # Check status.
             for instName in instances:
@@ -602,22 +631,25 @@ def test_running_start(tt_cmd):
             status_out = extract_status(status_out)
 
             for instName in instances:
-                assert status_out[f'app:{instName}']["STATUS"] == "RUNNING"
+                assert status_out[f"app:{instName}"]["STATUS"] == "RUNNING"
 
             status_cmd = [tt_cmd, "stop", "-y", "app:router"]
             status_rc, stop_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(r"The Instance app:router \(PID = \d+\) "
-                             r"has been terminated.", stop_out)
+            assert re.search(
+                r"The Instance app:router \(PID = \d+\) "
+                r"has been terminated.",
+                stop_out,
+            )
 
             status_cmd = [tt_cmd, "status"]
             status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
             assert status_rc == 0
             status_out = extract_status(status_out)
-            assert status_out['app:router']["STATUS"] == "NOT RUNNING"
-            assert status_out['app:master']["STATUS"] == "RUNNING"
-            assert status_out['app:replica']["STATUS"] == "RUNNING"
-            assert status_out['app:stateboard']["STATUS"] == "RUNNING"
+            assert status_out["app:router"]["STATUS"] == "NOT RUNNING"
+            assert status_out["app:master"]["STATUS"] == "RUNNING"
+            assert status_out["app:replica"]["STATUS"] == "RUNNING"
+            assert status_out["app:stateboard"]["STATUS"] == "RUNNING"
 
             # Start all instances again.
             start_cmd = [tt_cmd, "start"]
@@ -626,9 +658,11 @@ def test_running_start(tt_cmd):
 
             # Check the log output that some instances are already up.
             for i in range(0, 3):
-                assert re.search(r"The instance app:(master|replica|stateboard) \(PID = \d+\) "
-                                 r"is already running.",
-                                 start_out)
+                assert re.search(
+                    r"The instance app:(master|replica|stateboard) \(PID = \d+\) "
+                    r"is already running.",
+                    start_out,
+                )
 
             # Check the stopped instance is being started.
             assert re.search(r"Starting an instance \[app:router\]", start_out)
@@ -642,14 +676,17 @@ def test_running_start(tt_cmd):
             assert status_rc == 0
             status_out = extract_status(status_out)
             for instName in instances:
-                assert status_out[f'app:{instName}']["STATUS"] == "RUNNING"
+                assert status_out[f"app:{instName}"]["STATUS"] == "RUNNING"
 
             # Stop all applications.
             stop_cmd = [tt_cmd, "stop", "-y"]
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
             assert status_rc == 0
-            assert re.search(r"The Instance app:(router|master|replica|stateboard) \(PID = \d+\) "
-                             r"has been terminated.", stop_out)
+            assert re.search(
+                r"The Instance app:(router|master|replica|stateboard) \(PID = \d+\) "
+                r"has been terminated.",
+                stop_out,
+            )
 
             # Check that the process was terminated correctly.
             instance_process_rc = instance_process.wait(1)
@@ -669,8 +706,10 @@ def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
             pass
 
         def rename():
-            os.rename(os.path.join(test_env_path, "instances.enabled", "mi_app", "instances.yml"),
-                      os.path.join(test_env_path, "instances.enabled", "mi_app", "instances.yaml"))
+            os.rename(
+                os.path.join(test_env_path, "instances.enabled", "mi_app", "instances.yml"),
+                os.path.join(test_env_path, "instances.enabled", "mi_app", "instances.yaml"),
+            )
 
         for modify_func in [empty, rename]:
             modify_func()
@@ -682,7 +721,7 @@ def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
                 cwd=test_env_path,
                 stderr=subprocess.STDOUT,
                 stdout=subprocess.PIPE,
-                text=True
+                text=True,
             )
             start_output = instance_process.stdout.readline()
             assert "Starting an instance [mi_app:" in start_output
@@ -693,11 +732,17 @@ def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
 
             # Check status.
             inst_enabled_dir = os.path.join(test_env_path, "instances.enabled")
-            file = wait_file(os.path.join(inst_enabled_dir, "mi_app", run_path, "router"),
-                             pid_file, [])
+            file = wait_file(
+                os.path.join(inst_enabled_dir, "mi_app", run_path, "router"),
+                pid_file,
+                [],
+            )
             assert file != ""
-            file = wait_file(os.path.join(inst_enabled_dir, "mi_app", run_path, "storage"),
-                             pid_file, [])
+            file = wait_file(
+                os.path.join(inst_enabled_dir, "mi_app", run_path, "storage"),
+                pid_file,
+                [],
+            )
             assert file != ""
 
             for inst in ["router", "storage"]:
@@ -711,18 +756,25 @@ def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
             stop_cmd = [tt_cmd, "stop", "-y", "mi_app"]
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_env_path)
             assert stop_rc == 0
-            assert re.search(r"The Instance mi_app:router \(PID = \d+\) has been terminated.",
-                             stop_out)
-            assert re.search(r"The Instance mi_app:storage \(PID = \d+\) has been terminated.",
-                             stop_out)
+            assert re.search(
+                r"The Instance mi_app:router \(PID = \d+\) has been terminated.",
+                stop_out,
+            )
+            assert re.search(
+                r"The Instance mi_app:storage \(PID = \d+\) has been terminated.",
+                stop_out,
+            )
 
 
 # SIGQUIT tests are skipped, because they cause coredump generation, which cannot be disabled
 # with process limits setting for some coredump patterns (using systemd-coderump).
-@pytest.mark.parametrize("cmd,input", [
-    (["kill", "test_app", "-f"], None),
-    (["kill", "test_app"], "y\n"),
-    ])
+@pytest.mark.parametrize(
+    "cmd,input",
+    [
+        (["kill", "test_app", "-f"], None),
+        (["kill", "test_app"], "y\n"),
+    ],
+)
 def test_kill(tt_cmd, tmpdir_with_cfg, cmd, input):
     tmpdir = tmpdir_with_cfg
     test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
@@ -763,6 +815,7 @@ def test_kill(tt_cmd, tmpdir_with_cfg, cmd, input):
         @retry(AssertionError, tries=6, delay=0.5)
         def process_not_running(process):
             assert not process.is_running()
+
         process_not_running(tarantool_process)
         process_not_running(watchdog_process)
 
@@ -771,10 +824,13 @@ def test_kill(tt_cmd, tmpdir_with_cfg, cmd, input):
         run_command_and_get_output(stop, cwd=tmpdir)
 
 
-@pytest.mark.parametrize("cmd,input", [
-    (["kill", "-f"], None),
-    (["kill"], "y\n"),
-    ])
+@pytest.mark.parametrize(
+    "cmd,input",
+    [
+        (["kill", "-f"], None),
+        (["kill"], "y\n"),
+    ],
+)
 def test_kill_without_app_name(tt_cmd, tmp_path, cmd, input):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
     instances = ["master", "replica", "router"]
@@ -808,8 +864,11 @@ def test_kill_without_app_name(tt_cmd, tmp_path, cmd, input):
         kill_cmd.extend(cmd)
         rc, stop_out = run_command_and_get_output(kill_cmd, cwd=test_app_path, input=input)
         assert rc == 0
-        assert re.search(r"The instance app1:(router|master|replica) \(PID = \d+\) "
-                         "has been killed.", stop_out)
+        assert re.search(
+            r"The instance app1:(router|master|replica) \(PID = \d+\) "
+            "has been killed.",
+            stop_out,
+        )
         assert re.search(r"The instance app2 \(PID = \d+\) has been killed.", stop_out)
 
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
@@ -837,25 +896,31 @@ def test_start_interactive(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     try:
-        wait_for_lines_in_output(instance_process.stdout, [
-            "multi_inst_app:router custom init file...",
-            "multi_inst_app:router multi_inst_app:router",
-            "multi_inst_app:master multi_inst_app:master",
-            "multi_inst_app:replica multi_inst_app:replica",
-            "multi_inst_app:stateboard multi_inst_app:stateboard",
-        ])
+        wait_for_lines_in_output(
+            instance_process.stdout,
+            [
+                "multi_inst_app:router custom init file...",
+                "multi_inst_app:router multi_inst_app:router",
+                "multi_inst_app:master multi_inst_app:master",
+                "multi_inst_app:replica multi_inst_app:replica",
+                "multi_inst_app:stateboard multi_inst_app:stateboard",
+            ],
+        )
 
         instance_process.send_signal(signal.SIGTERM)
 
-        wait_for_lines_in_output(instance_process.stdout, [
-            "multi_inst_app:router stopped",
-            "multi_inst_app:master stopped",
-            "multi_inst_app:replica stopped",
-            "multi_inst_app:stateboard stopped",
-        ])
+        wait_for_lines_in_output(
+            instance_process.stdout,
+            [
+                "multi_inst_app:router stopped",
+                "multi_inst_app:master stopped",
+                "multi_inst_app:replica stopped",
+                "multi_inst_app:stateboard stopped",
+            ],
+        )
 
         # Make sure no log dir created.
         assert not (tmp_path / "var" / "log").exists()

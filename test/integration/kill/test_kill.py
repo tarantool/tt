@@ -25,14 +25,18 @@ def check_kill(tt, target, input, is_confirm, *args):
     orig_status = tt_helper.status(tt)
 
     # Do kill.
-    rc, out = tt.exec('kill', target, *args, input=input)
+    rc, out = tt.exec("kill", target, *args, input=input)
     assert rc == 0
 
     # Check the confirmation prompt.
     if input is not None:
-        confirmation_target = "all instances" if target is None else \
-                              f"instances of {target}" if target.find(':') == -1 else \
-                              f"{target} instance"
+        confirmation_target = (
+            "all instances"
+            if target is None
+            else f"instances of {target}"
+            if target.find(":") == -1
+            else f"{target} instance"
+        )
         assert f"Kill {confirmation_target}?" in out
 
     # Check the instances.
@@ -62,51 +66,63 @@ def check_kill(tt, target, input, is_confirm, *args):
 # Multi-instance
 
 tt_multi_inst_app = dict(
-    app_path='multi_inst_app',
-    app_name='app',
-    instances=['router', 'master', 'replica', 'stateboard'],
+    app_path="multi_inst_app",
+    app_name="app",
+    instances=["router", "master", "replica", "stateboard"],
     post_start=tt_helper.post_start_base,
 )
 
 
 # Auto-confirmation (short option).
 @pytest.mark.tt(**tt_multi_inst_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:master'], id='running:master'),
-    pytest.param(['app:master', 'app:router'], id='running:master_router'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:master',
-    'app:router',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:master"], id="running:master"),
+        pytest.param(["app:master", "app:router"], id="running:master_router"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:master",
+        "app:router",
+    ],
+)
 def test_kill_multi_inst_auto_y(tt, target):
-    check_kill(tt, target, None, True, '-f')
+    check_kill(tt, target, None, True, "-f")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_multi_inst_app, running_target=['app']))
+@pytest.mark.tt(**dict(tt_multi_inst_app, running_target=["app"]))
 def test_kill_multi_inst_auto_yes(tt):
-    check_kill(tt, 'app', None, True, '--force')
+    check_kill(tt, "app", None, True, "--force")
 
 
 # Various inputs.
 @pytest.mark.slow
 @pytest.mark.tt(**tt_multi_inst_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:master',
-    'app:router',
-])
-@pytest.mark.parametrize('input, is_confirmed', confirmation_input_params)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:master",
+        "app:router",
+    ],
+)
+@pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
 def test_kill_multi_inst_input(tt, target, input, is_confirmed):
     check_kill(tt, target, input, is_confirmed)
 
@@ -114,31 +130,37 @@ def test_kill_multi_inst_input(tt, target, input, is_confirmed):
 # Instance script is missing.
 tt_multi_inst_app_no_script = dict(
     tt_multi_inst_app,
-    post_start=tt_helper.post_start_no_script_decorator(tt_multi_inst_app['post_start']),
+    post_start=tt_helper.post_start_no_script_decorator(tt_multi_inst_app["post_start"]),
 )
 
 
 @pytest.mark.tt(**tt_multi_inst_app_no_script)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:master'], id='running:master'),
-])
-@pytest.mark.parametrize('target', [
-    'app',
-    'app:master',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:master"], id="running:master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        "app",
+        "app:master",
+    ],
+)
 def test_kill_multi_inst_no_instance_script(tt, target):
-    check_kill(tt, target, None, True, '-f')
+    check_kill(tt, target, None, True, "-f")
 
 
 ################################################################
 # Cluster
 
 tt_cluster_app = dict(
-    app_path='cluster_app',
-    app_name='app',
-    instances=['storage-master', 'storage-replica'],
+    app_path="cluster_app",
+    app_name="app",
+    instances=["storage-master", "storage-replica"],
     post_start=tt_helper.post_start_cluster_decorator(tt_helper.post_start_base),
 )
 
@@ -147,43 +169,55 @@ tt_cluster_app = dict(
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:storage-master'], id='running:storage-master'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:storage-master',
-    'app:storage-replica',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:storage-master"], id="running:storage-master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:storage-master",
+        "app:storage-replica",
+    ],
+)
 def test_kill_cluster_auto_y(tt, target):
-    check_kill(tt, target, None, True, '-f')
+    check_kill(tt, target, None, True, "-f")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt(**dict(tt_cluster_app, running_targets=['app']))
+@pytest.mark.tt(**dict(tt_cluster_app, running_targets=["app"]))
 def test_kill_cluster_auto_yes(tt):
-    check_kill(tt, 'app', None, True, '--force')
+    check_kill(tt, "app", None, True, "--force")
 
 
 # Various inputs.
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param([], id='running:none'),
-    pytest.param(['app'], id='running:all'),
-])
-@pytest.mark.parametrize('target', [
-    None,
-    'app',
-    'app:storage-master',
-    'app:storage-replica',
-])
-@pytest.mark.parametrize('input, is_confirmed', confirmation_input_params)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+        pytest.param(["app"], id="running:all"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        None,
+        "app",
+        "app:storage-master",
+        "app:storage-replica",
+    ],
+)
+@pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
 def test_kill_cluster_input(tt, target, input, is_confirmed):
     check_kill(tt, target, input, is_confirmed)
 
@@ -191,20 +225,26 @@ def test_kill_cluster_input(tt, target, input, is_confirmed):
 # Cluster configuration is missing.
 tt_cluster_app_no_config = dict(
     tt_cluster_app,
-    post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app['post_start']),
+    post_start=tt_helper.post_start_no_config_decorator(tt_cluster_app["post_start"]),
 )
 
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
 @pytest.mark.tt(**tt_cluster_app_no_config)
-@pytest.mark.parametrize('tt_running_targets', [
-    pytest.param(['app'], id='running:all'),
-    pytest.param(['app:storage-master'], id='running:storage-master'),
-])
-@pytest.mark.parametrize('target', [
-    'app',
-    'app:storage-master',
-])
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param(["app"], id="running:all"),
+        pytest.param(["app:storage-master"], id="running:storage-master"),
+    ],
+)
+@pytest.mark.parametrize(
+    "target",
+    [
+        "app",
+        "app:storage-master",
+    ],
+)
 def test_kill_cluster_no_config(tt, target):
-    check_kill(tt, target, None, True, '-f')
+    check_kill(tt, target, None, True, "-f")

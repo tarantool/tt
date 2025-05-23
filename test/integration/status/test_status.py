@@ -8,8 +8,15 @@ import time
 import pytest
 import tarantool
 
-from utils import (control_socket, extract_status, get_tarantool_version,
-                   pid_file, run_command_and_get_output, run_path, wait_file)
+from utils import (
+    control_socket,
+    extract_status,
+    get_tarantool_version,
+    pid_file,
+    run_command_and_get_output,
+    run_path,
+    wait_file,
+)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -20,7 +27,7 @@ def start_application(cmd, workdir, app_name, instances):
         cwd=workdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     start_output = instance_process.stdout.read()
     for inst in instances:
@@ -46,12 +53,11 @@ def run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     instance_process.stdin.writelines([cmd])
     instance_process.stdin.close()
-    output = instance_process.stdout.read()
-    return output
+    return instance_process.stdout.read()
 
 
 def wait_instance_status(tt_cmd, tmpdir, full_inst_name, status, port=None, timeout=10):
@@ -74,12 +80,7 @@ def wait_instance_status(tt_cmd, tmpdir, full_inst_name, status, port=None, time
                     conn = tarantool.Connection(host="localhost", port=port)
                 res = conn.eval(cmd)[0]
             else:
-                res = run_command_on_instance(
-                    tt_cmd,
-                    tmpdir,
-                    full_inst_name,
-                    cmd
-                )
+                res = run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd)
 
             if any(expected_status in res for expected_status in expected_statuses):
                 if conn:
@@ -93,8 +94,10 @@ def wait_instance_status(tt_cmd, tmpdir, full_inst_name, status, port=None, time
         time.sleep(1)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip cluster instances test for Tarantool < 3",
+)
 def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
@@ -102,7 +105,7 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
     shutil.copytree(os.path.join(os.path.dirname(__file__), f"../running/{app_name}"), app_path)
 
     run_dir = os.path.join(tmpdir, app_name, run_path)
-    instances = ['storage-master', 'storage-replica']
+    instances = ["storage-master", "storage-replica"]
     try:
         # Start an instance.
         start_cmd = [tt_cmd, "start", app_name]
@@ -110,7 +113,7 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
 
         # Check status.
         for inst in instances:
-            file = wait_file(os.path.join(run_dir, inst), 'tarantool.pid', [])
+            file = wait_file(os.path.join(run_dir, inst), "tarantool.pid", [])
             assert file != ""
             file = wait_file(os.path.join(run_dir, inst), control_socket, [])
             assert file != ""
@@ -120,11 +123,12 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
         assert status_rc == 0
         status_info = extract_status(status_out)
         for inst in instances:
-            assert status_info[app_name+":"+inst]["STATUS"] == "RUNNING"
+            assert status_info[app_name + ":" + inst]["STATUS"] == "RUNNING"
             assert os.path.exists(os.path.join(tmpdir, app_name, "var", "lib", inst))
             assert os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst, "tt.log"))
-            assert not os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst,
-                                                   "tarantool.log"))
+            assert not os.path.exists(
+                os.path.join(tmpdir, app_name, "var", "log", inst, "tarantool.log"),
+            )
 
         full_master_inst_name = f"{app_name}:{instances[0]}"
 
@@ -140,14 +144,14 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
         res = run_command_on_instance(tt_cmd, tmpdir, full_master_inst_name, reload_cmd)
 
         # Check if the expected error message is present in the response
-        error_message = "[cluster_config] Unexpected field \"invalid_field\""
+        error_message = '[cluster_config] Unexpected field "invalid_field"'
         assert error_message in res
 
         status_cmd = [tt_cmd, "status", full_master_inst_name, "--details"]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
         assert status_rc == 0
 
-        status_table = status_out[status_out.find("INSTANCE"):]
+        status_table = status_out[status_out.find("INSTANCE") :]
         status_info = extract_status(status_table)
 
         assert status_info[full_master_inst_name]["STATUS"] == "RUNNING"
@@ -162,8 +166,10 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, tmpdir)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip cluster instances test for Tarantool < 3",
+)
 def test_t3_instance_names_no_config(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "../running/multi_inst_app")
     instances = ["router", "master", "replica", "stateboard"]
@@ -185,12 +191,12 @@ def test_t3_instance_names_no_config(tt_cmd):
                     cwd=test_app_path,
                     stderr=subprocess.STDOUT,
                     stdout=subprocess.PIPE,
-                    text=True
+                    text=True,
                 )
                 start_output = instance_process.stdout.readline()
                 assert re.search(
                     r"Starting an instance \[app:(router|master|replica|stateboard)\]",
-                    start_output
+                    start_output,
                 )
 
                 # Check status.
@@ -202,7 +208,7 @@ def test_t3_instance_names_no_config(tt_cmd):
                 status_cmd = [tt_cmd, "status", "app", "--details"]
                 status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
                 assert status_rc == 0
-                status_table = status_out[status_out.find("INSTANCE"):]
+                status_table = status_out[status_out.find("INSTANCE") :]
                 status_table = extract_status(status_table)
 
                 for instName in instances:
@@ -227,8 +233,10 @@ def test_t3_instance_names_no_config(tt_cmd):
                 stop_application(tt_cmd, "app", test_app_path)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip cluster instances test for Tarantool < 3",
+)
 def test_t3_no_instance_names_no_config(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "single_app"
@@ -242,13 +250,10 @@ def test_t3_no_instance_names_no_config(tt_cmd, tmpdir_with_cfg):
             cwd=app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         start_output = instance_process.stdout.read()
-        assert re.search(
-                    r"Starting an instance \[single_app\]",
-                    start_output
-                )
+        assert re.search(r"Starting an instance \[single_app\]", start_output)
         assert wait_instance_status(tt_cmd, app_path, app_name, "box", port=3303)
         status_cmd = [tt_cmd, "status", app_name]
         status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
@@ -264,8 +269,7 @@ def test_t3_no_instance_names_no_config(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, app_path)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
@@ -278,7 +282,7 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), 'ready', [])
+        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
         assert file != ""
 
         status_cmd = [tt_cmd, "status"]
@@ -296,8 +300,7 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, tmpdir)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip cartridge test for Tarantool > 2")
 def test_status_cartridge(tt_cmd, cartridge_app):
     rs_cmd = [tt_cmd, "status"]
 

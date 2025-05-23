@@ -33,7 +33,7 @@ def sigterm_handler():
 def cli_config_dir():
     if platform.system() == "Darwin":
         return "/usr/local/etc/tarantool"
-    elif platform.system() == "Linux":
+    if platform.system() == "Linux":
         return "/etc/tarantool"
 
     return ""
@@ -73,7 +73,7 @@ def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.DEVNULL,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
@@ -84,7 +84,7 @@ def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.DEVNULL,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
@@ -105,8 +105,7 @@ def etcd_session(request, tmp_path_factory):
         # Additionally, we stop all etcd children;
         # Finalizer may execute while ectd is starting.
         me = psutil.Process()
-        utils.kill_procs(list(filter(lambda p: p.name() == "etcd",
-                         me.children())))
+        utils.kill_procs(list(filter(lambda p: p.name() == "etcd", me.children())))
 
     request.addfinalizer(stop_etcd_children)
     etcd_instance.start()
@@ -149,14 +148,20 @@ def fixture_params():
 @pytest.fixture(scope="function")
 def tcs(request, tmp_path, fixture_params):
     test_app_path = os.path.join(fixture_params.get("path_to_cfg_dir"), "config.yaml")
-    inst = utils.TarantoolTestInstance(test_app_path, fixture_params.get("path_to_cfg_dir"),
-                                       "", tmp_path)
-    inst.start(connection_test=fixture_params.get("connection_test"),
-               connection_test_user=fixture_params.get("connection_test_user"),
-               connection_test_password=fixture_params.get("connection_test_password"),
-               instance_name=fixture_params.get("instance_name"),
-               instance_host=fixture_params.get("instance_host"),
-               instance_port=fixture_params.get("instance_port"))
+    inst = utils.TarantoolTestInstance(
+        test_app_path,
+        fixture_params.get("path_to_cfg_dir"),
+        "",
+        tmp_path,
+    )
+    inst.start(
+        connection_test=fixture_params.get("connection_test"),
+        connection_test_user=fixture_params.get("connection_test_user"),
+        connection_test_password=fixture_params.get("connection_test_password"),
+        instance_name=fixture_params.get("instance_name"),
+        instance_host=fixture_params.get("instance_host"),
+        instance_port=fixture_params.get("instance_port"),
+    )
     request.addfinalizer(lambda: inst.stop())
     return inst
 
@@ -172,31 +177,35 @@ def vshard_app_session(tt_cmd, tmp_path_factory) -> VshardCluster:
 
 @pytest.fixture
 def vshard_app(tt_cmd, tmp_path, vshard_app_session) -> VshardCluster:
-    copied_env = shutil.copytree(vshard_app_session.env_dir, tmp_path,
-                                 symlinks=True, dirs_exist_ok=True)
+    copied_env = shutil.copytree(
+        vshard_app_session.env_dir,
+        tmp_path,
+        symlinks=True,
+        dirs_exist_ok=True,
+    )
     return VshardCluster(tt_cmd, copied_env, vshard_app_session.app_name)
 
 
 @pytest.fixture(scope="function")
 def tt_path(tmpdir_with_cfg, request):
-    mark_app = request.node.get_closest_marker('tt')
-    app_path = mark_app.kwargs['app_path']
+    mark_app = request.node.get_closest_marker("tt")
+    app_path = mark_app.kwargs["app_path"]
     if not os.path.isabs(app_path):
         app_path = os.path.join(os.path.dirname(request.path), app_path)
     if os.path.isdir(app_path):
-        app_name = mark_app.kwargs.get('app_name', os.path.basename(app_path))
+        app_name = mark_app.kwargs.get("app_name", os.path.basename(app_path))
         app_path = shutil.copytree(app_path, os.path.join(tmpdir_with_cfg, app_name))
     else:
         app_name, app_ext = os.path.splitext(os.path.basename(app_path))
-        app_name = mark_app.kwargs.get('app_name', app_name)
-        app_path = shutil.copy(app_path, os.path.join(tmpdir_with_cfg, app_name+app_ext))
+        app_name = mark_app.kwargs.get("app_name", app_name)
+        app_path = shutil.copy(app_path, os.path.join(tmpdir_with_cfg, app_name + app_ext))
     return app_path
 
 
 @pytest.fixture(scope="function")
 def tt_instances(tt_path, request):
-    mark_app = request.node.get_closest_marker('tt')
-    instances = mark_app.kwargs.get('instances')
+    mark_app = request.node.get_closest_marker("tt")
+    instances = mark_app.kwargs.get("instances")
     app_name = os.path.basename(tt_path)
     if not os.path.isdir(tt_path):
         app_name, _ = os.path.splitext(app_name)
@@ -204,30 +213,30 @@ def tt_instances(tt_path, request):
         instances = [app_name]
     else:
         assert instances is not None
-        instances = list(map(lambda x: f'{app_name}:{x}', instances))
+        instances = list(map(lambda x: f"{app_name}:{x}", instances))
     return instances
 
 
 @pytest.fixture(scope="function")
 def tt_running_targets(request):
-    mark_app = request.node.get_closest_marker('tt')
-    return mark_app.kwargs.get('running_targets', [])
+    mark_app = request.node.get_closest_marker("tt")
+    return mark_app.kwargs.get("running_targets", [])
 
 
 @pytest.fixture(scope="function")
 def tt_post_start(request):
-    mark_app = request.node.get_closest_marker('tt')
-    return mark_app.kwargs.get('post_start')
+    mark_app = request.node.get_closest_marker("tt")
+    return mark_app.kwargs.get("post_start")
 
 
 @pytest.fixture(scope="function")
 def tt(tt_cmd, tt_path, tt_instances, tt_running_targets, tt_post_start):
     tt_ = Tt(tt_cmd, tt_path, tt_instances)
     for target in tt_running_targets:
-        rc, _ = tt_.exec('start', target)
+        rc, _ = tt_.exec("start", target)
         assert rc == 0
     tt_.running_instances = tt_.instances_of(*tt_running_targets)
     if tt_post_start is not None:
         tt_post_start(tt_)
     yield tt_
-    tt_.exec('stop', '-y')
+    tt_.exec("stop", "-y")

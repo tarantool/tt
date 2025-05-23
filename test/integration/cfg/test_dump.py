@@ -6,8 +6,10 @@ from utils import config_name
 
 
 def test_cfg_dump_default(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "tt_cfg.yaml"),
-                os.path.join(tmp_path, config_name))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "tt_cfg.yaml"),
+        os.path.join(tmp_path, config_name),
+    )
 
     buid_cmd = [tt_cmd, "cfg", "dump"]
     tt_process = subprocess.Popen(
@@ -16,7 +18,7 @@ def test_cfg_dump_default(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -38,8 +40,10 @@ def test_cfg_dump_default(tt_cmd, tmp_path):
 
 
 def test_cfg_dump_raw(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "tt_cfg.yaml"),
-                os.path.join(tmp_path, config_name))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "tt_cfg.yaml"),
+        os.path.join(tmp_path, config_name),
+    )
 
     buid_cmd = [tt_cmd, "cfg", "dump", "--raw"]
     tt_process = subprocess.Popen(
@@ -48,14 +52,16 @@ def test_cfg_dump_raw(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
     assert tt_process.returncode == 0
 
     output = tt_process.stdout.read()
-    assert output == f"""{os.path.join(tmp_path, config_name)}:
+    assert (
+        output
+        == f"""{os.path.join(tmp_path, config_name)}:
 modules:
   directory: new_modules
 app:
@@ -67,6 +73,7 @@ app:
 env:
   bin_dir: /usr/bin
 """
+    )
 
 
 def test_cfg_dump_no_config(tt_cmd, tmp_path):
@@ -77,7 +84,7 @@ def test_cfg_dump_no_config(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -95,7 +102,7 @@ def test_cfg_dump_default_no_config(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()
@@ -129,7 +136,7 @@ def test_cfg_dump_default_no_config(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.close()
     tt_process.wait()

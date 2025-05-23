@@ -25,7 +25,7 @@ def test_instances_enabled_apps(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         start_output = instance_process.stdout.read()
         assert re.search("app1", start_output)
@@ -50,7 +50,7 @@ def test_instances_no_apps(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         start_output = instance_process.stdout.read()
         assert re.search("there are no enabled applications", start_output)
@@ -69,7 +69,7 @@ def test_instances_missing_directory(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         start_output = instance_process.stdout.read()
         assert re.search("instances enabled directory doesn't exist", start_output)
@@ -91,7 +91,7 @@ def test_instances_dot_directory_with_app(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         start_output = instance_process.stdout.read()
         assert re.search("test_app", start_output)
@@ -112,7 +112,7 @@ def test_instances_dot_directory_with_lua_file(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         start_output = instance_process.stdout.read()
         assert re.search("app2", start_output)
@@ -139,7 +139,7 @@ def test_instances_dot_directory_with_app_explicit_cfg_option(tt_cmd):
             cwd=test_app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         rc = instance_process.wait(2)
         assert rc == 0

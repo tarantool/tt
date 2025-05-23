@@ -7,27 +7,29 @@ import yaml
 from cartridge_helper import cartridge_name, wait_inst_start
 from replicaset_helpers import eval_on_instance
 
-from utils import (find_ports, get_tarantool_version,
-                   run_command_and_get_output, wait_file)
+from utils import find_ports, get_tarantool_version, run_command_and_get_output, wait_file
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom test for Tarantool > 2")
-@pytest.mark.parametrize("case", [["--config", "--custom"],
-                                  ["--custom", "--cartridge"],
-                                  ["--config", "--cartridge"],
-                                  ["--config", "--custom", "--cartridge"]])
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
+@pytest.mark.parametrize(
+    "case",
+    [
+        ["--config", "--custom"],
+        ["--custom", "--cartridge"],
+        ["--config", "--cartridge"],
+        ["--config", "--custom", "--cartridge"],
+    ],
+)
 def test_bootstrap(tt_cmd, tmpdir_with_cfg, case):
-    cmd = [tt_cmd, "rs", "bootstrap"] + case + ["app:instance"]
+    cmd = [tt_cmd, "rs", "bootstrap", *case, "app:instance"]
     rc, out = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
     assert re.search(r"   ⨯ only one type of orchestrator can be forced", out)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 def test_bootstrap_no_instance(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
@@ -40,8 +42,7 @@ def test_bootstrap_no_instance(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"   ⨯ instance \"unexist\" not found", out)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 @pytest.mark.parametrize("flag", [None, "--custom"])
 def test_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
@@ -55,7 +56,7 @@ def test_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), 'ready', [])
+        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
         assert file != ""
 
         cmd = [tt_cmd, "rs", "bootstrap"]
@@ -73,8 +74,7 @@ def test_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
         assert rc == 0
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 def test_bootstrap_instance_no_replicaset_specified(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
@@ -87,7 +87,7 @@ def test_bootstrap_instance_no_replicaset_specified(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), 'ready', [])
+        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
         assert file != ""
 
         cmd = [tt_cmd, "rs", "bootstrap", "test_custom_app:test_custom_app"]
@@ -100,8 +100,7 @@ def test_bootstrap_instance_no_replicaset_specified(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
 def test_bootstrap_app_replicaset_specified(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
@@ -114,7 +113,7 @@ def test_bootstrap_app_replicaset_specified(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), 'ready', [])
+        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
         assert file != ""
 
         cmd = [tt_cmd, "rs", "bootstrap", "--replicaset", "r1", "test_custom_app"]
@@ -128,8 +127,7 @@ def test_bootstrap_app_replicaset_specified(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip cartridge test for Tarantool > 2")
 @pytest.mark.parametrize("flag", [None, "--cartridge"])
 def test_replicaset_bootstrap_cartridge_app_second_bootstrap(tt_cmd, cartridge_app, flag):
     # Change the config.
@@ -144,22 +142,22 @@ def test_replicaset_bootstrap_cartridge_app_second_bootstrap(tt_cmd, cartridge_a
             "roles": ["vshard-storage"],
             "weight": 3,  # Changed weight.
             "all_rw": False,
-            "vshard_group": "default"
+            "vshard_group": "default",
         },
         "s-2": {
             "instances": ["s2-master", "s2-replica-1", "s2-replica-2"],
             "roles": ["vshard-storage"],
             "weight": 2,  # Changed weight.
             "all_rw": False,
-            "vshard_group": "default"
+            "vshard_group": "default",
         },
         "s-3": {
             "instances": ["s3-master"],
             "roles": ["app.roles.custom"],
             "weight": 1,
             "all_rw": False,
-            "vshard_group": "default"
-        }
+            "vshard_group": "default",
+        },
     }
     with open(os.path.join(cartridge_app.workdir, cartridge_name, "replicasets.yml"), "w") as f:
         f.write(yaml.dump(replicasets_cfg))
@@ -189,8 +187,7 @@ def test_replicaset_bootstrap_cartridge_app_second_bootstrap(tt_cmd, cartridge_a
     assert re.search(r"2\n.*3", out)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip cartridge test for Tarantool > 2")
 def test_replicaset_bootstrap_cartridge_instance_bootstrapped_already(tt_cmd, cartridge_app):
     cmd = [tt_cmd, "rs", "bootstrap", "--replicaset", "s1", f"{cartridge_name}:s1-master"]
     rc, out = run_command_and_get_output(cmd, cwd=cartridge_app.workdir)
@@ -201,8 +198,10 @@ def test_replicaset_bootstrap_cartridge_instance_bootstrapped_already(tt_cmd, ca
 # There is an issue on Tarantool 1.10 with joining to replicaset if join attempt
 # is too early. It does not retry to bootstrap and fails immediately if currently
 # bootstrapping replicas does not know about the new one. Skip this test for 1.10.
-@pytest.mark.skipif(tarantool_major_version > 2 or tarantool_major_version < 2,
-                    reason="skip cartridge test for Tarantool major != 2")
+@pytest.mark.skipif(
+    tarantool_major_version > 2 or tarantool_major_version < 2,
+    reason="skip cartridge test for Tarantool major != 2",
+)
 def test_replicaset_bootstrap_cartridge_new_instance(tt_cmd, cartridge_app):
     instances_yml_path = os.path.join(cartridge_app.workdir, cartridge_name, "instances.yml")
     with open(instances_yml_path, "r") as f:

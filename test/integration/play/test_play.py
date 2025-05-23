@@ -5,14 +5,23 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from integration.connect.test_connect import (start_app, stop_app,
-                                              try_execute_on_instance)
+from integration.connect.test_connect import start_app, stop_app, try_execute_on_instance
 
-from utils import (BINARY_PORT_NAME, TarantoolTestInstance, control_socket,
-                   create_tt_config, get_tarantool_version, initial_snap,
-                   initial_xlog, lib_path, run_command_and_get_output,
-                   run_path, skip_if_cluster_app_unsupported,
-                   skip_if_tarantool_ce, wait_file)
+from utils import (
+    BINARY_PORT_NAME,
+    TarantoolTestInstance,
+    control_socket,
+    create_tt_config,
+    get_tarantool_version,
+    initial_snap,
+    initial_xlog,
+    lib_path,
+    run_command_and_get_output,
+    run_path,
+    skip_if_cluster_app_unsupported,
+    skip_if_tarantool_ce,
+    wait_file,
+)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -40,25 +49,28 @@ def test_play_non_existent_uri(tt_cmd, test_instance, tmp_path):
     assert re.search(r'no connection to the host "127.0.0.1:0"', output)
 
 
-@pytest.mark.parametrize("args, play_error", [
-    (
-        # Testing with unset uri and .xlog or .snap file.
-        "",
-        "required to specify an URI and at least one .xlog/.snap file or directory",
-    ),
-    (
-        "path-to-non-existent-file",
-        "error: could not collect WAL files",
-    ),
-    (
-        ("test.xlog", "--timestamp=abcdef", "--space=999"),
-        'failed to parse a timestamp: parsing time "abcdef"',
-    ),
-    (
-        ("test.xlog", "--timestamp=2024-11-14T14:02:36.abc", "--space=999"),
-        'failed to parse a timestamp: parsing time "2024-11-14T14:02:36.abc"',
-    ),
-])
+@pytest.mark.parametrize(
+    "args, play_error",
+    [
+        (
+            # Testing with unset uri and .xlog or .snap file.
+            "",
+            "required to specify an URI and at least one .xlog/.snap file or directory",
+        ),
+        (
+            "path-to-non-existent-file",
+            "error: could not collect WAL files",
+        ),
+        (
+            ("test.xlog", "--timestamp=abcdef", "--space=999"),
+            'failed to parse a timestamp: parsing time "abcdef"',
+        ),
+        (
+            ("test.xlog", "--timestamp=2024-11-14T14:02:36.abc", "--space=999"),
+            'failed to parse a timestamp: parsing time "2024-11-14T14:02:36.abc"',
+        ),
+    ],
+)
 def test_play_test_remote_instance_timestamp_failed(tt_cmd, test_instance, args, play_error):
     # Play .xlog file to the remote instance.
     cmd = [tt_cmd, "play", f"127.0.0.1:{test_instance.port}"]
@@ -68,44 +80,69 @@ def test_play_test_remote_instance_timestamp_failed(tt_cmd, test_instance, args,
     assert play_error in play_output
 
 
-@pytest.mark.parametrize("input, expected", [
-    (
-        1731592956.1182,
-        "---\n- []\n...\n\n",
-    ),
-    (
-        1731592956.8184,
-        "---\n- - [1, 0]\n  - [2, 1]\n  - [3, 2]\n  - [4, 3]\n  - [5, 4]\n  - [6, 5]\n...\n\n",
-    ),
-    (
-        "2024-11-14T14:02:36.818+00:00",
-        "---\n- - [1, 0]\n...\n\n",
-    ),
-    (
-        "2024-11-14T14:02:36+00:00",
-        "---\n- []\n...\n\n",
-    ),
-])
-def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance,
-                                              input, expected):
-    test_dir = os.path.join(os.path.dirname(__file__), "test_file", )
+@pytest.mark.parametrize(
+    "input, expected",
+    [
+        (
+            1731592956.1182,
+            "---\n- []\n...\n\n",
+        ),
+        (
+            1731592956.8184,
+            "---\n- - [1, 0]\n  - [2, 1]\n  - [3, 2]\n  - [4, 3]\n  - [5, 4]\n  - [6, 5]\n...\n\n",
+        ),
+        (
+            "2024-11-14T14:02:36.818+00:00",
+            "---\n- - [1, 0]\n...\n\n",
+        ),
+        (
+            "2024-11-14T14:02:36+00:00",
+            "---\n- []\n...\n\n",
+        ),
+    ],
+)
+def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance, input, expected):
+    test_dir = os.path.join(
+        os.path.dirname(__file__),
+        "test_file",
+    )
 
     # Create space and primary index.
-    cmd_space = [tt_cmd, "connect", f"test_user:secret@127.0.0.1:{test_instance.port}",
-                 "-f", f"{test_dir}/create_space.lua", "-"]
+    cmd_space = [
+        tt_cmd,
+        "connect",
+        f"test_user:secret@127.0.0.1:{test_instance.port}",
+        "-f",
+        f"{test_dir}/create_space.lua",
+        "-",
+    ]
     rc, _ = run_command_and_get_output(cmd_space, cwd=test_instance._tmpdir)
     assert rc == 0
 
     # Play .xlog file to the instance.
-    cmd_play = [tt_cmd, "play", f"127.0.0.1:{test_instance.port}",
-                "-u", "test_user", "-p", "secret",
-                f"{test_dir}/timestamp/timestamp.xlog", f"--timestamp={input}"]
+    cmd_play = [
+        tt_cmd,
+        "play",
+        f"127.0.0.1:{test_instance.port}",
+        "-u",
+        "test_user",
+        "-p",
+        "secret",
+        f"{test_dir}/timestamp/timestamp.xlog",
+        f"--timestamp={input}",
+    ]
     rc, _ = run_command_and_get_output(cmd_play, cwd=test_instance._tmpdir)
     assert rc == 0
 
     # Get data from the instance.
-    cmd_data = [tt_cmd, "connect", f"test_user:secret@127.0.0.1:{test_instance.port}",
-                "-f", f"{test_dir}/get_data.lua", "-"]
+    cmd_data = [
+        tt_cmd,
+        "connect",
+        f"test_user:secret@127.0.0.1:{test_instance.port}",
+        "-f",
+        f"{test_dir}/get_data.lua",
+        "-",
+    ]
     rc, cmd_output = run_command_and_get_output(cmd_data, cwd=test_instance._tmpdir)
     assert rc == 0
     assert cmd_output == expected
@@ -126,7 +163,10 @@ def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance,
     ],
 )
 def test_play_directories_successful(
-    tt_cmd: Path, test_instance: TarantoolTestInstance, input, expected
+    tt_cmd: Path,
+    test_instance: TarantoolTestInstance,
+    input,
+    expected,
 ):
     # Copy files to the "run" directory.
     shutil.copytree(
@@ -147,8 +187,7 @@ def test_play_directories_successful(
     assert rc == 0
 
     # Play .xlog file to the remote instance.
-    cmd = [tt_cmd, "play", f"127.0.0.1:{test_instance.port}",
-           "-u", "test_user", "-p", "secret"]
+    cmd = [tt_cmd, "play", f"127.0.0.1:{test_instance.port}", "-u", "test_user", "-p", "secret"]
     cmd.extend(input)
 
     rc, cmd_output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
@@ -158,13 +197,16 @@ def test_play_directories_successful(
         assert item in cmd_output
 
 
-@pytest.mark.parametrize("opts", [
-    pytest.param({"flags": ["--username=test_user", "--password=4"]}),
-    pytest.param({"flags": ["--username=fry"]}),
-    pytest.param({"env": {"TT_CLI_USERNAME": "test_user", "TT_CLI_PASSWORD": "4"}}),
-    pytest.param({"env": {"TT_CLI_USERNAME": "fry"}}),
-    pytest.param({"uri": "test_user:4"}),
-])
+@pytest.mark.parametrize(
+    "opts",
+    [
+        pytest.param({"flags": ["--username=test_user", "--password=4"]}),
+        pytest.param({"flags": ["--username=fry"]}),
+        pytest.param({"env": {"TT_CLI_USERNAME": "test_user", "TT_CLI_PASSWORD": "4"}}),
+        pytest.param({"env": {"TT_CLI_USERNAME": "fry"}}),
+        pytest.param({"uri": "test_user:4"}),
+    ],
+)
 def test_play_wrong_creds(tt_cmd, tmp_path, opts, test_instance):
     # Play .xlog file to the remote instance.
     uri = "127.0.0.1:" + test_instance.port
@@ -182,15 +224,22 @@ def test_play_wrong_creds(tt_cmd, tmp_path, opts, test_instance):
     assert rc != 0
 
 
-@pytest.mark.parametrize("opts", [
-    pytest.param({"flags": ["--username=test_user", "--password=secret"]}),
-    pytest.param({"env": {
-        "TT_CLI_USERNAME": "test_user",
-        "TT_CLI_PASSWORD": "secret",
-        "PATH": os.getenv("PATH"),
-    }}),
-    pytest.param({"uri": "test_user:secret"}),
-])
+@pytest.mark.parametrize(
+    "opts",
+    [
+        pytest.param({"flags": ["--username=test_user", "--password=secret"]}),
+        pytest.param(
+            {
+                "env": {
+                    "TT_CLI_USERNAME": "test_user",
+                    "TT_CLI_PASSWORD": "secret",
+                    "PATH": os.getenv("PATH"),
+                },
+            },
+        ),
+        pytest.param({"uri": "test_user:secret"}),
+    ],
+)
 def test_play_creds(tt_cmd, tmp_path, opts, test_instance):
     # Play .xlog file to the remote instance.
     uri = "127.0.0.1:" + test_instance.port
@@ -211,18 +260,19 @@ def test_play_creds(tt_cmd, tmp_path, opts, test_instance):
 def test_play_to_single_instance_app(tt_cmd, tmp_path):
     # The test application file.
     app_name = "test_app"
-    test_app_path = os.path.join(os.path.dirname(__file__),
-                                 "test_file", "test_app.lua")
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_file", "test_app.lua")
     test_xlog_name = "timestamp.snap"
-    test_xlog_path = os.path.join(os.path.dirname(__file__),
-                                  "test_file", "timestamp", test_xlog_name)
+    test_xlog_path = os.path.join(
+        os.path.dirname(__file__),
+        "test_file",
+        "timestamp",
+        test_xlog_name,
+    )
     # Copy test data into temporary directory.
     shutil.copy(test_app_path, tmp_path)
     shutil.copy(test_xlog_path, tmp_path)
-    shutil.copy(os.path.join(os.path.dirname(__file__),
-                             "test_file", "config.yml"), tmp_path)
-    shutil.copy(os.path.join(os.path.dirname(__file__),
-                             "test_file", "instances.yml"), tmp_path)
+    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "config.yml"), tmp_path)
+    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "instances.yml"), tmp_path)
     create_tt_config(tmp_path, "")
 
     # Start an instance.
@@ -230,7 +280,9 @@ def test_play_to_single_instance_app(tt_cmd, tmp_path):
     try:
         # Check for start.
         file = wait_file(
-            os.path.join(tmp_path, "test_app", run_path, "test_app"), control_socket, []
+            os.path.join(tmp_path, "test_app", run_path, "test_app"),
+            control_socket,
+            [],
         )
         assert file != ""
 
@@ -256,8 +308,7 @@ def test_play_to_single_instance_app(tt_cmd, tmp_path):
 
 def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
     test_xlog_name = "test.xlog"
-    test_xlog_path = os.path.join(os.path.dirname(__file__),
-                                  "test_file", test_xlog_name)
+    test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", test_xlog_name)
     shutil.copy(test_xlog_path, test_instance._tmpdir)
 
     create_tt_config(test_instance._tmpdir, "")
@@ -294,14 +345,14 @@ def test_play_to_cluster_app(tt_cmd):
     start_app(tt_cmd, tmpdir, app_name, True)
     try:
         # Check for start.
-        instances = ['master']
+        instances = ["master"]
         for instance in instances:
             master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
             file = wait_file(master_run_path, control_socket, [])
             assert file != ""
             file = wait_file(master_run_path, BINARY_PORT_NAME, [])
             assert file != ""
-            file = wait_file(os.path.join(tmpdir, app_name), 'configured', [])
+            file = wait_file(os.path.join(tmpdir, app_name), "configured", [])
             assert file != ""
 
         # Play to the instances.
@@ -312,8 +363,9 @@ def test_play_to_cluster_app(tt_cmd):
         cmd = [tt_cmd, "play", app_name + ":master123", test_xlog_name]
         rc, cmd_output = run_command_and_get_output(cmd, cwd=tmpdir)
         assert rc == 1
-        assert ("could not resolve URI or application: " +
-                "\"test_simple_cluster_app:master123\"") in cmd_output
+        assert (
+            "could not resolve URI or application: " + '"test_simple_cluster_app:master123"'
+        ) in cmd_output
 
     finally:
         # Stop the Instance.
@@ -321,8 +373,7 @@ def test_play_to_cluster_app(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
-@pytest.mark.skipif(tarantool_major_version == 1,
-                    reason="skip TLS test for Tarantool 1.0")
+@pytest.mark.skipif(tarantool_major_version == 1, reason="skip TLS test for Tarantool 1.0")
 def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     skip_if_tarantool_ce()
 
@@ -352,10 +403,15 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
         assert not ret
         assert re.search(r"   ⨯ unable to establish connection", output)
 
-        cmd = [tt_cmd, "play", "localhost:3013", test_xlog_path,
-               "--sslkeyfile=test_ssl_app/localhost.key",
-               "--sslcertfile=test_ssl_app/localhost.crt",
-               "--sslcafile=test_ssl_app/ca.crt"]
+        cmd = [
+            tt_cmd,
+            "play",
+            "localhost:3013",
+            test_xlog_path,
+            "--sslkeyfile=test_ssl_app/localhost.key",
+            "--sslcertfile=test_ssl_app/localhost.crt",
+            "--sslcafile=test_ssl_app/ca.crt",
+        ]
         rc, _ = run_command_and_get_output(cmd, cwd=tmpdir)
         assert rc == 0
 

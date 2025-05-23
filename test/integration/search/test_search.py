@@ -55,18 +55,14 @@ def test_version_cmd(tt_cmd, tmp_path):
         ),
     ],
 )
-def test_local_repo_sdk(
-    tt_cmd: Path, tmp_path: Path, program: str, versions: list[str]
-) -> None:
+def test_local_repo_sdk(tt_cmd: Path, tmp_path: Path, program: str, versions: list[str]) -> None:
     configPath = Path(__file__).parent / "testdata" / config_name
     cmd = [tt_cmd, "--cfg", configPath, "search", "--local-repo", program]
     # Run `tt`` in temporary directory, to ensure that it will find `distfiles` from the config.
     rc, gotVersions = run_command_and_get_output(cmd, cwd=tmp_path, stderr=None)
     assert rc == 0
     expected = "\n".join(versions)
-    assert (
-        expected == gotVersions.strip()
-    ), f"Expected versions: {expected}, got: {gotVersions}"
+    assert expected == gotVersions.strip(), f"Expected versions: {expected}, got: {gotVersions}"
 
 
 @pytest.mark.slow

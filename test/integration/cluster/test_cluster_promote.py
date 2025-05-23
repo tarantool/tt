@@ -2,141 +2,146 @@ import os
 
 import pytest
 
-from utils import (get_fixture_tcs_params, is_tarantool_ee,
-                   is_tarantool_less_3, read_kv, run_command_and_get_output)
+from utils import (
+    get_fixture_tcs_params,
+    is_tarantool_ee,
+    is_tarantool_less_3,
+    read_kv,
+    run_command_and_get_output,
+)
 
-fixture_tcs_params = get_fixture_tcs_params(os.path.join(os.path.dirname(
-                                            os.path.abspath(__file__)), "test_tcs_app"))
+fixture_tcs_params = get_fixture_tcs_params(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_tcs_app"),
+)
 
 
 def to_etcd_key(key):
     return f"/prefix/config/{key}"
 
 
-@pytest.mark.parametrize("instance_name, data_dir, err_text", [
-    pytest.param(
-        "etcd",
-        "off_default",
-        None,
-        id="failover = off; default",
-    ),
-    pytest.param(
-        "etcd",
-        "off_multi",
-        None,
-        id="failover = off; multi",
-    ),
-    pytest.param(
-        "etcd",
-        "off_explicit",
-        None,
-        id="failover = off; explicit",
-    ),
-    pytest.param(
-        "etcd",
-        "off_no_diff",
-        None,
-        id="failover = off; nothing changes",
-    ),
-    pytest.param(
-        "etcd",
-        "manual_no_leader",
-        None,
-        id="failover = manual; no leader",
-    ),
-    pytest.param(
-        "etcd",
-        "manual",
-        None,
-        id="failover = manual; leader is set"
-    ),
-    pytest.param(
-        "etcd",
-        "election",
-        'unsupported failover: "election", supported: "manual", "off"',
-        id="failover = election",
-    ),
-    pytest.param(
-        "etcd",
-        "unknown",
-        'unknown failover, supported: "manual", "off"',
-        id="unknown failover",
-    ),
-    pytest.param(
-        "etcd",
-        "no_instance",
-        'instance "instance-002" not found in the cluster configuration',
-        id="unknown instance",
-    ),
-    pytest.param(
-        "etcd",
-        "many_replicasets",
-        None,
-        id="many replicasets",
-    ),
-    pytest.param(
-        "tcs",
-        "off_default",
-        None,
-        id="failover = off; default",
-    ),
-    pytest.param(
-        "tcs",
-        "off_multi",
-        None,
-        id="failover = off; multi",
-    ),
-    pytest.param(
-        "tcs",
-        "off_explicit",
-        None,
-        id="failover = off; explicit",
-    ),
-    pytest.param(
-        "tcs",
-        "off_no_diff",
-        None,
-        id="failover = off; nothing changes",
-    ),
-    pytest.param(
-        "tcs",
-        "manual_no_leader",
-        None,
-        id="failover = manual; no leader",
-    ),
-    pytest.param(
-        "tcs",
-        "manual",
-        None,
-        id="failover = manual; leader is set"
-    ),
-    pytest.param(
-        "tcs",
-        "election",
-        'unsupported failover: "election", supported: "manual", "off"',
-        id="failover = election",
-    ),
-    pytest.param(
-        "tcs",
-        "unknown",
-        'unknown failover, supported: "manual", "off"',
-        id="unknown failover",
-    ),
-    pytest.param(
-        "tcs",
-        "no_instance",
-        'instance "instance-002" not found in the cluster configuration',
-        id="unknown instance",
-    ),
-    pytest.param(
-        "tcs",
-        "many_replicasets",
-        None,
-        id="many replicasets",
-    )
-])
+@pytest.mark.parametrize(
+    "instance_name, data_dir, err_text",
+    [
+        pytest.param(
+            "etcd",
+            "off_default",
+            None,
+            id="failover = off; default",
+        ),
+        pytest.param(
+            "etcd",
+            "off_multi",
+            None,
+            id="failover = off; multi",
+        ),
+        pytest.param(
+            "etcd",
+            "off_explicit",
+            None,
+            id="failover = off; explicit",
+        ),
+        pytest.param(
+            "etcd",
+            "off_no_diff",
+            None,
+            id="failover = off; nothing changes",
+        ),
+        pytest.param(
+            "etcd",
+            "manual_no_leader",
+            None,
+            id="failover = manual; no leader",
+        ),
+        pytest.param("etcd", "manual", None, id="failover = manual; leader is set"),
+        pytest.param(
+            "etcd",
+            "election",
+            'unsupported failover: "election", supported: "manual", "off"',
+            id="failover = election",
+        ),
+        pytest.param(
+            "etcd",
+            "unknown",
+            'unknown failover, supported: "manual", "off"',
+            id="unknown failover",
+        ),
+        pytest.param(
+            "etcd",
+            "no_instance",
+            'instance "instance-002" not found in the cluster configuration',
+            id="unknown instance",
+        ),
+        pytest.param(
+            "etcd",
+            "many_replicasets",
+            None,
+            id="many replicasets",
+        ),
+        pytest.param(
+            "tcs",
+            "off_default",
+            None,
+            id="failover = off; default",
+        ),
+        pytest.param(
+            "tcs",
+            "off_multi",
+            None,
+            id="failover = off; multi",
+        ),
+        pytest.param(
+            "tcs",
+            "off_explicit",
+            None,
+            id="failover = off; explicit",
+        ),
+        pytest.param(
+            "tcs",
+            "off_no_diff",
+            None,
+            id="failover = off; nothing changes",
+        ),
+        pytest.param(
+            "tcs",
+            "manual_no_leader",
+            None,
+            id="failover = manual; no leader",
+        ),
+        pytest.param("tcs", "manual", None, id="failover = manual; leader is set"),
+        pytest.param(
+            "tcs",
+            "election",
+            'unsupported failover: "election", supported: "manual", "off"',
+            id="failover = election",
+        ),
+        pytest.param(
+            "tcs",
+            "unknown",
+            'unknown failover, supported: "manual", "off"',
+            id="unknown failover",
+        ),
+        pytest.param(
+            "tcs",
+            "no_instance",
+            'instance "instance-002" not found in the cluster configuration',
+            id="unknown instance",
+        ),
+        pytest.param(
+            "tcs",
+            "many_replicasets",
+            None,
+            id="many replicasets",
+        ),
+    ],
+)
 def test_cluster_promote_single_key(
-    tt_cmd, tmpdir_with_cfg, data_dir, err_text, instance_name, fixture_params, request
+    tt_cmd,
+    tmpdir_with_cfg,
+    data_dir,
+    err_text,
+    instance_name,
+    fixture_params,
+    request,
 ):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -144,8 +149,13 @@ def test_cluster_promote_single_key(
         for k, v in fixture_tcs_params.items():
             fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
-    test_data_dir = os.path.join(os.path.dirname(__file__), "testdata", "promote",
-                                 "single_key", data_dir)
+    test_data_dir = os.path.join(
+        os.path.dirname(__file__),
+        "testdata",
+        "promote",
+        "single_key",
+        data_dir,
+    )
     kv = read_kv(test_data_dir)
     init_cfg = kv["init"]
     tmpdir = tmpdir_with_cfg
@@ -155,10 +165,10 @@ def test_cluster_promote_single_key(
     else:
         conn.call("config.storage.put", "/prefix/config/all", init_cfg)
     creds = (
-            f"{instance.connection_username}:{instance.connection_password}@"
-            if instance_name == "tcs"
-            else ""
-        )
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
     url = "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5"
     promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
     rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir)
@@ -182,64 +192,67 @@ def test_cluster_promote_single_key(
     assert content == expected
 
 
-@pytest.mark.parametrize("instance_name, data_dir, exp_key, err_text", [
-    pytest.param(
-        "etcd",
-        "off_lexi_order",
-        "a",
-        None,
-        id="failover = off; lexi order",
-    ),
-    pytest.param(
-        "etcd",
-        "off_priority_order",
-        "c",
-        None,
-        id="failover = off; priority order",
-    ),
-    pytest.param(
-        "etcd",
-        "manual_priority_order",
-        "b",
-        None,
-        id="failover = manual; priority order",
-    ),
-    pytest.param(
-        "etcd",
-        "no_instance",
-        None,
-        'instance "instance-002" not found in the cluster configuration',
-        id="instance not found among keys",
-    ),
-    pytest.param(
-        "tcs",
-        "off_lexi_order",
-        "a",
-        None,
-        id="failover = off; lexi order",
-    ),
-    pytest.param(
-        "tcs",
-        "off_priority_order",
-        "c",
-        None,
-        id="failover = off; priority order",
-    ),
-    pytest.param(
-        "tcs",
-        "manual_priority_order",
-        "b",
-        None,
-        id="failover = manual; priority order",
-    ),
-    pytest.param(
-        "tcs",
-        "no_instance",
-        None,
-        'instance "instance-002" not found in the cluster configuration',
-        id="instance not found among keys",
-    ),
-])
+@pytest.mark.parametrize(
+    "instance_name, data_dir, exp_key, err_text",
+    [
+        pytest.param(
+            "etcd",
+            "off_lexi_order",
+            "a",
+            None,
+            id="failover = off; lexi order",
+        ),
+        pytest.param(
+            "etcd",
+            "off_priority_order",
+            "c",
+            None,
+            id="failover = off; priority order",
+        ),
+        pytest.param(
+            "etcd",
+            "manual_priority_order",
+            "b",
+            None,
+            id="failover = manual; priority order",
+        ),
+        pytest.param(
+            "etcd",
+            "no_instance",
+            None,
+            'instance "instance-002" not found in the cluster configuration',
+            id="instance not found among keys",
+        ),
+        pytest.param(
+            "tcs",
+            "off_lexi_order",
+            "a",
+            None,
+            id="failover = off; lexi order",
+        ),
+        pytest.param(
+            "tcs",
+            "off_priority_order",
+            "c",
+            None,
+            id="failover = off; priority order",
+        ),
+        pytest.param(
+            "tcs",
+            "manual_priority_order",
+            "b",
+            None,
+            id="failover = manual; priority order",
+        ),
+        pytest.param(
+            "tcs",
+            "no_instance",
+            None,
+            'instance "instance-002" not found in the cluster configuration',
+            id="instance not found among keys",
+        ),
+    ],
+)
 def test_cluster_promote_many_keys(
     tt_cmd,
     tmpdir_with_cfg,
@@ -248,7 +261,7 @@ def test_cluster_promote_many_keys(
     err_text,
     instance_name,
     fixture_params,
-    request
+    request,
 ):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
@@ -258,8 +271,13 @@ def test_cluster_promote_many_keys(
     instance = request.getfixturevalue(instance_name)
     conn = instance.conn()
     tmpdir = tmpdir_with_cfg
-    test_data_dir = os.path.join(os.path.dirname(__file__), "testdata", "promote",
-                                 "many_keys", data_dir)
+    test_data_dir = os.path.join(
+        os.path.dirname(__file__),
+        "testdata",
+        "promote",
+        "many_keys",
+        data_dir,
+    )
     kvs = read_kv(test_data_dir)
     exp_config = None
     for k, v in kvs.items():
@@ -275,10 +293,10 @@ def test_cluster_promote_many_keys(
         del kvs["expected"]
 
     creds = (
-            f"{instance.connection_username}:{instance.connection_password}@"
-            if instance_name == "tcs"
-            else ""
-        )
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
     url = "http://" + creds + f"{instance.host}:{instance.port}/prefix?timeout=5"
     promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
 
@@ -307,11 +325,13 @@ def test_cluster_promote_many_keys(
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
-def test_cluster_promote_key_specified(tt_cmd,
-                                       tmpdir_with_cfg,
-                                       instance_name,
-                                       fixture_params,
-                                       request):
+def test_cluster_promote_key_specified(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    fixture_params,
+    request,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -320,8 +340,13 @@ def test_cluster_promote_key_specified(tt_cmd,
     instance = request.getfixturevalue(instance_name)
     conn = instance.conn()
     tmpdir = tmpdir_with_cfg
-    test_data_dir = os.path.join(os.path.dirname(__file__), "testdata", "promote",
-                                 "many_keys", "key_specified")
+    test_data_dir = os.path.join(
+        os.path.dirname(__file__),
+        "testdata",
+        "promote",
+        "many_keys",
+        "key_specified",
+    )
     kvs = read_kv(test_data_dir)
     exp_config = None
     for k, v in kvs.items():
@@ -336,9 +361,9 @@ def test_cluster_promote_key_specified(tt_cmd,
     del kvs["expected"]
 
     creds = (
-            f"{instance.connection_username}:{instance.connection_password}@"
-            if instance_name == "tcs"
-            else ""
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
     )
     url = "http://" + creds + f"{instance.host}:{instance.port}/prefix?key=b&timeout=5"
     promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f", url, "instance-002"]
@@ -366,18 +391,29 @@ def test_cluster_promote_key_specified(tt_cmd,
         assert content == v
 
 
-@pytest.mark.parametrize("instance_name, err_msg", [
-    ("etcd", "⨯ failed to collect cluster config: " +
-             "failed to fetch data from etcd: etcdserver: user name is empty"),
-    ("tcs", "⨯ failed to collect cluster config: failed to fetch data from tarantool:" +
-            " Execute access to function 'config.storage.get' is denied for user 'guest'")
-])
-def test_cluster_promote_no_auth(tt_cmd,
-                                 tmpdir_with_cfg,
-                                 instance_name,
-                                 err_msg,
-                                 fixture_params,
-                                 request):
+@pytest.mark.parametrize(
+    "instance_name, err_msg",
+    [
+        (
+            "etcd",
+            "⨯ failed to collect cluster config: "
+            + "failed to fetch data from etcd: etcdserver: user name is empty",
+        ),
+        (
+            "tcs",
+            "⨯ failed to collect cluster config: failed to fetch data from tarantool:"
+            + " Execute access to function 'config.storage.get' is denied for user 'guest'",
+        ),
+    ],
+)
+def test_cluster_promote_no_auth(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    err_msg,
+    fixture_params,
+    request,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -399,18 +435,29 @@ def test_cluster_promote_no_auth(tt_cmd,
             instance.disable_auth()
 
 
-@pytest.mark.parametrize("instance_name, err_msg", [
-    ("etcd", "failed to connect to etcd: " +
-             "etcdserver: authentication failed, invalid user ID or password"),
-    ("tcs", "failed to establish a connection to tarantool or etcd:" +
-            " failed to connect to tarantool: failed to authenticate:")
-])
-def test_cluster_promote_bad_auth(tt_cmd,
-                                  tmpdir_with_cfg,
-                                  instance_name,
-                                  err_msg,
-                                  fixture_params,
-                                  request):
+@pytest.mark.parametrize(
+    "instance_name, err_msg",
+    [
+        (
+            "etcd",
+            "failed to connect to etcd: "
+            + "etcdserver: authentication failed, invalid user ID or password",
+        ),
+        (
+            "tcs",
+            "failed to establish a connection to tarantool or etcd:"
+            + " failed to connect to tarantool: failed to authenticate:",
+        ),
+    ],
+)
+def test_cluster_promote_bad_auth(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    err_msg,
+    fixture_params,
+    request,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -455,20 +502,25 @@ groups:
 """
 
 
-@pytest.mark.parametrize("instance_name, auth", [
-    ("etcd", "url"),
-    ("etcd", "flag"),
-    ("etcd", "env"),
-    ("tcs", "url"),
-    ("tcs", "flag"),
-    ("tcs", "env"),
-])
-def test_cluster_promote_auth(tt_cmd,
-                              tmpdir_with_cfg,
-                              instance_name,
-                              auth,
-                              fixture_params,
-                              request):
+@pytest.mark.parametrize(
+    "instance_name, auth",
+    [
+        ("etcd", "url"),
+        ("etcd", "flag"),
+        ("etcd", "env"),
+        ("tcs", "url"),
+        ("tcs", "flag"),
+        ("tcs", "env"),
+    ],
+)
+def test_cluster_promote_auth(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    auth,
+    fixture_params,
+    request,
+):
     if instance_name == "tcs":
         if is_tarantool_less_3() or not is_tarantool_ee():
             pytest.skip()
@@ -496,21 +548,26 @@ def test_cluster_promote_auth(tt_cmd,
         elif auth == "flag":
             env = None
             url = f"{instance.endpoint}/prefix?timeout=5"
-            promote_cmd = [tt_cmd, "cluster", "rs", "promote", "-f",
-                           "-u", instance.connection_username,
-                           "-p", instance.connection_password,
-                           url, "instance-002"]
+            promote_cmd = [
+                tt_cmd,
+                "cluster",
+                "rs",
+                "promote",
+                "-f",
+                "-u",
+                instance.connection_username,
+                "-p",
+                instance.connection_password,
+                url,
+                "instance-002",
+            ]
         elif auth == "env":
             env = {
                 (
-                    "TT_CLI_ETCD_USERNAME"
-                    if instance_name == "etcd"
-                    else "TT_CLI_USERNAME"
+                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
                 ): instance.connection_username,
                 (
-                    "TT_CLI_ETCD_PASSWORD"
-                    if instance_name == "etcd"
-                    else "TT_CLI_PASSWORD"
+                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
                 ): instance.connection_password,
             }
             url = f"{instance.endpoint}/prefix?timeout=5"

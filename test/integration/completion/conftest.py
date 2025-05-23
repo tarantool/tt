@@ -21,16 +21,12 @@ class Completion:
 
 
 @pytest.fixture(scope="session", params=SUPPORTED_SHELLS)
-def completion(
-    tt_cmd: Path, tmp_path_factory: pytest.TempPathFactory, request
-) -> Completion:
+def completion(tt_cmd: Path, tmp_path_factory: pytest.TempPathFactory, request) -> Completion:
     shell = request.param
 
     cmd = [tt_cmd, "completion", shell]
     process = run(cmd, text=True, capture_output=True)
-    assert (
-        process.returncode == 0
-    ), f"Failed to generate {shell} completion script for testing."
+    assert process.returncode == 0, f"Failed to generate {shell} completion script for testing."
 
     completion_file = tmp_path_factory.getbasetemp() / f"tt_completion.{shell}"
     completion_file.write_text(process.stdout)

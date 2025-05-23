@@ -18,8 +18,10 @@ def check_env_dirs(dir, instances_enabled):
 
 
 def test_init_basic_functionality(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
-                os.path.join(tmp_path, ".cartridge.yml"))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
+        os.path.join(tmp_path, ".cartridge.yml"),
+    )
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init"],
@@ -27,14 +29,14 @@ def test_init_basic_functionality(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
     assert "Found existing config '.cartridge.yml'" in tt_process.stdout.readline()
     assert f"Environment config is written to '{config_name}'" in tt_process.stdout.readline()
 
-    with open(tmp_path / config_name, 'r') as stream:
+    with open(tmp_path / config_name, "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app"]["run_dir"] == "my_run_dir"
         assert data_loaded["app"]["log_dir"] == "my_log_dir"
@@ -54,13 +56,13 @@ def test_init_missing_configs(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
     assert f"Environment config is written to '{config_name}'" in tt_process.stdout.readline()
 
-    with open(tmp_path / config_name, 'r') as stream:
+    with open(tmp_path / config_name, "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app"]["run_dir"] == "var/run"
         assert data_loaded["app"]["log_dir"] == "var/log"
@@ -77,7 +79,7 @@ def test_init_missing_configs(tt_cmd, tmp_path):
 
 
 def test_init_invalid_config_file(tt_cmd, tmp_path):
-    with open(tmp_path / ".cartridge.yml", 'w') as stream:
+    with open(tmp_path / ".cartridge.yml", "w") as stream:
         stream.write("hello")
 
     tt_process = subprocess.Popen(
@@ -86,7 +88,7 @@ def test_init_invalid_config_file(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 1
@@ -95,8 +97,10 @@ def test_init_invalid_config_file(tt_cmd, tmp_path):
 
 
 def test_init_skip_config(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
-                tmp_path / ".cartridge.yml")
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
+        tmp_path / ".cartridge.yml",
+    )
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init", "--skip-config"],
@@ -104,13 +108,13 @@ def test_init_skip_config(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
     assert f"Environment config is written to '{config_name}'" in tt_process.stdout.readline()
 
-    with open(tmp_path / config_name, 'r') as stream:
+    with open(tmp_path / config_name, "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app"]["run_dir"] == "var/run"
         assert data_loaded["app"]["log_dir"] == "var/log"
@@ -123,8 +127,7 @@ def test_init_skip_config(tt_cmd, tmp_path):
 
 def test_init_in_app_dir(tt_cmd, tmp_path):
     app_dir = tmp_path / "app1"
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "apps", "multi_inst_app"),
-                    app_dir)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "apps", "multi_inst_app"), app_dir)
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init"],
@@ -132,13 +135,13 @@ def test_init_in_app_dir(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
     assert f"Environment config is written to '{config_name}'" in tt_process.stdout.readline()
 
-    with open(os.path.join(app_dir, config_name), 'r') as stream:
+    with open(os.path.join(app_dir, config_name), "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app"]["run_dir"] == "var/run"
         assert data_loaded["app"]["log_dir"] == "var/log"
@@ -152,11 +155,13 @@ def test_init_in_app_dir(tt_cmd, tmp_path):
 
 
 def test_init_existing_tt_env_conf_overwrite(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
-                os.path.join(tmp_path, ".cartridge.yml"))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
+        os.path.join(tmp_path, ".cartridge.yml"),
+    )
 
     with open(os.path.join(tmp_path, config_name), "w") as f:
-        f.write('''app:''')
+        f.write("""app:""")
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init"],
@@ -164,7 +169,7 @@ def test_init_existing_tt_env_conf_overwrite(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["yes\n"])
     tt_process.stdin.close()
@@ -176,7 +181,7 @@ def test_init_existing_tt_env_conf_overwrite(tt_cmd, tmp_path):
     line = tt_process.stdout.readline()
     assert f"Environment config is written to '{config_name}'" in line
 
-    with open(os.path.join(tmp_path, "tt.yaml"), 'r') as stream:
+    with open(os.path.join(tmp_path, "tt.yaml"), "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app"]["run_dir"] == "my_run_dir"
         assert data_loaded["app"]["log_dir"] == "my_log_dir"
@@ -190,7 +195,7 @@ def test_init_existing_tt_env_conf_overwrite(tt_cmd, tmp_path):
 
 def test_init_existing_tt_env_conf_dont_overwrite(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, config_name), "w") as f:
-        f.write('''app:''')
+        f.write("""app:""")
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init"],
@@ -198,26 +203,30 @@ def test_init_existing_tt_env_conf_dont_overwrite(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.stdin.writelines(["no\n"])
     tt_process.stdin.close()
     tt_process.wait()
     assert tt_process.returncode == 0
     line = tt_process.stdout.readline()
-    assert f"{config_name} already exists. Overwrite? [y/n]:" in line and \
-           f"Environment config is written to '{config_name}'" not in line
+    assert (
+        f"{config_name} already exists. Overwrite? [y/n]:" in line
+        and f"Environment config is written to '{config_name}'" not in line
+    )
 
-    with open(os.path.join(tmp_path, "tt.yaml"), 'r') as stream:
+    with open(os.path.join(tmp_path, "tt.yaml"), "r") as stream:
         assert len(stream.readlines()) == 1
 
 
 def test_init_existing_tt_env_conf_overwrite_force(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
-                os.path.join(tmp_path, ".cartridge.yml"))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
+        os.path.join(tmp_path, ".cartridge.yml"),
+    )
 
     with open(os.path.join(tmp_path, config_name), "w") as f:
-        f.write('''app:''')
+        f.write("""app:""")
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init", "-f"],
@@ -225,7 +234,7 @@ def test_init_existing_tt_env_conf_overwrite_force(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
 
@@ -234,7 +243,7 @@ def test_init_existing_tt_env_conf_overwrite_force(tt_cmd, tmp_path):
     assert lines[0] == "   • Found existing config '.cartridge.yml'\n"
     assert lines[1] == f"   • Environment config is written to '{config_name}'\n"
 
-    with open(os.path.join(tmp_path, config_name), 'r') as stream:
+    with open(os.path.join(tmp_path, config_name), "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app"]["run_dir"] == "my_run_dir"
         assert data_loaded["app"]["log_dir"] == "my_log_dir"
@@ -247,8 +256,10 @@ def test_init_existing_tt_env_conf_overwrite_force(tt_cmd, tmp_path):
 
 
 def test_init_basic_tarantoolctl_cfg(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "tarantoolctl.lua"),
-                os.path.join(tmp_path, ".tarantoolctl"))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "tarantoolctl.lua"),
+        os.path.join(tmp_path, ".tarantoolctl"),
+    )
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init"],
@@ -256,14 +267,14 @@ def test_init_basic_tarantoolctl_cfg(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
     assert "Found existing config '.tarantoolctl'" in tt_process.stdout.readline()
     assert f"Environment config is written to '{config_name}'" in tt_process.stdout.readline()
 
-    with open(os.path.join(tmp_path, config_name), 'r') as stream:
+    with open(os.path.join(tmp_path, config_name), "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app"]["run_dir"] == "/opt/run"
         assert data_loaded["app"]["log_dir"] == "/opt/log"
@@ -277,8 +288,10 @@ def test_init_basic_tarantoolctl_cfg(tt_cmd, tmp_path):
 
 
 def test_tarantoolctl_cfg_from_doc(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs",
-                "default_ttctl_cfg_from_doc.lua"), os.path.join(tmp_path, ".tarantoolctl"))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "default_ttctl_cfg_from_doc.lua"),
+        os.path.join(tmp_path, ".tarantoolctl"),
+    )
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init"],
@@ -286,14 +299,14 @@ def test_tarantoolctl_cfg_from_doc(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
     assert "Found existing config '.tarantoolctl'" in tt_process.stdout.readline()
     assert f"Environment config is written to '{config_name}'" in tt_process.stdout.readline()
 
-    with open(os.path.join(tmp_path, config_name), 'r') as stream:
+    with open(os.path.join(tmp_path, config_name), "r") as stream:
         data_loaded = yaml.safe_load(stream)
         assert data_loaded["app"]["run_dir"] == "./run/tarantool"
         assert data_loaded["app"]["log_dir"] == "./log/tarantool"
@@ -311,8 +324,10 @@ def test_tarantoolctl_cfg_from_doc(tt_cmd, tmp_path):
     reason="Skipping the test, it shouldn't run as root",
 )
 def test_init_tarantoolctl_app_no_read_permissions(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "tarantoolctl.lua"),
-                os.path.join(tmp_path, ".tarantoolctl"))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "tarantoolctl.lua"),
+        os.path.join(tmp_path, ".tarantoolctl"),
+    )
 
     os.chmod(os.path.join(tmp_path, ".tarantoolctl"), 0o222)
     tt_process = subprocess.Popen(
@@ -321,20 +336,26 @@ def test_init_tarantoolctl_app_no_read_permissions(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 1
     assert "Found existing config '.tarantoolctl'" in tt_process.stdout.readline()
-    assert "⨯ tarantoolctl config loading error: LuajitError: cannot open " \
+    assert (
+        "⨯ tarantoolctl config loading error: LuajitError: cannot open "
         ".tarantoolctl: Permission denied" in tt_process.stdout.readline()
+    )
 
 
 def test_init_multiple_existing_configs(tt_cmd, tmp_path):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "tarantoolctl.lua"),
-                os.path.join(tmp_path, ".tarantoolctl"))
-    shutil.copy(os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
-                os.path.join(tmp_path, ".cartridge.yml"))
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "tarantoolctl.lua"),
+        os.path.join(tmp_path, ".tarantoolctl"),
+    )
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "configs", "valid_cartridge.yml"),
+        os.path.join(tmp_path, ".cartridge.yml"),
+    )
 
     tt_process = subprocess.Popen(
         [tt_cmd, "init"],
@@ -342,7 +363,7 @@ def test_init_multiple_existing_configs(tt_cmd, tmp_path):
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         stdin=subprocess.PIPE,
-        text=True
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
