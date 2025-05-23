@@ -104,7 +104,9 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app.lua"),
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
-                os.path.join("modules", "test_module.txt"),
+                os.path.join("modules", "ext_mod", "command.sh"),
+                os.path.join("modules", "ext_mod", "manifest.yml"),
+                os.path.join("modules", "simple", "main"),
                 os.path.join("instances.enabled", "app1"),
                 os.path.join("instances.enabled", "app2"),
                 config_name,
@@ -115,6 +117,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "var", "lib"),
                 os.path.join("app2", "app2-scm-1.rockspec"),
                 os.path.join("app1"),
+                os.path.join("modules", "ext_mod2"),
             ],
             "check_env": ["", assert_default_env, assert_artifacts_env]
         },
@@ -130,10 +133,14 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app.lua"),
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
-                os.path.join("modules", "test_module.txt"),
+                os.path.join("modules", "ext_mod", "command.sh"),
+                os.path.join("modules", "ext_mod", "manifest.yml"),
+                os.path.join("modules", "simple", "main"),
                 config_name,
             ],
-            "check_not_exist": [],
+            "check_not_exist": [
+                os.path.join("modules", "ext_mod2"),
+            ],
             "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
@@ -149,9 +156,13 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app.lua"),
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
-                os.path.join("modules", "test_module.txt"),
+                os.path.join("modules", "ext_mod", "command.sh"),
+                os.path.join("modules", "ext_mod", "manifest.yml"),
+                os.path.join("modules", "simple", "main"),
             ],
-            "check_not_exist": [],
+            "check_not_exist": [
+                os.path.join("modules", "ext_mod2"),
+            ],
             "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
@@ -167,9 +178,13 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app.lua"),
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
-                os.path.join("modules", "test_module.txt"),
+                os.path.join("modules", "ext_mod", "command.sh"),
+                os.path.join("modules", "ext_mod", "manifest.yml"),
+                os.path.join("modules", "simple", "main"),
             ],
-            "check_not_exist": [],
+            "check_not_exist": [
+                os.path.join("modules", "ext_mod2"),
+            ],
             "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
@@ -185,10 +200,14 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app.lua"),
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
-                os.path.join("modules", "test_module.txt"),
+                os.path.join("modules", "ext_mod", "command.sh"),
+                os.path.join("modules", "ext_mod", "manifest.yml"),
+                os.path.join("modules", "simple", "main"),
                 config_name,
             ],
-            "check_not_exist": [],
+            "check_not_exist": [
+                os.path.join("modules", "ext_mod2"),
+            ],
             "check_env": ["", assert_default_env, assert_artifacts_env]
         },
         {
@@ -221,12 +240,15 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app2", "init.lua"),
                 os.path.join("app2", ".rocks"),
                 os.path.join("app.lua"),
-                os.path.join("modules", "test_module.txt"),
+                os.path.join("modules", "ext_mod", "command.sh"),
+                os.path.join("modules", "ext_mod", "manifest.yml"),
+                os.path.join("modules", "simple", "main"),
                 config_name,
             ],
             "check_not_exist": [
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
+                os.path.join("modules", "ext_mod2"),
             ],
             "check_env": ["", assert_default_env, assert_artifacts_env]
         },
@@ -308,7 +330,9 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("app.lua"),
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
-                os.path.join("modules", "test_module.txt"),
+                os.path.join("modules", "ext_mod", "command.sh"),
+                os.path.join("modules", "ext_mod", "manifest.yml"),
+                os.path.join("modules", "simple", "main"),
                 os.path.join("instances.enabled", "app1", "var", "lib", "app1", "test.xlog"),
                 os.path.join("instances.enabled", "app1", "var", "log", "app1", "test.log"),
 
@@ -324,6 +348,7 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             ],
             "check_not_exist": [
                 "var",
+                os.path.join("modules", "ext_mod2"),
             ],
             "check_env": ["", assert_default_env, assert_artifacts_env],
         },
@@ -396,10 +421,13 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
 
                 os.path.join("bin", "tarantool"),
                 os.path.join("bin", "tt"),
-                os.path.join("modules", "test_module.txt"),
+                os.path.join("modules", "ext_mod", "command.sh"),
+                os.path.join("modules", "ext_mod", "manifest.yml"),
+                os.path.join("modules", "simple", "main"),
             ],
             "check_not_exist": [
                 os.path.join("app.lua"),
+                os.path.join("modules", "ext_mod2"),
             ],
             "check_env": ["", assert_default_env, assert_artifacts_env]
         },

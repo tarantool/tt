@@ -215,7 +215,13 @@ func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *co
 		return
 	}
 
+	rootEnvPath := filepath.Dir(packCtx.configFilePath)
 	for _, directory := range cliOpts.Modules.Directories {
+		if !strings.HasPrefix(directory, rootEnvPath) {
+			log.Debugf("Skip copying external modules from %q: not a subdir of %q",
+				directory, rootEnvPath)
+			continue
+		}
 		if !util.IsDir(directory) {
 			log.Debugf("Skip copying modules from %q: does not exist or not a directory",
 				directory)
@@ -227,7 +233,6 @@ func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *co
 			if files, _ := dir.Readdir(1); len(files) == 0 {
 				return // No modules.
 			}
-			// FIXME: Add working with a list https://jira.vk.team/browse/TNTP-2506
 			if err := copy.Copy(directory,
 				util.JoinPaths(bundleEnvPath, newOpts.Modules.Directories[0])); err != nil {
 				log.Warnf("Failed to copy modules from %q: %s", directory, err)

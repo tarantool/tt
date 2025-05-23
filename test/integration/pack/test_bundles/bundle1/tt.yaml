@@ -2,7 +2,9 @@ env:
   instances_enabled: instances_enabled
   restart_on_failure: true
 modules:
-  directory: modules
+  directory:
+  - modules
+  - ../ext_modules
 app:
   run_dir: var/run
   log_dir: var/log
