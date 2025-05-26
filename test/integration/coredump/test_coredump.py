@@ -23,37 +23,37 @@ from utils import get_tarantool_version, run_command_and_get_output
 # TT_ENABLE_COREDUMP_TESTS=1 python3 -m pytest test/integration/coredump/.
 
 
-skip_coredump_cond = os.getenv('TT_ENABLE_COREDUMP_TESTS') is None
+skip_coredump_cond = os.getenv("TT_ENABLE_COREDUMP_TESTS") is None
 skip_coredump_reason = "Should be launched explicitly to control coredump it produces"
 
 
-def generate_coredump(tmp_path_factory, tarantool_bin='tarantool') -> Path:
+def generate_coredump(tmp_path_factory, tarantool_bin="tarantool") -> Path:
     coredump_dir = tmp_path_factory.mktemp("coredump")
-    with open('/proc/sys/kernel/core_pattern', 'r') as f:
+    with open("/proc/sys/kernel/core_pattern", "r") as f:
         core_pattern = f.read().strip()
 
     def coredump_apport(core_source, outdir):
-        process = subprocess.run(['apport-unpack', core_source, outdir])
+        process = subprocess.run(["apport-unpack", core_source, outdir])
         assert process.returncode == 0
-        return outdir / 'CoreDump'
+        return outdir / "CoreDump"
 
     def coredump_systemd(core_source, outdir):
         core = outdir / core_source.stem
-        process = subprocess.run(['coredumpctl', 'dump', f'--output={core}'])
+        process = subprocess.run(["coredumpctl", "dump", f"--output={core}"])
         assert process.returncode == 0
         return core
 
     to_coredump = None
-    if not core_pattern.startswith('|'):
-        core_wildcard = core_pattern.replace('%%', '%')
-        core_wildcard = re.sub('%[cdeEghiIpPstu]', '*', core_wildcard)
+    if not core_pattern.startswith("|"):
+        core_wildcard = core_pattern.replace("%%", "%")
+        core_wildcard = re.sub("%[cdeEghiIpPstu]", "*", core_wildcard)
         if not os.path.isabs(core_wildcard):
             core_wildcard = str(coredump_dir / core_wildcard)
     elif re.search(r"apport", core_pattern):
-        core_wildcard = '/var/crash/*.crash'
+        core_wildcard = "/var/crash/*.crash"
         to_coredump = coredump_apport
     elif re.search(r"systemd-coredump", core_pattern):
-        core_wildcard = '/var/lib/systemd/coredump/*'
+        core_wildcard = "/var/lib/systemd/coredump/*"
         to_coredump = coredump_systemd
     else:
         assert False, "Unexpected core pattern '{}'".format(core_pattern)
@@ -86,7 +86,7 @@ def coredump(tmp_path_factory) -> Path:
 
 @pytest.fixture(scope="session")
 def coredump_alt(tmp_path_factory, tmpdir_with_tarantool) -> Path:
-    return generate_coredump(tmp_path_factory, tmpdir_with_tarantool / 'bin' / 'tarantool')
+    return generate_coredump(tmp_path_factory, tmpdir_with_tarantool / "bin" / "tarantool")
 
 
 @pytest.fixture(scope="session")
@@ -94,7 +94,7 @@ def coredump_packed(tt_cmd, coredump):
     cmd = [tt_cmd, "coredump", "pack", coredump.as_posix()]
     rc, _ = run_command_and_get_output(cmd, cwd=coredump.parents[0])
     assert rc == 0
-    files = glob.glob(os.path.join(os.path.dirname(coredump), '*.tar.gz'))
+    files = glob.glob(os.path.join(os.path.dirname(coredump), "*.tar.gz"))
     assert len(files) == 1
     return files[0]
 
@@ -105,7 +105,7 @@ def coredump_unpacked(tt_cmd, coredump_packed):
     rc, _ = run_command_and_get_output(cmd, cwd=os.path.dirname(coredump_packed))
     assert rc == 0
     packed_name = os.path.basename(coredump_packed)
-    unpacked = os.path.join(os.path.dirname(coredump_packed), packed_name.split('.')[0])
+    unpacked = os.path.join(os.path.dirname(coredump_packed), packed_name.split(".")[0])
     assert os.path.isdir(unpacked)
     return unpacked
 
@@ -137,8 +137,10 @@ def check_tarantool_in_archive(tmp_path, expected_tarantool):
     assert len(archives) == 1
 
     # Extract Tarantool executable and check its version.
-    rc = subprocess.run(["tar", "xzf", archives[0], "--wildcards", "tarantool-core-*/tarantool"],
-                        cwd=tmp_path).returncode
+    rc = subprocess.run(
+        ["tar", "xzf", archives[0], "--wildcards", "tarantool-core-*/tarantool"],
+        cwd=tmp_path,
+    ).returncode
     assert rc == 0
     unpacked_tarantools = list(tmp_path.glob("tarantool-core-*/tarantool"))
     assert len(unpacked_tarantools) == 1
@@ -149,7 +151,7 @@ def check_tarantool_in_archive(tmp_path, expected_tarantool):
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 @pytest.mark.slow
 def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tmpdir_with_tarantool):
-    tarantool_bin = tmpdir_with_tarantool / 'bin' / 'tarantool'
+    tarantool_bin = tmpdir_with_tarantool / "bin" / "tarantool"
 
     cmd = [tt_cmd, "coredump", "pack", "-e", tarantool_bin, coredump_alt]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
@@ -162,10 +164,10 @@ def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tmpdir_with_ta
 @pytest.mark.skipif(skip_coredump_cond, reason=skip_coredump_reason)
 @pytest.mark.slow
 def test_coredump_pack_executable_tt_env(tt_cmd, tmp_path, coredump_alt, tmpdir_with_tarantool):
-    tarantool_bin = tmpdir_with_tarantool / 'bin' / 'tarantool'
+    tarantool_bin = tmpdir_with_tarantool / "bin" / "tarantool"
 
     assert subprocess.run([tt_cmd, "init"], cwd=tmp_path).returncode == 0
-    os.symlink(tarantool_bin, tmp_path / 'bin' / 'tarantool')
+    os.symlink(tarantool_bin, tmp_path / "bin" / "tarantool")
 
     cmd = [tt_cmd, "coredump", "pack", coredump_alt]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)

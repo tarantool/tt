@@ -15,7 +15,8 @@ import (
 // collects tarantool and tt cli as dependencies and returns the result slice
 // of PackDependencies.
 func parseAllDependencies(cmdCtx *cmdcontext.CmdCtx,
-	packCtx *PackCtx) (PackDependencies, error) {
+	packCtx *PackCtx,
+) (PackDependencies, error) {
 	var deps PackDependencies
 	var err error
 

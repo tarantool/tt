@@ -80,12 +80,18 @@ func addDependenciesRPM(rpmHeader *rpmTagSetType, deps PackDependencies) {
 	}
 
 	rpmHeader.addTags([]rpmTagType{
-		{ID: tagRequireName, Type: rpmTypeStringArray,
-			Value: names},
-		{ID: tagRequireFlags, Type: rpmTypeInt32,
-			Value: relations},
-		{ID: tagRequireVersion, Type: rpmTypeStringArray,
-			Value: versions},
+		{
+			ID: tagRequireName, Type: rpmTypeStringArray,
+			Value: names,
+		},
+		{
+			ID: tagRequireFlags, Type: rpmTypeInt32,
+			Value: relations,
+		},
+		{
+			ID: tagRequireVersion, Type: rpmTypeStringArray,
+			Value: versions,
+		},
 	}...)
 }
 
@@ -95,7 +101,8 @@ var rpmPreInstScriptContent string
 // addPreAndPostInstallScriptsRPM writes passed paths of pre-install
 // and post-install scripts to the rpm header.
 func addPreAndPostInstallScriptsRPM(rpmHeader *rpmTagSetType,
-	preInst string, postInst string) error {
+	preInst, postInst string,
+) error {
 	preInstScript := rpmPreInstScriptContent
 	if preInst != "" {
 		userPreInstBytes, err := os.ReadFile(preInst)
@@ -123,7 +130,8 @@ func addPreAndPostInstallScriptsRPM(rpmHeader *rpmTagSetType,
 
 // genRpmHeader generates rpm headers.
 func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDir string,
-	cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts) (rpmTagSetType, error) {
+	cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts,
+) (rpmTagSetType, error) {
 	rpmHeader := rpmTagSetType{}
 
 	// Compute payload digest.
@@ -220,7 +228,8 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 // getFilesInfo returns the meta information about all items inside the passed
 // directory needed for packing it into rpm headers.
 func getFilesInfo(relPaths []string, dirPath string,
-	pkgFiles map[string]packFileInfo) (filesInfo, error) {
+	pkgFiles map[string]packFileInfo,
+) (filesInfo, error) {
 	info := filesInfo{}
 
 	for _, relPath := range relPaths {

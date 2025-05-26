@@ -28,10 +28,10 @@ groups:
       roles: [storage]
     replication:
       failover: manual
-    replicasets: 
+    replicasets:
       storage-001:
         leader: storage-001-a
-        instances: 
+        instances:
           storage-001-a:
             iproto:
               listen:
@@ -42,7 +42,7 @@ groups:
                 - uri: localhost:3302
       storage-002:
         leader: storage-002-a
-        instances: 
+        instances:
           storage-002-a:
             iproto:
               listen:
@@ -56,9 +56,9 @@ groups:
       module: router
     sharding:
       roles: [router]
-    replicasets: 
+    replicasets:
       router-001:
-        instances: 
+        instances:
           router-001-a:
             iproto:
               listen:

@@ -7,8 +7,9 @@ import pytest
 
 from utils import get_fixture_tcs_params, is_tarantool_ee, is_tarantool_less_3
 
-fixture_tcs_params = get_fixture_tcs_params(os.path.join(os.path.dirname(
-                                            os.path.abspath(__file__)), "test_tcs_app"))
+fixture_tcs_params = get_fixture_tcs_params(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_tcs_app"),
+)
 
 AeonConnectCommand = ("aeon", "connect")
 
@@ -245,7 +246,7 @@ def test_cli_plain_config_file_success(tt_cmd, tmp_path, aeon_plain_file):
 
 def test_cli_ssl_config_file_success(tt_cmd, tmp_path, aeon_ssl, certificates):
     print(f"Aeon ssl mode: {aeon_ssl}")
-    for k, v in certificates.items():
+    for v in certificates.values():
         shutil.copy2(v, tmp_path)
 
     copy_file("data/config_ssl.yml", tmp_path)
@@ -298,7 +299,11 @@ def test_cli_plain_not_config_fail(tt_cmd, tmp_path, aeon_plain_file):
     assert tt.returncode != 0
 
 
-def test_cli_invalid_ssl_config_file(tt_cmd, tmp_path, aeon_ssl,):
+def test_cli_invalid_ssl_config_file(
+    tt_cmd,
+    tmp_path,
+    aeon_ssl,
+):
     print(f"Aeon ssl mode: {aeon_ssl}")
 
     copy_file("data/invalid_config_ssl.yml", tmp_path)
@@ -336,10 +341,10 @@ def test_cli_ssl_config_flag_success(tt_cmd, tmp_path, aeon_ssl, certificates):
     cmd = [str(tt_cmd), *AeonConnectCommand, configPath, "aeon-router-001"]
 
     cmd += (
-            f"--sslcafile={certificates['ca']}",
-            f"--sslkeyfile={certificates['c_private']}",
-            f"--sslcertfile={certificates['c_public']}",
-        )
+        f"--sslcafile={certificates['ca']}",
+        f"--sslkeyfile={certificates['c_private']}",
+        f"--sslcertfile={certificates['c_public']}",
+    )
 
     cmd += ("--transport", "ssl")
 
@@ -381,7 +386,6 @@ def test_cli_plain_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_plain_fil
 
 
 def test_cli_plain_tcs_success(tt_cmd, tmpdir_with_cfg, request, fixture_params, aeon_plain_file):
-
     if is_tarantool_less_3() or not is_tarantool_ee():
         pytest.skip()
     for k, v in fixture_tcs_params.items():
@@ -397,16 +401,12 @@ def test_cli_plain_tcs_success(tt_cmd, tmpdir_with_cfg, request, fixture_params,
     config = file.read()
 
     conn.call("config.storage.put", "/prefix/config/all", config)
-    creds = (
-        f"{instance.connection_username}:{instance.connection_password}@"
-    )
+    creds = f"{instance.connection_username}:{instance.connection_password}@"
 
     cmd = [
         tt_cmd,
         *AeonConnectCommand,
-        "http://"
-        + creds
-        + f"{instance.host}:{instance.port}/prefix",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix",
         "aeon-router-002",
     ]
 
@@ -422,9 +422,7 @@ def test_cli_plain_tcs_success(tt_cmd, tmpdir_with_cfg, request, fixture_params,
     assert tt.returncode == 0
 
 
-def test_cli_plain_etcd_success(tt_cmd, tmpdir_with_cfg,
-                                request, aeon_plain_file):
-
+def test_cli_plain_etcd_success(tt_cmd, tmpdir_with_cfg, request, aeon_plain_file):
     instance = request.getfixturevalue("etcd")
     tmpdir = tmpdir_with_cfg
 
@@ -437,16 +435,12 @@ def test_cli_plain_etcd_success(tt_cmd, tmpdir_with_cfg,
 
     conn.put("/prefix/config/", config)
 
-    creds = (
-        f"{instance.connection_username}:{instance.connection_password}@"
-    )
+    creds = f"{instance.connection_username}:{instance.connection_password}@"
 
     cmd = [
         tt_cmd,
         *AeonConnectCommand,
-        "http://"
-        + creds
-        + f"{instance.host}:{instance.port}/prefix",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix",
         "aeon-router-002",
     ]
     tt = run(
@@ -468,7 +462,7 @@ def test_cli_ssl_app_flag_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, c
     tmp_path = tmpdir_with_cfg
     copy_app(tmp_path, app_name)
 
-    for k, v in certificates.items():
+    for v in certificates.values():
         shutil.copy2(v, tmp_path)
 
     cmd = [str(tt_cmd), *AeonConnectCommand, "app_ssl:aeon-router-001"]
@@ -502,7 +496,7 @@ def test_cli_ssl_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, certif
     tmp_path = tmpdir_with_cfg
     copy_app(tmp_path, app_name)
 
-    for k, v in certificates.items():
+    for v in certificates.values():
         shutil.copy2(v, f"{tmp_path}/{app_name}")
 
     cmd = [str(tt_cmd), *AeonConnectCommand, "app_ssl:aeon-router-001"]

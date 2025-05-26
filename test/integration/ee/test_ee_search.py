@@ -18,7 +18,9 @@ def test_search_ee(tt_cmd, tmp_path):
     ]
     for cmd in cmds:
         rc, output = run_command_and_get_output(
-            cmd, cwd=tmp_path, env=dict(os.environ, PWD=tmp_path))
-        assert re.search(r"(\d+.\d+.\d+)",
-                         output)
+            cmd,
+            cwd=tmp_path,
+            env=dict(os.environ, PWD=tmp_path),
+        )
+        assert re.search(r"(\d+.\d+.\d+)", output)
         assert rc == 0

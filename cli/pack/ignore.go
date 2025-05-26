@@ -29,7 +29,7 @@ func turnEscapedToHexCode(s string, c rune) string {
 	return strings.ReplaceAll(s, `\`+string(c), fmt.Sprintf(`\x%x`, c))
 }
 
-func splitIgnorePattern(pattern string) (cleanPattern string, dirOnly bool, isNegate bool) {
+func splitIgnorePattern(pattern string) (cleanPattern string, dirOnly, isNegate bool) {
 	// Remove trailing spaces (unless escaped one).
 	cleanPattern = turnEscapedToHexCode(pattern, ' ')
 	cleanPattern = strings.TrimRight(cleanPattern, " ")
@@ -39,7 +39,7 @@ func splitIgnorePattern(pattern string) (cleanPattern string, dirOnly bool, isNe
 	return
 }
 
-func createIgnorePattern(pattern string, basepath string) (ignorePattern, error) {
+func createIgnorePattern(pattern, basepath string) (ignorePattern, error) {
 	// First, get rid of `\\` to simplify further handling of escaped sequences.
 	// From now on any `\c` always means escaped 'c' (previously it might also
 	// occur as a part of `\\c` sequence which denotes '\' followed by <c>).

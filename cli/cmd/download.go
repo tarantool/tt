@@ -8,13 +8,11 @@ import (
 	"github.com/tarantool/tt/cli/download"
 )
 
-var (
-	downloadCtx download.DownloadCtx
-)
+var downloadCtx download.DownloadCtx
 
 // newDownloadCmd Downloads and saves the Tarantool SDK.
 func NewDownloadCmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "download <VERSION>",
 		Short: `Download Tarantool SDK`,
 		Example: `

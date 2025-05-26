@@ -58,11 +58,9 @@ var (
 	VarRunPath   = filepath.Join(VarPath, RunPath)
 )
 
-var (
-	// Path to default tt.yaml configuration file.
-	// Defined at build time, see magefile.
-	defaultConfigPath string
-)
+// Path to default tt.yaml configuration file.
+// Defined at build time, see magefile.
+var defaultConfigPath string
 
 // getDefaultAppOpts generates default app config.
 func getDefaultAppOpts() *config.AppOpts {
@@ -163,8 +161,9 @@ func getDefaultDaemonOpts() *config.DaemonOpts {
 // adjustPathWithConfigLocation adjust provided filePath with configDir.
 // Absolute filePath is returned as is. Relative filePath is calculated relative to configDir.
 // If filePath is empty, defaultDirName is appended to configDir.
-func adjustPathWithConfigLocation(filePath string, configDir string,
-	defaultDirName string) (string, error) {
+func adjustPathWithConfigLocation(filePath, configDir string,
+	defaultDirName string,
+) (string, error) {
 	if filePath == "" {
 		if defaultDirName == "" {
 			return "", nil
@@ -178,7 +177,8 @@ func adjustPathWithConfigLocation(filePath string, configDir string,
 }
 
 func adjustListPathWithConfigLocation(listPaths []string, configDir string,
-	defaultDirName string) ([]string, error) {
+	defaultDirName string,
+) ([]string, error) {
 	if len(listPaths) == 0 {
 		listPaths = append(listPaths, defaultDirName)
 	}
@@ -243,8 +243,9 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	return nil
 }
 
-func decodeStringAsArrayField(from reflect.Type, to reflect.Type, value interface{}) (
-	interface{}, error) {
+func decodeStringAsArrayField(from, to reflect.Type, value interface{}) (
+	interface{}, error,
+) {
 	if to != reflect.TypeOf(config.FieldStringArrayType{}) || from.Kind() != reflect.String {
 		return value, nil
 	}
@@ -266,7 +267,8 @@ func decodeConfig(input map[string]any, cfg *config.CliOpts) error {
 // GetCliOpts returns Tarantool CLI options from the config file
 // located at path configurePath.
 func GetCliOpts(configurePath string, repository integrity.Repository) (
-	*config.CliOpts, string, error) {
+	*config.CliOpts, string, error,
+) {
 	var cfg *config.CliOpts = GetDefaultCliOpts()
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)

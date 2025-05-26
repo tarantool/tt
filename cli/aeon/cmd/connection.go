@@ -15,8 +15,8 @@ import (
 // It returns an error if fails to collect a configuration,
 // instantiate a cluster config or find an instance in the cluster.
 func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.UriOpts,
-	instanceName string, collectors libcluster.CollectorFactory) error {
-
+	instanceName string, collectors libcluster.CollectorFactory,
+) error {
 	connOpts := libcluster.ConnectOpts{
 		Username: connectCtx.Username,
 		Password: connectCtx.Password,

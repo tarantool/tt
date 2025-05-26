@@ -32,7 +32,8 @@ func printVersion(versionString string) {
 
 // ParseBinaries seeks through fileList returning array of found versions of program.
 func ParseBinaries(fileList []fs.DirEntry, program search.Program,
-	binDir string) ([]version.Version, error) {
+	binDir string,
+) ([]version.Version, error) {
 	var binaryVersions []version.Version
 
 	symlinkName := program.Exec()

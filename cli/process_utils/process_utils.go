@@ -18,7 +18,7 @@ import (
 // user:   read/write/execute
 // group:  read/write/execute
 // others: nil
-const defaultDirPerms = 0770
+const defaultDirPerms = 0o770
 
 type ProcessState struct {
 	Code        int
@@ -37,15 +37,18 @@ var (
 	ProcStateRunning = ProcessState{
 		Code:        ProcessRunningCode,
 		ColorSprint: color.New(color.FgGreen).SprintFunc(),
-		Status:      "RUNNING"}
+		Status:      "RUNNING",
+	}
 	ProcStateStopped = ProcessState{
 		Code:        ProcessStoppedCode,
 		ColorSprint: color.New(color.FgYellow).SprintFunc(),
-		Status:      "NOT RUNNING"}
+		Status:      "NOT RUNNING",
+	}
 	ProcStateDead = ProcessState{
 		Code:        ProcessDeadCode,
 		ColorSprint: color.New(color.FgRed).SprintFunc(),
-		Status:      "ERROR. The process is dead"}
+		Status:      "ERROR. The process is dead",
+	}
 )
 
 // String makes a string from ProcessState.
@@ -150,7 +153,7 @@ func CreatePIDFile(pidFileName string, pid int) error {
 	//    group:  read
 	//    others: read
 	pidFile, err := os.OpenFile(pidFileName,
-		syscall.O_EXCL|syscall.O_CREAT|syscall.O_RDWR, 0644)
+		syscall.O_EXCL|syscall.O_CREAT|syscall.O_RDWR, 0o644)
 	if err != nil {
 		return fmt.Errorf(`can't create a new PID file. Error: "%v"`, err)
 	}
@@ -269,7 +272,8 @@ func IsProcessAlive(pid int) (bool, error) {
 // waitProcessTermination waits while the process will be terminated.
 // Returns true if the process was terminated and false if is steel alive.
 func waitProcessTermination(pid int, timeout time.Duration,
-	checkPeriod time.Duration) bool {
+	checkPeriod time.Duration,
+) bool {
 	if res, _ := IsProcessAlive(pid); !res {
 		return true
 	}

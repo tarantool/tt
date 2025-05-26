@@ -452,10 +452,10 @@ For packing deb package call:
 
 ``` console
 $ tt pack deb --name dev_bundle --version 1.0.0
-• A root for package is located in: /var/folders/c6/jv1r5h211dn1280d75pmdqy80000gp/T/2166098848
+• A root for package is located in: /var/folders/c6/jv1r5h211dn1280d7580000gp/T/2166098848
    • Apps to pack: app1 app2 app3 app4 app5
 
-myapp scm-1 is now installed in /var/folders/c6/jv1r5h211dn1280d75pmdqy80000gp/T/tt_pack4173588242/myapp/.rocks
+myapp scm-1 is now installed in /var/folders/c6/jv1r5h211dn1280d7580000gp/T/tt_pack4173588242/myapp/.rocks
 
    • myapp rocks are built successfully
    • Generating new tt.yaml for the new package

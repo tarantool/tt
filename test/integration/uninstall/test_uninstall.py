@@ -6,22 +6,21 @@ import subprocess
 
 import pytest
 
-from utils import (config_name, is_valid_tarantool_installed,
-                   run_command_and_get_output)
+from utils import config_name, is_valid_tarantool_installed, run_command_and_get_output
 
 
 def test_uninstall_tt(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config.
-    with open(configPath, 'w') as f:
-        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("tt:\n  env:\n    bin_dir:\n    inc_dir:\n")
 
     for prog in [["tarantool"], ["tarantool", "master"]]:
         # Do not test uninstall through installing tt. Because installed tt will be invoked by
         # current tt. As a result the test will run for the installed tt and not the current.
         # Creating fake tarantool instead.
         os.mkdir(os.path.join(tmp_path, "bin"))
-        with open(os.path.join(tmp_path, "bin", "tarantool_master"), 'w') as f:
+        with open(os.path.join(tmp_path, "bin", "tarantool_master"), "w") as f:
             f.write('''#!/bin/sh
                     echo "hello"''')
         os.chmod(os.path.join(tmp_path, "bin", "tarantool_master"), 0o775)
@@ -29,13 +28,13 @@ def test_uninstall_tt(tt_cmd, tmp_path):
         os.makedirs(os.path.join(tmp_path, "include", "include", "tarantool_master"))
         os.symlink("./tarantool_master", os.path.join(tmp_path, "include", "include", "tarantool"))
 
-        uninstall_cmd = [tt_cmd,  "--cfg", configPath, "uninstall", *prog]
+        uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", *prog]
         uninstall_process = subprocess.Popen(
             uninstall_cmd,
             cwd=tmp_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         uninstall_process.wait()
         uninstall_output = uninstall_process.stdout.readlines()
@@ -52,43 +51,45 @@ def test_uninstall_tt(tt_cmd, tmp_path):
 def test_uninstall_default_many(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config.
-    with open(configPath, 'w') as f:
-        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("tt:\n  env:\n    bin_dir:\n    inc_dir:\n")
 
     # Do not test uninstall through installing tt. Because installed tt will be invoked by
     # current tt. As a result the test will run for the installed tt and not the current.
     # Creating fake tarantool instead.
     os.mkdir(os.path.join(tmp_path, "bin"))
-    with open(os.path.join(tmp_path, "bin", "tarantool_master"), 'w') as f:
+    with open(os.path.join(tmp_path, "bin", "tarantool_master"), "w") as f:
         f.write('''#!/bin/sh
                 echo "hello"''')
-    with open(os.path.join(tmp_path, "bin", "tarantool_123"), 'w') as f:
+    with open(os.path.join(tmp_path, "bin", "tarantool_123"), "w") as f:
         f.write('''#!/bin/sh
                 echo "hello"''')
     os.chmod(os.path.join(tmp_path, "bin", "tarantool_master"), 0o775)
     os.symlink("./tarantool_master", os.path.join(tmp_path, "bin", "tarantool"))
 
-    uninstall_cmd = [tt_cmd,  "--cfg", configPath, "uninstall", "tarantool"]
+    uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tarantool"]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     uninstall_process.wait()
     uninstall_output = uninstall_process.stdout.readlines()
     assert "Removing binary..." in uninstall_output[0]
-    expected = "tarantool has more than one installed version, " \
-               + "please specify the version to uninstall"
+    expected = (
+        "tarantool has more than one installed version, "
+        + "please specify the version to uninstall"
+    )
     assert expected in uninstall_output[1]
 
 
 def test_uninstall_missing(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config.
-    with open(configPath, 'w') as f:
-        f.write('tt:\n  env:\n    bin_dir:\n    inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write("tt:\n  env:\n    bin_dir:\n    inc_dir:\n")
     # Create bin directory.
     os.mkdir(os.path.join(tmp_path, "bin"))
     os.mkdir(os.path.join(tmp_path, "include"))
@@ -99,7 +100,7 @@ def test_uninstall_missing(tt_cmd, tmp_path):
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     uninstall_process.wait()
     uninstall_output = uninstall_process.stdout.readline()
@@ -117,7 +118,7 @@ def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
             cwd=tmpdir_with_cfg,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
-            text=True
+            text=True,
         )
         uninstall_process.wait()
         uninstall_output = uninstall_process.stdout.readline()
@@ -127,8 +128,7 @@ def test_uninstall_foreign_program(tt_cmd, tmpdir_with_cfg):
 @pytest.mark.parametrize("is_symlink_broken", [False, True])
 def test_uninstall_tarantool_dev_installed(tt_cmd, tmp_path, is_symlink_broken):
     # Copy test files.
-    testdata_path = os.path.join(os.path.dirname(__file__),
-                                 "testdata/tarantool_dev")
+    testdata_path = os.path.join(os.path.dirname(__file__), "testdata/tarantool_dev")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
     testdata_path = os.path.join(tmp_path, "testdata")
 
@@ -139,15 +139,17 @@ def test_uninstall_tarantool_dev_installed(tt_cmd, tmp_path, is_symlink_broken):
 
     uninstall_cmd = [
         tt_cmd,
-        "--cfg", os.path.join(testdata_path, tt_dir, config_name),
-        "uninstall", "tarantool-dev"
+        "--cfg",
+        os.path.join(testdata_path, tt_dir, config_name),
+        "uninstall",
+        "tarantool-dev",
     ]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=testdata_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     rc = uninstall_process.wait()
     assert rc == 0
@@ -158,8 +160,7 @@ def test_uninstall_tarantool_dev_installed(tt_cmd, tmp_path, is_symlink_broken):
         os.path.join(testdata_path, tt_dir, "bin"),
         os.path.join(testdata_path, tt_dir, "inc", "include"),
         os.path.join(testdata_path, tt_dir, "bin", "tarantool_2.10.4"),
-        os.path.join(testdata_path, tt_dir, "inc", "include",
-                     "tarantool_2.10.4")
+        os.path.join(testdata_path, tt_dir, "inc", "include", "tarantool_2.10.4"),
     )
     if not is_symlink_broken:
         assert os.path.exists(os.path.join(testdata_path, tt_dir, "tarantool"))
@@ -168,23 +169,24 @@ def test_uninstall_tarantool_dev_installed(tt_cmd, tmp_path, is_symlink_broken):
 
 def test_uninstall_tarantool_dev_not_installed(tt_cmd, tmp_path):
     # Copy test files.
-    testdata_path = os.path.join(os.path.dirname(__file__),
-                                 "testdata/tarantool_dev")
+    testdata_path = os.path.join(os.path.dirname(__file__), "testdata/tarantool_dev")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
     testdata_path = os.path.join(tmp_path, "testdata")
 
     tt_dir = "not_installed"
     uninstall_cmd = [
         tt_cmd,
-        "--cfg", os.path.join(testdata_path, tt_dir, config_name),
-        "uninstall", "tarantool-dev"
+        "--cfg",
+        os.path.join(testdata_path, tt_dir, config_name),
+        "uninstall",
+        "tarantool-dev",
     ]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=testdata_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     rc = uninstall_process.wait()
     output = uninstall_process.stdout.read()
@@ -194,29 +196,30 @@ def test_uninstall_tarantool_dev_not_installed(tt_cmd, tmp_path):
         os.path.join(testdata_path, tt_dir, "bin"),
         os.path.join(testdata_path, tt_dir, "inc", "include"),
         os.path.join(testdata_path, tt_dir, "bin", "tarantool_2.10.8"),
-        os.path.join(testdata_path, tt_dir, "inc", "include",
-                     "tarantool_2.10.8")
+        os.path.join(testdata_path, tt_dir, "inc", "include", "tarantool_2.10.8"),
     )
 
 
 def test_uninstall_tarantool_switch(tt_cmd, tmp_path):
     # Copy test files.
-    testdata_path = os.path.join(os.path.dirname(__file__),
-                                 "testdata/uninstall_switch")
+    testdata_path = os.path.join(os.path.dirname(__file__), "testdata/uninstall_switch")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
     testdata_path = os.path.join(tmp_path, "testdata")
 
     uninstall_cmd = [
         tt_cmd,
-        "--cfg", os.path.join(testdata_path, config_name),
-        "uninstall", "tarantool", "1.10.15"
+        "--cfg",
+        os.path.join(testdata_path, config_name),
+        "uninstall",
+        "tarantool",
+        "1.10.15",
     ]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=testdata_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     rc = uninstall_process.wait()
     assert rc == 0
@@ -226,29 +229,30 @@ def test_uninstall_tarantool_switch(tt_cmd, tmp_path):
         os.path.join(testdata_path, "bin"),
         os.path.join(testdata_path, "inc", "include"),
         os.path.join(testdata_path, "bin", "tarantool_2.10.7-entrypoint"),
-        os.path.join(testdata_path, "inc", "include",
-                     "tarantool_2.10.7-entrypoint")
+        os.path.join(testdata_path, "inc", "include", "tarantool_2.10.7-entrypoint"),
     )
 
 
 def test_uninstall_tarantool_switch_hash(tt_cmd, tmp_path):
     # Copy test files.
-    testdata_path = os.path.join(os.path.dirname(__file__),
-                                 "testdata/uninstall_switch_hash")
+    testdata_path = os.path.join(os.path.dirname(__file__), "testdata/uninstall_switch_hash")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
     testdata_path = os.path.join(tmp_path, "testdata")
 
     uninstall_cmd = [
         tt_cmd,
-        "--cfg", os.path.join(testdata_path, config_name),
-        "uninstall", "tarantool", "1.10.15"
+        "--cfg",
+        os.path.join(testdata_path, config_name),
+        "uninstall",
+        "tarantool",
+        "1.10.15",
     ]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
         cwd=testdata_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
-        text=True
+        text=True,
     )
     rc = uninstall_process.wait()
     assert rc == 0
@@ -258,8 +262,7 @@ def test_uninstall_tarantool_switch_hash(tt_cmd, tmp_path):
         os.path.join(testdata_path, "bin"),
         os.path.join(testdata_path, "inc", "include"),
         os.path.join(testdata_path, "bin", "tarantool_aaaaaaa"),
-        os.path.join(testdata_path, "inc", "include",
-                     "tarantool_aaaaaaa")
+        os.path.join(testdata_path, "inc", "include", "tarantool_aaaaaaa"),
     )
 
 
@@ -267,8 +270,7 @@ def test_uninstall_tarantool_switch_hash(tt_cmd, tmp_path):
 # to some other version.
 def test_uninstall_tarantool_no_switch(tt_cmd, tmp_path):
     # Copy test files.
-    testdata_path = os.path.join(os.path.dirname(__file__),
-                                 "testdata/uninstall_switch")
+    testdata_path = os.path.join(os.path.dirname(__file__), "testdata/uninstall_switch")
     shutil.copytree(testdata_path, os.path.join(tmp_path, "testdata"), True)
     testdata_path = os.path.join(tmp_path, "testdata")
 
@@ -278,20 +280,17 @@ def test_uninstall_tarantool_no_switch(tt_cmd, tmp_path):
     # Change symlinks to the version, which will not be uninstalled.
     os.unlink(binary_path)
     os.unlink(include_path)
-    os.symlink(
-        os.path.join(testdata_path, "bin", "tarantool_2.10.4"),
-        binary_path
-    )
+    os.symlink(os.path.join(testdata_path, "bin", "tarantool_2.10.4"), binary_path)
     os.chmod(binary_path, stat.S_IEXEC)
-    os.symlink(
-        os.path.join(testdata_path, "inc", "include", "tarantool_2.10.4"),
-        include_path
-    )
+    os.symlink(os.path.join(testdata_path, "inc", "include", "tarantool_2.10.4"), include_path)
 
     uninstall_cmd = [
         tt_cmd,
-        "--cfg", os.path.join(testdata_path, config_name),
-        "uninstall", "tarantool", "1.10.15"
+        "--cfg",
+        os.path.join(testdata_path, config_name),
+        "uninstall",
+        "tarantool",
+        "1.10.15",
     ]
     uninstall_process = subprocess.Popen(
         uninstall_cmd,
@@ -305,24 +304,24 @@ def test_uninstall_tarantool_no_switch(tt_cmd, tmp_path):
         os.path.join(testdata_path, "bin"),
         os.path.join(testdata_path, "inc", "include"),
         os.path.join(testdata_path, "bin", "tarantool_2.10.4"),
-        os.path.join(testdata_path, "inc", "include", "tarantool_2.10.4")
+        os.path.join(testdata_path, "inc", "include", "tarantool_2.10.4"),
     )
 
 
-@pytest.mark.parametrize("installed_versions, version_to_uninstall", [
-    (["v1.2.3"], "1.2.3"),
-    (["v1.2.3", "1.2.3"], "1.2.3"),
-    (["v1.2.3", "1.2.3"], "v1.2.3")
-])
+@pytest.mark.parametrize(
+    "installed_versions, version_to_uninstall",
+    [(["v1.2.3"], "1.2.3"), (["v1.2.3", "1.2.3"], "1.2.3"), (["v1.2.3", "1.2.3"], "v1.2.3")],
+)
 def test_uninstall_tt_missing_version_character(
-        installed_versions,
-        version_to_uninstall,
-        tt_cmd,
-        tmp_path):
+    installed_versions,
+    version_to_uninstall,
+    tt_cmd,
+    tmp_path,
+):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config.
-    with open(configPath, 'w') as f:
-        f.write(f'env:\n bin_dir: {tmp_path}\n inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write(f"env:\n bin_dir: {tmp_path}\n inc_dir:\n")
 
     # Copying built executable to bin directory,
     # renaming it to version and change symlink
@@ -334,8 +333,7 @@ def test_uninstall_tt_missing_version_character(
     # bug won't appear only for current and future versions.
     for version in installed_versions:
         shutil.copy(tt_cmd, os.path.join(tmp_path, f"tt_{version}"))
-    os.symlink(os.path.join(tmp_path, f"tt_{installed_versions[0]}"),
-               os.path.join(tmp_path, "tt"))
+    os.symlink(os.path.join(tmp_path, f"tt_{installed_versions[0]}"), os.path.join(tmp_path, "tt"))
 
     # Remove not installed program.
     uninstall_cmd = [tt_cmd, "--cfg", configPath, "uninstall", "tt", version_to_uninstall]
@@ -345,20 +343,26 @@ def test_uninstall_tt_missing_version_character(
     assert f"tt={version_to_uninstall} is uninstalled." in uninstall_output
 
     # Check that the passed version has been removed.
-    assert os.path.isfile(os.path.join(tmp_path, "tt_" +
-                          "v" if "v" not in version_to_uninstall else "" +
-                                       version_to_uninstall)) is False
+    assert (
+        os.path.isfile(
+            os.path.join(
+                tmp_path,
+                "tt_" + "v" if "v" not in version_to_uninstall else "" + version_to_uninstall,
+            ),
+        )
+        is False
+    )
 
 
 def test_uninstall_tt_missing_symlink(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
     # Create test config.
-    with open(configPath, 'w') as f:
-        f.write(f'env:\n bin_dir: {tmp_path}\n inc_dir:\n')
+    with open(configPath, "w") as f:
+        f.write(f"env:\n bin_dir: {tmp_path}\n inc_dir:\n")
 
     shutil.copy(tt_cmd, os.path.join(tmp_path, "tt_94ba971"))
 
-    symlink_path = os.path.join(tmp_path, 'tt')
+    symlink_path = os.path.join(tmp_path, "tt")
     assert not os.path.exists(symlink_path)
 
     uninstall_cmd = [tt_cmd, "uninstall", "tt", "94ba971"]

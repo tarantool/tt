@@ -9,7 +9,7 @@ import (
 
 // NewCheckCmd creates a new check command.
 func NewCheckCmd() *cobra.Command {
-	var checkCmd = &cobra.Command{
+	checkCmd := &cobra.Command{
 		Use:   "check [<APPLICATION_NAME>]",
 		Short: "Check an application file for syntax errors",
 		Run:   RunModuleFunc(internalCheckModule),

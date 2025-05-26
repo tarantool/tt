@@ -12,5 +12,3 @@ fio.open('configured', 'O_CREAT'):close()
 while true do
     fiber.sleep(5)
 end
-
-

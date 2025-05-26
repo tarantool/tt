@@ -11,7 +11,8 @@ var getStatus = Status
 
 // extractInstanceNames returns the names of instances, that satisfy the filter.
 func extractInstanceNames(instances []InstanceCtx,
-	filter func(*InstanceCtx) bool) []string {
+	filter func(*InstanceCtx) bool,
+) []string {
 	validNames := make([]string, 0)
 	for _, instance := range instances {
 		if filter(&instance) {
@@ -24,7 +25,8 @@ func extractInstanceNames(instances []InstanceCtx,
 // extractAppNames returns the names of applications, that
 // have an instance, that satisfy the filter.
 func extractAppNames(instances []InstanceCtx,
-	filter func(*InstanceCtx) bool) []string {
+	filter func(*InstanceCtx) bool,
+) []string {
 	validAppNames := make([]string, 0)
 	isAnyValid := false
 	for i, instance := range instances {

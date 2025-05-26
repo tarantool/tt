@@ -21,7 +21,7 @@ func TestExtractTgz(t *testing.T) {
 	*/
 	stat, err := os.Stat(filepath.Join(tempDir, "test_archive", "file.sh"))
 	require.NoError(t, err)
-	assert.True(t, stat.Mode().Perm()&0100 != 0) // Executable bit is set.
+	assert.True(t, stat.Mode().Perm()&0o100 != 0) // Executable bit is set.
 	linkTarget, err := os.Readlink(filepath.Join(tempDir, "test_archive", "file_link"))
 	require.NoError(t, err)
 	assert.Equal(t, "file.sh", linkTarget)
@@ -33,6 +33,6 @@ func TestExtractTgzErrors(t *testing.T) {
 	tempDir := t.TempDir()
 	require.Error(t, ExtractTarGz("non_existing_file", tempDir))
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "text_file.tgz"), []byte("text"),
-		os.FileMode(0664)))
+		os.FileMode(0o664)))
 	require.Error(t, ExtractTarGz(filepath.Join(tempDir, "text_file.tgz"), tempDir))
 }

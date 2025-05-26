@@ -12,13 +12,11 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-var (
-	autoYes bool
-)
+var autoYes bool
 
 // NewRestartCmd creates start command.
 func NewRestartCmd() *cobra.Command {
-	var restartCmd = &cobra.Command{
+	restartCmd := &cobra.Command{
 		Use:   "restart [<APP_NAME> | <APP_NAME:INSTANCE_NAME>]",
 		Short: "Restart tarantool instance(s)",
 		Run:   RunModuleFunc(internalRestartModule),
@@ -26,7 +24,8 @@ func NewRestartCmd() *cobra.Command {
 		ValidArgsFunction: func(
 			cmd *cobra.Command,
 			args []string,
-			toComplete string) ([]string, cobra.ShellCompDirective) {
+			toComplete string,
+		) ([]string, cobra.ShellCompDirective) {
 			return internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,

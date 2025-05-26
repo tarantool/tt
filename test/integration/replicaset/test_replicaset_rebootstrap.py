@@ -7,35 +7,44 @@ from cartridge_helper import cartridge_name
 from replicaset_helpers import eval_on_instance
 from retry import retry
 
-from utils import (get_tarantool_version, lib_path, log_file, log_path,
-                   run_command_and_get_output, wait_string_in_file)
+from utils import (
+    get_tarantool_version,
+    lib_path,
+    log_file,
+    log_path,
+    run_command_and_get_output,
+    wait_string_in_file,
+)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@pytest.mark.skipif(tarantool_major_version > 2, reason="skip cartridge test for Tarantool > 2")
 def test_rebootstrap_cartridge_instance(tt_cmd, cartridge_app):
     inst_name = "s2-replica-1"
     lib_dir = Path(cartridge_app.workdir).joinpath(cartridge_name, lib_path, inst_name)
-    inst_log = os.path.join(cartridge_app.workdir, cartridge_name, log_path,
-                            inst_name, log_file)
+    inst_log = os.path.join(cartridge_app.workdir, cartridge_name, log_path, inst_name, log_file)
     wait_string_in_file(inst_log, "Backup of active config created")
     snaps = glob.glob((lib_dir / "*.snap").as_posix())
     assert len(snaps) > 0
 
-    @retry(Exception, tries=10, delay=1.)
+    @retry(Exception, tries=10, delay=1.0)
     def wait_for_buckets_count():
-        assert "true" in eval_on_instance(tt_cmd, cartridge_name, inst_name,
-                                          cartridge_app.workdir,
-                                          "require('vshard').storage.info().bucket.active > 0")
+        assert "true" in eval_on_instance(
+            tt_cmd,
+            cartridge_name,
+            inst_name,
+            cartridge_app.workdir,
+            "require('vshard').storage.info().bucket.active > 0",
+        )
+
     wait_for_buckets_count()
 
     oldSnapName = os.path.basename(snaps[0])
 
     os.remove(inst_log)
     rs_cmd = [tt_cmd, "-V", "replicaset", "rebootstrap", f"{cartridge_name}:{inst_name}"]
-    rs_rc, _ = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir, input='y\n')
+    rs_rc, _ = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir, input="y\n")
     assert rs_rc == 0
 
     wait_string_in_file(inst_log, "ConfiguringRoles -> RolesConfigured")
@@ -48,13 +57,15 @@ def test_rebootstrap_cartridge_instance(tt_cmd, cartridge_app):
     wait_for_buckets_count()
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip custom replicaset test for Tarantool > 2")
+@pytest.mark.skipif(
+    tarantool_major_version > 2,
+    reason="skip custom replicaset test for Tarantool > 2",
+)
 def test_rebootstrap_custom_replicaset(tt_cmd, tmp_path):
     tmp_path = tmp_path.joinpath("app")
     tmp_path.mkdir(0o755)
 
-    lua = '''box.cfg{
+    lua = """box.cfg{
     listen='localhost:%d',
     replication={
     'replicator:password@localhost:4401',
@@ -66,19 +77,21 @@ box.once("schema", function()
   box.schema.user.create('replicator', {password = 'password'})
   box.schema.user.grant('replicator', 'replication')
 end)
-'''
-    for data in [["leader.init.lua", 4401, "false"],
-                 ["s1.init.lua", 4402, "true"],
-                 ["s2.init.lua", 4403, "true"]]:
+"""
+    for data in [
+        ["leader.init.lua", 4401, "false"],
+        ["s1.init.lua", 4402, "true"],
+        ["s2.init.lua", 4403, "true"],
+    ]:
         with open(tmp_path.joinpath(data[0]), "w") as f:
             f.write(lua % (data[1], data[2]))
 
     with open(tmp_path.joinpath("instances.yml"), "w") as f:
-        f.write('''leader:
+        f.write("""leader:
 s1:
-s2:''')
+s2:""")
     with open(tmp_path.joinpath("tt.yml"), "w") as f:
-        f.write('''env:''')
+        f.write("""env:""")
 
     try:
         cmd = [tt_cmd, "start"]
@@ -112,8 +125,7 @@ s2:''')
         run_command_and_get_output([tt_cmd, "stop", "-y"], cwd=tmp_path)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cconfig test for Tarantool < 3")
+@pytest.mark.skipif(tarantool_major_version < 3, reason="skip cconfig test for Tarantool < 3")
 @pytest.mark.parametrize(
     "flags,input",
     [
@@ -149,16 +161,18 @@ def test_rebootstrap_cconfig_replicaset(tt_cmd, vshard_app, flags, input):
 
         @retry(Exception, tries=20, delay=0.5)
         def wait_for_buckets_count():
-            assert "1500" in vshard_app.eval(inst_name,
-                                             "require('vshard').storage.info().bucket.active")
+            assert "1500" in vshard_app.eval(
+                inst_name,
+                "require('vshard').storage.info().bucket.active",
+            )
+
         wait_for_buckets_count()
 
     finally:
         vshard_app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cconfig test for Tarantool < 3")
+@pytest.mark.skipif(tarantool_major_version < 3, reason="skip cconfig test for Tarantool < 3")
 def test_rebootstrap_not_confirmed(tt_cmd, vshard_app):
     try:
         vshard_app.start()
@@ -184,8 +198,7 @@ def test_rebootstrap_not_confirmed(tt_cmd, vshard_app):
         vshard_app.stop()
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cconfig test for Tarantool < 3")
+@pytest.mark.skipif(tarantool_major_version < 3, reason="skip cconfig test for Tarantool < 3")
 def test_rebootstrap_already_stopped(tt_cmd, vshard_app):
     try:
         vshard_app.start()
@@ -228,7 +241,7 @@ def test_rebootstrap_bad_cli_args(tt_cmd, vshard_app):
     rs_cmd = [tt_cmd, "replicaset", "rebootstrap", f"{vshard_app.app_name}:inst"]
     rs_rc, out = run_command_and_get_output(rs_cmd, cwd=vshard_app.env_dir)
     assert rs_rc != 0
-    assert "instance \"inst\" is not found" in out
+    assert 'instance "inst" is not found' in out
 
     # Non-existing app.
     rs_cmd = [tt_cmd, "replicaset", "rebootstrap", "app:inst"]

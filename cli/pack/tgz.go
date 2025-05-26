@@ -13,7 +13,7 @@ import (
 )
 
 // writeTgzArchive creates TGZ archive of specified path.
-func writeTgzArchive(srcDirPath string, destFilePath string, packCtx PackCtx) error {
+func writeTgzArchive(srcDirPath, destFilePath string, packCtx PackCtx) error {
 	destFile, err := os.Create(destFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create result TGZ file %s: %s", destFilePath, err)
@@ -33,7 +33,8 @@ func writeTgzArchive(srcDirPath string, destFilePath string, packCtx PackCtx) er
 // WriteTarArchive creates Tar archive of specified path
 // using specified writer
 func WriteTarArchive(srcDirPath string, compressWriter io.Writer,
-	pkgFiles map[string]packFileInfo) error {
+	pkgFiles map[string]packFileInfo,
+) error {
 	tarWriter := tar.NewWriter(compressWriter)
 	defer tarWriter.Close()
 
@@ -97,7 +98,7 @@ func WriteTarArchive(srcDirPath string, compressWriter io.Writer,
 }
 
 // CompressGzip compresses specified file with gzip.BestCompression level.
-func CompressGzip(srcFilePath string, destFilePath string) error {
+func CompressGzip(srcFilePath, destFilePath string) error {
 	// Src file reader.
 	srcFileReader, err := os.Open(srcFilePath)
 	if err != nil {

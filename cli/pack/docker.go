@@ -31,7 +31,8 @@ func getVersionStringForInstall(tntVersion version.Version) string {
 
 // getTarantoolVersionForInstall returns tarantool version to use for install in docker.
 func getTarantoolVersionForInstall(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) (
-	tntVersion version.Version, err error) {
+	tntVersion version.Version, err error,
+) {
 	if packCtx.TarantoolVersion != "" {
 		tntVersion, err = version.Parse(packCtx.TarantoolVersion)
 		if err != nil {
@@ -47,7 +48,8 @@ func getTarantoolVersionForInstall(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) 
 
 // PackInDocker runs tt pack in docker container.
 func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
-	opts config.CliOpts, cmdArgs []string) error {
+	opts config.CliOpts, cmdArgs []string,
+) error {
 	tmpDir, err := os.MkdirTemp("", "docker_pack_ctx")
 	if err != nil {
 		return err
@@ -77,7 +79,7 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	// Write docker file (rw-rw-r-- permissions).
 	if err = os.WriteFile(filepath.Join(tmpDir, "Dockerfile"),
 		[]byte(dockerfileText),
-		0664); err != nil {
+		0o664); err != nil {
 		return err
 	}
 
@@ -100,11 +102,13 @@ func PackInDocker(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	// If bin_dir is not empty, we need to pack binaries built in container.
 	relEnvBinPath := configure.BinPath
-	ttPackCommandLine = []string{"/bin/bash", "-c",
+	ttPackCommandLine = []string{
+		"/bin/bash", "-c",
 		fmt.Sprintf(`mkdir ./%[1]s && cp $(which tarantool) ./%[1]s/ && \
 	cp $(which tt) ./%[1]s/ && mkdir ./include/ && \
 	cp -r /usr/local/include ./include/ && \
-	%[2]s`, relEnvBinPath, strings.Join(ttPackCommandLine, " "))}
+	%[2]s`, relEnvBinPath, strings.Join(ttPackCommandLine, " ")),
+	}
 
 	// Get a pack context for preparing a bundle without binaries.
 	// All binary files will be taken from the docker image.

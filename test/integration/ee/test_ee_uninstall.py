@@ -26,13 +26,11 @@ def assert_no_extra_in_rest_files(dir: Path, rest_files: dict[str, str]) -> None
         if file.is_symlink():
             # Check that the symlink points to the correct target
             target = file.resolve().name
-            assert (
-                target == expected
-            ), f"Symlink {file.name} points to {target}, expected {expected}"
+            assert target == expected, (
+                f"Symlink {file.name} points to {target}, expected {expected}"
+            )
 
-    assert (
-        len(rest_files) == 0
-    ), f"Missing expected files: {', '.join(rest_files.keys())}"
+    assert len(rest_files) == 0, f"Missing expected files: {', '.join(rest_files.keys())}"
 
 
 @pytest.mark.parametrize(
@@ -207,8 +205,7 @@ def test_uninstall_no_version(tt_cmd: Path, tmp_path: Path, program: str) -> Non
 
     assert rc == 1
     assert (
-        f"⨯ {program} has more than one installed version, "
-        "please specify the version to uninstall"
+        f"⨯ {program} has more than one installed version, please specify the version to uninstall"
     ) in output
 
 
@@ -233,6 +230,5 @@ def test_uninstall_no_active(tt_cmd: Path, tmp_path: Path, program: str) -> None
 
     assert rc == 1
     assert (
-        f"⨯ {program} has more than one installed version, "
-        "please specify the version to uninstall"
+        f"⨯ {program} has more than one installed version, please specify the version to uninstall"
     ) in output

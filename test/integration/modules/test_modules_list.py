@@ -1,5 +1,4 @@
-from utils import (create_external_module, create_tt_config,
-                   run_command_and_get_output)
+from utils import create_external_module, create_tt_config, run_command_and_get_output
 
 
 def test_show_available_modules(tt_cmd, tmp_path):
@@ -35,7 +34,9 @@ def test_show_available_modules_with_env(tt_cmd, tmp_path):
         create_external_module(module, tmp_path / "ext_modules")
 
     rc, output = run_command_and_get_output(
-        tt_cmd, cwd=cfg_dir, env={"TT_CLI_MODULES_PATH": str(tmp_path / "ext_modules")}
+        tt_cmd,
+        cwd=cfg_dir,
+        env={"TT_CLI_MODULES_PATH": str(tmp_path / "ext_modules")},
     )
     assert rc == 0
     assert "EXTERNAL COMMANDS" in output

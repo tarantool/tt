@@ -51,7 +51,7 @@ func TestBuildImageFail(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, dockerFileName),
 		[]byte(`FROM ubuntu:16.04
 	COPY /non-existing-file /
-	`), 0664))
+	`), 0o664))
 
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv,
 		client.WithAPIVersionNegotiation())
@@ -149,7 +149,7 @@ func TestRunContainer(t *testing.T) {
 func TestRunContainerInvalidDockerfile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, dockerFileName), []byte("Foo"), 0664))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, dockerFileName), []byte("Foo"), 0o664))
 
 	err := RunContainer(RunOptions{
 		BuildCtxDir: tmpDir,

@@ -82,7 +82,8 @@ func genConsoleTitle(connOpts connector.ConnectOpts, connCtx ConnectCtx) string 
 
 // NewConsole creates a new console connected to the tarantool instance.
 func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title string) (*Console,
-	error) {
+	error,
+) {
 	console := &Console{
 		title:    title,
 		connOpts: connOpts,
@@ -232,8 +233,10 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		var results []string
 		needMetaInfo := console.format == formatter.TableFormat ||
 			console.format == formatter.TTableFormat
-		args := []interface{}{console.input, console.language == SQLLanguage,
-			needMetaInfo}
+		args := []interface{}{
+			console.input, console.language == SQLLanguage,
+			needMetaInfo,
+		}
 		opts := connector.RequestOpts{
 			PushCallback: func(pushedData interface{}) {
 				encodedData, err := yaml.Marshal(pushedData)

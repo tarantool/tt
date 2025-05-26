@@ -39,7 +39,8 @@ func filterComments(script string) string {
 
 // Downgrade downgrades tarantool schema.
 func Downgrade(discoveryCtx DiscoveryCtx, opts DowngradeOpts,
-	connOpts connector.ConnectOpts) error {
+	connOpts connector.ConnectOpts,
+) error {
 	replicasets, err := getReplicasets(discoveryCtx)
 	if err != nil {
 		return err
@@ -57,7 +58,8 @@ func Downgrade(discoveryCtx DiscoveryCtx, opts DowngradeOpts,
 }
 
 func internalDowngrade(replicasets []replicaset.Replicaset, lsnTimeout int, version string,
-	connOpts connector.ConnectOpts) error {
+	connOpts connector.ConnectOpts,
+) error {
 	for _, replicaset := range replicasets {
 		err := downgradeReplicaset(replicaset, lsnTimeout, version, connOpts)
 		if err != nil {
@@ -95,7 +97,8 @@ func downgradeMaster(master *instanceMeta, version string) (syncInfo, error) {
 }
 
 func downgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int, version string,
-	connOpts connector.ConnectOpts) error {
+	connOpts connector.ConnectOpts,
+) error {
 	master, replicas, err := collectRWROInfo(replicaset, connOpts)
 	if err != nil {
 		return err

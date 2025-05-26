@@ -71,10 +71,10 @@ func TestParseDependenciesFromFile(t *testing.T) {
 			require.Contains(t, err.Error(), testCase.expectedError.Error())
 		}
 
-		for i, _ := range testCase.expectedDeps {
+		for i := range testCase.expectedDeps {
 			require.Equal(t, testCase.expectedDeps[i].Name, deps[i].Name)
 			require.Equal(t, len(testCase.expectedDeps[i].Relations), len(deps[i].Relations))
-			for j, _ := range testCase.expectedDeps[i].Relations {
+			for j := range testCase.expectedDeps[i].Relations {
 				require.Equal(t, testCase.expectedDeps[i].Relations[j].Relation,
 					deps[i].Relations[j].Relation)
 				require.Equal(t, testCase.expectedDeps[i].Relations[j].Version,
@@ -174,7 +174,7 @@ func TestParseDependencies(t *testing.T) {
 			deps, err := parseDependencies(testCase.deps)
 			require.Truef(t, testCase.correctError(err), "wrong error caught: %v", err)
 
-			for i, _ := range deps {
+			for i := range deps {
 				require.Equalf(t, testCase.expectedDeps[i].Name, deps[i].Name,
 					"wrong dependency name, expected: %s, got: %s",
 					testCase.expectedDeps[i].Name, deps[i].Name)

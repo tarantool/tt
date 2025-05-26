@@ -88,7 +88,7 @@ def replace_prog(prog: Path, version: str) -> None:
         p.write(
             f"""#!/bin/sh
 echo '{version}'
-"""
+""",
         )
     prog.chmod(0o750)
 
@@ -97,9 +97,7 @@ def test_list_tarantool_no_symlink(tt_cmd, tmp_path):
     # Copy the test bin_dir to the "run" directory.
     copytree(DATA_DIR / "list", tmp_path, symlinks=True, dirs_exist_ok=True)
 
-    replace_prog(
-        tmp_path / "bin" / "tarantool", "Tarantool 3.1.0-entrypoint-83-gcb0264c3c"
-    )
+    replace_prog(tmp_path / "bin" / "tarantool", "Tarantool 3.1.0-entrypoint-83-gcb0264c3c")
 
     # Print binaries
     rc, output = run_command_and_get_output([tt_cmd, "binaries", "list"], cwd=tmp_path)

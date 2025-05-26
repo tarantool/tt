@@ -182,7 +182,8 @@ groups:
 					"unexpected value \"123\" of type int, expected boolean",
 				"an invalid instance \"c2\" configuration: " +
 					"invalid path \"audit_log.nonblock\": " +
-					"unexpected value \"123\" of type int, expected boolean"},
+					"unexpected value \"123\" of type int, expected boolean",
+			},
 		},
 		{
 			Name: "valid fields with env not full",

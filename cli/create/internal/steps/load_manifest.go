@@ -12,8 +12,7 @@ import (
 )
 
 // LoadManifest represents manifest load step.
-type LoadManifest struct {
-}
+type LoadManifest struct{}
 
 // Run loads template manifest. Missing manifest is not an error.
 func (LoadManifest) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx) error {

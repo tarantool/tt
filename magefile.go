@@ -119,7 +119,6 @@ func applyPatch(path string) error {
 	out, err := sh.Output(
 		"patch", "-d", cartridgePath, "-N", "-p1", "--dry-run", "-V", "none", "-i", path,
 	)
-
 	// If an error is returned, one of two things has happened:
 	// the patch has already been applied or an error has occurred.
 	if err != nil {
@@ -284,8 +283,16 @@ func CheckLicenses() error {
 	return nil
 }
 
+type Lint mg.Namespace
+
 // Run golang and python linters.
-func Lint() error {
+func (Lint) Full() error {
+	mg.Deps(Lint.Golang, Lint.Python)
+	return nil
+}
+
+// Run golang linters.
+func (Lint) Golang() error {
 	fmt.Println("Running golangci-lint...")
 
 	mg.Deps(PatchCC)
@@ -305,10 +312,14 @@ func Lint() error {
 		}
 		os.Chdir(root)
 	}
+	return nil
+}
 
-	fmt.Println("Running flake8...")
+// Run python linters.
+func (Lint) Python() error {
+	fmt.Println("Running Ruff...")
 
-	if err := sh.RunV(pythonExecutableName, "-m", "flake8", "test"); err != nil {
+	if err := sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test"); err != nil {
 		return err
 	}
 
@@ -371,7 +382,7 @@ func (Unit) Coverage() error {
 	coverageDirInfo, err := os.Stat(coverDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(coverDir, 0750); err != nil {
+			if err := os.MkdirAll(coverDir, 0o750); err != nil {
 				return err
 			}
 		} else {
@@ -386,7 +397,8 @@ func (Unit) Coverage() error {
 	err = runUnitTests([]string{
 		"-tags", "integration,integration_docker",
 		"-cover",
-		"-args", fmt.Sprintf(`-test.gocoverdir=%s`, coverDir)})
+		"-args", fmt.Sprintf(`-test.gocoverdir=%s`, coverDir),
+	})
 	if err != nil {
 		return err
 	}
@@ -450,12 +462,12 @@ func Codespell() error {
 
 // Run all tests together, excluding slow and unit integration tests.
 func Test() {
-	mg.SerialDeps(Lint, CheckLicenses, Unit.Default, Integration)
+	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Default, Integration)
 }
 
 // Run all tests together.
 func TestFull() {
-	mg.SerialDeps(Lint, CheckLicenses, Unit.Full, IntegrationFull)
+	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Full, IntegrationFull)
 }
 
 // Cleanup directory.
@@ -482,7 +494,6 @@ func Generate() error {
 // GenerateGoCode generates code from lua files.
 func GenerateGoCode() error {
 	err := sh.RunWith(getBuildEnvironment(), goExecutableName, "run", generateModePath)
-
 	if err != nil {
 		return err
 	}

@@ -8,13 +8,11 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 )
 
-var (
-	rawDump bool
-)
+var rawDump bool
 
 // NewDumpCmd creates a new dump command.
 func NewDumpCmd() *cobra.Command {
-	var dumpCmd = &cobra.Command{
+	dumpCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "Print environment configuration",
 		Run:   RunModuleFunc(internalDumpModule),

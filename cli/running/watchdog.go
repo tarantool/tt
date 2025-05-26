@@ -56,7 +56,8 @@ type Watchdog struct {
 // NewWatchdog creates a new instance of Watchdog.
 func NewWatchdog(restartable bool, restartTimeout time.Duration, logger ttlog.Logger,
 	provider Provider, preStartAction func() error,
-	integrityCtx integrity.IntegrityCtx, integrityCheckPeriod time.Duration) *Watchdog {
+	integrityCtx integrity.IntegrityCtx, integrityCheckPeriod time.Duration,
+) *Watchdog {
 	wd := Watchdog{
 		instance:             nil,
 		logger:               logger,
@@ -64,7 +65,8 @@ func NewWatchdog(restartable bool, restartTimeout time.Duration, logger ttlog.Lo
 		provider:             provider,
 		preStartAction:       preStartAction,
 		integrityCtx:         integrityCtx,
-		integrityCheckPeriod: integrityCheckPeriod}
+		integrityCheckPeriod: integrityCheckPeriod,
+	}
 
 	return &wd
 }

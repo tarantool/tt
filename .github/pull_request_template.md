@@ -20,4 +20,4 @@ Closes #XXX
 [go-testing]: https://pkg.go.dev/testing
 [how-to-write-commit]: https://www.tarantool.io/en/doc/latest/contributing/developer_guidelines/#how-to-write-a-commit-message
 [keepachangelog]: https://keepachangelog.com/en/1.0.0/
-[tarantoolbot-example]: https://github.com/tarantool/tt/pull/1030/commits 
+[tarantoolbot-example]: https://github.com/tarantool/tt/pull/1030/commits

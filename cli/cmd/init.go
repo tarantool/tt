@@ -15,7 +15,7 @@ var initCtx init_pkg.InitCtx
 // application found in working dir. It there is no app in current directory, default version
 // of tt.yaml will be generated.
 func NewInitCmd() *cobra.Command {
-	var initCmd = &cobra.Command{
+	initCmd := &cobra.Command{
 		Use:   "init [flags]",
 		Short: "Create tt environment config for application in current directory",
 		Run:   RunModuleFunc(internalInitModule),

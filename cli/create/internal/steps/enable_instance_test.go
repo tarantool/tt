@@ -19,13 +19,13 @@ func TestEnableInstance(t *testing.T) {
 
 	tempDir := t.TempDir()
 	appPath := filepath.Join(tempDir, "app")
-	require.NoError(t, os.Mkdir(appPath, 0750))
+	require.NoError(t, os.Mkdir(appPath, 0o750))
 	instEnabledPath := filepath.Join(tempDir, "instances.enabled")
-	require.NoError(t, os.Mkdir(instEnabledPath, 0750))
+	require.NoError(t, os.Mkdir(instEnabledPath, 0o750))
 
 	createCtx.AppName = "app"
 	templateCtx.TargetAppPath = appPath
-	var enableInstance = CreateAppSymlink{instEnabledPath}
+	enableInstance := CreateAppSymlink{instEnabledPath}
 	require.NoError(t, enableInstance.Run(&createCtx, &templateCtx))
 	assert.FileExists(t, filepath.Join(instEnabledPath, "app"))
 	targetPath, err := os.Readlink(filepath.Join(instEnabledPath, "app"))
@@ -40,11 +40,11 @@ func TestEnableInstanceMissingTarget(t *testing.T) {
 	tempDir := t.TempDir()
 	appPath := filepath.Join(tempDir, "app")
 	instEnabledPath := filepath.Join(tempDir, "instances.enabled")
-	require.NoError(t, os.Mkdir(instEnabledPath, 0750))
+	require.NoError(t, os.Mkdir(instEnabledPath, 0o750))
 
 	createCtx.AppName = "app"
 	templateCtx.TargetAppPath = appPath
-	var enableInstance = CreateAppSymlink{instEnabledPath}
+	enableInstance := CreateAppSymlink{instEnabledPath}
 	require.NoError(t, enableInstance.Run(&createCtx, &templateCtx))
 	assert.FileExists(t, filepath.Join(instEnabledPath, "app"))
 	targetPath, err := os.Readlink(filepath.Join(instEnabledPath, "app"))
@@ -58,12 +58,12 @@ func TestEnableInstanceMissingInstanceEnabledDir(t *testing.T) {
 
 	tempDir := t.TempDir()
 	appPath := filepath.Join(tempDir, "app")
-	require.NoError(t, util.CreateDirectory(appPath, fs.FileMode(0750)))
+	require.NoError(t, util.CreateDirectory(appPath, fs.FileMode(0o750)))
 	instEnabledPath := filepath.Join(tempDir, "instances.enabled")
 
 	createCtx.AppName = "app"
 	templateCtx.TargetAppPath = appPath
-	var enableInstance = CreateAppSymlink{instEnabledPath}
+	enableInstance := CreateAppSymlink{instEnabledPath}
 	require.NoError(t, enableInstance.Run(&createCtx, &templateCtx))
 	// Check instances enabled directory is created.
 	require.DirExists(t, instEnabledPath)
@@ -79,12 +79,12 @@ func TestEnableInstanceCurrentDirApp(t *testing.T) {
 
 	tempDir := t.TempDir()
 	appPath := filepath.Join(tempDir, "app")
-	require.NoError(t, os.Mkdir(appPath, 0750))
+	require.NoError(t, os.Mkdir(appPath, 0o750))
 	instEnabledPath := filepath.Join(tempDir, ".")
 
 	createCtx.AppName = "app"
 	templateCtx.TargetAppPath = appPath
-	var enableInstance = CreateAppSymlink{instEnabledPath}
+	enableInstance := CreateAppSymlink{instEnabledPath}
 	require.NoError(t, enableInstance.Run(&createCtx, &templateCtx))
 	assert.NoFileExists(t, filepath.Join(instEnabledPath, "app"))
 }

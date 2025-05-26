@@ -16,12 +16,12 @@ func Test_NewConfig(t *testing.T) {
 
 func TestConfig_Set(t *testing.T) {
 	paths := [][][]string{
-		[][]string{nil},
-		[][]string{[]string{}},
-		[][]string{[]string{"foo"}},
-		[][]string{[]string{"foo", "bar"}},
-		[][]string{[]string{"foo", "bar"}, []string{"foo", "zoo"}},
-		[][]string{[]string{"foo", "bar", "baz"}, []string{"foo", "zoo"}},
+		{nil},
+		{{}},
+		{{"foo"}},
+		{{"foo", "bar"}},
+		{{"foo", "bar"}, {"foo", "zoo"}},
+		{{"foo", "bar", "baz"}, {"foo", "zoo"}},
 	}
 
 	for _, p := range paths {
@@ -72,9 +72,9 @@ func TestConfig_Set_config(t *testing.T) {
 func TestConfig_Set_intersection(t *testing.T) {
 	base := [][]string{
 		nil,
-		[]string{},
-		[]string{"foo"},
-		[]string{"foo", "bar"},
+		{},
+		{"foo"},
+		{"foo", "bar"},
 	}
 	add := "zoo"
 
@@ -166,10 +166,10 @@ func TestConfig_Elems_not_map(t *testing.T) {
 
 func TestConfig_ForEach_nil(t *testing.T) {
 	paths := [][]string{
-		[]string{"foo", "bar"},
-		[]string{"foo", "car"},
-		[]string{"foo", "zoo", "nar"},
-		[]string{"foo", "har", "mar", "nar"},
+		{"foo", "bar"},
+		{"foo", "car"},
+		{"foo", "zoo", "nar"},
+		{"foo", "har", "mar", "nar"},
 	}
 	c := cluster.NewConfig()
 	for _, p := range paths {
@@ -187,10 +187,10 @@ func TestConfig_ForEach_nil(t *testing.T) {
 
 func TestConfig_ForEach_path(t *testing.T) {
 	paths := [][]string{
-		[]string{"foo", "bar"},
-		[]string{"foo", "car"},
-		[]string{"foo", "zoo", "nar"},
-		[]string{"foo", "zoo", "mar", "nar"},
+		{"foo", "bar"},
+		{"foo", "car"},
+		{"foo", "zoo", "nar"},
+		{"foo", "zoo", "mar", "nar"},
 	}
 	c := cluster.NewConfig()
 	for _, p := range paths {
@@ -199,8 +199,8 @@ func TestConfig_ForEach_path(t *testing.T) {
 	}
 
 	expected := [][]string{
-		[]string{"foo", "zoo", "nar"},
-		[]string{"foo", "zoo", "mar", "nar"},
+		{"foo", "zoo", "nar"},
+		{"foo", "zoo", "mar", "nar"},
 	}
 	foreachPaths := [][]string{}
 	c.ForEach([]string{"foo", "zoo"}, func(path []string, value any) {

@@ -97,7 +97,8 @@ func publishCtxValidateConfig(publishCtx PublishCtx, instance string) error {
 // setInstanceConfig sets an instance configuration in the collected
 // cluster configuration and republishes it.
 func setInstanceConfig(group, replicaset, instance string, config *libcluster.Config,
-	collector libcluster.Collector, publisher libcluster.DataPublisher) error {
+	collector libcluster.Collector, publisher libcluster.DataPublisher,
+) error {
 	src, err := collector.Collect()
 	if err != nil {
 		return fmt.Errorf("failed to get a cluster configuration to update "+

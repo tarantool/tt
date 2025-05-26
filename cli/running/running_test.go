@@ -98,7 +98,7 @@ func Test_CollectInstances(t *testing.T) {
 	// Error cases.
 	tmpDir := t.TempDir()
 	instancesEnabledPath = filepath.Join(tmpDir, "instances.enabled")
-	require.NoError(t, os.Mkdir(instancesEnabledPath, 0755))
+	require.NoError(t, os.Mkdir(instancesEnabledPath, 0o755))
 
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
@@ -108,7 +108,7 @@ func Test_CollectInstances(t *testing.T) {
 	assert.Equal(t, 0, len(instances))
 
 	err = os.WriteFile(filepath.Join(instancesEnabledPath, "script.lua"),
-		[]byte("print(42)"), 0644)
+		[]byte("print(42)"), 0o644)
 	require.NoError(t, err)
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
@@ -117,14 +117,14 @@ func Test_CollectInstances(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 
-	require.NoError(t, os.Chmod(instancesEnabledPath, 0666))
+	require.NoError(t, os.Chmod(instancesEnabledPath, 0o666))
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	assert.ErrorContains(t, err, "script.lua: permission denied")
 	assert.Equal(t, 1, len(instances))
-	require.NoError(t, os.Chmod(instancesEnabledPath, 0755))
+	require.NoError(t, os.Chmod(instancesEnabledPath, 0o755))
 }
 
 func Test_CollectInstancesInstanceScript(t *testing.T) {
@@ -133,10 +133,10 @@ func Test_CollectInstancesInstanceScript(t *testing.T) {
 	}
 	tmpDir := t.TempDir()
 	instancesEnabledPath := filepath.Join(tmpDir, "instances.enabled")
-	require.NoError(t, os.Mkdir(instancesEnabledPath, 0755))
+	require.NoError(t, os.Mkdir(instancesEnabledPath, 0o755))
 
 	err := os.WriteFile(filepath.Join(instancesEnabledPath, "script.lua"),
-		[]byte("print(42)"), 0644)
+		[]byte("print(42)"), 0o644)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -145,25 +145,25 @@ func Test_CollectInstancesInstanceScript(t *testing.T) {
 		err    string
 	}{
 		{
-			access: 0666,
+			access: 0o666,
 			mode:   ConfigLoadAll,
 			err:    "script.lua: permission denied",
 		},
 		{
-			access: 0666,
+			access: 0o666,
 			mode:   ConfigLoadScripts,
 			err:    "script.lua: permission denied",
 		},
 		{
-			access: 0755,
+			access: 0o755,
 			mode:   ConfigLoadSkip,
 		},
 		{
-			access: 0755,
+			access: 0o755,
 			mode:   ConfigLoadCluster,
 		},
 		{
-			access: 0755,
+			access: 0o755,
 			mode:   ConfigLoadAll,
 		},
 	}
@@ -181,7 +181,7 @@ func Test_CollectInstancesInstanceScript(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, 1, len(instances))
 			}
-			require.NoError(t, os.Chmod(instancesEnabledPath, 0755))
+			require.NoError(t, os.Chmod(instancesEnabledPath, 0o755))
 		})
 	}
 }
@@ -355,7 +355,7 @@ func TestIsAbleToStartInstances(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tmpDir, "tnt.sh"),
 		[]byte(`#!/bin/bash
 echo "Tarantool 2.11.0"`),
-		0755)
+		0o755)
 	require.NoError(t, err)
 
 	canStart, _ := IsAbleToStartInstances([]InstanceCtx{
@@ -388,7 +388,7 @@ echo "Tarantool 2.11.0"`),
 
 	err = os.WriteFile(filepath.Join(tmpDir, "tnt_non_executable.sh"),
 		[]byte(`#!/bin/bash
-echo "Tarantool 2.11.0"`), 0644)
+echo "Tarantool 2.11.0"`), 0o644)
 	require.NoError(t, err)
 	canStart, reason = IsAbleToStartInstances([]InstanceCtx{
 		{
@@ -510,7 +510,6 @@ func TestGetAppPath(t *testing.T) {
 		AppDir:         "/path/to/app/",
 		SingleApp:      false,
 	}))
-
 }
 
 func TestGetClusterConfigPath(t *testing.T) {

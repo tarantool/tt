@@ -87,7 +87,7 @@ groups:
                   uri: 'http://localhost:50051'
                 advertise:
                   uri: 'http://localhost:50051'
-                  params: 
+                  params:
                     transport: 'ssl'
             iproto:
               listen:
