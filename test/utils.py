@@ -1,6 +1,7 @@
 import glob
 import ipaddress
 import os
+import platform
 import re
 import shutil
 import socket
@@ -566,11 +567,6 @@ def is_tarantool_ee():
     return False
 
 
-def skip_if_tarantool_ce():
-    if not is_tarantool_ee():
-        pytest.skip("Tarantool Enterprise required")
-
-
 def is_quit_supported():
     major, minor = get_tarantool_version()
     return major >= 2
@@ -599,24 +595,47 @@ def is_tarantool_major_one():
     return major == 1
 
 
-def skip_if_quit_unsupported():
-    if not is_quit_supported():
-        pytest.skip("\\q is unsupported")
+def is_raft_supported():
+    major, minor = get_tarantool_version()
+    return major >= 2
 
 
-def skip_if_cluster_app_unsupported():
-    if not is_cluster_app_supported():
-        pytest.skip("Tarantool 3.0 or above required")
-
-
-def skip_if_tuple_format_supported():
-    if is_tuple_format_supported():
-        pytest.skip("Tuple format is supported")
-
-
-def skip_if_tuple_format_unsupported():
-    if not is_tuple_format_supported():
-        pytest.skip("Tuple format is unsupported")
+skipif_tarantool_ce = pytest.mark.skipif(
+    not is_tarantool_ee(),
+    reason="Tarantool Enterprise required",
+)
+skipif_quit_unsupported = pytest.mark.skipif(
+    not is_quit_supported(),
+    reason="\\q is unsupported",
+)
+skipif_cluster_app_supported = pytest.mark.skipif(
+    is_cluster_app_supported(),
+    reason="cluster config should not be supported",
+)
+skipif_cluster_app_unsupported = pytest.mark.skipif(
+    not is_cluster_app_supported(),
+    reason="Tarantool 3.0 or above required",
+)
+skipif_tuple_format_supported = pytest.mark.skipif(
+    is_tuple_format_supported(),
+    reason="tuple format is supported",
+)
+skipif_tuple_format_unsupported = pytest.mark.skipif(
+    not is_tuple_format_supported(),
+    reason="tuple format is unsupported",
+)
+skipif_cartridge_unsupported = pytest.mark.skipif(
+    not is_tarantool_less_3(),
+    reason="cartridge is not supported since Tarantool v3.0",
+)
+skipif_raft_unsupported = pytest.mark.skipif(
+    not is_raft_supported(),
+    reason="raft mode is not supported in Tarantool v1.x",
+)
+skipif_macos = pytest.mark.skipif(
+    platform.system() == "Darwin",
+    reason="platform is unsupported",
+)
 
 
 @retry(Exception, tries=40, delay=0.5)

@@ -8,6 +8,7 @@ import time
 import pytest
 import tarantool
 
+import utils
 from utils import (control_socket, extract_status, get_tarantool_version,
                    pid_file, run_command_and_get_output, run_path, wait_file)
 
@@ -93,8 +94,7 @@ def wait_instance_status(tt_cmd, tmpdir, full_inst_name, status, port=None, time
         time.sleep(1)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
@@ -162,8 +162,7 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, tmpdir)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_t3_instance_names_no_config(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "../running/multi_inst_app")
     instances = ["router", "master", "replica", "stateboard"]
@@ -227,8 +226,7 @@ def test_t3_instance_names_no_config(tt_cmd):
                 stop_application(tt_cmd, "app", test_app_path)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_t3_no_instance_names_no_config(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "single_app"
@@ -296,8 +294,7 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, tmpdir)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="skip cartridge test for Tarantool > 2")
+@utils.skipif_cartridge_unsupported
 def test_status_cartridge(tt_cmd, cartridge_app):
     rs_cmd = [tt_cmd, "status"]
 

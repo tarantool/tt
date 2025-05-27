@@ -9,10 +9,7 @@ from integration.replicaset.replicaset_helpers import (
     get_group_by_replicaset_name, get_group_replicaset_by_instance_name,
     parse_status, parse_yml, start_application, stop_application)
 
-from utils import get_tarantool_version, read_kv, run_command_and_get_output
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
-
+import utils
 
 TEST_ROLES_REMOVE_PARAMS_CCONFIG = ("role_name, inst, inst_flg, group, rs, is_uri, is_global,"
                                     " err_msg, stop_instance, is_force, patch_cfg_content")
@@ -50,13 +47,12 @@ def make_test_roles_remove_param(
 def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
     cmd = [tt_cmd, "rs", "roles", "remove"]
     cmd.extend(args)
-    rc, out = run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
+    rc, out = utils.run_command_and_get_output(cmd, cwd=tmpdir_with_cfg)
     assert rc != 0
     assert err_msg in out
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize(TEST_ROLES_REMOVE_PARAMS_CCONFIG, [
     make_test_roles_remove_param(
         False,
@@ -191,7 +187,7 @@ def test_replicaset_cconfig_roles_remove(
         with open(os.path.join(app_path, "config.yaml"), 'a') as f:
             f.write(patch_cfg_content)
 
-    kv = read_kv(app_path)
+    kv = utils.read_kv(app_path)
     instances = parse_yml(kv["instances"]).keys()
 
     try:
@@ -199,7 +195,7 @@ def test_replicaset_cconfig_roles_remove(
 
         if stop_instance:
             stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_instance}"]
-            rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
+            rc, _ = utils.run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
             assert rc == 0
 
         flags = []
@@ -223,10 +219,10 @@ def test_replicaset_cconfig_roles_remove(
                           if not is_uri else uri), role_name]
         if len(flags) != 0:
             roles_add_cmd.extend(flags)
-        rc, out = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
+        rc, out = utils.run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
         if err_msg == "":
             assert rc == 0
-            kv = read_kv(app_path)
+            kv = utils.read_kv(app_path)
             cluster_cfg = parse_yml(kv["config"])
             if is_global:
                 assert "Remove role from global scope"
@@ -254,8 +250,7 @@ def test_replicaset_cconfig_roles_remove(
                          force=True if stop_instance else False)
 
 
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge tests for Tarantool 3.0")
+@utils.skipif_cartridge_unsupported
 @pytest.mark.parametrize(TEST_ROLES_REMOVE_PARAMS_CARTRIDGE, [
     make_test_roles_remove_param(
         True,
@@ -362,7 +357,7 @@ def test_replicaset_cartridge_roles_remove(tt_cmd,
         roles_add_cmd.append("--custom")
     roles_add_cmd.extend([cartridge_name if not is_uri else uri, role_name])
     roles_add_cmd.extend(flags)
-    rc, out = run_command_and_get_output(roles_add_cmd, cwd=cartridge_app.workdir)
+    rc, out = utils.run_command_and_get_output(roles_add_cmd, cwd=cartridge_app.workdir)
 
     if err_msg == "":
         assert rc == 0
@@ -382,7 +377,7 @@ def test_replicaset_cartridge_roles_remove(tt_cmd,
         assert "Done." in buf.readline()
 
         status_cmd = [tt_cmd, "rs", "status", cartridge_name]
-        rc, out = run_command_and_get_output(status_cmd, cwd=cartridge_app.workdir)
+        rc, out = utils.run_command_and_get_output(status_cmd, cwd=cartridge_app.workdir)
         assert rc == 0
 
         # Check status if there are roles left.

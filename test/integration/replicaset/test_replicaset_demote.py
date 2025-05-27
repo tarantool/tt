@@ -6,13 +6,11 @@ import pytest
 from replicaset_helpers import (box_ctl_promote, parse_status,
                                 start_application, stop_application)
 
-from utils import get_tarantool_version, run_command_and_get_output
+import utils
+from utils import run_command_and_get_output
 
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
-
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize("force", [False, True])
 def test_demote_cconfig_failover_off(tt_cmd, tmpdir_with_cfg, force):
     tmpdir = tmpdir_with_cfg
@@ -59,8 +57,7 @@ def test_demote_cconfig_failover_off(tt_cmd, tmpdir_with_cfg, force):
         stop_application(tt_cmd, app_name, tmpdir, instances)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_demote_cconfig_failover_election(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_failovers"
@@ -100,8 +97,7 @@ def test_demote_cconfig_failover_election(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, tmpdir, instances)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize("instances, inst_name, err_text, stop_inst", [
     pytest.param(
         ["manual-failover-1", "manual-failover-2"],

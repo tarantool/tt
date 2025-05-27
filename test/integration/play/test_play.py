@@ -8,11 +8,11 @@ import pytest
 from integration.connect.test_connect import (start_app, stop_app,
                                               try_execute_on_instance)
 
+import utils
 from utils import (BINARY_PORT_NAME, TarantoolTestInstance, control_socket,
                    create_tt_config, get_tarantool_version, initial_snap,
                    initial_xlog, lib_path, run_command_and_get_output,
-                   run_path, skip_if_cluster_app_unsupported,
-                   skip_if_tarantool_ce, wait_file)
+                   run_path, wait_file)
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 
@@ -271,10 +271,10 @@ def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
     assert "application binary port does not exist" in cmd_output
 
 
+@utils.skipif_cluster_app_unsupported
 def test_play_to_cluster_app(tt_cmd):
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
-    skip_if_cluster_app_unsupported()
 
     empty_file = "empty.lua"
     app_name = "test_simple_cluster_app"
@@ -321,11 +321,10 @@ def test_play_to_cluster_app(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
+@utils.skipif_tarantool_ce
 @pytest.mark.skipif(tarantool_major_version == 1,
                     reason="skip TLS test for Tarantool 1.0")
 def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
-    skip_if_tarantool_ce()
-
     tmpdir = tmpdir_with_cfg
     # The test application file.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_ssl_app")

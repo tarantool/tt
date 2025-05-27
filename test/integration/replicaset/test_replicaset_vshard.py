@@ -8,6 +8,7 @@ from cartridge_helper import (cartridge_name, cartridge_password,
                               cartridge_username)
 from replicaset_helpers import eval_on_instance, parse_status, stop_application
 
+import utils
 from utils import (create_tt_config, get_tarantool_version, log_file, log_path,
                    run_command_and_get_output, wait_event, wait_file,
                    wait_string_in_file)
@@ -121,8 +122,7 @@ def test_vshard_bootstrap_cartridge(cartridge_app, tt_cmd, target, flag):
     assert wait_event(10, have_buckets_created)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
@@ -206,8 +206,7 @@ def vshard_cconfig_app_tt_env(request, tt_cmd, vshard_tt_env_session):
     return tmpdir
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_vshard_bootstrap_cconfig_via_uri_no_router(tt_cmd, vshard_cconfig_app_tt_env):
     tmpdir = vshard_cconfig_app_tt_env
     cmd = [tt_cmd, "rs", "vs", "bootstrap",
@@ -218,8 +217,7 @@ def test_vshard_bootstrap_cconfig_via_uri_no_router(tt_cmd, vshard_cconfig_app_t
     assert "instance must be a router to bootstrap vshard" in out
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize("flag", [None, "--config"])
 def test_vshard_bootstrap_cconfig(tt_cmd, vshard_cconfig_app_tt_env, flag):
     tmpdir = vshard_cconfig_app_tt_env

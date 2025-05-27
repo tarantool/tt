@@ -6,6 +6,7 @@ import subprocess
 import pytest
 import yaml
 
+import utils
 from utils import (control_socket, extract_status, get_tarantool_version,
                    lib_path, log_path, run_command_and_get_output, run_path,
                    wait_event, wait_files, wait_pid_disappear)
@@ -150,8 +151,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
         stop_application(tt_cmd, tmpdir, app_name, instances)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     app_name = "small_cluster_app"
     instances = ['storage-master', 'storage-replica']
@@ -159,8 +159,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
     check_base_functionality(tt_cmd, tmpdir_with_cfg, app_name, instances, inst_conf)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.slow
 def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
@@ -202,8 +201,7 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, tmpdir, app_name, instances)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
@@ -242,8 +240,7 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
     assert rc != 0
 
 
-@pytest.mark.skipif(tarantool_major_version > 2,
-                    reason="test is for tnt version < 3")
+@utils.skipif_cluster_app_supported
 def test_cluster_config_not_supported(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
@@ -266,8 +263,7 @@ def test_cluster_config_not_supported(tt_cmd, tmpdir_with_cfg):
     assert rc != 0
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_cluster_cfg_changes_defaults(tt_cmd, tmpdir_with_cfg):
     app_name = "cluster_app_changed_defaults"
     instances = ['master']
@@ -284,8 +280,7 @@ def test_cluster_cfg_changes_defaults(tt_cmd, tmpdir_with_cfg):
     check_base_functionality(tt_cmd, tmpdir_with_cfg, app_name, instances, inst_conf)
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip cluster instances test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 def test_cluster_error_cases(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_changed_defaults"

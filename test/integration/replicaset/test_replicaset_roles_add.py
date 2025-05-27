@@ -9,10 +9,8 @@ from integration.replicaset.replicaset_helpers import (
     get_group_by_replicaset_name, get_group_replicaset_by_instance_name,
     parse_status, parse_yml, start_application, stop_application)
 
-from utils import get_tarantool_version, read_kv, run_command_and_get_output
-
-tarantool_major_version, tarantool_minor_version = get_tarantool_version()
-
+import utils
+from utils import read_kv, run_command_and_get_output
 
 TEST_ROLES_ADD_PARAMS_CCONFIG = ("role_name, inst, inst_flg, group, rs, is_uri, is_global, err_msg,"
                                  " stop_instance, is_force, is_add_role")
@@ -53,8 +51,7 @@ def test_roles_add_missing_args(tt_cmd, tmpdir_with_cfg, args, err_msg):
     assert err_msg in out
 
 
-@pytest.mark.skipif(tarantool_major_version < 3,
-                    reason="skip centralized config test for Tarantool < 3")
+@utils.skipif_cluster_app_unsupported
 @pytest.mark.parametrize(TEST_ROLES_ADD_PARAMS_CCONFIG, [
     make_test_roles_add_param(
         False,
@@ -222,8 +219,7 @@ def test_replicaset_cconfig_roles_add(
                          force=True if stop_instance else False)
 
 
-@pytest.mark.skipif(tarantool_major_version >= 3,
-                    reason="skip cartridge tests for Tarantool 3.0")
+@utils.skipif_cartridge_unsupported
 @pytest.mark.parametrize(TEST_ROLES_ADD_PARAMS_CARTRIDGE, [
     make_test_roles_add_param(
         True,
