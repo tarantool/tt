@@ -1,0 +1,38 @@
+[94m{[0m
+  [94mtime[0m: [1m2025-05-27T21:31:04.686333912+03:00[0m
+  [94mlevel[0m: INFO
+  [94mmsg[0m: [3mbuild setting[0m
+  [94mpath[0m: [2m"github.com/smacker/go-tree-sitter",[0m
+  [94msource[0m: [2m{[0m
+    [94mfile[0m: [2m"tarantool-cluster-manager/cmd/tcm/tcm.go",[0m
+    [94mfunction[0m: [2m"tarantool-cluster-manager/cmd/tcm.TcmMain",[0m
+    [94mline[0m: [2m329[0m
+[2m  },[0m
+  [94msum[0m: [2m"",[0m
+  [94mversion[0m: [2m"v0.0.0-20240625050157-a31a98a7c0f6"[0m
+[94m}[0m
+[96m{[0m
+  [96mtime[0m: [1m2025-05-27T22:24:37.07581163+03:00[0m
+  [96mlevel[0m: WARN
+  [96mmsg[0m: [3mretrying of unary invoker failed[0m
+  [96mattempt[0m: [2m0,[0m
+  [96merror[0m: [2m"rpc error: code = Canceled desc = context canceled",[0m
+  [96msource[0m: [2m{[0m
+    [96mfile[0m: [2m"go.etcd.io/etcd/client/v3@v3.5.15/retry_interceptor.go",[0m
+    [96mfunction[0m: [2m"go.etcd.io/etcd/client/v3.(*Client).unaryClientInterceptor.func1",[0m
+    [96mline[0m: [2m63[0m
+[2m  },[0m
+  [96mtarget[0m: [2m"etcd-endpoints://0xc00048a1e0/127.0.0.1:2379"[0m
+[96m}[0m
+[95m{[0m
+  [95mtime[0m: [1m2025-05-28T16:06:55.405921923+03:00[0m
+  [95mlevel[0m: INFO
+  [95mmsg[0m: [3m[0m
+  [95mkey[0m: [2m"TCM_HTTP_TLS_CURVE_PREFERENCES",[0m
+  [95msource[0m: [2m{[0m
+    [95mfile[0m: [2m"tarantool-cluster-manager/internal/pkg/utils/struct.go",[0m
+    [95mfunction[0m: [2m"tarantool-cluster-manager/internal/pkg/utils.Display",[0m
+    [95mline[0m: [2m61[0m
+[2m  },[0m
+  [95mval[0m: [2mnull[0m
+[95m}[0m

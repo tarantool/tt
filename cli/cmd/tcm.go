@@ -3,12 +3,13 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/apex/log"
+	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
@@ -26,7 +27,7 @@ const (
 )
 
 func newTcmStartCmd() *cobra.Command {
-	var tcmCmd = &cobra.Command{
+	tcmCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start tcm application",
 		Long: `Start to the tcm.
@@ -41,7 +42,7 @@ func newTcmStartCmd() *cobra.Command {
 }
 
 func newTcmStatusCmd() *cobra.Command {
-	var tcmCmd = &cobra.Command{
+	tcmCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Status tcm application",
 		Long: `Status to the tcm.
@@ -52,7 +53,7 @@ func newTcmStatusCmd() *cobra.Command {
 }
 
 func newTcmStopCmd() *cobra.Command {
-	var tcmCmd = &cobra.Command{
+	tcmCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "Stop tcm application",
 		Long:  `Stop to the tcm. tt tcm stop`,
@@ -61,8 +62,32 @@ func newTcmStopCmd() *cobra.Command {
 	return tcmCmd
 }
 
+func newTcmLogCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "log [flags]",
+		Short: "Show tcm application logs",
+		Long:  `Show logs for the tcm. tt tcm log`,
+		Run:   RunModuleFunc(internalTcmLog),
+	}
+
+	cmd.Flags().UintVarP(&tcmCtx.Log.Lines, "lines", "n", 10,
+		"Count of last lines to output")
+	cmd.Flags().BoolVarP(&tcmCtx.Log.IsFollow, "follow", "f", false,
+		"Output appended data as the log file grows")
+	cmd.Flags().BoolVar(&tcmCtx.Log.ForceColor, "color", false,
+		"Force colored output in logs")
+	cmd.Flags().BoolVar(&tcmCtx.Log.NoColor, "no-color", false,
+		"Disable colored output in logs")
+	cmd.Flags().BoolVar(&tcmCtx.Log.NoFormat, "no-format", false,
+		"Disable log formatting")
+
+	cmd.MarkFlagsMutuallyExclusive("color", "no-color")
+
+	return cmd
+}
+
 func NewTcmCmd() *cobra.Command {
-	var tcmCmd = &cobra.Command{
+	tcmCmd := &cobra.Command{
 		Use:   "tcm",
 		Short: "Manage tcm application",
 	}
@@ -70,12 +95,21 @@ func NewTcmCmd() *cobra.Command {
 		newTcmStartCmd(),
 		newTcmStatusCmd(),
 		newTcmStopCmd(),
+		newTcmLogCmd(),
 	)
 	return tcmCmd
 }
 
 func startTcmInteractive() error {
-	tcmApp := exec.Command(tcmCtx.Executable)
+	tcmApp := exec.Command(tcmCtx.Executable,
+		"--log.default.add-source",
+		"--log.default.output=file",
+		"--log.default.format=json",
+		//! "VERBOSE|ALARM" => ERROR fail to unmarshal log level
+		//? "--log.default.level=VERBOSE",
+		"--log.default.level=DEBUG",
+		"--log.default.file.name="+tcmCmd.LogFileName,
+	)
 
 	if err := tcmApp.Start(); err != nil {
 		return err
@@ -90,7 +124,7 @@ func startTcmInteractive() error {
 		return err
 	}
 
-	log.Printf("(INFO): Interactive process PID %d written to %s\n", tcmApp.Process.Pid, tcmPidFile)
+	log.Infof("Interactive process PID %d written to %q\n", tcmApp.Process.Pid, tcmPidFile)
 	return nil
 }
 
@@ -164,14 +198,27 @@ func internalTcmStop(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		log.Println("Watchdog and TCM stopped")
+
+		log.Info("Watchdog and TCM stopped")
 	} else {
 		_, err := process_utils.StopProcess(tcmPidFile)
 		if err != nil {
 			return err
 		}
-		log.Println("TCM stopped")
+
+		log.Info("TCM stopped")
 	}
 
 	return nil
+}
+
+func internalTcmLog(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if tcmCtx.Log.ForceColor {
+		color.NoColor = false
+	}
+	lf := tcmCmd.NewLogFormatter(tcmCtx.Log.NoFormat, tcmCtx.Log.NoColor, os.Stdout)
+	if tcmCtx.Log.IsFollow {
+		return tcmCmd.FollowLogs(tcmCtx.Log.Lines, lf)
+	}
+	return tcmCmd.PrintLogs(tcmCtx.Log.Lines, lf)
 }
