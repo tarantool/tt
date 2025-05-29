@@ -558,6 +558,38 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             ],
             "check_env": [".", assert_vshard_app_env, assert_artifacts_env]
         },
+        {
+            "name": "TCM config packing",
+            "bundle_src": "vshard_app_with_tcm_config",
+            "cmd": tt_cmd,
+            "pack_type": "tgz",
+            "args": ["--name", "test_app"],
+            "res_file": "test_app-0.1.0.0." + get_arch() + ".tar.gz",
+            "check_exist": [
+                os.path.join("bin", "tarantool"),
+                os.path.join("bin", "tt"),
+                os.path.join("instances.enabled", "test_app"),
+                "tt.yaml",
+                "tcm.yaml",
+                "test_app/config.yaml",
+                "test_app/instances.yaml",
+                "test_app/router.lua",
+                "test_app/storage.lua",
+            ],
+            "check_not_exist": [
+                "test_app/test_app-scm-1.rockspec",
+                "test_app/tt.yaml",
+                "test_app/tcm.yaml",
+                "include",
+                "modules",
+                "templates",
+                os.path.join("test_app", "include"),
+                os.path.join("test_app", "modules"),
+                os.path.join("test_app", "templates"),
+                os.path.join("test_app", "distfiles"),
+            ],
+            "check_env": [".", assert_vshard_app_env, assert_artifacts_env]
+        },
     ]
 
 

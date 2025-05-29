@@ -30,10 +30,12 @@ type TarantoolCli struct {
 	version version.Version
 }
 
-// TcmCli describes tarantool executable.
+// TcmCli describes tcm executable.
 type TcmCli struct {
 	// Executable is a path to tcm executable.
 	Executable string
+	// ConfigPath is a path to tcm config (tcm.yaml)
+	ConfigPath string
 }
 
 // GetVersion returns and caches the tarantool version.

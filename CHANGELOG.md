@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt pack`: packs TCM config, if any.
+
 ### Fixed
 
 - Fixed a crash in `tt aeon connect` when processing responses
