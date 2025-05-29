@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -400,6 +401,14 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	if err = copyApplications(bundleEnvPath, packCtx, cliOpts, newOpts); err != nil {
 		return "", fmt.Errorf("error copying applications: %s", err)
+	}
+
+	// Copy tcm config, if any.
+	if cmdCtx.Cli.TcmCli.ConfigPath != "" {
+		if err := copy.Copy(cmdCtx.Cli.TcmCli.ConfigPath,
+			path.Join(bundleEnvPath, path.Base(cmdCtx.Cli.TcmCli.ConfigPath))); err != nil {
+			return "", fmt.Errorf("failed copying tcm config: %s", err)
+		}
 	}
 
 	if packCtx.Archive.All {
