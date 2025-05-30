@@ -305,6 +305,10 @@ func InitRoot() {
 		log.Debugf("Using configuration file %q", cmdCtx.Cli.ConfigPath)
 	}
 
+	// TCM config, if any, is located next to tt config.
+	tcmConfigBasename := filepath.Join(cmdCtx.Cli.ConfigDir, "tcm")
+	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
+
 	// Getting modules information.
 	modulesInfo, err = modules.GetModulesInfo(&cmdCtx, rootCmd.Name(), cliOpts)
 	if err != nil {

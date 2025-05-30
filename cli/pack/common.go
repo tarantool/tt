@@ -402,6 +402,13 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return "", fmt.Errorf("error copying applications: %s", err)
 	}
 
+	// Copy tcm config, if any.
+	if cmdCtx.Cli.TcmCli.ConfigPath != "" {
+		if err := copy.Copy(cmdCtx.Cli.TcmCli.ConfigPath, bundleEnvPath); err != nil {
+			return "", fmt.Errorf("failed copying tcm config: %s", err)
+		}
+	}
+
 	if packCtx.Archive.All {
 		if err = copyArtifacts(*packCtx, bundleEnvPath, newOpts, packCtx.AppsInfo); err != nil {
 			return "", fmt.Errorf("failed copying artifacts: %s", err)
