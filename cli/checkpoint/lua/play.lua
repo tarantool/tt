@@ -94,8 +94,8 @@ local function play(positional_arguments, keyword_arguments, opts)
             if sid ~= nil then
                 local args, so = {}, remote.space[sid]
                 if so == nil then
-                   log.error('Fatal error: no space #%s, stopping work', sid)
-                   os.exit(1)
+                    log.error('Fatal error: no space #%s or permissions to work with it, stopping', sid)
+                    os.exit(1)
                 end
                 table.insert(args, so)
                 table.insert(args, record.BODY.key)
