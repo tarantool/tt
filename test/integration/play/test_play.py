@@ -149,6 +149,33 @@ def test_play_remote_instance_timestamp_valid(tt_cmd, test_instance, input, expe
     assert cmd_output == expected
 
 
+def test_play_remote_instance_space_error(tt_cmd, test_instance):
+    test_dir = os.path.join(
+        os.path.dirname(__file__),
+        "test_file",
+    )
+
+    # Create space and primary index.
+    cmd_space = [tt_cmd, "connect", f"test_user:secret@127.0.0.1:{test_instance.port}"]
+    rc, _ = run_command_and_get_output(cmd_space, cwd=test_instance._tmpdir)
+    assert rc == 0
+
+    # Play .xlog file to the instance.
+    cmd_play = [
+        tt_cmd,
+        "play",
+        f"127.0.0.1:{test_instance.port}",
+        "-u",
+        "test_user",
+        "-p",
+        "secret",
+        f"{test_dir}/timestamp/timestamp.xlog",
+    ]
+    rc, output = run_command_and_get_output(cmd_play, cwd=test_instance._tmpdir)
+    assert rc == 1
+    assert "Fatal error: no space #512 or permissions to work with it, stopping" in output
+
+
 @pytest.mark.parametrize(
     "input, expected",
     [
@@ -425,15 +452,21 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     app_path="test_simple_cluster_app",
     instances=["master"],
 )
-@pytest.mark.parametrize("with_scheme", [
-    pytest.param(True, id="with-scheme"),
-    pytest.param(False, id="no-scheme"),
-])
-@pytest.mark.parametrize("uri", [
-    pytest.param("localhost:3013", id="hostname"),
-    pytest.param("127.0.0.1:3013", id="ipv4"),
-    pytest.param("[::1]:3013", id="ipv6"),
-])
+@pytest.mark.parametrize(
+    "with_scheme",
+    [
+        pytest.param(True, id="with-scheme"),
+        pytest.param(False, id="no-scheme"),
+    ],
+)
+@pytest.mark.parametrize(
+    "uri",
+    [
+        pytest.param("localhost:3013", id="hostname"),
+        pytest.param("127.0.0.1:3013", id="ipv4"),
+        pytest.param("[::1]:3013", id="ipv6"),
+    ],
+)
 def test_play_to_cluster_app_by_uri(tt, with_scheme, uri):
     skip_if_cluster_app_unsupported()
 
