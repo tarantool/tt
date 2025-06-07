@@ -1,0 +1,10 @@
+{
+  time: 1001
+  level: INFO
+  msg: version: 1.2.3
+  source: {
+    file: "source.go",
+    function: "handler",
+    line: 123
+  }
+}

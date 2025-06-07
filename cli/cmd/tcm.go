@@ -3,17 +3,19 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/apex/log"
+	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/process_utils"
+	"github.com/tarantool/tt/cli/tail"
 	tcmCmd "github.com/tarantool/tt/cli/tcm"
 	libwatchdog "github.com/tarantool/tt/lib/watchdog"
 )
@@ -23,11 +25,12 @@ var tcmCtx = tcmCmd.TcmCtx{}
 const (
 	tcmPidFile      = "tcm.pid"
 	watchdogPidFile = "watchdog.pid"
+	logFileName     = "tcm.log"
 )
 
 func newTcmStartCmd() *cobra.Command {
 	tcmCmd := &cobra.Command{
-		Use:   "start",
+		Use:   "start [flags]",
 		Short: "Start tcm application",
 		Long: `Start to the tcm.
 		tt tcm start --watchdog
@@ -36,6 +39,8 @@ func newTcmStartCmd() *cobra.Command {
 	}
 	tcmCmd.Flags().StringVar(&tcmCtx.Executable, "path", "", "the path to the tcm binary file")
 	tcmCmd.Flags().BoolVar(&tcmCtx.Watchdog, "watchdog", false, "enables the watchdog")
+	tcmCmd.Flags().StringVar(&tcmCtx.Log.Level, "log-level", "INFO",
+		"log level for the tcm application")
 
 	return tcmCmd
 }
@@ -61,6 +66,30 @@ func newTcmStopCmd() *cobra.Command {
 	return tcmCmd
 }
 
+func newTcmLogCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "log [flags]",
+		Short: "Show tcm application logs",
+		Long:  `Show logs for the tcm. tt tcm log`,
+		Run:   RunModuleFunc(internalTcmLog),
+	}
+
+	cmd.Flags().IntVarP(&tcmCtx.Log.Lines, "lines", "n", 10,
+		"Count of last lines to output")
+	cmd.Flags().BoolVarP(&tcmCtx.Log.IsFollow, "follow", "f", false,
+		"Output appended data as the log file grows")
+	cmd.Flags().BoolVar(&tcmCtx.Log.ForceColor, "color", false,
+		"Force colored output in logs")
+	cmd.Flags().BoolVar(&tcmCtx.Log.NoColor, "no-color", false,
+		"Disable colored output in logs")
+	cmd.Flags().BoolVar(&tcmCtx.Log.NoFormat, "no-format", false,
+		"Disable log formatting")
+
+	cmd.MarkFlagsMutuallyExclusive("color", "no-color")
+
+	return cmd
+}
+
 func NewTcmCmd() *cobra.Command {
 	tcmCmd := &cobra.Command{
 		Use:   "tcm",
@@ -70,12 +99,19 @@ func NewTcmCmd() *cobra.Command {
 		newTcmStartCmd(),
 		newTcmStatusCmd(),
 		newTcmStopCmd(),
+		newTcmLogCmd(),
 	)
 	return tcmCmd
 }
 
-func startTcmInteractive() error {
-	tcmApp := exec.Command(tcmCtx.Executable)
+func startTcmInteractive(logLevel string) error {
+	tcmApp := exec.Command(tcmCtx.Executable,
+		"--log.default.add-source",
+		"--log.default.output=file",
+		"--log.default.format=json",
+		"--log.default.level="+logLevel,
+		"--log.default.file.name="+logFileName,
+	)
 
 	if err := tcmApp.Start(); err != nil {
 		return err
@@ -90,7 +126,7 @@ func startTcmInteractive() error {
 		return err
 	}
 
-	log.Printf("(INFO): Interactive process PID %d written to %s\n", tcmApp.Process.Pid, tcmPidFile)
+	log.Infof("Interactive process PID %d written to %q\n", tcmApp.Process.Pid, tcmPidFile)
 	return nil
 }
 
@@ -114,7 +150,7 @@ func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	tcmCtx.Executable = cmdCtx.Cli.TcmCli.Executable
 
 	if !tcmCtx.Watchdog {
-		if err := startTcmInteractive(); err != nil {
+		if err := startTcmInteractive(tcmCtx.Log.Level); err != nil {
 			return err
 		}
 	} else {
@@ -164,14 +200,32 @@ func internalTcmStop(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		log.Println("Watchdog and TCM stopped")
+
+		log.Info("Watchdog and TCM stopped")
 	} else {
 		_, err := process_utils.StopProcess(tcmPidFile)
 		if err != nil {
 			return err
 		}
-		log.Println("TCM stopped")
+
+		log.Info("TCM stopped")
 	}
 
 	return nil
+}
+
+func internalTcmLog(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	if tcmCtx.Log.ForceColor {
+		color.NoColor = false
+	}
+
+	p := tcmCmd.NewLogPrinter(tcmCtx.Log.NoFormat, tcmCtx.Log.NoColor, os.Stdout)
+	if tcmCtx.Log.IsFollow {
+		f := tail.NewTailFollower(logFileName)
+		return tcmCmd.FollowLogs(f, p, tcmCtx.Log.Lines)
+	}
+
+	t := tail.NewTailReader(logFileName)
+
+	return tcmCmd.TailLogs(t, p, tcmCtx.Log.Lines)
 }

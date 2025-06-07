@@ -1,0 +1,2 @@
+1020 WRN retrying of unary invoker failed target=etcd-endpoints://0xc000418000/127.0.0.1:2379 attempt=0 error="rpc error: code = Canceled desc = latest balancer error: last connection error: connection error: desc = \"transport: Error while dialing: dial tcp 127.0.0.1:2379: connect: connection refused\""
+1021 ERR fail to get entity from etcd path=/cluster/ err="context canceled"
