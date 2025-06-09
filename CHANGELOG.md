@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.10.0] - 2025-06-09
+
+The release introduces command support for working with Tarantool
+Cluster Manager (TCM). Also added support for `fish` shell autocompletion.
+In addition, code verification with `pre-commit` hooks has been configured.
+
+### Added
+
 - In commands `tt cat|play <DIR>` added options `-r`/`--recursive` to
   allow find WAL files inside nested subdirectories.
 - `tt search tcm` - the command performs a search for tarantool cluster
