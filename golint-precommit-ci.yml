@@ -1,0 +1,68 @@
+# Configuration for CI linters of all Go sources.
+# Note: here used less strict rules than in `golint-precommit.yml`, what applied to new changes.
+version: "2"
+run:
+  build-tags:
+    - go_tarantool_ssl_disable
+    - tt_ssl_disable
+    - integration
+    - mage
+
+linters:
+  default: none
+  enable:
+    - godot # Check comments ends with a period (https://golangci-lint.run/usage/linters/#godot)
+    - nakedret # Limit naked returns function length (https://golangci-lint.run/usage/linters/#nakedret)
+    - misspell # Finds misspelled words (https://golangci-lint.run/usage/linters/#misspell)
+    - lll # Checks for long lines (https://golangci-lint.run/usage/linters/#lll)
+    - whitespace # Checks for newlines for functions, if, for, etc (https://golangci-lint.run/usage/linters/#whitespace)
+    - govet # Examine code and reports suspicious constructs (https://golangci-lint.run/usage/linters/#govet)
+    - staticcheck # Static analysis of code (https://golangci-lint.run/usage/linters/#staticcheck)
+
+  settings:
+    lll:
+      line-length: 100
+      tab-width: 4
+
+    whitespace:
+      multi-if: true
+      multi-func: false
+
+    nakedret:
+      max-func-lines: 15
+
+    staticcheck:
+      checks:
+        # Note: ignore some checks for CI full source scanning.
+        - all
+        - -S1000
+        - -SA1019
+        - -ST1003
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+
+    rules:
+      - path: _test\.go
+        linters:
+          - funlen
+
+      - source: "(?i)\t*// (see )?https?://"
+        linters:
+          - lll
+
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  exclusions:
+    # Disable `golangci-lint` formats Go files.
+    paths:
+      - \.go$

@@ -19,7 +19,8 @@ linters:
     - misspell # Finds misspelled words (https://golangci-lint.run/usage/linters/#misspell)
     - lll # Checks for long lines (https://golangci-lint.run/usage/linters/#lll)
     - whitespace # Checks for newlines for functions, if, for, etc (https://golangci-lint.run/usage/linters/#whitespace)
-    - wsl # Add or remove empty lines (https://golangci-lint.run/usage/linters/#wsl)
+    # Note: 'wsl' removed due to conflict with 'gofumpt' formatter.
+    # - wsl # Add or remove empty lines (https://golangci-lint.run/usage/linters/#wsl)
 
     #! slow linters for manual and CI testing
     - goconst # Finds "magic numbers" that could be replaced by a constant (https://golangci-lint.run/usage/linters/#goconst)
@@ -44,14 +45,14 @@ linters:
       multi-if: true
       multi-func: false
 
-    wsl:
-      # See https://golangci-lint.run/usage/linters/#wsl
-      # And https://github.com/bombsimon/wsl/blob/master/doc/configuration.md
-      allow-assign-and-call: false
-      allow-multiline-assign: false
-      force-case-trailing-whitespace: 2
-      allow-cuddle-used-in-block: true
-      force-err-cuddling: true
+    # wsl:
+    #   # See https://golangci-lint.run/usage/linters/#wsl
+    #   # And https://github.com/bombsimon/wsl/blob/master/doc/configuration.md
+    #   allow-assign-and-call: false
+    #   allow-multiline-assign: false
+    #   force-case-trailing-whitespace: 2
+    #   allow-cuddle-used-in-block: true
+    #   force-err-cuddling: true
 
     wrapcheck:
       report-internal-errors: true
