@@ -4,31 +4,38 @@ description: "Performs static code checks."
 runs:
   using: "composite"
   steps:
-      - name: Log versions
-        run: |
-          go version
-          mage --version
-          tarantool --version
-          rpm --version
-        shell: bash
+    - name: Log versions
+      run: |
+        go version
+        mage --version
+        tarantool --version
+        rpm --version
+      shell: bash
 
-      - name: Codespell checks
-        run: mage codespell
-        shell: bash
+    - name: License checker
+      run: |
+        go install github.com/uw-labs/lichen@latest
+        mage checklicenses
+      shell: bash
 
-      - name: License checker
-        run: |
-          go install github.com/uw-labs/lichen@latest
-          mage checklicenses
-        shell: bash
+    - name: Find git base branch
+      shell: bash
+      run: |
+        HASH=$(git log --format='%H^%D' | grep 'origin/' | head -n 2 | tail -n 1 | cut -f1 -d^)
+        echo "Found base branch with hash: '${HASH}'"
+        echo "BASE_BRANCH=${HASH}" >> ${GITHUB_ENV}
 
-      - name: Go Linter
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.63.4
-          args: --config=golangci-lint.yml --out-${NO_FUTURE}format colored-line-number
-          skip-cache: true
+    # FIXME: Enable golangci-lint-diff after PR #1173 is merged.
+    # - name: pre-commit checks (diff)
+    #   uses: pre-commit/action@v3.0.1
+    #   env:
+    #     SKIP: golangci-lint-full
+    #   with:
+    #     extra_args: --all-files --from-ref=${{ env.BASE_BRANCH }} --to-ref=HEAD --hook-stage=manual
 
-      - name: Python Linter
-        run: python3 -m ruff check test
-        shell: bash
+    - name: pre-commit checks (full)
+      uses: pre-commit/action@v3.0.1
+      env:
+        SKIP: golangci-lint-diff
+      with:
+        extra_args: --all-files --hook-stage=manual

@@ -9,17 +9,17 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
         # Ignore some Yaml's with following pattern in `testdata` subdirectories.
         exclude: testdata/.*?(?:invalid|bad|broken|wrong)[^/]*\.ya?ml$
       - id: check-merge-conflict
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
       - id: no-commit-to-branch
         stages: [pre-commit]
         args: [--branch, master, --pattern, release/.*]
       - id: file-contents-sorter
         name: "Sort cspell dictionary"
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
         files: ".cspell_project-words.txt"
         args: [--ignore-case, --unique]
 
@@ -28,7 +28,7 @@ repos:
     hooks:
       - id: codespell
         name: "Check for common misspellings"
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
         types_or: [go, python, lua]
         additional_dependencies:
           - tomli
@@ -38,7 +38,7 @@ repos:
     hooks:
       - id: cspell
         name: "Spell-checking documentation files"
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
         args:
           [--config=.cspell-precommit.json, --show-context, --show-suggestions]
         types_or: [markdown]
@@ -71,7 +71,7 @@ repos:
         language: golang
         types: [go]
         name: "Go: formatting sources"
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
         exclude: \.pb\.go$
         entry: bash -c "GOFUMPT_SPLIT_LONG_LINES=on gofumpt $@"
         args: [-e, -w, -extra]
@@ -83,7 +83,7 @@ repos:
     hooks:
       - id: golines
         name: "Go: shorten long lines"
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
         exclude: \.pb\.go$
         args: [--max-len=100, --tab-len=4, --no-reformat-tags]
 
@@ -100,23 +100,40 @@ repos:
         args: [--fast-only, --config=golint-precommit.yml]
 
       - id: golangci-lint-full
-        name: "Go: full verify sources"
-        description: "Command to run: `pre-commit run --hook-stage manual golangci-lint-full`"
+        name: "Go: verify all sources (CI)"
+        description: Checking all Go sources.
+        pass_filenames: false
+        always_run: true
         stages: [manual]
-        args: [--config=golint-precommit.yml]
+        args: [--config=golint-precommit-ci.yml, --allow-parallel-runners]
+
+  - repo: local
+    hooks:
+      - id: golangci-lint-diff
+        language: golang
+        types: [go]
+        name: "Go: verify sources diff (CI)"
+        stages: [manual]
+        pass_filenames: false
+        always_run: true
+        entry: >-
+          bash -c "golangci-lint run --new-from-rev=${BASE_BRANCH:-master}
+          --config=golint-precommit.yml --allow-parallel-runners"
+        additional_dependencies:
+          - github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.11
+    rev: v0.12.0
     hooks:
-      - id: ruff-format
-        name: "Py: Run the formatter"
-        stages: [pre-commit]
-        files: test/.*\.py$
-
       - id: ruff-check
         name: "Py: Run the linter"
         args: [--fix]
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
+        files: test/.*\.py$
+
+      - id: ruff-format
+        name: "Py: Run the formatter"
+        stages: [pre-commit, manual]
         files: test/.*\.py$
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
@@ -124,7 +141,7 @@ repos:
     hooks:
       - id: markdownlint-cli2
         name: "MD: check markdown files"
-        stages: [pre-commit]
+        stages: [pre-commit, manual]
         # TODO: configure the rules and fix the rest of the .md files (#TNTP-3107).
         files: CHANGELOG.md
         args: [--fix]
