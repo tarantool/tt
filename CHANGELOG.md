@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt logrotate`: properly release descriptor of the old log file.
+
 ## [2.10.0] - 2025-06-09
 
 The release introduces command support for working with Tarantool

@@ -110,8 +110,8 @@ func StdErrOpt(writer io.Writer) InstanceOption {
 func StdLoggerOpt(logger ttlog.Logger) InstanceOption {
 	return func(inst *baseInstance) error {
 		inst.logger = logger
-		inst.stdOut = logger.Writer()
-		inst.stdErr = logger.Writer()
+		inst.stdOut = logger
+		inst.stdErr = logger
 		return nil
 	}
 }

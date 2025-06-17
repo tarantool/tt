@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 const (
@@ -28,7 +29,7 @@ type Logger interface {
 	Println(v ...any)
 	Fatal(v ...any)
 	Fatalf(format string, v ...any)
-	Writer() io.Writer
+	Write(p []byte) (int, error)
 
 	// Rotate re-opens a log file.
 	Rotate() error
@@ -49,6 +50,11 @@ func NewCustomLogger(writer io.Writer, prefix string, flags int) Logger {
 	return &writerLogger{
 		Logger: log.New(writer, prefix, flags),
 	}
+}
+
+// Write implements io.Writer interface.
+func (logger *writerLogger) Write(p []byte) (int, error) {
+	return logger.Logger.Writer().Write(p)
 }
 
 // Rotate is no-op for custom logger.
@@ -74,6 +80,9 @@ type fileLogger struct {
 
 	// opts describes the parameters that were used to create the logger.
 	opts LoggerOpts
+
+	// mu is a mutex to avoid racing between Write and Rotate.
+	mu sync.Mutex
 }
 
 // NewFileLogger creates a new object of file logger.
@@ -102,11 +111,22 @@ func (logger *fileLogger) GetOpts() LoggerOpts {
 	return logger.opts
 }
 
+// Write implements io.Writer interface.
+func (logger *fileLogger) Write(p []byte) (int, error) {
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
+
+	return logger.Logger.Writer().Write(p)
+}
+
 // Rotate reopens the log file.
 func (logger *fileLogger) Rotate() error {
 	if logger.logFile == nil {
 		return nil
 	}
+
+	logger.mu.Lock()
+	defer logger.mu.Unlock()
 
 	savedFile := logger.logFile
 	var err error
