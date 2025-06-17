@@ -8,6 +8,8 @@ import utils
 skip_cluster_cond = utils.is_tarantool_less_3()
 skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
 
+is_tarantool_major_one = utils.is_tarantool_major_one()
+
 
 def check_logrotate(tt, target):
     # Store original state.
@@ -25,8 +27,8 @@ def check_logrotate(tt, target):
         expected_instances.append(inst)
 
     # Do logrotate.
-    rc, out = tt.exec("logrotate", target)
-    assert rc == 0
+    p = tt.run("logrotate", target)
+    assert p.returncode == 0
 
     # Wait for the log files to be re-created.
     assert utils.wait_files(5, tt_helper.log_files(tt, expected_instances))
@@ -42,13 +44,24 @@ def check_logrotate(tt, target):
             if was_running:
                 pid = status[inst]["PID"]
                 assert pid == orig_status[inst]["PID"]
-                assert f"{inst} (PID = {pid}): logs has been rotated." in out
+                assert f"{inst} (PID = {pid}): logs has been rotated." in p.stdout
                 with open(tt.log_path(inst, utils.log_file)) as f:
                     assert "reopened" in f.read()
             else:
                 _, sep, inst_name = inst.partition(":")
                 assert sep != ""
-                assert f"{inst_name}: the instance is not running, it must be started" in out
+                assert f"{inst_name}: the instance is not running, it must be started" in p.stdout
+
+    # Stop running instances and make sure there are non-watchdog messages,
+    # i.e. tarantool binary also puts its logs here (exclude v1.x because
+    # it produce no message at stopping).
+    if not is_tarantool_major_one:
+        p = tt.run("stop", "-y", target)
+        assert p.returncode == 0
+        for inst in tt.instances:
+            if inst in target_instances and inst in tt.running_instances:
+                with open(tt.log_path(inst, utils.log_file)) as f:
+                    assert [line for line in f if not line.startswith("Watchdog")]
 
 
 def post_start_logrotate_decorator(func):
