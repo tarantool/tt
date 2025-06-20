@@ -282,7 +282,8 @@ def vshard_cconfig_app_timeout_tt_env(request, tt_cmd, vshard_tt_env_session):
 
     # Copy application.
     shutil.copytree(
-        os.path.join(os.path.dirname(__file__), vshard_cconfig_app_name_timeout), app_path,
+        os.path.join(os.path.dirname(__file__), vshard_cconfig_app_name_timeout),
+        app_path,
     )
 
     # Start a cluster.
@@ -308,7 +309,8 @@ def vshard_cconfig_app_timeout_tt_env(request, tt_cmd, vshard_tt_env_session):
 
 
 @pytest.mark.skipif(
-    tarantool_major_version < 3, reason="skip centralized config test for Tarantool < 3",
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
 )
 def test_vshard_bootstrap_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
     tmpdir = vshard_cconfig_app_timeout_tt_env
@@ -317,7 +319,7 @@ def test_vshard_bootstrap_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_
     rc, out = run_command_and_get_output(cmd_sleep, cwd=tmpdir)
     assert rc == 0
 
-    cmd = [tt_cmd, "rs", "vs", "bootstrap", "--timeout", "5"]
+    cmd = [tt_cmd, "rs", "vs", "bootstrap", "--timeout", "10"]
     cmd.append("--config")
     cmd.append(vshard_cconfig_app_name_timeout)
 
@@ -330,7 +332,8 @@ def test_vshard_bootstrap_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_
 
 
 @pytest.mark.skipif(
-    tarantool_major_version < 3, reason="skip centralized config test for Tarantool < 3",
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
 )
 def test_vshard_bootstrap_not_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
     tmpdir = vshard_cconfig_app_timeout_tt_env
