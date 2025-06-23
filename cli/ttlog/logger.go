@@ -64,7 +64,7 @@ func (logger *writerLogger) Rotate() error {
 
 // GetOpts returns the parameters that were used to create the logger.
 func (logger *writerLogger) GetOpts() LoggerOpts {
-	return LoggerOpts{Prefix: logger.Logger.Prefix()}
+	return LoggerOpts{Prefix: logger.Prefix()}
 }
 
 // Close implements io.Closer, no-op.

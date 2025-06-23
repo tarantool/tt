@@ -44,7 +44,7 @@ func NewKillCmd() *cobra.Command {
 
 func askConfirmation(args []string) (bool, error) {
 	var err error
-	var confirm bool = true
+	confirm := true
 	if !forceKill {
 		confirmationMsg := "Kill all instances?"
 		if len(args) > 0 {

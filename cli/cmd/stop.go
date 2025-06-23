@@ -42,7 +42,7 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 		return errNoConfig
 	}
 
-	if !(autoYes || cmdCtx.Cli.NoPrompt) {
+	if !autoYes && !cmdCtx.Cli.NoPrompt {
 		instancesToConfirm := ""
 		if len(args) == 0 {
 			instancesToConfirm = "all instances"
@@ -74,7 +74,7 @@ func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
-	var err error = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
+	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
 	if err != nil {
 		return err
 	}

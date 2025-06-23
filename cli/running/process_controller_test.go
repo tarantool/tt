@@ -49,7 +49,7 @@ func TestProcessController(t *testing.T) {
 	err = dpc.Stop(5 * time.Second)
 	var exitError *exec.ExitError
 	require.True(t, errors.As(err, &exitError))
-	assert.Equal(t, 10, exitError.ProcessState.ExitCode())
+	assert.Equal(t, 10, exitError.ExitCode())
 	require.NoError(t, waitForMsgInBuffer(&outBuf, "interrupted", 5*time.Second))
 	assert.False(t, dpc.IsAlive())
 

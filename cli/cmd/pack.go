@@ -125,7 +125,7 @@ func checkFlags(packCtx *pack.PackCtx) error {
 				" but you are not packaging RPM or DEB. Flag will be ignored")
 		}
 	case pack.Rpm, pack.Deb:
-		if packCtx.Archive.All == true {
+		if packCtx.Archive.All {
 			log.Warnf("You specified the --all flag," +
 				" but you are not packaging a tarball. Flag will be ignored")
 		}

@@ -40,7 +40,7 @@ func TestProcessBase(t *testing.T) {
 
 	// Check is daemon alive.
 	waitProcessChanges()
-	alive, err = IsDaemonAlive(pid)
+	alive, _ = IsDaemonAlive(pid)
 	require.False(t, alive, "Can't stop daemon.")
 
 	_, err = os.Stat(TestProcessPidFile)

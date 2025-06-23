@@ -269,7 +269,7 @@ func decodeConfig(input map[string]any, cfg *config.CliOpts) error {
 func GetCliOpts(configurePath string, repository integrity.Repository) (
 	*config.CliOpts, string, error,
 ) {
-	var cfg *config.CliOpts = GetDefaultCliOpts()
+	cfg := GetDefaultCliOpts()
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)
 	// Before loading configure file, we'll initialize integrity checking.

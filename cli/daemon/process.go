@@ -54,7 +54,7 @@ func (process *Process) startSignalHandling() {
 
 	for {
 		select {
-		case _ = <-sigTermChan:
+		case <-sigTermChan:
 			process.Stop()
 		}
 	}

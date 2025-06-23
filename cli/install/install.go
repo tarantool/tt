@@ -284,9 +284,10 @@ func programDependenciesInstalled(program search.Program) error {
 	programs := []Package{}
 	packages := []string{}
 	osName, _ := detectOsName()
-	if program == search.ProgramTt {
+	switch program {
+	case search.ProgramTt:
 		programs = []Package{{"mage", "mage"}, {"git", "git"}}
-	} else if program == search.ProgramCe {
+	case search.ProgramCe:
 		if osName == "darwin" {
 			programs = []Package{
 				{"cmake", "cmake"},
@@ -1276,7 +1277,8 @@ func isUpdatePossible(installCtx InstallCtx,
 				return false, err
 			}
 
-			if program == search.ProgramCe {
+			switch program {
+			case search.ProgramCe:
 				tarantoolBin := cmdcontext.TarantoolCli{
 					Executable: pathToBin,
 				}
@@ -1291,7 +1293,7 @@ func isUpdatePossible(installCtx InstallCtx,
 						"of an installed %s", program)
 				}
 				curBinHash = binVersion.Hash[1:]
-			} else if program == search.ProgramTt {
+			case search.ProgramTt:
 				ttVer, err := cmdcontext.GetTtVersion(pathToBin)
 				if err != nil {
 					return false, err
