@@ -50,7 +50,7 @@ func NewSearchCtx(informer PlatformInformer, doer TntIoDoer) SearchCtx {
 
 // printVersion prints the version and labels:
 // * if the package is installed: [installed]
-// * if the package is installed and in use: [active]
+// * if the package is installed and in use: [active].
 func printVersion(bindir string, program Program, versionStr string) {
 	if _, err := os.Stat(filepath.Join(bindir,
 		program.String()+version.FsSeparator+versionStr)); err == nil {

@@ -723,7 +723,7 @@ func IsApp(path string) bool {
 	return false
 }
 
-// CheckRequiredBinaries returns an error if some binaries not found in PATH
+// CheckRequiredBinaries returns an error if some binaries not found in PATH.
 func CheckRequiredBinaries(binaries ...string) error {
 	missedBinaries := getMissedBinaries(binaries...)
 

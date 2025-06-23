@@ -280,7 +280,7 @@ func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig,
 // For example, if we have the path "/groups/g/replicasets/r/leader" then
 // we consider the configs which contains the paths (in the priority order):
 // * "/groups/g/replicasets/r/leader"
-// * "/groups/g/replicasets/r"
+// * "/groups/g/replicasets/r".
 func getCConfigPromotePath(inst cconfigInstance) (path []string, depth int, err error) {
 	var (
 		failover       = inst.failover

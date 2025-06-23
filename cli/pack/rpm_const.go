@@ -12,7 +12,7 @@ const (
 
 	hashAlgoSHA256 = 8
 
-	// XXX
+	// XXX.
 	fileFlag = 1 << 4
 	dirFlag  = 0
 

@@ -11,7 +11,7 @@ import (
 // 3     2804  David      33
 // 4     1161  William    81
 // 5     1172  Jack       35
-// 6     1064  William    25
+// 6     1064  William    25.
 var StyleWithoutGraphics = table.BoxStyle{
 	BottomLeft:       " ",
 	BottomRight:      " ",

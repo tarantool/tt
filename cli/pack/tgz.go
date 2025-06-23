@@ -31,7 +31,7 @@ func writeTgzArchive(srcDirPath, destFilePath string, packCtx PackCtx) error {
 }
 
 // WriteTarArchive creates Tar archive of specified path
-// using specified writer
+// using specified writer.
 func WriteTarArchive(srcDirPath string, compressWriter io.Writer,
 	pkgFiles map[string]packFileInfo,
 ) error {

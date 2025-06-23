@@ -497,13 +497,13 @@ func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args 
 	return clustercmd.ChangeRole(args[0], rolesChangeCtx, replicaset.RolesRemover{})
 }
 
-// internalClusterFailoverSwitchModule is as "cluster failover switch" command
+// internalClusterFailoverSwitchModule is as "cluster failover switch" command.
 func internalClusterFailoverSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	switchCtx.InstName = args[1]
 	return clustercmd.Switch(args[0], switchCtx)
 }
 
-// internalClusterFailoverSwitchStatusModule is as "cluster failover switch-status" command
+// internalClusterFailoverSwitchStatusModule is as "cluster failover switch-status" command.
 func internalClusterFailoverSwitchStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	switchStatusCtx.TaskID = args[1]
 	return clustercmd.SwitchStatus(args[0], switchStatusCtx)

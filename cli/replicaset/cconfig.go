@@ -949,7 +949,7 @@ func patchCConfigPromote(config *libcluster.Config,
 // https://www.tarantool.io/en/doc/latest/how-to/replication/repl_bootstrap/#disconnecting-an-instance
 //
 // It set up:
-// instance.iproto.listen = {}
+// instance.iproto.listen = {}.
 func patchCConfigExpel(config *libcluster.Config,
 	inst cconfigInstance,
 ) (*libcluster.Config, error) {
