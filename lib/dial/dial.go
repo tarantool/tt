@@ -16,6 +16,7 @@ func New(opts Opts) (tarantool.Dialer, error) {
 	if transport == TransportDefault {
 		if opts.SslKeyFile != "" || opts.SslCaFile != "" || opts.SslCertFile != "" ||
 			opts.SslCiphers != "" || opts.SslPassword != "" || opts.SslPasswordFile != "" {
+
 			transport = TransportSsl
 		} else {
 			transport = TransportPlain

@@ -255,12 +255,14 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 		if strings.HasPrefix(endOfYAMLOutput, dataString) ||
 			strings.HasPrefix(tagPushPrefixYAML, dataString) ||
 			strings.HasPrefix(tagPushPrefixLua, dataString) {
+
 			continue
 		}
 
 		if !hasYAMLOutputPrefix &&
 			strings.HasPrefix(dataString, startOfYamlOutput) ||
 			strings.HasPrefix(dataString, tagPushPrefixYAML) {
+
 			hasYAMLOutputPrefix = true
 		}
 

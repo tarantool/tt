@@ -420,6 +420,7 @@ instance-env:
 			})
 			if !tt.wantErr(t, err, fmt.Sprintf("getUnitParams(%v, %v, %v)",
 				tt.args.packCtx, tt.args.pathToEnv, tt.args.envName)) {
+
 				return
 			}
 			assert.Equalf(t, tt.want, got, "getUnitParams(%v, %v, %v)",

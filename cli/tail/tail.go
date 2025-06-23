@@ -75,7 +75,6 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 	buf := make([]byte, blockSize)
 	linesFound := 0
 	for readOffset != 0 && linesFound != count {
-
 		select {
 		case <-ctx.Done():
 			return nil, 0, ctx.Err()

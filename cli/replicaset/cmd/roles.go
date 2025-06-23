@@ -94,6 +94,7 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	if ctx.GroupName != "" {
 		if orchestratorType == replicaset.OrchestratorCartridge &&
 			changeRoleAction.Action() == replicaset.RemoveAction {
+
 			return fmt.Errorf("cannot provide vshard-group by removing role")
 		}
 		log.Infof("%s role %s %s group: %s", action[0], ctx.RoleName, action[1], ctx.GroupName)

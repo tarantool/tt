@@ -72,7 +72,6 @@ func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 		res.WriteString("\n")
 		res.Write(injection)
 		res.Write(rocks)
-
 	} else {
 		label := []byte(`    # The user could have moved the cursor backwards on the command-line.`)
 		idx := bytes.Index(completion, label)

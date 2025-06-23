@@ -244,7 +244,6 @@ func prepareForReinstall(bp *bundleParams) error {
 
 		log.Debugf("Existing files removed to reinstall version %q for program %q",
 			bp.prgVersion, bp.inst.Program)
-
 	} else {
 		// If no Reinstall option, ensure that we don't have already installed version.
 		if util.IsRegularFile(destBinPath) || util.IsDir(destIncPath) {
@@ -346,7 +345,6 @@ func acquireBundleInfoToInstall(bp *bundleParams) error {
 		if err != nil {
 			return err
 		}
-
 	} else {
 		searchCtx := search.NewSearchCtx(search.NewPlatformInformer(), search.NewTntIoDoer())
 		searchCtx.Program = bp.inst.Program

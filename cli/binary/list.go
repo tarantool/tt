@@ -43,6 +43,7 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 	if fileInfo, err := os.Lstat(programPath); err == nil {
 		if program == search.ProgramDev &&
 			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+
 			binActive, isTarantoolBinary, err := install.IsTarantoolDev(programPath, binDir)
 			if err != nil {
 				return binaryVersions, err
@@ -91,7 +92,6 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 				ver.Str = versionStr
 			}
 			binaryVersions = append(binaryVersions, ver)
-
 		}
 	}
 
@@ -130,7 +130,6 @@ func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error
 				printVersion(binVersion.Str)
 			}
 		}
-
 	}
 
 	return err

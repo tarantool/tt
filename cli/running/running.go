@@ -481,6 +481,7 @@ func CollectInstances(appName, applicationsDir string,
 	// directory is considered as application to work with.
 	if instCtx, err := searchApplicationScript(applicationsDir, appName); err != nil ||
 		instCtx.InstanceScript != "" {
+
 		return []InstanceCtx{instCtx}, err
 	}
 
@@ -712,6 +713,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	if len(args) > 1 && cmdCtx.CommandName != "run" && cmdCtx.CommandName != "connect" &&
 		cmdCtx.CommandName != "add" && cmdCtx.CommandName != "remove" {
+
 		return util.NewArgError("currently, you can specify only one instance at a time")
 	}
 

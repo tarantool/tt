@@ -151,6 +151,7 @@ func getUnitParams(packCtx *PackCtx, pathToEnv string,
 func getTTBinary(packCtx *PackCtx, packagePath string) string {
 	if (!packCtx.TarantoolIsSystem && !packCtx.WithoutBinaries) ||
 		packCtx.WithBinaries {
+
 		return filepath.Join(packagePath, configure.BinPath, "tt")
 	}
 	return "tt"

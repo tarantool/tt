@@ -509,7 +509,6 @@ func getDefaultConfigPath() string {
 		return defaultLinuxConfigPath
 	case "darwin", "freebsd":
 		return defaultDarwinConfigPath
-
 	}
 
 	log.Fatalf("Trying to get default config path file on an unsupported OS")

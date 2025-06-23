@@ -790,10 +790,12 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 	defer ctx.Conn.Close()
 	if ctx.IsApplication && replicasetInstanceName == "" && ctx.InstName == "" &&
 		!replicasetIsGlobal && replicasetGroupName == "" && replicasetReplicasetName == "" {
+
 		return fmt.Errorf("there is no destination provided in which to add role")
 	}
 	if ctx.InstName != "" && replicasetInstanceName != "" &&
 		replicasetInstanceName != ctx.InstName {
+
 		return fmt.Errorf("there are different instance names passed after" +
 			" app name and in flag arg")
 	}
@@ -833,10 +835,12 @@ func internalReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 	defer ctx.Conn.Close()
 	if ctx.IsApplication && replicasetInstanceName == "" && ctx.InstName == "" &&
 		!replicasetIsGlobal && replicasetGroupName == "" && replicasetReplicasetName == "" {
+
 		return fmt.Errorf("there is no destination provided where to remove role")
 	}
 	if ctx.InstName != "" && replicasetInstanceName != "" &&
 		replicasetInstanceName != ctx.InstName {
+
 		return fmt.Errorf("there are different instance names passed after" +
 			" app name and in flag arg")
 	}
