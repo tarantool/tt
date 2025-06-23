@@ -731,12 +731,12 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 		},
 	)
 	if err != nil {
-		return
+		return wasConfigPublished, err
 	}
 
 	wasConfigPublished = true
 	if err = reloadCConfig([]running.InstanceCtx{instanceCtx}); err != nil {
-		return
+		return wasConfigPublished, err
 	}
 	// Wait until an other instance is not elected.
 	evalWaitRo := func(_ running.InstanceCtx,
@@ -746,7 +746,7 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 	}
 	err = EvalAny([]running.InstanceCtx{instanceCtx}, InstanceEvalFunc(evalWaitRo))
 	if err != nil {
-		return
+		return wasConfigPublished, err
 	}
 	// Restore election_mode: "candidate" on the target instance.
 	err = patchLocalCConfig(
@@ -757,7 +757,7 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 			return patchCConfigElectionMode(config, cconfigInstance, ElectionModeCandidate)
 		},
 	)
-	return
+	return wasConfigPublished, err
 }
 
 func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,

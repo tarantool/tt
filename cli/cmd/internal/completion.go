@@ -28,14 +28,14 @@ func ValidArgsFunction(
 	var runningCtx running.RunningCtx
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, nil, running.ConfigLoadSkip)
 	if err != nil {
-		return
+		return args, directive
 	}
 
 	if strings.ContainsRune(toComplete, running.InstanceDelimiter) {
 		args = instPicker(runningCtx.Instances)
-		return
+		return args, directive
 	}
 
 	args = appPicker(runningCtx.Instances)
-	return
+	return args, directive
 }
