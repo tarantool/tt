@@ -21,7 +21,10 @@ from utils import config_name, run_command_and_get_output
 
 def get_arch():
     process = subprocess.Popen(
-        ["uname", "-m"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        ["uname", "-m"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
     result = process.communicate()
     return result[0][:-1]
@@ -674,7 +677,8 @@ def test_pack_tgz_table(tt_cmd, tmp_path):
             assert not glob.glob(os.path.join(extract_path, file_path))
 
         assert_config(
-            os.path.join(extract_path, test_case["check_env"][0]), test_case["check_env"][1:],
+            os.path.join(extract_path, test_case["check_env"][0]),
+            test_case["check_env"][1:],
         )
 
         shutil.rmtree(extract_path)
@@ -758,31 +762,43 @@ def test_pack_tgz_git_version_compat(tt_cmd, tmp_path):
 
     base_dir = tmp_path
     rc, output = run_command_and_get_output(
-        ["git", "init"], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        ["git", "init"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
     assert rc == 0
 
     rc, output = run_command_and_get_output(
-        ["git", "add", "*"], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        ["git", "add", "*"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
     assert rc == 0
 
     rc, output = run_command_and_get_output(
-        ["git", "config", "user.email", '"none"'], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        ["git", "config", "user.email", '"none"'],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
     assert rc == 0
     rc, output = run_command_and_get_output(
-        ["git", "config", "user.name", '"none"'], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        ["git", "config", "user.name", '"none"'],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
     assert rc == 0
 
     rc, output = run_command_and_get_output(
-        ["git", "commit", "-m", "commit"], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        ["git", "commit", "-m", "commit"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
     assert rc == 0
 
     rc, output = run_command_and_get_output(
-        ["git", "tag", "1.2.3"], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        ["git", "tag", "1.2.3"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
     assert rc == 0
 
@@ -814,31 +830,43 @@ def test_pack_tgz_git_version_compat_with_instances(tt_cmd, tmp_path):
     app_dir = os.path.join(base_dir, "app2")
 
     rc, output = run_command_and_get_output(
-        ["git", "init"], cwd=app_dir, env=dict(os.environ, PWD=app_dir),
+        ["git", "init"],
+        cwd=app_dir,
+        env=dict(os.environ, PWD=app_dir),
     )
     assert rc == 0
 
     rc, output = run_command_and_get_output(
-        ["git", "add", "*"], cwd=app_dir, env=dict(os.environ, PWD=app_dir),
+        ["git", "add", "*"],
+        cwd=app_dir,
+        env=dict(os.environ, PWD=app_dir),
     )
     assert rc == 0
 
     rc, output = run_command_and_get_output(
-        ["git", "config", "user.email", '"none"'], cwd=app_dir, env=dict(os.environ, PWD=app_dir),
+        ["git", "config", "user.email", '"none"'],
+        cwd=app_dir,
+        env=dict(os.environ, PWD=app_dir),
     )
     assert rc == 0
     rc, output = run_command_and_get_output(
-        ["git", "config", "user.name", '"none"'], cwd=app_dir, env=dict(os.environ, PWD=app_dir),
+        ["git", "config", "user.name", '"none"'],
+        cwd=app_dir,
+        env=dict(os.environ, PWD=app_dir),
     )
     assert rc == 0
 
     rc, output = run_command_and_get_output(
-        ["git", "commit", "-m", "commit"], cwd=app_dir, env=dict(os.environ, PWD=app_dir),
+        ["git", "commit", "-m", "commit"],
+        cwd=app_dir,
+        env=dict(os.environ, PWD=app_dir),
     )
     assert rc == 0
 
     rc, output = run_command_and_get_output(
-        ["git", "tag", "1.2.3"], cwd=app_dir, env=dict(os.environ, PWD=app_dir),
+        ["git", "tag", "1.2.3"],
+        cwd=app_dir,
+        env=dict(os.environ, PWD=app_dir),
     )
     assert rc == 0
 
@@ -894,7 +922,9 @@ def test_pack_tgz_compat_with_binaries(tt_cmd, tmp_path):
     subprocess.run(["chmod", "+x", "tarantool"], cwd=app_path, env=dict(os.environ, PWD=app_path))
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "run"], cwd=app_path, env=dict(os.environ, PWD=app_path),
+        [tt_cmd, "run"],
+        cwd=app_path,
+        env=dict(os.environ, PWD=app_path),
     )
 
     assert rc == 0
@@ -1086,7 +1116,9 @@ def test_pack_tgz_empty_app_directory(tt_cmd, tmp_path):
 
     base_dir = tmp_path
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz"], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        [tt_cmd, "pack", "tgz"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
 
     assert rc == 1
@@ -1109,7 +1141,9 @@ def test_pack_tgz_empty_enabled(tt_cmd, tmp_path):
     os.mkdir(os.path.join(base_dir, "generated_dir"))
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz"], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        [tt_cmd, "pack", "tgz"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
 
     assert rc == 1
@@ -1130,7 +1164,9 @@ def test_pack_tgz_links_to_binaries(tt_cmd, tmp_path):
     base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz"], cwd=base_dir, env=dict(os.environ, PWD=base_dir),
+        [tt_cmd, "pack", "tgz"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
     )
 
     assert rc == 0
@@ -1175,7 +1211,9 @@ def test_pack_incorrect_pack_type(tt_cmd, tmp_path):
     expected_output = 'invalid argument "de" for "tt pack"'
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "de"], cwd=tmp_path, env=dict(os.environ, PWD=tmp_path),
+        [tt_cmd, "pack", "de"],
+        cwd=tmp_path,
+        env=dict(os.environ, PWD=tmp_path),
     )
 
     assert expected_output in output
@@ -1193,7 +1231,9 @@ def test_pack_nonexistent_modules_directory(tt_cmd, tmp_path):
     )
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "-V", "pack", "tgz"], cwd=tmp_path, env=dict(os.environ, PWD=tmp_path),
+        [tt_cmd, "-V", "pack", "tgz"],
+        cwd=tmp_path,
+        env=dict(os.environ, PWD=tmp_path),
     )
 
     assert "Skip copying modules from" in output
@@ -1405,7 +1445,9 @@ def test_pack_deb_single_app(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, "instantiated_unit.txt"), "w") as f:
         f.write(
             app_systemd_template.format(
-                app="single_app@%i", args="single_app:%i", bundle="single_app",
+                app="single_app@%i",
+                args="single_app:%i",
+                bundle="single_app",
             ),
         )
 
@@ -1593,7 +1635,9 @@ def test_pack_rpm_single_app(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, "instantiated_unit.txt"), "w") as f:
         f.write(
             app_systemd_template.format(
-                app="single_app@%i", args="single_app:%i", bundle="single_app",
+                app="single_app@%i",
+                args="single_app:%i",
+                bundle="single_app",
             ),
         )
 
@@ -1635,7 +1679,9 @@ def test_pack_rpm_use_docker(tt_cmd, tmp_path):
     base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "rpm", "--use-docker"], cwd=base_dir, env=dict(os.environ, PWD=tmp_path),
+        [tt_cmd, "pack", "rpm", "--use-docker"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=tmp_path),
     )
     assert rc == 0
 
@@ -1812,7 +1858,9 @@ def test_pack_deb_use_docker(tt_cmd, tmp_path):
     base_dir = tmp_path
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "deb", "--use-docker"], cwd=base_dir, env=dict(os.environ, PWD=tmp_path),
+        [tt_cmd, "pack", "deb", "--use-docker"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=tmp_path),
     )
     assert rc == 0
 
@@ -2169,7 +2217,11 @@ def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmp_path):
 
     build_cmd = [tt_cmd, "create", "cartridge", "--name", "app", "--non-interactive"]
     tt_process = subprocess.Popen(
-        build_cmd, cwd=tmp_path, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True,
+        build_cmd,
+        cwd=tmp_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
@@ -2179,7 +2231,11 @@ def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmp_path):
 
     build_cmd = [tt_cmd, "pack", "tgz"]
     tt_process = subprocess.Popen(
-        build_cmd, cwd=tmp_path, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True,
+        build_cmd,
+        cwd=tmp_path,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0

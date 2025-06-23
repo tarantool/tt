@@ -3102,14 +3102,20 @@ def test_connect_to_cluster_app(tt_cmd):
     app_path="test_simple_cluster_app",
     instances=["master"],
 )
-@pytest.mark.parametrize("with_scheme", [
-    pytest.param(True, id="with-scheme"),
-    pytest.param(False, id="no-scheme"),
-])
-@pytest.mark.parametrize("uri", [
-    pytest.param("127.0.0.1:3013", id="ipv4"),
-    pytest.param("[::1]:3013", id="ipv6"),
-])
+@pytest.mark.parametrize(
+    "with_scheme",
+    [
+        pytest.param(True, id="with-scheme"),
+        pytest.param(False, id="no-scheme"),
+    ],
+)
+@pytest.mark.parametrize(
+    "uri",
+    [
+        pytest.param("127.0.0.1:3013", id="ipv4"),
+        pytest.param("[::1]:3013", id="ipv6"),
+    ],
+)
 def test_connect_to_cluster_app_by_uri(tt, with_scheme, uri):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
@@ -3125,7 +3131,8 @@ def test_connect_to_cluster_app_by_uri(tt, with_scheme, uri):
 
     # Connect to the instance and execute stdin.
     p = tt.run(
-        "connect", f"tcp://{uri}" if with_scheme else uri,
+        "connect",
+        f"tcp://{uri}" if with_scheme else uri,
         input="2+2",
     )
     assert p.returncode == 0
