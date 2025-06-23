@@ -72,8 +72,7 @@ func TestNewReplicasetGetter(t *testing.T) {
 	for _, oc := range orchestratorCases {
 		for _, tc := range cases {
 			t.Run(oc.Name+"_"+tc.Name, func(t *testing.T) {
-				var getter replicaset.Discoverer
-				getter = oc.New(tc.Evaler)
+				getter := oc.New(tc.Evaler)
 				assert.NotNil(t, getter)
 			})
 		}

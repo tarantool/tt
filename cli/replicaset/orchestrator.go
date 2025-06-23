@@ -36,7 +36,7 @@ var knownOrchestrators = []Orchestrator{
 // PraseOrchestrator parses an orchestrator from the string.
 func ParseOrchestrator(str string) Orchestrator {
 	for _, o := range knownOrchestrators {
-		if strings.ToLower(str) == strings.ToLower(o.String()) {
+		if strings.EqualFold(str, o.String()) {
 			return o
 		}
 	}

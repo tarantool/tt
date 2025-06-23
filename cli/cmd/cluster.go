@@ -560,7 +560,7 @@ func checkRolesChangeFlags(isAdd bool) error {
 	if !isAdd {
 		action = "removed"
 	}
-	if rolesChangeCtx.IsGlobal == false && rolesChangeCtx.GroupName == "" &&
+	if !rolesChangeCtx.IsGlobal && rolesChangeCtx.GroupName == "" &&
 		rolesChangeCtx.ReplicasetName == "" && rolesChangeCtx.InstName == "" {
 
 		return util.NewArgError(fmt.Sprintf("need to provide flag(s) with scope roles will %s",

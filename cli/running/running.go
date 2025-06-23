@@ -899,7 +899,7 @@ func Logrotate(run *InstanceCtx) error {
 		return fmt.Errorf("%s: the instance is not running, it must be started", fullInstanceName)
 	}
 
-	alive, err := process_utils.IsProcessAlive(pid)
+	alive, _ := process_utils.IsProcessAlive(pid)
 	if !alive {
 		return errors.New(instStateDead.String())
 	}

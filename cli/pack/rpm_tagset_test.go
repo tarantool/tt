@@ -133,7 +133,7 @@ func TestPackTag(t *testing.T) {
 		Value: []int16{1},
 	}
 
-	packed, err = packTag(err64Tag)
+	_, err = packTag(err64Tag)
 	assert.EqualError(err, "INT64 value should be []int64")
 
 	// INT32
@@ -142,7 +142,7 @@ func TestPackTag(t *testing.T) {
 		Value: []int16{1},
 	}
 
-	packed, err = packTag(err32Tag)
+	_, err = packTag(err32Tag)
 	assert.EqualError(err, "INT32 value should be []int32")
 
 	// NULL
@@ -151,7 +151,7 @@ func TestPackTag(t *testing.T) {
 		Value: []int16{1},
 	}
 
-	packed, err = packTag(errNullTag)
+	_, err = packTag(errNullTag)
 	assert.EqualError(err, "NULL value should be nil")
 
 	// BIN
@@ -160,7 +160,7 @@ func TestPackTag(t *testing.T) {
 		Value: []int16{1},
 	}
 
-	packed, err = packTag(errBinTag)
+	_, err = packTag(errBinTag)
 	assert.EqualError(err, "BIN and CHAR values should be []byte")
 
 	// STRING
@@ -169,7 +169,7 @@ func TestPackTag(t *testing.T) {
 		Value: []int16{1},
 	}
 
-	packed, err = packTag(errStringTag)
+	_, err = packTag(errStringTag)
 	assert.EqualError(err, "STRING value should be string")
 
 	// ARRAY STRING
@@ -178,7 +178,7 @@ func TestPackTag(t *testing.T) {
 		Value: []int16{1},
 	}
 
-	packed, err = packTag(errArrStringTag)
+	_, err = packTag(errArrStringTag)
 	assert.EqualError(err, "STRING_ARRAY value should be []string")
 }
 

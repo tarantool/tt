@@ -152,7 +152,7 @@ func (c *Console) addStmt(part string) bool {
 	}
 
 	has_delim := c.cleanupDelimiter()
-	c.livePrefixEnabled = !(has_delim && c.impl.Handler.Validate(c.input))
+	c.livePrefixEnabled = !has_delim || !c.impl.Handler.Validate(c.input)
 	return !c.livePrefixEnabled
 }
 

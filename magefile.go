@@ -128,7 +128,7 @@ func applyPatch(path string) error {
 		return err
 	}
 
-	err = sh.Run(
+	sh.Run(
 		"patch", "-d", cartridgePath, "-N", "-p1", "-V", "none", "-i", path,
 	)
 
@@ -206,8 +206,8 @@ func appendTags(args []string) ([]string, error) {
 		tags = append(tags, "openssl_static")
 	case BuildTypeShared:
 	default:
-		return []string{}, fmt.Errorf("Unsupported build type: %s, supported: "+
-			"%s, %s, %s\n",
+		return []string{}, fmt.Errorf("unsupported build type: %s, supported: "+
+			"%s, %s, %s",
 			buildType, BuildTypeNoCgo, BuildTypeStatic, BuildTypeShared)
 	}
 	return append(append(args, "-tags"), strings.Join(tags, ",")), nil
@@ -232,7 +232,7 @@ func buildTt(argUpdaters ...optsUpdater) error {
 		packagePath)
 	err = sh.RunWith(getBuildEnvironment(), goExecutableName, args...)
 	if err != nil {
-		return fmt.Errorf("Failed to build tt executable: %s", err)
+		return fmt.Errorf("failed to build tt executable: %s", err)
 	}
 
 	return nil

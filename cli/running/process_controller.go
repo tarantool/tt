@@ -33,7 +33,7 @@ type processController struct {
 // start starts the process.
 func (pc *processController) start() error {
 	// Start an Instance.
-	if err := pc.Cmd.Start(); err != nil {
+	if err := pc.Start(); err != nil {
 		return err
 	}
 	pc.done = false
@@ -59,10 +59,10 @@ func (pc *processController) Wait() error {
 
 // SendSignal sends a signal to tarantool instance.
 func (pc *processController) SendSignal(sig os.Signal) error {
-	if pc.Cmd == nil || pc.Cmd.Process == nil {
+	if pc.Cmd == nil || pc.Process == nil {
 		return fmt.Errorf("the instance hasn't started yet")
 	}
-	return pc.Cmd.Process.Signal(sig)
+	return pc.Process.Signal(sig)
 }
 
 // IsAlive verifies that the Instance is alive by sending a "0" signal.
@@ -104,7 +104,7 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 	case <-time.After(waitTimeout):
 		if pc.IsAlive() {
 			// Send "SIGKILL" signal if process is still alive.
-			if err := pc.Cmd.Process.Kill(); err != nil {
+			if err := pc.Process.Kill(); err != nil {
 				return fmt.Errorf("failed to send SIGKILL to instance: %s", err)
 			} else {
 				// Wait for the process to terminate.

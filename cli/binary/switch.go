@@ -86,9 +86,7 @@ func ChooseVersion(binDir string, program search.Program) (string, error) {
 	}
 	_, version, err := versionSelect.Run()
 	version = cleanString(version)
-	if strings.HasSuffix(version, " [active]") {
-		version = strings.TrimSuffix(version, " [active]")
-	}
+	version = strings.TrimSuffix(version, " [active]")
 
 	return version, err
 }

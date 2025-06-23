@@ -99,10 +99,11 @@ func createControlDir(cmdCtx cmdcontext.CmdCtx, packCtx PackCtx,
 
 // getDebRelation returns a correct relation string from the passed one.
 func getDebRelation(relation string) string {
-	if relation == ">" || relation == "<" {
+	switch relation {
+	case ">", "<":
 		// Deb format uses >> and << instead of > and <
 		return fmt.Sprintf("%s%s", relation, relation)
-	} else if relation == "==" {
+	case "==":
 		return "="
 	}
 
@@ -175,9 +176,10 @@ func getLexer() *stateful.Definition {
 // inside the passed directory.
 func initScript(destDirPath, scriptName string, mp map[string]interface{}) error {
 	var scriptTemplate string
-	if scriptName == PostInstScriptName {
+	switch scriptName {
+	case PostInstScriptName:
 		scriptTemplate = postInstScriptContent
-	} else if scriptName == PreInstScriptName {
+	case PreInstScriptName:
 		scriptTemplate = debPreInstScriptContent
 	}
 

@@ -81,7 +81,7 @@ func getPatterns(distro Distro) ([]string, error) {
 		return []string{"*.deb", "*.dsc"}, nil
 	}
 
-	return nil, fmt.Errorf("Unknown OS: %s", distro.OS)
+	return nil, fmt.Errorf("unknown OS: %s", distro.OS)
 }
 
 // PublishRWS puts packages to RWS (Repository Web Service).
@@ -93,19 +93,19 @@ func PublishRWS() error {
 
 		patterns, perr := getPatterns(targetDistro)
 		if perr != nil {
-			return fmt.Errorf("Failed to publish package for %s/%s: %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %s",
 				targetDistro.OS, targetDistro.Dist, perr)
 		}
 
 		files, ferr := walkMatch(distPath, patterns)
 		if ferr != nil {
-			return fmt.Errorf("Failed to publish package for %s/%s: %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %s",
 				targetDistro.OS, targetDistro.Dist, ferr)
 		}
 
 		rwsUrlPart := os.Getenv("RWS_URL_PART")
 		if rwsUrlPart == "" {
-			return fmt.Errorf("Failed to publish package: RWS_URL_PART is not set")
+			return fmt.Errorf("failed to publish package: RWS_URL_PART is not set")
 		}
 
 		flags := []string{
@@ -123,7 +123,7 @@ func PublishRWS() error {
 
 		rwsAuth := os.Getenv("RWS_AUTH")
 		if rwsAuth == "" {
-			return fmt.Errorf("Failed to publish package: RWS_AUTH is not set")
+			return fmt.Errorf("failed to publish package: RWS_AUTH is not set")
 		}
 		flags = append(flags, "-u", rwsAuth)
 
@@ -131,7 +131,7 @@ func PublishRWS() error {
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("Failed to publish package for %s/%s: %s, %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %s, %s",
 				targetDistro.OS, targetDistro.Dist, err, output)
 		}
 	}

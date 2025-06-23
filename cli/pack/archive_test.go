@@ -82,7 +82,7 @@ func TestGetTarPackageName(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			suffix, err := getTgzSuffix()
+			suffix, _ := getTgzSuffix()
 			packageName, err := getPackageFileName(testCase.packCtx, testCase.opts, suffix, true)
 			require.ErrorIs(t, err, testCase.expectedError)
 			require.Equalf(t, testCase.expectedName, packageName,
