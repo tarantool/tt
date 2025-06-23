@@ -21,7 +21,7 @@ import (
 
 const (
 	// defaultDirPermissions is permissions for new directories.
-	// 0755 - drwxr-xr-x
+	// 0755 - drwxr-xr-x.
 	defaultDirPermissions = os.FileMode(0o755)
 	// dockerFileName is a default Dockerfile file name.
 	dockerFileName = "Dockerfile"

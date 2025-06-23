@@ -214,7 +214,7 @@ func appendTags(args []string) ([]string, error) {
 }
 
 // Building tt executable. Supported environment variables:
-// TT_CLI_BUILD_SSL=(no|static|shared)
+// TT_CLI_BUILD_SSL=(no|static|shared).
 func buildTt(argUpdaters ...optsUpdater) error {
 	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)

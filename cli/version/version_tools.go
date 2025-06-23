@@ -197,7 +197,7 @@ func ParseTt(verStr string) (Version, error) {
 // VersionSlice attaches the methods of sort.Interface to []Version, sorting from oldest to newest.
 type VersionSlice []Version
 
-// sort.Interface Len implementation
+// sort.Interface Len implementation.
 func (v VersionSlice) Len() int {
 	return len(v)
 }
@@ -235,12 +235,12 @@ func IsLess(verLeft, verRight Version) bool {
 	return false
 }
 
-// sort.Interface Less implementation, sorts from oldest to newest
+// sort.Interface Less implementation, sorts from oldest to newest.
 func (v VersionSlice) Less(i, j int) bool {
 	return IsLess(v[i], v[j])
 }
 
-// sort.Interface Swap implementation
+// sort.Interface Swap implementation.
 func (v VersionSlice) Swap(i, j int) {
 	v[i], v[j] = v[j], v[i]
 }
