@@ -25,13 +25,12 @@ runs:
         echo "Found base branch with hash: '${HASH}'"
         echo "BASE_BRANCH=${HASH}" >> ${GITHUB_ENV}
 
-    # FIXME: Enable golangci-lint-diff after PR #1173 is merged.
-    # - name: pre-commit checks (diff)
-    #   uses: pre-commit/action@v3.0.1
-    #   env:
-    #     SKIP: golangci-lint-full
-    #   with:
-    #     extra_args: --all-files --from-ref=${{ env.BASE_BRANCH }} --to-ref=HEAD --hook-stage=manual
+    - name: pre-commit checks (diff)
+      uses: pre-commit/action@v3.0.1
+      env:
+        SKIP: golangci-lint-full
+      with:
+        extra_args: --all-files --from-ref=${{ env.BASE_BRANCH }} --to-ref=HEAD --hook-stage=manual
 
     - name: pre-commit checks (full)
       uses: pre-commit/action@v3.0.1
