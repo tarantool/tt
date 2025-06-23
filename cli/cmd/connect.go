@@ -138,12 +138,12 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	if fillErr == nil {
 		if len(runningCtx.Instances) > 1 {
 			err = fmt.Errorf("specify instance name")
-			return
+			return connOpts, err
 		}
 		if (connectCtx.Username != "" || connectCtx.Password != "") && !connectCtx.Binary {
 			err = fmt.Errorf("username and password are not supported" +
 				" with a connection via a control socket")
-			return
+			return connOpts, err
 		}
 		if connectCtx.Binary {
 			connOpts = makeConnOpts(
@@ -158,7 +158,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		if connectCtx.Username != "" || connectCtx.Password != "" {
 			err = fmt.Errorf("username and password are specified with" +
 				" flags and a URI")
-			return
+			return connOpts, err
 		}
 		newURI, user, pass := libconnect.ParseCredentialsURI(target)
 		network, address := libconnect.ParseBaseURI(newURI)
@@ -178,12 +178,12 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		connOpts = makeConnOpts(network, address, *connectCtx)
 	} else {
 		err = fillErr
-		return
+		return connOpts, err
 	}
 	if connectCtx.ConnectTarget == "" {
 		connectCtx.ConnectTarget = target
 	}
-	return
+	return connOpts, err
 }
 
 // internalConnectModule is a default connect module.

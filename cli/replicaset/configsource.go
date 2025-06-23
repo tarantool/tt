@@ -306,7 +306,7 @@ func getCConfigPromotePath(inst cconfigInstance) (path []string, depth int, err 
 	default:
 		err = fmt.Errorf(`unknown failover, supported: "manual", "off"`)
 	}
-	return
+	return path, depth, err
 }
 
 // getCConfigDemotePath returns a path and it's minimum interesting depth
@@ -330,7 +330,7 @@ func getCConfigDemotePath(inst cconfigInstance) (path []string, depth int, err e
 	default:
 		err = fmt.Errorf(`unknown failover, supported: "off"`)
 	}
-	return
+	return path, depth, err
 }
 
 // getCConfigExpelPath returns a path and it's minimum interesting depth

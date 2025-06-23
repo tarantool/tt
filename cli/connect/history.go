@@ -46,7 +46,7 @@ func parseHistoryCells(
 		for range lines {
 			timestamps = append(timestamps, timestamp)
 		}
-		return
+		return commands, timestamps
 	}
 
 	commands = make([]string, 0)
@@ -68,7 +68,7 @@ func parseHistoryCells(
 		startPos = j
 	}
 
-	return
+	return commands, timestamps
 }
 
 // load loads console history from the history file.

@@ -189,7 +189,7 @@ func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
 // createInstance reads config and creates an Instance.
 func (provider *providerImpl) CreateInstance(logger ttlog.Logger) (inst Instance, err error) {
 	if err = provider.updateCtx(); err != nil {
-		return
+		return inst, err
 	}
 
 	opts := []InstanceOption{StdLoggerOpt(logger)}
@@ -279,22 +279,22 @@ type appDirCtx struct {
 func collectAppDirFiles(appDir string) (appDirCtx appDirCtx, err error) {
 	appDirCtx.defaultLuaPath = filepath.Join(appDir, "init.lua")
 	if _, err = os.Stat(appDirCtx.defaultLuaPath); err != nil && !os.IsNotExist(err) {
-		return
+		return appDirCtx, err
 	} else if os.IsNotExist(err) {
 		appDirCtx.defaultLuaPath = ""
 	}
 
 	if appDirCtx.clusterCfgPath, err = util.GetYamlFileName(
 		filepath.Join(appDir, clusterConfigDefaultFileName), false); err != nil {
-		return
+		return appDirCtx, err
 	}
 
 	if appDirCtx.instCfgPath, err = util.GetYamlFileName(
 		filepath.Join(appDir, "instances.yml"), false); err != nil {
-		return
+		return appDirCtx, err
 	}
 
-	return
+	return appDirCtx, err
 }
 
 // getInstanceName gets instance name from app name + instance name.
