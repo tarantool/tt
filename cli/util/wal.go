@@ -89,7 +89,6 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 		if err != nil {
 			log.Warnf("Error encountered during recursive walk of %q: %s", path, err)
 		}
-
 	} else {
 		dirEntries, readErr := os.ReadDir(path)
 		if readErr != nil {

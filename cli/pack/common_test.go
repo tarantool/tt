@@ -1107,6 +1107,7 @@ func Test_prepareBundle(t *testing.T) {
 			defer func() {
 				if strings.HasPrefix(bundleDir, "/tmp/") ||
 					strings.HasPrefix(bundleDir, "/private/") {
+
 					os.RemoveAll(bundleDir)
 				}
 			}()

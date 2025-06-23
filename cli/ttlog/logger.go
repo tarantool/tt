@@ -90,6 +90,7 @@ func NewFileLogger(opts LoggerOpts) (Logger, error) {
 	dir := filepath.Dir(opts.Filename)
 	if _, err := os.Stat(dir); err != nil &&
 		errors.Is(err, os.ErrNotExist) {
+
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, err
 		}

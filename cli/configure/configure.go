@@ -190,7 +190,6 @@ func adjustListPathWithConfigLocation(listPaths []string, configDir string,
 			return result, err
 		}
 		result = append(result, path)
-
 	}
 	return result, nil
 }
@@ -205,6 +204,7 @@ func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	}
 	if cliOpts.Env.InstancesEnabled != "." || (cliOpts.Env.InstancesEnabled == "." &&
 		!util.IsApp(configDir)) {
+
 		if cliOpts.Env.InstancesEnabled, err =
 			adjustPathWithConfigLocation(cliOpts.Env.InstancesEnabled, configDir, ""); err != nil {
 			return err

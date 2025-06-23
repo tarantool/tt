@@ -604,7 +604,6 @@ func ExtractTar(tarName string) error {
 		default:
 			return fmt.Errorf("unknown type: %b in %s", header.Typeflag, header.Name)
 		}
-
 	}
 	return nil
 }

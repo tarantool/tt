@@ -184,7 +184,6 @@ func TestDownloadBundle(t *testing.T) {
 			if tc.errMsg != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.errMsg, "Error message mismatch")
-
 			} else {
 				require.NoError(t, err, "DownloadBundle failed unexpectedly")
 

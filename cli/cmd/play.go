@@ -178,6 +178,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 	if playSslCertFile != "" || playSslKeyFile != "" ||
 		playSslCaFile != "" || playSslCiphers != "" {
+
 		os.Setenv("TT_CLI_PLAY_TRANSPORT", "ssl")
 	}
 

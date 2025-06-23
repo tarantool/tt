@@ -74,6 +74,7 @@ func skipDefaults(srcInfo os.FileInfo, src string) bool {
 
 	if strings.HasPrefix(src, ".git") ||
 		strings.Contains(src, "/.git") {
+
 		return true
 	}
 	return false
@@ -214,6 +215,7 @@ func updateEnvPath(basePath string, packCtx *PackCtx, cliOpts *config.CliOpts) (
 func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *config.CliOpts) {
 	if packCtx.WithoutModules || packCtx.CartridgeCompat || cliOpts.Modules == nil ||
 		len(cliOpts.Modules.Directories) == 0 {
+
 		return
 	}
 
@@ -810,7 +812,6 @@ func LuaGetRocksVersions(appDirPath string) (RocksVersions, error) {
 		for _, versions := range rocksVersionsMap {
 			sort.Strings(versions)
 		}
-
 	} else if !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to read manifest file %s: %s", manifestFilePath, err)
 	}
