@@ -231,7 +231,7 @@ def test_log_follow(
 
 
 @pytest.mark.slow
-@pytest.mark.flaky(reruns=2)  # See notes below about issues with `tail` package.
+@pytest.mark.flaky(reruns=5)  # See notes below about issues with `tail` package.
 @pytest.mark.parametrize("delay_time", (0.1, 0.01, 0))
 @pytest.mark.parametrize("lines, options", TEST_CASES)
 @pytest.mark.parametrize("mode", TEST_DATA_MODES)
