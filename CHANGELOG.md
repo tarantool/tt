@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+## [2.10.1] - 2025-06-26
+
+The release introduces a fix for the `tt logrotate` command, which now properly
+releases the descriptor of the old log file.
+
+### Fixed
+
 - `tt logrotate`: properly release descriptor of the old log file.
 
 ## [2.10.0] - 2025-06-09
