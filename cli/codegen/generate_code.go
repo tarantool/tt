@@ -144,6 +144,14 @@ func main() {
 	if err != nil {
 		log.Errorf("error while generating file modes: %s", err)
 	}
+	err = generateFileModeFile(
+		"cli/create/builtin_templates/templates/cluster",
+		"cli/create/builtin_templates/static/cluster_template_filemodes_gen.go",
+		"Cluster",
+	)
+	if err != nil {
+		log.Errorf("error while generating file modes: %s", err)
+	}
 
 	if err = generateLuaCodeVar(); err != nil {
 		log.Errorf("error while generating lua code string variables: %s", err)
