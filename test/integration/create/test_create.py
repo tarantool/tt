@@ -1,3 +1,4 @@
+import filecmp
 import os
 import re
 import shutil
@@ -15,6 +16,7 @@ from utils import (
     run_command_and_get_output,
     wait_event,
     wait_file,
+    wait_files,
 )
 
 tt_config_text = """env:
@@ -1051,3 +1053,186 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     # Assert here to be sure that instances are stopped.
     assert can_insert, "can not insert data into the vshard cluster"
     assert can_select, "can not select data from the vhsard cluster"
+
+
+def check_create(tt_cmd, workdir, template, app_name, params, files):
+    input = "".join(["\n" if x is None else f"{x}\n" for x in params])
+    create_cmd = [tt_cmd, "create", template, "--name", app_name]
+    p = subprocess.run(
+        create_cmd,
+        cwd=workdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+        input=input,
+    )
+    assert p.returncode == 0
+    assert f"Application '{app_name}' created successfully" in p.stdout
+    for f in files:
+        assert os.path.exists(workdir / app_name / f)
+
+
+def get_status_info(tt_cmd, workdir, target):
+    status_cmd = [tt_cmd, "status", target]
+    p = subprocess.run(
+        status_cmd,
+        cwd=workdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert p.returncode == 0
+    return extract_status(p.stdout)
+
+
+def wait_for_master(tt_cmd, workdir, app_name):
+    def has_master():
+        status_info = get_status_info(tt_cmd, workdir, app_name)
+        for key in status_info.keys():
+            if "MODE" in status_info[key] and status_info[key]["MODE"] == "RW":
+                return True
+        return False
+
+    return wait_event(10, has_master, 1)
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
+@pytest.mark.parametrize("num_replicas", [3, 5])
+def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmp_path))
+
+    app_name = "app1"
+    files = ["config.yaml", "instances.yaml"]
+    instances = [f"replicaset-001-{chr(ord('a') + i)}" for i in range(num_replicas)]
+
+    # Create app.
+    check_create(tt_cmd, tmp_path, "config_storage", app_name, [num_replicas] + [None] * 3, files)
+
+    try:
+        # Start app.
+        start_cmd = [tt_cmd, "start", app_name]
+        p = subprocess.run(
+            start_cmd,
+            cwd=tmp_path,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+        )
+        assert p.returncode == 0
+        pid_files = [os.path.join(tmp_path, app_name, inst, pid_file) for inst in instances]
+        assert wait_files(3, pid_files)
+        assert wait_for_master(tt_cmd, tmp_path, app_name)
+
+        # Check status.
+        status_info = get_status_info(tt_cmd, tmp_path, app_name)
+        master = None
+        replica = None
+        for key in status_info.keys():
+            if status_info[key]["MODE"] == "RW":
+                master = key
+            else:
+                replica = key
+            assert status_info[key]["STATUS"] == "RUNNING"
+
+        def exec_on_inst(inst, cmd):
+            return subprocess.run(
+                [tt_cmd, "connect", inst, "-f-"],
+                cwd=tmp_path,
+                stderr=subprocess.STDOUT,
+                stdout=subprocess.PIPE,
+                text=True,
+                input=cmd,
+            )
+
+        def write_data_func(inst):
+            def f():
+                p = exec_on_inst(inst, "config.storage.put('/a', 'some value')")
+                return p.returncode == 0 and "revision" in p.stdout
+
+            return f
+
+        def read_data_func(inst):
+            def f():
+                p = exec_on_inst(inst, "config.storage.get('/a')")
+                return p.returncode == 0 and "some value" in p.stdout
+
+            return f
+
+        # Check read/write.
+        assert wait_event(3, write_data_func(f"{master}")), (
+            f"can not write data to the master instance '${master}'"
+        )
+        assert not wait_event(3, write_data_func(f"{replica}")), (
+            f"unexpectedly write data to the replica instance '${replica}'"
+        )
+        assert wait_event(3, read_data_func(f"{master}")), (
+            f"can not read data from the master instance '${master}'"
+        )
+        assert wait_event(3, read_data_func(f"{replica}")), (
+            f"can not read data from the replica instance '${replica}'"
+        )
+
+    finally:
+        # Stop app.
+        stop_cmd = [tt_cmd, "stop", "--yes", app_name]
+        p = subprocess.run(
+            stop_cmd,
+            cwd=tmp_path,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        assert p.returncode == 0
+
+
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
+@pytest.mark.parametrize(
+    "template",
+    [
+        "cartridge",
+        "vshard_cluster",
+        "config_storage",
+    ],
+)
+def test_create_builtin_template_with_defaults(tt_cmd, tmp_path, template):
+    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(tmp_path))
+
+    templates_data = {
+        "cartridge": {
+            "default_params": ["secret-cluster-cookie"],
+            "parametrizable_files": ["init.lua"],
+        },
+        "vshard_cluster": {
+            "default_params": [3000, 2, 2, 1],
+            "parametrizable_files": ["config.yaml", "instances.yaml"],
+        },
+        "config_storage": {
+            "default_params": [3, 5, "client", "secret"],
+            "parametrizable_files": ["config.yaml", "instances.yaml"],
+        },
+    }
+    files = templates_data[template]["parametrizable_files"]
+
+    # Create reference app (default values are specified explicitly).
+    ref_app_name = "ref_app"
+    ref_params = templates_data[template]["default_params"]
+    check_create(tt_cmd, tmp_path, template, ref_app_name, ref_params, files)
+
+    # Create default app (no values, just continuously pressing enter to accept defaults).
+    default_app_name = "default_app"
+    default_params = [None] * len(ref_params)
+    check_create(tt_cmd, tmp_path, template, default_app_name, default_params, files)
+
+    # Check that the corresponding files are identical.
+    for f in files:
+        default_path = tmp_path / default_app_name / f
+        ref_path = tmp_path / ref_app_name / f
+        assert filecmp.cmp(default_path, ref_path, shallow=False)

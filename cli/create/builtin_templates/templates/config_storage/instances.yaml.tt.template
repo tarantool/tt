@@ -1,0 +1,7 @@
+---
+{{- $replicas := atoi .replicas_count}}
+{{- range replicasets "replicaset" 1 $replicas}}
+{{- range .InstNames}}
+{{.}}:
+{{- end}}
+{{- end}}

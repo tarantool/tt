@@ -14,7 +14,13 @@ var FileModes = map[string]map[string]int{
 	"cartridge":       static.CartridgeFileModes,
 	"vshard_cluster":  static.VshardClusterFileModes,
 	"single_instance": static.SingleInstanceFileModes,
+	"config_storage":  static.ConfigStorageFileModes,
 }
 
 // Names contains built-in template names.
-var Names = [...]string{"cartridge", "vshard_cluster", "single_instance"}
+var Names = [...]string{
+	"cartridge",
+	"vshard_cluster",
+	"single_instance",
+	"config_storage",
+}

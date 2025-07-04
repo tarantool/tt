@@ -1,0 +1,27 @@
+description: Config storage template
+follow-up-message: |
+  What's next?
+  Start '{{ .name }}' application:
+      $ tt start {{ .name }}
+
+  Pay attention that default user and password were generated
+  for the 'replication' role, you can change it in the config.yaml.
+
+vars:
+  - prompt: Storages replicas (odd, >=3)
+    name: replicas_count
+    default: '3'
+    re: ^([3579]|[1-9]\d*[13579])$
+
+  - prompt: Status check interval
+    name: status_check_interval
+    default: '5'
+    re: ^[1-9]\d*$
+
+  - prompt: User name
+    name: username
+    default: 'client'
+
+  - prompt: Password
+    name: password
+    default: 'secret'
