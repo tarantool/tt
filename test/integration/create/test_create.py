@@ -1056,11 +1056,21 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     assert can_select, "can not select data from the vhsard cluster"
 
 
-def check_create(tt_cmd, workdir, template, app_name, params, files):
+def check_create_cluster(
+    tt_cmd,
+    workdir,
+    template,
+    app_name,
+    params,
+    expected_files,
+):
+    with open(os.path.join(workdir, config_name), "w") as tnt_env_file:
+        tnt_env_file.write(tt_config_text.format(workdir))
+
     input = "".join(["\n" if x is None else f"{x}\n" for x in params])
-    create_cmd = [tt_cmd, "create", template, "--name", app_name]
+    cmd = [tt_cmd, "create", template, "--name", app_name]
     p = subprocess.run(
-        create_cmd,
+        cmd,
         cwd=workdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -1069,14 +1079,16 @@ def check_create(tt_cmd, workdir, template, app_name, params, files):
     )
     assert p.returncode == 0
     assert f"Application '{app_name}' created successfully" in p.stdout
-    for f in files:
-        assert os.path.exists(workdir / app_name / f)
+    for f in expected_files:
+        path = workdir / app_name / f
+        assert os.path.exists(path)
+        assert os.access(path, os.W_OK)
 
 
 def get_status_info(tt_cmd, workdir, target):
-    status_cmd = [tt_cmd, "status", target]
+    cmd = [tt_cmd, "status", target]
     p = subprocess.run(
-        status_cmd,
+        cmd,
         cwd=workdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -1086,15 +1098,90 @@ def get_status_info(tt_cmd, workdir, target):
     return extract_status(p.stdout)
 
 
-def wait_for_master(tt_cmd, workdir, app_name):
-    def has_master():
-        status_info = get_status_info(tt_cmd, workdir, app_name)
-        for key in status_info.keys():
-            if "MODE" in status_info[key] and status_info[key]["MODE"] == "RW":
-                return True
-        return False
+def wait_cluster_started(timeout, tt_cmd, workdir, app_name, instances):
+    instances = [f"{app_name}:{inst}" for inst in instances]
 
-    return wait_event(10, has_master, 1)
+    def are_all_box_statuses_running():
+        status_info = get_status_info(tt_cmd, workdir, app_name)
+        running_instances = []
+        for instance, status in status_info.items():
+            if status.get("BOX") != "running":
+                return False
+            running_instances.append(instance)
+        return sorted(running_instances) == sorted(instances)
+
+    return wait_event(timeout, are_all_box_statuses_running)
+
+
+def check_running_cluster(tt_cmd, workdir, app_name, instances, check_func, *check_func_args):
+    # Start app.
+    cmd = [tt_cmd, "start", app_name]
+    p = subprocess.run(
+        cmd,
+        cwd=workdir,
+    )
+
+    try:
+        # Common check.
+        assert p.returncode == 0
+        pid_files = [os.path.join(workdir, app_name, inst, pid_file) for inst in instances]
+        assert wait_files(5, pid_files)
+        assert wait_cluster_started(10, tt_cmd, workdir, app_name, instances)
+
+        # Specific check.
+        check_func(tt_cmd, workdir, app_name, *check_func_args)
+
+    finally:
+        # Stop app.
+        cmd = [tt_cmd, "stop", "--yes", app_name]
+        p = subprocess.run(
+            cmd,
+            cwd=workdir,
+        )
+        assert p.returncode == 0
+
+
+def exec_on_inst(tt_cmd, workdir, inst, cmd):
+    return subprocess.run(
+        [tt_cmd, "connect", inst, "-f-"],
+        cwd=workdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+        input=cmd,
+    )
+
+
+def check_running_config_storage(tt_cmd, workdir, app_name):
+    status_info = get_status_info(tt_cmd, workdir, app_name)
+    master = None
+    replica = None
+    for instance, status in status_info.items():
+        assert status["STATUS"] == "RUNNING"
+        if status["MODE"] == "RW":
+            master = instance
+        else:
+            replica = instance
+
+    def write_data(inst):
+        cmd = "config.storage.put('/a', 'some value')"
+        p = exec_on_inst(tt_cmd, workdir, inst, cmd)
+        print(f"check_running_config_storage:write_data cmd: {cmd}\nout:\n{p.stdout}")
+        return p.returncode == 0 and "revision" in p.stdout
+
+    def read_data(inst):
+        cmd = "config.storage.get('/a')"
+        p = exec_on_inst(tt_cmd, workdir, inst, cmd)
+        print(f"check_running_config_storage:read_data cmd: {cmd}\nout:\n{p.stdout}")
+        return p.returncode == 0 and "some value" in p.stdout
+
+    # Check read/write.
+    assert write_data(f"{master}"), f"can not write data to the master instance '${master}'"
+    assert not write_data(f"{replica}"), (
+        f"unexpectedly write data to the replica instance '${replica}'"
+    )
+    assert read_data(f"{master}"), f"can not read data from the master instance '${master}'"
+    assert read_data(f"{replica}"), f"can not read data from the replica instance '${replica}'"
 
 
 @pytest.mark.slow
@@ -1108,90 +1195,132 @@ def wait_for_master(tt_cmd, workdir, app_name):
 )
 @pytest.mark.parametrize("num_replicas", [3, 5])
 def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmp_path))
-
     app_name = "app1"
+    params = [num_replicas, None, None, None]
+
     files = ["config.yaml", "instances.yaml"]
     instances = [f"replicaset-001-{chr(ord('a') + i)}" for i in range(num_replicas)]
 
-    # Create app.
-    check_create(tt_cmd, tmp_path, "config_storage", app_name, [num_replicas] + [None] * 3, files)
+    check_create_cluster(tt_cmd, tmp_path, "config_storage", app_name, params, files)
+    check_running_cluster(tt_cmd, tmp_path, app_name, instances, check_running_config_storage)
 
-    try:
-        # Start app.
-        start_cmd = [tt_cmd, "start", app_name]
-        p = subprocess.run(
-            start_cmd,
-            cwd=tmp_path,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
+
+def check_running_simple_cluster(tt_cmd, workdir, app_name, instances_tree):
+    running_instances = {}
+
+    # Collect running instances info.
+    status_info = get_status_info(tt_cmd, workdir, app_name)
+    for instance, status in status_info.items():
+        assert status["STATUS"] == "RUNNING"
+        app, sep, inst = instance.partition(":")
+        assert sep
+        assert app == app_name
+        rs_name, sep, _ = inst.rpartition("-")
+        assert sep
+        rs = running_instances.setdefault(rs_name, {"name": rs_name, "replicas": []})
+        if status.get("MODE") == "RW":
+            rs["master"] = inst
+        else:
+            rs["replicas"].append(inst)
+
+    # Check running instances against the expected ones which is referred by `instances_tree`.
+    assert sorted(running_instances.keys()) == sorted(instances_tree.keys())
+    for rs_name, rs in running_instances.items():
+        assert rs["master"] is not None
+        assert rs["master"] == instances_tree[rs_name][0]
+        assert len(rs["replicas"]) > 0
+        assert sorted(rs["replicas"]) == sorted(instances_tree[rs_name][1:])
+
+    def check_rs(rs):
+        def create_space(inst, space_name):
+            cmd = f"""
+                box.schema.create_space('{space_name}')
+                box.space['{space_name}']:format({{
+                    {{ name = 'id', type = 'unsigned' }},
+                    {{ name = 'band_name', type = 'string' }},
+                    {{ name = 'year', type = 'unsigned' }}
+                }})
+                box.space['{space_name}']:create_index('primary', {{ parts = {{ 'id' }} }})"""
+            p = exec_on_inst(tt_cmd, workdir, inst, cmd)
+            print(f"check_running_simple_cluster:create_space cmd:{cmd}\nout:\n{p.stdout}")
+            return p.returncode == 0 and "error:" not in p.stdout
+
+        def write_data(inst, space_name):
+            cmd = f"""
+                box.space['{space_name}']:insert{{ 1, 'Roxette', 1986 }}
+                box.space['{space_name}']:insert{{ 2, 'Scorpions', 1965 }}
+                box.space['{space_name}']:insert{{ 3, 'Ace of Base', 1987 }}
+            """
+            p = exec_on_inst(tt_cmd, workdir, inst, cmd)
+            print(f"check_running_simple_cluster:write_data cmd:{cmd}\nout:\n{p.stdout}")
+            return p.returncode == 0 and "error:" not in p.stdout
+
+        def read_data(inst, space_name):
+            cmd = f"box.space['{space_name}']:select{{ 2 }}"
+            p = exec_on_inst(tt_cmd, workdir, inst, cmd)
+            print(f"check_running_simple_cluster:read_data cmd:{cmd}\nout:\n{p.stdout}")
+            return p.returncode == 0 and "Scorpions" in p.stdout
+
+        space_name = f"bands_{rs['name']}"
+        master = f"{app_name}:{rs['master']}"
+
+        # Check master instance.
+        assert create_space(master, space_name), (
+            f"can not create space on master instance '{master}'"
         )
-        assert p.returncode == 0
-        pid_files = [os.path.join(tmp_path, app_name, inst, pid_file) for inst in instances]
-        assert wait_files(3, pid_files)
-        assert wait_for_master(tt_cmd, tmp_path, app_name)
+        assert write_data(master, space_name), (
+            f"can not write data to the master instance '{master}'"
+        )
+        assert read_data(master, space_name), (
+            f"can not read data from the master instance '{master}'"
+        )
 
-        # Check status.
-        status_info = get_status_info(tt_cmd, tmp_path, app_name)
-        master = None
-        replica = None
-        for key in status_info.keys():
-            if status_info[key]["MODE"] == "RW":
-                master = key
-            else:
-                replica = key
-            assert status_info[key]["STATUS"] == "RUNNING"
-
-        def exec_on_inst(inst, cmd):
-            return subprocess.run(
-                [tt_cmd, "connect", inst, "-f-"],
-                cwd=tmp_path,
-                stderr=subprocess.STDOUT,
-                stdout=subprocess.PIPE,
-                text=True,
-                input=cmd,
+        # Check replicas.
+        for replica in [f"{app_name}:{r}" for r in rs["replicas"]]:
+            assert not create_space(replica, "yet_another_space"), (
+                f"unexpectedly write data to the replica instance '{replica}'"
+            )
+            assert read_data(replica, space_name), (
+                f"can not read data from the replica instance '{replica}'"
             )
 
-        def write_data_func(inst):
-            def f():
-                p = exec_on_inst(inst, "config.storage.put('/a', 'some value')")
-                return p.returncode == 0 and "revision" in p.stdout
+    for rs in running_instances.values():
+        check_rs(rs)
 
-            return f
 
-        def read_data_func(inst):
-            def f():
-                p = exec_on_inst(inst, "config.storage.get('/a')")
-                return p.returncode == 0 and "some value" in p.stdout
+@pytest.mark.slow
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
+@pytest.mark.parametrize(
+    "num_replicasets,num_replicas",
+    [
+        (1, 2),
+        (2, 3),
+    ],
+)
+def test_create_simple_cluster(tt_cmd, tmp_path, num_replicasets, num_replicas):
+    app_name = "app1"
+    params = [num_replicasets, num_replicas, None, None]
 
-            return f
+    def inst_name(rs_name, i):
+        return f"{rs_name}-{chr(ord('a') + i)}"
 
-        # Check read/write.
-        assert wait_event(3, write_data_func(f"{master}")), (
-            f"can not write data to the master instance '${master}'"
-        )
-        assert not wait_event(3, write_data_func(f"{replica}")), (
-            f"unexpectedly write data to the replica instance '${replica}'"
-        )
-        assert wait_event(3, read_data_func(f"{master}")), (
-            f"can not read data from the master instance '${master}'"
-        )
-        assert wait_event(3, read_data_func(f"{replica}")), (
-            f"can not read data from the replica instance '${replica}'"
-        )
+    files = ["config.yaml", "instances.yaml", "app.lua"]
+    replicasets = [f"replicaset-00{i + 1}" for i in range(num_replicasets)]
+    instances = [inst_name(rs, i) for rs in replicasets for i in range(num_replicas)]
+    instances_tree = {rs: [inst_name(rs, i) for i in range(num_replicas)] for rs in replicasets}
 
-    finally:
-        # Stop app.
-        stop_cmd = [tt_cmd, "stop", "--yes", app_name]
-        p = subprocess.run(
-            stop_cmd,
-            cwd=tmp_path,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
-        assert p.returncode == 0
+    check_create_cluster(tt_cmd, tmp_path, "cluster", app_name, params, files)
+    check_running_cluster(
+        tt_cmd,
+        tmp_path,
+        app_name,
+        instances,
+        check_running_simple_cluster,
+        instances_tree,
+    )
 
 
 @pytest.mark.skipif(
@@ -1207,12 +1336,10 @@ def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
             "config_storage",
             marks=pytest.mark.skipif(not is_tarantool_ee(), reason="required Tarantool EE"),
         ),
+        "cluster",
     ],
 )
 def test_create_builtin_template_with_defaults(tt_cmd, tmp_path, template):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmp_path))
-
     templates_data = {
         "cartridge": {
             "default_params": ["secret-cluster-cookie"],
@@ -1226,18 +1353,22 @@ def test_create_builtin_template_with_defaults(tt_cmd, tmp_path, template):
             "default_params": [3, 5, "client", "secret"],
             "parametrizable_files": ["config.yaml", "instances.yaml"],
         },
+        "cluster": {
+            "default_params": [2, 2, "client", "secret"],
+            "parametrizable_files": ["config.yaml", "instances.yaml"],
+        },
     }
     files = templates_data[template]["parametrizable_files"]
 
     # Create reference app (default values are specified explicitly).
     ref_app_name = "ref_app"
     ref_params = templates_data[template]["default_params"]
-    check_create(tt_cmd, tmp_path, template, ref_app_name, ref_params, files)
+    check_create_cluster(tt_cmd, tmp_path, template, ref_app_name, ref_params, files)
 
     # Create default app (no values, just continuously pressing enter to accept defaults).
     default_app_name = "default_app"
     default_params = [None] * len(ref_params)
-    check_create(tt_cmd, tmp_path, template, default_app_name, default_params, files)
+    check_create_cluster(tt_cmd, tmp_path, template, default_app_name, default_params, files)
 
     # Check that the corresponding files are identical.
     for f in files:
