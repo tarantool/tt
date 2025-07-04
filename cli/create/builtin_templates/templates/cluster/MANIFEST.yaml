@@ -1,0 +1,27 @@
+description: Cluster template
+follow-up-message: |
+  What's next?
+  Start '{{ .name }}' application:
+      $ tt start {{ .name }}
+
+  Pay attention that default user and password were generated
+  for the 'replication' role, you can change it in the config.yaml.
+
+vars:
+  - prompt: Number of replication sets
+    name: num_replicasets
+    default: '2'
+    re: ^[1-9]\d*$
+
+  - prompt: Number of replicas per replication set (>=2)
+    name: num_replicas
+    default: '2'
+    re: ^[2-9]|[1-9]\d+$
+
+  - prompt: User name
+    name: username
+    default: 'client'
+
+  - prompt: Password
+    name: password
+    default: 'secret'

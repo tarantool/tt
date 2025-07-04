@@ -1,0 +1,35 @@
+credentials:
+  users:
+    {{.username}}:
+      password: '{{.password}}'
+      roles: [super]
+    replicator:
+      password: 'topsecret'
+      roles: [replication]
+
+iproto:
+  advertise:
+    peer:
+      login: replicator
+
+replication:
+  failover: manual
+
+groups:
+  group-001:
+    app:
+      file: 'app.lua'
+    replicasets:
+{{- $num_replicasets := atoi .num_replicasets}}
+{{- $num_replicas := atoi .num_replicas}}
+{{- range replicasets "replicaset" $num_replicasets $num_replicas}}
+      {{.Name}}:
+        leader: {{index .InstNames 0}}
+        instances:
+{{- range .InstNames}}
+          {{.}}:
+            iproto:
+              listen:
+              - uri: 127.0.0.1:{{port}}
+{{- end}}
+{{- end}}

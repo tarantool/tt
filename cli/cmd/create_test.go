@@ -42,6 +42,7 @@ func TestCreateValidArgsFunction(t *testing.T) {
 		"vshard_cluster",
 		"single_instance",
 		"config_storage",
+		"cluster",
 		"archive",
 		"template2",
 		tdir1Name,
