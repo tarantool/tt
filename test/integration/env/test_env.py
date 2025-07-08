@@ -21,7 +21,7 @@ def test_env_output(tt_cmd, tmp_path):
         text=True,
     )
 
-    # Check that the process shutdowned correctly.
+    # Check that the process shutdown correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
 

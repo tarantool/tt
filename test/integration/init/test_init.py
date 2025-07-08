@@ -287,6 +287,7 @@ def test_init_basic_tarantoolctl_cfg(tt_cmd, tmp_path):
     check_env_dirs(tmp_path, "instances.enabled")
 
 
+# cSpell:words ttctl
 def test_tarantoolctl_cfg_from_doc(tt_cmd, tmp_path):
     shutil.copy(
         os.path.join(os.path.dirname(__file__), "configs", "default_ttctl_cfg_from_doc.lua"),

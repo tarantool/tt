@@ -328,6 +328,9 @@ def test_rock_install_with_non_system_tarantool_in_path(tt_cmd, tmpdir_with_tara
         assert os.path.exists(os.path.join(tmp_path, ".rocks", "share", "tarantool", "crud"))
 
 
+# cSpell:words DENABLE
+
+
 @pytest.mark.docker
 def test_rocks_with_hardcoded(tt_cmd, tmp_path):
     if shutil.which("docker") is None:

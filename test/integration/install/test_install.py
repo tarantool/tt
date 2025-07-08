@@ -12,7 +12,7 @@ from utils import config_name, is_valid_tarantool_installed, run_command_and_get
 
 
 @pytest.mark.slow
-def test_install_tt_unexisted_commit(tt_cmd, tmp_path):
+def test_install_tt_noexist_commit(tt_cmd, tmp_path):
     configPath = os.path.join(tmp_path, config_name)
 
     # Create test config
@@ -42,7 +42,7 @@ def test_install_tt_unexisted_commit(tt_cmd, tmp_path):
         text=True,
     )
 
-    # Check that the process shutdowned correctly.
+    # Check that the process shutdown correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc != 0
 
@@ -69,7 +69,7 @@ def test_install_tt(tt_cmd, tmp_path):
         text=True,
     )
 
-    # Check that the process shutdowned correctly.
+    # Check that the process shutdown correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
     os.remove(configPath)
@@ -103,7 +103,7 @@ def test_install_uninstall_tt_specific_commit(tt_cmd, tmp_path):
         text=True,
     )
 
-    # Check that the process shutdowned correctly.
+    # Check that the process shutdown correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
 
@@ -152,7 +152,7 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
         text=True,
     )
 
-    # Check that the process shutdowned correctly.
+    # Check that the process shutdown correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc != 0
     assert re.search(r"Searching in versions...", instance_process.stdout.readline())
@@ -172,7 +172,7 @@ def test_wrong_format_hash(tt_cmd, tmp_path):
         text=True,
     )
 
-    # Check that the process shutdowned correctly.
+    # Check that the process shutdown correctly.
     instance_process_rc = instance_process_second.wait()
     assert instance_process_rc != 0
     first_output = instance_process_second.stdout.readline()
@@ -206,7 +206,7 @@ def test_install_tt_specific_version(tt_cmd, tmp_path, required_ver: str, instal
         text=True,
     )
 
-    # Check that the process shutdowned correctly.
+    # Check that the process shutdown correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
     os.remove(configPath)
@@ -245,7 +245,7 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
         text=True,
     )
 
-    # Check that the process was shutdowned correctly.
+    # Check that the process was shutdown correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
     installed_cmd = [tmp_path / "bin" / "tarantool", "-v"]
@@ -299,7 +299,7 @@ def test_install_tarantool(tt_cmd, tmp_path, required_ver: str, installed_ver: s
         text=True,
     )
 
-    # Check that the process was shutdowned correctly.
+    # Check that the process was shutdown correctly.
     instance_process_rc = instance_process.wait()
     assert instance_process_rc == 0
     installed_cmd = [tmp_path / "bin" / "tarantool", "-v"]
@@ -357,6 +357,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     run_output = installed_program_process.stdout.readline()
     assert re.search(r"Tarantool", run_output)
 
+    # cSpell:words objdump
     # Check tarantool glibc version.
     out = subprocess.getoutput(
         "objdump -T "
@@ -755,7 +756,7 @@ def test_install_tt_fetch_latest_version(
     with open(config_path, "w") as f:
         f.write("env:\n  bin_dir: \n  inc_dir:\n")
 
-    # Create executalbe file with 'tt version --commit'
+    # Create executable file with 'tt version --commit'
     # functionality to emulate real work of tt. We need
     # the following to avoid a situation where the last
     # git commit in the master branch makes it impossible
