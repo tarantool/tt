@@ -14,11 +14,13 @@ default_url = "http://127.0.0.1:1024/tarantool"
 
 # In case of unsuccessful completion of tests, tarantool test
 # daemon/instance may remain running.
-# This is autorun wrapper for each test case in this module.
+# This is auto run wrapper for each test case in this module.
 @pytest.fixture(autouse=True)
 def kill_remain_processes_wrapper(tt_cmd):
     # Run test.
     yield
+
+    # spell-checker:ignore pgrep
 
     # Kill a test daemon/instance if it was not stopped due to a failed test.
     tt_proc = subprocess.Popen(["pgrep", "-f", tt_cmd], stdout=subprocess.PIPE, shell=False)
@@ -275,6 +277,8 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
 
     conn = utils.get_process_conn(os.path.join(tmp_path, utils.run_path, file), port)
     assert conn is not None
+
+    # spell-checker:ignore laddr
 
     url = "http://" + conn.laddr.ip + ":" + str(port) + "/tarantool"
 

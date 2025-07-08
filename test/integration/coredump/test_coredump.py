@@ -9,6 +9,8 @@ import pytest
 
 from utils import get_tarantool_version, run_command_and_get_output
 
+# spell-checker:ignore getrlimit setrlimit rlimit, rlim, coredumps, coredumpctl, apport
+
 # Fixture below produces a coredump. The location of the coredumps is
 # configured over /proc/sys/kernel/core_pattern file in a various ways
 # but this fixture recognizes only some of them for now:
@@ -46,6 +48,7 @@ def generate_coredump(tmp_path_factory, tarantool_bin="tarantool") -> Path:
     to_coredump = None
     if not core_pattern.startswith("|"):
         core_wildcard = core_pattern.replace("%%", "%")
+        # spell-checker:disable-next-line
         core_wildcard = re.sub("%[cdeEghiIpPstu]", "*", core_wildcard)
         if not os.path.isabs(core_wildcard):
             core_wildcard = str(coredump_dir / core_wildcard)
@@ -185,7 +188,7 @@ def test_coredump_unpack_no_arg(tt_cmd, tmp_path):
 
 
 def test_coredump_unpack_no_such_file(tt_cmd, tmp_path):
-    cmd = [tt_cmd, "coredump", "unpack", "file_that_doesnt_exist"]
+    cmd = [tt_cmd, "coredump", "unpack", "file_that_does_not_exist"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
     assert re.search(r"failed to unpack", output)
@@ -207,7 +210,7 @@ def test_coredump_inspect_no_arg(tt_cmd, tmp_path):
 
 
 def test_coredump_inspect_no_such_file(tt_cmd, tmp_path):
-    cmd = [tt_cmd, "coredump", "inspect", "file_that_doesnt_exist"]
+    cmd = [tt_cmd, "coredump", "inspect", "file_that_does_not_exist"]
     rc, output = run_command_and_get_output(cmd, cwd=tmp_path)
     assert rc != 0
     assert re.search(r"failed to inspect", output)

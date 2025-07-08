@@ -386,9 +386,9 @@ def test_running_reread_config(tt_cmd, tmp_path):
     isStarted = wait_instance_start(log_file_path)
     assert isStarted is True
     # Kill instance child process.
-    killed_childrens = 0
-    while killed_childrens == 0:
-        killed_childrens = kill_child_process(pid)
+    killed_children = 0
+    while killed_children == 0:
+        killed_children = kill_child_process(pid)
 
     # Wait for child process of instance to start again.
     # It is indicated by 'started' in logs last line.
@@ -406,9 +406,9 @@ def test_running_reread_config(tt_cmd, tmp_path):
         yaml.dump({"app": {"restart_on_failure": False}}, file)
 
     # Kill instance child process.
-    killed_childrens = 0
-    while killed_childrens == 0:
-        killed_childrens = kill_child_process(pid)
+    killed_children = 0
+    while killed_children == 0:
+        killed_children = kill_child_process(pid)
     pid_path = os.path.join(tmp_path, "test_app", run_path, "test_app", pid_file)
     # Wait for instance to shutdown, since instance now should shutdown after failure.
     stopped = wait_instance_stop(pid_path)
@@ -767,7 +767,7 @@ def test_running_instance_from_multi_inst_app_no_init_script(tt_cmd):
 
 
 # SIGQUIT tests are skipped, because they cause coredump generation, which cannot be disabled
-# with process limits setting for some coredump patterns (using systemd-coderump).
+# with process limits setting for some coredump patterns (using systemd-coredump).
 @pytest.mark.parametrize(
     "cmd,input",
     [

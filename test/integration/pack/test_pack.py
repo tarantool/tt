@@ -18,6 +18,8 @@ from utils import config_name, run_command_and_get_output
 # Tests #
 # ##### #
 
+# spell-checker:ignore jrei getgid
+
 
 def get_arch():
     process = subprocess.Popen(
@@ -699,7 +701,7 @@ def test_pack_tgz_missing_app(tt_cmd, tmp_path):
 
     base_dir = tmp_path
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz", "--app-list", "unexisting-app"],
+        [tt_cmd, "pack", "tgz", "--app-list", "non-existing-app"],
         cwd=base_dir,
         env=dict(os.environ, PWD=base_dir),
     )
@@ -2268,7 +2270,7 @@ def test_pack_ignore(tt_cmd, tmp_path):
         "deep/nested/subdir/name1",
         "subdir2/name1/file",
         "name2",
-        "subdir/name3_blabla",
+        "subdir/name3_blabla",  # spell-checker:ignore blabla
         "dir1/file",
         "subdir/dir1/file",
         "dir2/file",

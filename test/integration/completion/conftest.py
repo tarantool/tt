@@ -28,6 +28,8 @@ def completion(tt_cmd: Path, tmp_path_factory: pytest.TempPathFactory, request) 
     process = run(cmd, text=True, capture_output=True)
     assert process.returncode == 0, f"Failed to generate {shell} completion script for testing."
 
+    # spell-checker:ignore getbasetemp
+
     completion_file = tmp_path_factory.getbasetemp() / f"tt_completion.{shell}"
     completion_file.write_text(process.stdout)
 
@@ -44,7 +46,7 @@ def skip_no_helpers(request: pytest.FixtureRequest, completion: Completion) -> N
 
 
 def pytest_configure(config):
-    config.addinivalue_line(
+    config.addinivalue_line(  # spell-checker:ignore addinivalue
         "markers",
         "skip_unimplemented: skip test if no helper script implemented for this shell",
     )
