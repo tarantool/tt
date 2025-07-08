@@ -413,6 +413,7 @@ def is_ipv4_type(address):
 
 
 def get_test_iface():
+    # cSpell:words ifaces, addrs, ifaddresses
     ifaces = netifaces.interfaces()
 
     for iface in ifaces[1:]:
@@ -435,6 +436,7 @@ def proc_by_pidfile(filename):
 
 
 def get_process_conn(pidfile, port):
+    # cSpell:words laddr
     proc = proc_by_pidfile(pidfile)
     for conn in proc.connections():
         if conn.status == "LISTEN" and conn.laddr.port == port and is_ipv4_type(conn.laddr.ip):
@@ -548,8 +550,8 @@ def read_kv(dirname):
 
 
 def is_tarantool_less_3():
-    major_versoin, _ = get_tarantool_version()
-    return True if major_versoin < 3 else False
+    major_version, _ = get_tarantool_version()
+    return True if major_version < 3 else False
 
 
 def is_tarantool_ee():

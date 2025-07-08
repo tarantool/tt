@@ -37,6 +37,8 @@ def kill_remain_processes_wrapper(tt_cmd):
     # Run test.
     yield
 
+    # cSpell:words pgrep
+
     tt_proc = subprocess.Popen(["pgrep", "-f", tt_cmd], stdout=subprocess.PIPE, shell=False)
     response = tt_proc.communicate()[0]
     procs = [psutil.Process(int(pid)) for pid in response.split()]
@@ -3197,6 +3199,9 @@ return a
     finally:
         # Stop the Instance.
         stop_app(tt_cmd, tmpdir, "test_app")
+
+
+# cSpell:words seqscan, evalers
 
 
 @pytest.mark.skipif(tarantool_major_version == 1, reason="skip custom evaler test for Tarantool 1")

@@ -63,7 +63,7 @@ class EtcdInstance:
             raise ex
 
     def enable_auth(self):
-        # etcdv3 client have a bug that prevents to establish a connection with
+        # etcd v3 client have a bug that prevents to establish a connection with
         # authentication enabled in latest python versions. So we need a separate steps
         # to upload/fetch data to/from etcd via the client.
         try:

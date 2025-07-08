@@ -79,6 +79,9 @@ def test_cluster_show_config_not_exist_app(tt_cmd, tmpdir_with_cfg):
     assert expected in show_output
 
 
+# cSpell:words testsimpleapp
+
+
 @pytest.mark.parametrize(
     "app_name, config_file",
     [
