@@ -11,9 +11,9 @@ def test_cfg_dump_default(tt_cmd, tmp_path):
         os.path.join(tmp_path, config_name),
     )
 
-    buid_cmd = [tt_cmd, "cfg", "dump"]
+    cmd = [tt_cmd, "cfg", "dump"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -45,9 +45,9 @@ def test_cfg_dump_raw(tt_cmd, tmp_path):
         os.path.join(tmp_path, config_name),
     )
 
-    buid_cmd = [tt_cmd, "cfg", "dump", "--raw"]
+    cmd = [tt_cmd, "cfg", "dump", "--raw"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -77,9 +77,9 @@ env:
 
 
 def test_cfg_dump_no_config(tt_cmd, tmp_path):
-    buid_cmd = [tt_cmd, "cfg", "dump", "--raw"]
+    cmd = [tt_cmd, "cfg", "dump", "--raw"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        cmd,
         cwd=tmp_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,

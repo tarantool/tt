@@ -31,6 +31,7 @@ def test_version_cmd(tt_cmd, tmp_path):
 
 @pytest.mark.parametrize(
     "program,versions",
+    # cSpell:disable
     [
         (
             "tarantool-ee",
@@ -54,6 +55,7 @@ def test_version_cmd(tt_cmd, tmp_path):
             ],
         ),
     ],
+    # cSpell:enable
 )
 def test_local_repo_sdk(tt_cmd: Path, tmp_path: Path, program: str, versions: list[str]) -> None:
     configPath = Path(__file__).parent / "testdata" / config_name

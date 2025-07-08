@@ -91,6 +91,9 @@ database:
         assert f.read() == cfg
 
 
+# cSpell:words testsimpleapp
+
+
 @pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
 def test_cluster_publish_no_configuration(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
@@ -381,7 +384,7 @@ def test_cluster_publish_wrong_replicaset_name(tt_cmd, tmpdir_with_cfg, app_name
         "cluster",
         "publish",
         "--replicaset",
-        "unexist",
+        "noexist",
         f"{app_name}:master",
         "src.yaml",
     ]
@@ -394,7 +397,7 @@ def test_cluster_publish_wrong_replicaset_name(tt_cmd, tmpdir_with_cfg, app_name
     )
     publish_output = instance_process.stdout.read()
 
-    expected = ' ⨯ wrong replicaset name, expected "replicaset-001", have "unexist"'
+    expected = ' ⨯ wrong replicaset name, expected "replicaset-001", have "noexist"'
     assert expected in publish_output
 
 
@@ -412,7 +415,7 @@ def test_cluster_publish_wrong_group_name(tt_cmd, tmpdir_with_cfg, app_name):
         "cluster",
         "publish",
         "--group",
-        "unexist",
+        "noexist",
         f"{app_name}:master",
         "src.yaml",
     ]
@@ -425,7 +428,7 @@ def test_cluster_publish_wrong_group_name(tt_cmd, tmpdir_with_cfg, app_name):
     )
     publish_output = instance_process.stdout.read()
 
-    expected = ' ⨯ wrong group name, expected "group-001", have "unexist"'
+    expected = ' ⨯ wrong group name, expected "group-001", have "noexist"'
     assert expected in publish_output
 
 

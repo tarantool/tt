@@ -14,9 +14,9 @@ def test_build_no_options(tt_cmd, tmpdir_with_cfg):
         os.path.join(tmpdir_with_cfg, "app1"),
     )
 
-    buid_cmd = [tt_cmd, "build"]
+    build_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        build_cmd,
         cwd=app_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -43,9 +43,9 @@ def test_build_with_tt_hooks(tt_cmd, tmpdir_with_cfg):
         dirs_exist_ok=True,
     )
 
-    buid_cmd = [tt_cmd, "build"]
+    build_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        build_cmd,
         cwd=app_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -73,9 +73,9 @@ def test_build_with_cartridge_hooks(tt_cmd, tmpdir_with_cfg):
         dirs_exist_ok=True,
     )
 
-    buid_cmd = [tt_cmd, "build"]
+    build_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        build_cmd,
         cwd=app_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -98,9 +98,9 @@ def test_build_app_name_set(tt_cmd, tmpdir_with_cfg):
         os.path.join(tmpdir_with_cfg, "app1"),
     )
 
-    buid_cmd = [tt_cmd, "build", "app1"]
+    build_cmd = [tt_cmd, "build", "app1"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        build_cmd,
         cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -122,9 +122,9 @@ def test_build_absolute_path(tt_cmd, tmpdir_with_cfg):
     )
 
     with tempfile.TemporaryDirectory() as tmpWorkDir:
-        buid_cmd = [tt_cmd, "--cfg", os.path.join(tmpdir_with_cfg, config_name), "build", app_dir]
+        build_cmd = [tt_cmd, "--cfg", os.path.join(tmpdir_with_cfg, config_name), "build", app_dir]
         tt_process = subprocess.Popen(
-            buid_cmd,
+            build_cmd,
             cwd=tmpWorkDir,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
@@ -157,9 +157,9 @@ def test_build_error_omit_stdout(tt_cmd, tmpdir_with_cfg):
 
 
 def test_build_missing_rockspec(tt_cmd, tmpdir_with_cfg):
-    buid_cmd = [tt_cmd, "build"]
+    build_cmd = [tt_cmd, "build"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        build_cmd,
         cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -179,9 +179,9 @@ def test_build_missing_rockspec(tt_cmd, tmpdir_with_cfg):
 
 
 def test_build_missing_app_dir(tt_cmd, tmpdir_with_cfg):
-    buid_cmd = [tt_cmd, "build", "app1"]
+    build_cmd = [tt_cmd, "build", "app1"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        build_cmd,
         cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -196,9 +196,9 @@ def test_build_missing_app_dir(tt_cmd, tmpdir_with_cfg):
 
 
 def test_build_multiple_paths(tt_cmd, tmpdir_with_cfg):
-    buid_cmd = [tt_cmd, "build", "app1", "app2"]
+    build_cmd = [tt_cmd, "build", "app1", "app2"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        build_cmd,
         cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -218,9 +218,9 @@ def test_build_spec_file_set(tt_cmd, tmpdir_with_cfg):
         os.path.join(tmpdir_with_cfg, "app1"),
     )
 
-    buid_cmd = [tt_cmd, "build", "app1", "--spec", "app1-scm-1.rockspec"]
+    build_cmd = [tt_cmd, "build", "app1", "--spec", "app1-scm-1.rockspec"]
     tt_process = subprocess.Popen(
-        buid_cmd,
+        build_cmd,
         cwd=tmpdir_with_cfg,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,

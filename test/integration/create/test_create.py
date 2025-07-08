@@ -197,7 +197,7 @@ def test_vars_passed_from_cli(tt_cmd, tmp_path):
         assert out_lines[i].find(expected_lines[i]) != -1
 
 
-def test_noninteractive_mode(tt_cmd, tmp_path):
+def test_not_interactive_mode(tt_cmd, tmp_path):
     create_tnt_env_in_dir(tmp_path)
 
     create_cmd = [
@@ -350,6 +350,7 @@ def run_and_check_non_interactive(tt_cmd, tmp_path, template_path, template_name
 def test_template_as_archive(tt_cmd, tmp_path):
     create_tnt_env_in_dir(tmp_path)
 
+    # cSpell:disable-next-line
     pack_template_cmd = ["tar", "-czvf", "../luakit.tgz", "./"]
     tar_process = subprocess.Popen(
         pack_template_cmd,
@@ -399,6 +400,7 @@ templates:
     os.mkdir(tmp_path / "templates2")
     os.mkdir(tmp_path / "templates3")
 
+    # cSpell:disable-next-line
     pack_template_cmd = ["tar", "-czvf", (tmp_path / "templates3" / "luakit.tgz").as_posix(), "./"]
     tar_process = subprocess.Popen(
         pack_template_cmd,
@@ -756,7 +758,7 @@ def test_create_app_from_builtin_cartridge_template(tt_cmd, tmp_path):
         assert data_loaded["app1.router"]["http_port"] == 8081
 
 
-def test_create_app_from_builtin_cartridge_template_noninteractive(tt_cmd, tmp_path):
+def test_create_app_from_builtin_cartridge_template_not_interactive(tt_cmd, tmp_path):
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path))
 
@@ -790,6 +792,7 @@ def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, t
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path))
 
+    # cSpell:words appdir
     create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1", "--dst", "appdir"]
     tt_process = subprocess.Popen(
         create_cmd,
@@ -1041,7 +1044,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         with open(os.path.join(tmp_path, "app1", inst, "tt.log")) as f:
             print(inst, f.read())
 
-    # Stop the vhsard_cluster app.
+    # Stop the vshard_cluster app.
     stop_cmd = [tt_cmd, "stop", "--yes", "app1"]
     stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
     assert stop_rc == 0
@@ -1052,7 +1055,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         print("\n".join(f.readlines()))
     # Assert here to be sure that instances are stopped.
     assert can_insert, "can not insert data into the vshard cluster"
-    assert can_select, "can not select data from the vhsard cluster"
+    assert can_select, "can not select data from the vshard cluster"
 
 
 def check_create(tt_cmd, workdir, template, app_name, params, files):
