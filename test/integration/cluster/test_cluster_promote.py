@@ -192,6 +192,9 @@ def test_cluster_promote_single_key(
     assert content == expected
 
 
+# spell-checker:ignore lexi
+
+
 @pytest.mark.parametrize(
     "instance_name, data_dir, exp_key, err_text",
     [

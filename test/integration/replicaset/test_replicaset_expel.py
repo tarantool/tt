@@ -40,10 +40,10 @@ def test_expel_no_instance(tt_cmd, tmpdir_with_cfg):
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
 
-    status_cmd = [tt_cmd, "replicaset", "expel", "test_custom_app:unexist"]
+    status_cmd = [tt_cmd, "replicaset", "expel", "test_custom_app:noexist"]
     rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
-    assert re.search(r"   ⨯ instance \"unexist\" not found", out)
+    assert re.search(r"   ⨯ instance \"noexist\" not found", out)
 
 
 @pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
@@ -117,7 +117,7 @@ Replicasets state: bootstrapped
   Roles:    vshard-storage
     ★ s2-master localhost:3304 rw
 """
-    status_unexpelled = status_expelled + "    • s2-replica localhost:3305 read\n"
+    status_not_expelled = status_expelled + "    • s2-replica localhost:3305 read\n"
 
     # Wait for the configured state.
     for _ in range(100):
@@ -140,7 +140,7 @@ Replicasets state: uninitialized
             """   • Discovery application...*
 
 """
-            + status_unexpelled
+            + status_not_expelled
             + """\n   • Expel instance: s2-replica
    • Done.*
 """,
@@ -152,7 +152,7 @@ Replicasets state: uninitialized
             rs_cmd = [tt_cmd, "replicaset", "status", f"{cartridge_name}:s2-master"]
             rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
             assert rs_rc == 0
-            if rs_out != status_unexpelled:
+            if rs_out != status_not_expelled:
                 # Changes are not applied immediately on the whole cluster.
                 break
             time.sleep(1)

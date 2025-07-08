@@ -162,7 +162,7 @@ class CartridgeApp:
     def truncate(self, bootstrap_vshard=True):
         self.stop()
         shutil.rmtree(os.path.join(self.workdir, cartridge_name, var_path))
-        self.start(boostrap_vshard=bootstrap_vshard)
+        self.start(bootstrap_vshard=bootstrap_vshard)
 
     def create(self):
         cmd = [self.tt_cmd, "create", "-s", "cartridge", "--name", cartridge_name, "-f"]
@@ -182,7 +182,7 @@ class CartridgeApp:
         assert rc == 0
         assert re.search(r"Application was successfully built", out)
 
-    def start(self, boostrap_vshard=True):
+    def start(self, bootstrap_vshard=True):
         start_cmd = [self.tt_cmd, "start", cartridge_name]
         test_env = os.environ.copy()
         # Avoid too long path.
@@ -195,7 +195,7 @@ class CartridgeApp:
             wait_inst_start(self.workdir, inst)
 
         # Bootstrap.
-        self.bootstrap(bootstrap_vshard=boostrap_vshard)
+        self.bootstrap(bootstrap_vshard=bootstrap_vshard)
 
     def bootstrap(self, bootstrap_vshard=True):
         cmd = [self.tt_cmd, "replicaset", "bootstrap", cartridge_name]

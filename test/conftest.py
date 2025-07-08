@@ -83,7 +83,7 @@ def tt_cmd(tmp_path_factory: TempPathFactory, request: pytest.FixtureRequest) ->
     tt_path = tt_build_dir / "tt"
 
     build_env = os.environ.copy()
-    build_env["TTEXE"] = str(tt_path)
+    build_env["TTEXE"] = str(tt_path)  # spell-checker:ignore TTEXE
     build_env.setdefault("TT_CLI_BUILD_SSL", "static")
 
     process = subprocess.run(["mage", "-v", "build"], cwd=tt_base_path, env=build_env, text=True)
@@ -127,7 +127,7 @@ def etcd_session(request, tmp_path_factory):
         etcd_instance.stop()
 
         # Additionally, we stop all etcd children;
-        # Finalizer may execute while ectd is starting.
+        # Finalizer may execute while etcd is starting.
         me = psutil.Process()
         utils.kill_procs(list(filter(lambda p: p.name() == "etcd", me.children())))
 

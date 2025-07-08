@@ -45,10 +45,10 @@ def test_vshard_bootstrap_no_instance(tt_cmd, tmpdir_with_cfg):
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
 
-    status_cmd = [tt_cmd, "rs", "vs", "bootstrap", "test_custom_app:unexist"]
+    status_cmd = [tt_cmd, "rs", "vs", "bootstrap", "test_custom_app:noexist"]
     rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir_with_cfg)
     assert rc == 1
-    assert re.search(r"   ⨯ instance \"unexist\" not found", out)
+    assert re.search(r"   ⨯ instance \"noexist\" not found", out)
 
 
 @pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
@@ -312,7 +312,7 @@ def vshard_cconfig_app_timeout_tt_env(request, tt_cmd, vshard_tt_env_session):
     tarantool_major_version < 3,
     reason="skip centralized config test for Tarantool < 3",
 )
-def test_vshard_bootstrap_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
+def test_vshard_bootstrap_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
     tmpdir = vshard_cconfig_app_timeout_tt_env
 
     cmd_sleep = ["sleep", "0.5"]
@@ -335,7 +335,7 @@ def test_vshard_bootstrap_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_
     tarantool_major_version < 3,
     reason="skip centralized config test for Tarantool < 3",
 )
-def test_vshard_bootstrap_not_enought_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
+def test_vshard_bootstrap_not_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_tt_env):
     tmpdir = vshard_cconfig_app_timeout_tt_env
 
     cmd_sleep = ["sleep", "0.5"]
@@ -345,6 +345,8 @@ def test_vshard_bootstrap_not_enought_timeout(tt_cmd, vshard_cconfig_app_timeout
     cmd = [tt_cmd, "rs", "vs", "bootstrap", "--timeout", "1"]
     cmd.append("--config")
     cmd.append(vshard_cconfig_app_name_timeout)
+
+    # spell-checker:ignore configdata
 
     rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc == 1
