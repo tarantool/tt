@@ -479,7 +479,7 @@ type tarantoolGetResponse struct {
 	}
 }
 
-// tarantoolCall retursns result of a function call via tarantool connector.
+// tarantoolCall returns result of a function call via tarantool connector.
 func tarantoolCall(conn tarantool.Doer,
 	fun string, args []any, timeout time.Duration,
 ) ([]any, error) {
@@ -590,7 +590,7 @@ func MakeConnectOptsFromUriOpts(src libconnect.UriOpts) (tarantool.Dialer, taran
 	return dialer, opts
 }
 
-func СonnectTarantool(uriOpts libconnect.UriOpts,
+func ConnectTarantool(uriOpts libconnect.UriOpts,
 	connOpts ConnectOpts,
 ) (tarantool.Connector, error) {
 	if uriOpts.Username == "" && uriOpts.Password == "" {

@@ -23,7 +23,7 @@ func newErrBootstrapVShardByInstanceNotSupported(orchestrator Orchestrator) erro
 }
 
 // newErrBootstrapVShardByAppNotSupported creates a new error that vshard bootstrap is not
-// supported by the orhestrator for an application.
+// supported by the orchestrator for an application.
 func newErrBootstrapVShardByAppNotSupported(orchestrator Orchestrator) error {
 	return fmt.Errorf("bootstrap vshard is not supported for an application by %q orchestrator",
 		orchestrator)

@@ -11,6 +11,8 @@ import (
 
 type GoTextEngine struct{}
 
+// spell-checker:ignore missingkey
+
 // makeTemplate creates template for rendering.
 func makeTemplate(name string) *template.Template {
 	state := newGenState()

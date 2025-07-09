@@ -503,11 +503,11 @@ func (publisher EtcdAllDataPublisher) Publish(revision int64, data []byte) error
 		}
 
 		// And try to execute the transaction.
-		tresp, err := txn.Then(opts...).Commit()
+		tResp, err := txn.Then(opts...).Commit()
 		if err != nil {
 			return fmt.Errorf("failed to put data into etcd: %w", err)
 		}
-		if tresp != nil && tresp.Succeeded {
+		if tResp != nil && tResp.Succeeded {
 			return nil
 		}
 	}
@@ -758,7 +758,7 @@ func (publisher EtcdKeyDataPublisher) Publish(revision int64, data []byte) error
 }
 
 // loadRootCA and the code below is a copy-paste from Go sources. We need an
-// ability to load ceritificates from a directory, but there is no such public
+// ability to load certificates from a directory, but there is no such public
 // function in `crypto`.
 //
 // https://cs.opensource.google/go/go/+/refs/tags/go1.20.7:src/crypto/x509/root_unix.go;l=62-74
@@ -822,7 +822,7 @@ type ConnectOpts struct {
 }
 
 // connectEtcd establishes a connection to etcd.
-func СonnectEtcdUriOpts(
+func ConnectEtcdUriOpts(
 	uriOpts libconnect.UriOpts,
 	connOpts ConnectOpts,
 ) (*clientv3.Client, error) {
@@ -849,12 +849,12 @@ func СonnectEtcdUriOpts(
 func DoOnStorage(connOpts ConnectOpts, opts libconnect.UriOpts,
 	tarantoolFunc func(tarantool.Connector) error, etcdFunc func(*clientv3.Client) error,
 ) error {
-	etcdcli, errEtcd := СonnectEtcdUriOpts(opts, connOpts)
+	etcdcli, errEtcd := ConnectEtcdUriOpts(opts, connOpts)
 	if errEtcd == nil {
 		return etcdFunc(etcdcli)
 	}
 
-	conn, errTarantool := СonnectTarantool(opts, connOpts)
+	conn, errTarantool := ConnectTarantool(opts, connOpts)
 	if errTarantool == nil {
 		return tarantoolFunc(conn)
 	}

@@ -187,12 +187,12 @@ type IntegerValidator struct{}
 func (validator IntegerValidator) Validate(value any) (any, error) {
 	switch v := value.(type) {
 	case string:
-		ivalue, err := strconv.ParseInt(v, 10, 64)
+		iValue, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
 			return nil, wrapValidateErrors([]string{},
 				fmt.Errorf(fmtParseFailed, fmt.Sprint(value), "integer"))
 		}
-		return int(ivalue), nil
+		return int(iValue), nil
 	case int, int8, int16, int32, int64:
 		return int(reflect.ValueOf(v).Int()), nil
 	case uint, uint8, uint16, uint32, uint64:
@@ -354,7 +354,7 @@ func MakeRecordValidator(items map[string]Validator) RecordValidator {
 
 // Validate returns a validated record or an error.
 func (validator RecordValidator) Validate(value any) (any, error) {
-	vmap, ok := value.(map[any]any)
+	vMap, ok := value.(map[any]any)
 	if !ok {
 		return nil, wrapValidateErrors([]string{fmt.Sprint(value)},
 			fmt.Errorf("must be a map"))
@@ -365,7 +365,7 @@ func (validator RecordValidator) Validate(value any) (any, error) {
 		errs []error
 	)
 	for k, validator := range validator.items {
-		if val, ok := vmap[k]; ok {
+		if val, ok := vMap[k]; ok {
 			if ret, err := validator.Validate(val); err == nil {
 				out[k] = ret
 			} else {
@@ -397,7 +397,7 @@ func MakeMapValidator(key, value Validator) MapValidator {
 
 // Validate returns a validated map or an error.
 func (validator MapValidator) Validate(value any) (any, error) {
-	vmap, ok := value.(map[any]any)
+	vMap, ok := value.(map[any]any)
 	if !ok {
 		return nil, wrapValidateErrors([]string{fmt.Sprint(value)},
 			fmt.Errorf("must be a map"))
@@ -408,21 +408,21 @@ func (validator MapValidator) Validate(value any) (any, error) {
 		errs []error
 	)
 
-	for key, value := range vmap {
-		rkey, err := validator.key.Validate(key)
+	for key, value := range vMap {
+		rKey, err := validator.key.Validate(key)
 		if err != nil {
 			err = wrapValidateErrors(nil, err)
 			errs = append(errs, err)
 			continue
 		}
-		rvalue, err := validator.value.Validate(value)
+		rValue, err := validator.value.Validate(value)
 		if err != nil {
 			path := []string{fmt.Sprint(key)}
 			err = wrapValidateErrors(path, err)
 			errs = append(errs, err)
 			continue
 		}
-		out[rkey] = rvalue
+		out[rKey] = rValue
 	}
 
 	if len(errs) > 0 {

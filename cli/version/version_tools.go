@@ -81,7 +81,7 @@ func createVersionRegexp(isStrict bool) *regexp.Regexp {
 	// Part 5 (optional) -> additional commits,
 	// Part 6 (optional) -> commit hash and revision.
 	// GC suffix is not saved, since it is not part of version.
-	matchString := `^((?P<buildname>[^\d\.\+-].*)-)?` +
+	matchString := `^((?P<buildName>[^\d\.\+-].*)-)?` +
 		`v?(?:(?P<major>\d+)){1}(?:\.(?P<minor>\d+)){1}(?:\.(?P<patch>\d+)){1}` +
 		`(?:-(?P<release>entrypoint|rc|alpha|beta)(?P<releaseNum>\d+)?)?` +
 		`(?:-(?P<additional>\d+))?` +
@@ -109,8 +109,8 @@ func Parse(verStr string) (Version, error) {
 		return version, err
 	}
 
-	if matches["buildname"] != "" {
-		version.BuildName = matches["buildname"]
+	if matches["buildName"] != "" {
+		version.BuildName = matches["buildName"]
 	}
 
 	if version.Major, err = util.AtoiUint64(matches["major"]); err != nil {

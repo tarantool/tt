@@ -112,7 +112,7 @@ type CliCtx struct {
 	Verbose bool
 	// TarantoolCli is current tarantool cli.
 	TarantoolCli TarantoolCli
-	// Tcmcli is current tcm cli.
+	// TcmCli is current tcm cli.
 	TcmCli TcmCli
 	// IntegrityCheck is a public key used for integrity check.
 	IntegrityCheck string

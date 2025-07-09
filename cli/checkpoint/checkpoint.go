@@ -47,9 +47,9 @@ func Cat(tntCli cmdcontext.TarantoolCli) error {
 // Play is playing the contents of .snap/.xlog files to another Tarantool instance.
 // Returns an error if such occur during playing.
 func Play(tntCli cmdcontext.TarantoolCli) error {
-	var errbuff bytes.Buffer
+	var errBuff bytes.Buffer
 	cmd := exec.Command(tntCli.Executable, "-")
-	cmd.Stderr = &errbuff
+	cmd.Stderr = &errBuff
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -63,7 +63,7 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 	stdinPipe.Close()
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("result of play: %s", errbuff.String())
+		return fmt.Errorf("result of play: %s", errBuff.String())
 	}
 
 	scanner := bufio.NewScanner(stdoutPipe)
@@ -73,8 +73,8 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 	}
 	cmd.Wait()
 
-	if len(errbuff.String()) > 0 {
-		return fmt.Errorf("result of play: %s", errbuff.String())
+	if len(errBuff.String()) > 0 {
+		return fmt.Errorf("result of play: %s", errBuff.String())
 	}
 
 	return nil

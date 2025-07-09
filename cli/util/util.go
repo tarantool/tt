@@ -706,8 +706,8 @@ func IsApp(path string) bool {
 
 	if entry.IsDir() {
 		// Check if the directory contains init.lua script or instances.yml file.
-		for _, fileTocheck := range [...]string{"init.lua", "instances.yml", "instances.yaml"} {
-			if fileInfo, err := os.Stat(filepath.Join(path, fileTocheck)); err == nil {
+		for _, fileToCheck := range [...]string{"init.lua", "instances.yml", "instances.yaml"} {
+			if fileInfo, err := os.Stat(filepath.Join(path, fileToCheck)); err == nil {
 				if !fileInfo.IsDir() {
 					return true
 				}
@@ -871,6 +871,7 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 	if err != nil {
 		return fmt.Errorf("error parsing %s: %s", templatePath, err)
 	}
+	// spell-checker:ignore missingkey
 	parsedTemplate.Option("missingkey=error") // Treat missing variable as error.
 
 	_, err = file.WriteString(unitContent)
@@ -914,15 +915,15 @@ func CollectAppList(baseDir, appsPath string, verbose bool) ([]string, error) {
 }
 
 // RelativeToCurrentWorkingDir returns a path relative to current working dir.
-// In case of error, fullpath is returned.
-func RelativeToCurrentWorkingDir(fullpath string) string {
+// In case of error, fullPath is returned.
+func RelativeToCurrentWorkingDir(fullPath string) string {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fullpath
+		return fullPath
 	}
-	relPath, err := filepath.Rel(cwd, fullpath)
+	relPath, err := filepath.Rel(cwd, fullPath)
 	if err != nil {
-		return fullpath
+		return fullPath
 	}
 	return relPath
 }
@@ -962,7 +963,7 @@ func CopyFileDeep(src, dst string) error {
 }
 
 // StringToTimestamp transforms string with number or RFC339Nano time
-// to <sec.nanosec> timestamp string.
+// to <sec.nanosecond> timestamp string.
 func StringToTimestamp(input string) (string, error) {
 	if input == "" {
 		// Default value.

@@ -19,7 +19,7 @@ const (
 
 const (
 	// userPathRe is a regexp for a username:password pair.
-	userpassRe = `[^@:/]+:[^@:/]+`
+	userPassRe = `[^@:/]+:[^@:/]+`
 
 	// uriPathPrefixRe is a regexp for a path prefix in uri, such as `scheme://path``.
 	uriPathPrefixRe = `((~?/+)|((../+)*))?`
@@ -128,20 +128,20 @@ func IsCredentialsURI(str string) bool {
 	// tcp://user:password@host:port
 	// user:password@host:port
 	hostReStr := `(?:([\w\\.-]+)|(\[[\w:%]+\]))`
-	tcpReStr := `(tcp://)?` + userpassRe + `@(` + hostReStr + `:\d+)`
+	tcpReStr := `(tcp://)?` + userPassRe + `@(` + hostReStr + `:\d+)`
 	// unix://user:password@../path
 	// unix://user:password@~/path
 	// unix://user:password@/path
 	// unix://user:password@path
-	unixReStr := `unix://` + userpassRe + `@` + uriPathPrefixRe + `[^\./@]+.*`
+	unixReStr := `unix://` + userPassRe + `@` + uriPathPrefixRe + `[^\./@]+.*`
 	// user:password@../path
 	// user:password@~/path
 	// user:password@/path
 	// user:password@./path
-	pathReStr := userpassRe + `@` + systemPathPrefixRe + `[^\./].*`
+	pathReStr := userPassRe + `@` + systemPathPrefixRe + `[^\./].*`
 	// https://user:password@host:port
 	// https://user:password@host
-	httpsReStr := `(http|https)://` + userpassRe + `@([\w\.-]+(:\d+)?)(/[\w\-\./~]*)?`
+	httpsReStr := `(http|https)://` + userPassRe + `@([\w\.-]+(:\d+)?)(/[\w\-\./~]*)?`
 
 	uriReStr := "^((" + tcpReStr + ")|(" + httpsReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
@@ -187,7 +187,7 @@ func ParseCredentialsURI(str string) (string, string, string) {
 		return str, "", ""
 	}
 
-	re := regexp.MustCompile(userpassRe + `@`)
+	re := regexp.MustCompile(userPassRe + `@`)
 	// Split the string into two parts by credentials to create a string
 	// without the credentials.
 	split := re.Split(str, 2)

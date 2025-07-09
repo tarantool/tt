@@ -136,13 +136,13 @@ func getInstanceConnector(instance replicaset.Instance,
 	return conn, nil
 }
 
-func collectRWROInfo(replset replicaset.Replicaset,
+func collectRwRoInfo(rs replicaset.Replicaset,
 	connOpts connector.ConnectOpts) (*instanceMeta, []instanceMeta,
 	error,
 ) {
 	var master *instanceMeta = nil
 	var replicas []instanceMeta
-	for _, instance := range replset.Instances {
+	for _, instance := range rs.Instances {
 		run := instance.InstanceCtx
 		fullInstanceName := running.GetAppInstanceName(run)
 		conn, err := getInstanceConnector(instance, connOpts)
@@ -260,7 +260,7 @@ func snapshot(instance *instanceMeta) error {
 func upgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int,
 	connOpts connector.ConnectOpts,
 ) error {
-	master, replicas, err := collectRWROInfo(replicaset, connOpts)
+	master, replicas, err := collectRwRoInfo(replicaset, connOpts)
 	if err != nil {
 		return err
 	}

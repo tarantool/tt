@@ -7,7 +7,7 @@ import (
 	"github.com/tarantool/tt/lib/connect"
 )
 
-// PublishCtx contains information abould cluster publish command execution
+// PublishCtx contains information about cluster publish command execution
 // context.
 type PublishCtx struct {
 	// Username defines a username for connection.

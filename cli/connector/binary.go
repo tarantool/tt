@@ -63,7 +63,7 @@ func (conn *BinaryConnector) Eval(expr string, args []interface{},
 		}
 	}
 
-	// Get responseonse.
+	// Get response once.
 	if opts.ResData != nil {
 		err = future.GetTyped(opts.ResData)
 	} else {

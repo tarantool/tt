@@ -53,7 +53,7 @@ func TestParseFailover(t *testing.T) {
 		{"SUPERvised", replicaset.FailoverSupervised},
 		{"unknown", replicaset.FailoverUnknown},
 		{"foo", replicaset.FailoverUnknown},
-		{"offfoo", replicaset.FailoverUnknown},
+		{"offfoo", replicaset.FailoverUnknown}, // spell-checker:disable-line
 	}
 
 	for _, tc := range cases {

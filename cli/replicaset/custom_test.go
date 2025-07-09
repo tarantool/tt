@@ -11,6 +11,9 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
+// spell-checker:ignore somealias someinstanceuuid someleaderuuid somereplicasetuuid anyuri
+// spell-checker:ignore otherinstanceuuid instanceuuid instancerw
+
 var (
 	_ replicaset.Discoverer         = &replicaset.CustomInstance{}
 	_ replicaset.Promoter           = &replicaset.CustomInstance{}
@@ -507,3 +510,5 @@ func TestCustomInstance_RolesChange(t *testing.T) {
 		})
 	}
 }
+
+// unmigrationgoog
