@@ -23,47 +23,40 @@ repos:
         files: ".cspell_project-words.txt"
         args: [--ignore-case, --unique]
 
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.1
-    hooks:
-      - id: codespell
-        name: "Check for common misspellings"
-        stages: [pre-commit, manual]
-        types_or: [go, python, lua]
-        additional_dependencies:
-          - tomli
-
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v9.0.1
+    rev: v9.1.0
     hooks:
       - id: cspell
-        name: "Spell-checking documentation files"
-        stages: [pre-commit, manual]
-        args:
-          [--config=.cspell-precommit.json, --show-context, --show-suggestions]
-        types_or: [markdown]
+        name: "Spell checking commit message"
+        stages: [commit-msg]
+        args: [--config=.cspell.yaml, --show-context, --show-suggestions]
         additional_dependencies:
           - "@cspell/dict-markdown"
           - "@cspell/dict-ru_ru"
+          - "@cspell/dict-golang"
+          - "@cspell/dict-python"
+          - "@cspell/dict-lua"
+          - "@cspell/dict-cpp"
+          - "@cspell/dict-software-terms"
 
       - id: cspell
-        name: "Spell-checking commit message"
-        stages: [commit-msg]
-        args:
-          [--config=.cspell-precommit.json, --show-context, --show-suggestions]
+        name: "Spell checking source files"
+        stages: [pre-commit, manual]
+        args: [--config=.cspell.yaml, --show-context, --show-suggestions]
+        types_or: [go, python, markdown]
+        exclude: |
+          (?x)^(
+                .*\.pb.go|
+                .*/third_party/.*
+          )$
         additional_dependencies:
+          - "@cspell/dict-markdown"
           - "@cspell/dict-ru_ru"
-      # TODO: add words from [.go, .py] with "errors" to `.cspell_project-words.txt` (#TNTP-3105).
-      # - id: cspell
-      #   name: "Py: Spell check files"
-      #   types: [python]
-      #   additional_dependencies:
-      #     - "@cspell/dict-python"
-      # - id: cspell
-      #   name: "Go: Spell check files"
-      #   types: [go]
-      #   additional_dependencies:
-      #     - "@cspell/dict-golang"
+          - "@cspell/dict-golang"
+          - "@cspell/dict-python"
+          - "@cspell/dict-lua"
+          - "@cspell/dict-cpp"
+          - "@cspell/dict-software-terms"
 
   - repo: local
     hooks:
@@ -88,7 +81,7 @@ repos:
         args: [--max-len=100, --tab-len=4, --no-reformat-tags]
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.1.6
+    rev: v2.2.2
     hooks:
       - id: golangci-lint
         name: "Go: verify sources"
@@ -102,7 +95,6 @@ repos:
       - id: golangci-lint-full
         name: "Go: verify all sources (CI)"
         description: Checking all Go sources.
-        pass_filenames: false
         always_run: true
         stages: [manual]
         args: [--config=golint-precommit-ci.yml, --allow-parallel-runners]
@@ -113,8 +105,8 @@ repos:
         language: golang
         types: [go]
         name: "Go: verify sources diff (CI)"
+        description: Checking only fresh changes, added to the PR.
         stages: [manual]
-        pass_filenames: false
         always_run: true
         entry: >-
           bash -c "golangci-lint run --new-from-rev=${BASE_BRANCH:-master}
@@ -123,16 +115,16 @@ repos:
           - github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.0
+    rev: v0.12.2
     hooks:
-      - id: ruff-check
-        name: "Py: Run the linter"
-        args: [--fix]
+      - id: ruff-format
+        name: "Py: Run the formatter"
         stages: [pre-commit, manual]
         files: test/.*\.py$
 
-      - id: ruff-format
-        name: "Py: Run the formatter"
+      - id: ruff-check
+        name: "Py: Run the linter"
+        args: [--fix]
         stages: [pre-commit, manual]
         files: test/.*\.py$
 
