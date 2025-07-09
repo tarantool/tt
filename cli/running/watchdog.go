@@ -170,7 +170,7 @@ func (wd *Watchdog) Start() error {
 	return nil
 }
 
-// startIntegrityChecks launches gorountine that performs periodic integrity checks.
+// startIntegrityChecks launches goroutine that performs periodic integrity checks.
 func (wd *Watchdog) startIntegrityChecks(ctx context.Context) {
 	ticker := time.NewTicker(wd.integrityCheckPeriod)
 

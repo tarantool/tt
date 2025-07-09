@@ -15,6 +15,7 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
+// spell-checker:ignore knazarov mkrepo
 //nolint - some links from description are too long
 /**
  *
@@ -80,14 +81,14 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, 
 		return fmt.Errorf("failed to pack CPIO: %s", err)
 	}
 
-	compresedCpioPath := filepath.Join(packageDir, "cpio.gz")
-	if err := CompressGzip(cpioPath, compresedCpioPath); err != nil {
+	compressedCpioPath := filepath.Join(packageDir, "cpio.gz")
+	if err := CompressGzip(cpioPath, compressedCpioPath); err != nil {
 		return fmt.Errorf("failed to compress CPIO: %s", err)
 	}
 
 	log.Info("Generating header section")
 
-	rpmHeader, err := genRpmHeader(relPaths, cpioPath, compresedCpioPath, packageDir,
+	rpmHeader, err := genRpmHeader(relPaths, cpioPath, compressedCpioPath, packageDir,
 		cmdCtx, packCtx, opts)
 	if err != nil {
 		return fmt.Errorf("failed to gen RPM header: %s", err)
@@ -112,7 +113,7 @@ func packRpm(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts, 
 
 	// Create body file = header + compressedCpio.
 	rpmBodyFilePath := filepath.Join(packageDir, "body")
-	if err := util.MergeFiles(rpmBodyFilePath, rpmHeaderFilePath, compresedCpioPath); err != nil {
+	if err := util.MergeFiles(rpmBodyFilePath, rpmHeaderFilePath, compressedCpioPath); err != nil {
 		return fmt.Errorf("failed to concat RPM header with compressed payload: %s", err)
 	}
 

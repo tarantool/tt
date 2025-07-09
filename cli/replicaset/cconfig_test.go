@@ -12,6 +12,9 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
+// spell-checker:ignore somealias someinstanceuuid someleaderuuid somereplicasetuuid anyuri
+// spell-checker:ignore otherinstanceuuid instanceuuid instancerw
+
 var (
 	_ replicaset.Discoverer         = &replicaset.CConfigInstance{}
 	_ replicaset.Promoter           = &replicaset.CConfigInstance{}

@@ -18,7 +18,7 @@ type DemoteCtx struct {
 	Publishers libcluster.DataPublisherFactory
 	// Collectors is data collector factory.
 	Collectors libcluster.DataCollectorFactory
-	// Orchestrator is a forced orchestator choice.
+	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector

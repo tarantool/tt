@@ -333,7 +333,7 @@ func newRolesRemoveCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",
 		"name of a target replicaset")
 	cmd.Flags().StringVarP(&replicasetGroupName, "group", "g", "",
-		"name of a target group (vhsard-group in the Cartridge case)")
+		"name of a target group (vshard-group in the Cartridge case)")
 	cmd.Flags().StringVarP(&replicasetInstanceName, "instance", "i", "",
 		"name of a target instance")
 	cmd.Flags().BoolVarP(&replicasetIsGlobal, "global", "G", false,
@@ -726,7 +726,7 @@ func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 	if ctx.IsInstanceConnect {
 		defer ctx.Conn.Close()
 	}
-	bootstrapCtx := replicasetcmd.BootstapCtx{
+	bootstrapCtx := replicasetcmd.BootstrapCtx{
 		ReplicasetsFile: replicasetCartridgeReplicasetsFile,
 		Orchestrator:    ctx.Orchestrator,
 		RunningCtx:      ctx.RunningCtx,
@@ -741,7 +741,7 @@ func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 	return replicasetcmd.Bootstrap(bootstrapCtx)
 }
 
-// getOrchestartor returns a chosen orchestrator or an unknown one.
+// getOrchestrator returns a chosen orchestrator or an unknown one.
 func getOrchestrator() (replicaset.Orchestrator, error) {
 	orchestrator := replicaset.OrchestratorUnknown
 	cnt := 0

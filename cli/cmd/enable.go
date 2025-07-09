@@ -17,9 +17,9 @@ func NewEnableCmd() *cobra.Command {
 			"to a script or an application directory",
 		Example: `
 # Create a symbolic link in 'instances_enabled' directory to a script.
-	$ tt enable Users/myuser/my_scripts/script.lua
+	$ tt enable Users/my_user/my_scripts/script.lua
 # Create a symbolic link in 'instances_enabled' directory to an application directory.
-	$ tt enable ../myuser/my_cool_app`,
+	$ tt enable ../my_user/my_cool_app`,
 		Run: RunModuleFunc(internalEnableModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {

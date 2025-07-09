@@ -9,6 +9,8 @@ import (
 	"github.com/tarantool/tt/lib/connect"
 )
 
+// spell-checker:ignore kfile
+
 const (
 	testUser     = "a-фs$d!e%*1#2?3&44"
 	testPass     = "bb-фs$d!e%*1#2?3&666"

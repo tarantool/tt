@@ -16,6 +16,8 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
+// spell-checker:ignore trimpath extldflags asmflags covdata GOEXE TTEXE GOCOVERDIR
+
 const (
 	buildTypeEnv  = "TT_CLI_BUILD_SSL"
 	goPackageName = "github.com/tarantool/tt/cli"
@@ -331,8 +333,8 @@ type Unit mg.Namespace
 func runUnitTests(flags []string) error {
 	mg.Deps(GenerateGoCode)
 
-	testdirs := append([]string{"."}, modules...)
-	for _, module := range testdirs {
+	testDirs := append([]string{"."}, modules...)
+	for _, module := range testDirs {
 		args := []string{"test", "-C", module}
 		if mg.Verbose() {
 			args = append(args, "-v")
@@ -453,11 +455,11 @@ func IntegrationNoTarantool() error {
 		"test/integration")
 }
 
-// Run codespell checks.
-func Codespell() error {
-	fmt.Println("Running codespell tests...")
+// Run code spell checks.
+func CodeSpell() error {
+	fmt.Println("Running code spell tests...")
 
-	return sh.RunV("codespell", ".")
+	return sh.RunV("codespell", ".") // spell-checker:disable-line
 }
 
 // Run all tests together, excluding slow and unit integration tests.

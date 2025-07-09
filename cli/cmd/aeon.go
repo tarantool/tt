@@ -27,7 +27,7 @@ const (
 	aeonHistoryLines    = console.DefaultHistoryLines
 )
 
-var aoenHelp = libconnect.MakeURLHelp(map[string]any{
+var aeonHelp = libconnect.MakeURLHelp(map[string]any{
 	"service":    "etcd or tarantool config storage",
 	"param_key":  "a target configuration key in the prefix",
 	"param_name": "a name of an instance in the cluster configuration",
@@ -48,7 +48,7 @@ func newAeonConnectCmd() *cobra.Command {
 		tt aeon connect unix://<socket-path>
 		tt aeon connect /path/to/config INSTANCE_NAME
 		tt aeon connect https://user:pass@localhost:2379/prefix INSTANCE` + "\n\n" +
-			aoenHelp,
+			aeonHelp,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			err := aeonConnectValidateArgs(cmd, args)
 			util.HandleCmdErr(cmd, err)

@@ -86,7 +86,7 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 		return nil
 	}
 
-	// Сreate a channel to receive an indication of the termination
+	// Create a channel to receive an indication of the termination
 	// of the Instance.
 	waitDone := make(chan error, 1)
 	go func() {

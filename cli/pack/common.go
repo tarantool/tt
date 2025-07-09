@@ -39,6 +39,8 @@ const (
 	ignoreFile = ".packignore"
 )
 
+// spell-checker:ignore Rgxps
+
 var versionRgxps = []*regexp.Regexp{
 	regexp.MustCompile(`^(?P<Major>\d+)$`),
 	regexp.MustCompile(`^(?P<Major>\d+)\.(?P<Minor>\d+)$`),
@@ -164,7 +166,7 @@ func previousPackageFilters(packCtx *PackCtx) []skipFilter {
 // appSrcCopySkip returns a filter func to filter out artifacts paths.
 func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 	srcAppPath string,
-) (func(srcinfo os.FileInfo, src, dest string) (bool, error), error) {
+) (func(srcInfo os.FileInfo, src, dest string) (bool, error), error) {
 	appCopyFilters := appArtifactsFilters(cliOpts, srcAppPath)
 	appCopyFilters = append(appCopyFilters, ttEnvironmentFilters(packCtx, cliOpts)...)
 	appCopyFilters = append(appCopyFilters, previousPackageFilters(packCtx)...)
@@ -177,9 +179,9 @@ func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 		return nil, fmt.Errorf("failed to load %q: %w", ignoreFile, err)
 	}
 
-	return func(srcinfo os.FileInfo, src, dest string) (bool, error) {
+	return func(srcInfo os.FileInfo, src, dest string) (bool, error) {
 		for _, shouldSkip := range appCopyFilters {
-			if shouldSkip(srcinfo, src) {
+			if shouldSkip(srcInfo, src) {
 				return true, nil
 			}
 		}

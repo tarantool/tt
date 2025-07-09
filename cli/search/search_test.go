@@ -131,21 +131,21 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 	tests := []struct {
 		name    string
 		link    string
-		tarlink string
+		tarLink string
 		hashes  []string
 		wantErr bool
 	}{
 		{
 			name:    "hash should be found",
 			link:    extractedRepoPath,
-			tarlink: tarPath,
+			tarLink: tarPath,
 			hashes:  []string{"c779d17", "6a05d6a", "6f05cd1"},
 			wantErr: false,
 		},
 		{
 			name:    "missing hash",
 			link:    extractedRepoPath,
-			tarlink: tarPath,
+			tarLink: tarPath,
 			hashes:  []string{"111111"},
 			wantErr: true,
 		},
@@ -153,7 +153,7 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 
 	for _, repo := range tests {
 		t.Run(repo.name, func(t *testing.T) {
-			require.NoError(t, util.ExtractTar(repo.tarlink))
+			require.NoError(t, util.ExtractTar(repo.tarLink))
 			for _, hash := range repo.hashes {
 				_, err := GetCommitFromGitLocal(repo.link, hash)
 				if (err != nil) != repo.wantErr {
@@ -174,21 +174,21 @@ func Test_GetCommitFromGitRemote(t *testing.T) {
 	tests := []struct {
 		name    string
 		link    string
-		tarlink string
+		tarLink string
 		hashes  []string
 		wantErr bool
 	}{
 		{
 			name:    "hash should be found",
 			link:    extractedRepoPath,
-			tarlink: tarPath,
+			tarLink: tarPath,
 			hashes:  []string{"c779d17", "6a05d6a", "6f05cd1"},
 			wantErr: false,
 		},
 		{
 			name:    "missing hash",
 			link:    extractedRepoPath,
-			tarlink: tarPath,
+			tarLink: tarPath,
 			hashes:  []string{"111111"},
 			wantErr: true,
 		},
@@ -196,7 +196,7 @@ func Test_GetCommitFromGitRemote(t *testing.T) {
 
 	for _, repo := range tests {
 		t.Run(repo.name, func(t *testing.T) {
-			require.NoError(t, util.ExtractTar(repo.tarlink))
+			require.NoError(t, util.ExtractTar(repo.tarLink))
 			for _, hash := range repo.hashes {
 				_, err := GetCommitFromGitRemote(repo.link, hash)
 				if (err != nil) != repo.wantErr {

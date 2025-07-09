@@ -203,12 +203,12 @@ func detectOsName() (string, error) {
 
 // getVersionsFromRepo returns all available versions from github repository.
 func getVersionsFromRepo(local bool, distfiles, program string,
-	repolink string,
+	repoLink string,
 ) ([]version.Version, error) {
 	if local {
 		return search.GetVersionsFromGitLocal(filepath.Join(distfiles, program))
 	}
-	return search.GetVersionsFromGitRemote(repolink)
+	return search.GetVersionsFromGitRemote(repoLink)
 }
 
 // getCommit returns all available commits from repository.

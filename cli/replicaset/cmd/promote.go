@@ -21,7 +21,7 @@ type PromoteCtx struct {
 	Collectors libcluster.DataCollectorFactory
 	// IsApplication true if an application passed.
 	IsApplication bool
-	// Orchestrator is a forced orchestator choice.
+	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector

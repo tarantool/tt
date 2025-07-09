@@ -25,7 +25,7 @@ type VShardCmdCtx struct {
 	RunningCtx running.RunningCtx
 	// Conn is an active connection to a passed instance.
 	Conn connector.Connector
-	// Orchestrator is a forced orchestator choice.
+	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 	// Publishers is data publisher factory.
 	Publishers libcluster.DataPublisherFactory

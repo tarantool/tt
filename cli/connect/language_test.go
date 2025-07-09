@@ -28,7 +28,7 @@ func TestLanguage_ParseLanguage(t *testing.T) {
 		{"SQL", SQLLanguage, true},
 		{".", DefaultLanguage, false},
 		{"12", DefaultLanguage, false},
-		{"luaasd", DefaultLanguage, false},
+		{"luaasd", DefaultLanguage, false}, // spell-checker:ignore luaasd
 		{"lua123", DefaultLanguage, false},
 	}
 

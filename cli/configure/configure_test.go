@@ -67,7 +67,7 @@ func TestConfigureCli(t *testing.T) {
 
 	testDir := t.TempDir()
 
-	// Test local cofniguration.
+	// Test local configuration.
 	cmdCtx.Cli.IsSystem = false
 	cmdCtx.Cli.LocalLaunchDir = testDir
 	cmdCtx.Cli.ConfigPath = ""

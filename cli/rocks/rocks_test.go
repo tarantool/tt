@@ -11,6 +11,8 @@ import (
 	"github.com/tarantool/tt/cli/config"
 )
 
+// spell-checker:ignore emptyrepo
+
 func TestAddLuarocksRepoOpts(t *testing.T) {
 	type args struct {
 		cliOpts *config.CliOpts
@@ -119,7 +121,7 @@ func TestGetRocksRepoPath(t *testing.T) {
 	assert.EqualValues(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
 
 	os.Setenv(repoRocksPathEnvVarName, "./other_repo")
-	// If env var is set, return it if manifets is missing in passed repo.
+	// If env var is set, return it if manifests is missing in passed repo.
 	assert.EqualValues(t, "./other_repo", getRocksRepoPath("./testdata/emptyrepo"))
 	// Return passed repo path, since manifest exists. Env var is ignored.
 	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))

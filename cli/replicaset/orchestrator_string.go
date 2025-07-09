@@ -14,7 +14,7 @@ func _() {
 	_ = x[OrchestratorCustom-3]
 }
 
-const _Orchestrator_name = "unknowncentralized configcartridgecustom"
+const _Orchestrator_name = "unknowncentralized configcartridgecustom" // spell-checker:disable-line
 
 var _Orchestrator_index = [...]uint8{0, 7, 25, 34, 40}
 

@@ -36,7 +36,7 @@ func parseAllDependencies(cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	if packCtx.RpmDeb.WithTarantoolDeps {
-		ttBinDeps, err := getTntTTAsDeps(cmdCtx)
+		ttBinDeps, err := getTntTtAsDeps(cmdCtx)
 		if err != nil {
 			return nil, err
 		}

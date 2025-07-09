@@ -13,6 +13,8 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
+// spell-checker:ignore someinstanceuuid someleaderuuid somereplicasetuuid otherinstanceuuid
+
 var (
 	_ replicaset.Discoverer         = &replicaset.CartridgeInstance{}
 	_ replicaset.Promoter           = &replicaset.CartridgeInstance{}
