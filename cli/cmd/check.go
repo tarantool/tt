@@ -30,7 +30,7 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	// Сollect a list of instances with unique scripts.
+	// Collect a list of instances with unique scripts.
 	uniqueInst := []running.InstanceCtx{}
 	for _, inst := range runningCtx.Instances {
 		found := false

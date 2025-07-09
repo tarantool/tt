@@ -259,7 +259,7 @@ var poolCases = []struct {
 		Opts: []ConnectOpts{
 			{
 				Network:  "tcp",
-				Address:  "unreachetable",
+				Address:  "unreachable",
 				Username: "test",
 				Password: "password",
 			},

@@ -18,6 +18,8 @@ import (
 	"github.com/tarantool/tt/cli/running"
 )
 
+// spell-checker:ignore evaled
+
 const (
 	workDir = "work_dir"
 	server  = "127.0.0.1:3015"
@@ -227,7 +229,7 @@ func TestEvalForeachAlive_stops_after_failed_to_connect(t *testing.T) {
 		{
 			AppName:       "app",
 			InstName:      "instance",
-			ConsoleSocket: "unreachetable",
+			ConsoleSocket: "unreachable",
 		},
 		validInstance,
 	}
@@ -287,7 +289,7 @@ func TestEvalForeach_error(t *testing.T) {
 				{
 					AppName:       "app",
 					InstName:      "inst",
-					ConsoleSocket: "unreachetable",
+					ConsoleSocket: "unreachable",
 				},
 			},
 			"failed to connect to 'app:inst'",
@@ -414,15 +416,15 @@ func TestEvalForeachAlive_error(t *testing.T) {
 		{
 			"no_connection",
 			[]running.InstanceCtx{
-				{ConsoleSocket: "unreachetable"},
+				{ConsoleSocket: "unreachable"},
 			},
 			"failed to connect to any instance",
 		},
 		{
 			"no_connections",
 			[]running.InstanceCtx{
-				{ConsoleSocket: "unreachetable1"},
-				{ConsoleSocket: "unreachetable2"},
+				{ConsoleSocket: "unreachable1"},
+				{ConsoleSocket: "unreachable2"},
 			},
 			"failed to connect to any instance",
 		},
@@ -525,15 +527,15 @@ func TestEvalAny_error(t *testing.T) {
 		{
 			"no_connection",
 			[]running.InstanceCtx{
-				{ConsoleSocket: "unreachetable"},
+				{ConsoleSocket: "unreachable"},
 			},
 			"failed to connect to any instance",
 		},
 		{
 			"no_connections",
 			[]running.InstanceCtx{
-				{ConsoleSocket: "unreachetable1"},
-				{ConsoleSocket: "unreachetable2"},
+				{ConsoleSocket: "unreachable1"},
+				{ConsoleSocket: "unreachable2"},
 			},
 			"failed to connect to any instance",
 		},

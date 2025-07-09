@@ -16,13 +16,13 @@ import (
 )
 
 //go:embed scripts/*
-var corescripts embed.FS
+var coreScripts embed.FS
 
 //go:embed extensions
 var extensions embed.FS
 
 const (
-	packEmbedPath    = "scripts/tarabrt.sh"
+	packEmbedPath    = "scripts/tarabrt.sh" // spell-checker:disable-line
 	inspectEmbedPath = "scripts/gdb.sh"
 )
 
@@ -47,7 +47,7 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 
 	// Prepare gdb wrapper for packing.
 	inspectPath := filepath.Join(tmpDir, filepath.Base(inspectEmbedPath))
-	err = util.FsCopyFileChangePerms(corescripts, inspectEmbedPath, inspectPath, 0o755)
+	err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, inspectPath, 0o755)
 	if err != nil {
 		return fmt.Errorf("failed to put the inspecting script into the archive: %v", err)
 	}
@@ -69,7 +69,7 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 		scriptArgs = append(scriptArgs, "-x", extDst)
 	}
 
-	script, err := corescripts.Open(packEmbedPath)
+	script, err := coreScripts.Open(packEmbedPath)
 	if err != nil {
 		return fmt.Errorf("failed to open pack script: %v", err)
 	}
@@ -131,7 +131,7 @@ func Inspect(archiveOrDir, sourceDir string) error {
 	_, err = os.Stat(scriptPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		// If the wrapper is missing in archive, then use the embedded one.
-		err = util.FsCopyFileChangePerms(corescripts, inspectEmbedPath, scriptPath, 0o755)
+		err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, scriptPath, 0o755)
 	}
 
 	if err != nil {

@@ -377,20 +377,20 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 			anyMaps = append(anyMaps, castedMap)
 		}
 
-		mapsBatchs := make([][]unorderedMap[any], len(anyMaps))
+		mapsBatches := make([][]unorderedMap[any], len(anyMaps))
 		batchPointer := 0
-		mapsBatchs[batchPointer] = append(mapsBatchs[batchPointer], anyMaps[0])
+		mapsBatches[batchPointer] = append(mapsBatches[batchPointer], anyMaps[0])
 
 		for i := 0; i < len(anyMaps)-1; i++ {
 			if !isMapKeysEqual(anyMaps[i], anyMaps[i+1]) {
 				batchPointer++
 			}
-			mapsBatchs[batchPointer] = append(mapsBatchs[batchPointer], anyMaps[i+1])
+			mapsBatches[batchPointer] = append(mapsBatches[batchPointer], anyMaps[i+1])
 		}
 
 		var res, batchRes string
 		var err error
-		for _, batch := range mapsBatchs {
+		for _, batch := range mapsBatches {
 			if len(batch) != 0 {
 				batchRes, err = renderEqualMaps(batch, transpose, opts)
 				if err != nil {
@@ -439,7 +439,7 @@ type metadataRows struct {
 	Rows     [][]any         `yaml:"rows"`
 }
 
-// remapMetadataRows creates maps from rows with a metainformation.
+// remapMetadataRows creates maps from rows with a meta information.
 func remapMetadataRows(meta metadataRows) []any {
 	var nodes []any
 	maxLen := 0

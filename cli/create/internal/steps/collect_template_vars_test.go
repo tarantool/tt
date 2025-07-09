@@ -10,6 +10,8 @@ import (
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
+// spell-checker:ignore zxzc
+
 func TestNonInteractiveMode(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()

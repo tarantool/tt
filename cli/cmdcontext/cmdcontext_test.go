@@ -39,7 +39,7 @@ echo "Tarantool 3.0.0"`),
 	require.NoError(t, err)
 	require.Equal(t, expectedVersion, tntVersion)
 
-	// Check non-chached.
+	// Check non-cached.
 	tntCli = TarantoolCli{Executable: filepath.Join(tmpDir, "tnt.sh")}
 	tntVersion, err = tntCli.GetVersion()
 	require.NoError(t, err)

@@ -64,7 +64,7 @@ func doWithCtx(action func(context.Context) error) error {
 func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 	t.Helper()
 
-	mydir, err := os.Getwd()
+	myDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get current working directory: %s", err)
 	}
@@ -73,15 +73,15 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 	if opts.CaFile != "" || opts.CertFile != "" || opts.KeyFile != "" {
 		tls = &transport.TLSInfo{}
 		if opts.CaFile != "" {
-			caPath := filepath.Join(mydir, opts.CaFile)
+			caPath := filepath.Join(myDir, opts.CaFile)
 			tls.TrustedCAFile = caPath
 		}
 		if opts.CertFile != "" {
-			certPath := filepath.Join(mydir, opts.CertFile)
+			certPath := filepath.Join(myDir, opts.CertFile)
 			tls.CertFile = certPath
 		}
 		if opts.KeyFile != "" {
-			keyPath := filepath.Join(mydir, opts.KeyFile)
+			keyPath := filepath.Join(myDir, opts.KeyFile)
 			tls.KeyFile = keyPath
 		}
 	}
@@ -145,7 +145,7 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 	t.Helper()
 	var (
-		presp *clientv3.PutResponse
+		presp *clientv3.PutResponse // spell-checker:ignore presp
 		err   error
 	)
 	doWithCtx(func(ctx context.Context) error {
@@ -273,10 +273,10 @@ func TestConnectEtcd(t *testing.T) {
 			etcdPut(t, etcd, "foo", "bar")
 
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			gresp, err := etcd.Get(ctx, "foo")
+			resp, err := etcd.Get(ctx, "foo")
 			cancel()
 			require.NoError(t, err)
-			require.NotNil(t, gresp)
+			require.NotNil(t, resp)
 		})
 	}
 }
@@ -724,6 +724,8 @@ var validCheckFunc = func(data []byte, hashes map[string][]byte, sig []byte) err
 	}
 	return nil
 }
+
+// spell-checker:ignore abcdefg qwertyuiop
 
 func TestIntegrityDataPublisherKey_CollectorAll_valid(t *testing.T) {
 	for _, test := range testsIntegrity {
