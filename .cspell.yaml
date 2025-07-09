@@ -1,0 +1,32 @@
+$schema: https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
+version: 0.2
+
+import:
+  - "@cspell/dict-golang/cspell-ext.json"
+  - "@cspell/dict-python/cspell-ext.json"
+  - "@cspell/dict-lua/cspell-ext.json"
+  - "@cspell/dict-cpp/cspell-ext.json"
+  - "@cspell/dict-markdown/cspell-ext.json"
+  - "@cspell/dict-ru_ru/cspell-ext.json"
+  - "@cspell/dict-software-terms/cspell-ext.json"
+
+language: "en,ru"
+
+dictionaryDefinitions:
+  - name: project-words
+    path: .cspell_project-words.txt
+    description: Words used in this project
+    addWords: true
+
+dictionaries:
+  - project-words
+  # List of type dependent dictionaries to use with any file types.
+  - golang
+  - python
+  - lua
+  - cpp
+
+ignoreRegExpList:
+  - ^\s+(\w+\s+)?"github.com/.*" # Ignore Go import paths.
+  - -D[A-Z\d_]+ # Ignore CMake flags "-DFLAG_NAME".
+  - \d+-g[a-f\d]{4,} # Ignore git commit hashes in version string.
