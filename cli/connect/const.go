@@ -22,7 +22,7 @@ const setTableColumnWidthMaxLong = "\\set table_column_width"
 // setDelimiter set a custom expression delimiter for Tarantool console.
 const setDelimiter = "\\set delimiter"
 
-// setTableColumnWidthMaxShort is a short command to set a maximum columnt
+// setTableColumnWidthMaxShort is a short command to set a maximum columns
 // width for tables.
 const setTableColumnWidthMaxShort = "\\xw"
 
@@ -42,11 +42,11 @@ const setFormatTable = "\\xt"
 const setFormatTTable = "\\xT"
 
 // setGraphicsEnable is a command to enable a pseudo graphics output for
-// table/ttalbe output formats.
+// table/ttable output formats.
 const setGraphicsEnable = "\\xG"
 
 // setGraphicsDisable is a command to disable a pseudo graphics output for
-// table/ttalbe output formats.
+// table/ttable output formats.
 const setGraphicsDisable = "\\xg"
 
 // setQuit is a short command to set ttable format.

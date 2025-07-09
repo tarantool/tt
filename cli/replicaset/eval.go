@@ -45,7 +45,7 @@ type InstanceEvaler interface {
 type InstanceEvalFunc func(instance running.InstanceCtx,
 	evaler connector.Evaler) (bool, error)
 
-// Eval helps to satisfy the InstanceEvaler insterface.
+// Eval helps to satisfy the InstanceEvaler interface.
 func (fun InstanceEvalFunc) Eval(instance running.InstanceCtx,
 	evaler connector.Evaler,
 ) (bool, error) {
@@ -53,20 +53,20 @@ func (fun InstanceEvalFunc) Eval(instance running.InstanceCtx,
 }
 
 // EvalForeach calls evaler for each instance.
-func EvalForeach(instances []running.InstanceCtx, ievaler InstanceEvaler) error {
-	return evalForeach(instances, ievaler, false)
+func EvalForeach(instances []running.InstanceCtx, iEvaler InstanceEvaler) error {
+	return evalForeach(instances, iEvaler, false)
 }
 
 // EvalForeachAlive calls evaler for each connectable instance.
-func EvalForeachAlive(instances []running.InstanceCtx, ievaler InstanceEvaler) error {
-	return evalForeach(instances, ievaler, true)
+func EvalForeachAlive(instances []running.InstanceCtx, iEvaler InstanceEvaler) error {
+	return evalForeach(instances, iEvaler, true)
 }
 
 // EvalAny calls evaler once for one connectable instance.
-func EvalAny(instances []running.InstanceCtx, ievaler InstanceEvaler) error {
+func EvalAny(instances []running.InstanceCtx, iEvaler InstanceEvaler) error {
 	return EvalForeachAlive(instances, InstanceEvalFunc(
 		func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-			_, err := ievaler.Eval(instance, evaler)
+			_, err := iEvaler.Eval(instance, evaler)
 			// Always return true to stop execution on the first instance.
 			return true, err
 		}))
@@ -74,15 +74,15 @@ func EvalAny(instances []running.InstanceCtx, ievaler InstanceEvaler) error {
 
 // EvalForeachAliveDiscovered calls evaler for only connectable instances among discovered.
 func EvalForeachAliveDiscovered(instances []running.InstanceCtx,
-	discovered Replicasets, ievaler InstanceEvaler,
+	discovered Replicasets, iEvaler InstanceEvaler,
 ) error {
-	return EvalForeachAlive(filterDiscovered(instances, discovered), ievaler)
+	return EvalForeachAlive(filterDiscovered(instances, discovered), iEvaler)
 }
 
 // evalForeach is an internal implementation of iteration over instances with
 // an evaler object.
 func evalForeach(instances []running.InstanceCtx,
-	ievaler InstanceEvaler, skipConnectError bool,
+	iEvaler InstanceEvaler, skipConnectError bool,
 ) error {
 	if len(instances) == 0 {
 		return fmt.Errorf("no instances to connect")
@@ -106,7 +106,7 @@ func evalForeach(instances []running.InstanceCtx,
 		}
 
 		connected++
-		done, err := ievaler.Eval(instance, conn)
+		done, err := iEvaler.Eval(instance, conn)
 		conn.Close()
 
 		if err != nil {

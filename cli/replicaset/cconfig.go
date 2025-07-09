@@ -199,7 +199,7 @@ func (c *CConfigApplication) discovery() (Replicasets, error) {
 	return mergeCConfigTopologies(topologies)
 }
 
-// Expel expels an instance from the cetralized config's replicasets.
+// Expel expels an instance from the centralized config's replicasets.
 func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
 	replicasets, err := c.Discovery(UseCache)
 	if err != nil {
@@ -233,7 +233,7 @@ func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
 		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unfound, ","))
 		if !ctx.Force {
 			return fmt.Errorf(
-				"all other instances in the target replicast should be online, %s", msg)
+				"all other instances in the target replicaset should be online, %s", msg)
 		}
 		log.Warn(msg)
 	}
@@ -311,6 +311,7 @@ func mergeCConfigTopologies(topologies []cconfigTopology) (Replicasets, error) {
 
 	// Clear expelled instances.
 	for i := range replicasets.Replicasets {
+		// spell-checker:ignore unexpelled
 		unexpelled := []Instance{}
 		for _, instance := range replicasets.Replicasets[i].Instances {
 			if instance.URI != "" {
@@ -606,9 +607,9 @@ func reloadCConfig(instances []running.InstanceCtx) error {
 func (c *CConfigApplication) promote(instance Instance,
 	ctx PromoteCtx,
 ) (wasConfigPublished bool, err error) {
-	cluterCfgPath := instance.InstanceCtx.ClusterConfigPath
+	clusterCfgPath := instance.InstanceCtx.ClusterConfigPath
 	clusterCfg, err := cluster.GetClusterConfig(
-		libcluster.NewCollectorFactory(c.collectors), cluterCfgPath)
+		libcluster.NewCollectorFactory(c.collectors), clusterCfgPath)
 	if err != nil {
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
@@ -627,7 +628,7 @@ func (c *CConfigApplication) promote(instance Instance,
 	}
 
 	err = patchLocalCConfig(
-		cluterCfgPath,
+		clusterCfgPath,
 		c.collectors,
 		c.publishers,
 		func(config *libcluster.Config) (*libcluster.Config, error) {
@@ -645,9 +646,9 @@ func (c *CConfigApplication) promote(instance Instance,
 func (c *CConfigApplication) demote(instance Instance,
 	replicaset Replicaset, ctx DemoteCtx,
 ) (wasConfigPublished bool, err error) {
-	cluterCfgPath := instance.InstanceCtx.ClusterConfigPath
+	clusterCfgPath := instance.InstanceCtx.ClusterConfigPath
 	clusterCfg, err := cluster.GetClusterConfig(libcluster.NewCollectorFactory(c.collectors),
-		cluterCfgPath)
+		clusterCfgPath)
 	if err != nil {
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
@@ -674,7 +675,7 @@ func (c *CConfigApplication) demote(instance Instance,
 	}
 
 	err = patchLocalCConfig(
-		cluterCfgPath,
+		clusterCfgPath,
 		c.collectors,
 		c.publishers,
 		func(config *libcluster.Config) (*libcluster.Config, error) {

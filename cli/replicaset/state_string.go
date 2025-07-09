@@ -13,7 +13,7 @@ func _() {
 	_ = x[StateBootstrapped-2]
 }
 
-const _State_name = "unknownuninitializedbootstrapped"
+const _State_name = "unknownuninitializedbootstrapped" // spell-checker:disable-line
 
 var _State_index = [...]uint8{0, 7, 20, 32}
 

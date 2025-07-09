@@ -916,13 +916,13 @@ func Logrotate(run *InstanceCtx) error {
 
 // Check returns the result of checking the syntax of the application file.
 func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
-	var errbuff bytes.Buffer
+	var errBuff bytes.Buffer
 	os.Setenv("TT_CLI_INSTANCE", run.InstanceScript)
 
 	cmd := exec.Command(cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
-	cmd.Stderr = &errbuff
+	cmd.Stderr = &errBuff
 	if err := cmd.Run(); err != nil {
-		return errors.New(errbuff.String())
+		return errors.New(errBuff.String())
 	}
 
 	return nil

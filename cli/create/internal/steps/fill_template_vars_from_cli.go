@@ -13,8 +13,8 @@ const varDefFormatError = `wrong variable definition format: %s
 Format: var-name=value`
 
 func parseVarDefinition(varDefText string) (struct{ name, value string }, error) {
-	varDefiniton := strings.TrimSpace(strings.TrimSuffix(varDefText, "\n"))
-	varName, value, found := strings.Cut(varDefiniton, "=")
+	varDefinition := strings.TrimSpace(strings.TrimSuffix(varDefText, "\n"))
+	varName, value, found := strings.Cut(varDefinition, "=")
 	if !found || varName == "" || value == "" {
 		return struct{ name, value string }{}, fmt.Errorf(varDefFormatError, varDefText)
 	}
@@ -28,8 +28,8 @@ type FillTemplateVarsFromCli struct{}
 func (FillTemplateVarsFromCli) Run(createCtx *create_ctx.CreateCtx,
 	templateCtx *app_template.TemplateCtx,
 ) error {
-	for _, varDefiniton := range createCtx.VarsFromCli {
-		varDef, err := parseVarDefinition(varDefiniton)
+	for _, varDefinition := range createCtx.VarsFromCli {
+		varDef, err := parseVarDefinition(varDefinition)
 		if err != nil {
 			return err
 		}

@@ -9,6 +9,8 @@ type StateProvider int
 
 //go:generate stringer -type=StateProvider -trimprefix StateProvider -linecomment
 
+// spell-checker:ignore etcdv
+
 const (
 	// StateProviderUnknown is unknown type of a state provider.
 	StateProviderUnknown StateProvider = iota // unknown

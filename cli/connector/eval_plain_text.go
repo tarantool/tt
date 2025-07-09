@@ -226,7 +226,7 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 		// this greatly speeds up reading and responsiveness.
 		//
 		// But, due to the peculiarities of `box.session.push()`, we have to process the
-		// data byte by byte - we use HasPrefix and HasSufix merhods.
+		// data byte by byte - we use HasPrefix and HasSuffix methods.
 		//
 		// In addition, when reading in portion (more than 1 byte), we need
 		// to save the read data (for this we use the bytes.Buffer), since we can read it,

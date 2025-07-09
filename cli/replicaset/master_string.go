@@ -14,7 +14,7 @@ func _() {
 	_ = x[MasterMulti-3]
 }
 
-const _Master_name = "unknownnosinglemulti"
+const _Master_name = "unknownnosinglemulti" // spell-checker:disable-line
 
 var _Master_index = [...]uint8{0, 7, 9, 15, 20}
 

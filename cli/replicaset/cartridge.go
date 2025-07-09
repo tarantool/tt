@@ -201,7 +201,7 @@ func (c *CartridgeInstance) Bootstrap(ctx BootstrapCtx) error {
 func (c *CartridgeInstance) BootstrapVShard(ctx VShardBootstrapCtx) error {
 	err := cartridgeBootstrapVShard(c.evaler, ctx.Timeout)
 	if err != nil {
-		return wrapCartridgeVShardBoostrapError(err)
+		return wrapCartridgeVShardBootstrapError(err)
 	}
 	return nil
 }
@@ -412,6 +412,7 @@ func (c *CartridgeApplication) Bootstrap(ctx BootstrapCtx) error {
 					instancesCfg, ctx.Timeout)
 		}
 	} else {
+		// spell-checker:ignore replicasetsc
 		// Bootstrap a replicasets from the config.
 		replicasetCfg, replicasetscCfgPath, err := getCartridgeReplicasetsConfig(appDir,
 			ctx.ReplicasetsFile)
@@ -668,7 +669,7 @@ func (c *CartridgeApplication) BootstrapVShard(ctx VShardBootstrapCtx) error {
 		return lastErr == nil, nil
 	}
 	err = EvalForeachAliveDiscovered(c.runningCtx.Instances, replicasets, InstanceEvalFunc(evaler))
-	for _, e := range []error{err, wrapCartridgeVShardBoostrapError(lastErr)} {
+	for _, e := range []error{err, wrapCartridgeVShardBootstrapError(lastErr)} {
 		if e != nil {
 			return fmt.Errorf("failed to bootstrap vshard: %w", e)
 		}
@@ -741,7 +742,7 @@ func (c *CartridgeApplication) RolesChange(ctx RolesChangeCtx,
 }
 
 // getRolesChangedOpts adds/removes role for replicaset roles list and returns
-// options for updating a replciaset.
+// options for updating a replicaset.
 func getRolesChangedOpts(targetReplicaset Replicaset, action RolesChangerAction,
 	roleName, groupName string,
 ) (cartridgeEditReplicasetsOpts, error) {
@@ -995,7 +996,7 @@ func cartridgePromote(evaler connector.Evaler,
 		opts := cartridgeFailoverPromoteOpts{
 			Leaders:            leaders,
 			ForceInconsistency: force,
-			// Anyway print an error if vclockkeeper was changed in
+			// Anyway print an error if vclock keeper was changed in
 			// etcd during inconsistency forcing.
 			// https://github.com/tarantool/cartridge/blob/1c07213c058cfb500a8046175407ed46acf6cb44/cartridge/failover.lua#L1112-L1114
 			SkipErrorOnChange: false,
@@ -1016,10 +1017,10 @@ func cartridgeBootstrapVShard(evaler connector.Evaler, timeout int) error {
 	return err
 }
 
-// wrapCartridgeVShardBoostrapError wraps a cartridge vshard bootstrap error
+// wrapCartridgeVShardBootstrapError wraps a cartridge vshard bootstrap error
 // with an additional information.
 // https://github.com/tarantool/cartridge/issues/1148
-func wrapCartridgeVShardBoostrapError(err error) error {
+func wrapCartridgeVShardBootstrapError(err error) error {
 	if err != nil && strings.Contains(err.Error(), "Sharding config is empty") {
 		return fmt.Errorf(
 			"it's possible that there are no running instances of some configured vshard groups. "+

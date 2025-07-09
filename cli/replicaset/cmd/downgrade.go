@@ -99,7 +99,7 @@ func downgradeMaster(master *instanceMeta, version string) (syncInfo, error) {
 func downgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int, version string,
 	connOpts connector.ConnectOpts,
 ) error {
-	master, replicas, err := collectRWROInfo(replicaset, connOpts)
+	master, replicas, err := collectRwRoInfo(replicaset, connOpts)
 	if err != nil {
 		return err
 	}

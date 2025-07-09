@@ -19,7 +19,7 @@ type ExpelCtx struct {
 	Publishers libcluster.DataPublisherFactory
 	// Collectors is data collector factory.
 	Collectors libcluster.DataCollectorFactory
-	// Orchestrator is a forced orchestator choice.
+	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 	// RunningCtx is an application running context.
 	RunningCtx running.RunningCtx

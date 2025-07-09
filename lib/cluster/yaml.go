@@ -63,7 +63,7 @@ type YamlCollectorDecorator struct {
 	rawCollector DataCollector
 }
 
-// Collect collects configuration from raw data interpretening it
+// Collect collects configuration from raw data interpreting it
 // as YAML.
 func (collector YamlCollectorDecorator) Collect() (*Config, error) {
 	raw, err := collector.rawCollector.Collect()
