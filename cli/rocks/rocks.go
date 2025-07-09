@@ -175,6 +175,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	extra_path := "extra/"
 	rocks_path := "third_party/luarocks/src/"
 
+	// spell-checker:ignore manif deplocks sscm
 	rocks_preload := map[string]string{
 		"extra.wrapper":                    extra_path + "wrapper.lua",
 		"luarocks.core.hardcoded":          extra_path + "hardcoded.lua",
@@ -277,7 +278,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	L.SetGlobal("tt_getwd", L.NewFunction(getwdWrapperForLua))
 	preload := L.GetField(L.GetField(L.Get(lua.EnvironIndex), "package"), "preload")
 
-	for modname, path := range rocks_preload {
+	for modName, path := range rocks_preload {
 		ctx, err := fs.ReadFile(luarocks, path)
 		if err != nil {
 			return err
@@ -286,7 +287,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 		if err != nil {
 			return err
 		}
-		L.SetField(preload, modname, mod)
+		L.SetField(preload, modName, mod)
 	}
 
 	if err := L.DoString(rocks_cmd); err != nil {

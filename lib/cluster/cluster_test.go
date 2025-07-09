@@ -312,7 +312,7 @@ func TestInstantiate_global(t *testing.T) {
 	assertExpectedInstantiate(t, iconfig, expected)
 }
 
-func TestInstantiate_inherbit(t *testing.T) {
+func TestInstantiate_inherit(t *testing.T) {
 	config := cluster.NewConfig()
 	// Priority.
 	config.Set([]string{"groups", "a", "replicasets", "b", "instances", "exist", "foo"}, 1)
@@ -362,7 +362,7 @@ func TestReplaceInstanceConfig_not_found(t *testing.T) {
 	assert.EqualError(t, err, "cluster configuration has not an instance \"any\"")
 }
 
-func TestReplaceInstanceConfig_replcase(t *testing.T) {
+func TestReplaceInstanceConfig_replicaset(t *testing.T) {
 	path := []string{"groups", "a", "replicasets", "b", "instances", "c", "foo"}
 	config := cluster.NewConfig()
 	err := config.Set(path, 1)
@@ -438,7 +438,7 @@ func TestFindGroupByReplicaset(t *testing.T) {
 		found      bool
 	}{
 		{"b", "a", true},
-		{"notexists", "", false},
+		{"not_exists", "", false},
 	}
 	for _, tc := range cases {
 		group, found := cluster.FindGroupByReplicaset(clusterCfg, tc.replicaset)

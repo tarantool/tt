@@ -13,7 +13,7 @@ const (
 	ElectionModeOff // off
 	// ElectionModeVoter is a "voter" election_mode for centralized config.
 	ElectionModeVoter // voter
-	// ElectionModeCandidate is a "candidate" election_mode for centrlalized config.
+	// ElectionModeCandidate is a "candidate" election_mode for centralized config.
 	ElectionModeCandidate // candidate
 	// ElectionModeManual is a "manual" election_mode for centralized config.
 	ElectionModeManual // manual

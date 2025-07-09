@@ -26,11 +26,11 @@ type filesInfo struct {
 	FileGroupNames []string
 	FileSizes      []int32
 	FileModes      []int16
-	FileInodes     []int32
+	FileINodes     []int32
 	FileDevices    []int32
-	FileMtimes     []int32
+	FileMTimes     []int32
 	FileLangs      []string
-	FileRdevs      []int16
+	FileRDevs      []int16
 	FileLinkTos    []string
 	FileFlags      []int32
 	FileDigests    []string
@@ -122,21 +122,21 @@ func addPreAndPostInstallScriptsRPM(rpmHeader *rpmTagSetType,
 	}
 
 	rpmHeader.addTags([]rpmTagType{
-		{ID: tagPrein, Type: rpmTypeString, Value: preInstScript},
-		{ID: tagPostin, Type: rpmTypeString, Value: postInstScript},
+		{ID: tagPreIn, Type: rpmTypeString, Value: preInstScript},
+		{ID: tagPostIn, Type: rpmTypeString, Value: postInstScript},
 	}...)
 	return nil
 }
 
 // genRpmHeader generates rpm headers.
-func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDir string,
+func genRpmHeader(relPaths []string, cpioPath, compressedCpioPath, packageFilesDir string,
 	cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, opts *config.CliOpts,
 ) (rpmTagSetType, error) {
 	rpmHeader := rpmTagSetType{}
 
 	// Compute payload digest.
 	payloadDigestAlgo := hashAlgoSHA256
-	payloadDigest, err := util.FileSHA256Hex(compresedCpioPath)
+	payloadDigest, err := util.FileSHA256Hex(compressedCpioPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get payload digest: %s", err)
 	}
@@ -188,21 +188,21 @@ func genRpmHeader(relPaths []string, cpioPath, compresedCpioPath, packageFilesDi
 		{ID: tagPayloadCompressor, Type: rpmTypeString, Value: "gzip"},
 		{ID: tagPayloadFlags, Type: rpmTypeString, Value: "5"},
 
-		{ID: tagPreinProg, Type: rpmTypeString, Value: "/bin/sh"},
-		{ID: tagPostinProg, Type: rpmTypeString, Value: "/bin/sh"},
+		{ID: tagPreInProg, Type: rpmTypeString, Value: "/bin/sh"},
+		{ID: tagPostInProg, Type: rpmTypeString, Value: "/bin/sh"},
 
 		{ID: tagDirNames, Type: rpmTypeStringArray, Value: filesInfo.DirNames},
 		{ID: tagBaseNames, Type: rpmTypeStringArray, Value: filesInfo.BaseNames},
 		{ID: tagDirIndexes, Type: rpmTypeInt32, Value: filesInfo.DirIndexes},
 
-		{ID: tagFileUsernames, Type: rpmTypeStringArray, Value: filesInfo.FileUserNames},
-		{ID: tagFileGroupnames, Type: rpmTypeStringArray, Value: filesInfo.FileGroupNames},
+		{ID: tagFileUserNames, Type: rpmTypeStringArray, Value: filesInfo.FileUserNames},
+		{ID: tagFileGroupNames, Type: rpmTypeStringArray, Value: filesInfo.FileGroupNames},
 		{ID: tagFileSizes, Type: rpmTypeInt32, Value: filesInfo.FileSizes},
 		{ID: tagFileModes, Type: rpmTypeInt16, Value: filesInfo.FileModes},
-		{ID: tagFileInodes, Type: rpmTypeInt32, Value: filesInfo.FileInodes},
+		{ID: tagFileINodes, Type: rpmTypeInt32, Value: filesInfo.FileINodes},
 		{ID: tagFileDevices, Type: rpmTypeInt32, Value: filesInfo.FileDevices},
-		{ID: tagFileRdevs, Type: rpmTypeInt16, Value: filesInfo.FileRdevs},
-		{ID: tagFileMtimes, Type: rpmTypeInt32, Value: filesInfo.FileMtimes},
+		{ID: tagFileRDevs, Type: rpmTypeInt16, Value: filesInfo.FileRDevs},
+		{ID: tagFileMTimes, Type: rpmTypeInt32, Value: filesInfo.FileMTimes},
 		{ID: tagFileFlags, Type: rpmTypeInt32, Value: filesInfo.FileFlags},
 		{ID: tagFileLangs, Type: rpmTypeStringArray, Value: filesInfo.FileLangs},
 		{ID: tagFileDigests, Type: rpmTypeStringArray, Value: filesInfo.FileDigests},
@@ -259,7 +259,7 @@ func getFilesInfo(relPaths []string, dirPath string,
 		info.DirIndexes = append(info.DirIndexes, int32(dirIndex))
 
 		info.BaseNames = append(info.BaseNames, filepath.Base(relPath))
-		info.FileMtimes = append(info.FileMtimes, int32(fileInfo.ModTime().Unix()))
+		info.FileMTimes = append(info.FileMTimes, int32(fileInfo.ModTime().Unix()))
 
 		if packFileInfo, found := pkgFiles[relPath]; found {
 			info.FileUserNames = append(info.FileUserNames, packFileInfo.owner)
@@ -294,9 +294,9 @@ func getFilesInfo(relPaths []string, dirPath string,
 		}
 		info.FileSizes = append(info.FileSizes, int32(sysFileInfo.Size))
 		info.FileModes = append(info.FileModes, int16(sysFileInfo.Mode))
-		info.FileInodes = append(info.FileInodes, int32(sysFileInfo.Ino))
+		info.FileINodes = append(info.FileINodes, int32(sysFileInfo.Ino))
 		info.FileDevices = append(info.FileDevices, int32(sysFileInfo.Dev))
-		info.FileRdevs = append(info.FileRdevs, int16(sysFileInfo.Rdev))
+		info.FileRDevs = append(info.FileRDevs, int16(sysFileInfo.Rdev))
 	}
 
 	return info, nil

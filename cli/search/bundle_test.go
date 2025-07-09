@@ -27,6 +27,7 @@ func TestFetchBundlesInfo(t *testing.T) {
 		expectedBundles search.BundleInfoSlice
 		errMsg          string
 	}{
+		// spell-checker:disable
 		"tcm_release_bundles": {
 			program:  search.ProgramTcm,
 			platform: platformInfo{arch: "x86_64", os: util.OsLinux},
@@ -164,6 +165,7 @@ func TestFetchBundlesInfo(t *testing.T) {
 			expectedQuery: "enterprise/release/linux/x86_64",
 			errMsg:        `failed to parse version "gc64-Ver3": format is not valid`,
 		},
+		// spell-checker:enable
 	}
 
 	opts := config.CliOpts{

@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// spell-checker:ignore blabla fooo
+
 // transformMapValues is a generic mapper function that returns map with the same keys
 // and values mapped from the originals with fn function.
 func transformMapValues[K comparable, V0, V any](src map[K]V0, fn func(V0) V) map[K]V {
@@ -115,7 +117,7 @@ var ignoreTestData_namesOnly = map[string]ignoreTestData{
 		},
 		mismatches: []string{
 			"f+oo2",
-			"ffoo",
+			"ffoo", // spell-checker:disable-line
 			".f+oo",
 			"blabla_f+oo2",
 			"f+oo2_blabla",
@@ -455,7 +457,7 @@ func ignoreFilterCreateMockFS(t *testing.T, tc ignoreFilterCase) fs.FS {
 }
 
 func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
-	basedst := t.TempDir()
+	baseDst := t.TempDir()
 
 	// Do test
 	for name, tc := range testCases {
@@ -466,14 +468,14 @@ func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
 			assert.Nil(t, err)
 			assert.NotNil(t, filter)
 
-			dst := filepath.Join(basedst, name)
+			dst := filepath.Join(baseDst, name)
 			err = os.MkdirAll(dst, 0o755)
 			assert.Nil(t, err)
 
 			err = copy.Copy(".", dst, copy.Options{
 				FS: fsys,
-				Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
-					return filter(srcinfo, src), nil
+				Skip: func(srcInfo os.FileInfo, src, dest string) (bool, error) {
+					return filter(srcInfo, src), nil
 				},
 				PermissionControl: copy.AddPermission(0o755),
 			})

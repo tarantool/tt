@@ -26,12 +26,12 @@ func TestPackTag(t *testing.T) {
 	var packed *packedTagType
 
 	// NULL
-	nulltag := rpmTagType{
+	nullTag := rpmTagType{
 		Type:  rpmTypeNull,
 		Value: nil,
 	}
 
-	packed, err = packTag(nulltag)
+	packed, err = packTag(nullTag)
 	assert.Nil(err)
 	assert.Equal(1, packed.Count)
 	assert.Equal("", hex(packed.Data))

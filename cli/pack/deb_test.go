@@ -21,7 +21,7 @@ func TestCreateDebianBinary(t *testing.T) {
 			},
 		},
 		{
-			name:       "Unexisting directory",
+			name:       "Non-existing directory",
 			packageDir: "nothing",
 			correctErr: func(err error) bool {
 				return strings.Contains(err.Error(),

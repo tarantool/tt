@@ -47,7 +47,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 		return version, fields, err
 	}
 
-	version.BuildName = matches["buildname"]
+	version.BuildName = matches["buildName"]
 	if version.BuildName != "" {
 		fields = append(fields, requiredFieldBuildName)
 	}

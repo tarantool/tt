@@ -280,7 +280,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		console.livePrefixEnabled = false
 	}
 
-	signalable_executor := func(in string) {
+	signaller_executor := func(in string) {
 		// Signal handler.
 		handleSignals := func(console *Console, stop chan struct{}) {
 			sig := make(chan os.Signal, 1)
@@ -300,7 +300,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		stop <- struct{}{}
 	}
 
-	return signalable_executor, nil
+	return signaller_executor, nil
 }
 
 func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {

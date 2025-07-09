@@ -86,7 +86,7 @@ func TestCreateControlDir(t *testing.T) {
 			},
 		},
 		{
-			name: "Unexisting postinst script passed",
+			name: "Non-existing postinst script passed",
 			packCtx: &PackCtx{
 				Name:    "test",
 				Version: "1.0.0",
@@ -110,7 +110,7 @@ func TestCreateControlDir(t *testing.T) {
 			},
 		},
 		{
-			name: "Unexisting preinst script passed",
+			name: "Non-existing preinst script passed",
 			packCtx: &PackCtx{
 				Name:    "test",
 				Version: "1.0.0",
@@ -167,7 +167,7 @@ func TestCreateControlFile(t *testing.T) {
 			},
 		},
 		{
-			name:     "Unexisting base directory",
+			name:     "Non-existing base directory",
 			basePath: "nothing",
 			debControlCtx: &map[string]interface{}{
 				"Name":         "test",

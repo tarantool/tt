@@ -28,14 +28,14 @@ func TestCreateValidArgsFunction(t *testing.T) {
 	}()
 	os.Create(tempsDir1 + "/" + "excess.A")
 	os.Create(tempsDir1 + "/" + "archive.tgz")
-	tdir1, _ := os.MkdirTemp(tempsDir1, "template1")
+	tDir1, _ := os.MkdirTemp(tempsDir1, "template1")
 
 	os.Create(tempsDir2 + "/" + "excess.B")
 	os.Create(tempsDir2 + "/" + "template2.tar.gz")
-	tdir2, _ := os.MkdirTemp(tempsDir2, "template2")
+	tDir2, _ := os.MkdirTemp(tempsDir2, "template2")
 
-	_, tdir1Name := filepath.Split(tdir1)
-	_, tdir2Name := filepath.Split(tdir2)
+	_, tDir1Name := filepath.Split(tDir1)
+	_, tDir2Name := filepath.Split(tDir2)
 
 	templates := []string{
 		"cartridge",
@@ -45,8 +45,8 @@ func TestCreateValidArgsFunction(t *testing.T) {
 		"cluster",
 		"archive",
 		"template2",
-		tdir1Name,
-		tdir2Name,
+		tDir1Name,
+		tDir2Name,
 	}
 
 	t.Run("empty args", func(t *testing.T) {

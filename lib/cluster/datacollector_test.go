@@ -58,7 +58,7 @@ func TestDataCollectorFactory(t *testing.T) {
 	}
 }
 
-func TestDataCollectorFactorys_NewFile_not_exist(t *testing.T) {
+func TestDataCollectorFactory_NewFile_not_exist(t *testing.T) {
 	cases := []struct {
 		Name    string
 		Factory cluster.DataCollectorFactory
@@ -87,7 +87,7 @@ func TestDataCollectorFactorys_NewFile_not_exist(t *testing.T) {
 	}
 }
 
-func TestDataCollectorFactorys_NewFile_valid(t *testing.T) {
+func TestDataCollectorFactory_NewFile_valid(t *testing.T) {
 	expected := []cluster.Data{{
 		Source: testYamlPath,
 		Value: []byte(`config:

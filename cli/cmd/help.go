@@ -54,6 +54,8 @@ func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	return ""
 }
 
+// spell-checker:ignore rpad
+
 var usageTemplate = util.Bold("USAGE") + `
 {{- if (and .Runnable .HasAvailableInheritedFlags)}}
   {{.UseLine}}
