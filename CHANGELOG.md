@@ -782,7 +782,7 @@ Additionally, several fixes were implemented to improve stability.
 
 ### Changed
 
-- Modules `tt start`, `tt connect` and `tt catridge` now use relative
+- Modules `tt start`, `tt connect` and `tt cartridge` now use relative
   paths for unix sockets. It allows to use socket paths longer than sun_path
   limit.(108/106 on linux/macOS) e.g foo/bar.sock -> ./bar.sock
 
