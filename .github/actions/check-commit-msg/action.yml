@@ -1,0 +1,72 @@
+name: "Check commit messages"
+description: "Performs checks for commit messages format."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "${{ env.PYTHON_VERSION }}"
+
+    - name: Activate Python virtualenv
+      shell: bash
+      run: |
+        # Activate Python virtualenv
+        echo "VIRTUAL_ENV=${PWD}/.venv" >> "${GITHUB_ENV}"
+        echo "${PWD}/.venv/bin" >> "${GITHUB_PATH}"
+        echo "PRE_COMMIT=$(grep -m1 pre-commit test/requirements.txt)" >> ${GITHUB_ENV}
+
+    - name: Cache Python virtualenv
+      id: cache-pre_commit-venv
+      uses: actions/cache@v4
+      with:
+        key: ${{ env.PRE_COMMIT }}-venv-${{ runner.os }}-Py_${{ env.PYTHON_VERSION }}-${{ hashFiles('test/requirements.txt') }}
+        path: ${{ env.VIRTUAL_ENV }}
+
+    - name: Install pre-commit in virtualenv
+      if: steps.cache-pre_commit-venv.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        # Install pre-commit
+        python3 -m venv "${{ env.VIRTUAL_ENV }}"
+        python -m pip install $PRE_COMMIT
+
+
+    - name: Set git config user info
+      shell: bash
+      run: |
+        # Set git config user info
+        git config user.name "$(git --no-pager log --format=format:'%an' -n 1)"
+        git config user.email "$(git --no-pager log --format=format:'%ae' -n 1)"
+
+    - name: Cache pre-commit repo data
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pre-commit
+        key: ${{ env.PRE_COMMIT }}|${{ runner.os }}|Py_${{ env.PYTHON_VERSION }}|${{ hashFiles('.pre-commit-config.yaml') }}
+
+    - name: Get commit messages
+      id: get_commit_msgs
+      shell: bash
+      run: |
+        # Get commit messages
+        dir=$(mktemp -d -t commit_msgs_XXXXXXX)
+        echo "COMMIT_MSG_DIR=$dir" >> $GITHUB_OUTPUT
+        commits=$(git log --pretty=format:"%H" "origin/master..HEAD")
+        for hash in $commits; do
+          file=$dir/$hash.txt
+          git show -s --format=%B $hash --output=$file
+        done
+
+    - name: Checks for commit messages format
+      id: check_commit_msgs
+      shell: bash
+      run: |
+        # Checks for commit messages format
+        for file in ${{ steps.get_commit_msgs.outputs.COMMIT_MSG_DIR }}/*.txt; do
+          hash=$(basename ${file%.*})
+          echo "Check message for <${hash}>"
+          echo "  > \"$(git log --pretty=format:%s ${hash}^..${hash})\""
+          pre-commit run --commit-msg-filename $file --hook-stage commit-msg
+        done
