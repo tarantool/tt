@@ -15,6 +15,17 @@ env:
   PYTHON_VERSION: '3.10'
 
 jobs:
+  check-commit-msg:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check commit messages
+        uses: ./.github/actions/check-commit-msg
+
   tests-ce:
     if: |
       (github.event_name == 'push') ||
