@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from datetime import datetime
 
 import pytest
 import yaml
@@ -1089,11 +1090,16 @@ def get_status_info(tt_cmd, workdir, target):
 
 
 def wait_for_master(tt_cmd, workdir, app_name):
+    print(datetime.now())
+
     def has_master():
         status_info = get_status_info(tt_cmd, workdir, app_name)
-        for key in status_info.keys():
-            if "MODE" in status_info[key] and status_info[key]["MODE"] == "RW":
+        for status in status_info.values():
+            if status.get("MODE", "") == "RW":
+                print(f"{datetime.now()}: Master found in RW mode")
                 return True
+        print(f"{datetime.now()}: Not Master found in RW mode")
+        print(status_info)
         return False
 
     return wait_event(10, has_master, 1)
@@ -1122,8 +1128,6 @@ def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
         p = subprocess.run(
             start_cmd,
             cwd=tmp_path,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
         )
         assert p.returncode == 0
         pid_files = [os.path.join(tmp_path, app_name, inst, pid_file) for inst in instances]
@@ -1134,12 +1138,13 @@ def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
         status_info = get_status_info(tt_cmd, tmp_path, app_name)
         master = None
         replica = None
-        for key in status_info.keys():
-            if status_info[key]["MODE"] == "RW":
-                master = key
+        for inst, status in status_info.items():
+            print(status)
+            if status["MODE"] == "RW":
+                master = inst
             else:
-                replica = key
-            assert status_info[key]["STATUS"] == "RUNNING"
+                replica = inst
+            assert status["STATUS"] == "RUNNING"
 
         def exec_on_inst(inst, cmd):
             return subprocess.run(
@@ -1181,13 +1186,11 @@ def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
 
     finally:
         # Stop app.
+        print("---=== STOP APP ===---")
         stop_cmd = [tt_cmd, "stop", "--yes", app_name]
         p = subprocess.run(
             stop_cmd,
             cwd=tmp_path,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            text=True,
         )
         assert p.returncode == 0
 
