@@ -48,6 +48,7 @@ func (stub *greetingReadStub) Read(dst []byte) (int, error) {
 }
 
 func TestGetProtocol(t *testing.T) {
+	// spell-checker:ignore asdasdasd asdasdasdqwe
 	err := errors.New("any error")
 	cases := []struct {
 		greeting string

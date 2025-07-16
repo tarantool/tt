@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type manifesLoadOutput struct {
+type manifestLoadOutput struct {
 	manifest TemplateManifest
 	errMsg   string
 }
@@ -21,7 +21,7 @@ func TestLoadManifest(t *testing.T) {
 		"missing_var_prompt.yaml",
 		"non_existing.yaml",
 	}
-	output := map[string]manifesLoadOutput{
+	output := map[string]manifestLoadOutput{
 		"good_manifest.yaml": {
 			TemplateManifest{
 				Description: "Good template",

@@ -57,7 +57,7 @@ def test_cat_args_tests_failed(tt_cmd, tmp_path, args, expected_error):
         ),
     ],
 )
-def test_cat_args_tests_successed(tt_cmd, tmp_path, args, expected):
+def test_cat_args_tests_succeeded(tt_cmd, tmp_path, args, expected):
     # Copy the .xlog file to the "run" directory.
     test_data = Path(__file__).parent / "test_file"
     shutil.copy(test_data / "test.xlog", tmp_path)
@@ -86,7 +86,7 @@ def test_cat_args_tests_successed(tt_cmd, tmp_path, args, expected):
         ),
     ],
 )
-def test_cat_directories_tests_successed(tt_cmd, tmp_path: Path, args, expected):
+def test_cat_directories_tests_succeeded(tt_cmd, tmp_path: Path, args, expected):
     # Copy files to the "run" directory.
     shutil.copytree(Path(__file__).parent / "test_file", tmp_path / "test_file")
 
@@ -132,7 +132,7 @@ def test_cat_test_timestamp_failed(tt_cmd, tmp_path, input, error):
         "2024-11-14T14:02:35+00:00",
     ],
 )
-def test_cat_test_timestamp_successed(tt_cmd, tmp_path, input):
+def test_cat_test_timestamp_succeeded(tt_cmd, tmp_path, input):
     # Copy the .xlog file to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), "test_file", "timestamp.xlog")
     shutil.copy(test_app_path, tmp_path)

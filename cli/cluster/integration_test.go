@@ -21,6 +21,8 @@ import (
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
+// spell-checker:ignore etcdmode etcddir etcdapp
+
 const timeout = 5 * time.Second
 
 type etcdOpts struct {
@@ -40,7 +42,7 @@ func doWithCtx(action func(context.Context) error) error {
 func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 	t.Helper()
 
-	mydir, err := os.Getwd()
+	myDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get current working directory: %s", err)
 	}
@@ -49,15 +51,15 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 	if opts.CaFile != "" || opts.CertFile != "" || opts.KeyFile != "" {
 		tls = &transport.TLSInfo{}
 		if opts.CaFile != "" {
-			caPath := filepath.Join(mydir, opts.CaFile)
+			caPath := filepath.Join(myDir, opts.CaFile)
 			tls.TrustedCAFile = caPath
 		}
 		if opts.CertFile != "" {
-			certPath := filepath.Join(mydir, opts.CertFile)
+			certPath := filepath.Join(myDir, opts.CertFile)
 			tls.CertFile = certPath
 		}
 		if opts.KeyFile != "" {
-			keyPath := filepath.Join(mydir, opts.KeyFile)
+			keyPath := filepath.Join(myDir, opts.KeyFile)
 			tls.KeyFile = keyPath
 		}
 	}
@@ -121,15 +123,15 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 	t.Helper()
 	var (
-		presp *clientv3.PutResponse
+		pResp *clientv3.PutResponse
 		err   error
 	)
 	doWithCtx(func(ctx context.Context) error {
-		presp, err = etcd.Put(ctx, key, value)
+		pResp, err = etcd.Put(ctx, key, value)
 		return nil
 	})
 	require.NoError(t, err)
-	require.NotNil(t, presp)
+	require.NotNil(t, pResp)
 }
 
 func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {

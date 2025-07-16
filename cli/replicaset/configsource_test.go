@@ -12,6 +12,8 @@ import (
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
+// spell-checker:ignore lexi
+
 //go:embed testdata/cconfig_source/*
 var cconfigSourceTestDataFS embed.FS
 

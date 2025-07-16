@@ -9,13 +9,13 @@ func genRpmLead(name string) *bytes.Buffer {
 	// The Lead is a legacy structure that used to describe RPM files
 	// before header sections were introduced.
 	//
-	// struct rpmlead {
+	// struct rpm_lead {
 	//   unsigned char magic[4];
 	//   unsigned char major, minor;
 	//   short type;
-	//   short archnum;
+	//   short arch_num;
 	//   char name[66];
-	//   short osnum;
+	//   short os_num;
 	//   short signature_type;
 	//   char reserved[16];
 	// } ;
@@ -30,9 +30,9 @@ func genRpmLead(name string) *bytes.Buffer {
 		uint8(3),                        // major
 		uint8(0),                        // minor
 		int16(0),                        // type
-		int16(1),                        // archnum
+		int16(1),                        // arch_num
 		rpmLeadName,                     // name
-		int16(1),                        // osnum
+		int16(1),                        // os_num
 		int16(5),                        // signature_type
 		[16]int8{},                      // reserved
 	)

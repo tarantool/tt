@@ -25,7 +25,7 @@ func packCpio(relPaths []string, resFileName, packageFilesDir string) error {
 	filesBuffer := bytes.Buffer{}
 	filesBuffer.WriteString(strings.Join(relPaths, "\n"))
 
-	cmd := exec.Command("cpio", "-o", "-H", "newc")
+	cmd := exec.Command("cpio", "-o", "-H", "newc") // spell-checker:disable-line
 	cmd.Stdin = &filesBuffer
 	cmd.Stdout = cpioFileWriter
 	cmd.Stderr = &stderrBuf

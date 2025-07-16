@@ -116,10 +116,10 @@ def wal_files(tt, instances):
     return [tt.lib_path(inst, "*.xlog") for inst in instances]
 
 
-def wait_box_status(timeout, tt, instances, accepatable_statuses, interval=0.1):
-    def are_all_box_statuses_acceptable(tt, instances, accepatable_statuses):
+def wait_box_status(timeout, tt, instances, acceptable_statuses, interval=0.1):
+    def are_all_box_statuses_acceptable(tt, instances, acceptable_statuses):
         status_ = status(tt)
-        return all([(status_[inst].get("BOX") in accepatable_statuses) for inst in instances])
+        return all([(status_[inst].get("BOX") in acceptable_statuses) for inst in instances])
 
     return utils.wait_event(
         timeout,
@@ -127,7 +127,7 @@ def wait_box_status(timeout, tt, instances, accepatable_statuses, interval=0.1):
         interval,
         tt,
         instances,
-        accepatable_statuses,
+        acceptable_statuses,
     )
 
 

@@ -725,6 +725,7 @@ func TestStringToTimestamp(t *testing.T) {
 		output  string
 		wantErr bool
 	}{
+		// spell-checker:disable
 		{
 			"clean",
 			"",
@@ -785,6 +786,7 @@ func TestStringToTimestamp(t *testing.T) {
 			"",
 			true,
 		},
+		// spell-checker:enable
 	}
 
 	for _, tt := range tests {
@@ -815,7 +817,7 @@ func TestIsURL(t *testing.T) {
 		{"Invalid app:instance", "app:instance", false},
 		{"Empty string", "", false},
 		{"Array", "[one, two]", false},
-		{"String", "invavid string", false},
+		{"String", "invalid string", false},
 		{"UNIX", "unix:///var/run/tarantool/my_instance.sock", true},
 	}
 

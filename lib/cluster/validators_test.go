@@ -10,6 +10,8 @@ import (
 	"github.com/tarantool/tt/lib/cluster"
 )
 
+// spell-checker:ignore zoozoo foofoo barbarbar foofoofoo
+
 var (
 	_ cluster.Validator = cluster.AnyValidator{}
 	_ cluster.Validator = cluster.StringValidator{}
@@ -332,7 +334,7 @@ func TestSequenceValidator_empty(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestSequenctValidator_number_string(t *testing.T) {
+func TestSequenceValidator_number_string(t *testing.T) {
 	validator := cluster.MakeSequenceValidator(
 		cluster.NumberValidator{},
 		cluster.StringValidator{})
@@ -775,7 +777,7 @@ func TestMapValidator_string_array_allowed(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestMapValidator_interger_record(t *testing.T) {
+func TestMapValidator_integer_record(t *testing.T) {
 	value, err := cluster.MakeMapValidator(
 		cluster.IntegerValidator{},
 		cluster.MakeRecordValidator(map[string]cluster.Validator{

@@ -113,13 +113,13 @@ type logErrorWriterDecorator struct {
 // Write decorates the original output in the same way as log.Error.
 func (d logErrorWriterDecorator) Write(p []byte) (int, error) {
 	// Setup LogHandler to write to string to get the decorated string.
-	var logdst strings.Builder
-	orig := d.handler.setWriter(&logdst)
+	var logDst strings.Builder
+	orig := d.handler.setWriter(&logDst)
 	log.Errorf(string(p))
 	// Restore LogHandler with the original writer.
 	d.handler.setWriter(orig)
 	// Send the decorated data.
-	return fmt.Fprint(d.writer, logdst.String())
+	return fmt.Fprint(d.writer, logDst.String())
 }
 
 // NewCmdRoot creates a new root command.
@@ -218,7 +218,7 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		panic(err.Error())
 	}
 
-	// Adjust logger color mapping (display errors with hi-intencity color and bold).
+	// Adjust logger color mapping (display errors with hi-intensity color and bold).
 	cli.Colors[log.ErrorLevel] = color.New(color.Bold, color.FgHiRed)
 	cli.Colors[log.FatalLevel] = color.New(color.Bold, color.FgHiRed)
 

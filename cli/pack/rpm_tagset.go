@@ -27,6 +27,8 @@ func (tagSet *rpmTagSetType) addTags(tags ...rpmTagType) {
 	*tagSet = append(*tagSet, tags...)
 }
 
+// spell-checker:ignore knazarov eade
+
 /**
  *
  *  Bless @knazarov for writing this code once,

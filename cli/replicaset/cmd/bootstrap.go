@@ -9,10 +9,10 @@ import (
 )
 
 // BootstrapCtx describes context to bootstrap an instance or application.
-type BootstapCtx struct {
+type BootstrapCtx struct {
 	// ReplicasetsFile is a Cartridge replicasets file.
 	ReplicasetsFile string
-	// Orchestrator is a forced orchestator choice.
+	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 	// RunningCtx is an application running context.
 	RunningCtx running.RunningCtx
@@ -28,7 +28,7 @@ type BootstapCtx struct {
 }
 
 // Bootstrap bootstraps an instance or application.
-func Bootstrap(ctx BootstapCtx) error {
+func Bootstrap(ctx BootstrapCtx) error {
 	if ctx.Instance != "" {
 		if ctx.Replicaset == "" {
 			return fmt.Errorf("the replicaset must be specified to bootstrap an instance")

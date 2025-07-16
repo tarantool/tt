@@ -25,14 +25,14 @@ type Bootstrapper interface {
 
 // newErrBootstrapByInstanceNotSupported creates a new error that bootstrap is not
 // supported by the orchestrator for a single instance.
-func newErrBootstrapByInstanceNotSupported(orhestrator Orchestrator) error {
+func newErrBootstrapByInstanceNotSupported(orchestrator Orchestrator) error {
 	return fmt.Errorf("bootstrap is not supported for a single instance by %q orchestrator",
-		orhestrator)
+		orchestrator)
 }
 
 // newErrBootstrapByAppNotSupported creates a new error that bootstrap is not
 // supported by the orchestrator for an application.
-func newErrBootstrapByAppNotSupported(orhestrator Orchestrator) error {
+func newErrBootstrapByAppNotSupported(orchestrator Orchestrator) error {
 	return fmt.Errorf("bootstrap is not supported for an application by %q orchestrator",
-		orhestrator)
+		orchestrator)
 }

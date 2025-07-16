@@ -34,7 +34,7 @@ func generateRunDirForCartridge(env config.TtEnvOpts, configDir, runDir, appName
 	return util.JoinAbspath(env.InstancesEnabled, appName, runDir)
 }
 
-// NewCartridgeCmd chains commands from cartridge-cli to our corba tree.
+// NewCartridgeCmd chains commands from cartridge-cli to our cobra tree.
 func NewCartridgeCmd() *cobra.Command {
 	cartridgeCmd := &cobra.Command{
 		Use:   "cartridge",

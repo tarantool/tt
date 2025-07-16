@@ -42,7 +42,7 @@ func TestParseElectionMode(t *testing.T) {
 		{"maNUAL", replicaset.ElectionModeManual},
 		{"unknown", replicaset.ElectionModeUnknown},
 		{"curiosity", replicaset.ElectionModeUnknown},
-		{"offfoo", replicaset.ElectionModeUnknown},
+		{"offfoo", replicaset.ElectionModeUnknown}, // spell-checker:disable-line
 	}
 
 	for _, tc := range cases {

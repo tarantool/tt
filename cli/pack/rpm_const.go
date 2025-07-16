@@ -25,7 +25,7 @@ const (
 	rpmTypeString      = 6
 	rpmTypeBin         = 7
 	rpmTypeStringArray = 8
-	rpmTypeI18nstring  = 9
+	rpmTypeI18nString  = 9
 
 	signatureTagSize        = 1000
 	signatureTagMD5         = 1004
@@ -47,24 +47,24 @@ const (
 	tagPayloadFormat     = 1124
 	tagPayloadCompressor = 1125
 	tagPayloadFlags      = 1126
-	tagPrein             = 1023
-	tagPostin            = 1024
-	tagPreinProg         = 1085
-	tagPostinProg        = 1086
+	tagPreIn             = 1023
+	tagPostIn            = 1024
+	tagPreInProg         = 1085
+	tagPostInProg        = 1086
 	tagDirNames          = 1118
 	tagBaseNames         = 1117
 	tagDirIndexes        = 1116
-	tagFileUsernames     = 1039
-	tagFileGroupnames    = 1040
+	tagFileUserNames     = 1039
+	tagFileGroupNames    = 1040
 	tagFileSizes         = 1028
 	tagFileModes         = 1030
-	tagFileInodes        = 1096
+	tagFileINodes        = 1096
 	tagFileDevices       = 1095
 	tagRpmVersion        = 1064
-	tagFileMtimes        = 1034
+	tagFileMTimes        = 1034
 	tagFileFlags         = 1037
 	tagFileLangs         = 1097
-	tagFileRdevs         = 1033
+	tagFileRDevs         = 1033
 	tagFileDigests       = 1035
 	tagFileLinkTos       = 1036
 	tagRequireFlags      = 1048
@@ -76,12 +76,12 @@ const (
 	rpmSenseLess         = 0x02
 	rpmSenseGreater      = 0x04
 	rpmSenseEqual        = 0x08
-	rpmSensePrereq       = 0x40
+	rpmSensePreReq       = 0x40
 	rpmSenseInterp       = 0x100
 	rpmSenseScriptPre    = 0x200
 	rpmSenseScriptPost   = 0x400
-	rpmSenseScriptPreun  = 0x800
-	rpmSenseScriptPostun = 0x1000
+	rpmSenseScriptPreUn  = 0x800
+	rpmSenseScriptPostUn = 0x1000
 )
 
 var (

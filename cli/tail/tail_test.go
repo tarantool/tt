@@ -191,7 +191,7 @@ five
 			wantErr: false,
 		},
 		{
-			name: "Only new-lines, wamt 3",
+			name: "Only new-lines, want 3",
 			text: "\n\n\n\n\n\n\n\n\n",
 			args: args{
 				n: 3,
@@ -277,7 +277,7 @@ five
 			wantErr: false,
 		},
 		{
-			name: "Only new-lines, wamt 3",
+			name: "Only new-lines, want 3",
 			text: "\n\n\n\n\n\n\n\n\n",
 			args: args{
 				n: 3,

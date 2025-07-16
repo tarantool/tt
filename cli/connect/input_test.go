@@ -29,7 +29,7 @@ func TestLuaValidator_Close_multipleTimes(t *testing.T) {
 	assert.NoError(t, s.Close())
 }
 
-func TestLuaValidator_Validate_aferClose(t *testing.T) {
+func TestLuaValidator_Validate_afterClose(t *testing.T) {
 	s := NewLuaValidator()
 	s.Close()
 	assert.Panics(t, func() { s.Validate("any string") })
