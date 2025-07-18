@@ -44,6 +44,7 @@ func NewCreateCmd() *cobra.Command {
 Built-in templates:
 	cartridge: a simple Cartridge application.
 	single_instance: Tarantool 3 application with a single instance configuration.
+	cluster: Tarantool 3 cluster application.
 	vshard_cluster: Tarantool 3 vshard cluster application.
 	config_storage: Tarantool 3 cluster configuration storage.`,
 		Example: `
