@@ -12,6 +12,7 @@ from utils import (
     config_name,
     extract_status,
     get_tarantool_version,
+    is_tarantool_ee,
     pid_file,
     run_command_and_get_output,
     wait_event,
@@ -1101,6 +1102,10 @@ def wait_for_master(tt_cmd, workdir, app_name):
     tarantool_major_version < 3,
     reason="skip centralized config test for Tarantool < 3",
 )
+@pytest.mark.skipif(
+    not is_tarantool_ee(),
+    reason="required Tarantool EE",
+)
 @pytest.mark.parametrize("num_replicas", [3, 5])
 def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
@@ -1198,7 +1203,10 @@ def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
     [
         "cartridge",
         "vshard_cluster",
-        "config_storage",
+        pytest.param(
+            "config_storage",
+            marks=pytest.mark.skipif(not is_tarantool_ee(), reason="required Tarantool EE"),
+        ),
     ],
 )
 def test_create_builtin_template_with_defaults(tt_cmd, tmp_path, template):
