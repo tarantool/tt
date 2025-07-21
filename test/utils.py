@@ -554,15 +554,17 @@ def is_tarantool_less_3():
 
 def is_tarantool_ee():
     cmd = ["tarantool", "--version"]
-    instance_process = subprocess.run(
-        cmd,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    if instance_process.returncode == 0:
-        return "Tarantool Enterprise" in instance_process.stdout
-    return False
+    try:
+        instance_process = subprocess.run(
+            cmd,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        return False
+    assert instance_process.returncode == 0
+    return "Tarantool Enterprise" in instance_process.stdout
 
 
 def skip_if_tarantool_ce():
