@@ -245,6 +245,7 @@ func (c *CartridgeApplication) discovery() (Replicasets, error) {
 			}
 			if topology.IsBootstrapped {
 				if newTopology.IsBootstrapped {
+					updateInstancesAliases(newTopology.Replicasets, topology.Replicasets)
 					topology = newTopology
 				}
 			} else {
@@ -252,7 +253,8 @@ func (c *CartridgeApplication) discovery() (Replicasets, error) {
 			}
 
 			// Stop if we already found a valid topology.
-			return topology.IsBootstrapped && !topology.IsCritical, nil
+			return topology.IsBootstrapped && !topology.IsCritical &&
+				!hasMissingInstancesAliases(topology.Replicasets), nil
 		},
 	))
 	if err != nil {
@@ -269,6 +271,37 @@ func (c *CartridgeApplication) discovery() (Replicasets, error) {
 	))
 
 	return recalculateMasters(replicasets), err
+}
+
+// hasMissingInstancesAliases checks if any instance has empty alias.
+func hasMissingInstancesAliases(replicasets []Replicaset) bool {
+	for _, rs := range replicasets {
+		for _, inst := range rs.Instances {
+			if len(inst.Alias) == 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// updateInstancesAliases tries to update missing instances aliases with another instances data.
+func updateInstancesAliases(replicasets, other []Replicaset) {
+	instAliases := make(map[string]string, 0)
+	for _, rs := range other {
+		for _, inst := range rs.Instances {
+			instAliases[inst.UUID] = inst.Alias
+		}
+	}
+	for i, rs := range replicasets {
+		for ii, inst := range rs.Instances {
+			if len(inst.Alias) == 0 {
+				if alias, ok := instAliases[inst.UUID]; ok && len(alias) > 0 {
+					replicasets[i].Instances[ii].Alias = alias
+				}
+			}
+		}
+	}
 }
 
 // Promote promotes an instance in the cartridge application.
