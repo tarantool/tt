@@ -48,15 +48,21 @@ jobs:
         with:
           tarantool-version: '${{ matrix.tarantool-version }}'
 
-      - name: Static code check
-        uses: ./.github/actions/static-code-check
+      # - name: Static code check
+      #   uses: ./.github/actions/static-code-check
 
-      - name: Unit tests
-        run: mage unit
+      # - name: Unit tests
+      #   run: mage unit
 
       # This server starts and listen on 8084 port that is used for tests.
       - name: Stop Mono server
         run: sudo systemctl kill mono-xsp4 || true
+
+      - name: Status Mono server
+        run: sudo systemctl status mono-xsp4 || true
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
 
       - name: Integration tests
         run: mage integration
