@@ -37,4 +37,4 @@ runs:
       env:
         SKIP: golangci-lint-diff
       with:
-        extra_args: --all-files --hook-stage=manual
+        extra_args: -v --all-files --hook-stage=manual
