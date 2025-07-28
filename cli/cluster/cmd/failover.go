@@ -163,7 +163,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 		return err
 	}
 
-	fmt.Printf("%s\n%s %s %s\n",
+	fmt.Printf("%s\n%s '%s' %s\n",
 		"To check the switching status, run:",
 		"tt cluster failover switch-status",
 		url, uuid)
