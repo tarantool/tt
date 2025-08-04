@@ -20,6 +20,7 @@ type Distro struct {
 
 var targetDistros = []Distro{
 	{OS: "el", Dist: "7"},
+	{OS: "el", Dist: "8"},
 
 	{OS: "fedora", Dist: "34"},
 	{OS: "fedora", Dist: "35"},
