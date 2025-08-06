@@ -63,7 +63,8 @@ def test_cluster_failover_switch_timeout_etcd(tt_cmd, tmpdir_with_cfg, etcd):
         text=True,
     )
     switch_output = ps_switch.stdout.read()
-    assert re.search(r"To check the switching status, run", switch_output)
+    assert "To check the switching status, run" in switch_output
+    assert f"tt cluster failover switch-status '{etcd.endpoint}/prefix'" in switch_output
 
     task_id = switch_output.split(" ")[-1]
     task_id = "/prefix/failover/command/" + task_id.strip()

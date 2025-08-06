@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt cluster failover switch`: minor change in output that displays corresponding
+  `switch-status` command with quoted URI argument so it could be copy-pasted for
+  subsequent launch as-is.
+
 ### Fixed
 
 ## [2.10.1] - 2025-06-26
