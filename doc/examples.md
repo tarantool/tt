@@ -11,11 +11,11 @@ This file contains various examples of working with tt.
 * [Packing environments](#packing-environments)
 * [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
 * [Transition from tarantoolctl to tt](#transition-from-tarantoolctl-to-tt)
-  * [System-wide configuration](#system-wide-configuration)
-  * [Local configuration](#local-configuration)
-  * [Commands difference](#commands-difference)
+  - [System-wide configuration](#system-wide-configuration)
+  - [Local configuration](#local-configuration)
+  - [Commands difference](#commands-difference)
 * [Transition from Cartridge CLI to tt](#transition-from-cartridge-cli-to-tt)
-  * [Commands difference](#commands-difference)
+  - [Commands difference](#commands-difference)
 
 ## Working with a set of instances
 
@@ -98,26 +98,26 @@ $ tt start
 Create new tt environment, if it is not exist:
 
 ``` console
-$ tt init
+tt init
 ```
 
 Create Cartridge application:
 
 ``` console
-$ tt create cartridge --name myapp
+tt create cartridge --name myapp
 ```
 
 Build and start the application:
 
 ``` console
-$ tt build myapp
-$ tt start myapp
+tt build myapp
+tt start myapp
 ```
 
 Bootstrap vshard:
 
 ``` console
-$ tt cartridge replicasets setup --bootstrap-vshard --name myapp --run-dir ./var/run/myapp/
+tt cartridge replicasets setup --bootstrap-vshard --name myapp --run-dir ./var/run/myapp/
 ```
 
 Now open <http://localhost:8081/> and see your application's Admin Web
@@ -129,7 +129,7 @@ For example, we want to create an application template. In order to do
 this, create a directory for the template:
 
 ``` console
-$ mkdir -p ./templates/simple
+mkdir -p ./templates/simple
 ```
 
 with the content:
@@ -209,15 +209,15 @@ in the future.
 
 The module has following commands:
 
--   `tt cluster show SOURCE` - to show a cluster configuration from the
+* `tt cluster show SOURCE` - to show a cluster configuration from the
     `SOURCE`.
--   `tt cluster publish SOURCE config.yaml` - to publish a cluster
+* `tt cluster publish SOURCE config.yaml` - to publish a cluster
     configuration to the `SOURCE`.
 
 The `SOURCE` could be:
 
-- An application name or application:instance name.
-- An etcd URI. In this case you could specify an instance name as an URI
+* An application name or application:instance name.
+* An etcd URI. In this case you could specify an instance name as an URI
   argument `name`.
 
 The simplest logic in case of the etcd `SOURCE`. `tt cluster` just shows or
@@ -228,6 +228,7 @@ default host and port). We also has two files with a cluster and an instance
 configuration:
 
 `cluster.yaml`:
+
 ```yaml
 groups:
   group_name:
@@ -243,7 +244,9 @@ groups:
               listen:
               - uri: 127.0.0.1:3385
 ```
+
 `instance.yaml`:
+
 ```yaml
 iproto:
   listen:
@@ -252,6 +255,7 @@ iproto:
 ```
 
 Let's publish and show the configurations with a prefix `/tt`:
+
 ```
 $ tt cluster publish "http://localhost:2379/tt" cluster.yaml
 $ tt cluster show "http://localhost:2379/tt"
@@ -275,6 +279,7 @@ iproto:
 ```
 
 At now we could update an instance configuration and show the result:
+
 ```
 $ tt cluster publish "http://localhost:2379/tt?name=instance2" instance.yaml
 $ tt cluster show "http://localhost:2379/tt"
@@ -300,11 +305,13 @@ iproto:
 ```
 
 You could see the configuration in etcd with the command:
+
 ```
-$ etcdctl get --prefix "/tt/"
+etcdctl get --prefix "/tt/"
 ```
 
 The same works for an application configuration:
+
 ```
 $ tt cluster publish test_app cluster.yaml
 $ tt cluster publish test_app:instance2 instance.yaml
@@ -352,8 +359,8 @@ by Tarantool.
 To view all available options for the commands, use the help command:
 
 ```
-$ tt cluster show --help
-$ tt cluster publish --help
+tt cluster show --help
+tt cluster publish --help
 ```
 
 ## Packing environments
@@ -416,7 +423,6 @@ packed environment for multiple applications looks like:
     │   └── var
     └── tt.yaml
 
-
 `tt.yaml`:
 
 ``` yaml
@@ -477,10 +483,10 @@ be configured with `tt_daemon.yaml` config.
 
 You can manage TT daemon with following commands:
 
--   `tt daemon start` - launch of a daemon
--   `tt daemon stop` - terminate of the daemon
--   `tt daemon status` - get daemon status
--   `tt daemon restart` - daemon restart
+* `tt daemon start` - launch of a daemon
+* `tt daemon stop` - terminate of the daemon
+* `tt daemon status` - get daemon status
+* `tt daemon restart` - daemon restart
 
 Work scenario:
 
@@ -725,7 +731,7 @@ counterparts in `tt`: build, start, stop, status, etc.:
 
 ### Commands difference
 
--   Some of cartridge application management commands are subcommands of
+* Some of cartridge application management commands are subcommands of
     `tt cartridge`:
 
 <!-- -->
@@ -740,7 +746,7 @@ counterparts in `tt`: build, start, stop, status, etc.:
       repair      Patch cluster configuration files
       replicasets Manage application replica sets
 
--   `cartridge enter` and `cartridge connect` functionality is covered
+* `cartridge enter` and `cartridge connect` functionality is covered
     by `tt connect`:
 
 <!-- -->
@@ -757,7 +763,7 @@ counterparts in `tt`: build, start, stop, status, etc.:
 
     localhost:3302>
 
--   `cartridge log` and `cartridge pack docker` functionality is not
+* `cartridge log` and `cartridge pack docker` functionality is not
     supported in `tt` yet.
--   Shell autocompletion scripts generation command
+* Shell autocompletion scripts generation command
     `cartridge gen completion` is `tt completion` in `tt`.
