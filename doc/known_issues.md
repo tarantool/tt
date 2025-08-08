@@ -6,7 +6,7 @@ the [Github Issues page](https://github.com/tarantool/tt/issues).
 
 ## Contents
 
-* [Do not set the box.cfg.background](#do-not-set-the-boxcfgbackground)
+- [Do not set the box.cfg.background](#do-not-set-the-boxcfgbackground)
 
 ## Do not set the box.cfg.background
 

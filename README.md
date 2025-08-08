@@ -1,6 +1,7 @@
 
 <a href="http://tarantool.org">
-  <img src="https://avatars2.githubusercontent.com/u/2344919?v=2&s=250" align="right">
+  <img src="https://avatars2.githubusercontent.com/u/2344919?v=2&s=250"
+  align="right" alt="Tarantool logo">
 </a>
 
 # Tarantool CLI
@@ -15,46 +16,47 @@ Tarantool-based applications.
 
 ## Contents
 
-* [Intro](#intro)
-* [Getting started](#getting-started)
-  * [Installation](#installation)
-  * [Build from source](#build-from-source)
+- [Intro](#intro)
+- [Getting started](#getting-started)
+  + [Installation](#installation)
+  + [Build from source](#build-from-source)
     * [Prerequisites](#prerequisites)
     * [Build](#build)
     * [Dependencies](#dependencies)
     * [Run tests](#run-tests)
-* [Configuration](#configuration)
-  * [Configuration file](#configuration-file)
-* [Creating tt environment](#creating-tt-environment)
-* [External modules](#external-modules)
-* [CLI Args](#cli-Args)
-  * [Autocompletion](#autocompletion)
-* [TT usage](#tt-usage)
-  * [Working with a set of instances](#working-with-a-set-of-instances)
-  * [Working with application templates](#Working-with-application-templates)
-  * [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
-  * [Setting Tarantool configuration parameters via environment variables](#setting-tarantool-configuration-parameters-via-environment-variables)
-  * [Add current environment binaries location to the PATH variable](#add-current-environment-binaries-location-to-the-path-variable)
-* [Migration from older TT versions](doc/migration_from_older_versions.md)
-* [Known issues](doc/known_issues.md)
-* [Commands](#commands)
+- [Configuration](#configuration)
+  + [Configuration file](#configuration-file)
+- [Creating tt environment](#creating-tt-environment)
+- [External modules](#external-modules)
+- [CLI Args](#cli-args)
+  + [Autocompletion](#autocompletion)
+- [TT usage](#tt-usage)
+  + [Working with a set of instances](#working-with-a-set-of-instances)
+  + [Working with application templates](#working-with-application-templates)
+  + [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
+  + [Setting Tarantool configuration parameters via environment variables](#setting-tarantool-configuration-parameters-via-environment-variables)
+  + [Add current environment binaries location to the PATH variable](#add-current-environment-binaries-location-to-the-path-variable)
+- [Migration from older TT versions](doc/migration_from_older_versions.md)
+- [Known issues](doc/known_issues.md)
+- [Commands](#commands)
 
 ## Intro
 
-`tt` is tarantool's instance and environment management utility and is used to develop, deploy, run and operate applications.
+`tt` is tarantool's instance and environment management utility and is used to
+develop, deploy, run and operate applications.
 
-One of the basic concepts that `tt` introduces is "environment". The "environment" is
-an isolated workspace for the tarantool application suite.
-[`tt.yaml` configuration file](#configuration) defines the root and configuration of
-the *environment*. When `tt` is installed from a repository by a package manager (`apt`,
-`rpm`, ...) a "system" config file (`/etc/tarantool/tt.yaml`) is included which forms
-the "system" environment - the case when `tt` replaces the
-[`tarantoolctl`](https://github.com/tarantool/tt/blob/master/doc/examples.md#transition-from-tarantoolctl-to-tt).
-In case we want to form a local environment (very convenient during development), we
-use a "local" `tt.yaml` generated with the [`tt init`](#creating-tt-environment)
+One of the basic concepts that `tt` introduces is "environment".
+The "environment" is an isolated workspace for the tarantool application suite.
+[`tt.yaml` configuration file](#configuration) defines the root and
+configuration of the *environment*. When `tt` is installed from a repository by
+a package manager (`apt`, `rpm`, ...) a "system" config file
+(`/etc/tarantool/tt.yaml`) is included which forms the "system" environment -
+the case when `tt` replaces the [`tarantoolctl`](https://github.com/tarantool/tt/blob/master/doc/examples.md#transition-from-tarantoolctl-to-tt).
+In case we want to form a local environment (very convenient during
+development), we use a "local" `tt.yaml` generated with the [`tt init`](#creating-tt-environment)
 command. In this way, the user/developer can have a large number of different
-"environments" in the system in which different versions of both `tarantool`/`tt` and
-the applications being developed will be used.
+"environments" in the system in which different versions of both
+`tarantool`/`tt` and the applications being developed will be used.
 
 The example of a typical "environment":
 
@@ -115,13 +117,13 @@ Install the tarantool repositories:
 
 Install TT:
 
--   Deb based distributions:
+- Deb based distributions:
 
 ``` console
 apt-get install tt
 ```
 
--   Rpm based distributions:
+- Rpm based distributions:
 
 ``` console
 yum install tt
@@ -147,36 +149,36 @@ binary for your OS from GitHub's Releases page.
 However, on MacOS to run that binary you will need to do additional
 steps:
 
-1.  After first try to run binary, you will encounter an error:
+1. After first try to run binary, you will encounter an error:
 
     <img src="doc/images/macOS_error.jpeg" width="250" alt="MacOS error." />
 
-1.  To fix it, you should go to 'system settings-\>privacy and
+1. To fix it, you should go to 'system settings-\>privacy and
     security', then scroll down and find:
 
     <img src="doc/images/macOS_settings.jpeg" width="350" alt="MacOS settings." />
 
-1.  Click on 'Allow Anyway' and you should be able to use Tarantool Cli.
+1. Click on 'Allow Anyway' and you should be able to use Tarantool Cli.
 
 ### Build from source
 
 #### Prerequisites
 
--   [Go (version 1.18+)](https://golang.org/doc/install)
--   [Mage](https://magefile.org/)
--   [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+- [Go (version 1.18+)](https://golang.org/doc/install)
+- [Mage](https://magefile.org/)
+- [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 
 To run tests:
 
--   [Python3](https://www.python.org/downloads/)
--   [pytest](https://docs.pytest.org/en/7.2.x/getting-started.html#get-started)
--   [ruff](https://pypi.org/project/ruff/)
--   [golangci-lint](https://golangci-lint.run/usage/install/#local-installation)
--   [lichen](https://github.com/uw-labs/lichen#install)
--   [docker](https://docs.docker.com/engine/install/)
--   [NodeJS](https://nodejs.org/en/download)
--   [CMake](https://cmake.org/install/)
--   [etcd 3+](https://etcd.io/docs/v3.5/install/)
+- [Python3](https://www.python.org/downloads/)
+- [pytest](https://docs.pytest.org/en/7.2.x/getting-started.html#get-started)
+- [ruff](https://pypi.org/project/ruff/)
+- [golangci-lint](https://golangci-lint.run/usage/install/#local-installation)
+- [lichen](https://github.com/uw-labs/lichen#install)
+- [docker](https://docs.docker.com/engine/install/)
+- [NodeJS](https://nodejs.org/en/download)
+- [CMake](https://cmake.org/install/)
+- [etcd 3+](https://etcd.io/docs/v3.5/install/)
 
 #### Build
 
@@ -211,18 +213,19 @@ TT_CLI_BUILD_SSL=shared mage build
 
 **tt rocks runtime dependencies:**
 
--   [curl](https://curl.se) or
+- [curl](https://curl.se) or
     [wget](https://www.gnu.org/software/wget/)
--   [zip](http://infozip.sourceforge.net/)
--   [unzip](http://infozip.sourceforge.net/)
+- [zip](http://infozip.sourceforge.net/)
+- [unzip](http://infozip.sourceforge.net/)
 
 **tt install && search runtime dependencies:**
 
--   [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+- [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 
 #### Run tests
 
 Disable `etcd` service:
+
 ``` console
 systemctl stop etcd
 systemctl disable etcd
@@ -254,32 +257,35 @@ mage testfull
 ### Commit changes
 
 The project uses [pre-commit](https://pre-commit.com/) to check code before committing.
-After activating the virtual environment for [run tests](#run-tests), the `pre-commit` hooks must be installed in the repository:
+After activating the virtual environment for [run tests](#run-tests), the `pre-commit`
+hooks must be installed in the repository:
 
 ``` console
 pre-commit install
 ```
 
 Now you will perform automatic checks at every commit.
-The first time you use `pre-commit` it will install the dependencies needed for it to work, which may take some time.
-Subsequent runs will be much faster.
+The first time you use `pre-commit` it will install the dependencies needed for
+it to work, which may take some time. Subsequent runs will be much faster.
 
-If errors were found, the commit will fail. If the errors can be corrected automatically, you will receive modified files to add to the commit, checking for correctness.
-In other cases you will get a message with errors that need to be corrected manually.
+If errors were found, the commit will fail. If the errors can be corrected
+automatically, you will receive modified files to add to the commit, checking
+for correctness. In other cases you will get a message with errors that need to
+be corrected manually.
 
 ## Configuration
 
 Tarantool CLI can be launched in several modes:
 
--   System launch (flag `-S`) - the working directory is current,
+- System launch (flag `-S`) - the working directory is current,
     configuration file searched in `/etc/tarantool` directory.
--   Local launch (flag `-L`) - the working directory is the one you
+- Local launch (flag `-L`) - the working directory is the one you
     specified, configuration file is searched in this directory. If
     configuration file doesn't exists, config searched from the working
     directory to the root. If it is also not found, then take config
     from `/etc/tarantool`. If tarantool or tt executable files are found
     in working directory, they will be used further.
--   Default launch (no flags specified) - configuration file searched
+- Default launch (no flags specified) - configuration file searched
     from the current directory to the root, going down the directory
     until file is found. Working directory - the one where the
     configuration file is found. If configuration file isn't found,
@@ -322,68 +328,66 @@ templates:
   - path: path/to/templates_dir2
 ```
 
-**env**
+#### env
 
--   `instances_enabled` (string) - path to directory that stores all
+- `instances_enabled` (string) - path to directory that stores all
     applications.
--   `bin_dir` (string) - directory that stores binary files.
--   `inc_dir` (string) - directory that stores header files. The path
+- `bin_dir` (string) - directory that stores binary files.
+- `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
--   `restart_on_failure` (bool) - should it restart on failure.
--   `tarantoolctl_layout` (bool) - enable/disable tarantoolctl layout
+- `restart_on_failure` (bool) - should it restart on failure.
+- `tarantoolctl_layout` (bool) - enable/disable tarantoolctl layout
     compatible mode for artifact files: control socket, pid, log files.
     Data files (wal, vinyl, snapshots) and multi-instance applications
     are not affected by this option.
 
-**modules**
+#### modules
 
--   `directory` (string) - the path to directory where the external
+- `directory` (string) - the path to directory where the external
     modules are stored.
 
-**app**
+#### app
 
--   `run_dir` (string) - path to directory that stores various instance
+- `run_dir` (string) - path to directory that stores various instance
     runtime artifacts like console socket, PID file, etc.
--   `log_dir` (string) - directory that stores log files.
--   `wal_dir` (string) - directory where write-ahead log (.xlog) files
+- `log_dir` (string) - directory that stores log files.
+- `wal_dir` (string) - directory where write-ahead log (.xlog) files
     are stored.
--   `memtx_dir` (string) - directory where memtx stores snapshot (.snap)
+- `memtx_dir` (string) - directory where memtx stores snapshot (.snap)
     files.
--   `vinyl_dir` (string) - directory where vinyl files or subdirectories
+- `vinyl_dir` (string) - directory where vinyl files or subdirectories
     will be stored.
 
-**repo**
+#### repo
 
--   `rocks` (string) - directory that stores rocks files.
--   `distfiles` (string) - directory that stores installation files.
+- `rocks` (string) - directory that stores rocks files.
+- `distfiles` (string) - directory that stores installation files.
 
-**ee**
+#### ee
 
--   `credential_path` (string) - path to file with credentials for
+- `credential_path` (string) - path to file with credentials for
     downloading tarantool-ee. File must contain login and password. Each
     parameter on a separate line. Alternatively credentials can be set
-    via environment variables:
-    <span class="title-ref">TT_CLI_EE_USERNAME</span> and
-    <span class="title-ref">TT_CLI_EE_PASSWORD</span>.
+    via environment variables: `TT_CLI_EE_USERNAME` and `TT_CLI_EE_PASSWORD`.
 
-**templates**
+#### templates
 
--   `path` (string) - the path to templates search directory.
+- `path` (string) - the path to templates search directory.
 
 ## Creating tt environment
 
 tt environment can be created using `init` command:
 
 ``` console
-$ tt init
+tt init
 ```
 
 `tt init` searches for existing configuration files in current
 directory:
 
--   `.cartridge.yml`. If `.cartridge.yml` is found, it is loaded, and
+- `.cartridge.yml`. If `.cartridge.yml` is found, it is loaded, and
     directory information from it is used for `tt.yaml` generation.
--   `.tarantoolctl`. If `.tarantoolctl` is found, it is invoked by
+- `.tarantoolctl`. If `.tarantoolctl` is found, it is invoked by
     Tarantool and directory information from `default_cfg` table is used
     for `tt.yaml` generation. `.tarantoolctl` will not be invoked by
     `tt start` command, so all variables defined in this script will not
@@ -394,6 +398,7 @@ generates default `tt.yaml` and creates a set of environment
 directories. Here is and example of the default environment filesystem
 tree:
 
+```text
     .
     ├── bin
     ├── include
@@ -402,19 +407,20 @@ tree:
     ├── modules
     ├── tt.yaml
     └── templates
+```
 
 Where:
 
--   `bin` - directory that stores binary files.
--   `include` - directory that stores header files.
--   `distfiles` - directory that stores installation files for local
+- `bin` - directory that stores binary files.
+- `include` - directory that stores header files.
+- `distfiles` - directory that stores installation files for local
     install.
--   `instances.enabled` - directory that stores enabled applications or
+- `instances.enabled` - directory that stores enabled applications or
     symlinks.
--   `modules` - the directory where the external modules are stored.
--   `tt.yaml` - tt environment configuration file generated by
+- `modules` - the directory where the external modules are stored.
+- `tt.yaml` - tt environment configuration file generated by
     `tt init`.
--   `templates` - the directory where external templates are stored.
+- `templates` - the directory where external templates are stored.
 
 ## External modules
 
@@ -445,18 +451,18 @@ To see list of available modules, type `tt -h`.
 
 Arguments of Tarantool CLI:
 
--   `--cfg | -c` (string) - path to Tarantool CLI config.
--   `--internal | -I` - use internal module.
--   `--local | -L` (string) - run Tarantool CLI as local, in the
+- `--cfg | -c` (string) - path to Tarantool CLI config.
+- `--internal | -I` - use internal module.
+- `--local | -L` (string) - run Tarantool CLI as local, in the
     specified directory.
--   `--system | -S` - run Tarantool CLI as system.
--   `--help | -h` - help.
+- `--system | -S` - run Tarantool CLI as system.
+- `--help | -h` - help.
 
 ### Autocompletion
 
 You can generate autocompletion for `bash`, `zsh` and `fish` shell:
 
-``` console
+``` sh
 . <(tt completion bash)
 ```
 
@@ -479,8 +485,8 @@ templates from the configuration file.
 To work with a set of instances, you need: a directory where the files
 will be located: `init.lua` and `instances.yml`.
 
--   `init.lua` - application source file.
--   `instances.yml` - description of instances.
+- `init.lua` - application source file.
+- `instances.yml` - description of instances.
 
 Instances are described in `instances.yml` with format:
 
@@ -498,9 +504,9 @@ the format: `instance_name.init.lua`.
 
 The following environment variables are associated with each instance:
 
--   `TARANTOOL_APP_NAME` - application name (the name of the directory
+- `TARANTOOL_APP_NAME` - application name (the name of the directory
     where the application files are present).
--   `TARANTOOL_INSTANCE_NAME` - instance name.
+- `TARANTOOL_INSTANCE_NAME` - instance name.
 
 [Example](https://github.com/tarantool/tt/blob/master/doc/examples.md#working-with-a-set-of-instances)
 
@@ -510,9 +516,9 @@ The following environment variables are associated with each instance:
 
 To work with application template, you need:
 
--   A `<path>` where templates directories or archives are located.
+- A `<path>` where templates directories or archives are located.
 
--   `tt.yaml` configured to search templates in \<path\>:
+- `tt.yaml` configured to search templates in \<path\>:
 
     ``` yaml
     templates:
@@ -522,9 +528,9 @@ To work with application template, you need:
 
 Application template may contain:
 
--   `*.tt.template` - template files, that will be instantiated during
+- `*.tt.template` - template files, that will be instantiated during
     application creation.
--   `MANIFEST.yaml` - template manifest (see details below).
+- `MANIFEST.yaml` - template manifest (see details below).
 
 Template manifest `MANIFEST.yaml` has the following format:
 
@@ -549,17 +555,17 @@ include:
 
 Where:
 
--   `description` (string) - template description.
--   `vars` - template variables used for instantiation.
-    -   `prompt` - user prompt for variable value input.
-    -   `name` - variable name.
-    -   `default` - default value of the variable.
-    -   `re` - regular expression used for value validation.
--   `pre-hook` (string) - executable to run before template
+- `description` (string) - template description.
+- `vars` - template variables used for instantiation.
+  + `prompt` - user prompt for variable value input.
+  + `name` - variable name.
+  + `default` - default value of the variable.
+  + `re` - regular expression used for value validation.
+- `pre-hook` (string) - executable to run before template
     instantiation.
--   `post-hook` (string) - executable to run after template
+- `post-hook` (string) - executable to run after template
     instantiation.
--   `include` (list) - list of files to keep in application directory
+- `include` (list) - list of files to keep in application directory
     after create.
 
 There are pre-defined variables that can be used in template text:
@@ -591,19 +597,19 @@ daemon:
 
 Where:
 
--   `run_dir` (string) - path to directory that stores various instance
+- `run_dir` (string) - path to directory that stores various instance
     runtime artifacts like console socket, PID file, etc. Default:
     `run`.
--   `log_dir` (string) - directory that stores log files. Default:
+- `log_dir` (string) - directory that stores log files. Default:
     `log`.
--   `log_file` (string) - name of file contains log of daemon process.
+- `log_file` (string) - name of file contains log of daemon process.
     Default: `tt_daemon.log`.
--   `listen_interface` (string) - network interface the IP address
+- `listen_interface` (string) - network interface the IP address
     should be found on to bind http server socket. Default: loopback
     (`lo`/`lo0`).
--   `port` (number) - port number to be used for daemon http server.
+- `port` (number) - port number to be used for daemon http server.
     Default: 1024.
--   `pidfile` (string) - name of file contains pid of daemon process.
+- `pidfile` (string) - name of file contains pid of daemon process.
     Default: `tt_daemon.pid`.
 
 [TT daemon
@@ -618,7 +624,7 @@ support it. The name of a variable should have the following pattern:
 [box.cfg](https://www.tarantool.io/en/doc/latest/reference/configuration/#box-cfg-params-ref)
 parameter.
 
-### Add current environment binaries location to the PATH variable.
+### Add current environment binaries location to the PATH variable
 
 You can add current environment binaries location to the PATH variable:
 
@@ -632,41 +638,41 @@ Also TARANTOOL_DIR variable is set.
 
 Common description. For a detailed description, use `tt help command` .
 
--   `start` - start a tarantool instance(s).
--   `stop` - stop the tarantool instance(s).
--   `status` - get current status of the instance(s).
--   `restart` - restart the instance(s).
--   `version` - show Tarantool CLI version information.
--   `completion` - generate autocomplete for a specified shell.
--   `help` - display help for any command.
--   `logrotate` - rotate logs of a started tarantool instance(s).
--   `check` - check an application file for syntax errors.
--   `connect` - connect to the tarantool instance.
--   `rocks` - LuaRocks package manager.
--   `cat` - print into stdout the contents of .snap/.xlog files.
--   `play` - play the contents of .snap/.xlog files to another Tarantool
+- `start` - start a tarantool instance(s).
+- `stop` - stop the tarantool instance(s).
+- `status` - get current status of the instance(s).
+- `restart` - restart the instance(s).
+- `version` - show Tarantool CLI version information.
+- `completion` - generate autocomplete for a specified shell.
+- `help` - display help for any command.
+- `logrotate` - rotate logs of a started tarantool instance(s).
+- `check` - check an application file for syntax errors.
+- `connect` - connect to the tarantool instance.
+- `rocks` - LuaRocks package manager.
+- `cat` - print into stdout the contents of .snap/.xlog files.
+- `play` - play the contents of .snap/.xlog files to another Tarantool
     instance.
--   `coredump` - pack/unpack/inspect tarantool coredump.
--   `run` - start a tarantool instance.
--   `search` - show available tt/tarantool versions.
--   `clean` - clean instance(s) files.
--   `create` - create an application from a template.
--   `build` - build an application.
--   `install` - install tarantool/tt.
--   `uninstall` - uninstall tarantool/tt.
--   `init` - create tt environment configuration file.
--   `daemon (experimental)` - manage tt daemon.
--   `cfg dump` - print tt environment configuration.
--   `pack` - pack an environment into a tarball/RPM/Deb.
--   `instances` - show enabled applications.
--   `binaries list` - show a list of installed binaries and their versions.
--   `binaries switch` - switch to installed binary.
--   `cluster` - manage cluster configuration.
--   `env` - add current environment binaries location to the PATH variable.
--   `replicaset` - manage replicasets.
--   `download` - download Tarantool SDK.
--   `enable` - create a symbolic link in 'instances_enabled' directory to a script or
-    an application directory.
+- `coredump` - pack/unpack/inspect tarantool coredump.
+- `run` - start a tarantool instance.
+- `search` - show available tt/tarantool versions.
+- `clean` - clean instance(s) files.
+- `create` - create an application from a template.
+- `build` - build an application.
+- `install` - install tarantool/tt.
+- `uninstall` - uninstall tarantool/tt.
+- `init` - create tt environment configuration file.
+- `daemon (experimental)` - manage tt daemon.
+- `cfg dump` - print tt environment configuration.
+- `pack` - pack an environment into a tarball/RPM/Deb.
+- `instances` - show enabled applications.
+- `binaries list` - show a list of installed binaries and their versions.
+- `binaries switch` - switch to installed binary.
+- `cluster` - manage cluster configuration.
+- `env` - add current environment binaries location to the PATH variable.
+- `replicaset` - manage replicasets.
+- `download` - download Tarantool SDK.
+- `enable` - create a symbolic link in 'instances_enabled' directory to a script
+   or an application directory.
 
 [godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/tt.svg
 [godoc-url]: https://pkg.go.dev/github.com/tarantool/tt

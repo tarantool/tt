@@ -134,8 +134,6 @@ repos:
       - id: markdownlint-cli2
         name: "MD: check markdown files"
         stages: [pre-commit, manual]
-        # TODO: configure the rules and fix the rest of the .md files (#TNTP-3107).
-        files: CHANGELOG.md
         args: [--fix]
 
   - repo: https://github.com/jorisroovers/gitlint
