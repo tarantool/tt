@@ -13,18 +13,20 @@ contains breaking changes descriptions.
 ### New format of tt config file
 
 `tt` 2.0.0 configuration file format is incompatible with previous version:
-- Root `tt` section is removed.
-- Common environment configuration is moved to the `env` section.
+
+* Root `tt` section is removed.
+* Common environment configuration is moved to the `env` section.
 All relative paths in this section are relative to the config file location.
-- Relative path in `app` section are relative to the application directory.
+* Relative path in `app` section are relative to the application directory.
 
 ### New runtime artifacts layout
 
 Runtime artifacts layout is changed:
-- Relative paths are relative to the application directory. In case of
+
+* Relative paths are relative to the application directory. In case of
 single script instance, a directory is created in the instances
 enabled directory.
-- Since relative paths already contains an application name,
+* Since relative paths already contains an application name,
 only instance name is appended to the result directory. Here is an
 example of 2.0.0 default layout for a local environment:
 
@@ -45,8 +47,9 @@ instances.enabled/app/
 ```
 
 Moving artifacts from 1.* versions:
-- Create artifacts directories in application dir: var/lib, var/log, var/run.
-- Copy instance sub-directories from 1.* environment to application
+
+* Create artifacts directories in application dir: var/lib, var/log, var/run.
+* Copy instance sub-directories from 1.* environment to application
 dir. Data artifacts copying example:
 `cp -r <env_dir>/var/lib/app/* <instances_enabled>/app/var/lib/`
 
