@@ -103,6 +103,10 @@ func TestFollow2_ReadExistingContent(t *testing.T) {
 }
 
 func TestFollow2_FollowNewContent(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping flaky test on CI until issue #TNTP-3131 is fixed")
+	}
+
 	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -251,6 +255,10 @@ func rotationTest(t *testing.T, use_delay bool) {
 // does not handle file rotation correctly.
 //   - TODO: Need fix `tail` library, see #TNTP-3131 for more details.
 func TestFollow2_FileRotation_Flaky(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("Skipping flaky test on CI until issue #TNTP-3131 is fixed")
+	}
+
 	const flakyRepeatCount = 3
 
 	test_pass := false

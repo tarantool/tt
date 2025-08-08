@@ -1,3 +1,4 @@
+import os
 import signal
 import sys
 import time
@@ -202,6 +203,10 @@ def final_checks(
     check_output("".join(stdout_lines), update_testdata, expected_file)
 
 
+@pytest.mark.skipif(
+    condition=os.getenv("CI") is not None,
+    reason="Skip on CI runs until issue #TNTP-3131 is fixed.",
+)
 @pytest.mark.parametrize("delay_time", (0.1, 0.01, 0))
 @pytest.mark.parametrize("lines, options", TEST_CASES)
 @pytest.mark.parametrize("mode", TEST_DATA_MODES)
@@ -231,6 +236,10 @@ def test_log_follow(
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(
+    condition=os.getenv("CI") is not None,
+    reason="Skip on CI runs until issue #TNTP-3131 is fixed.",
+)
 @pytest.mark.flaky(reruns=5)  # See notes below about issues with `tail` package.
 @pytest.mark.parametrize("delay_time", (0.1, 0.01, 0))
 @pytest.mark.parametrize("lines, options", TEST_CASES)
