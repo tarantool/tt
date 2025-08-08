@@ -10,14 +10,19 @@ MD004:
   # List style
   style: sublist
 
+MD010:
+  spaces_per_tab: 4
+
 # MD013/line-length : Line length : https://github.com/DavidAnson/markdownlint/blob/v0.38.0/doc/md013.md
 MD013:
   # Number of characters
   line_length: 80
   # Number of characters for headings
   heading_line_length: 80
-  # Number of characters for code blocks
-  code_block_line_length: 80
+  # Ignore line length in code blocks
+  code_blocks: false
+  # Ignore line length in tables
+  tables: false
 
 # MD024/no-duplicate-heading : Multiple headings with the same content : https://github.com/DavidAnson/markdownlint/blob/v0.38.0/doc/md024.md
 MD024:
@@ -29,13 +34,21 @@ MD033:
   # Allowed elements
   allowed_elements:
     - version
+    - img
+    - a
 
-# MD046/code-block-style : Code block style : https://github.com/DavidAnson/markdownlint/blob/v0.38.0/doc/md046.md
-MD046:
-  # Block style
-  style: underscore
+# MD041/First line, top-level heading :  https://github.com/DavidAnson/markdownlint/blob/v0.38.0/doc/md041.md
+MD041:
+  # Allow content before first heading
+  allow_preamble: true
+
+# MD049/Emphasis style : Emphasis style : https://github.com/DavidAnson/markdownlint/blob/v0.38.0/doc/md049.md
+MD049:
+  # Emphasis(Italic) within a word is restricted to `asterisk` in order to avoid unwanted emphasis
+  # for words containing internal underscores.
+  style: asterisk
 
 # MD050/strong-style : Strong style : https://github.com/DavidAnson/markdownlint/blob/v0.38.0/doc/md050.md
 MD050:
-  # Strong style
+  # Strong(Bold) style
   style: asterisk

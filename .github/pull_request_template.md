@@ -2,7 +2,8 @@ What has been done? Why? What problem is being solved?
 
 I didn't forget about (remove if it is not applicable):
 
-- [ ] Well-written commit messages (see [documentation][how-to-write-commit] how to write a commit message)
+- [ ] Well-written commit messages (see [documentation][how-to-write-commit] how
+ to write a commit message)
 - [ ] Don't forget about TarantoolBot in a commit message (see [example][tarantoolbot-example])
 - [ ] Tests (see [documentation][go-testing] for a testing package)
 - [ ] Changelog (see [documentation][keepachangelog] for changelog format)
