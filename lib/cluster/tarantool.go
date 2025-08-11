@@ -618,3 +618,109 @@ func ConnectTarantool(uriOpts libconnect.UriOpts,
 	}
 	return conn, nil
 }
+
+type tarantoolCSConnection struct {
+	conn tarantool.Connector
+}
+
+func connectTarantoolCS(uriOpts libconnect.UriOpts, connOpts ConnectOpts) (CSConnection, error) {
+	conn, err := ConnectTarantool(uriOpts, connOpts)
+	if err != nil {
+		return nil, err
+	}
+	return &tarantoolCSConnection{
+		conn: conn,
+	}, nil
+}
+
+func (c *tarantoolCSConnection) Close() error {
+	return c.conn.Close()
+}
+
+func (c *tarantoolCSConnection) Get(ctx context.Context, key string) ([]Data, error) {
+	data, err := c.call(ctx, "config.storage.get", []any{key})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch data from tarantool: %w", err)
+	}
+	if len(data) != 1 {
+		return nil, fmt.Errorf("unexpected response from tarantool: %q", data)
+	}
+
+	var resp tarantoolGetResponse
+	if err := mapstructure.Decode(data[0], &resp); err != nil {
+		return nil, fmt.Errorf("failed to map response from tarantool: %q", data[0])
+	}
+
+	switch {
+	case len(resp.Data) == 0:
+		return nil, fmt.Errorf("a configuration data not found in tarantool for key %q",
+			key)
+	case len(resp.Data) > 1:
+		// It should not happen, but we need to be sure to avoid a null pointer
+		// dereference.
+		return nil, fmt.Errorf("too many responses (%v) from tarantool for key %q",
+			resp, key)
+	}
+
+	return []Data{
+		{
+			Source:   key,
+			Value:    []byte(resp.Data[0].Value),
+			Revision: resp.Data[0].ModRevision,
+		},
+	}, err
+}
+
+func (c *tarantoolCSConnection) Put(ctx context.Context, key, value string) error {
+	_, err := c.call(ctx, "config.storage.put", []any{key, value})
+	if err != nil {
+		return fmt.Errorf("failed to put data into tarantool: %w", err)
+	}
+	return nil
+}
+
+func (c *tarantoolCSConnection) Watch(ctx context.Context, key string) <-chan CSWatchEvent {
+	ch := make(chan CSWatchEvent)
+
+	watcher, err := c.conn.NewWatcher(key, func(ev tarantool.WatchEvent) {
+		if ev.Conn != c.conn {
+			ch <- CSWatchEvent{
+				Key:   key,
+				Value: []byte(fmt.Sprintf("%v", ev.Value)),
+			}
+		}
+	})
+	if err != nil {
+		close(ch)
+		return ch
+	}
+
+	go func() {
+		defer close(ch)
+		defer watcher.Unregister()
+		for {
+			select {
+			case <-time.After(10 * time.Millisecond):
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return ch
+}
+
+func (c *tarantoolCSConnection) call(
+	ctx context.Context,
+	fun string,
+	args []any,
+) ([]any, error) {
+	req := tarantool.NewCallRequest(fun).Args(args)
+
+	var result []any
+	if err := c.conn.Do(req.Context(ctx)).GetTyped(&result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}

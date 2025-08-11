@@ -345,6 +345,18 @@ class TarantoolTestInstance:
         self.connection_username = connection_test_user
         self.connection_password = connection_test_password
         self.endpoint = f"http://{self.host}:{self.port}"
+        self.cconfig = {
+            "storage": {
+                "endpoints": [
+                    {
+                        "uri": f"{self.host}:{self.port}",
+                        "login": self.connection_username,
+                        "password": self.connection_password,
+                    },
+                ],
+                "prefix": "/prefix",
+            },
+        }
 
     def stop(self):
         """Stops tarantool test instance by SIGKILL signal.
@@ -652,3 +664,20 @@ def wait_pid_disappear(file, target_pid):
                 found = False
                 break
     assert not found
+
+
+# update_dict_leaves works similar to dict.update but traverse every leaf in `other`
+# and updates only leaf nodes. Leaf with value 'None' has special meaning -- delete
+# this leaf from d.
+def update_dict_leaves(d, other):
+    for k, v in other.items():
+        if k in d:
+            if isinstance(v, dict):
+                update_dict_leaves(d[k], v)
+            else:
+                if v is None:
+                    del d[k]
+                else:
+                    d[k] = v
+        elif v is not None:
+            d[k] = v
