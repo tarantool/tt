@@ -345,6 +345,18 @@ class TarantoolTestInstance:
         self.connection_username = connection_test_user
         self.connection_password = connection_test_password
         self.endpoint = f"http://{self.host}:{self.port}"
+        self.cconfig = {
+            "storage": {
+                "endpoints": [
+                    {
+                        "uri": f"{self.host}:{self.port}",
+                        "login": self.connection_username,
+                        "password": self.connection_password,
+                    },
+                ],
+                "prefix": "/prefix",
+            },
+        }
 
     def stop(self):
         """Stops tarantool test instance by SIGKILL signal.
@@ -652,3 +664,17 @@ def wait_pid_disappear(file, target_pid):
                 found = False
                 break
     assert not found
+
+
+def apply_dict_diff(d, diff):
+    for k, v in diff.items():
+        if k in d:
+            if isinstance(v, dict):
+                apply_dict_diff(d[k], v)
+            else:
+                if v is None:
+                    del d[k]
+                else:
+                    d[k] = v
+        elif v is not None:
+            d[k] = v

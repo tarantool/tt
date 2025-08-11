@@ -176,7 +176,7 @@ def tcs(request, tmp_path):
         connection_test_password="secret",
         instance_name="instance-001",
         instance_host="localhost",
-        instance_port="3303",
+        instance_port="4401",
     )
     marker = request.node.get_closest_marker("tcs")
     if marker is not None and marker.kwargs is not None:
@@ -281,3 +281,92 @@ def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
     if tt_post_start is not None:
         tt_post_start(tt_app_)
     yield tt_app_
+
+
+@pytest.fixture(scope="function")
+def cluster_params(request):
+    params = {
+        "app_name": "cluster_app",
+        "num_replicasets": 1,
+        "num_replicas": 3,
+    }
+    marker = request.node.get_closest_marker("cluster")
+    if marker is None or marker.kwargs is None:
+        return params
+    params.update(marker.kwargs)
+    return params
+
+
+@pytest.fixture(scope="function")
+def cluster(tt, cluster_params):
+    if utils.is_tarantool_less_3():
+        pytest.skip("centralized config requires Tarantool v3.x")
+    app = tt_helper.TtCluster(tt, **cluster_params)
+    yield app
+    app.stop("--yes")
+
+
+@pytest.fixture(scope="function")
+def config_storage_type():
+    return None
+
+
+@pytest.fixture(scope="function")
+def config_storage(request, config_storage_type):
+    assert config_storage_type is not None, "'config_storage_type' parameter is missing"
+    cs = request.getfixturevalue(config_storage_type)
+    if config_storage_type == "etcd":
+        cs.enable_auth()
+    yield cs
+    if config_storage_type == "etcd":
+        cs.disable_auth()
+
+
+@pytest.fixture(scope="function")
+def cluster_supervised(tt, cluster, config_storage):
+    if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        pytest.skip("supervised failover requires Tarantool Enterprise v3.x")
+    creds = f"{config_storage.connection_username}:{config_storage.connection_password}@"
+    uri = f"http://{creds}{config_storage.host}:{config_storage.port}/prefix"
+
+    # Setup supervised cluster.
+    cluster.apply_config_diff(
+        {
+            "credentials": {
+                "users": {
+                    "replicator": {
+                        "privileges": [
+                            {
+                                "permissions": ["execute"],
+                                "lua_call": ["failover.execute"],
+                            },
+                        ],
+                    },
+                },
+            },
+            # Remove leader option (master is managed by coordinator).
+            "groups": {"group-001": {"replicasets": {"replicaset-001": {"leader": None}}}},
+            "replication": {"failover": "supervised"},
+        },
+    )
+
+    p = tt.run("cluster", "publish", uri, cluster.config_path)
+    assert p.returncode == 0
+
+    p = tt.run("cluster", "show", uri)
+    assert p.returncode == 0
+
+    cluster.set_config({"config": config_storage.cconfig})
+    p = cluster.start()
+    assert p.returncode == 0
+    assert cluster.wait_for_running(10)
+
+    # Launch failover coordinator.
+    coordinator = subprocess.Popen(["tarantool", "--failover", "--config", cluster.config_path])
+
+    cluster.config_storage = config_storage
+
+    yield cluster
+
+    # Kill failover coordinator.
+    coordinator.kill()
