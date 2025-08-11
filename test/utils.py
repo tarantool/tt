@@ -345,6 +345,18 @@ class TarantoolTestInstance:
         self.connection_username = connection_test_user
         self.connection_password = connection_test_password
         self.endpoint = f"http://{self.host}:{self.port}"
+        self.cconfig = {
+            "storage": {
+                "endpoints": [
+                    {
+                        "uri": f"{self.host}:{self.port}",
+                        "login": self.connection_username,
+                        "password": self.connection_password,
+                    },
+                ],
+                "prefix": "/prefix",
+            },
+        }
 
     def stop(self):
         """Stops tarantool test instance by SIGKILL signal.
@@ -529,9 +541,15 @@ def read_kv(dirname):
     return kvs
 
 
+# The generic comparator of tarantool version.
+# To check if version is MAJOR.MINOR or newer just use `not is_tarantool_less(MAJOR, MINOR)`
+def is_tarantool_less(maj, min=0):
+    major_version, minor_version = get_tarantool_version()
+    return major_version < maj or (major_version == maj and minor_version < min)
+
+
 def is_tarantool_less_3():
-    major_version, _ = get_tarantool_version()
-    return True if major_version < 3 else False
+    return is_tarantool_less(3)
 
 
 def is_tarantool_ee():
@@ -555,13 +573,11 @@ def skip_if_tarantool_ce():
 
 
 def is_quit_supported():
-    major, minor = get_tarantool_version()
-    return major >= 2
+    return not is_tarantool_less(2)
 
 
 def is_cluster_app_supported():
-    major, minor = get_tarantool_version()
-    return major >= 3
+    return not is_tarantool_less(3)
 
 
 def skip_if_tcm_not_supported():
@@ -573,8 +589,7 @@ def skip_if_tcm_not_supported():
 
 
 def is_tuple_format_supported():
-    major, minor = get_tarantool_version()
-    return major > 3 or (major == 3 and minor >= 2)
+    return not is_tarantool_less(3, 2)
 
 
 def is_tarantool_major_one():
@@ -664,3 +679,20 @@ def make_tcs_params(params):
         instance_port="4401",
     )
     return default_params | params
+
+
+# update_dict_leaves works similar to dict.update but traverse every leaf in `other`
+# and updates only leaf nodes. Leaf with value 'None' has special meaning -- delete
+# this leaf from d.
+def update_dict_leaves(d, other):
+    for k, v in other.items():
+        if k in d:
+            if isinstance(v, dict):
+                update_dict_leaves(d[k], v)
+            else:
+                if v is None:
+                    del d[k]
+                else:
+                    d[k] = v
+        elif v is not None:
+            d[k] = v
