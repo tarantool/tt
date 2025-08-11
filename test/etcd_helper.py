@@ -23,6 +23,14 @@ class EtcdInstance:
         self.popen = None
         self.connection_username = username
         self.connection_password = password
+        self.cconfig = {
+            "etcd": {
+                "endpoints": [f"http://{host}:{port}"],
+                "username": username,
+                "password": password,
+                "prefix": "/prefix",
+            },
+        }
 
     def start(self):
         popen = subprocess.Popen(

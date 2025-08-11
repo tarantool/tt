@@ -82,8 +82,10 @@ environment variables < command flags < URL credentials.`,
 	})
 
 	failoverUriHelp = libconnect.MakeURLHelp(map[string]any{
-		"service":              "etcd",
-		"prefix":               "a base path to Tarantool configuration in etcd",
+		"service": "etcd or tarantool config storage",
+		"prefix": "a base path to Tarantool configuration in" +
+			" etcd or tarantool config storage",
+		"env_TT_CLI_auth":      "Tarantool",
 		"env_TT_CLI_ETCD_auth": "Etcd",
 		"footer": `The priority of credentials:
 environment variables < command flags < URL credentials.`,
@@ -235,9 +237,9 @@ func newClusterFailoverCmd() *cobra.Command {
 	}
 
 	switchCmd.Flags().StringVarP(&switchCtx.Username, "username", "u", "",
-		"username (used as etcd credentials)")
+		"username (used as etcd/tarantool config storage credentials)")
 	switchCmd.Flags().StringVarP(&switchCtx.Password, "password", "p", "",
-		"password (used as etcd credentials)")
+		"password (used as etcd/tarantool config storage credentials)")
 	switchCmd.Flags().Uint64VarP(&switchCtx.Timeout, "timeout", "t", defaultSwitchTimeout,
 		"timeout for command execution")
 	switchCmd.Flags().BoolVarP(&switchCtx.Wait, "wait", "w", false,

@@ -1,143 +1,192 @@
-import re
 import subprocess
 
-switch_cmd_yml = r"""command: switch
+import pytest
+
+import utils
+
+
+def compose_switch_cmd(timeout=30):
+    return f"""command: switch
 new_master: some_instance
-timeout: 30
+timeout: {timeout}
 """
 
-switch_cmd_timeout_yml = r"""command: switch
-new_master: some_instance
-timeout: 42
-"""
 
-
-def test_cluster_failover_switch_etcd(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("config_storage_type", ["etcd", "tcs"])
+@pytest.mark.parametrize(
+    "extra_args, switch_cmd",
+    [
+        pytest.param([], compose_switch_cmd(), id="default"),
+        pytest.param(["--timeout", "42"], compose_switch_cmd(42), id="timeout"),
+    ],
+)
+def test_cluster_failover_switch(
+    tt_cmd,
+    request,
+    tmpdir_with_cfg,
+    config_storage_type,
+    extra_args,
+    switch_cmd,
+):
+    config_storage = request.getfixturevalue(config_storage_type)
     tmpdir = tmpdir_with_cfg
 
-    conn = etcd.conn()
-    switch_cmd = [
+    creds = f"{config_storage.connection_username}:{config_storage.connection_password}@"
+    uri = f"http://{creds}{config_storage.host}:{config_storage.port}/prefix"
+    cmd = [
         tt_cmd,
         "cluster",
         "failover",
         "switch",
-        f"{etcd.endpoint}/prefix",
+        uri,
         "some_instance",
+        *extra_args,
     ]
-    ps_switch = subprocess.Popen(
-        switch_cmd,
+    p = subprocess.run(
+        cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
     )
-    switch_output = ps_switch.stdout.read()
-    assert re.search(r"To check the switching status, run", switch_output)
+    print(p.stdout)
+    assert "To check the switching status, run" in p.stdout
+    assert f"tt cluster failover switch-status '{uri}'" in p.stdout
 
-    task_id = switch_output.split(" ")[-1]
+    task_id = p.stdout.split(" ")[-1]
     task_id = "/prefix/failover/command/" + task_id.strip()
 
-    etcd_content, _ = conn.get(task_id)
-    assert etcd_content.decode("utf-8") == switch_cmd_yml
+    conn = config_storage.conn()
+    if config_storage_type == "etcd":
+        content, _ = conn.get(task_id)
+        content = content.decode("utf-8")
+    elif config_storage_type == "tcs":
+        content = conn.call("config.storage.get", task_id)
+        if len(content) > 0:
+            content = content[0]["data"][0]["value"]
+    else:
+        assert False, "Unreachable code"
+
+    assert content == switch_cmd
 
 
-def test_cluster_failover_switch_timeout_etcd(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("config_storage_type", ["etcd", "tcs"])
+def test_cluster_failover_switch_status(tt_cmd, request, tmpdir_with_cfg, config_storage_type):
+    config_storage = request.getfixturevalue(config_storage_type)
     tmpdir = tmpdir_with_cfg
 
-    conn = etcd.conn()
-    switch_cmd = [
+    creds = f"{config_storage.connection_username}:{config_storage.connection_password}@"
+    uri = f"http://{creds}{config_storage.host}:{config_storage.port}/prefix"
+    cmd = [
         tt_cmd,
         "cluster",
         "failover",
         "switch",
-        f"{etcd.endpoint}/prefix",
+        uri,
         "some_instance",
-        "--timeout",
-        "42",
     ]
-    ps_switch = subprocess.Popen(
-        switch_cmd,
+    p = subprocess.run(
+        cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
     )
-    switch_output = ps_switch.stdout.read()
-    assert "To check the switching status, run" in switch_output
-    assert f"tt cluster failover switch-status '{etcd.endpoint}/prefix'" in switch_output
+    assert "To check the switching status, run" in p.stdout
+    assert f"tt cluster failover switch-status '{uri}'" in p.stdout
 
-    task_id = switch_output.split(" ")[-1]
-    task_id = "/prefix/failover/command/" + task_id.strip()
-
-    etcd_content, _ = conn.get(task_id)
-    assert etcd_content.decode("utf-8") == switch_cmd_timeout_yml
-
-
-def test_cluster_failover_switch_status_etcd(tt_cmd, tmpdir_with_cfg, etcd):
-    tmpdir = tmpdir_with_cfg
-
-    _ = etcd.conn()
-    switch_cmd = [
-        tt_cmd,
-        "cluster",
-        "failover",
-        "switch",
-        f"{etcd.endpoint}/prefix",
-        "some_instance",
-    ]
-    ps_switch = subprocess.Popen(
-        switch_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    switch_output = ps_switch.stdout.read()
-    assert re.search(r"To check the switching status, run", switch_output)
-
-    task_id = switch_output.split(" ")[-1].strip()
+    task_id = p.stdout.split(" ")[-1].strip()
 
     status_cmd = [
         tt_cmd,
         "cluster",
         "failover",
         "switch-status",
-        f"{etcd.endpoint}/prefix",
+        uri,
         task_id,
     ]
-    ps_status = subprocess.Popen(
+    p = subprocess.run(
         status_cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
     )
-
-    status_output = ps_status.stdout.read()
-    assert status_output == switch_cmd_yml
+    assert p.stdout == compose_switch_cmd()
 
 
-def test_cluster_failover_switch_timeout_wait_etcd(tt_cmd, tmpdir_with_cfg, etcd):
+@pytest.mark.parametrize("config_storage_type", ["etcd", "tcs"])
+def test_cluster_failover_switch_wait_timeout(
+    tt_cmd,
+    request,
+    tmpdir_with_cfg,
+    config_storage_type,
+):
+    config_storage = request.getfixturevalue(config_storage_type)
     tmpdir = tmpdir_with_cfg
 
-    _ = etcd.conn()
-    switch_cmd = [
+    creds = f"{config_storage.connection_username}:{config_storage.connection_password}@"
+    uri = f"http://{creds}{config_storage.host}:{config_storage.port}/prefix"
+    cmd = [
         tt_cmd,
         "cluster",
         "failover",
         "switch",
-        f"{etcd.endpoint}/prefix",
+        uri,
         "some_instance",
         "--timeout",
         "1",
         "--wait",
     ]
-    ps_switch = subprocess.Popen(
-        switch_cmd,
+    p = subprocess.run(
+        cmd,
         cwd=tmpdir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
     )
-    switch_output = ps_switch.stdout.read()
-    assert re.search(r"Timeout for command execution reached", switch_output)
+    print(p.stdout)
+    assert "Timeout for command execution reached" in p.stdout
+
+
+tcs_manual_failover_mark = pytest.mark.skipif(
+    utils.is_tarantool_less(3, 3),
+    reason="manual failover over TcS requires tarantool 3.3 or newer",
+)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "config_storage_type",
+    [
+        "etcd",
+        pytest.param("tcs", marks=tcs_manual_failover_mark),
+    ],
+)
+@pytest.mark.parametrize(
+    "extra_args",
+    [
+        pytest.param([], id="default"),
+        pytest.param(["--timeout", "42"], id="timeout"),
+    ],
+)
+def test_cluster_failover_switch_wait(
+    tt,
+    extra_args,
+    cluster_supervised,
+):
+    cs = cluster_supervised.config_storage
+    creds = f"{cs.connection_username}:{cs.connection_password}@"
+    uri = f"http://{creds}{cs.host}:{cs.port}/prefix"
+
+    p = tt.run(
+        "cluster",
+        "failover",
+        "switch",
+        uri,
+        "replicaset-001-c",
+        "--wait",
+        *extra_args,
+    )
+    assert p.returncode == 0
+    assert "Timeout for command execution reached" not in p.stdout

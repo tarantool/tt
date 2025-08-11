@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+import yaml
+
 import utils
 
 
@@ -107,6 +109,61 @@ class TtApp:
 
     def log_path(self, inst, *paths):
         return os.path.join(self.inst_path(inst, utils.log_path), *paths)
+
+
+class TtCluster:
+    def __init__(self, tt, app_name, input_params):
+        self.__tt = tt
+        self.__app_name = app_name
+        input = "".join(["\n" if x is None else f"{x}\n" for x in input_params])
+        p = self.__tt.run("create", "cluster", "--name", self.__app_name, input=input)
+        assert p.returncode == 0
+
+    @property
+    def app_name(self):
+        return self.__app_name
+
+    @property
+    def config_path(self):
+        return self.__tt.work_dir / self.__app_name / "config.yaml"
+
+    @property
+    def config(self):
+        return yaml.safe_load(open(self.config_path))
+
+    @config.setter
+    def config(self, config):
+        self.config_path.write_text(yaml.dump(config))
+
+    def start(self, *args):
+        return self.__tt.run("start", self.__app_name, *args)
+
+    def stop(self, *args):
+        return self.__tt.run("stop", self.__app_name, *args)
+
+    def kill(self, *args):
+        return self.__tt.run("kill", self.__app_name, *args)
+
+    def status(self, inst=None):
+        target = self.__app_name if inst is None else f"{self.app_name}:{inst}"
+        p = self.__tt.run("status", target)
+        assert p.returncode == 0
+        return utils.extract_status(p.stdout)
+
+    def wait_for_running(self, timeout, inst=None):
+        def are_all_box_statuses_running():
+            status_info = self.status(inst)
+            for status in status_info.values():
+                if status.get("BOX") != "running":
+                    return False
+            return True
+
+        return utils.wait_event(timeout, are_all_box_statuses_running)
+
+    def update_config_leaves(self, other):
+        config = self.config
+        utils.update_dict_leaves(config, other)
+        self.config = config
 
 
 def status(tt, *args):
