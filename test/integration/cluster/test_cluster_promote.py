@@ -3,15 +3,8 @@ import os
 import pytest
 
 from utils import (
-    get_fixture_tcs_params,
-    is_tarantool_ee,
-    is_tarantool_less_3,
     read_kv,
     run_command_and_get_output,
-)
-
-fixture_tcs_params = get_fixture_tcs_params(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_tcs_app"),
 )
 
 
@@ -140,14 +133,8 @@ def test_cluster_promote_single_key(
     data_dir,
     err_text,
     instance_name,
-    fixture_params,
     request,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     test_data_dir = os.path.join(
         os.path.dirname(__file__),
@@ -263,14 +250,8 @@ def test_cluster_promote_many_keys(
     exp_key,
     err_text,
     instance_name,
-    fixture_params,
     request,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     conn = instance.conn()
     tmpdir = tmpdir_with_cfg
@@ -332,14 +313,8 @@ def test_cluster_promote_key_specified(
     tt_cmd,
     tmpdir_with_cfg,
     instance_name,
-    fixture_params,
     request,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     conn = instance.conn()
     tmpdir = tmpdir_with_cfg
@@ -414,14 +389,8 @@ def test_cluster_promote_no_auth(
     tmpdir_with_cfg,
     instance_name,
     err_msg,
-    fixture_params,
     request,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
 
@@ -458,14 +427,8 @@ def test_cluster_promote_bad_auth(
     tmpdir_with_cfg,
     instance_name,
     err_msg,
-    fixture_params,
     request,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
 
@@ -521,14 +484,8 @@ def test_cluster_promote_auth(
     tmpdir_with_cfg,
     instance_name,
     auth,
-    fixture_params,
     request,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     conn = instance.conn()
