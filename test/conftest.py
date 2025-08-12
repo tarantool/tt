@@ -3,6 +3,7 @@ import platform
 import shutil
 import signal
 import subprocess
+from collections import namedtuple
 from pathlib import Path
 
 import etcd_helper
@@ -164,27 +165,51 @@ def cartridge_app(request, cartridge_app_session):
     return cartridge_app_session
 
 
-@pytest.fixture
-def fixture_params():
-    return {}
+TcsParams = namedtuple(
+    "TcsParams",
+    [
+        "path_to_cfg_dir",
+        "connection_test",
+        "connection_test_user",
+        "connection_test_password",
+        "instance_name",
+        "instance_port",
+        "instance_host",
+    ],
+)
 
 
 @pytest.fixture(scope="function")
-def tcs(request, tmp_path, fixture_params):
-    test_app_path = os.path.join(fixture_params.get("path_to_cfg_dir"), "config.yaml")
+def tcs_params(request) -> TcsParams:
+    return TcsParams(
+        path_to_cfg_dir=request.path.parent / "test_tcs_app",
+        connection_test=True,
+        connection_test_user="client",
+        connection_test_password="secret",
+        instance_name="instance-001",
+        instance_host="localhost",
+        instance_port="3303",
+    )
+
+
+@pytest.fixture(scope="function")
+def tcs(request, tmp_path, tcs_params):
+    if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        pytest.skip()
+    test_app_path = tcs_params.path_to_cfg_dir / "config.yaml"
     inst = utils.TarantoolTestInstance(
         test_app_path,
-        fixture_params.get("path_to_cfg_dir"),
+        tcs_params.path_to_cfg_dir,
         "",
         tmp_path,
     )
     inst.start(
-        connection_test=fixture_params.get("connection_test"),
-        connection_test_user=fixture_params.get("connection_test_user"),
-        connection_test_password=fixture_params.get("connection_test_password"),
-        instance_name=fixture_params.get("instance_name"),
-        instance_host=fixture_params.get("instance_host"),
-        instance_port=fixture_params.get("instance_port"),
+        connection_test=tcs_params.connection_test,
+        connection_test_user=tcs_params.connection_test_user,
+        connection_test_password=tcs_params.connection_test_password,
+        instance_name=tcs_params.instance_name,
+        instance_host=tcs_params.instance_host,
+        instance_port=tcs_params.instance_port,
     )
     request.addfinalizer(lambda: inst.stop())
     return inst
