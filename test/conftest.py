@@ -165,26 +165,41 @@ def cartridge_app(request, cartridge_app_session):
 
 
 @pytest.fixture
-def fixture_params():
-    return {}
+def tcs_params():
+    return None
 
 
 @pytest.fixture(scope="function")
-def tcs(request, tmp_path, fixture_params):
-    test_app_path = os.path.join(fixture_params.get("path_to_cfg_dir"), "config.yaml")
+def tcs(request, tmp_path, tcs_params):
+    if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        pytest.skip()
+
+    params = dict(
+        path_to_cfg_dir=request.path.parent / "test_tcs_app",
+        connection_test=True,
+        connection_test_user="client",
+        connection_test_password="secret",
+        instance_name="instance-001",
+        instance_host="localhost",
+        instance_port="3303",
+    )
+    if tcs_params is not None:
+        params.update(tcs_params)
+
+    test_app_path = params.get("path_to_cfg_dir") / "config.yaml"
     inst = utils.TarantoolTestInstance(
         test_app_path,
-        fixture_params.get("path_to_cfg_dir"),
+        params.get("path_to_cfg_dir"),
         "",
         tmp_path,
     )
     inst.start(
-        connection_test=fixture_params.get("connection_test"),
-        connection_test_user=fixture_params.get("connection_test_user"),
-        connection_test_password=fixture_params.get("connection_test_password"),
-        instance_name=fixture_params.get("instance_name"),
-        instance_host=fixture_params.get("instance_host"),
-        instance_port=fixture_params.get("instance_port"),
+        connection_test=params.get("connection_test"),
+        connection_test_user=params.get("connection_test_user"),
+        connection_test_password=params.get("connection_test_password"),
+        instance_name=params.get("instance_name"),
+        instance_host=params.get("instance_host"),
+        instance_port=params.get("instance_port"),
     )
     request.addfinalizer(lambda: inst.stop())
     return inst
