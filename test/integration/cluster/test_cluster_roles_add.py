@@ -1,15 +1,7 @@
 import pytest
-from tarantool.connection import os
 
 from utils import (
-    get_fixture_tcs_params,
-    is_tarantool_ee,
-    is_tarantool_less_3,
     run_command_and_get_output,
-)
-
-fixture_tcs_params = get_fixture_tcs_params(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_tcs_app"),
 )
 
 
@@ -66,13 +58,7 @@ def test_cluster_rs_roles_add_no_auth(
     tmpdir_with_cfg,
     request,
     expected_err_msg,
-    fixture_params,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
 
     if instance_name == "etcd":
@@ -105,13 +91,7 @@ def test_cluster_rs_roles_add_bad_auth(
     tmpdir_with_cfg,
     instance_name,
     request,
-    fixture_params,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
 
     roles_add_cmd = [
@@ -149,13 +129,7 @@ def test_cluster_rs_roles_add_auth(
     auth,
     instance_name,
     request,
-    fixture_params,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
 
     conn = instance.conn()
@@ -503,13 +477,7 @@ def test_cluster_rs_roles_add(
     expected_cfg,
     err_msg,
     request,
-    fixture_params,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
 
     conn = instance.conn()
