@@ -12,6 +12,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/connect"
 )
 
 type MockEtcdGetter struct {
@@ -664,6 +665,91 @@ func TestEtcdKeyDataPublisher_Publish_timeout(t *testing.T) {
 				assert.True(t, ok)
 				assert.InDelta(t, expected.Unix(), deadline.Unix(), 1)
 			}
+		})
+	}
+}
+
+func TestMakeEtcdOptsFromUriOpts(t *testing.T) {
+	cases := []struct {
+		Name     string
+		UriOpts  connect.UriOpts
+		Expected cluster.EtcdOpts
+	}{
+		{
+			Name:     "empty",
+			UriOpts:  connect.UriOpts{},
+			Expected: cluster.EtcdOpts{},
+		},
+		{
+			Name: "ignored",
+			UriOpts: connect.UriOpts{
+				Host:   "foo",
+				Prefix: "foo",
+				Params: map[string]string{
+					"key":  "bar",
+					"name": "zoo",
+				},
+				Ciphers: "foo:bar:ciphers",
+			},
+			Expected: cluster.EtcdOpts{},
+		},
+		{
+			Name: "skip_host_verify",
+			UriOpts: connect.UriOpts{
+				SkipHostVerify: true,
+			},
+			Expected: cluster.EtcdOpts{
+				SkipHostVerify: true,
+			},
+		},
+		{
+			Name: "skip_peer_verify",
+			UriOpts: connect.UriOpts{
+				SkipPeerVerify: true,
+			},
+			Expected: cluster.EtcdOpts{
+				SkipHostVerify: true,
+			},
+		},
+		{
+			Name: "full",
+			UriOpts: connect.UriOpts{
+				Endpoint: "foo",
+				Host:     "host",
+				Prefix:   "prefix",
+				Params: map[string]string{
+					"key":  "key",
+					"name": "instance",
+				},
+				Username:       "username",
+				Password:       "password",
+				KeyFile:        "key_file",
+				CertFile:       "cert_file",
+				CaPath:         "ca_path",
+				CaFile:         "ca_file",
+				SkipHostVerify: true,
+				SkipPeerVerify: true,
+				Timeout:        2 * time.Second,
+			},
+			Expected: cluster.EtcdOpts{
+				Endpoints:      []string{"foo"},
+				Username:       "username",
+				Password:       "password",
+				KeyFile:        "key_file",
+				CertFile:       "cert_file",
+				CaPath:         "ca_path",
+				CaFile:         "ca_file",
+				SkipHostVerify: true,
+				Timeout:        2 * time.Second,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			etcdOpts := cluster.MakeEtcdOptsFromUriOpts(tc.UriOpts)
+
+			assert.Equal(t, tc.Expected, etcdOpts)
 		})
 	}
 }
