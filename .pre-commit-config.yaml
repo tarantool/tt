@@ -46,7 +46,7 @@ repos:
         types_or: [go, python, markdown]
         exclude: |
           (?x)^(
-                .*\.pb.go|
+                .*\.pb\.go|
                 .*/third_party/.*
           )$
         additional_dependencies:
@@ -134,6 +134,8 @@ repos:
       - id: markdownlint-cli2
         name: "MD: check markdown files"
         stages: [pre-commit, manual]
+        # Ignore Markdown rules for `.github`, due to specific formatting for Pull Requests.
+        exclude: \.github/.*\.md$
         args: [--fix]
 
   - repo: https://github.com/jorisroovers/gitlint
