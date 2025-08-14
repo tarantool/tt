@@ -13,6 +13,7 @@ import (
 
 	"github.com/tarantool/go-tarantool/v2"
 	libconnect "github.com/tarantool/tt/lib/connect"
+	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -881,4 +882,75 @@ func MakeEtcdOptsFromUriOpts(src libconnect.UriOpts) EtcdOpts {
 		SkipHostVerify: src.SkipHostVerify || src.SkipPeerVerify,
 		Timeout:        src.Timeout,
 	}
+}
+
+type etcdCSConnection struct {
+	cli *clientv3.Client
+}
+
+func connectEtcdCS(uriOpts libconnect.UriOpts, connOpts ConnectOpts) (CSConnection, error) {
+	cli, err := ConnectEtcdUriOpts(uriOpts, connOpts)
+	if err != nil {
+		return nil, err
+	}
+	return &etcdCSConnection{
+		cli: cli,
+	}, nil
+}
+
+func (c *etcdCSConnection) Close() error {
+	return c.cli.Close()
+}
+
+func (c *etcdCSConnection) Get(ctx context.Context, key string) ([]Data, error) {
+	resp, err := c.cli.Get(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch data from etcd: %w", err)
+	}
+
+	switch {
+	case len(resp.Kvs) == 0:
+		// It should not happen, but we need to be sure to avoid a null pointer
+		// dereference.
+		return nil, fmt.Errorf("a configuration data not found in etcd for key %q",
+			key)
+	case len(resp.Kvs) > 1:
+		return nil, fmt.Errorf("too many responses (%v) from etcd for key %q",
+			resp.Kvs, key)
+	}
+
+	collected := []Data{
+		{
+			Source:   string(resp.Kvs[0].Key),
+			Value:    resp.Kvs[0].Value,
+			Revision: resp.Kvs[0].ModRevision,
+		},
+	}
+	return collected, nil
+}
+
+func (c *etcdCSConnection) Put(ctx context.Context, key, value string) error {
+	_, err := c.cli.Put(ctx, key, value)
+	return err
+}
+
+func (c *etcdCSConnection) Watch(ctx context.Context, key string) <-chan CSWatchEvent {
+	ch := make(chan CSWatchEvent)
+	innerCh := c.cli.Watch(ctx, key)
+	go func() {
+		defer close(ch)
+
+		for resp := range innerCh {
+			for _, ev := range resp.Events {
+				switch ev.Type {
+				case mvccpb.PUT:
+					ch <- CSWatchEvent{
+						Key:   string(ev.Kv.Value),
+						Value: ev.Kv.Value,
+					}
+				}
+			}
+		}
+	}()
+	return ch
 }

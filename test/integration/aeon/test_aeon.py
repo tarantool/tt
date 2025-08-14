@@ -5,12 +5,6 @@ from subprocess import PIPE, STDOUT, run
 
 import pytest
 
-from utils import get_fixture_tcs_params, is_tarantool_ee, is_tarantool_less_3
-
-fixture_tcs_params = get_fixture_tcs_params(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_tcs_app"),
-)
-
 AeonConnectCommand = ("aeon", "connect")
 
 
@@ -385,11 +379,7 @@ def test_cli_plain_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_plain_fil
     assert tt.returncode == 0
 
 
-def test_cli_plain_tcs_success(tt_cmd, tmpdir_with_cfg, request, fixture_params, aeon_plain_file):
-    if is_tarantool_less_3() or not is_tarantool_ee():
-        pytest.skip()
-    for k, v in fixture_tcs_params.items():
-        fixture_params[k] = v
+def test_cli_plain_tcs_success(tt_cmd, tmpdir_with_cfg, request, aeon_plain_file):
     instance = request.getfixturevalue("tcs")
     tmpdir = tmpdir_with_cfg
 
