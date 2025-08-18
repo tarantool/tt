@@ -4,9 +4,66 @@ import subprocess
 import utils
 
 
-class Tt(object):
-    def __init__(self, tt_cmd, app_path, instances):
+class Tt:
+    def __init__(self, tt_cmd, work_dir):
         self.__tt_cmd = tt_cmd
+        self.__work_dir = work_dir
+
+    @property
+    def work_dir(self):
+        return self.__work_dir
+
+    def exec(self, *args, **kwargs):
+        args = list(filter(lambda x: x is not None, args))
+        cmd = [self.__tt_cmd, *args]
+        tt_kwargs = dict(cwd=self.__work_dir)
+        tt_kwargs.update(kwargs)
+        return utils.run_command_and_get_output(cmd, **tt_kwargs)
+
+    def run(self, *args, **kwargs):
+        """Works like subprocess.run (actually it is invoked), but:
+        1. Command arguments are passed as separate function arguments and starts with the one
+        that follows executable argument (None arguments are filtered out)
+        2. Other default values are used for several keywords, namely:
+            cwd=<work_dir>,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        3. 'env' is merged with the original environment instead of using it as standalone env.
+        """
+        args = list(filter(lambda x: x is not None, args))
+        cmd = [self.__tt_cmd, *args]
+        p = subprocess.run(cmd, **self.__tt_kwargs(**kwargs))
+        print(p.stdout)
+        return p
+
+    def popen(self, *args, **kwargs):
+        """Works like subprocess.Popen with the same difference as in Tt.run."""
+        args = list(filter(lambda x: x is not None, args))
+        cmd = [self.__tt_cmd, *args]
+        return subprocess.Popen(cmd, **self.__tt_kwargs(**kwargs))
+
+    def path(self, *paths):
+        return os.path.join(self.__work_dir, *paths)
+
+    def __tt_kwargs(self, **kwargs):
+        tt_kwargs = dict(
+            cwd=self.__work_dir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        tt_kwargs.update(kwargs)
+        if "env" in kwargs:
+            tt_env = os.environ.copy()
+            tt_env.update(kwargs["env"])
+            tt_kwargs["env"] = tt_env
+        return tt_kwargs
+
+
+class TtApp:
+    def __init__(self, tt, app_path, instances):
+        self.tt = tt
         if os.path.isdir(app_path):
             self.__work_dir = app_path
         else:
@@ -33,34 +90,6 @@ class Tt(object):
 
         return [inst for inst in self.instances if is_instance_of(inst, *targets)]
 
-    def exec(self, *args, **kwargs):
-        args = list(filter(lambda x: x is not None, args))
-        cmd = [self.__tt_cmd, *args]
-        tt_kwargs = dict(cwd=self.__work_dir)
-        tt_kwargs.update(kwargs)
-        return utils.run_command_and_get_output(cmd, **tt_kwargs)
-
-    def run(self, *args, **kwargs):
-        """Works like subprocess.run (actually it is invoked), but:
-        1. Command arguments are passed as separate function arguments and starts with the one
-        that follows executable argument (None arguments are filtered out)
-        2. Other default values are used for several keywords, namely:
-            cwd=<APP_DIR>,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            text=True,
-        3. 'env' is merged with the original environment instead of using it as standalone env.
-        """
-        args = list(filter(lambda x: x is not None, args))
-        cmd = [self.__tt_cmd, *args]
-        return subprocess.run(cmd, **self.__tt_kwargs(**kwargs))
-
-    def popen(self, *args, **kwargs):
-        """Works like subprocess.Popen with the same difference as in Tt.run."""
-        args = list(filter(lambda x: x is not None, args))
-        cmd = [self.__tt_cmd, *args]
-        return subprocess.Popen(cmd, **self.__tt_kwargs(**kwargs))
-
     def path(self, *paths):
         return os.path.join(self.__work_dir, *paths)
 
@@ -79,20 +108,6 @@ class Tt(object):
     def log_path(self, inst, *paths):
         return os.path.join(self.inst_path(inst, utils.log_path), *paths)
 
-    def __tt_kwargs(self, **kwargs):
-        tt_kwargs = dict(
-            cwd=self.__work_dir,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
-        tt_kwargs.update(kwargs)
-        if "env" in kwargs:
-            tt_env = os.environ.copy()
-            tt_env.update(kwargs["env"])
-            tt_kwargs["env"] = tt_env
-        return tt_kwargs
-
 
 def status(tt, *args):
     rc, out = tt.exec("status", *args)
@@ -100,23 +115,23 @@ def status(tt, *args):
     return utils.extract_status(out)
 
 
-def pid_files(tt, instances):
-    return [tt.run_path(inst, utils.pid_file) for inst in instances]
+def pid_files(tt_app, instances):
+    return [tt_app.run_path(inst, utils.pid_file) for inst in instances]
 
 
-def log_files(tt, instances):
-    return [tt.log_path(inst, utils.log_file) for inst in instances]
+def log_files(tt_app, instances):
+    return [tt_app.log_path(inst, utils.log_file) for inst in instances]
 
 
-def snap_files(tt, instances):
-    return [tt.lib_path(inst, "*.snap") for inst in instances]
+def snap_files(tt_app, instances):
+    return [tt_app.lib_path(inst, "*.snap") for inst in instances]
 
 
-def wal_files(tt, instances):
-    return [tt.lib_path(inst, "*.xlog") for inst in instances]
+def wal_files(tt_app, instances):
+    return [tt_app.lib_path(inst, "*.xlog") for inst in instances]
 
 
-def wait_box_status(timeout, tt, instances, acceptable_statuses, interval=0.1):
+def wait_box_status(timeout, tt_app, instances, acceptable_statuses, interval=0.1):
     def are_all_box_statuses_acceptable(tt, instances, acceptable_statuses):
         status_ = status(tt)
         return all([(status_[inst].get("BOX") in acceptable_statuses) for inst in instances])
@@ -125,42 +140,42 @@ def wait_box_status(timeout, tt, instances, acceptable_statuses, interval=0.1):
         timeout,
         are_all_box_statuses_acceptable,
         interval,
-        tt,
+        tt_app.tt,
         instances,
         acceptable_statuses,
     )
 
 
-def post_start_base(tt):
-    assert utils.wait_files(5, pid_files(tt, tt.running_instances))
+def post_start_base(tt_app):
+    assert utils.wait_files(5, pid_files(tt_app, tt_app.running_instances))
 
 
 def post_start_cluster_decorator(func):
-    def wrapper_func(tt):
-        func(tt)
+    def wrapper_func(tt_app):
+        func(tt_app)
         # 'cluster' decoration.
-        assert wait_box_status(5, tt, tt.running_instances, ["loading", "running"])
+        assert wait_box_status(5, tt_app, tt_app.running_instances, ["loading", "running"])
 
     return wrapper_func
 
 
 def post_start_no_script_decorator(func):
-    def wrapper_func(tt):
-        func(tt)
+    def wrapper_func(tt_app):
+        func(tt_app)
         # 'no_script' decoration.
-        flag_files = [tt.path(f"flag-{inst}") for inst in tt.running_instances]
+        flag_files = [tt_app.path(f"flag-{inst}") for inst in tt_app.running_instances]
         assert utils.wait_files(5, flag_files)
-        os.remove(tt.path("init.lua"))
+        os.remove(tt_app.path("init.lua"))
 
     return wrapper_func
 
 
 def post_start_no_config_decorator(func):
-    def wrapper_func(tt):
-        func(tt)
+    def wrapper_func(tt_app):
+        func(tt_app)
         # 'no_config' decoration.
-        flag_files = [tt.run_path(inst, "flag") for inst in tt.running_instances]
+        flag_files = [tt_app.run_path(inst, "flag") for inst in tt_app.running_instances]
         assert utils.wait_files(5, flag_files)
-        os.remove(tt.path("config.yaml"))
+        os.remove(tt_app.path("config.yaml"))
 
     return wrapper_func
