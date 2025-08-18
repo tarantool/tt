@@ -448,7 +448,7 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_ssl_app")
 
 
-@pytest.mark.tt(
+@pytest.mark.tt_app(
     app_path="test_simple_cluster_app",
     instances=["master"],
 )
@@ -467,7 +467,7 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
         pytest.param("[::1]:3013", id="ipv6"),
     ],
 )
-def test_play_to_cluster_app_by_uri(tt, with_scheme, uri):
+def test_play_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
     skip_if_cluster_app_unsupported()
 
     if with_scheme:
@@ -481,7 +481,7 @@ def test_play_to_cluster_app_by_uri(tt, with_scheme, uri):
     )
     # Check for start.
     assert p.returncode == 0
-    assert wait_files(5, [tt.path("configured")])
+    assert wait_files(5, [tt_app.path("configured")])
 
     # Play to the instance.
     p = tt.run("play", uri, file_to_play)

@@ -8,9 +8,9 @@ from pathlib import Path
 import etcd_helper
 import psutil
 import pytest
+import tt_helper
 from cartridge_helper import CartridgeApp
 from pytest import TempPathFactory
-from tt_helper import Tt
 from vshard_cluster import VshardCluster
 
 import utils
@@ -226,24 +226,31 @@ def vshard_app(tt_cmd, tmp_path, vshard_app_session) -> VshardCluster:
 
 
 @pytest.fixture(scope="function")
-def tt_path(tmpdir_with_cfg, request):
-    mark_app = request.node.get_closest_marker("tt")
+def tt(tt_cmd, tmpdir_with_cfg):
+    tt_ = tt_helper.Tt(tt_cmd, Path(tmpdir_with_cfg))
+    yield tt_
+    tt_.run("stop", "-y")
+
+
+@pytest.fixture(scope="function")
+def tt_path(tmp_path, request):
+    mark_app = request.node.get_closest_marker("tt_app")
     app_path = mark_app.kwargs["app_path"]
     if not os.path.isabs(app_path):
         app_path = os.path.join(os.path.dirname(request.path), app_path)
     if os.path.isdir(app_path):
         app_name = mark_app.kwargs.get("app_name", os.path.basename(app_path))
-        app_path = shutil.copytree(app_path, os.path.join(tmpdir_with_cfg, app_name))
+        app_path = shutil.copytree(app_path, tmp_path / app_name)
     else:
         app_name, app_ext = os.path.splitext(os.path.basename(app_path))
         app_name = mark_app.kwargs.get("app_name", app_name)
-        app_path = shutil.copy(app_path, os.path.join(tmpdir_with_cfg, app_name + app_ext))
+        app_path = shutil.copy(app_path, tmp_path / (app_name + app_ext))
     return app_path
 
 
 @pytest.fixture(scope="function")
 def tt_instances(tt_path, request):
-    mark_app = request.node.get_closest_marker("tt")
+    mark_app = request.node.get_closest_marker("tt_app")
     instances = mark_app.kwargs.get("instances")
     app_name = os.path.basename(tt_path)
     if not os.path.isdir(tt_path):
@@ -258,24 +265,23 @@ def tt_instances(tt_path, request):
 
 @pytest.fixture(scope="function")
 def tt_running_targets(request):
-    mark_app = request.node.get_closest_marker("tt")
+    mark_app = request.node.get_closest_marker("tt_app")
     return mark_app.kwargs.get("running_targets", [])
 
 
 @pytest.fixture(scope="function")
 def tt_post_start(request):
-    mark_app = request.node.get_closest_marker("tt")
+    mark_app = request.node.get_closest_marker("tt_app")
     return mark_app.kwargs.get("post_start")
 
 
 @pytest.fixture(scope="function")
-def tt(tt_cmd, tt_path, tt_instances, tt_running_targets, tt_post_start):
-    tt_ = Tt(tt_cmd, tt_path, tt_instances)
+def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
+    app = tt_helper.TtApp(tt, tt_path, tt_instances)
     for target in tt_running_targets:
-        rc, _ = tt_.exec("start", target)
-        assert rc == 0
-    tt_.running_instances = tt_.instances_of(*tt_running_targets)
+        p = tt.run("start", target)
+        assert p.returncode == 0
+    app.running_instances = app.instances_of(*tt_running_targets)
     if tt_post_start is not None:
-        tt_post_start(tt_)
-    yield tt_
-    tt_.exec("stop", "-y")
+        tt_post_start(app)
+    yield app

@@ -3100,7 +3100,7 @@ def test_connect_to_cluster_app(tt_cmd):
         shutil.rmtree(tmpdir)
 
 
-@pytest.mark.tt(
+@pytest.mark.tt_app(
     app_path="test_simple_cluster_app",
     instances=["master"],
 )
@@ -3118,7 +3118,7 @@ def test_connect_to_cluster_app(tt_cmd):
         pytest.param("[::1]:3013", id="ipv6"),
     ],
 )
-def test_connect_to_cluster_app_by_uri(tt, with_scheme, uri):
+def test_connect_to_cluster_app_by_uri(tt, tt_app, with_scheme, uri):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported by test")
     skip_if_cluster_app_unsupported()
@@ -3129,7 +3129,7 @@ def test_connect_to_cluster_app_by_uri(tt, with_scheme, uri):
     )
     # Check for start.
     assert p.returncode == 0
-    assert wait_files(5, [tt.path("configured")])
+    assert wait_files(5, [tt_app.path("configured")])
 
     # Connect to the instance and execute stdin.
     p = tt.run(
@@ -3297,7 +3297,7 @@ def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
         stop_app(tt_cmd, tmpdir, "test_app")
 
 
-@pytest.mark.tt(app_path="test_single_app/test_app.lua")
+@pytest.mark.tt_app(app_path="test_single_app/test_app.lua")
 @pytest.mark.parametrize(
     "sig",
     [
@@ -3305,11 +3305,11 @@ def test_custom_evaler_errors(tt_cmd, tmpdir_with_cfg):
         pytest.param(signal.SIGQUIT, id="SIGQUIT"),
     ],
 )
-def test_disconnect_by_signal(tt, sig):
+def test_disconnect_by_signal(tt, tt_app, sig):
     # Start an instance.
     tt.exec("start", "test_app")
     # Check for start.
-    assert wait_files(5, [tt.path("configured")])
+    assert wait_files(5, [tt_app.path("configured")])
 
     p = tt.popen(
         "connect",
