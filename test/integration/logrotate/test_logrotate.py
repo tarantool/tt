@@ -11,18 +11,18 @@ skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
 is_tarantool_major_one = utils.is_tarantool_major_one()
 
 
-def check_logrotate(tt, target):
+def check_logrotate(tt, tt_app, target):
     # Store original state.
     orig_status = tt_helper.status(tt)
 
-    target_instances = tt.instances_of(target)
+    target_instances = tt_app.instances_of(target)
 
     # Rename log files.
     expected_instances = []
     for inst in target_instances:
-        if inst not in tt.running_instances:
+        if inst not in tt_app.running_instances:
             continue
-        log_path = tt.log_path(inst, utils.log_file)
+        log_path = tt_app.log_path(inst, utils.log_file)
         os.rename(log_path, log_path + "0")
         expected_instances.append(inst)
 
@@ -31,12 +31,12 @@ def check_logrotate(tt, target):
     assert p.returncode == 0
 
     # Wait for the log files to be re-created.
-    assert utils.wait_files(5, tt_helper.log_files(tt, expected_instances))
+    assert utils.wait_files(5, tt_helper.log_files(tt_app, expected_instances))
 
     # Check the instances.
     status = tt_helper.status(tt)
-    for inst in tt.instances:
-        was_running = inst in tt.running_instances
+    for inst in tt_app.instances:
+        was_running = inst in tt_app.running_instances
         assert status[inst]["STATUS"] == orig_status[inst]["STATUS"]
         if was_running:
             assert status[inst]["PID"] == orig_status[inst]["PID"]
@@ -45,7 +45,7 @@ def check_logrotate(tt, target):
                 pid = status[inst]["PID"]
                 assert pid == orig_status[inst]["PID"]
                 assert f"{inst} (PID = {pid}): logs has been rotated." in p.stdout
-                with open(tt.log_path(inst, utils.log_file)) as f:
+                with open(tt_app.log_path(inst, utils.log_file)) as f:
                     assert "reopened" in f.read()
             else:
                 _, sep, inst_name = inst.partition(":")
@@ -58,17 +58,17 @@ def check_logrotate(tt, target):
     if not is_tarantool_major_one:
         p = tt.run("stop", "-y", target)
         assert p.returncode == 0
-        for inst in tt.instances:
-            if inst in target_instances and inst in tt.running_instances:
-                with open(tt.log_path(inst, utils.log_file)) as f:
+        for inst in tt_app.instances:
+            if inst in target_instances and inst in tt_app.running_instances:
+                with open(tt_app.log_path(inst, utils.log_file)) as f:
                     assert [line for line in f if not line.startswith("Watchdog")]
 
 
 def post_start_logrotate_decorator(func):
-    def wrapper_func(tt):
-        func(tt)
+    def wrapper_func(tt_app):
+        func(tt_app)
         # 'logrotate' decoration.
-        utils.wait_files(5, tt_helper.log_files(tt, tt.running_instances))
+        utils.wait_files(5, tt_helper.log_files(tt_app, tt_app.running_instances))
 
     return wrapper_func
 
@@ -84,7 +84,7 @@ tt_multi_inst_app = dict(
 )
 
 
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -103,8 +103,8 @@ tt_multi_inst_app = dict(
         "app:router",
     ],
 )
-def test_logrotate_multi_inst(tt, target):
-    check_logrotate(tt, target)
+def test_logrotate_multi_inst(tt, tt_app, target):
+    check_logrotate(tt, tt_app, target)
 
 
 # Instance script is missing.
@@ -114,7 +114,7 @@ tt_multi_inst_app_no_script = dict(
 )
 
 
-@pytest.mark.tt(**tt_multi_inst_app_no_script)
+@pytest.mark.tt_app(**tt_multi_inst_app_no_script)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -129,8 +129,8 @@ tt_multi_inst_app_no_script = dict(
         "app:master",
     ],
 )
-def test_logrotate_multi_inst_no_instance_script(tt, target):
-    check_logrotate(tt, target)
+def test_logrotate_multi_inst_no_instance_script(tt, tt_app, target):
+    check_logrotate(tt, tt_app, target)
 
 
 ################################################################
@@ -146,7 +146,7 @@ tt_cluster_app = dict(
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -164,8 +164,8 @@ tt_cluster_app = dict(
         "app:storage-replica",
     ],
 )
-def test_logrotate_cluster(tt, target):
-    check_logrotate(tt, target)
+def test_logrotate_cluster(tt, tt_app, target):
+    check_logrotate(tt, tt_app, target)
 
 
 # Cluster configuration is missing.
@@ -177,7 +177,7 @@ tt_cluster_app_no_config = dict(
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app_no_config)
+@pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -192,5 +192,5 @@ tt_cluster_app_no_config = dict(
         "app:storage-master",
     ],
 )
-def test_logrotate_cluster_no_config(tt, target):
-    check_logrotate(tt, target)
+def test_logrotate_cluster_no_config(tt, tt_app, target):
+    check_logrotate(tt, tt_app, target)

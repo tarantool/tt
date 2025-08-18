@@ -20,7 +20,7 @@ confirmation_input_params = [
 ]
 
 
-def check_kill(tt, target, input, is_confirm, *args):
+def check_kill(tt, tt_app, target, input, is_confirm, *args):
     # Store original state.
     orig_status = tt_helper.status(tt)
 
@@ -40,20 +40,20 @@ def check_kill(tt, target, input, is_confirm, *args):
         assert f"Kill {confirmation_target}?" in out
 
     # Check the instances.
-    target_instances = tt.instances_of(target)
+    target_instances = tt_app.instances_of(target)
 
     status = tt_helper.status(tt)
-    for inst in tt.instances:
-        was_running = inst in tt.running_instances
+    for inst in tt_app.instances:
+        was_running = inst in tt_app.running_instances
         if is_confirm and inst in target_instances:
             assert status[inst]["STATUS"] == "NOT RUNNING"
             if was_running:
                 orig_pid = orig_status[inst]["PID"]
                 assert f"The instance {inst} (PID = {orig_pid}) has been killed." in out
-                assert not os.path.exists(tt.run_path(inst, utils.control_socket))
-                assert not os.path.exists(tt.run_path(inst, utils.pid_file))
+                assert not os.path.exists(tt_app.run_path(inst, utils.control_socket))
+                assert not os.path.exists(tt_app.run_path(inst, utils.pid_file))
             else:
-                pid_path = tt.run_path(inst, utils.pid_file)
+                pid_path = tt_app.run_path(inst, utils.pid_file)
                 msg = r"failed to kill the processes:.*{}".format(pid_path)
                 assert re.search(msg, out)
         else:
@@ -74,7 +74,7 @@ tt_multi_inst_app = dict(
 
 
 # Auto-confirmation (short option).
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -93,19 +93,19 @@ tt_multi_inst_app = dict(
         "app:router",
     ],
 )
-def test_kill_multi_inst_auto_y(tt, target):
-    check_kill(tt, target, None, True, "-f")
+def test_kill_multi_inst_auto_y(tt, tt_app, target):
+    check_kill(tt, tt_app, target, None, True, "-f")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_multi_inst_app, running_target=["app"]))
-def test_kill_multi_inst_auto_yes(tt):
-    check_kill(tt, "app", None, True, "--force")
+@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_target=["app"]))
+def test_kill_multi_inst_auto_yes(tt, tt_app):
+    check_kill(tt, tt_app, "app", None, True, "--force")
 
 
 # Various inputs.
 @pytest.mark.slow
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -123,8 +123,8 @@ def test_kill_multi_inst_auto_yes(tt):
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
-def test_kill_multi_inst_input(tt, target, input, is_confirmed):
-    check_kill(tt, target, input, is_confirmed)
+def test_kill_multi_inst_input(tt, tt_app, target, input, is_confirmed):
+    check_kill(tt, tt_app, target, input, is_confirmed)
 
 
 # Instance script is missing.
@@ -134,7 +134,7 @@ tt_multi_inst_app_no_script = dict(
 )
 
 
-@pytest.mark.tt(**tt_multi_inst_app_no_script)
+@pytest.mark.tt_app(**tt_multi_inst_app_no_script)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -150,8 +150,8 @@ tt_multi_inst_app_no_script = dict(
         "app:master",
     ],
 )
-def test_kill_multi_inst_no_instance_script(tt, target):
-    check_kill(tt, target, None, True, "-f")
+def test_kill_multi_inst_no_instance_script(tt, tt_app, target):
+    check_kill(tt, tt_app, target, None, True, "-f")
 
 
 ################################################################
@@ -168,7 +168,7 @@ tt_cluster_app = dict(
 # Auto-confirmation (short option).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -186,21 +186,21 @@ tt_cluster_app = dict(
         "app:storage-replica",
     ],
 )
-def test_kill_cluster_auto_y(tt, target):
-    check_kill(tt, target, None, True, "-f")
+def test_kill_cluster_auto_y(tt, tt_app, target):
+    check_kill(tt, tt_app, target, None, True, "-f")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt(**dict(tt_cluster_app, running_targets=["app"]))
-def test_kill_cluster_auto_yes(tt):
-    check_kill(tt, "app", None, True, "--force")
+@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app"]))
+def test_kill_cluster_auto_yes(tt, tt_app):
+    check_kill(tt, tt_app, "app", None, True, "--force")
 
 
 # Various inputs.
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -218,8 +218,8 @@ def test_kill_cluster_auto_yes(tt):
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
-def test_kill_cluster_input(tt, target, input, is_confirmed):
-    check_kill(tt, target, input, is_confirmed)
+def test_kill_cluster_input(tt, tt_app, target, input, is_confirmed):
+    check_kill(tt, tt_app, target, input, is_confirmed)
 
 
 # Cluster configuration is missing.
@@ -231,7 +231,7 @@ tt_cluster_app_no_config = dict(
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app_no_config)
+@pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -246,5 +246,5 @@ tt_cluster_app_no_config = dict(
         "app:storage-master",
     ],
 )
-def test_kill_cluster_no_config(tt, target):
-    check_kill(tt, target, None, True, "-f")
+def test_kill_cluster_no_config(tt, tt_app, target):
+    check_kill(tt, tt_app, target, None, True, "-f")
