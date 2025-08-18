@@ -72,7 +72,7 @@ def test_stop_no_prompt(tt_cmd, tmpdir_with_cfg):
         utils.run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
 
 
-def check_stop(tt, target, input, is_confirm, *args):
+def check_stop(tt, tt_app, target, input, is_confirm, *args):
     # Store original state.
     orig_status = tt_helper.status(tt)
 
@@ -92,12 +92,12 @@ def check_stop(tt, target, input, is_confirm, *args):
     else:
         assert discarding_msg in out
 
-    target_instances = tt.instances_of(target)
+    target_instances = tt_app.instances_of(target)
 
     # Check the instances.
     status = tt_helper.status(tt)
-    for inst in tt.instances:
-        was_running = inst in tt.running_instances
+    for inst in tt_app.instances:
+        was_running = inst in tt_app.running_instances
         if is_confirm and inst in target_instances:
             assert status[inst]["STATUS"] == "NOT RUNNING"
             if was_running:
@@ -117,7 +117,7 @@ tt_simple_app = dict(app_path="test_app.lua", app_name="app", post_start=tt_help
 
 # Auto-confirmation (short option).
 @pytest.mark.slow
-@pytest.mark.tt(**tt_simple_app)
+@pytest.mark.tt_app(**tt_simple_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -132,19 +132,19 @@ tt_simple_app = dict(app_path="test_app.lua", app_name="app", post_start=tt_help
         "app",
     ],
 )
-def test_stop_simple_app_auto_y(tt, target):
-    check_stop(tt, target, None, True, "-y")
+def test_stop_simple_app_auto_y(tt, tt_app, target):
+    check_stop(tt, tt_app, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_simple_app, running_targets=["app"]))
-def test_stop_simple_app_auto_yes(tt):
-    check_stop(tt, "app", None, True, "--yes")
+@pytest.mark.tt_app(**dict(tt_simple_app, running_targets=["app"]))
+def test_stop_simple_app_auto_yes(tt, tt_app):
+    check_stop(tt, tt_app, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.slow
-@pytest.mark.tt(**tt_simple_app)
+@pytest.mark.tt_app(**tt_simple_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -153,8 +153,8 @@ def test_stop_simple_app_auto_yes(tt):
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
-def test_stop_simple_app_input(tt, input, is_confirmed):
-    check_stop(tt, "app", input, is_confirmed)
+def test_stop_simple_app_input(tt, tt_app, input, is_confirmed):
+    check_stop(tt, tt_app, "app", input, is_confirmed)
 
 
 ################################################################
@@ -169,7 +169,7 @@ tt_multi_inst_app = dict(
 
 
 # Auto-confirmation (short option).
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -188,19 +188,19 @@ tt_multi_inst_app = dict(
         "app:router",
     ],
 )
-def test_stop_multi_inst_auto_y(tt, target):
-    check_stop(tt, target, None, True, "-y")
+def test_stop_multi_inst_auto_y(tt, tt_app, target):
+    check_stop(tt, tt_app, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_multi_inst_app, running_target=["app"]))
-def test_stop_multi_inst_auto_yes(tt):
-    check_stop(tt, "app", None, True, "--yes")
+@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_target=["app"]))
+def test_stop_multi_inst_auto_yes(tt, tt_app):
+    check_stop(tt, tt_app, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.slow
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -218,8 +218,8 @@ def test_stop_multi_inst_auto_yes(tt):
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
-def test_stop_multi_inst_input(tt, target, input, is_confirmed):
-    check_stop(tt, target, input, is_confirmed)
+def test_stop_multi_inst_input(tt, tt_app, target, input, is_confirmed):
+    check_stop(tt, tt_app, target, input, is_confirmed)
 
 
 # Instance script is missing.
@@ -229,7 +229,7 @@ tt_multi_inst_app_no_script = dict(
 )
 
 
-@pytest.mark.tt(**tt_multi_inst_app_no_script)
+@pytest.mark.tt_app(**tt_multi_inst_app_no_script)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -244,8 +244,8 @@ tt_multi_inst_app_no_script = dict(
         "app:master",
     ],
 )
-def test_stop_multi_inst_no_instance_script(tt, target):
-    check_stop(tt, target, None, True, "-y")
+def test_stop_multi_inst_no_instance_script(tt, tt_app, target):
+    check_stop(tt, tt_app, target, None, True, "-y")
 
 
 ################################################################
@@ -262,7 +262,7 @@ tt_cluster_app = dict(
 # Auto-confirmation (short option).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -280,21 +280,21 @@ tt_cluster_app = dict(
         "app:storage-replica",
     ],
 )
-def test_stop_cluster_auto_y(tt, target):
-    check_stop(tt, target, None, True, "-y")
+def test_stop_cluster_auto_y(tt, tt_app, target):
+    check_stop(tt, tt_app, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt(**dict(tt_cluster_app, running_targets=["app"]))
-def test_stop_cluster_auto_yes(tt):
-    check_stop(tt, "app", None, True, "--yes")
+@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app"]))
+def test_stop_cluster_auto_yes(tt, tt_app):
+    check_stop(tt, tt_app, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -312,8 +312,8 @@ def test_stop_cluster_auto_yes(tt):
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
-def test_stop_cluster_input(tt, target, input, is_confirmed):
-    check_stop(tt, target, input, is_confirmed)
+def test_stop_cluster_input(tt, tt_app, target, input, is_confirmed):
+    check_stop(tt, tt_app, target, input, is_confirmed)
 
 
 # Cluster configuration is missing.
@@ -325,7 +325,7 @@ tt_cluster_app_no_config = dict(
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app_no_config)
+@pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -340,5 +340,5 @@ tt_cluster_app_no_config = dict(
         "app:storage-master",
     ],
 )
-def test_stop_cluster_no_config(tt, target):
-    check_stop(tt, target, None, True, "-y")
+def test_stop_cluster_no_config(tt, tt_app, target):
+    check_stop(tt, tt_app, target, None, True, "-y")

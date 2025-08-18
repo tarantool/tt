@@ -7,21 +7,21 @@ skip_cluster_cond = utils.is_tarantool_less_3()
 skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
 
 
-def check_start(tt, target):
+def check_start(tt, tt_app, target):
     # Store original state.
     orig_status = tt_helper.status(tt)
 
     # Do start.
     rc, out = tt.exec("start", target)
     assert rc == 0
-    assert utils.wait_files(5, tt_helper.pid_files(tt, tt.instances_of(target)))
+    assert utils.wait_files(5, tt_helper.pid_files(tt_app, tt_app.instances_of(target)))
 
-    target_instances = tt.instances_of(target)
+    target_instances = tt_app.instances_of(target)
 
     # Check the instances.
     status = tt_helper.status(tt)
-    for inst in tt.instances:
-        was_running = inst in tt.running_instances
+    for inst in tt_app.instances:
+        was_running = inst in tt_app.running_instances
         if inst in target_instances:
             assert status[inst]["STATUS"] == "RUNNING"
             pid = status[inst]["PID"]
@@ -52,7 +52,7 @@ tt_multi_inst_app = dict(
 
 
 # Auto-confirmation (short option).
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -71,8 +71,8 @@ tt_multi_inst_app = dict(
         "app:router",
     ],
 )
-def test_start_multi_inst(tt, target):
-    check_start(tt, target)
+def test_start_multi_inst(tt, tt_app, target):
+    check_start(tt, tt_app, target)
 
 
 ################################################################
@@ -89,7 +89,7 @@ tt_cluster_app = dict(
 # Auto-confirmation (short option).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -107,5 +107,5 @@ tt_cluster_app = dict(
         "app:storage-replica",
     ],
 )
-def test_start_cluster(tt, target):
-    check_start(tt, target)
+def test_start_cluster(tt, tt_app, target):
+    check_start(tt, tt_app, target)
