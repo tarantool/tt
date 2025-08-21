@@ -2,6 +2,7 @@ package replicaset
 
 import "strings"
 
+// ElectionMode defines an enumeration of election types.
 type ElectionMode int
 
 //go:generate stringer -type=ElectionMode -trimprefix ElectionMode -linecomment
@@ -19,6 +20,7 @@ const (
 	ElectionModeManual // manual
 )
 
+// ParseElectionMode returns an election type from a string representation.
 func ParseElectionMode(str string) ElectionMode {
 	switch strings.ToLower(str) {
 	case "off":

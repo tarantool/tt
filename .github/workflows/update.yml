@@ -9,11 +9,11 @@ on:
 
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.23.8'
+  GO_VERSION: '1.25.0'
 
 jobs:
   update:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
 
@@ -24,7 +24,7 @@ jobs:
 
     - name: Setup Tarantool master
       run: |
-        curl -L https://tarantool.io/release/2/installer.sh | sudo bash
+        curl -L https://tarantool.io/release/3/installer.sh | sudo bash
         sudo apt install -y tt
         mkdir /tmp/tt
         cd /tmp/tt
@@ -36,7 +36,7 @@ jobs:
       run: |
         go install github.com/magefile/mage@latest
         go install golang.org/x/tools/cmd/goimports@latest
-        go install golang.org/x/tools/cmd/stringer@v0.16.1
+        go install golang.org/x/tools/cmd/stringer@v0.36.0
       shell: bash
 
     - name: Generate code
