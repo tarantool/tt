@@ -16,6 +16,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        fetch-tags: true
 
     - name: Setup Go
       uses: actions/setup-go@v4
@@ -48,7 +52,10 @@ jobs:
         author: 'TarantoolBot <TarantoolBot@users.noreply.github.com>'
         body: 'Automated changes by [update](https://github.com/tarantool/tt/blob/master/.github/workflows/update.yml) job.'
         branch: 'github-actions/update'
-        commit-message: 'generate: autoupdate'
+        commit-message: >
+          generate: update auto-generated code\n\n
+          This patch updates auto-generated code.\n\n
+          Related to #1231
         committer: 'TarantoolBot <TarantoolBot@users.noreply.github.com>'
         title: 'generate: autoupdate'
         token: '${{ secrets.PUBLIC_REPO_ACCESS_TOKEN }}'

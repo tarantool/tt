@@ -120,7 +120,7 @@ var ConfigEnvPaths = [][]string{
 ]])
 
 for _, config in ipairs(configs) do
-    file:write('[]string{')
+    file:write('{')
     for i, v in ipairs(config.path) do
        file:write('"' .. v .. '"')
        if i < #config.path then
@@ -136,7 +136,7 @@ var TarantoolSchema = []SchemaPath{
 ]])
 
 for _, config in ipairs(configs) do
-    file:write('SchemaPath{\nPath: []string{')
+    file:write('{\nPath: []string{')
     for i, v in ipairs(config.path) do
         file:write('"' .. v .. '"')
         if i < #config.path then

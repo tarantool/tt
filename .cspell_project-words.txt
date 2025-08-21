@@ -10,6 +10,8 @@ ccluster
 clientv3
 clustercmd
 commentf
+configcartridgecustom
+connpool
 containsf
 debugf
 demoter
@@ -61,6 +63,13 @@ tnt+
 tntp
 trimprefix
 truef
+unknowncentralized
+unknownnonetarantooletcd
+unknownnosinglemulti
+unknownoffmanualeventualelectionstatefulsupervised
+unknownoffvotercandidatemanual
+unknownreadrw
+unknownuninitializedbootstrapped
 vshard
 vylog
 warnf
