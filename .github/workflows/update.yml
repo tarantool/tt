@@ -16,6 +16,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+        fetch-tags: true
 
     - name: Setup Go
       uses: actions/setup-go@v4
