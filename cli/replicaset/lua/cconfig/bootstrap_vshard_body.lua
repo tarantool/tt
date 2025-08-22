@@ -6,6 +6,9 @@ local fiber = require('fiber')
 local config = require('config')
 
 local is_router = false
+if config:get().sharding.roles == nil then
+    error("vshard roles not found, please make sure managed cluster is sharded")
+end
 for _, role in ipairs(config:get().sharding.roles) do
     if role == "router" then
         is_router = true

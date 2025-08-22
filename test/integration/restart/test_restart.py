@@ -57,7 +57,7 @@ def test_restart_no_args(tt_cmd, tmp_path):
         app_cmd(tt_cmd, test_app_path, ["stop"], ["y\n"])
 
 
-def wait_pid_files_changed(tt, instances, orig_status):
+def wait_pid_files_changed(tt_app, instances, orig_status):
     def all_pids_changed():
         def read_file(path):
             try:
@@ -68,7 +68,7 @@ def wait_pid_files_changed(tt, instances, orig_status):
             return None
 
         for inst in instances:
-            pid_path = tt.run_path(inst, utils.pid_file)
+            pid_path = tt_app.run_path(inst, utils.pid_file)
             orig_pid = str(orig_status[inst]["PID"]) if "PID" in orig_status[inst] else None
             pid = read_file(pid_path)
             if pid is None or pid == orig_pid:
@@ -78,7 +78,7 @@ def wait_pid_files_changed(tt, instances, orig_status):
     return utils.wait_event(5, all_pids_changed)
 
 
-def check_restart(tt, target, input, is_confirm, *args):
+def check_restart(tt, tt_app, target, input, is_confirm, *args):
     # Store original state.
     orig_status = tt_helper.status(tt)
 
@@ -93,21 +93,21 @@ def check_restart(tt, target, input, is_confirm, *args):
         confirmation_target = "all instances" if target is None else f"'{target}'"
         assert f"Confirm restart of {confirmation_target} [y/n]" in out
 
-    target_instances = tt.instances_of(target)
+    target_instances = tt_app.instances_of(target)
 
     discarding_msg = "Restart is cancelled."
     if is_confirm:
         assert discarding_msg not in out
         # Make sure all involved PIDs are updated.
-        wait_pid_files_changed(tt, target_instances, orig_status)
+        wait_pid_files_changed(tt_app, target_instances, orig_status)
     else:
         # Check the discarding message.
         assert discarding_msg in out
 
     # Check the instances.
     status = tt_helper.status(tt)
-    for inst in tt.instances:
-        was_running = inst in tt.running_instances
+    for inst in tt_app.instances:
+        was_running = inst in tt_app.running_instances
         if is_confirm and inst in target_instances:
             assert status[inst]["STATUS"] == "RUNNING"
             assert f"Starting an instance [{inst}]" in out
@@ -129,7 +129,7 @@ tt_simple_app = dict(app_path="test_app.lua", app_name="app", post_start=tt_help
 
 # Auto-confirmation (short option).
 @pytest.mark.slow
-@pytest.mark.tt(**tt_simple_app)
+@pytest.mark.tt_app(**tt_simple_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -144,19 +144,19 @@ tt_simple_app = dict(app_path="test_app.lua", app_name="app", post_start=tt_help
         "app",
     ],
 )
-def test_restart_simple_app_auto_y(tt, target):
-    check_restart(tt, target, None, True, "-y")
+def test_restart_simple_app_auto_y(tt, tt_app, target):
+    check_restart(tt, tt_app, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_simple_app, running_targets=["app"]))
-def test_restart_simple_app_auto_yes(tt):
-    check_restart(tt, "app", None, True, "--yes")
+@pytest.mark.tt_app(**dict(tt_simple_app, running_targets=["app"]))
+def test_restart_simple_app_auto_yes(tt, tt_app):
+    check_restart(tt, tt_app, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.slow
-@pytest.mark.tt(**tt_simple_app)
+@pytest.mark.tt_app(**tt_simple_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -165,8 +165,8 @@ def test_restart_simple_app_auto_yes(tt):
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
-def test_restart_simple_app_input(tt, input, is_confirmed):
-    check_restart(tt, "app", input, is_confirmed)
+def test_restart_simple_app_input(tt, tt_app, input, is_confirmed):
+    check_restart(tt, tt_app, "app", input, is_confirmed)
 
 
 ################################################################
@@ -181,7 +181,7 @@ tt_multi_inst_app = dict(
 
 
 # Auto-confirmation (short option).
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -200,19 +200,19 @@ tt_multi_inst_app = dict(
         "app:router",
     ],
 )
-def test_restart_multi_inst_auto_y(tt, target):
-    check_restart(tt, target, None, True, "-y")
+def test_restart_multi_inst_auto_y(tt, tt_app, target):
+    check_restart(tt, tt_app, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_multi_inst_app, running_target=["app"]))
-def test_restart_multi_inst_auto_yes(tt):
-    check_restart(tt, "app", None, True, "--yes")
+@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_target=["app"]))
+def test_restart_multi_inst_auto_yes(tt, tt_app):
+    check_restart(tt, tt_app, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.slow
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -230,8 +230,8 @@ def test_restart_multi_inst_auto_yes(tt):
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
-def test_restart_multi_inst_input(tt, target, input, is_confirmed):
-    check_restart(tt, target, input, is_confirmed)
+def test_restart_multi_inst_input(tt, tt_app, target, input, is_confirmed):
+    check_restart(tt, tt_app, target, input, is_confirmed)
 
 
 ################################################################
@@ -248,7 +248,7 @@ tt_cluster_app = dict(
 # Auto-confirmation (short option).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -266,21 +266,21 @@ tt_cluster_app = dict(
         "app:storage-replica",
     ],
 )
-def test_restart_cluster_auto_y(tt, target):
-    check_restart(tt, target, None, True, "-y")
+def test_restart_cluster_auto_y(tt, tt_app, target):
+    check_restart(tt, tt_app, target, None, True, "-y")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt(**dict(tt_cluster_app, running_targets=["app"]))
-def test_restart_cluster_auto_yes(tt):
-    check_restart(tt, "app", None, True, "--yes")
+@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app"]))
+def test_restart_cluster_auto_yes(tt, tt_app):
+    check_restart(tt, tt_app, "app", None, True, "--yes")
 
 
 # Various inputs.
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -298,5 +298,5 @@ def test_restart_cluster_auto_yes(tt):
     ],
 )
 @pytest.mark.parametrize("input, is_confirmed", confirmation_input_params)
-def test_restart_cluster_input(tt, target, input, is_confirmed):
-    check_restart(tt, target, input, is_confirmed)
+def test_restart_cluster_input(tt, tt_app, target, input, is_confirmed):
+    check_restart(tt, tt_app, target, input, is_confirmed)

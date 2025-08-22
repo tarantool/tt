@@ -8,9 +8,9 @@ from pathlib import Path
 import etcd_helper
 import psutil
 import pytest
+import tt_helper
 from cartridge_helper import CartridgeApp
 from pytest import TempPathFactory
-from tt_helper import Tt
 from vshard_cluster import VshardCluster
 
 import utils
@@ -164,27 +164,38 @@ def cartridge_app(request, cartridge_app_session):
     return cartridge_app_session
 
 
-@pytest.fixture
-def fixture_params():
-    return {}
-
-
 @pytest.fixture(scope="function")
-def tcs(request, tmp_path, fixture_params):
-    test_app_path = os.path.join(fixture_params.get("path_to_cfg_dir"), "config.yaml")
+def tcs(request, tmp_path):
+    if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        pytest.skip()
+
+    params = dict(
+        path_to_cfg_dir=request.path.parent / "test_tcs_app",
+        connection_test=True,
+        connection_test_user="client",
+        connection_test_password="secret",
+        instance_name="instance-001",
+        instance_host="localhost",
+        instance_port="4401",
+    )
+    marker = request.node.get_closest_marker("tcs")
+    if marker is not None and marker.kwargs is not None:
+        params.update(marker.kwargs)
+
+    test_app_path = params.get("path_to_cfg_dir") / "config.yaml"
     inst = utils.TarantoolTestInstance(
         test_app_path,
-        fixture_params.get("path_to_cfg_dir"),
+        params.get("path_to_cfg_dir"),
         "",
         tmp_path,
     )
     inst.start(
-        connection_test=fixture_params.get("connection_test"),
-        connection_test_user=fixture_params.get("connection_test_user"),
-        connection_test_password=fixture_params.get("connection_test_password"),
-        instance_name=fixture_params.get("instance_name"),
-        instance_host=fixture_params.get("instance_host"),
-        instance_port=fixture_params.get("instance_port"),
+        connection_test=params.get("connection_test"),
+        connection_test_user=params.get("connection_test_user"),
+        connection_test_password=params.get("connection_test_password"),
+        instance_name=params.get("instance_name"),
+        instance_host=params.get("instance_host"),
+        instance_port=params.get("instance_port"),
     )
     request.addfinalizer(lambda: inst.stop())
     return inst
@@ -211,24 +222,31 @@ def vshard_app(tt_cmd, tmp_path, vshard_app_session) -> VshardCluster:
 
 
 @pytest.fixture(scope="function")
-def tt_path(tmpdir_with_cfg, request):
-    mark_app = request.node.get_closest_marker("tt")
+def tt(tt_cmd, tmpdir_with_cfg):
+    tt_ = tt_helper.Tt(tt_cmd, Path(tmpdir_with_cfg))
+    yield tt_
+    tt_.run("stop", "-y")
+
+
+@pytest.fixture(scope="function")
+def tt_path(tmp_path, request):
+    mark_app = request.node.get_closest_marker("tt_app")
     app_path = mark_app.kwargs["app_path"]
     if not os.path.isabs(app_path):
         app_path = os.path.join(os.path.dirname(request.path), app_path)
     if os.path.isdir(app_path):
         app_name = mark_app.kwargs.get("app_name", os.path.basename(app_path))
-        app_path = shutil.copytree(app_path, os.path.join(tmpdir_with_cfg, app_name))
+        app_path = shutil.copytree(app_path, tmp_path / app_name)
     else:
         app_name, app_ext = os.path.splitext(os.path.basename(app_path))
         app_name = mark_app.kwargs.get("app_name", app_name)
-        app_path = shutil.copy(app_path, os.path.join(tmpdir_with_cfg, app_name + app_ext))
+        app_path = shutil.copy(app_path, tmp_path / (app_name + app_ext))
     return app_path
 
 
 @pytest.fixture(scope="function")
 def tt_instances(tt_path, request):
-    mark_app = request.node.get_closest_marker("tt")
+    mark_app = request.node.get_closest_marker("tt_app")
     instances = mark_app.kwargs.get("instances")
     app_name = os.path.basename(tt_path)
     if not os.path.isdir(tt_path):
@@ -243,24 +261,112 @@ def tt_instances(tt_path, request):
 
 @pytest.fixture(scope="function")
 def tt_running_targets(request):
-    mark_app = request.node.get_closest_marker("tt")
+    mark_app = request.node.get_closest_marker("tt_app")
     return mark_app.kwargs.get("running_targets", [])
 
 
 @pytest.fixture(scope="function")
 def tt_post_start(request):
-    mark_app = request.node.get_closest_marker("tt")
+    mark_app = request.node.get_closest_marker("tt_app")
     return mark_app.kwargs.get("post_start")
 
 
 @pytest.fixture(scope="function")
-def tt(tt_cmd, tt_path, tt_instances, tt_running_targets, tt_post_start):
-    tt_ = Tt(tt_cmd, tt_path, tt_instances)
+def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
+    tt_app_ = tt_helper.TtApp(tt, tt_path, tt_instances)
     for target in tt_running_targets:
-        rc, _ = tt_.exec("start", target)
-        assert rc == 0
-    tt_.running_instances = tt_.instances_of(*tt_running_targets)
+        p = tt.run("start", target)
+        assert p.returncode == 0
+    tt_app_.running_instances = tt_app_.instances_of(*tt_running_targets)
     if tt_post_start is not None:
-        tt_post_start(tt_)
-    yield tt_
-    tt_.exec("stop", "-y")
+        tt_post_start(tt_app_)
+    yield tt_app_
+
+
+@pytest.fixture(scope="function")
+def cluster_params(request):
+    params = {
+        "app_name": "cluster_app",
+        "num_replicasets": 1,
+        "num_replicas": 3,
+    }
+    marker = request.node.get_closest_marker("cluster")
+    if marker is None or marker.kwargs is None:
+        return params
+    params.update(marker.kwargs)
+    return params
+
+
+@pytest.fixture(scope="function")
+def cluster(tt, cluster_params):
+    if utils.is_tarantool_less_3():
+        pytest.skip("centralized config requires Tarantool v3.x")
+    app = tt_helper.TtCluster(tt, **cluster_params)
+    yield app
+    app.stop("--yes")
+
+
+@pytest.fixture(scope="function")
+def config_storage_type():
+    return None
+
+
+@pytest.fixture(scope="function")
+def config_storage(request, config_storage_type):
+    assert config_storage_type is not None, "'config_storage_type' parameter is missing"
+    cs = request.getfixturevalue(config_storage_type)
+    if config_storage_type == "etcd":
+        cs.enable_auth()
+    yield cs
+    if config_storage_type == "etcd":
+        cs.disable_auth()
+
+
+@pytest.fixture(scope="function")
+def cluster_supervised(tt, cluster, config_storage):
+    if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+        pytest.skip("supervised failover requires Tarantool Enterprise v3.x")
+    creds = f"{config_storage.connection_username}:{config_storage.connection_password}@"
+    uri = f"http://{creds}{config_storage.host}:{config_storage.port}/prefix"
+
+    # Setup supervised cluster.
+    cluster.apply_config_diff(
+        {
+            "credentials": {
+                "users": {
+                    "replicator": {
+                        "privileges": [
+                            {
+                                "permissions": ["execute"],
+                                "lua_call": ["failover.execute"],
+                            },
+                        ],
+                    },
+                },
+            },
+            # Remove leader option (master is managed by coordinator).
+            "groups": {"group-001": {"replicasets": {"replicaset-001": {"leader": None}}}},
+            "replication": {"failover": "supervised"},
+        },
+    )
+
+    p = tt.run("cluster", "publish", uri, cluster.config_path)
+    assert p.returncode == 0
+
+    p = tt.run("cluster", "show", uri)
+    assert p.returncode == 0
+
+    cluster.set_config({"config": config_storage.cconfig})
+    p = cluster.start()
+    assert p.returncode == 0
+    assert cluster.wait_for_running(10)
+
+    # Launch failover coordinator.
+    coordinator = subprocess.Popen(["tarantool", "--failover", "--config", cluster.config_path])
+
+    cluster.config_storage = config_storage
+
+    yield cluster
+
+    # Kill failover coordinator.
+    coordinator.kill()
