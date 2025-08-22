@@ -352,3 +352,19 @@ def test_vshard_bootstrap_not_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_
     assert rc == 1
     assert "failed to bootstrap vshard" in out
     assert "attempt to index field '_configdata_applied' (a nil value)" in out
+
+
+@pytest.mark.parametrize("target_type", ["APP", "INST", "URI"])
+def test_vshard_bootstrap_non_vshard(tt, cluster, target_type):
+    targets = {
+        "APP": cluster.app_name,
+        "INST": f"{cluster.app_name}:{cluster.instances[0]['name']}",
+        "URI": f"client:secret@{cluster.instances[0]['endpoint']}",
+    }
+
+    p = cluster.start()
+    assert p.returncode == 0
+    assert cluster.wait_for_running(5)
+    p = tt.run("rs", "vshard", "bootstrap", targets[target_type])
+    assert p.returncode != 0
+    assert "sharding roles are not configured" in p.stdout

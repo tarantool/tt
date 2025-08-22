@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt cluster failover switch`: minor change in output that displays corresponding
   `switch-status` command with quoted URI argument so it could be copy-pasted for
   subsequent launch as-is.
+- `tt rs vshard bootstrap`: make more informative error message when sharding roles
+  are not configured (for example when launched against non-vshard cluster).
 
 ### Fixed
 
