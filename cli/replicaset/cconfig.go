@@ -26,7 +26,8 @@ var (
 	//go:embed lua/cconfig/bootstrap_vshard_body.lua
 	cconfigBootstrapVShardBody string
 
-	cconfigGetShardingRolesBody = "return require('config'):get().sharding.roles"
+	//go:embed lua/cconfig/get_sharding_roles_body.lua
+	cconfigGetShardingRolesBody string
 )
 
 // cconfigTopology used to export topology information from a Tarantool

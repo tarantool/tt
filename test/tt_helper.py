@@ -118,10 +118,26 @@ class TtCluster:
         input = "".join(["\n" if x is None else f"{x}\n" for x in input_params])
         p = self.__tt.run("create", "cluster", "--name", self.__app_name, input=input)
         assert p.returncode == 0
+        self.__instances = None
 
     @property
     def app_name(self):
         return self.__app_name
+
+    @property
+    def instances(self):
+        if self.__instances is None:
+            self.__instances = []
+            for group in self.config["groups"].values():
+                for rs in group["replicasets"].values():
+                    for inst_name, inst in rs["instances"].items():
+                        self.__instances.append(
+                            dict(
+                                name=inst_name,
+                                endpoint=inst["iproto"]["listen"][0]["uri"],
+                            ),
+                        )
+        return self.__instances
 
     @property
     def config_path(self):
@@ -133,6 +149,7 @@ class TtCluster:
 
     @config.setter
     def config(self, config):
+        self.__instances = None
         self.config_path.write_text(yaml.dump(config))
 
     def start(self, *args):
@@ -164,6 +181,37 @@ class TtCluster:
         config = self.config
         utils.update_dict_leaves(config, other)
         self.config = config
+
+    def update_instances_config(self, configure_instance_func, *args):
+        groups = {}
+        for group_name, group in self.config["groups"].items():
+            replicasets = {}
+            for rs_name, rs in group["replicasets"].items():
+                instances = {}
+                for inst_name in rs["instances"]:
+                    instances[inst_name] = configure_instance_func(*args)
+                replicasets[rs_name] = {"instances": instances}
+            groups[group_name] = {"replicasets": replicasets}
+
+        self.update_config_leaves({"groups": groups})
+
+    def update_ports(self, host, port_factory):
+        def configure_instance_port(host, port_factory):
+            return {"iproto": {"listen": [{"uri": f"{host}:{port_factory()}"}]}}
+
+        self.update_instances_config(configure_instance_port, host, port_factory)
+
+
+def make_cluster_params(params):
+    default_params = dict(
+        app_name="cluster_app",
+        num_replicasets=1,
+        num_replicas=3,
+        username="client",
+        password="secret",
+        host="127.0.0.1",
+    )
+    return default_params | params
 
 
 def status(tt, *args):

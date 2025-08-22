@@ -1,12 +1,15 @@
+local sharding = require('config'):get().sharding
+if sharding == nil or sharding.roles == nil then
+    error("sharding roles are not configured, please make sure managed cluster is sharded")
+end
+
 local ok, vshard = pcall(require, 'vshard')
 if not ok then
     error("failed to require vshard module")
 end
-local fiber = require('fiber')
-local config = require('config')
 
 local is_router = false
-for _, role in ipairs(config:get().sharding.roles) do
+for _, role in ipairs(sharding.roles) do
     if role == "router" then
         is_router = true
         break
@@ -19,6 +22,7 @@ end
 
 pcall(vshard.router.master_search_wakeup)
 
+local fiber = require('fiber')
 local timeout = ...
 local deadline = fiber.time() + timeout
 local ok, err

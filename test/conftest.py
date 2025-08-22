@@ -1,3 +1,4 @@
+import itertools
 import os
 import platform
 import shutil
@@ -277,34 +278,41 @@ def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
     yield app
 
 
+# Fixture to be used to avoid port collision in different tarantool instances.
+@pytest.fixture(scope="session")
+def port_factory():
+    # It is expected that step by step existent tests with hardcoded ports
+    # are adapted to use this fixture. It is also planned that the new tests
+    # are able to be run in parallel so for now let's start far beyond the
+    # default 3301 that is widely used in existent tests to avoid collision.
+    ports = itertools.count(5501)
+
+    def _port_factory():
+        return next(ports)
+
+    return _port_factory
+
+
 @pytest.fixture
 def cluster_params():
-    return None
+    return tt_helper.make_cluster_params(dict())
 
 
 @pytest.fixture
-def cluster(request, tt, cluster_params):
+def cluster(request, tt, cluster_params, port_factory):
     if utils.is_tarantool_less_3():
         pytest.skip("centralized config requires Tarantool v3.x")
 
-    params = dict(
-        app_name="cluster_app",
-        num_replicasets=1,
-        num_replicas=3,
-        username="client",
-        password="secret",
-    )
-    if cluster_params is not None:
-        params.update(cluster_params)
-
     input_params = [
-        params["num_replicasets"],
-        params["num_replicas"],
-        params["username"],
-        params["password"],
+        cluster_params["num_replicasets"],
+        cluster_params["num_replicas"],
+        cluster_params["username"],
+        cluster_params["password"],
     ]
-    app = tt_helper.TtCluster(tt, params["app_name"], input_params)
+    app = tt_helper.TtCluster(tt, cluster_params["app_name"], input_params)
     request.addfinalizer(lambda: app.stop("--yes"))
+    app.update_ports(cluster_params["host"], port_factory)
+
     return app
 
 
