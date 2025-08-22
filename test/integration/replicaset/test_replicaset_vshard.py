@@ -352,3 +352,13 @@ def test_vshard_bootstrap_not_enough_timeout(tt_cmd, vshard_cconfig_app_timeout_
     assert rc == 1
     assert "failed to bootstrap vshard" in out
     assert "attempt to index field '_configdata_applied' (a nil value)" in out
+
+
+@pytest.mark.skipif(
+    tarantool_major_version < 3,
+    reason="skip centralized config test for Tarantool < 3",
+)
+def test_vshard_bootstrap_non_vshard(tt, cluster):
+    p = tt.run("rs", "vshard", "bootstrap", cluster.app_name)
+    assert p.returncode != 0
+    assert "vshard roles not found, please make sure managed cluster is sharded" in p.stdout
