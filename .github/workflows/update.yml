@@ -34,13 +34,16 @@ jobs:
 
     - name: Setup dependencies for the code generation
       run: |
+        find / -name pre-commit
         go install github.com/magefile/mage@latest
         go install golang.org/x/tools/cmd/goimports@latest
         go install golang.org/x/tools/cmd/stringer@v0.36.0
       shell: bash
 
     - name: Generate code
-      run: mage generate
+      run: |
+        find / -name pre-commit
+        mage generate
 
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v5
