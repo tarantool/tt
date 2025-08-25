@@ -11,7 +11,7 @@ skip_cluster_cond = utils.is_tarantool_less_3()
 skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
 
 
-def check_clean(tt, stop_targets, target, *args):
+def check_clean(tt, tt_app, stop_targets, target, *args):
     # Stop the specified targets.
     for target in stop_targets:
         rc, _ = tt.exec("stop", target, "-y")
@@ -24,13 +24,13 @@ def check_clean(tt, stop_targets, target, *args):
     rc, out = tt.exec("clean", target, *args)
     assert rc == 0
 
-    stop_instances = tt.instances_of(*stop_targets)
-    target_instances = tt.instances_of(target)
+    stop_instances = tt_app.instances_of(*stop_targets)
+    target_instances = tt_app.instances_of(target)
 
     # Check the instances.
     status = tt_helper.status(tt)
-    for inst in tt.instances:
-        was_running = inst in tt.running_instances
+    for inst in tt_app.instances:
+        was_running = inst in tt_app.running_instances
         assert status[inst]["STATUS"] == orig_status[inst]["STATUS"]
         if was_running and inst not in stop_instances:
             assert status[inst]["PID"] == orig_status[inst]["PID"]
@@ -43,9 +43,9 @@ def check_clean(tt, stop_targets, target, *args):
                     # https://github.com/tarantool/tt/issues/735
                     msg = r"{}...\t\[OK\]".format(inst)
                     assert len(re.findall(msg, out)) == 1
-                    assert not glob.glob(tt_helper.log_files(tt, [inst])[0])
-                    assert not glob.glob(tt_helper.snap_files(tt, [inst])[0])
-                    assert not glob.glob(tt_helper.wal_files(tt, [inst])[0])
+                    assert not glob.glob(tt_helper.log_files(tt_app, [inst])[0])
+                    assert not glob.glob(tt_helper.snap_files(tt_app, [inst])[0])
+                    assert not glob.glob(tt_helper.wal_files(tt_app, [inst])[0])
                 else:
                     assert msg in out
             else:
@@ -53,17 +53,17 @@ def check_clean(tt, stop_targets, target, *args):
 
 
 def post_start_clean_decorator(func):
-    def wrapper_func(tt):
-        func(tt)
+    def wrapper_func(tt_app):
+        func(tt_app)
         # 'clean' decoration.
         # 'router' instance doesn't produce data files.
-        data_instances = filter(lambda x: "router" not in x, tt.running_instances)
+        data_instances = filter(lambda x: "router" not in x, tt_app.running_instances)
         assert utils.wait_files(
             5,
             itertools.chain(
-                tt_helper.log_files(tt, tt.running_instances),
-                tt_helper.snap_files(tt, data_instances),
-                tt_helper.wal_files(tt, data_instances),
+                tt_helper.log_files(tt_app, tt_app.running_instances),
+                tt_helper.snap_files(tt_app, data_instances),
+                tt_helper.wal_files(tt_app, data_instances),
             ),
         )
 
@@ -83,7 +83,7 @@ tt_multi_inst_app = dict(
 
 # Auto-confirmation (short option).
 @pytest.mark.slow
-@pytest.mark.tt(**tt_multi_inst_app)
+@pytest.mark.tt_app(**tt_multi_inst_app)
 @pytest.mark.parametrize(
     "tt_running_targets, stop_targets",
     [
@@ -104,14 +104,14 @@ tt_multi_inst_app = dict(
         "app:router",
     ],
 )
-def test_clean_multi_inst_auto_y(tt, stop_targets, target):
-    check_clean(tt, stop_targets, target, "-f")
+def test_clean_multi_inst_auto_y(tt, tt_app, stop_targets, target):
+    check_clean(tt, tt_app, stop_targets, target, "-f")
 
 
 # Auto-confirmation (long option; less variations).
-@pytest.mark.tt(**dict(tt_multi_inst_app, running_targets=["app"]))
-def test_clean_multi_inst_auto_yes(tt):
-    check_clean(tt, ["app"], "app", "--force")
+@pytest.mark.tt_app(**dict(tt_multi_inst_app, running_targets=["app"]))
+def test_clean_multi_inst_auto_yes(tt, tt_app):
+    check_clean(tt, tt_app, ["app"], "app", "--force")
 
 
 # Instance script is missing.
@@ -121,7 +121,7 @@ tt_multi_inst_app_no_script = dict(
 )
 
 
-@pytest.mark.tt(**tt_multi_inst_app_no_script)
+@pytest.mark.tt_app(**tt_multi_inst_app_no_script)
 @pytest.mark.parametrize(
     "tt_running_targets",
     [
@@ -142,8 +142,8 @@ tt_multi_inst_app_no_script = dict(
         "app:master",
     ],
 )
-def test_clean_multi_inst_no_instance_script(tt, stop_targets, target):
-    check_clean(tt, stop_targets, target, "-f")
+def test_clean_multi_inst_no_instance_script(tt, tt_app, stop_targets, target):
+    check_clean(tt, tt_app, stop_targets, target, "-f")
 
 
 ################################################################
@@ -160,7 +160,7 @@ tt_cluster_app = dict(
 # Auto-confirmation (short option).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app)
+@pytest.mark.tt_app(**tt_cluster_app)
 @pytest.mark.parametrize(
     "tt_running_targets, stop_targets",
     [
@@ -184,15 +184,15 @@ tt_cluster_app = dict(
         "app:storage-replica",
     ],
 )
-def test_clean_cluster_auto_y(tt, stop_targets, target):
-    check_clean(tt, stop_targets, target, "-f")
+def test_clean_cluster_auto_y(tt, tt_app, stop_targets, target):
+    check_clean(tt, tt_app, stop_targets, target, "-f")
 
 
 # Auto-confirmation (long option; less variations).
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
-@pytest.mark.tt(**dict(tt_cluster_app, running_targets=["app"]))
-def test_clean_cluster_auto_yes(tt):
-    check_clean(tt, ["app"], "app", "--force")
+@pytest.mark.tt_app(**dict(tt_cluster_app, running_targets=["app"]))
+def test_clean_cluster_auto_yes(tt, tt_app):
+    check_clean(tt, tt_app, ["app"], "app", "--force")
 
 
 # Cluster configuration is missing.
@@ -204,7 +204,7 @@ tt_cluster_app_no_config = dict(
 
 @pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
 @pytest.mark.slow
-@pytest.mark.tt(**tt_cluster_app_no_config)
+@pytest.mark.tt_app(**tt_cluster_app_no_config)
 @pytest.mark.parametrize(
     "tt_running_targets, stop_targets",
     [
@@ -219,5 +219,5 @@ tt_cluster_app_no_config = dict(
         "app:storage-master",
     ],
 )
-def test_clean_cluster_no_config(tt, stop_targets, target):
-    check_clean(tt, stop_targets, target, "-f")
+def test_clean_cluster_no_config(tt, tt_app, stop_targets, target):
+    check_clean(tt, tt_app, stop_targets, target, "-f")

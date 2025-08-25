@@ -1,15 +1,7 @@
 import pytest
-from tarantool.connection import os
 
 from utils import (
-    get_fixture_tcs_params,
-    is_tarantool_ee,
-    is_tarantool_less_3,
     run_command_and_get_output,
-)
-
-fixture_tcs_params = get_fixture_tcs_params(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_tcs_app"),
 )
 
 
@@ -41,12 +33,7 @@ groups:
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
-def test_cluster_demote_single_key(tt_cmd, tmpdir_with_cfg, instance_name, request, fixture_params):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
+def test_cluster_demote_single_key(tt_cmd, tmpdir_with_cfg, instance_name, request):
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     conn = instance.conn()
@@ -104,13 +91,7 @@ def test_cluster_demote_many_keys(
     key,
     instance_name,
     request,
-    fixture_params,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     conn = instance.conn()
@@ -186,15 +167,9 @@ def test_cluster_demote_no_auth(
     tt_cmd,
     tmpdir_with_cfg,
     instance_name,
-    fixture_params,
     request,
     err_msg,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
 
@@ -231,14 +206,8 @@ def test_cluster_demote_bad_auth(
     tmpdir_with_cfg,
     instance_name,
     err_msg,
-    fixture_params,
     request,
 ):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
 
@@ -268,12 +237,7 @@ def test_cluster_demote_bad_auth(
         ("tcs", "env"),
     ],
 )
-def test_cluster_demote_auth(tt_cmd, tmpdir_with_cfg, instance_name, auth, fixture_params, request):
-    if instance_name == "tcs":
-        if is_tarantool_less_3() or not is_tarantool_ee():
-            pytest.skip()
-        for k, v in fixture_tcs_params.items():
-            fixture_params[k] = v
+def test_cluster_demote_auth(tt_cmd, tmpdir_with_cfg, instance_name, auth, request):
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
     conn = instance.conn()

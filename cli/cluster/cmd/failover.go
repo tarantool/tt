@@ -9,8 +9,6 @@ import (
 	"github.com/google/uuid"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
-	"go.etcd.io/etcd/api/v3/mvccpb"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"gopkg.in/yaml.v2"
 )
 
@@ -63,36 +61,22 @@ type SwitchStatusCtx struct {
 	TaskID string
 }
 
-func makeEtcdOpts(uriOpts connect.UriOpts) libcluster.EtcdOpts {
-	opts := libcluster.EtcdOpts{
-		Endpoints:      []string{uriOpts.Endpoint},
-		Username:       uriOpts.Username,
-		Password:       uriOpts.Password,
-		KeyFile:        uriOpts.KeyFile,
-		CertFile:       uriOpts.CertFile,
-		CaPath:         uriOpts.CaPath,
-		CaFile:         uriOpts.CaFile,
-		SkipHostVerify: uriOpts.SkipHostVerify,
-		Timeout:        uriOpts.Timeout,
-	}
-
-	return opts
-}
-
 // Switch master instance.
 func Switch(url string, switchCtx SwitchCtx) error {
 	uriOpts, err := connect.CreateUriOpts(url)
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-
-	opts := makeEtcdOpts(uriOpts)
-
-	etcd, err := libcluster.ConnectEtcd(opts)
-	if err != nil {
-		return fmt.Errorf("unable to connect to etcd: %w", err)
+	connOpts := libcluster.ConnectOpts{
+		Username: switchCtx.Username,
+		Password: switchCtx.Password,
 	}
-	defer etcd.Close()
+
+	conn, err := libcluster.ConnectCStorage(uriOpts, connOpts)
+	if err != nil {
+		return fmt.Errorf("unable to connect to config storage: %w", err)
+	}
+	defer conn.Close()
 
 	cmd := switchCmd{
 		Command:   "switch",
@@ -109,54 +93,40 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	key := uriOpts.Prefix + failoverPath + uuid
 
 	if switchCtx.Wait {
-		ctx, cancel_watch := context.WithTimeout(context.Background(),
+		ctxWatch, cancelWatch := context.WithTimeout(context.Background(),
 			time.Duration(switchCtx.Timeout)*time.Second+cmdAdditionalWait)
-		outputChan := make(chan *clientv3.Event)
-		defer cancel_watch()
+		defer cancelWatch()
+		watchChan := conn.Watch(ctxWatch, key)
 
-		go func() {
-			waitChan := etcd.Watch(ctx, key)
-			defer close(outputChan)
-
-			for resp := range waitChan {
-				for _, ev := range resp.Events {
-					switch ev.Type {
-					case mvccpb.PUT:
-						outputChan <- ev
-					}
-				}
-			}
-		}()
-
-		ctx_put, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
-		_, err = etcd.Put(ctx_put, key, string(yamlCmd))
+		ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
+		err = conn.Put(ctx, key, string(yamlCmd))
 		cancel()
 
 		if err != nil {
 			return err
 		}
 
-		for ev := range outputChan {
-			result := switchCmdResult{}
-			err = yaml.Unmarshal(ev.Kv.Value, &result)
+		for ev := range watchChan {
+			var result switchCmdResult
+			err = yaml.Unmarshal(ev.Value, &result)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s", ev.Kv.Value)
+			fmt.Printf("%s", ev.Value)
 			if result.Status == "success" || result.Status == "failed" {
 				return nil
 			}
 		}
-		if ctx.Err() == context.DeadlineExceeded {
+		if ctxWatch.Err() == context.DeadlineExceeded {
 			log.Info("Timeout for command execution reached.")
 			return nil
 		}
 
-		return ctx.Err()
+		return fmt.Errorf("unexpected problem with watch context: %w", ctxWatch.Err())
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
-	_, err = etcd.Put(ctx, key, string(yamlCmd))
+	err = conn.Put(ctx, key, string(yamlCmd))
 	cancel()
 
 	if err != nil {
@@ -177,30 +147,28 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
-
-	opts := makeEtcdOpts(uriOpts)
-
-	etcd, err := libcluster.ConnectEtcd(opts)
+	var connOpts libcluster.ConnectOpts
+	conn, err := libcluster.ConnectCStorage(uriOpts, connOpts)
 	if err != nil {
-		return fmt.Errorf("unable to connect to etcd: %w", err)
+		return fmt.Errorf("unable to connect to config storage: %w", err)
 	}
-	defer etcd.Close()
+	defer conn.Close()
 
 	key := uriOpts.Prefix + failoverPath + switchCtx.TaskID
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
-	result, err := etcd.Get(ctx, key, clientv3.WithLimit(1))
+	result, err := conn.Get(ctx, key)
 	cancel()
 
 	if err != nil {
 		return err
 	}
 
-	if len(result.Kvs) != 1 {
+	if len(result) != 1 {
 		return fmt.Errorf("task with id `%s` is not found", switchCtx.TaskID)
 	}
 
-	fmt.Print(string(result.Kvs[0].Value))
+	fmt.Print(string(result[0].Value))
 
 	return nil
 }
