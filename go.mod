@@ -1,6 +1,6 @@
 module github.com/tarantool/tt
 
-go 1.23.8
+go 1.24.6
 
 require (
 	github.com/adam-hanna/arrayOperations v0.2.6
