@@ -152,7 +152,7 @@ def test_cluster_failover_switch_wait_timeout(
     "config_storage_type",
     [
         "etcd",
-        pytest.param("tcs", marks=pytest.mark.skip(reason="manual failover is not supported yet")),
+        "tcs",
     ],
 )
 @pytest.mark.parametrize(
