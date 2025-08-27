@@ -484,6 +484,7 @@ func Clean() {
 func Generate() error {
 	paths := append([]string{"."}, modules...)
 	for _, path := range paths {
+		fmt.Println("module:", path)
 		err := sh.RunWith(getBuildEnvironment(), goExecutableName, "-C", path,
 			"generate", "./...")
 		if err != nil {

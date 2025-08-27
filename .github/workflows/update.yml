@@ -42,6 +42,10 @@ jobs:
     - name: Generate code
       run: |
         go version
+        echo $PWD
+        echo $PATH
+        ls -la
+        env
         mage generate
 
     - name: Create Pull Request
