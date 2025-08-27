@@ -48,6 +48,10 @@ jobs:
         echo $PATH
         ls -la
         env
+        grep -rne 'ElectionMode' .
+        cd cli/replicaset/
+        stringer -type=ElectionMode -trimprefix ElectionMode -linecomment
+        cd -
         mage generate
 
     - name: Create Pull Request
