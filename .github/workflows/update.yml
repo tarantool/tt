@@ -37,11 +37,9 @@ jobs:
     - name: Setup dependencies for the code generation
       run: |
         go version
-        go install github.com/magefile/mage@latest
+        go install github.com/magefile/mage@v1.12.1
         go install golang.org/x/tools/cmd/goimports@latest
         go install golang.org/x/tools/cmd/stringer@v0.36.0
-        go mod tidy
-        go mod vendor
 
     - name: Generate code
       run: |
