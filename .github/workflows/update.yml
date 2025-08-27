@@ -34,12 +34,14 @@ jobs:
 
     - name: Setup dependencies for the code generation
       run: |
+        go version
         go install github.com/magefile/mage@latest
         go install golang.org/x/tools/cmd/goimports@latest
         go install golang.org/x/tools/cmd/stringer@v0.36.0
 
     - name: Generate code
       run: |
+        go version
         mage generate
 
     - name: Create Pull Request
