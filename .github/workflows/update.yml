@@ -34,24 +34,23 @@ jobs:
         tt install tarantool master
         echo "/tmp/tt/bin" >> $GITHUB_PATH
 
-    - name: Setup dependencies for the code generation
+    # - name: Setup dependencies for the code generation
+    #   run: |
+    #     go version
+    #     go install github.com/magefile/mage@latest
+    #     go install golang.org/x/tools/cmd/goimports@latest
+    #     go install golang.org/x/tools/cmd/stringer@v0.36.0
+
+    - name: Generate code
       run: |
         go version
         go install github.com/magefile/mage@latest
         go install golang.org/x/tools/cmd/goimports@latest
         go install golang.org/x/tools/cmd/stringer@v0.36.0
-
-    - name: Generate code
-      run: |
-        go version
         echo $PWD
         echo $PATH
         ls -la
         env
-        grep -rne 'ElectionMode' .
-        cd cli/replicaset/
-        stringer -type=ElectionMode -trimprefix ElectionMode -linecomment
-        cd -
         mage generate
 
     - name: Create Pull Request
