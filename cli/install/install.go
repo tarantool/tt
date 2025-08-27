@@ -793,6 +793,7 @@ func prepareMakeOpts(installCtx InstallCtx) []string {
 		maxThreads := fmt.Sprint(runtime.NumCPU())
 		makeOpts = append(makeOpts, "-j", maxThreads)
 	}
+	fmt.Println("makeOpts:", makeOpts)
 	return makeOpts
 }
 
