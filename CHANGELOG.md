@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.11.0] - 2025-09-09
+
+The release supports Tarantool Config Storage in `tt cluster failover` commands and
+introduces templates to create Tarantool Config Storage and non-vshard cluster.
+
+### Added
+
 - `tt create`: add template for Tarantool Config Storage.
 - `tt create`: add template for non-vshard Cluster.
 - `tt cluster failover`: support Tarantool Config Storage.
