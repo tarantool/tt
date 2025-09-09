@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-## [2.11.0] - 2025-09-09
+## [2.11.0] - 2025-09-10
 
 The release supports Tarantool Config Storage in `tt cluster failover` commands and
 introduces templates to create Tarantool Config Storage and non-vshard cluster.
@@ -31,8 +31,6 @@ introduces templates to create Tarantool Config Storage and non-vshard cluster.
   subsequent launch as-is.
 - `tt rs vshard bootstrap`: make more informative error message when sharding roles
   are not configured (for example when launched against non-vshard cluster).
-
-### Fixed
 
 ## [2.10.1] - 2025-06-26
 
