@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt coredump`: adjust Tarantool GDB-extention to avoid load failure if `main_cord`
+  symbol is `optimized out` in gdb session.
+
 ## [2.11.0] - 2025-09-10
 
 The release supports Tarantool Config Storage in `tt cluster failover` commands and
