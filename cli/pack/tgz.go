@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/tarantool/tt/cli/configure"
 )
 
 // writeTgzArchive creates TGZ archive of specified path.
@@ -44,22 +42,34 @@ func WriteTarArchive(srcDirPath string, compressWriter io.Writer,
 		}
 
 		var tarHeader *tar.Header
-		if fileInfo.Mode().Type() == os.ModeSymlink &&
-			strings.Contains(filePath, configure.InstancesEnabledDirName) {
+		if fileInfo.Mode().Type() == os.ModeSymlink {
 			// If we have found a symlink while making tarball
-			// we should make it relative. Apriori it is known,
-			// that the source path of the link will be located
-			// in a directory higher.
+			// we should make it relative.
 			srcPath, _ := filepath.EvalSymlinks(filePath)
-			resolvedPath := filepath.Join("..", filepath.Base(srcPath))
-			tarHeader, err = tar.FileInfoHeader(fileInfo, resolvedPath)
-			if err != nil {
-				return err
+			if strings.Contains(srcPath, srcDirPath) {
+				resolvedPath, err := filepath.Rel(filepath.Dir(filePath), srcPath)
+				if err != nil {
+					// Should not happen since the filePath and srcPath have
+					// the same subpath.
+					return fmt.Errorf(
+						"unable to resolve symlink from %q to %q: %w",
+						filePath,
+						srcPath,
+						err,
+					)
+				}
+
+				tarHeader, err = tar.FileInfoHeader(fileInfo, resolvedPath)
+				if err != nil {
+					return fmt.Errorf("unable to create tar header: %w", err)
+				}
 			}
-		} else {
+		}
+
+		if tarHeader == nil {
 			tarHeader, err = tar.FileInfoHeader(fileInfo, filePath)
 			if err != nil {
-				return err
+				return fmt.Errorf("unable to create tar header: %w", err)
 			}
 		}
 

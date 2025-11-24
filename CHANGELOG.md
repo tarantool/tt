@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt coredump`: adjust Tarantool GDB-extention to avoid load failure if `main_cord`
   symbol is `optimized out` in gdb session.
+- `tt pack`: corrupts relative symbolic links.
 
 ## [2.11.0] - 2025-09-10
 
