@@ -955,6 +955,43 @@ def test_pack_tgz_multiple_apps_compat(tt_cmd, tmp_path):
     assert rc == 1
 
 
+@pytest.mark.slow
+def test_pack_tgz_relative_symlinks(tt_cmd, tmp_path):
+    tmp_path = os.path.join(tmp_path, "symlinks")
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), "test_bundles", "symlinks"),
+        tmp_path,
+        symlinks=True,
+        ignore=None,
+        copy_function=shutil.copy2,
+        ignore_dangling_symlinks=True,
+        dirs_exist_ok=True,
+    )
+
+    base_dir = tmp_path
+    rc, output = run_command_and_get_output(
+        [tt_cmd, "pack", "tgz"],
+        cwd=base_dir,
+        env=dict(os.environ, PWD=base_dir),
+    )
+
+    assert rc == 0
+
+    package_file = os.path.join(base_dir, "symlinks-0.1.0.0." + get_arch() + ".tar.gz")
+
+    extract_path = os.path.join(base_dir, "tmp")
+    os.mkdir(extract_path)
+
+    tar = tarfile.open(package_file)
+    tar.extractall(extract_path)
+    tar.close()
+
+    assert os.path.exists(os.path.join(extract_path, "app_name", "file"))
+    assert os.path.exists(os.path.join(extract_path, "app_name", "symlink"))
+    assert os.path.exists(os.path.join(extract_path, "instances.enabled", "app_name", "file"))
+    assert os.path.exists(os.path.join(extract_path, "instances.enabled", "app_name", "symlink"))
+
+
 def test_pack_deb_compat(tt_cmd, tmp_path):
     tmp_path = os.path.join(tmp_path, "bundle1")
     shutil.copytree(
