@@ -2277,9 +2277,11 @@ def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmp_path):
         text=True,
     )
     tt_process.wait()
-    assert tt_process.returncode == 0
-
     build_output = tt_process.stdout.read()
+
+    print(build_output)
+
+    assert tt_process.returncode == 0
     assert "Bundle is packed successfully" in build_output
 
 
