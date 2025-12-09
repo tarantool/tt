@@ -190,7 +190,10 @@ func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 }
 
 // getAppNamesToPack generates application names list to pack.
-func getAppNamesToPack(packCtx *PackCtx) []string {
+func getAppNamesToPack(packCtx *PackCtx, cliOpts *config.CliOpts) []string {
+	if cliOpts.Env.InstancesEnabled == "." {
+		return nil
+	}
 	appList := make([]string, len(packCtx.AppsInfo))
 	i := 0
 	for appName := range packCtx.AppsInfo {
@@ -394,7 +397,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}()
 	bundleEnvPath := tmpDir
 
-	packCtx.AppList = getAppNamesToPack(packCtx)
+	packCtx.AppList = getAppNamesToPack(packCtx, cliOpts)
 	log.Infof("Apps to pack: %s", strings.Join(packCtx.AppList, " "))
 
 	if bundleEnvPath, err = updateEnvPath(bundleEnvPath, packCtx, cliOpts); err != nil {
@@ -449,7 +452,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return "", err
 	}
 
-	if packCtx.IntegrityPrivateKey != "" {
+	if signer != nil {
 		err = signer.Sign(bundleEnvPath, packCtx.AppList)
 		if err != nil {
 			return "", err
