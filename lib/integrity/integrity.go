@@ -44,7 +44,9 @@ func RegisterIntegrityCheckFlag(flagset *pflag.FlagSet, dst *string) {}
 func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {}
 
 // InitializeIntegrityCheck is a noop setup of integrity checking.
-func InitializeIntegrityCheck(publicKeyPath, configDir string) (IntegrityCtx, error) {
+func InitializeIntegrityCheck(
+	publicKeyPath, configDir, instancesEnabledDir string,
+) (IntegrityCtx, error) {
 	if publicKeyPath != "" {
 		return IntegrityCtx{}, errors.New("integrity checks should never be initialized in ce")
 	}

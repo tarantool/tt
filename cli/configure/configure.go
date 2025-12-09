@@ -278,11 +278,14 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 			return nil, "", fmt.Errorf("cannot determine config file path: %s", err)
 		}
 		// Config file is found, load it.
-		f, err := repository.Read(configPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to validate integrity of %q: %w", configPath, err)
+		if repository != nil {
+			f, err := repository.Read(configPath)
+			if err != nil {
+				return nil, "",
+					fmt.Errorf("failed to validate integrity of %q: %w", configPath, err)
+			}
+			f.Close()
 		}
-		f.Close()
 		rawConfigOpts, err := util.ParseYAML(configPath)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to parse Tarantool CLI configuration: %s", err)

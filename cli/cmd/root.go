@@ -277,15 +277,32 @@ func InitRoot() {
 		false,
 	)
 
+	// There is a kind of deadlock between integrity initialization and loading of
+	// tt config: config loader need integrity is initialized to check integrity of
+	// the tt config itself, while initialization of integrity depends on configuration
+	// (namely it depends on InstancesEnabled directory). It is resolved with
+	// the following steps:
+	// 1. Initial loading of the configuration w/o integrity checking
+	// 2. Initialization of integrity
+	// 3. Re-loading of configuration w/ integrity checking
+
+	// 1.
+	cliOptsNoIntegrity, _, err := configure.GetCliOpts(configPath, nil)
+	if err != nil {
+		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
+	}
+
+	// 2.
 	cmdCtx.Integrity, err = integrity.InitializeIntegrityCheck(
 		cmdCtx.Cli.IntegrityCheck,
 		filepath.Dir(configPath),
+		cliOptsNoIntegrity.Env.InstancesEnabled,
 	)
 	if err != nil {
 		log.Fatalf("integrity check failed: %s", err)
 	}
 
-	// Configure Tarantool CLI.
+	// 3.
 	if err := configure.Cli(&cmdCtx); err != nil {
 		log.Fatalf("Failed to configure Tarantool CLI: %s", err)
 	}
