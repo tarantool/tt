@@ -35,26 +35,41 @@ func TestNewSigner(t *testing.T) {
 
 func TestInitializeIntegrityCheckWithKey(t *testing.T) {
 	testCases := []struct {
-		name          string
-		publicKeyPath string
-		configDir     string
+		name                string
+		publicKeyPath       string
+		configDir           string
+		instancesEnabledDir string
 	}{
 		{
-			name:          "Empty config path",
-			publicKeyPath: "public.pem",
-			configDir:     "",
+			name:                "Empty config path",
+			publicKeyPath:       "public.pem",
+			configDir:           "",
+			instancesEnabledDir: "instances.enabled",
 		},
 		{
-			name:          "Arbitrary config path",
-			publicKeyPath: "public.pem",
-			configDir:     "app",
+			name:                "Arbitrary config path",
+			publicKeyPath:       "public.pem",
+			configDir:           "app",
+			instancesEnabledDir: "instances.enabled",
+		},
+		{
+			name:                "Empty instance.enabled path",
+			publicKeyPath:       "public.pem",
+			configDir:           "app",
+			instancesEnabledDir: "",
+		},
+		{
+			name:                "Special instance.enabled path",
+			publicKeyPath:       "public.pem",
+			configDir:           "app",
+			instancesEnabledDir: ".",
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			_, err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
-				testCase.configDir)
+				testCase.configDir, testCase.instancesEnabledDir)
 			require.EqualError(t, err,
 				"integrity checks should never be initialized in ce",
 				"an error should be produced")
@@ -64,26 +79,41 @@ func TestInitializeIntegrityCheckWithKey(t *testing.T) {
 
 func TestInitializeIntegrityCheckWithoutKey(t *testing.T) {
 	testCases := []struct {
-		name          string
-		publicKeyPath string
-		configDir     string
+		name                string
+		publicKeyPath       string
+		configDir           string
+		instancesEnabledDir string
 	}{
 		{
-			name:          "Empty config path",
-			publicKeyPath: "",
-			configDir:     "",
+			name:                "Empty config path",
+			publicKeyPath:       "",
+			configDir:           "",
+			instancesEnabledDir: "instances.enabled",
 		},
 		{
-			name:          "Arbitrary config path",
-			publicKeyPath: "",
-			configDir:     "app",
+			name:                "Arbitrary config path",
+			publicKeyPath:       "",
+			configDir:           "app",
+			instancesEnabledDir: "instances.enabled",
+		},
+		{
+			name:                "Empty instance.enabled path",
+			publicKeyPath:       "",
+			configDir:           "app",
+			instancesEnabledDir: "",
+		},
+		{
+			name:                "Special instance.enabled path",
+			publicKeyPath:       "",
+			configDir:           "app",
+			instancesEnabledDir: ".",
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx, err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
-				testCase.configDir)
+				testCase.configDir, testCase.instancesEnabledDir)
 			require.NoError(t, err,
 				"initialization should pass successfully")
 			require.NotNil(t, ctx.Repository,
