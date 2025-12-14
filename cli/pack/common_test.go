@@ -894,6 +894,42 @@ func Test_prepareBundle(t *testing.T) {
 			},
 		},
 		{
+			name: "Packing env with CartridgeCompat and instances.enabled:.",
+			params: params{
+				configPath:    "testdata/single_app/tt.yml",
+				tntExecutable: "testdata/single_app/bin/tarantool",
+				packCtx: PackCtx{
+					TarantoolIsSystem: false,
+					CartridgeCompat:   true,
+				},
+			},
+			wantErr: false,
+			checks: []check{
+				{assert.NoDirExists, "instances.enabled"},
+				{assert.NoFileExists, "tt.yaml"},
+				{assert.NoFileExists, "tt.yml"},
+				{assert.NoDirExists, "include"},
+
+				{assert.NoDirExists, "single_app/instances.enabled"},
+				{assert.NoDirExists, "single_app/include"},
+				{assert.NoDirExists, "single_app/templates"},
+				{assert.NoDirExists, "single_app/modules"},
+				{assert.NoDirExists, "single_app/templates"},
+				{assert.NoDirExists, "single_app/distfiles"},
+				{assert.NoFileExists, "single_app/bin/tarantool"},
+				{assert.NoFileExists, "single_app/bin/tt"},
+				{assert.FileExists, "single_app/init.lua"},
+				{assert.FileExists, "single_app/tt.yaml"},
+				{assert.FileExists, "single_app/VERSION.lua"},
+				{assert.FileExists, "single_app/VERSION"},
+				{assert.NoFileExists, "single_app/tt.yml"},
+				{assert.NoFileExists, "single_app/single_app_0.1.0.0-1_x86_64.deb"},
+				{assert.NoFileExists, "single_app/single_app-0.1.0.0-1.x86_64.rpm"},
+				{assert.NoFileExists, "single_app/single_app-0.1.0.0.x86_64.tar.gz"},
+				{assert.FileExists, "single_app/single_app-0.1.0.0.x86_64.zip"},
+			},
+		},
+		{
 			name: "Packing app and build rocks",
 			params: params{
 				configPath:    "testdata/app_with_rockspec/tt.yaml",
@@ -1098,12 +1134,14 @@ func Test_prepareBundle(t *testing.T) {
 				Integrity: integrity.IntegrityCtx{Repository: &mockRepository{}},
 			}
 			require.NoError(t, FillCtx(&cmdCtx, &tt.params.packCtx, cliOpts, []string{"tgz"}))
+
 			bundleDir, err := prepareBundle(&cmdCtx, &tt.params.packCtx, cliOpts, tt.params.build)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
+
 			defer func() {
 				if strings.HasPrefix(bundleDir, "/tmp/") ||
 					strings.HasPrefix(bundleDir, "/private/") {
@@ -1111,6 +1149,7 @@ func Test_prepareBundle(t *testing.T) {
 					os.RemoveAll(bundleDir)
 				}
 			}()
+
 			for _, check := range tt.checks {
 				check.checkFunc(t, filepath.Join(bundleDir, check.path))
 			}

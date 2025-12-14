@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `pack`: if the `--cartridge-compat` flag is set `pack deb` and `pack rpm`
+  commands add files with application and tarantool versions to the package.
+
 ### Changed
 
 ### Fixed

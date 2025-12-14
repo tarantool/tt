@@ -129,9 +129,6 @@ func checkFlags(packCtx *pack.PackCtx) error {
 			log.Warnf("You specified the --all flag," +
 				" but you are not packaging a tarball. Flag will be ignored")
 		}
-		if packCtx.CartridgeCompat {
-			return errors.New("cartridge-compat flag can only be used while packing tgz bundle")
-		}
 	}
 	// Check if --with-integrity-check and --without-binaries flags are provided
 	// simultaneously. If this is the case, return an error for safety reasons.

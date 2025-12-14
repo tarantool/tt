@@ -419,6 +419,18 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 	}
 
+	if packCtx.CartridgeCompat {
+		// Generate VERSION file.
+		if err := generateVersionFile(bundleEnvPath, cmdCtx, packCtx); err != nil {
+			log.Warnf("Failed to generate VERSION file: %s", err)
+		}
+
+		// Generate VERSION.lua file.
+		if err := generateVersionLuaFile(bundleEnvPath, packCtx); err != nil {
+			log.Warnf("Failed to generate VERSION.lua file: %s", err)
+		}
+	}
+
 	if packCtx.Archive.All {
 		if err = copyArtifacts(*packCtx, bundleEnvPath, newOpts, packCtx.AppsInfo); err != nil {
 			return "", fmt.Errorf("failed copying artifacts: %s", err)

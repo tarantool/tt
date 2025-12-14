@@ -1067,6 +1067,13 @@ def prepare_deb_test_cases(tt_cmd) -> list:
             "args": ["--deps", "tarantool>=1.10,tt=2.0"],
             "res_file": "bundle1_0.1.0.0-1_" + get_arch() + ".deb",
         },
+        {
+            "bundle_src": "single_app",
+            "cmd": tt_cmd,
+            "pack_type": "deb",
+            "args": ["--cartridge-compat", "--version", "1.2.3"],
+            "res_file": "single_app" + "_1.2.3-1_" + get_arch() + ".deb",
+        },
     ]
 
 
@@ -1100,6 +1107,13 @@ def prepare_rpm_test_cases(tt_cmd) -> list:
             "pack_type": "rpm",
             "args": ["--deps", "tarantool>=1.10,tt=2.0"],
             "res_file": "bundle1-0.1.0.0-1." + get_arch() + ".rpm",
+        },
+        {
+            "bundle_src": "single_app",
+            "cmd": tt_cmd,
+            "pack_type": "rpm",
+            "args": ["--cartridge-compat", "--version", "1.2.3"],
+            "res_file": "single_app" + "-1.2.3-1." + get_arch() + ".rpm",
         },
     ]
 
@@ -1408,9 +1422,11 @@ tarantool:tarantool"""
         in output
     )
 
-    file = open(os.path.join(os.path.dirname(__file__), "systemd_unit_template.txt"), mode="r")
-    app_systemd_template = file.read()
-    file.close()
+    with open(
+        os.path.join(os.path.dirname(__file__), "systemd_unit_template.txt"),
+        mode="r",
+    ) as file:
+        app_systemd_template = file.read()
 
     assert app_systemd_template.format(app="app1", args="app1", bundle="bundle1") in output
     assert app_systemd_template.format(app="app2@%i", args="app2:%i", bundle="bundle1") in output
@@ -1419,10 +1435,28 @@ tarantool:tarantool"""
     verify_rpmdeb_package_content(unpacked_pkg_dir)
 
 
+def prepare_pack_deb_single_app_test_cases(tt_cmd) -> list:
+    tt_cmd = tt_cmd
+    return [
+        {
+            "name": "clean",
+            "command": ["pack", "deb"],
+            "paths": ["tt.yaml", "instances.yml", "config.yaml", "bin/tt", "bin/tarantool"],
+        },
+        {
+            "name": "with_version",
+            "command": ["pack", "deb", "--cartridge-compat"],
+            "paths": ["tt.yaml", "instances.yml", "config.yaml", "VERSION", "VERSION.lua"],
+        },
+    ]
+
+
 @pytest.mark.docker
 def test_pack_deb_single_app(tt_cmd, tmp_path):
     if shutil.which("docker") is None:
         pytest.skip("docker is not installed in this system")
+
+    test_cases = prepare_pack_deb_single_app_test_cases(tt_cmd)
 
     # check if docker daemon is up
     rc, _ = run_command_and_get_output(["docker", "ps"])
@@ -1441,68 +1475,85 @@ def test_pack_deb_single_app(tt_cmd, tmp_path):
 
     base_dir = tmp_path
 
-    cmd = [tt_cmd, "pack", "deb"]
+    unpacked_dir = os.path.join(base_dir, "unpacked")
+    os.mkdir(unpacked_dir)
 
-    rc, output = run_command_and_get_output(cmd, cwd=base_dir, env=dict(os.environ, PWD=tmp_path))
-    assert rc == 0
+    for test_case in test_cases:
+        cmd = [tt_cmd, *test_case["command"]]
 
-    package_file_name = "single_app_0.1.0.0-1_" + get_arch() + ".deb"
-    package_file = os.path.join(base_dir, package_file_name)
-    assert os.path.isfile(package_file)
+        rc, output = run_command_and_get_output(
+            cmd,
+            cwd=base_dir,
+            env=dict(os.environ, PWD=tmp_path),
+        )
+        assert rc == 0
 
-    unpacked_pkg_dir = os.path.join(tmp_path, "unpacked")
-    os.mkdir(unpacked_pkg_dir)
+        package_file_name = "single_app_0.1.0.0-1_" + get_arch() + ".deb"
+        package_file = os.path.join(base_dir, package_file_name)
+        assert os.path.isfile(package_file)
 
-    rc, output = run_command_and_get_output(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "-v",
-            "{0}:/usr/src/".format(base_dir),
-            "-v",
-            "{0}:/tmp/unpack".format(unpacked_pkg_dir),
-            "-w",
-            "/usr/src",
-            "jrei/systemd-ubuntu",
-            "/bin/bash",
-            "-c",
-            "/bin/dpkg -i {0}"
-            "&& id tarantool "
-            " && dpkg -x {0} /tmp/unpack "
-            " && chown {1}:{2} /tmp/unpack -R".format(package_file_name, os.getuid(), os.getgid()),
-        ],
-    )
-    assert rc == 0
+        unpacked_pkg_dir = os.path.join(unpacked_dir, test_case["name"])
+        os.mkdir(unpacked_pkg_dir)
 
-    assert re.search(r"uid=\d+\(tarantool\) gid=\d+\(tarantool\) groups=\d+\(tarantool\)", output)
+        rc, output = run_command_and_get_output(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                "{0}:/usr/src/".format(base_dir),
+                "-v",
+                "{0}:/tmp/unpack".format(unpacked_pkg_dir),
+                "-w",
+                "/usr/src",
+                "jrei/systemd-ubuntu",
+                "/bin/bash",
+                "-c",
+                "/bin/dpkg -i {0}"
+                "&& id tarantool "
+                " && dpkg -x {0} /tmp/unpack "
+                " && chown {1}:{2} /tmp/unpack -R".format(
+                    package_file_name,
+                    os.getuid(),
+                    os.getgid(),
+                ),
+            ],
+        )
+        assert rc == 0
 
-    file = open(os.path.join(os.path.dirname(__file__), "systemd_unit_template.txt"), mode="r")
-    app_systemd_template = file.read()
-    file.close()
-
-    with open(os.path.join(tmp_path, "instantiated_unit.txt"), "w") as f:
-        f.write(
-            app_systemd_template.format(
-                app="single_app@%i",
-                args="single_app:%i",
-                bundle="single_app",
-            ),
+        assert re.search(
+            r"uid=\d+\(tarantool\) gid=\d+\(tarantool\) groups=\d+\(tarantool\)",
+            output,
         )
 
-    assert filecmp.cmp(
-        os.path.join(tmp_path, "instantiated_unit.txt"),
-        os.path.join(unpacked_pkg_dir, "usr/lib/systemd/system/single_app@.service"),
-        False,
-    )
+        with open(
+            os.path.join(os.path.dirname(__file__), "systemd_unit_template.txt"),
+            mode="r",
+        ) as file:
+            app_systemd_template = file.read()
 
-    # Verify Deb package content.
-    env_path = os.path.join(unpacked_pkg_dir, "usr", "share", "tarantool", "single_app")
-    for path in ["tt.yaml", "instances.yml", "config.yaml", "bin/tt", "bin/tarantool"]:
-        assert os.path.exists(os.path.join(env_path, path))
+        with open(os.path.join(tmp_path, "instantiated_unit.txt"), "w") as f:
+            f.write(
+                app_systemd_template.format(
+                    app="single_app@%i",
+                    args="single_app:%i",
+                    bundle="single_app",
+                ),
+            )
 
-    for path in ["include", "templates", "distfiles", "modules", "tt.yml"]:
-        assert not os.path.exists(os.path.join(env_path, path))
+        assert filecmp.cmp(
+            os.path.join(tmp_path, "instantiated_unit.txt"),
+            os.path.join(unpacked_pkg_dir, "usr/lib/systemd/system/single_app@.service"),
+            False,
+        )
+
+        # Verify Deb package content.
+        env_path = os.path.join(unpacked_pkg_dir, "usr", "share", "tarantool", "single_app")
+        for path in test_case["paths"]:
+            assert os.path.exists(os.path.join(env_path, path))
+
+        for path in ["include", "templates", "distfiles", "modules", "tt.yml"]:
+            assert not os.path.exists(os.path.join(env_path, path))
 
 
 @pytest.mark.slow
@@ -1577,9 +1628,11 @@ def test_pack_rpm(tt_cmd, tmp_path):
     for unit in systemd_units:
         assert re.search(unit, output)
 
-    file = open(os.path.join(os.path.dirname(__file__), "systemd_unit_template.txt"), mode="r")
-    app_systemd_template = file.read()
-    file.close()
+    with open(
+        os.path.join(os.path.dirname(__file__), "systemd_unit_template.txt"),
+        mode="r",
+    ) as file:
+        app_systemd_template = file.read()
 
     assert app_systemd_template.format(app="app1", args="app1", bundle="bundle1") in output
     assert app_systemd_template.format(app="app2@%i", args="app2:%i", bundle="bundle1") in output
@@ -1667,9 +1720,11 @@ def test_pack_rpm_single_app(tt_cmd, tmp_path):
 
     assert rc == 0
 
-    file = open(os.path.join(os.path.dirname(__file__), "systemd_unit_template.txt"), mode="r")
-    app_systemd_template = file.read()
-    file.close()
+    with open(
+        os.path.join(os.path.dirname(__file__), "systemd_unit_template.txt"),
+        mode="r",
+    ) as file:
+        app_systemd_template = file.read()
 
     with open(os.path.join(tmp_path, "instantiated_unit.txt"), "w") as f:
         f.write(
