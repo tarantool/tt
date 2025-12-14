@@ -43,18 +43,6 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return err
 	}
 
-	if packCtx.CartridgeCompat {
-		// Generate VERSION file.
-		if err := generateVersionFile(bundlePath, cmdCtx, packCtx); err != nil {
-			log.Warnf("Failed to generate VERSION file: %s", err)
-		}
-
-		// Generate VERSION.lua file.
-		if err := generateVersionLuaFile(bundlePath, packCtx); err != nil {
-			log.Warnf("Failed to generate VERSION.lua file: %s", err)
-		}
-	}
-
 	log.Infof("Creating tarball.")
 
 	currentDir, err := os.Getwd()
@@ -78,10 +66,17 @@ func (packer *archivePacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 func generateVersionLuaFile(bundlePath string, packCtx *PackCtx) error {
 	log.Infof("Generate %s file", versionLuaFileName)
 
-	versionLuaFilePath := filepath.Join(bundlePath, packCtx.Name, versionLuaFileName)
+	versionLuaFilePath := filepath.Join(bundlePath, versionLuaFileName)
 	// Check if the file already exists.
 	if _, err := os.Stat(versionLuaFilePath); err == nil {
 		log.Warnf("File %s will be overwritten", versionLuaFileName)
+	} else {
+		// Create required directory.
+		dir := filepath.Dir(versionLuaFilePath)
+
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
 	}
 
 	err := os.WriteFile(versionLuaFilePath,
@@ -113,7 +108,6 @@ func generateVersionFile(bundlePath string, cmdCtx *cmdcontext.CmdCtx, packCtx *
 
 	// Rocks versions.
 	rocksVersionsMap, err := LuaGetRocksVersions(filepath.Join(bundlePath, packCtx.Name))
-
 	if err != nil {
 		log.Warnf("Can't process rocks manifest file. Dependency information can't be "+
 			"shipped to the resulting package: %s", err)
@@ -131,7 +125,19 @@ func generateVersionFile(bundlePath string, cmdCtx *cmdcontext.CmdCtx, packCtx *
 		}
 	}
 
-	versionFilePath := filepath.Join(bundlePath, packCtx.Name, versionFileName)
+	versionFilePath := filepath.Join(bundlePath, versionFileName)
+	// Check if the file already exists.
+	if _, err := os.Stat(versionFilePath); err == nil {
+		log.Warnf("File %s will be overwritten", versionFileName)
+	} else {
+		// Create required directory.
+		dir := filepath.Dir(versionFilePath)
+
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
 	err = os.WriteFile(versionFilePath, []byte(strings.Join(versionFileLines, "\n")+"\n"), 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write VERSION file %s: %s", versionFilePath, err)

@@ -1,0 +1,11 @@
+#!/bin/sh
+if [ "$1" = "--version" ]; then
+cat <<"EOF"
+Tarantool Enterprise 3.2.0-0-g19607a903
+Target: Linux-x86_64-RelWithDebInfo
+Build options: cmake . -DCMAKE_INSTALL_PREFIX=/__w/sdk/sdk/build.sdk/tarantool-ee-3.2/static-build/tarantool-prefix -DENABLE_BACKTRACE=TRUE
+Compiler: GNU-9.3.1
+C_FLAGS: -fexceptions -funwind-tables -fasynchronous-unwind-tables -static-libstdc++ -fno-common -msse2 -Wformat -Wformat-security -Werror=format-security -fstack-protector-strong -fPIC -fmacro-prefix-map=/__w/sdk/sdk/tarantool-ee-3.2=. -std=c11 -Wall -Wextra -Wno-gnu-alignof-expression -fno-gnu89-inline -Wno-cast-function-type -O2 -g -DNDEBUG -ggdb -O2 -flto -fno-fat-lto-objects
+CXX_FLAGS: -fexceptions -funwind-tables -fasynchronous-unwind-tables -static-libstdc++ -fno-common -msse2 -Wformat -Wformat-security -Werror=format-security -fstack-protector-strong -fPIC -fmacro-prefix-map=/__w/sdk/sdk/tarantool-ee-3.2=. -std=c++11 -Wall -Wextra -Wno-invalid-offsetof -Wno-gnu-alignof-expression -Wno-cast-function-type -O2 -g -DNDEBUG -ggdb -O2 -flto -fno-fat-lto-objects
+EOF
+fi
