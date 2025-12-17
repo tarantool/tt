@@ -7,6 +7,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tarantool/go-tarantool/v2 v2.3.2
 	github.com/tarantool/tt/lib/connect v0.0.0-0
+	github.com/tarantool/tt/lib/dial v0.0.0-0
 	go.etcd.io/etcd/api/v3 v3.5.12
 	go.etcd.io/etcd/client/pkg/v3 v3.5.12
 	go.etcd.io/etcd/client/v3 v3.5.12
@@ -77,7 +78,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/tarantool/go-tlsdialer v1.0.0
+	github.com/tarantool/go-tlsdialer v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.etcd.io/etcd/tests/v3 v3.5.12
@@ -93,3 +94,5 @@ require (
 )
 
 replace github.com/tarantool/tt/lib/connect => ../connect
+
+replace github.com/tarantool/tt/lib/dial => ../dial

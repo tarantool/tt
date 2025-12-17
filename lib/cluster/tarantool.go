@@ -10,8 +10,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/tarantool/go-tarantool/v2"
-	"github.com/tarantool/go-tlsdialer"
 	libconnect "github.com/tarantool/tt/lib/connect"
+	"github.com/tarantool/tt/lib/dial"
 )
 
 // TarantoolAllCollector collects data from a Tarantool for a whole prefix.
@@ -558,38 +558,6 @@ func tarantoolTxnGet(conn tarantool.Doer,
 	return resp, nil
 }
 
-// MakeConnectOptsFromUriOpts create Tarantool connect options from
-// URI options.
-func MakeConnectOptsFromUriOpts(src libconnect.UriOpts) (tarantool.Dialer, tarantool.Opts) {
-	address := fmt.Sprintf("tcp://%s", src.Host)
-
-	var dialer tarantool.Dialer
-
-	if src.KeyFile != "" || src.CertFile != "" || src.CaFile != "" || src.Ciphers != "" {
-		dialer = tlsdialer.OpenSSLDialer{
-			Address:     address,
-			User:        src.Username,
-			Password:    src.Password,
-			SslKeyFile:  src.KeyFile,
-			SslCertFile: src.CertFile,
-			SslCaFile:   src.CaFile,
-			SslCiphers:  src.Ciphers,
-		}
-	} else {
-		dialer = tarantool.NetDialer{
-			Address:  address,
-			User:     src.Username,
-			Password: src.Password,
-		}
-	}
-
-	opts := tarantool.Opts{
-		Timeout: src.Timeout,
-	}
-
-	return dialer, opts
-}
-
 func ConnectTarantool(uriOpts libconnect.UriOpts,
 	connOpts ConnectOpts,
 ) (tarantool.Connector, error) {
@@ -604,7 +572,24 @@ func ConnectTarantool(uriOpts libconnect.UriOpts,
 		}
 	}
 
-	dialer, connectorOpts := MakeConnectOptsFromUriOpts(uriOpts)
+	dialOpts := dial.Opts{
+		Address:     fmt.Sprintf("tcp://%s", uriOpts.Host),
+		User:        uriOpts.Username,
+		Password:    uriOpts.Password,
+		SslKeyFile:  uriOpts.KeyFile,
+		SslCertFile: uriOpts.CertFile,
+		SslCaFile:   uriOpts.CaFile,
+		SslCiphers:  uriOpts.Ciphers,
+	}
+
+	dialer, err := dial.New(dialOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to tarantool: %w", err)
+	}
+
+	connectorOpts := tarantool.Opts{
+		Timeout: uriOpts.Timeout,
+	}
 
 	ctx := context.Background()
 	if connectorOpts.Timeout > 0 {

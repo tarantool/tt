@@ -11,6 +11,7 @@ import (
 func ssl(opts Opts) (tarantool.Dialer, error) {
 	return tlsdialer.OpenSSLDialer{
 		Address:         opts.Address,
+		Auth:            opts.Auth,
 		User:            opts.User,
 		Password:        opts.Password,
 		SslKeyFile:      opts.SslKeyFile,

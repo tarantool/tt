@@ -76,6 +76,24 @@ func TestNew(t *testing.T) {
 			},
 			expected: tarantool.NetDialer{},
 		},
+		{
+			name: "transport_plain_auth_ignored",
+			opts: Opts{
+				Auth:      tarantool.AutoAuth,
+				Transport: "plain",
+			},
+			expected: tarantool.NetDialer{},
+		},
+		{
+			name: "transport_ssl_auth",
+			opts: Opts{
+				Auth:      tarantool.ChapSha1Auth,
+				Transport: "ssl",
+			},
+			expected: tlsdialer.OpenSSLDialer{
+				Auth: tarantool.ChapSha1Auth,
+			},
+		},
 	}
 
 	for _, tc := range cases {
