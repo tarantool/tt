@@ -6,6 +6,7 @@ require (
 	github.com/adam-hanna/arrayOperations v0.2.6
 	github.com/alecthomas/participle/v2 v2.0.0-alpha4
 	github.com/apex/log v1.9.0
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/briandowns/spinner v1.11.1
 	github.com/dave/jennifer v1.5.0
 	github.com/docker/docker v26.1.5+incompatible
@@ -21,19 +22,19 @@ require (
 	github.com/moby/term v0.0.0-20221105221325-4eb28fa6025c
 	github.com/nxadm/tail v1.4.11
 	github.com/otiai10/copy v1.14.0
+	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-tarantool v1.12.2
 	github.com/tarantool/go-tarantool/v2 v2.3.2
-	github.com/tarantool/go-tlsdialer v1.0.0
 	github.com/tarantool/tt/lib/cluster v0.0.0
 	github.com/tarantool/tt/lib/connect v0.0.0-0
+	github.com/tarantool/tt/lib/dial v0.0.0-0
 	github.com/tarantool/tt/lib/integrity v0.0.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.1-0.20230219103905-71163b697a8f
-	go.etcd.io/etcd/api/v3 v3.5.12
 	go.etcd.io/etcd/client/pkg/v3 v3.5.12
 	go.etcd.io/etcd/client/v3 v3.5.12
 	go.etcd.io/etcd/tests/v3 v3.5.12
@@ -52,7 +53,6 @@ require (
 	github.com/FZambia/tarantool v0.2.1 // indirect
 	github.com/Microsoft/go-winio v0.5.3 // indirect
 	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
-	github.com/avast/retry-go v3.0.0+incompatible // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/c-bata/go-prompt v0.2.6 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
@@ -104,7 +104,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.2.0-beta.2 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.11.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.30.0 // indirect
@@ -120,12 +119,14 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.1.1 // indirect
+	github.com/tarantool/go-tlsdialer v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
 	github.com/tklauser/numcpus v0.2.1 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/bbolt v1.3.8 // indirect
+	go.etcd.io/etcd/api/v3 v3.5.12 // indirect
 	go.etcd.io/etcd/client/v2 v2.305.12 // indirect
 	go.etcd.io/etcd/pkg/v3 v3.5.12 // indirect
 	go.etcd.io/etcd/raft/v3 v3.5.12 // indirect
@@ -163,5 +164,6 @@ replace (
 	github.com/tarantool/cartridge-cli => ./cli/cartridge/third_party/cartridge-cli
 	github.com/tarantool/tt/lib/cluster => ./lib/cluster
 	github.com/tarantool/tt/lib/connect => ./lib/connect
+	github.com/tarantool/tt/lib/dial => ./lib/dial
 	github.com/tarantool/tt/lib/integrity => ./lib/integrity
 )
