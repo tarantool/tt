@@ -8,7 +8,14 @@ import tempfile
 import pytest
 import yaml
 
-from utils import config_name, is_valid_tarantool_installed, run_command_and_get_output
+from utils import (
+    config_name,
+    get_tarantool_commit,
+    is_tarantool_ee,
+    is_tarantool_less,
+    is_valid_tarantool_installed,
+    run_command_and_get_output,
+)
 
 
 @pytest.mark.slow
@@ -317,6 +324,10 @@ def test_install_tarantool(tt_cmd, tmp_path, required_ver: str, installed_ver: s
     assert os.path.exists(os.path.join(tmp_path, "bin", f"tarantool_{installed_ver}"))
 
 
+@pytest.mark.skipif(
+    is_tarantool_ee() or is_tarantool_less(2, 10),
+    reason="Tarantool CE 2.10 or above required",
+)
 @pytest.mark.slow
 @pytest.mark.docker
 def test_install_tarantool_in_docker(tt_cmd, tmp_path):
@@ -330,21 +341,29 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
 
     tmp_path_without_config = tempfile.mkdtemp()
 
+    commit = get_tarantool_commit()
+
     # Install latest tarantool.
-    install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", "--use-docker"]
-    tt_process = subprocess.Popen(
+    install_cmd = [
+        tt_cmd,
+        "-V",
+        "--cfg",
+        config_path,
+        "install",
+        "-f",
+        "tarantool",
+        commit,
+        "--use-docker",
+    ]
+    tt_process = subprocess.run(
         install_cmd,
         cwd=tmp_path_without_config,
         stderr=subprocess.STDOUT,
-        # Do not use pipe for stdout, if you are not going to read from it.
-        # In case of build failure, docker logs are printed to stdout. It fills pipe buffer and
-        # blocks all subsequent stdout write calls in tt, because there is no pipe reader in test.
-        stdout=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
         text=True,
     )
+    assert tt_process.returncode == 0
 
-    instance_process_rc = tt_process.wait()
-    assert instance_process_rc == 0
     installed_cmd = [tmp_path / "bin" / "tarantool", "-v"]
     installed_program_process = subprocess.Popen(
         installed_cmd,
