@@ -530,6 +530,28 @@ def get_tarantool_version(tarantool_bin="tarantool"):
     return int(match.group("major")), int(match.group("minor"))
 
 
+def get_tarantool_commit(tarantool_bin="tarantool"):
+    try:
+        tt_process = subprocess.Popen(
+            [tarantool_bin, "--version"],
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        return None
+
+    tt_process.wait()
+    assert tt_process.returncode == 0
+    version = tt_process.stdout.readline()
+
+    match = re.match(r"Tarantool\s+(Enterprise\s+)?\d+\.\d+.*-g(?P<commit>[0-9a-f]+)$", version)
+
+    assert match is not None
+
+    return match.group("commit")
+
+
 def read_kv(dirname):
     kvs = {}
     for filename in os.listdir(dirname):
