@@ -151,7 +151,7 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 
 	containerId, err := createContainer(dockerClient, runOptions)
 	if err != nil {
-		return nil
+		return fmt.Errorf("failed to create container: %w", err)
 	}
 	defer func() {
 		log.Debugf("Removing container %s", containerId[:12])

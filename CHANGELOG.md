@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt coredump`: adjust Tarantool GDB-extention to avoid load failure if `main_cord`
   symbol is `optimized out` in gdb session.
 - `tt pack`: corrupts relative symbolic links.
+- `tt install`: fails to install tarantool by commit hash.
 - `tt install`: fails to install tarantool 3.6.0 using docker (`--use-docker`).
 - `tt` can be built without linking to OpenSSL.
 

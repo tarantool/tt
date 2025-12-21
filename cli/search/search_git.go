@@ -139,7 +139,7 @@ func GetCommitFromGitRemote(repo, input string) (string, error) {
 	defer os.RemoveAll(tempRepoPath)
 
 	cmd := exec.Command("git", "clone", "--filter=blob:none", "--no-checkout",
-		"--single-branch", repo, tempRepoPath)
+		repo, tempRepoPath)
 
 	err = cmd.Run()
 	if err != nil {
