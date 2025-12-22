@@ -9,13 +9,15 @@ RUN apt-get update && apt-get install -y tt={{ .tt_version }} || \
   apt-get install -y tt
 
 # Install Tarantool
-FROM --platform=linux/amd64 ubuntu:18.04 as tarantool-builder
+FROM --platform=linux/amd64 ubuntu:20.04 as tarantool-builder
 
 COPY --from=tt-builder /usr/bin/tt /usr/bin
 
 WORKDIR /usr/src/tarantool
 
 RUN apt update
+
+ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN apt install -y git build-essential cmake make zlib1g-dev \
   libreadline-dev libncurses5-dev libssl-dev libunwind-dev libicu-dev \

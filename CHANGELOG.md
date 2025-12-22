@@ -11,11 +11,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Container that is used to build tarantool when `--use-docker` is specified with
+  `tt install` or `tt pack` command is upgraded to Ubuntu 20.04.
+
 ### Fixed
 
 - `tt coredump`: adjust Tarantool GDB-extention to avoid load failure if `main_cord`
   symbol is `optimized out` in gdb session.
 - `tt pack`: corrupts relative symbolic links.
+- `tt install`: fails to install tarantool 3.6.0 using docker (`--use-docker`).
 
 ## [2.11.0] - 2025-09-10
 
