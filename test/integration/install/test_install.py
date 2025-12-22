@@ -365,7 +365,7 @@ def test_install_tarantool_in_docker(tt_cmd, tmp_path):
         + os.path.join(tmp_path, "bin", "tarantool")
         + " | grep -o -E 'GLIBC_[.0-9]+' | sort -V | tail -n1",
     )
-    assert out == "GLIBC_2.27"
+    assert out == "GLIBC_2.29"
 
     assert os.path.exists(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
 
