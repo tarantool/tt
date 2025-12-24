@@ -1751,7 +1751,7 @@ def test_pack_rpm_single_app(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(True, reason="Until #1224 will be merged")
+@pytest.mark.docker
 def test_pack_rpm_use_docker(tt_cmd, tmp_path):
     if shutil.which("docker") is None:
         pytest.skip("docker is not installed in this system")
@@ -1813,7 +1813,6 @@ def test_pack_rpm_use_docker(tt_cmd, tmp_path):
 
 @pytest.mark.slow
 @pytest.mark.docker
-@pytest.mark.skipif(True, reason="Until #1224 will be merged")
 def test_pack_deb_use_docker_tnt_version(tt_cmd, tmp_path):
     if shutil.which("docker") is None:
         pytest.skip("docker is not installed in this system")
@@ -1932,7 +1931,7 @@ def test_pack_rpm_use_docker_wrong_version(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(True, reason="Until #1224 will be merged")
+@pytest.mark.docker
 def test_pack_deb_use_docker(tt_cmd, tmp_path):
     if shutil.which("docker") is None:
         pytest.skip("docker is not installed in this system")

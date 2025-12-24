@@ -393,3 +393,15 @@ def cluster_supervised(request, tt, cluster, config_storage):
     request.addfinalizer(lambda: coordinator.kill())
 
     return cluster
+
+
+@pytest.fixture(scope="session", autouse=True)
+def docker_cleanup():
+    yield
+    if shutil.which("docker") is not None and os.getenv("TT_ENABLE_DOCKER_CLEANUP") is not None:
+        cmd = ["docker", "system", "prune", "--all", "--force", "--volumes"]
+        try:
+            subprocess.run(cmd, check=True)
+            print("Docker system pruned (containers, images, volumes, networks).")
+        except subprocess.CalledProcessError as e:
+            print(f"Docker prune failed: {e}")
