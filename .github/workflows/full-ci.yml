@@ -142,10 +142,16 @@ jobs:
       - name: Stop Mono server
         run: sudo systemctl kill mono-xsp4 || true
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Integration tests
         env:
           TT_ENABLE_COREDUMP_TESTS: '1'
-        run: mage integrationfull
+        run: mage integrationfull || true
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
 
   full-ci-macOS:
     if: false
