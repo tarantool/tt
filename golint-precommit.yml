@@ -93,6 +93,7 @@ linters:
       - third_party$
       - builtin$
       - examples$
+      - magefile.go
 
 formatters:
   exclusions:

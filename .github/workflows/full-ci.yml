@@ -50,10 +50,16 @@ jobs:
       - name: Stop Mono server
         run: sudo systemctl kill mono-xsp4 || true
 
-      - name: Integration tests
+      - name: Integration tests (only docker tests)
         env:
           TT_ENABLE_COREDUMP_TESTS: '1'
-        run: mage integrationfull
+          TT_ENABLE_DOCKER_CLEANUP: '1'
+        run: mage integrationfulldocker
+
+      - name: Integration tests (w/o docker tests)
+        env:
+          TT_ENABLE_COREDUMP_TESTS: '1'
+        run: mage integrationfullskipdocker
 
   full-ci-ce-linux-arm64:
     if: false
@@ -84,7 +90,13 @@ jobs:
       - name: Unit tests
         run: mage unit:fullSkipDocker
 
-      - name: Integration tests
+      - name: Integration tests (only docker tests)
+        env:
+          TT_ENABLE_COREDUMP_TESTS: '1'
+          TT_ENABLE_DOCKER_CLEANUP: '1'
+        run: mage integrationfulldocker
+
+      - name: Integration tests (w/o docker tests)
         env:
           TT_ENABLE_COREDUMP_TESTS: '1'
         run: mage integrationfullskipdocker
@@ -142,10 +154,16 @@ jobs:
       - name: Stop Mono server
         run: sudo systemctl kill mono-xsp4 || true
 
-      - name: Integration tests
+      - name: Integration tests (only docker tests)
         env:
           TT_ENABLE_COREDUMP_TESTS: '1'
-        run: mage integrationfull
+          TT_ENABLE_DOCKER_CLEANUP: '1'
+        run: mage integrationfulldocker
+
+      - name: Integration tests (w/o docker tests)
+        env:
+          TT_ENABLE_COREDUMP_TESTS: '1'
+        run: mage integrationfullskipdocker
 
   full-ci-macOS:
     if: false

@@ -319,7 +319,6 @@ def test_install_tarantool(tt_cmd, tmp_path, required_ver: str, installed_ver: s
 
 @pytest.mark.slow
 @pytest.mark.docker
-@pytest.mark.skipif(True, reason="Until #1224 will be merged")
 def test_install_tarantool_in_docker(tt_cmd, tmp_path):
     if platform.system() == "Darwin":
         pytest.skip("/set platform is unsupported")

@@ -440,6 +440,14 @@ func IntegrationFullSkipDocker() error {
 		"not slow_ee and not notarantool and not docker", "test/integration")
 }
 
+// Run only docker tests from the full set.
+func IntegrationFullDocker() error {
+	fmt.Println("Running docker integration tests...")
+
+	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
+		"not slow_ee and not notarantool and docker", "test/integration")
+}
+
 // Run set of ee integration tests.
 func IntegrationEE() error {
 	fmt.Println("Running all EE integration tests...")
