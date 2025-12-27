@@ -162,6 +162,8 @@ require (
 replace (
 	github.com/c-bata/go-prompt => github.com/tarantool/go-prompt v0.2.6-tarantool
 	github.com/tarantool/cartridge-cli => ./cli/cartridge/third_party/cartridge-cli
+	github.com/tarantool/go-openssl => ./lib/go-openssl
+	github.com/tarantool/go-tarantool/v2 => ./lib/go-tarantool
 	github.com/tarantool/tt/lib/cluster => ./lib/cluster
 	github.com/tarantool/tt/lib/connect => ./lib/connect
 	github.com/tarantool/tt/lib/dial => ./lib/dial

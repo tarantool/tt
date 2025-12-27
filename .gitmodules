@@ -11,3 +11,9 @@
 	path = cli/aeon/protos
 	url = https://github.com/tarantool/aeon-api-protos.git
 	branch = master
+[submodule "lib/go-tarantool"]
+	path = lib/go-tarantool
+	url = ../go-tarantool
+[submodule "lib/go-openssl"]
+	path = lib/go-openssl
+	url = ../go-openssl

@@ -2,7 +2,7 @@ name: publish
 
 on:
   push:
-    branches: [master]
+    branches: [master, elhimov/gh-1227-deprecated-macos-13-runners]
     tags: ['*']
   workflow_dispatch:
 
@@ -146,7 +146,7 @@ jobs:
 
   create-packages-macos:
     needs: validate-tag
-    runs-on: macos-13
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -171,8 +171,9 @@ jobs:
           cd openssl-3.0.8/
           ./Configure --prefix=${GITHUB_WORKSPACE}/openssl no-shared
           make && make install
-          echo "CGO_LDFLAGS=-L${GITHUB_WORKSPACE}/openssl/lib" >> $GITHUB_ENV
-          echo "CGO_CFLAGS=-I${GITHUB_WORKSPACE}/openssl/include" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=${GITHUB_WORKSPACE}/openssl/lib/pkgconfig:${PKG_CONFIG_PATH}" >>$GITHUB_ENV
+          # echo "CGO_LDFLAGS=-L${GITHUB_WORKSPACE}/openssl/lib" >> $GITHUB_ENV
+          # echo "CGO_CFLAGS=-I${GITHUB_WORKSPACE}/openssl/include" >> $GITHUB_ENV
 
       - name: Set GoReleaser flags
         id: set-goreleaser-flags
@@ -183,6 +184,9 @@ jobs:
             echo "::set-output name=GORELEASER_FLAGS::--rm-dist --snapshot"
           fi
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Build packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -191,6 +195,10 @@ jobs:
           version: v1.26.2
           args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_macOS.yml
 
+      - name: Setup tmate session
+        if: success() || failure()
+        uses: mxschmitt/action-tmate@v3
+  
       - name: Upload packages artifacts
         uses: actions/upload-artifact@v4
         with:
