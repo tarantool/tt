@@ -184,6 +184,9 @@ jobs:
             echo "::set-output name=GORELEASER_FLAGS::--rm-dist --snapshot"
           fi
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+
       - name: Build packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -192,6 +195,10 @@ jobs:
           version: v1.26.2
           args: release ${{ steps.set-goreleaser-flags.outputs.GORELEASER_FLAGS }} --skip-publish --config ./goreleaser/.goreleaser_macOS.yml
 
+      - name: Setup tmate session
+        if: success() || failure()
+        uses: mxschmitt/action-tmate@v3
+  
       - name: Upload packages artifacts
         uses: actions/upload-artifact@v4
         with:
