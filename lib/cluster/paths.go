@@ -27,6 +27,7 @@ var ConfigEnvPaths = [][]string{
 	{"compat", "box_error_serialize_verbose"},
 	{"compat", "box_error_unpack_type_and_code"},
 	{"compat", "box_info_cluster_meaning"},
+	{"compat", "box_recovery_triggers_deprecation"},
 	{"compat", "box_session_push_deprecation"},
 	{"compat", "box_space_execute_priv"},
 	{"compat", "box_space_max"},
@@ -44,8 +45,10 @@ var ConfigEnvPaths = [][]string{
 	{"compat", "yaml_pretty_multiline"},
 	{"config", "context"},
 	{"config", "etcd", "endpoints"},
+	{"config", "etcd", "http", "request", "interface"},
 	{"config", "etcd", "http", "request", "timeout"},
 	{"config", "etcd", "http", "request", "unix_socket"},
+	{"config", "etcd", "http", "request", "verbose"},
 	{"config", "etcd", "password"},
 	{"config", "etcd", "prefix"},
 	{"config", "etcd", "ssl", "ca_file"},
@@ -62,6 +65,7 @@ var ConfigEnvPaths = [][]string{
 	{"config", "storage", "prefix"},
 	{"config", "storage", "reconnect_after"},
 	{"config", "storage", "timeout"},
+	{"connpool", "idle_timeout"},
 	{"console", "enabled"},
 	{"console", "socket"},
 	{"credentials", "roles"},
@@ -76,12 +80,15 @@ var ConfigEnvPaths = [][]string{
 	{"database", "use_mvcc_engine"},
 	{"failover", "call_timeout"},
 	{"failover", "connect_timeout"},
+	{"failover", "http", "listen"},
 	{"failover", "lease_interval"},
 	{"failover", "log", "file"},
 	{"failover", "log", "to"},
+	{"failover", "metrics", "exporters"},
 	{"failover", "probe_interval"},
 	{"failover", "renew_interval"},
 	{"failover", "replicasets"},
+	{"failover", "replication_lag_threshold"},
 	{"failover", "stateboard", "enabled"},
 	{"failover", "stateboard", "keepalive_interval"},
 	{"failover", "stateboard", "renew_interval"},
@@ -132,6 +139,12 @@ var ConfigEnvPaths = [][]string{
 	{"iproto", "listen"},
 	{"iproto", "net_msg_max"},
 	{"iproto", "readahead"},
+	{"iproto", "ssl", "ca_file"},
+	{"iproto", "ssl", "ssl_cert"},
+	{"iproto", "ssl", "ssl_ciphers"},
+	{"iproto", "ssl", "ssl_key"},
+	{"iproto", "ssl", "ssl_password"},
+	{"iproto", "ssl", "ssl_password_file"},
 	{"iproto", "threads"},
 	{"isolated"},
 	{"labels"},
@@ -153,6 +166,7 @@ var ConfigEnvPaths = [][]string{
 	{"memtx", "slab_alloc_factor"},
 	{"memtx", "slab_alloc_granularity"},
 	{"memtx", "sort_threads"},
+	{"memtx", "use_sort_data"},
 	{"metrics", "exclude"},
 	{"metrics", "include"},
 	{"metrics", "labels"},
@@ -163,6 +177,9 @@ var ConfigEnvPaths = [][]string{
 	{"process", "title"},
 	{"process", "username"},
 	{"process", "work_dir"},
+	{"quiver", "dir"},
+	{"quiver", "memory"},
+	{"quiver", "run_size"},
 	{"replication", "anon"},
 	{"replication", "anon_ttl"},
 	{"replication", "autoexpel", "by"},
@@ -220,6 +237,9 @@ var ConfigEnvPaths = [][]string{
 	{"snapshot", "dir"},
 	{"snapshot", "snap_io_rate_limit"},
 	{"sql", "cache_size"},
+	{"stateboard", "enabled"},
+	{"stateboard", "keepalive_interval"},
+	{"stateboard", "renew_interval"},
 	{"vinyl", "bloom_fpr"},
 	{"vinyl", "cache"},
 	{"vinyl", "defer_deletes"},
@@ -412,6 +432,15 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	{
+		Path: []string{"compat", "box_recovery_triggers_deprecation"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	{
 		Path: []string{"compat", "box_session_push_deprecation"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -568,12 +597,20 @@ var TarantoolSchema = []SchemaPath{
 			StringValidator{}),
 	},
 	{
+		Path:      []string{"config", "etcd", "http", "request", "interface"},
+		Validator: StringValidator{},
+	},
+	{
 		Path:      []string{"config", "etcd", "http", "request", "timeout"},
 		Validator: NumberValidator{},
 	},
 	{
 		Path:      []string{"config", "etcd", "http", "request", "unix_socket"},
 		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"config", "etcd", "http", "request", "verbose"},
+		Validator: BooleanValidator{},
 	},
 	{
 		Path:      []string{"config", "etcd", "password"},
@@ -661,6 +698,10 @@ var TarantoolSchema = []SchemaPath{
 	},
 	{
 		Path:      []string{"config", "storage", "timeout"},
+		Validator: NumberValidator{},
+	},
+	{
+		Path:      []string{"connpool", "idle_timeout"},
 		Validator: NumberValidator{},
 	},
 	{
@@ -806,6 +847,34 @@ var TarantoolSchema = []SchemaPath{
 		Validator: NumberValidator{},
 	},
 	{
+		Path: []string{"failover", "http", "listen"},
+		Validator: MakeArrayValidator(
+			MakeRecordValidator(map[string]Validator{
+				"uri": StringValidator{},
+				"params": MakeRecordValidator(map[string]Validator{
+					"ssl_verify_client": MakeAllowedValidator(
+						StringValidator{},
+						[]any{
+							"off",
+							"on",
+							"optional",
+						}),
+					"ssl_key_file": StringValidator{},
+					"transport": MakeAllowedValidator(
+						StringValidator{},
+						[]any{
+							"plain",
+							"ssl",
+						}),
+					"ssl_cert_file":     StringValidator{},
+					"ssl_password_file": StringValidator{},
+					"ssl_password":      StringValidator{},
+					"ssl_ciphers":       StringValidator{},
+					"ssl_ca_file":       StringValidator{},
+				}),
+			})),
+	},
+	{
 		Path:      []string{"failover", "lease_interval"},
 		Validator: NumberValidator{},
 	},
@@ -821,6 +890,21 @@ var TarantoolSchema = []SchemaPath{
 				"stderr",
 				"file",
 			}),
+	},
+	{
+		Path: []string{"failover", "metrics", "exporters"},
+		Validator: MakeArrayValidator(
+			MakeRecordValidator(map[string]Validator{
+				"path": StringValidator{},
+				"format": MakeAllowedValidator(
+					StringValidator{},
+					[]any{
+						"prometheus",
+						"zabbix",
+						"telegraf",
+						"json",
+					}),
+			})),
 	},
 	{
 		Path:      []string{"failover", "probe_interval"},
@@ -840,7 +924,12 @@ var TarantoolSchema = []SchemaPath{
 				"priority": MakeMapValidator(
 					StringValidator{},
 					NumberValidator{}),
+				"synchro_mode": BooleanValidator{},
 			})),
+	},
+	{
+		Path:      []string{"failover", "replication_lag_threshold"},
+		Validator: NumberValidator{},
 	},
 	{
 		Path:      []string{"failover", "stateboard", "enabled"},
@@ -1081,6 +1170,30 @@ var TarantoolSchema = []SchemaPath{
 		Validator: IntegerValidator{},
 	},
 	{
+		Path:      []string{"iproto", "ssl", "ca_file"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"iproto", "ssl", "ssl_cert"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"iproto", "ssl", "ssl_ciphers"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"iproto", "ssl", "ssl_key"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"iproto", "ssl", "ssl_password"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"iproto", "ssl", "ssl_password_file"},
+		Validator: StringValidator{},
+	},
+	{
 		Path:      []string{"iproto", "threads"},
 		Validator: IntegerValidator{},
 	},
@@ -1205,6 +1318,10 @@ var TarantoolSchema = []SchemaPath{
 		Validator: IntegerValidator{},
 	},
 	{
+		Path:      []string{"memtx", "use_sort_data"},
+		Validator: BooleanValidator{},
+	},
+	{
 		Path: []string{"metrics", "exclude"},
 		Validator: MakeArrayValidator(
 			MakeAllowedValidator(
@@ -1228,6 +1345,7 @@ var TarantoolSchema = []SchemaPath{
 					"clock",
 					"event_loop",
 					"cpu_extended",
+					"schema",
 				})),
 	},
 	{
@@ -1254,6 +1372,7 @@ var TarantoolSchema = []SchemaPath{
 					"clock",
 					"event_loop",
 					"cpu_extended",
+					"schema",
 				})),
 	},
 	{
@@ -1289,6 +1408,18 @@ var TarantoolSchema = []SchemaPath{
 	{
 		Path:      []string{"process", "work_dir"},
 		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"quiver", "dir"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"quiver", "memory"},
+		Validator: IntegerValidator{},
+	},
+	{
+		Path:      []string{"quiver", "run_size"},
+		Validator: IntegerValidator{},
 	},
 	{
 		Path:      []string{"replication", "anon"},
@@ -1577,6 +1708,18 @@ var TarantoolSchema = []SchemaPath{
 	{
 		Path:      []string{"sql", "cache_size"},
 		Validator: IntegerValidator{},
+	},
+	{
+		Path:      []string{"stateboard", "enabled"},
+		Validator: BooleanValidator{},
+	},
+	{
+		Path:      []string{"stateboard", "keepalive_interval"},
+		Validator: NumberValidator{},
+	},
+	{
+		Path:      []string{"stateboard", "renew_interval"},
+		Validator: NumberValidator{},
 	},
 	{
 		Path:      []string{"vinyl", "bloom_fpr"},

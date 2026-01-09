@@ -13,7 +13,7 @@ func _() {
 	_ = x[ModeRW-2]
 }
 
-const _Mode_name = "unknownreadrw" // spell-checker:disable-line
+const _Mode_name = "unknownreadrw"
 
 var _Mode_index = [...]uint8{0, 7, 11, 13}
 
