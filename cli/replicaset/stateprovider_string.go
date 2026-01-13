@@ -14,7 +14,7 @@ func _() {
 	_ = x[StateProviderEtcd2-3]
 }
 
-const _StateProvider_name = "unknownnonetarantooletcd2" // spell-checker:disable-line
+const _StateProvider_name = "unknownnonetarantooletcd2"
 
 var _StateProvider_index = [...]uint8{0, 7, 11, 20, 25}
 

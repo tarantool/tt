@@ -15,7 +15,7 @@ func _() {
 	_ = x[ElectionModeManual-4]
 }
 
-const _ElectionMode_name = "unknownoffvotercandidatemanual" // spell-checker:disable-line
+const _ElectionMode_name = "unknownoffvotercandidatemanual"
 
 var _ElectionMode_index = [...]uint8{0, 7, 10, 15, 24, 30}
 
