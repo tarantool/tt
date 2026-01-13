@@ -17,7 +17,7 @@ func _() {
 	_ = x[FailoverSupervised-6]
 }
 
-const _Failover_name = "unknownoffmanualeventualelectionstatefulsupervised" // spell-checker:disable-line
+const _Failover_name = "unknownoffmanualeventualelectionstatefulsupervised"
 
 var _Failover_index = [...]uint8{0, 7, 10, 16, 24, 32, 40, 50}
 
