@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.11.1] - 2026-01-19
+
+The release allows `--cartridge-compat` flag for the `tt pack deb|rpm` commands.
+Also it includes several fixes for the `tt install` and `tt pack` commands and
+docker container used by these commands is upgraded to Ubuntu 20.04.
+
+### Added
+
 - `pack`: if the `--cartridge-compat` flag is set `pack deb` and `pack rpm`
   commands add files with application and tarantool versions to the package.
 
