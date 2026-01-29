@@ -43,6 +43,7 @@ func NewColorizedPrefixWriter(writer io.Writer, color color.Color, prefix string
 			}
 			buf.Reset()
 
+			// spell-checker:ignore submatch
 			if submatch := logLevelRgx.FindSubmatch(line); submatch != nil {
 				color.Fprint(&buf, prefix)
 				logLevelColors[string(submatch[1])].Fprintln(&buf, string(line))

@@ -112,6 +112,7 @@ func getFileModes(root string) (map[string]int, error) {
 }
 
 func main() {
+	// spell-checker:ignore filemodes
 	err := generateFileModeFile(
 		"cli/create/builtin_templates/templates/cartridge",
 		"cli/create/builtin_templates/static/cartridge_template_filemodes_gen.go",

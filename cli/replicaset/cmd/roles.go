@@ -35,7 +35,7 @@ type RolesChangeCtx struct {
 	Conn connector.Connector
 	// RunningCtx is an application running context.
 	RunningCtx running.RunningCtx
-	// Force is true if unfound instances can be skipped.
+	// Force is true if unavailable instances can be skipped.
 	Force bool
 	// Timeout describes a timeout in seconds.
 	// We keep int as it can be passed to the target instance.

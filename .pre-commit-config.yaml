@@ -47,7 +47,8 @@ repos:
         exclude: |
           (?x)^(
                 .*\.pb\.go|
-                .*/third_party/.*
+                .*/third_party/.*|
+                .*-gdb\.py
           )$
         additional_dependencies:
           - "@cspell/dict-markdown"

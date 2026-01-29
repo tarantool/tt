@@ -20,6 +20,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+// spell-checker:ignore cmps
+
 // EtcdOpts is a way to configure a etcd client.
 type EtcdOpts struct {
 	// Endpoints a slice of endpoints to connect.
@@ -747,11 +749,11 @@ func (publisher EtcdKeyDataPublisher) Publish(revision int64, data []byte) error
 			clientv3.OpPut(getSignKey(publisher.prefix, publisher.key), string(sign)))
 	}
 
-	tresp, err := txn.Then(putOps...).Commit()
+	tResp, err := txn.Then(putOps...).Commit()
 	if err != nil {
 		return fmt.Errorf("failed to put data into etcd: %w", err)
 	}
-	if !tresp.Succeeded {
+	if !tResp.Succeeded {
 		return fmt.Errorf("failed to put data into etcd: wrong revision")
 	}
 

@@ -60,7 +60,7 @@ var validCredentialsUris = []string{
 
 var invalidBaseUris = []string{
 	"tcp:localhost:123123",
-	"tcp:/anyhost:1",
+	"tcp:/anyhost:1", // spell-checker:ignore anyhost
 	"tcp://localhost:asd",
 	"tcp:///localhost:11",
 	"asd://localhost:111",
@@ -243,6 +243,7 @@ func TestParseBaseURI(t *testing.T) {
 	})
 }
 
+// spell-checker:ignore anyname cafile capath
 func TestParseUriOpts(t *testing.T) {
 	const defaultTimeout = 3 * time.Second
 

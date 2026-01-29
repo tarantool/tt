@@ -19,6 +19,8 @@ import (
 	"github.com/moby/term"
 )
 
+// spell-checker:ignore jsonmessage stdcopy
+
 const (
 	// defaultDirPermissions is permissions for new directories.
 	// 0755 - drwxr-xr-x.

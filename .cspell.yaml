@@ -30,3 +30,5 @@ ignoreRegExpList:
   - ^\s+(\w+\s+)?"github.com/.*" # Ignore Go import paths.
   - -D[A-Z\d_]+ # Ignore CMake flags "-DFLAG_NAME".
   - \d+-g[a-f\d]{4,} # Ignore git commit hashes in version string.
+
+allowCompoundWords: true

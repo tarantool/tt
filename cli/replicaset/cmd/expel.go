@@ -23,7 +23,7 @@ type ExpelCtx struct {
 	Orchestrator replicaset.Orchestrator
 	// RunningCtx is an application running context.
 	RunningCtx running.RunningCtx
-	// Force true if unfound instances can be skipped.
+	// Force true if unavailable instances can be skipped.
 	Force bool
 	// Timeout describes a timeout in seconds.
 	// We keep int as it can be passed to the target instance.
