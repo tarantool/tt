@@ -84,6 +84,8 @@ const (
 	rpmSenseScriptPostUn = 0x1000
 )
 
+// spell-checker:ignore tmpfiles
+
 var (
 	headerMagic   = []byte{0x8e, 0xad, 0xe8}
 	versionByte   = 0x01

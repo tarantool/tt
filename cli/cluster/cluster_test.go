@@ -11,6 +11,8 @@ import (
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
+// spell-checker:ignore nopath noinstance
+
 func TestGetClusterConfig_path(t *testing.T) {
 	collectors := libcluster.NewCollectorFactory(libcluster.NewDataCollectorFactory())
 	config, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")

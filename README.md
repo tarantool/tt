@@ -1,3 +1,4 @@
+<!-- spell-checker:ignore testfull -->
 
 <a href="http://tarantool.org">
   <img src="https://avatars2.githubusercontent.com/u/2344919?v=2&s=250"

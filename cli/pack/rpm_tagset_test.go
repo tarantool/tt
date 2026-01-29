@@ -12,8 +12,6 @@ func hex(b *bytes.Buffer) string {
 	return fmt.Sprintf("%x", b.Bytes())
 }
 
-// Please, read the doc in the tagset.go file
-// to understand how it should work
 // All `right` values was obtained by running the same functions
 // of the old Lua implementation
 

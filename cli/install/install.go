@@ -303,7 +303,7 @@ func programDependenciesInstalled(program search.Program) error {
 				{"make", "make"},
 				{"gcc", " build-essential"},
 			}
-			packages = []string{"coreutils", "sed"}
+			packages = []string{"coreutils", "sed"} // spell-checker:disable-line
 		} else if strings.Contains(osName, "CentOs") {
 			programs = []Package{
 				{"cmake", "cmake"},

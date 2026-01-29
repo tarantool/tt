@@ -17,7 +17,8 @@ var (
 // NewCoredumpCmd creates coredump command.
 func NewCoredumpCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "coredump",
+		Use: "coredump",
+		// spell-checker:ignore coredumps
 		Short: "Perform manipulations with the tarantool coredumps",
 	}
 

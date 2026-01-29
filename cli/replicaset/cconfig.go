@@ -219,19 +219,19 @@ func (c *CConfigApplication) Expel(ctx ExpelCtx) error {
 	}
 
 	var instances []running.InstanceCtx
-	var unfound []string
+	var unavailable []string
 	for _, inst := range targetReplicaset.Instances {
 		if !inst.InstanceCtxFound {
 			if inst.Alias != ctx.InstName {
 				// The target instance could be offline.
-				unfound = append(unfound, inst.Alias)
+				unavailable = append(unavailable, inst.Alias)
 			}
 		} else {
 			instances = append(instances, inst.InstanceCtx)
 		}
 	}
-	if len(unfound) > 0 {
-		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unfound, ","))
+	if len(unavailable) > 0 {
+		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unavailable, ","))
 		if !ctx.Force {
 			return fmt.Errorf(
 				"all other instances in the target replicaset should be online, %s", msg)
@@ -367,16 +367,16 @@ func (c *CConfigApplication) Promote(ctx PromoteCtx) error {
 	}
 
 	var instances []running.InstanceCtx
-	var unfound []string
+	var unavailable []string
 	for _, inst := range targetReplicaset.Instances {
 		if !inst.InstanceCtxFound {
-			unfound = append(unfound, inst.Alias)
+			unavailable = append(unavailable, inst.Alias)
 		} else {
 			instances = append(instances, inst.InstanceCtx)
 		}
 	}
-	if len(unfound) > 0 {
-		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unfound, ","))
+	if len(unavailable) > 0 {
+		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unavailable, ","))
 		if !ctx.Force {
 			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
 		}
@@ -406,16 +406,16 @@ func (c *CConfigApplication) Demote(ctx DemoteCtx) error {
 	}
 
 	var instances []running.InstanceCtx
-	var unfound []string
+	var unavailable []string
 	for _, inst := range targetReplicaset.Instances {
 		if !inst.InstanceCtxFound {
-			unfound = append(unfound, inst.Alias)
+			unavailable = append(unavailable, inst.Alias)
 		} else {
 			instances = append(instances, inst.InstanceCtx)
 		}
 	}
-	if len(unfound) > 0 {
-		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unfound, ","))
+	if len(unavailable) > 0 {
+		msg := fmt.Sprintf("could not connect to: %s", strings.Join(unavailable, ","))
 		if !ctx.Force {
 			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
 		}
@@ -486,8 +486,8 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 	}
 
 	var (
-		instances []running.InstanceCtx
-		unfound   []string
+		instances   []running.InstanceCtx
+		unavailable []string
 	)
 
 	if ctx.InstName != "" {
@@ -501,7 +501,7 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 		}
 		for _, inst := range targetReplicaset.Instances {
 			if !inst.InstanceCtxFound {
-				unfound = append(unfound, inst.Alias)
+				unavailable = append(unavailable, inst.Alias)
 				continue
 			}
 			instances = append(instances, inst.InstanceCtx)
@@ -510,15 +510,15 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 		for _, r := range c.replicasets.Replicasets {
 			for _, i := range r.Instances {
 				if !i.InstanceCtxFound {
-					unfound = append(unfound, i.Alias)
+					unavailable = append(unavailable, i.Alias)
 					continue
 				}
 				instances = append(instances, i.InstanceCtx)
 			}
 		}
 	}
-	if len(unfound) > 0 {
-		msg := "could not connect to: " + strings.Join(unfound, ",")
+	if len(unavailable) > 0 {
+		msg := "could not connect to: " + strings.Join(unavailable, ",")
 		if !ctx.Force {
 			return fmt.Errorf("all instances in the target replicaset should be online, %s", msg)
 		}

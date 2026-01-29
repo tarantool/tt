@@ -73,7 +73,7 @@ func (tagSet *rpmTagSetType) addTags(tags ...rpmTagType) {
  *
  *   -- Index ------------------------------------------------------------------
  *
- *  Each index entry contains information about all tags in tagset
+ *  Each index entry contains information about all tags in tag set
  *  (include regionTag).
  *
  *  - 4-byte tag.ID
@@ -292,6 +292,8 @@ func packTag(tag rpmTagType) (*packedTagType, error) {
 				return nil, err
 			}
 		}
+
+	// spell-checker:ignore bytedString
 
 	case rpmTypeStringArray: // STRING_ARRAY
 		// Value should be strings array.

@@ -92,16 +92,16 @@ func PublishRWS() error {
 	for _, targetDistro := range targetDistros {
 		fmt.Printf("Publish package for %s/%s...\n", targetDistro.OS, targetDistro.Dist)
 
-		patterns, perr := getPatterns(targetDistro)
-		if perr != nil {
+		patterns, err := getPatterns(targetDistro)
+		if err != nil {
 			return fmt.Errorf("failed to publish package for %s/%s: %s",
-				targetDistro.OS, targetDistro.Dist, perr)
+				targetDistro.OS, targetDistro.Dist, err)
 		}
 
-		files, ferr := walkMatch(distPath, patterns)
-		if ferr != nil {
+		files, err := walkMatch(distPath, patterns)
+		if err != nil {
 			return fmt.Errorf("failed to publish package for %s/%s: %s",
-				targetDistro.OS, targetDistro.Dist, ferr)
+				targetDistro.OS, targetDistro.Dist, err)
 		}
 
 		rwsUrlPart := os.Getenv("RWS_URL_PART")

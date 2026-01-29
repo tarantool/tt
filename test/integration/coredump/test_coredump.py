@@ -9,7 +9,7 @@ import pytest
 
 from utils import get_tarantool_version, run_command_and_get_output
 
-# spell-checker:ignore getrlimit setrlimit rlimit, rlim, coredumps, coredumpctl, apport
+# spell-checker:ignore getrlimit setrlimit rlimit rlim coredumps coredumpctl apport
 
 # Fixture below produces a coredump. The location of the coredumps is
 # configured over /proc/sys/kernel/core_pattern file in a various ways
