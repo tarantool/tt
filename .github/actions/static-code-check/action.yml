@@ -4,18 +4,24 @@ description: "Performs static code checks."
 runs:
   using: "composite"
   steps:
-    - name: Log versions
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '${{ env.GO_VERSION }}'
+
+    - name: Setup Mage
       run: |
-        go version
-        mage --version
-        tarantool --version
-        rpm --version
+        git clone https://github.com/magefile/mage
+        cd mage
+        go run bootstrap.go
       shell: bash
 
-    - name: License checker
-      run: |
-        go install github.com/uw-labs/lichen@latest
-        mage checklicenses
+    # This step is used to perform source generation, so subsequent check is done
+    # against the "complete" source set.
+    - name: Build tt
+      env:
+        TT_CLI_BUILD_SSL: 'static'
+      run: mage build
       shell: bash
 
     - name: Find git base branch
@@ -24,6 +30,7 @@ runs:
         HASH=$(git log --format='%H^%D' | grep 'origin/' | head -n 2 | tail -n 1 | cut -f1 -d^)
         echo "Found base branch with hash: '${HASH}'"
         echo "BASE_BRANCH=${HASH}" >> ${GITHUB_ENV}
+        echo "Python venv path: '${VIRTUAL_ENV}'"
 
     - name: pre-commit checks (diff)
       uses: pre-commit/action@v3.0.1
