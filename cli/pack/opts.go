@@ -119,5 +119,14 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpt
 		return fmt.Errorf("cannot pack multiple applications in cartridge compat mode")
 	}
 
+	// Initialize packignore filter.
+	ignoreFilter, err := createIgnoreFilter(util.GetOsFS(), cmdCtx.Cli.ConfigDir, ignoreFile)
+	if err != nil {
+		return fmt.Errorf("failed to initialize packignore filter: %w", err)
+	}
+	packCtx.skipFunc = func(srcinfo os.FileInfo, src, dest string) (bool, error) {
+		return ignoreFilter.shouldSkip(srcinfo, src), nil
+	}
+
 	return nil
 }
