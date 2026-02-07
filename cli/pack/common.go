@@ -166,18 +166,12 @@ func previousPackageFilters(packCtx *PackCtx) []skipFilter {
 func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 	srcAppPath string,
 ) (func(srcInfo os.FileInfo, src, dest string) (bool, error), error) {
-	f, err := createIgnoreFilter(util.GetOsFS(), srcAppPath, ignoreFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize packignore filter: %w", err)
-	}
-
 	appCopyFilters := appArtifactsFilters(cliOpts, srcAppPath)
 	appCopyFilters = append(appCopyFilters, ttEnvironmentFilters(packCtx, cliOpts)...)
 	appCopyFilters = append(appCopyFilters, previousPackageFilters(packCtx)...)
 	appCopyFilters = append(appCopyFilters, func(srcInfo os.FileInfo, src string) bool {
 		return skipDefaults(srcInfo, src)
 	})
-	appCopyFilters = append(appCopyFilters, f.shouldSkip)
 
 	return func(srcInfo os.FileInfo, src, dest string) (bool, error) {
 		for _, shouldSkip := range appCopyFilters {
@@ -185,7 +179,7 @@ func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 				return true, nil
 			}
 		}
-		return false, nil
+		return packCtx.skipFunc(srcInfo, src, dest)
 	}, nil
 }
 
@@ -242,8 +236,9 @@ func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *co
 			if files, _ := dir.Readdir(1); len(files) == 0 {
 				return // No modules.
 			}
-			if err := copy.Copy(directory,
-				util.JoinPaths(bundleEnvPath, newOpts.Modules.Directories[0])); err != nil {
+			dest := util.JoinPaths(bundleEnvPath, newOpts.Modules.Directories[0])
+			err = copy.Copy(directory, dest, copy.Options{Skip: packCtx.skipFunc})
+			if err != nil {
 				log.Warnf("Failed to copy modules from %q: %s", directory, err)
 			}
 		}
@@ -315,6 +310,7 @@ func getDestAppDir(bundleEnvPath, appName string,
 func copyApplications(bundleEnvPath string, packCtx *PackCtx,
 	cliOpts, newOpts *config.CliOpts,
 ) error {
+	fmt.Printf("copyApplications: bundleEnvPath=%s\n", bundleEnvPath)
 	var err error
 	for appName, instances := range packCtx.AppsInfo {
 		if len(instances) == 0 {
@@ -334,6 +330,7 @@ func copyApplications(bundleEnvPath string, packCtx *PackCtx,
 			}
 		} else {
 			bundleAppDir := getDestAppDir(bundleEnvPath, appName, packCtx, cliOpts)
+			fmt.Printf("copyApplications: bundleAppDir=%s\n", bundleAppDir)
 			if err = copyAppSrc(packCtx, cliOpts, appPath, bundleAppDir); err != nil {
 				return err
 			}
@@ -416,8 +413,9 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	// Copy tcm config, if any.
 	if cmdCtx.Cli.TcmCli.ConfigPath != "" {
-		if err := copy.Copy(cmdCtx.Cli.TcmCli.ConfigPath,
-			path.Join(bundleEnvPath, path.Base(cmdCtx.Cli.TcmCli.ConfigPath))); err != nil {
+		dest := path.Join(bundleEnvPath, path.Base(cmdCtx.Cli.TcmCli.ConfigPath))
+		err = copy.Copy(cmdCtx.Cli.TcmCli.ConfigPath, dest, copy.Options{Skip: packCtx.skipFunc})
+		if err != nil {
 			return "", fmt.Errorf("failed copying tcm config: %s", err)
 		}
 	}
@@ -464,6 +462,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 // copyAppSrc copies a source file or directory to the directory, that will be packed.
 func copyAppSrc(packCtx *PackCtx, cliOpts *config.CliOpts, srcAppPath, dstAppPath string) error {
+	fmt.Printf("copyAppSrc: %q -> %q\n", srcAppPath, dstAppPath)
 	resolvedAppPath, err := filepath.EvalSymlinks(srcAppPath)
 	if err != nil {
 		return err
@@ -532,7 +531,8 @@ func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
 			}
 			for _, toCopy := range copyInfo {
 				log.Debugf("Copying %q -> %q", toCopy.src, toCopy.dest)
-				if err := copy.Copy(toCopy.src, toCopy.dest); err != nil {
+				err := copy.Copy(toCopy.src, toCopy.dest, copy.Options{Skip: packCtx.skipFunc})
+				if err != nil {
 					log.Warnf("Failed to copy artifacts: %s", err)
 				}
 			}
