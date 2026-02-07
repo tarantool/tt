@@ -18,10 +18,7 @@ type ignoreFilter struct {
 	rootNode         *ignoreFilterNode
 }
 
-func createIgnoreFilter(fsys fs.FS, rootDir, patternsFileName string) (
-	*ignoreFilter,
-	error,
-) {
+func createIgnoreFilter(fsys fs.FS, rootDir, patternsFileName string) (*ignoreFilter, error) {
 	patternsFile := filepath.Join(rootDir, patternsFileName)
 	rootNode, err := createIgnoreFilterNode(fsys, patternsFile, nil)
 	if err != nil {
@@ -67,13 +64,13 @@ func turnEscapedToHexCode(s string, c rune) string {
 	return strings.ReplaceAll(s, `\`+string(c), fmt.Sprintf(`\x%x`, c))
 }
 
-func splitIgnorePattern(pattern string) (cleanPattern string, dirOnly, isNegate bool) {
+func splitIgnorePattern(pattern string) (matchingPattern string, dirOnly, isNegate bool) {
 	// Remove trailing spaces (unless escaped one).
-	cleanPattern = turnEscapedToHexCode(pattern, ' ')
-	cleanPattern = strings.TrimRight(cleanPattern, " ")
+	matchingPattern = turnEscapedToHexCode(pattern, ' ')
+	matchingPattern = strings.TrimRight(matchingPattern, " ")
 	// Parse negate and directory markers.
-	cleanPattern, dirOnly = strings.CutSuffix(cleanPattern, "/")
-	cleanPattern, isNegate = strings.CutPrefix(cleanPattern, "!")
+	matchingPattern, dirOnly = strings.CutSuffix(matchingPattern, "/")
+	matchingPattern, isNegate = strings.CutPrefix(matchingPattern, "!")
 	return
 }
 
@@ -83,10 +80,12 @@ func createIgnorePattern(pattern, basepath string) (ignorePattern, error) {
 	// occur as a part of `\\c` sequence which denotes '\' followed by <c>).
 	pattern = turnEscapedToHexCode(pattern, '\\')
 
-	cleanPattern, dirOnly, isNegate := splitIgnorePattern(pattern)
+	matchingPattern, dirOnly, isNegate := splitIgnorePattern(pattern)
 
-	// Translate pattern to regex expression.
-	expr := cleanPattern
+	// Translate matching pattern to regex expression.
+	// Translation is performed step by step in a certain sequence (see comments).
+	expr := matchingPattern
+
 	// Turn escaped '*' and '?' to their hex representation to simplify the translation.
 	expr = turnEscapedToHexCode(expr, '*')
 	expr = turnEscapedToHexCode(expr, '?')
@@ -96,22 +95,35 @@ func createIgnorePattern(pattern, basepath string) (ignorePattern, error) {
 		expr = strings.ReplaceAll(expr, "\\"+s, s)
 		expr = strings.ReplaceAll(expr, s, "\\"+s)
 	}
-	// Replace wildcards with the corresponding regex representation.
-	// Note that '{0,}' (not '*') is used while replacing '**' to avoid confusing
-	// in the subsequent replacement of a single '*'.
-	expr = strings.ReplaceAll(expr, "/**/", "/([^/]+/){0,}")
-	expr, found := strings.CutPrefix(expr, "**/")
-	if found || !strings.Contains(cleanPattern, "/") {
-		expr = "([^/]+/){0,}" + expr
-	}
-	expr, found = strings.CutSuffix(expr, "/**")
-	if found {
-		expr = expr + "/([^/]+/){0,}[^/]+"
-	}
-	expr = strings.ReplaceAll(expr, "*", "[^/]*")
+
+	// Turn '?' to its regex representation here because '?' might be used in the subsequent
+	// transformations to specify non-capturing groups '(?:re)'.
 	expr = strings.ReplaceAll(expr, "?", "[^/]")
 
-	re, err := regexp.Compile("^" + basepath + expr + "$")
+	// Replace '**' wildcards with the corresponding regex representation.
+	// Note that '{0,}' rather than '*' is used while replacing '**' to avoid confusing
+	// in the subsequent replacement of a single '*'.
+	expr = strings.ReplaceAll(expr, "/**/", "/(?:[^/]+/){0,}")
+	expr, found := strings.CutPrefix(expr, "**/")
+	if found || !strings.Contains(matchingPattern, "/") {
+		expr = "(?:[^/]+/){0,}" + expr
+	}
+
+	expr, found = strings.CutSuffix(expr, "/**")
+	// Turn '*' to its regex representation before injecting basepath to avoid confusing with '*'
+	// that basepath itself might contain (within basepath it's not a wildcard, but just '*').
+	expr = strings.ReplaceAll(expr, "*", "[^/]*")
+
+	// Construct final expression where the single captured group corresponds to the initial
+	// matchingPattern. This captured group might be used additionally to identify if some path
+	// matches pattern or not (see `ignorePattern.MatchPath`).
+	if found {
+		expr = fmt.Sprintf("(%s(?:/[^/]+){1,})", basepath+expr)
+	} else {
+		expr = fmt.Sprintf("(%s)(?:/[^/]+){0,}", basepath+expr)
+	}
+
+	re, err := regexp.Compile("^" + expr + "$")
 	if err != nil {
 		return ignorePattern{}, fmt.Errorf("failed to compile expression: %w", err)
 	}
@@ -123,6 +135,22 @@ func createIgnorePattern(pattern, basepath string) (ignorePattern, error) {
 	}, nil
 }
 
+func (p ignorePattern) MatchPath(info fs.FileInfo, path string) bool {
+	submatches := p.re.FindStringSubmatch(path)
+	if submatches == nil {
+		return false
+	}
+
+	// For dirOnly pattern it is needed to check additionally that if path is not a directory
+	// it doesn't match directory part, which is represented with the single captured group
+	// (see `createIgnorePattern`).
+	if !p.dirOnly || info.IsDir() || submatches[1] != path {
+		return true
+	}
+
+	return false
+}
+
 // loadIgnorePatterns reads ignore patterns from the patternsFile.
 func loadIgnorePatterns(fsys fs.FS, patternsFile string) ([]ignorePattern, error) {
 	contents, err := fs.ReadFile(fsys, patternsFile)
@@ -131,6 +159,12 @@ func loadIgnorePatterns(fsys fs.FS, patternsFile string) ([]ignorePattern, error
 	}
 
 	basepath, _ := filepath.Split(patternsFile)
+
+	// Escape symbols that designate themselves in a path, but have special meaning in a regex
+	// because basepath is to be the part of every regex based on the patterns from this file.
+	for _, s := range []string{"(", ")", "{", "}", "[", "]", "+", "?", "*", "|"} {
+		basepath = strings.ReplaceAll(basepath, s, "\\"+s)
+	}
 
 	var patterns []ignorePattern
 	s := bufio.NewScanner(bytes.NewReader(contents))
@@ -219,12 +253,12 @@ func (node *ignoreFilterNode) findNode(path string) *ignoreFilterNode {
 // shouldSkip searches the tree from this node towards root for the first pattern
 // that matches path and returns true if it's regular one (i.e. non-negative)
 // and false otherwise. If no match found it returns false as well.
-func (node *ignoreFilterNode) shouldSkip(info os.FileInfo, path string) bool {
-	for _, p := range node.patterns {
-		isApplicable := info.IsDir() || !p.dirOnly
-		if isApplicable && p.re.MatchString(path) {
-			return !p.isNegate
-		}
+func (node *ignoreFilterNode) shouldSkip(info fs.FileInfo, path string) bool {
+	i := slices.IndexFunc(node.patterns, func(p ignorePattern) bool {
+		return p.MatchPath(info, path)
+	})
+	if i != -1 {
+		return !node.patterns[i].isNegate
 	}
 
 	if node.parent != nil {
