@@ -15,6 +15,18 @@ env:
   PYTHON_VERSION: '3.10'
 
 jobs:
+  static-code-check:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Static code check
+        uses: ./.github/actions/static-code-check
+
   full-ci-ce:
     if: |
       (github.event_name == 'push') ||
@@ -39,9 +51,6 @@ jobs:
         uses: ./.github/actions/prepare-ce-test-env
         with:
           tarantool-version: '${{ matrix.tarantool-version }}'
-
-      - name: Static code check
-        uses: ./.github/actions/static-code-check
 
       - name: Unit tests
         run: mage unitfull
@@ -143,9 +152,6 @@ jobs:
         with:
           sdk-version: '${{ matrix.sdk-version }}'
           sdk-download-token: '${{ secrets.SDK_DOWNLOAD_TOKEN }}'
-
-      - name: Static code check
-        uses: ./.github/actions/static-code-check
 
       - name: Unit tests
         run: mage unitfull
