@@ -1,6 +1,10 @@
 package pack
 
-import "github.com/tarantool/tt/cli/running"
+import (
+	"os"
+
+	"github.com/tarantool/tt/cli/running"
+)
 
 // PackCtx contains all flags for tt pack command.
 type PackCtx struct {
@@ -40,6 +44,8 @@ type PackCtx struct {
 	AppsInfo map[string][]running.InstanceCtx
 	// ConfigFilePath is a path to tt env configuration file.
 	configFilePath string
+	// ignoreFilter is a filter used to exclude files during packing.
+	skipFunc func(srcinfo os.FileInfo, src, dest string) (bool, error)
 }
 
 // ArchiveCtx contains flags specific for tgz type.
