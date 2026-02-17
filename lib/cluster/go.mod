@@ -5,7 +5,7 @@ go 1.23.8
 require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/stretchr/testify v1.10.0
-	github.com/tarantool/go-tarantool/v2 v2.3.2
+	github.com/tarantool/go-tarantool/v2 v2.4.2
 	github.com/tarantool/tt/lib/connect v0.0.0-0
 	github.com/tarantool/tt/lib/dial v0.0.0-0
 	go.etcd.io/etcd/api/v3 v3.5.12

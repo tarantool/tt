@@ -27,8 +27,8 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tarantool/cartridge-cli v0.0.0-20220605082730-53e6a5be9a61
 	github.com/tarantool/go-prompt v1.0.1
-	github.com/tarantool/go-tarantool v1.12.2
-	github.com/tarantool/go-tarantool/v2 v2.3.2
+	github.com/tarantool/go-tarantool v1.12.3
+	github.com/tarantool/go-tarantool/v2 v2.4.2
 	github.com/tarantool/tt/lib/cluster v0.0.0
 	github.com/tarantool/tt/lib/connect v0.0.0-0
 	github.com/tarantool/tt/lib/dial v0.0.0-0
