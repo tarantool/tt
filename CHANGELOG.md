@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+## [2.11.2] - 2026-02-19
+
+The release includes minor fixes identified by Svacer and CVE linters.
+
 ## [2.11.1] - 2026-01-19
 
 The release allows `--cartridge-compat` flag for the `tt pack deb|rpm` commands.
