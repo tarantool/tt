@@ -18,7 +18,7 @@ inputs:
 
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.23.8'
+  GO_VERSION: '1.25.7'
 
 runs:
   using: "composite"
