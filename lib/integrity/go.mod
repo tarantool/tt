@@ -1,10 +1,10 @@
 module github.com/tarantool/tt/lib/integrity
 
-go 1.23.8
+go 1.25.7
 
 require (
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.10.0
 )
 
 require (

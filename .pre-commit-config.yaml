@@ -73,7 +73,7 @@ repos:
           - mvdan.cc/gofumpt@v0.8.0
 
   - repo: https://github.com/segmentio/golines
-    rev: fc305205784a70b4cfc17397654f4c94e3153ce4
+    rev: b3563a80300708f80336c70c746bb81b3d0fe73e
     hooks:
       - id: golines
         name: "Go: shorten long lines"
@@ -82,7 +82,7 @@ repos:
         args: [--max-len=100, --tab-len=4, --no-reformat-tags]
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.2.2
+    rev: v2.9.0
     hooks:
       - id: golangci-lint
         name: "Go: verify sources"
