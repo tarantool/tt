@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	frameworkintegration "go.etcd.io/etcd/tests/v3/framework/integration"
 	"go.etcd.io/etcd/tests/v3/integration"
 
 	"github.com/tarantool/tt/cli/cluster"
@@ -63,12 +64,12 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 			tls.KeyFile = keyPath
 		}
 	}
-	config := integration.ClusterConfig{Size: 1, PeerTLS: tls, UseTCP: true}
+	config := frameworkintegration.ClusterConfig{Size: 1, PeerTLS: tls, UseTCP: true}
 	inst := integration.NewLazyClusterWithConfig(config)
 
 	if opts.Username != "" {
 		etcd, err := libcluster.ConnectEtcd(libcluster.EtcdOpts{
-			Endpoints: inst.EndpointsV3(),
+			Endpoints: inst.EndpointsGRPC(),
 		})
 		require.NoError(t, err)
 		defer etcd.Close()
@@ -167,7 +168,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 		Password: "pass",
 	})
 	defer inst.Terminate()
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 
 	tmpDir, err := os.MkdirTemp("", "work_dir")
 	require.NoError(t, err)
@@ -251,7 +252,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 		Password: pass,
 	})
 	defer inst.Terminate()
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 
 	tmpDir, err := os.MkdirTemp("", "work_dir")
 	require.NoError(t, err)

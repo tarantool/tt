@@ -122,7 +122,12 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 
 			version, err := version.Parse(parsedData["version"])
 			if err != nil {
-				log.Debugf("failed to parse version of %s from package %s: %v", searchCtx.Program, pkg, err)
+				log.Debugf(
+					"failed to parse version of %s from package %s: %v",
+					searchCtx.Program,
+					pkg,
+					err,
+				)
 				continue
 			}
 
