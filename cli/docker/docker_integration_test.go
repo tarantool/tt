@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,14 +20,14 @@ import (
 
 func findAndRemoveBuiltImage(t *testing.T, dockerClient *client.Client, expectedTag string) {
 	ctx := context.Background()
-	imageList, err := dockerClient.ImageList(ctx, types.ImageListOptions{})
+	imageList, err := dockerClient.ImageList(ctx, image.ListOptions{})
 	require.NoError(t, err)
 	imgFound := false
 	for _, img := range imageList {
 		for _, imgTag := range img.RepoTags {
 			if imgTag == "ubuntu:tt_test" {
 				imgFound = true
-				dockerClient.ImageRemove(ctx, img.ID, types.ImageRemoveOptions{})
+				dockerClient.ImageRemove(ctx, img.ID, image.RemoveOptions{})
 			}
 		}
 	}

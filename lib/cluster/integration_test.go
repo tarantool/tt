@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	frameworkintegration "go.etcd.io/etcd/tests/v3/framework/integration"
 	"go.etcd.io/etcd/tests/v3/integration"
 
 	"github.com/tarantool/go-tarantool/v2"
@@ -85,12 +86,12 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 			tls.KeyFile = keyPath
 		}
 	}
-	config := integration.ClusterConfig{Size: 1, PeerTLS: tls, UseTCP: true}
+	config := frameworkintegration.ClusterConfig{Size: 1, PeerTLS: tls, UseTCP: true}
 	inst := integration.NewLazyClusterWithConfig(config)
 
 	if opts.Username != "" {
 		etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{
-			Endpoints: inst.EndpointsV3(),
+			Endpoints: inst.EndpointsGRPC(),
 		})
 		require.NoError(t, err)
 		defer etcd.Close()
@@ -264,7 +265,7 @@ func TestConnectEtcd(t *testing.T) {
 			inst := startEtcd(t, tc.Opts.ServerOpts)
 			defer inst.Terminate()
 
-			tc.Opts.ClientOpts.Endpoints = inst.EndpointsV3()
+			tc.Opts.ClientOpts.Endpoints = inst.EndpointsGRPC()
 			etcd, err := cluster.ConnectEtcd(tc.Opts.ClientOpts)
 			require.NoError(t, err)
 			require.NotNil(t, etcd)
@@ -295,7 +296,7 @@ func TestEtcdCollectors_single(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -328,7 +329,7 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -352,7 +353,7 @@ func TestEtcdCollectors_empty(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -381,7 +382,7 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -412,7 +413,7 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -445,7 +446,7 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -472,7 +473,7 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -501,7 +502,7 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -529,7 +530,7 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{})
 	defer inst.Terminate()
 
-	endpoints := inst.EndpointsV3()
+	endpoints := inst.EndpointsGRPC()
 	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
@@ -669,7 +670,7 @@ var testsIntegrity = []struct {
 			etcdInst := inst.(integration.LazyCluster)
 
 			etcd, err := clientv3.New(clientv3.Config{
-				Endpoints:   etcdInst.EndpointsV3(),
+				Endpoints:   etcdInst.EndpointsGRPC(),
 				DialTimeout: 1 * time.Second,
 			})
 			require.NoError(t, err)
@@ -690,7 +691,7 @@ var testsIntegrity = []struct {
 			etcdInst := inst.(integration.LazyCluster)
 
 			etcd, err := clientv3.New(clientv3.Config{
-				Endpoints:   etcdInst.EndpointsV3(),
+				Endpoints:   etcdInst.EndpointsGRPC(),
 				DialTimeout: 60 * time.Second,
 			})
 			require.NoError(t, err)
