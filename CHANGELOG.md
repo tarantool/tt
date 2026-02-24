@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt search`: fix unknown dev tags parsing.
+
 ## [2.11.2] - 2026-02-19
 
 The release includes minor fixes identified by Svacer and CVE linters.
