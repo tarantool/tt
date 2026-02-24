@@ -3,17 +3,18 @@ package status
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"strings"
 
-	"github.com/fatih/color"
-	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/process_utils"
 	"github.com/tarantool/tt/cli/running"
 )
+
+// InstanceStatusPrinter interface defines methods to output instance status information.
+type InstanceStatusPrinter interface {
+	Print(instances map[string]*instanceStatus) error
+}
 
 //go:embed lua/instance_state.lua
 var instanceInfoLuaScript string
@@ -32,14 +33,6 @@ func filterComments(script string) string {
 	return strings.Join(filteredLines, "\n")
 }
 
-// StatusOpts contains options for tt status.
-type StatusOpts struct {
-	// Option for pretty-formatted table output.
-	Pretty bool
-	// Option for detailed alerts output for each instance, such as warnings and errors.
-	Details bool
-}
-
 type alert struct {
 	Type    string `mapstructure:"type"`
 	Message string `mapstructure:"message"`
@@ -55,44 +48,63 @@ type upstream struct {
 	Message string `mapstructure:"message"`
 }
 
-type replicationInfo struct {
+type rawReplicationInfo struct {
 	UUID     string   `mapstructure:"uuid"`
 	Name     *string  `mapstructure:"name"`
 	Upstream upstream `mapstructure:"upstream"`
 }
 
-type instanceState struct {
-	ReplicationInfo []replicationInfo `mapstructure:"replication_info"`
-	ConfigInfo      configInfo        `mapstructure:"config_info"`
-	ReadOnly        string            `mapstructure:"read_only"`
-	BoxStatus       string            `mapstructure:"box_status"`
-	UUID            string            `mapstructure:"uuid"`
+type rawInstanceState struct {
+	ReplicationInfo []rawReplicationInfo `mapstructure:"replication_info"`
+	ConfigInfo      configInfo           `mapstructure:"config_info"`
+	ReadOnly        string               `mapstructure:"read_only"`
+	BoxStatus       string               `mapstructure:"box_status"`
+	UUID            string               `mapstructure:"uuid"`
 }
 
-func newInstanceStatusMap() map[string]interface{} {
-	return map[string]interface{}{
-		"STATUS":   "",
-		"PID":      nil,
-		"MODE":     "",
-		"CONFIG":   defaultModuleStatus,
-		"BOX":      defaultModuleStatus,
-		"UPSTREAM": defaultModuleStatus,
+type severity string
+
+const (
+	severityError   severity = "error"
+	severityWarning severity = "warning"
+)
+
+type instanceAlert struct {
+	Message  string   `json:"message"`
+	Severity severity `json:"severity"`
+}
+
+type instanceStatus struct {
+	Status             string                     `json:"status"`
+	PID                *int                       `json:"pid"`
+	Mode               string                     `json:"mode"`
+	Config             string                     `json:"config"`
+	Box                string                     `json:"box"`
+	Upstream           string                     `json:"upstream"`
+	Alerts             []instanceAlert            `json:"alerts"`
+	rawReplicationInfo []rawReplicationInfo       `json:"-" yaml:"-"`
+	procStatus         process_utils.ProcessState `json:"-" yaml:"-"`
+}
+
+func (is *instanceStatus) addAlert(message string, severity severity) {
+	is.Alerts = append(is.Alerts, instanceAlert{
+		Message:  message,
+		Severity: severity,
+	})
+}
+
+func newInstanceStatus() instanceStatus {
+	return instanceStatus{
+		Config:   defaultModuleStatus,
+		Box:      defaultModuleStatus,
+		Upstream: defaultModuleStatus,
 	}
 }
 
-var (
-	instances       = map[string]map[string]interface{}{}
-	instancesAlerts = map[string][]string{}
-	uuid2name       = map[string]string{}
-)
+type instanceStatusMap = map[string]*instanceStatus
 
-var (
-	printYellow = color.New(color.FgYellow).SprintFunc()
-	printRed    = color.New(color.FgRed).SprintFunc()
-)
-
-func processReplicationInfo(fullInstanceName string, instanceState instanceState) {
-	for _, repl := range instanceState.ReplicationInfo {
+func processReplicationInfo(instStatus *instanceStatus, uuid2name map[string]string) {
+	for _, repl := range instStatus.rawReplicationInfo {
 		fullInstanceUpstreamName, ok := uuid2name[repl.UUID]
 		// Use repl.Name if available, otherwise fallback to repl.UUID
 		if !ok {
@@ -105,7 +117,7 @@ func processReplicationInfo(fullInstanceName string, instanceState instanceState
 		if repl.Upstream.Status == "follow" || len(repl.Upstream.Message) == 0 {
 			continue
 		}
-		instances[fullInstanceName]["UPSTREAM"] = repl.Upstream.Status
+		instStatus.Upstream = repl.Upstream.Status
 
 		var upstreamInstanceDesc string
 		if ok || repl.Name != nil {
@@ -115,91 +127,91 @@ func processReplicationInfo(fullInstanceName string, instanceState instanceState
 			upstreamInstanceDesc = fmt.Sprintf("instance with UUID %s",
 				fullInstanceUpstreamName)
 		}
-		instancesAlerts[fullInstanceName] = append(instancesAlerts[fullInstanceName],
-			printYellow(fmt.Sprintf(
-				"[upstream][warning]: replication from %s is in %q status: %q",
-				upstreamInstanceDesc, repl.Upstream.Status,
-				repl.Upstream.Message)))
+		instStatus.addAlert(fmt.Sprintf(
+			"[upstream][warning]: replication from %s is in %q status: %q",
+			upstreamInstanceDesc, repl.Upstream.Status,
+			repl.Upstream.Message), severityWarning)
 	}
 }
 
-func processConfigInfo(fullInstanceName string, instanceState instanceState) {
+func processConfigInfo(instStatus *instanceStatus, instanceState rawInstanceState) {
 	if len(instanceState.ConfigInfo.Alerts) == 0 {
 		return
 	}
 	for _, alert := range instanceState.ConfigInfo.Alerts {
-		msg := ""
+		severity := severityWarning
 		if alert.Type == "error" {
-			msg = printRed(fmt.Sprintf("[config][error]: %s", alert.Message))
-		} else {
-			msg = printYellow(fmt.Sprintf("[config][warning]: %s", alert.Message))
+			severity = severityError
 		}
-		instancesAlerts[fullInstanceName] = append(instancesAlerts[fullInstanceName], msg)
+		instStatus.addAlert(fmt.Sprintf("[config][%s]: %s", alert.Type, alert.Message), severity)
 	}
 }
 
+// collectInstanceState connects to an instance and collects its state.
+func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
+	instStatus *instanceStatus,
+) (rawInstanceState, error) {
+	var instanceState rawInstanceState
+
+	conn, err := connector.Connect(connector.ConnectOpts{
+		Network: "unix",
+		Address: run.ConsoleSocket,
+	})
+	if err != nil {
+		if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
+			instStatus.addAlert(fmt.Sprintf(
+				"Error while connecting to instance %s via socket %s: %v",
+				fullInstanceName, run.ConsoleSocket, err), severityError)
+		}
+		return instanceState, fmt.Errorf("failed to connect to instance %s: %w",
+			fullInstanceName, err)
+	}
+
+	res, err := conn.Eval(filterComments(instanceInfoLuaScript), []any{},
+		connector.RequestOpts{})
+	if err != nil {
+		instStatus.addAlert(fmt.Sprintf(
+			"Error while executing Lua script on instance %s: %v",
+			fullInstanceName, err), severityError)
+		return instanceState, fmt.Errorf("failed to execute Lua script on instance %s: %w",
+			fullInstanceName, err)
+	}
+
+	if len(res) == 0 {
+		instStatus.addAlert(fmt.Sprintf(
+			"No data returned from Lua script on instance %s",
+			fullInstanceName), severityError)
+		return instanceState, fmt.Errorf("no data returned from Lua script")
+	}
+
+	err = mapstructure.Decode(res[0], &instanceState)
+	if err != nil {
+		instStatus.addAlert(fmt.Sprintf("Error while decoding data from "+
+			"instance %s: %v", fullInstanceName, err), severityError)
+		return instanceState, fmt.Errorf("failed to decode data from instance %s: %w",
+			fullInstanceName, err)
+	}
+
+	return instanceState, nil
+}
+
 // Status writes the status as a table.
-func Status(runningCtx running.RunningCtx, opts StatusOpts) error {
-	ts := table.NewWriter()
-	ts.SetOutputMirror(os.Stdout)
-	ts.AppendHeader(
-		table.Row{"INSTANCE", "STATUS", "PID", "MODE", "CONFIG", "BOX", "UPSTREAM"})
-
-	instanceRawState := map[string]instanceState{}
-
+func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter) error {
+	instances := make(instanceStatusMap)
+	uuid2name := map[string]string{}
 	for _, run := range runningCtx.Instances {
 		fullInstanceName := running.GetAppInstanceName(run)
-		procStatus := running.Status(&run)
-		instances[fullInstanceName] = newInstanceStatusMap()
-		instances[fullInstanceName]["STATUS"] = procStatus.ColorSprint(procStatus.Status)
+		instStatus := newInstanceStatus()
+		instStatus.procStatus = running.Status(&run)
+		instStatus.Status = instStatus.procStatus.Status
+		instances[fullInstanceName] = &instStatus
 
-		if procStatus.Code == process_utils.ProcessRunningCode {
-			instances[fullInstanceName]["PID"] = procStatus.PID
+		if instStatus.procStatus.Code == process_utils.ProcessRunningCode {
+			instStatus.PID = &instStatus.procStatus.PID
 		}
 
-		conn, err := connector.Connect(connector.ConnectOpts{
-			Network: "unix",
-			Address: run.ConsoleSocket,
-		})
-
-		if err != nil && procStatus.Code == process_utils.ProcessRunningCode {
-			instancesAlerts[fullInstanceName] = append(
-				instancesAlerts[fullInstanceName],
-				printRed(fmt.Sprintf(
-					"Error while connecting to instance %s via socket %s: %v",
-					fullInstanceName, run.ConsoleSocket, err)))
-			continue
-		} else if err != nil {
-			continue
-		}
-
-		var instanceState instanceState
-		res, err := conn.Eval(filterComments(instanceInfoLuaScript), []any{},
-			connector.RequestOpts{})
+		instanceState, err := collectInstanceState(run, fullInstanceName, &instStatus)
 		if err != nil {
-			instancesAlerts[fullInstanceName] = append(
-				instancesAlerts[fullInstanceName],
-				printRed(fmt.Sprintf(
-					"Error while executing Lua script on instance %s: %v",
-					fullInstanceName, err)))
-			continue
-		}
-
-		if len(res) == 0 {
-			instancesAlerts[fullInstanceName] = append(
-				instancesAlerts[fullInstanceName],
-				printRed(fmt.Sprintf(
-					"No data returned from Lua script on instance %s",
-					fullInstanceName)))
-			continue
-		}
-
-		err = mapstructure.Decode(res[0], &instanceState)
-		if err != nil {
-			instancesAlerts[fullInstanceName] = append(
-				instancesAlerts[fullInstanceName],
-				printRed(fmt.Sprintf("Error while decoding data from "+
-					"instance %s: %v", fullInstanceName, err)))
 			continue
 		}
 
@@ -207,71 +219,17 @@ func Status(runningCtx running.RunningCtx, opts StatusOpts) error {
 		// To make the alerts more readable, we map the UUIDs to instance names.
 		uuid2name[instanceState.UUID] = fullInstanceName
 
-		instanceRawState[fullInstanceName] = instanceState
-		instances[fullInstanceName]["MODE"] = instanceState.ReadOnly
-		instances[fullInstanceName]["CONFIG"] = instanceState.ConfigInfo.Status
-		instances[fullInstanceName]["BOX"] = instanceState.BoxStatus
+		processConfigInfo(&instStatus, instanceState)
+		instStatus.Mode = instanceState.ReadOnly
+		instStatus.Config = instanceState.ConfigInfo.Status
+		instStatus.Box = instanceState.BoxStatus
 	}
 
-	// Alert handling placed later because we need to know the mapping of instance UUIDs
-	// to their names for a more user-friendly output.
-	for fullInstanceName, instanceState := range instanceRawState {
-		processReplicationInfo(fullInstanceName, instanceState)
-		processConfigInfo(fullInstanceName, instanceState)
+	for _, instStatus := range instances {
+		processReplicationInfo(instStatus, uuid2name)
 	}
 
-	for instName, instData := range instances {
-		row := []interface{}{}
-		row = append(row, instName)
-		row = append(row, instData["STATUS"])
-		if instData["PID"] == nil {
-			ts.AppendRow(row)
-			continue
-		}
-		row = append(row, instData["PID"])
-		row = append(row, instData["MODE"])
-		row = append(row, instData["CONFIG"])
-		row = append(row, instData["BOX"])
-		row = append(row, instData["UPSTREAM"])
-		ts.AppendRow(row)
-	}
-	ts.SortBy([]table.SortBy{{Name: "INSTANCE", Mode: table.Asc}})
-
-	if opts.Details {
-		for instance, alerts := range instancesAlerts {
-			fmt.Printf("Alerts for %s:\n", instance)
-			for _, alert := range alerts {
-				fmt.Printf("  • %s\n", alert)
-			}
-			fmt.Println()
-		}
-	}
-	if opts.Pretty {
-		ts.SetStyle(table.StyleRounded)
-	} else {
-		ts.Style().Options.DrawBorder = false
-		ts.Style().Options.SeparateColumns = false
-		ts.Style().Options.SeparateHeader = false
-	}
-	ts.SetColumnConfigs([]table.ColumnConfig{
-		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 2, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 3, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-		{Number: 4, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
-	})
-	ts.Render()
-
-	if !opts.Details {
-		msg := "\nThe status of some instances requires attention.\n" +
-			"Please rerun the command with the --details flag to see " +
-			"more information"
-		for _, alerts := range instancesAlerts {
-			if len(alerts) > 0 {
-				fmt.Println(msg)
-				break
-			}
-		}
-	}
+	printer.Print(instances)
 
 	return nil
 }
