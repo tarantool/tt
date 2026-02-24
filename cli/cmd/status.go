@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -8,7 +10,17 @@ import (
 	"github.com/tarantool/tt/cli/status"
 )
 
-var opts status.StatusOpts
+// statusOpts contains options for tt status.
+type statusOpts struct {
+	// Output format: json, yaml, table, pretty-table.
+	format string
+	// Option for detailed alerts output for each instance, such as warnings and errors.
+	details bool
+	// Deprecated: use --format instead.
+	pretty bool
+}
+
+var opts statusOpts
 
 // NewStatusCmd creates status command.
 func NewStatusCmd() *cobra.Command {
@@ -43,8 +55,12 @@ Columns:
 		},
 	}
 
-	statusCmd.Flags().BoolVarP(&opts.Pretty, "pretty", "p", false, "pretty-print table")
-	statusCmd.Flags().BoolVarP(&opts.Details, "details", "d", false, "print detailed alerts.")
+	statusCmd.Flags().StringVarP(&opts.format, "format", "f", "table",
+		"output format: json, yaml, table, pretty-table")
+	statusCmd.Flags().BoolVarP(&opts.details, "details", "d", false, "print detailed alerts.")
+	statusCmd.Flags().BoolVarP(&opts.pretty, "pretty", "p", false,
+		"output a pretty-formatted table (deprecated, use --format instead)")
+	statusCmd.Flags().MarkDeprecated("pretty", "use --format instead")
 
 	return statusCmd
 }
@@ -55,12 +71,40 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
+	// Handle deprecated --pretty flag.
+	if opts.pretty {
+		opts.format = "pretty-table"
+	}
+
+	// Validate format option.
+	validFormats := map[string]bool{
+		"json":         true,
+		"yaml":         true,
+		"table":        true,
+		"pretty-table": true,
+	}
+	if !validFormats[opts.format] {
+		return fmt.Errorf("invalid format: %s. Valid formats are: json, yaml, table, pretty-table",
+			opts.format)
+	}
+
 	var runningCtx running.RunningCtx
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
 	if err != nil {
 		return err
 	}
 
-	err = status.Status(runningCtx, opts)
-	return err
+	var printer status.InstanceStatusPrinter
+	switch opts.format {
+	case "json":
+		printer = status.NewJSONPrinter()
+	case "yaml":
+		printer = status.NewYAMLPrinter()
+	case "pretty-table":
+		printer = status.NewTablePrinter(status.WithPretty(), status.WithDetails(opts.details))
+	case "table":
+		printer = status.NewTablePrinter(status.WithDetails(opts.details))
+	}
+
+	return status.Status(runningCtx, printer)
 }

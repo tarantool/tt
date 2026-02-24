@@ -22,7 +22,7 @@ const defaultDirPerms = 0o770
 
 type ProcessState struct {
 	Code        int
-	ColorSprint func(a ...interface{}) string
+	colorSprint func(a ...any) string
 	Status      string
 	PID         int
 }
@@ -36,20 +36,25 @@ const (
 var (
 	ProcStateRunning = ProcessState{
 		Code:        ProcessRunningCode,
-		ColorSprint: color.New(color.FgGreen).SprintFunc(),
+		colorSprint: color.New(color.FgGreen).SprintFunc(),
 		Status:      "RUNNING",
 	}
 	ProcStateStopped = ProcessState{
 		Code:        ProcessStoppedCode,
-		ColorSprint: color.New(color.FgYellow).SprintFunc(),
+		colorSprint: color.New(color.FgYellow).SprintFunc(),
 		Status:      "NOT RUNNING",
 	}
 	ProcStateDead = ProcessState{
 		Code:        ProcessDeadCode,
-		ColorSprint: color.New(color.FgRed).SprintFunc(),
+		colorSprint: color.New(color.FgRed).SprintFunc(),
 		Status:      "ERROR. The process is dead",
 	}
 )
+
+// FormattedStatus returns the status string formatted with the appropriate color.
+func (procState ProcessState) FormattedStatus() string {
+	return procState.colorSprint(procState.Status)
+}
 
 // String makes a string from ProcessState.
 func (procState ProcessState) String() string {

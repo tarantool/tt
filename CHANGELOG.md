@@ -10,8 +10,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt pack`: support nested `.packignore` at the root of tt environment.
+- `tt status`: add `--format` option to support JSON and YAML output formats
+for machine-readable output.
 
 ### Changed
+
+- `tt status`: deprecate `--pretty` option in favor of `--format=pretty-table`.
 
 ### Fixed
 
