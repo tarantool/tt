@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt status`: add `--format` option to support JSON and YAML output formats
+  for machine-readable output.
+
 ### Changed
 
 ### Fixed
