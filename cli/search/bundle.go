@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
@@ -121,7 +122,8 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 
 			version, err := version.Parse(parsedData["version"])
 			if err != nil {
-				return nil, err
+				log.Debugf("failed to parse version of %s from package %s: %v", searchCtx.Program, pkg, err)
+				continue
 			}
 
 			version.Tarball = pkg

@@ -163,7 +163,7 @@ func TestFetchBundlesInfo(t *testing.T) {
 				},
 			},
 			expectedQuery: "enterprise/release/linux/x86_64",
-			errMsg:        `failed to parse version "gc64-Ver3": format is not valid`,
+			errMsg:        `no packages found for this OS or release version`,
 		},
 		// spell-checker:enable
 	}
