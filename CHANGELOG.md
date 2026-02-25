@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+## [2.11.3] - 2026-02-25
+
+The release updates the dependencies and fixes discovering of the available
+versions with `tt search`.
+
+### Fixed
+
 - `tt search`: fix unknown dev tags parsing.
 
 ## [2.11.2] - 2026-02-19
