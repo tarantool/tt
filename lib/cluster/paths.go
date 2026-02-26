@@ -191,6 +191,7 @@ var ConfigEnvPaths = [][]string{
 	{"replication", "election_mode"},
 	{"replication", "election_timeout"},
 	{"replication", "failover"},
+	{"replication", "linearizable_quorum"},
 	{"replication", "peers"},
 	{"replication", "reconnect_timeout"},
 	{"replication", "skip_conflict"},
@@ -1496,6 +1497,10 @@ var TarantoolSchema = []SchemaPath{
 				"election",
 				"supervised",
 			}),
+	},
+	{
+		Path:      []string{"replication", "linearizable_quorum"},
+		Validator: MakeSequenceValidator(NumberValidator{}, StringValidator{}),
 	},
 	{
 		Path: []string{"replication", "peers"},
