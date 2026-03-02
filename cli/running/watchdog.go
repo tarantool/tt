@@ -189,7 +189,7 @@ func (wd *Watchdog) startIntegrityChecks(ctx context.Context) {
 				if err != nil {
 					// Integrity check failed.
 					wd.logger.Printf("(ERROR): periodic integrity check failed: %q.", err)
-					wd.instance.SendSignal(syscall.SIGUSR2)
+					wd.instance.SendSignal(syscall.SIGKILL)
 					return
 				}
 
