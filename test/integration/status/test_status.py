@@ -11,6 +11,8 @@ import tarantool
 from utils import (
     control_socket,
     extract_status,
+    extract_status_from_json,
+    extract_status_from_yaml,
     get_tarantool_version,
     pid_file,
     run_command_and_get_output,
@@ -19,6 +21,34 @@ from utils import (
 )
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
+
+# Define field mappings for different extract functions.
+field_mappings = {
+    extract_status: {
+        "status": "STATUS",
+        "mode": "MODE",
+        "pid": "PID",
+        "upstream": "UPSTREAM",
+        "box": "BOX",
+        "config": "CONFIG",
+    },
+    extract_status_from_json: {
+        "status": "status",
+        "mode": "mode",
+        "pid": "pid",
+        "upstream": "upstream",
+        "box": "box",
+        "config": "config",
+    },
+    extract_status_from_yaml: {
+        "status": "status",
+        "mode": "mode",
+        "pid": "pid",
+        "upstream": "upstream",
+        "box": "box",
+        "config": "config",
+    },
+}
 
 
 def start_application(cmd, workdir, app_name, instances):
@@ -118,17 +148,25 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
             file = wait_file(os.path.join(run_dir, inst), control_socket, [])
             assert file != ""
 
-        status_cmd = [tt_cmd, "status", app_name]
-        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
-        assert status_rc == 0
-        status_info = extract_status(status_out)
-        for inst in instances:
-            assert status_info[app_name + ":" + inst]["STATUS"] == "RUNNING"
-            assert os.path.exists(os.path.join(tmpdir, app_name, "var", "lib", inst))
-            assert os.path.exists(os.path.join(tmpdir, app_name, "var", "log", inst, "tt.log"))
-            assert not os.path.exists(
-                os.path.join(tmpdir, app_name, "var", "log", inst, "tarantool.log"),
-            )
+            for status_cmd, extract_func in [
+                ([tt_cmd, "status", app_name], extract_status),
+                ([tt_cmd, "status", app_name, "--format=json"], extract_status_from_json),
+                ([tt_cmd, "status", app_name, "--format=yaml"], extract_status_from_yaml),
+            ]:
+                status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+                assert status_rc == 0
+                status_info = extract_func(status_out)
+
+                field_mapping = field_mappings[extract_func]
+                for inst in instances:
+                    assert status_info[app_name + ":" + inst][field_mapping["status"]] == "RUNNING"
+                    assert os.path.exists(os.path.join(tmpdir, app_name, "var", "lib", inst))
+                    assert os.path.exists(
+                        os.path.join(tmpdir, app_name, "var", "log", inst, "tt.log"),
+                    )
+                    assert not os.path.exists(
+                        os.path.join(tmpdir, app_name, "var", "log", inst, "tarantool.log"),
+                    )
 
         full_master_inst_name = f"{app_name}:{instances[0]}"
 
@@ -204,6 +242,16 @@ def test_t3_instance_names_no_config(tt_cmd):
                     print(os.path.join(test_app_path, "run", "app", instName))
                     file = wait_file(os.path.join(test_app_path, run_path, instName), pid_file, [])
                     assert file != ""
+                    file = wait_file(
+                        os.path.join(test_app_path, run_path, instName),
+                        control_socket,
+                        [],
+                    )
+                    assert file != ""
+                    # We need to remove console explicitly to avoid a race.
+                    os.remove(
+                        os.path.join(test_app_path, run_path, instName, control_socket),
+                    )
 
                 status_cmd = [tt_cmd, "status", "app", "--details"]
                 status_rc, status_out = run_command_and_get_output(status_cmd, cwd=test_app_path)
@@ -228,6 +276,28 @@ def test_t3_instance_names_no_config(tt_cmd):
                 pattern = r"app:(master|replica|router|stateboard)\s+RUNNING\s+\d+\s+--\s+--\s+--"
                 matches = re.findall(pattern, status_out)
                 assert len(matches) == 4
+
+                # No separate details block for json and yaml formats, so check alerts list.
+                for status_cmd, extract_func in [
+                    ([tt_cmd, "status", "app", "--format=json"], extract_status_from_json),
+                    ([tt_cmd, "status", "app", "--format=yaml"], extract_status_from_yaml),
+                ]:
+                    status_rc, status_out = run_command_and_get_output(
+                        status_cmd,
+                        cwd=test_app_path,
+                    )
+                    assert status_rc == 0
+                    status_info = extract_func(status_out)
+                    field_mapping = field_mappings[extract_func]
+                    for inst_name, info in status_info.items():
+                        assert info[field_mapping["status"]] == "RUNNING"
+                        alerts = info["alerts"]
+                        assert len(alerts) == 1
+                        assert (
+                            f"Error while connecting to instance {inst_name}"
+                            in alerts[0]["message"]
+                        )
+                        assert alerts[0]["severity"] == "error"
 
             finally:
                 stop_application(tt_cmd, "app", test_app_path)
@@ -255,16 +325,23 @@ def test_t3_no_instance_names_no_config(tt_cmd, tmpdir_with_cfg):
         start_output = instance_process.stdout.read()
         assert re.search(r"Starting an instance \[single_app\]", start_output)
         assert wait_instance_status(tt_cmd, app_path, app_name, "box", port=3303)
-        status_cmd = [tt_cmd, "status", app_name]
-        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
-        assert status_rc == 0
-        status_out = extract_status(status_out)
 
-        assert status_out[app_name]["STATUS"] == "RUNNING"
-        assert status_out[app_name]["MODE"] == "RW"
-        assert status_out[app_name]["CONFIG"] == "uninitialized"
-        assert status_out[app_name]["BOX"] == "running"
-        assert status_out[app_name]["UPSTREAM"] == "--"
+        for status_cmd, extract_func in [
+            ([tt_cmd, "status", app_name], extract_status),
+            ([tt_cmd, "status", app_name, "--format=json"], extract_status_from_json),
+            ([tt_cmd, "status", app_name, "--format=yaml"], extract_status_from_yaml),
+        ]:
+            status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
+            assert status_rc == 0
+            status_out = extract_func(status_out)
+
+            field_mapping = field_mappings[extract_func]
+            assert status_out[app_name][field_mapping["status"]] == "RUNNING"
+            assert status_out[app_name][field_mapping["mode"]] == "RW"
+            assert status_out[app_name][field_mapping["config"]] == "uninitialized"
+            assert status_out[app_name][field_mapping["box"]] == "running"
+            assert status_out[app_name][field_mapping["upstream"]] == "--"
+
     finally:
         stop_application(tt_cmd, app_name, app_path)
 
@@ -285,17 +362,20 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
         file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
         assert file != ""
 
-        status_cmd = [tt_cmd, "status"]
-        status_cmd.append("test_custom_app")
-
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
-        assert rc == 0
-        status_out = extract_status(out)
-        assert status_out[app_name]["STATUS"] == "RUNNING"
-        assert status_out[app_name]["MODE"] == "RW"
-        assert status_out[app_name]["CONFIG"] == "uninitialized"
-        assert status_out[app_name]["BOX"] == "running"
-        assert status_out[app_name]["UPSTREAM"] == "--"
+        for status_cmd, extract_func in [
+            ([tt_cmd, "status", "test_custom_app"], extract_status),
+            ([tt_cmd, "status", "test_custom_app", "--format=json"], extract_status_from_json),
+            ([tt_cmd, "status", "test_custom_app", "--format=yaml"], extract_status_from_yaml),
+        ]:
+            rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+            assert rc == 0
+            status_out = extract_func(out)
+            field_mapping = field_mappings[extract_func]
+            assert status_out[app_name][field_mapping["status"]] == "RUNNING"
+            assert status_out[app_name][field_mapping["mode"]] == "RW"
+            assert status_out[app_name][field_mapping["config"]] == "uninitialized"
+            assert status_out[app_name][field_mapping["box"]] == "running"
+            assert status_out[app_name][field_mapping["upstream"]] == "--"
     finally:
         stop_application(tt_cmd, app_name, tmpdir)
 
