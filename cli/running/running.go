@@ -753,7 +753,12 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 ) error {
 	for _, dataDir := range [...]string{inst.WalDir, inst.VinylDir, inst.MemtxDir, inst.RunDir} {
 		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
-			return err
+			return fmt.Errorf("failed to run instance %q: %s",
+				GetAppInstanceName(inst)+" ", err)
+		}
+		if err := util.IsDirContentWritable(dataDir); err != nil {
+			return fmt.Errorf("failed to run instance %q: %s",
+				GetAppInstanceName(inst)+" ", err)
 		}
 	}
 
@@ -966,6 +971,20 @@ Cluster config path: %q`, tntVersion.Str, inst.ClusterConfigPath)
 func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance InstanceCtx,
 	args []string,
 ) error {
+	for _, dataDir := range [...]string{
+		instance.WalDir, instance.VinylDir,
+		instance.MemtxDir, instance.RunDir,
+	} {
+		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
+			return fmt.Errorf("failed to run instance %q: %s",
+				GetAppInstanceName(instance)+" ", err)
+		}
+		if err := util.IsDirContentWritable(dataDir); err != nil {
+			return fmt.Errorf("failed to run instance %q: %s",
+				GetAppInstanceName(instance)+" ", err)
+		}
+	}
+
 	appName := GetAppInstanceName(instance)
 	// If an instance is already running don't try to start it again.
 	// To restart an instance use tt restart command.

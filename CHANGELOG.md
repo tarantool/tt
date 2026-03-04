@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt start`: fixed a bug where an error did not appear when access rights
+  to the var directive were insufficient.
+
 ## [2.11.4] - 2026-03-04
 
 The auxilary release just to keep version matching with `tt-ee`
