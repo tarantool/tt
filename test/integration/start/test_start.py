@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import tt_helper
 
@@ -109,3 +111,76 @@ tt_cluster_app = dict(
 )
 def test_start_cluster(tt, tt_app, target):
     check_start(tt, tt_app, target)
+
+
+################################################################
+# Permission denied
+
+
+@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
+@pytest.mark.skipif(
+    os.getuid() == 0,
+    reason="Skipping the test, it shouldn't run as root",
+)
+@pytest.mark.tt_app(**tt_cluster_app)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+    ],
+)
+def test_start_permission_denied(tt, tt_app):
+    var_dir = tt_app.path("var")
+    os.makedirs(var_dir, exist_ok=True)
+    os.chmod(var_dir, 0o444)
+
+    try:
+        rc, out = tt.exec("start")
+        assert rc != 0
+        assert "permission denied" in out.lower()
+    finally:
+        os.chmod(var_dir, 0o755)
+
+
+@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
+@pytest.mark.skipif(
+    os.getuid() == 0,
+    reason="Skipping the test, it shouldn't run as root",
+)
+@pytest.mark.tt_app(**tt_cluster_app)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+    ],
+)
+def test_start_permission_denied_permissions_denied_files(tt, tt_app):
+    rc, _ = tt.exec("start")
+    assert rc == 0
+    assert utils.wait_files(5, tt_helper.pid_files(tt_app, tt_app.instances))
+
+    rc, _ = tt.exec("stop", "-y")
+    assert rc == 0
+
+    log_dir = tt_app.path("var", "log")
+    lib_dir = tt_app.path("var", "lib")
+    run_dir = tt_app.path("var", "run")
+
+    dirs_to_lock = []
+    for data_dir in [log_dir, lib_dir, run_dir]:
+        for root, dirs, files in os.walk(data_dir, topdown=False):
+            dirs_to_lock.extend(os.path.join(root, f) for f in files)
+            dirs_to_lock.extend(os.path.join(root, d) for d in dirs)
+        dirs_to_lock.append(data_dir)
+
+    for d in dirs_to_lock:
+        os.chmod(d, 0o444)
+
+    try:
+        rc, out = tt.exec("start")
+        assert rc != 0
+        assert "permission denied" in out.lower()
+    finally:
+        for d in dirs_to_lock:
+            if os.path.exists(d):
+                os.chmod(d, 0o755)

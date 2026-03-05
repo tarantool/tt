@@ -752,6 +752,70 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 	return nil
 }
 
+// IsDirWritable checks if the directory is writable.
+func IsDirWritable(dirName string) error {
+	testFile, err := os.CreateTemp(dirName, ".tt_write_test_*")
+	if err != nil {
+		return fmt.Errorf("directory %q is not writable: %w", dirName, err)
+	}
+
+	defer os.Remove(testFile.Name())
+
+	if err = testFile.Close(); err != nil {
+		return fmt.Errorf("failed to close test file %q: %w", testFile.Name(), err)
+	}
+
+	testWriteFile, err := os.OpenFile(testFile.Name(), os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("failed to open test file %q: %w", testFile.Name(), err)
+	}
+
+	if err = testWriteFile.Close(); err != nil {
+		return fmt.Errorf("failed to close test file %q: %w", testFile.Name(), err)
+	}
+
+	return nil
+}
+
+// IsDirContentWritable checks if all files and subdirectories inside the directory
+// are writable by the current user.
+func IsDirContentWritable(dirName string) error {
+	err := filepath.WalkDir(dirName, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("directory %q is not accessible: %w", path, err)
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("cannot get info for %q: %w", path, err)
+		}
+
+		if info.IsDir() {
+			if err := IsDirWritable(path); err != nil {
+				return fmt.Errorf("directory %q is not writable: %w", path, err)
+			}
+		} else {
+			if filepath.Ext(path) == ".control" {
+				return nil
+			}
+
+			f, err := os.OpenFile(path, os.O_RDWR, 0)
+			if err != nil {
+				return fmt.Errorf("file %q is not writable: %w", path, err)
+			}
+			if err = f.Close(); err != nil {
+				return fmt.Errorf("failed to close file %q: %w", path, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to check directory content writability for %q: %w",
+			dirName, err)
+	}
+	return nil
+}
+
 // writeYaml writes YAML encoding of object o to fileName.
 func WriteYaml(fileName string, o interface{}) error {
 	file, err := os.Create(fileName)
