@@ -333,6 +333,8 @@ type ignorePatternCases map[string]ignorePatternCase
 func checkIgnorePattern(t *testing.T, testCases ignorePatternCases) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			p, err := createIgnorePattern(tc.pattern, "")
 			assert.Nil(t, err)
 			assert.NotNil(t, p.re)
@@ -411,6 +413,8 @@ func Test_createIgnorePattern_trailingSpace(t *testing.T) {
 // }
 
 type ignoreFilterCase struct {
+	// Directory where pattern file is to be located.
+	dir string
 	// Ignore patterns.
 	patterns []string
 	// Files that are expected to be ignored/copied during copy.
@@ -421,10 +425,13 @@ type ignoreFilterCase struct {
 
 type ignoreFilterCases map[string]ignoreFilterCase
 
-// Check that no entry ends with '/' and all files are able to coexist within a single FS
-// (the same path should not refer to a file and a directory simultaneously).
-func validateIgnoreFilterCase(t *testing.T, tc ignoreFilterCase) {
+func (tc ignoreFilterCase) createFS(t *testing.T) fs.FS {
+	t.Helper()
+
 	files := slices.Concat(tc.ignored, tc.copied)
+
+	// Check that no entry ends with '/' and all files are able to coexist within a single FS
+	// (the same path should not refer to a file and a directory simultaneously).
 	slices.Sort(files)
 	for i, f := range files {
 		assert.Falsef(t, strings.HasSuffix(f, "/"), "Invalid test case: %q ends with '/'", f)
@@ -436,35 +443,40 @@ func validateIgnoreFilterCase(t *testing.T, tc ignoreFilterCase) {
 			)
 		}
 	}
-}
-
-func ignoreFilterCreateMockFS(t *testing.T, tc ignoreFilterCase) fs.FS {
-	validateIgnoreFilterCase(t, tc)
 
 	fsys := fstest.MapFS{}
+	tc.createFiles(fsys)
+	return fsys
+}
+
+func (tc ignoreFilterCase) createFiles(fsys fstest.MapFS) {
 	if tc.patterns != nil {
-		fsys[ignoreFile] = &fstest.MapFile{
+		fsys[filepath.Join(tc.dir, ignoreFile)] = &fstest.MapFile{
 			Data: []byte(strings.Join(tc.patterns, "\n")),
 			Mode: fs.FileMode(0o644),
 		}
 	}
 	for _, name := range slices.Concat(tc.copied, tc.ignored) {
-		fsys[name] = &fstest.MapFile{
+		fsys[filepath.Join(tc.dir, name)] = &fstest.MapFile{
 			Mode: fs.FileMode(0o644),
 		}
 	}
-	return fsys
 }
 
 func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
+	t.Helper()
+
 	baseDst := t.TempDir()
 
 	// Do test
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			fsys := ignoreFilterCreateMockFS(t, tc)
+			t.Parallel()
 
-			filter, err := ignoreFilter(fsys, ignoreFile)
+			fsys := tc.createFS(t)
+
+			patternsFile := filepath.Join(tc.dir, ignoreFile)
+			filter, err := ignoreFilter(fsys, patternsFile)
 			assert.Nil(t, err)
 			assert.NotNil(t, filter)
 
@@ -472,7 +484,7 @@ func checkIgnoreFilter(t *testing.T, testCases ignoreFilterCases) {
 			err = os.MkdirAll(dst, 0o755)
 			assert.Nil(t, err)
 
-			err = copy.Copy(".", dst, copy.Options{
+			err = copy.Copy(tc.dir, dst, copy.Options{
 				FS: fsys,
 				Skip: func(srcInfo os.FileInfo, src, dest string) (bool, error) {
 					return filter(srcInfo, src), nil
@@ -499,6 +511,7 @@ var ignoreFilterBaseCases = transformMapValues(ignoreTestData_namesOnly,
 			panic("unexpected path separator in pattern")
 		}
 		return ignoreFilterCase{
+			dir: "src",
 			patterns: []string{
 				td.pattern,
 			},
@@ -534,6 +547,7 @@ func Test_ignoreFilter_singleNegate(t *testing.T) {
 	// Single negate pattern has no effect (i.e. all files are copied).
 	toSingleNegate := func(tc ignoreFilterCase) ignoreFilterCase {
 		return ignoreFilterCase{
+			dir: tc.dir,
 			patterns: []string{
 				"!" + tc.patterns[0],
 			},
@@ -549,6 +563,7 @@ func Test_ignoreFilter_selfNegate(t *testing.T) {
 	// An ignore pattern followed by the same but negated (thus it just reinclude all).
 	toSelfNegate := func(tc ignoreFilterCase) ignoreFilterCase {
 		return ignoreFilterCase{
+			dir: tc.dir,
 			patterns: []string{
 				tc.patterns[0],
 				"!" + tc.patterns[0],
@@ -565,6 +580,7 @@ func Test_ignoreFilter_negateWrongOrder(t *testing.T) {
 	// A negate pattern in a wrong position doesn't affect the original result.
 	toWrongOrderNegate := func(tc ignoreFilterCase) ignoreFilterCase {
 		return ignoreFilterCase{
+			dir: tc.dir,
 			patterns: []string{
 				"!" + tc.patterns[0],
 				tc.patterns[0],
@@ -583,6 +599,7 @@ func Test_ignoreFilter_singleDir(t *testing.T) {
 	testCases := transformMapValues(ignoreTestData_namesOnly,
 		func(td ignoreTestData) ignoreFilterCase {
 			return ignoreFilterCase{
+				dir: "src",
 				patterns: []string{
 					td.pattern + "/",
 				},
@@ -615,6 +632,7 @@ func Test_ignoreFilter_singleDir(t *testing.T) {
 func Test_ignoreFilter_multiNames(t *testing.T) {
 	testCases := ignoreFilterCases{
 		"any": {
+			dir: "src",
 			patterns: []string{
 				"name1",
 				"name2",
@@ -637,6 +655,7 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 			},
 		},
 		"dironly": {
+			dir: "src",
 			patterns: []string{
 				"name1/",
 				"name2/",
@@ -659,6 +678,7 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 			},
 		},
 		"mixed": {
+			dir: "src",
 			patterns: []string{
 				"name1",
 				"name2/",
@@ -687,6 +707,7 @@ func Test_ignoreFilter_multiNames(t *testing.T) {
 func Test_ignoreFilter_fixedDepth(t *testing.T) {
 	testCases := ignoreFilterCases{
 		"name_at_depth1": {
+			dir: "src",
 			patterns: []string{
 				"*/foo",
 			},
@@ -706,6 +727,7 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 			},
 		},
 		"name_at_depth2": {
+			dir: "src",
 			patterns: []string{
 				"*/*/foo",
 			},
@@ -725,6 +747,7 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 			},
 		},
 		"under_name_depth1": {
+			dir: "src",
 			patterns: []string{
 				"foo/*",
 			},
@@ -742,6 +765,7 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 			},
 		},
 		"under_name_depth2": {
+			dir: "src",
 			patterns: []string{
 				"foo/*/*",
 			},
@@ -765,6 +789,7 @@ func Test_ignoreFilter_fixedDepth(t *testing.T) {
 func Test_ignoreFilter_reinclude(t *testing.T) {
 	testCases := ignoreFilterCases{
 		"by_name": {
+			dir: "src",
 			patterns: []string{
 				"*name?",
 				"!renamed",
@@ -787,6 +812,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 			},
 		},
 		"by_names": {
+			dir: "src",
 			patterns: []string{
 				"*name?",
 				"!renamed",
@@ -814,6 +840,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 			},
 		},
 		"by_pattern": {
+			dir: "src",
 			patterns: []string{
 				"*name?",
 				"!*named",
@@ -847,6 +874,7 @@ func Test_ignoreFilter_reinclude(t *testing.T) {
 func Test_ignoreFilter_doubleAsterisk(t *testing.T) {
 	testCases := ignoreFilterCases{
 		"leading": {
+			dir: "src",
 			patterns: []string{
 				"**/foo",
 			},
@@ -863,6 +891,7 @@ func Test_ignoreFilter_doubleAsterisk(t *testing.T) {
 			},
 		},
 		"trailing": {
+			dir: "src",
 			patterns: []string{
 				"foo/**",
 			},
@@ -879,6 +908,7 @@ func Test_ignoreFilter_doubleAsterisk(t *testing.T) {
 			},
 		},
 		"inner": {
+			dir: "src",
 			patterns: []string{
 				"foo/**/bar",
 			},
@@ -898,5 +928,46 @@ func Test_ignoreFilter_doubleAsterisk(t *testing.T) {
 			},
 		},
 	}
+	checkIgnoreFilter(t, testCases)
+}
+
+func Test_ignoreFilter_srcDirWithRegExpSymbols(t *testing.T) {
+	testCases := transformMapValues(map[string]string{
+		"backslash":                  "src\\",
+		"round_brackets":             "src(subtitle)",
+		"round_bracket_open_only":    "src(",
+		"round_bracket_close_only":   "src)",
+		"square_brackets":            "src[subtitle]",
+		"square_brackets_open_only":  "src[",
+		"square_brackets_close_only": "src]",
+		"curly_brackets_exact":       "src{1}",
+		"curly_brackets_at_least":    "src{1,}",
+		"curly_brackets_range":       "src{1,3}",
+		"curly_brackets_open_only":   "src{",
+		"curly_brackets_close_only":  "src}",
+		"question_mark":              "src?",
+		"question_mark_escape":       "src\\?",
+		"plus":                       "src+",
+		"asterisk":                   "src*",
+		"vertical_bar":               "src|something",
+	}, func(dir string) ignoreFilterCase {
+		return ignoreFilterCase{
+			dir: dir,
+			patterns: []string{
+				"foo",
+			},
+			ignored: []string{
+				"foo",
+				"in_subdir/foo",
+				"in/deep/nested/subdir/foo",
+			},
+			copied: []string{
+				"foo2",
+				"similar_in_subdir/foo2",
+				"similar/in/deep/nested/subdir/foo2",
+				"subdir/foo2/bar",
+			},
+		}
+	})
 	checkIgnoreFilter(t, testCases)
 }

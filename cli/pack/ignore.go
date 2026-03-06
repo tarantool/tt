@@ -94,6 +94,14 @@ func loadIgnorePatterns(fsys fs.FS, patternsFile string) ([]ignorePattern, error
 
 	basepath, _ := filepath.Split(patternsFile)
 
+	// basepath is to be the part of every regex based on the patterns from this file,
+	// thus escape symbols \(){}[]+?*| that designate themselves in a path, but have special
+	// meaning in a regex.
+	// Note that '\' is escaped first to avoid confusing with '\' introduced with escaping of
+	// the rest ones.
+	basepath = strings.ReplaceAll(basepath, "\\", "\\\\")
+	basepath = regexp.MustCompile(`([(){}\[\]+?*|])`).ReplaceAllString(basepath, "\\$1")
+
 	var patterns []ignorePattern
 	s := bufio.NewScanner(bytes.NewReader(contents))
 	for s.Scan() {
