@@ -878,7 +878,7 @@ func Quit(run InstanceCtx) error {
 }
 
 func Run(runInfo *RunInfo) error {
-	inst := scriptInstance{baseInstance: baseInstance{
+	inst := scriptInstance{baseInstance: &baseInstance{
 		tarantoolPath: runInfo.CmdCtx.Cli.TarantoolCli.Executable,
 		integrityCtx:  runInfo.CmdCtx.Integrity,
 	}}

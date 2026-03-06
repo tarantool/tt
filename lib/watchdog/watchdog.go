@@ -41,6 +41,8 @@ type Watchdog struct {
 	processGroupPID atomic.Int32
 	// startupComplete signals successful child process start.
 	startupComplete chan struct{}
+	// startupEnded indicates whether startup has completed.
+	startupEnded atomic.Bool
 }
 
 // NewWatchdog initializes a new Watchdog instance with the specified
@@ -54,6 +56,7 @@ func NewWatchdog(pidFile, wdPidFile string, restartTimeout time.Duration) *Watch
 		restartTimeout:  restartTimeout,
 		signalChan:      make(chan os.Signal, 1),
 		startupComplete: make(chan struct{}),
+		startupEnded:    atomic.Bool{},
 	}
 }
 
@@ -119,6 +122,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 		}
 
 		log.Infof("Process started successfully")
+		wd.startupEnded.Store(true)
 		close(wd.startupComplete) // Signal that startup is complete.
 
 		// Wait for process completion in separate goroutine.
@@ -165,7 +169,8 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 			return nil
 		}
 
-		// Reset startup complete channel for next iteration.
+		// Reset startup ended flag for next iteration.
+		wd.startupEnded.Store(false)
 		wd.startupComplete = make(chan struct{})
 	}
 }
@@ -179,13 +184,8 @@ func (wd *Watchdog) Stop() {
 		return // Already stopping or stopped.
 	}
 
-	// Ensure process startup is complete before attempting to stop.
-	// This prevents races during process initialization.
-	select {
-	case <-wd.startupComplete:
-		// Normal case - startup already completed.
-	default:
-		// Startup still in progress - wait for completion.
+	if !wd.startupEnded.Load() {
+		// Wait for startup to complete before stopping.
 		log.Infof("Waiting for process startup...")
 		<-wd.startupComplete
 	}
