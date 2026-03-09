@@ -286,6 +286,16 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 
 // AskConfirm asks the user for confirmation and returns true if yes.
 func AskConfirm(ioReader io.Reader, question string) (bool, error) {
+	// XXX Note: newly created reader may discard reader.Buffered() bytes
+	// after the target string was read.
+	//
+	// Consider the test, there stdin is filled with N "y\n" sequences
+	// to automate N confirmations. Each func call will consume more than
+	// one "y\n" sequence, because default buffer size is greater than 2.
+	// So such test can't proceed as it expected.
+	// On the other hand one may put M*N sequences to overfill the
+	// buffer N times to emulate N confirmations. But this is not
+	// a deterministic way because the buffer size is not known.
 	reader := bufio.NewReader(ioReader)
 
 	for {
