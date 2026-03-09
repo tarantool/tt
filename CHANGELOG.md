@@ -90,6 +90,8 @@ duplicated lines and stalls in `tt log -f` after log rotation.
   up the rotated file.
 - `tt log -f`: the message about an unavailable log file printed
   `%!q(MISSING)` instead of the file name.
+- `tt clean`: fixed showing files to delete before confirmation. Verbose option
+  added.
 
 ## [2.14.0] - 2026-08-06
 
