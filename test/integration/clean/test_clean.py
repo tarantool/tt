@@ -11,7 +11,21 @@ skip_cluster_cond = utils.is_tarantool_less_3()
 skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
 
 
+# Unchecked precondition for not force_mode:
+# more than 0 total files to remove.
 def check_clean(tt, tt_app, stop_targets, target, *args):
+    force_mode = "-f" in args or "--force" in args
+    verbose_mode = "-V" in args or "--verbose" in args
+    n_of_target_instances = len(tt_app.instances_of(target))
+    if not force_mode and n_of_target_instances > 1:
+        # Can't emulate more than one confirmation.
+        # See a note for go func AskConfirm().
+        pytest.skip("Misconfig: non force mode with multi instance app")
+    if force_mode:
+        input = ""
+    else:
+        input = "y\n" * n_of_target_instances
+
     # Stop the specified targets.
     for target in stop_targets:
         rc, _ = tt.exec("stop", target, "-y")
@@ -21,7 +35,7 @@ def check_clean(tt, tt_app, stop_targets, target, *args):
     orig_status = tt_helper.status(tt)
 
     # Do clean.
-    rc, out = tt.exec("clean", target, *args)
+    rc, out = tt.exec("clean", target, *args, input=input)
     assert rc == 0
 
     stop_instances = tt_app.instances_of(*stop_targets)
@@ -29,6 +43,7 @@ def check_clean(tt, tt_app, stop_targets, target, *args):
 
     # Check the instances.
     status = tt_helper.status(tt)
+    cleaned = 0
     for inst in tt_app.instances:
         was_running = inst in tt_app.running_instances
         assert status[inst]["STATUS"] == orig_status[inst]["STATUS"]
@@ -46,10 +61,20 @@ def check_clean(tt, tt_app, stop_targets, target, *args):
                     assert not glob.glob(tt_helper.log_files(tt_app, [inst])[0])
                     assert not glob.glob(tt_helper.snap_files(tt_app, [inst])[0])
                     assert not glob.glob(tt_helper.wal_files(tt_app, [inst])[0])
+                    cleaned += 1
+                    if not force_mode:
+                        msg = r"to remove \d+ file\(s\) in \".+?\"\n"
+                        assert len(re.findall(msg, out)) > 0
+                        if verbose_mode:
+                            msg = r"to remove \"\.\/.+?\"\n"
+                            assert len(re.findall(msg, out)) > 0
                 else:
                     assert msg in out
             else:
                 assert f"{inst}...\t[ERR]" in out
+    if not force_mode:
+        assert len(re.findall(r"Total files to remove: \d+", out)) == cleaned
+        assert len(re.findall(r"Confirm \[y/n\]:", out)) == cleaned
 
 
 def post_start_clean_decorator(func):
@@ -68,6 +93,31 @@ def post_start_clean_decorator(func):
         )
 
     return wrapper_func
+
+
+################################################################
+# Simple app
+
+tt_simple_data_app = dict(
+    app_path="test_data_app.lua",
+    app_name="app",
+    post_start=tt_helper.post_start_base
+)
+
+
+# Ask confirmation with verbose mode variations.
+@pytest.mark.tt_app(**dict(tt_simple_data_app, running_targets=["app"]))
+@pytest.mark.parametrize(
+    "args",
+    [
+        pytest.param([], id="verbose_mode:none"),
+        pytest.param(["-V"], id="verbose_mode:short"),
+        pytest.param(["--verbose"], id="verbose_mode:long"),
+        pytest.param(["-V", "-f"], id="force_mode:verbose_ignored-no_confirmation"),
+    ],
+)
+def test_clean_single_inst(tt, tt_app, args):
+    check_clean(tt, tt_app, ["app"], "app", *args)
 
 
 ################################################################
