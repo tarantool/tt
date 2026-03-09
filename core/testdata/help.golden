@@ -970,8 +970,9 @@ Clean instance(s) files
   tt clean [INSTANCE_NAME] [flags]
 [0;1;39m
 FLAGS[0m
-  -f, --force   do not ask for confirmation
-  -h, --help    help for clean
+  -f, --force     do not ask for confirmation
+  -h, --help      help for clean
+  -V, --verbose   list all files to remove before confirmation
 
 === tt cluster --help
 Manage cluster configuration

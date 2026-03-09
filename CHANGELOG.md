@@ -517,6 +517,8 @@ for machine-readable output.
   `tt <module>` next to the name of every external module, which showed up
   at `tt <TAB>` and after a `t`, and bash and zsh no longer fall back to file
   names there when no command matches: only commands are offered.
+- `tt clean`: fixed showing files to delete before confirmation. Verbose option
+  added.
 
 ## [2.11.5] - 2026-03-19
 
