@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -74,6 +75,28 @@ func clean(run *running.InstanceCtx) error {
 	}
 
 	if !forceRemove {
+		fmt.Printf("\nFiles to remove: %d", len(removeFiles))
+		if len(removeFiles) == 0 {
+			return nil
+		}
+
+		const printLimit = int(32)
+		toPrint := len(removeFiles)
+		if toPrint > printLimit {
+			toPrint = printLimit
+		}
+		allPrinted := toPrint == len(removeFiles)
+		for file := range removeFiles {
+			fmt.Printf("\nto remove %q", file)
+			toPrint--
+			if toPrint == 0 {
+				break
+			}
+		}
+		if !allPrinted {
+			fmt.Printf("\n...")
+		}
+
 		confirm, err = util.AskConfirm(os.Stdin, "\nConfirm")
 		if err != nil {
 			return err
