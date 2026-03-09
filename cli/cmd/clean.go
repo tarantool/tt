@@ -17,6 +17,7 @@ import (
 
 var (
 	forceRemove       bool
+	verboseList       bool
 	ErrCanceledByUser = errors.New("canceled by user")
 )
 
@@ -39,11 +40,15 @@ func NewCleanCmd() *cobra.Command {
 	}
 
 	cleanCmd.Flags().BoolVarP(&forceRemove, "force", "f", false, "do not ask for confirmation")
+	cleanCmd.Flags().BoolVarP(&verboseList, "verbose", "V", false,
+		"list all files to remove before confirmation")
 
 	return cleanCmd
 }
 
-func collectFiles(files map[string]bool, dirname string) (map[string]bool, error) {
+func collectFiles(files map[string]bool, dirname string) (map[string]bool, uint32, error) {
+	var nFiles uint32
+
 	err := filepath.Walk(dirname,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -52,31 +57,68 @@ func collectFiles(files map[string]bool, dirname string) (map[string]bool, error
 
 			if !info.IsDir() {
 				files[path] = true
+				nFiles++
 			}
 
 			return nil
 		})
 	if err != nil {
-		return nil, fmt.Errorf("failed to collect files in %q: %w", dirname, err)
+		return nil, 0, fmt.Errorf("failed to collect files in %q: %w", dirname, err)
 	}
 
-	return files, nil
+	return files, nFiles, nil
+}
+
+func printCleanFiles(files map[string]bool, dir string) {
+	for file := range files {
+		relativePath, err := filepath.Rel(dir, file)
+		if err != nil || !filepath.IsLocal(relativePath) {
+			continue
+		}
+
+		if relativePath != "." {
+			relativePath = "." + string(filepath.Separator) + relativePath
+		}
+
+		_, _ = fmt.Fprintf(os.Stdout, "\nto remove %q", relativePath)
+	}
 }
 
 func clean(run *running.InstanceCtx) error {
 	removeFiles := map[string]bool{}
+	nFilesPerDir := map[string]uint32{}
 	confirm := false
 
-	var err error
+	var (
+		nFiles uint32
+		err    error
+	)
 
 	for _, dir := range [...]string{run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir} {
-		removeFiles, err = collectFiles(removeFiles, dir)
+		removeFiles, nFiles, err = collectFiles(removeFiles, dir)
 		if err != nil {
 			return err
 		}
+
+		nFilesPerDir[dir] = nFiles
 	}
 
 	if !forceRemove {
+		_, _ = fmt.Fprintf(os.Stdout, "\nTotal files to remove: %d", len(removeFiles))
+		if len(removeFiles) == 0 {
+			return nil
+		}
+
+		for path, nF := range nFilesPerDir {
+			_, _ = fmt.Fprintf(os.Stdout, "\nto remove %d file(s) in %q", nF, path)
+
+			if !verboseList {
+				continue
+			}
+
+			printCleanFiles(removeFiles, path)
+		}
+
 		confirm, err = util.AskConfirm(os.Stdin, "\nConfirm")
 		if err != nil {
 			return err

@@ -108,6 +108,7 @@ varbinary
 vclock
 vshard
 vylog
+wals
 warnf
 xcall
 xlog*
