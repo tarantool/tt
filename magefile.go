@@ -1,5 +1,4 @@
 //go:build mage
-// +build mage
 
 package main
 
@@ -31,6 +30,8 @@ const (
 	defaultDarwinConfigPath = "/usr/local/etc/tarantool"
 
 	cartridgePath = "cli/cartridge/third_party/cartridge-cli"
+
+	raceTestsTimeout = "10m"
 )
 
 var (
@@ -59,6 +60,11 @@ var (
 	modules = []string{
 		"lib/integrity",
 		"lib/cluster",
+	}
+
+	validRaceTests = []raceTest{
+		{path: "./cli/running", runTag: "TestWatchdog"},
+		{path: "./lib/watchdog", runTag: "TestWatchdog"},
 	}
 )
 
@@ -330,6 +336,37 @@ func (Lint) Python() error {
 
 type Unit mg.Namespace
 
+type raceTest struct {
+	// Path to the folder with tests.
+	path string
+	// runTag specifies -run flag for go test.
+	// runTag can be a regexp pattern to match multiple test names.
+	// For example, "TestWatchdogBase|TestWatchdogNotRestartable"
+	// will run both tests.
+	runTag string
+}
+
+func runUnitRaceTests(flags []string) error {
+	args := []string{"test", "-timeout", raceTestsTimeout, "-race"}
+	if mg.Verbose() {
+		args = append(args, "-v")
+	}
+
+	for _, test := range validRaceTests {
+		argsTest := args
+		argsTest = append(argsTest, test.path)
+		argsTest = append(argsTest, "-run")
+		argsTest = append(argsTest, test.runTag)
+		argsTest = append(argsTest, flags...)
+
+		if err := sh.RunV(goExecutableName, argsTest...); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func runUnitTests(flags []string) error {
 	mg.Deps(GenerateGoCode)
 
@@ -354,15 +391,38 @@ func runUnitTests(flags []string) error {
 // Run unit tests.
 func (Unit) Default() error {
 	fmt.Println("Running unit tests...")
+	if err := runUnitTests([]string{}); err != nil {
+		return err
+	}
 
-	return runUnitTests([]string{})
+	fmt.Println("\nRunning unit tests with race...")
+	if err := runUnitRaceTests([]string{}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Run unit tests with the race detector enabled.
+func (Unit) Race() error {
+	fmt.Println("Running unit tests with the race detector...")
+
+	return runUnitRaceTests([]string{})
 }
 
 // Run unit tests with a Tarantool instance integration.
 func (Unit) Full() error {
 	fmt.Println("Running full unit tests...")
+	if err := runUnitTests([]string{"-tags", "integration,integration_docker"}); err != nil {
+		return err
+	}
 
-	return runUnitTests([]string{"-tags", "integration,integration_docker"})
+	fmt.Println("\nRunning full unit tests with race...")
+	if err := runUnitRaceTests([]string{"-tags", "integration,integration_docker"}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Run unit tests with a Tarantool instance integration, excluding docker tests.

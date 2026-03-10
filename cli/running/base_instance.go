@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 type baseInstance struct {
 	// processController is a child process controller.
 	*processController
+	// mu is a mutex used to protect concurrent access to the processController.
+	mu sync.Mutex
 	// logger represents an active logging object.
 	logger ttlog.Logger
 	// tarantoolPath describes the path to the tarantool binary
@@ -56,7 +59,7 @@ type baseInstance struct {
 
 func newBaseInstance(tarantoolPath string, instanceCtx InstanceCtx,
 	opts ...InstanceOption,
-) baseInstance {
+) *baseInstance {
 	baseInst := baseInstance{
 		tarantoolPath: tarantoolPath,
 		appPath:       instanceCtx.InstanceScript,
@@ -75,7 +78,7 @@ func newBaseInstance(tarantoolPath string, instanceCtx InstanceCtx,
 	for _, opt := range opts {
 		opt(&baseInst)
 	}
-	return baseInst
+	return &baseInst
 }
 
 // InstanceOption is a functional option to configure tarantool instance.
@@ -126,6 +129,9 @@ func (inst *baseInstance) Wait() error {
 
 // SendSignal sends a signal to tarantool instance.
 func (inst *baseInstance) SendSignal(sig os.Signal) error {
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
+
 	if inst.processController == nil {
 		return fmt.Errorf("instance is not started")
 	}
@@ -134,6 +140,9 @@ func (inst *baseInstance) SendSignal(sig os.Signal) error {
 
 // IsAlive verifies that the instance is alive by sending a "0" signal.
 func (inst *baseInstance) IsAlive() bool {
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
+
 	if inst.processController == nil {
 		return false
 	}

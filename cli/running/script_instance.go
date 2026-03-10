@@ -21,7 +21,7 @@ const (
 
 // scriptInstance represents a tarantool invoked with an instance script provided.
 type scriptInstance struct {
-	baseInstance
+	*baseInstance
 }
 
 //go:embed lua/launcher.lua
@@ -170,9 +170,12 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	inst.setTarantoolLog(cmd)
 
 	// Start an Instance.
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
 	if inst.processController, err = newProcessController(cmd); err != nil {
 		return err
 	}
+
 	StdinPipe.Write([]byte(instanceLauncher))
 	StdinPipe.Close()
 

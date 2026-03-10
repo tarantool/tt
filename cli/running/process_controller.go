@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -27,7 +28,7 @@ type processController struct {
 	// https://github.com/golang/go/issues/28461
 	waitMutex sync.Mutex
 	// done represent whether the process was stopped.
-	done bool
+	done atomic.Bool
 }
 
 // start starts the process.
@@ -36,13 +37,13 @@ func (pc *processController) start() error {
 	if err := pc.Start(); err != nil {
 		return err
 	}
-	pc.done = false
+	pc.done.Store(false)
 	return nil
 }
 
 // Wait waits for the process to complete.
 func (pc *processController) Wait() error {
-	if pc.done {
+	if pc.done.Load() {
 		return nil
 	}
 	// waitMutex is used to prevent several invokes of the "Wait"
@@ -52,7 +53,7 @@ func (pc *processController) Wait() error {
 	defer pc.waitMutex.Unlock()
 	err := pc.Cmd.Wait()
 	if err == nil {
-		pc.done = true
+		pc.done.Store(true)
 	}
 	return err
 }
@@ -67,7 +68,7 @@ func (pc *processController) SendSignal(sig os.Signal) error {
 
 // IsAlive verifies that the Instance is alive by sending a "0" signal.
 func (pc *processController) IsAlive() bool {
-	if pc.done {
+	if pc.done.Load() {
 		return false
 	}
 
