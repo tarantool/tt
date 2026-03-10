@@ -479,6 +479,18 @@ def extract_status(status_output):
     return result
 
 
+def extract_status_from_json(status_json_output):
+    import json
+
+    return json.loads(status_json_output)
+
+
+def extract_status_from_yaml(status_yaml_output):
+    import yaml
+
+    return yaml.safe_load(status_yaml_output)
+
+
 def is_valid_tarantool_installed(bin_path, inc_path, expected_bin=None, expected_inc=None):
     tarantool_binary_symlink = os.path.join(bin_path, "tarantool")
     tarantool_include_symlink = os.path.join(inc_path, "tarantool")
