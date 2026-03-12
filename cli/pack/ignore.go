@@ -64,13 +64,13 @@ func turnEscapedToHexCode(s string, c rune) string {
 	return strings.ReplaceAll(s, `\`+string(c), fmt.Sprintf(`\x%x`, c))
 }
 
-func splitIgnorePattern(pattern string) (cleanPattern string, dirOnly, isNegate bool) {
+func splitIgnorePattern(pattern string) (matchingPattern string, dirOnly, isNegate bool) {
 	// Remove trailing spaces (unless escaped one).
-	cleanPattern = turnEscapedToHexCode(pattern, ' ')
-	cleanPattern = strings.TrimRight(cleanPattern, " ")
+	matchingPattern = turnEscapedToHexCode(pattern, ' ')
+	matchingPattern = strings.TrimRight(matchingPattern, " ")
 	// Parse negate and directory markers.
-	cleanPattern, dirOnly = strings.CutSuffix(cleanPattern, "/")
-	cleanPattern, isNegate = strings.CutPrefix(cleanPattern, "!")
+	matchingPattern, dirOnly = strings.CutSuffix(matchingPattern, "/")
+	matchingPattern, isNegate = strings.CutPrefix(matchingPattern, "!")
 	return
 }
 
@@ -80,10 +80,12 @@ func createIgnorePattern(pattern, basepath string) (ignorePattern, error) {
 	// occur as a part of `\\c` sequence which denotes '\' followed by <c>).
 	pattern = turnEscapedToHexCode(pattern, '\\')
 
-	cleanPattern, dirOnly, isNegate := splitIgnorePattern(pattern)
+	matchingPattern, dirOnly, isNegate := splitIgnorePattern(pattern)
 
-	// Translate pattern to regex expression.
-	expr := cleanPattern
+	// Translate matching pattern to regex expression.
+	// Translation is performed step by step in a certain sequence (see comments).
+	expr := matchingPattern
+
 	// Turn escaped '*' and '?' to their hex representation to simplify the translation.
 	expr = turnEscapedToHexCode(expr, '*')
 	expr = turnEscapedToHexCode(expr, '?')
@@ -93,22 +95,35 @@ func createIgnorePattern(pattern, basepath string) (ignorePattern, error) {
 		expr = strings.ReplaceAll(expr, "\\"+s, s)
 		expr = strings.ReplaceAll(expr, s, "\\"+s)
 	}
-	// Replace wildcards with the corresponding regex representation.
-	// Note that '{0,}' (not '*') is used while replacing '**' to avoid confusing
-	// in the subsequent replacement of a single '*'.
-	expr = strings.ReplaceAll(expr, "/**/", "/([^/]+/){0,}")
-	expr, found := strings.CutPrefix(expr, "**/")
-	if found || !strings.Contains(cleanPattern, "/") {
-		expr = "([^/]+/){0,}" + expr
-	}
-	expr, found = strings.CutSuffix(expr, "/**")
-	if found {
-		expr = expr + "/([^/]+/){0,}[^/]+"
-	}
-	expr = strings.ReplaceAll(expr, "*", "[^/]*")
+
+	// Turn '?' to its regex representation here because '?' might be used in the subsequent
+	// transformations to specify non-capturing groups '(?:re)'.
 	expr = strings.ReplaceAll(expr, "?", "[^/]")
 
-	re, err := regexp.Compile("^" + basepath + expr + "$")
+	// Replace '**' wildcards with the corresponding regex representation.
+	// Note that '{0,}' rather than '*' is used while replacing '**' to avoid confusing
+	// in the subsequent replacement of a single '*'.
+	expr = strings.ReplaceAll(expr, "/**/", "/(?:[^/]+/){0,}")
+	expr, found := strings.CutPrefix(expr, "**/")
+	if found || !strings.Contains(matchingPattern, "/") {
+		expr = "(?:[^/]+/){0,}" + expr
+	}
+
+	expr, found = strings.CutSuffix(expr, "/**")
+	// Turn '*' to its regex representation before injecting basepath to avoid confusing with '*'
+	// that basepath itself might contain (within basepath it's not a wildcard, but just '*').
+	expr = strings.ReplaceAll(expr, "*", "[^/]*")
+
+	// Construct final expression where the single captured group corresponds to the initial
+	// matchingPattern. This captured group might be used additionally to identify if some path
+	// matches pattern or not (see `ignorePattern.MatchPath`).
+	if found {
+		expr = fmt.Sprintf("(%s(?:/[^/]+){1,})", basepath+expr)
+	} else {
+		expr = fmt.Sprintf("(%s)(?:/[^/]+){0,}", basepath+expr)
+	}
+
+	re, err := regexp.Compile("^" + expr + "$")
 	if err != nil {
 		return ignorePattern{}, fmt.Errorf("failed to compile expression: %w", err)
 	}
@@ -122,8 +137,15 @@ func createIgnorePattern(pattern, basepath string) (ignorePattern, error) {
 
 // MatchPath checks if path matches this pattern.
 func (p ignorePattern) MatchPath(info fs.FileInfo, path string) bool {
-	isApplicable := info.IsDir() || !p.dirOnly
-	return isApplicable && p.re.MatchString(path)
+	submatches := p.re.FindStringSubmatch(path)
+	if submatches == nil {
+		return false
+	}
+
+	// For dirOnly pattern it is needed to check additionally that if path is not a directory
+	// it doesn't match directory part, which is represented with the single captured group
+	// (see `createIgnorePattern`).
+	return !p.dirOnly || info.IsDir() || submatches[1] != path
 }
 
 // loadIgnorePatterns reads ignore patterns from the patternsFile.
