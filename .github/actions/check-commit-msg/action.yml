@@ -6,6 +6,7 @@ runs:
   steps:
     - name: Setup python
       uses: actions/setup-python@v4
+      id: setup-python
       with:
         python-version: "${{ env.PYTHON_VERSION }}"
 
@@ -21,7 +22,7 @@ runs:
       id: cache-pre_commit-venv
       uses: actions/cache@v4
       with:
-        key: ${{ env.PRE_COMMIT }}-venv-${{ runner.os }}-Py_${{ env.PYTHON_VERSION }}-${{ hashFiles('test/requirements.txt') }}
+        key: ${{ env.PRE_COMMIT }}-venv-${{ runner.os }}-Py_${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('test/requirements.txt') }}
         path: ${{ env.VIRTUAL_ENV }}
 
     - name: Install pre-commit in virtualenv
@@ -31,7 +32,6 @@ runs:
         # Install pre-commit
         python3 -m venv "${{ env.VIRTUAL_ENV }}"
         python -m pip install $PRE_COMMIT
-
 
     - name: Set git config user info
       shell: bash
@@ -44,7 +44,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.cache/pre-commit
-        key: ${{ env.PRE_COMMIT }}|${{ runner.os }}|Py_${{ env.PYTHON_VERSION }}|${{ hashFiles('.pre-commit-config.yaml') }}
+        key: ${{ env.PRE_COMMIT }}|${{ runner.os }}|Py_${{ steps.setup-python.outputs.python-version }}|${{ hashFiles('.pre-commit-config.yaml') }}
 
     - name: Get commit messages
       id: get_commit_msgs
