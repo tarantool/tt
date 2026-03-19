@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+## [2.11.5] - 2026-03-19
+
+The release includes fixes identified by CVE linters.
+
 ## [2.11.4] - 2026-03-04
 
 The auxilary release just to keep version matching with `tt-ee`
