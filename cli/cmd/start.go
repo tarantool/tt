@@ -10,6 +10,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -92,9 +93,12 @@ func startInstancesInteractive(cmdCtx *cmdcontext.CmdCtx, instances []running.In
 		prefix := running.GetAppInstanceName(instCtx) + " "
 		wg.Add(1)
 		go func(inst running.InstanceCtx) {
-			running.RunInstance(ctx, cmdCtx, inst,
+			err := running.RunInstance(ctx, cmdCtx, inst,
 				running.NewColorizedPrefixWriter(os.Stdout, clr, prefix),
 				running.NewColorizedPrefixWriter(os.Stderr, clr, prefix))
+			if err != nil {
+				log.Error(err.Error())
+			}
 			wg.Done()
 		}(instCtx)
 	}

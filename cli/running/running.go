@@ -26,6 +26,7 @@ import (
 	"github.com/tarantool/tt/cli/util/regexputil"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
+	"golang.org/x/sys/unix"
 )
 
 const defaultDirPerms = 0o770
@@ -789,14 +790,18 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 
 // Start an Instance.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
-	if err := createInstanceDataDirectories(*inst); err != nil {
-		return fmt.Errorf("failed to create a directory: %s", err)
-	}
 	logger, err := createLogger(inst)
 	if err != nil {
 		return fmt.Errorf("cannot create a logger: %s", err)
 	}
 	logger.Println("[INFO] Start") // Create a log file before any other actions.
+
+	if err := createInstanceDataDirectories(*inst); err != nil {
+		logger.Fatalf("[ERROR] Failed to create data directories for instance %q: %s",
+			inst.InstName,
+			err)
+		return fmt.Errorf("failed to create a directory: %s", err)
+	}
 
 	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: inst}
 	preStartAction := func() error {
@@ -966,6 +971,17 @@ Cluster config path: %q`, tntVersion.Str, inst.ClusterConfigPath)
 func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance InstanceCtx,
 	args []string,
 ) error {
+	err := util.CreateDirectory(instance.LogDir, defaultDirPerms)
+	if err != nil {
+		return fmt.Errorf("failed to create log directory for instance %q: %s",
+			GetAppInstanceName(instance), err)
+	}
+
+	if err := syscall.Access(instance.LogDir, unix.W_OK); err != nil {
+		return fmt.Errorf("instance %q has non-writable log directory %q: %s",
+			instance.InstName, instance.RunDir, err)
+	}
+
 	appName := GetAppInstanceName(instance)
 	// If an instance is already running don't try to start it again.
 	// To restart an instance use tt restart command.
