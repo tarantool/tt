@@ -11,7 +11,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -54,9 +53,6 @@ type configLoader struct {
 	load       func(*InitCtx, string) (configData, error)
 }
 
-//go:embed print_tarantoolctl_cfg.lua
-var printTarantoolctlCfgLuaBytes []byte
-
 // loadCartridgeConfig parses configPath as .cartridge.yml and fill directories info structure.
 func loadCartridgeConfig(initCtx *InitCtx, configPath string) (configData, error) {
 	var cartridgeConf cartridgeOpts
@@ -91,43 +87,6 @@ func createDirectories(dirList []string) error {
 		log.Debugf("'%s' directory is created.", dirName)
 	}
 	return nil
-}
-
-// loadTarantoolctlConfig loads data from configPath which is processed as a lua file, and fills
-// directories info structure.
-func loadTarantoolctlConfig(initCtx *InitCtx, configPath string) (configData, error) {
-	var existingCfg configData
-	if initCtx.TarantoolExecutable == "" {
-		return existingCfg, fmt.Errorf("tarantool executable is not set")
-	}
-
-	out, err := util.ExecuteCommandGetOutput(initCtx.TarantoolExecutable, "",
-		printTarantoolctlCfgLuaBytes, "-", configPath)
-	if err != nil {
-		return existingCfg, fmt.Errorf("tarantoolctl config loading error: %s", string(out))
-	}
-	var raw map[string]interface{}
-	if err := yaml.Unmarshal(out, &raw); err != nil {
-		return existingCfg, fmt.Errorf("failed to parse YAML: %s", err)
-	}
-
-	for _, dir := range []struct {
-		path    *string
-		varName string
-	}{
-		{&existingCfg.walDir, "wal_dir"},
-		{&existingCfg.vinylDir, "vinyl_dir"},
-		{&existingCfg.memtxDir, "memtx_dir"},
-		{&existingCfg.logDir, "log_dir"},
-		{&existingCfg.runDir, "pid_file"},
-		{&existingCfg.instancesEnabled, "instance_dir"},
-	} {
-		if val, ok := raw[dir.varName]; ok && val != nil {
-			*dir.path = val.(string)
-		}
-	}
-	existingCfg.tarantoolctlLayout = true
-	return existingCfg, nil
 }
 
 //go:embed templates/tt.yaml.default
@@ -228,9 +187,9 @@ func Run(initCtx *InitCtx) error {
 		initCtx.reader = os.Stdin
 	}
 
-	configLoaders := []configLoader{
-		{".cartridge.yml", loadCartridgeConfig},
-		{".tarantoolctl", loadTarantoolctlConfig},
+	configLoader := configLoader{
+		configName: ".cartridge.yml",
+		load:       loadCartridgeConfig,
 	}
 
 	configName, err := checkExistingConfig(initCtx)
@@ -240,22 +199,14 @@ func Run(initCtx *InitCtx) error {
 
 	var sourceCfg configData
 	if !initCtx.SkipConfig {
-		for _, confLoader := range configLoaders {
-			if _, err = os.Stat(confLoader.configName); err != nil {
-				if os.IsNotExist(err) {
-					continue
-				} else {
-					log.Warnf("Failed to get info of '%s': %s", confLoader.configName, err)
-				}
-			}
-
-			log.Infof("Found existing config '%s'", confLoader.configName)
-			sourceCfg, err = confLoader.load(initCtx, confLoader.configName)
+		if _, err = os.Stat(configLoader.configName); err == nil {
+			log.Infof("Found existing config '%s'", configLoader.configName)
+			sourceCfg, err = configLoader.load(initCtx, configLoader.configName)
 			if err != nil {
 				return err
-			} else {
-				break
 			}
+		} else if !os.IsNotExist(err) {
+			log.Warnf("Failed to get info of '%s': %s", configLoader.configName, err)
 		}
 	}
 	if !util.IsApp(".") && sourceCfg.instancesEnabled == "" {
