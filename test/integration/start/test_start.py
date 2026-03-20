@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import tt_helper
 
@@ -109,3 +111,100 @@ tt_cluster_app = dict(
 )
 def test_start_cluster(tt, tt_app, target):
     check_start(tt, tt_app, target)
+
+
+################################################################
+# Permission denied
+
+
+@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
+@pytest.mark.skipif(
+    os.getuid() == 0,
+    reason="Skipping the test, it shouldn't run as root",
+)
+@pytest.mark.tt_app(**tt_cluster_app)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+    ],
+)
+@pytest.mark.parametrize(
+    "denied_dir, expect_console_error",
+    [
+        pytest.param(["var"], True, id="var_denied"),
+        pytest.param(["var", "log"], True, id="var_log_denied"),
+        pytest.param(["var", "lib"], False, id="var_lib_denied"),
+    ],
+)
+def test_start_permission_denied(tt, tt_app, denied_dir, expect_console_error):
+    target_dir = tt_app.path(*denied_dir)
+    os.makedirs(target_dir, exist_ok=True)
+    os.chmod(target_dir, 0o444)
+
+    try:
+        rc, out = tt.exec("start")
+
+        if expect_console_error:
+            assert rc != 0
+            assert "permission denied" in out.lower()
+        else:
+            assert rc == 0
+
+            logs = list(tt_helper.log_files(tt_app, tt_app.instances))
+            assert utils.wait_files(5, logs)
+
+            error_found = False
+            for log_file in logs:
+                with open(log_file, "r") as f:
+                    if "permission denied" in f.read().lower():
+                        error_found = True
+                        break
+
+            assert error_found, "Permission denied error was not found in logs."
+    finally:
+        os.chmod(target_dir, 0o755)
+
+
+@pytest.mark.skipif(skip_cluster_cond, reason=skip_cluster_reason)
+@pytest.mark.skipif(
+    os.getuid() == 0,
+    reason="Skipping the test, it shouldn't run as root",
+)
+@pytest.mark.tt_app(**tt_cluster_app)
+@pytest.mark.parametrize(
+    "tt_running_targets",
+    [
+        pytest.param([], id="running:none"),
+    ],
+)
+def test_start_permission_denied_permissions_denied_files(tt, tt_app):
+    rc, _ = tt.exec("start")
+    assert rc == 0
+    assert utils.wait_files(5, tt_helper.pid_files(tt_app, tt_app.instances))
+
+    rc, _ = tt.exec("stop", "-y")
+    assert rc == 0
+
+    log_dir = tt_app.path("var", "log")
+    lib_dir = tt_app.path("var", "lib")
+    run_dir = tt_app.path("var", "run")
+
+    dirs_to_lock = []
+    for data_dir in [log_dir, lib_dir, run_dir]:
+        for root, dirs, files in os.walk(data_dir, topdown=False):
+            dirs_to_lock.extend(os.path.join(root, f) for f in files)
+            dirs_to_lock.extend(os.path.join(root, d) for d in dirs)
+        dirs_to_lock.append(data_dir)
+
+    for d in dirs_to_lock:
+        os.chmod(d, 0o444)
+
+    try:
+        rc, out = tt.exec("start")
+        assert rc != 0
+        assert "permission denied" in out.lower()
+    finally:
+        for d in dirs_to_lock:
+            if os.path.exists(d):
+                os.chmod(d, 0o755)
