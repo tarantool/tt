@@ -199,18 +199,6 @@ func Test_createNewOpts(t *testing.T) {
 		},
 	}
 
-	testOptsCustom := &config.CliOpts{
-		Env: &config.TtEnvOpts{
-			Restartable:        true,
-			TarantoolctlLayout: true,
-		},
-		App: &config.AppOpts{
-			WalDir:   "test_wal",
-			VinylDir: "test_vinyl",
-			MemtxDir: "test_memtx",
-		},
-	}
-
 	tests := []struct {
 		name        string
 		testDir     string
@@ -239,43 +227,6 @@ func Test_createNewOpts(t *testing.T) {
 					WalDir:   "var/lib",
 					VinylDir: "var/lib",
 					MemtxDir: "var/lib",
-					LogDir:   "var/log",
-					RunDir:   "var/run",
-				},
-				Modules: &config.ModulesOpts{
-					Directories: []string{"modules"},
-				},
-				Repo: &config.RepoOpts{
-					Rocks:   "",
-					Install: "distfiles",
-				},
-				EE: &config.EEOpts{},
-				Templates: []config.TemplateOpts{
-					{Path: "templates"},
-				},
-			},
-		},
-		{
-			name: "Wal, Vinyl and Memtx directories are separated",
-			args: args{
-				opts: testOptsCustom,
-				packCtx: PackCtx{
-					Type: "tgz",
-					Name: "bundle",
-				},
-			},
-			expectedOps: &config.CliOpts{
-				Env: &config.TtEnvOpts{
-					BinDir:             "bin",
-					IncludeDir:         "include",
-					InstancesEnabled:   configure.InstancesEnabledDirName,
-					Restartable:        true,
-					TarantoolctlLayout: true,
-				},
-				App: &config.AppOpts{
-					WalDir:   "var/wal",
-					VinylDir: "var/vinyl",
-					MemtxDir: "var/snap",
 					LogDir:   "var/log",
 					RunDir:   "var/run",
 				},
@@ -604,58 +555,6 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.FileExists, "instances.enabled/script_app/var/log/script_app/tt.log"},
 				{assert.NoFileExists, "instances.enabled/script_app/init.lua"},
 				{assert.NoDirExists, "instances.enabled/script_app/var/run"},
-			},
-		},
-		{
-			name: "Packing with tarantoolctl layout",
-			params: params{
-				configPath: "testdata/env_tntctl_layout/tt.yaml",
-				packCtx: PackCtx{
-					Archive: ArchiveCtx{
-						All: true,
-					},
-				},
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.DirExists, "instances.enabled"},
-				{assert.NoDirExists, "include"},
-				{assert.DirExists, "modules"},
-				{assert.FileExists, "tt.yaml"},
-				{assert.FileExists, "bin/tt"},
-				{assert.NoFileExists, "bin/tarantool"},
-
-				// Multi-instance app.
-				{assert.FileExists, "instances.enabled/multi"},
-				{assert.FileExists, "multi/init.lua"},
-				{assert.FileExists, "multi/instances.yaml"},
-				{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.snap"},
-				{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.xlog"},
-				{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.snap"},
-				{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.xlog"},
-				{assert.FileExists, "multi/var/log/inst1/tt.log"},
-				{assert.FileExists, "multi/var/log/inst2/tt.log"},
-				{assert.NoDirExists, "multi/var/run"},
-
-				// Single app.
-				{assert.DirExists, "var/lib/single"},
-				{assert.FileExists, "instances.enabled/single"},
-				{assert.FileExists, "single/init.lua"},
-				{assert.FileExists, "var/lib/single/00000000000000000000.snap"},
-				{assert.FileExists, "var/lib/single/00000000000000000000.xlog"},
-				{assert.FileExists, "var/log/single.log"},
-				{assert.NoDirExists, "var/run"},
-
-				// Script app.
-				{assert.DirExists, "var/lib/script_app"},
-				{assert.FileExists, "script.lua"},
-				{assert.FileExists, "instances.enabled/script_app.lua"},
-				{assert.FileExists, "var/lib/script_app/00000000000000000000.snap"},
-				{assert.FileExists, "var/lib/script_app/00000000000000000000.xlog"},
-				{assert.FileExists, "var/log/script_app.log"},
-				// Working dir must be created for script-file app.
-				{assert.DirExists, "instances.enabled/script_app/"},
 			},
 		},
 		{

@@ -545,53 +545,6 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
         assert instance_process_rc == 0
 
 
-def test_running_tarantoolctl_layout(tt_cmd, tmp_path):
-    # Copy the test application to the "run" directory.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
-    shutil.copy(test_app_path, tmp_path)
-
-    config_path = os.path.join(tmp_path, config_name)
-    with open(config_path, "w") as file:
-        yaml.dump({"env": {"tarantoolctl_layout": True}}, file)
-
-    # Start an instance.
-    start_cmd = [tt_cmd, "start", "test_app"]
-    instance_process = subprocess.Popen(
-        start_cmd,
-        cwd=tmp_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    start_output = instance_process.stdout.readline()
-    assert re.search(r"Starting an instance", start_output)
-
-    # Check files locations.
-    file = wait_file(os.path.join(tmp_path, run_path), "test_app.pid", [])
-    assert file != ""
-    file = wait_file(os.path.join(tmp_path, run_path), "test_app.control", [])
-    assert file != ""
-    file = wait_file(os.path.join(tmp_path, log_path), "test_app.log", [])
-    assert file != ""
-
-    # Check status.
-    status_cmd = [tt_cmd, "status", "test_app"]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
-    assert status_rc == 0
-    status_out = extract_status(status_out)
-    assert status_out["test_app"]["STATUS"] == "RUNNING"
-
-    # Stop the Instance.
-    stop_cmd = [tt_cmd, "stop", "-y", "test_app"]
-    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
-    assert status_rc == 0
-    assert re.search(r"The Instance test_app \(PID = \d+\) has been terminated.", stop_out)
-
-    # Check that the process was terminated correctly.
-    instance_process_rc = instance_process.wait(1)
-    assert instance_process_rc == 0
-
-
 # Test bugfix https://github.com/tarantool/tt/issues/451
 def test_running_start(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
