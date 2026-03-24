@@ -458,15 +458,3 @@ func TestInitLoadTarantoolctlConfig(t *testing.T) {
 	assert.Equal(t, "", cfg.instancesEnabled)
 	assert.True(t, cfg.tarantoolctlLayout)
 }
-
-func TestInitLoadTarantoolctlConfigErrorCases(t *testing.T) {
-	var err error
-	var initCtx InitCtx
-	initCtx.TarantoolExecutable, err = exec.LookPath("tarantool")
-	require.NoError(t, err)
-
-	_, err = loadTarantoolctlConfig(&initCtx,
-		"testdata/tarantoolctl_invalid.lua")
-	require.True(t, strings.Contains(err.Error(),
-		"tarantoolctl config loading error: LuajitError:"))
-}

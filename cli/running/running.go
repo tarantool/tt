@@ -557,21 +557,12 @@ func mapValuesFromConfig[T any](cfg *libcluster.Config, mapFunc func(val T) (T, 
 }
 
 // setInstCtxFromTtConfig sets instance context members from tt config.
-func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts, ttConfigDir string) error {
-	tarantoolCtlLayout := false
+func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts) error {
 	if cliOpts.Env != nil {
 		inst.Restartable = cliOpts.Env.Restartable
-		tarantoolCtlLayout = cliOpts.Env.TarantoolctlLayout
 	}
 	if cliOpts.App != nil {
-		var envLayout layout.Layout = nil
-		var err error
-		if tarantoolCtlLayout && inst.SingleApp {
-			// Tarantoolctl layout is still relative to the configuration file location.
-			envLayout, err = layout.NewTntCtlLayout(ttConfigDir, inst.AppName)
-		} else {
-			envLayout, err = layout.NewMultiInstLayout(inst.AppDir, inst.AppName, inst.InstName)
-		}
+		envLayout, err := layout.NewMultiInstLayout(inst.AppDir, inst.AppName, inst.InstName)
 		if err != nil {
 			return err
 		}
@@ -674,7 +665,7 @@ func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 		for _, inst := range collectedInstances {
 			instance := inst
 
-			if err = setInstCtxFromTtConfig(&instance, cliOpts, ttConfigDir); err != nil {
+			if err = setInstCtxFromTtConfig(&instance, cliOpts); err != nil {
 				return apps, err
 			}
 

@@ -16,6 +16,7 @@ for machine-readable output.
 ### Changed
 
 - `tt status`: deprecate `--pretty` option in favor of `--format=pretty-table`.
+- tarantoolctl layout is no longer supported.
 
 ### Fixed
 

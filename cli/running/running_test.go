@@ -435,38 +435,6 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 	assert.Equal(t, filepath.Join(instancesEnabled, appName), inst.AppDir)
 }
 
-func Test_collectInstancesSingleInstanceTntCtlLayout(t *testing.T) {
-	appName := "script"
-	instancesEnabled, err := filepath.Abs("./testdata/instances_enabled")
-	require.NoError(t, err)
-	apps := []string{appName + ".lua"}
-	cliOpts := configure.GetDefaultCliOpts()
-	cliOpts.Env.InstancesEnabled = instancesEnabled
-	cliOpts.Env.TarantoolctlLayout = true
-	cfgDir := "/etc/tarantool/"
-	instances, err := CollectInstancesForApps(apps, cliOpts, cfgDir,
-		integrity.IntegrityCtx{
-			Repository: &mockRepository{},
-		}, ConfigLoadAll)
-	require.NoError(t, err)
-	require.Len(t, instances, 1)
-	require.Contains(t, instances, appName)
-	require.Len(t, instances[appName], 1)
-
-	inst := instances[appName][0]
-	assert.Equal(t, filepath.Join(cfgDir, "var", "lib", appName), inst.WalDir)
-	assert.Equal(t, filepath.Join(cfgDir, "var", "lib", appName), inst.VinylDir)
-	assert.Equal(t, filepath.Join(cfgDir, "var", "lib", appName), inst.MemtxDir)
-	assert.Equal(t, filepath.Join(cfgDir, "var", "run"), inst.RunDir)
-	assert.Equal(t, filepath.Join(cfgDir, "var", "run", appName+".pid"), inst.PIDFile)
-	assert.Equal(t, filepath.Join(cfgDir, "var", "run", appName+".control"),
-		inst.ConsoleSocket)
-	assert.Equal(t, filepath.Join(cfgDir, "var", "log"), inst.LogDir)
-	assert.Equal(t, filepath.Join(cfgDir, "var", "log", appName+".log"), inst.Log)
-	assert.Equal(t, "", inst.ClusterConfigPath)
-	assert.Equal(t, filepath.Join(instancesEnabled, appName), inst.AppDir)
-}
-
 func Test_getInstanceName(t *testing.T) {
 	for _, tc := range []struct {
 		fullInstanceName  string

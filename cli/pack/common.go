@@ -492,28 +492,13 @@ func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
 			}
 
 			dstDir := func(dir string) string {
-				if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
-					return util.JoinPaths(basePath, dir)
-				}
 				return util.JoinPaths(destAppDir, dir)
 			}
 			copyInfo := []struct{ src, dest string }{}
-			if newOpts.Env.TarantoolctlLayout && inst.SingleApp {
-				// Copy only one log file, not a directory. In case of tarantoolctl layout
-				// application's log files are placed in the same directory with different
-				// names. So to avoid copying log files of all applications, do not copy
-				// the whole log dir.
-				copyInfo = append(copyInfo, struct{ src, dest string }{
-					src:  inst.Log,
-					dest: util.JoinPaths(dstDir(newOpts.App.LogDir), filepath.Base(inst.Log)),
-				})
-			} else {
-				copyInfo = append(copyInfo, struct{ src, dest string }{
-					src:  filepath.Dir(inst.LogDir),
-					dest: dstDir(newOpts.App.LogDir),
-				})
-			}
 			copyInfo = append(copyInfo,
+				struct{ src, dest string }{
+					src: filepath.Dir(inst.LogDir), dest: dstDir(newOpts.App.LogDir),
+				},
 				struct{ src, dest string }{
 					src: filepath.Dir(inst.WalDir), dest: dstDir(newOpts.App.WalDir),
 				},
@@ -576,7 +561,6 @@ func createNewOpts(opts *config.CliOpts, packCtx PackCtx) *config.CliOpts {
 		cliOptsNew.Env.InstancesEnabled = configure.InstancesEnabledDirName
 	}
 	cliOptsNew.Env.Restartable = opts.Env.Restartable
-	cliOptsNew.Env.TarantoolctlLayout = opts.Env.TarantoolctlLayout
 
 	// In case the user separates one of the directories for storing memtx, vinyl or wal artifacts
 	// the new environment will be also configured with separated standard directories for all
