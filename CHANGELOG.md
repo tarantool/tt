@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.12.0] - 2026-03-30
+
+This maintenance release marks the end of active development on the v2
+branch.
+
+### Added
+
 - `tt pack`: support nested `.packignore` at the root of tt environment.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
@@ -19,6 +30,8 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt pack`: fix `.packignore` for directories with regexp symbols in
+  their names.
 - `tt`: return non-zero exit code on unknown command.
 
 ## [2.11.5] - 2026-03-19
