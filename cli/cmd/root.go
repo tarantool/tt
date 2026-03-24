@@ -188,7 +188,6 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		NewRocksCmd(),
 		NewCatCmd(),
 		NewPlayCmd(),
-		NewCartridgeCmd(),
 		NewClusterCmd(),
 		NewCoredumpCmd(),
 		NewReplicasetCmd(),

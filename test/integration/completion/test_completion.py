@@ -28,7 +28,6 @@ tt_root_command: set[str] = set(
         "env",
         "modules",
         "search",
-        "cartridge",
         "connect",
         "init",
         "pack",
