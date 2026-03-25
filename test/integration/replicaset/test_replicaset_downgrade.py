@@ -4,11 +4,10 @@ import subprocess
 import tempfile
 
 import pytest
-from cartridge_helper import cartridge_name
 from replicaset_helpers import start_application, stop_application
 from vshard_cluster import VshardCluster
 
-from utils import get_tarantool_version, run_command_and_get_output, wait_event, wait_file
+from utils import get_tarantool_version, run_command_and_get_output, wait_file
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 cmd_master = """box.space._schema:run_triggers(false)
@@ -239,26 +238,3 @@ def eval_on_instance(tt_cmd, app_name, inst_name, workdir, eval):
     connect_process.stdin.close()
     connect_process.wait()
     return connect_process.stdout.read()
-
-
-# The `box.schema.downgrade()` function was introduced in Tarantool 2.11.0.
-# see https://www.tarantool.io/ru/doc/latest/release/2.11.0/#downgrading-a-database
-# Also cartridge is not supported for Tarantool 3.
-@pytest.mark.skipif(
-    (tarantool_major_version != 2 or tarantool_minor_version != 11),
-    reason="skip cartridge test for Tarantool < 2.11 or Tarantool >= 3",
-)
-def test_downgrade_cartridge(tt_cmd, cartridge_app):
-    # Check that vshard is bootstrapped.
-    def have_buckets_created():
-        expr = "require('vshard').storage.buckets_count() == 0"
-        out = eval_on_instance(tt_cmd, cartridge_name, "s1-master", cartridge_app.workdir, expr)
-        return out.find("false") != -1
-
-    assert wait_event(10, have_buckets_created)
-
-    app_dir = cartridge_app.workdir
-    upgrade_cmd = [tt_cmd, "replicaset", "downgrade", cartridge_name, "2.10.0", "-t=15"]
-    rc, out = run_command_and_get_output(upgrade_cmd, cwd=app_dir)
-    assert rc == 0
-    assert "ok" in out

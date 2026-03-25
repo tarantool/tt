@@ -380,34 +380,6 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
         stop_application(tt_cmd, app_name, tmpdir)
 
 
-@pytest.mark.skipif(tarantool_major_version > 2, reason="skip cartridge test for Tarantool > 2")
-def test_status_cartridge(tt_cmd, cartridge_app):
-    rs_cmd = [tt_cmd, "status"]
-
-    time.sleep(20)
-    rc, out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
-    assert rc == 0
-    status_out = extract_status(out)
-
-    instances = {
-        "cartridge_app:router": "RW",
-        "cartridge_app:s1-master": "RW",
-        "cartridge_app:s2-master": "RW",
-        "cartridge_app:s3-master": "RW",
-        "cartridge_app:stateboard": "RW",
-        "cartridge_app:s1-replica": "RO",
-        "cartridge_app:s2-replica-1": "RO",
-        "cartridge_app:s2-replica-2": "RO",
-    }
-
-    for app_name, mode in instances.items():
-        assert status_out[app_name]["STATUS"] == "RUNNING"
-        assert status_out[app_name]["MODE"] == mode
-        assert status_out[app_name]["CONFIG"] == "uninitialized"
-        assert status_out[app_name]["BOX"] == "running"
-        assert status_out[app_name]["UPSTREAM"] == "--"
-
-
 def test_status_invalid_format(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     status_cmd = [tt_cmd, "status", "--format=invalid"]

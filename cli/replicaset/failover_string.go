@@ -11,19 +11,18 @@ func _() {
 	_ = x[FailoverUnknown-0]
 	_ = x[FailoverOff-1]
 	_ = x[FailoverManual-2]
-	_ = x[FailoverEventual-3]
-	_ = x[FailoverElection-4]
-	_ = x[FailoverStateful-5]
-	_ = x[FailoverSupervised-6]
+	_ = x[FailoverElection-3]
+	_ = x[FailoverSupervised-4]
 }
 
-const _Failover_name = "unknownoffmanualeventualelectionstatefulsupervised"
+const _Failover_name = "unknownoffmanualelectionsupervised"
 
-var _Failover_index = [...]uint8{0, 7, 10, 16, 24, 32, 40, 50}
+var _Failover_index = [...]uint8{0, 7, 10, 16, 24, 34}
 
 func (i Failover) String() string {
-	if i < 0 || i >= Failover(len(_Failover_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_Failover_index)-1 {
 		return "Failover(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _Failover_name[_Failover_index[i]:_Failover_index[i+1]]
+	return _Failover_name[_Failover_index[idx]:_Failover_index[idx+1]]
 }

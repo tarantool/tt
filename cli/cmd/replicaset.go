@@ -19,32 +19,29 @@ import (
 )
 
 var (
-	orchestratorCartridge         bool
 	orchestratorCentralizedConfig bool
 	orchestratorCustom            bool
 	orchestratorsEnabled          = map[replicaset.Orchestrator]*bool{
 		replicaset.OrchestratorCentralizedConfig: &orchestratorCentralizedConfig,
-		replicaset.OrchestratorCartridge:         &orchestratorCartridge,
 		replicaset.OrchestratorCustom:            &orchestratorCustom,
 	}
 
-	replicasetUser                     string
-	replicasetPassword                 string
-	replicasetSslKeyFile               string
-	replicasetSslCertFile              string
-	replicasetSslCaFile                string
-	replicasetSslCiphers               string
-	replicasetForce                    bool
-	replicasetTimeout                  int
-	replicasetBootstrapTimeout         int
-	replicasetIntegrityPrivateKey      string
-	replicasetBootstrapVshard          bool
-	replicasetCartridgeReplicasetsFile string
-	replicasetGroupName                string
-	replicasetReplicasetName           string
-	replicasetInstanceName             string
-	replicasetIsGlobal                 bool
-	rebootstrapConfirmed               bool
+	replicasetUser                string
+	replicasetPassword            string
+	replicasetSslKeyFile          string
+	replicasetSslCertFile         string
+	replicasetSslCaFile           string
+	replicasetSslCiphers          string
+	replicasetForce               bool
+	replicasetTimeout             int
+	replicasetBootstrapTimeout    int
+	replicasetIntegrityPrivateKey string
+	replicasetBootstrapVshard     bool
+	replicasetGroupName           string
+	replicasetReplicasetName      string
+	replicasetInstanceName        string
+	replicasetIsGlobal            bool
+	rebootstrapConfirmed          bool
 
 	chosenReplicasetAliases []string
 	lsnTimeout              int
@@ -119,7 +116,7 @@ func newDowngradeCmd() *cobra.Command {
 // newStatusCmd creates a "replicaset status" command.
 func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "status [--cartridge|--config|--custom] [flags] " +
+		Use: "status [--config|--custom] [flags] " +
 			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
 			replicasetUriHelp,
 		DisableFlagsInUseLine: true,
@@ -138,7 +135,7 @@ func newStatusCmd() *cobra.Command {
 // newPromoteCmd creates a "replicaset promote" command.
 func newPromoteCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "promote [--cartridge|--config|--custom] [-f] [--timeout secs] [flags] " +
+		Use: "promote [--config|--custom] [-f] [--timeout secs] [flags] " +
 			"(<APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
 			replicasetUriHelp,
 		DisableFlagsInUseLine: true,
@@ -153,8 +150,7 @@ func newPromoteCmd() *cobra.Command {
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"to force a promotion:\n"+
-			"  * config: skip instances not found locally\n"+
-			"  * cartridge: force inconsistency")
+			"  * config: skip instances not found locally\n")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
 		replicasetcmd.DefaultTimeout, "promoting timeout")
 	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
@@ -184,7 +180,7 @@ func newDemoteCmd() *cobra.Command {
 // newExpelCmd creates a "replicaset expel" command.
 func newExpelCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "expel [-f] [--cartridge|--config|--custom] [--timeout secs] " +
+		Use: "expel [-f] [--config|--custom] [--timeout secs] " +
 			"<APP_NAME:INSTANCE_NAME>",
 		Short: "Expel an instance from a replicaset",
 		Long:  "Expel an instance from a replicaset.",
@@ -214,8 +210,6 @@ func newBootstrapCmd() *cobra.Command {
 	addOrchestratorFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetBootstrapVshard, "bootstrap-vshard", "", false,
 		"bootstrap vshard")
-	cmd.Flags().StringVarP(&replicasetCartridgeReplicasetsFile, "file", "", "",
-		`file where replicasets configuration is described (default "<APP_DIR>/replicasets.yml")`)
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "",
 		"", "replicaset name for an instance bootstrapping")
 	cmd.Flags().IntVarP(&replicasetBootstrapTimeout, "timeout", "",
@@ -227,7 +221,7 @@ func newBootstrapCmd() *cobra.Command {
 // newBootstrapVShardCmd creates a "vshard bootstrap" command.
 func newBootstrapVShardCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "bootstrap [--cartridge|--config|--custom] [--timeout secs] [flags] " +
+		Use: "bootstrap [--config|--custom] [--timeout secs] [flags] " +
 			"(<APP_NAME> | <APP_NAME:INSTANCE_NAME> | <URI>)\n\n" +
 			replicasetUriHelp,
 		DisableFlagsInUseLine: true,
@@ -278,7 +272,7 @@ func newRebootstrapCmd() *cobra.Command {
 func newRolesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "roles",
-		Short: "Adds or removes roles for Cartridge and Tarantool 3 orchestrator",
+		Short: "Adds or removes roles for Tarantool 3 orchestrator",
 	}
 
 	cmd.AddCommand(newRolesAddCmd())
@@ -289,10 +283,10 @@ func newRolesCmd() *cobra.Command {
 // newRolesAddCmd creates a "replicaset roles add" command.
 func newRolesAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "add [--cartridge|--config|--custom] [-f] [--timeout secs]" +
+		Use: "add [--config|--custom] [-f] [--timeout secs]" +
 			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
-		Short: "Adds a role for Cartridge and Tarantool 3 orchestrator",
-		Long:  "Adds a role for Cartridge and Tarantool 3 orchestrator",
+		Short: "Adds a role for Tarantool 3 orchestrator",
+		Long:  "Adds a role for Tarantool 3 orchestrator",
 		Run:   RunModuleFunc(internalReplicasetRolesAddModule),
 		Args:  cobra.ExactArgs(2),
 	}
@@ -300,7 +294,7 @@ func newRolesAddCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",
 		"name of a target replicaset")
 	cmd.Flags().StringVarP(&replicasetGroupName, "group", "g", "",
-		"name of a target group (vshard-group in the Cartridge case)")
+		"name of a target group")
 	cmd.Flags().StringVarP(&replicasetInstanceName, "instance", "i", "",
 		"name of a target instance")
 	cmd.Flags().BoolVarP(&replicasetIsGlobal, "global", "G", false,
@@ -310,8 +304,7 @@ func newRolesAddCmd() *cobra.Command {
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"to force a promotion:\n"+
-			"  * config: skip instances not found locally\n"+
-			"  * cartridge: force inconsistency")
+			"  * config: skip instances not found locally\n")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
 		replicasetcmd.DefaultTimeout, "adding timeout")
 	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
@@ -322,10 +315,10 @@ func newRolesAddCmd() *cobra.Command {
 // newRolesRemoveCmd creates a "replicaset roles remove" command.
 func newRolesRemoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use: "remove [--cartridge|--config|--custom] [-f] [--timeout secs]" +
+		Use: "remove [--config|--custom] [-f] [--timeout secs]" +
 			"<APP_NAME:INSTANCE_NAME> <ROLE_NAME> [flags]",
-		Short: "Removes a role for Cartridge and Tarantool 3 orchestrator",
-		Long:  "Removes a role for Cartridge and Tarantool 3 orchestrator",
+		Short: "Removes a role for Tarantool 3 orchestrator",
+		Long:  "Removes a role for Tarantool 3 orchestrator",
 		Run:   RunModuleFunc(internalReplicasetRolesRemoveModule),
 		Args:  cobra.ExactArgs(2),
 	}
@@ -333,7 +326,7 @@ func newRolesRemoveCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&replicasetReplicasetName, "replicaset", "r", "",
 		"name of a target replicaset")
 	cmd.Flags().StringVarP(&replicasetGroupName, "group", "g", "",
-		"name of a target group (vshard-group in the Cartridge case)")
+		"name of a target group")
 	cmd.Flags().StringVarP(&replicasetInstanceName, "instance", "i", "",
 		"name of a target instance")
 	cmd.Flags().BoolVarP(&replicasetIsGlobal, "global", "G", false,
@@ -343,8 +336,7 @@ func newRolesRemoveCmd() *cobra.Command {
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().BoolVarP(&replicasetForce, "force", "f", false,
 		"to force a promotion:\n"+
-			"  * config: skip instances not found locally\n"+
-			"  * cartridge: force inconsistency")
+			"  * config: skip instances not found locally\n")
 	cmd.Flags().IntVarP(&replicasetTimeout, "timeout", "",
 		replicasetcmd.DefaultTimeout, "adding timeout")
 	integrity.RegisterWithIntegrityFlag(cmd.Flags(), &replicasetIntegrityPrivateKey)
@@ -378,8 +370,6 @@ func NewReplicasetCmd() *cobra.Command {
 func addOrchestratorFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&orchestratorCentralizedConfig, "config", false,
 		`to force the centralized config orchestrator`)
-	cmd.Flags().BoolVar(&orchestratorCartridge, "cartridge", false,
-		`to force the Cartridge orchestrator`)
 	cmd.Flags().BoolVar(&orchestratorCustom, "custom", false,
 		`to force a custom orchestrator`)
 }
@@ -727,7 +717,6 @@ func internalReplicasetBootstrapModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 		defer ctx.Conn.Close()
 	}
 	bootstrapCtx := replicasetcmd.BootstrapCtx{
-		ReplicasetsFile: replicasetCartridgeReplicasetsFile,
 		Orchestrator:    ctx.Orchestrator,
 		RunningCtx:      ctx.RunningCtx,
 		Timeout:         replicasetBootstrapTimeout,

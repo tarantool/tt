@@ -65,21 +65,6 @@ func testConnect(t *testing.T) connector.Connector {
 	return conn
 }
 
-func setCartridgeTestEnvironment(t *testing.T, version string) func() {
-	t.Helper()
-	require.NoError(t, setTarantoolVersion(version))
-
-	eval := tarantool.NewEvalRequest(`package.loaded["cartridge"] = {}`)
-	require.NoError(t, doRequest(eval))
-
-	return func() {
-		require.NoError(t, resetTarantoolVersion())
-
-		eval := tarantool.NewEvalRequest(`package.loaded["cartridge"] = nil`)
-		require.NoError(t, doRequest(eval))
-	}
-}
-
 func setCConfigTestEnvironment(t *testing.T) func() {
 	t.Helper()
 	require.NoError(t, setTarantoolVersion("3.0.0-foo-bar"))
@@ -99,36 +84,8 @@ func setCustomTestEnvironment(t *testing.T, version string) func() {
 	}
 }
 
-func TestEvalOrchestrator_cartridge(t *testing.T) {
-	for _, tc := range []string{"1.10.11-foo-bar", "2-0-0-foo-bar", "2.2.2-foo-bar"} {
-		t.Run(tc, func(t *testing.T) {
-			reset := setCartridgeTestEnvironment(t, tc)
-			defer reset()
-
-			conn := testConnect(t)
-			defer conn.Close()
-
-			evaled, err := replicaset.EvalOrchestrator(conn)
-			require.NoError(t, err)
-			require.Equal(t, replicaset.OrchestratorCartridge, evaled)
-		})
-	}
-}
-
 func TestEvalOrchestrator_cconfig(t *testing.T) {
 	reset := setCConfigTestEnvironment(t)
-	defer reset()
-
-	conn := testConnect(t)
-	defer conn.Close()
-
-	evaled, err := replicaset.EvalOrchestrator(conn)
-	require.NoError(t, err)
-	require.Equal(t, replicaset.OrchestratorCentralizedConfig, evaled)
-}
-
-func TestEvalOrchestrator_cconfig_if_cartridge(t *testing.T) {
-	reset := setCartridgeTestEnvironment(t, "3.0.0-foo-bar")
 	defer reset()
 
 	conn := testConnect(t)

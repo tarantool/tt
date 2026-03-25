@@ -10,17 +10,17 @@ func _() {
 	var x [1]struct{}
 	_ = x[OrchestratorUnknown-0]
 	_ = x[OrchestratorCentralizedConfig-1]
-	_ = x[OrchestratorCartridge-2]
-	_ = x[OrchestratorCustom-3]
+	_ = x[OrchestratorCustom-2]
 }
 
-const _Orchestrator_name = "unknowncentralized configcartridgecustom"
+const _Orchestrator_name = "unknowncentralized configcustom"
 
-var _Orchestrator_index = [...]uint8{0, 7, 25, 34, 40}
+var _Orchestrator_index = [...]uint8{0, 7, 25, 31}
 
 func (i Orchestrator) String() string {
-	if i < 0 || i >= Orchestrator(len(_Orchestrator_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_Orchestrator_index)-1 {
 		return "Orchestrator(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _Orchestrator_name[_Orchestrator_index[i]:_Orchestrator_index[i+1]]
+	return _Orchestrator_name[_Orchestrator_index[idx]:_Orchestrator_index[idx+1]]
 }

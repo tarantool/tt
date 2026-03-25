@@ -49,13 +49,6 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 		return err
 	}
 
-	if orchestratorType == replicaset.OrchestratorCartridge {
-		if ctx.ReplicasetName == "" {
-			return fmt.Errorf(
-				"in cartridge replicaset name must be specified via --replicaset flag")
-		}
-	}
-
 	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
 		if orchestrator, err = makeApplicationOrchestrator(
@@ -85,28 +78,14 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	}
 
 	if ctx.IsGlobal {
-		if orchestratorType == replicaset.OrchestratorCartridge {
-			return fmt.Errorf("cannot pass --global (-G) flag due to cluster with cartridge")
-		} else {
-			log.Infof("%s role %s %s global scope")
-		}
+		log.Infof("%s role %s %s global scope", action[0], ctx.RoleName, action[1])
 	}
 	if ctx.GroupName != "" {
-		if orchestratorType == replicaset.OrchestratorCartridge &&
-			changeRoleAction.Action() == replicaset.RemoveAction {
-
-			return fmt.Errorf("cannot provide vshard-group by removing role")
-		}
 		log.Infof("%s role %s %s group: %s", action[0], ctx.RoleName, action[1], ctx.GroupName)
 	}
 	if ctx.InstName != "" {
-		if orchestratorType == replicaset.OrchestratorCartridge {
-			return fmt.Errorf("cannot pass the instance or --instance (-i) flag due to cluster" +
-				" with cartridge orchestrator can't add/remove role for instance scope")
-		} else {
-			log.Infof("%s role %s %s instance: %s", action[0], ctx.RoleName,
-				action[1], ctx.InstName)
-		}
+		log.Infof("%s role %s %s instance: %s", action[0], ctx.RoleName,
+			action[1], ctx.InstName)
 	}
 	if ctx.ReplicasetName != "" {
 		log.Infof("%s role %s %s replicaset: %s", action[0], ctx.RoleName,

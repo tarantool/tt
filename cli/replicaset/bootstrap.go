@@ -4,8 +4,6 @@ import "fmt"
 
 // BootstrapCtx describes the context to bootstrap an instance/application.
 type BootstrapCtx struct {
-	// ReplicasetsFile is a Cartridge replicasets file.
-	ReplicasetsFile string
 	// Timeout describes a timeout in seconds.
 	// We keep int as it can be passed to the target instance.
 	Timeout int

@@ -21,14 +21,11 @@ const (
 	OrchestratorUnknown Orchestrator = iota // unknown
 	// OrchestratorCentralizedConfig is centralized config for Tarantool 3.0.
 	OrchestratorCentralizedConfig // centralized config
-	// OrchestratorCartridge is the cartridge orchestrator.
-	OrchestratorCartridge // cartridge
 	// OrchestratorCustom is a custom orchestrator.
 	OrchestratorCustom // custom
 )
 
 var knownOrchestrators = []Orchestrator{
-	OrchestratorCartridge,
 	OrchestratorCentralizedConfig,
 	OrchestratorCustom,
 }
