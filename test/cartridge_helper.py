@@ -159,10 +159,10 @@ class CartridgeApp:
         self.create()
         self.build()
 
-    def truncate(self, bootstrap_vshard=True):
+    def truncate(self):
         self.stop()
         shutil.rmtree(os.path.join(self.workdir, cartridge_name, var_path))
-        self.start(bootstrap_vshard=bootstrap_vshard)
+        self.start()
 
     def create(self):
         cmd = [self.tt_cmd, "create", "-s", "cartridge", "--name", cartridge_name, "-f"]
@@ -182,7 +182,7 @@ class CartridgeApp:
         assert rc == 0
         assert re.search(r"Application was successfully built", out)
 
-    def start(self, bootstrap_vshard=True):
+    def start(self):
         start_cmd = [self.tt_cmd, "start", cartridge_name]
         test_env = os.environ.copy()
         # Avoid too long path.
@@ -193,39 +193,6 @@ class CartridgeApp:
         # Wait for the full start of the cartridge.
         for inst in self.instances:
             wait_inst_start(self.workdir, inst)
-
-        # Bootstrap.
-        self.bootstrap(bootstrap_vshard=bootstrap_vshard)
-
-    def bootstrap(self, bootstrap_vshard=True):
-        cmd = [self.tt_cmd, "replicaset", "bootstrap", cartridge_name]
-        if bootstrap_vshard:
-            cmd.append("--bootstrap-vshard")
-        rc, out = run_command_and_get_output(cmd, cwd=self.workdir)
-        assert rc == 0, f"vshard bootstrap output: {out}"
-        assert re.search(r"Done.", out)
-
-        # Wait until the instances are configured.
-        for inst in self.instances:
-            if inst == "stateboard":
-                continue
-            configured = False
-            log_dir = os.path.join(self.workdir, cartridge_name, log_path, inst)
-            trying = 0
-            while not configured and trying < 200:
-                with open(os.path.join(log_dir, log_file), "r") as fp:
-                    lines = fp.readlines()
-                    lines = [line.rstrip() for line in lines]
-                for line in lines:
-                    if re.search(
-                        r"Instance state changed: ConfiguringRoles -> RolesConfigured",
-                        line,
-                    ):
-                        configured = True
-                        break
-                time.sleep(0.05)
-                trying = trying + 1
-            assert configured is True
 
     def set_failover(self, data):
         with open(os.path.join(self.workdir, cartridge_name, "failover.yml"), "w") as f:

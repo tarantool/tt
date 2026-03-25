@@ -18,7 +18,6 @@ func TestOrchestrator_String(t *testing.T) {
 		Expected     string
 	}{
 		{replicaset.OrchestratorUnknown, "unknown"},
-		{replicaset.OrchestratorCartridge, "cartridge"},
 		{replicaset.OrchestratorCentralizedConfig, "centralized config"},
 		{replicaset.OrchestratorCustom, "custom"},
 		{replicaset.Orchestrator(123), "Orchestrator(123)"},
@@ -38,8 +37,6 @@ func TestParseOrchestrator(t *testing.T) {
 	}{
 		{"foo", replicaset.OrchestratorUnknown},
 		{"unknown", replicaset.OrchestratorUnknown},
-		{"cartridge", replicaset.OrchestratorCartridge},
-		{"carTridge", replicaset.OrchestratorCartridge},
 		{"centralized config", replicaset.OrchestratorCentralizedConfig},
 		{"CentRALIZED CONFIG", replicaset.OrchestratorCentralizedConfig},
 		{"custom", replicaset.OrchestratorCustom},
@@ -70,7 +67,6 @@ func TestEvalOrchestrator(t *testing.T) {
 		Expected replicaset.Orchestrator
 		Ret      []any
 	}{
-		{replicaset.OrchestratorCartridge, []any{"cartridge"}},
 		{replicaset.OrchestratorCentralizedConfig, []any{"centralized config"}},
 		{replicaset.OrchestratorCustom, []any{"custom"}},
 	}

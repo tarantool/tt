@@ -1,10 +1,8 @@
 import os
 import re
 import shutil
-import time
 
 import pytest
-from cartridge_helper import cartridge_name
 from replicaset_helpers import stop_application
 
 from utils import get_tarantool_version, run_command_and_get_output, wait_file
@@ -16,9 +14,6 @@ tarantool_major_version, tarantool_minor_version = get_tarantool_version()
     "case",
     [
         ["--config", "--custom"],
-        ["--custom", "--cartridge"],
-        ["--config", "--cartridge"],
-        ["--config", "--custom", "--cartridge"],
     ],
 )
 def test_status_orchestrators_force_mix(tt_cmd, tmpdir_with_cfg, case):
@@ -256,53 +251,3 @@ Replicasets state: bootstrapped
         )
     finally:
         stop_application(tt_cmd, app_name, tmpdir, [])
-
-
-@pytest.mark.skipif(tarantool_major_version > 2, reason="skip cartridge test for Tarantool > 2")
-@pytest.mark.parametrize("flag", [None, "--cartridge"])
-@pytest.mark.parametrize("target", [cartridge_name, f"{cartridge_name}:router"])
-def test_status_cartridge(tt_cmd, cartridge_app, flag, target):
-    rs_cmd = [tt_cmd, "replicaset", "status"]
-    if flag:
-        rs_cmd.append(flag)
-    rs_cmd.append(target)
-
-    for _ in range(100):
-        rs_rc, rs_out = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir)
-        assert rs_rc == 0
-        if (
-            rs_out
-            != """Orchestrator:      cartridge
-Replicasets state: uninitialized
-"""
-        ):
-            break
-        time.sleep(1)
-
-        assert (
-            rs_out
-            == """Orchestrator:      cartridge
-Replicasets state: bootstrapped
-
-• router
-  Failover: off
-  Provider: none
-  Master:   single
-  Roles:    failover-coordinator, vshard-router, app.roles.custom
-    ★ router localhost:3301 rw
-• s-1
-  Failover: off
-  Provider: none
-  Master:   single
-  Roles:    vshard-storage
-    ★ s1-master localhost:3302 rw
-    • s1-replica localhost:3303 read
-• s-2
-  Failover: off
-  Provider: none
-  Master:   single
-  Roles:    vshard-storage
-    ★ s2-master localhost:3304 rw
-    • s2-replica localhost:3305 read
-"""
-        )

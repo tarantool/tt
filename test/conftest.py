@@ -156,13 +156,8 @@ def cartridge_app_session(request, tt_cmd, tmp_path_factory):
 
 
 @pytest.fixture
-def cartridge_app(request, cartridge_app_session):
-    bootstrap_vshard = True
-    if hasattr(request, "param"):
-        params = request.param
-        if "bootstrap_vshard" in params:
-            bootstrap_vshard = params["bootstrap_vshard"]
-    cartridge_app_session.truncate(bootstrap_vshard=bootstrap_vshard)
+def cartridge_app(cartridge_app_session):
+    cartridge_app_session.truncate()
     return cartridge_app_session
 
 

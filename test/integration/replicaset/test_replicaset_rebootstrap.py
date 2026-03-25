@@ -1,10 +1,7 @@
 import glob
 import os
-from pathlib import Path
 
 import pytest
-from cartridge_helper import cartridge_name
-from replicaset_helpers import eval_on_instance
 from retry import retry
 
 from utils import (
@@ -17,44 +14,6 @@ from utils import (
 )
 
 tarantool_major_version, tarantool_minor_version = get_tarantool_version()
-
-
-@pytest.mark.skipif(tarantool_major_version > 2, reason="skip cartridge test for Tarantool > 2")
-def test_rebootstrap_cartridge_instance(tt_cmd, cartridge_app):
-    inst_name = "s2-replica-1"
-    lib_dir = Path(cartridge_app.workdir).joinpath(cartridge_name, lib_path, inst_name)
-    inst_log = os.path.join(cartridge_app.workdir, cartridge_name, log_path, inst_name, log_file)
-    wait_string_in_file(inst_log, "Backup of active config created")
-    snaps = glob.glob((lib_dir / "*.snap").as_posix())
-    assert len(snaps) > 0
-
-    @retry(Exception, tries=10, delay=1.0)
-    def wait_for_buckets_count():
-        assert "true" in eval_on_instance(
-            tt_cmd,
-            cartridge_name,
-            inst_name,
-            cartridge_app.workdir,
-            "require('vshard').storage.info().bucket.active > 0",
-        )
-
-    wait_for_buckets_count()
-
-    oldSnapName = os.path.basename(snaps[0])
-
-    os.remove(inst_log)
-    rs_cmd = [tt_cmd, "-V", "replicaset", "rebootstrap", f"{cartridge_name}:{inst_name}"]
-    rs_rc, _ = run_command_and_get_output(rs_cmd, cwd=cartridge_app.workdir, input="y\n")
-    assert rs_rc == 0
-
-    wait_string_in_file(inst_log, "ConfiguringRoles -> RolesConfigured")
-
-    snaps = glob.glob((lib_dir / "*.snap").as_posix())
-    assert len(snaps) > 0
-    for snap in snaps:
-        assert oldSnapName != os.path.basename(snaps[0])
-
-    wait_for_buckets_count()
 
 
 @pytest.mark.skipif(

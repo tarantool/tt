@@ -39,8 +39,6 @@ func makeApplicationOrchestrator(
 	switch orchestratorType {
 	case replicaset.OrchestratorCentralizedConfig:
 		orchestrator = replicaset.NewCConfigApplication(runningCtx, collectors, publishers)
-	case replicaset.OrchestratorCartridge:
-		orchestrator = replicaset.NewCartridgeApplication(runningCtx)
 	case replicaset.OrchestratorCustom:
 		orchestrator = replicaset.NewCustomApplication(runningCtx)
 	default:
@@ -60,8 +58,6 @@ func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
 	switch orchestratorType {
 	case replicaset.OrchestratorCentralizedConfig:
 		orchestrator = replicaset.NewCConfigInstance(conn)
-	case replicaset.OrchestratorCartridge:
-		orchestrator = replicaset.NewCartridgeInstance(conn)
 	case replicaset.OrchestratorCustom:
 		orchestrator = replicaset.NewCustomInstance(conn)
 	default:

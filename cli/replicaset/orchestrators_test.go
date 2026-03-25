@@ -37,12 +37,6 @@ var orchestratorCases = []struct {
 	New  func(evaler connector.Evaler) replicaset.Discoverer
 }{
 	{
-		Name: "cartridge",
-		New: func(evaler connector.Evaler) replicaset.Discoverer {
-			return replicaset.NewCartridgeInstance(evaler)
-		},
-	},
-	{
 		Name: "cconfig",
 		New: func(evaler connector.Evaler) replicaset.Discoverer {
 			return replicaset.NewCConfigInstance(evaler)
