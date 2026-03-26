@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `tt`: return non-zero exit code on unknown command.
+
 ## [2.11.5] - 2026-03-19
 
 The release includes fixes identified by CVE linters.

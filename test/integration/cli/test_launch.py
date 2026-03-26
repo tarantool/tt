@@ -620,3 +620,19 @@ def test_local_launch_two_env_modules(tt_cmd, tmp_path):
     assert rc == 0
     assert f"{module_message}\nList of passed args: version\n" == output
     assert module_message in output
+
+
+def test_unknown_command_exit_code(tt_cmd):
+    cmd = [tt_cmd, "foo"]
+    rc, out = run_command_and_get_output(cmd)
+
+    assert rc != 0
+    assert "unknown command" in out
+
+
+def test_unknown_flag_exit_code(tt_cmd):
+    cmd = [tt_cmd, "--unknown-flag"]
+    rc, out = run_command_and_get_output(cmd)
+
+    assert rc != 0
+    assert "unknown flag" in out
