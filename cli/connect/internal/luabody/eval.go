@@ -1,12 +1,12 @@
 package luabody
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/tarantool/cartridge-cli/cli/templates"
+	"text/template"
 )
 
 //go:embed eval_func_body.lua
@@ -14,6 +14,23 @@ var evalFuncBody string
 
 //go:embed get_suggestions_func_body.lua
 var getSuggestionsFuncBody string
+
+// GetTemplatedStr returns a templated string.
+func GetTemplatedStr(text string, obj interface{}) (string, error) {
+	tmpl, err := template.New("s").Parse(text)
+	if err != nil {
+		return "", err
+	}
+
+	buf := new(bytes.Buffer)
+
+	err = tmpl.Execute(buf, obj)
+	if err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
 
 // GetEvalFuncBody returns lua code of eval func.
 func GetEvalFuncBody(evaler string) (string, error) {
@@ -30,10 +47,10 @@ func GetEvalFuncBody(evaler string) (string, error) {
 		}
 	}
 
-	return templates.GetTemplatedStr(&evalFuncBody, mapping)
+	return GetTemplatedStr(evalFuncBody, mapping)
 }
 
-// GetEvalFuncBody returns lua code for completions.
+// getSuggestionsFuncBody returns lua code for completions.
 func GetSuggestionsFuncBody() string {
 	return getSuggestionsFuncBody
 }
