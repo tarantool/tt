@@ -148,8 +148,12 @@ After that tt will be able to manage the application using 'replicaset_example' 
   # tt start replicaset_example
     • Starting an instance [replicaset_example:master]...
     • Starting an instance [replicaset_example:replica]...`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			} else {
+				return fmt.Errorf("unknown command %s", args[0])
+			}
 		},
 		ValidArgsFunction: RootShellCompletionCommands,
 		TraverseChildren:  true,

@@ -6,9 +6,9 @@ from utils import create_external_module, create_tt_config, run_command_and_get_
 # ##### #
 # Tests #
 # ##### #
-@pytest.mark.parametrize("help_cmd", ["help", "--help", "-h", ""])
+@pytest.mark.parametrize("help_cmd", ["help", "--help", "-h", None])
 def test_help_without_external_modules(tt_cmd, help_cmd):
-    rc, output = run_command_and_get_output([tt_cmd, help_cmd])
+    rc, output = run_command_and_get_output([tt_cmd, help_cmd] if help_cmd else [tt_cmd])
     assert rc == 0
     assert "EXTERNAL COMMANDS" not in output
 
