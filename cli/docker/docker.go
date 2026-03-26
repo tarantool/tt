@@ -10,12 +10,11 @@ import (
 	"strings"
 
 	"github.com/apex/log"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
-	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/docker/docker/pkg/stdcopy"
+	archive "github.com/moby/go-archive"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/client"
+	"github.com/moby/moby/client/pkg/jsonmessage"
 	"github.com/moby/term"
 )
 
@@ -72,7 +71,7 @@ func buildDockerImage(dockerClient *client.Client, imageTag, buildContextDir str
 		return err
 	}
 
-	opts := types.ImageBuildOptions{
+	opts := client.ImageBuildOptions{
 		Dockerfile: dockerFileName,
 		Tags:       []string{imageTag},
 		Remove:     true,
@@ -121,12 +120,15 @@ func createContainer(dockerClient *client.Client, runOptions RunOptions) (string
 
 	log.Debug("Creating docker container.")
 	ctx := context.Background()
-	createResponse, err := dockerClient.ContainerCreate(ctx, &container.Config{
-		Image: runOptions.ImageTag,
-		Cmd:   runOptions.Command,
-		Tty:   false,
-		User:  fmt.Sprintf("%s:%s", currentUser.Uid, currentUser.Gid),
-	}, &container.HostConfig{Binds: runOptions.Binds}, nil, nil, "")
+	createResponse, err := dockerClient.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config: &container.Config{
+			Image: runOptions.ImageTag,
+			Cmd:   runOptions.Command,
+			Tty:   false,
+			User:  fmt.Sprintf("%s:%s", currentUser.Uid, currentUser.Gid),
+		},
+		HostConfig: &container.HostConfig{Binds: runOptions.Binds},
+	})
 	if err != nil {
 		return "", err
 	}
@@ -157,8 +159,8 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	}
 	defer func() {
 		log.Debugf("Removing container %s", containerId[:12])
-		if err := dockerClient.ContainerRemove(context.Background(), containerId,
-			container.RemoveOptions{}); err != nil {
+		if _, err := dockerClient.ContainerRemove(context.Background(), containerId,
+			client.ContainerRemoveOptions{}); err != nil {
 			log.Warnf("Failed to remove container %s", containerId[:12])
 		}
 	}()
@@ -167,14 +169,14 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	log.Debugf("The following command is going to be invoked in the container: %s.",
 		strings.Join(runOptions.Command, " "))
-	if err := dockerClient.ContainerStart(ctx, containerId,
-		container.StartOptions{}); err != nil {
+	if _, err := dockerClient.ContainerStart(ctx, containerId,
+		client.ContainerStartOptions{}); err != nil {
 		cancelFunc()
 		return err
 	}
 	defer interruptHandler(cancelFunc)()
 
-	out, err := dockerClient.ContainerLogs(ctx, containerId, container.LogsOptions{
+	out, err := dockerClient.ContainerLogs(ctx, containerId, client.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
@@ -185,19 +187,19 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	stdcopy.StdCopy(writer, writer, out)
 	out.Close()
 
-	statusCh, errCh := dockerClient.ContainerWait(ctx, containerId,
-		container.WaitConditionNotRunning)
+	res := dockerClient.ContainerWait(ctx, containerId,
+		client.ContainerWaitOptions{})
 	select {
-	case err := <-errCh:
+	case err := <-res.Error:
 		if ctx.Err() == context.Canceled {
-			if err = dockerClient.ContainerStop(context.Background(), containerId,
-				container.StopOptions{}); err != nil {
+			if _, err = dockerClient.ContainerStop(context.Background(), containerId,
+				client.ContainerStopOptions{}); err != nil {
 				log.Warnf("Failed to stop the container %s", containerId[:12])
 			}
 			return fmt.Errorf("the operation is interrupted")
 		}
 		return err
-	case st := <-statusCh:
+	case st := <-res.Result:
 		if st.StatusCode != 0 {
 			return fmt.Errorf("container exit code is %d", st.StatusCode)
 		}
