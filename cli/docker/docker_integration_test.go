@@ -11,23 +11,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func findAndRemoveBuiltImage(t *testing.T, dockerClient *client.Client, expectedTag string) {
 	ctx := context.Background()
-	imageList, err := dockerClient.ImageList(ctx, image.ListOptions{})
+	imageList, err := dockerClient.ImageList(ctx, client.ImageListOptions{})
 	require.NoError(t, err)
 	imgFound := false
-	for _, img := range imageList {
+	for _, img := range imageList.Items {
 		for _, imgTag := range img.RepoTags {
 			if imgTag == "ubuntu:tt_test" {
 				imgFound = true
-				dockerClient.ImageRemove(ctx, img.ID, image.RemoveOptions{})
+				dockerClient.ImageRemove(ctx, img.ID, client.ImageRemoveOptions{})
 			}
 		}
 	}
@@ -117,13 +115,13 @@ func checkNoContainers(t *testing.T, imageTag string) {
 	require.NoError(t, err)
 	defer cli.Close()
 
-	containers, err := cli.ContainerList(ctx, container.ListOptions{
+	containers, err := cli.ContainerList(ctx, client.ContainerListOptions{
 		Latest: true,
 		Limit:  1,
 	})
 	require.NoError(t, err)
 	containerFound := false
-	for _, container := range containers {
+	for _, container := range containers.Items {
 		if container.Image == imageTag {
 			containerFound = true
 		}
