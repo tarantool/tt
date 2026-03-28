@@ -191,6 +191,7 @@ var ConfigEnvPaths = [][]string{
 	{"replication", "election_mode"},
 	{"replication", "election_timeout"},
 	{"replication", "failover"},
+	{"replication", "linearizable_quorum"},
 	{"replication", "peers"},
 	{"replication", "reconnect_timeout"},
 	{"replication", "skip_conflict"},
@@ -240,6 +241,7 @@ var ConfigEnvPaths = [][]string{
 	{"stateboard", "enabled"},
 	{"stateboard", "keepalive_interval"},
 	{"stateboard", "renew_interval"},
+	{"threads", "groups"},
 	{"vinyl", "bloom_fpr"},
 	{"vinyl", "cache"},
 	{"vinyl", "defer_deletes"},
@@ -1498,6 +1500,10 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	{
+		Path:      []string{"replication", "linearizable_quorum"},
+		Validator: MakeSequenceValidator(NumberValidator{}, StringValidator{}),
+	},
+	{
 		Path: []string{"replication", "peers"},
 		Validator: MakeArrayValidator(
 			StringValidator{}),
@@ -1720,6 +1726,14 @@ var TarantoolSchema = []SchemaPath{
 	{
 		Path:      []string{"stateboard", "renew_interval"},
 		Validator: NumberValidator{},
+	},
+	{
+		Path: []string{"threads", "groups"},
+		Validator: MakeArrayValidator(
+			MakeRecordValidator(map[string]Validator{
+				"name": StringValidator{},
+				"size": IntegerValidator{},
+			})),
 	},
 	{
 		Path:      []string{"vinyl", "bloom_fpr"},

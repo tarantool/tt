@@ -19,8 +19,9 @@ const _StateProvider_name = "unknownnonetarantooletcd2"
 var _StateProvider_index = [...]uint8{0, 7, 11, 20, 25}
 
 func (i StateProvider) String() string {
-	if i < 0 || i >= StateProvider(len(_StateProvider_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_StateProvider_index)-1 {
 		return "StateProvider(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _StateProvider_name[_StateProvider_index[i]:_StateProvider_index[i+1]]
+	return _StateProvider_name[_StateProvider_index[idx]:_StateProvider_index[idx+1]]
 }
