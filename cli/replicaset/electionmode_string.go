@@ -20,8 +20,9 @@ const _ElectionMode_name = "unknownoffvotercandidatemanual"
 var _ElectionMode_index = [...]uint8{0, 7, 10, 15, 24, 30}
 
 func (i ElectionMode) String() string {
-	if i < 0 || i >= ElectionMode(len(_ElectionMode_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_ElectionMode_index)-1 {
 		return "ElectionMode(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _ElectionMode_name[_ElectionMode_index[i]:_ElectionMode_index[i+1]]
+	return _ElectionMode_name[_ElectionMode_index[idx]:_ElectionMode_index[idx+1]]
 }
