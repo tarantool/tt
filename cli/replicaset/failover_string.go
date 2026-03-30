@@ -22,8 +22,9 @@ const _Failover_name = "unknownoffmanualeventualelectionstatefulsupervised"
 var _Failover_index = [...]uint8{0, 7, 10, 16, 24, 32, 40, 50}
 
 func (i Failover) String() string {
-	if i < 0 || i >= Failover(len(_Failover_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_Failover_index)-1 {
 		return "Failover(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _Failover_name[_Failover_index[i]:_Failover_index[i+1]]
+	return _Failover_name[_Failover_index[idx]:_Failover_index[idx+1]]
 }

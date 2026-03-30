@@ -19,8 +19,9 @@ const _Orchestrator_name = "unknowncentralized configcartridgecustom"
 var _Orchestrator_index = [...]uint8{0, 7, 25, 34, 40}
 
 func (i Orchestrator) String() string {
-	if i < 0 || i >= Orchestrator(len(_Orchestrator_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_Orchestrator_index)-1 {
 		return "Orchestrator(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _Orchestrator_name[_Orchestrator_index[i]:_Orchestrator_index[i+1]]
+	return _Orchestrator_name[_Orchestrator_index[idx]:_Orchestrator_index[idx+1]]
 }
