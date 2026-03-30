@@ -7,6 +7,9 @@
 
 # Tarantool CLI
 
+> [!WARNING]
+> The `v3` branch is under heavy development. Expect breaking changes and unstable APIs.
+
 [![Go Reference][godoc-badge]][godoc-url]
 [![Go Report][report-badge]][report-url]
 [![Release][release-badge]][release-url]
