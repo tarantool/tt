@@ -16,7 +16,7 @@ env:
 
 jobs:
   static-code-check:
-    if: github.event_name == 'push'
+    if: contains(github.event.pull_request.labels.*.name, 'full-commit-check')
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@master
