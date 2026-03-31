@@ -42,7 +42,6 @@ func NewCreateCmd() *cobra.Command {
 		Long: `Create an application from a template.
 
 Built-in templates:
-	cartridge: a simple Cartridge application.
 	single_instance: Tarantool 3 application with a single instance configuration.
 	cluster: Tarantool 3 cluster application.
 	vshard_cluster: Tarantool 3 vshard cluster application.
@@ -55,12 +54,6 @@ Built-in templates:
 # Create a Tarantool 3 application with a single instance configuration.
 
     $ tt create single_instance --name new_app
-
-# Create cartridge_app application in /opt/tt/apps/, force replacing of application directory
-# (cartridge_app) if it exists. ` +
-			`User interaction is disabled.
-
-    $ tt create cartridge --name cartridge_app -f --non-interactive --dst /opt/tt/apps/
 
 # Create Tarantool 3 vshard cluster.
 

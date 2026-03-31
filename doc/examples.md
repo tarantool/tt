@@ -723,14 +723,12 @@ command in application's directory:
 
 ``` text
     $ tt init
-    • Found existing config '.cartridge.yml'
     • Environment config is written to 'tt.yaml'
 ```
 
-`tt init` searches for `.cartridge.yml` and uses configured paths from
-it in `tt.yaml`. After `tt.yaml` config is generated, `tt` can be used
-to manage cartridge application. Most of `cartridge` commands have their
-counterparts in `tt`: build, start, stop, status, etc.:
+`tt init` generates `tt.yaml`. After `tt.yaml` config is generated,
+`tt` can be used to manage cartridge application. Most of `cartridge`
+commands have their counterparts in `tt`: build, start, stop, status, etc.:
 
 ``` text
     $ tt start

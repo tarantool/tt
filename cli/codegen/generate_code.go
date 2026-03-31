@@ -114,14 +114,6 @@ func getFileModes(root string) (map[string]int, error) {
 func main() {
 	// spell-checker:ignore filemodes
 	err := generateFileModeFile(
-		"cli/create/builtin_templates/templates/cartridge",
-		"cli/create/builtin_templates/static/cartridge_template_filemodes_gen.go",
-		"Cartridge",
-	)
-	if err != nil {
-		log.Errorf("error while generating file modes: %s", err)
-	}
-	err = generateFileModeFile(
 		"cli/create/builtin_templates/templates/vshard_cluster",
 		"cli/create/builtin_templates/static/vshard_cluster_template_filemodes_gen.go",
 		"VshardCluster",

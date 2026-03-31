@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/apex/log"
-	"github.com/mitchellh/mapstructure"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/util"
 )
@@ -19,21 +18,12 @@ const (
 
 // InitCtx contains information for tt config creation.
 type InitCtx struct {
-	// SkipConfig - if set, disables cartridge & tarantoolctl config analysis,
-	// so init does not try to get directories information from existing config files.
-	SkipConfig bool
 	// ForceMode, if set, tt config is re-written without a question.
 	ForceMode bool
 	// reader to use for reading user input.
 	reader io.Reader
 	// Tarantool executable path.
 	TarantoolExecutable string
-}
-
-type cartridgeOpts struct {
-	LogDir  string `mapstructure:"log-dir"`
-	RunDir  string `mapstructure:"run-dir"`
-	DataDir string `mapstructure:"data-dir"`
 }
 
 // configData is a configuration data loaded from an existing config.
@@ -45,34 +35,6 @@ type configData struct {
 	vinylDir           string
 	memtxDir           string
 	tarantoolctlLayout bool
-}
-
-// configLoader binds config name with load functor.
-type configLoader struct {
-	configName string
-	load       func(*InitCtx, string) (configData, error)
-}
-
-// loadCartridgeConfig parses configPath as .cartridge.yml and fill directories info structure.
-func loadCartridgeConfig(initCtx *InitCtx, configPath string) (configData, error) {
-	var cartridgeConf cartridgeOpts
-	rawConfigOpts, err := util.ParseYAML(configPath)
-	if err != nil {
-		return configData{}, fmt.Errorf("failed to parse cartridge app configuration: %s", err)
-	}
-
-	if err := mapstructure.Decode(rawConfigOpts, &cartridgeConf); err != nil {
-		return configData{}, fmt.Errorf("failed to parse cartridge app configuration: %s", err)
-	}
-
-	return configData{
-		runDir:             cartridgeConf.RunDir,
-		logDir:             cartridgeConf.LogDir,
-		walDir:             cartridgeConf.DataDir,
-		vinylDir:           cartridgeConf.DataDir,
-		memtxDir:           cartridgeConf.DataDir,
-		tarantoolctlLayout: false,
-	}, nil
 }
 
 // createDirectories creates directories specified in dirList.
@@ -187,28 +149,13 @@ func Run(initCtx *InitCtx) error {
 		initCtx.reader = os.Stdin
 	}
 
-	configLoader := configLoader{
-		configName: ".cartridge.yml",
-		load:       loadCartridgeConfig,
-	}
-
 	configName, err := checkExistingConfig(initCtx)
 	if configName == "" {
 		return err
 	}
 
 	var sourceCfg configData
-	if !initCtx.SkipConfig {
-		if _, err = os.Stat(configLoader.configName); err == nil {
-			log.Infof("Found existing config '%s'", configLoader.configName)
-			sourceCfg, err = configLoader.load(initCtx, configLoader.configName)
-			if err != nil {
-				return err
-			}
-		} else if !os.IsNotExist(err) {
-			log.Warnf("Failed to get info of '%s': %s", configLoader.configName, err)
-		}
-	}
+
 	if !util.IsApp(".") && sourceCfg.instancesEnabled == "" {
 		// Current directory is not app dir, instances enabled dir will be used.
 		sourceCfg.instancesEnabled = configure.InstancesEnabledDirName
