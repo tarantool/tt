@@ -18,6 +18,7 @@ for machine-readable output.
 - `tt status`: deprecate `--pretty` option in favor of `--format=pretty-table`.
 - `tt init`: tarantoolctl support removed.
 - tarantoolctl layout is no longer supported.
+- `tt init/create`: cartridge support removed.
 
 ### Fixed
 

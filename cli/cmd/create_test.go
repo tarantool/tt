@@ -38,7 +38,6 @@ func TestCreateValidArgsFunction(t *testing.T) {
 	_, tDir2Name := filepath.Split(tDir2)
 
 	templates := []string{
-		"cartridge",
 		"vshard_cluster",
 		"single_instance",
 		"config_storage",

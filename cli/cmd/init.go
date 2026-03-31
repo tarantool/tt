@@ -21,8 +21,6 @@ func NewInitCmd() *cobra.Command {
 		Run:   RunModuleFunc(internalInitModule),
 	}
 
-	initCmd.Flags().BoolVarP(&initCtx.SkipConfig, "skip-config", "", false,
-		`Skip loading directories info from .cartridge.yml config`)
 	initCmd.Flags().BoolVarP(&initCtx.ForceMode, "force", "f", false,
 		fmt.Sprintf(`Force re-write existing %s`, configure.ConfigName))
 

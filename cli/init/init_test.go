@@ -15,39 +15,6 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-func TestLoadCartridgeConfig(t *testing.T) {
-	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/valid_cartridge.yml")
-	require.NoError(t, err)
-	require.Equal(t, configData{
-		runDir:             "my_run_dir",
-		logDir:             "my_log_dir",
-		walDir:             "my_data_dir",
-		vinylDir:           "my_data_dir",
-		memtxDir:           "my_data_dir",
-		tarantoolctlLayout: false,
-	}, actualDirInfo)
-}
-
-func TestLoadCartridgeInvalidConfig(t *testing.T) {
-	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/invalid_cartridge.yml")
-	require.EqualError(t, err, "failed to parse cartridge app configuration: failed "+
-		"to parse YAML: yaml: line 5: could not find expected ':'")
-	require.Equal(t, configData{}, actualDirInfo)
-}
-
-func TestLoadCartridgeWrongDataFormat(t *testing.T) {
-	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/wrong_data_format.yml")
-	require.Contains(t, err.Error(), "'log-dir' expected type 'string', got unconvertible "+
-		"type 'float64', value: '1.2'")
-	require.Equal(t, configData{}, actualDirInfo)
-}
-
-func TestLoadCartridgeNonExistentConfig(t *testing.T) {
-	actualDirInfo, err := loadCartridgeConfig(&InitCtx{}, "./testdata/no_cartridge.yml")
-	require.Error(t, err)
-	require.Equal(t, configData{}, actualDirInfo)
-}
-
 func checkDefaultEnv(t *testing.T, configName, instancesEnabled string) {
 	rawConfigOpts, err := util.ParseYAML(configName)
 	require.NoError(t, err)
@@ -66,7 +33,6 @@ func checkDefaultEnv(t *testing.T, configName, instancesEnabled string) {
 	assert.Equal(t, "distfiles", cfg.Repo.Install)
 	assert.Equal(t, "include", cfg.Env.IncludeDir)
 	assert.Equal(t, "templates", cfg.Templates[0].Path)
-	assert.False(t, cfg.Env.TarantoolctlLayout)
 
 	assert.DirExists(t, instancesEnabled)
 	assert.DirExists(t, "modules")
@@ -126,72 +92,6 @@ func TestGenerateTtEnv(t *testing.T) {
 	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 }
 
-func TestInitRunCartridgeApp(t *testing.T) {
-	tmpDir := t.TempDir()
-	copy.Copy(filepath.Join("testdata", "valid_cartridge.yml"),
-		filepath.Join(tmpDir, ".cartridge.yml"))
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(tmpDir))
-	defer os.Chdir(wd)
-
-	f, err := os.Create("init.lua") // Simulate application existence.
-	require.NoError(t, err)
-	f.Close()
-
-	require.NoError(t, Run(&InitCtx{}))
-
-	rawConfigOpts, err := util.ParseYAML(configure.ConfigName)
-	require.NoError(t, err)
-
-	var cfg config.CliOpts
-	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
-
-	assert.Equal(t, ".", cfg.Env.InstancesEnabled)
-	assert.Equal(t, "my_data_dir", cfg.App.WalDir)
-	assert.Equal(t, "my_data_dir", cfg.App.VinylDir)
-	assert.Equal(t, "my_data_dir", cfg.App.MemtxDir)
-	assert.Equal(t, "my_run_dir", cfg.App.RunDir)
-	assert.Equal(t, "my_log_dir", cfg.App.LogDir)
-	assert.False(t, cfg.Env.TarantoolctlLayout)
-	assert.NoDirExists(t, configure.InstancesEnabledDirName)
-	assert.DirExists(t, "modules")
-	assert.DirExists(t, "include")
-	assert.DirExists(t, "bin")
-	assert.DirExists(t, "distfiles")
-	assert.DirExists(t, "templates")
-}
-
-func TestInitRunInvalidConfigAppDir(t *testing.T) {
-	tmpDir := t.TempDir()
-	copy.Copy(filepath.Join("testdata", "invalid_cartridge.yml"),
-		filepath.Join(tmpDir, ".cartridge.yml"))
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(tmpDir))
-	defer os.Chdir(wd)
-
-	f, err := os.Create("init.lua") // Simulate application existence.
-	require.NoError(t, err)
-	f.Close()
-
-	require.EqualError(t, Run(&InitCtx{}), "failed to parse cartridge app "+
-		"configuration: failed to parse YAML: yaml: line 5: could not find expected ':'")
-}
-
-func TestInitRunInvalidConfigNoAppDir(t *testing.T) {
-	tmpDir := t.TempDir()
-	copy.Copy(filepath.Join("testdata", "invalid_cartridge.yml"),
-		filepath.Join(tmpDir, ".cartridge.yml"))
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(tmpDir))
-	defer os.Chdir(wd)
-
-	require.EqualError(t, Run(&InitCtx{}), "failed to parse cartridge app "+
-		"configuration: failed to parse YAML: yaml: line 5: could not find expected ':'")
-}
-
 func TestInitRunNoConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	wd, err := os.Getwd()
@@ -216,19 +116,6 @@ func TestInitRunFailCreateResultFile(t *testing.T) {
 	require.NoError(t, os.Chmod(configure.ConfigName, 0o400))
 
 	require.Error(t, Run(&InitCtx{}))
-}
-
-func TestInitRunInvalidConfigSkipIt(t *testing.T) {
-	tmpDir := t.TempDir()
-	copy.Copy(filepath.Join("testdata", "invalid_cartridge.yml"),
-		filepath.Join(tmpDir, ".cartridge.yml"))
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(tmpDir))
-	defer os.Chdir(wd)
-
-	require.NoError(t, Run(&InitCtx{SkipConfig: true}))
-	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
 }
 
 func TestCreateDirectories(t *testing.T) {

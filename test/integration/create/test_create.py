@@ -6,7 +6,6 @@ import subprocess
 import tempfile
 
 import pytest
-import yaml
 
 from utils import (
     config_name,
@@ -714,219 +713,6 @@ def test_create_ambiguous_manifest(tt_cmd, tmp_path):
         assert out_lines[i].find(expected_lines[i]) != -1
 
 
-def test_create_app_from_builtin_cartridge_template(tt_cmd, tmp_path):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmp_path))
-
-    create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1"]
-    tt_process = subprocess.Popen(
-        create_cmd,
-        cwd=tmp_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        stdin=subprocess.PIPE,
-        text=True,
-    )
-    tt_process.stdin.writelines(["foo\n"])
-    tt_process.stdin.close()
-    tt_process.wait()
-    assert tt_process.returncode == 0
-
-    output = tt_process.stdout.read()
-    assert output.find("Application 'app1' created successfully") != -1
-
-    app_path = tmp_path / "app1"
-    assert os.path.exists(app_path / "init.lua")
-    assert os.access(app_path / "init.lua", os.X_OK)
-    cluster_cookie = "cluster_cookie = 'foo'"
-    check_file_contains(app_path / "init.lua", cluster_cookie)
-
-    assert os.path.exists(app_path / "app1-scm-1.rockspec")
-
-    assert os.path.exists(app_path / "tt.pre-build")
-    assert os.access(app_path / "tt.pre-build", os.X_OK)
-    assert os.path.exists(app_path / "tt.post-build")
-    assert os.access(app_path / "tt.post-build", os.X_OK)
-
-    assert os.path.exists(app_path / "app" / "roles" / "custom.lua")
-
-    assert os.path.exists(app_path / "instances.yml")
-    assert not os.access(app_path / "instances.yml", os.X_OK)
-    assert os.access(app_path / "instances.yml", os.W_OK)
-    with open(app_path / "instances.yml", "r") as stream:
-        data_loaded = yaml.safe_load(stream)
-        assert data_loaded["app1-stateboard"]["password"] == "passwd"
-        assert data_loaded["app1.router"]["http_port"] == 8081
-
-
-def test_create_app_from_builtin_cartridge_template_not_interactive(tt_cmd, tmp_path):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmp_path))
-
-    create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1", "-s"]
-    tt_process = subprocess.Popen(
-        create_cmd,
-        cwd=tmp_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        stdin=subprocess.PIPE,
-        text=True,
-    )
-    tt_process.stdin.close()
-    tt_process.wait()
-    assert tt_process.returncode == 0
-
-    output = tt_process.stdout.read()
-    assert output.find("Application 'app1' created successfully") != -1
-
-    app_path = tmp_path / "app1"
-    cluster_cookie = "cluster_cookie = 'secret-cluster-cookie'"
-    check_file_contains(app_path / "init.lua", cluster_cookie)
-
-
-@pytest.mark.slow
-@pytest.mark.skipif(
-    tarantool_major_version >= 3,
-    reason="skip cartridge app tests for Tarantool 3.0",
-)
-def test_create_app_from_builtin_cartridge_template_with_dst_specified(tt_cmd, tmp_path):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmp_path))
-
-    # spell-checker:ignore appdir
-    create_cmd = [tt_cmd, "create", "cartridge", "--name", "app1", "--dst", "appdir"]
-    tt_process = subprocess.Popen(
-        create_cmd,
-        cwd=tmp_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        stdin=subprocess.PIPE,
-        text=True,
-    )
-    tt_process.stdin.writelines(["\n"])
-    tt_process.stdin.close()
-    tt_process.wait()
-    assert tt_process.returncode == 0
-
-    output = tt_process.stdout.read()
-    assert output.find("Build and start 'app1' application") != -1
-    assert output.find("$ tt build app1") != -1
-    assert output.find("$ tt start app1") != -1
-    assert (
-        output.find(
-            "tt cartridge replicasets setup --bootstrap-vshard --name app1 " + "--run-dir ./app1",
-        )
-        != -1
-    )
-
-    assert os.path.exists(tmp_path / "appdir")
-
-    app_path = tmp_path / "appdir" / "app1"
-    assert os.path.exists(app_path / "init.lua")
-    assert os.access(app_path / "init.lua", os.X_OK)
-
-    assert os.path.exists(app_path / "app1-scm-1.rockspec")
-
-    assert os.path.exists(app_path / "tt.pre-build")
-    assert os.access(app_path / "tt.pre-build", os.X_OK)
-    assert os.path.exists(app_path / "tt.post-build")
-    assert os.access(app_path / "tt.post-build", os.X_OK)
-
-    assert os.path.exists(app_path / "app" / "roles" / "custom.lua")
-
-    assert os.path.exists(app_path / "instances.yml")
-    assert not os.access(app_path / "instances.yml", os.X_OK)
-    assert os.access(app_path / "instances.yml", os.W_OK)
-    with open(app_path / "instances.yml", "r") as stream:
-        data_loaded = yaml.safe_load(stream)
-        assert data_loaded["app1-stateboard"]["password"] == "passwd"
-        assert data_loaded["app1.router"]["http_port"] == 8081
-
-    target = os.readlink(os.path.join(tmp_path, "test.instances.enabled", "app1"))
-    assert target == "../appdir/app1"
-
-    create_cmd = [tt_cmd, "build", "app1"]
-    tt_process = subprocess.Popen(
-        create_cmd,
-        cwd=tmp_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    tt_process.wait()
-    assert tt_process.returncode == 0
-    build_output = tt_process.stdout.readlines()
-    assert "Application was successfully built" in build_output[len(build_output) - 1]
-
-    # Start cartridge app.
-    start_cmd = [tt_cmd, "start", "app1"]
-    instance_process = subprocess.Popen(
-        start_cmd,
-        cwd=tmp_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    start_output = instance_process.stdout.readlines()
-    for line in start_output:
-        assert "Starting an instance" in line
-    for inst in ["router", "s1-master", "s1-replica", "s2-master", "s2-replica"]:
-        file = wait_file(
-            os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
-            pid_file,
-            [],
-        )
-        assert file != ""
-
-    # Check status.
-    status_cmd = [tt_cmd, "status", "app1"]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
-    assert status_rc == 0
-    status_info = extract_status(status_out)
-    for key in status_info.keys():
-        assert status_info[key]["STATUS"] == "RUNNING"
-
-    # Stop the cartridge app.
-    stop_cmd = [tt_cmd, "stop", "-y", "app1"]
-    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
-    assert status_rc == 0
-    assert re.search(r"The Instance app1:\w+ \(PID = \d+\) has been terminated.", stop_out)
-
-    # Check that the process was terminated correctly.
-    instance_process_rc = instance_process.wait(1)
-    assert instance_process_rc == 0
-
-
-@pytest.mark.parametrize(
-    "var",
-    [
-        "bucket_count=str",
-        "bucket_count=-1",
-        "bucket_count=0",
-        "replicasets_count=0",
-        "replicas_count=1",
-        "routers_count=0",
-    ],
-)
-def test_create_app_from_builtin_cartridge_template_errors(tt_cmd, tmp_path, var):
-    with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
-        tnt_env_file.write(tt_config_text.format(tmp_path))
-
-    create_cmd = [
-        tt_cmd,
-        "create",
-        "vshard_cluster",
-        "--name",
-        "app1",
-        "--non-interactive",
-        "--var",
-        var,
-    ]
-    rc, _ = run_command_and_get_output(create_cmd, cwd=tmp_path)
-    assert rc != 0
-    assert not os.path.exists(tmp_path / "app1")
-
-
 @pytest.mark.slow
 @pytest.mark.skipif(
     tarantool_major_version < 3,
@@ -1334,7 +1120,6 @@ def test_create_simple_cluster(tt_cmd, tmp_path, num_replicasets, num_replicas):
 @pytest.mark.parametrize(
     "template",
     [
-        "cartridge",
         "vshard_cluster",
         pytest.param(
             "config_storage",
@@ -1345,10 +1130,6 @@ def test_create_simple_cluster(tt_cmd, tmp_path, num_replicasets, num_replicas):
 )
 def test_create_builtin_template_with_defaults(tt_cmd, tmp_path, template):
     templates_data = {
-        "cartridge": {
-            "default_params": ["secret-cluster-cookie"],
-            "parametrizable_files": ["init.lua"],
-        },
         "vshard_cluster": {
             "default_params": [3000, 2, 2, 1],
             "parametrizable_files": ["config.yaml", "instances.yaml"],
