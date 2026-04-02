@@ -199,9 +199,9 @@ func getAppNamesToPack(packCtx *PackCtx, cliOpts *config.CliOpts) []string {
 
 // updateEnvPath sets base path for the tt environment in temporary package directory.
 // By default it is a base directory passed as an argument. Or an application name sub-dir
-// in case of cartridge compat or single application environment.
+// in case of single application environment.
 func updateEnvPath(basePath string, packCtx *PackCtx, cliOpts *config.CliOpts) (string, error) {
-	if cliOpts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
+	if cliOpts.Env.InstancesEnabled == "." {
 		basePath = util.JoinPaths(basePath, packCtx.Name)
 		if err := os.MkdirAll(basePath, dirPermissions); err != nil {
 			return basePath, fmt.Errorf("cannot create bundle directory %q: %s", basePath, err)
@@ -212,7 +212,7 @@ func updateEnvPath(basePath string, packCtx *PackCtx, cliOpts *config.CliOpts) (
 
 // copyEnvModules copies tt modules.
 func copyEnvModules(bundleEnvPath string, packCtx *PackCtx, cliOpts, newOpts *config.CliOpts) {
-	if packCtx.WithoutModules || packCtx.CartridgeCompat || cliOpts.Modules == nil ||
+	if packCtx.WithoutModules || cliOpts.Modules == nil ||
 		len(cliOpts.Modules.Directories) == 0 {
 
 		return
@@ -253,11 +253,7 @@ func copyBinaries(bundleEnvPath string, packCtx *PackCtx, cmdCtx *cmdcontext.Cmd
 		return nil
 	}
 
-	pkgBin := bundleEnvPath
-	if !packCtx.CartridgeCompat {
-		// In cartridge compat mode copy binaries directly to the env dir.
-		pkgBin = util.JoinPaths(bundleEnvPath, newOpts.Env.BinDir)
-	}
+	pkgBin := util.JoinPaths(bundleEnvPath, newOpts.Env.BinDir)
 
 	if err := os.MkdirAll(pkgBin, dirPermissions); err != nil {
 		return fmt.Errorf("failed to create binaries directory in bundle: %s", err)
@@ -300,7 +296,7 @@ func copyBinaries(bundleEnvPath string, packCtx *PackCtx, cmdCtx *cmdcontext.Cmd
 func getDestAppDir(bundleEnvPath, appName string,
 	packCtx *PackCtx, cliOpts *config.CliOpts,
 ) string {
-	if packCtx.CartridgeCompat || cliOpts.Env.InstancesEnabled == "." {
+	if cliOpts.Env.InstancesEnabled == "." {
 		return bundleEnvPath
 	}
 	return filepath.Join(bundleEnvPath, appName)
@@ -334,7 +330,7 @@ func copyApplications(bundleEnvPath string, packCtx *PackCtx,
 			}
 		}
 
-		if !packCtx.CartridgeCompat && newOpts.Env.InstancesEnabled != "." {
+		if newOpts.Env.InstancesEnabled != "." {
 			// Create applications symlink in instances enabled.
 			if err = os.MkdirAll(util.JoinPaths(bundleEnvPath, newOpts.Env.InstancesEnabled),
 				dirPermissions); err != nil {
@@ -418,18 +414,6 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 	}
 
-	if packCtx.CartridgeCompat {
-		// Generate VERSION file.
-		if err := generateVersionFile(bundleEnvPath, cmdCtx, packCtx); err != nil {
-			log.Warnf("Failed to generate VERSION file: %s", err)
-		}
-
-		// Generate VERSION.lua file.
-		if err := generateVersionLuaFile(bundleEnvPath, packCtx); err != nil {
-			log.Warnf("Failed to generate VERSION.lua file: %s", err)
-		}
-	}
-
 	if packCtx.Archive.All {
 		if err = copyArtifacts(*packCtx, bundleEnvPath, newOpts, packCtx.AppsInfo); err != nil {
 			return "", fmt.Errorf("failed copying artifacts: %s", err)
@@ -443,7 +427,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		}
 	}
 
-	writeEnv(newOpts, bundleEnvPath, packCtx.CartridgeCompat)
+	writeEnv(newOpts, bundleEnvPath)
 	if err != nil {
 		return "", err
 	}
@@ -487,7 +471,7 @@ func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
 		for _, inst := range appsInfo[appName] {
 			appDirName := filepath.Base(inst.AppDir)
 			destAppDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled, appDirName)
-			if packCtx.CartridgeCompat || newOpts.Env.InstancesEnabled == "." {
+			if newOpts.Env.InstancesEnabled == "." {
 				destAppDir = basePath
 			}
 
@@ -571,16 +555,11 @@ func createNewOpts(opts *config.CliOpts, packCtx PackCtx) *config.CliOpts {
 		cliOptsNew.App.WalDir = configure.VarWalPath
 	}
 
-	if packCtx.CartridgeCompat {
-		cliOptsNew.Env.InstancesEnabled = "."
-		cliOptsNew.Env.BinDir = "."
-	}
-
 	return cliOptsNew
 }
 
 // writeEnv writes CLI options to a tt.yaml file.
-func writeEnv(cliOpts *config.CliOpts, destPath string, cartridgeCompat bool) error {
+func writeEnv(cliOpts *config.CliOpts, destPath string) error {
 	file, err := os.Create(filepath.Join(destPath, configure.ConfigName))
 	if err != nil {
 		return err
@@ -645,7 +624,7 @@ func cleanupAfterBuild(appDir string) {
 func buildAppRocks(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	cliOpts *config.CliOpts, bundlePath string,
 ) error {
-	if cliOpts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
+	if cliOpts.Env.InstancesEnabled == "." {
 		if err := buildAppInBundle(cmdCtx, cliOpts, bundlePath); err != nil {
 			return err
 		}
@@ -668,32 +647,19 @@ func buildAppRocks(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 // getVersion returns a version of the package.
 // The version depends on passed pack context.
 func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) string {
-	packageVersion := defaultVersion
-	if packCtx.Version == "" {
-		// Get version from git only if packing an application from the current directory,
-		// or packing with cartridge-compat enabled.
-		appPath := opts.Env.InstancesEnabled
-		if opts.Env.InstancesEnabled != "." && packCtx.CartridgeCompat {
-			appPath = filepath.Join(appPath, packCtx.Name)
-		}
-		if opts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
-			version, err := util.CheckVersionFromGit(appPath)
-			if err == nil {
-				packageVersion = version
-				if packCtx.CartridgeCompat {
-					if normalVersion, err := normalizeGitVersion(packageVersion); err == nil {
-						packageVersion = normalVersion
-					}
-				}
-			}
-		}
-		if packCtx.CartridgeCompat {
-			packCtx.Version = packageVersion
-		}
-	} else {
-		packageVersion = packCtx.Version
+	if packCtx.Version != "" {
+		return packCtx.Version
 	}
-	return packageVersion
+
+	// Try to get version from git only if packing an application from the current directory.
+	if opts.Env.InstancesEnabled == "." {
+		version, err := util.CheckVersionFromGit(opts.Env.InstancesEnabled)
+		if err == nil {
+			return version
+		}
+	}
+
+	return defaultVersion
 }
 
 // normalizeGitVersion edits raw version from `git describe` command.
@@ -742,11 +708,6 @@ func getPackageFileName(packCtx *PackCtx, opts *config.CliOpts, suffix string,
 	var packageName string
 
 	if packCtx.FileName != "" {
-		if packCtx.CartridgeCompat {
-			// Need to collect info about version
-			// for generating VERSION and VERSION.lua files.
-			getVersion(packCtx, opts, defaultLongVersion)
-		}
 		return packCtx.FileName, nil
 	} else if packCtx.Name != "" {
 		packageName = packCtx.Name

@@ -156,7 +156,7 @@ func Run(initCtx *InitCtx) error {
 
 	var sourceCfg configData
 
-	if !util.IsApp(".") && sourceCfg.instancesEnabled == "" {
+	if !util.IsApp(".") {
 		// Current directory is not app dir, instances enabled dir will be used.
 		sourceCfg.instancesEnabled = configure.InstancesEnabledDirName
 	}

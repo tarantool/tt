@@ -19,6 +19,7 @@ for machine-readable output.
 - `tt init`: tarantoolctl support removed.
 - tarantoolctl layout is no longer supported.
 - `tt init/create`: cartridge support removed.
+- `tt build/pack`: cartridge support removed.
 
 ### Fixed
 

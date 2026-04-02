@@ -59,7 +59,7 @@ func (packer *rpmPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 
 	packagingEnvInstallPath := filepath.Join(packageDir, "usr", "share", "tarantool",
 		bundleName)
-	if opts.Env.InstancesEnabled == "." || packCtx.CartridgeCompat {
+	if opts.Env.InstancesEnabled == "." {
 		packagingEnvInstallPath = filepath.Dir(packagingEnvInstallPath)
 	}
 	if err := copy.Copy(bundlePath, packagingEnvInstallPath); err != nil {

@@ -558,108 +558,6 @@ func Test_prepareBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "Packing cartridge compat",
-			params: params{
-				configPath:    "testdata/env1/tt.yaml",
-				tntExecutable: "testdata/env1/bin/tarantool",
-				packCtx: PackCtx{
-					AppList:           []string{"multi"},
-					CartridgeCompat:   true,
-					Archive:           ArchiveCtx{},
-					TarantoolIsSystem: false,
-				},
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.NoDirExists, "instances.enabled"},
-				{assert.NoDirExists, "include"},
-				{assert.NoDirExists, "modules"},
-				{assert.NoDirExists, "var"},
-				{assert.NoFileExists, "tt.yaml"},
-
-				// Multi-inst app.
-				{assert.DirExists, "multi"},
-				{assert.FileExists, "multi/init.lua"},
-				{assert.FileExists, "multi/instances.yaml"},
-				{assert.FileExists, "multi/tt.yaml"},
-				{assert.FileExists, "multi/tarantool"},
-				{assert.FileExists, "multi/tt"},
-				{assert.NoDirExists, "multi/var/lib/"},
-				{assert.NoDirExists, "multi/var/log/"},
-			},
-		},
-		{
-			name: "Packing cartridge compat, no tarantool executable",
-			params: params{
-				configPath:    "testdata/env1/tt.yaml",
-				tntExecutable: "",
-				packCtx: PackCtx{
-					AppList:           []string{"multi"},
-					CartridgeCompat:   true,
-					Archive:           ArchiveCtx{},
-					TarantoolIsSystem: false,
-				},
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.NoDirExists, "instances.enabled"},
-				{assert.NoDirExists, "include"},
-				{assert.NoDirExists, "modules"},
-				{assert.NoDirExists, "var"},
-				{assert.NoFileExists, "tt.yaml"},
-
-				// Multi-inst app.
-				{assert.DirExists, "multi"},
-				{assert.FileExists, "multi/init.lua"},
-				{assert.FileExists, "multi/instances.yaml"},
-				{assert.FileExists, "multi/tt.yaml"},
-				{assert.NoFileExists, "multi/tarantool"},
-				{assert.NoDirExists, "multi/tarantool"},
-				{assert.FileExists, "multi/tt"},
-				{assert.NoDirExists, "multi/var/lib/"},
-				{assert.NoDirExists, "multi/var/log/"},
-			},
-		},
-		{
-			name: "Packing cartridge compat with artifacts",
-			params: params{
-				configPath:    "testdata/env1/tt.yaml",
-				tntExecutable: "testdata/env1/bin/tarantool",
-				packCtx: PackCtx{
-					AppList:         []string{"multi"},
-					CartridgeCompat: true,
-					Archive: ArchiveCtx{
-						All: true,
-					},
-					TarantoolIsSystem: false,
-				},
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.NoDirExists, "instances.enabled"},
-				{assert.NoDirExists, "include"},
-				{assert.NoDirExists, "modules"},
-				{assert.NoDirExists, "var"},
-				{assert.NoFileExists, "tt.yaml"},
-
-				// Multi-inst app.
-				{assert.DirExists, "multi"},
-				{assert.FileExists, "multi/init.lua"},
-				{assert.FileExists, "multi/instances.yaml"},
-				{assert.FileExists, "multi/tt.yaml"},
-				{assert.FileExists, "multi/tarantool"},
-				{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.snap"},
-				{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.xlog"},
-				{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.snap"},
-				{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.xlog"},
-				{assert.FileExists, "multi/var/log/inst1/tt.log"},
-				{assert.FileExists, "multi/var/log/inst2/tt.log"},
-			},
-		},
-		{
 			name: "Packing env with instances.enabled:.",
 			params: params{
 				configPath:    "testdata/single_app/tt.yml",
@@ -793,42 +691,6 @@ func Test_prepareBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "Packing env with CartridgeCompat and instances.enabled:.",
-			params: params{
-				configPath:    "testdata/single_app/tt.yml",
-				tntExecutable: "testdata/single_app/bin/tarantool",
-				packCtx: PackCtx{
-					TarantoolIsSystem: false,
-					CartridgeCompat:   true,
-				},
-			},
-			wantErr: false,
-			checks: []check{
-				{assert.NoDirExists, "instances.enabled"},
-				{assert.NoFileExists, "tt.yaml"},
-				{assert.NoFileExists, "tt.yml"},
-				{assert.NoDirExists, "include"},
-
-				{assert.NoDirExists, "single_app/instances.enabled"},
-				{assert.NoDirExists, "single_app/include"},
-				{assert.NoDirExists, "single_app/templates"},
-				{assert.NoDirExists, "single_app/modules"},
-				{assert.NoDirExists, "single_app/templates"},
-				{assert.NoDirExists, "single_app/distfiles"},
-				{assert.NoFileExists, "single_app/bin/tarantool"},
-				{assert.NoFileExists, "single_app/bin/tt"},
-				{assert.FileExists, "single_app/init.lua"},
-				{assert.FileExists, "single_app/tt.yaml"},
-				{assert.FileExists, "single_app/VERSION.lua"},
-				{assert.FileExists, "single_app/VERSION"},
-				{assert.NoFileExists, "single_app/tt.yml"},
-				{assert.NoFileExists, "single_app/single_app_0.1.0.0-1_x86_64.deb"},
-				{assert.NoFileExists, "single_app/single_app-0.1.0.0-1.x86_64.rpm"},
-				{assert.NoFileExists, "single_app/single_app-0.1.0.0.x86_64.tar.gz"},
-				{assert.FileExists, "single_app/single_app-0.1.0.0.x86_64.zip"},
-			},
-		},
-		{
 			name: "Packing app and build rocks",
 			params: params{
 				configPath:    "testdata/app_with_rockspec/tt.yaml",
@@ -858,8 +720,6 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.NoFileExists, "app_with_rockspec/app_with_rockspec-scm-1.rockspec"},
 				{assert.NoFileExists, "app_with_rockspec/tt.pre-build"},
 				{assert.NoFileExists, "app_with_rockspec/tt.post-build"},
-				{assert.NoFileExists, "app_with_rockspec/cartridge.pre-build"},
-				{assert.NoFileExists, "app_with_rockspec/cartridge.post-build"},
 			},
 		},
 		{
@@ -893,8 +753,6 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.NoFileExists, "app/app_with_rockspec-scm-1.rockspec"},
 				{assert.NoFileExists, "app/tt.pre-build"},
 				{assert.NoFileExists, "app/tt.post-build"},
-				{assert.NoFileExists, "app/cartridge.pre-build"},
-				{assert.NoFileExists, "app/cartridge.post-build"},
 			},
 		},
 		{
