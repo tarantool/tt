@@ -221,7 +221,6 @@ func Test_createNewOpts(t *testing.T) {
 					IncludeDir:         "include",
 					InstancesEnabled:   configure.InstancesEnabledDirName,
 					Restartable:        true,
-					TarantoolctlLayout: false,
 				},
 				App: &config.AppOpts{
 					WalDir:   "var/lib",
@@ -258,7 +257,6 @@ func Test_createNewOpts(t *testing.T) {
 					IncludeDir:         "include",
 					InstancesEnabled:   configure.InstancesEnabledDirName,
 					Restartable:        true,
-					TarantoolctlLayout: false,
 				},
 				App: &config.AppOpts{
 					WalDir:   "/var/lib/tarantool/bundle",
@@ -301,7 +299,6 @@ func Test_createNewOpts(t *testing.T) {
 					IncludeDir:         "include",
 					InstancesEnabled:   ".",
 					Restartable:        true,
-					TarantoolctlLayout: false,
 				},
 				App: &config.AppOpts{
 					WalDir:   "var/lib",

@@ -9,11 +9,6 @@ env:
   # Directory that stores Tarantool header files.
   inc_dir: /opt/tarantool/include
 
-  # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
-  # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl,
-  # snap) and multi-instance applications are not affected by this option.
-  tarantoolctl_layout: true
-
 modules:
   # Directory where the external modules are stored.
   directory: /opt/tarantool/modules

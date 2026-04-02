@@ -2,7 +2,6 @@ env:
   bin_dir: bin
   inc_dir: include
   instances_enabled: instances.enabled
-  tarantoolctl_layout: true
 app:
   run_dir: var/run
   log_dir: var/log

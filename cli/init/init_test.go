@@ -88,7 +88,6 @@ func TestGenerateTtEnv(t *testing.T) {
 	assert.Equal(t, "var/lib", cfg.App.MemtxDir)
 	assert.Equal(t, "run_dir", cfg.App.RunDir)
 	assert.Equal(t, "log_dir", cfg.App.LogDir)
-	assert.False(t, cfg.Env.TarantoolctlLayout)
 	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 }
 

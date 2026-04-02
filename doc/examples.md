@@ -12,7 +12,6 @@ This file contains various examples of working with tt.
 - [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
 - [Transition from tarantoolctl to tt](#transition-from-tarantoolctl-to-tt)
   + [System-wide configuration](#system-wide-configuration)
-  + [Local configuration](#local-configuration)
   + [Commands difference](#commands-difference)
 - [Transition from Cartridge CLI to tt](#transition-from-cartridge-cli-to-tt)
   + [Commands difference](#commands-difference)
@@ -441,7 +440,6 @@ env:
   inc_dir: include
   instances_enabled: instances.enabled
   restart_on_failure: false
-  tarantoolctl_layout: false
 modules:
   directory: modules
 app:
@@ -590,75 +588,6 @@ Forwarding to 'systemctl status tarantool@example'
 ○ tarantool@example.service - Tarantool Database Server
     Loaded: loaded (/lib/systemd/system/tarantool@.service; enabled; vendor preset: enabled)
     Active: inactive (dead)
-```
-
-### Local configuration
-
-Suppose we have a set of Tarantool instances managed by `tarantoolctl`
-utility in local directory. In order for the tt to work with these
-instances run `tt init` command in the directory where `tarantoolctl`
-configuration file (`.tarantoolctl`) is located. For example:
-
-``` console
-$ cat .tarantoolctl
-default_cfg = {
-    pid_file  = "./run/tarantool",
-    wal_dir   = "./lib/tarantool",
-    memtx_dir = "./lib/tarantool",
-    vinyl_dir = "./lib/tarantool",
-    log       = "./log/tarantool",
-    language  = "Lua",
-}
-instance_dir = "./instances.enabled"
-
-$ tt init
-• Found existing config '.tarantoolctl'
-• Environment config is written to 'tt.yaml'
-```
-
-`tt init` takes directories paths from the existing `tarantoolctl`
-config. Generated `tt.yaml` will look like (comments omitted):
-
-``` yaml
-modules:
-  directory: modules
-env:
-  restart_on_failure: false
-  bin_dir: bin
-  inc_dir: include
-  instances_enabled: ./instances.enabled
-  tarantoolctl_layout: true
-app:
-  run_dir: ./run/tarantool
-  log_dir: ./log/tarantool
-  wal_dir: ./lib/tarantool
-  memtx_dir: ./lib/tarantool
-  vinyl_dir: ./lib/tarantool
-ee:
-  credential_path:
-templates:
-  - path: templates
-repo:
-  rocks:
-  distfiles: distfiles
-```
-
-After that we can use `tt` for managing Tarantool instances, checkpoint
-files and modules. Most of `tt` commands correspond to the same in
-`tarantoolctl`:
-
-``` text
-    $ tt start app1
-    • Starting an instance [app1]...
-
-    $ tt status app1
-    • app1: RUNNING. PID: 33837.
-
-    $ tt stop app1
-    • The Instance app1 (PID = 33837) has been terminated.
-
-    $ tt check app1
-    • Result of check: syntax of file '/home/user/instances.enabled/app1.lua' is OK
 ```
 
 ### Commands difference
