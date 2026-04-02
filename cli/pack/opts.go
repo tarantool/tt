@@ -1,7 +1,6 @@
 package pack
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -74,7 +73,7 @@ func setBundleName(packCtx *PackCtx, cliOpts *config.CliOpts) {
 		return
 	}
 	packCtx.Name = "package"
-	if packCtx.CartridgeCompat || cliOpts.Env.InstancesEnabled == "." {
+	if cliOpts.Env.InstancesEnabled == "." {
 		packCtx.Name = packCtx.AppList[0]
 		return
 	}
@@ -100,10 +99,6 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpt
 
 	packCtx.RpmDeb.pkgFilesInfo = make(map[string]packFileInfo)
 
-	if (packCtx.IntegrityPrivateKey != "") && packCtx.CartridgeCompat {
-		return errors.New("cannot pack with integrity checks in cartridge-compat mode")
-	}
-
 	packCtx.TarantoolIsSystem = cmdCtx.Cli.IsSystem
 	packCtx.TarantoolExecutable = cmdCtx.Cli.TarantoolCli.Executable
 	packCtx.configFilePath = cmdCtx.Cli.ConfigPath
@@ -114,10 +109,6 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpt
 	}
 
 	setBundleName(packCtx, cliOpts)
-
-	if packCtx.CartridgeCompat && len(packCtx.AppsInfo) > 1 {
-		return fmt.Errorf("cannot pack multiple applications in cartridge compat mode")
-	}
 
 	// Initialize packignore filter.
 	ignoreFilter, err := createIgnoreFilter(util.GetOsFS(), cmdCtx.Cli.ConfigDir, ignoreFile)

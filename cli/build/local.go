@@ -20,9 +20,9 @@ const (
 
 var (
 	// PreBuildScripts is a list of pre-build script names.
-	PreBuildScripts = []string{"tt.pre-build", "cartridge.pre-build"}
+	PreBuildScripts = []string{"tt.pre-build"}
 	// PostBuildScripts is a list of post-build script names.
-	PostBuildScripts = []string{"tt.post-build", "cartridge.post-build"}
+	PostBuildScripts = []string{"tt.post-build"}
 )
 
 // runBuildHook runs first existing executable from hookNames list.

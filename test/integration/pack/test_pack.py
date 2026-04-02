@@ -37,17 +37,6 @@ def assert_bundle_structure(path):
     assert not os.path.exists(os.path.join(path, "templates"))
 
 
-def assert_bundle_structure_compat(path):
-    assert not os.path.isfile(os.path.join(path, config_name))
-    assert not os.path.isdir(os.path.join(path, "var"))
-    assert not os.path.isdir(os.path.join(path, "var/run"))
-    assert not os.path.isdir(os.path.join(path, "var/lib"))
-    assert not os.path.isdir(os.path.join(path, "var/log"))
-    assert not os.path.isdir(os.path.join(path, "bin"))
-    assert not os.path.exists(os.path.join(path, "include"))
-    assert not os.path.exists(os.path.join(path, "templates"))
-
-
 def assert_default_env(config):
     assert config["env"]["instances_enabled"] == "instances.enabled"
     assert config["env"]["bin_dir"] == "bin"
@@ -259,72 +248,6 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
             "check_env": ["", assert_default_env, assert_artifacts_env],
         },
         {
-            "bundle_src": "bundle8",
-            "cmd": tt_cmd,
-            "pack_type": "tgz",
-            "args": ["--cartridge-compat"],
-            "app_name": "app_name",
-            "res_file": "app_name-0.1.0.0." + get_arch() + ".tar.gz",
-            "check_exist": [
-                os.path.join("app_name", "VERSION"),
-                os.path.join("app_name", "VERSION.lua"),
-                os.path.join("app_name", config_name),
-            ],
-            "check_not_exist": [
-                os.path.join("bin"),
-                os.path.join("instances.enabled"),
-                os.path.join("modules"),
-                os.path.join("var"),
-                os.path.join(config_name),
-            ],
-            "check_env": ["app_name", assert_cartridge_compat_env, assert_artifacts_env],
-        },
-        {
-            "bundle_src": "bundle1",
-            "cmd": tt_cmd,
-            "pack_type": "tgz",
-            "args": ["--cartridge-compat", "--app-list", "app2"],
-            "app_name": "app2",
-            "res_file": "app2-0.1.0.0." + get_arch() + ".tar.gz",
-            "check_exist": [
-                os.path.join("app2", "VERSION"),
-                os.path.join("app2", "VERSION.lua"),
-                os.path.join("app2", config_name),
-            ],
-            "check_not_exist": [
-                os.path.join("app1"),
-                os.path.join("app"),
-                os.path.join("bin"),
-                os.path.join("instances_enabled"),
-                os.path.join("modules"),
-                os.path.join("var"),
-                os.path.join(config_name),
-            ],
-            "check_env": ["app2", assert_cartridge_compat_env, assert_artifacts_env],
-        },
-        {
-            "bundle_src": "bundle9",
-            "cmd": tt_cmd,
-            "pack_type": "tgz",
-            "args": ["--cartridge-compat"],
-            "app_name": "bundle9",
-            "res_file": "bundle9-0.1.0.0." + get_arch() + ".tar.gz",
-            "check_exist": [
-                os.path.join("bundle9", "init.lua"),
-                os.path.join("bundle9", "tt.yaml"),
-                os.path.join("bundle9", "VERSION"),
-                os.path.join("bundle9", "VERSION.lua"),
-            ],
-            "check_not_exist": [
-                os.path.join("bin"),
-                os.path.join("instances_enabled"),
-                os.path.join("modules"),
-                os.path.join("var"),
-                os.path.join("tt.yaml"),
-            ],
-            "check_env": ["bundle9", assert_cartridge_compat_env, assert_artifacts_env],
-        },
-        {
             "bundle_src": "bundle1",
             "cmd": tt_cmd,
             "pack_type": "tgz",
@@ -431,32 +354,6 @@ def prepare_tgz_test_cases(tt_cmd) -> list:
                 os.path.join("modules", "ext_mod2"),
             ],
             "check_env": ["", assert_default_env, assert_artifacts_env],
-        },
-        {
-            "bundle_src": "cartridge_app",
-            "cmd": tt_cmd,
-            "pack_type": "tgz",
-            "args": ["--name", "cartridge_app", "--version", "v2"],
-            "res_file": "cartridge_app-v2." + get_arch() + ".tar.gz",
-            "check_exist": [
-                os.path.join("cartridge_app"),
-                os.path.join("cartridge_app", "bin", "tarantool"),
-                os.path.join("cartridge_app", "bin", "tt"),
-                os.path.join("cartridge_app", "app", "roles", "custom.lua"),
-                os.path.join("cartridge_app", "app", "admin.lua"),
-                os.path.join("cartridge_app", "init.lua"),
-                os.path.join("cartridge_app", "instances.yml"),
-                os.path.join("cartridge_app", "replicasets.yml"),
-                os.path.join("cartridge_app", "failover.yml"),
-                os.path.join("cartridge_app", ".rocks"),
-                os.path.join("cartridge_app", config_name),
-            ],
-            "check_not_exist": [
-                os.path.join("cartridge_app", "myapp-scm-1.rockspec"),
-                os.path.join("cartridge_app", "cartridge.pre-build"),
-                os.path.join("cartridge_app", "cartridge.post-build"),
-            ],
-            "check_env": ["cartridge_app", assert_single_app_env, assert_artifacts_env],
         },
         {
             "bundle_src": "bundle6",
@@ -666,10 +563,7 @@ def test_pack_tgz_table(tt_cmd, tmp_path):
         tar.extractall(extract_path)
         tar.close()
 
-        if "--cartridge-compat" in test_case["args"]:
-            assert_bundle_structure_compat(extract_path)
-        else:
-            assert_bundle_structure(extract_path)
+        assert_bundle_structure(extract_path)
 
         for file_path in test_case["check_exist"]:
             print("Check exist " + file_path + " in  " + extract_path)
@@ -710,180 +604,6 @@ def test_pack_tgz_missing_app(tt_cmd, tmp_path):
 
 
 @pytest.mark.slow
-def test_pack_tgz_files_with_compat(tt_cmd, tmp_path):
-    tmp_path = os.path.join(tmp_path, "bundle8")
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "test_bundles", "bundle8"),
-        tmp_path,
-        symlinks=True,
-        ignore=None,
-        copy_function=shutil.copy2,
-        ignore_dangling_symlinks=True,
-        dirs_exist_ok=True,
-    )
-
-    base_dir = tmp_path
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz", "--cartridge-compat"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-
-    assert rc == 0
-
-    package_file = os.path.join(base_dir, "app_name-0.1.0.0." + get_arch() + ".tar.gz")
-
-    extract_path = os.path.join(base_dir, "tmp")
-    os.mkdir(extract_path)
-
-    tar = tarfile.open(package_file)
-    tar.extractall(extract_path)
-    tar.close()
-
-    assert len([name for name in os.listdir(extract_path)]) == 1
-    assert os.path.exists(os.path.join(extract_path, "app_name", "tt"))
-    assert os.path.exists(os.path.join(extract_path, "app_name", "tarantool"))
-    assert os.path.exists(os.path.join(extract_path, "app_name", "tt.yaml"))
-    assert os.path.exists(os.path.join(extract_path, "app_name", "init.lua"))
-    assert os.path.exists(os.path.join(extract_path, "app_name", "VERSION"))
-    assert os.path.exists(os.path.join(extract_path, "app_name", "VERSION.lua"))
-
-
-@pytest.mark.slow
-def test_pack_tgz_git_version_compat(tt_cmd, tmp_path):
-    tmp_path = os.path.join(tmp_path, "bundle9")
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "test_bundles", "bundle9"),
-        tmp_path,
-        symlinks=True,
-        ignore=None,
-        copy_function=shutil.copy2,
-        ignore_dangling_symlinks=True,
-        dirs_exist_ok=True,
-    )
-
-    base_dir = tmp_path
-    rc, output = run_command_and_get_output(
-        ["git", "init"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        ["git", "add", "*"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        ["git", "config", "user.email", '"none"'],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-    assert rc == 0
-    rc, output = run_command_and_get_output(
-        ["git", "config", "user.name", '"none"'],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        ["git", "commit", "-m", "commit"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        ["git", "tag", "1.2.3"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz", "--cartridge-compat"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-    assert rc == 0
-
-    package_file = os.path.join(base_dir, "bundle9-1.2.3.0." + get_arch() + ".tar.gz")
-    assert os.path.isfile(package_file)
-
-
-@pytest.mark.slow
-def test_pack_tgz_git_version_compat_with_instances(tt_cmd, tmp_path):
-    tmp_path = os.path.join(tmp_path, "bundle1")
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-        tmp_path,
-        symlinks=True,
-        ignore=None,
-        copy_function=shutil.copy2,
-        ignore_dangling_symlinks=True,
-        dirs_exist_ok=True,
-    )
-
-    base_dir = tmp_path
-    app_dir = os.path.join(base_dir, "app2")
-
-    rc, output = run_command_and_get_output(
-        ["git", "init"],
-        cwd=app_dir,
-        env=dict(os.environ, PWD=app_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        ["git", "add", "*"],
-        cwd=app_dir,
-        env=dict(os.environ, PWD=app_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        ["git", "config", "user.email", '"none"'],
-        cwd=app_dir,
-        env=dict(os.environ, PWD=app_dir),
-    )
-    assert rc == 0
-    rc, output = run_command_and_get_output(
-        ["git", "config", "user.name", '"none"'],
-        cwd=app_dir,
-        env=dict(os.environ, PWD=app_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        ["git", "commit", "-m", "commit"],
-        cwd=app_dir,
-        env=dict(os.environ, PWD=app_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        ["git", "tag", "1.2.3"],
-        cwd=app_dir,
-        env=dict(os.environ, PWD=app_dir),
-    )
-    assert rc == 0
-
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz", "--app-list", "app2", "--cartridge-compat"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-    assert rc == 0
-
-    package_file = os.path.join(base_dir, "app2-1.2.3.0." + get_arch() + ".tar.gz")
-    assert os.path.isfile(package_file)
-
-
-@pytest.mark.slow
 def test_pack_tgz_compat_with_binaries(tt_cmd, tmp_path):
     tmp_path = os.path.join(tmp_path, "bundle8")
     shutil.copytree(
@@ -898,14 +618,14 @@ def test_pack_tgz_compat_with_binaries(tt_cmd, tmp_path):
 
     base_dir = tmp_path
     rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz", "--with-binaries", "--cartridge-compat"],
+        [tt_cmd, "pack", "tgz", "--with-binaries"],
         cwd=base_dir,
         env=dict(os.environ, PWD=base_dir),
     )
 
     assert rc == 0
 
-    package_file = os.path.join(base_dir, "app_name-0.1.0.0." + get_arch() + ".tar.gz")
+    package_file = os.path.join(base_dir, "bundle8-0.1.0.0." + get_arch() + ".tar.gz")
 
     extract_path = os.path.join(base_dir, "tmp")
     os.mkdir(extract_path)
@@ -914,45 +634,25 @@ def test_pack_tgz_compat_with_binaries(tt_cmd, tmp_path):
     tar.extractall(extract_path)
     tar.close()
 
-    app_path = os.path.join(extract_path, "app_name")
+    bin_path = os.path.join(extract_path, "bin")
 
-    assert os.path.isfile(os.path.join(app_path, "tt"))
-    assert os.path.isfile(os.path.join(app_path, "tarantool"))
+    assert os.path.isfile(os.path.join(bin_path, "tt"))
+    assert os.path.isfile(os.path.join(bin_path, "tarantool"))
 
-    script = "cat > tarantool <<EOF\n#!/bin/bash\nprintf 'Hello World'"
-    subprocess.run(script, cwd=app_path, shell=True, env=dict(os.environ, PWD=app_path))
-    subprocess.run(["chmod", "+x", "tarantool"], cwd=app_path, env=dict(os.environ, PWD=app_path))
+    app_path = os.path.join(base_dir)
+
+    script = "cat > script.lua <<EOF\nprint('Hello World')"
+    subprocess.run(script, cwd=app_path, shell=True, env=dict(os.environ, PWD=bin_path))
+    subprocess.run(["chmod", "+x", "script.lua"], cwd=app_path, env=dict(os.environ, PWD=app_path))
 
     rc, output = run_command_and_get_output(
-        [tt_cmd, "run"],
+        [tt_cmd, "run", "script.lua"],
         cwd=app_path,
-        env=dict(os.environ, PWD=app_path),
+        env=dict(os.environ, PWD=bin_path),
     )
 
     assert rc == 0
-    assert output == "Hello World"
-
-
-def test_pack_tgz_multiple_apps_compat(tt_cmd, tmp_path):
-    tmp_path = os.path.join(tmp_path, "bundle1")
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-        tmp_path,
-        symlinks=True,
-        ignore=None,
-        copy_function=shutil.copy2,
-        ignore_dangling_symlinks=True,
-        dirs_exist_ok=True,
-    )
-
-    base_dir = tmp_path
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "tgz", "--cartridge-compat"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-
-    assert rc == 1
+    assert output == "Hello World\n"
 
 
 @pytest.mark.slow
@@ -992,50 +692,6 @@ def test_pack_tgz_relative_symlinks(tt_cmd, tmp_path):
     assert os.path.exists(os.path.join(extract_path, "instances.enabled", "app_name", "symlink"))
 
 
-def test_pack_deb_compat(tt_cmd, tmp_path):
-    tmp_path = os.path.join(tmp_path, "bundle1")
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-        tmp_path,
-        symlinks=True,
-        ignore=None,
-        copy_function=shutil.copy2,
-        ignore_dangling_symlinks=True,
-        dirs_exist_ok=True,
-    )
-
-    base_dir = tmp_path
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "dep", "--cartridge-compat"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-
-    assert rc == 1
-
-
-def test_pack_rpm_compat(tt_cmd, tmp_path):
-    tmp_path = os.path.join(tmp_path, "bundle1")
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "test_bundles", "bundle1"),
-        tmp_path,
-        symlinks=True,
-        ignore=None,
-        copy_function=shutil.copy2,
-        ignore_dangling_symlinks=True,
-        dirs_exist_ok=True,
-    )
-
-    base_dir = tmp_path
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "pack", "rpm", "--cartridge-compat"],
-        cwd=base_dir,
-        env=dict(os.environ, PWD=base_dir),
-    )
-
-    assert rc == 1
-
-
 def prepare_deb_test_cases(tt_cmd) -> list:
     tt_cmd = tt_cmd
     return [
@@ -1066,13 +722,6 @@ def prepare_deb_test_cases(tt_cmd) -> list:
             "pack_type": "deb",
             "args": ["--deps", "tarantool>=1.10,tt=2.0"],
             "res_file": "bundle1_0.1.0.0-1_" + get_arch() + ".deb",
-        },
-        {
-            "bundle_src": "single_app",
-            "cmd": tt_cmd,
-            "pack_type": "deb",
-            "args": ["--cartridge-compat", "--version", "1.2.3"],
-            "res_file": "single_app" + "_1.2.3-1_" + get_arch() + ".deb",
         },
     ]
 
@@ -1107,13 +756,6 @@ def prepare_rpm_test_cases(tt_cmd) -> list:
             "pack_type": "rpm",
             "args": ["--deps", "tarantool>=1.10,tt=2.0"],
             "res_file": "bundle1-0.1.0.0-1." + get_arch() + ".rpm",
-        },
-        {
-            "bundle_src": "single_app",
-            "cmd": tt_cmd,
-            "pack_type": "rpm",
-            "args": ["--cartridge-compat", "--version", "1.2.3"],
-            "res_file": "single_app" + "-1.2.3-1." + get_arch() + ".rpm",
         },
     ]
 
@@ -1442,12 +1084,7 @@ def prepare_pack_deb_single_app_test_cases(tt_cmd) -> list:
             "name": "clean",
             "command": ["pack", "deb"],
             "paths": ["tt.yaml", "instances.yml", "config.yaml", "bin/tt", "bin/tarantool"],
-        },
-        {
-            "name": "with_version",
-            "command": ["pack", "deb", "--cartridge-compat"],
-            "paths": ["tt.yaml", "instances.yml", "config.yaml", "VERSION", "VERSION.lua"],
-        },
+        }
     ]
 
 

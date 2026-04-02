@@ -34,8 +34,6 @@ type PackCtx struct {
 	RpmDeb RpmDebCtx
 	// UseDocker is set if a package must be built in docker container.
 	UseDocker bool
-	// CartridgeCompat enables backward compatibility with cartridge cli.
-	CartridgeCompat bool
 	// TarantoolVersion specifies the version of the tarantool for pack in docker.
 	TarantoolVersion string
 	// IntegrityPrivateKey contains the path to private key for signing hash files.

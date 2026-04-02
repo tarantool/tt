@@ -49,30 +49,6 @@ def test_build_with_tt_hooks(tt_cmd, tmpdir_with_cfg):
     assert os.path.exists(os.path.join(app_dir, "tt-post-build-invoked"))
 
 
-def test_build_with_cartridge_hooks(tt_cmd, tmpdir_with_cfg):
-    app_name = "app1"
-    app_dir = shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "apps", app_name),
-        os.path.join(tmpdir_with_cfg, app_name),
-    )
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "apps/cartridge_hooks"),
-        os.path.join(tmpdir_with_cfg, app_name),
-        dirs_exist_ok=True,
-    )
-
-    cmd = [tt_cmd, "build"]
-    p = subprocess.run(
-        cmd,
-        cwd=app_dir,
-    )
-    assert p.returncode == 0
-    assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "checks.lua"))
-    assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "rocks"))
-    assert os.path.exists(os.path.join(app_dir, "cartridge-pre-build-invoked"))
-    assert os.path.exists(os.path.join(app_dir, "cartridge-post-build-invoked"))
-
-
 def test_build_app_name_set(tt_cmd, tmpdir_with_cfg):
     app_name = "app1"
     app_dir = shutil.copytree(
@@ -181,7 +157,6 @@ def test_build_spec_file_set(tt_cmd, tmpdir_with_cfg):
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "checks.lua"))
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "rocks"))
     assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "metrics"))
-    assert os.path.exists(os.path.join(app_dir, ".rocks", "share", "tarantool", "cartridge"))
 
 
 @pytest.mark.parametrize("flag", [None, "-V"])
