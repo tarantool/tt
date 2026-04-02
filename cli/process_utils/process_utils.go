@@ -74,6 +74,7 @@ func GetPIDFromFile(pidFileName string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf(`can't open the PID file. Error: "%v"`, err)
 	}
+	defer pidFile.Close()
 
 	pidBytes, err := io.ReadAll(pidFile)
 	if err != nil {
