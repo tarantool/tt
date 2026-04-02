@@ -80,7 +80,6 @@ func getDefaultTtEnvOpts() *config.TtEnvOpts {
 		Restartable:        false,
 		BinDir:             BinPath,
 		IncludeDir:         IncludePath,
-		TarantoolctlLayout: false,
 	}
 }
 

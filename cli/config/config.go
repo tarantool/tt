@@ -6,7 +6,6 @@ package config
 // tt.yaml file format:
 //  env:
 //    instances_enabled: path
-//    tarantoolctl_layout: false
 //    restart_on_failure: bool
 //  modules:
 //    directory: path/to
@@ -63,10 +62,6 @@ type TtEnvOpts struct {
 	// Restartable - if set the instance is started under the watchdog it should
 	// restart on if it crashes.
 	Restartable bool `mapstructure:"restart_on_failure" yaml:"restart_on_failure"`
-	// TarantoolctlLayout enables artifact files layout compatibility with tarantoolctl:
-	// application sub-directories are not created for runtime artifacts like
-	// control socket, pid files and logs.
-	TarantoolctlLayout bool `mapstructure:"tarantoolctl_layout" yaml:"tarantoolctl_layout"`
 }
 
 // TemplateOpts contains configuration for applications templates.

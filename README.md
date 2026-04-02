@@ -313,7 +313,6 @@ env:
   bin_dir: path/to/bin_dir
   inc_dir: path/to/inc_dir
   restart_on_failure: bool
-  tarantoolctl_layout: bool
 modules:
   directory: path/to/modules/dir
 app:
@@ -340,10 +339,6 @@ templates:
 - `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
 - `restart_on_failure` (bool) - should it restart on failure.
-- `tarantoolctl_layout` (bool) - enable/disable tarantoolctl layout
-    compatible mode for artifact files: control socket, pid, log files.
-    Data files (wal, vinyl, snapshots) and multi-instance applications
-    are not affected by this option.
 
 #### modules
 
@@ -391,16 +386,12 @@ directory:
 
 - `.cartridge.yml`. If `.cartridge.yml` is found, it is loaded, and
     directory information from it is used for `tt.yaml` generation.
-- `.tarantoolctl`. If `.tarantoolctl` is found, it is invoked by
-    Tarantool and directory information from `default_cfg` table is used
-    for `tt.yaml` generation. `.tarantoolctl` will not be invoked by
-    `tt start` command, so all variables defined in this script will not
-    be available in application code.
 
 If there are no existing configs in current directory, `tt init`
 generates default `tt.yaml` and creates a set of environment
-directories. Here is and example of the default environment filesystem
-tree:
+directories, otherwise it is suggested to overwrite the current
+`tt.yaml`. Here is and example of the default environment
+filesystem tree:
 
 ```text
     .

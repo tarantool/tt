@@ -16,11 +16,6 @@ env:
   # The directory can also contain symbolic links to applications.
   instances_enabled: {{ .Env.InstancesEnabled }}
 
-  # Tarantoolctl artifacts layout compatibility: if set to true tt will not create application
-  # sub-directories for control socket, pid files, log files, etc.. Data files (wal, vinyl,
-  # snap) and multi-instance applications are not affected by this option.
-  tarantoolctl_layout: {{ .Env.TarantoolctlLayout }}
-
 app:
   # Directory that stores various instance runtime
   # artifacts like console socket, PID file, etc.

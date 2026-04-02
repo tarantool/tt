@@ -91,7 +91,6 @@ env:
   inc_dir: %[1]s/test_inc
   instances_enabled: %[1]s
   restart_on_failure: false
-  tarantoolctl_layout: false
 modules:
   directory: /root/modules
 app:
@@ -127,7 +126,6 @@ env:
   inc_dir: %[1]s/include
   instances_enabled: %[1]s
   restart_on_failure: false
-  tarantoolctl_layout: false
 modules:
   directory:
   - /root/modules
@@ -165,7 +163,6 @@ env:
   inc_dir: %[1]s/include
   instances_enabled: %[1]s/instances.enabled
   restart_on_failure: false
-  tarantoolctl_layout: false
 modules:
   directory: %[1]s/my_modules
 app:
@@ -202,7 +199,6 @@ env:
   inc_dir: %[1]s/test_inc
   instances_enabled: .
   restart_on_failure: false
-  tarantoolctl_layout: false
 modules:
   directory: /root/modules
 app:

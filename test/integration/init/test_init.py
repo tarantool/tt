@@ -37,7 +37,6 @@ def test_init_basic_functionality(tt_cmd, tmp_path):
         assert data_loaded["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["app"]["memtx_dir"] == "var/lib"
         assert data_loaded["env"]["instances_enabled"] == "instances.enabled"
-        assert not data_loaded["env"]["tarantoolctl_layout"]
 
     check_env_dirs(tmp_path, "instances.enabled")
 
@@ -63,7 +62,6 @@ def test_init_missing_configs(tt_cmd, tmp_path):
         assert data_loaded["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["app"]["memtx_dir"] == "var/lib"
         assert data_loaded["env"]["instances_enabled"] == "instances.enabled"
-        assert not data_loaded["env"]["tarantoolctl_layout"]
         assert data_loaded["modules"]["directory"] == ["modules"]
         assert data_loaded["env"]["bin_dir"] == "bin"
         assert data_loaded["templates"][0]["path"] == "templates"

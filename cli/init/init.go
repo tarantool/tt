@@ -34,7 +34,6 @@ type configData struct {
 	walDir             string
 	vinylDir           string
 	memtxDir           string
-	tarantoolctlLayout bool
 }
 
 // createDirectories creates directories specified in dirList.
@@ -75,7 +74,6 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 	if sourceCfg.instancesEnabled != "" {
 		cfg.Env.InstancesEnabled = sourceCfg.instancesEnabled
 	}
-	cfg.Env.TarantoolctlLayout = sourceCfg.tarantoolctlLayout
 
 	ttYamlContent, err := util.GetTextTemplatedStr(&ttYamlTemplate, cfg)
 	if err != nil {
