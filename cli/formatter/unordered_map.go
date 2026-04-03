@@ -12,10 +12,6 @@ func createUnorderedMap[T comparable](len int) unorderedMap[T] {
 	}
 }
 
-func (u *unorderedMap[T]) len() int {
-	return len(u.keys)
-}
-
 func (u *unorderedMap[T]) insert(key T, value any) {
 	u.keys = append(u.keys, key)
 	u.innerMap[key] = value

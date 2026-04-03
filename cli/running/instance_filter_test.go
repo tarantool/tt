@@ -27,7 +27,7 @@ func TestCompletionHelpers(t *testing.T) {
 
 		{AppName: "app3", InstName: "master"},
 		{AppName: "app3", InstName: "replica1"},
-		{AppName: "app3", InstName: "stateboard"},
+		{AppName: "app3", InstName: "router"},
 	}
 
 	statuses := map[string]process_utils.ProcessState{
@@ -42,9 +42,9 @@ func TestCompletionHelpers(t *testing.T) {
 		"app2:replica1": process_utils.ProcStateStopped,
 		"app2:replica2": process_utils.ProcStateStopped,
 
-		"app3:master":     process_utils.ProcStateDead,
-		"app3:replica1":   process_utils.ProcStateStopped,
-		"app3:stateboard": process_utils.ProcStateRunning,
+		"app3:master":   process_utils.ProcStateDead,
+		"app3:replica1": process_utils.ProcStateStopped,
+		"app3:router":   process_utils.ProcStateRunning,
 	}
 
 	getStatus = func(instCtx *InstanceCtx) process_utils.ProcessState {
@@ -61,7 +61,7 @@ func TestCompletionHelpers(t *testing.T) {
 			tf:   ExtractActiveInstanceNames,
 			expected: []string{
 				"single_run",
-				"app1:master", "app1:replica", "app3:stateboard",
+				"app1:master", "app1:replica", "app3:router",
 			},
 		},
 		{

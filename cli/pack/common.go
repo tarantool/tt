@@ -30,9 +30,6 @@ const (
 	defaultVersion     = "0.1.0"
 	defaultLongVersion = "0.1.0.0"
 
-	versionFileName    = "VERSION"
-	versionLuaFileName = "VERSION.lua"
-
 	rocksManifestPath = ".rocks/share/tarantool/rocks/manifest"
 
 	ignoreFile = ".packignore"

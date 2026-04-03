@@ -210,7 +210,7 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
 )
 def test_t3_instance_names_no_config(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "../running/multi_inst_app")
-    instances = ["router", "master", "replica", "stateboard"]
+    instances = ["router", "master", "replica"]
 
     # Default temporary directory may have very long path. This can cause socket path buffer
     # overflow. Create our own temporary directory.
@@ -233,7 +233,7 @@ def test_t3_instance_names_no_config(tt_cmd):
                 )
                 start_output = instance_process.stdout.readline()
                 assert re.search(
-                    r"Starting an instance \[app:(router|master|replica|stateboard)\]",
+                    r"Starting an instance \[app:(router|master|replica)\]",
                     start_output,
                 )
 
@@ -263,19 +263,19 @@ def test_t3_instance_names_no_config(tt_cmd):
                     assert status_table[f"app:{instName}"]["STATUS"] == "RUNNING"
 
                 pattern = (
-                    r"Alerts for app:(router|master|replica|stateboard):\s+"
+                    r"Alerts for app:(router|master|replica):\s+"
                     r"• Error while connecting to instance app:\1 via socket "
                     r".+tarantool\.control: failed to dial: dial unix "
                     r".+tarantool\.control: connect: no such file or directory"
                 )
                 matches = re.findall(pattern, status_out)
-                assert len(matches) == 4
+                assert len(matches) == 3
 
                 # Since we cannot connect to instances because the socket file doesn't exist,
                 # we will verify that the status strings follow this structure:
-                pattern = r"app:(master|replica|router|stateboard)\s+RUNNING\s+\d+\s+--\s+--\s+--"
+                pattern = r"app:(master|replica|router)\s+RUNNING\s+\d+\s+--\s+--\s+--"
                 matches = re.findall(pattern, status_out)
-                assert len(matches) == 4
+                assert len(matches) == 3
 
                 # No separate details block for json and yaml formats, so check alerts list.
                 for status_cmd, extract_func in [

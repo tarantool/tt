@@ -55,18 +55,6 @@ func initAppsInfo(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx, packCtx *P
 	return nil
 }
 
-// getPackageName return result environment name for the package.
-func getPackageName(cmdCtx cmdcontext.CmdCtx) (string, error) {
-	if len(cmdCtx.Cli.ConfigDir) == 0 {
-		absPath, err := filepath.Abs(".")
-		if err != nil {
-			return "", fmt.Errorf("cannot get path of current dir: %s", err)
-		}
-		return filepath.Base(absPath), nil
-	}
-	return filepath.Base(cmdCtx.Cli.ConfigDir), nil
-}
-
 // setBundleName sets the name of the bundle.
 func setBundleName(packCtx *PackCtx, cliOpts *config.CliOpts) {
 	if packCtx.Name != "" {

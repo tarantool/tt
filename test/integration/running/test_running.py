@@ -548,7 +548,7 @@ def test_running_env_variables(tt_cmd, tmpdir_with_cfg):
 # Test bugfix https://github.com/tarantool/tt/issues/451
 def test_running_start(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_inst_app")
-    instances = ["master", "replica", "router", "stateboard"]
+    instances = ["master", "replica", "router"]
 
     with tempfile.TemporaryDirectory() as tmpdir:
         test_app_path = os.path.join(tmpdir, "app")
@@ -569,7 +569,7 @@ def test_running_start(tt_cmd):
             for i in range(0, 3):
                 start_output = instance_process.stdout.readline()
                 assert re.search(
-                    r"Starting an instance \[app:(router|master|replica|stateboard)\]",
+                    r"Starting an instance \[app:(router|master|replica)\]",
                     start_output,
                 )
 
@@ -602,8 +602,6 @@ def test_running_start(tt_cmd):
             assert status_out["app:router"]["STATUS"] == "NOT RUNNING"
             assert status_out["app:master"]["STATUS"] == "RUNNING"
             assert status_out["app:replica"]["STATUS"] == "RUNNING"
-            assert status_out["app:stateboard"]["STATUS"] == "RUNNING"
-
             # Start all instances again.
             start_cmd = [tt_cmd, "start"]
             start_rc, start_out = run_command_and_get_output(start_cmd, cwd=test_app_path)
@@ -612,7 +610,7 @@ def test_running_start(tt_cmd):
             # Check the log output that some instances are already up.
             for i in range(0, 3):
                 assert re.search(
-                    r"The instance app:(master|replica|stateboard) \(PID = \d+\) "
+                    r"The instance app:(master|replica) \(PID = \d+\) "
                     r"is already running.",
                     start_out,
                 )
@@ -636,7 +634,7 @@ def test_running_start(tt_cmd):
             stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=test_app_path)
             assert status_rc == 0
             assert re.search(
-                r"The Instance app:(router|master|replica|stateboard) \(PID = \d+\) "
+                r"The Instance app:(router|master|replica) \(PID = \d+\) "
                 r"has been terminated.",
                 stop_out,
             )
@@ -859,7 +857,6 @@ def test_start_interactive(tt_cmd, tmp_path):
                 "multi_inst_app:router multi_inst_app:router",
                 "multi_inst_app:master multi_inst_app:master",
                 "multi_inst_app:replica multi_inst_app:replica",
-                "multi_inst_app:stateboard multi_inst_app:stateboard",
             ],
         )
 
@@ -871,7 +868,6 @@ def test_start_interactive(tt_cmd, tmp_path):
                 "multi_inst_app:router stopped",
                 "multi_inst_app:master stopped",
                 "multi_inst_app:replica stopped",
-                "multi_inst_app:stateboard stopped",
             ],
         )
 

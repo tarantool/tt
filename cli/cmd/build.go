@@ -9,7 +9,6 @@ import (
 
 var (
 	specFile string
-	inDocker bool
 )
 
 // NewBuildCmd builds an application.

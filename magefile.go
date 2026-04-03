@@ -29,8 +29,6 @@ const (
 
 	defaultLinuxConfigPath  = "/etc/tarantool"
 	defaultDarwinConfigPath = "/usr/local/etc/tarantool"
-
-	cartridgePath = "cli/cartridge/third_party/cartridge-cli"
 )
 
 var (
@@ -90,86 +88,6 @@ func init() {
 	os.Setenv("GO111MODULE", "on")
 }
 
-// Generate cartridge-cli Go code.
-// Cartridge-cli uses code generator for Go.
-// Accordingly, before building tt, we must generate this code.
-func GenCC() {
-	currDir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-
-	err = os.Chdir(cartridgePath)
-	if err != nil {
-		panic(err)
-	}
-
-	err = sh.Run("go", "run", "cli/codegen/generate_code.go")
-	if err != nil {
-		panic(err)
-	}
-
-	err = os.Chdir(currDir)
-	if err != nil {
-		panic(err)
-	}
-}
-
-// applyPatch applies the patch if it hasn't already been applied.
-func applyPatch(path string) error {
-	// Run the patch in dry run mode.
-	out, err := sh.Output(
-		"patch", "-d", cartridgePath, "-N", "-p1", "--dry-run", "-V", "none", "-i", path,
-	)
-	// If an error is returned, one of two things has happened:
-	// the patch has already been applied or an error has occurred.
-	if err != nil {
-		if strings.Contains(out, "previously applied") {
-			return nil
-		}
-		return err
-	}
-
-	sh.Run(
-		"patch", "-d", cartridgePath, "-N", "-p1", "-V", "none", "-i", path,
-	)
-
-	fmt.Printf("* %s [done]\n", filepath.Base(path))
-
-	return nil
-}
-
-// Patch cartridge-cli.
-// Before building tt, we must apply patches for cartridge-cli.
-// These patches contain code specific to cartridge-cli integration into tt
-// and are not subject to commit to the cartridge's upstream.
-func PatchCC() error {
-	mg.Deps(GenCC)
-	fmt.Printf("%s\n", "Apply cartridge-cli patches...")
-
-	patches_path := "../../extra/"
-	patches := []string{
-		"001_make_cmd_public.patch",
-		"002_fix_admin_param.patch",
-		"003_fix_work_paths.patch",
-		"004_fix_warning.patch",
-		"005_rename_tt_env.patch",
-		"006_consider_tt_run_dir.patch",
-		"007_update_project_files_search_logic.patch",
-		"008_increase_replicasets_bootstrap_attempts.patch",
-		"009_support_1.14_copy_mod_version.patch",
-	}
-
-	for _, patch := range patches {
-		err := applyPatch(patches_path + patch)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 type optsUpdater func([]string) ([]string, error)
 
 // appendFlags appends flags passed in args.
@@ -218,7 +136,6 @@ func appendTags(args []string) ([]string, error) {
 // Building tt executable. Supported environment variables:
 // TT_CLI_BUILD_SSL=(no|static|shared).
 func buildTt(argUpdaters ...optsUpdater) error {
-	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)
 
 	args := []string{"build", "-o", ttExecutableName}
@@ -297,7 +214,6 @@ func (Lint) Full() error {
 func (Lint) Golang() error {
 	fmt.Println("Running golangci-lint...")
 
-	mg.Deps(PatchCC)
 	mg.Deps(GenerateGoCode)
 
 	lintDirs := append([]string{"."}, modules...)

@@ -19,8 +19,6 @@ const (
 	fileMode         = os.FileMode(0o640)
 )
 
-const testWorkDirName = "work-dir"
-
 func TestTemplateFileRender(t *testing.T) {
 	workDir := t.TempDir()
 

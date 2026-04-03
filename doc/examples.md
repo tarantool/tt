@@ -5,15 +5,12 @@ This file contains various examples of working with tt.
 ## Contents
 
 - [Working with a set of instances](#working-with-a-set-of-instances)
-- [Creating Cartridge application](#creating-cartridge-application)
 - [Working with application templates](#working-with-application-templates)
 - [Working with tt cluster (experimental)](#working-with-tt-cluster-experimental)
 - [Packing environments](#packing-environments)
 - [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
 - [Transition from tarantoolctl to tt](#transition-from-tarantoolctl-to-tt)
   + [System-wide configuration](#system-wide-configuration)
-  + [Commands difference](#commands-difference)
-- [Transition from Cartridge CLI to tt](#transition-from-cartridge-cli-to-tt)
   + [Commands difference](#commands-difference)
 
 ## Working with a set of instances
@@ -91,36 +88,6 @@ $ tt start
 • Starting an instance [demo:replica]...
 • Starting an instance [demo_single_instance_app]...
 ```
-
-## Creating Cartridge application
-
-Create new tt environment, if it is not exist:
-
-``` sh
-tt init
-```
-
-Create Cartridge application:
-
-``` sh
-tt create cartridge --name myapp
-```
-
-Build and start the application:
-
-``` sh
-tt build myapp
-tt start myapp
-```
-
-Bootstrap vshard:
-
-``` sh
-tt cartridge replicasets setup --bootstrap-vshard --name myapp --run-dir ./var/run/myapp/
-```
-
-Now open <http://localhost:8081/> and see your application's Admin Web
-UI.
 
 ## Working with application templates
 
@@ -645,72 +612,3 @@ Forwarding to 'systemctl status tarantool@example'
     ...
 ```
 
-## Transition from Cartridge CLI to tt
-
-To start using `tt` for an existing Cartridge application run `tt init`
-command in application's directory:
-
-``` text
-    $ tt init
-    • Environment config is written to 'tt.yaml'
-```
-
-`tt init` generates `tt.yaml`. After `tt.yaml` config is generated,
-`tt` can be used to manage cartridge application. Most of `cartridge`
-commands have their counterparts in `tt`: build, start, stop, status, etc.:
-
-``` text
-    $ tt start
-    • Starting an instance [app:s1-master]...
-    • Starting an instance [app:s1-replica]...
-    • Starting an instance [app:s2-master]...
-    • Starting an instance [app:s2-replica]...
-    • Starting an instance [app:stateboard]...
-    • Starting an instance [app:router]...
-    $ tt status
-    • app:router: RUNNING. PID: 13188.
-    • app:s1-master: RUNNING. PID: 13177.
-    • app:s1-replica: RUNNING. PID: 13178.
-    • app:s2-master: RUNNING. PID: 13179.
-    • app:s2-replica: RUNNING. PID: 13180.
-    • app:stateboard: RUNNING. PID: 13182.
-```
-
-### Commands difference
-
-- Some of cartridge application management commands are subcommands of
-    `tt cartridge`:
-
-``` text
-    USAGE
-      tt cartridge [flags] <command> [command flags]
-
-    COMMANDS
-      admin       Call admin function
-      bench       Util for running benchmarks for Tarantool
-      failover    Manage application failover
-      repair      Patch cluster configuration files
-      replicasets Manage application replica sets
-```
-
-- `cartridge enter` and `cartridge connect` functionality is covered
-    by `tt connect`:
-
-``` text
-    $ tt connect app:router
-    • Connecting to the instance...
-    • Connected to app:router
-
-    app:router>
-
-    $ tt connect localhost:3302
-    • Connecting to the instance...
-    • Connected to localhost:3302
-
-    localhost:3302>
-```
-
-- `cartridge log` and `cartridge pack docker` functionality is not
-    supported in `tt` yet.
-- Shell autocompletion scripts generation command
-    `cartridge gen completion` is `tt completion` in `tt`.

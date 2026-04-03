@@ -13,7 +13,7 @@ import (
 
 func TestManifestLoad(t *testing.T) {
 	workDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
+	require.NoError(t, copy.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
@@ -22,7 +22,7 @@ func TestManifestLoad(t *testing.T) {
 	require.NoError(t, loadManifest.Run(&createCtx, &templateCtx))
 
 	expectedManifest := app_template.TemplateManifest{
-		Description: "Cartridge template",
+		Description: "Sample template",
 		Vars: []app_template.UserPrompt{
 			{
 				Prompt:  "Cluster cookie",

@@ -86,15 +86,6 @@ func Test_CollectInstances(t *testing.T) {
 		SingleApp:      false,
 		IsFileApp:      false,
 	}))
-	assert.True(t, slices.Contains(instances, InstanceCtx{
-		AppDir:         "testdata/instances_enabled/multi_inst_app",
-		AppName:        appName,
-		InstName:       "stateboard",
-		InstanceScript: filepath.Join(appPath, "stateboard.init.lua"),
-		SingleApp:      false,
-		IsFileApp:      false,
-	}))
-
 	// Error cases.
 	tmpDir := t.TempDir()
 	instancesEnabledPath = filepath.Join(tmpDir, "instances.enabled")
@@ -443,11 +434,9 @@ func Test_getInstanceName(t *testing.T) {
 	}{
 		{"master", false, "master"},
 		{"app.master", false, "master"},
-		{"app-stateboard", false, "stateboard"},
 		{"app-master", false, "app-master"},
 		{"app.inst-001", false, "inst-001"},
 		{"app-master", true, "app-master"},
-		{"app-stateboard", true, "app-stateboard"},
 		{"app.inst-001", true, "app.inst-001"},
 	} {
 		actual := getInstanceName(tc.fullInstanceName, tc.isClusterInstance)

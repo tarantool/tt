@@ -18,7 +18,7 @@ func TestMoveAppDirBasic(t *testing.T) {
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/cartridge", srcAppDir))
+	require.NoError(t, copy.Copy("testdata/sample", srcAppDir))
 
 	dstAppDir := t.TempDir()
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "app")
@@ -66,7 +66,7 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/cartridge", srcAppDir))
+	require.NoError(t, copy.Copy("testdata/sample", srcAppDir))
 
 	dstAppDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dstAppDir, "parent", "apps"), 0o755))
@@ -91,7 +91,7 @@ func TestMoveAppDirEmptyTargetDir(t *testing.T) {
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/cartridge", srcAppDir))
+	require.NoError(t, copy.Copy("testdata/sample", srcAppDir))
 
 	templateCtx.AppPath = srcAppDir
 	moveAppDir := MoveAppDirectory{}

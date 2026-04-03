@@ -11,7 +11,6 @@ import psutil
 import pytest
 import tt_helper
 import yaml
-from cartridge_helper import CartridgeApp
 from pytest import TempPathFactory
 from vshard_cluster import VshardCluster
 
@@ -144,21 +143,6 @@ def etcd(etcd_session):
     etcd_session.truncate()
     return etcd_session
 
-
-@pytest.fixture(scope="session")
-def cartridge_app_session(request, tt_cmd, tmp_path_factory):
-    tmpdir = tmp_path_factory.mktemp("cartridge_app")
-    cartridge_app = CartridgeApp(tmpdir, tt_cmd)
-    request.addfinalizer(lambda: cartridge_app.stop())
-    cartridge_app.start()
-
-    return cartridge_app
-
-
-@pytest.fixture
-def cartridge_app(cartridge_app_session):
-    cartridge_app_session.truncate()
-    return cartridge_app_session
 
 
 @pytest.fixture

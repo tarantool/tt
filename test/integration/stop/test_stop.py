@@ -163,7 +163,7 @@ def test_stop_simple_app_input(tt, tt_app, input, is_confirmed):
 tt_multi_inst_app = dict(
     app_path="multi_inst_app",
     app_name="app",
-    instances=["router", "master", "replica", "stateboard"],
+    instances=["router", "master", "replica"],
     post_start=tt_helper.post_start_base,
 )
 
