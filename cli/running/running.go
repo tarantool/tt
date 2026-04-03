@@ -31,18 +31,12 @@ import (
 const defaultDirPerms = 0o770
 
 const (
-	// stateBoardInstName is cartridge stateboard instance name.
-	stateBoardInstName = "stateboard"
-
 	// clusterConfigDefaultFileName is a default filename for the cluster config.
 	// When using, make sure that both "yml" and "yaml" are considered.
 	clusterConfigDefaultFileName = "config.yml"
 )
 
-var (
-	instStateStopped = process_utils.ProcStateStopped
-	instStateDead    = process_utils.ProcStateDead
-)
+var instStateDead = process_utils.ProcStateDead
 
 // Running contains information about application instances.
 type RunningCtx struct {
@@ -303,11 +297,6 @@ func getInstanceName(fullInstanceName string, isClusterInstance bool) string {
 		// If we have a cluster instance, delimiters are ignored.
 		return fullInstanceName
 	}
-	// Consider `-stateboard` suffix for the cartridge application compatibility.
-	if strings.HasSuffix(fullInstanceName, fmt.Sprintf("-%s", stateBoardInstName)) {
-		return stateBoardInstName
-	}
-
 	sepIndex := strings.Index(fullInstanceName, ".")
 	if sepIndex == -1 {
 		return fullInstanceName

@@ -13,8 +13,6 @@ import (
 	"github.com/tarantool/tt/cli/configure"
 )
 
-const testDirName = "build-test-dir"
-
 func TestFillCtx(t *testing.T) {
 	workDir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(workDir, "app1"), 0o750))

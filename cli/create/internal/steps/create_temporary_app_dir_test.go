@@ -10,8 +10,6 @@ import (
 	"github.com/tarantool/tt/cli/create/internal/app_template"
 )
 
-const testWorkDirName = "work-dir"
-
 func TestCreateTmpAppDirBasic(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
@@ -38,7 +36,7 @@ func TestCreateTmpAppDirMissingAppName(t *testing.T) {
 		"application name cannot be empty")
 
 	// Set template name.
-	createCtx.AppName = "cartridge"
+	createCtx.AppName = "sample"
 	require.NoError(t, createAppDir.Run(&createCtx, &templateCtx))
 	defer os.RemoveAll(templateCtx.AppPath)
 

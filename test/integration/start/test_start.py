@@ -46,7 +46,7 @@ def check_start(tt, tt_app, target):
 tt_multi_inst_app = dict(
     app_path="multi_inst_app",
     app_name="app",
-    instances=["router", "master", "replica", "stateboard"],
+    instances=["router", "master", "replica"],
     post_start=tt_helper.post_start_base,
 )
 

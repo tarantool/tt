@@ -1,4 +1,4 @@
-description: Cartridge template
+description: Sample template
 vars:
     - prompt: Cluster cookie
       name: cluster_cookie

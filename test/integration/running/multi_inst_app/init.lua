@@ -5,11 +5,7 @@ local fio = require('fio')
 local inst = "unknown instance"
 local file_name = 'flag'
 
-if app_name ~= nil then
-    if inst_name == nil then
-        inst_name = "stateboard"
-        app_name = app_name:sub(1, -inst_name:len()-2)
-    end
+if app_name ~= nil and inst_name ~= nil then
     inst = app_name .. ":" .. inst_name
     file_name = file_name .. "-" .. inst
 end

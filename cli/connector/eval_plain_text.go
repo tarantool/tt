@@ -38,22 +38,6 @@ type PlainTextEvalRes struct {
 	DataEncBase64 string `yaml:"data_enc"`
 }
 
-// callPlainTextConnYAML calls function on Tarantool instance
-// Function should return `interface{}`, `string` (res, err)
-// to be correctly processed.
-func callPlainTextConn(conn net.Conn, funcName string, args []interface{},
-	opts EvalPlainTextOpts,
-) ([]interface{}, error) {
-	evalFunc, err := util.GetTextTemplatedStr(&callFuncTmpl, map[string]string{
-		"FunctionName": funcName,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to instantiate call function template: %s", err)
-	}
-
-	return evalPlainTextConn(conn, evalFunc, args, opts)
-}
-
 // evalPlainTextConnYAML calls function on Tarantool instance
 // Function should return `interface{}`, `string` (res, err)
 // to be correctly processed.

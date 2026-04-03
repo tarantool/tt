@@ -359,7 +359,7 @@ def test_template_as_archive(tt_cmd, tmp_path):
     tar_process.wait()
     shutil.copy(
         os.path.join(tmp_path, "templates", "luakit.tgz"),
-        os.path.join(tmp_path, "templates", "cartridge.tar.gz"),
+        os.path.join(tmp_path, "templates", "mykit.tar.gz"),
     )
 
     run_and_check_non_interactive(
@@ -374,8 +374,8 @@ def test_template_as_archive(tt_cmd, tmp_path):
     run_and_check_non_interactive(
         tt_cmd,
         tmp_path,
-        tmp_path / "templates" / "cartridge",
-        "cartridge",
+        tmp_path / "templates" / "mykit",
+        "mykit",
         tmp_path / "app2",
         "--name",
         "app2",

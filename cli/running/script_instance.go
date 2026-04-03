@@ -83,9 +83,6 @@ func shortenSocketPath(socketPath, basePath string) (string, error) {
 // setTarantoolLog sets tarantool log file path env var.
 func (inst *scriptInstance) setTarantoolLog(cmd *exec.Cmd) {
 	if inst.logDir != "" {
-		// This is a cartridge specific variable required for logging scheme to work with
-		// tarantool <2.11 versions. Cartridge performs logging configuration before box.cfg
-		// and uses its own variables to pass to log.cfg call.
 		cmd.Env = append(cmd.Env, "TARANTOOL_LOG=")
 	}
 }
@@ -132,7 +129,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	cmd.Env = append(cmd.Env, "PWD="+workDir)
 	cmd.Dir = workDir
 	_, listenSet := os.LookupEnv("TT_LISTEN")
-	if inst.binaryPort != "" && inst.instName != stateBoardInstName && !listenSet {
+	if inst.binaryPort != "" && !listenSet {
 		cmd.Env = append(cmd.Env, "TT_LISTEN="+inst.binaryPort)
 	}
 	if inst.consoleSocket != "" {
@@ -154,13 +151,8 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 		"TT_MEMTX_DIR="+inst.memtxDir,
 		"TARANTOOL_WORKDIR="+inst.walDir)
 
-	// Setup variables for the cartridge application compatibility.
-	if inst.instName != stateBoardInstName {
-		cmd.Env = append(cmd.Env, "TARANTOOL_APP_NAME="+inst.appName)
-		cmd.Env = append(cmd.Env, "TARANTOOL_INSTANCE_NAME="+inst.instName)
-	} else {
-		cmd.Env = append(cmd.Env, "TARANTOOL_APP_NAME="+inst.appName+"-"+inst.instName)
-	}
+	cmd.Env = append(cmd.Env, "TARANTOOL_APP_NAME="+inst.appName)
+	cmd.Env = append(cmd.Env, "TARANTOOL_INSTANCE_NAME="+inst.instName)
 	if inst.appName != inst.instName {
 		cmd.Env = append(cmd.Env,
 			"TARANTOOL_CFG="+filepath.Dir(inst.appPath)+"/instances.yml")

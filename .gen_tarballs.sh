@@ -80,11 +80,7 @@ echo -n "* Create dependency tarball... "
 pushd ${TT_DIR} > /dev/null
 GOMODCACHE=${TMPDIR}/go-mod go mod download -modcacherw
 rc=$?
-pushd ${TT_DIR}/cli/cartridge/third_party/cartridge-cli > /dev/null
-GOMODCACHE=${TMPDIR}/go-mod go mod download -modcacherw
-let rc+=$?
 
-popd > /dev/null
 popd > /dev/null
 tar --create --auto-compress --file tt-${TAG}-deps.tar.xz go-mod
 let rc+=$?

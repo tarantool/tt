@@ -19,11 +19,9 @@ func TestRunHooks(t *testing.T) {
 
 	require.NoError(t, runBuildHook(&buildCtx, PreBuildScripts))
 	assert.FileExists(t, filepath.Join(workDir, "tt-pre-build-invoked"))
-	assert.NoFileExists(t, filepath.Join(workDir, "cartridge-pre-build-invoked"))
 
 	require.NoError(t, runBuildHook(&buildCtx, PostBuildScripts))
 	assert.FileExists(t, filepath.Join(workDir, "tt-post-build-invoked"))
-	assert.NoFileExists(t, filepath.Join(workDir, "cartridge-post-build-invoked"))
 
 	assert.NoError(t, os.Remove(filepath.Join(workDir, "tt-pre-build-invoked")))
 	assert.NoError(t, os.Remove(filepath.Join(workDir, "tt-post-build-invoked")))
@@ -31,11 +29,9 @@ func TestRunHooks(t *testing.T) {
 	assert.NoError(t, os.Remove(filepath.Join(workDir, "tt.post-build")))
 
 	require.NoError(t, runBuildHook(&buildCtx, PreBuildScripts))
-	assert.NoFileExists(t, filepath.Join(workDir, "cartridge-pre-build-invoked"))
 	assert.NoFileExists(t, filepath.Join(workDir, "tt-pre-build-invoked"))
 
 	require.NoError(t, runBuildHook(&buildCtx, PostBuildScripts))
-	assert.NoFileExists(t, filepath.Join(workDir, "cartridge-post-build-invoked"))
 	assert.NoFileExists(t, filepath.Join(workDir, "tt-post-build-invoked"))
 }
 

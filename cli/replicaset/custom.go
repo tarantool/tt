@@ -102,7 +102,6 @@ func (c *CustomInstance) RolesChange(_ RolesChangeCtx, action RolesChangerAction
 type CustomApplication struct {
 	cachedDiscoverer
 	runningCtx running.RunningCtx
-	conn       connector.Connector
 }
 
 // NewCustomApplication creates a new CustomApplication object.

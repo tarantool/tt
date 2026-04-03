@@ -203,7 +203,7 @@ def test_build_app_local_tarantool(tt_cmd, tmpdir_with_tarantool):
     app_name = "app1"
     app_dir = os.path.join(tmpdir_with_tarantool, app_name)
 
-    cmd = [tt_cmd, "create", "cartridge", "--name", app_name, "--non-interactive"]
+    cmd = [tt_cmd, "create", "basic", "--name", app_name, "--non-interactive"]
     p = subprocess.run(
         cmd,
         cwd=tmpdir_with_tarantool,

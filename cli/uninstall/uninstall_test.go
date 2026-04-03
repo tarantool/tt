@@ -13,8 +13,6 @@ import (
 	"github.com/tarantool/tt/cli/version"
 )
 
-const testDirName = "uninstall-test-dir"
-
 type mockRepository struct{}
 
 func (mock *mockRepository) Read(path string) (io.ReadCloser, error) {

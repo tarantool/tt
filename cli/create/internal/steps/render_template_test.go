@@ -14,7 +14,7 @@ import (
 
 func TestTemplateRender(t *testing.T) {
 	workDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
+	require.NoError(t, copy.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
@@ -50,7 +50,7 @@ login = admin
 
 func TestTemplateRenderMissingVar(t *testing.T) {
 	workDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
+	require.NoError(t, copy.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()
@@ -65,7 +65,7 @@ func TestTemplateRenderMissingVar(t *testing.T) {
 
 func TestTemplateRenderMissingVarInFileName(t *testing.T) {
 	workDir := t.TempDir()
-	require.NoError(t, copy.Copy("testdata/cartridge", workDir))
+	require.NoError(t, copy.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
 	templateCtx := app_template.NewTemplateContext()

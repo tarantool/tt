@@ -86,7 +86,7 @@ func TestEvalOrchestrator_invalid_response(t *testing.T) {
 		nil,
 		{},
 		{1},
-		{"cartridge", 2},
+		{"unknown", 2},
 	}
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
@@ -107,7 +107,7 @@ func TestEvalOrchestrator_unknown(t *testing.T) {
 
 func TestEvalOrchestrator_error(t *testing.T) {
 	_, err := replicaset.EvalOrchestrator(orchestratorEvalerMock{
-		ret: []any{"cartridge"},
+		ret: []any{"unknown"},
 		err: errors.New("foo"),
 	})
 	require.EqualError(t, err, "failed to recognize orchestrator: foo")

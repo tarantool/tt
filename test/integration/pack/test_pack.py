@@ -42,11 +42,6 @@ def assert_default_env(config):
     assert config["env"]["bin_dir"] == "bin"
 
 
-def assert_cartridge_compat_env(config):
-    assert config["env"]["instances_enabled"] == "."
-    assert config["env"]["bin_dir"] == "."
-
-
 def assert_single_app_env(config):
     assert config["env"]["instances_enabled"] == "."
     assert config["env"]["bin_dir"] == "bin"
@@ -1948,7 +1943,7 @@ def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmp_path):
         dirs_exist_ok=True,
     )
 
-    build_cmd = [tt_cmd, "create", "cartridge", "--name", "app", "--non-interactive"]
+    build_cmd = [tt_cmd, "create", "basic", "--name", "app", "--non-interactive"]
     tt_process = subprocess.Popen(
         build_cmd,
         cwd=tmp_path,
