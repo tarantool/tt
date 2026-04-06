@@ -114,7 +114,7 @@ require (
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
-	github.com/tarantool/go-openssl v1.2.1 // indirect
+	github.com/tarantool/go-openssl v1.2.2 // indirect
 	github.com/tarantool/go-tlsdialer v1.0.2 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
