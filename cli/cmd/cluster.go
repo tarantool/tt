@@ -66,6 +66,12 @@ var switchStatusCtx = clustercmd.SwitchStatusCtx{
 
 var rolesChangeCtx = clustercmd.RolesChangeCtx{}
 
+var workerPublishCtx clustercmd.WorkerPublishCtx
+
+var workerShowCtx clustercmd.WorkerShowCtx
+
+var workerDeleteCtx clustercmd.WorkerDeleteCtx
+
 var (
 	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
@@ -85,6 +91,18 @@ environment variables < command flags < URL credentials.`,
 		"service": "etcd or tarantool config storage",
 		"prefix": "a base path to Tarantool configuration in" +
 			" etcd or tarantool config storage",
+		"env_TT_CLI_auth":      "Tarantool",
+		"env_TT_CLI_ETCD_auth": "Etcd",
+		"footer": `The priority of credentials:
+environment variables < command flags < URL credentials.`,
+	})
+
+	workerUriHelp = libconnect.MakeURLHelp(map[string]any{
+		"service":              "etcd or tarantool config storage",
+		"url_path":             "/prefix/host-name/worker-name",
+		"prefix":               "a base path to the worker configuration",
+		"path_host-name":       "a name of the host",
+		"path_worker-name":     "a name of the worker",
 		"env_TT_CLI_auth":      "Tarantool",
 		"env_TT_CLI_ETCD_auth": "Etcd",
 		"footer": `The priority of credentials:
@@ -260,6 +278,69 @@ func newClusterFailoverCmd() *cobra.Command {
 	return cmd
 }
 
+func newClusterWorkerCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "worker",
+		Short: "Manage worker configuration",
+	}
+
+	publishCmd := &cobra.Command{
+		Use:                   "publish <URI> <FILE>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Publish a worker configuration",
+		Long:                  "Publish a worker configuration\n\n" + workerUriHelp,
+		Example: "tt cluster worker publish " +
+			"https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1 " +
+			"worker.yaml",
+		Run:  RunModuleFunc(internalClusterWorkerPublishModule),
+		Args: cobra.ExactArgs(2),
+	}
+	publishCmd.Flags().StringVarP(&workerPublishCtx.Username, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	publishCmd.Flags().StringVarP(&workerPublishCtx.Password, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+	publishCmd.Flags().BoolVar(&workerPublishCtx.Force, "force", false,
+		"force publish and skip checking existence")
+
+	showCmd := &cobra.Command{
+		Use:                   "show <URI>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Show a worker configuration",
+		Long:                  "Show a worker configuration\n\n" + workerUriHelp,
+		Example: "tt cluster worker show " +
+			"https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1",
+		Run:  RunModuleFunc(internalClusterWorkerShowModule),
+		Args: cobra.ExactArgs(1),
+	}
+	showCmd.Flags().StringVarP(&workerShowCtx.Username, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	showCmd.Flags().StringVarP(&workerShowCtx.Password, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+
+	deleteCmd := &cobra.Command{
+		Use:                   "delete <URI>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Delete a worker configuration",
+		Long:                  "Delete a worker configuration\n\n" + workerUriHelp,
+		Example: "tt cluster worker delete " +
+			"https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1",
+		Run:  RunModuleFunc(internalClusterWorkerDeleteModule),
+		Args: cobra.ExactArgs(1),
+	}
+	deleteCmd.Flags().StringVarP(&workerDeleteCtx.Username, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	deleteCmd.Flags().StringVarP(&workerDeleteCtx.Password, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+	deleteCmd.Flags().BoolVar(&workerDeleteCtx.Force, "force", false,
+		"force delete and skip confirmation")
+
+	cmd.AddCommand(publishCmd)
+	cmd.AddCommand(showCmd)
+	cmd.AddCommand(deleteCmd)
+
+	return cmd
+}
+
 func NewClusterCmd() *cobra.Command {
 	clusterCmd := &cobra.Command{
 		Use:   "cluster",
@@ -345,6 +426,7 @@ func NewClusterCmd() *cobra.Command {
 	clusterCmd.AddCommand(publish)
 	clusterCmd.AddCommand(newClusterReplicasetCmd())
 	clusterCmd.AddCommand(newClusterFailoverCmd())
+	clusterCmd.AddCommand(newClusterWorkerCmd())
 
 	return clusterCmd
 }
@@ -509,6 +591,60 @@ func internalClusterFailoverSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 func internalClusterFailoverSwitchStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	switchStatusCtx.TaskID = args[1]
 	return clustercmd.SwitchStatus(args[0], switchStatusCtx)
+}
+
+// internalClusterWorkerPublishModule is a "cluster worker publish" command.
+func internalClusterWorkerPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	opts, err := libconnect.CreateUriOpts(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+	}
+
+	data, err := os.ReadFile(args[1])
+	if err != nil {
+		return fmt.Errorf("failed to read file %q: %w", args[1], err)
+	}
+	workerPublishCtx.Src = data
+
+	workerPublishCtx.Username, workerPublishCtx.Password = clustercmd.ResolveWorkerCredentials(
+		opts, workerPublishCtx.Username, workerPublishCtx.Password)
+
+	if err := clustercmd.WorkerPublish(args[0], workerPublishCtx); err != nil {
+		return fmt.Errorf("failed to publish worker configuration: %w", err)
+	}
+	return nil
+}
+
+// internalClusterWorkerShowModule is a "cluster worker show" command.
+func internalClusterWorkerShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	opts, err := libconnect.CreateUriOpts(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+	}
+
+	workerShowCtx.Username, workerShowCtx.Password = clustercmd.ResolveWorkerCredentials(
+		opts, workerShowCtx.Username, workerShowCtx.Password)
+
+	if err := clustercmd.WorkerShow(args[0], workerShowCtx); err != nil {
+		return fmt.Errorf("failed to show worker configuration: %w", err)
+	}
+	return nil
+}
+
+// internalClusterWorkerDeleteModule is a "cluster worker delete" command.
+func internalClusterWorkerDeleteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	opts, err := libconnect.CreateUriOpts(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+	}
+
+	workerDeleteCtx.Username, workerDeleteCtx.Password = clustercmd.ResolveWorkerCredentials(
+		opts, workerDeleteCtx.Username, workerDeleteCtx.Password)
+
+	if err := clustercmd.WorkerDelete(args[0], workerDeleteCtx); err != nil {
+		return fmt.Errorf("failed to delete worker configuration: %w", err)
+	}
+	return nil
 }
 
 // readSourceFile reads a configuration from a source file.

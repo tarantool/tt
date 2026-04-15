@@ -128,6 +128,8 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.2.1 // indirect
+	github.com/tarantool/go-option v1.0.0 // indirect
+	github.com/tarantool/go-storage v1.1.2 // indirect
 	github.com/tarantool/go-tlsdialer v1.0.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
 	github.com/tklauser/numcpus v0.2.1 // indirect
