@@ -31,7 +31,14 @@ var (
 	)
 )
 
-const addAction = true
+const (
+	addAction            = true
+	tarantoolServiceName = "Tarantool"
+	etcdServiceName      = "Etcd"
+	urlHelpFooter        = "footer"
+	urlHelpTarantoolAuth = "env_TT_CLI_auth"
+	urlHelpEtcdAuth      = "env_TT_CLI_ETCD_auth"
+)
 
 var showCtx = clustercmd.ShowCtx{
 	Username:   "",
@@ -115,6 +122,27 @@ const (
 	urlHelpPrefix = "prefix"
 )
 
+var workerPublishCtx clustercmd.WorkerPublishCtx
+
+var (
+	workerPublishUsername string
+	workerPublishPassword string
+)
+
+var workerShowCtx clustercmd.WorkerShowCtx
+
+var (
+	workerShowUsername string
+	workerShowPassword string
+)
+
+var workerDeleteCtx clustercmd.WorkerDeleteCtx
+
+var (
+	workerDeleteUsername string
+	workerDeletePassword string
+)
+
 var (
 	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
@@ -122,11 +150,11 @@ var (
 		urlHelpService: configStorageHelp,
 		urlHelpPrefix: "a base path to Tarantool configuration in " +
 			configStorageHelp,
-		"param_key":            "a target configuration key in the prefix",
-		"param_name":           "a name of an instance in the cluster configuration",
-		"env_TT_CLI_auth":      "Tarantool",
-		"env_TT_CLI_ETCD_auth": "Etcd",
-		"footer": `The priority of credentials:
+		"param_key":          "a target configuration key in the prefix",
+		"param_name":         "a name of an instance in the cluster configuration",
+		urlHelpTarantoolAuth: tarantoolServiceName,
+		urlHelpEtcdAuth:      etcdServiceName,
+		urlHelpFooter: `The priority of credentials:
 environment variables < command flags < URL credentials.
 
 HTTPS connection behavior:
@@ -145,9 +173,21 @@ HTTPS connection behavior:
 		urlHelpService: configStorageHelp,
 		urlHelpPrefix: "a base path to Tarantool configuration in " +
 			configStorageHelp,
-		"env_TT_CLI_auth":      "Tarantool",
-		"env_TT_CLI_ETCD_auth": "Etcd",
-		"footer": `The priority of credentials:
+		urlHelpTarantoolAuth: tarantoolServiceName,
+		urlHelpEtcdAuth:      etcdServiceName,
+		urlHelpFooter: `The priority of credentials:
+environment variables < command flags < URL credentials.`,
+	})
+
+	workerURIHelp = sdkconnect.MakeURLHelp(map[string]any{
+		"service":            "etcd or tarantool config storage",
+		"url_path":           "/prefix/host-name/worker-name",
+		"prefix":             "a base path to the worker configuration",
+		"path_host-name":     "a name of the host",
+		"path_worker-name":   "a name of the worker",
+		urlHelpTarantoolAuth: tarantoolServiceName,
+		urlHelpEtcdAuth:      etcdServiceName,
+		urlHelpFooter: `The priority of credentials:
 environment variables < command flags < URL credentials.`,
 	})
 )
@@ -327,6 +367,71 @@ func newClusterFailoverCmd() *cobra.Command {
 	return cmd
 }
 
+func newClusterWorkerCmd() *cobra.Command {
+	const publishArgs = 2
+
+	cmd := &cobra.Command{
+		Use:   "worker",
+		Short: "Manage worker configuration",
+	}
+
+	publishCmd := &cobra.Command{
+		Use:                   "publish <URI> <FILE>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Publish a worker configuration",
+		Long:                  "Publish a worker configuration\n\n" + workerURIHelp,
+		Example: "tt cluster worker publish " +
+			"https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1 " +
+			"worker.yaml",
+		RunE: internalRunE(internalClusterWorkerPublishModule),
+		Args: cobra.ExactArgs(publishArgs),
+	}
+	publishCmd.Flags().StringVarP(&workerPublishUsername, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	publishCmd.Flags().StringVarP(&workerPublishPassword, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+	publishCmd.Flags().BoolVar(&workerPublishCtx.Force, "force", false,
+		"force publish and skip checking existence")
+
+	showCmd := &cobra.Command{
+		Use:                   "show <URI>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Show a worker configuration",
+		Long:                  "Show a worker configuration\n\n" + workerURIHelp,
+		Example: "tt cluster worker show " +
+			"https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1",
+		RunE: internalRunE(internalClusterWorkerShowModule),
+		Args: cobra.ExactArgs(1),
+	}
+	showCmd.Flags().StringVarP(&workerShowUsername, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	showCmd.Flags().StringVarP(&workerShowPassword, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+
+	deleteCmd := &cobra.Command{
+		Use:                   "delete <URI>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Delete a worker configuration",
+		Long:                  "Delete a worker configuration\n\n" + workerURIHelp,
+		Example: "tt cluster worker delete " +
+			"https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1",
+		RunE: internalRunE(internalClusterWorkerDeleteModule),
+		Args: cobra.ExactArgs(1),
+	}
+	deleteCmd.Flags().StringVarP(&workerDeleteUsername, "username", "u", "",
+		"username (used as etcd/tarantool config storage credentials)")
+	deleteCmd.Flags().StringVarP(&workerDeletePassword, "password", "p", "",
+		"password (used as etcd/tarantool config storage credentials)")
+	deleteCmd.Flags().BoolVar(&workerDeleteCtx.Force, "force", false,
+		"force delete and skip existence check")
+
+	cmd.AddCommand(publishCmd)
+	cmd.AddCommand(showCmd)
+	cmd.AddCommand(deleteCmd)
+
+	return cmd
+}
+
 func NewClusterCmd() *cobra.Command {
 	const publishArgs = 2
 
@@ -415,6 +520,7 @@ func NewClusterCmd() *cobra.Command {
 	clusterCmd.AddCommand(publish)
 	clusterCmd.AddCommand(newClusterReplicasetCmd())
 	clusterCmd.AddCommand(newClusterFailoverCmd())
+	clusterCmd.AddCommand(newClusterWorkerCmd())
 
 	return clusterCmd
 }
@@ -592,6 +698,107 @@ func internalClusterFailoverSwitchModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 func internalClusterFailoverSwitchStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	switchStatusCtx.TaskID = args[1]
 	return clustercmd.SwitchStatus(args[0], switchStatusCtx)
+}
+
+// internalClusterWorkerPublishModule is a "cluster worker publish" command.
+func internalClusterWorkerPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	opts, err := sdkconnect.CreateURIOpts(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+	}
+
+	data, err := os.ReadFile(args[1])
+	if err != nil {
+		return fmt.Errorf("failed to read file %q: %w", args[1], err)
+	}
+
+	workerPublishCtx.Src = data
+
+	prefix, hostName, workerName, err := clustercmd.ParseWorkerPath(opts.Prefix)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL path: %w", err)
+	}
+
+	workerPublishCtx.Key = clustercmd.BuildWorkerStorageKey(prefix, hostName, workerName)
+
+	stg, closeFunc, err := clustercmd.ConnectStorage(
+		opts, workerPublishUsername, workerPublishPassword)
+	if err != nil {
+		return fmt.Errorf("failed to connect to storage: %w", err)
+	}
+	defer closeFunc()
+
+	workerPublishCtx.Storage = stg
+
+	err = clustercmd.WorkerPublish(workerPublishCtx)
+	if err != nil {
+		return fmt.Errorf("failed to publish worker configuration: %w", err)
+	}
+
+	return nil
+}
+
+// internalClusterWorkerShowModule is a "cluster worker show" command.
+func internalClusterWorkerShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	opts, err := sdkconnect.CreateURIOpts(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+	}
+
+	prefix, hostName, workerName, err := clustercmd.ParseWorkerPath(opts.Prefix)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL path: %w", err)
+	}
+
+	workerShowCtx.Key = clustercmd.BuildWorkerStorageKey(prefix, hostName, workerName)
+
+	stg, closeFunc, err := clustercmd.ConnectStorage(opts, workerShowUsername, workerShowPassword)
+	if err != nil {
+		return fmt.Errorf("failed to connect to storage: %w", err)
+	}
+	defer closeFunc()
+
+	workerShowCtx.Storage = stg
+
+	output, err := clustercmd.WorkerShow(workerShowCtx)
+	if err != nil {
+		return fmt.Errorf("failed to show worker configuration: %w", err)
+	}
+
+	_, _ = fmt.Fprint(os.Stdout, string(output))
+
+	return nil
+}
+
+// internalClusterWorkerDeleteModule is a "cluster worker delete" command.
+func internalClusterWorkerDeleteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
+	opts, err := sdkconnect.CreateURIOpts(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid URL %q: %w", args[0], err)
+	}
+
+	prefix, hostName, workerName, err := clustercmd.ParseWorkerPath(opts.Prefix)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL path: %w", err)
+	}
+
+	workerDeleteCtx.Key = clustercmd.BuildWorkerStorageKey(prefix, hostName, workerName)
+
+	stg, closeFunc, err := clustercmd.ConnectStorage(
+		opts, workerDeleteUsername, workerDeletePassword)
+	if err != nil {
+		return fmt.Errorf("failed to connect to storage: %w", err)
+	}
+	defer closeFunc()
+
+	workerDeleteCtx.Storage = stg
+
+	err = clustercmd.WorkerDelete(workerDeleteCtx)
+	if err != nil {
+		return fmt.Errorf("failed to delete worker configuration: %w", err)
+	}
+
+	return nil
 }
 
 // readSourceFile reads a configuration from a source file and returns the raw

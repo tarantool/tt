@@ -452,10 +452,21 @@ func readTcsEndpoints(
 
 		var network, address string
 
-		if !connect.IsBaseURI(uri) {
+		switch {
+		case strings.HasPrefix(uri, "http://"), strings.HasPrefix(uri, "https://"):
+			uriOpts, err := connect.CreateURIOpts(uri)
+			if err != nil {
+				connectionErrors = append(connectionErrors,
+					fmt.Errorf("endpoint[%d] %q: invalid URI: %w", idx, uri, err))
+
+				continue
+			}
+
+			network, address = connect.TCPNetwork, uriOpts.Host
+		case !connect.IsBaseURI(uri):
 			network = "tcp"
 			address = uri
-		} else {
+		default:
 			network, address = connect.ParseBaseURI(uri)
 		}
 
@@ -469,7 +480,8 @@ func readTcsEndpoints(
 		case "plain":
 			sslEnable = false
 		case "":
-			sslEnable = sslKeyFile != "" || sslCertFile != "" || sslCaFile != "" ||
+			sslEnable = strings.HasPrefix(uri, "https://") || sslKeyFile != "" ||
+				sslCertFile != "" || sslCaFile != "" ||
 				sslCiphers != "" || sslPassword != "" || sslPasswordFile != ""
 		default:
 			connectionErrors = append(connectionErrors, fmt.Errorf(
@@ -479,7 +491,7 @@ func readTcsEndpoints(
 			continue
 		}
 
-		stor, gsCleanup, err := gsconnect.NewTCSStorage(ctx, gsconnect.Config{
+		stor, gsCleanup, err := sdkcluster.NewTCSStorage(ctx, gsconnect.Config{
 			Endpoints:   []string{addr},
 			Username:    login,
 			Password:    password,

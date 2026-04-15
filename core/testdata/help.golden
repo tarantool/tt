@@ -985,6 +985,7 @@ COMMANDS[0m
   publish     Publish a cluster configuration
   replicaset  manage replicaset via 3.0 cluster config source
   show        Show a cluster configuration
+  worker      Manage worker configuration
 [0;1;39m
 FLAGS[0m
   -h, --help   help for cluster
@@ -1549,6 +1550,163 @@ EXAMPLES[0m
   tt cluster show application_name:instance_name
   tt cluster show https://user:pass@localhost:2379/tt
   tt cluster show https://user:pass@localhost:2379/tt?name=instance
+
+=== tt cluster worker --help
+Manage worker configuration
+
+[0;1;39mUSAGE[0m
+  tt cluster worker [flags] <command> [command flags]
+[0;1;39m
+COMMANDS[0m
+  delete      Delete a worker configuration
+  publish     Publish a worker configuration
+  show        Show a worker configuration
+[0;1;39m
+FLAGS[0m
+  -h, --help   help for worker
+
+Use "tt cluster worker <command> --help" for more information about a command.
+
+=== tt cluster worker delete --help
+Delete a worker configuration
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix/host-name/worker-name[?arguments]
+
+* prefix - a base path to the worker configuration.
+* host-name - a name of the host.
+* worker-name - a name of the worker.
+
+Possible arguments:
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster worker delete <URI>
+[0;1;39m
+FLAGS[0m
+      --force             force delete and skip existence check
+  -h, --help              help for delete
+  -p, --password string   password (used as etcd/tarantool config storage
+                          credentials)
+  -u, --username string   username (used as etcd/tarantool config storage
+                          credentials)
+[0;1;39m
+EXAMPLES[0m
+  tt cluster worker delete
+  https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1
+
+=== tt cluster worker publish --help
+Publish a worker configuration
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix/host-name/worker-name[?arguments]
+
+* prefix - a base path to the worker configuration.
+* host-name - a name of the host.
+* worker-name - a name of the worker.
+
+Possible arguments:
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster worker publish <URI> <FILE>
+[0;1;39m
+FLAGS[0m
+      --force             force publish and skip checking existence
+  -h, --help              help for publish
+  -p, --password string   password (used as etcd/tarantool config storage
+                          credentials)
+  -u, --username string   username (used as etcd/tarantool config storage
+                          credentials)
+[0;1;39m
+EXAMPLES[0m
+  tt cluster worker publish
+  https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1
+  worker.yaml
+
+=== tt cluster worker show --help
+Show a worker configuration
+
+The URL specifies a etcd or tarantool config storage connection settings in the
+following format:
+http(s)://[username:password@]host:port/prefix/host-name/worker-name[?arguments]
+
+* prefix - a base path to the worker configuration.
+* host-name - a name of the host.
+* worker-name - a name of the worker.
+
+Possible arguments:
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name
+  against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL
+  certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+
+[0;1;39mUSAGE[0m
+  tt cluster worker show <URI>
+[0;1;39m
+FLAGS[0m
+  -h, --help              help for show
+  -p, --password string   password (used as etcd/tarantool config storage
+                          credentials)
+  -u, --username string   username (used as etcd/tarantool config storage
+                          credentials)
+[0;1;39m
+EXAMPLES[0m
+  tt cluster worker show
+  https://user:pass@localhost:2379/tdb-workers/tdb-cluster/host1/http-server-1
 
 === tt completion --help
 Generate autocomplete for a specified shell. Supported shell type: bash | zsh |

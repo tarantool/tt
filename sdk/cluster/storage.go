@@ -17,12 +17,9 @@ import (
 	gstorage "github.com/tarantool/go-storage/v2"
 	gsconnect "github.com/tarantool/go-storage/v2/connect"
 	"github.com/tarantool/go-storage/v2/driver/etcd"
-	"github.com/tarantool/go-storage/v2/driver/tcs"
 	"github.com/tarantool/go-storage/v2/integrity"
 	"github.com/tarantool/go-storage/v2/marshaller"
-	"github.com/tarantool/go-tarantool/v3"
 	sdkconnect "github.com/tarantool/tt/sdk/connect"
-	"github.com/tarantool/tt/sdk/dial"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -414,58 +411,6 @@ func makeEtcdTLSConfig(sslCfg gsconnect.SSLConfig) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// connectTarantoolConnector creates and returns a new tarantool connection
-// using the provided configuration for address, credentials and TLS.
-func connectTarantoolConnector(cfg gsconnect.Config) (tarantool.Connector, error) {
-	if len(cfg.Endpoints) == 0 {
-		return nil, errFailedToConnectToTarantoolAtLeastOneEndpointIsRequired
-	}
-
-	dialOpts := dial.Opts{
-		Address:         cfg.Endpoints[0],
-		Auth:            tarantool.AutoAuth,
-		User:            cfg.Username,
-		Password:        cfg.Password,
-		SslKeyFile:      cfg.SSL.KeyFile,
-		SslCertFile:     cfg.SSL.CertFile,
-		SslCaFile:       cfg.SSL.CaFile,
-		SslCiphers:      cfg.SSL.Ciphers,
-		SslPassword:     "",
-		SslPasswordFile: "",
-		Transport:       "",
-	}
-
-	if cfg.SSL.Enable {
-		dialOpts.Transport = "ssl"
-	}
-
-	dialer, err := dial.New(dialOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to tarantool: %w", err)
-	}
-
-	connectorOpts := tarantool.Opts{
-		Timeout: cfg.DialTimeout,
-	}
-
-	ctx := context.Background()
-
-	if connectorOpts.Timeout > 0 {
-		var cancel context.CancelFunc
-
-		ctx, cancel = context.WithTimeout(ctx, connectorOpts.Timeout)
-
-		defer cancel()
-	}
-
-	conn, err := tarantool.Connect(ctx, dialer, connectorOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to tarantool: %w", err)
-	}
-
-	return conn, nil
-}
-
 // getEtcdCfg builds an etcd connection configuration from the given
 // connect options and URI options, resolving credentials from options
 // or environment variables as a fallback.
@@ -531,7 +476,8 @@ func getTarantoolCfg(connOpts ConnectOpts, uriOpts sdkconnect.URIOpts) gsconnect
 		Password:    uriOpts.Password,
 		DialTimeout: uriOpts.Timeout,
 		SSL: gsconnect.SSLConfig{
-			Enable:   uriOpts.Scheme == "https",
+			Enable: uriOpts.Scheme == "https" || uriOpts.KeyFile != "" ||
+				uriOpts.CertFile != "" || uriOpts.CaFile != "" || uriOpts.Ciphers != "",
 			KeyFile:  uriOpts.KeyFile,
 			CertFile: uriOpts.CertFile,
 			CaFile:   uriOpts.CaFile,
@@ -554,10 +500,9 @@ func NewStorageConnection(
 
 	tcsCfg := getTarantoolCfg(connOpts, opts)
 
-	conn, errTCS := connectTarantoolConnector(tcsCfg)
+	stor, cleanup, errTCS := NewTCSStorage(context.Background(), tcsCfg)
 	if errTCS == nil {
-		driver := tcs.New(conn)
-		return gstorage.NewStorage(driver), func() { _ = conn.Close() }, tcsStorageType, nil
+		return stor, cleanup, tcsStorageType, nil
 	}
 
 	return nil,
