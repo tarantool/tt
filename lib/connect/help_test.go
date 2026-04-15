@@ -231,6 +231,92 @@ The command supports the following environment variables:
     Third line | with {spaces} indent.
 `,
 		},
+
+		"url_path_only": {
+			args: args{data: map[string]any{
+				"service":  "etcd",
+				"url_path": "/prefix/host-name/worker-name",
+			}},
+			want: `The URL specifies a etcd connection settings in the following format:
+http(s)://[username:password@]host:port/prefix/host-name/worker-name[?arguments]
+
+Possible arguments:
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL certificate.
+`,
+		},
+
+		"path_parts": {
+			args: args{data: map[string]any{
+				"service":          "etcd",
+				"prefix":           "a base path to configuration",
+				"path_host-name":   "a name of the host",
+				"path_worker-name": "a name of the worker",
+			}},
+			want: `The URL specifies a etcd connection settings in the following format:
+http(s)://[username:password@]host:port/prefix[?arguments]
+
+* prefix - a base path to configuration.
+* host-name - a name of the host.
+* worker-name - a name of the worker.
+
+Possible arguments:
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL certificate.
+`,
+		},
+
+		"worker_scenario": {
+			args: args{data: map[string]any{
+				"service":              "etcd or tarantool config storage",
+				"url_path":             "/prefix/host-name/worker-name",
+				"prefix":               "a base path to the worker configuration",
+				"path_host-name":       "a name of the host",
+				"path_worker-name":     "a name of the worker",
+				"env_TT_CLI_auth":      "Tarantool",
+				"env_TT_CLI_ETCD_auth": "Etcd",
+				"footer": `The priority of credentials:
+environment variables < command flags < URL credentials.`,
+			}},
+			want: `The URL specifies a etcd or tarantool config storage connection settings in the following format:
+http(s)://[username:password@]host:port/prefix/host-name/worker-name[?arguments]
+
+* prefix - a base path to the worker configuration.
+* host-name - a name of the host.
+* worker-name - a name of the worker.
+
+Possible arguments:
+* timeout - a request timeout in seconds (default 3.0).
+* ssl_key_file - a path to a private SSL key file.
+* ssl_cert_file - a path to an SSL certificate file.
+* ssl_ca_file - a path to a trusted certificate authorities (CA) file.
+* ssl_ca_path - a path to a trusted certificate authorities (CA) directory.
+* ssl_ciphers - a list of allowed SSL ciphers.
+* verify_host - set off (default true) verification of the certificate’s name against the host.
+* verify_peer - set off (default true) verification of the peer’s SSL certificate.
+
+The command supports the following environment variables:
+* TT_CLI_USERNAME - specifies a Tarantool username;
+* TT_CLI_PASSWORD - specifies a Tarantool password.
+* TT_CLI_ETCD_USERNAME - specifies a Etcd username;
+* TT_CLI_ETCD_PASSWORD - specifies a Etcd password.
+
+The priority of credentials:
+environment variables < command flags < URL credentials.
+`,
+		},
 	}
 
 	for name, tt := range tests {

@@ -57,6 +57,7 @@ noarch
 nodeps
 nogc
 nolint
+nontarantool
 notarantool
 oldfd
 outputformat
