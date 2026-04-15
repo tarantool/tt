@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt cluster`: add the worker publish, show and delete subcommands.
+
 - `tt connect` and connector-based `tt replicaset` commands: add
   `--sslpassword` and `--sslpasswordfile` to decrypt private SSL keys, and
   `--connect-timeout` to bound binary connection establishment (default: 1s).

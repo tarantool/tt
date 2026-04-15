@@ -24,7 +24,9 @@ const EnvEtcdCredentialsHelp = "The command supports the following Etcd environm
 //	`header` - string: a header for the help message;
 //	`footer` - string: a final message of the help;
 //	`service` - string: name of the service to connect with URL;
+//	`url_path` - string: custom URL path format (e.g., "/prefix/host-name/worker-name");
 //	`prefix` - string: a base path used by service application;
+//	`path_<name>` - string: description for a URL path component with <name>;
 //	`tag` - string: description how `#fragment` part used by application;
 //	`param_<name>` - string: description for an extra URL param with <name> added to help;
 //	`env_<name>_auth` - string: service info. It will expanded to:
@@ -36,11 +38,14 @@ func MakeURLHelp(data map[string]any) string {
 	helpText := `{{ if .header }}{{.header}}
 {{end -}}
 The URL specifies a {{.service}} connection settings in the following format:
-http(s)://[username:password@]host:port{{ if .prefix }}/prefix{{end}}` +
-		`[?arguments]{{ if .tag }}[#tag]{{end}}
-{{- if or .prefix .tag }}{{ $NL := "" }}
+http(s)://[username:password@]host:port{{ if .url_path }}{{.url_path}}` +
+		`{{else if .prefix }}/prefix{{end}}[?arguments]` +
+		`{{ if and (not .url_path) .tag }}[#tag]{{end}}
+{{- if or .prefix .tag .path_parts }}{{ $NL := "" }}
 
 {{with .prefix }}* prefix - {{.}}.{{ $NL = "\n" }}{{end -}}
+{{range $key, $value := .path_parts -}}
+{{ $NL }}* {{$key}} - {{$value}}.{{ $NL = "\n" }}{{end -}}
 {{with .tag }}{{ $NL }}* tag - {{.}}.{{end -}}
 {{end}}
 
@@ -96,6 +101,7 @@ The command supports the following environment variables:
 
 	envAuth := map[string]template.HTML{}
 	envVars := map[string]template.HTML{}
+	pathParts := map[string]template.HTML{}
 
 	makeEnvVars := func(key, info string) {
 		h := template.HTML(info) //nolint:gosec // Terminal help text: HTML only turns escaping off.
@@ -107,14 +113,23 @@ The command supports the following environment variables:
 	}
 
 	for key, value := range data {
-		if strings.HasPrefix(key, "env_") {
+		switch {
+		case strings.HasPrefix(key, "env_"):
 			s, ok := value.(string)
 			if !ok {
 				s = fmt.Sprintf("%v", value)
 			}
 
 			makeEnvVars(strings.TrimPrefix(key, "env_"), s)
-		} else {
+		case strings.HasPrefix(key, "path_"):
+			description, ok := value.(string)
+			if !ok {
+				description = fmt.Sprintf("%v", value)
+			}
+
+			//nolint:gosec // Terminal help text.
+			pathParts[strings.TrimPrefix(key, "path_")] = template.HTML(description)
+		default:
 			s, ok := value.(string)
 			if ok {
 				// Wrap description with `template.HTML` to avoid escaping.
@@ -127,6 +142,7 @@ The command supports the following environment variables:
 
 	params["env_auth"] = envAuth
 	params["env_vars"] = envVars
+	params["path_parts"] = pathParts
 
 	var sb strings.Builder
 

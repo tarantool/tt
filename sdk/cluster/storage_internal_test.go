@@ -159,17 +159,36 @@ func TestEtcdPlainEndpoints(t *testing.T) {
 
 // startTLSIPROTO serves just the greeting, identification and empty schema that
 // go-tarantool needs to connect. gRPC probes fail, exercising the TCS fallback.
-func startTLSIPROTO(t *testing.T) string {
+func startTLSIPROTO(t *testing.T, mutualTLS ...bool) string {
 	t.Helper()
 
 	cert, err := tls.LoadX509KeyPair("testdata/tls/localhost.crt", "testdata/tls/localhost.key")
 	require.NoError(t, err)
 
-	listener, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-	})
+	config := &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+
+	if len(mutualTLS) > 0 && mutualTLS[0] {
+		ca, err := os.ReadFile("testdata/tls/ca.crt")
+		require.NoError(t, err)
+
+		config.ClientCAs = x509.NewCertPool()
+		require.True(t, config.ClientCAs.AppendCertsFromPEM(ca))
+
+		config.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+
+	return startIPROTO(t, config)
+}
+
+func startIPROTO(t *testing.T, config *tls.Config) string {
+	t.Helper()
+
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+
+	if config != nil {
+		listener = tls.NewListener(listener, config)
+	}
 
 	var workers sync.WaitGroup
 
@@ -283,7 +302,7 @@ func TestTarantoolHTTPSFallback(t *testing.T) {
 		"?timeout=1&ssl_ca_file=" + unrelatedCA(t))
 	require.NoError(t, err)
 
-	conn, err := connectTarantoolConnector(getTarantoolCfg(ConnectOpts{}, opts))
+	conn, err := connectTarantoolContext(t.Context(), getTarantoolCfg(ConnectOpts{}, opts))
 	require.Error(t, err)
 	assert.Nil(t, conn)
 	assert.ErrorContains(t, err, "certificate")
