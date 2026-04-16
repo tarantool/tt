@@ -66,11 +66,16 @@ var switchStatusCtx = clustercmd.SwitchStatusCtx{
 
 var rolesChangeCtx = clustercmd.RolesChangeCtx{}
 
-var workerPublishCtx clustercmd.WorkerPublishCtx
+var workerPublishCtx = clustercmd.WorkerPublishCtx{}
 
-var workerShowCtx clustercmd.WorkerShowCtx
+var (
+	workerPublishUsername string
+	workerPublishPassword string
+)
 
-var workerDeleteCtx clustercmd.WorkerDeleteCtx
+var workerShowCtx = clustercmd.WorkerShowCtx{}
+
+var workerDeleteCtx = clustercmd.WorkerDeleteCtx{}
 
 var (
 	defaultSwitchTimeout       uint64 = 30
@@ -295,9 +300,9 @@ func newClusterWorkerCmd() *cobra.Command {
 		Run:  RunModuleFunc(internalClusterWorkerPublishModule),
 		Args: cobra.ExactArgs(2),
 	}
-	publishCmd.Flags().StringVarP(&workerPublishCtx.Username, "username", "u", "",
+	publishCmd.Flags().StringVarP(&workerPublishUsername, "username", "u", "",
 		"username (used as etcd/tarantool config storage credentials)")
-	publishCmd.Flags().StringVarP(&workerPublishCtx.Password, "password", "p", "",
+	publishCmd.Flags().StringVarP(&workerPublishPassword, "password", "p", "",
 		"password (used as etcd/tarantool config storage credentials)")
 	publishCmd.Flags().BoolVar(&workerPublishCtx.Force, "force", false,
 		"force publish and skip checking existence")
@@ -606,10 +611,23 @@ func internalClusterWorkerPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string
 	}
 	workerPublishCtx.Src = data
 
-	workerPublishCtx.Username, workerPublishCtx.Password = clustercmd.ResolveWorkerCredentials(
-		opts, workerPublishCtx.Username, workerPublishCtx.Password)
+	prefix, hostName, workerName, err := clustercmd.ParseWorkerPath(opts.Prefix)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL path: %w", err)
+	}
+	workerPublishCtx.Key = clustercmd.BuildWorkerStorageKey(prefix, hostName, workerName)
 
-	if err := clustercmd.WorkerPublish(args[0], workerPublishCtx); err != nil {
+	username, password := clustercmd.ResolveWorkerCredentials(
+		opts, workerPublishUsername, workerPublishPassword)
+
+	stg, closeFunc, err := clustercmd.ConnectStorage(opts, username, password)
+	if err != nil {
+		return fmt.Errorf("failed to connect to storage: %w", err)
+	}
+	defer closeFunc()
+	workerPublishCtx.Storage = stg
+
+	if err := clustercmd.WorkerPublish(workerPublishCtx); err != nil {
 		return fmt.Errorf("failed to publish worker configuration: %w", err)
 	}
 	return nil

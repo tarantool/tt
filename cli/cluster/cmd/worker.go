@@ -1,25 +1,29 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/tarantool/go-storage"
+	"github.com/tarantool/go-storage/operation"
+	"github.com/tarantool/go-storage/predicate"
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
 // WorkerPublishCtx contains information about cluster worker publish command
 // execution context.
 type WorkerPublishCtx struct {
-	// Username defines a username for connection.
-	Username string
-	// Password defines a password for connection.
-	Password string
-	// Force defines whether the publish should be forced.
-	Force bool
+	// Storage is the storage instance for the operation.
+	Storage storage.Storage
+	// Key is the key in storage for the worker configuration.
+	Key string
 	// Src is a raw data to publish.
 	Src []byte
+	// Force defines whether the publish should be forced.
+	Force bool
 }
 
 // WorkerShowCtx contains information about cluster worker show command
@@ -109,9 +113,38 @@ func ResolveWorkerCredentials(
 	return username, password
 }
 
-// WorkerPublish publishes a worker configuration. Unimplemented.
-func WorkerPublish(url string, ctx WorkerPublishCtx) error {
-	return errors.New("unimplemented")
+// WorkerPublish publishes a worker configuration to storage.
+// Without Force flag, it atomically checks that the key does not exist and
+// publishes the configuration. If the key already exists, an error is returned.
+// With Force flag, it overwrites the existing configuration unconditionally.
+func WorkerPublish(publishCtx WorkerPublishCtx) error {
+	ctx := context.Background()
+	key := []byte(publishCtx.Key)
+	value := publishCtx.Src
+
+	if publishCtx.Force {
+		_, err := publishCtx.Storage.Tx(ctx).Then(operation.Put(key, value)).Commit()
+		if err != nil {
+			return fmt.Errorf("failed to publish worker configuration: %w", err)
+		}
+		return nil
+	}
+
+	resp, err := publishCtx.Storage.Tx(ctx).
+		If(predicate.VersionEqual(key, 0)).
+		Then(operation.Put(key, value)).
+		Commit()
+	if err != nil {
+		return fmt.Errorf("failed to publish worker configuration: %w", err)
+	}
+
+	if !resp.Succeeded {
+		return fmt.Errorf(
+			"worker configuration already exists at %q, use --force to overwrite",
+			publishCtx.Key)
+	}
+
+	return nil
 }
 
 // WorkerShow shows a worker configuration. Unimplemented.

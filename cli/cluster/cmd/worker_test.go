@@ -239,11 +239,6 @@ func TestResolveWorkerCredentials(t *testing.T) {
 	}
 }
 
-func TestWorkerPublish(t *testing.T) {
-	err := WorkerPublish("http://localhost:2379/prefix/host/worker", WorkerPublishCtx{})
-	require.EqualError(t, err, "unimplemented")
-}
-
 func TestWorkerShow(t *testing.T) {
 	err := WorkerShow("http://localhost:2379/prefix/host/worker", WorkerShowCtx{})
 	require.EqualError(t, err, "unimplemented")
