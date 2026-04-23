@@ -2,6 +2,7 @@ package cluster_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,24 @@ import (
 
 // spell-checker:ignore nopath noinstance
 
+// clearAmbientTTEnv removes all TT_* environment variables that were already
+// set before the test runs, so that the builder sees only those set
+// explicitly by the test itself. Removed variables are restored via t.Cleanup.
+func clearAmbientTTEnv(t *testing.T) {
+	t.Helper()
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "TT_") {
+			continue
+		}
+		k := strings.SplitN(kv, "=", 2)[0]
+		saved := os.Getenv(k)
+		os.Unsetenv(k)
+		t.Cleanup(func() { os.Setenv(k, saved) })
+	}
+}
+
 func TestGetClusterConfig_path(t *testing.T) {
+	clearAmbientTTEnv(t)
 	collectors := libcluster.NewCollectorFactory(libcluster.NewDataCollectorFactory())
 	config, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
 
@@ -89,6 +107,7 @@ too: 3
 }
 
 func TestGetClusterConfig_environment(t *testing.T) {
+	clearAmbientTTEnv(t)
 	os.Setenv("TT_WAL_DIR_DEFAULT", "envdir")
 	os.Setenv("TT_WAL_MODE_DEFAULT", "envmode")
 	collectors := libcluster.NewCollectorFactory(libcluster.NewDataCollectorFactory())
@@ -147,6 +166,7 @@ func TestGetClusterConfig_nopath(t *testing.T) {
 }
 
 func TestGetInstanceConfig_file(t *testing.T) {
+	clearAmbientTTEnv(t)
 	collectors := libcluster.NewCollectorFactory(libcluster.NewDataCollectorFactory())
 	cconfig, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
 	require.NoError(t, err)
@@ -167,6 +187,7 @@ zoo: 2
 }
 
 func TestGetInstanceConfig_environment(t *testing.T) {
+	clearAmbientTTEnv(t)
 	collectors := libcluster.NewCollectorFactory(libcluster.NewDataCollectorFactory())
 	cconfig, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
 	require.NoError(t, err)
@@ -196,4 +217,52 @@ func TestGetInstanceConfig_noinstance(t *testing.T) {
 	expected := "an instance \"unknown\" not found"
 
 	assert.EqualError(t, err, expected)
+}
+
+func TestGetClusterConfig_env_two_tier_priority(t *testing.T) {
+	collectors := libcluster.NewCollectorFactory(libcluster.NewDataCollectorFactory())
+
+	cases := []struct {
+		name           string
+		mainEnv        string // TT_REPLICATION_FAILOVER value ("" means unset)
+		defaultEnv     string // TT_REPLICATION_FAILOVER_DEFAULT value ("" means unset)
+		expectedValue  string
+	}{
+		{
+			name:          "main env only",
+			mainEnv:       "manual",
+			defaultEnv:    "",
+			expectedValue: "manual",
+		},
+		{
+			name:          "default env only",
+			mainEnv:       "",
+			defaultEnv:    "election",
+			expectedValue: "election",
+		},
+		{
+			name:          "main wins over default",
+			mainEnv:       "manual",
+			defaultEnv:    "election",
+			expectedValue: "manual",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.mainEnv != "" {
+				t.Setenv("TT_REPLICATION_FAILOVER", tc.mainEnv)
+			}
+			if tc.defaultEnv != "" {
+				t.Setenv("TT_REPLICATION_FAILOVER_DEFAULT", tc.defaultEnv)
+			}
+
+			cconfig, err := cluster.GetClusterConfig(collectors, "testdata/app/config.yaml")
+			require.NoError(t, err)
+
+			got, err := cconfig.RawConfig.Get([]string{"replication", "failover"})
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedValue, got)
+		})
+	}
 }

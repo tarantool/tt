@@ -4,27 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
+	goconfig "github.com/tarantool/go-config"
+	gcttarantool "github.com/tarantool/go-config/tarantool"
 	gsconnect "github.com/tarantool/go-storage/connect"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
+	"gopkg.in/yaml.v3"
 )
 
 const (
 	defaultEtcdTimeout = 3 * time.Second
-)
-
-var (
-	mainEnvCollector = libcluster.NewEnvCollector(func(path []string) string {
-		middle := strings.ToUpper(strings.Join(path, "_"))
-		return fmt.Sprintf("TT_%s", middle)
-	})
-	defaultEnvCollector = libcluster.NewEnvCollector(func(path []string) string {
-		middle := strings.ToUpper(strings.Join(path, "_"))
-		return fmt.Sprintf("TT_%s_DEFAULT", middle)
-	})
 )
 
 // collectEtcdConfig collects a configuration from etcd with options from
@@ -172,10 +163,38 @@ func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 	return cconfig, errors.Join(connectionErrors...)
 }
 
+// configFromBuilder converts a go-config Config into a libcluster Config by
+// round-tripping the root value through YAML.
+func configFromBuilder(cfg goconfig.Config) (*libcluster.Config, error) {
+	val, ok := cfg.Lookup(nil)
+	if !ok {
+		return libcluster.NewConfig(), nil
+	}
+
+	var raw any
+	if err := val.Get(&raw); err != nil {
+		return nil, fmt.Errorf("get builder root value: %w", err)
+	}
+
+	data, err := yaml.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("marshal builder config: %w", err)
+	}
+	return libcluster.NewYamlCollector(data).Collect()
+}
+
 // GetClusterConfig returns a cluster configuration loaded from a path to
 // a config file. It uses a a config file, etcd and default environment
 // variables as sources. The function returns a cluster config as is, without
 // merging of settings from scopes: global, group, replicaset, instance.
+//
+// The documented Tarantool config priority is
+// `TT_*` > file > centralized (etcd / config storage) > `TT_*_DEFAULT`.
+// gcttarantool.Builder folds `TT_*_DEFAULT` into its lowest slot, alongside
+// the file pass, and libcluster.Config.Merge is fill-only — a single Build()
+// call would let `TT_*_DEFAULT` block the post-Build centralized merge. To
+// honor the documented order without taking the TT-1011 storage-handle path,
+// the env-default layer is split out via two builds and applied last.
 func GetClusterConfig(collectors libcluster.CollectorFactory,
 	path string,
 ) (libcluster.ClusterConfig, error) {
@@ -184,26 +203,20 @@ func GetClusterConfig(collectors libcluster.CollectorFactory,
 		return ret, fmt.Errorf("a configuration file must be set")
 	}
 
-	config := libcluster.NewConfig()
-
-	mainEnvConfig, err := mainEnvCollector.Collect()
+	ctx := context.Background()
+	cfgNoDefault, err := gcttarantool.New().
+		WithoutValidation().
+		WithEnvIgnore("TT_*_DEFAULT").
+		WithConfigFile(path).
+		Build(ctx)
 	if err != nil {
-		fmtErr := "failed to collect a config from environment variables: %w"
-		return ret, fmt.Errorf(fmtErr, err)
-	}
-	config.Merge(mainEnvConfig)
-
-	collector, err := collectors.NewFile(path)
-	if err != nil {
-		return ret, fmt.Errorf("failed to create a file collector: %w", err)
+		return ret, fmt.Errorf("unable to load config from %q: %w", path, err)
 	}
 
-	fileConfig, err := collector.Collect()
+	config, err := configFromBuilder(cfgNoDefault)
 	if err != nil {
-		fmtErr := "unable to get cluster config from %q: %w"
-		return ret, fmt.Errorf(fmtErr, path, err)
+		return ret, fmt.Errorf("unable to convert builder config: %w", err)
 	}
-	config.Merge(fileConfig)
 
 	clusterConfig, err := libcluster.MakeClusterConfig(config)
 	if err != nil {
@@ -225,13 +238,16 @@ func GetClusterConfig(collectors libcluster.CollectorFactory,
 		config.Merge(tarantoolConfig)
 	}
 
-	defaultEnvConfig, err := defaultEnvCollector.Collect()
+	cfgFull, err := gcttarantool.New().WithoutValidation().WithConfigFile(path).Build(ctx)
 	if err != nil {
-		fmtErr := "failed to collect a config from default environment variables: %w"
-		return ret, fmt.Errorf(fmtErr, err)
+		return ret, fmt.Errorf("unable to load config from %q with default env: %w", path, err)
 	}
-
+	defaultEnvConfig, err := configFromBuilder(cfgFull)
+	if err != nil {
+		return ret, fmt.Errorf("unable to convert builder config with default env: %w", err)
+	}
 	config.Merge(defaultEnvConfig)
+
 	return libcluster.MakeClusterConfig(config)
 }
 
@@ -246,15 +262,41 @@ func GetInstanceConfig(cluster libcluster.ClusterConfig,
 			fmt.Errorf("an instance %q not found", instance)
 	}
 
-	mainEnvConfig, err := mainEnvCollector.Collect()
+	// Same priority concern as GetClusterConfig: split env-default out so
+	// `TT_*_DEFAULT` lands below the instance config (which already carries
+	// the cluster-level values), not above it.
+	ctx := context.Background()
+	cfgNoDefault, err := gcttarantool.New().
+		WithoutValidation().
+		WithEnvIgnore("TT_*_DEFAULT").
+		Build(ctx)
 	if err != nil {
-		fmtErr := "failed to collect a config from environment variables: %w"
-		return libcluster.InstanceConfig{}, fmt.Errorf(fmtErr, err)
+		return libcluster.InstanceConfig{},
+			fmt.Errorf("failed to collect a config from environment variables: %w", err)
+	}
+
+	mainEnvConfig, err := configFromBuilder(cfgNoDefault)
+	if err != nil {
+		return libcluster.InstanceConfig{},
+			fmt.Errorf("failed to convert builder config: %w", err)
 	}
 
 	iconfig := libcluster.NewConfig()
 	iconfig.Merge(mainEnvConfig)
 	iconfig.Merge(libcluster.Instantiate(cluster, instance))
 
+	cfgFull, err := gcttarantool.New().WithoutValidation().Build(ctx)
+	if err != nil {
+		return libcluster.InstanceConfig{},
+			fmt.Errorf("failed to collect default env config: %w", err)
+	}
+	defaultEnvConfig, err := configFromBuilder(cfgFull)
+	if err != nil {
+		return libcluster.InstanceConfig{},
+			fmt.Errorf("failed to convert builder config with default env: %w", err)
+	}
+	iconfig.Merge(defaultEnvConfig)
+
 	return libcluster.MakeInstanceConfig(iconfig)
 }
+

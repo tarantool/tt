@@ -22,6 +22,9 @@ for machine-readable output.
 - `tt build/pack`: cartridge support removed.
 - tarantoolctl support has been completely removed.
 - Removed support for Tarantool 1.10 and 2.x. Only Tarantool 3.x is supported.
+- `lib/cluster`: removed `EnvCollector` and the generated `ConfigEnvPaths`;
+  `cli/cluster` now loads config files and environment variables via upstream
+  go-config.
 
 ### Fixed
 
