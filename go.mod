@@ -39,7 +39,7 @@ require (
 	go.etcd.io/etcd/tests/v3 v3.6.8
 	golang.org/x/crypto v0.49.0
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
-	golang.org/x/sys v0.42.0
+	golang.org/x/sys v0.43.0
 	golang.org/x/term v0.41.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
@@ -115,6 +115,8 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.2.2 // indirect
+	github.com/tarantool/go-option v1.0.0 // indirect
+	github.com/tarantool/go-storage v1.1.3-0.20260421111102-abe1dd9a9ca8 // indirect
 	github.com/tarantool/go-tlsdialer v1.0.2 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect

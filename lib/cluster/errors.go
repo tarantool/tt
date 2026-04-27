@@ -1,7 +1,17 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
+)
+
+var (
+	errDataMissing   = errors.New("data does not exist")
+	errWrongRevision = errors.New("wrong revision")
+
+	errFetchData   = errors.New("failed to fetch data")
+	errPutData     = errors.New("failed to put data")
+	errPublishData = errors.New("failed to publish data")
 )
 
 // NotExistError error type for non-existing path.
