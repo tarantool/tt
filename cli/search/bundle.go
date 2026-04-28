@@ -174,7 +174,12 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 			searchCtx.Program)
 	}
 
-	credentials, err := connect.GetCreds(cliOpts)
+	var credPath string
+	if cliOpts.EE != nil {
+		credPath = cliOpts.EE.CredPath
+	}
+
+	credentials, err := connect.GetCreds(credPath)
 	if err != nil {
 		return nil, err
 	}

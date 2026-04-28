@@ -7,7 +7,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/tarantool/tt/cli/config"
 	"golang.org/x/term"
 )
 
@@ -102,9 +101,9 @@ func getCredsFromEnvVars() (UserCredentials, error) {
 	return res, nil
 }
 
-// getCreds gets credentials for tarantool-ee download.
-func GetCreds(cliOpts *config.CliOpts) (UserCredentials, error) {
-	if cliOpts.EE == nil || (cliOpts.EE != nil && cliOpts.EE.CredPath == "") {
+// GetCreds gets credentials for tarantool-ee download.
+func GetCreds(credPath string) (UserCredentials, error) {
+	if credPath == "" {
 		creds, err := getCredsFromEnvVars()
 		if err == nil {
 			return creds, nil
@@ -112,5 +111,5 @@ func GetCreds(cliOpts *config.CliOpts) (UserCredentials, error) {
 		return getCredsInteractive()
 	}
 
-	return getCredsFromFile(cliOpts.EE.CredPath)
+	return getCredsFromFile(credPath)
 }
