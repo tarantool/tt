@@ -272,7 +272,7 @@ def test_cluster_show_config_no_prefix(
 
     expected = (
         r"   ⨯ failed to collect a configuration: "
-        + f'a configuration data not found in {storage_name} for prefix "/prefix/config/"'
+        + f'a configuration data not found in {storage_name} for prefix "/prefix"'
     )
     assert expected in show_output
 
@@ -323,13 +323,15 @@ def test_cluster_show_config_no_key(
         pytest.param(
             "etcd",
             "   ⨯ failed to collect a configuration: "
-            + "failed to fetch data from etcd: etcdserver: user name is empty",
+            + "failed to fetch data from etcd: failed to execute ops: "
+            + "transaction failed: etcdserver: user name is empty",
         ),
         pytest.param(
             "tcs",
             "   ⨯ failed to collect a configuration: "
-            + "failed to fetch data from tarantool: Execute access to function "
-            + "'config.storage.get' is denied for user",
+            + "failed to fetch data from tarantool: failed to execute ops: "
+            + "failed to execute transaction: Execute access to function "
+            + "'config.storage.txn' is denied for user",
         ),
     ],
 )

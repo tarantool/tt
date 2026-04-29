@@ -115,6 +115,8 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.2.2 // indirect
+	github.com/tarantool/go-option v1.0.0 // indirect
+	github.com/tarantool/go-storage v1.2.0 // indirect
 	github.com/tarantool/go-tlsdialer v1.0.2 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect

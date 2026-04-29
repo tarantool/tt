@@ -6,6 +6,9 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"github.com/tarantool/go-storage"
+	"github.com/tarantool/go-storage/driver/etcd"
+	"github.com/tarantool/go-storage/driver/tcs"
 	"github.com/tarantool/go-tarantool/v2"
 )
 
@@ -45,20 +48,20 @@ func (factory publishersFactory) NewFile(path string) (DataPublisher, error) {
 func (factory publishersFactory) NewEtcd(etcdcli *clientv3.Client,
 	prefix, key string, timeout time.Duration,
 ) (DataPublisher, error) {
-	if key == "" {
-		return NewEtcdAllDataPublisher(etcdcli, prefix, timeout), nil
-	}
-	return NewEtcdKeyDataPublisher(etcdcli, prefix, key, timeout), nil
+	driver := etcd.New(etcdcli)
+	storage := storage.NewStorage(driver)
+
+	return NewStorage(storage, prefix, timeout, key, etcdStorageType), nil
 }
 
 // NewTarantool creates creates a new tarantool config storage data publisher.
 func (factory publishersFactory) NewTarantool(conn tarantool.Doer,
 	prefix, key string, timeout time.Duration,
 ) (DataPublisher, error) {
-	if key == "" {
-		return NewTarantoolAllDataPublisher(conn, prefix, timeout), nil
-	}
-	return NewTarantoolKeyDataPublisher(conn, prefix, key, timeout), nil
+	driver := tcs.New(dummyDoerWatcher{conn})
+	storage := storage.NewStorage(driver)
+
+	return NewStorage(storage, prefix, timeout, key, tcsStorageType), nil
 }
 
 // integrityPublishersFactory is a type that implements a default

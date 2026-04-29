@@ -1,5 +1,3 @@
-//go:build integration
-
 package cluster_test
 
 import (
@@ -176,6 +174,28 @@ func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
 	return resp.Kvs[0].Value, resp.Kvs[0].ModRevision
 }
 
+func newEtcdCollector(t *testing.T, etcd *clientv3.Client,
+	prefix, key string, timeout time.Duration,
+) cluster.DataCollector {
+	t.Helper()
+
+	collector, err := cluster.NewDataCollectorFactory().NewEtcd(etcd, prefix, key, timeout)
+	require.NoError(t, err)
+
+	return collector
+}
+
+func newEtcdPublisher(t *testing.T, etcd *clientv3.Client,
+	prefix, key string, timeout time.Duration,
+) cluster.DataPublisher {
+	t.Helper()
+
+	publisher, err := cluster.NewDataPublisherFactory().NewEtcd(etcd, prefix, key, timeout)
+	require.NoError(t, err)
+
+	return publisher
+}
+
 type connectEtcdOpts struct {
 	ServerOpts etcdOpts
 	ClientOpts cluster.EtcdOpts
@@ -309,9 +329,9 @@ func TestEtcdCollectors_single(t *testing.T) {
 		Collector cluster.Collector
 	}{
 		{"all", cluster.NewYamlCollectorDecorator(
-			cluster.NewEtcdAllCollector(etcd, "/foo/", timeout))},
+			newEtcdCollector(t, etcd, "/foo/", "", timeout))},
 		{"key", cluster.NewYamlCollectorDecorator(
-			cluster.NewEtcdKeyCollector(etcd, "/foo/", "bar", timeout))},
+			newEtcdCollector(t, etcd, "/foo/", "bar", timeout))},
 	}
 
 	for _, tc := range cases {
@@ -339,7 +359,7 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/b", "foo: car\nzoo: car")
 
 	config, err := cluster.NewYamlCollectorDecorator(
-		cluster.NewEtcdAllCollector(etcd, "/foo/", timeout)).Collect()
+		newEtcdCollector(t, etcd, "/foo/", "", timeout)).Collect()
 	require.NoError(t, err)
 	value, err := config.Get([]string{"foo"})
 	require.NoError(t, err)
@@ -364,9 +384,9 @@ func TestEtcdCollectors_empty(t *testing.T) {
 		Collector cluster.Collector
 	}{
 		{"all", cluster.NewYamlCollectorDecorator(
-			cluster.NewEtcdAllCollector(etcd, "/foo/", timeout))},
+			newEtcdCollector(t, etcd, "/foo/", "", timeout))},
 		{"key", cluster.NewYamlCollectorDecorator(
-			cluster.NewEtcdKeyCollector(etcd, "/foo/", "bar", timeout))},
+			newEtcdCollector(t, etcd, "/foo/", "bar", timeout))},
 	}
 
 	for _, tc := range cases {
@@ -394,8 +414,8 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 		Key       string
 		Publisher cluster.DataPublisher
 	}{
-		{"all", "all", cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout)},
-		{"key", "key", cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "key", timeout)},
+		{"all", "all", newEtcdPublisher(t, etcd, "/foo/", "", timeout)},
+		{"key", "key", newEtcdPublisher(t, etcd, "/foo/", "key", timeout)},
 	}
 
 	for _, tc := range cases {
@@ -426,8 +446,8 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 		Key       string
 		Publisher cluster.DataPublisher
 	}{
-		{"all", "all", cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout)},
-		{"key", "key", cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "key", timeout)},
+		{"all", "all", newEtcdPublisher(t, etcd, "/foo/", "", timeout)},
+		{"key", "key", newEtcdPublisher(t, etcd, "/foo/", "key", timeout)},
 	}
 
 	for _, tc := range cases {
@@ -452,14 +472,14 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	require.NotNil(t, etcd)
 	defer etcd.Close()
 
-	etcdPut(t, etcd, "/foo/config/", "foo")
-	etcdPut(t, etcd, "/foo/config/foo", "zoo")
+	etcdPut(t, etcd, "/foo/config/foo", "foo")
+	etcdPut(t, etcd, "/foo/config/zoo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = cluster.NewEtcdAllDataPublisher(etcd, "/foo/", timeout).Publish(0, data)
+	err = newEtcdPublisher(t, etcd, "/foo/", "", timeout).Publish(0, data)
 	require.NoError(t, err)
 
-	actual, _ := etcdGet(t, etcd, "/foo/config/")
+	actual, _ := etcdGet(t, etcd, "/foo/config/zoo")
 	assert.Equal(t, []byte(""), actual)
 
 	actual, _ = etcdGet(t, etcd, "/foo/config/foo")
@@ -484,7 +504,7 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 
 	data := []byte("baz")
 
-	publisher := cluster.NewEtcdKeyDataPublisher(etcd, "/foo", "key", timeout)
+	publisher := newEtcdPublisher(t, etcd, "/foo", "key", timeout)
 	// Use wrong revision.
 	err = publisher.Publish(modRevision-1, data)
 	assert.Errorf(t, err, "failed to put data into etcd: wrong revision")
@@ -512,7 +532,7 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = cluster.NewEtcdKeyDataPublisher(etcd, "/foo/", "all", timeout).Publish(0, data)
+	err = newEtcdPublisher(t, etcd, "/foo/", "all", timeout).Publish(0, data)
 
 	assert.NoError(t, err)
 
@@ -539,10 +559,10 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo: bar")
 
 	prefix := "/foo/"
-	dataPublisher := cluster.NewEtcdAllDataPublisher(etcd, prefix, timeout)
+	dataPublisher := newEtcdPublisher(t, etcd, prefix, "", timeout)
 	publisher := cluster.NewYamlConfigPublisher(dataPublisher)
 	collector := cluster.NewYamlCollectorDecorator(
-		cluster.NewEtcdAllCollector(etcd, prefix, timeout))
+		newEtcdCollector(t, etcd, prefix, "", timeout))
 
 	config, err := collector.Collect()
 	require.NoError(t, err)

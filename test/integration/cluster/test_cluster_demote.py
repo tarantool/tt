@@ -154,12 +154,14 @@ groups:
         (
             "etcd",
             "⨯ failed to collect cluster config: "
-            + "failed to fetch data from etcd: etcdserver: user name is empty",
+            + "failed to fetch data from etcd: failed to execute ops: "
+            + "transaction failed: etcdserver: user name is empty",
         ),
         (
             "tcs",
-            "⨯ failed to collect cluster config: failed to fetch data from tarantool:"
-            + " Execute access to function 'config.storage.get' is denied for user 'guest'",
+            "⨯ failed to collect cluster config: failed to fetch data from tarantool: "
+            + "failed to execute ops: failed to execute transaction: "
+            + "Execute access to function 'config.storage.txn' is denied for user 'guest'",
         ),
     ],
 )

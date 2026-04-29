@@ -3,6 +3,9 @@ package cluster
 import (
 	"time"
 
+	"github.com/tarantool/go-storage"
+	"github.com/tarantool/go-storage/driver/etcd"
+	"github.com/tarantool/go-storage/driver/tcs"
 	"github.com/tarantool/go-tarantool/v2"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
@@ -53,10 +56,10 @@ func (factory collectorsFactory) NewFile(path string) (DataCollector, error) {
 func (factory collectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 	prefix, key string, timeout time.Duration,
 ) (DataCollector, error) {
-	if key == "" {
-		return NewEtcdAllCollector(etcdcli, prefix, timeout), nil
-	}
-	return NewEtcdKeyCollector(etcdcli, prefix, key, timeout), nil
+	driver := etcd.New(etcdcli)
+	storage := storage.NewStorage(driver)
+
+	return NewStorage(storage, prefix, timeout, key, etcdStorageType), nil
 }
 
 // NewTarantool creates creates a new tarantool config storage configuration
@@ -64,10 +67,10 @@ func (factory collectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 func (factory collectorsFactory) NewTarantool(conn tarantool.Doer,
 	prefix, key string, timeout time.Duration,
 ) (DataCollector, error) {
-	if key == "" {
-		return NewTarantoolAllCollector(conn, prefix, timeout), nil
-	}
-	return NewTarantoolKeyCollector(conn, prefix, key, timeout), nil
+	driver := tcs.New(dummyDoerWatcher{conn})
+	storage := storage.NewStorage(driver)
+
+	return NewStorage(storage, prefix, timeout, key, tcsStorageType), nil
 }
 
 // integrityCollectorsFactory is a type that implements a default CollectorFactory.

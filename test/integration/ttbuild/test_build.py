@@ -203,13 +203,15 @@ def test_build_app_local_tarantool(tt_cmd, tmpdir_with_tarantool):
     app_name = "app1"
     app_dir = os.path.join(tmpdir_with_tarantool, app_name)
 
-    cmd = [tt_cmd, "create", "basic", "--name", app_name, "--non-interactive"]
-    p = subprocess.run(
-        cmd,
-        cwd=tmpdir_with_tarantool,
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), "apps", app_name),
+        app_dir,
     )
-    assert p.returncode == 0
-    assert os.path.exists(app_dir)
+    # Create a symlink in instances.enabled so tt can find the app.
+    instances_enabled = os.path.join(tmpdir_with_tarantool, "instances.enabled")
+    os.symlink(
+        os.path.relpath(app_dir, instances_enabled), os.path.join(instances_enabled, app_name)
+    )
 
     cmd = [tt_cmd, "build", app_name]
     p = subprocess.run(
