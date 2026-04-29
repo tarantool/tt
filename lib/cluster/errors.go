@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -26,3 +27,8 @@ func (e CollectEmptyError) Error() string {
 	return fmt.Sprintf("a configuration data not found in %s for prefix %q",
 		e.storage, e.prefix)
 }
+
+var (
+	errDataMissing   = errors.New("data does not exist")
+	errWrongRevision = errors.New("wrong revision")
+)

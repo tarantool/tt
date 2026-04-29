@@ -710,12 +710,14 @@ def test_cluster_publish_config_key_not_exist(tt_cmd, tmpdir_with_cfg):
     [
         pytest.param(
             "etcd",
-            r"   ⨯ failed to fetch data from etcd: etcdserver: user name is empty",
+            r"   ⨯ failed to fetch data from etcd: failed to execute ops: "
+            + "transaction failed: etcdserver: user name is empty",
         ),
         pytest.param(
             "tcs",
-            r"   ⨯ failed to put data into tarantool: Execute access to"
-            " function 'config.storage.txn' is denied for user",
+            r"   ⨯ failed to fetch data from tarantool: failed to execute ops: "
+            + "failed to execute transaction: Execute access to function "
+            + "'config.storage.txn' is denied for user",
         ),
     ],
 )
