@@ -35,7 +35,7 @@ are passed after '--'.
 # Print current environment Tarantool version:
 
     $ tt run --version
-    Tarantool 2.11.0-entrypoint-724-gd2d7f4de3
+    Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
     . . .
 
 # Run a script (which print passed arguments) with 3 arguments and 2 options:
@@ -47,7 +47,7 @@ are passed after '--'.
 
     $ tt run -i script.lua -- -i
     -i
-    Tarantool 2.11.0-entrypoint-724-gd2d7f4de3
+    Tarantool 3.0.0-entrypoint-724-gd2d7f4de3
     type 'help' for interactive help
     tarantool>
 

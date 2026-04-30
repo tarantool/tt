@@ -19,33 +19,9 @@ const (
 )
 
 // isMasked function checks that the given version of tarantool is masked.
+// Tarantool 1.x and 2.x are no longer supported.
 func isMasked(version version.Version) bool {
-	// Mask all versions below 1.10: deprecated.
-	if version.Major == 1 && version.Minor < 10 {
-		return true
-	}
-
-	// Mask all versions below 1.10.11: static build is not supported.
-	if version.Major == 1 && version.Minor == 10 && version.Patch < 11 {
-		return true
-	}
-
-	// Mask all versions below 2.7: static build is not supported.
-	if version.Major == 2 && version.Minor < 7 {
-		return true
-	}
-
-	// Mask 2.10.1 version: https://github.com/orgs/tarantool/discussions/7646.
-	if version.Major == 2 && version.Minor == 10 && version.Patch == 1 {
-		return true
-	}
-
-	// Mask all 2.X.0 below 2.10.0: technical tags.
-	if version.Major == 2 && version.Minor < 10 && version.Patch == 0 {
-		return true
-	}
-
-	return false
+	return version.Major < 3
 }
 
 // GetVersionsFromGitRemote returns sorted versions list from specified remote git repo.

@@ -810,13 +810,6 @@ func Stop(run *InstanceCtx) error {
 		return err
 	}
 
-	// tarantool 1.10 does not have a trigger on terminate a process.
-	// So the socket will be closed automatically on termination and
-	// we need to delete the file.
-	if _, err := os.Stat(run.ConsoleSocket); err == nil {
-		os.Remove(run.ConsoleSocket)
-	}
-
 	log.Infof("The Instance %s (PID = %v) has been terminated.", fullInstanceName, pid)
 
 	return nil
@@ -925,19 +918,8 @@ func GetAppInstanceName(instance InstanceCtx) string {
 func IsAbleToStartInstances(instances []InstanceCtx, cmdCtx *cmdcontext.CmdCtx) (
 	bool, string,
 ) {
-	tntVersion, err := cmdCtx.Cli.TarantoolCli.GetVersion()
-	if err != nil {
+	if _, err := cmdCtx.Cli.TarantoolCli.GetVersion(); err != nil {
 		return false, err.Error()
-	}
-	for _, inst := range instances {
-		if inst.ClusterConfigPath != "" {
-			if tntVersion.Major < 3 {
-				return false, fmt.Sprintf(
-					`cluster config is supported by Tarantool starting from version 3.0.
-Current Tarantool version: %s
-Cluster config path: %q`, tntVersion.Str, inst.ClusterConfigPath)
-			}
-		}
 	}
 	return true, ""
 }

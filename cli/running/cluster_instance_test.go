@@ -19,7 +19,7 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-var tntCli cmdcontext.TarantoolCli
+var tntCli = cmdcontext.TarantoolCli{Executable: "tarantool"}
 
 const stopTimeout = 5 * time.Second
 
@@ -49,18 +49,7 @@ func waitForMsgInBuffer(reader io.Reader, msgToWait string, waitFor time.Duratio
 	return nil
 }
 
-func SkipForTntMajorBefore3(t *testing.T) {
-	tntCli.Executable = "tarantool"
-	tntVersion, err := tntCli.GetVersion()
-	require.NoError(t, err)
-	if tntVersion.Major < 3 {
-		t.Skipf("cluster instances test is skipped for tarantool version %s", tntVersion.Str)
-	}
-}
-
 func TestClusterInstance_Start(t *testing.T) {
-	SkipForTntMajorBefore3(t)
-
 	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
 		"cluster_app", "config.yml"))
 	require.NoError(t, err)
@@ -95,8 +84,6 @@ func TestClusterInstance_Start(t *testing.T) {
 }
 
 func TestClusterInstance_StartChangeDefaults(t *testing.T) {
-	SkipForTntMajorBefore3(t)
-
 	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
 		"cluster_app", "config.yml"))
 	require.NoError(t, err)
@@ -142,8 +129,6 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 }
 
 func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
-	SkipForTntMajorBefore3(t)
-
 	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
 		"cluster_app", "config.yml"))
 	require.NoError(t, err)
@@ -196,8 +181,6 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 }
 
 func TestClusterInstance_StopByContext(t *testing.T) {
-	SkipForTntMajorBefore3(t)
-
 	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
 		"cluster_app", "config.yml"))
 	require.NoError(t, err)

@@ -272,30 +272,19 @@ local function start_instance()
         ffi.C.chdir(console_sock_dir)
     end
 
-    -- If tarantool version is above 2.8.1, then can use environment variables
-    -- instead of wrapping cfg.
-    if not check_version({2,8,1,0}) then
-        box.cfg = cfg_wrapper
-    end
     -- Preparation of the "console" socket.
     local console_sock = os.getenv('TT_CLI_CONSOLE_SOCKET')
     if console_sock ~= nil and console_sock ~= '' then
         local cons_listen_sock = console.listen(console_sock)
 
-        -- tarantool 1.10 does not have a trigger on terminate a process.
-        -- So the socket will be closed automatically on termination and
-        -- deleted from "running.go".
-        if box.ctl.on_shutdown ~= nil then
-            local function close_sock_tr()
-                box.ctl.on_shutdown(nil, close_sock_tr)
-                local res, err = pcall(cons_listen_sock.close, cons_listen_sock)
-                if not res then
-                    log.error('Failed to close console socket %s: %s', console_sock, err)
-                end
+        local function close_sock_tr()
+            box.ctl.on_shutdown(nil, close_sock_tr)
+            local res, err = pcall(cons_listen_sock.close, cons_listen_sock)
+            if not res then
+                log.error('Failed to close console socket %s: %s', console_sock, err)
             end
-            box.ctl.on_shutdown(close_sock_tr)
         end
-
+        box.ctl.on_shutdown(close_sock_tr)
     end
 
     -- After making console socket chdir back to work directory.
@@ -316,11 +305,6 @@ local function start_instance()
         ffi.C.dup2(tonumber(os.getenv("TT_CLI_RUN_STDIN_FD")), 0)
     end
     -- Start the Instance.
-
-    -- Cartridge takes instance path from arg[0] and use this path
-    -- for a workaround for rocks loading in tarantool 1.10.
-    -- This can be removed when tarantool 1.10 is no longer supported.
-    arg[0] = instance_path
 
     local ok, err = pcall(dofile, instance_path)
     if not ok then

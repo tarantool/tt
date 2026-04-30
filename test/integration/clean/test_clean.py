@@ -7,7 +7,7 @@ import tt_helper
 
 import utils
 
-skip_cluster_cond = utils.is_tarantool_less_3()
+skip_cluster_cond = not utils.is_tarantool_3()
 skip_cluster_reason = "skip cluster instances test for Tarantool < 3"
 
 

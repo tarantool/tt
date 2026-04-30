@@ -30,14 +30,6 @@ func newClusterInstance(tarantoolCli cmdcontext.TarantoolCli, instanceCtx Instan
 		return nil, err
 	}
 
-	tntVersion, err := tarantoolCli.GetVersion()
-	if err != nil {
-		return nil, err
-	}
-	if tntVersion.Major < 3 {
-		return nil, fmt.Errorf("cluster config is supported starting from Tarantool 3.0")
-	}
-
 	return &clusterInstance{
 		baseInstance:      newBaseInstance(tarantoolCli.Executable, instanceCtx, opts...),
 		runDir:            instanceCtx.RunDir,

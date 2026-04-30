@@ -75,8 +75,7 @@ func statusReplicasets(replicasets replicaset.Replicasets) error {
 	return nil
 }
 
-// fillAliases fills missed aliases with UUID. The case: Tarantool 1.10 without
-// an orchestrator.
+// fillAliases fills missed aliases with UUID.
 func fillAliases(replicasets replicaset.Replicasets) replicaset.Replicasets {
 	for i := range replicasets.Replicasets {
 		replicaset := &replicasets.Replicasets[i]
