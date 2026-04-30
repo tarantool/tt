@@ -26,8 +26,8 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-prompt v1.0.1
-	github.com/tarantool/go-tarantool v1.12.3
 	github.com/tarantool/go-tarantool/v2 v2.4.2
+	github.com/tarantool/go-tlsdialer v1.0.2
 	github.com/tarantool/tt/lib/cluster v0.0.0
 	github.com/tarantool/tt/lib/connect v0.0.0-0
 	github.com/tarantool/tt/lib/dial v0.0.0-0
@@ -117,7 +117,6 @@ require (
 	github.com/tarantool/go-openssl v1.2.2 // indirect
 	github.com/tarantool/go-option v1.0.0 // indirect
 	github.com/tarantool/go-storage v1.2.0 // indirect
-	github.com/tarantool/go-tlsdialer v1.0.2 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xiang90/probing v0.0.0-20221125231312-a49e3df8f510 // indirect
@@ -147,12 +146,10 @@ require (
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260223185530-2f722ef697dc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	gopkg.in/vmihailenco/msgpack.v2 v2.9.2 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
