@@ -1943,7 +1943,7 @@ def test_pack_app_local_tarantool(tt_cmd, tmpdir_with_tarantool, tmp_path):
         dirs_exist_ok=True,
     )
 
-    build_cmd = [tt_cmd, "create", "basic", "--name", "app", "--non-interactive"]
+    build_cmd = [tt_cmd, "create", "single_instance", "--name", "app", "--non-interactive"]
     tt_process = subprocess.Popen(
         build_cmd,
         cwd=tmp_path,
