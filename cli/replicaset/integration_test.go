@@ -3,15 +3,17 @@
 package replicaset_test
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/go-tarantool/test_helpers"
+	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tarantool/v2/test_helpers"
 
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/replicaset"
@@ -26,14 +28,19 @@ const (
 	console = workDir + "/" + "console.control"
 )
 
+var dialer = tarantool.NetDialer{
+	Address:  server,
+	User:     "test",
+	Password: "password",
+}
+
 var opts = tarantool.Opts{
-	Timeout: 500 * time.Millisecond,
-	User:    "test",
-	Pass:    "password",
+	Timeout:    500 * time.Millisecond,
+	SkipSchema: true,
 }
 
 func doRequest(req tarantool.Request) error {
-	conn, err := tarantool.Connect(server, opts)
+	conn, err := tarantool.Connect(context.Background(), dialer, opts)
 	if err != nil {
 		return err
 	}
@@ -507,23 +514,28 @@ func TestEvalAny_error(t *testing.T) {
 }
 
 func runTestMain(m *testing.M) int {
+	absWorkDir, err := filepath.Abs(workDir)
+	if err != nil {
+		fmt.Println("Failed to prepare test work dir:", err)
+		return 1
+	}
+
 	inst, err := test_helpers.StartTarantool(test_helpers.StartOpts{
+		Dialer:       dialer,
 		InitScript:   "testdata/config.lua",
 		Listen:       server,
-		WorkDir:      workDir,
-		User:         opts.User,
-		Pass:         opts.Pass,
+		WorkDir:      absWorkDir,
 		WaitStart:    5 * time.Second,
 		ConnectRetry: 5,
 		RetryTimeout: 100 * time.Millisecond,
 	})
-	defer test_helpers.StopTarantoolWithCleanup(inst)
 	if err != nil {
 		fmt.Println("Failed to prepare test tarantool:", err)
 		return 1
 	}
+	defer test_helpers.StopTarantoolWithCleanup(inst)
 
-	conn, err := tarantool.Connect(server, opts)
+	conn, err := tarantool.Connect(context.Background(), dialer, opts)
 	if err != nil {
 		fmt.Println("Failed to check tarantool version:", err)
 		return 1

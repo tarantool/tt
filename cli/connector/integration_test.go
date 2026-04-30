@@ -3,16 +3,19 @@
 package connector_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/go-tarantool"
-	"github.com/tarantool/go-tarantool/test_helpers"
+	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-tarantool/v2/test_helpers"
+	"github.com/tarantool/go-tlsdialer"
 
 	. "github.com/tarantool/tt/cli/connector"
 )
@@ -27,9 +30,13 @@ const (
 var (
 	tarantoolEe bool
 	opts        = tarantool.Opts{
-		Timeout: 500 * time.Millisecond,
-		User:    "test",
-		Pass:    "password",
+		Timeout:    500 * time.Millisecond,
+		SkipSchema: true,
+	}
+	dialer = tarantool.NetDialer{
+		Address:  server,
+		User:     "test",
+		Password: "password",
 	}
 )
 
@@ -53,7 +60,7 @@ func textConnectWithValidation(t *testing.T) *TextConnector {
 }
 
 func binaryConnectWithValidation(t *testing.T) *BinaryConnector {
-	conn := test_helpers.ConnectWithValidation(t, server, opts)
+	conn := test_helpers.ConnectWithValidation(t, dialer, opts)
 	return NewBinaryConnector(conn)
 }
 
@@ -327,29 +334,36 @@ func TestPoolEval_error(t *testing.T) {
 }
 
 func runTestMain(m *testing.M) int {
+	absWorkDir, err := filepath.Abs(workDir)
+	if err != nil {
+		fmt.Println("Failed to prepare test work dir:", err)
+		return 1
+	}
+
 	inst, err := test_helpers.StartTarantool(test_helpers.StartOpts{
 		InitScript:   "testdata/config.lua",
 		Listen:       server,
-		WorkDir:      workDir,
-		User:         opts.User,
-		Pass:         opts.Pass,
+		WorkDir:      absWorkDir,
 		WaitStart:    5 * time.Second,
 		ConnectRetry: 5,
 		RetryTimeout: 100 * time.Millisecond,
+		Dialer:       dialer,
 	})
-	defer test_helpers.StopTarantoolWithCleanup(inst)
 	if err != nil {
 		fmt.Println("Failed to prepare test tarantool:", err)
 		return 1
 	}
+	defer test_helpers.StopTarantoolWithCleanup(inst)
 
-	conn, err := tarantool.Connect(server, opts)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	conn, err := tarantool.Connect(ctx, dialer, opts)
 	if err != nil {
 		fmt.Println("Failed to check tarantool version:", err)
 		return 1
 	}
 	req := tarantool.NewEvalRequest("return box.info.package")
-	resp, err := conn.Do(req).Get()
+	data, err := conn.Do(req).Get()
 	conn.Close()
 
 	if err != nil {
@@ -357,37 +371,48 @@ func runTestMain(m *testing.M) int {
 		return 1
 	}
 
-	if len(resp.Data) > 0 {
-		if pack, ok := resp.Data[0].(string); ok {
+	if len(data) > 0 {
+		if pack, ok := data[0].(string); ok {
 			tarantoolEe = pack == "Tarantool Enterprise"
 		}
 	}
 
 	if tarantoolEe {
+		absTLSWorkDir, err := filepath.Abs(workDir + "_tls")
+		if err != nil {
+			fmt.Println("Failed to prepare TLS test work dir:", err)
+			return 1
+		}
+
 		// Try to start Tarantool instance with TLS.
 		listen := serverTls + "?transport=ssl&" +
 			"ssl_key_file=testdata/localhost.key&" +
 			"ssl_cert_file=testdata/localhost.crt&" +
 			"ssl_ca_file=testdata/ca.crt"
+
+		tlsDialer := tlsdialer.OpenSSLDialer{
+			Address:     serverTls,
+			User:        dialer.User,
+			Password:    dialer.Password,
+			SslKeyFile:  sslOpts.KeyFile,
+			SslCertFile: sslOpts.CertFile,
+			SslCaFile:   sslOpts.CaFile,
+		}
 		inst, err = test_helpers.StartTarantool(test_helpers.StartOpts{
-			InitScript:      "testdata/config.lua",
-			Listen:          listen,
-			SslCertsDir:     "testdata",
-			ClientServer:    serverTls,
-			ClientTransport: "ssl",
-			ClientSsl:       tarantool.SslOpts(sslOpts),
-			WorkDir:         workDir,
-			User:            opts.User,
-			Pass:            opts.Pass,
-			WaitStart:       time.Second,
-			ConnectRetry:    5,
-			RetryTimeout:    200 * time.Millisecond,
+			InitScript:   "testdata/config.lua",
+			Listen:       listen,
+			SslCertsDir:  "testdata",
+			WorkDir:      absTLSWorkDir,
+			WaitStart:    time.Second,
+			ConnectRetry: 5,
+			RetryTimeout: 200 * time.Millisecond,
+			Dialer:       tlsDialer,
 		})
-		defer test_helpers.StopTarantoolWithCleanup(inst)
 		if err != nil {
 			fmt.Println("Failed to prepare test tarantool with TLS:", err)
 			return 1
 		}
+		defer test_helpers.StopTarantoolWithCleanup(inst)
 	}
 
 	return m.Run()
