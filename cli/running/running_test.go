@@ -345,7 +345,7 @@ func TestIsAbleToStartInstances(t *testing.T) {
 
 	err := os.WriteFile(filepath.Join(tmpDir, "tnt.sh"),
 		[]byte(`#!/bin/bash
-echo "Tarantool 2.11.0"`),
+echo "Tarantool 3.0.0"`),
 		0o755)
 	require.NoError(t, err)
 
@@ -362,26 +362,11 @@ echo "Tarantool 2.11.0"`),
 	})
 	assert.True(t, canStart)
 
-	canStart, reason := IsAbleToStartInstances([]InstanceCtx{
-		{
-			InstanceScript:    "init.lua",
-			ClusterConfigPath: "config.yml",
-		},
-	}, &cmdcontext.CmdCtx{
-		Cli: cmdcontext.CliCtx{
-			TarantoolCli: cmdcontext.TarantoolCli{
-				Executable: filepath.Join(tmpDir, "tnt.sh"),
-			},
-		},
-	})
-	assert.False(t, canStart)
-	assert.Contains(t, reason, "supported by Tarantool starting from version 3.0")
-
 	err = os.WriteFile(filepath.Join(tmpDir, "tnt_non_executable.sh"),
 		[]byte(`#!/bin/bash
-echo "Tarantool 2.11.0"`), 0o644)
+echo "Tarantool 3.0.0"`), 0o644)
 	require.NoError(t, err)
-	canStart, reason = IsAbleToStartInstances([]InstanceCtx{
+	canStart, reason := IsAbleToStartInstances([]InstanceCtx{
 		{
 			InstanceScript: "init.lua",
 		},

@@ -152,7 +152,7 @@ def tcs_params():
 
 @pytest.fixture(scope="function")
 def tcs(request, tmp_path, tcs_params):
-    if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+    if not utils.is_tarantool_3() or not utils.is_tarantool_ee():
         pytest.skip()
 
     test_app_dir = request.path.parent / "test_tcs_app"
@@ -279,7 +279,7 @@ def cluster_params():
 
 @pytest.fixture
 def cluster(request, tt, cluster_params, port_factory):
-    if utils.is_tarantool_less_3():
+    if not utils.is_tarantool_3():
         pytest.skip("centralized config requires Tarantool v3.x")
 
     input_params = [
@@ -313,7 +313,7 @@ def config_storage(request, config_storage_type):
 
 @pytest.fixture
 def cluster_supervised(request, tt, cluster, config_storage):
-    if utils.is_tarantool_less_3() or not utils.is_tarantool_ee():
+    if not utils.is_tarantool_3() or not utils.is_tarantool_ee():
         pytest.skip("supervised failover requires Tarantool Enterprise v3.x")
 
     creds = f"{config_storage.connection_username}:{config_storage.connection_password}@"

@@ -99,9 +99,9 @@ func NewInstallCmd() *cobra.Command {
 
     $ tt install tt pr/534
 
-# Install Tarantool 2.10.5 with limit number of simultaneous jobs for make.
+# Install Tarantool 3.0.0 with limit number of simultaneous jobs for make.
 
-    $ MAKEFLAGS="-j2" tt install tarantool 2.10.5`,
+    $ MAKEFLAGS="-j2" tt install tarantool 3.0.0`,
 	}
 	installCmd.Flags().BoolVarP(&installCtx.Force, "force", "f", false,
 		"don't do a dependency check before installing")

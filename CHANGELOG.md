@@ -21,6 +21,7 @@ for machine-readable output.
 - `tt init/create`: cartridge support removed.
 - `tt build/pack`: cartridge support removed.
 - tarantoolctl support has been completely removed.
+- Removed support for Tarantool 1.10 and 2.x. Only Tarantool 3.x is supported.
 
 ### Fixed
 

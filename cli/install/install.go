@@ -27,47 +27,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Backported cmake rules for static build.
-// Static build has appeared since version 2.6.1.
-//
-//go:embed extra/tarantool-static-build.patch
-var staticBuildPatch []byte
-
-// Fix missing OpenSSL symbols.
-//
-//go:embed extra/openssl-symbols.patch
-var opensslSymbolsPatch []byte
-
-//go:embed extra/openssl-symbols-1.10.14.patch
-var opensslSymbolsPatch14 []byte
-
-// Necessary for building with >= glibc-2.34.
-// Not actual for >= (1.10.11, 2.8.3).
-//
-//go:embed extra/gh-6686-fix-build-with-glibc-2-34.patch
-var glibcPatch []byte
-
-// zlib version 1.2.11 is no longer available for download.
-// Not actual for >= 2.10.0-rc1, 2.8.4.
-//
-//go:embed extra/zlib-backup-old.patch
-var zlibPatchOld []byte
-
-//go:embed extra/zlib-backup.patch
-var zlibPatch []byte
-
-// Old version of the libunwind doesn't compile under GCC 10.
-// Not actual for >= 2.10.0-rc1.
-//
-//go:embed extra/bump-libunwind-old.patch
-var unwindPatchOld []byte
-
-//go:embed extra/bump-libunwind.patch
-var unwindPatch []byte
-
-//go:embed extra/bump-libunwind-new.patch
-var unwindPatchNew []byte
-
 const (
 	// defaultDirPermissions is rights used to create folders.
 	// 0755 - drwxr-xr-x
@@ -706,72 +665,14 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	return nil
 }
 
-// patchTarantool applies patches to specific versions of tarantool.
-func patchTarantool(srcPath, tarVersion string,
-	installCtx InstallCtx, logFile *os.File,
-) error {
-	log.Infof("Patching tarantool...")
-
-	if tarVersion == "master" {
-		return nil
-	}
-
-	ver, err := version.Parse(tarVersion)
-	if err != nil {
-		return err
-	}
-
-	patches := []patcher{
-		patchRange_1_to_2_6_1{defaultPatchApplier{staticBuildPatch}},
-		patchRange_1_to_1_10_14{defaultPatchApplier{opensslSymbolsPatch}},
-		patchRange_1_10_14_to_1_10_16{defaultPatchApplier{opensslSymbolsPatch14}},
-		patchRange_1_to_1_10_12{defaultPatchApplier{glibcPatch}},
-		patchRange_2_to_2_8{defaultPatchApplier{glibcPatch}},
-		patchRange_2_8_to_2_8_3{defaultPatchApplier{glibcPatch}},
-		patch_2_10_0_rc1{defaultPatchApplier{glibcPatch}},
-		patchRange_2_7_to_2_7_2{defaultPatchApplier{zlibPatchOld}},
-		patchRange_2_7_2_to_2_7_4{defaultPatchApplier{zlibPatch}},
-		patchRange_2_8_1_to_2_8_4{defaultPatchApplier{zlibPatch}},
-		patch_2_10_beta{defaultPatchApplier{zlibPatch}},
-		patchRange_2_7_to_2_7_2{defaultPatchApplier{unwindPatchOld}},
-		patch_2_8_4{defaultPatchApplier{unwindPatchNew}},
-		patchRange_2_7_2_to_2_7_4{defaultPatchApplier{unwindPatch}},
-		patchRange_2_8_1_to_2_8_4{defaultPatchApplier{unwindPatch}},
-		patch_2_10_beta{defaultPatchApplier{unwindPatch}},
-	}
-
-	for _, patch := range patches {
-		if patch.isApplicable(ver) {
-			err = patch.apply(srcPath, installCtx.verbose, logFile)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
 // prepareCmakeOpts prepares cmake command line options for tarantool building.
-func prepareCmakeOpts(buildPath, tntVersion string,
+func prepareCmakeOpts(buildPath string,
 	installCtx InstallCtx,
 ) ([]string, error) {
 	cmakeOpts := []string{".."}
 
-	// Disable backtrace feature for versions 1.10.X.
-	// This feature is not supported by a backported static build.
-	btFlag := "ON"
-	if tntVersion != "master" {
-		version, err := version.Parse(tntVersion)
-		if err == nil {
-			if version.Major == 1 {
-				btFlag = "OFF"
-			}
-		}
-	}
-
 	cmakeOpts = append(cmakeOpts, `-DCMAKE_TARANTOOL_ARGS=-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
-		`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=`+btFlag)
+		`-DENABLE_WERROR=OFF;-DENABLE_BACKTRACE=ON`)
 
 	if installCtx.Dynamic {
 		cmakeOpts = append(cmakeOpts, "-DCMAKE_INSTALL_PREFIX="+filepath.Join(buildPath,
@@ -797,7 +698,7 @@ func prepareMakeOpts(installCtx InstallCtx) []string {
 }
 
 // buildTarantool builds tarantool from source. Returns a path, where build artifacts are placed.
-func buildTarantool(srcPath, tarVersion string,
+func buildTarantool(srcPath string,
 	installCtx InstallCtx, logFile *os.File,
 ) (string, error) {
 	buildPath := filepath.Join(srcPath, "/static-build/build")
@@ -809,7 +710,7 @@ func buildTarantool(srcPath, tarVersion string,
 		return "", err
 	}
 
-	cmakeOpts, err := prepareCmakeOpts(buildPath, tarVersion, installCtx)
+	cmakeOpts, err := prepareCmakeOpts(buildPath, installCtx)
 	if err != nil {
 		return "", err
 	}
@@ -1182,18 +1083,9 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 		return err
 	}
 
-	// Patch tarantool.
-	if versionFound {
-		err = patchTarantool(path, tarVersion, installCtx, logFile)
-		if err != nil {
-			printLog(logFile.Name())
-			return err
-		}
-	}
-
 	// Build tarantool.
 	log.Infof("Building tarantool...")
-	buildPath, err := buildTarantool(path, tarVersion, installCtx, logFile)
+	buildPath, err := buildTarantool(path, installCtx, logFile)
 	if err != nil {
 		printLog(logFile.Name())
 		return err

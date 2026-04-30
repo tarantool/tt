@@ -82,9 +82,9 @@ func NewSearchCmd() *cobra.Command {
 
     $ tt search tarantool-ee
 
-# Remote search across all 2.11 debug versions of Tarantool Enterprise Edition.
+# Remote search across all 3.0 debug versions of Tarantool Enterprise Edition.
 
-    $ tt search tarantool-ee --debug --version 2.11
+    $ tt search tarantool-ee --debug --version 3.0
 
 # Remote search across all versions of Tarantool Cluster Manager.
 

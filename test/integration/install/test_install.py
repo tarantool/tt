@@ -12,7 +12,6 @@ from utils import (
     config_name,
     get_tarantool_commit,
     is_tarantool_ee,
-    is_tarantool_less,
     is_valid_tarantool_installed,
     run_command_and_get_output,
 )
@@ -277,56 +276,9 @@ def test_install_tarantool_commit(tt_cmd, tmp_path):
     )
 
 
-@pytest.mark.slow
-@pytest.mark.parametrize(
-    "required_ver, installed_ver",
-    [
-        ("2.10.7", "2.10.7"),
-        ("v2.10", "2.10.8"),
-    ],
-)
-def test_install_tarantool(tt_cmd, tmp_path, required_ver: str, installed_ver: str):
-    config_path = os.path.join(tmp_path, config_name)
-    # Create test config.
-    with open(config_path, "w") as f:
-        yaml.dump({"env": {"bin_dir": "", "inc_dir": "./my_inc"}}, f)
-
-    tmp_path_without_config = tempfile.mkdtemp()
-
-    # Install latest tarantool.
-    install_cmd = [tt_cmd, "--cfg", config_path, "install", "-f", "tarantool", required_ver]
-    instance_process = subprocess.Popen(
-        install_cmd,
-        cwd=tmp_path_without_config,
-        stderr=subprocess.STDOUT,
-        # Do not use pipe for stdout, if you are not going to read from it.
-        # In case of build failure, logs are printed to stdout. It fills pipe buffer and
-        # blocks all subsequent stdout write calls in tt, because there is no pipe reader in test.
-        stdout=subprocess.DEVNULL,
-        text=True,
-    )
-
-    # Check that the process was shutdown correctly.
-    instance_process_rc = instance_process.wait()
-    assert instance_process_rc == 0
-    installed_cmd = [tmp_path / "bin" / "tarantool", "-v"]
-    installed_program_process = subprocess.Popen(
-        installed_cmd,
-        cwd=os.path.join(tmp_path, "/bin"),
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-
-    run_output = installed_program_process.stdout.readline()
-    assert re.search(rf"Tarantool.*{installed_ver}", run_output)
-    assert os.path.exists(os.path.join(tmp_path, "my_inc", "include", "tarantool"))
-    assert os.path.exists(os.path.join(tmp_path, "bin", f"tarantool_{installed_ver}"))
-
-
 @pytest.mark.skipif(
-    is_tarantool_ee() or is_tarantool_less(2, 10),
-    reason="Tarantool CE 2.10 or above required",
+    is_tarantool_ee(),
+    reason="Tarantool CE required",
 )
 @pytest.mark.slow
 @pytest.mark.docker
@@ -570,7 +522,7 @@ def test_install_tarantool_already_exists(tt_cmd, tmp_path):
         os.path.join(tt_dir, config_name),
         "install",
         "tarantool",
-        "1.10.13",
+        "3.0.0",
     ]
 
     install_process = subprocess.Popen(
@@ -587,8 +539,8 @@ def test_install_tarantool_already_exists(tt_cmd, tmp_path):
     assert is_valid_tarantool_installed(
         os.path.join(tt_dir, "bin"),
         os.path.join(tt_dir, "inc", "include"),
-        os.path.join(tt_dir, "bin", "tarantool_1.10.13"),
-        os.path.join(tt_dir, "inc", "include", "tarantool_1.10.13"),
+        os.path.join(tt_dir, "bin", "tarantool_3.0.0"),
+        os.path.join(tt_dir, "inc", "include", "tarantool_3.0.0"),
     )
 
 

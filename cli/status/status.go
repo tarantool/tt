@@ -215,8 +215,7 @@ func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter) error 
 			continue
 		}
 
-		// Since Tarantool 2.x doesn't support instance names, only UUIDs are available.
-		// To make the alerts more readable, we map the UUIDs to instance names.
+		// Map UUIDs to instance names so replication alerts are readable.
 		uuid2name[instanceState.UUID] = fullInstanceName
 
 		processConfigInfo(&instStatus, instanceState)

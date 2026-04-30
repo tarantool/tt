@@ -582,8 +582,8 @@ def is_tarantool_less(maj, min=0):
     return major_version < maj or (major_version == maj and minor_version < min)
 
 
-def is_tarantool_less_3():
-    return is_tarantool_less(3)
+def is_tarantool_3():
+    return not is_tarantool_less(3)
 
 
 def is_tarantool_ee():
@@ -611,14 +611,14 @@ def is_quit_supported():
 
 
 def is_cluster_app_supported():
-    return not is_tarantool_less(3)
+    return is_tarantool_3()
 
 
 def skip_if_tcm_not_supported():
     if not is_tarantool_ee():
         pytest.skip("Tarantool Enterprise required")
 
-    if is_tarantool_less_3():
+    if not is_tarantool_3():
         pytest.skip("TCM not supported")
 
 

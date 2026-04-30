@@ -42,7 +42,7 @@ You will need to choose version using arrow keys in your console.
 
 # Switch with program and version.
 
-	$ tt binaries switch tarantool 2.10.4`,
+	$ tt binaries switch tarantool 3.0.0`,
 		Run:       RunModuleFunc(internalSwitchModule),
 		Args:      cobra.MatchAll(cobra.MaximumNArgs(2), binariesSwitchValidateArgs),
 		ValidArgs: binariesSupportedPrograms,
