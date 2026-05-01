@@ -116,26 +116,6 @@ def test_cluster_worker_delete_help(tt_cmd, tmp_path):
     assert "-p" in help_output or "--password" in help_output
 
 
-def test_cluster_worker_show_unimplemented(tt_cmd, tmp_path):
-    show_cmd = [
-        tt_cmd,
-        "cluster",
-        "worker",
-        "show",
-        "https://localhost:2379/prefix/host/worker",
-    ]
-    instance_process = subprocess.Popen(
-        show_cmd,
-        cwd=tmp_path,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    output = instance_process.stdout.read()
-
-    assert "unimplemented" in output
-
-
 def test_cluster_worker_delete_unimplemented(tt_cmd, tmp_path):
     delete_cmd = [
         tt_cmd,
@@ -764,3 +744,433 @@ def test_cluster_worker_publish_auth_bad_credentials(
     finally:
         if instance_name == "etcd":
             instance.disable_auth()
+
+
+def test_cluster_worker_show_invalid_url(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "worker",
+        "show",
+        "not-a-valid-url",
+    ]
+    instance_process = subprocess.Popen(
+        show_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    output = instance_process.stdout.read()
+
+    assert "invalid URL" in output
+
+
+def test_cluster_worker_show_invalid_path(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "worker",
+        "show",
+        "http://localhost:2379/onlyhost?timeout=0.1",
+    ]
+    instance_process = subprocess.Popen(
+        show_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    output = instance_process.stdout.read()
+
+    assert output == (
+        "   ⨯ failed to parse URL path:"
+        " URL path must contain at least a host-name and a worker-name,"
+        ' got: "/onlyhost"\n'
+    )
+
+
+def test_cluster_worker_show_connection_failed(tt_cmd, tmpdir_with_cfg):
+    tmpdir = tmpdir_with_cfg
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "worker",
+        "show",
+        "https://localhost:12344/prefix/host1/worker1?timeout=0.1",
+    ]
+    instance_process = subprocess.Popen(
+        show_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    output = instance_process.stdout.read()
+
+    assert "failed to connect to storage: failed to connect to etcd or tarantool" in output
+
+
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_worker_show(tt_cmd, tmpdir_with_cfg, instance_name, request):
+    instance = request.getfixturevalue(instance_name)
+    tmpdir = tmpdir_with_cfg
+
+    conn = instance.conn()
+    storage_key = "/prefix/instances/host1/worker1"
+    if instance_name == "etcd":
+        conn.put(storage_key, worker_cfg)
+    else:
+        conn.call("config.storage.put", storage_key, worker_cfg)
+
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "worker",
+        "show",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5",
+    ]
+    instance_process = subprocess.Popen(
+        show_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    show_output = instance_process.stdout.read()
+
+    assert show_output.strip() == worker_cfg.strip()
+
+
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_worker_show_nested_prefix(tt_cmd, tmpdir_with_cfg, instance_name, request):
+    instance = request.getfixturevalue(instance_name)
+    tmpdir = tmpdir_with_cfg
+
+    conn = instance.conn()
+    storage_key = "/tdb-workers/cluster1/instances/host1/worker1"
+    if instance_name == "etcd":
+        conn.put(storage_key, worker_cfg)
+    else:
+        conn.call("config.storage.put", storage_key, worker_cfg)
+
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "worker",
+        "show",
+        "http://"
+        + creds
+        + f"{instance.host}:{instance.port}/tdb-workers/cluster1/host1/worker1?timeout=5",
+    ]
+    instance_process = subprocess.Popen(
+        show_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    show_output = instance_process.stdout.read()
+
+    assert show_output.strip() == worker_cfg.strip()
+
+
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_worker_show_not_found(tt_cmd, tmpdir_with_cfg, instance_name, request):
+    instance = request.getfixturevalue(instance_name)
+    tmpdir = tmpdir_with_cfg
+
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    show_cmd = [
+        tt_cmd,
+        "cluster",
+        "worker",
+        "show",
+        "http://" + creds + f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5",
+    ]
+    instance_process = subprocess.Popen(
+        show_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    show_output = instance_process.stdout.read()
+
+    assert "worker configuration not found" in show_output
+
+
+@pytest.mark.parametrize(
+    "auth, instance_name",
+    [
+        pytest.param("url", "etcd"),
+        pytest.param("flag", "etcd"),
+        pytest.param("env", "etcd"),
+        pytest.param("url", "tcs"),
+        pytest.param("flag", "tcs"),
+        pytest.param("env", "tcs"),
+    ],
+)
+def test_cluster_worker_show_auth(tt_cmd, tmpdir_with_cfg, auth, instance_name, request):
+    instance = request.getfixturevalue(instance_name)
+    tmpdir = tmpdir_with_cfg
+
+    conn = instance.conn()
+    storage_key = "/prefix/instances/host1/worker1"
+    if instance_name == "etcd":
+        conn.put(storage_key, worker_cfg)
+    else:
+        conn.call("config.storage.put", storage_key, worker_cfg)
+
+    if instance_name == "etcd":
+        instance.enable_auth()
+
+    try:
+        if auth == "url":
+            env = None
+            url = (
+                f"http://{instance.connection_username}:{instance.connection_password}@"
+                f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5"
+            )
+            show_cmd = [tt_cmd, "cluster", "worker", "show", url]
+        elif auth == "flag":
+            env = None
+            url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
+            show_cmd = [
+                tt_cmd,
+                "cluster",
+                "worker",
+                "show",
+                url,
+                "-u",
+                instance.connection_username,
+                "-p",
+                instance.connection_password,
+            ]
+        elif auth == "env":
+            env = {
+                (
+                    "TT_CLI_ETCD_USERNAME" if instance_name == "etcd" else "TT_CLI_USERNAME"
+                ): instance.connection_username,
+                (
+                    "TT_CLI_ETCD_PASSWORD" if instance_name == "etcd" else "TT_CLI_PASSWORD"
+                ): instance.connection_password,
+            }
+            url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
+            show_cmd = [tt_cmd, "cluster", "worker", "show", url]
+
+        instance_process = subprocess.Popen(
+            show_cmd,
+            env=env,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        show_output = instance_process.stdout.read()
+
+        assert show_output.strip() == worker_cfg.strip()
+    finally:
+        if instance_name == "etcd":
+            instance.disable_auth()
+
+
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_worker_show_auth_priority_url_over_flag(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+):
+    instance = request.getfixturevalue(instance_name)
+    tmpdir = tmpdir_with_cfg
+
+    conn = instance.conn()
+    storage_key = "/prefix/instances/host1/worker1"
+    if instance_name == "etcd":
+        conn.put(storage_key, worker_cfg)
+    else:
+        conn.call("config.storage.put", storage_key, worker_cfg)
+
+    if instance_name == "etcd":
+        instance.enable_auth()
+
+    try:
+        url = (
+            f"http://{instance.connection_username}:{instance.connection_password}@"
+            f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5"
+        )
+        show_cmd = [
+            tt_cmd,
+            "cluster",
+            "worker",
+            "show",
+            url,
+            "-u",
+            "invalid_user",
+            "-p",
+            "invalid_pass",
+        ]
+        instance_process = subprocess.Popen(
+            show_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        show_output = instance_process.stdout.read()
+
+        assert show_output.strip() == worker_cfg.strip()
+    finally:
+        if instance_name == "etcd":
+            instance.disable_auth()
+
+
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_worker_show_auth_priority_flag_over_env(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+):
+    instance = request.getfixturevalue(instance_name)
+    tmpdir = tmpdir_with_cfg
+
+    conn = instance.conn()
+    storage_key = "/prefix/instances/host1/worker1"
+    if instance_name == "etcd":
+        conn.put(storage_key, worker_cfg)
+    else:
+        conn.call("config.storage.put", storage_key, worker_cfg)
+
+    if instance_name == "etcd":
+        instance.enable_auth()
+
+    try:
+        env = {
+            "TT_CLI_ETCD_USERNAME"
+            if instance_name == "etcd"
+            else "TT_CLI_USERNAME": "invalid_env_user",
+            "TT_CLI_ETCD_PASSWORD"
+            if instance_name == "etcd"
+            else "TT_CLI_PASSWORD": "invalid_env_pass",
+        }
+        url = f"{instance.endpoint}/prefix/host1/worker1?timeout=5"
+        show_cmd = [
+            tt_cmd,
+            "cluster",
+            "worker",
+            "show",
+            url,
+            "-u",
+            instance.connection_username,
+            "-p",
+            instance.connection_password,
+        ]
+        instance_process = subprocess.Popen(
+            show_cmd,
+            env=env,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        show_output = instance_process.stdout.read()
+
+        assert show_output.strip() == worker_cfg.strip()
+    finally:
+        if instance_name == "etcd":
+            instance.disable_auth()
+
+
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_worker_show_auth_bad_credentials(
+    tt_cmd,
+    tmpdir_with_cfg,
+    instance_name,
+    request,
+):
+    instance = request.getfixturevalue(instance_name)
+    tmpdir = tmpdir_with_cfg
+
+    conn = instance.conn()
+    storage_key = "/prefix/instances/host1/worker1"
+    if instance_name == "etcd":
+        conn.put(storage_key, worker_cfg)
+    else:
+        conn.call("config.storage.put", storage_key, worker_cfg)
+
+    if instance_name == "etcd":
+        instance.enable_auth()
+
+    try:
+        url = f"http://invalid_user:invalid_pass@{instance.host}:{instance.port}/prefix/host1/worker1?timeout=1"
+        show_cmd = [tt_cmd, "cluster", "worker", "show", url]
+        instance_process = subprocess.Popen(
+            show_cmd,
+            cwd=tmpdir,
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        show_output = instance_process.stdout.read()
+
+        assert "failed to connect to storage: failed to connect to etcd or tarantool" in show_output
+    finally:
+        if instance_name == "etcd":
+            instance.disable_auth()
+
+
+@pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
+def test_cluster_worker_publish_then_show(tt_cmd, tmpdir_with_cfg, instance_name, request):
+    instance = request.getfixturevalue(instance_name)
+    tmpdir = tmpdir_with_cfg
+    worker_cfg_path = os.path.join(tmpdir, "worker.yaml")
+    with open(worker_cfg_path, "w") as f:
+        f.write(worker_cfg)
+
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    url = "http://" + creds + f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5"
+
+    publish_cmd = [tt_cmd, "cluster", "worker", "publish", url, "worker.yaml"]
+    instance_process = subprocess.Popen(
+        publish_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    publish_output = instance_process.stdout.read()
+    assert "" == publish_output
+
+    show_cmd = [tt_cmd, "cluster", "worker", "show", url]
+    instance_process = subprocess.Popen(
+        show_cmd,
+        cwd=tmpdir,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    show_output = instance_process.stdout.read()
+
+    assert show_output.strip() == worker_cfg.strip()
