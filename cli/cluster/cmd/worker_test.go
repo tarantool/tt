@@ -1,9 +1,17 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/go-storage"
+	"github.com/tarantool/go-storage/kv"
+	"github.com/tarantool/go-storage/operation"
+	"github.com/tarantool/go-storage/predicate"
+	"github.com/tarantool/go-storage/tx"
+	"github.com/tarantool/go-storage/watch"
 
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
@@ -239,9 +247,132 @@ func TestResolveWorkerCredentials(t *testing.T) {
 	}
 }
 
+type mockTx struct {
+	results    []tx.RequestResponse
+	succeeded  bool
+	err        error
+	operations []operation.Operation
+}
+
+func (m *mockTx) If(predicates ...predicate.Predicate) tx.Tx {
+	return m
+}
+
+func (m *mockTx) Then(operations ...operation.Operation) tx.Tx {
+	m.operations = operations
+	return m
+}
+
+func (m *mockTx) Else(operations ...operation.Operation) tx.Tx {
+	return m
+}
+
+func (m *mockTx) Commit() (tx.Response, error) {
+	if m.err != nil {
+		return tx.Response{}, m.err
+	}
+	return tx.Response{
+		Succeeded: m.succeeded,
+		Results:   m.results,
+	}, nil
+}
+
+type mockStorage struct {
+	tx *mockTx
+}
+
+func (m *mockStorage) Watch(
+	ctx context.Context,
+	key []byte,
+	opts ...watch.Option,
+) <-chan watch.Event {
+	return nil
+}
+
+func (m *mockStorage) Tx(ctx context.Context) tx.Tx {
+	return m.tx
+}
+
+func (m *mockStorage) Range(
+	ctx context.Context,
+	opts ...storage.RangeOption,
+) ([]kv.KeyValue, error) {
+	return nil, nil
+}
+
 func TestWorkerShow(t *testing.T) {
-	err := WorkerShow("http://localhost:2379/prefix/host/worker", WorkerShowCtx{})
-	require.EqualError(t, err, "unimplemented")
+	workerCfg := `type: nontarantool
+instrumentation:
+  url: host1:8080
+  metrics_url: /metrics
+  metrics_format: prometheus
+config:
+  addr: host1:9080
+`
+
+	cases := []struct {
+		name        string
+		key         string
+		value       []byte
+		txErr       error
+		expectedErr string
+	}{
+		{
+			name:  "key found",
+			key:   "/prefix/instances/host1/worker1",
+			value: []byte(workerCfg),
+		},
+		{
+			name:        "key not found",
+			key:         "/prefix/instances/host1/worker1",
+			value:       nil,
+			expectedErr: "worker configuration not found",
+		},
+		{
+			name:        "storage error",
+			key:         "/prefix/instances/host1/worker1",
+			txErr:       errors.New("connection refused"),
+			expectedErr: "failed to get worker configuration",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var results []tx.RequestResponse
+			if tc.value != nil {
+				results = []tx.RequestResponse{
+					{
+						Values: []kv.KeyValue{
+							{Key: []byte(tc.key), Value: tc.value},
+						},
+					},
+				}
+			}
+
+			mockStg := &mockStorage{
+				tx: &mockTx{
+					results: results,
+					err:     tc.txErr,
+				},
+			}
+
+			showCtx := WorkerShowCtx{
+				Storage: mockStg,
+				Key:     tc.key,
+			}
+
+			output, err := WorkerShow(showCtx)
+
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Contains(t, string(output), "type: nontarantool")
+			require.Contains(t, string(output), "host1:8080")
+		})
+	}
 }
 
 func TestWorkerDelete(t *testing.T) {

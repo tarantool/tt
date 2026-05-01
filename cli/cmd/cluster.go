@@ -75,6 +75,11 @@ var (
 
 var workerShowCtx = clustercmd.WorkerShowCtx{}
 
+var (
+	workerShowUsername string
+	workerShowPassword string
+)
+
 var workerDeleteCtx = clustercmd.WorkerDeleteCtx{}
 
 var (
@@ -317,9 +322,9 @@ func newClusterWorkerCmd() *cobra.Command {
 		Run:  RunModuleFunc(internalClusterWorkerShowModule),
 		Args: cobra.ExactArgs(1),
 	}
-	showCmd.Flags().StringVarP(&workerShowCtx.Username, "username", "u", "",
+	showCmd.Flags().StringVarP(&workerShowUsername, "username", "u", "",
 		"username (used as etcd/tarantool config storage credentials)")
-	showCmd.Flags().StringVarP(&workerShowCtx.Password, "password", "p", "",
+	showCmd.Flags().StringVarP(&workerShowPassword, "password", "p", "",
 		"password (used as etcd/tarantool config storage credentials)")
 
 	deleteCmd := &cobra.Command{
@@ -640,12 +645,28 @@ func internalClusterWorkerShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 		return fmt.Errorf("invalid URL %q: %w", args[0], err)
 	}
 
-	workerShowCtx.Username, workerShowCtx.Password = clustercmd.ResolveWorkerCredentials(
-		opts, workerShowCtx.Username, workerShowCtx.Password)
+	prefix, hostName, workerName, err := clustercmd.ParseWorkerPath(opts.Prefix)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL path: %w", err)
+	}
+	workerShowCtx.Key = clustercmd.BuildWorkerStorageKey(prefix, hostName, workerName)
 
-	if err := clustercmd.WorkerShow(args[0], workerShowCtx); err != nil {
+	username, password := clustercmd.ResolveWorkerCredentials(
+		opts, workerShowUsername, workerShowPassword)
+
+	stg, closeFunc, err := clustercmd.ConnectStorage(opts, username, password)
+	if err != nil {
+		return fmt.Errorf("failed to connect to storage: %w", err)
+	}
+	defer closeFunc()
+	workerShowCtx.Storage = stg
+
+	output, err := clustercmd.WorkerShow(workerShowCtx)
+	if err != nil {
 		return fmt.Errorf("failed to show worker configuration: %w", err)
 	}
+
+	fmt.Print(string(output))
 	return nil
 }
 

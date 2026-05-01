@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt cluster`: worker publish subcommand.
+- `tt cluster`: worker show subcommand.
 
 ### Changed
 

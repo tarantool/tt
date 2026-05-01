@@ -29,10 +29,10 @@ type WorkerPublishCtx struct {
 // WorkerShowCtx contains information about cluster worker show command
 // execution context.
 type WorkerShowCtx struct {
-	// Username defines a username for connection.
-	Username string
-	// Password defines a password for connection.
-	Password string
+	// Storage is the storage instance for the operation.
+	Storage storage.Storage
+	// Key is the key in storage for the worker configuration.
+	Key string
 }
 
 // WorkerDeleteCtx contains information about cluster worker delete command
@@ -147,9 +147,24 @@ func WorkerPublish(publishCtx WorkerPublishCtx) error {
 	return nil
 }
 
-// WorkerShow shows a worker configuration. Unimplemented.
-func WorkerShow(url string, ctx WorkerShowCtx) error {
-	return errors.New("unimplemented")
+// WorkerShow shows a worker configuration from storage.
+// It returns an error if the configuration is not found.
+func WorkerShow(showCtx WorkerShowCtx) ([]byte, error) {
+	ctx := context.Background()
+	key := []byte(showCtx.Key)
+
+	resp, err := showCtx.Storage.Tx(ctx).Then(operation.Get(key)).Commit()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get worker configuration: %w", err)
+	}
+
+	if len(resp.Results) == 0 || len(resp.Results[0].Values) == 0 {
+		return nil, fmt.Errorf("worker configuration not found at %q", showCtx.Key)
+	}
+
+	value := resp.Results[0].Values[0].Value
+
+	return value, nil
 }
 
 // WorkerDelete deletes a worker configuration. Unimplemented.
