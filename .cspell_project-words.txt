@@ -31,6 +31,7 @@ finalizer*
 flightrec
 getfixturevalue
 golangci
+heywoodlh
 iconfig
 incdir
 infof
