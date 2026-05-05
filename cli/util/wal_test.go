@@ -63,7 +63,8 @@ func restorePermissions(t *testing.T, path string) {
 }
 
 func TestCollectWalFiles_recursive(t *testing.T) {
-	tstDir := t.TempDir()
+	tstDir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 
 	testFilesMap := map[string][]string{
 		"01.xlog": {},
