@@ -13,7 +13,7 @@ end
 box.cfg{}
 
 -- Create something to generate xlogs.
-box.schema.space.create('test-' .. box.cfg.instance_name)
+box.schema.space.create('test-' .. box.cfg.instance_name, {if_not_exists = true})
 
 while true do
     log.info(pid_path)
