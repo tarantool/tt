@@ -26,23 +26,16 @@ func TestNewFileCollector(t *testing.T) {
 	assert.NotNil(t, collector)
 }
 
-func TestNewIntegrityFileCollector(t *testing.T) {
-	var collector cluster.DataCollector
-
-	collector = cluster.NewIntegrityFileCollector(nil, "")
-	require.NotNil(t, collector)
-	assert.Panics(t, func() {
-		collector.Collect()
-	})
-}
-
-func TestNewIntegrityFileCollector_fileReadFunc_error(t *testing.T) {
+func TestNewFileCollector_fileReadFunc_error(t *testing.T) {
 	const errMsg = "foo"
 
-	collector := cluster.NewIntegrityFileCollector(
-		func(path string) (io.ReadCloser, error) {
+	factory := cluster.NewDataCollectorFactory(
+		cluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
 			return nil, fmt.Errorf(errMsg)
-		}, "foo")
+		}),
+	)
+	collector, err := factory.NewFile("foo")
+	require.NoError(t, err)
 
 	require.NotNil(t, collector)
 	data, err := collector.Collect()
@@ -78,10 +71,16 @@ etcd:
 		},
 		{
 			Name: "integrity",
-			Collector: cluster.NewIntegrityFileCollector(
-				func(path string) (io.ReadCloser, error) {
-					return os.Open(path)
-				}, testYamlPath),
+			Collector: func() cluster.DataCollector {
+				factory := cluster.NewDataCollectorFactory(
+					cluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
+						return os.Open(path)
+					}),
+				)
+				collector, err := factory.NewFile(testYamlPath)
+				require.NoError(t, err)
+				return collector
+			}(),
 		},
 	}
 
@@ -106,10 +105,16 @@ func TestNewFileCollector_not_exist(t *testing.T) {
 		},
 		{
 			Name: "integrity",
-			Collector: cluster.NewIntegrityFileCollector(
-				func(path string) (io.ReadCloser, error) {
-					return os.Open(path)
-				}, invalidPath),
+			Collector: func() cluster.DataCollector {
+				factory := cluster.NewDataCollectorFactory(
+					cluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
+						return os.Open(path)
+					}),
+				)
+				collector, err := factory.NewFile(invalidPath)
+				require.NoError(t, err)
+				return collector
+			}(),
 		},
 	}
 

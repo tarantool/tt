@@ -44,16 +44,11 @@ def test_cluster_rs_roles_remove_missing_args(tt_cmd, tmpdir_with_cfg, role_args
     [
         pytest.param(
             "etcd",
-            r"   ⨯ failed to collect cluster config: failed to fetch"
-            + " data from etcd: failed to execute ops: transaction failed: "
-            + "etcdserver: user name is empty",
+            "etcdserver: user name is empty",
         ),
         pytest.param(
             "tcs",
-            r"⨯ failed to collect cluster config: failed to fetch data"
-            + " from tarantool: failed to execute ops: failed to execute "
-            + "transaction: Execute access to function 'config.storage.txn'"
-            + " is denied for user 'guest'",
+            "denied for user 'guest'",
         ),
     ],
 )

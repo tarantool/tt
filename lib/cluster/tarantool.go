@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/tarantool/go-storage"
 	"github.com/tarantool/go-storage/driver/tcs"
+	"github.com/tarantool/go-storage/integrity"
+	"github.com/tarantool/go-storage/marshaller"
 	"github.com/tarantool/go-tarantool/v2"
 	libconnect "github.com/tarantool/tt/lib/connect"
 	"github.com/tarantool/tt/lib/dial"
@@ -58,120 +59,6 @@ func (collector TarantoolAllCollector) Collect() ([]Data, error) {
 	}
 
 	return collected, nil
-}
-
-// IntegrityTarantoolAllCollector collects data from a Tarantool for a prefix
-// with integrity checks.
-type IntegrityTarantoolAllCollector struct {
-	checkFunc CheckFunc
-	conn      tarantool.Doer
-	prefix    string
-	timeout   time.Duration
-}
-
-// NewIntegrityTarantoolAllCollector creates a new collector for Tarantool from the
-// whole prefix.
-func NewIntegrityTarantoolAllCollector(checkFunc CheckFunc,
-	conn tarantool.Doer, prefix string,
-	timeout time.Duration,
-) IntegrityTarantoolAllCollector {
-	return IntegrityTarantoolAllCollector{
-		checkFunc: checkFunc,
-		conn:      conn,
-		prefix:    prefix,
-		timeout:   timeout,
-	}
-}
-
-// Collect collects a configuration from the specified prefix with the specified
-// timeout.
-func (collector IntegrityTarantoolAllCollector) Collect() ([]Data, error) {
-	var (
-		valuesPrefix = getConfigPrefix(collector.prefix)
-		hashesPrefix = getHashesPrefix(collector.prefix)
-		signsPrefix  = getSignPrefix(collector.prefix)
-	)
-	resp, err := tarantoolTxnGet(collector.conn, []string{
-		valuesPrefix,
-		hashesPrefix,
-		signsPrefix,
-	}, collector.timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	type valueNode struct {
-		Value  []byte
-		Hashes map[string][]byte
-		Sig    []byte
-	}
-	keys := []string{} // We need to keep the original order of keys.
-	nodes := map[string]valueNode{}
-	for _, response := range resp.Data.Responses {
-		for _, data := range response {
-			var (
-				hash, key string
-				ok        bool
-				update    valueNode
-			)
-
-			if key, ok = strings.CutPrefix(data.Path, valuesPrefix); ok {
-				update.Value = []byte(data.Value)
-			} else if ok, hash, key = parseHashPath(data.Path, collector.prefix); ok {
-				update.Hashes = map[string][]byte{
-					hash: []byte(data.Value),
-				}
-			} else if key, ok = strings.CutPrefix(data.Path, signsPrefix); ok {
-				update.Sig = []byte(data.Value)
-			} else {
-				continue
-			}
-
-			if node, ok := nodes[key]; ok {
-				if len(update.Value) > 0 {
-					node.Value = update.Value
-				}
-				if update.Hashes != nil {
-					if node.Hashes == nil {
-						node.Hashes = update.Hashes
-					} else {
-						for k, v := range update.Hashes {
-							node.Hashes[k] = v
-						}
-					}
-				}
-				if len(update.Sig) > 0 {
-					node.Sig = update.Sig
-				}
-				nodes[key] = node
-			} else {
-				nodes[key] = update
-				keys = append(keys, key)
-			}
-		}
-	}
-
-	data := []Data{}
-	for _, key := range keys {
-		node := nodes[key]
-		if len(node.Value) == 0 {
-			continue
-		}
-		fullKey := getConfigKey(collector.prefix, key)
-
-		err := collector.checkFunc(node.Value, node.Hashes, node.Sig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to perform integrity checks for key %q: %w",
-				fullKey, err)
-		}
-
-		data = append(data, Data{
-			Source: fullKey,
-			Value:  []byte(node.Value),
-		})
-	}
-
-	return data, nil
 }
 
 // TarantoolKeyCollector collects data from a Tarantool for a separate key.
@@ -224,92 +111,11 @@ func (collector TarantoolKeyCollector) Collect() ([]Data, error) {
 	}, err
 }
 
-// IntegrityTarantoolKeyCollector collects data from a Tarantool for a separate
-// key and makes integrity checks.
-type IntegrityTarantoolKeyCollector struct {
-	checkFunc CheckFunc
-	conn      tarantool.Doer
-	prefix    string
-	key       string
-	timeout   time.Duration
-}
-
-// NewIntegrityTarantoolKeyCollector creates a new collector for Tarantool from
-// a key from a prefix with integrity checks.
-func NewIntegrityTarantoolKeyCollector(checkFunc CheckFunc,
-	conn tarantool.Doer, prefix, key string,
-	timeout time.Duration,
-) IntegrityTarantoolKeyCollector {
-	return IntegrityTarantoolKeyCollector{
-		checkFunc: checkFunc,
-		conn:      conn,
-		prefix:    prefix,
-		key:       key,
-		timeout:   timeout,
-	}
-}
-
-// Collect collects a configuration from the specified key with the specified
-// timeout.
-func (collector IntegrityTarantoolKeyCollector) Collect() ([]Data, error) {
-	var (
-		valueKey     = getConfigKey(collector.prefix, collector.key)
-		hashesPrefix = getHashesPrefix(collector.prefix)
-		sigKey       = getSignKey(collector.prefix, collector.key)
-	)
-	resp, err := tarantoolTxnGet(collector.conn, []string{
-		valueKey,
-		hashesPrefix,
-		sigKey,
-	}, collector.timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		value  []byte
-		hashes = make(map[string][]byte)
-		sig    []byte
-	)
-	for _, response := range resp.Data.Responses {
-		for _, data := range response {
-			switch data.Path {
-			case valueKey:
-				value = []byte(data.Value)
-			case sigKey:
-				sig = []byte(data.Value)
-			default:
-				if ok, hash, key := parseHashPath(data.Path, collector.prefix); ok {
-					if key == collector.key {
-						hashes[hash] = []byte(data.Value)
-					}
-				}
-			}
-		}
-	}
-	if len(value) == 0 {
-		return nil, fmt.Errorf("value for key %q not found", valueKey)
-	}
-
-	if err := collector.checkFunc(value, hashes, sig); err != nil {
-		return nil, fmt.Errorf("failed to perform integrity checks for key %q: %w",
-			valueKey, err)
-	}
-
-	return []Data{
-		{
-			Source: valueKey,
-			Value:  []byte(value),
-		},
-	}, err
-}
-
 // TarantoolAllDataPublisher publishes a data into Tarantool to a prefix.
 type TarantoolAllDataPublisher struct {
-	conn     tarantool.Doer
-	prefix   string
-	signFunc SignFunc
-	timeout  time.Duration
+	conn    tarantool.Doer
+	prefix  string
+	timeout time.Duration
 }
 
 // NewTarantoolAllDataPublisher creates a new TarantoolAllDataPublisher object
@@ -321,22 +127,6 @@ func NewTarantoolAllDataPublisher(conn tarantool.Doer,
 		conn:    conn,
 		prefix:  prefix,
 		timeout: timeout,
-	}
-}
-
-// NewIntegrityTarantoolAllDataPublisher creates a new TarantoolAllDataPublisher
-// object to publish a signed data to Tarantool with the prefix during the
-// timeout.
-func NewIntegrityTarantoolAllDataPublisher(signFunc SignFunc,
-	conn tarantool.Doer,
-	prefix string,
-	timeout time.Duration,
-) TarantoolAllDataPublisher {
-	return TarantoolAllDataPublisher{
-		conn:     conn,
-		prefix:   prefix,
-		signFunc: signFunc,
-		timeout:  timeout,
 	}
 }
 
@@ -355,22 +145,6 @@ func (publisher TarantoolAllDataPublisher) Publish(revision int64, data []byte) 
 		[]any{"delete", prefix},
 		[]any{"put", targetKey, string(data)},
 	}
-	if publisher.signFunc != nil {
-		hashes, sign, err := publisher.signFunc(data)
-		if err != nil {
-			return fmt.Errorf("failed to sign data: %w", err)
-		}
-		onSuccess = append(onSuccess,
-			[]any{"delete", getHashesPrefix(publisher.prefix)})
-		for hash, value := range hashes {
-			targetKey := getHashesKey(publisher.prefix, hash, key)
-			onSuccess = append(onSuccess, []any{"put", targetKey, string(value)})
-		}
-		onSuccess = append(onSuccess,
-			[]any{"delete", getSignPrefix(publisher.prefix)})
-		onSuccess = append(onSuccess,
-			[]any{"put", getSignKey(publisher.prefix, key), string(sign)})
-	}
 	args := []any{
 		map[any]any{
 			"on_success": onSuccess,
@@ -387,11 +161,10 @@ func (publisher TarantoolAllDataPublisher) Publish(revision int64, data []byte) 
 // TarantoolKeyDataPublisher publishes a data into Tarantool for a prefix
 // and a key.
 type TarantoolKeyDataPublisher struct {
-	conn     tarantool.Doer
-	prefix   string
-	key      string
-	signFunc SignFunc
-	timeout  time.Duration
+	conn    tarantool.Doer
+	prefix  string
+	key     string
+	timeout time.Duration
 }
 
 // NewTarantoolKeyDataPublisher creates a new TarantoolKeyDataPublisher object
@@ -407,23 +180,6 @@ func NewTarantoolKeyDataPublisher(conn tarantool.Doer,
 	}
 }
 
-// NewTarantoolKeyDataPublisher creates a new TarantoolKeyDataPublisher object
-// to publish a signed data to Tarantool with the prefix and key during the
-// timeout.
-func NewIntegrityTarantoolKeyDataPublisher(signFunc SignFunc,
-	conn tarantool.Doer,
-	prefix, key string,
-	timeout time.Duration,
-) TarantoolKeyDataPublisher {
-	return TarantoolKeyDataPublisher{
-		conn:     conn,
-		prefix:   prefix,
-		key:      key,
-		signFunc: signFunc,
-		timeout:  timeout,
-	}
-}
-
 // Publish publishes the configuration into Tarantool to the given prefix and
 // key.
 // If passed revision is not 0, the data will be published only if target key revision the same.
@@ -432,18 +188,6 @@ func (publisher TarantoolKeyDataPublisher) Publish(revision int64, data []byte) 
 
 	onSuccess := []any{
 		[]any{"put", key, string(data)},
-	}
-	if publisher.signFunc != nil {
-		hashes, sign, err := publisher.signFunc(data)
-		if err != nil {
-			return fmt.Errorf("failed to sign data: %w", err)
-		}
-		for hash, value := range hashes {
-			targetKey := getHashesKey(publisher.prefix, hash, publisher.key)
-			onSuccess = append(onSuccess, []any{"put", targetKey, string(value)})
-		}
-		onSuccess = append(onSuccess,
-			[]any{"put", getSignKey(publisher.prefix, publisher.key), string(sign)})
 	}
 
 	txn := map[any]any{
@@ -615,8 +359,18 @@ func connectTarantoolCS(uriOpts libconnect.UriOpts, connOpts ConnectOpts) (CSCon
 	driver := tcs.New(conn)
 	storage := storage.NewStorage(driver)
 
+	codec, err := integrity.NewCodecBuilder[StorageDataType]().
+		WithMarshaller(marshaller.NewTypedBytesMarshaller()).
+		Build()
+	if err != nil {
+		return nil, err
+	}
+
+	store := codec.Bind(storage)
+
 	return &RawStorage{
-		storage:     storage,
+		storage:     store,
+		codec:       codec,
 		storageType: tcsStorageType,
 		close: func() error {
 			return conn.Close()

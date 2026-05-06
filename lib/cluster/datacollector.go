@@ -40,16 +40,20 @@ type DataCollectorFactory interface {
 }
 
 // collectorsFactory is a type that implements a default DataCollectorFactory.
-type collectorsFactory struct{}
+type collectorsFactory struct {
+	options factoryOptions
+}
 
 // NewDataCollectorFactory creates a new DataCollectorFactory.
-func NewDataCollectorFactory() DataCollectorFactory {
-	return collectorsFactory{}
+func NewDataCollectorFactory(opts ...FactoryOption) DataCollectorFactory {
+	return collectorsFactory{
+		options: applyFactoryOptions(opts),
+	}
 }
 
 // NewFiler creates a new file configuration collector.
 func (factory collectorsFactory) NewFile(path string) (DataCollector, error) {
-	return NewFileCollector(path), nil
+	return newFileCollector(path, factory.options.fileReadFunc), nil
 }
 
 // NewEtcd creates a new etcd configuration collector.
@@ -59,7 +63,7 @@ func (factory collectorsFactory) NewEtcd(etcdcli *clientv3.Client,
 	driver := etcd.New(etcdcli)
 	storage := storage.NewStorage(driver)
 
-	return NewStorage(storage, prefix, timeout, key, etcdStorageType), nil
+	return NewStorage(storage, prefix, timeout, key, etcdStorageType, factory.options.integrity), nil
 }
 
 // NewTarantool creates creates a new tarantool config storage configuration
@@ -70,50 +74,5 @@ func (factory collectorsFactory) NewTarantool(conn tarantool.Doer,
 	driver := tcs.New(dummyDoerWatcher{conn})
 	storage := storage.NewStorage(driver)
 
-	return NewStorage(storage, prefix, timeout, key, tcsStorageType), nil
-}
-
-// integrityCollectorsFactory is a type that implements a default CollectorFactory.
-type integrityCollectorsFactory struct {
-	checkFunc    CheckFunc
-	fileReadFunc FileReadFunc
-}
-
-// NewIntegrityDataCollectorFactory creates a new DataCollectorFactory with
-// integrity checks.
-func NewIntegrityDataCollectorFactory(checkFunc CheckFunc,
-	fileReadFunc FileReadFunc,
-) DataCollectorFactory {
-	return integrityCollectorsFactory{
-		checkFunc:    checkFunc,
-		fileReadFunc: fileReadFunc,
-	}
-}
-
-// NewFiler creates a new file configuration collector with integrity checks.
-func (factory integrityCollectorsFactory) NewFile(path string) (DataCollector, error) {
-	return NewIntegrityFileCollector(factory.fileReadFunc, path), nil
-}
-
-// NewEtcd creates a new etcd configuration collector with integrity checks.
-func (factory integrityCollectorsFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration,
-) (DataCollector, error) {
-	if key == "" {
-		return NewIntegrityEtcdAllCollector(factory.checkFunc, etcdcli, prefix, timeout), nil
-	}
-	return NewIntegrityEtcdKeyCollector(factory.checkFunc, etcdcli, prefix, key, timeout), nil
-}
-
-// NewTarantool creates creates a new tarantool config storage configuration
-// collector with integrity checks.
-func (factory integrityCollectorsFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration,
-) (DataCollector, error) {
-	if key == "" {
-		return NewIntegrityTarantoolAllCollector(factory.checkFunc,
-			conn, prefix, timeout), nil
-	}
-	return NewIntegrityTarantoolKeyCollector(factory.checkFunc,
-		conn, prefix, key, timeout), nil
+	return NewStorage(storage, prefix, timeout, key, tcsStorageType, factory.options.integrity), nil
 }

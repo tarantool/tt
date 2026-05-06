@@ -6,6 +6,8 @@ import (
 	"os"
 )
 
+type FileReadFunc func(path string) (io.ReadCloser, error)
+
 // FileCollector collects data from a YAML file.
 type FileCollector struct {
 	// path is a path to a YAML file.
@@ -19,21 +21,20 @@ func defaultFileReadFunc(path string) (io.ReadCloser, error) {
 	return os.Open(path)
 }
 
-// NewFileCollector creates a new file collector for a path.
-func NewFileCollector(path string) FileCollector {
-	return FileCollector{
-		path:         path,
-		fileReadFunc: defaultFileReadFunc,
+func newFileCollector(path string, fileReadFunc FileReadFunc) FileCollector {
+	if fileReadFunc == nil {
+		fileReadFunc = defaultFileReadFunc
 	}
-}
 
-// NewIntegrityFileCollector creates a new file collector for a path with
-// additional integrity checks.
-func NewIntegrityFileCollector(fileReadFunc FileReadFunc, path string) FileCollector {
 	return FileCollector{
 		path:         path,
 		fileReadFunc: fileReadFunc,
 	}
+}
+
+// NewFileCollector creates a new file collector for a path.
+func NewFileCollector(path string) FileCollector {
+	return newFileCollector(path, nil)
 }
 
 // Collect collects a configuration from a file located at a specified path.

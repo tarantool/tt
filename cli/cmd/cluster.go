@@ -353,16 +353,21 @@ func NewClusterCmd() *cobra.Command {
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var dataCollectors libcluster.DataCollectorFactory
-	checkFunc, err := integrity.GetCheckFunction(cmdCtx.Integrity)
+	hashers, verifiers, err := integrity.GetStorageVerifiers(cmdCtx.Integrity)
 	if errors.Is(err, integrity.ErrNotConfigured) {
 		dataCollectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
 	} else {
-		dataCollectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
-			func(path string) (io.ReadCloser, error) {
+		dataCollectors = libcluster.NewDataCollectorFactory(
+			libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
 				return cmdCtx.Integrity.Repository.Read(path)
-			})
+			}),
+			libcluster.WithIntegrity(libcluster.IntegrityOptions{
+				Hashers:   hashers,
+				Verifiers: verifiers,
+			}),
+		)
 	}
 	showCtx.Collectors = libcluster.NewCollectorFactory(dataCollectors)
 

@@ -333,17 +333,22 @@ func loadInstanceConfig(configPath, instName string,
 	}
 
 	var dataCollectors libcluster.DataCollectorFactory
-	checkFunc, err := integrity.GetCheckFunction(integrityCtx)
+	hashers, verifiers, err := integrity.GetStorageVerifiers(integrityCtx)
 	if errors.Is(err, integrity.ErrNotConfigured) {
 		dataCollectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return instCfg,
 			fmt.Errorf("failed to create collectors with integrity check: %w", err)
 	} else {
-		dataCollectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
-			func(path string) (io.ReadCloser, error) {
+		dataCollectors = libcluster.NewDataCollectorFactory(
+			libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
 				return integrityCtx.Repository.Read(path)
-			})
+			}),
+			libcluster.WithIntegrity(libcluster.IntegrityOptions{
+				Hashers:   hashers,
+				Verifiers: verifiers,
+			}),
+		)
 	}
 	collectors := libcluster.NewCollectorFactory(dataCollectors)
 

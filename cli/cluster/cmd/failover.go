@@ -96,7 +96,10 @@ func Switch(url string, switchCtx SwitchCtx) error {
 		ctxWatch, cancelWatch := context.WithTimeout(context.Background(),
 			time.Duration(switchCtx.Timeout)*time.Second+cmdAdditionalWait)
 		defer cancelWatch()
-		watchChan := conn.Watch(ctxWatch, key)
+		watchChan, err := conn.Watch(ctxWatch, key)
+		if err != nil {
+			return fmt.Errorf("unable to create watch channel: %w", err)
+		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
 		err = conn.Put(ctx, key, string(yamlCmd))

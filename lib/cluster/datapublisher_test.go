@@ -9,7 +9,9 @@ import (
 )
 
 func TestIntegrityDataPublisherFactory_NewFile(t *testing.T) {
-	factory := cluster.NewIntegrityDataPublisherFactory(nil)
+	factory := cluster.NewDataPublisherFactory(
+		cluster.WithIntegrity(cluster.IntegrityOptions{}),
+	)
 	publisher, err := factory.NewFile("any")
 
 	assert.Nil(t, publisher)

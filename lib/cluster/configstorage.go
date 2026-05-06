@@ -21,7 +21,7 @@ type CSConnection interface {
 	// Put puts a key-value pair into config storage.
 	Put(ctx context.Context, key, value string) error
 	// Watch watches on a key and return watched events through the returned channel.
-	Watch(ctx context.Context, key string) <-chan CSWatchEvent
+	Watch(ctx context.Context, key string) (<-chan CSWatchEvent, error)
 }
 
 // ConnectCStorage connects to config storage according to connection options.
