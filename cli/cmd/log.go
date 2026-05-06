@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/v3/cli/cmd/internal"
@@ -20,7 +22,10 @@ var logOpts struct {
 	follow bool // Follow logs output.
 }
 
-const defaultLogLines = 10
+const (
+	defaultLogLines      = 10
+	logRootCheckInterval = 100 * time.Millisecond
+)
 
 // NewLogCmd creates log command.
 func NewLogCmd() *cobra.Command {
@@ -63,9 +68,56 @@ func printLines(ctx context.Context, in <-chan string) error {
 	}
 }
 
+func logRoot(inst running.InstanceCtx) string {
+	if inst.SingleApp {
+		return inst.LogDir
+	}
+
+	return filepath.Dir(inst.LogDir)
+}
+
+func monitorLogRoot(ctx context.Context, root string, cancel context.CancelFunc) {
+	ticker := time.NewTicker(logRootCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			_, err := os.Stat(root)
+			if errors.Is(err, os.ErrNotExist) {
+				cancel()
+
+				return
+			}
+		}
+	}
+}
+
+func getLogRootContext(
+	ctx context.Context,
+	root string,
+	rootContexts map[string]context.Context,
+) context.Context {
+	if rootCtx, ok := rootContexts[root]; ok {
+		return rootCtx
+	}
+
+	rootCtx, cancel := context.WithCancel(ctx)
+
+	rootContexts[root] = rootCtx
+
+	go monitorLogRoot(rootCtx, root, cancel)
+
+	return rootCtx
+}
+
 func follow(instances []running.InstanceCtx, lineCount int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+
+	rootContexts := make(map[string]context.Context)
 
 	nextColor := tail.DefaultColorPicker()
 	color := nextColor()
@@ -78,7 +130,10 @@ func follow(instances []running.InstanceCtx, lineCount int) error {
 	var waitGroup sync.WaitGroup
 
 	for _, inst := range instances {
-		err := tail.Follow(ctx, logLines,
+		root := logRoot(inst)
+		rootCtx := getLogRootContext(ctx, root, rootContexts)
+
+		err := tail.Follow(rootCtx, logLines,
 			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color),
 			inst.Log, lineCount, &waitGroup)
 		if err != nil {

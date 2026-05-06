@@ -2,171 +2,157 @@ package tail_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/v3/cli/tail"
 )
 
-var (
-	errLineMismatchGotWant   = errors.New("line ")
-	errTimeoutWaitingForData = errors.New("timeout waiting for data")
-)
-
 const (
-	linesPerStep     = 3
-	channelCapacity  = 100
-	logLineFormat    = "%03d: line"
-	logNewLineFormat = "%03d: new line added"
+	linesPerStep      = 3
+	channelCapacity   = 100
+	lineReadTimeout   = 5 * time.Second
+	reopenWatchDelay  = 500 * time.Millisecond
+	watcherStartDelay = 100 * time.Millisecond
+	logLineFormat     = "%03d: line"
+	logNewLineFormat  = "%03d: new line added"
 )
 
 // readWithTimeout Helper to read from channel with timeout.
-func readWithTimeout(t *testing.T, lines <-chan string, timeout time.Duration) (string, error) {
+//
+//nolint:unparam // the wait is spelled out at every call site.
+func readWithTimeout(t *testing.T, linesCh <-chan string, timeout time.Duration) string {
 	t.Helper()
 
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
 	select {
-	case s := <-lines:
-		return s, nil
+	case s, ok := <-linesCh:
+		require.True(t, ok, "channel closed while waiting for data")
+
+		return s
 	case <-timer.C:
-		return "", errTimeoutWaitingForData
+		require.Fail(t, "timeout waiting for data")
+
+		return ""
 	}
 }
 
-func writeLogLines(t *testing.T, f *os.File, count int, lineFmt string) {
+func writeLogLines(t *testing.T, file *os.File, count int, lineFormat string) {
 	t.Helper()
 
 	for i := range count {
-		_, err := fmt.Fprintln(f, fmt.Sprintf(lineFmt, i+1))
-		if err != nil {
-			t.Fatalf("Failed to write line %d: %v", i+1, err)
-		}
+		_, err := fmt.Fprintln(file, fmt.Sprintf(lineFormat, i+1))
+		require.NoErrorf(t, err, "failed to write line %d", i+1)
 	}
 }
 
-func createTmpLogFile(t *testing.T) string {
+//nolint:unparam // the count is spelled out at every call site.
+func createTmpLogFile(t *testing.T, count int, lineFormat string) string {
 	t.Helper()
 
 	file, err := os.CreateTemp(t.TempDir(), "follow-test-*.log")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
+	require.NoError(t, err)
 
-	defer func() {
-		_ = file.Close()
-	}()
+	defer func() { require.NoError(t, file.Close()) }()
 
-	writeLogLines(t, file, linesPerStep, logLineFormat)
+	writeLogLines(t, file, count, lineFormat)
 
 	return file.Name()
 }
 
-func checksLinesInFile(t *testing.T, lines <-chan string, expFmt string) error {
+func appendSyncedLine(t *testing.T, path, line string) {
 	t.Helper()
 
-	for i := range linesPerStep {
-		lineNum := i + 1
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
 
-		line, err := readWithTimeout(t, lines, time.Second)
-		if err != nil {
-			return fmt.Errorf("failed to read line %d: %w", lineNum, err)
-		}
+	defer func() { require.NoError(t, file.Close()) }()
 
-		expected := fmt.Sprintf(expFmt, lineNum)
-		if line != expected {
-			return fmt.Errorf("%w%d mismatch: got %q, want %q",
-				errLineMismatchGotWant, lineNum, line, expected)
-		}
+	_, err = fmt.Fprintln(file, line)
+	require.NoError(t, err)
+	require.NoError(t, file.Sync())
+}
+
+// checksLinesInFile reads and checks the given number of lines from
+// the channel, the count is spelled out at every call site.
+//
+//nolint:unparam // the count belongs in the test, not in the helper.
+func checksLinesInFile(t *testing.T, lines int, linesCh <-chan string, expectedFormat string) {
+	t.Helper()
+
+	for i := range lines {
+		n := i + 1
+
+		line := readWithTimeout(t, linesCh, lineReadTimeout)
+		require.Equal(t, fmt.Sprintf(expectedFormat, n), line)
 	}
-
-	return nil
 }
 
 func TestFollow2_ReadExistingContent(t *testing.T) {
-	logFile := createTmpLogFile(t)
+	logPath := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	follower := tail.NewTailFollower(logFile)
+	follower := tail.NewTailFollower(logPath)
 
 	outCh, err := follower.Follow(ctx, linesPerStep)
-	if err != nil {
-		t.Fatalf("Failed to follow: %v", err)
-	}
+	require.NoError(t, err)
 
-	err = checksLinesInFile(t, outCh, logLineFormat)
-	if err != nil {
-		t.Fatalf("Failed to check lines in file: %v", err)
-	}
+	checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
 
 	cancel()
 	follower.Wait()
 }
 
 func TestFollow2_FollowNewContent(t *testing.T) {
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping flaky test on CI until issue #TNTP-3131 is fixed")
-	}
-
-	logFile := createTmpLogFile(t)
+	logPath := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	follower := tail.NewTailFollower(logFile)
+	follower := tail.NewTailFollower(logPath)
 
 	outCh, err := follower.Follow(ctx, linesPerStep)
-	if err != nil {
-		t.Fatalf("Failed to follow: %v", err)
-	}
+	require.NoError(t, err)
 
-	err = checksLinesInFile(t, outCh, logLineFormat)
-	if err != nil {
-		t.Fatalf("Failed to check lines in file: %v", err)
-	}
+	checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
+
+	// TailFile starts its filesystem watcher asynchronously. Keep that startup
+	// outside the append scenario this test exercises.
+	time.Sleep(watcherStartDelay)
 
 	// Append new content.
-	appendFile, err := os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY, 0o644)
-	if err != nil {
-		t.Fatalf("Failed to open file for append: %v", err)
-	}
+	appendFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	require.NoError(t, err)
 
 	writeLogLines(t, appendFile, linesPerStep, logNewLineFormat)
 
-	_ = appendFile.Close()
+	require.NoError(t, appendFile.Close())
 
-	err = checksLinesInFile(t, outCh, logNewLineFormat)
-	if err != nil {
-		t.Fatalf("Failed to check lines in file: %v", err)
-	}
+	checksLinesInFile(t, linesPerStep, outCh, logNewLineFormat)
 
 	cancel()
 	follower.Wait()
 }
 
 func TestFollow2_ContextCancellation(t *testing.T) {
-	logFile := createTmpLogFile(t)
+	logPath := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	follower := tail.NewTailFollower(logFile)
+	follower := tail.NewTailFollower(logPath)
 
 	outCh, err := follower.Follow(ctx, linesPerStep)
-	if err != nil {
-		t.Fatalf("Failed to follow: %v", err)
-	}
+	require.NoError(t, err)
 
-	err = checksLinesInFile(t, outCh, logLineFormat)
-	if err != nil {
-		t.Fatalf("Failed to check lines in file: %v", err)
-	}
+	checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
 
 	// Cancel context and wait for goroutine to finish.
 	cancel()
@@ -184,103 +170,68 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 		// Success - goroutine completed.
 
 	case <-time.After(3 * time.Second):
-		t.Fatal("Timeout waiting for Follow2 goroutine to terminate after context cancellation")
+		require.Fail(t,
+			"timeout waiting for Follow2 goroutine to terminate after context cancellation")
 	}
 }
 
 func TestFollow2_NonExistentFile(t *testing.T) {
-	ctx := t.Context()
-
 	follower := tail.NewTailFollower("/path/to/nonexistent/file")
 
-	_, err := follower.Follow(ctx, linesPerStep)
-	if err == nil {
-		t.Fatal("Expected error when following non-existent file, got nil")
-	}
+	_, err := follower.Follow(t.Context(), linesPerStep)
+	require.Error(t, err)
 }
 
-func rotationTest(t *testing.T, useDelay bool) {
-	t.Helper()
-
-	logFile := createTmpLogFile(t)
+func TestFollow2_FileRotation(t *testing.T) {
+	logPath := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	follower := tail.NewTailFollower(logFile)
+	follower := tail.NewTailFollower(logPath)
 
 	outCh, err := follower.Follow(ctx, linesPerStep)
-	if err != nil {
-		t.Skipf("Failed to follow: %v", err)
-	}
+	require.NoError(t, err)
 
-	err = checksLinesInFile(t, outCh, logLineFormat)
-	if err != nil {
-		t.Skipf("Failed to check initial lines in file: %v", err)
+	defer func() {
+		cancel()
+		follower.Wait()
+	}()
 
-		return
-	}
+	checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
 
-	err = os.Rename(logFile, logFile+".bak")
-	if err != nil {
-		t.Fatalf("Failed to rotate log file: %v", err)
-	}
+	// TailFile starts its filesystem watcher asynchronously. Keep that startup
+	// outside the write-plus-rename scenario this test exercises.
+	time.Sleep(watcherStartDelay)
 
-	if useDelay {
-		time.Sleep(500 * time.Millisecond) // Add delay to avoid flaky fails.
-	}
+	const readinessLine = "watcher is ready"
 
-	newFile, err := os.Create(logFile)
-	if err != nil {
-		t.Fatalf("Failed to create new log file: %v", err)
-	}
+	appendSyncedLine(t, logPath, readinessLine)
+	require.Equal(t, readinessLine, readWithTimeout(t, outCh, lineReadTimeout))
 
-	writeLogLines(t, newFile, linesPerStep, logNewLineFormat)
+	const replacementLine = "line in replacement file"
 
-	_ = newFile.Close()
+	replacementPath := logPath + ".new"
 
-	_ = newFile.Close()
+	require.NoError(t, os.WriteFile(replacementPath, []byte(replacementLine+"\n"), 0o644))
 
-	err = checksLinesInFile(t, outCh, logNewLineFormat)
-	if err != nil {
-		t.Skipf("Failed to check appended lines in file: %v", err)
+	const lineBeforeRotation = "line written immediately before rotation"
 
-		return
-	}
+	appendSyncedLine(t, logPath, lineBeforeRotation)
+	require.NoError(t, os.Rename(logPath, logPath+".bak"))
+
+	require.Equal(t, lineBeforeRotation, readWithTimeout(t, outCh, lineReadTimeout))
+
+	// Let the asynchronous reopen path start watching for the replacement.
+	// The loss assertion above remains adjacent to the rename.
+	time.Sleep(reopenWatchDelay)
+	require.NoError(t, os.Rename(replacementPath, logPath))
+
+	require.Equal(t, replacementLine, readWithTimeout(t, outCh, lineReadTimeout))
 
 	cancel()
 	follower.Wait()
-}
 
-// TestFollow2_FileRotation_Flaky tests the file rotation with flaky retries.
-// It retries the test multiple times to handle potential flakiness in the tail library.
-// This is a workaround for the issue #TNTP-3131, where the tail library
-// does not handle file rotation correctly.
-//   - TODO: Need fix `tail` library, see #TNTP-3131 for more details.
-func TestFollow2_FileRotation_Flaky(t *testing.T) {
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping flaky test on CI until issue #TNTP-3131 is fixed")
-	}
-
-	const flakyRepeatCount = 3
-
-	testPass := false
-
-	for i := range flakyRepeatCount {
-		t.Run(fmt.Sprintf("Rotation-%d", i+1), func(t *testing.T) {
-			rotationTest(t, i > 0)
-
-			testPass = !t.Skipped()
-		})
-
-		if testPass {
-			break
-		}
-
-		t.Logf("FLAKY test %s failed, retrying flaky test iteration", t.Name())
-	}
-
-	if !testPass {
-		t.Fatalf("Test failed after all flaky iterations")
+	for line := range outCh {
+		require.Fail(t, "unexpected line after rotation", line)
 	}
 }

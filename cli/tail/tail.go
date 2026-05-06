@@ -9,20 +9,23 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fatih/color"
-	"github.com/nxadm/tail"
+	"github.com/tarantool/go-tail"
 	"github.com/tarantool/tt/sdk/log"
 )
 
 var (
 	errNegativeLinesCountIsNotSupported = errors.New("negative lines count is not supported")
+	errTimeoutStoppingTailerFor         = errors.New("timeout stopping tailer for ")
 )
 
 const (
 	blockSize               = 8192
 	formatterBufferCapacity = 512
 	outputChannelCapacity   = 8
+	tailShutdownTimeout     = time.Second
 )
 
 // Reader is an interface for reading the last `lines` lines from a file.
@@ -180,6 +183,22 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 	return out, nil
 }
 
+func stopTail(fileTail *tail.Tail) error {
+	fileTail.Kill(nil)
+
+	select {
+	case <-fileTail.Dead():
+		err := fileTail.Err()
+		if err != nil {
+			return fmt.Errorf("failed to stop tailer for %q: %w", fileTail.Filename, err)
+		}
+
+		return nil
+	case <-time.After(tailShutdownTimeout):
+		return fmt.Errorf("%w%q", errTimeoutStoppingTailerFor, fileTail.Filename)
+	}
+}
+
 // Follow sends to the channel each new line from the file as it grows.
 func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, fileName string,
 	count int, group *sync.WaitGroup,
@@ -203,10 +222,14 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 			Offset: startPos,
 			Whence: io.SeekStart,
 		},
-		MustExist:     true,
-		Follow:        true,
-		ReOpen:        true,
-		CompleteLines: false,
+		MustExist: true,
+		Follow:    true,
+		ReOpen:    true,
+		// Half-written lines stay buffered until their newline arrives:
+		// yielding them early would split a log record in two, and the
+		// seek-to-end after an early yield can skip bytes appended in
+		// the meantime.
+		CompleteLines: true,
 		Logger:        tail.DiscardingLogger,
 	})
 	if err != nil {
@@ -217,17 +240,20 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 		for {
 			select {
 			case <-ctx.Done():
-				_ = fileTail.Stop()
-				_ = fileTail.Wait()
+				err := stopTail(fileTail)
+				if err != nil {
+					log.Warn(err.Error())
+				}
 
 				return
 			case line, more := <-fileTail.Lines:
 				if !more {
-					err := fileTail.Stop()
+					err := stopTail(fileTail)
 					if err != nil {
 						log.Error(err.Error())
 					} else {
-						log.Errorf("The log file %q is unavailable for reading. Exiting.")
+						log.Errorf("The log file %q is unavailable for reading. Exiting.",
+							fileTail.Filename)
 					}
 
 					return

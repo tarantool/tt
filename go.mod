@@ -19,7 +19,6 @@ require (
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/moby/term v0.5.2
-	github.com/nxadm/tail v1.4.11
 	github.com/otiai10/copy v1.14.1
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
@@ -30,6 +29,7 @@ require (
 	github.com/tarantool/go-luarocks v0.0.0-20260917094730-272b95159b11
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage/v2 v2.0.0
+	github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094
 	github.com/tarantool/go-tarantool/v3 v3.0.2
 	github.com/tarantool/tt/modules/aeon v0.0.0
 	github.com/tarantool/tt/sdk v0.0.0

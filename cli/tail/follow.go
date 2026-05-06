@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nxadm/tail"
+	"github.com/tarantool/go-tail"
 	"github.com/tarantool/tt/sdk/log"
 )
 
@@ -17,6 +17,7 @@ var (
 	errFailedToReEstablishTailingForAfterRetries = errors.New("failed to re-establish tailing for ")
 	errNotFoundFile                              = errors.New("not found file ")
 	errTailerForIsNilAfterReopening              = errors.New("tailer for ")
+	errTailerStoppedUnexpectedly                 = errors.New("stopped unexpectedly")
 )
 
 const (
@@ -96,16 +97,19 @@ func (f *fileFollower) tryReopenTailer(ctx context.Context, cfg *tail.Config) (*
 	}
 
 	for retry := range maxRetriesReopen {
-		timer := time.NewTimer(retryOpenDelay)
-		defer timer.Stop()
+		if retry > 0 {
+			timer := time.NewTimer(retryOpenDelay)
 
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("context (%w) while waiting to retry for %q",
-				ctx.Err(), f.name)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
 
-		case <-timer.C:
-			log.Infof("Wake up to retry tailing %q", f.name)
+				return nil, fmt.Errorf("context (%w) while waiting to retry for %q",
+					ctx.Err(), f.name)
+
+			case <-timer.C:
+				log.Infof("Wake up to retry tailing %q", f.name)
+			}
 		}
 
 		newT, err := tail.TailFile(f.name, newCfg)
@@ -153,7 +157,11 @@ func (f *fileFollower) handleTailerStopStatus(ctx context.Context, curT *tail.Ta
 		return newTail, nil
 	}
 
-	return nil, fmt.Errorf("failed to stop tailer for %q: %w", f.name, stopErr)
+	if stopErr != nil {
+		return nil, fmt.Errorf("failed to stop tailer for %q: %w", f.name, stopErr)
+	}
+
+	return nil, fmt.Errorf("tailer for %q %w", f.name, errTailerStoppedUnexpectedly)
 }
 
 func (f *fileFollower) followFile(ctx context.Context, fileTail *tail.Tail, out chan<- string) {
@@ -243,7 +251,12 @@ func (f *fileFollower) startFollowing(ctx context.Context, out chan<- string, li
 		MustExist: true,
 		Follow:    true,
 		ReOpen:    true,
-		Logger:    tail.DiscardingLogger,
+		// Half-written lines stay buffered until their newline arrives:
+		// yielding them early would split a log record in two, and the
+		// seek-to-end after an early yield can skip bytes appended in
+		// the meantime.
+		CompleteLines: true,
+		Logger:        tail.DiscardingLogger,
 	}
 
 	fileTail, err := tail.TailFile(f.name, tCfg)
