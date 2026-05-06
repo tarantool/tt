@@ -1,4 +1,3 @@
-import os
 import signal
 import sys
 import time
@@ -158,16 +157,11 @@ def handle_updating_logs(
     lines, is_found = reader.stdout_wait_for(eof_marker, timeout=10)
 
     reader.send_signal(signal.SIGINT)
+    if reader.pWait() is None:
+        reader.pKill()
     reader.pStop()
 
     stderr_lines = reader.stderr
-    assert "context canceled" in "".join(stderr_lines), (
-        f"Expected message not found in stderr {stderr_lines}"
-    )
-
-    if reader.pWait() is None:
-        reader.pKill()
-
     if not is_found:
         print(f"Second marker not found in stdout:\n{''.join(lines)}")
         rest_lines = reader.stdout
@@ -177,6 +171,10 @@ def handle_updating_logs(
             print(f"Got stderr:\n{''.join(stderr_lines)}", file=sys.stderr)
 
     assert is_found, f"Expected end marker {eof_marker} not found."
+
+    assert "context canceled" in "".join(stderr_lines), (
+        f"Expected message not found in stderr {stderr_lines}"
+    )
 
     assert reader.returncode == 1, (
         f"Command failed with return code {reader.returncode} (expected 1)."
@@ -203,10 +201,6 @@ def final_checks(
     check_output("".join(stdout_lines), update_testdata, expected_file)
 
 
-@pytest.mark.skipif(
-    condition=os.getenv("CI") is not None,
-    reason="Skip on CI runs until issue #TNTP-3131 is fixed.",
-)
 @pytest.mark.parametrize("delay_time", (0.1, 0.01, 0))
 @pytest.mark.parametrize("lines, options", TEST_CASES)
 @pytest.mark.parametrize("mode", TEST_DATA_MODES)
@@ -236,11 +230,6 @@ def test_log_follow(
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(
-    condition=os.getenv("CI") is not None,
-    reason="Skip on CI runs until issue #TNTP-3131 is fixed.",
-)
-@pytest.mark.flaky(reruns=5)  # See notes below about issues with `tail` package.
 @pytest.mark.parametrize("delay_time", (0.1, 0.01, 0))
 @pytest.mark.parametrize("lines, options", TEST_CASES)
 @pytest.mark.parametrize("mode", TEST_DATA_MODES)
@@ -264,13 +253,8 @@ def test_log_rotate(
 
     tmp_log.rename(tmp_log.with_suffix(".bak"))
     assert not tmp_log.exists(), "Temporary log file should be deleted."
-    # TODO: Need fix `tail` library, see #TNTP-3131 for more details.
-    # See `tail` opened issues, since 2024:
-    #  - https://github.com/nxadm/tail/issues/72
-    #  - https://github.com/nxadm/tail/pull/73
-    _, found = reader.stderr_wait_for("tryReopenTailer", timeout=0.5)
-    if not found:
-        time.sleep(1)
+
+    tmp_log.touch()
 
     new_lines, cnt_lines = handle_updating_logs(reader, tmp_log, mode, delay_time, is_append=True)
     stdout_lines.extend(new_lines)

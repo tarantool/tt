@@ -638,8 +638,8 @@ linters:
           allow:
             - $gostd
             - "github.com/fatih/color"
-            - "github.com/nxadm/tail"
             - "github.com/stretchr/testify"
+            - "github.com/tarantool/go-tail"
             - "github.com/tarantool/tt/sdk"
             - "github.com/tarantool/tt/v3/cli/tail"
         dir-cli-tcm:

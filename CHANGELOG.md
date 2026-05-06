@@ -228,6 +228,9 @@ for machine-readable output.
 
 ### Changed
 
+- `tt log -f` / `tt tcm log --follow`: only complete lines are printed. A
+  half-written line stays buffered until its newline arrives instead of
+  being split into two records.
 - `tt binary install tarantool [version]`: install prebuilt Community release
   binaries and matching headers from RWS by default on Linux amd64/arm64 with
   glibc, activating the installed version in the selected scope. Omitting the
@@ -454,6 +457,12 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt log -f`: possible line loss/duplication on rename, hanging after
+  a watched log directory is removed, and lines written just as the
+  file was read to the end not showing up until the next write.
+- `tt log -f` / `tt tcm log --follow`: a line could be delivered twice
+  right after a log rotation, and the follow could stall, never picking
+  up the rotated file (go-tail v1.4.15).
 - `tt binary install`: change active executable and header links only after
   preparing all installed files, scope directories, and project environment
   scripts. This also applies to existing installations, SDKs, and `--from-build`.
