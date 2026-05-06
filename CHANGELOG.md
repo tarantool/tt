@@ -25,6 +25,10 @@ for machine-readable output.
 - `lib/cluster`: removed `EnvCollector` and the generated `ConfigEnvPaths`;
   `cli/cluster` now loads config files and environment variables via upstream
   go-config.
+- `tt cluster show --validate` and `tt cluster publish` now validate against the embedded
+  Tarantool JSON Schema instead of the in-tree enumerated path validator. The new validator
+  is stricter (rejects unknown top-level / scope properties) and produces error messages in
+  the upstream `<path> [code] <message>` format.
 
 ### Fixed
 
