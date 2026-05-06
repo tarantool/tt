@@ -1,14 +1,8 @@
 package integrity
 
 import (
-	"errors"
-
 	"github.com/spf13/pflag"
 )
-
-// ErrNotConfigured is reported when integrity check is not configured
-// in the command context.
-var ErrNotConfigured = errors.New("integrity check is not configured")
 
 // IntegrityCtx is context required for integrity checks.
 type IntegrityCtx struct {
@@ -28,7 +22,7 @@ type Signer interface {
 
 // NewSigner constructs a noop Signer.
 func NewSigner(path string) (Signer, error) {
-	return nil, errors.New("integrity signer should never be created in ce")
+	return nil, ErrNoSignerInCE
 }
 
 // RegisterWithIntegrityFlag is a noop function that is intended to add
@@ -48,7 +42,7 @@ func InitializeIntegrityCheck(
 	publicKeyPath, configDir, instancesEnabledDir string,
 ) (IntegrityCtx, error) {
 	if publicKeyPath != "" {
-		return IntegrityCtx{}, errors.New("integrity checks should never be initialized in ce")
+		return IntegrityCtx{}, ErrNoVerifierInCE
 	}
 
 	return IntegrityCtx{
@@ -69,5 +63,5 @@ func GetCheckFunction(ctx IntegrityCtx) (
 func GetSignFunction(privateKeyPath string) (
 	func(data []byte) (map[string][]byte, []byte, error), error,
 ) {
-	return nil, errors.New("sign function should never be created in ce")
+	return nil, ErrNoSignerInCE
 }

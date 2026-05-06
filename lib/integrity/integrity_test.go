@@ -259,5 +259,5 @@ func TestGetSignFunction(t *testing.T) {
 	fun, err := integrity.GetSignFunction("")
 
 	require.Nil(t, fun)
-	require.EqualError(t, err, "sign function should never be created in ce")
+	require.EqualError(t, err, "integrity signer should never be created in ce")
 }
