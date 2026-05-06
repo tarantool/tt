@@ -27,16 +27,20 @@ func isConfigExist(cmdCtx *cmdcontext.CmdCtx) bool {
 // createDataCollectors creates data collectors factory based on the integrity context.
 func createDataCollectors(ctx integrity.IntegrityCtx) (libcluster.DataCollectorFactory, error) {
 	var collectors libcluster.DataCollectorFactory
-	checkFunc, err := integrity.GetCheckFunction(ctx)
+	hashers, verifiers, err := integrity.GetStorageVerifiers(ctx)
 	if errors.Is(err, integrity.ErrNotConfigured) {
 		collectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to create collectors with integrity check: %w", err)
 	} else {
-		collectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
-			func(path string) (io.ReadCloser, error) {
+		collectors = libcluster.NewDataCollectorFactory(
+			libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
 				return cmdCtx.Integrity.Repository.Read(path)
-			},
+			}),
+			libcluster.WithIntegrity(libcluster.IntegrityOptions{
+				Hashers:   hashers,
+				Verifiers: verifiers,
+			}),
 		)
 	}
 	return collectors, nil
@@ -46,11 +50,16 @@ func createDataCollectors(ctx integrity.IntegrityCtx) (libcluster.DataCollectorF
 func createDataPublishers(privateKey string) (libcluster.DataPublisherFactory, error) {
 	var publishers libcluster.DataPublisherFactory
 	if privateKey != "" {
-		signFunc, err := integrity.GetSignFunction(privateKey)
+		hashers, signerVerifiers, err := integrity.GetStorageSigners(privateKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create publishers with integrity: %w", err)
 		}
-		publishers = libcluster.NewIntegrityDataPublisherFactory(signFunc)
+		publishers = libcluster.NewDataPublisherFactory(
+			libcluster.WithIntegrity(libcluster.IntegrityOptions{
+				Hashers:         hashers,
+				SignerVerifiers: signerVerifiers,
+			}),
+		)
 	} else {
 		publishers = libcluster.NewDataPublisherFactory()
 	}

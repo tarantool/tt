@@ -32,15 +32,23 @@ type DataPublisherFactory interface {
 }
 
 // publishersFactory is a type that implements a default DataPublisherFactory.
-type publishersFactory struct{}
+type publishersFactory struct {
+	options factoryOptions
+}
 
 // NewDataPublisherFactory creates a new DataPublisherFactory.
-func NewDataPublisherFactory() DataPublisherFactory {
-	return publishersFactory{}
+func NewDataPublisherFactory(opts ...FactoryOption) DataPublisherFactory {
+	return publishersFactory{
+		options: applyFactoryOptions(opts),
+	}
 }
 
 // NewFiler creates a new file data publisher.
 func (factory publishersFactory) NewFile(path string) (DataPublisher, error) {
+	if factory.options.integrity != nil {
+		return nil, fmt.Errorf("publishing into a file with integrity data is not supported")
+	}
+
 	return NewFileDataPublisher(path), nil
 }
 
@@ -51,7 +59,7 @@ func (factory publishersFactory) NewEtcd(etcdcli *clientv3.Client,
 	driver := etcd.New(etcdcli)
 	storage := storage.NewStorage(driver)
 
-	return NewStorage(storage, prefix, timeout, key, etcdStorageType), nil
+	return NewStorage(storage, prefix, timeout, key, etcdStorageType, factory.options.integrity), nil
 }
 
 // NewTarantool creates creates a new tarantool config storage data publisher.
@@ -61,47 +69,5 @@ func (factory publishersFactory) NewTarantool(conn tarantool.Doer,
 	driver := tcs.New(dummyDoerWatcher{conn})
 	storage := storage.NewStorage(driver)
 
-	return NewStorage(storage, prefix, timeout, key, tcsStorageType), nil
-}
-
-// integrityPublishersFactory is a type that implements a default
-// DataPublisherFactory.
-type integrityPublishersFactory struct {
-	signFunc SignFunc
-}
-
-// NewIntegrityDataPublisherFactory creates a new DataPublisherFactory with
-// integrity signing.
-func NewIntegrityDataPublisherFactory(signFunc SignFunc) DataPublisherFactory {
-	return integrityPublishersFactory{
-		signFunc: signFunc,
-	}
-}
-
-// NewFiler creates a new file data publisher with integrity signing.
-func (factory integrityPublishersFactory) NewFile(path string) (DataPublisher, error) {
-	return nil, fmt.Errorf("publishing into a file with integrity data is not supported")
-}
-
-// NewEtcd creates a new etcd data publisher with integrity signing.
-func (factory integrityPublishersFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration,
-) (DataPublisher, error) {
-	if key == "" {
-		return NewIntegrityEtcdAllDataPublisher(factory.signFunc, etcdcli, prefix, timeout), nil
-	}
-	return NewIntegrityEtcdKeyDataPublisher(factory.signFunc, etcdcli, prefix, key, timeout), nil
-}
-
-// NewTarantool creates creates a new tarantool config storage data publisher
-// with integrity signing.
-func (factory integrityPublishersFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration,
-) (DataPublisher, error) {
-	if key == "" {
-		return NewIntegrityTarantoolAllDataPublisher(factory.signFunc,
-			conn, prefix, timeout), nil
-	}
-	return NewIntegrityTarantoolKeyDataPublisher(factory.signFunc,
-		conn, prefix, key, timeout), nil
+	return NewStorage(storage, prefix, timeout, key, tcsStorageType, factory.options.integrity), nil
 }

@@ -423,7 +423,7 @@ def test_cli_plain_etcd_success(tt_cmd, tmpdir_with_cfg, request, aeon_plain_fil
     file = open(source_file, "r")
     config = file.read()
 
-    conn.put("/prefix/config/", config)
+    conn.put("/prefix/config/all", config)
 
     creds = f"{instance.connection_username}:{instance.connection_password}@"
 

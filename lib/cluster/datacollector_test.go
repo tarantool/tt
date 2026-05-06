@@ -22,10 +22,11 @@ func TestDataCollectorFactory_NewFile_not_exist(t *testing.T) {
 		},
 		{
 			Name: "integrity",
-			Factory: cluster.NewIntegrityDataCollectorFactory(nil,
-				func(path string) (io.ReadCloser, error) {
+			Factory: cluster.NewDataCollectorFactory(
+				cluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
 					return os.Open(path)
 				}),
+			),
 		},
 	}
 
@@ -67,10 +68,11 @@ etcd:
 		},
 		{
 			Name: "integrity",
-			Factory: cluster.NewIntegrityDataCollectorFactory(nil,
-				func(path string) (io.ReadCloser, error) {
+			Factory: cluster.NewDataCollectorFactory(
+				cluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
 					return os.Open(path)
 				}),
+			),
 		},
 	}
 

@@ -257,6 +257,7 @@ func runUnitTests(flags []string) error {
 		}
 		args = append(args, "./...")
 		args = append(args, flags...)
+		args = append(args, "-count=1")
 
 		err := sh.RunV(goExecutableName, args...)
 		if err != nil {

@@ -1,15 +1,20 @@
 package cluster
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	gstorage "github.com/tarantool/go-storage"
-	"github.com/tarantool/go-storage/operation"
-	"github.com/tarantool/go-storage/predicate"
+	"github.com/tarantool/go-storage/integrity"
+	"github.com/tarantool/go-storage/marshaller"
 	"github.com/tarantool/go-tarantool/v2"
 )
+
+type StorageDataType = []byte
 
 const (
 	etcdStorageType = "etcd"
@@ -50,16 +55,50 @@ type IRawStorage interface {
 // RawStorage implements IRawStorage.
 type RawStorage struct {
 	close       func() error
-	storage     gstorage.Storage
+	storage     *integrity.Store[StorageDataType]
+	codec       *integrity.Codec[StorageDataType]
 	key         string
 	storageType string
 	prefix      string
 	timeout     time.Duration
 }
 
+func (r *RawStorage) normalizeName(name string) string {
+	if name == "" {
+		return ""
+	}
+
+	if r.prefix == "" {
+		return strings.TrimPrefix(name, "/")
+	}
+
+	configPrefix := r.prefix
+	if trimmed, ok := strings.CutPrefix(name, configPrefix); ok {
+		return trimmed
+	}
+
+	configPrefix = strings.TrimSuffix(configPrefix, "/")
+	if trimmed, ok := strings.CutPrefix(name, configPrefix); ok {
+		return strings.TrimPrefix(trimmed, "/")
+	}
+
+	return strings.TrimPrefix(name, "/")
+}
+
+func (r *RawStorage) sourceName(name string) string {
+	name = r.normalizeName(name)
+	if name == "" {
+		return r.prefix
+	}
+	if strings.HasSuffix(r.prefix, "/") {
+		return r.prefix + name
+	}
+	return r.prefix + "/" + name
+}
+
 // collectByRange collects kvs by prefix.
-func (r *RawStorage) collectByRange(ctx context.Context, prefix string) ([]Data, error) {
-	kvs, err := r.storage.Range(ctx, gstorage.WithPrefix(prefix))
+func (r *RawStorage) collectByRange(ctx context.Context) ([]Data, error) {
+	kvs, err := r.storage.Range(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
 	}
@@ -71,42 +110,38 @@ func (r *RawStorage) collectByRange(ctx context.Context, prefix string) ([]Data,
 
 	data := make([]Data, 0, len(kvs))
 	for _, kv := range kvs {
+		value, _ := kv.Value.Get()
 		data = append(data, Data{
-			Source:   string(kv.Key),
-			Value:    kv.Value,
+			Source:   r.sourceName(kv.Name),
+			Value:    value,
 			Revision: kv.ModRevision,
 		})
 	}
+
+	slices.SortFunc(data, func(a, b Data) int {
+		return cmp.Compare(a.Source, b.Source)
+	})
 
 	return data, nil
 }
 
 // collectByRange collects kvs by key.
 func (r *RawStorage) collectByKey(ctx context.Context, key string) ([]Data, error) {
-	resp, err := r.storage.Tx(ctx).Then(operation.Get([]byte(key))).Commit()
+	resp, err := r.storage.Get(ctx, r.normalizeName(key))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
 	}
 
-	data := make([]Data, 0, len(resp.Results))
-	for _, result := range resp.Results {
-		for _, kv := range result.Values {
-			data = append(data, Data{
-				Source:   string(kv.Key),
-				Value:    kv.Value,
-				Revision: kv.ModRevision,
-			})
-		}
-	}
+	data := make([]Data, 0, 1)
 
-	switch len(data) {
-	case 0:
-		return nil, fmt.Errorf("a configuration data not found in %s for key %q", r.storageType, key)
-	case 1:
-		return []Data{data[0]}, nil
-	default:
-		return nil, fmt.Errorf("too many responses (%v) from etcd for key %q", data, key)
-	}
+	value, _ := resp.Value.Get()
+	data = append(data, Data{
+		Source:   r.sourceName(resp.Name),
+		Value:    value,
+		Revision: resp.ModRevision,
+	})
+
+	return data, nil
 }
 
 // Collect collects values from storage by prefix or key.
@@ -121,40 +156,33 @@ func (r RawStorage) Collect() ([]Data, error) {
 
 	switch r.key {
 	case "":
-		return r.collectByRange(ctx, getConfigPrefix(r.prefix))
+		return r.collectByRange(ctx)
 	default:
-		return r.collectByKey(ctx, getConfigKey(r.prefix, r.key))
+		return r.collectByKey(ctx, r.key)
 	}
 }
 
 // publishByKey put data by specific key.
-func (r *RawStorage) publishByKey(ctx context.Context, key string, revision int64, data []byte) error {
+func (r *RawStorage) publishByKey(ctx context.Context, key string, data []byte, revision int64) error {
 	if data == nil {
 		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
 	}
 
-	var predicates []predicate.Predicate
+	var predicates []integrity.Predicate
 	if revision != 0 {
-		predicates = append(predicates, predicate.VersionEqual([]byte(key), revision))
+		predicates = append(predicates, r.codec.VersionEqual(revision))
 	}
 
-	txn := r.storage.Tx(ctx)
-	if predicates != nil {
-		txn = txn.If(predicates...)
-	}
-	resp, err := txn.Then(operation.Put([]byte(key), data)).Commit()
+	err := r.storage.Put(ctx, r.normalizeName(key), data, integrity.WithPutPredicates(predicates...))
 	if err != nil {
 		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
-	}
-	if !resp.Succeeded {
-		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errWrongRevision)
 	}
 
 	return nil
 }
 
 // publishByKey put data by prefix.
-func (r *RawStorage) publishByRange(ctx context.Context, prefix string, targetKey string, revision int64, data []byte) error {
+func (r *RawStorage) publishByRange(ctx context.Context, targetKey string, data []byte, revision int64) error {
 	if data == nil {
 		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
 	}
@@ -164,59 +192,17 @@ func (r *RawStorage) publishByRange(ctx context.Context, prefix string, targetKe
 			r.storageType, revision)
 	}
 
-	for {
-		// The code tries to put data with the key and remove all other
-		// data with the prefix. We need to remove all other data with the
-		// prefix because actually the cluster config could be split
-		// into several parts with the same prefix.
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		// First of all we need to get all paths with the prefix.
-		kvs, err := r.storage.Range(ctx, gstorage.WithPrefix(prefix))
-		if err != nil {
-			return fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
-		}
-
-		// Then we need to delete all other paths and put the configuration
-		// into the target key. We do it in a single transaction to avoid
-		// concurrent updates and collisions.
-
-		var (
-			predicates []predicate.Predicate
-			ops        []operation.Operation
-		)
-		for _, kv := range kvs {
-			// We need to skip the target key since some storage backends do not
-			// support delete + put for the same key in a single transaction.
-			if string(kv.Key) != targetKey {
-				predicates = append(predicates,
-					predicate.VersionEqual(kv.Key, kv.ModRevision))
-				ops = append(ops, operation.Delete(kv.Key))
-			}
-		}
-
-		// Fill the put part of the transaction.
-		ops = append(ops, operation.Put([]byte(targetKey), data))
-
-		txn := r.storage.Tx(ctx)
-		if len(predicates) > 0 {
-			txn = txn.If(predicates...)
-		}
-
-		// And try to execute the transaction.
-		resp, err := txn.Then(ops...).Commit()
-		if err != nil {
-			return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
-		}
-		if resp.Succeeded {
-			return nil
-		}
-		// Transaction failed due to concurrent modification, retry.
+	err := r.storage.Delete(ctx, "/", integrity.WithPrefix())
+	if err != nil {
+		return fmt.Errorf("failed to clean data from %s: %w", r.storageType, err)
 	}
+
+	err = r.storage.Put(ctx, r.normalizeName(targetKey), data)
+	if err != nil {
+		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
+	}
+
+	return nil
 }
 
 // Publish publishes the configuration data into the storage.
@@ -234,9 +220,9 @@ func (r RawStorage) Publish(revision int64, data []byte) error {
 
 	switch r.key {
 	case "":
-		return r.publishByRange(ctx, getConfigPrefix(r.prefix), getConfigKey(r.prefix, "all"), revision, data)
+		return r.publishByRange(ctx, "all", data, revision)
 	default:
-		return r.publishByKey(ctx, getConfigKey(r.prefix, r.key), revision, data)
+		return r.publishByKey(ctx, r.key, data, revision)
 	}
 }
 
@@ -252,14 +238,16 @@ func (r *RawStorage) Get(ctx context.Context, key string) ([]Data, error) {
 
 // Put puts a key-value pair into config storage.
 func (r *RawStorage) Put(ctx context.Context, key, value string) error {
-	_, err := r.storage.Tx(ctx).Then(operation.Put([]byte(key), []byte(value))).Commit()
-	return err
+	return r.publishByKey(ctx, key, []byte(value), 0)
 }
 
 // Watch watches on a key and return watched events through the returned channel.
-func (r *RawStorage) Watch(ctx context.Context, key string) <-chan CSWatchEvent {
+func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan CSWatchEvent, error) {
 	ch := make(chan CSWatchEvent)
-	innerCh := r.storage.Watch(ctx, []byte(key))
+	innerCh, err := r.storage.Watch(ctx, r.normalizeName(key))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create watch channel: %w", err)
+	}
 
 	go func() {
 		defer close(ch)
@@ -272,16 +260,68 @@ func (r *RawStorage) Watch(ctx context.Context, key string) <-chan CSWatchEvent 
 			}
 		}
 	}()
-	return ch
+	return ch, nil
+}
+
+func applyIntegrityBuilderOptions(
+	builder integrity.CodecBuilder[StorageDataType],
+	opts *IntegrityOptions,
+) integrity.CodecBuilder[StorageDataType] {
+	if opts == nil {
+		return builder
+	}
+
+	for _, h := range opts.Hashers {
+		builder = builder.WithHasher(h)
+	}
+
+	for _, sv := range opts.SignerVerifiers {
+		builder = builder.WithSignerVerifier(sv)
+	}
+
+	for _, signer := range opts.Signers {
+		builder = builder.WithSigner(signer)
+	}
+
+	for _, verifier := range opts.Verifiers {
+		builder = builder.WithVerifier(verifier)
+	}
+
+	return builder
 }
 
 // NewStorage returns RawStorage with specified storageType.
-func NewStorage(storage gstorage.Storage, prefix string, timeout time.Duration, key string, storageType string) RawStorage {
+func NewStorage(
+	storage gstorage.Storage,
+	prefix string,
+	timeout time.Duration,
+	key string,
+	storageType string,
+	integrityOpts *IntegrityOptions,
+) RawStorage {
+	basePrefix := getConfigPrefixNew(prefix)
+
+	codec := integrity.NewCodecBuilder[StorageDataType]().
+		WithMarshaller(marshaller.NewTypedBytesMarshaller())
+
+	codecBuild, err := applyIntegrityBuilderOptions(codec, integrityOpts).Build()
+	if err != nil {
+		panic(err)
+	}
+
+	storage, err = gstorage.Prefixed(basePrefix, storage)
+	if err != nil {
+		panic(err)
+	}
+
+	store := codecBuild.Bind(storage)
+
 	return RawStorage{
-		storage:     storage,
+		storage:     store,
+		codec:       codecBuild,
 		key:         key,
 		storageType: storageType,
-		prefix:      prefix,
 		timeout:     timeout,
+		prefix:      basePrefix,
 	}
 }

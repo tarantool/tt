@@ -5,7 +5,7 @@ go 1.25.7
 require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-storage v1.2.0
+	github.com/tarantool/go-storage v1.3.1-0.20260508130135-519a48acedf8
 	github.com/tarantool/go-tarantool/v2 v2.4.2
 	github.com/tarantool/tt/lib/connect v0.0.0-0
 	github.com/tarantool/tt/lib/dial v0.0.0-0
@@ -13,7 +13,7 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.6.8
 	go.etcd.io/etcd/client/v3 v3.6.8
 	go.uber.org/zap v1.27.1
-	google.golang.org/grpc v1.79.1
+	google.golang.org/grpc v1.79.3
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -59,7 +59,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.2.2 // indirect
-	github.com/tarantool/go-option v1.0.0 // indirect
+	github.com/tarantool/go-option v1.1.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
@@ -70,12 +70,12 @@ require (
 	go.etcd.io/raft/v3 v3.6.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.59.0 // indirect
-	go.opentelemetry.io/otel v1.39.0 // indirect
+	go.opentelemetry.io/otel v1.40.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.34.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.34.0 // indirect
-	go.opentelemetry.io/otel/metric v1.39.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.39.0 // indirect
-	go.opentelemetry.io/otel/trace v1.39.0 // indirect
+	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/term v0.40.0 // indirect

@@ -374,15 +374,11 @@ def test_cluster_promote_key_specified(
     [
         (
             "etcd",
-            "⨯ failed to collect cluster config: "
-            + "failed to fetch data from etcd: failed to execute ops: "
-            + "transaction failed: etcdserver: user name is empty",
+            "transaction failed: etcdserver: user name is empty",
         ),
         (
             "tcs",
-            "⨯ failed to collect cluster config: failed to fetch data from tarantool: "
-            + "failed to execute ops: failed to execute transaction: "
-            + "Execute access to function 'config.storage.txn' is denied for user 'guest'",
+            "for user 'guest' (AccessDeniedError, code 0x2a)",
         ),
     ],
 )

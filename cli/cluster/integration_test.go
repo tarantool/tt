@@ -186,7 +186,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 	require.NotNil(t, etcd)
 	defer etcd.Close()
 
-	etcdPut(t, etcd, "/test/config/", `wal:
+	etcdPut(t, etcd, "/test/config/all", `wal:
   dir: etcddir
   mode: etcdmode
 `)
@@ -270,7 +270,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 	require.NotNil(t, etcd)
 	defer etcd.Close()
 
-	etcdPut(t, etcd, prefix+"/config/", `wal:
+	etcdPut(t, etcd, prefix+"/config/all", `wal:
   dir: etcddir
   mode: etcdmode
 `)

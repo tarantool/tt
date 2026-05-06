@@ -2,6 +2,8 @@ package integrity
 
 import (
 	"github.com/spf13/pflag"
+	gcrypto "github.com/tarantool/go-storage/crypto"
+	"github.com/tarantool/go-storage/hasher"
 )
 
 // IntegrityCtx is context required for integrity checks.
@@ -58,10 +60,22 @@ func GetCheckFunction(ctx IntegrityCtx) (
 	return nil, ErrNotConfigured
 }
 
+// GetStorageVerifiers returns integrity primitives for storage-backed readers.
+func GetStorageVerifiers(ctx IntegrityCtx) ([]hasher.Hasher, []gcrypto.Verifier, error) {
+	return nil, nil, ErrNotConfigured
+}
+
 // GetSignFunction returns a function that creates a map of hashes and a
 // signature for a data for the private key in the path.
 func GetSignFunction(privateKeyPath string) (
 	func(data []byte) (map[string][]byte, []byte, error), error,
 ) {
 	return nil, ErrNoSignerInCE
+}
+
+// GetStorageSigners returns integrity primitives for storage-backed writers.
+func GetStorageSigners(
+	privateKeyPath string,
+) ([]hasher.Hasher, []gcrypto.SignerVerifier, error) {
+	return nil, nil, ErrNoSignerInCE
 }

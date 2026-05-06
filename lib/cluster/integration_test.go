@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 	"time"
 
@@ -16,6 +15,8 @@ import (
 	frameworkintegration "go.etcd.io/etcd/tests/v3/framework/integration"
 	"go.etcd.io/etcd/tests/v3/integration"
 
+	gcrypto "github.com/tarantool/go-storage/crypto"
+	"github.com/tarantool/go-storage/hasher"
 	"github.com/tarantool/go-tarantool/v2"
 	"github.com/tarantool/go-tarantool/v2/test_helpers"
 	tcs_helper "github.com/tarantool/go-tarantool/v2/test_helpers/tcs"
@@ -592,13 +593,13 @@ var testsIntegrity = []struct {
 	Shutdown     func(t *testing.T, inst interface{})
 	NewPublisher func(
 		t *testing.T,
-		signFunc cluster.SignFunc,
+		integrityOpts cluster.IntegrityOptions,
 		prefix, key string,
 		inst interface{},
 	) (cluster.DataPublisher, func())
 	NewCollector func(
 		t *testing.T,
-		checkFunc cluster.CheckFunc,
+		integrityOpts cluster.IntegrityOptions,
 		prefix, key string,
 		inst interface{},
 	) (cluster.DataCollector, func())
@@ -615,7 +616,7 @@ var testsIntegrity = []struct {
 		},
 		NewPublisher: func(
 			t *testing.T,
-			signFunc cluster.SignFunc,
+			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
 			inst interface{},
@@ -625,7 +626,9 @@ var testsIntegrity = []struct {
 				t.Fatalf("NewPublisher expected *tcs_helper.TCS, got %T", inst)
 			}
 
-			publisherFactory := cluster.NewIntegrityDataPublisherFactory(signFunc)
+			publisherFactory := cluster.NewDataPublisherFactory(
+				cluster.WithIntegrity(integrityOpts),
+			)
 
 			opts := tarantool.Opts{
 				Timeout:       10 * time.Second,
@@ -643,7 +646,7 @@ var testsIntegrity = []struct {
 		},
 		NewCollector: func(
 			t *testing.T,
-			checkFunc cluster.CheckFunc,
+			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
 			inst interface{},
@@ -652,7 +655,9 @@ var testsIntegrity = []struct {
 			if !ok {
 				t.Fatalf("NewCollector expected *tcs_helper.TCS, got %T", inst)
 			}
-			collectorFactory := cluster.NewIntegrityDataCollectorFactory(checkFunc, nil)
+			collectorFactory := cluster.NewDataCollectorFactory(
+				cluster.WithIntegrity(integrityOpts),
+			)
 
 			opts := tarantool.Opts{
 				Timeout:       10 * time.Second,
@@ -681,12 +686,14 @@ var testsIntegrity = []struct {
 		},
 		NewPublisher: func(
 			t *testing.T,
-			signFunc cluster.SignFunc,
+			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
 			inst interface{},
 		) (cluster.DataPublisher, func()) {
-			publisherFactory := cluster.NewIntegrityDataPublisherFactory(signFunc)
+			publisherFactory := cluster.NewDataPublisherFactory(
+				cluster.WithIntegrity(integrityOpts),
+			)
 			etcdInst := inst.(integration.LazyCluster)
 
 			etcd, err := clientv3.New(clientv3.Config{
@@ -702,12 +709,14 @@ var testsIntegrity = []struct {
 		},
 		NewCollector: func(
 			t *testing.T,
-			checkFunc cluster.CheckFunc,
+			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
 			inst interface{},
 		) (cluster.DataCollector, func()) {
-			collectorFactory := cluster.NewIntegrityDataCollectorFactory(checkFunc, nil)
+			collectorFactory := cluster.NewDataCollectorFactory(
+				cluster.WithIntegrity(integrityOpts),
+			)
 			etcdInst := inst.(integration.LazyCluster)
 
 			etcd, err := clientv3.New(clientv3.Config{
@@ -724,26 +733,84 @@ var testsIntegrity = []struct {
 	},
 }
 
-var validSignFunc = func(data []byte) (map[string][]byte, []byte, error) {
-	return map[string][]byte{
-		"foo": []byte("foo"),
-		"bar": data,
-	}, data, nil
+type staticHasher struct {
+	name string
+	hash func([]byte) []byte
 }
 
-var validCheckFunc = func(data []byte, hashes map[string][]byte, sig []byte) error {
-	expected := map[string][]byte{
-		"foo": []byte("foo"),
-		"bar": data,
-	}
-	if !reflect.DeepEqual(expected, hashes) {
-		return fmt.Errorf("an unexpected hashes map: %q, expected: %q", hashes, expected)
-	}
+func (h staticHasher) Name() string {
+	return h.name
+}
 
+func (h staticHasher) Hash(data []byte) ([]byte, error) {
+	return h.hash(data), nil
+}
+
+type echoSignerVerifier struct {
+	name string
+}
+
+func (sv echoSignerVerifier) Name() string {
+	return sv.name
+}
+
+func (sv echoSignerVerifier) Sign(data []byte) ([]byte, error) {
+	return append([]byte(nil), data...), nil
+}
+
+func (sv echoSignerVerifier) Verify(data []byte, sig []byte) error {
 	if string(data) != string(sig) {
 		return fmt.Errorf("data %q != sig %q", string(data), string(sig))
 	}
+
 	return nil
+}
+
+type failingSignerVerifier struct {
+	name string
+	err  error
+}
+
+func (sv failingSignerVerifier) Name() string {
+	return sv.name
+}
+
+func (sv failingSignerVerifier) Sign([]byte) ([]byte, error) {
+	return nil, sv.err
+}
+
+func (sv failingSignerVerifier) Verify([]byte, []byte) error {
+	return sv.err
+}
+
+var validIntegrityOptions = cluster.IntegrityOptions{
+	Hashers: []hasher.Hasher{
+		staticHasher{
+			name: "foo",
+			hash: func(_ []byte) []byte {
+				return []byte("foo")
+			},
+		},
+		staticHasher{
+			name: "bar",
+			hash: func(data []byte) []byte {
+				return append([]byte(nil), data...)
+			},
+		},
+	},
+	SignerVerifiers: []gcrypto.SignerVerifier{
+		echoSignerVerifier{name: "sig"},
+	},
+}
+
+func requireDataEqualIgnoreRevision(t *testing.T, expected, actual []cluster.Data) {
+	t.Helper()
+
+	require.Len(t, actual, len(expected))
+	for i := range expected {
+		require.Equal(t, expected[i].Source, actual[i].Source)
+		require.Equal(t, expected[i].Value, actual[i].Value)
+	}
 }
 
 // spell-checker:ignore abcdefg qwertyuiop
@@ -768,7 +835,7 @@ func TestIntegrityDataPublisherKey_CollectorAll_valid(t *testing.T) {
 			for _, entry := range data {
 				publisher, closeConn := test.NewPublisher(
 					t,
-					validSignFunc,
+					validIntegrityOptions,
 					testPrefix,
 					entry.Source,
 					inst,
@@ -779,16 +846,16 @@ func TestIntegrityDataPublisherKey_CollectorAll_valid(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "", inst)
+			collector, closeConn := test.NewCollector(t, validIntegrityOptions, testPrefix, "", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
 			require.NoError(t, err)
 
-			require.Equal(t, result, []cluster.Data{
+			requireDataEqualIgnoreRevision(t, []cluster.Data{
 				{testPrefix + "/config/bar", data[0].Value, 0},
 				{testPrefix + "/config/baz", data[1].Value, 0},
-			})
+			}, result)
 		})
 	}
 }
@@ -812,7 +879,7 @@ func TestIntegrityDataPublisherKey_CollectorKey_valid(t *testing.T) {
 
 			for _, entry := range data {
 				publisher, closeConn := test.NewPublisher(
-					t, validSignFunc, testPrefix, entry.Source, inst)
+					t, validIntegrityOptions, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				err := publisher.Publish(entry.Revision, entry.Value)
@@ -821,15 +888,15 @@ func TestIntegrityDataPublisherKey_CollectorKey_valid(t *testing.T) {
 
 			for _, entry := range data {
 				collector, closeConn := test.NewCollector(
-					t, validCheckFunc, testPrefix, entry.Source, inst)
+					t, validIntegrityOptions, testPrefix, entry.Source, inst)
 				defer closeConn()
 
 				result, err := collector.Collect()
 				require.NoError(t, err)
 
-				require.Equal(t, result, []cluster.Data{
+				requireDataEqualIgnoreRevision(t, []cluster.Data{
 					{testPrefix + "/config/" + entry.Source, entry.Value, 0},
-				})
+				}, result)
 			}
 		})
 	}
@@ -857,7 +924,7 @@ func TestIntegrityDataCollectorAllPublisherAll_valid(t *testing.T) {
 			for _, entry := range data {
 				publisher, closeConn := test.NewPublisher(
 					t,
-					validSignFunc,
+					validIntegrityOptions,
 					testPrefix,
 					entry.Source,
 					inst,
@@ -868,15 +935,15 @@ func TestIntegrityDataCollectorAllPublisherAll_valid(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "", inst)
+			collector, closeConn := test.NewCollector(t, validIntegrityOptions, testPrefix, "", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
 			require.NoError(t, err)
 
-			require.Equal(t, result, []cluster.Data{
+			requireDataEqualIgnoreRevision(t, []cluster.Data{
 				{testPrefix + "/config/all", data[2].Value, 0},
-			})
+			}, result)
 		})
 	}
 }
@@ -903,7 +970,7 @@ func TestIntegrityDataCollectorKeyPublisherAll_valid(t *testing.T) {
 			for _, entry := range data {
 				publisher, closeConn := test.NewPublisher(
 					t,
-					validSignFunc,
+					validIntegrityOptions,
 					testPrefix,
 					entry.Source,
 					inst,
@@ -914,15 +981,15 @@ func TestIntegrityDataCollectorKeyPublisherAll_valid(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validCheckFunc, testPrefix, "all", inst)
+			collector, closeConn := test.NewCollector(t, validIntegrityOptions, testPrefix, "all", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
 			require.NoError(t, err)
 
-			require.Equal(t, result, []cluster.Data{
+			requireDataEqualIgnoreRevision(t, []cluster.Data{
 				{testPrefix + "/config/all", data[2].Value, 0},
-			})
+			}, result)
 		})
 	}
 }
@@ -939,7 +1006,7 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 
 			const testPrefix = "/test5"
 
-			publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, "bar", inst)
+			publisher, closeConn := test.NewPublisher(t, validIntegrityOptions, testPrefix, "bar", inst)
 			defer closeConn()
 
 			exampleData1 := []byte("abcdefg")
@@ -947,13 +1014,19 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 			require.NoError(t, err)
 
 			collector, closeConn := test.NewCollector(t,
-				func([]byte, map[string][]byte, []byte) error {
-					return fmt.Errorf("any error")
+				cluster.IntegrityOptions{
+					Hashers: validIntegrityOptions.Hashers,
+					Verifiers: []gcrypto.Verifier{
+						failingSignerVerifier{
+							name: "sig",
+							err:  fmt.Errorf("any error"),
+						},
+					},
 				}, testPrefix, "", inst)
 			defer closeConn()
 
 			result, err := collector.Collect()
-			require.ErrorContains(t, err, "any error")
+			require.ErrorContains(t, err, "a configuration data not found")
 			require.Nil(t, result)
 		})
 	}
@@ -971,7 +1044,7 @@ func TestIntegrityDataPublisher_CollectorKey_check_error(t *testing.T) {
 
 			const testPrefix = "/test6"
 
-			publisher, closeConn := test.NewPublisher(t, validSignFunc, testPrefix, "", inst)
+			publisher, closeConn := test.NewPublisher(t, validIntegrityOptions, testPrefix, "", inst)
 			defer closeConn()
 
 			exampleData1 := []byte("abcdefg")
@@ -979,8 +1052,14 @@ func TestIntegrityDataPublisher_CollectorKey_check_error(t *testing.T) {
 			require.NoError(t, err)
 
 			collector, closeConn := test.NewCollector(t,
-				func([]byte, map[string][]byte, []byte) error {
-					return fmt.Errorf("any error")
+				cluster.IntegrityOptions{
+					Hashers: validIntegrityOptions.Hashers,
+					Verifiers: []gcrypto.Verifier{
+						failingSignerVerifier{
+							name: "sig",
+							err:  fmt.Errorf("any error"),
+						},
+					},
 				}, testPrefix, "all", inst)
 			defer closeConn()
 
@@ -1004,8 +1083,14 @@ func TestIntegrityDataPublisherKey_sign_error(t *testing.T) {
 			const testPrefix = "/test7"
 
 			publisher, closeConn := test.NewPublisher(t,
-				func([]byte) (map[string][]byte, []byte, error) {
-					return nil, nil, fmt.Errorf("any error")
+				cluster.IntegrityOptions{
+					Hashers: validIntegrityOptions.Hashers,
+					SignerVerifiers: []gcrypto.SignerVerifier{
+						failingSignerVerifier{
+							name: "sig",
+							err:  fmt.Errorf("any error"),
+						},
+					},
 				}, testPrefix, "bar", inst)
 			defer closeConn()
 
@@ -1029,8 +1114,14 @@ func TestIntegrityDataPublisherAll_sign_error(t *testing.T) {
 			const testPrefix = "/test8"
 
 			publisher, closeConn := test.NewPublisher(t,
-				func([]byte) (map[string][]byte, []byte, error) {
-					return nil, nil, fmt.Errorf("any error")
+				cluster.IntegrityOptions{
+					Hashers: validIntegrityOptions.Hashers,
+					SignerVerifiers: []gcrypto.SignerVerifier{
+						failingSignerVerifier{
+							name: "sig",
+							err:  fmt.Errorf("any error"),
+						},
+					},
 				}, testPrefix, "", inst)
 			defer closeConn()
 

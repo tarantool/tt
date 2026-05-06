@@ -270,10 +270,8 @@ def test_cluster_show_config_no_prefix(
     )
     show_output = instance_process.stdout.read()
 
-    expected = (
-        r"   ⨯ failed to collect a configuration: "
-        + f'a configuration data not found in {storage_name} for prefix "/prefix"'
-    )
+    expected = f"a configuration data not found in {storage_name} for prefix"
+
     assert expected in show_output
 
 
@@ -310,10 +308,7 @@ def test_cluster_show_config_no_key(
     )
     show_output = instance_process.stdout.read()
 
-    expected = (
-        r"   ⨯ failed to collect a configuration: "
-        + f'a configuration data not found in {storage_name} for key "/prefix/config/foo"'
-    )
+    expected = f"failed to fetch data from {storage_name}: not found"
     assert expected in show_output
 
 
@@ -322,16 +317,11 @@ def test_cluster_show_config_no_key(
     [
         pytest.param(
             "etcd",
-            "   ⨯ failed to collect a configuration: "
-            + "failed to fetch data from etcd: failed to execute ops: "
-            + "transaction failed: etcdserver: user name is empty",
+            "etcdserver: user name is empty",
         ),
         pytest.param(
             "tcs",
-            "   ⨯ failed to collect a configuration: "
-            + "failed to fetch data from tarantool: failed to execute ops: "
-            + "failed to execute transaction: Execute access to function "
-            + "'config.storage.txn' is denied for user",
+            "for user 'guest' (AccessDeniedError, code 0x2a)",
         ),
     ],
 )
@@ -515,7 +505,7 @@ def test_cluster_show_config_instance(
                 - uri: 127.0.0.1:3301
 """
     if instance_name == "etcd":
-        conn.put("/prefix/config/", config)
+        conn.put("/prefix/config/all", config)
     else:
         conn.call("config.storage.put", "/prefix/config/all", config)
     creds = (
