@@ -1,5 +1,5 @@
-import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -8,7 +8,9 @@ from shutil import copyfile, rmtree
 import pytest
 from async_reader import AsyncProcessReader
 
-from utils import run_command_and_get_output
+import utils
+
+# from utils import run_command_and_get_output
 
 DATA_DIR = Path(__file__).parent / "testdata"
 EXPECTED_DATA = DATA_DIR / "expected"
@@ -86,7 +88,7 @@ def test_log_n_lines(
     if lines > 0:
         cmd.extend(("-n", str(lines)))
     cmd.extend(options)
-    rc, output = run_command_and_get_output(cmd, cwd=DATA_DIR / mode)
+    rc, output = utils.run_command_and_get_output(cmd, cwd=DATA_DIR / mode)
 
     assert rc == 0, f"Command failed with return code {rc}."
     expected_file = expected_file_name(mode, lines, options)
@@ -124,6 +126,35 @@ def handle_static_logs(
     return tmp_log, reader, stdout_lines
 
 
+def handle_static_logs2(
+    tt_cmd: Path,
+    tmp_path: Path,
+    mode: str,
+    lines: int,
+    options: list[str],
+) -> tuple[Path, AsyncProcessReader, list[str]]:
+    tmp_log, eof_marker = prepare_first_log(tmp_path, mode)
+
+    cmd = [tt_cmd, "tcm", "log", "--follow"]
+    if lines > 0:
+        cmd.append(f"--lines={lines + 1}")  # +1 to include the extra EOF marker line.
+    cmd.extend(options)
+
+    p = subprocess.Popen(
+        cmd,
+        cwd=tmp_path,
+        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert utils.wait_for_string(10, p.stdout, eof_marker), \
+        f"Expected end marker {eof_marker} not found."
+
+    return tmp_log, p
+
+
 def prepare_second_log(
     tmp_log: Path,
     mode: str,
@@ -155,7 +186,9 @@ def handle_updating_logs(
 ) -> tuple[list[str], int]:
     eof_marker, write_cnt = prepare_second_log(tmp_log, mode, delay_time, is_append)
 
+    # print(f"@@@@@@@@@ {time.time()} handle_updating_logs")
     lines, is_found = reader.stdout_wait_for(eof_marker, timeout=10)
+    # print(f"@@@@@@@@@ {time.time()} handle_updating_logs2")
 
     reader.send_signal(signal.SIGINT)
     reader.pStop()
@@ -203,10 +236,6 @@ def final_checks(
     check_output("".join(stdout_lines), update_testdata, expected_file)
 
 
-@pytest.mark.skipif(
-    condition=os.getenv("CI") is not None,
-    reason="Skip on CI runs until issue #TNTP-3131 is fixed.",
-)
 @pytest.mark.parametrize("delay_time", (0.1, 0.01, 0))
 @pytest.mark.parametrize("lines, options", TEST_CASES)
 @pytest.mark.parametrize("mode", TEST_DATA_MODES)
@@ -235,12 +264,52 @@ def test_log_follow(
     )
 
 
+def handle_updating_logs2(
+    p,
+    tmp_log: Path,
+    mode: str,
+    delay_time: float,
+    is_append: bool,
+) -> tuple[list[str], int]:
+    eof_marker, write_cnt = prepare_second_log(tmp_log, mode, delay_time, is_append)
+
+    # print(f"@@@@@@@@@ {time.time()} handle_updating_logs")
+    assert utils.wait_for_string(10, p.stdout, eof_marker), \
+        f"Expected end marker {eof_marker} not found."
+    lines, is_found = reader.stdout_wait_for(eof_marker, timeout=10)
+    # print(f"@@@@@@@@@ {time.time()} handle_updating_logs2")
+
+    reader.send_signal(signal.SIGINT)
+    reader.pStop()
+
+
+
+
+    stderr_lines = reader.stderr
+    assert "context canceled" in "".join(stderr_lines), (
+        f"Expected message not found in stderr {stderr_lines}"
+    )
+
+    if reader.pWait() is None:
+        reader.pKill()
+
+    if not is_found:
+        print(f"Second marker not found in stdout:\n{''.join(lines)}")
+        rest_lines = reader.stdout
+        if rest_lines:
+            print(f"Rest output =>\n{''.join(rest_lines)}")
+        if stderr_lines:
+            print(f"Got stderr:\n{''.join(stderr_lines)}", file=sys.stderr)
+
+    assert is_found, f"Expected end marker {eof_marker} not found."
+
+    assert reader.returncode == 1, (
+        f"Command failed with return code {reader.returncode} (expected 1)."
+    )
+    return lines, write_cnt
+
+
 @pytest.mark.slow
-@pytest.mark.skipif(
-    condition=os.getenv("CI") is not None,
-    reason="Skip on CI runs until issue #TNTP-3131 is fixed.",
-)
-@pytest.mark.flaky(reruns=5)  # See notes below about issues with `tail` package.
 @pytest.mark.parametrize("delay_time", (0.1, 0.01, 0))
 @pytest.mark.parametrize("lines, options", TEST_CASES)
 @pytest.mark.parametrize("mode", TEST_DATA_MODES)
@@ -264,13 +333,6 @@ def test_log_rotate(
 
     tmp_log.rename(tmp_log.with_suffix(".bak"))
     assert not tmp_log.exists(), "Temporary log file should be deleted."
-    # TODO: Need fix `tail` library, see #TNTP-3131 for more details.
-    # See `tail` opened issues, since 2024:
-    #  - https://github.com/nxadm/tail/issues/72
-    #  - https://github.com/nxadm/tail/pull/73
-    _, found = reader.stderr_wait_for("tryReopenTailer", timeout=0.5)
-    if not found:
-        time.sleep(1)
 
     new_lines, cnt_lines = handle_updating_logs(reader, tmp_log, mode, delay_time, is_append=True)
     stdout_lines.extend(new_lines)
