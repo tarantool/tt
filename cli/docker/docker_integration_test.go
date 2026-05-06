@@ -11,23 +11,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
+	mobyclient "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func findAndRemoveBuiltImage(t *testing.T, dockerClient *client.Client, expectedTag string) {
+func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client, expectedTag string) {
 	ctx := context.Background()
-	imageList, err := dockerClient.ImageList(ctx, image.ListOptions{})
+	imageListResult, err := dockerClient.ImageList(ctx, mobyclient.ImageListOptions{})
 	require.NoError(t, err)
 	imgFound := false
-	for _, img := range imageList {
+	for _, img := range imageListResult.Items {
 		for _, imgTag := range img.RepoTags {
 			if imgTag == "ubuntu:tt_test" {
 				imgFound = true
-				dockerClient.ImageRemove(ctx, img.ID, image.RemoveOptions{})
+				dockerClient.ImageRemove(ctx, img.ID, mobyclient.ImageRemoveOptions{})
 			}
 		}
 	}
@@ -35,8 +33,8 @@ func findAndRemoveBuiltImage(t *testing.T, dockerClient *client.Client, expected
 }
 
 func TestBuildImage(t *testing.T) {
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv,
-		client.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
+		mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 	defer dockerClient.Close()
 
@@ -53,8 +51,8 @@ func TestBuildImageFail(t *testing.T) {
 	COPY /non-existing-file /
 	`), 0o664))
 
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv,
-		client.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
+		mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 	defer dockerClient.Close()
 
@@ -64,8 +62,8 @@ func TestBuildImageFail(t *testing.T) {
 }
 
 func TestBuildImageOutputVerbose(t *testing.T) {
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv,
-		client.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
+		mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 	defer dockerClient.Close()
 
@@ -91,8 +89,8 @@ func TestBuildImageOutputVerbose(t *testing.T) {
 }
 
 func TestBuildImageOutput(t *testing.T) {
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv,
-		client.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
+		mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 	defer dockerClient.Close()
 
@@ -113,21 +111,17 @@ func TestBuildImageOutput(t *testing.T) {
 
 func checkNoContainers(t *testing.T, imageTag string) {
 	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 	defer cli.Close()
 
-	containers, err := cli.ContainerList(ctx, container.ListOptions{
-		Latest: true,
-		Limit:  1,
+	containerListResult, err := cli.ContainerList(ctx, mobyclient.ContainerListOptions{
+		Filters: mobyclient.Filters{
+			"ancestor": {imageTag: true},
+		},
 	})
 	require.NoError(t, err)
-	containerFound := false
-	for _, container := range containers {
-		if container.Image == imageTag {
-			containerFound = true
-		}
-	}
+	containerFound := len(containerListResult.Items) > 0
 	require.False(t, containerFound)
 }
 
