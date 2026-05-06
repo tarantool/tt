@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/apex/log"
-	"github.com/nxadm/tail"
+	"github.com/tarantool/go-tail"
 )
 
 const (
