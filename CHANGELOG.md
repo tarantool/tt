@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Possible line loss/duplication when the log file is renamed.
+
 ## [2.13.0] - 2026-05-21
 
 This release adds cluster worker configuration management and fixes
