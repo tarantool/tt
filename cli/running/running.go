@@ -334,7 +334,7 @@ func loadInstanceConfig(configPath, instName string,
 
 	var dataCollectors libcluster.DataCollectorFactory
 	checkFunc, err := integrity.GetCheckFunction(integrityCtx)
-	if err == integrity.ErrNotConfigured {
+	if errors.Is(err, integrity.ErrNotConfigured) {
 		dataCollectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return instCfg,

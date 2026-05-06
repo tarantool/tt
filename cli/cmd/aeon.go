@@ -273,7 +273,7 @@ func readConfigFilePath(configPath, instance string) error {
 func getConfigUri(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
 	var dataCollectors libcluster.DataCollectorFactory
 	checkFunc, err := integrity.GetCheckFunction(cmdCtx.Integrity)
-	if err == integrity.ErrNotConfigured {
+	if errors.Is(err, integrity.ErrNotConfigured) {
 		dataCollectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return fmt.Errorf("failed to create collectors with integrity check: %w", err)

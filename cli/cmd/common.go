@@ -28,7 +28,7 @@ func isConfigExist(cmdCtx *cmdcontext.CmdCtx) bool {
 func createDataCollectors(ctx integrity.IntegrityCtx) (libcluster.DataCollectorFactory, error) {
 	var collectors libcluster.DataCollectorFactory
 	checkFunc, err := integrity.GetCheckFunction(ctx)
-	if err == integrity.ErrNotConfigured {
+	if errors.Is(err, integrity.ErrNotConfigured) {
 		collectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to create collectors with integrity check: %w", err)
