@@ -251,6 +251,21 @@ def wait_box_status(timeout, tt_app, instances, acceptable_statuses, interval=0.
     )
 
 
+def wait_status(timeout, tt_app, instances, acceptable_statuses, interval=0.1):
+    def are_all_statuses_acceptable(tt, instances, acceptable_statuses):
+        status_ = status(tt)
+        return all([(status_[inst].get("STATUS") in acceptable_statuses) for inst in instances])
+
+    return utils.wait_event(
+        timeout,
+        are_all_statuses_acceptable,
+        interval,
+        tt_app.tt,
+        instances,
+        acceptable_statuses,
+    )
+
+
 def post_start_base(tt_app):
     assert utils.wait_files(5, pid_files(tt_app, tt_app.running_instances))
 

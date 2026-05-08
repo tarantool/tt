@@ -109,6 +109,12 @@ def check_restart(tt, tt_app, target, input, is_confirm, *args):
     for inst in tt_app.instances:
         was_running = inst in tt_app.running_instances
         if is_confirm and inst in target_instances:
+            if status[inst]["STATUS"] != "RUNNING":
+                with open(tt_app.log_path(inst, utils.log_file)) as f:
+                    print(f"log of instance {inst} ======")
+                    print(f.read())
+                    print("=============================")
+                    assert False
             assert status[inst]["STATUS"] == "RUNNING"
             assert f"Starting an instance [{inst}]" in out
             if was_running:

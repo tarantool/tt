@@ -273,6 +273,7 @@ def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
         p = tt.run("start", target)
         assert p.returncode == 0
     app.running_instances = app.instances_of(*tt_running_targets)
+    assert tt_helper.wait_status(5, app, app.running_instances, ["RUNNING"])
     if tt_post_start is not None:
         tt_post_start(app)
     yield app
