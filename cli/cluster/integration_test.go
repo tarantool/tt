@@ -68,7 +68,7 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 	inst := integration.NewLazyClusterWithConfig(config)
 
 	if opts.Username != "" {
-		etcd, err := libcluster.ConnectEtcd(libcluster.EtcdOpts{
+		etcd, err := clientv3.New(clientv3.Config{
 			Endpoints: inst.EndpointsGRPC(),
 		})
 		require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	renderEtcdAppConfig(t, endpoints[0], "testdata/etcdapp/config.yaml.template", configPath)
 
-	etcd, err := libcluster.ConnectEtcd(libcluster.EtcdOpts{
+	etcd, err := clientv3.New(clientv3.Config{
 		Endpoints: endpoints,
 		Username:  "root",
 		Password:  "pass",
@@ -261,7 +261,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	renderEtcdAppConfig(t, endpoints[0], "testdata/etcdapp/config.yaml.template", configPath)
 
-	etcd, err := libcluster.ConnectEtcd(libcluster.EtcdOpts{
+	etcd, err := clientv3.New(clientv3.Config{
 		Endpoints: endpoints,
 		Username:  user,
 		Password:  pass,

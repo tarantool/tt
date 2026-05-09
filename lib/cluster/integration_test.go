@@ -15,7 +15,10 @@ import (
 	frameworkintegration "go.etcd.io/etcd/tests/v3/framework/integration"
 	"go.etcd.io/etcd/tests/v3/integration"
 
+	pkgstorage "github.com/tarantool/go-storage"
 	gcrypto "github.com/tarantool/go-storage/crypto"
+	etcddriver "github.com/tarantool/go-storage/driver/etcd"
+	tcsdriver "github.com/tarantool/go-storage/driver/tcs"
 	"github.com/tarantool/go-storage/hasher"
 	"github.com/tarantool/go-tarantool/v2"
 	"github.com/tarantool/go-tarantool/v2/test_helpers"
@@ -89,7 +92,7 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 	inst := integration.NewLazyClusterWithConfig(config)
 
 	if opts.Username != "" {
-		etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{
+		etcd, err := clientv3.New(clientv3.Config{
 			Endpoints: inst.EndpointsGRPC(),
 		})
 		require.NoError(t, err)
@@ -175,142 +178,26 @@ func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
 	return resp.Kvs[0].Value, resp.Kvs[0].ModRevision
 }
 
-func newEtcdCollector(t *testing.T, etcd *clientv3.Client,
+func newEtcdCollector(t *testing.T, stor pkgstorage.Storage,
 	prefix, key string, timeout time.Duration,
 ) cluster.DataCollector {
 	t.Helper()
 
-	collector, err := cluster.NewDataCollectorFactory().NewEtcd(etcd, prefix, key, timeout)
+	collector, err := cluster.NewDataCollectorFactory().NewRemoteStorage(stor, prefix, key, timeout, "etcd")
 	require.NoError(t, err)
 
 	return collector
 }
 
-func newEtcdPublisher(t *testing.T, etcd *clientv3.Client,
+func newEtcdPublisher(t *testing.T, stor pkgstorage.Storage,
 	prefix, key string, timeout time.Duration,
 ) cluster.DataPublisher {
 	t.Helper()
 
-	publisher, err := cluster.NewDataPublisherFactory().NewEtcd(etcd, prefix, key, timeout)
+	publisher, err := cluster.NewDataPublisherFactory().NewRemoteStorage(stor, prefix, key, timeout, "etcd")
 	require.NoError(t, err)
 
 	return publisher
-}
-
-type connectEtcdOpts struct {
-	ServerOpts etcdOpts
-	ClientOpts cluster.EtcdOpts
-}
-
-func TestConnectEtcd(t *testing.T) {
-	// Client endpoints will be filled in the test runtime.
-	cases := []struct {
-		Name string
-		Opts connectEtcdOpts
-	}{
-		{
-			Name: "base",
-			Opts: connectEtcdOpts{
-				ServerOpts: etcdOpts{},
-				ClientOpts: cluster.EtcdOpts{},
-			},
-		},
-		{
-			Name: "auth",
-			Opts: connectEtcdOpts{
-				ServerOpts: etcdOpts{
-					Username: "root",
-					Password: "pass",
-				},
-				ClientOpts: cluster.EtcdOpts{
-					Username: "root",
-					Password: "pass",
-				},
-			},
-		},
-		{
-			Name: "tls_ca_file",
-			Opts: connectEtcdOpts{
-				ServerOpts: etcdOpts{
-					KeyFile:  "testdata/tls/localhost.key",
-					CertFile: "testdata/tls/localhost.crt",
-				},
-				ClientOpts: cluster.EtcdOpts{
-					CaFile: "testdata/tls/ca.crt",
-				},
-			},
-		},
-		{
-			Name: "tls_ca_path",
-			Opts: connectEtcdOpts{
-				ServerOpts: etcdOpts{
-					KeyFile:  "testdata/tls/localhost.key",
-					CertFile: "testdata/tls/localhost.crt",
-				},
-				ClientOpts: cluster.EtcdOpts{
-					CaPath: "testdata/tls/",
-				},
-			},
-		},
-		{
-			Name: "tls_ca_skip_verify",
-			Opts: connectEtcdOpts{
-				ServerOpts: etcdOpts{
-					KeyFile:  "testdata/tls/localhost.key",
-					CertFile: "testdata/tls/localhost.crt",
-				},
-				ClientOpts: cluster.EtcdOpts{
-					SkipHostVerify: true,
-				},
-			},
-		},
-		{
-			Name: "tls_full",
-			Opts: connectEtcdOpts{
-				ServerOpts: etcdOpts{
-					KeyFile:  "testdata/tls/localhost.key",
-					CertFile: "testdata/tls/localhost.crt",
-					CaFile:   "testdata/tls/ca.crt",
-				},
-				ClientOpts: cluster.EtcdOpts{
-					KeyFile:  "testdata/tls/localhost.key",
-					CertFile: "testdata/tls/localhost.crt",
-					CaFile:   "testdata/tls/ca.crt",
-				},
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.Name, func(t *testing.T) {
-			inst := startEtcd(t, tc.Opts.ServerOpts)
-			defer inst.Terminate()
-
-			tc.Opts.ClientOpts.Endpoints = inst.EndpointsGRPC()
-			etcd, err := cluster.ConnectEtcd(tc.Opts.ClientOpts)
-			require.NoError(t, err)
-			require.NotNil(t, etcd)
-			defer etcd.Close()
-
-			etcdPut(t, etcd, "foo", "bar")
-
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			gResp, err := etcd.Get(ctx, "foo")
-			cancel()
-			require.NoError(t, err)
-			require.NotNil(t, gResp)
-		})
-	}
-}
-
-func TestConnectEtcd_invalid_endpoint(t *testing.T) {
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{
-		Endpoints: []string{"some_unknown_endpoint:2323"},
-		Timeout:   1 * time.Second,
-	})
-
-	assert.Nil(t, etcd)
-	assert.ErrorContains(t, err, "context deadline exceeded")
 }
 
 func TestEtcdCollectors_single(t *testing.T) {
@@ -318,9 +205,10 @@ func TestEtcdCollectors_single(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/bar", "foo: bar")
@@ -330,9 +218,9 @@ func TestEtcdCollectors_single(t *testing.T) {
 		Collector cluster.Collector
 	}{
 		{"all", cluster.NewYamlCollectorDecorator(
-			newEtcdCollector(t, etcd, "/foo/", "", timeout))},
+			newEtcdCollector(t, stor, "/foo/", "", timeout))},
 		{"key", cluster.NewYamlCollectorDecorator(
-			newEtcdCollector(t, etcd, "/foo/", "bar", timeout))},
+			newEtcdCollector(t, stor, "/foo/", "bar", timeout))},
 	}
 
 	for _, tc := range cases {
@@ -351,8 +239,9 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	require.NotNil(t, etcd)
 	defer etcd.Close()
 
@@ -360,7 +249,7 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/b", "foo: car\nzoo: car")
 
 	config, err := cluster.NewYamlCollectorDecorator(
-		newEtcdCollector(t, etcd, "/foo/", "", timeout)).Collect()
+		newEtcdCollector(t, stor, "/foo/", "", timeout)).Collect()
 	require.NoError(t, err)
 	value, err := config.Get([]string{"foo"})
 	require.NoError(t, err)
@@ -375,7 +264,8 @@ func TestEtcdCollectors_empty(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
 	defer etcd.Close()
@@ -385,9 +275,9 @@ func TestEtcdCollectors_empty(t *testing.T) {
 		Collector cluster.Collector
 	}{
 		{"all", cluster.NewYamlCollectorDecorator(
-			newEtcdCollector(t, etcd, "/foo/", "", timeout))},
+			newEtcdCollector(t, stor, "/foo/", "", timeout))},
 		{"key", cluster.NewYamlCollectorDecorator(
-			newEtcdCollector(t, etcd, "/foo/", "bar", timeout))},
+			newEtcdCollector(t, stor, "/foo/", "bar", timeout))},
 	}
 
 	for _, tc := range cases {
@@ -404,9 +294,10 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	defer etcd.Close()
 
 	data := []byte("foo bar")
@@ -415,8 +306,8 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 		Key       string
 		Publisher cluster.DataPublisher
 	}{
-		{"all", "all", newEtcdPublisher(t, etcd, "/foo/", "", timeout)},
-		{"key", "key", newEtcdPublisher(t, etcd, "/foo/", "key", timeout)},
+		{"all", "all", newEtcdPublisher(t, stor, "/foo/", "", timeout)},
+		{"key", "key", newEtcdPublisher(t, stor, "/foo/", "key", timeout)},
 	}
 
 	for _, tc := range cases {
@@ -435,9 +326,10 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	defer etcd.Close()
 
 	oldData := []byte("foo bar zoo")
@@ -447,8 +339,8 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 		Key       string
 		Publisher cluster.DataPublisher
 	}{
-		{"all", "all", newEtcdPublisher(t, etcd, "/foo/", "", timeout)},
-		{"key", "key", newEtcdPublisher(t, etcd, "/foo/", "key", timeout)},
+		{"all", "all", newEtcdPublisher(t, stor, "/foo/", "", timeout)},
+		{"key", "key", newEtcdPublisher(t, stor, "/foo/", "key", timeout)},
 	}
 
 	for _, tc := range cases {
@@ -468,16 +360,17 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/foo", "foo")
 	etcdPut(t, etcd, "/foo/config/zoo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = newEtcdPublisher(t, etcd, "/foo/", "", timeout).Publish(0, data)
+	err = newEtcdPublisher(t, stor, "/foo/", "", timeout).Publish(0, data)
 	require.NoError(t, err)
 
 	actual, _ := etcdGet(t, etcd, "/foo/config/zoo")
@@ -495,9 +388,10 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/key", "bar")
@@ -505,7 +399,7 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 
 	data := []byte("baz")
 
-	publisher := newEtcdPublisher(t, etcd, "/foo", "key", timeout)
+	publisher := newEtcdPublisher(t, stor, "/foo", "key", timeout)
 	// Use wrong revision.
 	err = publisher.Publish(modRevision-1, data)
 	assert.Errorf(t, err, "failed to put data into etcd: wrong revision")
@@ -524,16 +418,17 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/", "foo")
 	etcdPut(t, etcd, "/foo/config/foo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = newEtcdPublisher(t, etcd, "/foo/", "all", timeout).Publish(0, data)
+	err = newEtcdPublisher(t, stor, "/foo/", "all", timeout).Publish(0, data)
 
 	assert.NoError(t, err)
 
@@ -552,18 +447,19 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
-	etcd, err := cluster.ConnectEtcd(cluster.EtcdOpts{Endpoints: endpoints})
+	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/foo", "zoo: bar")
 
 	prefix := "/foo/"
-	dataPublisher := newEtcdPublisher(t, etcd, prefix, "", timeout)
+	dataPublisher := newEtcdPublisher(t, stor, prefix, "", timeout)
 	publisher := cluster.NewYamlConfigPublisher(dataPublisher)
 	collector := cluster.NewYamlCollectorDecorator(
-		newEtcdCollector(t, etcd, prefix, "", timeout))
+		newEtcdCollector(t, stor, prefix, "", timeout))
 
 	config, err := collector.Collect()
 	require.NoError(t, err)
@@ -639,7 +535,8 @@ var testsIntegrity = []struct {
 			conn, err := tarantool.Connect(context.Background(), tcs.Dialer(), opts)
 			require.NoError(t, err)
 
-			pub, err := publisherFactory.NewTarantool(conn, prefix, key, 1*time.Second)
+			stor := pkgstorage.NewStorage(tcsdriver.New(conn))
+			pub, err := publisherFactory.NewRemoteStorage(stor, prefix, key, 1*time.Second, "tarantool")
 			require.NoError(t, err)
 
 			return pub, func() { conn.Close() }
@@ -668,7 +565,8 @@ var testsIntegrity = []struct {
 			conn, err := tarantool.Connect(context.Background(), tcs.Dialer(), opts)
 			require.NoError(t, err)
 
-			coll, err := collectorFactory.NewTarantool(conn, prefix, key, 1*time.Second)
+			stor := pkgstorage.NewStorage(tcsdriver.New(conn))
+			coll, err := collectorFactory.NewRemoteStorage(stor, prefix, key, 1*time.Second, "tarantool")
 			require.NoError(t, err)
 
 			return coll, func() { conn.Close() }
@@ -702,7 +600,8 @@ var testsIntegrity = []struct {
 			})
 			require.NoError(t, err)
 
-			pub, err := publisherFactory.NewEtcd(etcd, prefix, key, 10*time.Second)
+			stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+			pub, err := publisherFactory.NewRemoteStorage(stor, prefix, key, 10*time.Second, "etcd")
 			require.NoError(t, err)
 
 			return pub, func() { etcd.Close() }
@@ -725,7 +624,8 @@ var testsIntegrity = []struct {
 			})
 			require.NoError(t, err)
 
-			coll, err := collectorFactory.NewEtcd(etcd, prefix, key, 10*time.Second)
+			stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+			coll, err := collectorFactory.NewRemoteStorage(stor, prefix, key, 10*time.Second, "etcd")
 			require.NoError(t, err)
 
 			return coll, func() { etcd.Close() }

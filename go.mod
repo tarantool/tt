@@ -28,11 +28,12 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/go-prompt v1.0.1
+	github.com/tarantool/go-storage v1.4.0
 	github.com/tarantool/go-tarantool/v2 v2.4.2
 	github.com/tarantool/go-tlsdialer v1.0.2
 	github.com/tarantool/tt/lib/cluster v0.0.0
 	github.com/tarantool/tt/lib/connect v0.0.0-0
-	github.com/tarantool/tt/lib/dial v0.0.0-0
+	github.com/tarantool/tt/lib/dial v0.0.0-00010101000000-000000000000
 	github.com/tarantool/tt/lib/integrity v0.0.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/yuin/gopher-lua v1.1.1
@@ -117,7 +118,6 @@ require (
 	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.2.2 // indirect
 	github.com/tarantool/go-option v1.1.0 // indirect
-	github.com/tarantool/go-storage v1.3.1-0.20260508130135-519a48acedf8 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xiang90/probing v0.0.0-20221125231312-a49e3df8f510 // indirect
@@ -156,6 +156,7 @@ require (
 
 replace (
 	github.com/c-bata/go-prompt => github.com/tarantool/go-prompt v0.2.6-tarantool
+	github.com/tarantool/go-storage => github.com/tarantool/go-storage v1.3.1-0.20260508130135-519a48acedf8
 	github.com/tarantool/tt/lib/cluster => ./lib/cluster
 	github.com/tarantool/tt/lib/connect => ./lib/connect
 	github.com/tarantool/tt/lib/dial => ./lib/dial

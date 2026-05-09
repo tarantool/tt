@@ -6,11 +6,10 @@ import (
 
 	"github.com/apex/log"
 	"github.com/manifoldco/promptui"
-	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-storage"
 	"github.com/tarantool/tt/cli/replicaset"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // dataKeyPublisher is a function implements replicaset.DataPublisher.
@@ -21,35 +20,12 @@ func (publisher dataKeyPublisher) Publish(key string, revision int64, data []byt
 	return publisher(key, revision, data)
 }
 
-// makeTarantoolPublisher creates publisher that publishes into tarantool.
-func makeTarantoolPublisher(factory libcluster.DataPublisherFactory,
-	conn tarantool.Connector, prefix string, timeout time.Duration,
+// makeStoragePublisher creates publisher for a generic remote storage.
+func makeStoragePublisher(factory libcluster.DataPublisherFactory,
+	storage storage.Storage, storageType, prefix string, timeout time.Duration,
 ) replicaset.DataPublisher {
 	return dataKeyPublisher(func(key string, revision int64, data []byte) error {
-		var err error
-		key, err = libcluster.GetStorageKey(prefix, key)
-		if err != nil {
-			return err
-		}
-		publisher, err := factory.NewTarantool(conn, prefix, key, timeout)
-		if err != nil {
-			return err
-		}
-		return publisher.Publish(revision, data)
-	})
-}
-
-// makeEtcdPublisher creates publisher that publishes into etcd.
-func makeEtcdPublisher(factory libcluster.DataPublisherFactory,
-	client *clientv3.Client, prefix string, timeout time.Duration,
-) replicaset.DataPublisher {
-	return dataKeyPublisher(func(key string, revision int64, data []byte) error {
-		var err error
-		key, err = libcluster.GetStorageKey(prefix, key)
-		if err != nil {
-			return err
-		}
-		publisher, err := factory.NewEtcd(client, prefix, key, timeout)
+		publisher, err := factory.NewRemoteStorage(storage, prefix, key, timeout, storageType)
 		if err != nil {
 			return err
 		}
@@ -113,43 +89,23 @@ func createDataCollectorAndKeyPublisher(
 	libcluster.DataCollector, replicaset.DataPublisher, func(), error,
 ) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
-	var (
-		collector libcluster.DataCollector
-		publisher replicaset.DataPublisher
-		closeFunc func()
-		err       error
-	)
-	tarantoolFunc := func(conn tarantool.Connector) error {
-		closeFunc = func() { conn.Close() }
-		if collectors != nil {
-			collector, err = collectors.NewTarantool(conn, prefix, key, timeout)
-			if err != nil {
-				conn.Close()
-				return fmt.Errorf("failed to create tarantool collector: %w", err)
-			}
-		}
-		if publishers != nil {
-			publisher = makeTarantoolPublisher(publishers, conn, prefix, timeout)
-		}
-		return nil
-	}
-	etcdFunc := func(client *clientv3.Client) error {
-		closeFunc = func() { client.Close() }
-		if collectors != nil {
-			collector, err = collectors.NewEtcd(client, prefix, key, timeout)
-			if err != nil {
-				client.Close()
-				return fmt.Errorf("failed to create etcd collector: %w", err)
-			}
-		}
-		if publishers != nil {
-			publisher = makeEtcdPublisher(publishers, client, prefix, timeout)
-		}
-		return nil
+	storage, closeFunc, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
-	if err := libcluster.DoOnStorage(connOpts, opts, tarantoolFunc, etcdFunc); err != nil {
-		return nil, nil, nil, err
+	var collector libcluster.DataCollector
+	if collectors != nil {
+		collector, err = collectors.NewRemoteStorage(storage, prefix, key, timeout, storageType)
+		if err != nil {
+			closeFunc()
+			return nil, nil, nil, fmt.Errorf("failed to create storage collector: %w", err)
+		}
+	}
+
+	var publisher replicaset.DataPublisher
+	if publishers != nil {
+		publisher = makeStoragePublisher(publishers, storage, storageType, prefix, timeout)
 	}
 
 	return collector, publisher, closeFunc, nil

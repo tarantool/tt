@@ -374,7 +374,7 @@ def test_cluster_promote_key_specified(
     [
         (
             "etcd",
-            "transaction failed: etcdserver: user name is empty",
+            "user name is empty",
         ),
         (
             "tcs",
@@ -410,13 +410,11 @@ def test_cluster_promote_no_auth(
     [
         (
             "etcd",
-            "failed to connect to etcd: "
-            + "etcdserver: authentication failed, invalid user ID or password",
+            "authentication failed, invalid user ID or password",
         ),
         (
             "tcs",
-            "failed to establish a connection to tarantool or etcd:"
-            + " failed to connect to tarantool: failed to authenticate:",
+            "User not found or supplied credentials are invalid",
         ),
     ],
 )
