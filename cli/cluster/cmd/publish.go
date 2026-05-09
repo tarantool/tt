@@ -42,7 +42,7 @@ func PublishUri(publishCtx PublishCtx, opts connect.UriOpts) error {
 		Username: publishCtx.Username,
 		Password: publishCtx.Password,
 	}
-	publisher, collector, cancel, err := createPublisherAndCollector(
+	publisher, collector, cancel, err := libcluster.CreatePublisherAndCollector(
 		publishCtx.Publishers,
 		publishCtx.Collectors,
 		connOpts, opts)

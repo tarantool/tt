@@ -27,7 +27,7 @@ func ShowUri(showCtx ShowCtx, opts connect.UriOpts) error {
 		Username: showCtx.Username,
 		Password: showCtx.Password,
 	}
-	_, collector, cancel, err := createPublisherAndCollector(
+	_, collector, cancel, err := libcluster.CreatePublisherAndCollector(
 		nil,
 		showCtx.Collectors,
 		connOpts, opts)

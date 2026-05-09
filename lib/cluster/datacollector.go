@@ -4,10 +4,6 @@ import (
 	"time"
 
 	"github.com/tarantool/go-storage"
-	"github.com/tarantool/go-storage/driver/etcd"
-	"github.com/tarantool/go-storage/driver/tcs"
-	"github.com/tarantool/go-tarantool/v2"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 // Data represents collected data with its source.
@@ -30,13 +26,10 @@ type DataCollector interface {
 type DataCollectorFactory interface {
 	// NewFile creates a new data collector to collect configuration from a file.
 	NewFile(path string) (DataCollector, error)
-	// NewEtcd creates a new data collector to collect configuration from etcd.
-	NewEtcd(etcdcli *clientv3.Client,
-		prefix, key string, timeout time.Duration) (DataCollector, error)
-	// NewTarantool creates a new data collector to collect configuration from
-	// tarantool config storage.
-	NewTarantool(conn tarantool.Doer,
-		prefix, key string, timeout time.Duration) (DataCollector, error)
+	// NewRemoteStorage creates a new data collector to collect configuration from
+	// a remote storage.
+	NewRemoteStorage(storage storage.Storage,
+		prefix, key string, timeout time.Duration, storageType string) (DataCollector, error)
 }
 
 // collectorsFactory is a type that implements a default DataCollectorFactory.
@@ -56,23 +49,14 @@ func (factory collectorsFactory) NewFile(path string) (DataCollector, error) {
 	return newFileCollector(path, factory.options.fileReadFunc), nil
 }
 
-// NewEtcd creates a new etcd configuration collector.
-func (factory collectorsFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration,
+// NewRemoteStorage creates a new etcd configuration collector.
+func (factory collectorsFactory) NewRemoteStorage(storage storage.Storage,
+	prefix, key string, timeout time.Duration, storageType string,
 ) (DataCollector, error) {
-	driver := etcd.New(etcdcli)
-	storage := storage.NewStorage(driver)
+	collector, err := NewConfigStorage(storage, prefix, timeout, key, storageType, factory.options.integrity)
+	if err != nil {
+		return nil, err
+	}
 
-	return NewStorage(storage, prefix, timeout, key, etcdStorageType, factory.options.integrity), nil
-}
-
-// NewTarantool creates creates a new tarantool config storage configuration
-// collector.
-func (factory collectorsFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration,
-) (DataCollector, error) {
-	driver := tcs.New(dummyDoerWatcher{conn})
-	storage := storage.NewStorage(driver)
-
-	return NewStorage(storage, prefix, timeout, key, tcsStorageType, factory.options.integrity), nil
+	return collector, nil
 }

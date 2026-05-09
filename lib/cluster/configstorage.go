@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/tarantool/go-storage/integrity"
+	"github.com/tarantool/go-storage/marshaller"
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
 
@@ -29,16 +31,27 @@ func ConnectCStorage(
 	uriOpts libconnect.UriOpts,
 	connOpts ConnectOpts,
 ) (CSConnection, error) {
-	sc, errEtcd := connectEtcdCS(uriOpts, connOpts)
-	if errEtcd == nil {
-		return sc, nil
+	storage, cleanup, storageType, err := NewStorageConnection(connOpts, uriOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to establish a connection to tarantool or etcd: %w", err)
 	}
 
-	sc, errTarantool := connectTarantoolCS(uriOpts, connOpts)
-	if errTarantool == nil {
-		return sc, nil
+	codec, err := integrity.NewCodecBuilder[StorageDataType]().
+		WithMarshaller(marshaller.NewTypedBytesMarshaller()).
+		Build()
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, fmt.Errorf("failed to establish a connection to tarantool or etcd: %w, %w",
-		errTarantool, errEtcd)
+	store := codec.Bind(storage)
+
+	return &RawStorage{
+		storage:     store,
+		codec:       codec,
+		storageType: storageType,
+		close: func() error {
+			cleanup()
+			return nil
+		},
+	}, nil
 }

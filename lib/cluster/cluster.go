@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tarantool/go-tarantool/v2"
 	libconnect "github.com/tarantool/tt/lib/connect"
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -363,39 +361,51 @@ func CreateCollector(
 ) (Collector, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 
-	var (
-		collector Collector
-		err       error
-		closeFunc func()
-	)
-
-	tarantoolFunc := func(conn tarantool.Connector) error {
-		if collectors != nil {
-			collector, err = collectors.NewTarantool(conn, prefix, key, timeout)
-			if err != nil {
-				conn.Close()
-				return fmt.Errorf("failed to create tarantool config storage collector: %w", err)
-			}
-		}
-		closeFunc = func() { conn.Close() }
-		return nil
-	}
-
-	etcdFunc := func(client *clientv3.Client) error {
-		if collectors != nil {
-			collector, err = collectors.NewEtcd(client, prefix, key, timeout)
-			if err != nil {
-				client.Close()
-				return fmt.Errorf("failed to create etcd collector: %w", err)
-			}
-		}
-		closeFunc = func() { client.Close() }
-		return nil
-	}
-
-	if err := DoOnStorage(connOpts, opts, tarantoolFunc, etcdFunc); err != nil {
+	storage, cleanup, storageType, err := NewStorageConnection(connOpts, opts)
+	if err != nil {
 		return nil, nil, err
 	}
 
-	return collector, closeFunc, nil
+	var collector Collector
+	if collectors != nil {
+		collector, err = collectors.NewRemoteStorage(storage, prefix, key, timeout, storageType)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return collector, cleanup, nil
+}
+
+// CreatePublisherAndCollector creates a new data publisher and collector based on UriOpts.
+func CreatePublisherAndCollector(
+	publishers DataPublisherFactory,
+	collectors CollectorFactory,
+	connOpts ConnectOpts,
+	opts libconnect.UriOpts,
+) (DataPublisher, Collector, func(), error) {
+	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
+
+	storage, cleanup, storageType, err := NewStorageConnection(connOpts, opts)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	var collector Collector
+	if collectors != nil {
+		collector, err = collectors.NewRemoteStorage(storage, prefix, key, timeout, storageType)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	var publisher DataPublisher
+	if publishers != nil {
+		publisher, err = publishers.NewRemoteStorage(storage, prefix, key, timeout, storageType)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	return publisher, collector, cleanup, nil
 }

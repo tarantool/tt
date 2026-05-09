@@ -3,9 +3,7 @@ package cluster
 import (
 	"time"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-
-	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-storage"
 )
 
 // Collector interface must be implemented by a configuration source collector.
@@ -18,13 +16,10 @@ type Collector interface {
 type CollectorFactory interface {
 	// NewFile creates a new data collector to collect configuration from a file.
 	NewFile(path string) (Collector, error)
-	// NewEtcd creates a new data collector to collect configuration from etcd.
-	NewEtcd(etcdcli *clientv3.Client,
-		prefix, key string, timeout time.Duration) (Collector, error)
-	// NewTarantool creates a new data collector to collect configuration from
-	// tarantool config storage.
-	NewTarantool(conn tarantool.Doer,
-		prefix, key string, timeout time.Duration) (Collector, error)
+	// NewRemoteStorage creates a new data collector to collect configuration from
+	// a remote storage.
+	NewRemoteStorage(storage storage.Storage,
+		prefix, key string, timeout time.Duration, storageType string) (Collector, error)
 }
 
 // yamlDataCollectorFactoryDecorator is a wrapper over DataCollectorFactory turning
@@ -39,26 +34,18 @@ func (factory yamlDataCollectorFactoryDecorator) NewFile(path string) (Collector
 	return NewYamlCollectorDecorator(collector), err
 }
 
-// NewEtcd creates a new etcd DataCollector and wraps it.
-func (factory yamlDataCollectorFactoryDecorator) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration,
-) (Collector, error) {
-	collector, err := factory.rawFactory.NewEtcd(etcdcli, prefix, key, timeout)
-	return NewYamlCollectorDecorator(collector), err
-}
-
-// NewTarantool creates a new tarantool DataCollector and wraps it.
-func (factory yamlDataCollectorFactoryDecorator) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration,
-) (Collector, error) {
-	collector, err := factory.rawFactory.NewTarantool(conn, prefix, key, timeout)
-	return NewYamlCollectorDecorator(collector), err
-}
-
 // NewCollectorFactory turns arbitrary DataCollectorFactory into a
 // CollectorFactory using YAML collector decorator.
 func NewCollectorFactory(factory DataCollectorFactory) CollectorFactory {
 	return yamlDataCollectorFactoryDecorator{
 		rawFactory: factory,
 	}
+}
+
+// NewRemoteStorage creates a new etcd configuration collector.
+func (factory yamlDataCollectorFactoryDecorator) NewRemoteStorage(storage storage.Storage,
+	prefix, key string, timeout time.Duration, storageType string,
+) (Collector, error) {
+	collector, err := factory.rawFactory.NewRemoteStorage(storage, prefix, key, timeout, storageType)
+	return NewYamlCollectorDecorator(collector), err
 }

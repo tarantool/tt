@@ -3,13 +3,11 @@ module github.com/tarantool/tt/lib/cluster
 go 1.25.7
 
 require (
-	github.com/mitchellh/mapstructure v1.5.0
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-storage v1.3.1-0.20260508130135-519a48acedf8
+	github.com/tarantool/go-storage v1.4.0
 	github.com/tarantool/go-tarantool/v2 v2.4.2
 	github.com/tarantool/tt/lib/connect v0.0.0-0
-	github.com/tarantool/tt/lib/dial v0.0.0-0
-	go.etcd.io/etcd/api/v3 v3.6.8
+	github.com/tarantool/tt/lib/dial v0.0.0-00010101000000-000000000000
 	go.etcd.io/etcd/client/pkg/v3 v3.6.8
 	go.etcd.io/etcd/client/v3 v3.6.8
 	go.uber.org/zap v1.27.1
@@ -63,6 +61,7 @@ require (
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
+	go.etcd.io/etcd/api/v3 v3.6.8 // indirect
 	go.etcd.io/etcd/etcdctl/v3 v3.6.8 // indirect
 	go.etcd.io/etcd/pkg/v3 v3.6.8 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.8 // indirect
@@ -105,6 +104,8 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/tarantool/tt/lib/connect => ../connect
-
-replace github.com/tarantool/tt/lib/dial => ../dial
+replace (
+	github.com/tarantool/go-storage => github.com/tarantool/go-storage v1.3.1-0.20260508130135-519a48acedf8
+	github.com/tarantool/tt/lib/connect => ../connect
+	github.com/tarantool/tt/lib/dial => ../dial
+)

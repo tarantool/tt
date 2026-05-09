@@ -7,9 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	clientv3 "go.etcd.io/etcd/client/v3"
 
-	"github.com/tarantool/go-tarantool/v2"
+	"github.com/tarantool/go-storage"
 
 	"github.com/tarantool/tt/lib/cluster"
 )
@@ -22,25 +21,13 @@ func (mock mockFileCollector) Collect() ([]cluster.Data, error) {
 	return nil, errors.New("not implemented")
 }
 
-type mockEtcdCollector struct {
-	etcdcli *clientv3.Client
+type mockStorageCollector struct {
+	storage storage.Storage
 	prefix  string
 	key     string
-	timeout time.Duration
 }
 
-func (mock mockEtcdCollector) Collect() ([]cluster.Data, error) {
-	return nil, errors.New("not implemented")
-}
-
-type mockTarantoolCollector struct {
-	conn    tarantool.Doer
-	prefix  string
-	key     string
-	timeout time.Duration
-}
-
-func (mock mockTarantoolCollector) Collect() ([]cluster.Data, error) {
+func (mock mockStorageCollector) Collect() ([]cluster.Data, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -52,31 +39,20 @@ func (mock mockDataCollectorFactory) NewFile(path string) (cluster.DataCollector
 	}, nil
 }
 
-func (mock mockDataCollectorFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration,
+func (mock mockDataCollectorFactory) NewRemoteStorage(
+	storage storage.Storage,
+	prefix, key string,
+	_ time.Duration,
+	storageType string,
 ) (cluster.DataCollector, error) {
-	return mockEtcdCollector{
-		etcdcli: etcdcli,
+	return mockStorageCollector{
+		storage: storage,
 		prefix:  prefix,
 		key:     key,
-		timeout: timeout,
-	}, nil
-}
-
-func (mock mockDataCollectorFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration,
-) (cluster.DataCollector, error) {
-	return mockTarantoolCollector{
-		conn:    conn,
-		prefix:  prefix,
-		key:     key,
-		timeout: timeout,
 	}, nil
 }
 
 func TestCollectorFactory(t *testing.T) {
-	etcdcli := &clientv3.Client{}
-	conn := &tarantool.Connection{}
 	factory := cluster.NewCollectorFactory(mockDataCollectorFactory{})
 
 	noErr := func(collector cluster.Collector, err error) cluster.Collector {
@@ -94,46 +70,6 @@ func TestCollectorFactory(t *testing.T) {
 			Collector: noErr(factory.NewFile("foo")),
 			Expected: cluster.NewYamlCollectorDecorator(mockFileCollector{
 				path: "foo",
-			}),
-		},
-		{
-			Name:      "etcd_all",
-			Collector: noErr(factory.NewEtcd(etcdcli, "foo", "", 1)),
-			Expected: cluster.NewYamlCollectorDecorator(mockEtcdCollector{
-				etcdcli: etcdcli,
-				prefix:  "foo",
-				key:     "",
-				timeout: 1,
-			}),
-		},
-		{
-			Name:      "etcd_key",
-			Collector: noErr(factory.NewEtcd(etcdcli, "foo", "bar", 2)),
-			Expected: cluster.NewYamlCollectorDecorator(mockEtcdCollector{
-				etcdcli: etcdcli,
-				prefix:  "foo",
-				key:     "bar",
-				timeout: 2,
-			}),
-		},
-		{
-			Name:      "tarantool_all",
-			Collector: noErr(factory.NewTarantool(conn, "foo", "", 1)),
-			Expected: cluster.NewYamlCollectorDecorator(mockTarantoolCollector{
-				conn:    conn,
-				prefix:  "foo",
-				key:     "",
-				timeout: 1,
-			}),
-		},
-		{
-			Name:      "tarantool_key",
-			Collector: noErr(factory.NewTarantool(conn, "foo", "bar", 2)),
-			Expected: cluster.NewYamlCollectorDecorator(mockTarantoolCollector{
-				conn:    conn,
-				prefix:  "foo",
-				key:     "bar",
-				timeout: 2,
 			}),
 		},
 	}

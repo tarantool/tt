@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarantool/go-tarantool/v2"
+	gsconnect "github.com/tarantool/go-storage/connect"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/connect"
-	"github.com/tarantool/tt/lib/dial"
 )
 
 const (
@@ -33,38 +32,45 @@ var (
 func collectEtcdConfig(collectors libcluster.CollectorFactory,
 	clusterConfig libcluster.ClusterConfig,
 ) (*libcluster.Config, error) {
+	var timeout time.Duration
+	var err error
+
 	etcdConfig := clusterConfig.Config.Etcd
-	opts := libcluster.EtcdOpts{
-		Endpoints: etcdConfig.Endpoints,
-		Username:  etcdConfig.Username,
-		Password:  etcdConfig.Password,
-		KeyFile:   etcdConfig.Ssl.KeyFile,
-		CertFile:  etcdConfig.Ssl.CertFile,
-		CaPath:    etcdConfig.Ssl.CaPath,
-		CaFile:    etcdConfig.Ssl.CaFile,
-	}
-	if !etcdConfig.Ssl.VerifyPeer || !etcdConfig.Ssl.VerifyHost {
-		opts.SkipHostVerify = true
-	}
-	if etcdConfig.Http.Request.Timeout != 0 {
-		var err error
-		timeout := fmt.Sprintf("%fs", etcdConfig.Http.Request.Timeout)
-		opts.Timeout, err = time.ParseDuration(timeout)
+
+	switch etcdConfig.Http.Request.Timeout {
+	case 0:
+		timeout = defaultEtcdTimeout
+	default:
+		timeoutBase := fmt.Sprintf("%fs", etcdConfig.Http.Request.Timeout)
+		timeout, err = time.ParseDuration(timeoutBase)
 		if err != nil {
-			fmtErr := "unable to parse a etcd request timeout: %w"
-			return nil, fmt.Errorf(fmtErr, err)
+			return nil, fmt.Errorf("unable to parse a etcd request timeout: %w", err)
 		}
-	} else {
-		opts.Timeout = defaultEtcdTimeout
 	}
 
-	etcd, err := libcluster.ConnectEtcd(opts)
+	ctx := context.Background()
+
+	etcd, cleanup, err := gsconnect.NewEtcdStorage(ctx, gsconnect.Config{
+		Endpoints:   etcdConfig.Endpoints,
+		Username:    etcdConfig.Username,
+		Password:    etcdConfig.Password,
+		DialTimeout: timeout,
+		SSL: gsconnect.SSLConfig{
+			KeyFile:    etcdConfig.Ssl.KeyFile,
+			CertFile:   etcdConfig.Ssl.CertFile,
+			CaPath:     etcdConfig.Ssl.CaPath,
+			CaFile:     etcdConfig.Ssl.CaFile,
+			VerifyPeer: etcdConfig.Ssl.VerifyPeer,
+			VerifyHost: etcdConfig.Ssl.VerifyHost,
+		},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to etcd: %w", err)
 	}
-	defer etcd.Close()
 
-	etcdCollector, err := collectors.NewEtcd(etcd, etcdConfig.Prefix, "", opts.Timeout)
+	defer cleanup()
+
+	etcdCollector, err := collectors.NewRemoteStorage(etcd, etcdConfig.Prefix, "", timeout, "etcd")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create etcd collector: %w", err)
 	}
@@ -73,6 +79,7 @@ func collectEtcdConfig(collectors libcluster.CollectorFactory,
 	if err != nil {
 		return nil, fmt.Errorf("unable to get config from etcd: %w", err)
 	}
+
 	return etcdRawConfig, nil
 }
 
@@ -81,14 +88,12 @@ func collectEtcdConfig(collectors libcluster.CollectorFactory,
 func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 	clusterConfig libcluster.ClusterConfig,
 ) (*libcluster.Config, error) {
-	type tarantoolOpts struct {
-		addr   string
-		dialer tarantool.Dialer
-		opts   tarantool.Opts
-	}
-
 	tarantoolConfig := clusterConfig.Config.Storage
-	var opts []tarantoolOpts
+
+	timeout := time.Duration(tarantoolConfig.Timeout * float64(time.Second))
+
+	var connectionErrors []error
+	cconfig := libcluster.NewConfig()
 	for _, endpoint := range tarantoolConfig.Endpoints {
 		var network, address string
 		if !connect.IsBaseURI(endpoint.Uri) {
@@ -99,68 +104,69 @@ func collectTarantoolConfig(collectors libcluster.CollectorFactory,
 		}
 		addr := fmt.Sprintf("%s://%s", network, address)
 
-		dialer, err := dial.New(dial.Opts{
-			Address:         addr,
-			User:            endpoint.Login,
-			Password:        endpoint.Password,
-			SslKeyFile:      endpoint.Params.SslKeyFile,
-			SslCertFile:     endpoint.Params.SslCertFile,
-			SslCaFile:       endpoint.Params.SslCaFile,
-			SslCiphers:      endpoint.Params.SslCiphers,
-			SslPassword:     endpoint.Params.SslPassword,
-			SslPasswordFile: endpoint.Params.SslPasswordFile,
-			Transport:       endpoint.Params.Transport,
-		})
-		if err != nil {
-			return nil, err
+		sslEnable := false
+		switch endpoint.Params.Transport {
+		case "ssl":
+			sslEnable = true
+		case "plain":
+			sslEnable = false
+		case "":
+			sslEnable = endpoint.Params.SslKeyFile != "" ||
+				endpoint.Params.SslCertFile != "" ||
+				endpoint.Params.SslCaFile != "" ||
+				endpoint.Params.SslCiphers != "" ||
+				endpoint.Params.SslPassword != "" ||
+				endpoint.Params.SslPasswordFile != ""
+		default:
+			connectionErrors = append(connectionErrors,
+				fmt.Errorf("error when connecting to endpoint %q: unknown transport type: %s",
+					addr, endpoint.Params.Transport))
+			continue
 		}
 
-		opts = append(opts, tarantoolOpts{
-			addr:   addr,
-			dialer: dialer,
-			opts: tarantool.Opts{
-				SkipSchema: true,
+		ctx := context.Background()
+		stor, cleanup, err := gsconnect.NewTCSStorage(ctx, gsconnect.Config{
+			Endpoints:   []string{addr},
+			Username:    endpoint.Login,
+			Password:    endpoint.Password,
+			DialTimeout: timeout,
+			SSL: gsconnect.SSLConfig{
+				Enable:       sslEnable,
+				KeyFile:      endpoint.Params.SslKeyFile,
+				CertFile:     endpoint.Params.SslCertFile,
+				CaFile:       endpoint.Params.SslCaFile,
+				Ciphers:      endpoint.Params.SslCiphers,
+				Password:     endpoint.Params.SslPassword,
+				PasswordFile: endpoint.Params.SslPasswordFile,
+				VerifyPeer:   sslEnable,
+				VerifyHost:   sslEnable,
 			},
 		})
-	}
-
-	var connectionErrors []error
-	cconfig := libcluster.NewConfig()
-	for _, opt := range opts {
-		ctx := context.Background()
-		if opt.opts.Timeout > 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, opt.opts.Timeout)
-			defer cancel()
-		}
-
-		conn, err := tarantool.Connect(ctx, opt.dialer, opt.opts)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
-				fmt.Errorf("error when connecting to endpoint %q: %w", opt.addr, err))
+				fmt.Errorf("error when connecting to endpoint %q: %w", addr, err))
 			continue
-		} else {
-			defer conn.Close()
-
-			tarantoolCollector, err := collectors.NewTarantool(conn,
-				tarantoolConfig.Prefix, "",
-				time.Duration(tarantoolConfig.Timeout*float64(time.Second)))
-			if err != nil {
-				connectionErrors = append(connectionErrors,
-					fmt.Errorf("error when creating a collector for endpoint %q: %w",
-						opt.addr, err))
-				continue
-			}
-
-			config, err := tarantoolCollector.Collect()
-			if err != nil {
-				connectionErrors = append(connectionErrors,
-					fmt.Errorf("error when collecting config from endpoint %q: %w", opt.addr, err))
-				continue
-			}
-
-			cconfig.Merge(config)
 		}
+
+		tarantoolCollector, err := collectors.NewRemoteStorage(
+			stor, tarantoolConfig.Prefix, "", timeout, "tarantool",
+		)
+		if err != nil {
+			cleanup()
+			connectionErrors = append(connectionErrors,
+				fmt.Errorf("error when creating a collector for endpoint %q: %w", addr, err))
+			continue
+		}
+
+		config, err := tarantoolCollector.Collect()
+		cleanup()
+		if err != nil {
+			connectionErrors = append(connectionErrors,
+				fmt.Errorf("error when collecting config from endpoint %q: %w", addr, err))
+			continue
+		}
+
+		cconfig.Merge(config)
 	}
 
 	return cconfig, errors.Join(connectionErrors...)

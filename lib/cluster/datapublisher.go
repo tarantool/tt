@@ -4,12 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
-
 	"github.com/tarantool/go-storage"
-	"github.com/tarantool/go-storage/driver/etcd"
-	"github.com/tarantool/go-storage/driver/tcs"
-	"github.com/tarantool/go-tarantool/v2"
 )
 
 // DataPublisher interface must be implemented by a raw data publisher.
@@ -22,13 +17,10 @@ type DataPublisher interface {
 type DataPublisherFactory interface {
 	// NewFile creates a new data publisher to publish data into a file.
 	NewFile(path string) (DataPublisher, error)
-	// NewEtcd creates a new data publisher to publish data into etcd.
-	NewEtcd(etcdcli *clientv3.Client,
-		prefix, key string, timeout time.Duration) (DataPublisher, error)
-	// NewTarantool creates a new data publisher to publish data into tarantool
-	// config storage.
-	NewTarantool(conn tarantool.Doer,
-		prefix, key string, timeout time.Duration) (DataPublisher, error)
+	// NewRemoteStorage creates a new data collector to collect configuration from
+	// a remote storage.
+	NewRemoteStorage(storage storage.Storage,
+		prefix, key string, timeout time.Duration, storageType string) (DataPublisher, error)
 }
 
 // publishersFactory is a type that implements a default DataPublisherFactory.
@@ -52,22 +44,14 @@ func (factory publishersFactory) NewFile(path string) (DataPublisher, error) {
 	return NewFileDataPublisher(path), nil
 }
 
-// NewEtcd creates a new etcd data publisher.
-func (factory publishersFactory) NewEtcd(etcdcli *clientv3.Client,
-	prefix, key string, timeout time.Duration,
+// NewRemoteStorage creates a new etcd configuration collector.
+func (factory publishersFactory) NewRemoteStorage(storage storage.Storage,
+	prefix, key string, timeout time.Duration, storageType string,
 ) (DataPublisher, error) {
-	driver := etcd.New(etcdcli)
-	storage := storage.NewStorage(driver)
+	collector, err := NewConfigStorage(storage, prefix, timeout, key, storageType, factory.options.integrity)
+	if err != nil {
+		return nil, err
+	}
 
-	return NewStorage(storage, prefix, timeout, key, etcdStorageType, factory.options.integrity), nil
-}
-
-// NewTarantool creates creates a new tarantool config storage data publisher.
-func (factory publishersFactory) NewTarantool(conn tarantool.Doer,
-	prefix, key string, timeout time.Duration,
-) (DataPublisher, error) {
-	driver := tcs.New(dummyDoerWatcher{conn})
-	storage := storage.NewStorage(driver)
-
-	return NewStorage(storage, prefix, timeout, key, tcsStorageType, factory.options.integrity), nil
+	return collector, nil
 }
