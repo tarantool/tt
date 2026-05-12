@@ -29,7 +29,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/cartridge-cli v0.0.0-00010101000000-000000000000
 	github.com/tarantool/go-prompt v1.0.1
-	github.com/tarantool/go-storage v1.2.0
+	github.com/tarantool/go-storage v1.5.0
 	github.com/tarantool/go-tarantool v1.12.3
 	github.com/tarantool/go-tarantool/v2 v2.4.2
 	github.com/tarantool/tt/lib/cluster v0.0.0
@@ -41,7 +41,6 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.6.8
 	go.etcd.io/etcd/client/v3 v3.6.8
 	go.etcd.io/etcd/tests/v3 v3.6.8
-	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.49.0
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
 	golang.org/x/sys v0.42.0
@@ -156,6 +155,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
