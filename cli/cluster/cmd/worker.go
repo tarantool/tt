@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -38,11 +37,11 @@ type WorkerShowCtx struct {
 // WorkerDeleteCtx contains information about cluster worker delete command
 // execution context.
 type WorkerDeleteCtx struct {
-	// Username defines a username for connection.
-	Username string
-	// Password defines a password for connection.
-	Password string
-	// Force defines whether the delete should be forced (skip confirmation).
+	// Storage is the storage instance for the operation.
+	Storage storage.Storage
+	// Key is the key in storage for the worker configuration.
+	Key string
+	// Force defines whether the delete should be forced (skip existence check).
 	Force bool
 }
 
@@ -58,7 +57,7 @@ func ParseWorkerPath(urlPath string) (prefix, hostName, workerName string, err e
 	path = strings.TrimSuffix(path, "/")
 
 	if path == "" {
-		return "", "", "", errors.New("URL path must not be empty")
+		return "", "", "", fmt.Errorf("URL path must not be empty")
 	}
 
 	parts := strings.Split(path, "/")
@@ -167,7 +166,35 @@ func WorkerShow(showCtx WorkerShowCtx) ([]byte, error) {
 	return value, nil
 }
 
-// WorkerDelete deletes a worker configuration. Unimplemented.
-func WorkerDelete(url string, ctx WorkerDeleteCtx) error {
-	return errors.New("unimplemented")
+// WorkerDelete deletes a worker configuration from storage.
+// Without Force flag, it atomically checks that the key exists and
+// deletes the configuration. If the key does not exist, an error is returned.
+// With Force flag, it deletes the configuration unconditionally.
+func WorkerDelete(deleteCtx WorkerDeleteCtx) error {
+	ctx := context.Background()
+	key := []byte(deleteCtx.Key)
+
+	if deleteCtx.Force {
+		_, err := deleteCtx.Storage.Tx(ctx).Then(operation.Delete(key)).Commit()
+		if err != nil {
+			return fmt.Errorf("failed to delete from storage: %w", err)
+		}
+		return nil
+	}
+
+	resp, err := deleteCtx.Storage.Tx(ctx).
+		If(predicate.VersionNotEqual(key, 0)).
+		Then(operation.Delete(key)).
+		Commit()
+	if err != nil {
+		return fmt.Errorf("failed to delete from storage: %w", err)
+	}
+
+	if !resp.Succeeded {
+		return fmt.Errorf(
+			"worker configuration not found at %q",
+			deleteCtx.Key)
+	}
+
+	return nil
 }

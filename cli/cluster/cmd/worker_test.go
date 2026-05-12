@@ -376,8 +376,98 @@ config:
 }
 
 func TestWorkerDelete(t *testing.T) {
-	err := WorkerDelete("http://localhost:2379/prefix/host/worker", WorkerDeleteCtx{})
-	require.EqualError(t, err, "unimplemented")
+	workerCfg := `type: nontarantool
+instrumentation:
+  url: host1:8080
+  metrics_url: /metrics
+  metrics_format: prometheus
+config:
+  addr: host1:9080
+`
+
+	cases := []struct {
+		name        string
+		key         string
+		value       []byte
+		force       bool
+		succeeded   bool
+		txErr       error
+		expectedErr string
+	}{
+		{
+			name:      "key exists with force",
+			key:       "/prefix/instances/host1/worker1",
+			value:     []byte(workerCfg),
+			force:     true,
+			succeeded: true,
+		},
+		{
+			name:      "key exists without force",
+			key:       "/prefix/instances/host1/worker1",
+			value:     []byte(workerCfg),
+			force:     false,
+			succeeded: true,
+		},
+		{
+			name:        "key not found without force",
+			key:         "/prefix/instances/host1/worker1",
+			value:       nil,
+			force:       false,
+			succeeded:   false,
+			expectedErr: "worker configuration not found",
+		},
+		{
+			name:      "key not found with force succeeds",
+			key:       "/prefix/instances/host1/worker1",
+			value:     nil,
+			force:     true,
+			succeeded: true,
+		},
+		{
+			name:        "storage error",
+			key:         "/prefix/instances/host1/worker1",
+			txErr:       errors.New("connection refused"),
+			expectedErr: "failed to delete from storage",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var results []tx.RequestResponse
+			if tc.value != nil {
+				results = []tx.RequestResponse{
+					{
+						Values: []kv.KeyValue{
+							{Key: []byte(tc.key), Value: tc.value},
+						},
+					},
+				}
+			}
+
+			mockStg := &mockStorage{
+				tx: &mockTx{
+					results:   results,
+					succeeded: tc.succeeded,
+					err:       tc.txErr,
+				},
+			}
+
+			deleteCtx := WorkerDeleteCtx{
+				Storage: mockStg,
+				Key:     tc.key,
+				Force:   tc.force,
+			}
+
+			err := WorkerDelete(deleteCtx)
+
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestParseWorkerPathAndBuildKeyIntegration(t *testing.T) {

@@ -83,6 +83,11 @@ var (
 var workerDeleteCtx = clustercmd.WorkerDeleteCtx{}
 
 var (
+	workerDeleteUsername string
+	workerDeletePassword string
+)
+
+var (
 	defaultSwitchTimeout       uint64 = 30
 	clusterIntegrityPrivateKey string
 	clusterUriHelp             = libconnect.MakeURLHelp(map[string]any{
@@ -337,12 +342,12 @@ func newClusterWorkerCmd() *cobra.Command {
 		Run:  RunModuleFunc(internalClusterWorkerDeleteModule),
 		Args: cobra.ExactArgs(1),
 	}
-	deleteCmd.Flags().StringVarP(&workerDeleteCtx.Username, "username", "u", "",
+	deleteCmd.Flags().StringVarP(&workerDeleteUsername, "username", "u", "",
 		"username (used as etcd/tarantool config storage credentials)")
-	deleteCmd.Flags().StringVarP(&workerDeleteCtx.Password, "password", "p", "",
+	deleteCmd.Flags().StringVarP(&workerDeletePassword, "password", "p", "",
 		"password (used as etcd/tarantool config storage credentials)")
 	deleteCmd.Flags().BoolVar(&workerDeleteCtx.Force, "force", false,
-		"force delete and skip confirmation")
+		"force delete and skip existence check")
 
 	cmd.AddCommand(publishCmd)
 	cmd.AddCommand(showCmd)
@@ -677,10 +682,23 @@ func internalClusterWorkerDeleteModule(cmdCtx *cmdcontext.CmdCtx, args []string)
 		return fmt.Errorf("invalid URL %q: %w", args[0], err)
 	}
 
-	workerDeleteCtx.Username, workerDeleteCtx.Password = clustercmd.ResolveWorkerCredentials(
-		opts, workerDeleteCtx.Username, workerDeleteCtx.Password)
+	prefix, hostName, workerName, err := clustercmd.ParseWorkerPath(opts.Prefix)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL path: %w", err)
+	}
+	workerDeleteCtx.Key = clustercmd.BuildWorkerStorageKey(prefix, hostName, workerName)
 
-	if err := clustercmd.WorkerDelete(args[0], workerDeleteCtx); err != nil {
+	username, password := clustercmd.ResolveWorkerCredentials(
+		opts, workerDeleteUsername, workerDeletePassword)
+
+	stg, closeFunc, err := clustercmd.ConnectStorage(opts, username, password)
+	if err != nil {
+		return fmt.Errorf("failed to connect to storage: %w", err)
+	}
+	defer closeFunc()
+	workerDeleteCtx.Storage = stg
+
+	if err := clustercmd.WorkerDelete(workerDeleteCtx); err != nil {
 		return fmt.Errorf("failed to delete worker configuration: %w", err)
 	}
 	return nil
