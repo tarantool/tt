@@ -19,6 +19,7 @@ builds:
       - osusergo
       - openssl_static
       - go_tarantool_msgpack_v5
+      - go_storage_ssl
 
     ldflags:
       - -linkmode=external -extldflags -static
