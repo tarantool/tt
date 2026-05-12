@@ -22,6 +22,53 @@ config:
 """
 
 
+def get_storage_content(conn, instance_name, storage_key):
+    if instance_name == "etcd":
+        content, _ = conn.get(storage_key)
+        return content.decode("utf-8") if content else None
+    content = conn.call("config.storage.get", storage_key)
+    if len(content) > 0:
+        return content[0]["data"][0]["value"]
+    return None
+
+
+def build_worker_url(
+    instance,
+    instance_name,
+    prefix="prefix",
+    host="host1",
+    worker="worker1",
+    timeout=5,
+):
+    creds = (
+        f"{instance.connection_username}:{instance.connection_password}@"
+        if instance_name == "tcs"
+        else ""
+    )
+    return (
+        f"http://{creds}{instance.host}:{instance.port}/{prefix}/{host}/{worker}?timeout={timeout}"
+    )
+
+
+def write_worker_cfg(tmpdir, cfg=worker_cfg, filename="worker.yaml"):
+    path = os.path.join(tmpdir, filename)
+    with open(path, "w") as f:
+        f.write(cfg)
+    return path
+
+
+def run_tt_cmd(tt_cmd, args, cwd, env=None):
+    proc = subprocess.Popen(
+        [tt_cmd, *args],
+        cwd=cwd,
+        env=env,
+        stderr=subprocess.STDOUT,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    return proc.stdout.read()
+
+
 def test_cluster_worker_help(tt_cmd, tmp_path):
     help_cmd = [tt_cmd, "cluster", "worker", "--help"]
     instance_process = subprocess.Popen(
@@ -291,44 +338,16 @@ def test_cluster_worker_publish_connection_failed(tt_cmd, tmpdir_with_cfg):
 def test_cluster_worker_publish(tt_cmd, tmpdir_with_cfg, instance_name, request):
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    worker_cfg_path = os.path.join(tmpdir, "worker.yaml")
-    with open(worker_cfg_path, "w") as f:
-        f.write(worker_cfg)
+    write_worker_cfg(tmpdir)
 
     conn = instance.conn()
-    creds = (
-        f"{instance.connection_username}:{instance.connection_password}@"
-        if instance_name == "tcs"
-        else ""
-    )
-    publish_cmd = [
-        tt_cmd,
-        "cluster",
-        "worker",
-        "publish",
-        "http://" + creds + f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5",
-        "worker.yaml",
-    ]
-    instance_process = subprocess.Popen(
-        publish_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    publish_output = instance_process.stdout.read()
+    url = build_worker_url(instance, instance_name)
+    output = run_tt_cmd(tt_cmd, ["cluster", "worker", "publish", url, "worker.yaml"], tmpdir)
 
-    assert "" == publish_output
+    assert "" == output
 
-    content = ""
     storage_key = "/prefix/instances/host1/worker1"
-    if instance_name == "etcd":
-        content, _ = conn.get(storage_key)
-        content = content.decode("utf-8")
-    else:
-        content = conn.call("config.storage.get", storage_key)
-        if len(content) > 0:
-            content = content[0]["data"][0]["value"]
+    content = get_storage_content(conn, instance_name, storage_key)
 
     assert worker_cfg == content
 
@@ -337,46 +356,16 @@ def test_cluster_worker_publish(tt_cmd, tmpdir_with_cfg, instance_name, request)
 def test_cluster_worker_publish_nested_prefix(tt_cmd, tmpdir_with_cfg, instance_name, request):
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    worker_cfg_path = os.path.join(tmpdir, "worker.yaml")
-    with open(worker_cfg_path, "w") as f:
-        f.write(worker_cfg)
+    write_worker_cfg(tmpdir)
 
     conn = instance.conn()
-    creds = (
-        f"{instance.connection_username}:{instance.connection_password}@"
-        if instance_name == "tcs"
-        else ""
-    )
-    publish_cmd = [
-        tt_cmd,
-        "cluster",
-        "worker",
-        "publish",
-        "http://"
-        + creds
-        + f"{instance.host}:{instance.port}/tdb-workers/cluster1/host1/worker1?timeout=5",
-        "worker.yaml",
-    ]
-    instance_process = subprocess.Popen(
-        publish_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    publish_output = instance_process.stdout.read()
+    url = build_worker_url(instance, instance_name, prefix="tdb-workers/cluster1")
+    output = run_tt_cmd(tt_cmd, ["cluster", "worker", "publish", url, "worker.yaml"], tmpdir)
 
-    assert "" == publish_output
+    assert "" == output
 
-    content = ""
     storage_key = "/tdb-workers/cluster1/instances/host1/worker1"
-    if instance_name == "etcd":
-        content, _ = conn.get(storage_key)
-        content = content.decode("utf-8")
-    else:
-        content = conn.call("config.storage.get", storage_key)
-        if len(content) > 0:
-            content = content[0]["data"][0]["value"]
+    content = get_storage_content(conn, instance_name, storage_key)
 
     assert worker_cfg == content
 
@@ -385,58 +374,27 @@ def test_cluster_worker_publish_nested_prefix(tt_cmd, tmpdir_with_cfg, instance_
 def test_cluster_worker_publish_exists_no_force(tt_cmd, tmpdir_with_cfg, instance_name, request):
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    worker_cfg_path = os.path.join(tmpdir, "worker.yaml")
-    with open(worker_cfg_path, "w") as f:
-        f.write(worker_cfg)
+    write_worker_cfg(tmpdir)
 
     conn = instance.conn()
-    creds = (
-        f"{instance.connection_username}:{instance.connection_password}@"
-        if instance_name == "tcs"
-        else ""
-    )
-    url = "http://" + creds + f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5"
+    url = build_worker_url(instance, instance_name)
 
-    publish_cmd = [tt_cmd, "cluster", "worker", "publish", url, "worker.yaml"]
-    instance_process = subprocess.Popen(
-        publish_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    publish_output = instance_process.stdout.read()
-    assert "" == publish_output
+    output = run_tt_cmd(tt_cmd, ["cluster", "worker", "publish", url, "worker.yaml"], tmpdir)
+    assert "" == output
 
-    with open(worker_cfg_path, "w") as f:
-        f.write(worker_cfg_updated)
+    write_worker_cfg(tmpdir, worker_cfg_updated)
 
-    publish_cmd = [tt_cmd, "cluster", "worker", "publish", url, "worker.yaml"]
-    instance_process = subprocess.Popen(
-        publish_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    publish_output = instance_process.stdout.read()
+    output = run_tt_cmd(tt_cmd, ["cluster", "worker", "publish", url, "worker.yaml"], tmpdir)
 
-    assert publish_output == (
+    assert output == (
         "   ⨯ failed to publish worker configuration:"
         " worker configuration already exists at"
         ' "/prefix/instances/host1/worker1",'
         " use --force to overwrite\n"
     )
 
-    content = ""
     storage_key = "/prefix/instances/host1/worker1"
-    if instance_name == "etcd":
-        content, _ = conn.get(storage_key)
-        content = content.decode("utf-8")
-    else:
-        content = conn.call("config.storage.get", storage_key)
-        if len(content) > 0:
-            content = content[0]["data"][0]["value"]
+    content = get_storage_content(conn, instance_name, storage_key)
 
     assert worker_cfg == content
 
@@ -445,52 +403,25 @@ def test_cluster_worker_publish_exists_no_force(tt_cmd, tmpdir_with_cfg, instanc
 def test_cluster_worker_publish_force_overwrite(tt_cmd, tmpdir_with_cfg, instance_name, request):
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    worker_cfg_path = os.path.join(tmpdir, "worker.yaml")
-    with open(worker_cfg_path, "w") as f:
-        f.write(worker_cfg)
+    write_worker_cfg(tmpdir)
 
     conn = instance.conn()
-    creds = (
-        f"{instance.connection_username}:{instance.connection_password}@"
-        if instance_name == "tcs"
-        else ""
+    url = build_worker_url(instance, instance_name)
+
+    output = run_tt_cmd(tt_cmd, ["cluster", "worker", "publish", url, "worker.yaml"], tmpdir)
+    assert "" == output
+
+    write_worker_cfg(tmpdir, cfg=worker_cfg_updated)
+
+    output = run_tt_cmd(
+        tt_cmd,
+        ["cluster", "worker", "publish", "--force", url, "worker.yaml"],
+        tmpdir,
     )
-    url = "http://" + creds + f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5"
+    assert "" == output
 
-    publish_cmd = [tt_cmd, "cluster", "worker", "publish", url, "worker.yaml"]
-    instance_process = subprocess.Popen(
-        publish_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    publish_output = instance_process.stdout.read()
-    assert "" == publish_output
-
-    with open(worker_cfg_path, "w") as f:
-        f.write(worker_cfg_updated)
-
-    publish_cmd = [tt_cmd, "cluster", "worker", "publish", "--force", url, "worker.yaml"]
-    instance_process = subprocess.Popen(
-        publish_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    publish_output = instance_process.stdout.read()
-    assert "" == publish_output
-
-    content = ""
     storage_key = "/prefix/instances/host1/worker1"
-    if instance_name == "etcd":
-        content, _ = conn.get(storage_key)
-        content = content.decode("utf-8")
-    else:
-        content = conn.call("config.storage.get", storage_key)
-        if len(content) > 0:
-            content = content[0]["data"][0]["value"]
+    content = get_storage_content(conn, instance_name, storage_key)
 
     assert worker_cfg_updated == content
 
@@ -499,38 +430,20 @@ def test_cluster_worker_publish_force_overwrite(tt_cmd, tmpdir_with_cfg, instanc
 def test_cluster_worker_publish_force_new_key(tt_cmd, tmpdir_with_cfg, instance_name, request):
     instance = request.getfixturevalue(instance_name)
     tmpdir = tmpdir_with_cfg
-    worker_cfg_path = os.path.join(tmpdir, "worker.yaml")
-    with open(worker_cfg_path, "w") as f:
-        f.write(worker_cfg)
+    write_worker_cfg(tmpdir)
 
     conn = instance.conn()
-    creds = (
-        f"{instance.connection_username}:{instance.connection_password}@"
-        if instance_name == "tcs"
-        else ""
-    )
-    url = "http://" + creds + f"{instance.host}:{instance.port}/prefix/host1/worker1?timeout=5"
+    url = build_worker_url(instance, instance_name)
 
-    publish_cmd = [tt_cmd, "cluster", "worker", "publish", "--force", url, "worker.yaml"]
-    instance_process = subprocess.Popen(
-        publish_cmd,
-        cwd=tmpdir,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        text=True,
+    output = run_tt_cmd(
+        tt_cmd,
+        ["cluster", "worker", "publish", "--force", url, "worker.yaml"],
+        tmpdir,
     )
-    publish_output = instance_process.stdout.read()
-    assert "" == publish_output
+    assert "" == output
 
-    content = ""
     storage_key = "/prefix/instances/host1/worker1"
-    if instance_name == "etcd":
-        content, _ = conn.get(storage_key)
-        content = content.decode("utf-8")
-    else:
-        content = conn.call("config.storage.get", storage_key)
-        if len(content) > 0:
-            content = content[0]["data"][0]["value"]
+    content = get_storage_content(conn, instance_name, storage_key)
 
     assert worker_cfg == content
 
