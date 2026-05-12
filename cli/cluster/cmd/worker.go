@@ -7,10 +7,47 @@ import (
 	"strings"
 
 	"github.com/tarantool/go-storage"
+	storageconnect "github.com/tarantool/go-storage/connect"
 	"github.com/tarantool/go-storage/operation"
 	"github.com/tarantool/go-storage/predicate"
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
+
+func ConnectStorage(
+	opts libconnect.UriOpts,
+	username, password string,
+) (storage.Storage, func(), error) {
+	sslEnable := opts.KeyFile != "" || opts.CertFile != "" ||
+		opts.CaFile != "" || opts.CaPath != "" ||
+		opts.SkipHostVerify || opts.SkipPeerVerify ||
+		strings.HasPrefix(opts.Endpoint, "https://")
+
+	cfg := storageconnect.Config{
+		Endpoints:   []string{opts.Endpoint},
+		Username:    username,
+		Password:    password,
+		DialTimeout: opts.Timeout,
+		SSL: storageconnect.SSLConfig{
+			Enable:     sslEnable,
+			CaFile:     opts.CaFile,
+			CaPath:     opts.CaPath,
+			CertFile:   opts.CertFile,
+			KeyFile:    opts.KeyFile,
+			Ciphers:    opts.Ciphers,
+			VerifyHost: !opts.SkipHostVerify,
+			VerifyPeer: !opts.SkipPeerVerify,
+		},
+	}
+
+	// DialTimeout used to is used to control connection time.
+	ctx := context.Background()
+
+	stg, cleanup, err := storageconnect.NewStorage(ctx, cfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to storage: %w", err)
+	}
+	return stg, cleanup, nil
+}
 
 // WorkerPublishCtx contains information about cluster worker publish command
 // execution context.

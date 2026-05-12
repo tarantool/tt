@@ -180,7 +180,7 @@ def test_cluster_worker_delete_connection_failed(tt_cmd, tmpdir_with_cfg):
     )
     output = instance_process.stdout.read()
 
-    assert "failed to connect to storage: failed to connect to etcd or tarantool" in output
+    assert "failed to connect to storage" in output
 
 
 def test_cluster_worker_publish_missing_file(tt_cmd, tmpdir_with_cfg):
@@ -284,7 +284,7 @@ def test_cluster_worker_publish_connection_failed(tt_cmd, tmpdir_with_cfg):
     )
     output = instance_process.stdout.read()
 
-    assert "failed to connect to storage: failed to connect to etcd or tarantool" in output
+    assert "failed to connect to storage" in output
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
@@ -785,9 +785,7 @@ def test_cluster_worker_publish_auth_bad_credentials(
         )
         publish_output = instance_process.stdout.read()
 
-        assert (
-            "failed to connect to storage: failed to connect to etcd or tarantool" in publish_output
-        )
+        assert "failed to connect to storage" in publish_output
     finally:
         if instance_name == "etcd":
             instance.disable_auth()
@@ -857,7 +855,7 @@ def test_cluster_worker_show_connection_failed(tt_cmd, tmpdir_with_cfg):
     )
     output = instance_process.stdout.read()
 
-    assert "failed to connect to storage: failed to connect to etcd or tarantool" in output
+    assert "failed to connect to storage" in output
 
 
 @pytest.mark.parametrize("instance_name", ["etcd", "tcs"])
@@ -1178,7 +1176,7 @@ def test_cluster_worker_show_auth_bad_credentials(
         )
         show_output = instance_process.stdout.read()
 
-        assert "failed to connect to storage: failed to connect to etcd or tarantool" in show_output
+        assert "failed to connect to storage" in show_output
     finally:
         if instance_name == "etcd":
             instance.disable_auth()
@@ -1668,9 +1666,7 @@ def test_cluster_worker_delete_auth_bad_credentials(
         )
         delete_output = instance_process.stdout.read()
 
-        assert (
-            "failed to connect to storage: failed to connect to etcd or tarantool" in delete_output
-        )
+        assert "failed to connect to storage" in delete_output
     finally:
         if instance_name == "etcd":
             instance.disable_auth()

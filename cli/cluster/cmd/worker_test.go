@@ -300,6 +300,10 @@ func (m *mockStorage) Range(
 	return nil, nil
 }
 
+func (m *mockStorage) TxFactory() tx.Factory {
+	return tx.Factory(m.Tx)
+}
+
 func TestWorkerShow(t *testing.T) {
 	workerCfg := `type: nontarantool
 instrumentation:
