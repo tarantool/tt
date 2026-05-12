@@ -117,35 +117,28 @@ func BuildWorkerStorageKey(prefix, hostName, workerName string) string {
 	return fmt.Sprintf("%s/instances/%s/%s", prefix, hostName, workerName)
 }
 
-func firstNonEmpty(candidates ...string) string {
-	for _, s := range candidates {
-		if s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
-// ResolveWorkerCredentials resolves credentials with the priority:
-// environment variables < command flags < URL credentials.
 func ResolveWorkerCredentials(
 	uriOpts libconnect.UriOpts,
 	flagUsername, flagPassword string,
 ) (username, password string) {
-	username = firstNonEmpty(
-		uriOpts.Username,
-		flagUsername,
-		os.Getenv(libconnect.EtcdUsernameEnv),
-		os.Getenv(libconnect.TarantoolUsernameEnv),
-	)
+	if uriOpts.Username != "" || uriOpts.Password != "" {
+		return uriOpts.Username, uriOpts.Password
+	}
 
-	password = firstNonEmpty(
-		uriOpts.Password,
-		flagPassword,
-		os.Getenv(libconnect.EtcdPasswordEnv),
-		os.Getenv(libconnect.TarantoolPasswordEnv),
-	)
-
+	username = flagUsername
+	password = flagPassword
+	if username == "" {
+		username = os.Getenv(libconnect.EtcdUsernameEnv)
+	}
+	if username == "" {
+		username = os.Getenv(libconnect.TarantoolUsernameEnv)
+	}
+	if password == "" {
+		password = os.Getenv(libconnect.EtcdPasswordEnv)
+	}
+	if password == "" {
+		password = os.Getenv(libconnect.TarantoolPasswordEnv)
+	}
 	return username, password
 }
 
