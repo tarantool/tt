@@ -283,9 +283,11 @@ type mockTx struct {
 	succeeded  bool
 	err        error
 	operations []operation.Operation
+	predicates []predicate.Predicate
 }
 
 func (m *mockTx) If(predicates ...predicate.Predicate) tx.Tx {
+	m.predicates = predicates
 	return m
 }
 
@@ -317,7 +319,9 @@ func (m *mockStorage) Watch(
 	key []byte,
 	opts ...watch.Option,
 ) <-chan watch.Event {
-	return nil
+	ch := make(chan watch.Event)
+	close(ch)
+	return ch
 }
 
 func (m *mockStorage) Tx(ctx context.Context) tx.Tx {
@@ -333,6 +337,94 @@ func (m *mockStorage) Range(
 
 func (m *mockStorage) TxFactory() tx.Factory {
 	return tx.Factory(m.Tx)
+}
+
+func TestWorkerPublish(t *testing.T) {
+	workerCfg := `type: nontarantool
+instrumentation:
+  url: host1:8080
+  metrics_url: /metrics
+  metrics_format: prometheus
+config:
+  addr: host1:9080
+`
+
+	cases := []struct {
+		name        string
+		key         string
+		src         []byte
+		force       bool
+		succeeded   bool
+		txErr       error
+		expectedErr string
+	}{
+		{
+			name:      "new key without force",
+			key:       "/prefix/instances/host1/worker1",
+			src:       []byte(workerCfg),
+			force:     false,
+			succeeded: true,
+		},
+		{
+			name:        "key exists without force",
+			key:         "/prefix/instances/host1/worker1",
+			src:         []byte(workerCfg),
+			force:       false,
+			succeeded:   false,
+			expectedErr: "worker configuration already exists",
+		},
+		{
+			name:  "key exists with force",
+			key:   "/prefix/instances/host1/worker1",
+			src:   []byte(workerCfg),
+			force: true,
+		},
+		{
+			name:  "new key with force",
+			key:   "/prefix/instances/host1/worker1",
+			src:   []byte(workerCfg),
+			force: true,
+		},
+		{
+			name:        "storage error",
+			key:         "/prefix/instances/host1/worker1",
+			src:         []byte(workerCfg),
+			txErr:       errors.New("connection refused"),
+			expectedErr: "failed to publish worker configuration",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockTx := &mockTx{
+				succeeded: tc.succeeded,
+				err:       tc.txErr,
+			}
+			mockStg := &mockStorage{tx: mockTx}
+
+			publishCtx := WorkerPublishCtx{
+				Storage: mockStg,
+				Key:     tc.key,
+				Src:     tc.src,
+				Force:   tc.force,
+			}
+
+			err := WorkerPublish(publishCtx)
+
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+
+			if tc.force {
+				require.Len(t, mockTx.predicates, 0)
+			} else {
+				require.Len(t, mockTx.predicates, 1)
+			}
+		})
+	}
 }
 
 func TestWorkerShow(t *testing.T) {
@@ -479,13 +571,12 @@ config:
 				}
 			}
 
-			mockStg := &mockStorage{
-				tx: &mockTx{
-					results:   results,
-					succeeded: tc.succeeded,
-					err:       tc.txErr,
-				},
+			mockTx := &mockTx{
+				results:   results,
+				succeeded: tc.succeeded,
+				err:       tc.txErr,
 			}
+			mockStg := &mockStorage{tx: mockTx}
 
 			deleteCtx := WorkerDeleteCtx{
 				Storage: mockStg,
@@ -501,6 +592,12 @@ config:
 			}
 
 			require.NoError(t, err)
+
+			if tc.force {
+				require.Len(t, mockTx.predicates, 0)
+			} else {
+				require.Len(t, mockTx.predicates, 1)
+			}
 		})
 	}
 }
