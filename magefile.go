@@ -205,8 +205,9 @@ func appendTags(args []string) ([]string, error) {
 	case BuildTypeNoCgo:
 		tags = append(tags, "go_tarantool_ssl_disable", "tt_ssl_disable")
 	case BuildTypeStatic:
-		tags = append(tags, "openssl_static")
+		tags = append(tags, "openssl_static", "go_storage_ssl")
 	case BuildTypeShared:
+		tags = append(tags, "go_storage_ssl")
 	default:
 		return []string{}, fmt.Errorf("unsupported build type: %s, supported: "+
 			"%s, %s, %s",
