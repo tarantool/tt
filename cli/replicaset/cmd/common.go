@@ -7,6 +7,7 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (
@@ -31,6 +32,7 @@ func makeApplicationOrchestrator(
 	runningCtx running.RunningCtx,
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
+	integ integrity.IntegrityCtx,
 ) (replicasetOrchestrator, error) {
 	var (
 		orchestrator replicasetOrchestrator
@@ -38,7 +40,7 @@ func makeApplicationOrchestrator(
 	)
 	switch orchestratorType {
 	case replicaset.OrchestratorCentralizedConfig:
-		orchestrator = replicaset.NewCConfigApplication(runningCtx, collectors, publishers)
+		orchestrator = replicaset.NewCConfigApplication(runningCtx, collectors, publishers, integ)
 	case replicaset.OrchestratorCustom:
 		orchestrator = replicaset.NewCustomApplication(runningCtx)
 	default:

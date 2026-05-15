@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // RolesChangeCtx describes the context to add/remove role for
@@ -27,6 +28,8 @@ type RolesChangeCtx struct {
 	Publishers libcluster.DataPublisherFactory
 	// Collectors is a data collector factory.
 	Collectors libcluster.DataCollectorFactory
+	// Integrity is the integrity context for cluster reads.
+	Integrity integrity.IntegrityCtx
 	// IsApplication is true if an application passed.
 	IsApplication bool
 	// Orchestrator is a forced orchestrator choice.
@@ -52,7 +55,7 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
 		if orchestrator, err = makeApplicationOrchestrator(
-			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers); err != nil {
+			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity); err != nil {
 			return err
 		}
 	} else {

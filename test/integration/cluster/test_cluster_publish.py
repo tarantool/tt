@@ -490,18 +490,18 @@ def test_cluster_publish_new_instance_config(
             iproto:
               listen:
                 - uri: 127.0.0.1:3301
-          router:
-            database:
-              mode: rw
-            iproto:
-              listen:
-                - uri: 127.0.0.1:3303
           storage:
             database:
               mode: rw
             iproto:
               listen:
-                - uri: 127.0.0.1:3302\n"""
+                - uri: 127.0.0.1:3302
+          router:
+            database:
+              mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3303\n"""
         == uploaded
     )
 

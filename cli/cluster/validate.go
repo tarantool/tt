@@ -5,16 +5,19 @@ import (
 	"errors"
 	"fmt"
 
+	goconfig "github.com/tarantool/go-config"
 	"github.com/tarantool/go-config/collectors"
 	gcttarantool "github.com/tarantool/go-config/tarantool"
 	"github.com/tarantool/go-config/validators/jsonschema"
-	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
-// Validate validates a configuration against the embedded JSON Schema for the
-// newest known Tarantool version.
-func Validate(config *libcluster.Config) error {
-	yamlBytes := []byte(config.String())
+// Validate validates a goconfig.Config against the embedded JSON Schema for
+// the newest known Tarantool version.
+func Validate(cfg goconfig.Config) error {
+	yamlBytes, err := cfg.MarshalYAML()
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
 	if len(bytes.TrimSpace(yamlBytes)) == 0 {
 		return nil
 	}
@@ -24,9 +27,9 @@ func Validate(config *libcluster.Config) error {
 		return fmt.Errorf("no Tarantool schemas registered")
 	}
 	newest := versions[len(versions)-1]
-	schemaBytes, ok := gcttarantool.Schema(newest)
-	if !ok {
-		return fmt.Errorf("schema for Tarantool version %q not found", newest)
+	schemaBytes, err := gcttarantool.Schema(newest)
+	if err != nil {
+		return fmt.Errorf("schema for Tarantool version %q not found: %w", newest, err)
 	}
 
 	validator, err := jsonschema.New(schemaBytes)

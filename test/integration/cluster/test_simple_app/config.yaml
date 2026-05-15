@@ -4,14 +4,14 @@ groups:
       replicaset-001:
         instances:
           master:
-            iproto:
-              listen:
-              - uri: '127.0.0.1:3301'
             database:
               mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3301
           storage:
-            iproto:
-              listen:
-              - uri: '127.0.0.1:3302'
             database:
               mode: rw
+            iproto:
+              listen:
+                - uri: 127.0.0.1:3302

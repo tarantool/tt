@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	clustercmd "github.com/tarantool/tt/cli/cluster/cmd"
 	"github.com/tarantool/tt/cli/cmd/internal"
@@ -352,26 +353,25 @@ func NewClusterCmd() *cobra.Command {
 
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	var dataCollectors libcluster.DataCollectorFactory
-	hashers, verifiers, err := integrity.GetStorageVerifiers(cmdCtx.Integrity)
-	if errors.Is(err, integrity.ErrNotConfigured) {
-		dataCollectors = libcluster.NewDataCollectorFactory()
-	} else if err != nil {
-		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
-	} else {
-		dataCollectors = libcluster.NewDataCollectorFactory(
-			libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
-				return cmdCtx.Integrity.Repository.Read(path)
-			}),
-			libcluster.WithIntegrity(libcluster.IntegrityOptions{
-				Hashers:   hashers,
-				Verifiers: verifiers,
-			}),
-		)
-	}
-	showCtx.Collectors = libcluster.NewCollectorFactory(dataCollectors)
-
 	if opts, err := libconnect.CreateUriOpts(args[0]); err == nil {
+		var dataCollectors libcluster.DataCollectorFactory
+		hashers, verifiers, cerr := integrity.GetStorageVerifiers(cmdCtx.Integrity)
+		if errors.Is(cerr, integrity.ErrNotConfigured) {
+			dataCollectors = libcluster.NewDataCollectorFactory()
+		} else if cerr != nil {
+			return fmt.Errorf("failed to create collectors with integrity check: %w", cerr)
+		} else {
+			dataCollectors = libcluster.NewDataCollectorFactory(
+				libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
+					return cmdCtx.Integrity.Repository.Read(path)
+				}),
+				libcluster.WithIntegrity(libcluster.IntegrityOptions{
+					Hashers:   hashers,
+					Verifiers: verifiers,
+				}),
+			)
+		}
+		showCtx.Collectors = dataCollectors
 		return clustercmd.ShowUri(showCtx, opts)
 	}
 
@@ -384,6 +384,7 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return fmt.Errorf("cluster configuration file does not exist for the application")
 	}
 
+	showCtx.Integrity = cmdCtx.Integrity
 	return clustercmd.ShowCluster(showCtx, configPath, instName)
 }
 
@@ -394,7 +395,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	if err != nil {
 		return err
 	}
-	publishCtx.Collectors = libcluster.NewCollectorFactory(dataCollectors)
+	publishCtx.Collectors = dataCollectors
 	publishCtx.Publishers = dataPublishers
 
 	data, config, err := readSourceFile(args[1])
@@ -517,21 +518,20 @@ func internalClusterFailoverSwitchStatusModule(cmdCtx *cmdcontext.CmdCtx, args [
 	return clustercmd.SwitchStatus(args[0], switchStatusCtx)
 }
 
-// readSourceFile reads a configuration from a source file.
-func readSourceFile(path string) ([]byte, *libcluster.Config, error) {
+// readSourceFile reads a configuration from a source file and returns the raw
+// bytes together with the decoded YAML map.
+func readSourceFile(path string) ([]byte, map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read path %q: %s", path, err)
 	}
 
-	config, err := libcluster.NewYamlCollector(data).Collect()
-	if err != nil {
-		err = fmt.Errorf("failed to read a configuration from path %q: %s",
-			path, err)
-		return nil, nil, err
+	var decoded map[string]any
+	if err := yaml.Unmarshal(data, &decoded); err != nil {
+		return nil, nil, fmt.Errorf("failed to read a configuration from path %q: %s", path, err)
 	}
 
-	return data, config, nil
+	return data, decoded, nil
 }
 
 // parseAppStr parses a string and returns an application cluster config path,

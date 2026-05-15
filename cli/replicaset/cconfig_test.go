@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // spell-checker:ignore somealias someinstanceuuid someleaderuuid somereplicasetuuid anyuri
@@ -36,7 +37,7 @@ var (
 )
 
 func TestCconfigApplication_Bootstrap(t *testing.T) {
-	app := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil)
+	app := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil, integrity.IntegrityCtx{})
 	err := app.Bootstrap(replicaset.BootstrapCtx{})
 	assert.EqualError(t, err,
 		`bootstrap is not supported for an application by "centralized config" orchestrator`)

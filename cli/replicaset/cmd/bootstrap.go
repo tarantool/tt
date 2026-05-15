@@ -6,6 +6,7 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // BootstrapCtx describes context to bootstrap an instance or application.
@@ -45,7 +46,7 @@ func Bootstrap(ctx BootstrapCtx) error {
 	}
 
 	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
-		ctx.RunningCtx, nil, nil)
+		ctx.RunningCtx, nil, nil, integrity.IntegrityCtx{})
 	if err != nil {
 		return err
 	}

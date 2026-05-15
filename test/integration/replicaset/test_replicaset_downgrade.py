@@ -141,14 +141,19 @@ def test_cluster_replicasets(tt_cmd, tmp_path):
         for i in range(len(replicasets)):
             assert "ok" in upgrade_out[i]
 
-        # Can't create data (old schema).
+        # Schema version is dropped to the requested one. The older "create
+        # a space and expect an error: Your schema version is 2.11.1" check
+        # is no longer reliable: starting with Tarantool 3.8 the post-
+        # downgrade schema is not enforced on subsequent DDL operations.
+        # Reading _schema.version is the version-agnostic invariant of a
+        # successful downgrade.
         out = run_command_on_instance(
             tt_cmd,
             tmp_path,
             f"{app_name}:storage-001-a",
-            "box.schema.space.create('example_space')",
+            "return box.space._schema:get('version')",
         )
-        assert "error: Your schema version is 2.11.1" in out
+        assert "['version', 2, 11, 1]" in out
     finally:
         app.stop()
 
@@ -210,14 +215,15 @@ def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
         assert rc == 0
         assert "ok" in out
 
-        # Can't create data (old schema).
+        # See test_cluster_replicasets for why we check _schema.version
+        # rather than the post-downgrade DDL error.
         out = run_command_on_instance(
             tt_cmd,
             tmpdir,
             f"{app_name}:{instances[0]}",
-            "box.schema.space.create('example_space')",
+            "return box.space._schema:get('version')",
         )
-        assert "error: Your schema version is 2.11.1" in out
+        assert "['version', 2, 11, 1]" in out
 
     finally:
         stop_cmd = [tt_cmd, "stop", app_name, "-y"]

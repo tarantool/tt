@@ -27,7 +27,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
-	github.com/tarantool/go-config v1.2.0
+	github.com/tarantool/go-config v1.3.1-0.20260524153114-eabcdc6e9350
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage v1.4.0
 	github.com/tarantool/go-tarantool/v2 v2.4.2
@@ -154,6 +154,7 @@ require (
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
+	google.golang.org/genproto v0.0.0-20260519071638-aa98bba5eb94 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260226221140-a57be14db171 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
@@ -164,6 +165,16 @@ require (
 
 replace (
 	github.com/c-bata/go-prompt => github.com/tarantool/go-prompt v0.2.6-tarantool
+	// Temporary: with go-config out of the workspace, the old monolithic
+	// genproto (pulled by go-grpc-middleware) collides with the split
+	// genproto/googleapis modules. Pin it past the api/rpc split until the
+	// go-config release lands and the workspace no longer masks this.
+	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20260519071638-aa98bba5eb94
+	// Temporary: the genproto pin above transitively drags in the Google Cloud
+	// SDK (bigquery -> apache/arrow -> participle v2.1.0), but cli/pack needs
+	// participle's lexer/stateful, which was removed after alpha4. tt never
+	// compiles arrow, so force participle back to the version cli/pack uses.
+	github.com/alecthomas/participle/v2 => github.com/alecthomas/participle/v2 v2.0.0-alpha4
 	github.com/tarantool/go-storage => github.com/tarantool/go-storage v1.3.1-0.20260508130135-519a48acedf8
 	github.com/tarantool/tt/lib/cluster => ./lib/cluster
 	github.com/tarantool/tt/lib/connect => ./lib/connect

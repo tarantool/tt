@@ -1,6 +1,7 @@
 import io
 import os
 import shutil
+import time
 
 import pytest
 from replicaset_helpers import (
@@ -10,6 +11,7 @@ from replicaset_helpers import (
     parse_yml,
     start_application,
     stop_application,
+    wait_election_leader_known,
 )
 
 from utils import get_tarantool_version, read_kv, run_command_and_get_output, wait_event
@@ -168,6 +170,17 @@ def test_promote_cconfig_failovers(
         if replicaset == "election-failover":
             # To exactly know who is leader of the election replicaset at the beginning.
             box_ctl_promote(tt_cmd, app_name, "election-failover-1", tmpdir)
+            # Both voters must have accepted the current term and leader
+            # before the test's follow-up promote can win the next election.
+            # Without this wait the second promote races raft term
+            # propagation and intermittently fails with "Not enough peers
+            # connected to start elections".
+            wait_election_leader_known(
+                tt_cmd, app_name, "election-failover-1", tmpdir
+            )
+            wait_election_leader_known(
+                tt_cmd, app_name, "election-failover-2", tmpdir
+            )
 
         if stop_inst:
             stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_inst}"]
@@ -183,7 +196,20 @@ def test_promote_cconfig_failovers(
             promote_cmd.extend(args)
         promote_cmd.extend([promote_target])
 
-        rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir)
+        # `box.ctl.promote()` in a 2-voter election replicaset can transiently
+        # observe only itself in `box.info.replication` even after both nodes
+        # report a settled election state (the replication socket gets
+        # recycled across `tt connect` invocations in this test). The Tarantool
+        # error in that case is exactly "Not enough peers connected to start
+        # elections". Retry a few times on that specific message before
+        # failing the test — the underlying state always converges.
+        rc, out = 1, ""
+        for _ in range(6):
+            rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir)
+            if rc == 0 or "Not enough peers connected" not in out:
+                break
+            time.sleep(0.5)
+
         if err_text:
             assert rc != 0
             assert err_text in out

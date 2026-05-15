@@ -58,7 +58,50 @@ def box_ctl_promote(tt_cmd, app_name, inst_name, workdir):
         out = eval_on_instance(tt_cmd, app_name, inst_name, workdir, "box.info.ro")
         return out.find("false") != -1
 
-    assert wait_event(10, is_leader_elected)
+    # 30s — election negotiation in a 3-voter replicaset can take longer
+    # than the original 10s on slower hosts (and reliably did on macOS).
+    assert wait_event(30, is_leader_elected)
+
+
+def wait_election_leader_known(tt_cmd, app_name, inst_name, workdir):
+    """Wait until inst_name has accepted a raft leader (election.leader_id != 0)
+    and is in a stable election state (`leader` or `follower`).
+
+    Election failover requires a quorum of voters that agree on the current
+    term before `box.ctl.promote()` can win the next election. Tests that
+    fire promote immediately after start_application race three separate
+    things: the TCP handshake, replication entering `follow` state, and
+    raft term propagation. Waiting for `follow` alone is not enough — the
+    follower can be in `follow` state with `box.info.election.leader_id == 0`
+    if no election round has completed yet, and `box.ctl.promote()` then
+    fails with "Not enough peers connected to start elections".
+
+    The lua reports back a status string. The Python side polls until that
+    string contains both a stable election state and a non-zero leader id.
+    """
+    lua = (
+        "local info = box.info.election or {} "
+        "return string.format('state=%s leader_id=%s', "
+        "  tostring(info.state), tostring(info.leader_id or info.leader or 0))"
+    )
+
+    def election_settled():
+        out = eval_on_instance(tt_cmd, app_name, inst_name, workdir, lua)
+        # Look for the result line (starts with '- ' in YAML output).
+        for line in out.splitlines():
+            line = line.strip()
+            if not line.startswith("- "):
+                continue
+            payload = line[2:].strip("'\" ")
+            if "leader_id=0" in payload or "leader_id=nil" in payload:
+                return False
+            if "state=leader" in payload or "state=follower" in payload:
+                return True
+        return False
+
+    assert wait_event(15, election_settled), (
+        f"{inst_name} did not settle election state within 15s"
+    )
 
 
 def parse_status(buf: io.StringIO):

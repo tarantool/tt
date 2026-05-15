@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // ExpelCtx contains information about replicaset expel command execution
@@ -19,6 +20,8 @@ type ExpelCtx struct {
 	Publishers libcluster.DataPublisherFactory
 	// Collectors is data collector factory.
 	Collectors libcluster.DataCollectorFactory
+	// Integrity is the integrity context for cluster reads.
+	Integrity integrity.IntegrityCtx
 	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 	// RunningCtx is an application running context.
@@ -39,7 +42,7 @@ func Expel(expelCtx ExpelCtx) error {
 	}
 
 	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
-		expelCtx.RunningCtx, expelCtx.Collectors, expelCtx.Publishers)
+		expelCtx.RunningCtx, expelCtx.Collectors, expelCtx.Publishers, expelCtx.Integrity)
 	if err != nil {
 		return err
 	}
