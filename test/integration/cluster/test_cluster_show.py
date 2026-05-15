@@ -141,6 +141,11 @@ def test_cluster_show_config_app_validate_no_error(tt_cmd, tmpdir_with_cfg, app_
     assert test_simple_app_cfg == show_output
 
 
+@pytest.mark.skip(
+    reason="jsonschema error messages have unsubstituted {property}/{received}/{expected} "
+    "placeholders; awaiting go-config release with "
+    "https://github.com/tarantool/go-config/pull/60",
+)
 def test_cluster_show_config_app_validate_error(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_error_app"

@@ -51,7 +51,10 @@ groups:
             foo: bar
 `),
 			Full: []bool{false, true},
-			Err:  nil,
+			Err: []string{
+				"an invalid cluster configuration: ",
+				"foo [schema] No values are allowed because the schema is set to 'false'",
+			},
 		},
 		{
 			Name: "valid fields",
@@ -91,9 +94,8 @@ groups:
               nonblock: true
 `),
 			Full: []bool{false, true},
-			Err: []string{"an invalid cluster configuration: " +
-				"invalid path \"audit_log.nonblock\": " +
-				"unexpected value \"123\" of type int, expected boolean"},
+			Err: []string{"an invalid cluster configuration: ",
+				"audit_log/nonblock [type] invalid type"},
 		},
 		{
 			Name: "invalid group",
@@ -109,9 +111,8 @@ groups:
           c:
 `),
 			Full: []bool{false, true},
-			Err: []string{"an invalid instance \"c\" configuration: " +
-				"invalid path \"audit_log.nonblock\": " +
-				"unexpected value \"123\" of type int, expected boolean"},
+			Err: []string{"an invalid instance \"c\" configuration: ",
+				"audit_log/nonblock [type] invalid type"},
 		},
 		{
 			Name: "invalid replicaset",
@@ -129,9 +130,8 @@ groups:
           c:
 `),
 			Full: []bool{false, true},
-			Err: []string{"an invalid instance \"c\" configuration: " +
-				"invalid path \"audit_log.nonblock\": " +
-				"unexpected value \"123\" of type int, expected boolean"},
+			Err: []string{"an invalid instance \"c\" configuration: ",
+				"audit_log/nonblock [type] invalid type"},
 		},
 		{
 			Name: "invalid instance",
@@ -151,9 +151,8 @@ groups:
               nonblock: 123
 `),
 			Full: []bool{false, true},
-			Err: []string{"an invalid instance \"c\" configuration: " +
-				"invalid path \"audit_log.nonblock\": " +
-				"unexpected value \"123\" of type int, expected boolean"},
+			Err: []string{"an invalid instance \"c\" configuration: ",
+				"audit_log/nonblock [type] invalid type"},
 		},
 		{
 			Name: "invalid instances",
@@ -177,12 +176,9 @@ groups:
 `),
 			Full: []bool{false, true},
 			Err: []string{
-				"an invalid instance \"c1\" configuration: " +
-					"invalid path \"audit_log.nonblock\": " +
-					"unexpected value \"123\" of type int, expected boolean",
-				"an invalid instance \"c2\" configuration: " +
-					"invalid path \"audit_log.nonblock\": " +
-					"unexpected value \"123\" of type int, expected boolean",
+				"an invalid instance \"c1\" configuration: ",
+				"an invalid instance \"c2\" configuration: ",
+				"audit_log/nonblock [type] invalid type",
 			},
 		},
 		{
@@ -229,9 +225,8 @@ groups:
               nonblock: true
 `),
 			Full: []bool{true},
-			Err: []string{"an invalid instance \"c\" configuration: " +
-				"invalid path \"audit_log.nonblock\": " +
-				"unexpected value \"123\" of type string, expected boolean"},
+			Err: []string{"an invalid instance \"c\" configuration: ",
+				"audit_log/nonblock [type] invalid type"},
 		},
 	}
 

@@ -97,7 +97,7 @@ func validateRawClusterConfig(config *libcluster.Config) error {
 // validateClusterConfig validates a cluster configuration.
 func validateClusterConfig(cconfig libcluster.ClusterConfig, full bool) error {
 	var errs []error
-	if err := libcluster.Validate(cconfig.RawConfig, libcluster.TarantoolSchema); err != nil {
+	if err := cluster.Validate(cconfig.RawConfig); err != nil {
 		err = fmt.Errorf("an invalid cluster configuration: %s", err)
 		errs = append(errs, err)
 	}
@@ -123,7 +123,7 @@ func validateClusterConfig(cconfig libcluster.ClusterConfig, full bool) error {
 
 // validateInstanceConfig validates an instance configuration.
 func validateInstanceConfig(config *libcluster.Config, name string) error {
-	if err := libcluster.Validate(config, libcluster.TarantoolSchema); err != nil {
+	if err := cluster.Validate(config); err != nil {
 		return fmt.Errorf("an invalid instance %q configuration: %w", name, err)
 	}
 	return nil

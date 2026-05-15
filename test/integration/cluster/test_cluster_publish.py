@@ -208,6 +208,11 @@ def test_cluster_publish_valid_cluster_without_app_config(
     assert valid_cluster_cfg == uploaded
 
 
+@pytest.mark.skip(
+    reason="jsonschema error messages have unsubstituted {property}/{received}/{expected} "
+    "placeholders; awaiting go-config release with "
+    "https://github.com/tarantool/go-config/pull/60",
+)
 @pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
 def test_cluster_publish_invalid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
@@ -572,6 +577,11 @@ def test_cluster_publish_valid_new_instance_config_new_replicaset(
     )
 
 
+@pytest.mark.skip(
+    reason="jsonschema error messages have unsubstituted {property}/{received}/{expected} "
+    "placeholders; awaiting go-config release with "
+    "https://github.com/tarantool/go-config/pull/60",
+)
 @pytest.mark.parametrize("app_name", ["test_simple_app", "testsimpleapp"])
 def test_cluster_publish_invalid_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
