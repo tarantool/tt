@@ -377,6 +377,29 @@ func CreateCollector(
 	return collector, cleanup, nil
 }
 
+// CreateDataCollector creates a DataCollector for the storage described by
+// connOpts and opts (etcd or Tarantool config storage). It is the
+// DataCollector-level analogue of CreateCollector.
+func CreateDataCollector(
+	factory DataCollectorFactory,
+	connOpts ConnectOpts,
+	opts libconnect.UriOpts,
+) (DataCollector, func(), error) {
+	stor, cleanup, storageType, err := NewStorageConnection(connOpts, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	collector, err := factory.NewRemoteStorage(stor,
+		opts.Prefix, opts.Params["key"], opts.Timeout, storageType)
+	if err != nil {
+		cleanup()
+		return nil, nil, fmt.Errorf("failed to create %s collector: %w", storageType, err)
+	}
+
+	return collector, cleanup, nil
+}
+
 // CreatePublisherAndCollector creates a new data publisher and collector based on UriOpts.
 func CreatePublisherAndCollector(
 	publishers DataPublisherFactory,

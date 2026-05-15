@@ -1,11 +1,15 @@
 package replicaset
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	goconfig "github.com/tarantool/go-config"
+
+	"github.com/tarantool/tt/cli/cluster"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 )
 
@@ -42,26 +46,46 @@ type DataPublisher interface {
 	Publish(string, int64, []byte) error
 }
 
-// collectConfig fetches and merges the config data.
+// collectCConfig fetches and merges the config data, returning both the
+// individual data items and a merged goconfig.Config view.
 func collectCConfig(
 	collector libcluster.DataCollector,
-) ([]libcluster.Data, libcluster.ClusterConfig, error) {
-	var clusterConfig libcluster.ClusterConfig
-
+) ([]libcluster.Data, goconfig.Config, error) {
 	configData, err := collector.Collect()
 	if err != nil {
-		return nil, clusterConfig, fmt.Errorf("failed to collect cluster config: %w", err)
+		return nil, goconfig.Config{}, fmt.Errorf("failed to collect cluster config: %w", err)
 	}
-	clusterConfigCollector := libcluster.NewYamlDataMergeCollector(configData...)
-	merged, err := clusterConfigCollector.Collect()
-	if err != nil {
-		return nil, clusterConfig, err
+
+	// Build an individual goconfig.Config for each data item, then merge them
+	// into a single view by feeding each as a collector in priority order.
+	// This mirrors the semantics of NewYamlDataMergeCollector.
+	ctx := context.Background()
+	builder := goconfig.NewBuilder()
+	builder = builder.WithoutValidation()
+	builder = builder.WithInheritance(
+		goconfig.Levels(goconfig.Global, "groups", "replicasets", "instances"),
+		goconfig.WithInheritMerge("credentials", goconfig.MergeDeep),
+	)
+
+	for _, item := range configData {
+		if len(item.Value) == 0 {
+			continue
+		}
+		src, err := cluster.NewBytesSource("collector-item", item.Value)
+		if err != nil {
+			return nil, goconfig.Config{},
+				fmt.Errorf("failed to decode config from %q: %w", item.Source, err)
+		}
+		builder = builder.AddCollector(src)
 	}
-	clusterConfig, err = libcluster.MakeClusterConfig(merged)
-	if err != nil {
-		return nil, clusterConfig, fmt.Errorf("failed to make cluster config: %w", err)
+
+	merged, errs := builder.Build(ctx)
+	if len(errs) > 0 {
+		return nil, goconfig.Config{}, fmt.Errorf("failed to build merged config: %w",
+			errors.Join(errs...))
 	}
-	return configData, clusterConfig, nil
+
+	return configData, merged, nil
 }
 
 // pickTarget applies keyPicker to the targets slice and returns picked target.
@@ -81,14 +105,14 @@ func (c *CConfigSource) pickTarget(targets []patchTarget, force bool,
 
 // patchInstanceConfig runs an instance based config patching pipeline.
 func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
-	getPathFunc func(cconfigInstance) ([]string, int, error),
-	patchFunc func(*libcluster.Config, cconfigInstance) (*libcluster.Config, error),
+	getPathFunc func(cconfigInstance) (goconfig.KeyPath, int, error),
+	patchFunc func(*goconfig.MutableConfig, cconfigInstance) (*goconfig.MutableConfig, error),
 ) error {
-	configData, clusterConfig, err := collectCConfig(c.collector)
+	configData, goView, err := collectCConfig(c.collector)
 	if err != nil {
 		return err
 	}
-	inst, err := getCConfigInstance(&clusterConfig, instanceName)
+	inst, err := getCConfigInstance(goView, instanceName)
 	if err != nil {
 		return err
 	}
@@ -110,25 +134,30 @@ func (c *CConfigSource) patchInstanceConfig(instanceName string, force bool,
 	if err != nil {
 		return err
 	}
-	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
+	patchedSnap := patched.Snapshot()
+	b, err := patchedSnap.MarshalYAML()
+	if err != nil {
+		return fmt.Errorf("marshal patched config: %w", err)
+	}
+	err = c.publisher.Publish(target.key, target.revision, b)
 	if err != nil {
 		return fmt.Errorf("failed to publish the config: %w", err)
 	}
 	return nil
 }
 
-// patchConfigWithRoles runs an config patching pipeline with adding roles.
+// patchConfigWithRoles runs a config patching pipeline with adding roles.
 func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
-	getPathFunc func(clusterConfig libcluster.ClusterConfig,
+	getPathFunc func(clusterConfig goconfig.Config,
 		ctx RolesChangeCtx) (paths []path, err error),
 	updateRolesFunc func([]string, string) ([]string, error),
-	patchFunc func(config *libcluster.Config, prt []patchRoleTarget) (*libcluster.Config, error),
+	patchFunc func(config *goconfig.MutableConfig, prt []patchRoleTarget) (*goconfig.MutableConfig, error),
 ) error {
-	configData, clusterConfig, err := collectCConfig(c.collector)
+	configData, goView, err := collectCConfig(c.collector)
 	if err != nil {
 		return err
 	}
-	paths, err := getPathFunc(clusterConfig, ctx)
+	paths, err := getPathFunc(goView, ctx)
 	if err != nil {
 		return err
 	}
@@ -137,19 +166,19 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 	pRoleTarget := make([]patchRoleTarget, 0, len(paths))
 
 	for _, path := range paths {
-		value, err := clusterConfig.RawConfig.Get(path.path)
-		var notExistErr libcluster.NotExistError
-		if err != nil && !errors.As(err, &notExistErr) {
-			return err
-		}
-
 		var updatedRoles []string
-		if value != nil {
-			updatedRoles, err = parseRoles(value)
+
+		if val, ok := goView.Lookup(path.path); ok {
+			var existing any
+			if err := val.Get(&existing); err != nil {
+				return fmt.Errorf("failed to get roles at path %s: %w", path.path, err)
+			}
+			updatedRoles, err = parseRoles(existing)
 			if err != nil {
 				return err
 			}
 		}
+
 		if updatedRoles, err = updateRolesFunc(updatedRoles, ctx.RoleName); err != nil {
 			return fmt.Errorf("cannot update roles by path %s: %s", path.path, err)
 		}
@@ -173,7 +202,12 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 	if err != nil {
 		return err
 	}
-	err = c.publisher.Publish(target.key, target.revision, []byte(patched.String()))
+	patchedSnap2 := patched.Snapshot()
+	b, err := patchedSnap2.MarshalYAML()
+	if err != nil {
+		return fmt.Errorf("marshal patched config: %w", err)
+	}
+	err = c.publisher.Publish(target.key, target.revision, b)
 	if err != nil {
 		return fmt.Errorf("failed to publish the config: %w", err)
 	}
@@ -186,7 +220,7 @@ func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigPromotePath,
-		func(config *libcluster.Config, inst cconfigInstance) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig, inst cconfigInstance) (*goconfig.MutableConfig, error) {
 			return patchCConfigPromote(config, inst)
 		},
 	)
@@ -198,7 +232,7 @@ func (c *CConfigSource) Demote(ctx DemoteCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigDemotePath,
-		func(config *libcluster.Config, inst cconfigInstance) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig, inst cconfigInstance) (*goconfig.MutableConfig, error) {
 			return patchCConfigDemote(config, inst)
 		},
 	)
@@ -210,7 +244,7 @@ func (c *CConfigSource) Expel(ctx ExpelCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigExpelPath,
-		func(config *libcluster.Config, inst cconfigInstance) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig, inst cconfigInstance) (*goconfig.MutableConfig, error) {
 			return patchCConfigExpel(config, inst)
 		},
 	)
@@ -223,24 +257,20 @@ func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, action RolesChangerAction
 
 // getCConfigRolesPath returns a path and it's minimum interesting depth
 // to patch the config for role addition.
-func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig,
+func getCConfigRolesPath(goView goconfig.Config,
 	ctx RolesChangeCtx,
 ) ([]path, error) {
 	var paths []path
 	if ctx.IsGlobal {
 		paths = append(paths, path{
-			path:  []string{"roles"},
+			path:  goconfig.NewKeyPath("roles"),
 			depth: 0,
 		})
 	}
 	if ctx.GroupName != "" {
-		p := []string{"groups", ctx.GroupName}
-		if _, err := clusterConfig.RawConfig.Get(p); err != nil {
-			var notExistErr libcluster.NotExistError
-			if errors.As(err, &notExistErr) {
-				return []path{}, fmt.Errorf("cannot find group %q", ctx.GroupName)
-			}
-			return []path{}, fmt.Errorf("failed to build a group path: %w", err)
+		p := goconfig.NewKeyPath(fmt.Sprintf("groups/%s", ctx.GroupName))
+		if _, ok := goView.Lookup(p); !ok {
+			return []path{}, fmt.Errorf("cannot find group %q", ctx.GroupName)
 		}
 		paths = append(paths, path{
 			path:  append(p, "roles"),
@@ -250,10 +280,10 @@ func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig,
 	if ctx.ReplicasetName != "" {
 		var group string
 		var ok bool
-		if group, ok = libcluster.FindGroupByReplicaset(clusterConfig, ctx.ReplicasetName); !ok {
+		if group, ok = cluster.FindGroupByReplicaset(goView, ctx.ReplicasetName); !ok {
 			return []path{}, fmt.Errorf("cannot find replicaset %q above group", ctx.ReplicasetName)
 		}
-		p := []string{"groups", group, "replicasets", ctx.ReplicasetName}
+		p := goconfig.NewKeyPath(fmt.Sprintf("groups/%s/replicasets/%s", group, ctx.ReplicasetName))
 		paths = append(paths, path{
 			path:  append(p, "roles"),
 			depth: len(p),
@@ -262,11 +292,12 @@ func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig,
 	if ctx.InstName != "" {
 		var group, replicaset string
 		var ok bool
-		if group, replicaset, ok = libcluster.FindInstance(clusterConfig, ctx.InstName); !ok {
+		if group, replicaset, ok = cluster.FindInstance(goView, ctx.InstName); !ok {
 			return []path{}, fmt.Errorf("cannot find instance %q above group and/or replicaset",
 				ctx.InstName)
 		}
-		p := []string{"groups", group, "replicasets", replicaset, "instances", ctx.InstName}
+		p := goconfig.NewKeyPath(fmt.Sprintf(
+			"groups/%s/replicasets/%s/instances/%s", group, replicaset, ctx.InstName))
 		paths = append(paths, path{
 			path:  append(p, "roles"),
 			depth: len(p),
@@ -281,7 +312,7 @@ func getCConfigRolesPath(clusterConfig libcluster.ClusterConfig,
 // we consider the configs which contains the paths (in the priority order):
 // * "/groups/g/replicasets/r/leader"
 // * "/groups/g/replicasets/r".
-func getCConfigPromotePath(inst cconfigInstance) (path []string, depth int, err error) {
+func getCConfigPromotePath(inst cconfigInstance) (path goconfig.KeyPath, depth int, err error) {
 	var (
 		failover       = inst.failover
 		groupName      = inst.groupName
@@ -290,16 +321,14 @@ func getCConfigPromotePath(inst cconfigInstance) (path []string, depth int, err 
 	)
 	switch failover {
 	case FailoverOff:
-		path = []string{
-			"groups", groupName, "replicasets",
-			replicasetName, "instances", instName, "database", "mode",
-		}
+		path = goconfig.NewKeyPath(fmt.Sprintf(
+			"groups/%s/replicasets/%s/instances/%s/database/mode",
+			groupName, replicasetName, instName))
 		depth = len(path) - 2
 	case FailoverManual:
-		path = []string{
-			"groups", groupName, "replicasets",
-			replicasetName, "leader",
-		}
+		path = goconfig.NewKeyPath(fmt.Sprintf(
+			"groups/%s/replicasets/%s/leader",
+			groupName, replicasetName))
 		depth = len(path) - 1
 	case FailoverElection:
 		err = fmt.Errorf(`unsupported failover: %q, supported: "manual", "off"`, failover)
@@ -311,7 +340,7 @@ func getCConfigPromotePath(inst cconfigInstance) (path []string, depth int, err 
 
 // getCConfigDemotePath returns a path and it's minimum interesting depth
 // to patch the config for instance demoting.
-func getCConfigDemotePath(inst cconfigInstance) (path []string, depth int, err error) {
+func getCConfigDemotePath(inst cconfigInstance) (path goconfig.KeyPath, depth int, err error) {
 	var (
 		failover       = inst.failover
 		groupName      = inst.groupName
@@ -320,10 +349,9 @@ func getCConfigDemotePath(inst cconfigInstance) (path []string, depth int, err e
 	)
 	switch failover {
 	case FailoverOff:
-		path = []string{
-			"groups", groupName, "replicasets",
-			replicasetName, "instances", instName, "database", "mode",
-		}
+		path = goconfig.NewKeyPath(fmt.Sprintf(
+			"groups/%s/replicasets/%s/instances/%s/database/mode",
+			groupName, replicasetName, instName))
 		depth = len(path) - 2
 	case FailoverManual, FailoverElection:
 		err = fmt.Errorf(`unsupported failover: %q, supported: "off"`, failover)
@@ -335,16 +363,15 @@ func getCConfigDemotePath(inst cconfigInstance) (path []string, depth int, err e
 
 // getCConfigExpelPath returns a path and it's minimum interesting depth
 // to patch the config for instance expelling.
-func getCConfigExpelPath(inst cconfigInstance) (path []string, depth int, err error) {
+func getCConfigExpelPath(inst cconfigInstance) (path goconfig.KeyPath, depth int, err error) {
 	var (
 		groupName      = inst.groupName
 		replicasetName = inst.replicasetName
 		instName       = inst.name
 	)
-	path = []string{
-		"groups", groupName, "replicasets", replicasetName,
-		"instances", instName, "iproto", "listen",
-	}
+	path = goconfig.NewKeyPath(fmt.Sprintf(
+		"groups/%s/replicasets/%s/instances/%s/iproto/listen",
+		groupName, replicasetName, instName))
 	depth = len(path) - 2
 	return
 }
@@ -353,7 +380,7 @@ func getCConfigExpelPath(inst cconfigInstance) (path []string, depth int, err er
 type patchTarget struct {
 	key      string
 	revision int64
-	config   *libcluster.Config
+	config   *goconfig.MutableConfig
 	priority int
 }
 
@@ -369,16 +396,17 @@ func (target patchTarget) greater(oth patchTarget) bool {
 // getCConfigPatchTargets extracts patch target from the config data.
 // It returns the slice contains targets in the priority order.
 func getCConfigPatchTargets(data []libcluster.Data,
-	path []string, depth int,
+	path goconfig.KeyPath, depth int,
 ) ([]patchTarget, error) {
 	var targets []patchTarget
 	for _, item := range data {
-		config, err := libcluster.NewYamlCollector(item.Value).Collect()
+		mut, err := cluster.BuildMutableFromBytes(context.Background(), item.Value)
 		if err != nil {
 			return nil,
-				fmt.Errorf("failed to decode the config by the key %q: %w", item.Source, err)
+				fmt.Errorf("failed to decode config from %q: %w", item.Source, err)
 		}
-		depth, err := getCConfigPathDepth(config, path, depth)
+		snap := mut.Snapshot()
+		depth, err := getCConfigPathDepth(snap, path, depth)
 		if err != nil {
 			return nil, err
 		}
@@ -386,7 +414,7 @@ func getCConfigPatchTargets(data []libcluster.Data,
 			targets = append(targets, patchTarget{
 				key:      item.Source,
 				revision: item.Revision,
-				config:   config,
+				config:   mut,
 				priority: depth,
 			})
 		}
@@ -401,19 +429,13 @@ const noDepth = -1
 
 // getCConfigPathDepth returns the maximum depth of the path contained in the config.
 // If it is less than lowerDepth, it returns noDepth.
-func getCConfigPathDepth(config *libcluster.Config,
-	path []string, lowerDepth int,
+func getCConfigPathDepth(config goconfig.Config,
+	path goconfig.KeyPath, lowerDepth int,
 ) (int, error) {
 	for i := len(path); i >= lowerDepth; i-- {
-		_, err := config.Get(path[:i])
-		var notExistErr libcluster.NotExistError
-		if errors.As(err, &notExistErr) {
-			continue
+		if _, ok := config.Lookup(path[:i]); ok {
+			return i, nil
 		}
-		if err != nil {
-			return noDepth, err
-		}
-		return i, nil
 	}
 	return noDepth, nil
 }

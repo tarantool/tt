@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // DemoteCtx describes the context to demote an instance.
@@ -18,6 +19,8 @@ type DemoteCtx struct {
 	Publishers libcluster.DataPublisherFactory
 	// Collectors is data collector factory.
 	Collectors libcluster.DataCollectorFactory
+	// Integrity is the integrity context for cluster reads.
+	Integrity integrity.IntegrityCtx
 	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 	// Conn is an active connection to a passed instance.
@@ -39,7 +42,7 @@ func Demote(ctx DemoteCtx) error {
 	}
 
 	orchestrator, err := makeApplicationOrchestrator(orchestratorType,
-		ctx.RunningCtx, ctx.Collectors, ctx.Publishers)
+		ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
 	if err != nil {
 		return err
 	}

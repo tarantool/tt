@@ -9,6 +9,7 @@ import (
 	"github.com/tarantool/tt/cli/running"
 
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // PromoteCtx describes the context to promote an instance.
@@ -19,6 +20,8 @@ type PromoteCtx struct {
 	Publishers libcluster.DataPublisherFactory
 	// Collectors is data collector factory.
 	Collectors libcluster.DataCollectorFactory
+	// Integrity is the integrity context for cluster reads.
+	Integrity integrity.IntegrityCtx
 	// IsApplication true if an application passed.
 	IsApplication bool
 	// Orchestrator is a forced orchestrator choice.
@@ -44,7 +47,7 @@ func Promote(ctx PromoteCtx) error {
 	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
 		if orchestrator, err = makeApplicationOrchestrator(
-			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers); err != nil {
+			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity); err != nil {
 			return err
 		}
 	} else {

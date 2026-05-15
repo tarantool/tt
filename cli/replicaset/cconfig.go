@@ -1,19 +1,23 @@
 package replicaset
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
+	goconfig "github.com/tarantool/go-config"
 
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/running"
 
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	integrityPkg "github.com/tarantool/tt/lib/integrity"
 )
 
 var (
@@ -151,6 +155,7 @@ type CConfigApplication struct {
 	runningCtx running.RunningCtx
 	publishers libcluster.DataPublisherFactory
 	collectors libcluster.DataCollectorFactory
+	integ      integrityPkg.IntegrityCtx
 }
 
 // NewCConfigApplication creates a new CConfigApplication object.
@@ -158,11 +163,13 @@ func NewCConfigApplication(
 	runningCtx running.RunningCtx,
 	collectors libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
+	integ integrityPkg.IntegrityCtx,
 ) *CConfigApplication {
 	app := &CConfigApplication{
 		runningCtx: runningCtx,
 		publishers: publishers,
 		collectors: collectors,
+		integ:      integ,
 	}
 	app.discoverer = app
 	return app
@@ -609,13 +616,13 @@ func (c *CConfigApplication) promote(instance Instance,
 	ctx PromoteCtx,
 ) (wasConfigPublished bool, err error) {
 	clusterCfgPath := instance.InstanceCtx.ClusterConfigPath
-	clusterCfg, err := cluster.GetClusterConfig(
-		libcluster.NewCollectorFactory(c.collectors), clusterCfgPath)
+	clusterCfg, err := cluster.GetClusterConfig(context.Background(), clusterCfgPath, c.integ)
 	if err != nil {
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
+	goView := clusterCfg.Snapshot()
 
-	inst, err := getCConfigInstance(&clusterCfg, ctx.InstName)
+	inst, err := getCConfigInstance(goView, ctx.InstName)
 	if err != nil {
 		return false, err
 	}
@@ -632,7 +639,7 @@ func (c *CConfigApplication) promote(instance Instance,
 		clusterCfgPath,
 		c.collectors,
 		c.publishers,
-		func(config *libcluster.Config) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig) (*goconfig.MutableConfig, error) {
 			return patchCConfigPromote(config, inst)
 		},
 	)
@@ -648,19 +655,19 @@ func (c *CConfigApplication) demote(instance Instance,
 	replicaset Replicaset, ctx DemoteCtx,
 ) (wasConfigPublished bool, err error) {
 	clusterCfgPath := instance.InstanceCtx.ClusterConfigPath
-	clusterCfg, err := cluster.GetClusterConfig(libcluster.NewCollectorFactory(c.collectors),
-		clusterCfgPath)
+	clusterCfg, err := cluster.GetClusterConfig(context.Background(), clusterCfgPath, c.integ)
 	if err != nil {
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
+	goView := clusterCfg.Snapshot()
 
-	cconfigInstance, err := getCConfigInstance(&clusterCfg, ctx.InstName)
+	cconfigInstance, err := getCConfigInstance(goView, ctx.InstName)
 	if err != nil {
 		return false, err
 	}
 
 	if cconfigInstance.failover == FailoverElection {
-		electionMode, err := cconfigGetElectionMode(&clusterCfg, ctx.InstName)
+		electionMode, err := cconfigGetElectionMode(goView, ctx.InstName)
 		if err != nil {
 			return false, err
 		}
@@ -679,7 +686,7 @@ func (c *CConfigApplication) demote(instance Instance,
 		clusterCfgPath,
 		c.collectors,
 		c.publishers,
-		func(config *libcluster.Config) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig) (*goconfig.MutableConfig, error) {
 			return patchCConfigDemote(config, cconfigInstance)
 		},
 	)
@@ -693,13 +700,13 @@ func (c *CConfigApplication) demote(instance Instance,
 // if the instance config was published.
 func (c *CConfigApplication) expel(instance running.InstanceCtx, name string) (bool, error) {
 	clusterCfgPath := instance.ClusterConfigPath
-	clusterCfg, err := cluster.GetClusterConfig(libcluster.NewCollectorFactory(c.collectors),
-		clusterCfgPath)
+	clusterCfg, err := cluster.GetClusterConfig(context.Background(), clusterCfgPath, c.integ)
 	if err != nil {
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
+	goView := clusterCfg.Snapshot()
 
-	cconfigInstance, err := getCConfigInstance(&clusterCfg, name)
+	cconfigInstance, err := getCConfigInstance(goView, name)
 	if err != nil {
 		return false, err
 	}
@@ -708,7 +715,7 @@ func (c *CConfigApplication) expel(instance running.InstanceCtx, name string) (b
 		clusterCfgPath,
 		c.collectors,
 		c.publishers,
-		func(config *libcluster.Config) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig) (*goconfig.MutableConfig, error) {
 			return patchCConfigExpel(config, cconfigInstance)
 		},
 	)
@@ -728,7 +735,7 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 		instanceCtx.ClusterConfigPath,
 		c.collectors,
 		c.publishers,
-		func(config *libcluster.Config) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig) (*goconfig.MutableConfig, error) {
 			return patchCConfigElectionMode(config, cconfigInstance, ElectionModeVoter)
 		},
 	)
@@ -755,7 +762,7 @@ func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 		instanceCtx.ClusterConfigPath,
 		c.collectors,
 		c.publishers,
-		func(config *libcluster.Config) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig) (*goconfig.MutableConfig, error) {
 			return patchCConfigElectionMode(config, cconfigInstance, ElectionModeCandidate)
 		},
 	)
@@ -769,27 +776,27 @@ func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
 		return false, fmt.Errorf("there are no running instances")
 	}
 	clusterCfgPath := c.runningCtx.Instances[0].ClusterConfigPath
-	clusterCfg, err := cluster.GetClusterConfig(
-		libcluster.NewCollectorFactory(c.collectors), clusterCfgPath)
+
+	clusterCfg, err := cluster.GetClusterConfig(context.Background(), clusterCfgPath, c.integ)
 	if err != nil {
 		return false, fmt.Errorf("failed to get cluster config: %w", err)
 	}
+	goView := clusterCfg.Snapshot()
 
-	paths, err := getCConfigRolesPath(clusterCfg, ctx)
+	paths, err := getCConfigRolesPath(goView, ctx)
 	if err != nil {
 		return false, err
 	}
 
 	pRoleTarget := make([]patchRoleTarget, 0, len(paths))
 	for _, path := range paths {
-		value, err := clusterCfg.RawConfig.Get(path.path)
-		var notExistErr libcluster.NotExistError
-		if err != nil && !errors.As(err, &notExistErr) {
-			return false, err
-		}
 		var existingRoles []string
-		if value != nil {
-			existingRoles, err = parseRoles(value)
+		if val, ok := goView.Lookup(path.path); ok {
+			var existing any
+			if err := val.Get(&existing); err != nil {
+				return false, fmt.Errorf("failed to get roles at path %s: %w", path.path, err)
+			}
+			existingRoles, err = parseRoles(existing)
 			if err != nil {
 				return false, err
 			}
@@ -809,7 +816,7 @@ func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
 		clusterCfgPath,
 		c.collectors,
 		c.publishers,
-		func(config *libcluster.Config) (*libcluster.Config, error) {
+		func(config *goconfig.MutableConfig) (*goconfig.MutableConfig, error) {
 			return patchCConfigEditRole(config, pRoleTarget)
 		},
 	); err != nil {
@@ -818,111 +825,130 @@ func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
 	return true, nil
 }
 
-// patchLocalConfig patches the local cluster config.
-func patchLocalCConfig(path string,
-	collectors libcluster.DataCollectorFactory,
+// patchLocalCConfig patches the local cluster config file.
+//
+// It reads the file directly via os.ReadFile, builds a *goconfig.MutableConfig,
+// runs patchFunc on it, marshals the result and publishes (overwrites) the file.
+func patchLocalCConfig(clusterCfgPath string,
+	_ libcluster.DataCollectorFactory,
 	publishers libcluster.DataPublisherFactory,
-	patchFunc func(*libcluster.Config) (*libcluster.Config, error),
+	patchFunc func(*goconfig.MutableConfig) (*goconfig.MutableConfig, error),
 ) error {
-	collector, publisher, err := cconfigCreateCollectorAndDataPublisher(
-		collectors,
-		publishers,
-		path,
-	)
+	data, err := os.ReadFile(clusterCfgPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read cluster config %q: %w", clusterCfgPath, err)
 	}
-	config, err := collector.Collect()
+
+	mut, err := cluster.BuildMutableFromBytes(context.Background(), data)
 	if err != nil {
-		return fmt.Errorf("failed to collect a configuration to update: %w", err)
+		return fmt.Errorf("failed to build mutable config from %q: %w", clusterCfgPath, err)
 	}
-	config, err = patchFunc(config)
+
+	mut, err = patchFunc(mut)
 	if err != nil {
 		return fmt.Errorf("failed to patch config: %w", err)
 	}
 
-	err = libcluster.NewYamlConfigPublisher(publisher).Publish(config)
-	return err
-}
-
-// cconfigCreateCollectorAndDataPublisher creates collector and data publisher
-// for the local cluster config manipulations.
-func cconfigCreateCollectorAndDataPublisher(
-	collectors libcluster.DataCollectorFactory,
-	publishers libcluster.DataPublisherFactory,
-	clusterCfgPath string,
-) (libcluster.Collector, libcluster.DataPublisher, error) {
-	collector, err := libcluster.NewCollectorFactory(collectors).NewFile(clusterCfgPath)
+	mutSnap := mut.Snapshot()
+	b, err := mutSnap.MarshalYAML()
 	if err != nil {
-		return nil, nil,
-			fmt.Errorf("failed to create a configuration collector: %w", err)
+		return fmt.Errorf("marshal patched config: %w", err)
 	}
+
 	publisher, err := publishers.NewFile(clusterCfgPath)
 	if err != nil {
-		return nil, nil,
-			fmt.Errorf("failed to create a configuration publisher: %w", err)
+		return fmt.Errorf("failed to create a configuration publisher: %w", err)
 	}
-	return collector, publisher, nil
+	return publisher.Publish(0, b)
 }
 
 // cconfigGetFailover extracts the instance replicaset failover.
-func cconfigGetFailover(clusterConfig *libcluster.ClusterConfig,
-	instName string,
-) (Failover, error) {
-	var failover Failover
-	instConfig := libcluster.Instantiate(*clusterConfig, instName)
-
-	rawFailover, err := instConfig.Get([]string{"replication", "failover"})
-	var notExistErr libcluster.NotExistError
-	if errors.As(err, &notExistErr) {
-		// https://github.com/tarantool/tt/issues/791
-		return FailoverOff, nil
-	}
+func cconfigGetFailover(cfg goconfig.Config, instName string) (Failover, error) {
+	instCfg, err := cluster.InstanceConfig(cfg, instName)
 	if err != nil {
-		return failover,
-			fmt.Errorf("failed to get failover: %w", err)
+		return FailoverOff, fmt.Errorf("failed to get instance config for failover: %w", err)
 	}
-	failoverStr, ok := rawFailover.(string)
+
+	var raw any
+	if _, err = instCfg.Get(goconfig.NewKeyPath("replication/failover"), &raw); err != nil {
+		if errors.Is(err, goconfig.ErrKeyNotFound) {
+			// Path not found. Check whether "replication" exists but is not a
+			// map (e.g. replication: 42), to preserve the original error message.
+			if repVal, ok := instCfg.Lookup(goconfig.NewKeyPath("replication")); ok {
+				var repMap map[string]any
+				if innerErr := repVal.Get(&repMap); innerErr != nil {
+					return FailoverOff,
+						fmt.Errorf(`path ["replication"] is not a map`)
+				}
+			}
+			// https://github.com/tarantool/tt/issues/791
+			return FailoverOff, nil
+		}
+		return FailoverOff, fmt.Errorf("failed to get failover: %w", err)
+	}
+	failoverStr, ok := raw.(string)
 	if !ok {
-		return failover,
-			fmt.Errorf("unexpected failover type: %T, string expected", rawFailover)
+		return FailoverOff,
+			fmt.Errorf("unexpected failover type: %T, string expected", raw)
 	}
-	failover = ParseFailover(failoverStr)
-	return failover, nil
+	return ParseFailover(failoverStr), nil
 }
 
 // cconfigGetElectionMode extracts election_mode from the cluster config.
 // If election_mode is not set, returns a default, which corresponds to the "election" failover.
-func cconfigGetElectionMode(clusterConfig *libcluster.ClusterConfig,
-	instName string,
-) (ElectionMode, error) {
-	var electionMode ElectionMode
-	instConfig := libcluster.Instantiate(*clusterConfig, instName)
-
-	rawElectionMode, err := instConfig.Get([]string{"replication", "election_mode"})
-	var notExistErr libcluster.NotExistError
-	if errors.As(err, &notExistErr) {
-		// This is true if failover == "election" && replica is not anonymous.
-		// https://github.com/tarantool/tarantool/blob/e01fe8f7144eebc64249ab60a83f656cb4a11dc0/src/box/lua/config/applier/box_cfg.lua#L418-L420
-		return ElectionModeCandidate, nil
-	}
+func cconfigGetElectionMode(cfg goconfig.Config, instName string) (ElectionMode, error) {
+	instCfg, err := cluster.InstanceConfig(cfg, instName)
 	if err != nil {
-		return electionMode,
-			fmt.Errorf("failed to get election_mode: %w", err)
+		return ElectionModeCandidate,
+			fmt.Errorf("failed to get instance config for election_mode: %w", err)
 	}
-	electionModeStr, ok := rawElectionMode.(string)
+
+	var raw any
+	if _, err = instCfg.Get(goconfig.NewKeyPath("replication/election_mode"), &raw); err != nil {
+		if errors.Is(err, goconfig.ErrKeyNotFound) {
+			// This is true if failover == "election" && replica is not anonymous.
+			// https://github.com/tarantool/tarantool/blob/e01fe8f7144eebc64249ab60a83f656cb4a11dc0/src/box/lua/config/applier/box_cfg.lua#L418-L420
+			return ElectionModeCandidate, nil
+		}
+		return ElectionModeCandidate, fmt.Errorf("failed to get election_mode: %w", err)
+	}
+	electionModeStr, ok := raw.(string)
 	if !ok {
-		return electionMode,
-			fmt.Errorf("unexpected election_mode type: %T, string expected", rawElectionMode)
+		return ElectionModeCandidate,
+			fmt.Errorf("unexpected election_mode type: %T, string expected", raw)
 	}
-	electionMode = ParseElectionMode(electionModeStr)
-	return electionMode, nil
+	return ParseElectionMode(electionModeStr), nil
+}
+
+// clearEmptyMapFlowStyle removes the node from the config if it is currently
+// an empty map (i.e. originally written as "path: {}").
+//
+// Nodes parsed from flow-style YAML (e.g. "instance-002: {}") carry a
+// FlowStyle annotation that propagates to every child set via MutableConfig.Set,
+// causing the marshaled output to collapse all nested keys onto a single line.
+// Deleting the node before adding sub-paths creates a fresh block-style entry.
+//
+// When the node already has content (non-empty map) the annotation is already
+// block-style and this function is a no-op.
+func clearEmptyMapFlowStyle(config *goconfig.MutableConfig, path goconfig.KeyPath) {
+	val, ok := config.Lookup(path)
+	if !ok {
+		// Node does not exist yet; nothing to clear.
+		return
+	}
+	var m map[string]any
+	if err := val.Get(&m); err != nil || len(m) != 0 {
+		// Not an empty map: either type error or already has content.
+		return
+	}
+	// Empty map — delete to drop the flow-style annotation.
+	config.Delete(path)
 }
 
 // patchCConfigPromote patches the config to promote an instance.
-func patchCConfigPromote(config *libcluster.Config,
+func patchCConfigPromote(config *goconfig.MutableConfig,
 	inst cconfigInstance,
-) (*libcluster.Config, error) {
+) (*goconfig.MutableConfig, error) {
 	var err error
 	var (
 		failover       = inst.failover
@@ -932,15 +958,17 @@ func patchCConfigPromote(config *libcluster.Config,
 	)
 	switch failover {
 	case FailoverOff:
-		err = config.Set([]string{
-			"groups", groupName, "replicasets", replicasetName,
-			"instances", instName, "database", "mode",
-		}, "rw")
+		instPath := goconfig.NewKeyPath(fmt.Sprintf(
+			"groups/%s/replicasets/%s/instances/%s", groupName, replicasetName, instName))
+		clearEmptyMapFlowStyle(config, instPath)
+		clearEmptyMapFlowStyle(config, instPath.Append("database"))
+		err = config.Set(goconfig.NewKeyPath(fmt.Sprintf(
+			"groups/%s/replicasets/%s/instances/%s/database/mode",
+			groupName, replicasetName, instName)), "rw")
 	case FailoverManual:
-		err = config.Set([]string{
-			"groups", groupName, "replicasets", replicasetName,
-			"leader",
-		}, instName)
+		err = config.Set(goconfig.NewKeyPath(fmt.Sprintf(
+			"groups/%s/replicasets/%s/leader",
+			groupName, replicasetName)), instName)
 	default:
 		return nil, fmt.Errorf("unexpected failover: %q", failover)
 	}
@@ -952,27 +980,31 @@ func patchCConfigPromote(config *libcluster.Config,
 //
 // It set up:
 // instance.iproto.listen = {}.
-func patchCConfigExpel(config *libcluster.Config,
+func patchCConfigExpel(config *goconfig.MutableConfig,
 	inst cconfigInstance,
-) (*libcluster.Config, error) {
+) (*goconfig.MutableConfig, error) {
 	var (
 		groupName      = inst.groupName
 		replicasetName = inst.replicasetName
 		instName       = inst.name
 	)
-	if err := config.Set([]string{
-		"groups", groupName, "replicasets", replicasetName,
-		"instances", instName, "iproto", "listen",
-	}, map[any]any{}); err != nil {
+	instPath := goconfig.NewKeyPath(fmt.Sprintf(
+		"groups/%s/replicasets/%s/instances/%s",
+		groupName, replicasetName, instName))
+	clearEmptyMapFlowStyle(config, instPath)
+	listenPath := goconfig.NewKeyPath(fmt.Sprintf(
+		"groups/%s/replicasets/%s/instances/%s/iproto/listen",
+		groupName, replicasetName, instName))
+	if err := config.Set(listenPath, map[string]any{}); err != nil {
 		return nil, err
 	}
 	return config, nil
 }
 
 // patchCConfigDemote patches the config to demote an instance.
-func patchCConfigDemote(config *libcluster.Config,
+func patchCConfigDemote(config *goconfig.MutableConfig,
 	inst cconfigInstance,
-) (*libcluster.Config, error) {
+) (*goconfig.MutableConfig, error) {
 	var (
 		failover       = inst.failover
 		groupName      = inst.groupName
@@ -982,34 +1014,43 @@ func patchCConfigDemote(config *libcluster.Config,
 	if failover != FailoverOff {
 		return nil, fmt.Errorf("unexpected failover: %q", failover)
 	}
-	if err := config.Set([]string{
-		"groups", groupName, "replicasets", replicasetName,
-		"instances", instName, "database", "mode",
-	}, "ro"); err != nil {
+	instPath := goconfig.NewKeyPath(fmt.Sprintf(
+		"groups/%s/replicasets/%s/instances/%s", groupName, replicasetName, instName))
+	clearEmptyMapFlowStyle(config, instPath)
+	clearEmptyMapFlowStyle(config, instPath.Append("database"))
+	if err := config.Set(goconfig.NewKeyPath(fmt.Sprintf(
+		"groups/%s/replicasets/%s/instances/%s/database/mode",
+		groupName, replicasetName, instName)), "ro"); err != nil {
 		return nil, err
 	}
 	return config, nil
 }
 
 // patchCConfigElectionMode patches the config to change an instance election_mode.
-func patchCConfigElectionMode(config *libcluster.Config,
+func patchCConfigElectionMode(config *goconfig.MutableConfig,
 	inst cconfigInstance, mode ElectionMode,
-) (*libcluster.Config, error) {
-	path := []string{
-		"groups", inst.groupName, "replicasets", inst.replicasetName,
-		"instances", inst.name, "replication", "election_mode",
-	}
-	err := config.Set(path, mode.String())
+) (*goconfig.MutableConfig, error) {
+	instPath := goconfig.NewKeyPath(fmt.Sprintf(
+		"groups/%s/replicasets/%s/instances/%s",
+		inst.groupName, inst.replicasetName, inst.name))
+	clearEmptyMapFlowStyle(config, instPath)
+	err := config.Set(goconfig.NewKeyPath(fmt.Sprintf(
+		"groups/%s/replicasets/%s/instances/%s/replication/election_mode",
+		inst.groupName, inst.replicasetName, inst.name)), mode.String())
 	if err != nil {
 		return nil, err
 	}
 	return config, nil
 }
 
-func patchCConfigEditRole(config *libcluster.Config,
+func patchCConfigEditRole(config *goconfig.MutableConfig,
 	targets []patchRoleTarget,
-) (*libcluster.Config, error) {
+) (*goconfig.MutableConfig, error) {
 	for _, p := range targets {
+		// Delete before Set so that existing array children are cleared.
+		// MutableConfig.Set does not remove children when the value is a
+		// slice, so without Delete the old items persist in the YAML output.
+		config.Delete(p.path)
 		if err := config.Set(p.path, p.roleNames); err != nil {
 			return nil, err
 		}
@@ -1018,32 +1059,17 @@ func patchCConfigEditRole(config *libcluster.Config,
 }
 
 // getCConfigInstance extracts an instance from the cluster config.
-func getCConfigInstance(
-	config *libcluster.ClusterConfig, instName string,
-) (cconfigInstance, error) {
-	var (
-		inst  cconfigInstance
-		found bool
-		err   error
-	)
-	inst.name = instName
-loop:
-	for gname, group := range config.Groups {
-		for rname, replicaset := range group.Replicasets {
-			for iname := range replicaset.Instances {
-				if instName == iname {
-					inst.groupName = gname
-					inst.replicasetName = rname
-					found = true
-					break loop
-				}
-			}
-		}
-	}
+func getCConfigInstance(cfg goconfig.Config, instName string) (cconfigInstance, error) {
+	inst := cconfigInstance{name: instName}
+
+	g, r, found := cluster.FindInstance(cfg, instName)
 	if !found {
-		return inst,
-			fmt.Errorf("instance %q not found in the cluster configuration", instName)
+		return inst, fmt.Errorf("instance %q not found in the cluster configuration", instName)
 	}
-	inst.failover, err = cconfigGetFailover(config, instName)
+	inst.groupName = g
+	inst.replicasetName = r
+
+	var err error
+	inst.failover, err = cconfigGetFailover(cfg, instName)
 	return inst, err
 }

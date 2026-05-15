@@ -2,6 +2,8 @@ groups:
   group-001:
     replicasets:
       replicaset-001:
+        replication:
+          failover: "off"
         instances:
           instance-001:
             database:
@@ -10,13 +12,11 @@ groups:
             database:
               checkpoint_interval: 7200
               mode: ro
-        replication:
-          failover: "off"
       replicaset-002:
-        instances:
-          instance-003: {}
-        leader: instance-003
         replication:
           failover: manual
+        leader: instance-003
+        instances:
+          instance-003: {}
   replication:
     failover: election

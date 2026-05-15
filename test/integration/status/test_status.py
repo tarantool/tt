@@ -212,9 +212,10 @@ def test_t3_instance_names_no_config(tt_cmd):
     test_app_path_src = os.path.join(os.path.dirname(__file__), "../running/multi_inst_app")
     instances = ["router", "master", "replica"]
 
-    # Default temporary directory may have very long path. This can cause socket path buffer
-    # overflow. Create our own temporary directory.
-    with tempfile.TemporaryDirectory() as tmpdir:
+    # Default temporary directory may have very long path (notably on macOS, where it lives
+    # under /var/folders/...). This overflows the unix socket sun_path limit (104 bytes on
+    # macOS), so anchor our own temporary directory under /tmp to keep the path short.
+    with tempfile.TemporaryDirectory(dir="/tmp") as tmpdir:
         test_app_path = os.path.join(tmpdir, "app")
         shutil.copytree(test_app_path_src, test_app_path)
 

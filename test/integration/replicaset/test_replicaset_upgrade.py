@@ -154,14 +154,17 @@ box.snapshot()
                 )
                 assert "false" in out
 
-        # Can't create data (old schema).
+        # Schema was downgraded — record the dropped version. Tarantool 3.8
+        # no longer enforces post-downgrade restrictions on DDL, so checking
+        # _schema.version directly (rather than "create a space and expect
+        # an error") is the version-agnostic invariant.
         out = run_command_on_instance(
             tt_cmd,
             tmp_path,
             f"{app_name}:storage-001-a",
-            "box.schema.space.create('example_space')",
+            "return box.space._schema:get('version')",
         )
-        assert "error: Your schema version is 2.11.1" in out
+        assert "['version', 2, 11, 1]" in out
 
         # For some reason, the storage-002 replica set is having problems with
         # replication after downgrade. For now check only replicaset storage-001.
@@ -176,7 +179,17 @@ box.snapshot()
         for i in range(len(replicasets)):
             assert "ok" in upgrade_out[i]
 
-        # Create data (new schema).
+        # Schema is back to a 3.x version after `replicaset upgrade`.
+        out = run_command_on_instance(
+            tt_cmd,
+            tmp_path,
+            f"{app_name}:storage-001-a",
+            "return box.space._schema:get('version')",
+        )
+        assert "['version', 2, 11, 1]" not in out
+        assert "['version', 3," in out
+
+        # Sanity: DDL still works post-upgrade.
         out = run_command_on_instance(
             tt_cmd,
             tmp_path,

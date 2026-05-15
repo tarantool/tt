@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/apex/log"
+	goconfig "github.com/tarantool/go-config"
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
@@ -24,7 +25,6 @@ import (
 	"github.com/tarantool/tt/cli/ttlog"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/util/regexputil"
-	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -97,7 +97,8 @@ type InstanceCtx struct {
 	// ClusterConfigPath is a path of cluster configuration.
 	ClusterConfigPath string
 	// Configuration is instance configuration loaded from cluster config.
-	Configuration libcluster.InstanceConfig
+	// Nil when no cluster config is loaded.
+	Configuration *goconfig.Config
 }
 
 // RunOpts contains flags and args for tt run.
@@ -323,43 +324,23 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 	return script, nil
 }
 
-// loadInstanceConfig load instance configuration from cluster config.
+// loadInstanceConfig loads instance configuration from cluster config.
 func loadInstanceConfig(configPath, instName string,
 	integrityCtx integrity.IntegrityCtx,
-) (libcluster.InstanceConfig, error) {
-	var instCfg libcluster.InstanceConfig
+) (*goconfig.Config, error) {
 	if configPath == "" {
-		return instCfg, nil
+		return nil, nil
 	}
 
-	var dataCollectors libcluster.DataCollectorFactory
-	hashers, verifiers, err := integrity.GetStorageVerifiers(integrityCtx)
-	if errors.Is(err, integrity.ErrNotConfigured) {
-		dataCollectors = libcluster.NewDataCollectorFactory()
-	} else if err != nil {
-		return instCfg,
-			fmt.Errorf("failed to create collectors with integrity check: %w", err)
-	} else {
-		dataCollectors = libcluster.NewDataCollectorFactory(
-			libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
-				return integrityCtx.Repository.Read(path)
-			}),
-			libcluster.WithIntegrity(libcluster.IntegrityOptions{
-				Hashers:   hashers,
-				Verifiers: verifiers,
-			}),
-		)
-	}
-	collectors := libcluster.NewCollectorFactory(dataCollectors)
-
-	clusterCfg, err := cluster.GetClusterConfig(collectors, configPath)
+	cfg, err := cluster.GetClusterConfig(context.Background(), configPath, integrityCtx)
 	if err != nil {
-		return instCfg, err
+		return nil, err
 	}
-	if instCfg, err = cluster.GetInstanceConfig(clusterCfg, instName); err != nil {
-		return instCfg, err
+	instCfg, err := cluster.GetInstanceConfig(cfg, instName)
+	if err != nil {
+		return nil, err
 	}
-	return instCfg, nil
+	return &instCfg, nil
 }
 
 // collectInstancesFromAppDir collects instances information from application directory.
@@ -517,27 +498,25 @@ func createLogger(run *InstanceCtx) (ttlog.Logger, error) {
 // configMap is a helper structure to bind cluster config path with a pointer to value storage.
 type configMap[T any] struct {
 	// path is a path to the value to get from config.
-	path []string
+	path goconfig.KeyPath
 	// destination is destination pointer for storing the value.
 	destination *T
 }
 
 // mapValuesFromConfig get values specified by paths from cfg config and stores them by pointers
 // and modifying with mapFunc.
-func mapValuesFromConfig[T any](cfg *libcluster.Config, mapFunc func(val T) (T, error),
+func mapValuesFromConfig[T any](cfg goconfig.Config, mapFunc func(val T) (T, error),
 	maps ...configMap[T],
 ) error {
 	for _, cfgMapping := range maps {
-		value, err := cfg.Get(cfgMapping.path)
-		if err != nil {
-			var eNotExist libcluster.NotExistError
-			if errors.As(err, &eNotExist) {
+		var raw any
+		if _, err := cfg.Get(cfgMapping.path, &raw); err != nil {
+			if errors.Is(err, goconfig.ErrKeyNotFound) {
 				continue
-			} else {
-				return err
 			}
+			return err
 		}
-		castedValue, ok := value.(T)
+		castedValue, ok := raw.(T)
 		if !ok {
 			return fmt.Errorf("cannot get config value at %q as %T", cfgMapping.path, *new(T))
 		}
@@ -578,15 +557,15 @@ func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts) error {
 
 // setInstCtxFromClusterConfig set instance context values from loaded configuration.
 func setInstCtxFromClusterConfig(instance *InstanceCtx) error {
-	if instance.Configuration.RawConfig != nil {
-		return mapValuesFromConfig(instance.Configuration.RawConfig,
+	if instance.Configuration != nil {
+		return mapValuesFromConfig(*instance.Configuration,
 			func(val string) (string, error) {
 				return util.JoinAbspath(instance.AppDir, val)
 			},
-			configMap[string]{[]string{"wal", "dir"}, &instance.WalDir},
-			configMap[string]{[]string{"vinyl", "dir"}, &instance.VinylDir},
-			configMap[string]{[]string{"snapshot", "dir"}, &instance.MemtxDir},
-			configMap[string]{[]string{"console", "socket"}, &instance.ConsoleSocket})
+			configMap[string]{goconfig.NewKeyPath("wal/dir"), &instance.WalDir},
+			configMap[string]{goconfig.NewKeyPath("vinyl/dir"), &instance.VinylDir},
+			configMap[string]{goconfig.NewKeyPath("snapshot/dir"), &instance.MemtxDir},
+			configMap[string]{goconfig.NewKeyPath("console/socket"), &instance.ConsoleSocket})
 	}
 	return nil
 }

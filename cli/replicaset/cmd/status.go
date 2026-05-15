@@ -8,6 +8,7 @@ import (
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // DiscoveryCtx contains information about replicaset discovery.
@@ -32,7 +33,7 @@ func getReplicasets(ctx DiscoveryCtx) (replicaset.Replicasets, error) {
 	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(orchestratorType,
-			ctx.RunningCtx, nil, nil)
+			ctx.RunningCtx, nil, nil, integrity.IntegrityCtx{})
 	} else {
 		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
 	}

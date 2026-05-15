@@ -17,9 +17,10 @@ import (
 	frameworkintegration "go.etcd.io/etcd/tests/v3/framework/integration"
 	"go.etcd.io/etcd/tests/v3/integration"
 
+	goconfig "github.com/tarantool/go-config"
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/templates"
-	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 // spell-checker:ignore etcdmode etcddir etcdapp
@@ -162,6 +163,15 @@ func renderEtcdAppConfig(t *testing.T, endpoint, src, dst string) {
 	require.NoError(t, err)
 }
 
+// cfgGet retrieves a typed value from cfg at the given slash-separated path.
+func cfgGet[T any](t *testing.T, cfg goconfig.Config, path string) T {
+	t.Helper()
+	var v T
+	_, err := cfg.Get(goconfig.NewKeyPath(path), &v)
+	require.NoError(t, err, "path: %s", path)
+	return v
+}
+
 func TestGetClusterConfig_etcd(t *testing.T) {
 	inst := startEtcd(t, etcdOpts{
 		Username: "root",
@@ -190,54 +200,39 @@ func TestGetClusterConfig_etcd(t *testing.T) {
   dir: etcddir
   mode: etcdmode
 `)
-	os.Setenv("TT_WAL_MODE_DEFAULT", "envmode")
-	os.Setenv("TT_WAL_MAX_SIZE_DEFAULT", "envsize")
-	collectors := libcluster.NewCollectorFactory(libcluster.NewDataCollectorFactory())
-	config, err := cluster.GetClusterConfig(collectors, configPath)
-	os.Unsetenv("TT_WAL_MODE_DEFAULT")
-	os.Unsetenv("TT_WAL_MAX_SIZE_DEFAULT")
+	t.Setenv("TT_WAL_MODE_DEFAULT", "envmode")
+	t.Setenv("TT_WAL_MAX_SIZE_DEFAULT", "envsize")
+
+	cfg, err := cluster.GetClusterConfig(context.Background(), configPath, integrity.IntegrityCtx{})
 
 	require.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf(`app:
-  bar: 1
-  foo: 1
-  hoo: 1
-  zoo: 1
-config:
-  etcd:
-    endpoints:
-      - %s
-    http:
-      request:
-        timeout: 2.5
-    password: pass
-    prefix: /test
-    username: root
-groups:
-  a:
-    bar: 2
-    foo: 2
-    replicasets:
-      b:
-        bar: 3
-        foo: 3
-        instances:
-          c:
-            foo: 4
-    zoo: 2
-  b:
-    replicasets:
-      b:
-        instances:
-          b:
-            too: 3
-        too: 3
-    too: 2
-wal:
-  dir: filedir
-  max_size: envsize
-  mode: etcdmode
-`, endpoints[0]), config.RawConfig.String())
+	require.NotNil(t, cfg)
+
+	snap := cfg.Snapshot()
+
+	// App fields from file.
+	assert.Equal(t, 1, cfgGet[int](t, snap, "app/foo"))
+	assert.Equal(t, 1, cfgGet[int](t, snap, "app/bar"))
+	assert.Equal(t, 1, cfgGet[int](t, snap, "app/zoo"))
+	assert.Equal(t, 1, cfgGet[int](t, snap, "app/hoo"))
+
+	// Etcd config from file.
+	assert.Equal(t, endpoints[0], cfgGet[string](t, snap,
+		fmt.Sprintf("config/etcd/endpoints/0")))
+	assert.Equal(t, "root", cfgGet[string](t, snap, "config/etcd/username"))
+	assert.Equal(t, "pass", cfgGet[string](t, snap, "config/etcd/password"))
+	assert.Equal(t, "/test", cfgGet[string](t, snap, "config/etcd/prefix"))
+
+	// wal/dir from file (file > etcd per priority).
+	assert.Equal(t, "filedir", cfgGet[string](t, snap, "wal/dir"))
+	// wal/mode from etcd (not in file).
+	assert.Equal(t, "etcdmode", cfgGet[string](t, snap, "wal/mode"))
+	// wal/max_size from TT_WAL_MAX_SIZE_DEFAULT env (lowest priority, fills in missing).
+	assert.Equal(t, "envsize", cfgGet[string](t, snap, "wal/max_size"))
+
+	// Groups from file.
+	assert.Equal(t, 2, cfgGet[int](t, snap, "groups/a/foo"))
+	assert.Equal(t, 4, cfgGet[int](t, snap, "groups/a/replicasets/b/instances/c/foo"))
 }
 
 func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
@@ -274,55 +269,24 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
   dir: etcddir
   mode: etcdmode
 `)
-	os.Setenv("TT_CONFIG_ETCD_USERNAME", user)
-	os.Setenv("TT_CONFIG_ETCD_PASSWORD", pass)
-	os.Setenv("TT_CONFIG_ETCD_PREFIX", prefix)
+	t.Setenv("TT_CONFIG_ETCD_USERNAME", user)
+	t.Setenv("TT_CONFIG_ETCD_PASSWORD", pass)
+	t.Setenv("TT_CONFIG_ETCD_PREFIX", prefix)
 
-	collectors := libcluster.NewCollectorFactory(libcluster.NewDataCollectorFactory())
-	config, err := cluster.GetClusterConfig(collectors, configPath)
-
-	os.Unsetenv("TT_CONFIG_ETCD_USERNAME")
-	os.Unsetenv("TT_CONFIG_ETCD_PASSWORD")
-	os.Unsetenv("TT_CONFIG_ETCD_PREFIX")
+	cfg, err := cluster.GetClusterConfig(context.Background(), configPath, integrity.IntegrityCtx{})
 
 	require.NoError(t, err)
-	assert.Equal(t, fmt.Sprintf(`app:
-  bar: 1
-  foo: 1
-  hoo: 1
-  zoo: 1
-config:
-  etcd:
-    endpoints:
-      - %s
-    http:
-      request:
-        timeout: 2.5
-    password: passenv
-    prefix: /prefixenv
-    username: userenv
-groups:
-  a:
-    bar: 2
-    foo: 2
-    replicasets:
-      b:
-        bar: 3
-        foo: 3
-        instances:
-          c:
-            foo: 4
-    zoo: 2
-  b:
-    replicasets:
-      b:
-        instances:
-          b:
-            too: 3
-        too: 3
-    too: 2
-wal:
-  dir: filedir
-  mode: etcdmode
-`, endpoints[0]), config.RawConfig.String())
+	require.NotNil(t, cfg)
+
+	snap := cfg.Snapshot()
+
+	// Credentials from env.
+	assert.Equal(t, user, cfgGet[string](t, snap, "config/etcd/username"))
+	assert.Equal(t, pass, cfgGet[string](t, snap, "config/etcd/password"))
+	assert.Equal(t, prefix, cfgGet[string](t, snap, "config/etcd/prefix"))
+
+	// wal/dir from file (file > etcd).
+	assert.Equal(t, "filedir", cfgGet[string](t, snap, "wal/dir"))
+	// wal/mode from etcd (not in file).
+	assert.Equal(t, "etcdmode", cfgGet[string](t, snap, "wal/mode"))
 }

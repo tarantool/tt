@@ -10,6 +10,7 @@ import (
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
 	libcluster "github.com/tarantool/tt/lib/cluster"
+	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (
@@ -31,6 +32,8 @@ type VShardCmdCtx struct {
 	Publishers libcluster.DataPublisherFactory
 	// Collectors is data collector factory.
 	Collectors libcluster.DataCollectorFactory
+	// Integrity is the integrity context for cluster reads.
+	Integrity integrity.IntegrityCtx
 	// Timeout describes a timeout in seconds.
 	// We keep int as it can be passed to the target instance.
 	Timeout int
@@ -58,7 +61,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
 		if orchestrator, err = makeApplicationOrchestrator(
-			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers); err != nil {
+			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity); err != nil {
 			return err
 		}
 	} else {

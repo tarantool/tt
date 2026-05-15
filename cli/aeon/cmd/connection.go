@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/mitchellh/mapstructure"
+	goconfig "github.com/tarantool/go-config"
+	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/util"
 	libcluster "github.com/tarantool/tt/lib/cluster"
 	libconnect "github.com/tarantool/tt/lib/connect"
@@ -15,41 +18,42 @@ import (
 // It returns an error if fails to collect a configuration,
 // instantiate a cluster config or find an instance in the cluster.
 func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.UriOpts,
-	instanceName string, collectors libcluster.CollectorFactory,
+	instanceName string, dataCollectors libcluster.DataCollectorFactory,
 ) error {
 	connOpts := libcluster.ConnectOpts{
 		Username: connectCtx.Username,
 		Password: connectCtx.Password,
 	}
-	collector, cancel, err := libcluster.CreateCollector(collectors,
+	collector, cancel, err := libcluster.CreateDataCollector(dataCollectors,
 		connOpts, uriOpts)
 	if err != nil {
 		return err
 	}
 	defer cancel()
 
-	config, err := collector.Collect()
+	rawBytes, err := cluster.CollectDataBytes(context.Background(), collector)
 	if err != nil {
 		return fmt.Errorf("failed to collect a configuration: %w", err)
 	}
 
-	clusterConfig, err := libcluster.MakeClusterConfig(config)
+	goView, err := cluster.BuildGoConfigFromBytes(context.Background(), rawBytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse cluster config: %w", err)
 	}
 
-	result := libcluster.Instantiate(clusterConfig, instanceName)
-
-	dataSsl := []string{"roles_cfg", "aeon.grpc", "advertise"}
-	data, err := result.Get(dataSsl)
+	instCfg, err := cluster.InstanceConfig(goView, instanceName)
 	if err != nil {
-		return err
+		return fmt.Errorf("instance %q not found: %w", instanceName, err)
+	}
+
+	var rawAdvertise any
+	if _, err = instCfg.Get(goconfig.NewKeyPath("roles_cfg/aeon.grpc/advertise"), &rawAdvertise); err != nil {
+		return fmt.Errorf("failed to get aeon advertise: %w", err)
 	}
 
 	var advertise Advertise
-	err = mapstructure.Decode(data, &advertise)
-	if err != nil {
-		return err
+	if err = mapstructure.Decode(rawAdvertise, &advertise); err != nil {
+		return fmt.Errorf("failed to decode aeon advertise: %w", err)
 	}
 
 	if advertise.Uri == "" {

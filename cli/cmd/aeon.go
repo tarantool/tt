@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,8 +11,10 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
+	goconfig "github.com/tarantool/go-config"
 	aeon "github.com/tarantool/tt/cli/aeon"
 	aeoncmd "github.com/tarantool/tt/cli/aeon/cmd"
+	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/console"
 	"github.com/tarantool/tt/cli/modules"
@@ -209,28 +212,24 @@ func readConfigFilePath(configPath, instance string) error {
 		return err
 	}
 
-	pb := libcluster.NewYamlCollector(f)
-	config, err := pb.Collect()
+	goView, err := cluster.BuildGoConfigFromBytes(context.Background(), f)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse cluster config: %w", err)
 	}
 
-	clusterConfig, err := libcluster.MakeClusterConfig(config)
+	instCfg, err := cluster.InstanceConfig(goView, instance)
 	if err != nil {
-		return err
+		return fmt.Errorf("instance %q not found: %w", instance, err)
 	}
-
-	result := libcluster.Instantiate(clusterConfig, instance)
 
 	// Get SSL connection.
-	dataSsl := []string{"roles_cfg", "aeon.grpc", "advertise"}
-	data, err := result.Get(dataSsl)
-	if err != nil {
-		return err
+	var rawAdvertise any
+	if _, err = instCfg.Get(goconfig.NewKeyPath("roles_cfg/aeon.grpc/advertise"), &rawAdvertise); err != nil {
+		return fmt.Errorf("failed to get aeon advertise config: %w", err)
 	}
 
 	var advertise aeoncmd.Advertise
-	err = mapstructure.Decode(data, &advertise)
+	err = mapstructure.Decode(rawAdvertise, &advertise)
 	if err != nil {
 		return err
 	}
@@ -289,10 +288,8 @@ func getConfigUri(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
 		)
 	}
 
-	aeonCollectors := libcluster.NewCollectorFactory(dataCollectors)
-
 	if uri, err := libconnect.CreateUriOpts(url); err == nil {
-		aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, aeonCollectors)
+		aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, dataCollectors)
 	}
 
 	return nil
