@@ -14,6 +14,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	frameworkintegration "go.etcd.io/etcd/tests/v3/framework/integration"
 	"go.etcd.io/etcd/tests/v3/integration"
+	"gopkg.in/yaml.v3"
 
 	pkgstorage "github.com/tarantool/go-storage"
 	gcrypto "github.com/tarantool/go-storage/crypto"
@@ -26,6 +27,11 @@ import (
 
 	"github.com/tarantool/tt/lib/cluster"
 )
+
+// yamlUnmarshal is a thin wrapper for unmarshalling YAML in tests.
+func yamlUnmarshal(data []byte, v any) error {
+	return yaml.Unmarshal(data, v)
+}
 
 const timeout = 5 * time.Second
 
@@ -215,21 +221,20 @@ func TestEtcdCollectors_single(t *testing.T) {
 
 	cases := []struct {
 		Name      string
-		Collector cluster.Collector
+		Collector cluster.DataCollector
 	}{
-		{"all", cluster.NewYamlCollectorDecorator(
-			newEtcdCollector(t, stor, "/foo/", "", timeout))},
-		{"key", cluster.NewYamlCollectorDecorator(
-			newEtcdCollector(t, stor, "/foo/", "bar", timeout))},
+		{"all", newEtcdCollector(t, stor, "/foo/", "", timeout)},
+		{"key", newEtcdCollector(t, stor, "/foo/", "bar", timeout)},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			config, err := tc.Collector.Collect()
+			data, err := tc.Collector.Collect()
 			require.NoError(t, err)
-			value, err := config.Get([]string{"foo"})
-			require.NoError(t, err)
-			assert.Equal(t, "bar", value)
+			require.Len(t, data, 1)
+			var parsed map[string]any
+			require.NoError(t, yamlUnmarshal(data[0].Value, &parsed))
+			assert.Equal(t, "bar", parsed["foo"])
 		})
 	}
 }
@@ -248,15 +253,20 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/a", "foo: bar")
 	etcdPut(t, etcd, "/foo/config/b", "foo: car\nzoo: car")
 
-	config, err := cluster.NewYamlCollectorDecorator(
-		newEtcdCollector(t, stor, "/foo/", "", timeout)).Collect()
+	data, err := newEtcdCollector(t, stor, "/foo/", "", timeout).Collect()
 	require.NoError(t, err)
-	value, err := config.Get([]string{"foo"})
-	require.NoError(t, err)
-	assert.Equal(t, "bar", value)
-	value, err = config.Get([]string{"zoo"})
-	require.NoError(t, err)
-	assert.Equal(t, "car", value)
+	// Two separate etcd keys → two Data entries.
+	require.Len(t, data, 2)
+	// Each entry should contain valid YAML.
+	for _, d := range data {
+		var parsed map[string]any
+		require.NoError(t, yamlUnmarshal(d.Value, &parsed))
+	}
+	// Verify that the first-wins key ("foo") comes from the alphabetically
+	// first key ("/foo/config/a") in the raw data returned by the collector.
+	parsed0 := map[string]any{}
+	require.NoError(t, yamlUnmarshal(data[0].Value, &parsed0))
+	assert.Equal(t, "bar", parsed0["foo"])
 }
 
 func TestEtcdCollectors_empty(t *testing.T) {
@@ -272,18 +282,16 @@ func TestEtcdCollectors_empty(t *testing.T) {
 
 	cases := []struct {
 		Name      string
-		Collector cluster.Collector
+		Collector cluster.DataCollector
 	}{
-		{"all", cluster.NewYamlCollectorDecorator(
-			newEtcdCollector(t, stor, "/foo/", "", timeout))},
-		{"key", cluster.NewYamlCollectorDecorator(
-			newEtcdCollector(t, stor, "/foo/", "bar", timeout))},
+		{"all", newEtcdCollector(t, stor, "/foo/", "", timeout)},
+		{"key", newEtcdCollector(t, stor, "/foo/", "bar", timeout)},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			config, err := tc.Collector.Collect()
-			assert.Nil(t, config)
+			data, err := tc.Collector.Collect()
+			assert.Nil(t, data)
 			assert.Error(t, err)
 		})
 	}
@@ -456,30 +464,31 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo: bar")
 
 	prefix := "/foo/"
-	dataPublisher := newEtcdPublisher(t, stor, prefix, "", timeout)
-	publisher := cluster.NewYamlConfigPublisher(dataPublisher)
-	collector := cluster.NewYamlCollectorDecorator(
-		newEtcdCollector(t, stor, prefix, "", timeout))
+	publisher := newEtcdPublisher(t, stor, prefix, "", timeout)
+	collector := newEtcdCollector(t, stor, prefix, "", timeout)
 
-	config, err := collector.Collect()
+	// Collect and verify initial data.
+	data, err := collector.Collect()
 	require.NoError(t, err)
-	value, err := config.Get([]string{"zoo"})
-	assert.NoError(t, err)
-	assert.Equal(t, value, "bar")
+	require.Len(t, data, 1)
+	var parsed map[string]any
+	require.NoError(t, yamlUnmarshal(data[0].Value, &parsed))
+	assert.Equal(t, "bar", parsed["zoo"])
 
-	config = cluster.NewConfig()
-	config.Set([]string{"foo"}, "bar")
-
-	err = publisher.Publish(config)
+	// Publish new data.
+	newConfig := []byte("foo: bar\n")
+	err = publisher.Publish(0, newConfig)
 	assert.NoError(t, err)
-	config, err = collector.Collect()
+
+	// Re-collect and verify.
+	data, err = collector.Collect()
 	require.NoError(t, err)
-
-	value, err = config.Get([]string{"foo"})
-	assert.NoError(t, err)
-	assert.Equal(t, value, "bar")
-	_, err = config.Get([]string{"zoo"})
-	assert.Error(t, err)
+	require.Len(t, data, 1)
+	parsed = map[string]any{}
+	require.NoError(t, yamlUnmarshal(data[0].Value, &parsed))
+	assert.Equal(t, "bar", parsed["foo"])
+	_, hasFoo := parsed["zoo"]
+	assert.False(t, hasFoo)
 }
 
 var testsIntegrity = []struct {
