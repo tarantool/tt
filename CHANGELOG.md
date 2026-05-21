@@ -9,11 +9,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.13.0] - 2026-05-21
+
+This release adds cluster worker configuration management and fixes
+incorrect error reporting in `tt start` on insufficient directory
+permissions.
+
+### Added
+
 - `tt cluster`: worker publish subcommand.
 - `tt cluster`: worker show subcommand.
 - `tt cluster`: worker delete subcommand.
-
-### Changed
 
 ### Fixed
 
