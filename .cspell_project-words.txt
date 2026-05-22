@@ -103,6 +103,7 @@ rmdirs
 rockspec*
 rpmdeb
 rundir
+setfn
 socketpath
 sourcedir
 specialchars
