@@ -35,10 +35,12 @@ var ConfigEnvPaths = [][]string{
 	{"compat", "box_tuple_new_vararg"},
 	{"compat", "c_func_iproto_multireturn"},
 	{"compat", "console_session_scope_vars"},
+	{"compat", "datetime_setfn_timestamp_type_check"},
 	{"compat", "fiber_channel_close_mode"},
 	{"compat", "fiber_slice_default"},
 	{"compat", "json_escape_forward_slash"},
 	{"compat", "replication_synchro_timeout"},
+	{"compat", "skip_replication_names"},
 	{"compat", "sql_priv"},
 	{"compat", "sql_seq_scan_default"},
 	{"compat", "wal_cleanup_delay_deprecation"},
@@ -81,6 +83,12 @@ var ConfigEnvPaths = [][]string{
 	{"failover", "call_timeout"},
 	{"failover", "connect_timeout"},
 	{"failover", "http", "listen"},
+	{"failover", "iproto", "ssl", "ca_file"},
+	{"failover", "iproto", "ssl", "ssl_cert"},
+	{"failover", "iproto", "ssl", "ssl_ciphers"},
+	{"failover", "iproto", "ssl", "ssl_key"},
+	{"failover", "iproto", "ssl", "ssl_password"},
+	{"failover", "iproto", "ssl", "ssl_password_file"},
 	{"failover", "lease_interval"},
 	{"failover", "log", "file"},
 	{"failover", "log", "to"},
@@ -352,9 +360,8 @@ var TarantoolSchema = []SchemaPath{
 		Validator: StringValidator{},
 	},
 	{
-		Path: []string{"audit_log", "spaces"},
-		Validator: MakeArrayValidator(
-			StringValidator{}),
+		Path:      []string{"audit_log", "spaces"},
+		Validator: AnyValidator{},
 	},
 	{
 		Path:      []string{"audit_log", "syslog", "facility"},
@@ -506,6 +513,15 @@ var TarantoolSchema = []SchemaPath{
 			}),
 	},
 	{
+		Path: []string{"compat", "datetime_setfn_timestamp_type_check"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	{
 		Path: []string{"compat", "fiber_channel_close_mode"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
@@ -534,6 +550,15 @@ var TarantoolSchema = []SchemaPath{
 	},
 	{
 		Path: []string{"compat", "replication_synchro_timeout"},
+		Validator: MakeAllowedValidator(
+			StringValidator{},
+			[]any{
+				"old",
+				"new",
+			}),
+	},
+	{
+		Path: []string{"compat", "skip_replication_names"},
 		Validator: MakeAllowedValidator(
 			StringValidator{},
 			[]any{
@@ -875,6 +900,30 @@ var TarantoolSchema = []SchemaPath{
 					"ssl_ca_file":       StringValidator{},
 				}),
 			})),
+	},
+	{
+		Path:      []string{"failover", "iproto", "ssl", "ca_file"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"failover", "iproto", "ssl", "ssl_cert"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"failover", "iproto", "ssl", "ssl_ciphers"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"failover", "iproto", "ssl", "ssl_key"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"failover", "iproto", "ssl", "ssl_password"},
+		Validator: StringValidator{},
+	},
+	{
+		Path:      []string{"failover", "iproto", "ssl", "ssl_password_file"},
+		Validator: StringValidator{},
 	},
 	{
 		Path:      []string{"failover", "lease_interval"},
