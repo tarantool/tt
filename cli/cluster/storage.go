@@ -55,13 +55,17 @@ func cfgGetBool(cfg goconfig.Config, path string) (bool, error) {
 	return v, nil
 }
 
-// makeCollectorFactory creates a cluster Factory configured for collecting
-// data, optionally with integrity verifiers from integ.
-func makeCollectorFactory(integ integrity.IntegrityCtx) libcluster.Factory {
+// NewCollectorFactory creates a cluster Factory configured for collecting
+// data — integrity-aware (with verifiers) when integ has integrity configured.
+// Returns a plain factory and nil error when integrity is not configured.
+func NewCollectorFactory(integ integrity.IntegrityCtx) (libcluster.Factory, error) {
 	hashers, verifiers, err := integrity.GetStorageVerifiers(integ)
+	if errors.Is(err, integrity.ErrNotConfigured) {
+		return libcluster.NewFactory(), nil
+	}
 	if err != nil {
-		// ErrNotConfigured or any other error — fall back to plain collectors.
-		return libcluster.NewFactory()
+		return libcluster.Factory{},
+			fmt.Errorf("failed to create collectors with integrity check: %w", err)
 	}
 	return libcluster.NewFactory(
 		libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
@@ -71,7 +75,43 @@ func makeCollectorFactory(integ integrity.IntegrityCtx) libcluster.Factory {
 			Hashers:   hashers,
 			Verifiers: verifiers,
 		}),
-	)
+	), nil
+}
+
+// NewPublisherFactory creates a cluster Factory configured for publishing
+// data — integrity-aware (with signer/verifiers) when privateKey is set.
+func NewPublisherFactory(privateKey string) (libcluster.Factory, error) {
+	if privateKey == "" {
+		return libcluster.NewFactory(), nil
+	}
+	hashers, signerVerifiers, err := integrity.GetStorageSigners(privateKey)
+	if err != nil {
+		return libcluster.Factory{},
+			fmt.Errorf("failed to create publishers with integrity: %w", err)
+	}
+	return libcluster.NewFactory(
+		libcluster.WithIntegrity(libcluster.IntegrityOptions{
+			Hashers:         hashers,
+			SignerVerifiers: signerVerifiers,
+		}),
+	), nil
+}
+
+// NewCollectorAndPublisherFactories returns separate collector- and
+// publisher-oriented factories. They differ only in integrity options:
+// collectors carry verifiers, publishers carry signer/verifiers.
+func NewCollectorAndPublisherFactories(
+	integ integrity.IntegrityCtx, privateKey string,
+) (libcluster.Factory, libcluster.Factory, error) {
+	collectors, err := NewCollectorFactory(integ)
+	if err != nil {
+		return libcluster.Factory{}, libcluster.Factory{}, fmt.Errorf("collector factory: %w", err)
+	}
+	publishers, err := NewPublisherFactory(privateKey)
+	if err != nil {
+		return libcluster.Factory{}, libcluster.Factory{}, fmt.Errorf("publisher factory: %w", err)
+	}
+	return collectors, publishers, nil
 }
 
 // CollectDataBytes collects raw []Data from a DataCollector, merges the YAML
@@ -113,7 +153,10 @@ func readStorageFromConfig(
 	cfg goconfig.Config,
 	integ integrity.IntegrityCtx,
 ) (goconfig.Config, func(), error) {
-	collectorFactory := makeCollectorFactory(integ)
+	collectorFactory, err := NewCollectorFactory(integ)
+	if err != nil {
+		return goconfig.Config{}, nil, fmt.Errorf("collector factory: %w", err)
+	}
 
 	// Try etcd first.
 	etcdResult, cleanup, err := readEtcdEndpoints(ctx, cfg, collectorFactory)

@@ -10,31 +10,15 @@ type FileReadFunc func(path string) (io.ReadCloser, error)
 
 // FileCollector collects data from a YAML file.
 type FileCollector struct {
-	// path is a path to a YAML file.
-	path string
-	// fileReadFunc is a function to read a file.
+	path         string
 	fileReadFunc FileReadFunc
-}
-
-// defaultFileReadFunc is a default read file function.
-func defaultFileReadFunc(path string) (io.ReadCloser, error) {
-	return os.Open(path)
-}
-
-func newFileCollector(path string, fileReadFunc FileReadFunc) FileCollector {
-	if fileReadFunc == nil {
-		fileReadFunc = defaultFileReadFunc
-	}
-
-	return FileCollector{
-		path:         path,
-		fileReadFunc: fileReadFunc,
-	}
 }
 
 // NewFileCollector creates a new file collector for a path.
 func NewFileCollector(path string) FileCollector {
-	return newFileCollector(path, nil)
+	return FileCollector{path: path, fileReadFunc: func(p string) (io.ReadCloser, error) {
+		return os.Open(p)
+	}}
 }
 
 // Collect collects a configuration from a file located at a specified path.
@@ -51,26 +35,18 @@ func (collector FileCollector) Collect() ([]Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf(fmtErr, collector.path, err)
 	}
-	return []Data{
-		{
-			Source: collector.path,
-			Value:  data,
-		},
-	}, nil
+	return []Data{{Source: collector.path, Value: data}}, nil
 }
 
 // FilePublisher publishes data into a file as is.
 type FilePublisher struct {
-	// path is a path to the file.
 	path string
 }
 
 // NewFilePublisher creates a new FilePublisher that writes published data
 // into the file at the given path.
 func NewFilePublisher(path string) FilePublisher {
-	return FilePublisher{
-		path: path,
-	}
+	return FilePublisher{path: path}
 }
 
 // Publish publishes the data to a file for the given path.
@@ -87,10 +63,8 @@ func (publisher FilePublisher) Publish(revision int64, data []byte) error {
 			publisher.path)
 	}
 
-	err := os.WriteFile(publisher.path, data, 0o644)
-	if err != nil {
-		return fmt.Errorf("failed to publish data into %q: %w",
-			publisher.path, err)
+	if err := os.WriteFile(publisher.path, data, 0o644); err != nil {
+		return fmt.Errorf("failed to publish data into %q: %w", publisher.path, err)
 	}
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/tarantool/tt/cli/cluster"
 	clustercmd "github.com/tarantool/tt/cli/cluster/cmd"
 	"github.com/tarantool/tt/cli/cmd/internal"
 	"github.com/tarantool/tt/cli/cmdcontext"
@@ -351,7 +352,7 @@ func NewClusterCmd() *cobra.Command {
 // internalClusterShowModule is an entrypoint for `cluster show` command.
 func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if opts, err := libconnect.CreateUriOpts(args[0]); err == nil {
-		factory, cerr := createCollectorFactory(cmdCtx.Integrity)
+		factory, cerr := cluster.NewCollectorFactory(cmdCtx.Integrity)
 		if cerr != nil {
 			return cerr
 		}
@@ -374,7 +375,7 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 // internalClusterPublishModule is an entrypoint for `cluster publish` command.
 func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
-	dataCollectors, dataPublishers, err := createCollectorAndPublisherFactories(
+	dataCollectors, dataPublishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -415,7 +416,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 // internalClusterReplicasetPromoteModule is a "cluster replicaset promote" command.
 func internalClusterReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
-	promoteCtx.Collectors, promoteCtx.Publishers, err = createCollectorAndPublisherFactories(
+	promoteCtx.Collectors, promoteCtx.Publishers, err = cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -428,7 +429,7 @@ func internalClusterReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []st
 // internalClusterReplicasetDemoteModule is a "cluster replicaset demote" command.
 func internalClusterReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
-	demoteCtx.Collectors, demoteCtx.Publishers, err = createCollectorAndPublisherFactories(
+	demoteCtx.Collectors, demoteCtx.Publishers, err = cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -441,7 +442,7 @@ func internalClusterReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []str
 // internalClusterReplicasetExpelModule is a "cluster replicaset expel" command.
 func internalClusterReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
-	expelCtx.Collectors, expelCtx.Publishers, err = createCollectorAndPublisherFactories(
+	expelCtx.Collectors, expelCtx.Publishers, err = cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -459,7 +460,7 @@ func internalClusterReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []s
 	}
 
 	rolesChangeCtx.Collectors, rolesChangeCtx.Publishers, err =
-		createCollectorAndPublisherFactories(cmdCtx.Integrity, clusterIntegrityPrivateKey)
+		cluster.NewCollectorAndPublisherFactories(cmdCtx.Integrity, clusterIntegrityPrivateKey)
 	if err != nil {
 		return err
 	}
@@ -475,7 +476,7 @@ func internalClusterReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args 
 		return err
 	}
 
-	col, pub, err := createCollectorAndPublisherFactories(
+	col, pub, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity,
 		clusterIntegrityPrivateKey,
 	)
