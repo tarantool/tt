@@ -29,9 +29,9 @@ type VShardCmdCtx struct {
 	// Orchestrator is a forced orchestrator choice.
 	Orchestrator replicaset.Orchestrator
 	// Publishers is data publisher factory.
-	Publishers libcluster.DataPublisherFactory
+	Publishers libcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Integrity is the integrity context for cluster reads.
 	Integrity integrity.IntegrityCtx
 	// Timeout describes a timeout in seconds.

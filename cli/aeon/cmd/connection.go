@@ -18,18 +18,23 @@ import (
 // It returns an error if fails to collect a configuration,
 // instantiate a cluster config or find an instance in the cluster.
 func FillConnectCtx(connectCtx *ConnectCtx, uriOpts libconnect.UriOpts,
-	instanceName string, dataCollectors libcluster.DataCollectorFactory,
+	instanceName string, factory libcluster.Factory,
 ) error {
 	connOpts := libcluster.ConnectOpts{
 		Username: connectCtx.Username,
 		Password: connectCtx.Password,
 	}
-	collector, cancel, err := libcluster.CreateDataCollector(dataCollectors,
-		connOpts, uriOpts)
+	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, uriOpts)
 	if err != nil {
 		return err
 	}
-	defer cancel()
+	defer cleanup()
+
+	collector, err := factory.NewRemoteStorage(stor, uriOpts.Prefix,
+		uriOpts.Params["key"], uriOpts.Timeout, storageType)
+	if err != nil {
+		return fmt.Errorf("failed to create %s collector: %w", storageType, err)
+	}
 
 	rawBytes, err := cluster.CollectDataBytes(context.Background(), collector)
 	if err != nil {

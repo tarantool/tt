@@ -18,7 +18,7 @@ type ShowCtx struct {
 	// Password defines a password for connection.
 	Password string
 	// Collectors defines a used data collectors factory for URI-based show.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Integrity holds the integrity context used for file-based show.
 	Integrity integrity.IntegrityCtx
 	// Validate defines whether the command will check the showed
@@ -32,10 +32,7 @@ func ShowUri(showCtx ShowCtx, opts connect.UriOpts) error {
 		Username: showCtx.Username,
 		Password: showCtx.Password,
 	}
-	_, collector, cancel, err := createPublisherAndCollector(
-		nil,
-		showCtx.Collectors,
-		connOpts, opts)
+	collector, cancel, err := openRemoteCollector(showCtx.Collectors, connOpts, opts)
 	if err != nil {
 		return err
 	}

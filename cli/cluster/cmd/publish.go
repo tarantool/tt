@@ -22,9 +22,9 @@ type PublishCtx struct {
 	// is omitted.
 	Force bool
 	// Publishers defines a used data publishers factory.
-	Publishers libcluster.DataPublisherFactory
+	Publishers libcluster.Factory
 	// Collectors defines a used data collectors factory.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Src is raw YAML data to publish.
 	Src []byte
 	// Config is the decoded payload from Src (map[string]any from YAML
@@ -47,9 +47,9 @@ func PublishUri(publishCtx PublishCtx, opts connect.UriOpts) error {
 		Username: publishCtx.Username,
 		Password: publishCtx.Password,
 	}
-	publisher, collector, cancel, err := createPublisherAndCollector(
-		publishCtx.Publishers,
+	collector, publisher, cancel, err := openCollectorAndPublisher(
 		publishCtx.Collectors,
+		publishCtx.Publishers,
 		connOpts, opts)
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func PublishCluster(publishCtx PublishCtx, path, instance string) error {
 		return err
 	}
 
-	publisher, err := publishCtx.Publishers.NewFile(path)
+	publisher, err := publishCtx.Publishers.NewFilePublisher(path)
 	if err != nil {
 		return fmt.Errorf("failed to create a file publisher: %w", err)
 	}
@@ -92,10 +92,7 @@ func PublishCluster(publishCtx PublishCtx, path, instance string) error {
 		return publisher.Publish(0, publishCtx.Src)
 	}
 
-	collector, err := publishCtx.Collectors.NewFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to create a file collector: %w", err)
-	}
+	collector := publishCtx.Collectors.NewFileCollector(path)
 	collectedBytes, err := cluster.CollectDataBytes(context.Background(), collector)
 	if err != nil {
 		return fmt.Errorf("failed to get a cluster configuration to update an instance %q: %w",

@@ -21,7 +21,7 @@ func (publisher dataKeyPublisher) Publish(key string, revision int64, data []byt
 }
 
 // makeStoragePublisher creates publisher for a generic remote storage.
-func makeStoragePublisher(factory libcluster.DataPublisherFactory,
+func makeStoragePublisher(factory libcluster.Factory,
 	storage storage.Storage, storageType, prefix string, timeout time.Duration,
 ) replicaset.DataPublisher {
 	return dataKeyPublisher(func(key string, revision int64, data []byte) error {
@@ -38,9 +38,9 @@ type PromoteCtx struct {
 	// InstName is an instance name to promote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.DataPublisherFactory
+	Publishers libcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Username defines a username for connection.
 	Username string
 	// Password defines a password for connection.
@@ -81,32 +81,27 @@ func pickPatchKey(keys []string, force bool, pathMsg string) (int, error) {
 	return pos, nil
 }
 
-// createDataCollectorAndKeyPublisher creates a new data collector and key publisher.
+// createDataCollectorAndKeyPublisher creates a new data collector and a
+// per-key replicaset.DataPublisher (one fresh RawStorage is built per Publish
+// call so each call can target a different key).
 func createDataCollectorAndKeyPublisher(
-	collectors libcluster.DataCollectorFactory,
-	publishers libcluster.DataPublisherFactory,
-	opts connect.UriOpts, connOpts libcluster.ConnectOpts) (
-	libcluster.DataCollector, replicaset.DataPublisher, func(), error,
-) {
+	collectors libcluster.Factory,
+	publishers libcluster.Factory,
+	opts connect.UriOpts, connOpts libcluster.ConnectOpts,
+) (libcluster.DataCollector, replicaset.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
-	storage, closeFunc, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
+	stor, closeFunc, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	var collector libcluster.DataCollector
-	if collectors != nil {
-		collector, err = collectors.NewRemoteStorage(storage, prefix, key, timeout, storageType)
-		if err != nil {
-			closeFunc()
-			return nil, nil, nil, fmt.Errorf("failed to create storage collector: %w", err)
-		}
+	collector, err := collectors.NewRemoteStorage(stor, prefix, key, timeout, storageType)
+	if err != nil {
+		closeFunc()
+		return nil, nil, nil, fmt.Errorf("failed to create storage collector: %w", err)
 	}
 
-	var publisher replicaset.DataPublisher
-	if publishers != nil {
-		publisher = makeStoragePublisher(publishers, storage, storageType, prefix, timeout)
-	}
+	publisher := makeStoragePublisher(publishers, stor, storageType, prefix, timeout)
 
 	return collector, publisher, closeFunc, nil
 }
@@ -146,9 +141,9 @@ type DemoteCtx struct {
 	// InstName is an instance name to demote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.DataPublisherFactory
+	Publishers libcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Username defines a username for connection.
 	Username string
 	// Password defines a password for connection.
@@ -193,9 +188,9 @@ type ExpelCtx struct {
 	// InstName is an instance name to demote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.DataPublisherFactory
+	Publishers libcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Username defines a username for connection.
 	Username string
 	// Password defines a password for connection.
@@ -247,9 +242,9 @@ type RolesChangeCtx struct {
 	// RoleName is a name of role to add/remove.
 	RoleName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.DataPublisherFactory
+	Publishers libcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Username defines a username for connection.
 	Username string
 	// Password defines a password for connection.

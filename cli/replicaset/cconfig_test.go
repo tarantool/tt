@@ -10,6 +10,7 @@ import (
 
 	"github.com/tarantool/tt/cli/replicaset"
 	"github.com/tarantool/tt/cli/running"
+	libcluster "github.com/tarantool/tt/lib/cluster"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -37,7 +38,8 @@ var (
 )
 
 func TestCconfigApplication_Bootstrap(t *testing.T) {
-	app := replicaset.NewCConfigApplication(running.RunningCtx{}, nil, nil, integrity.IntegrityCtx{})
+	app := replicaset.NewCConfigApplication(running.RunningCtx{},
+		libcluster.Factory{}, libcluster.Factory{}, integrity.IntegrityCtx{})
 	err := app.Bootstrap(replicaset.BootstrapCtx{})
 	assert.EqualError(t, err,
 		`bootstrap is not supported for an application by "centralized config" orchestrator`)

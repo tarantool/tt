@@ -59,22 +59,22 @@ func (collector FileCollector) Collect() ([]Data, error) {
 	}, nil
 }
 
-// FileDataPublisher publishes a data into a file as is.
-type FileDataPublisher struct {
+// FilePublisher publishes data into a file as is.
+type FilePublisher struct {
 	// path is a path to the file.
 	path string
 }
 
-// NewFileDataPublisher creates a new FileDataPublisher object to publish
-// a data into a file for the given path.
-func NewFileDataPublisher(path string) FileDataPublisher {
-	return FileDataPublisher{
+// NewFilePublisher creates a new FilePublisher that writes published data
+// into the file at the given path.
+func NewFilePublisher(path string) FilePublisher {
+	return FilePublisher{
 		path: path,
 	}
 }
 
 // Publish publishes the data to a file for the given path.
-func (publisher FileDataPublisher) Publish(revision int64, data []byte) error {
+func (publisher FilePublisher) Publish(revision int64, data []byte) error {
 	if revision != 0 {
 		return fmt.Errorf("failed to publish data into file: target revision %d is not supported",
 			revision)

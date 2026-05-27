@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,9 +19,7 @@ import (
 	"github.com/tarantool/tt/cli/modules"
 	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
-	libcluster "github.com/tarantool/tt/lib/cluster"
 	libconnect "github.com/tarantool/tt/lib/connect"
-	"github.com/tarantool/tt/lib/integrity"
 )
 
 const (
@@ -270,26 +267,13 @@ func readConfigFilePath(configPath, instance string) error {
 }
 
 func getConfigUri(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
-	var dataCollectors libcluster.DataCollectorFactory
-	hashers, verifiers, err := integrity.GetStorageVerifiers(cmdCtx.Integrity)
-	if errors.Is(err, integrity.ErrNotConfigured) {
-		dataCollectors = libcluster.NewDataCollectorFactory()
-	} else if err != nil {
-		return fmt.Errorf("failed to create collectors with integrity check: %w", err)
-	} else {
-		dataCollectors = libcluster.NewDataCollectorFactory(
-			libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
-				return cmdCtx.Integrity.Repository.Read(path)
-			}),
-			libcluster.WithIntegrity(libcluster.IntegrityOptions{
-				Hashers:   hashers,
-				Verifiers: verifiers,
-			}),
-		)
+	factory, err := createCollectorFactory(cmdCtx.Integrity)
+	if err != nil {
+		return err
 	}
 
 	if uri, err := libconnect.CreateUriOpts(url); err == nil {
-		aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, dataCollectors)
+		aeoncmd.FillConnectCtx(&connectCtx, uri, instanceName, factory)
 	}
 
 	return nil

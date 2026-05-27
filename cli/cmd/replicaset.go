@@ -582,7 +582,7 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 	}
 	defer ctx.Conn.Close()
 
-	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+	collectors, publishers, err := createCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -616,7 +616,7 @@ func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 	}
 	defer ctx.Conn.Close()
 
-	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+	collectors, publishers, err := createCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -664,7 +664,7 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 	if ctx.IsInstanceConnect {
 		defer ctx.Conn.Close()
 	}
-	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+	collectors, publishers, err := createCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -692,7 +692,7 @@ func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []s
 	if ctx.IsInstanceConnect {
 		defer ctx.Conn.Close()
 	}
-	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+	collectors, publishers, err := createCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -796,7 +796,7 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 		ctx.InstName = replicasetInstanceName
 	}
 
-	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+	collectors, publishers, err := createCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -842,7 +842,7 @@ func internalReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 		ctx.InstName = replicasetInstanceName
 	}
 
-	collectors, publishers, err := createDataCollectorsAndDataPublishers(
+	collectors, publishers, err := createCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err

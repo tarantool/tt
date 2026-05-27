@@ -189,7 +189,7 @@ func newEtcdCollector(t *testing.T, stor pkgstorage.Storage,
 ) cluster.DataCollector {
 	t.Helper()
 
-	collector, err := cluster.NewDataCollectorFactory().NewRemoteStorage(stor, prefix, key, timeout, "etcd")
+	collector, err := cluster.NewFactory().NewRemoteStorage(stor, prefix, key, timeout, "etcd")
 	require.NoError(t, err)
 
 	return collector
@@ -200,7 +200,7 @@ func newEtcdPublisher(t *testing.T, stor pkgstorage.Storage,
 ) cluster.DataPublisher {
 	t.Helper()
 
-	publisher, err := cluster.NewDataPublisherFactory().NewRemoteStorage(stor, prefix, key, timeout, "etcd")
+	publisher, err := cluster.NewFactory().NewRemoteStorage(stor, prefix, key, timeout, "etcd")
 	require.NoError(t, err)
 
 	return publisher
@@ -531,7 +531,7 @@ var testsIntegrity = []struct {
 				t.Fatalf("NewPublisher expected *tcs_helper.TCS, got %T", inst)
 			}
 
-			publisherFactory := cluster.NewDataPublisherFactory(
+			publisherFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
 
@@ -561,7 +561,7 @@ var testsIntegrity = []struct {
 			if !ok {
 				t.Fatalf("NewCollector expected *tcs_helper.TCS, got %T", inst)
 			}
-			collectorFactory := cluster.NewDataCollectorFactory(
+			collectorFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
 
@@ -598,7 +598,7 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataPublisher, func()) {
-			publisherFactory := cluster.NewDataPublisherFactory(
+			publisherFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
 			etcdInst := inst.(integration.LazyCluster)
@@ -622,7 +622,7 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataCollector, func()) {
-			collectorFactory := cluster.NewDataCollectorFactory(
+			collectorFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
 			etcdInst := inst.(integration.LazyCluster)

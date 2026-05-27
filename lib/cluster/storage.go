@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarantool/go-storage"
 	gstorage "github.com/tarantool/go-storage"
 	gsconnect "github.com/tarantool/go-storage/connect"
 	"github.com/tarantool/go-storage/driver/etcd"
@@ -29,6 +28,12 @@ import (
 	"google.golang.org/grpc"
 )
 
+// WatchEvent is delivered on Watch channels when a watched key changes.
+type WatchEvent struct {
+	Key   string
+	Value []byte
+}
+
 type StorageDataType = []byte
 
 const (
@@ -37,23 +42,10 @@ const (
 	configLocation  = "config"
 )
 
-// IRawStorage is an interface that includes Collector, Publisher and CSConnection interfaces.
-type IRawStorage interface {
-	// Collect collects data from a source.
-	Collect() ([]Data, error)
-	// Publish publishes the interface or returns an error.
-	Publish(revision int64, data []byte) error
-	// Close closes connection.
-	Close() error
-	// Get retrieves value for key.
-	Get(ctx context.Context, key string) ([]Data, error)
-	// Put puts a key-value pair into config storage.
-	Put(ctx context.Context, key, value string) error
-	// Watch watches on a key and return watched events through the returned channel.
-	Watch(ctx context.Context, key string) <-chan CSWatchEvent
-}
-
-// RawStorage implements IRawStorage.
+// RawStorage is a connection-bound view of a remote configuration storage
+// (etcd or tarantool config storage). It implements both DataCollector and
+// DataPublisher as well as direct Get/Put/Watch/Close operations on individual
+// keys.
 type RawStorage struct {
 	close          func() error
 	storage        *integrity.Store[StorageDataType]
@@ -262,8 +254,8 @@ func (r *RawStorage) Put(ctx context.Context, key, value string) error {
 }
 
 // Watch watches on a key and return watched events through the returned channel.
-func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan CSWatchEvent, error) {
-	ch := make(chan CSWatchEvent)
+func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, error) {
+	ch := make(chan WatchEvent)
 	innerCh, err := r.storage.Watch(ctx, r.normalizeName(key))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create watch channel: %w", err)
@@ -274,7 +266,7 @@ func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan CSWatchEvent
 
 		for resp := range innerCh {
 			value, _ := r.Get(ctx, string(resp.Prefix))
-			ch <- CSWatchEvent{
+			ch <- WatchEvent{
 				Key:   key,
 				Value: value[0].Value,
 			}
@@ -312,7 +304,12 @@ func applyIntegrityBuilderOptions(
 	return builder
 }
 
-// NewStorage returns RawStorage with specified storageType.
+// NewStorage returns a *RawStorage bound to the given backend.
+//
+// Most callers should use Factory.NewRemoteStorage, which fills objectLocation
+// with the default configLocation. Use this directly only when a different
+// objectLocation (or none) is required, such as for the failover command
+// namespace.
 func NewStorage(
 	storage gstorage.Storage,
 	prefix string,
@@ -352,18 +349,6 @@ func NewStorage(
 		prefix:         prefix,
 		objectLocation: objectLocation,
 	}, nil
-}
-
-// NewConfigStorage returns RawStorage with config location.
-func NewConfigStorage(
-	storage gstorage.Storage,
-	prefix string,
-	timeout time.Duration,
-	key string,
-	storageType string,
-	integrityOpts *IntegrityOptions,
-) (*RawStorage, error) {
-	return NewStorage(storage, prefix, timeout, key, storageType, integrityOpts, configLocation)
 }
 
 // connectEtcdClient creates and returns a new etcd client connection
@@ -517,19 +502,21 @@ func getTarantoolCfg(connOpts ConnectOpts, uriOpts libconnect.UriOpts) gsconnect
 }
 
 // NewStorageConnection determines a storage based on the opts.
-func NewStorageConnection(connOpts ConnectOpts, opts libconnect.UriOpts) (storage.Storage, gsconnect.CleanupFunc, string, error) {
+func NewStorageConnection(
+	connOpts ConnectOpts, opts libconnect.UriOpts,
+) (gstorage.Storage, gsconnect.CleanupFunc, string, error) {
 	etcdCfg := getEtcdCfg(connOpts, opts)
 	etcdClient, errEtcd := connectEtcdClient(etcdCfg)
 	if errEtcd == nil {
 		driver := etcd.New(etcdClient)
-		return storage.NewStorage(driver), func() { _ = etcdClient.Close() }, etcdStorageType, nil
+		return gstorage.NewStorage(driver), func() { _ = etcdClient.Close() }, etcdStorageType, nil
 	}
 
 	tcsCfg := getTarantoolCfg(connOpts, opts)
 	conn, errTCS := connectTarantoolConnector(tcsCfg)
 	if errTCS == nil {
 		driver := tcs.New(conn)
-		return storage.NewStorage(driver), func() { _ = conn.Close() }, tcsStorageType, nil
+		return gstorage.NewStorage(driver), func() { _ = conn.Close() }, tcsStorageType, nil
 	}
 
 	return nil, func() {}, "", fmt.Errorf("failed to establish a connection to tarantool or etcd: %w, %w",

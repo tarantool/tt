@@ -16,9 +16,9 @@ type DemoteCtx struct {
 	// InstName is an instance name to demote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.DataPublisherFactory
+	Publishers libcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Integrity is the integrity context for cluster reads.
 	Integrity integrity.IntegrityCtx
 	// Orchestrator is a forced orchestrator choice.
