@@ -46,8 +46,6 @@ var (
 	pythonExecutableName = "python3"
 	ttExecutableName     = "tt"
 
-	generateModePath = filepath.Join(packagePath, "codegen", "generate_code.go")
-
 	Aliases = map[string]any{
 		"build":    Build.Release,
 		"unit":     Unit.Default,
@@ -136,8 +134,6 @@ func appendTags(args []string) ([]string, error) {
 // Building tt executable. Supported environment variables:
 // TT_CLI_BUILD_SSL=(no|static|shared).
 func buildTt(argUpdaters ...optsUpdater) error {
-	mg.Deps(GenerateGoCode)
-
 	args := []string{"build", "-o", ttExecutableName}
 	var err error
 	for _, updateArguments := range argUpdaters {
@@ -214,8 +210,6 @@ func (Lint) Full() error {
 func (Lint) Golang() error {
 	fmt.Println("Running golangci-lint...")
 
-	mg.Deps(GenerateGoCode)
-
 	lintDirs := append([]string{"."}, modules...)
 	root, err := os.Getwd()
 	if err != nil {
@@ -247,8 +241,6 @@ func (Lint) Python() error {
 type Unit mg.Namespace
 
 func runUnitTests(flags []string) error {
-	mg.Deps(GenerateGoCode)
-
 	testDirs := append([]string{"."}, modules...)
 	for _, module := range testDirs {
 		args := []string{"test", "-C", module}
@@ -415,16 +407,6 @@ func Generate() error {
 			return fmt.Errorf("failed to generate sources for path %q: %w", path, err)
 		}
 	}
-	return nil
-}
-
-// GenerateGoCode generates code from lua files.
-func GenerateGoCode() error {
-	err := sh.RunWith(getBuildEnvironment(), goExecutableName, "run", generateModePath)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 

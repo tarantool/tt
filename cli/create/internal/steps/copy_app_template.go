@@ -19,57 +19,40 @@ import (
 // CopyAppTemplate represents template -> app directory copy step.
 type CopyAppTemplate struct{}
 
-// Returns a file perm for path from fileModes. Or default perm if data is missing in modes map.
-func getFileMode(path string, dirEntry fs.DirEntry, fileModes map[string]int) fs.FileMode {
-	const defaultDirPerm = 0o755  // drwxr-xr-x
-	const defaultFilePerm = 0o660 // -rw-rw----
-	if dirEntry.IsDir() {
-		return defaultDirPerm
-	}
-
-	fileMode, found := fileModes[path]
-	if !found {
-		log.Warnf("No file mode info for '%s'", path)
-		return fs.FileMode(defaultFilePerm)
-	}
-
-	return fs.FileMode(fileMode)
-}
-
-// copyEmbedFs copies src file system tree to dst.
-func copyEmbedFs(srcFs fs.FS, dst string, fileModes map[string]int) error {
+// copyEmbedFs copies src file system tree to dst. Directories get 0755 and
+// files get 0644 — every built-in template uses those modes, and embed.FS
+// strips the source modes anyway, so there is nothing else to preserve.
+func copyEmbedFs(srcFs fs.FS, dst string) error {
+	const (
+		dirPerm  fs.FileMode = 0o755
+		filePerm fs.FileMode = 0o644
+	)
 	err := fs.WalkDir(srcFs, ".", func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("walk %q: %w", path, err)
 		}
-		fileMode := getFileMode(path, dirEntry, fileModes)
 		if dirEntry.IsDir() {
-			destDirPath := filepath.Join(dst, path)
-			if err := util.CreateDirectory(destDirPath, fileMode); err != nil {
-				return err
-			}
-		} else {
-			inFile, err := srcFs.Open(path)
-			if err != nil {
-				return err
-			}
-			defer inFile.Close()
+			return util.CreateDirectory(filepath.Join(dst, path), dirPerm)
+		}
+		inFile, err := srcFs.Open(path)
+		if err != nil {
+			return fmt.Errorf("open template file %q: %w", path, err)
+		}
+		defer inFile.Close()
 
-			outFile, err := os.OpenFile(filepath.Join(dst, path), os.O_CREATE|os.O_WRONLY,
-				fileMode)
-			if err != nil {
-				return err
-			}
-			defer outFile.Close()
+		outFile, err := os.OpenFile(filepath.Join(dst, path), os.O_CREATE|os.O_WRONLY, filePerm)
+		if err != nil {
+			return fmt.Errorf("create %q: %w", path, err)
+		}
+		defer outFile.Close()
 
-			if _, err := io.Copy(outFile, inFile); err != nil {
-				return err
-			}
+		if _, err := io.Copy(outFile, inFile); err != nil {
+			return fmt.Errorf("copy %q: %w", path, err)
 		}
 		return nil
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("copy embedded template: %w", err)
 	}
 	return nil
 }
@@ -118,12 +101,7 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 			if err != nil {
 				return err
 			}
-			fileModes, found := builtin_templates.FileModes[templateName]
-			if !found {
-				log.Warn("File permissions data is not found for '%s' template. " +
-					"Using default permissions.")
-			}
-			return copyEmbedFs(templateFs, templateCtx.AppPath, fileModes)
+			return copyEmbedFs(templateFs, templateCtx.AppPath) //nolint:wrapcheck // already wraps.
 		}
 	}
 
