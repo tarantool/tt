@@ -129,13 +129,34 @@ func validateInstanceConfig(instCfg goconfig.Config, name string) error {
 	return nil
 }
 
-// createPublisherAndCollector creates a new data publisher and collector based on UriOpts.
-func createPublisherAndCollector(
-	publishers libcluster.DataPublisherFactory,
-	collectors libcluster.DataCollectorFactory,
+// openRemoteCollector dials the remote storage described by opts and binds a
+// collector-flavored *RawStorage using the given factory's integrity options.
+// The returned cleanup releases the connection.
+func openRemoteCollector(factory libcluster.Factory,
+	connOpts libcluster.ConnectOpts, opts libconnect.UriOpts,
+) (libcluster.DataCollector, func(), error) {
+	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	collector, err := factory.NewRemoteStorage(stor, opts.Prefix,
+		opts.Params["key"], opts.Timeout, storageType)
+	if err != nil {
+		cleanup()
+		return nil, nil, fmt.Errorf("failed to create %s collector: %w", storageType, err)
+	}
+	return collector, func() { cleanup() }, nil
+}
+
+// openCollectorAndPublisher dials the remote storage described by opts and
+// binds two *RawStorage instances on the same connection — one for collecting
+// (using collectors' integrity verifiers) and one for publishing (using
+// publishers' integrity signer/verifiers).
+func openCollectorAndPublisher(
+	collectors, publishers libcluster.Factory,
 	connOpts libcluster.ConnectOpts,
 	opts libconnect.UriOpts,
-) (libcluster.DataPublisher, libcluster.DataCollector, func(), error) {
+) (libcluster.DataCollector, libcluster.DataPublisher, func(), error) {
 	prefix, key, timeout := opts.Prefix, opts.Params["key"], opts.Timeout
 
 	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, opts)
@@ -143,25 +164,19 @@ func createPublisherAndCollector(
 		return nil, nil, nil, err
 	}
 
-	var publisher libcluster.DataPublisher
-	if publishers != nil {
-		publisher, err = publishers.NewRemoteStorage(stor, prefix, key, timeout, storageType)
-		if err != nil {
-			cleanup()
-			return nil, nil, nil,
-				fmt.Errorf("failed to create %s publisher: %w", storageType, err)
-		}
+	publisher, err := publishers.NewRemoteStorage(stor, prefix, key, timeout, storageType)
+	if err != nil {
+		cleanup()
+		return nil, nil, nil,
+			fmt.Errorf("failed to create %s publisher: %w", storageType, err)
 	}
 
-	var collector libcluster.DataCollector
-	if collectors != nil {
-		collector, err = collectors.NewRemoteStorage(stor, prefix, key, timeout, storageType)
-		if err != nil {
-			cleanup()
-			return nil, nil, nil,
-				fmt.Errorf("failed to create %s collector: %w", storageType, err)
-		}
+	collector, err := collectors.NewRemoteStorage(stor, prefix, key, timeout, storageType)
+	if err != nil {
+		cleanup()
+		return nil, nil, nil,
+			fmt.Errorf("failed to create %s collector: %w", storageType, err)
 	}
 
-	return publisher, collector, func() { cleanup() }, nil
+	return collector, publisher, func() { cleanup() }, nil
 }

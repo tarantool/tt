@@ -17,9 +17,9 @@ type PromoteCtx struct {
 	// InstName is an instance name to promote.
 	InstName string
 	// Publishers is data publisher factory.
-	Publishers libcluster.DataPublisherFactory
+	Publishers libcluster.Factory
 	// Collectors is data collector factory.
-	Collectors libcluster.DataCollectorFactory
+	Collectors libcluster.Factory
 	// Integrity is the integrity context for cluster reads.
 	Integrity integrity.IntegrityCtx
 	// IsApplication true if an application passed.

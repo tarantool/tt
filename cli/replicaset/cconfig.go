@@ -153,16 +153,16 @@ func (c *CConfigInstance) RolesChange(ctx RolesChangeCtx,
 type CConfigApplication struct {
 	cachedDiscoverer
 	runningCtx running.RunningCtx
-	publishers libcluster.DataPublisherFactory
-	collectors libcluster.DataCollectorFactory
+	publishers libcluster.Factory
+	collectors libcluster.Factory
 	integ      integrityPkg.IntegrityCtx
 }
 
 // NewCConfigApplication creates a new CConfigApplication object.
 func NewCConfigApplication(
 	runningCtx running.RunningCtx,
-	collectors libcluster.DataCollectorFactory,
-	publishers libcluster.DataPublisherFactory,
+	collectors libcluster.Factory,
+	publishers libcluster.Factory,
 	integ integrityPkg.IntegrityCtx,
 ) *CConfigApplication {
 	app := &CConfigApplication{
@@ -830,8 +830,8 @@ func (c *CConfigApplication) rolesChange(ctx RolesChangeCtx,
 // It reads the file directly via os.ReadFile, builds a *goconfig.MutableConfig,
 // runs patchFunc on it, marshals the result and publishes (overwrites) the file.
 func patchLocalCConfig(clusterCfgPath string,
-	_ libcluster.DataCollectorFactory,
-	publishers libcluster.DataPublisherFactory,
+	_ libcluster.Factory,
+	publishers libcluster.Factory,
 	patchFunc func(*goconfig.MutableConfig) (*goconfig.MutableConfig, error),
 ) error {
 	data, err := os.ReadFile(clusterCfgPath)
@@ -855,7 +855,7 @@ func patchLocalCConfig(clusterCfgPath string,
 		return fmt.Errorf("marshal patched config: %w", err)
 	}
 
-	publisher, err := publishers.NewFile(clusterCfgPath)
+	publisher, err := publishers.NewFilePublisher(clusterCfgPath)
 	if err != nil {
 		return fmt.Errorf("failed to create a configuration publisher: %w", err)
 	}

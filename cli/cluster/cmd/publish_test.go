@@ -22,10 +22,10 @@ func TestPublishCluster_FileWithIntegrity_Errors(t *testing.T) {
 
 	ctx := PublishCtx{
 		Force: true, // skip validation
-		Publishers: libcluster.NewDataPublisherFactory(
+		Publishers: libcluster.NewFactory(
 			libcluster.WithIntegrity(libcluster.IntegrityOptions{}),
 		),
-		Collectors: libcluster.NewDataCollectorFactory(),
+		Collectors: libcluster.NewFactory(),
 		Src:        src,
 	}
 

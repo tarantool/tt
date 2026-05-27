@@ -8,11 +8,11 @@ import (
 	"github.com/tarantool/tt/lib/cluster"
 )
 
-func TestIntegrityDataPublisherFactory_NewFile(t *testing.T) {
-	factory := cluster.NewDataPublisherFactory(
+func TestFactory_NewFilePublisher_integrity_not_supported(t *testing.T) {
+	factory := cluster.NewFactory(
 		cluster.WithIntegrity(cluster.IntegrityOptions{}),
 	)
-	publisher, err := factory.NewFile("any")
+	publisher, err := factory.NewFilePublisher("any")
 
 	assert.Nil(t, publisher)
 	assert.EqualError(t, err,
