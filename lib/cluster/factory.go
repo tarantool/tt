@@ -62,7 +62,10 @@ func NewFactory(opts ...Option) Factory {
 // NewFileCollector creates a file-based DataCollector. If the factory was
 // configured with WithFileReadFunc, that function is used instead of os.Open.
 func (f Factory) NewFileCollector(path string) DataCollector {
-	return newFileCollector(path, f.fileReadFunc)
+	if f.fileReadFunc != nil {
+		return FileCollector{path: path, fileReadFunc: f.fileReadFunc}
+	}
+	return NewFileCollector(path)
 }
 
 // NewFilePublisher creates a file-based DataPublisher. It is unsupported when

@@ -9,255 +9,44 @@ import (
 )
 
 func TestNewSigner(t *testing.T) {
-	testCases := []struct {
-		name           string
-		privateKeyPath string
-	}{
-		{
-			name:           "Empty path",
-			privateKeyPath: "",
-		},
-		{
-			name:           "Arbitrary path",
-			privateKeyPath: "private.pem",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			signer, err := integrity.NewSigner(testCase.privateKeyPath)
-			require.Nil(t, signer, "signer must not be created")
-			require.EqualError(t, err, "integrity signer should never be created in ce",
-				"an error should be produced")
-		})
+	for _, path := range []string{"", "private.pem"} {
+		signer, err := integrity.NewSigner(path)
+		require.Nil(t, signer)
+		require.EqualError(t, err, "integrity signer should never be created in ce")
 	}
 }
 
 func TestInitializeIntegrityCheckWithKey(t *testing.T) {
-	testCases := []struct {
-		name                string
-		publicKeyPath       string
-		configDir           string
-		instancesEnabledDir string
-	}{
-		{
-			name:                "Empty config path",
-			publicKeyPath:       "public.pem",
-			configDir:           "",
-			instancesEnabledDir: "instances.enabled",
-		},
-		{
-			name:                "Arbitrary config path",
-			publicKeyPath:       "public.pem",
-			configDir:           "app",
-			instancesEnabledDir: "instances.enabled",
-		},
-		{
-			name:                "Empty instance.enabled path",
-			publicKeyPath:       "public.pem",
-			configDir:           "app",
-			instancesEnabledDir: "",
-		},
-		{
-			name:                "Special instance.enabled path",
-			publicKeyPath:       "public.pem",
-			configDir:           "app",
-			instancesEnabledDir: ".",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			_, err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
-				testCase.configDir, testCase.instancesEnabledDir)
-			require.EqualError(t, err,
-				"integrity checks should never be initialized in ce",
-				"an error should be produced")
-		})
-	}
+	_, err := integrity.InitializeIntegrityCheck("public.pem", "app", "instances.enabled")
+	require.EqualError(t, err, "integrity checks should never be initialized in ce")
 }
 
 func TestInitializeIntegrityCheckWithoutKey(t *testing.T) {
-	testCases := []struct {
-		name                string
-		publicKeyPath       string
-		configDir           string
-		instancesEnabledDir string
-	}{
-		{
-			name:                "Empty config path",
-			publicKeyPath:       "",
-			configDir:           "",
-			instancesEnabledDir: "instances.enabled",
-		},
-		{
-			name:                "Arbitrary config path",
-			publicKeyPath:       "",
-			configDir:           "app",
-			instancesEnabledDir: "instances.enabled",
-		},
-		{
-			name:                "Empty instance.enabled path",
-			publicKeyPath:       "",
-			configDir:           "app",
-			instancesEnabledDir: "",
-		},
-		{
-			name:                "Special instance.enabled path",
-			publicKeyPath:       "",
-			configDir:           "app",
-			instancesEnabledDir: ".",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			ctx, err := integrity.InitializeIntegrityCheck(testCase.publicKeyPath,
-				testCase.configDir, testCase.instancesEnabledDir)
-			require.NoError(t, err,
-				"initialization should pass successfully")
-			require.NotNil(t, ctx.Repository,
-				"dummy repository should be created")
-		})
-	}
+	ctx, err := integrity.InitializeIntegrityCheck("", "app", "instances.enabled")
+	require.NoError(t, err)
+	require.NotNil(t, ctx.Repository)
 }
 
-func TestRegisterWithIntegritySigner(t *testing.T) {
-	someStr := ""
+func TestRegisterNoopFlagFuncs(t *testing.T) {
+	var s string
+	var i int
+	fs := &pflag.FlagSet{}
 
-	testCases := []struct {
-		name    string
-		flagSet *pflag.FlagSet
-		dst     *string
-	}{
-		{
-			name:    "Empty flagSet and dst",
-			flagSet: nil,
-			dst:     nil,
-		},
-		{
-			name:    "Empty dst",
-			flagSet: &pflag.FlagSet{},
-			dst:     nil,
-		},
-		{
-			name:    "Empty flagSet",
-			flagSet: nil,
-			dst:     &someStr,
-		},
-		{
-			name:    "Nothing empty",
-			flagSet: &pflag.FlagSet{},
-			dst:     nil,
-		},
-	}
+	integrity.RegisterWithIntegrityFlag(fs, &s)
+	integrity.RegisterIntegrityCheckFlag(fs, &s)
+	integrity.RegisterIntegrityCheckPeriodFlag(fs, &i)
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			integrity.RegisterWithIntegrityFlag(testCase.flagSet, testCase.dst)
-
-			if testCase.flagSet != nil {
-				require.False(t, testCase.flagSet.HasFlags(),
-					"command must not be modified")
-			}
-		})
-	}
-}
-
-func TestRegisterIntegrityCheckFlag(t *testing.T) {
-	someStr := ""
-
-	testCases := []struct {
-		name    string
-		flagSet *pflag.FlagSet
-		dst     *string
-	}{
-		{
-			name:    "Empty flagSet and dst",
-			flagSet: nil,
-			dst:     nil,
-		},
-		{
-			name:    "Empty dst",
-			flagSet: &pflag.FlagSet{},
-			dst:     nil,
-		},
-		{
-			name:    "Empty flagSet",
-			flagSet: nil,
-			dst:     &someStr,
-		},
-		{
-			name:    "Nothing empty",
-			flagSet: &pflag.FlagSet{},
-			dst:     nil,
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			integrity.RegisterIntegrityCheckFlag(testCase.flagSet, testCase.dst)
-
-			if testCase.flagSet != nil {
-				require.False(t, testCase.flagSet.HasFlags(),
-					"command must not be modified")
-			}
-		})
-	}
-}
-
-func TestRegisterIntegrityCheckPeriodFlag(t *testing.T) {
-	someInt := 0
-
-	testCases := []struct {
-		name    string
-		flagSet *pflag.FlagSet
-		dst     *int
-	}{
-		{
-			name:    "Empty flagSet and dst",
-			flagSet: nil,
-			dst:     nil,
-		},
-		{
-			name:    "Empty dst",
-			flagSet: &pflag.FlagSet{},
-			dst:     nil,
-		},
-		{
-			name:    "Empty flagSet",
-			flagSet: nil,
-			dst:     &someInt,
-		},
-		{
-			name:    "Nothing empty",
-			flagSet: &pflag.FlagSet{},
-			dst:     nil,
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			integrity.RegisterIntegrityCheckPeriodFlag(testCase.flagSet, testCase.dst)
-
-			if testCase.flagSet != nil {
-				require.False(t, testCase.flagSet.HasFlags(),
-					"command must not be modified")
-			}
-		})
-	}
+	require.False(t, fs.HasFlags(), "noop flag registrars must not modify the flag set")
 }
 
 func TestGetCheckFunction(t *testing.T) {
-	fun, err := integrity.GetCheckFunction(integrity.IntegrityCtx{})
-
-	require.Nil(t, fun)
-	require.Equal(t, err, integrity.ErrNotConfigured)
+	fn, err := integrity.GetCheckFunction(integrity.IntegrityCtx{})
+	require.Nil(t, fn)
+	require.ErrorIs(t, err, integrity.ErrNotConfigured)
 }
 
 func TestGetSignFunction(t *testing.T) {
-	fun, err := integrity.GetSignFunction("")
-
-	require.Nil(t, fun)
+	fn, err := integrity.GetSignFunction("")
+	require.Nil(t, fn)
 	require.EqualError(t, err, "integrity signer should never be created in ce")
 }

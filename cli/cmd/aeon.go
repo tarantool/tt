@@ -267,7 +267,7 @@ func readConfigFilePath(configPath, instance string) error {
 }
 
 func getConfigUri(cmdCtx *cmdcontext.CmdCtx, url, instanceName string) error {
-	factory, err := createCollectorFactory(cmdCtx.Integrity)
+	factory, err := cluster.NewCollectorFactory(cmdCtx.Integrity)
 	if err != nil {
 		return err
 	}

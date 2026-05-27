@@ -47,14 +47,20 @@ const (
 // DataPublisher as well as direct Get/Put/Watch/Close operations on individual
 // keys.
 type RawStorage struct {
-	close          func() error
 	storage        *integrity.Store[StorageDataType]
 	codec          *integrity.Codec[StorageDataType]
+	cleanup        func()
 	key            string
 	storageType    string
 	prefix         string
 	objectLocation string
 	timeout        time.Duration
+}
+
+// SetCleanup attaches a cleanup callback that Close will invoke. Used when the
+// caller wants Close to also release an underlying connection.
+func (r *RawStorage) SetCleanup(cleanup func()) {
+	r.cleanup = cleanup
 }
 
 // normalizeName normalizes a name by removing the prefix and object location from it.
@@ -108,13 +114,27 @@ func (r *RawStorage) sourceName(name string) string {
 	return result + "/" + name
 }
 
-// collectByRange collects kvs by prefix.
-func (r *RawStorage) collectByRange(ctx context.Context) ([]Data, error) {
+// withTimeout returns a context bounded by r.timeout (background context if 0).
+func (r *RawStorage) withTimeout() (context.Context, context.CancelFunc) {
+	if r.timeout == 0 {
+		return context.Background(), func() {}
+	}
+	return context.WithTimeout(context.Background(), r.timeout)
+}
+
+// Collect collects values from storage by prefix (if no key bound) or by key.
+func (r RawStorage) Collect() ([]Data, error) {
+	ctx, cancel := r.withTimeout()
+	defer cancel()
+
+	if r.key != "" {
+		return r.Get(ctx, r.key) //nolint:wrapcheck // Get already wraps.
+	}
+
 	kvs, err := r.storage.Range(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
 	}
-
 	if len(kvs) == 0 {
 		return nil, fmt.Errorf("a configuration data not found in %s for prefix %q",
 			r.storageType, r.prefix)
@@ -129,92 +149,10 @@ func (r *RawStorage) collectByRange(ctx context.Context) ([]Data, error) {
 			Revision: kv.ModRevision,
 		})
 	}
-
 	slices.SortFunc(data, func(a, b Data) int {
 		return cmp.Compare(a.Source, b.Source)
 	})
-
 	return data, nil
-}
-
-// collectByRange collects kvs by key.
-func (r *RawStorage) collectByKey(ctx context.Context, key string) ([]Data, error) {
-	resp, err := r.storage.Get(ctx, r.normalizeName(key))
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
-	}
-
-	data := make([]Data, 0, 1)
-
-	value, _ := resp.Value.Get()
-	data = append(data, Data{
-		Source:   r.sourceName(resp.Name),
-		Value:    value,
-		Revision: resp.ModRevision,
-	})
-
-	return data, nil
-}
-
-// Collect collects values from storage by prefix or key.
-func (r RawStorage) Collect() ([]Data, error) {
-	ctx := context.Background()
-
-	if r.timeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.Background(), r.timeout)
-		defer cancel()
-	}
-
-	switch r.key {
-	case "":
-		return r.collectByRange(ctx)
-	default:
-		return r.collectByKey(ctx, r.key)
-	}
-}
-
-// publishByKey put data by specific key.
-func (r *RawStorage) publishByKey(ctx context.Context, key string, data []byte, revision int64) error {
-	if data == nil {
-		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
-	}
-
-	var predicates []integrity.Predicate
-	if revision != 0 {
-		predicates = append(predicates, r.codec.VersionEqual(revision))
-	}
-
-	err := r.storage.Put(ctx, r.normalizeName(key), data, integrity.WithPutPredicates(predicates...))
-	if err != nil {
-		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
-	}
-
-	return nil
-}
-
-// publishByKey put data by prefix.
-func (r *RawStorage) publishByRange(ctx context.Context, targetKey string, data []byte, revision int64) error {
-	if data == nil {
-		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
-	}
-
-	if revision != 0 {
-		return fmt.Errorf("failed to publish data into %s: target revision %d is not supported",
-			r.storageType, revision)
-	}
-
-	err := r.storage.Delete(ctx, "/", integrity.WithPrefix())
-	if err != nil {
-		return fmt.Errorf("failed to clean data from %s: %w", r.storageType, err)
-	}
-
-	err = r.storage.Put(ctx, r.normalizeName(targetKey), data)
-	if err != nil {
-		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
-	}
-
-	return nil
 }
 
 // Publish publishes the configuration data into the storage.
@@ -222,35 +160,70 @@ func (r *RawStorage) publishByRange(ctx context.Context, targetKey string, data 
 // (deleting other keys under the prefix). Otherwise, it publishes to a
 // specific key.
 func (r RawStorage) Publish(revision int64, data []byte) error {
-	ctx := context.Background()
+	ctx, cancel := r.withTimeout()
+	defer cancel()
 
-	if r.timeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.Background(), r.timeout)
-		defer cancel()
+	if data == nil {
+		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
 	}
 
-	switch r.key {
-	case "":
-		return r.publishByRange(ctx, "all", data, revision)
-	default:
-		return r.publishByKey(ctx, r.key, data, revision)
+	if r.key != "" {
+		return r.put(ctx, r.key, data, revision) //nolint:wrapcheck // put already wraps.
 	}
+
+	if revision != 0 {
+		return fmt.Errorf("failed to publish data into %s: target revision %d is not supported",
+			r.storageType, revision)
+	}
+	if err := r.storage.Delete(ctx, "/", integrity.WithPrefix()); err != nil {
+		return fmt.Errorf("failed to clean data from %s: %w", r.storageType, err)
+	}
+	if err := r.storage.Put(ctx, r.normalizeName("all"), data); err != nil {
+		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
+	}
+	return nil
 }
 
-// Close closes a storage driver connection.
+// Close releases the underlying storage connection (if SetCleanup was called).
 func (r *RawStorage) Close() error {
-	return r.close()
+	if r.cleanup != nil {
+		r.cleanup()
+	}
+	return nil
 }
 
-// Get retrieves value for key.
+// Get retrieves the value for key.
 func (r *RawStorage) Get(ctx context.Context, key string) ([]Data, error) {
-	return r.collectByKey(ctx, key)
+	resp, err := r.storage.Get(ctx, r.normalizeName(key))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch data from %s: %w", r.storageType, err)
+	}
+	value, _ := resp.Value.Get()
+	return []Data{{
+		Source:   r.sourceName(resp.Name),
+		Value:    value,
+		Revision: resp.ModRevision,
+	}}, nil
 }
 
 // Put puts a key-value pair into config storage.
 func (r *RawStorage) Put(ctx context.Context, key, value string) error {
-	return r.publishByKey(ctx, key, []byte(value), 0)
+	return r.put(ctx, key, []byte(value), 0) //nolint:wrapcheck // put already wraps.
+}
+
+func (r *RawStorage) put(ctx context.Context, key string, data []byte, revision int64) error {
+	if data == nil {
+		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
+	}
+	var predicates []integrity.Predicate
+	if revision != 0 {
+		predicates = append(predicates, r.codec.VersionEqual(revision))
+	}
+	if err := r.storage.Put(ctx, r.normalizeName(key), data,
+		integrity.WithPutPredicates(predicates...)); err != nil {
+		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
+	}
+	return nil
 }
 
 // Watch watches on a key and return watched events through the returned channel.
@@ -275,35 +248,6 @@ func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, 
 	return ch, nil
 }
 
-// applyIntegrityBuilderOptions applies integrity options (hashers, signers,
-// signers/verifiers) to the integrity codec builder.
-func applyIntegrityBuilderOptions(
-	builder integrity.CodecBuilder[StorageDataType],
-	opts *IntegrityOptions,
-) integrity.CodecBuilder[StorageDataType] {
-	if opts == nil {
-		return builder
-	}
-
-	for _, h := range opts.Hashers {
-		builder = builder.WithHasher(h)
-	}
-
-	for _, sv := range opts.SignerVerifiers {
-		builder = builder.WithSignerVerifier(sv)
-	}
-
-	for _, signer := range opts.Signers {
-		builder = builder.WithSigner(signer)
-	}
-
-	for _, verifier := range opts.Verifiers {
-		builder = builder.WithVerifier(verifier)
-	}
-
-	return builder
-}
-
 // NewStorage returns a *RawStorage bound to the given backend.
 //
 // Most callers should use Factory.NewRemoteStorage, which fills objectLocation
@@ -323,12 +267,25 @@ func NewStorage(
 
 	codec := integrity.NewCodecBuilder[StorageDataType]().
 		WithMarshaller(marshaller.NewTypedBytesMarshaller())
-
 	if objectLocation != "" {
 		codec = codec.WithObjectLocation(objectLocation)
 	}
+	if integrityOpts != nil {
+		for _, h := range integrityOpts.Hashers {
+			codec = codec.WithHasher(h)
+		}
+		for _, sv := range integrityOpts.SignerVerifiers {
+			codec = codec.WithSignerVerifier(sv)
+		}
+		for _, signer := range integrityOpts.Signers {
+			codec = codec.WithSigner(signer)
+		}
+		for _, verifier := range integrityOpts.Verifiers {
+			codec = codec.WithVerifier(verifier)
+		}
+	}
 
-	codecBuild, err := applyIntegrityBuilderOptions(codec, integrityOpts).Build()
+	codecBuild, err := codec.Build()
 	if err != nil {
 		return nil, err
 	}
@@ -338,10 +295,8 @@ func NewStorage(
 		return nil, err
 	}
 
-	store := codecBuild.Bind(storage)
-
 	return &RawStorage{
-		storage:        store,
+		storage:        codecBuild.Bind(storage),
 		codec:          codecBuild,
 		key:            key,
 		storageType:    storageType,

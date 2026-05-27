@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
@@ -582,7 +583,7 @@ func internalReplicasetPromoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) e
 	}
 	defer ctx.Conn.Close()
 
-	collectors, publishers, err := createCollectorAndPublisherFactories(
+	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -616,7 +617,7 @@ func internalReplicasetDemoteModule(cmdCtx *cmdcontext.CmdCtx, args []string) er
 	}
 	defer ctx.Conn.Close()
 
-	collectors, publishers, err := createCollectorAndPublisherFactories(
+	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -664,7 +665,7 @@ func internalReplicasetExpelModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 	if ctx.IsInstanceConnect {
 		defer ctx.Conn.Close()
 	}
-	collectors, publishers, err := createCollectorAndPublisherFactories(
+	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -692,7 +693,7 @@ func internalReplicasetBootstrapVShardModule(cmdCtx *cmdcontext.CmdCtx, args []s
 	if ctx.IsInstanceConnect {
 		defer ctx.Conn.Close()
 	}
-	collectors, publishers, err := createCollectorAndPublisherFactories(
+	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -796,7 +797,7 @@ func internalReplicasetRolesAddModule(cmdCtx *cmdcontext.CmdCtx, args []string) 
 		ctx.InstName = replicasetInstanceName
 	}
 
-	collectors, publishers, err := createCollectorAndPublisherFactories(
+	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
@@ -842,7 +843,7 @@ func internalReplicasetRolesRemoveModule(cmdCtx *cmdcontext.CmdCtx, args []strin
 		ctx.InstName = replicasetInstanceName
 	}
 
-	collectors, publishers, err := createCollectorAndPublisherFactories(
+	collectors, publishers, err := cluster.NewCollectorAndPublisherFactories(
 		cmdCtx.Integrity, replicasetIntegrityPrivateKey)
 	if err != nil {
 		return err
