@@ -24,61 +24,62 @@ func isConfigExist(cmdCtx *cmdcontext.CmdCtx) bool {
 	return cmdCtx.Cli.ConfigPath != ""
 }
 
-// createDataCollectors creates data collectors factory based on the integrity context.
-func createDataCollectors(ctx integrity.IntegrityCtx) (libcluster.DataCollectorFactory, error) {
-	var collectors libcluster.DataCollectorFactory
+// createCollectorFactory creates a cluster Factory configured for collecting
+// data — integrity-aware (with verifiers) when the integrity context is set.
+func createCollectorFactory(ctx integrity.IntegrityCtx) (libcluster.Factory, error) {
 	hashers, verifiers, err := integrity.GetStorageVerifiers(ctx)
 	if errors.Is(err, integrity.ErrNotConfigured) {
-		collectors = libcluster.NewDataCollectorFactory()
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to create collectors with integrity check: %w", err)
-	} else {
-		collectors = libcluster.NewDataCollectorFactory(
-			libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
-				return cmdCtx.Integrity.Repository.Read(path)
-			}),
-			libcluster.WithIntegrity(libcluster.IntegrityOptions{
-				Hashers:   hashers,
-				Verifiers: verifiers,
-			}),
-		)
+		return libcluster.NewFactory(), nil
 	}
-	return collectors, nil
+	if err != nil {
+		return libcluster.Factory{},
+			fmt.Errorf("failed to create collectors with integrity check: %w", err)
+	}
+	return libcluster.NewFactory(
+		libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
+			return cmdCtx.Integrity.Repository.Read(path)
+		}),
+		libcluster.WithIntegrity(libcluster.IntegrityOptions{
+			Hashers:   hashers,
+			Verifiers: verifiers,
+		}),
+	), nil
 }
 
-// createDataPublishers creates data publishers factory based on the the private key.
-func createDataPublishers(privateKey string) (libcluster.DataPublisherFactory, error) {
-	var publishers libcluster.DataPublisherFactory
-	if privateKey != "" {
-		hashers, signerVerifiers, err := integrity.GetStorageSigners(privateKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create publishers with integrity: %w", err)
-		}
-		publishers = libcluster.NewDataPublisherFactory(
-			libcluster.WithIntegrity(libcluster.IntegrityOptions{
-				Hashers:         hashers,
-				SignerVerifiers: signerVerifiers,
-			}),
-		)
-	} else {
-		publishers = libcluster.NewDataPublisherFactory()
+// createPublisherFactory creates a cluster Factory configured for publishing
+// data — integrity-aware (with signer/verifiers) when a private key is set.
+func createPublisherFactory(privateKey string) (libcluster.Factory, error) {
+	if privateKey == "" {
+		return libcluster.NewFactory(), nil
 	}
-	return publishers, nil
+	hashers, signerVerifiers, err := integrity.GetStorageSigners(privateKey)
+	if err != nil {
+		return libcluster.Factory{},
+			fmt.Errorf("failed to create publishers with integrity: %w", err)
+	}
+	return libcluster.NewFactory(
+		libcluster.WithIntegrity(libcluster.IntegrityOptions{
+			Hashers:         hashers,
+			SignerVerifiers: signerVerifiers,
+		}),
+	), nil
 }
 
-// createDataCollectorsAndDataPublishers combines data collectors and publishers creating.
-func createDataCollectorsAndDataPublishers(ctx integrity.IntegrityCtx,
-	privateKey string,
-) (libcluster.DataCollectorFactory, libcluster.DataPublisherFactory, error) {
-	collectors, err := createDataCollectors(ctx)
+// createCollectorAndPublisherFactories returns separate collector- and
+// publisher-oriented factories. They differ only in integrity options:
+// collectors carry verifiers, publishers carry signer/verifiers.
+func createCollectorAndPublisherFactories(
+	ctx integrity.IntegrityCtx, privateKey string,
+) (libcluster.Factory, libcluster.Factory, error) {
+	collectors, err := createCollectorFactory(ctx)
 	if err != nil {
-		return nil, nil, err
+		return libcluster.Factory{}, libcluster.Factory{}, err
 	}
-	publishers, err := createDataPublishers(privateKey)
+	publishers, err := createPublisherFactory(privateKey)
 	if err != nil {
-		return nil, nil, err
+		return libcluster.Factory{}, libcluster.Factory{}, err
 	}
-	return collectors, publishers, err
+	return collectors, publishers, nil
 }
 
 func RunModuleFunc(internalModule modules.InternalFunc) func(*cobra.Command, []string) {

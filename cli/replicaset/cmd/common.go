@@ -30,8 +30,8 @@ type replicasetOrchestrator interface {
 func makeApplicationOrchestrator(
 	orchestratorType replicaset.Orchestrator,
 	runningCtx running.RunningCtx,
-	collectors libcluster.DataCollectorFactory,
-	publishers libcluster.DataPublisherFactory,
+	collectors libcluster.Factory,
+	publishers libcluster.Factory,
 	integ integrity.IntegrityCtx,
 ) (replicasetOrchestrator, error) {
 	var (

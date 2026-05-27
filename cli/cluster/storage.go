@@ -55,15 +55,15 @@ func cfgGetBool(cfg goconfig.Config, path string) (bool, error) {
 	return v, nil
 }
 
-// makeDataCollectorFactory creates a DataCollectorFactory that is optionally
-// integrity-aware based on integ.
-func makeDataCollectorFactory(integ integrity.IntegrityCtx) libcluster.DataCollectorFactory {
+// makeCollectorFactory creates a cluster Factory configured for collecting
+// data, optionally with integrity verifiers from integ.
+func makeCollectorFactory(integ integrity.IntegrityCtx) libcluster.Factory {
 	hashers, verifiers, err := integrity.GetStorageVerifiers(integ)
 	if err != nil {
 		// ErrNotConfigured or any other error — fall back to plain collectors.
-		return libcluster.NewDataCollectorFactory()
+		return libcluster.NewFactory()
 	}
-	return libcluster.NewDataCollectorFactory(
+	return libcluster.NewFactory(
 		libcluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
 			return integ.Repository.Read(path)
 		}),
@@ -113,7 +113,7 @@ func readStorageFromConfig(
 	cfg goconfig.Config,
 	integ integrity.IntegrityCtx,
 ) (goconfig.Config, func(), error) {
-	collectorFactory := makeDataCollectorFactory(integ)
+	collectorFactory := makeCollectorFactory(integ)
 
 	// Try etcd first.
 	etcdResult, cleanup, err := readEtcdEndpoints(ctx, cfg, collectorFactory)
@@ -142,7 +142,7 @@ func readStorageFromConfig(
 func readEtcdEndpoints(
 	ctx context.Context,
 	cfg goconfig.Config,
-	collectorFactory libcluster.DataCollectorFactory,
+	collectorFactory libcluster.Factory,
 ) (*goconfig.Config, func(), error) {
 	// Read endpoints list.
 	var rawEndpoints any
@@ -272,7 +272,7 @@ func readEtcdEndpoints(
 func readTcsEndpoints(
 	ctx context.Context,
 	cfg goconfig.Config,
-	collectorFactory libcluster.DataCollectorFactory,
+	collectorFactory libcluster.Factory,
 ) (*goconfig.Config, error) {
 	// Read endpoints list as []any (each element is a map[string]any).
 	var rawEndpoints any

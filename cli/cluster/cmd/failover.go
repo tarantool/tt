@@ -61,6 +61,47 @@ type SwitchStatusCtx struct {
 	TaskID string
 }
 
+// failoverStorage wraps a *RawStorage with the connection cleanup so callers
+// can `defer conn.Close()` and have both the storage handle and the underlying
+// connection released.
+type failoverStorage struct {
+	*libcluster.RawStorage
+	cleanup func()
+}
+
+// Close releases the underlying storage connection.
+func (s *failoverStorage) Close() error {
+	if err := s.RawStorage.Close(); err != nil {
+		s.cleanup()
+		return err
+	}
+	s.cleanup()
+	return nil
+}
+
+// connectFailoverStorage dials the config storage at uriOpts and returns a
+// RawStorage scoped to the configured prefix. Used by the failover commands
+// which talk to the storage directly via Get/Put/Watch.
+func connectFailoverStorage(uriOpts connect.UriOpts,
+	connOpts libcluster.ConnectOpts,
+) (*failoverStorage, error) {
+	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, uriOpts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to config storage: %w", err)
+	}
+
+	// Failover commands live in a sibling namespace to cluster config; bind the
+	// storage with an empty objectLocation so keys are not implicitly nested
+	// under "/config".
+	raw, err := libcluster.NewStorage(stor, uriOpts.Prefix, uriOpts.Timeout, "",
+		storageType, nil, "")
+	if err != nil {
+		cleanup()
+		return nil, fmt.Errorf("unable to bind %s storage: %w", storageType, err)
+	}
+	return &failoverStorage{RawStorage: raw, cleanup: cleanup}, nil
+}
+
 // Switch master instance.
 func Switch(url string, switchCtx SwitchCtx) error {
 	uriOpts, err := connect.CreateUriOpts(url)
@@ -72,9 +113,9 @@ func Switch(url string, switchCtx SwitchCtx) error {
 		Password: switchCtx.Password,
 	}
 
-	conn, err := libcluster.ConnectCStorage(uriOpts, connOpts)
+	conn, err := connectFailoverStorage(uriOpts, connOpts)
 	if err != nil {
-		return fmt.Errorf("unable to connect to config storage: %w", err)
+		return err
 	}
 	defer conn.Close()
 
@@ -151,9 +192,9 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
 	var connOpts libcluster.ConnectOpts
-	conn, err := libcluster.ConnectCStorage(uriOpts, connOpts)
+	conn, err := connectFailoverStorage(uriOpts, connOpts)
 	if err != nil {
-		return fmt.Errorf("unable to connect to config storage: %w", err)
+		return err
 	}
 	defer conn.Close()
 
