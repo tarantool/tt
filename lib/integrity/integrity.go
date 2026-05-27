@@ -1,6 +1,10 @@
 package integrity
 
 import (
+	"fmt"
+	"io"
+	"os"
+
 	"github.com/spf13/pflag"
 	gcrypto "github.com/tarantool/go-storage/crypto"
 	"github.com/tarantool/go-storage/hasher"
@@ -21,6 +25,18 @@ type Signer interface {
 	// Sign generates data to sign a package.
 	Sign(basePath string, appNames []string) error
 }
+
+// dummyRepository implements Repository with no checks performed.
+type dummyRepository struct{}
+
+func (dummyRepository) Read(path string) (io.ReadCloser, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %q: %w", path, err)
+	}
+	return f, nil
+}
+func (dummyRepository) ValidateAll() error                      { return nil }
 
 // NewSigner constructs a noop Signer.
 func NewSigner(path string) (Signer, error) {

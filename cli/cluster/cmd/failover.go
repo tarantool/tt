@@ -61,30 +61,13 @@ type SwitchStatusCtx struct {
 	TaskID string
 }
 
-// failoverStorage wraps a *RawStorage with the connection cleanup so callers
-// can `defer conn.Close()` and have both the storage handle and the underlying
-// connection released.
-type failoverStorage struct {
-	*libcluster.RawStorage
-	cleanup func()
-}
-
-// Close releases the underlying storage connection.
-func (s *failoverStorage) Close() error {
-	if err := s.RawStorage.Close(); err != nil {
-		s.cleanup()
-		return err
-	}
-	s.cleanup()
-	return nil
-}
-
 // connectFailoverStorage dials the config storage at uriOpts and returns a
 // RawStorage scoped to the configured prefix. Used by the failover commands
-// which talk to the storage directly via Get/Put/Watch.
+// which talk to the storage directly via Get/Put/Watch. Close on the returned
+// storage releases the underlying connection.
 func connectFailoverStorage(uriOpts connect.UriOpts,
 	connOpts libcluster.ConnectOpts,
-) (*failoverStorage, error) {
+) (*libcluster.RawStorage, error) {
 	stor, cleanup, storageType, err := libcluster.NewStorageConnection(connOpts, uriOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to config storage: %w", err)
@@ -99,7 +82,8 @@ func connectFailoverStorage(uriOpts connect.UriOpts,
 		cleanup()
 		return nil, fmt.Errorf("unable to bind %s storage: %w", storageType, err)
 	}
-	return &failoverStorage{RawStorage: raw, cleanup: cleanup}, nil
+	raw.SetCleanup(cleanup)
+	return raw, nil
 }
 
 // Switch master instance.
