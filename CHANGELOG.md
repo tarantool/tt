@@ -33,6 +33,8 @@ for machine-readable output.
 ### Fixed
 
 - `tt`: return non-zero exit code on unknown command.
+- `tt run`: report `tarantool executable is not found` instead of a raw
+  `open "": no such file or directory` error when Tarantool is missing.
 
 ## [2.11.5] - 2026-03-19
 
