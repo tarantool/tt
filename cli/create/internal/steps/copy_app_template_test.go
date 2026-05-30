@@ -147,14 +147,11 @@ func TestCopyEmbeddedFs(t *testing.T) {
 	tmpDir := t.TempDir()
 	templateFs, err := fs.Sub(templateTestFs, "testdata/copy_template/templates/basic")
 	require.NoError(t, err)
-	require.NoError(t, copyEmbedFs(templateFs, tmpDir, map[string]int{
-		"init.lua": 0o600,
-		"echo.sh":  0o755,
-	}))
+	require.NoError(t, copyEmbedFs(templateFs, tmpDir))
 	assert.FileExists(t, filepath.Join(tmpDir, "init.lua"))
 	assert.FileExists(t, filepath.Join(tmpDir, "subdir", "file.txt"))
 	assert.FileExists(t, filepath.Join(tmpDir, "echo.sh"))
 	stat, err := os.Stat(filepath.Join(tmpDir, "echo.sh"))
 	require.NoError(t, err)
-	assert.True(t, stat.Mode().Perm()&0o110 != 0)
+	assert.Equal(t, fs.FileMode(0o644), stat.Mode().Perm())
 }
