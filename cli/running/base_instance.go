@@ -152,7 +152,7 @@ func (inst *baseInstance) StopWithSignal(waitTimeout time.Duration, usedSignal o
 func (inst *baseInstance) Run(opts RunOpts) error {
 	f, err := inst.integrityCtx.Repository.Read(inst.tarantoolPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return errors.New("tarantool executable is not found")
 		}
 		return err
