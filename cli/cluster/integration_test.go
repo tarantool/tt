@@ -14,10 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	frameworkintegration "go.etcd.io/etcd/tests/v3/framework/integration"
-	"go.etcd.io/etcd/tests/v3/integration"
 
 	goconfig "github.com/tarantool/go-config"
+	etcdtest "github.com/tarantool/go-storage/test_helpers/etcd"
 	"github.com/tarantool/tt/cli/cluster"
 	"github.com/tarantool/tt/cli/templates"
 	"github.com/tarantool/tt/lib/integrity"
@@ -41,7 +40,7 @@ func doWithCtx(action func(context.Context) error) error {
 	return action(ctx)
 }
 
-func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
+func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 	t.Helper()
 
 	myDir, err := os.Getwd()
@@ -65,8 +64,8 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 			tls.KeyFile = keyPath
 		}
 	}
-	config := frameworkintegration.ClusterConfig{Size: 1, PeerTLS: tls, UseTCP: true}
-	inst := integration.NewLazyClusterWithConfig(config)
+	config := etcdtest.ClusterConfig{Size: 1, PeerTLS: tls}
+	inst := etcdtest.NewLazyCluster(config)
 
 	if opts.Username != "" {
 		etcd, err := clientv3.New(clientv3.Config{
