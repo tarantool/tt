@@ -1,0 +1,36 @@
+manifest_version = '0.1'
+
+[package]
+name = 'my-app'
+description = 'router service for Tarantool 3.x'
+license = 'Apache-2.0'
+authors = ['Alice <alice@example.com>']
+
+[platform]
+tarantool = '>=3.0.0,<4.0.0[ce]'
+tt = '>=3.1.0'
+platforms = ['linux-amd64', 'linux-arm64']
+
+[dependencies]
+[dependencies.luasocket]
+source = 'registry'
+version = '>=3.0.0,<4.0.0'
+
+[components]
+[components.lua]
+path = '.'
+include = ['*.lua', 'lib/*.lua']
+
+[components.native]
+path = 'native/'
+namespace = ''
+
+[components.native.build]
+backend = 'lua-c'
+module = 'fast_hash'
+sources = ['fast_hash.c']
+
+[products]
+[products.default]
+components = ['lua', 'native']
+default = true

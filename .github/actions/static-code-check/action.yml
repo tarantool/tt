@@ -35,7 +35,9 @@ runs:
     - name: pre-commit checks (diff)
       uses: pre-commit/action@v3.0.1
       env:
-        SKIP: golangci-lint-full
+        # golangci-lint-strict scans whole packages (not diff-based), so run it
+        # once in the "full" step below instead of here.
+        SKIP: golangci-lint-full,golangci-lint-strict
       with:
         extra_args: --all-files --from-ref=${{ env.BASE_BRANCH }} --to-ref=HEAD --hook-stage=manual
 
