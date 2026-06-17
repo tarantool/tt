@@ -115,6 +115,21 @@ repos:
         additional_dependencies:
           - github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
 
+      - id: golangci-lint-strict
+        language: golang
+        types: [go]
+        name: "Go: strict lint (migrated packages)"
+        description: |
+          Strict `default: all` ruleset, scoped by `.golangci.yml` to packages
+          that have been fully cleaned up (currently `cli/manifest`). Adopt it
+          for more code by widening the `path-except` rule in `.golangci.yml`.
+        pass_filenames: false
+        always_run: true
+        stages: [manual]
+        entry: golangci-lint run --config=.golangci.yml --allow-parallel-runners
+        additional_dependencies:
+          - github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.2
     hooks:

@@ -23,6 +23,7 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/nxadm/tail v1.4.11
 	github.com/otiai10/copy v1.14.1
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1

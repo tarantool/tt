@@ -1,0 +1,100 @@
+version: "2"
+
+# NOTE: this config is intentionally scoped to the freshly written code only.
+# The `cli/manifest` exclusion below limits all linters to that package so the
+# strict ruleset can be adopted incrementally instead of flooding the whole tt
+# tree with findings. Drop the `path-except` rule to lint everything.
+#
+# The project-wide lint still runs from `golangci-lint.yml` (see magefile.go);
+# this `.golangci.yml` is what a bare `golangci-lint run` picks up.
+
+run:
+  timeout: 3m
+  build-tags:
+    - go_tarantool_ssl_disable
+    - tt_ssl_disable
+
+formatters:
+  enable:
+    - goimports
+
+issues:
+  # Disable limits on the number of printed issues
+  max-issues-per-linter: 0 # 0 = no limit
+  max-same-issues: 0 # 0 = no limit
+
+linters:
+  default: all
+
+  disable:
+    - dupl # Dupl is disabled, since we're generating a lot of boilerplate code.
+    - cyclop # Cyclop is disabled, since cyclomatic complexities is very abstract metric,
+      # that sometimes lead to strange linter behaviour.
+    - wsl # WSL is disabled, since it's obsolete. Using WSL_v5.
+    - nlreturn # nlreturn is disabled, since it's duplicated by wsl_v5.return check.
+    - ireturn # ireturn is disabled, since it's not needed.
+    - godox # godox is disabled to allow TODO comments for unimplemented functionality.
+    - gocognit # gocognit is disabled, cognitive complexity is too restrictive.
+    - funlen # funlen is disabled, function length limits are too restrictive.
+    - maintidx # maintidx is disabled, purpose of this metric is unknown.
+
+  exclusions:
+    generated: lax
+    rules:
+      # Scope linting to the freshly written code only. An issue is excluded
+      # when its path is NOT under cli/manifest/.
+      - path-except: (^|/)cli/manifest/
+        text: ".*"
+      - path: _test.go
+        linters:
+          - wrapcheck
+          - err113
+          - funlen
+
+  settings:
+    varnamelen:
+      ignore-names:
+        - tt
+        - ok
+        - tb
+      ignore-decls:
+        - t T
+    revive:
+      rules:
+        - name: var-naming
+          arguments:
+            - []
+            - []
+            - - skip-package-name-checks: true
+
+    exhaustive:
+      # A switch with a default clause is treated as exhaustive.
+      default-signifies-exhaustive: true
+    godot:
+      scope: all
+    lll:
+      line-length: 100
+      tab-width: 4
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
+      case-max-lines: 0
+      default: all
+    depguard:
+      rules:
+        main:
+          files:
+            - "$all"
+            - "!$test"
+          allow:
+            - $gostd
+            - "github.com/pelletier/go-toml/v2"
+        test:
+          files:
+            - "$test"
+          allow:
+            - $gostd
+            - "github.com/pelletier/go-toml/v2"
+            - "github.com/stretchr/testify"
+            - "github.com/tarantool/tt/cli/manifest"
