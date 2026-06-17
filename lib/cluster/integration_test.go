@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/client/pkg/v3/transport"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	frameworkintegration "go.etcd.io/etcd/tests/v3/framework/integration"
-	"go.etcd.io/etcd/tests/v3/integration"
 	"gopkg.in/yaml.v3"
 
 	pkgstorage "github.com/tarantool/go-storage"
@@ -21,6 +19,7 @@ import (
 	etcddriver "github.com/tarantool/go-storage/driver/etcd"
 	tcsdriver "github.com/tarantool/go-storage/driver/tcs"
 	"github.com/tarantool/go-storage/hasher"
+	etcdtest "github.com/tarantool/go-storage/test_helpers/etcd"
 	"github.com/tarantool/go-tarantool/v2"
 	"github.com/tarantool/go-tarantool/v2/test_helpers"
 	tcs_helper "github.com/tarantool/go-tarantool/v2/test_helpers/tcs"
@@ -70,7 +69,7 @@ func doWithCtx(action func(context.Context) error) error {
 	return action(ctx)
 }
 
-func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
+func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 	t.Helper()
 
 	myDir, err := os.Getwd()
@@ -94,8 +93,8 @@ func startEtcd(t *testing.T, opts etcdOpts) integration.LazyCluster {
 			tls.KeyFile = keyPath
 		}
 	}
-	config := frameworkintegration.ClusterConfig{Size: 1, PeerTLS: tls, UseTCP: true}
-	inst := integration.NewLazyClusterWithConfig(config)
+	config := etcdtest.ClusterConfig{Size: 1, PeerTLS: tls}
+	inst := etcdtest.NewLazyCluster(config)
 
 	if opts.Username != "" {
 		etcd, err := clientv3.New(clientv3.Config{
@@ -589,7 +588,7 @@ var testsIntegrity = []struct {
 			return inst
 		},
 		Shutdown: func(t *testing.T, inst interface{}) {
-			inst.(integration.LazyCluster).Terminate()
+			inst.(*etcdtest.LazyCluster).Terminate()
 		},
 		NewPublisher: func(
 			t *testing.T,
@@ -601,7 +600,7 @@ var testsIntegrity = []struct {
 			publisherFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
-			etcdInst := inst.(integration.LazyCluster)
+			etcdInst := inst.(*etcdtest.LazyCluster)
 
 			etcd, err := clientv3.New(clientv3.Config{
 				Endpoints:   etcdInst.EndpointsGRPC(),
@@ -625,7 +624,7 @@ var testsIntegrity = []struct {
 			collectorFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
-			etcdInst := inst.(integration.LazyCluster)
+			etcdInst := inst.(*etcdtest.LazyCluster)
 
 			etcd, err := clientv3.New(clientv3.Config{
 				Endpoints:   etcdInst.EndpointsGRPC(),
