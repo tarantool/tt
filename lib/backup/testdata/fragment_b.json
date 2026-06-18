@@ -1,0 +1,18 @@
+{
+  "replicaset_uuid": "22222222-2222-2222-2222-222222222222",
+  "instance_uuid": "bbbbbbbb-0000-0000-0000-000000000001",
+  "instance_name": "storage-001",
+  "hostname": "tarantool-node-03.prod.example.com",
+  "type": "full",
+  "vclock_begin": {"3": 800, "4": 110},
+  "vclock_end": {"3": 801, "4": 110},
+  "files": [
+    "00000000000000000800.snap",
+    "00000000000000000800.xlog"
+  ],
+  "checksum_sha256": "d7a8fbb307d7809469d49b82694fae5700000000000000000000000000000000",
+  "recovery_points": [
+    {"uuid": "550e8400-e29b-41d4-a716-446655440000", "replica_id": 3, "lsn": 800, "timestamp": 1741780501},
+    {"uuid": "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "replica_id": 3, "lsn": 801, "timestamp": 1741780781}
+  ]
+}

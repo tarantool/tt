@@ -1,0 +1,14 @@
+{
+  "replicaset_uuid": "11111111-1111-1111-1111-111111111111",
+  "instance_uuid": "aaaaaaaa-0000-0000-0000-000000000001",
+  "instance_name": "router-001",
+  "hostname": "tarantool-node-01.prod.example.com",
+  "type": "full",
+  "vclock_begin": {"0": 12, "1": 1500},
+  "vclock_end": {"0": 12, "1": 1502},
+  "files": [
+    "00000000000000001500.snap",
+    "00000000000000001500.xlog"
+  ],
+  "checksum_sha256": "e3b0c44298fc1c149afbf4c8996fb92400000000000000000000000000000000"
+}
