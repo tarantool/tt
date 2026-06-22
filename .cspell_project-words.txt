@@ -21,6 +21,7 @@ demoter
 disbalance
 distfile*
 drwxr
+dxflrs
 equalf
 errf
 etcd*
@@ -30,6 +31,7 @@ falsef
 finalizer*
 flightrec
 getfixturevalue
+GKTTBACKUPTEST
 golangci
 heywoodlh
 iconfig
