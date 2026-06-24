@@ -60,6 +60,10 @@ runs:
           key: ${{ matrix.sdk-version }}
 
       - name: Download Tarantool SDK
+        # Only download on a cache miss: the SDK is already restored from cache
+        # otherwise, and an unconditional re-download fails the whole job when
+        # download.tarantool.io is unavailable even though a good cache exists.
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
         run: |
           ARCHIVE_NAME=tarantool-enterprise-sdk-${{ inputs.sdk-gc }}-${{ inputs.sdk-version }}.tar.gz
           ARCHIVE_PATH=$(echo ${{ inputs.sdk-version }} | sed -rn \
