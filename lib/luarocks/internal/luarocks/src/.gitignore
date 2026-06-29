@@ -1,0 +1,21 @@
+/config.*
+/src/luarocks/core/hardcoded.lua
+/testrun/*
+/lua_install
+# Stuff that pops up during development but shouldn't be in the repo (helps clean up `git status`)
+/build
+/build-binary
+/*.rock
+/*.tar.gz
+/*.zip
+/src/*.*
+/prefix-*
+/dev_*
+/gh-pages
+/wiki
+/lua
+/lua_modules
+/luarocks
+/luarocks-admin
+/.luarocks
+/.luacheckcache

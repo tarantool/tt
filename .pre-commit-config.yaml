@@ -66,7 +66,7 @@ repos:
         types: [go]
         name: "Go: formatting sources"
         stages: [pre-commit, manual]
-        exclude: \.pb\.go$
+        exclude: (\.pb\.go$|^lib/luarocks/)
         entry: bash -c "GOFUMPT_SPLIT_LONG_LINES=on gofumpt $@"
         args: [-e, -w, -extra]
         additional_dependencies:
@@ -78,7 +78,7 @@ repos:
       - id: golines
         name: "Go: shorten long lines"
         stages: [pre-commit, manual]
-        exclude: \.pb\.go$
+        exclude: (\.pb\.go$|^lib/luarocks/)
         args: [--max-len=100, --tab-len=4, --no-reformat-tags]
 
   - repo: https://github.com/golangci/golangci-lint

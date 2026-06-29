@@ -1,0 +1,84 @@
+name: test
+
+on:
+  push:
+    branches: main
+  pull_request:
+    branches: '*'
+
+jobs:
+  ##############################################################################
+  ShellLint:
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - uses: actions/checkout@master
+
+    - name: Prep
+      run: |
+        sudo apt-get install -y shellcheck
+
+    - name: Shellcheck
+      run: |
+        shellcheck ./configure
+
+  ##############################################################################
+  TestMatrix:
+    strategy:
+      matrix:
+        lua-version: ["5.4", "luajit-2.1"]
+        os: ["ubuntu-latest", "macos-13"]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@master
+
+    - uses: hishamhm/gh-actions-lua@master
+      with:
+        luaVersion: ${{ matrix.lua-version }}
+
+    - uses: leafo/gh-actions-luarocks@v4.0.0
+
+    - name: Prep
+      run: |
+        luarocks install busted
+        luarocks install cluacov
+        luarocks install busted-htest
+
+    - name: Unit Test
+      run: |
+        eval $(luarocks path)
+        busted -o htest --exclude-tags=git,integration --verbose -Xhelper "lua_dir=$(luarocks config variables.LUA_DIR),ci"
+        busted -o htest --exclude-tags=git,integration --verbose -Xhelper "lua_dir=$(luarocks config variables.LUA_DIR),ci,env=full"
+
+    - name: Integration Test
+      run: |
+        eval $(luarocks path)
+        busted -o htest --exclude-tags=ssh,gpg,git,unit --verbose -Xhelper "lua_dir=$(luarocks config variables.LUA_DIR),ci"
+        busted -o htest --exclude-tags=ssh,gpg,git,unit --verbose -Xhelper "lua_dir=$(luarocks config variables.LUA_DIR),ci,env=full"
+
+    - name: Coverage
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        eval $(luarocks path)
+        luacov -c testrun/luacov.config
+        curl -Os https://uploader.codecov.io/latest/$([ `uname -s` = "Linux" ] && echo "linux" || echo "macos")/codecov
+        chmod +x codecov
+        ( cd testrun/ && ../codecov )
+        grep "Summary" -B1 -A1000 testrun/luacov.report.out
+
+  ##############################################################################
+  SmokeTest:
+    runs-on: "ubuntu-latest"
+    steps:
+    - uses: actions/checkout@master
+
+    - uses: hishamhm/gh-actions-lua@master
+      with:
+        luaVersion: "5.4"
+
+    - name: Smoke Test
+      run: |
+        ./configure
+        ./makedist dev
+        ./smoke_test.sh luarocks-dev.tar.gz
