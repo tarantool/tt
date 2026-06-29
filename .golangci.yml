@@ -93,6 +93,7 @@ linters:
             # cli/manifest/version derives SemVer with go-version so its
             # pre-release ordering matches the dependency resolver.
             - "github.com/hashicorp/go-version"
+            - "github.com/tarantool/tt/lib/luarocks"
         test:
           files:
             - "$test"
@@ -102,3 +103,4 @@ linters:
             - "github.com/hashicorp/go-version"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/cli/manifest"
+            - "github.com/tarantool/tt/lib/luarocks"
