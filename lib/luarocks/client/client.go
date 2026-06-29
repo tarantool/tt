@@ -183,6 +183,26 @@ func New(cfg rocks.Config, opts ...Option) (*Rocks, error) {
 	return r, nil
 }
 
+// Exec runs an arbitrary LuaRocks command line — argv is everything after
+// `luarocks` — through the embedded upstream dispatcher, letting LuaRocks print
+// its own output to the process stdout/stderr verbatim. It is the escape hatch
+// tt's `tt rocks` is built on; programmatic callers should prefer the typed
+// methods (Install, Search, …), which capture and shape their output.
+//
+// progname is the program name LuaRocks prints in its usage/help text (e.g.
+// "tt rocks"); use the library's default progname otherwise.
+//
+// Exec requires BackendLua: the native engine cannot run the full CLI, so on
+// any other backend Exec returns rocks.ErrNotImplemented.
+func (r *Rocks) Exec(ctx context.Context, progname string, argv []string) error {
+	le, ok := r.engine.(*luaEngine)
+	if !ok {
+		return rocks.ErrNotImplemented
+	}
+
+	return le.callRaw(progname, argv)
+}
+
 // ReadTreeManifest is the method-style convenience for
 // manif.FileStore.ReadTree against r.cfg.Tree. It returns the top-level
 // manifest the tree currently advertises (composes the store).
