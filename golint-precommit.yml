@@ -94,6 +94,9 @@ linters:
       - builtin$
       - examples$
       - magefile.go
+      # Vendored go-luarocks sources: part of the tt module but not held to
+      # tt's lint rules for now.
+      - lib/luarocks
 
 formatters:
   exclusions:
