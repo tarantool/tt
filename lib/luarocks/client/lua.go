@@ -568,20 +568,7 @@ func (e *luaEngine) callViaState(argv []string) (string, error) {
 	restore := e.redirectIO(&stdout, &stderr)
 	defer restore()
 
-	var dispatch string
-	if len(argv) == 0 {
-		dispatch = "t=require('extra.wrapper').exec('go-luarocks')"
-	} else {
-		quoted := make([]string, len(argv))
-		for i, arg := range argv {
-			quoted[i] = "'" + strings.ReplaceAll(arg, "'", `\'`) + "'"
-		}
-
-		dispatch = fmt.Sprintf("t=require('extra.wrapper').exec('go-luarocks', %s)",
-			strings.Join(quoted, ", "))
-	}
-
-	doErr := e.lstate.DoString(dispatch)
+	doErr := e.lstate.DoString(dispatchString("go-luarocks", argv))
 
 	// Drain whatever the command printed into the logger before interpreting
 	// the result, so even a failing command's diagnostics reach the caller.
@@ -606,6 +593,68 @@ func (e *luaEngine) callViaState(argv []string) (string, error) {
 	}
 
 	return out, doErr
+}
+
+// dispatchString builds the Lua one-liner that invokes extra/wrapper.lua's
+// exec() with the given program name and the single-quote-escaped argv. It is
+// shared by callViaState (capturing, with the default progname) and callRaw
+// (passthrough, caller-supplied progname so `tt rocks` can show its own usage).
+func dispatchString(progname string, argv []string) string {
+	parts := make([]string, 0, len(argv)+1)
+	parts = append(parts, quoteLua(progname))
+
+	for _, arg := range argv {
+		parts = append(parts, quoteLua(arg))
+	}
+
+	return fmt.Sprintf("t=require('extra.wrapper').exec(%s)", strings.Join(parts, ", "))
+}
+
+// quoteLua wraps s in single quotes, escaping embedded single quotes, for
+// embedding in the dispatch string.
+func quoteLua(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `\'`) + "'"
+}
+
+// callRaw dispatches argv through extra/wrapper.lua's exec() WITHOUT capturing
+// io.stdout/io.stderr, so LuaRocks writes straight to the process's stdout and
+// stderr. It backs the public Rocks.Exec escape hatch (tt's `tt rocks`), which
+// must reproduce upstream's terminal output verbatim; the capturing
+// callViaState exists for programmatic methods that parse the output.
+//
+
+// progname is the program name LuaRocks prints in its own usage/help, letting
+// the caller (e.g. tt) show "tt rocks" instead of the default progname.
+//
+// Like callViaState it serializes on e.mu and lazily boots on first use.
+// Exit-code handling matches callViaState: os.exit(0) and a clean return
+// are success, any other code is surfaced as an error.
+func (e *luaEngine) callRaw(progname string, argv []string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.bootOnce.Do(func() {
+		e.bootErr = e.boot()
+	})
+
+	if e.bootErr != nil {
+		return e.bootErr
+	}
+
+	doErr := e.lstate.DoString(dispatchString(progname, argv))
+	if doErr == nil {
+		return nil
+	}
+
+	if code, ok := parseOsExit(doErr.Error()); ok {
+		if code == 0 {
+			return nil
+		}
+
+		return fmt.Errorf("luaEngine: %v exited with code %d", argv, code)
+	}
+
+	return doErr
 }
 
 // redirectIO points the VM's io.stdout and io.stderr at the supplied Go

@@ -1,8 +1,3 @@
-[submodule "third_party/luarocks"]
-	path = cli/rocks/third_party/luarocks
-	url = https://github.com/tarantool/luarocks.git
-	branch = luarocks-3.9.2-tarantool
-	ignore = dirty
 [submodule "cli/aeon/protos"]
 	path = cli/aeon/protos
 	url = https://github.com/tarantool/aeon-api-protos.git
