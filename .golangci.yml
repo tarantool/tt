@@ -90,11 +90,15 @@ linters:
           allow:
             - $gostd
             - "github.com/pelletier/go-toml/v2"
+            # cli/manifest/version derives SemVer with go-version so its
+            # pre-release ordering matches the dependency resolver.
+            - "github.com/hashicorp/go-version"
         test:
           files:
             - "$test"
           allow:
             - $gostd
             - "github.com/pelletier/go-toml/v2"
+            - "github.com/hashicorp/go-version"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/cli/manifest"
