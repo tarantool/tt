@@ -13,6 +13,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.8.0
 	github.com/jedib0t/go-pretty/v6 v6.7.8
+	github.com/klauspost/compress v1.18.4
 	github.com/magefile/mage v1.15.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mattn/go-isatty v0.0.20
@@ -97,7 +98,6 @@ require (
 	github.com/hpcloud/tail v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
-	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.20 // indirect
