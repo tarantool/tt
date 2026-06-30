@@ -5,6 +5,12 @@ allow:
   - "BSD-2-Clause"
   - "MPL-2.0"
   - "CC-BY-SA-4.0"
+  # ISC: a permissive, OSI/FSF-approved license equivalent to MIT / 2-clause
+  # BSD. It has no copyleft — the only obligation is to preserve the copyright
+  # notice, and it imposes nothing on our own code. It enters the tree via
+  # go-git's transitive dependency github.com/emirpasic/gods, which ships a few
+  # ISC-licensed files alongside its BSD-2-Clause code.
+  - "ISC"
 override:
   - path: "github.com/robfig/config"
     licenses: ["MPL-2.0"]
