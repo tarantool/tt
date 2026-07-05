@@ -414,6 +414,18 @@ func getShortcutsFunc(console *Console, cmd string, args []string) (string, erro
 	return shortcutListText, nil
 }
 
+// getHistoryFunc returns last {maxHistorySize} executed commands
+func getHistoryFunc(console *Console, _ string, _ []string) (string, error) {
+	if len(console.history.commands) == 0 {
+		return "", nil
+	}
+	outputData := console.history.commands
+	if len(console.history.commands) > maxHistorySize {
+		outputData = outputData[len(outputData)-maxHistorySize:]
+	}
+	return strings.Join(outputData, "\n-----\n"), nil
+}
+
 // setQuitFunc sets the quit flag for the console.
 func setQuitFunc(console *Console, cmd string, arg []string) (string, error) {
 	console.quit = true
@@ -556,6 +568,13 @@ var cmdInfos = []cmdInfo{
 		Long:  "show available hotkeys and shortcuts",
 		Cmd: newNoArgsCmdDecorator(
 			newBaseCmd([]string{getShortcutsList}, getShortcutsFunc),
+		),
+	},
+	{
+		Short: getHistoryList,
+		Long:  "show history of executed commands",
+		Cmd: newNoArgsCmdDecorator(
+			newBaseCmd([]string{getHistoryList}, getHistoryFunc),
 		),
 	},
 	// The Tarantool console has `\quit` command, but it requires execute

@@ -55,6 +55,9 @@ var setQuit = []string{"\\quit", "\\q"}
 // getShortcutsList is a command to get shortcuts and a list of hotkeys.
 const getShortcutsList = "\\shortcuts"
 
+// getHistoryList is a command to get history of executed commands.
+const getHistoryList = "\\history"
+
 // getHelpCmd is a command to get a help message.
 var getHelp = []string{"\\help", "?"}
 
@@ -82,3 +85,6 @@ const shortcutListText = `---
        Alt + B                     -- Move backwards one word
        Alt + F                     -- Move forwards one word
 ...`
+
+// maximal count of commands to output in \history command.
+const maxHistorySize = 10
