@@ -18,6 +18,9 @@ type ConnectOpts struct {
 	Password string
 	// Ssl options for a connection.
 	Ssl SslOpts
+	// MaxOutputHistoryLen is the maximal count of commands to output in
+	// the \history command.
+	MaxOutputHistoryLen int
 }
 
 // SslOpts is a way to configure SSL connection.

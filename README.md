@@ -295,6 +295,7 @@ env:
   bin_dir: path/to/bin_dir
   inc_dir: path/to/inc_dir
   restart_on_failure: bool
+  output_history_max: 15
 app:
   run_dir: path/to/run_dir
   log_dir: path/to/log_dir
@@ -317,6 +318,8 @@ templates:
 - `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
 - `restart_on_failure` (bool) - should it restart on failure.
+- `output_history_max` (int) - the maximum number of commands output
+    by the "\history" command. Default value is 10
 
 `tt binary install`, `search`, `list`, `switch`, and `uninstall` for `tt`, `tarantool`,
 `tarantool-ee`, `tt-ee`, `tcm`, and `tarantool-sdk` use `--scope project` (the default),

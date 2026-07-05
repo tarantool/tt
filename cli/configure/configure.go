@@ -100,9 +100,10 @@ func getDefaultAppOpts() *config.AppOpts {
 // getDefaultAppOpts generates default app config.
 func getDefaultTtEnvOpts() *config.TtEnvOpts {
 	return &config.TtEnvOpts{
-		Restartable: false,
-		BinDir:      BinPath,
-		IncludeDir:  IncludePath,
+		Restartable:      false,
+		BinDir:           BinPath,
+		IncludeDir:       IncludePath,
+		OutputHistoryMax: 0,
 	}
 }
 
