@@ -71,6 +71,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   which case the work directory is left as it was. A `restore_state.json`
   marker is written next to the work directory for the orchestrator to
   compare across the restored nodes before the cluster is started.
+- `tt connect`: add `\history` command to display the last executed
+  commands in the interactive console.
 
 ### Changed
 
