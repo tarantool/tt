@@ -99,6 +99,7 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
   restart_on_failure: false
+  output_history_max: 0
 app:
   run_dir: var/run
   log_dir: var/log
@@ -133,6 +134,7 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/include
   restart_on_failure: false
+  output_history_max: 0
 app:
   run_dir: var/run
   log_dir: var/log
@@ -165,6 +167,7 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/include
   restart_on_failure: false
+  output_history_max: 0
 app:
   run_dir: var/run
   log_dir: var/log
@@ -198,6 +201,7 @@ env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
   restart_on_failure: false
+  output_history_max: 0
 app:
   run_dir: var/run
   log_dir: var/log

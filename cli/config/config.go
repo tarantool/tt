@@ -50,6 +50,9 @@ type TtEnvOpts struct {
 	// Restartable - if set the instance is started under the watchdog it should
 	// restart on if it crashes.
 	Restartable bool `mapstructure:"restart_on_failure" yaml:"restart_on_failure"`
+	// The maximum number of commands output by the "\history" command.
+	// Default value is 10.
+	OutputHistoryMax int `mapstructure:"output_history_max" yaml:"output_history_max"`
 }
 
 // TemplateOpts contains configuration for applications templates.

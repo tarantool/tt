@@ -225,6 +225,8 @@ for machine-readable output.
 - `--log-format text|json`: a global flag that selects the format of the log
   tt writes to stderr. `json` prints one JSON object per record, with `time`,
   `level` and `msg` keys.
+- `tt connect`: add `\history` command to display the last executed
+  commands in the interactive console.
 
 ### Changed
 

@@ -132,12 +132,21 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 	}
 
 	return connector.ConnectOpts{
-		Network:  network,
-		Address:  address,
-		Username: connCtx.Username,
-		Password: connCtx.Password,
-		Ssl:      ssl,
+		Network:             network,
+		Address:             address,
+		Username:            connCtx.Username,
+		Password:            connCtx.Password,
+		Ssl:                 ssl,
+		MaxOutputHistoryLen: 0,
 	}
+}
+
+func getMaxHistoryOutputLen(cliOpts *config.CliOpts) int {
+	if cliOpts.Env == nil || cliOpts.Env.OutputHistoryMax <= 0 {
+		return connect.DefaultOutputHistorySize
+	}
+
+	return cliOpts.Env.OutputHistoryMax
 }
 
 // resolveConnectOpts tries to resolve target argument to replace it
@@ -212,6 +221,8 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	if connectCtx.ConnectTarget == "" {
 		connectCtx.ConnectTarget = target
 	}
+
+	connOpts.MaxOutputHistoryLen = getMaxHistoryOutputLen(cliOpts)
 
 	return connOpts, err
 }
