@@ -17,69 +17,88 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-const (
-	snapSuffix = ".snap"
-	xlogSuffix = ".xlog"
-)
-
 // Entry is a single record inside an archive.
 type Entry struct {
 	Name string
 	Size int64
+	// Body streams the entry's content. It is backed by the shared archive
+	// reader and is only valid until the next iteration step: fully consume it
+	// before continuing the range loop. Do not retain it or read it after the
+	// loop advances — it will then point at another entry or a closed reader.
 	Body io.Reader
 }
 
 // Pack packs files into dst as a flat .tar.zst archive.
-func Pack(dst string, files []string, level int) error {
+func Pack(dst string, files []string, level int) (err error) {
 	ordered := slices.Clone(files)
 	sortWalFiles(ordered)
+	if err := checkUniqueBaseNames(ordered); err != nil {
+		return err
+	}
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return fmt.Errorf("failed to create archive %q: %w", dst, err)
 	}
-	defer out.Close()
+	// Remove the half-written archive on any failure so a caller never mistakes
+	// a structurally valid but incomplete backup for a good one.
+	defer func() {
+		if err != nil {
+			out.Close()
+			_ = os.Remove(dst)
+		}
+	}()
 
 	zw, err := zstd.NewWriter(out, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
 	if err != nil {
 		return fmt.Errorf("failed to create zstd writer: %w", err)
 	}
-	defer zw.Close()
 
 	tw := tar.NewWriter(zw)
-	defer tw.Close()
 
 	for _, file := range ordered {
-		if err := writeFile(tw, file); err != nil {
+		if err = writeFile(tw, file); err != nil {
 			return fmt.Errorf("failed to pack %q: %w", file, err)
 		}
 	}
 
 	// Close explicitly so flushing errors are reported.
-	if err := tw.Close(); err != nil {
+	if err = tw.Close(); err != nil {
 		return fmt.Errorf("failed to finalize tar stream: %w", err)
 	}
-	if err := zw.Close(); err != nil {
+	if err = zw.Close(); err != nil {
 		return fmt.Errorf("failed to finalize zstd stream: %w", err)
 	}
-	if err := out.Close(); err != nil {
+	if err = out.Close(); err != nil {
 		return fmt.Errorf("failed to close archive %q: %w", dst, err)
 	}
 	return nil
 }
 
-// sortWalFiles orders .snap before .xlog, then lexicographically by base name.
-func sortWalFiles(files []string) {
-	hasExt := func(f, s string) bool {
-		return strings.HasSuffix(f, s) && len(f) > len(s)
+// checkUniqueBaseNames rejects inputs that flatten to the same archive entry
+// name. Pack stores files under their base name only, so two inputs from
+// different directories sharing a base name would collide and Unpack would
+// silently overwrite one with the other — unrecoverable data loss in a backup.
+func checkUniqueBaseNames(files []string) error {
+	seen := make(map[string]string, len(files))
+	for _, f := range files {
+		base := filepath.Base(f)
+		if prev, ok := seen[base]; ok {
+			return fmt.Errorf("duplicate base name %q (from %q and %q)", base, prev, f)
+		}
+		seen[base] = f
 	}
+	return nil
+}
+
+// sortWalFiles orders files by LSN, i.e. by base name. Tarantool snap/xlog
+// names are fixed-width zero-padded LSNs, so lexicographic order equals numeric
+// LSN order: a snapshot and the WAL that continues it interleave correctly
+// (e.g. snap N, xlog N, xlog N+…, snap M, xlog M), and a snap and xlog sharing
+// an LSN order snap-before-xlog for free because ".snap" < ".xlog". This is a
+// valid total order; non-wal files (e.g. the manifest fragment) sort by name.
+func sortWalFiles(files []string) {
 	slices.SortFunc(files, func(left, right string) int {
-		if hasExt(left, snapSuffix) && hasExt(right, xlogSuffix) {
-			return -1
-		}
-		if hasExt(left, xlogSuffix) && hasExt(right, snapSuffix) {
-			return 1
-		}
 		return strings.Compare(filepath.Base(left), filepath.Base(right))
 	})
 }
@@ -115,21 +134,46 @@ func writeFile(tw *tar.Writer, path string) error {
 	return nil
 }
 
-// Unpack extracts the .tar.zst archive src into destDir.
-func Unpack(src, destDir string) error {
+// ensureLocal rejects archive entry names that would escape the extraction
+// directory (path traversal / "zip slip"): absolute paths, names containing a
+// ".." component, and (on Windows) reserved names. Pack only ever stores base
+// names, but Unpack/Entries decode arbitrary, possibly hostile archives.
+func ensureLocal(name string) error {
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("unsafe archive entry name %q", name)
+	}
+	return nil
+}
+
+// openArchive opens src and returns a tar reader over its zstd-decompressed
+// contents plus a close function that releases the zstd reader and the file.
+func openArchive(src string) (*tar.Reader, func() error, error) {
 	in, err := os.Open(src)
 	if err != nil {
-		return fmt.Errorf("failed to open archive %q: %w", src, err)
+		return nil, nil, fmt.Errorf("failed to open archive %q: %w", src, err)
 	}
-	defer in.Close()
 
 	zr, err := zstd.NewReader(in)
 	if err != nil {
-		return fmt.Errorf("failed to create zstd reader: %w", err)
+		in.Close()
+		return nil, nil, fmt.Errorf("failed to create zstd reader: %w", err)
 	}
-	defer zr.Close()
 
-	tr := tar.NewReader(zr)
+	closeArchive := func() error {
+		zr.Close()
+		return in.Close()
+	}
+	return tar.NewReader(zr), closeArchive, nil
+}
+
+// Unpack extracts the .tar.zst archive src into destDir.
+func Unpack(src, destDir string) error {
+	tr, closeArchive, err := openArchive(src)
+	if err != nil {
+		return err
+	}
+	defer closeArchive()
+
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -155,6 +199,10 @@ func Unpack(src, destDir string) error {
 
 // extractFile writes one tar entry into destDir, creating parent dirs.
 func extractFile(tr *tar.Reader, header *tar.Header, destDir string) error {
+	if err := ensureLocal(header.Name); err != nil {
+		return err
+	}
+
 	target := filepath.Join(destDir, header.Name)
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -181,21 +229,13 @@ func extractFile(tr *tar.Reader, header *tar.Header, destDir string) error {
 // Entries iterates over the archive src yielding one Entry at a time.
 func Entries(src string) iter.Seq2[Entry, error] {
 	return func(yield func(Entry, error) bool) {
-		in, err := os.Open(src)
+		tr, closeArchive, err := openArchive(src)
 		if err != nil {
-			yield(Entry{}, fmt.Errorf("failed to open archive %q: %w", src, err))
+			yield(Entry{}, err)
 			return
 		}
-		defer in.Close()
+		defer closeArchive()
 
-		zr, err := zstd.NewReader(in)
-		if err != nil {
-			yield(Entry{}, fmt.Errorf("failed to create zstd reader: %w", err))
-			return
-		}
-		defer zr.Close()
-
-		tr := tar.NewReader(zr)
 		for {
 			header, err := tr.Next()
 			if err == io.EOF {
@@ -208,6 +248,11 @@ func Entries(src string) iter.Seq2[Entry, error] {
 
 			if header.Typeflag != tar.TypeReg {
 				continue
+			}
+
+			if err := ensureLocal(header.Name); err != nil {
+				yield(Entry{}, err)
+				return
 			}
 
 			entry := Entry{

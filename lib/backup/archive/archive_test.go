@@ -125,11 +125,133 @@ func TestPackMissingFile(t *testing.T) {
 	archivePath := filepath.Join(t.TempDir(), "backup.tar.zst")
 	err := Pack(archivePath, []string{filepath.Join(t.TempDir(), "nope.snap")}, 3)
 	assert.Error(t, err)
+
+	// A failed pack must not leave a partial archive behind; a leftover valid
+	// but incomplete .tar.zst could be silently restored with missing data.
+	_, statErr := os.Stat(archivePath)
+	assert.True(t, os.IsNotExist(statErr), "partial archive must be removed on error")
 }
 
-func TestPackOrdersSnapBeforeXlog(t *testing.T) {
+func TestPackRejectsDuplicateBaseNames(t *testing.T) {
 	dir := t.TempDir()
-	// Out of order: xlogs first, snaps later, unsorted within a type.
+	a := filepath.Join(dir, "a")
+	b := filepath.Join(dir, "b")
+	require.NoError(t, os.MkdirAll(a, 0o755))
+	require.NoError(t, os.MkdirAll(b, 0o755))
+	// Same base name in two different directories would flatten to one entry.
+	p1 := writeFixture(t, a, "00000000000000000001.snap", []byte("x"))
+	p2 := writeFixture(t, b, "00000000000000000001.snap", []byte("y"))
+
+	archivePath := filepath.Join(t.TempDir(), "backup.tar.zst")
+	err := Pack(archivePath, []string{p1, p2}, 3)
+	assert.Error(t, err)
+
+	_, statErr := os.Stat(archivePath)
+	assert.True(t, os.IsNotExist(statErr), "archive must not be created on collision")
+}
+
+func TestSortWalFilesOrdersByLSN(t *testing.T) {
+	// A multi-snapshot backup must be ordered by LSN, not all-snaps-then-all-
+	// xlogs: an older WAL (xlog 150) has to precede a newer snapshot (snap 200).
+	// A "snaps first" ordering would emit snap 200 before xlog 100/150, which a
+	// linear restore-apply would replay in the wrong order. Same-LSN snap and
+	// xlog order snap-before-xlog naturally (".snap" < ".xlog").
+	files := []string{
+		"/a/00000000000000000200.xlog",
+		"/b/00000000000000000100.snap",
+		"/c/00000000000000000200.snap",
+		"/d/00000000000000000100.xlog",
+		"/e/00000000000000000150.xlog",
+	}
+	sortWalFiles(files)
+	want := []string{
+		"/b/00000000000000000100.snap",
+		"/d/00000000000000000100.xlog",
+		"/e/00000000000000000150.xlog",
+		"/c/00000000000000000200.snap",
+		"/a/00000000000000000200.xlog",
+	}
+	assert.Equal(t, want, files)
+}
+
+func TestPackOrdersNonWalFileLast(t *testing.T) {
+	dir := t.TempDir()
+	// End-to-end: a non-wal file must land after every snap/xlog regardless of
+	// its base name and of the input order.
+	paths := []string{
+		writeFixture(t, dir, "00000000000000000002.xlog", []byte("b")),
+		writeFixture(t, dir, "0000_manifest.json", []byte("m")),
+		writeFixture(t, dir, "00000000000000000001.snap", []byte("a")),
+	}
+
+	archivePath := filepath.Join(t.TempDir(), "backup.tar.zst")
+	require.NoError(t, Pack(archivePath, paths, 3))
+
+	want := []string{
+		"00000000000000000001.snap",
+		"00000000000000000002.xlog",
+		"0000_manifest.json",
+	}
+	assert.Equal(t, want, readArchiveNames(t, archivePath))
+}
+
+// writeMaliciousArchive builds a .tar.zst with a single regular entry whose
+// stored name is exactly entryName (no base-name flattening), for exercising
+// the extraction path-traversal guard.
+func writeMaliciousArchive(t *testing.T, path, entryName string, content []byte) {
+	t.Helper()
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+
+	zw, err := zstd.NewWriter(f)
+	require.NoError(t, err)
+	tw := tar.NewWriter(zw)
+
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Name:     entryName,
+		Mode:     0o644,
+		Size:     int64(len(content)),
+		Typeflag: tar.TypeReg,
+	}))
+	_, err = tw.Write(content)
+	require.NoError(t, err)
+
+	require.NoError(t, tw.Close())
+	require.NoError(t, zw.Close())
+	require.NoError(t, f.Close())
+}
+
+func TestUnpackRejectsTraversal(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "evil.tar.zst")
+	writeMaliciousArchive(t, archivePath, "../escape.snap", []byte("pwn"))
+
+	destDir := t.TempDir()
+	err := Unpack(archivePath, destDir)
+	assert.Error(t, err, "traversal entry must be rejected")
+
+	// Nothing must be written outside destDir.
+	_, statErr := os.Stat(filepath.Join(filepath.Dir(destDir), "escape.snap"))
+	assert.True(t, os.IsNotExist(statErr), "no file may be written outside destDir")
+}
+
+func TestEntriesRejectsTraversal(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "evil.tar.zst")
+	writeMaliciousArchive(t, archivePath, "../../escape.snap", []byte("pwn"))
+
+	var gotErr error
+	for _, err := range Entries(archivePath) {
+		if err != nil {
+			gotErr = err
+		}
+	}
+	assert.Error(t, gotErr, "traversal entry must surface an error")
+}
+
+func TestPackOrdersByLSN(t *testing.T) {
+	dir := t.TempDir()
+	// Shuffled input across LSNs; snaps and xlogs must interleave by LSN, not
+	// group all snaps before all xlogs (snap 3 must follow xlog 2, not precede).
 	paths := []string{
 		writeFixture(t, dir, "00000000000000000005.xlog", []byte("e")),
 		writeFixture(t, dir, "00000000000000000002.xlog", []byte("b")),
@@ -142,8 +264,8 @@ func TestPackOrdersSnapBeforeXlog(t *testing.T) {
 
 	want := []string{
 		"00000000000000000001.snap",
-		"00000000000000000003.snap",
 		"00000000000000000002.xlog",
+		"00000000000000000003.snap",
 		"00000000000000000005.xlog",
 	}
 	assert.Equal(t, want, readArchiveNames(t, archivePath))
