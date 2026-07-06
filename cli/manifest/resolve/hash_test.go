@@ -84,6 +84,34 @@ func TestContentHashSkipsSymlinks(t *testing.T) {
 	assert.Equal(t, before, after)
 }
 
+// TestContentHashFollowsSymlinkedRoot checks that a path dependency vendored as
+// a symlink to a directory hashes its actual contents - not the empty tree - so
+// two distinct symlinked modules do not collide and edits stay visible to
+// staleness. Symlinks *inside* the tree remain skipped (see the test above).
+func TestContentHashFollowsSymlinkedRoot(t *testing.T) {
+	t.Parallel()
+
+	realDir := t.TempDir()
+	initLua := filepath.Join(realDir, "init.lua")
+	require.NoError(t, os.WriteFile(initLua, []byte("return {}\n"), 0o600))
+
+	realHash, err := contentHash(realDir)
+	require.NoError(t, err)
+
+	// A symlinked root must hash the same contents as the real directory.
+	link := filepath.Join(t.TempDir(), "mymod")
+	require.NoError(t, os.Symlink(realDir, link))
+
+	linkHash, err := contentHash(link)
+	require.NoError(t, err)
+	assert.Equal(t, realHash, linkHash)
+
+	// And it must not be the empty-tree hash a non-descended symlink would yield.
+	empty, err := contentHash(t.TempDir())
+	require.NoError(t, err)
+	assert.NotEqual(t, empty, linkHash)
+}
+
 // TestContentHashTracksExecutableBit checks that flipping a file's executable
 // bit changes the hash, so a path dependency's build script going +x is not
 // invisible to the lock and staleness.

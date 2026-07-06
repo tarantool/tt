@@ -94,8 +94,12 @@ func (e *Engine) Resolve(
 
 	var warnings []string
 
+	// One cache for the whole run: products that share a dependency resolve,
+	// fetch and hash it once, not once per product.
+	cache := newResolveCache()
+
 	for _, name := range sortedKeys(man.Products) {
-		dependencies, warns, err := e.resolveProduct(ctx, man, man.Products[name])
+		dependencies, warns, err := e.resolveProduct(ctx, cache, man, man.Products[name])
 		if err != nil {
 			return nil, nil, fmt.Errorf("resolving product %q: %w", name, err)
 		}
@@ -110,15 +114,22 @@ func (e *Engine) Resolve(
 // resolveProduct assembles a product's effective direct dependencies and walks
 // them into a pinned, topologically ordered closure.
 func (e *Engine) resolveProduct(
-	ctx context.Context, man *manifest.Manifest, product manifest.Product,
+	ctx context.Context, cache *resolveCache, man *manifest.Manifest, product manifest.Product,
 ) ([]manifest.LockDependency, []string, error) {
 	directs, err := effectiveDeps(man, product)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	directsByName := make(map[string]depReq, len(directs))
+	for _, direct := range directs {
+		directsByName[direct.name] = direct
+	}
+
 	walk := &walker{
 		engine:   e,
+		cache:    cache,
+		directs:  directsByName,
 		chosen:   map[string]*resolvedDep{},
 		inFlight: map[string]bool{},
 		order:    nil,

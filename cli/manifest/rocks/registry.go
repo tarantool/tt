@@ -110,18 +110,35 @@ func (a *Adapter) Download(
 // findRockspec returns the single top-level *.rockspec in dir. It does not
 // recurse: a bare .rockspec download is one top-level file, and a .src.rock
 // carries its rockspec at the archive root, while the bundled source tree may
-// ship unrelated rockspecs deeper down.
+// ship unrelated rockspecs deeper down. More than one top-level rockspec is
+// ambiguous - which version to pin is undecidable - so it is an error rather
+// than a silent alphabetical pick, matching client.findRockspecIn and upstream
+// luarocks make.
 func findRockspec(dir string) (string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return "", fmt.Errorf("rocks: read %s: %w", dir, err)
 	}
 
+	found := ""
+
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".rockspec") {
-			return filepath.Join(dir, entry.Name()), nil
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".rockspec") {
+			continue
 		}
+
+		path := filepath.Join(dir, entry.Name())
+		if found != "" {
+			return "", fmt.Errorf("rocks: %w in %s: %s and %s",
+				errMultipleRockspec, dir, filepath.Base(found), entry.Name())
+		}
+
+		found = path
 	}
 
-	return "", fmt.Errorf("rocks: %w: %s", errNoRockspec, dir)
+	if found == "" {
+		return "", fmt.Errorf("rocks: %w: %s", errNoRockspec, dir)
+	}
+
+	return found, nil
 }

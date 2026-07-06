@@ -22,16 +22,26 @@ func (e *Engine) IsStale(man *manifest.Manifest, lock *manifest.Lock) (bool, str
 		return true, "manifest changed since the lock was written", nil
 	}
 
+	// A path dependency shared by several products is hashed once, not once per
+	// product referencing it.
+	hashes := map[string]string{}
+
 	for _, product := range sortedKeys(lock.Products) {
 		for _, dependency := range lock.Products[product].Dependencies {
 			if dependency.Source != manifestSourcePath {
 				continue
 			}
 
-			hash, err := contentHash(filepath.Join(e.projectDir, dependency.Path))
-			if err != nil {
-				return false, "", fmt.Errorf(
-					"checking path dependency %q: %w", dependency.Name, err)
+			hash, cached := hashes[dependency.Path]
+			if !cached {
+				computed, err := contentHash(filepath.Join(e.projectDir, dependency.Path))
+				if err != nil {
+					return false, "", fmt.Errorf(
+						"checking path dependency %q: %w", dependency.Name, err)
+				}
+
+				hash = computed
+				hashes[dependency.Path] = computed
 			}
 
 			if hash != dependency.ContentHash {

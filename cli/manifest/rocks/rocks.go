@@ -41,6 +41,9 @@ var (
 	ErrNoMatch = errors.New("no version satisfies the constraints")
 	// errNoRockspec reports that a fetched rock artifact carries no rockspec.
 	errNoRockspec = errors.New("no rockspec in fetched artifact")
+	// errMultipleRockspec reports that a directory ships more than one top-level
+	// rockspec, so which version to pin is ambiguous.
+	errMultipleRockspec = errors.New("multiple top-level rockspecs")
 )
 
 // DefaultServers returns the ordered default server list: Tarantool rocks
