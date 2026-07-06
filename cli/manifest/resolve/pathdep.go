@@ -3,15 +3,14 @@ package resolve
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/tarantool/tt/cli/manifest"
-	"github.com/tarantool/tt/cli/manifest/rocks"
 	luarocks "github.com/tarantool/tt/lib/luarocks"
 	"github.com/tarantool/tt/lib/luarocks/deps"
 )
@@ -20,16 +19,16 @@ import (
 // if the directory ships a rockspec, reads the version and transitive
 // dependencies from it. A path dependency is pinned by path and content hash
 // rather than by registry version and checksum.
-func (e *Engine) resolvePath(req depReq) (*resolvedDep, []depReq, error) {
-	dir := filepath.Join(e.projectDir, req.path)
+func (w *walker) resolvePath(req depReq) (*resolvedDep, []depReq, error) {
+	dir := filepath.Join(w.engine.projectDir, req.path)
 
-	hash, hashErr := contentHash(dir)
+	hash, hashErr := w.cache.dirContentHash(dir)
 	if hashErr != nil {
 		return nil, nil, fmt.Errorf("hashing path dependency %q: %w", req.name, hashErr)
 	}
 
-	spec, metaErr := e.adapter.LocalMetadata(dir)
-	if metaErr != nil && !errors.Is(metaErr, rocks.ErrNoLocalRockspec) {
+	spec, metaErr := w.cache.localMetadata(w.engine.adapter, dir)
+	if metaErr != nil {
 		return nil, nil, fmt.Errorf("local metadata for %q: %w", req.name, metaErr)
 	}
 
@@ -39,9 +38,19 @@ func (e *Engine) resolvePath(req depReq) (*resolvedDep, []depReq, error) {
 	)
 
 	if spec != nil {
-		// Best-effort: a malformed version leaves the pin's parsed form zero,
-		// which only matters if another branch constrains this same name.
-		version, _ = deps.ParseVersion(spec.Version)
+		parsed, parseErr := deps.ParseVersion(spec.Version)
+		if parseErr != nil {
+			// Non-fatal: the pin still holds by content hash, and a path
+			// dependency satisfies any constraint by fiat (see walker.walk), so a
+			// zero version cannot force a false conflict. Surface it as a warning
+			// rather than discarding it silently.
+			w.warnings = append(w.warnings, fmt.Sprintf(
+				"path dependency %q has an unparseable version %q; pinned by content hash only",
+				req.name, spec.Version))
+		} else {
+			version = parsed
+		}
+
 		children = transitiveReqs(spec.Dependencies)
 	}
 
@@ -70,12 +79,20 @@ type fileEntry struct {
 // contentHash is the SHA-256 of a directory's contents, tagged "sha256:". It
 // walks every regular file, sorts them by slash-normalized relative path for a
 // platform-stable order, and frames each path, its executable bit and its byte
-// length before the content so distinct trees cannot collide. Non-regular
-// entries (symlinks, devices) are skipped rather than followed, so a symlink to
-// a directory does not abort the hash. Directory structure without files does
-// not contribute.
+// length before the content so distinct trees cannot collide. Symlinks
+// discovered *inside* the tree are skipped rather than followed, so a symlink to
+// a directory does not abort the hash; a symlinked *root* is resolved first so a
+// module vendored as a symlink still hashes its contents. Directory structure
+// without files does not contribute.
 func contentHash(dir string) (string, error) {
-	files, walkErr := walkFiles(dir)
+	// Resolve a symlinked root so its contents are walked (WalkDir does not
+	// descend a symlink). Symlinks *within* the tree are still skipped below.
+	root, symErr := filepath.EvalSymlinks(dir)
+	if symErr != nil {
+		return "", fmt.Errorf("resolving %s: %w", dir, symErr)
+	}
+
+	files, walkErr := walkFiles(root)
 	if walkErr != nil {
 		return "", walkErr
 	}
@@ -85,18 +102,42 @@ func contentHash(dir string) (string, error) {
 	hasher := sha256.New()
 
 	for _, file := range files {
-		//nolint:gosec // engine-owned project path, not user-controlled input
-		content, readErr := os.ReadFile(filepath.Join(dir, filepath.FromSlash(file.rel)))
-		if readErr != nil {
-			return "", fmt.Errorf("reading %s: %w", file.rel, readErr)
+		hashErr := hashFile(hasher, root, file)
+		if hashErr != nil {
+			return "", hashErr
 		}
-
-		_, _ = fmt.Fprintf(hasher, "%s\x00%d\x00%d\x00",
-			file.rel, boolToInt(file.exec), len(content))
-		_, _ = hasher.Write(content)
 	}
 
 	return "sha256:" + hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// hashFile frames one file's relative path, executable bit and byte length into
+// hasher, then streams its content, so a large file is not read whole into
+// memory. The size prefix is the delimiter that keeps distinct trees from
+// colliding; it is read from the open handle so it matches the bytes streamed.
+func hashFile(hasher io.Writer, root string, file fileEntry) error {
+	//nolint:gosec // engine-owned project path, not user-controlled input
+	handle, openErr := os.Open(filepath.Join(root, filepath.FromSlash(file.rel)))
+	if openErr != nil {
+		return fmt.Errorf("opening %s: %w", file.rel, openErr)
+	}
+
+	defer func() { _ = handle.Close() }()
+
+	info, statErr := handle.Stat()
+	if statErr != nil {
+		return fmt.Errorf("stat %s: %w", file.rel, statErr)
+	}
+
+	_, _ = fmt.Fprintf(hasher, "%s\x00%d\x00%d\x00",
+		file.rel, boolToInt(file.exec), info.Size())
+
+	_, copyErr := io.Copy(hasher, handle)
+	if copyErr != nil {
+		return fmt.Errorf("reading %s: %w", file.rel, copyErr)
+	}
+
+	return nil
 }
 
 // walkFiles collects every regular file under dir as a fileEntry.

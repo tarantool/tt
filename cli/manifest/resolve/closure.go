@@ -54,7 +54,15 @@ type resolvedDep struct {
 // drives the adapter per chosen rock - one rockspec fetch each, honoring
 // per-dependency registry overrides - instead of preloading every candidate.
 type walker struct {
-	engine   *Engine
+	engine *Engine
+	cache  *resolveCache
+	// directs indexes the product's direct declarations by name. A direct
+	// declaration is authoritative for a dependency's identity (source, path,
+	// registry): if the same name is also reached transitively - possibly first,
+	// since the walk order is name-sorted - the transitive edge must not silently
+	// resolve it from the default registry or drop its path source. See
+	// authoritative.
+	directs  map[string]depReq
 	chosen   map[string]*resolvedDep
 	inFlight map[string]bool
 	order    []string // post-order: deepest dependency first
@@ -71,6 +79,13 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 			return fmt.Errorf("resolving dependencies: %w", ctxErr)
 		}
 
+		// A transitive edge naming a directly-declared dependency defers to that
+		// declaration's identity (its path source or registry override), so the
+		// override holds no matter which branch reaches the rock first.
+		if parent != "" {
+			req = w.authoritative(req)
+		}
+
 		if deps.IsProvided(req.name) {
 			continue
 		}
@@ -81,7 +96,12 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 
 		existing, chosen := w.chosen[req.name]
 		if chosen {
-			if !deps.Match(existing.version, req.constraints) {
+			// A path-sourced pick is an explicit local override (like a Go
+			// replace or a Cargo path dependency): it satisfies any transitive
+			// version constraint by fiat, so it is never a version conflict - and
+			// its version may be unknown (a leaf directory shipping no rockspec).
+			if existing.lockDep.Source != manifestSourcePath &&
+				!deps.Match(existing.version, req.constraints) {
 				return &conflictError{
 					detail: fmt.Sprintf("chose %s %s but %s requires %s",
 						req.name, existing.version.Raw, parentLabel(parent), constraintLabel(req)),
@@ -114,36 +134,51 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 	return nil
 }
 
+// authoritative rewrites a transitive requirement so a directly-declared
+// dependency keeps its declared identity. A direct declaration that carries a
+// path source or a registry override wins over the default-registry identity a
+// transitive edge would otherwise impose; the transitive version constraint is
+// AND'd onto the direct declaration's so the pick still satisfies the requiring
+// rock. Transitive names the manifest does not declare directly, and direct
+// declarations with no override, are returned unchanged.
+func (w *walker) authoritative(req depReq) depReq {
+	direct, declared := w.directs[req.name]
+	if !declared || (direct.source != manifestSourcePath && direct.registry == "") {
+		return req
+	}
+
+	req.source = direct.source
+	req.path = direct.path
+	req.registry = direct.registry
+	req.constraints = append(
+		append([]luarocks.VersionConstraint{}, direct.constraints...), req.constraints...)
+	req.constraintExpr = joinConstraints(direct.constraintExpr, req.constraintExpr)
+
+	return req
+}
+
 // resolveOne resolves a single requirement into its lock entry and the
 // transitive requirements it introduces.
 func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []depReq, error) {
 	if req.source == manifestSourcePath {
-		return w.engine.resolvePath(req)
+		return w.resolvePath(req)
 	}
 
-	resolved, err := w.engine.adapter.Resolve(ctx, req.name, req.constraintExpr, req.registry)
+	resolved, err := w.cache.resolveRock(
+		ctx, w.engine.adapter, req.name, req.constraintExpr, req.registry)
 	if err != nil {
-		// A multiply-declared direct dependency with no satisfying version is a
-		// conflict between its declarations, not a plain missing version.
-		if req.multiDeclared && errors.Is(err, rocks.ErrNoMatch) {
-			return nil, nil, &conflictError{
-				detail: fmt.Sprintf(
-					"global and per-component declarations of %q require incompatible versions",
-					req.name),
-				chain: nil,
-			}
-		}
-
 		return nil, nil, fmt.Errorf("resolving %q: %w", req.name, err)
 	}
 
-	spec, err := w.engine.adapter.Metadata(ctx, resolved)
+	spec, err := w.cache.rockMetadata(ctx, w.engine.adapter, resolved)
 	if err != nil {
 		return nil, nil, fmt.Errorf("metadata for %q: %w", req.name, err)
 	}
 
 	checksum, ok := rocks.Checksum(spec)
-	if !ok {
+	if !ok && w.cache.markNoMD5(resolved.URL) {
+		// Emit once per run: resolveOne re-runs per product (the walker is
+		// per-product), but the shared cache dedups the warning across them.
 		w.warnings = append(w.warnings, fmt.Sprintf(
 			"registry gave no md5 for %s %s; reproducibility is not guaranteed",
 			resolved.Name, resolved.Version.Raw))
@@ -221,6 +256,20 @@ func effectiveDeps(man *manifest.Manifest, product manifest.Product) ([]depReq, 
 		constraints, parseErr := deps.ParseConstraints(req.constraintExpr)
 		if parseErr != nil {
 			return nil, fmt.Errorf("dependency %q: %w", name, parseErr)
+		}
+
+		// A dependency declared in more than one place whose merged constraints
+		// cannot be jointly satisfied is a declaration conflict, caught here
+		// before any registry is queried (so it fires even when the rock is not
+		// published at all).
+		multiRegistry := req.multiDeclared && req.source == manifestSourceRegistry
+		if multiRegistry && !satisfiable(constraints) {
+			return nil, &conflictError{
+				detail: fmt.Sprintf(
+					"global and per-component declarations of %q disagree on version (%s)",
+					name, req.constraintExpr),
+				chain: nil,
+			}
 		}
 
 		req.constraints = constraints

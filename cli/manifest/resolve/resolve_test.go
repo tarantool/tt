@@ -17,19 +17,60 @@ import (
 
 // fakeAdapter is an in-memory registry standing in for cli/manifest/rocks so
 // the resolution engine can be exercised without a live server. It mirrors the
-// adapter's newest-that-fits selection and ErrNotFound / ErrNoMatch contract.
+// adapter's newest-that-fits selection and ErrNotFound / ErrNoMatch contract,
+// routes by registry override, serves path-dependency rockspecs, and counts
+// calls so tests can assert cross-product caching.
 type fakeAdapter struct {
-	registry map[string][]*luarocks.Rockspec
+	servers   map[string][]*luarocks.Rockspec            // Default server candidates.
+	scoped    map[string]map[string][]*luarocks.Rockspec // Registry -> name -> candidates.
+	specs     map[string]*luarocks.Rockspec              // Artifact URL -> rockspec.
+	local     map[string]*luarocks.Rockspec              // Path-dep dir -> rockspec.
+	resolves  map[string]int                             // adapter.Resolve calls by name.
+	metadatas map[string]int                             // adapter.Metadata calls by name.
 }
 
 func newFakeAdapter() *fakeAdapter {
-	return &fakeAdapter{registry: map[string][]*luarocks.Rockspec{}}
+	return &fakeAdapter{
+		servers:   map[string][]*luarocks.Rockspec{},
+		scoped:    map[string]map[string][]*luarocks.Rockspec{},
+		specs:     map[string]*luarocks.Rockspec{},
+		local:     map[string]*luarocks.Rockspec{},
+		resolves:  map[string]int{},
+		metadatas: map[string]int{},
+	}
+}
+
+// urlFor builds an artifact URL that, like a real registry, is server-specific:
+// the same name and version on different registries yield different URLs.
+func urlFor(registry, name, version string) string {
+	if registry == "" {
+		return name + "-" + version
+	}
+
+	return registry + "|" + name + "-" + version
+}
+
+func newSpec(name, version, md5 string, rockDeps []luarocks.Dep) *luarocks.Rockspec {
+	spec := new(luarocks.Rockspec)
+
+	spec.Package = name
+	spec.Version = version
+	spec.Source.MD5 = md5
+	spec.Dependencies = rockDeps
+
+	return spec
 }
 
 func (fake *fakeAdapter) Resolve(
-	_ context.Context, name, constraintExpr, _ string,
+	_ context.Context, name, constraintExpr, registry string,
 ) (rocks.ResolvedRock, error) {
-	candidates := fake.registry[name]
+	fake.resolves[name]++
+
+	candidates := fake.servers[name]
+	if registry != "" {
+		candidates = fake.scoped[registry][name]
+	}
+
 	if len(candidates) == 0 {
 		return rocks.ResolvedRock{}, rocks.ErrNotFound
 	}
@@ -64,39 +105,69 @@ func (fake *fakeAdapter) Resolve(
 		return rocks.ResolvedRock{}, rocks.ErrNoMatch
 	}
 
-	return rocks.ResolvedRock{Name: name, Version: bestVer, URL: name + "-" + best.Version}, nil
+	url := urlFor(registry, name, best.Version)
+
+	return rocks.ResolvedRock{Name: name, Version: bestVer, URL: url}, nil
 }
 
 func (fake *fakeAdapter) Metadata(
 	_ context.Context, rock rocks.ResolvedRock,
 ) (*luarocks.Rockspec, error) {
-	for _, candidate := range fake.registry[rock.Name] {
-		if candidate.Version == rock.Version.Raw {
-			return candidate, nil
-		}
+	fake.metadatas[rock.Name]++
+
+	spec, ok := fake.specs[rock.URL]
+	if !ok {
+		return nil, fmt.Errorf("fake: no metadata for %s", rock.URL)
 	}
 
-	return nil, fmt.Errorf("fake: no metadata for %s %s", rock.Name, rock.Version.Raw)
+	return spec, nil
 }
 
-func (fake *fakeAdapter) LocalMetadata(_ string) (*luarocks.Rockspec, error) {
-	return nil, rocks.ErrNoLocalRockspec
+func (fake *fakeAdapter) LocalMetadata(dir string) (*luarocks.Rockspec, error) {
+	spec, ok := fake.local[dir]
+	if !ok {
+		return nil, rocks.ErrNoLocalRockspec
+	}
+
+	return spec, nil
 }
 
-// add registers one rock version with an md5 and zero or more dependencies.
-// Fields are assigned rather than composed so the fixture stays exhaustive
-// without listing every rockspec field.
+// add registers one rock version on the default servers with an md5 and zero or
+// more dependencies.
 func (fake *fakeAdapter) add(
 	name, version, md5 string, rockDeps ...luarocks.Dep,
 ) *fakeAdapter {
-	spec := new(luarocks.Rockspec)
+	spec := newSpec(name, version, md5, rockDeps)
 
-	spec.Package = name
-	spec.Version = version
-	spec.Source.MD5 = md5
-	spec.Dependencies = rockDeps
+	fake.servers[name] = append(fake.servers[name], spec)
+	fake.specs[urlFor("", name, version)] = spec
 
-	fake.registry[name] = append(fake.registry[name], spec)
+	return fake
+}
+
+// addScoped registers a rock version on the named registry only, so a
+// dependency's registry override routes to it instead of the default servers.
+func (fake *fakeAdapter) addScoped(
+	registry, name, version, md5 string, rockDeps ...luarocks.Dep,
+) *fakeAdapter {
+	if fake.scoped[registry] == nil {
+		fake.scoped[registry] = map[string][]*luarocks.Rockspec{}
+	}
+
+	spec := newSpec(name, version, md5, rockDeps)
+
+	fake.scoped[registry][name] = append(fake.scoped[registry][name], spec)
+	fake.specs[urlFor(registry, name, version)] = spec
+
+	return fake
+}
+
+// addLocal registers the rockspec a path dependency's directory ships, so
+// LocalMetadata returns its version and transitive dependencies.
+func (fake *fakeAdapter) addLocal(
+	dir, name, version string, rockDeps ...luarocks.Dep,
+) *fakeAdapter {
+	fake.local[dir] = newSpec(name, version, "", rockDeps)
 
 	return fake
 }
