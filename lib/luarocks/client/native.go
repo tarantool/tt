@@ -112,7 +112,15 @@ func (e *nativeEngine) Install(ctx context.Context, name string, opts InstallOpt
 
 	var plan []rocks.InstallStep
 	if opts.Deps != DepsNone {
-		plan, err = deps.Resolve(ctx, rootSpec, idx)
+		// The remote index returns bare name/version/URL rows without a
+		// preloaded rockspec, so hand Resolve a fetcher: it evaluates each
+		// chosen rock's rockspec on demand and walks the full transitive
+		// closure, not just the root's direct dependencies.
+		fetchSpec := func(ctx context.Context, rock rocks.VersionedRock) (*rocks.Rockspec, error) {
+			return e.fetchAndEval(ctx, rock.URL)
+		}
+
+		plan, err = deps.Resolve(ctx, rootSpec, idx, deps.WithSpecFetcher(fetchSpec))
 		if err != nil {
 			return fmt.Errorf("rocks.Install: resolve deps: %w", err)
 		}
@@ -335,12 +343,17 @@ func (e *nativeEngine) Unpack(ctx context.Context, archive, destDir string) erro
 // --- internal helpers (used only by the five native write operations) ---
 
 func (e *nativeEngine) installStep(ctx context.Context, step rocks.InstallStep) error {
-	spec, err := e.fetchAndEval(ctx, step.URL)
-	if err != nil {
-		return err
-	}
+	// deps.Resolve populates step.Rockspec via the spec fetcher; reuse it rather
+	// than fetching and evaluating the same version-pinned artifact a second
+	// time. It is nil only if a caller resolved without the fetcher.
+	if step.Rockspec == nil {
+		spec, err := e.fetchAndEval(ctx, step.URL)
+		if err != nil {
+			return err
+		}
 
-	step.Rockspec = spec
+		step.Rockspec = spec
+	}
 
 	return e.installFromSource(ctx, step)
 }
