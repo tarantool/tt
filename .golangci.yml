@@ -94,6 +94,9 @@ linters:
             # pre-release ordering matches the dependency resolver.
             - "github.com/hashicorp/go-version"
             - "github.com/tarantool/tt/lib/luarocks"
+            # cli/manifest/resolve composes the model and the luarocks adapter
+            # into the dependency-resolution engine.
+            - "github.com/tarantool/tt/cli/manifest"
         test:
           files:
             - "$test"

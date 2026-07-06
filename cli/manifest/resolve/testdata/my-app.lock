@@ -1,0 +1,19 @@
+lock_version = '0.1'
+manifest_version = '0.1'
+generated_by = 'tt 3.4.0'
+manifest_hash = 'sha256:f475efcd87290984dc1342324726c12222eb8cf352f19febde08bc5c644ecd73'
+
+[lock]
+[lock.products]
+[lock.products.default]
+[[lock.products.default.dependencies]]
+name = 'checks'
+version = '3.1.0-1'
+source = 'registry'
+checksum = 'md5:0cc175b9c0f1b6a831c399e269772661'
+
+[[lock.products.default.dependencies]]
+name = 'metrics'
+version = '1.5.0-1'
+source = 'registry'
+checksum = 'md5:d41d8cd98f00b204e9800998ecf8427e'
