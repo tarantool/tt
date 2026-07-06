@@ -20,6 +20,13 @@ var providedRocks = map[string]bool{
 	"luabitop": true,
 }
 
+// IsProvided reports whether name is a rock the Tarantool VM supplies itself,
+// so callers building their own resolution over the same registry can skip it
+// exactly as Resolve does, without duplicating the set.
+func IsProvided(name string) bool {
+	return providedRocks[name]
+}
+
 // Resolve performs a greedy depth-first walk over root.Dependencies,
 // choosing the newest version of each dep that satisfies its constraints
 // and recursing into the chosen rock's transitive dependencies before
@@ -36,7 +43,9 @@ var providedRocks = map[string]bool{
 //
 // `lua` and other VM-provided names short-circuit: they are silently
 // dropped from the install list.
-func Resolve(ctx context.Context, root *rocks.Rockspec, idx rocks.RemoteIndex) ([]rocks.InstallStep, error) {
+func Resolve(
+	ctx context.Context, root *rocks.Rockspec, idx rocks.RemoteIndex, opts ...Option,
+) ([]rocks.InstallStep, error) {
 	if root == nil {
 		return nil, errors.New("deps.Resolve: nil root rockspec")
 	}
@@ -45,6 +54,10 @@ func Resolve(ctx context.Context, root *rocks.Rockspec, idx rocks.RemoteIndex) (
 		idx:      idx,
 		chosen:   map[string]*rocks.InstallStep{},
 		inFlight: map[string]bool{},
+	}
+
+	for _, opt := range opts {
+		opt(r)
 	}
 
 	if err := r.walk(ctx, root.Package, root.Dependencies, nil); err != nil {
@@ -61,8 +74,30 @@ func Resolve(ctx context.Context, root *rocks.Rockspec, idx rocks.RemoteIndex) (
 	return out, nil
 }
 
+// SpecFetcher supplies a picked rock's rockspec on demand. See WithSpecFetcher.
+type SpecFetcher func(ctx context.Context, rock rocks.VersionedRock) (*rocks.Rockspec, error)
+
+// Option configures Resolve.
+type Option func(*resolver)
+
+// WithSpecFetcher makes Resolve fetch a chosen rock's rockspec on demand when
+// the index did not preload it. After pickNewest selects a version, if that
+// version has no Spec, Resolve calls fetch on the picked rock only (never on
+// the rejected candidates) and continues the transitive walk with the result.
+//
+// This is what lets a non-preloading index (e.g. remote.HTTPRemoteIndex, which
+// returns bare name/version/URL rows) drive a full transitive resolution
+// without fetching every candidate's rockspec: one fetch per chosen rock. A
+// fetch error aborts the resolution. Without this option Resolve keeps its
+// preload-only behavior — it recurses only into versions whose Spec the index
+// already populated.
+func WithSpecFetcher(fetch SpecFetcher) Option {
+	return func(r *resolver) { r.fetch = fetch }
+}
+
 type resolver struct {
 	idx      rocks.RemoteIndex
+	fetch    SpecFetcher
 	chosen   map[string]*rocks.InstallStep
 	inFlight map[string]bool
 	order    []string // post-order — deepest first
@@ -110,6 +145,17 @@ func (r *resolver) walk(ctx context.Context, parent string, deps []rocks.Dep, ch
 				"deps.Resolve: no version of %q satisfies %s (parent=%s, %d candidates)",
 				d.Name, formatConstraints(d.Constraints), parent, len(candidates))
 		}
+		// Preload the picked rock's rockspec on demand when the index did not
+		// carry one, so the transitive walk below can proceed. Only the chosen
+		// version is fetched — never the rejected candidates.
+		if picked.Spec == nil && r.fetch != nil {
+			spec, err := r.fetch(ctx, picked)
+			if err != nil {
+				return fmt.Errorf("deps.Resolve: fetch rockspec for %q: %w", d.Name, err)
+			}
+
+			picked.Spec = spec
+		}
 
 		step := &rocks.InstallStep{
 			Name:     picked.Name,
@@ -119,9 +165,9 @@ func (r *resolver) walk(ctx context.Context, parent string, deps []rocks.Dep, ch
 		}
 		r.chosen[d.Name] = step
 
-		// Recurse into the picked version's deps. We only have transitive
-		// info if the index preloaded a *Rockspec; otherwise the caller
-		// must invoke Resolve again after fetching the rockspec (the
+		// Recurse into the picked version's deps. With a spec fetcher the
+		// picked version now carries its rockspec; without one we only have
+		// transitive info when the index preloaded a *Rockspec (the
 		// facade does this; manifest-based indices typically don't preload).
 		if picked.Spec != nil {
 			child := append(append([]string{}, chain...), d.Name)

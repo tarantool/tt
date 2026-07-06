@@ -24,17 +24,6 @@ const (
 // the engine from panicking on an unvalidated manifest.
 var errUnknownComponent = errors.New("product references unknown component")
 
-// providedRocks are dependency names supplied by the Tarantool VM itself, so
-// they are never resolved against a registry. Mirrors lib/luarocks/deps'
-// unexported set (Tarantool embeds LuaJIT 5.1); kept in sync deliberately.
-//
-//nolint:gochecknoglobals // provided-rock set, effectively a constant.
-var providedRocks = map[string]bool{
-	"lua":      true,
-	"luajit":   true,
-	"luabitop": true,
-}
-
 // depReq is one requirement to resolve: a name, the constraint in both string
 // (for the adapter) and parsed (for compatibility checks) form, and the source
 // it comes from. Direct requirements may carry a registry override or a path;
@@ -82,7 +71,7 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 			return fmt.Errorf("resolving dependencies: %w", ctxErr)
 		}
 
-		if providedRocks[req.name] {
+		if deps.IsProvided(req.name) {
 			continue
 		}
 
