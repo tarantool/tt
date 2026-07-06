@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -72,6 +73,52 @@ func TestGetNotFound(t *testing.T) {
 
 	_, err := s.Get(t.Context(), storage.ManifestKey("missing"))
 	require.True(t, errors.Is(err, storage.ErrKeyNotFound))
+}
+
+func TestGetDirectoryKeyNotFound(t *testing.T) {
+	ctx := t.Context()
+	s := newTestStorage(t, t.TempDir())
+
+	// Store an object so that its parent ("data") exists as a directory, then
+	// request that directory as a key: it must read as missing, not EISDIR.
+	require.NoError(t, s.Put(ctx, storage.ArchiveKey("dir", "rs1"),
+		bytes.NewReader([]byte("archive")), int64(len("archive"))))
+
+	_, err := s.Get(ctx, "data")
+	require.True(t, errors.Is(err, storage.ErrKeyNotFound))
+}
+
+func TestPutRejectsNegativeSize(t *testing.T) {
+	s := newTestStorage(t, t.TempDir())
+
+	err := s.Put(t.Context(), storage.ManifestKey("neg"), bytes.NewReader([]byte("x")), -1)
+	require.True(t, errors.Is(err, errNegativeSize))
+}
+
+func TestPutRejectsSizeMismatch(t *testing.T) {
+	ctx := t.Context()
+	s := newTestStorage(t, t.TempDir())
+
+	key := storage.ManifestKey("mismatch")
+	err := s.Put(ctx, key, bytes.NewReader([]byte("four")), 100)
+	require.Error(t, err)
+
+	// The failed Put must not leave a partial object behind.
+	_, err = s.Get(ctx, key)
+	require.True(t, errors.Is(err, storage.ErrKeyNotFound))
+}
+
+func TestPutStoresReadableMode(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	s := newTestStorage(t, root)
+
+	key := storage.ManifestKey("mode")
+	require.NoError(t, s.Put(ctx, key, bytes.NewReader([]byte("x")), 1))
+
+	info, err := os.Stat(filepath.Join(root, "cluster", "production", key))
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o644), info.Mode().Perm())
 }
 
 func TestList(t *testing.T) {

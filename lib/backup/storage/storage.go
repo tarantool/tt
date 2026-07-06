@@ -11,10 +11,22 @@ import (
 )
 
 // Storage describes a backup object storage backend.
+//
+// Keys are canonical slash-separated paths (see CleanKey). Implementations must
+// behave uniformly: Get reports a missing object via ErrKeyNotFound, List reports
+// it via an empty (non-nil) result, Delete is idempotent (a missing key is not an
+// error), List results are sorted by key, and every method honors ctx cancellation.
 type Storage interface {
+	// List returns objects whose key starts with prefix, sorted by key.
 	List(ctx context.Context, prefix string) ([]ObjectInfo, error)
+	// Get opens the object for reading, returning ErrKeyNotFound if it is absent.
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
+	// Put stores the bytes read from r under key. size must be the exact,
+	// non-negative number of bytes r yields; implementations reject a negative
+	// size or a byte-count mismatch. Streaming with an unknown length is not
+	// supported.
 	Put(ctx context.Context, key string, r io.Reader, size int64) error
+	// Delete removes the object; a missing object is not an error.
 	Delete(ctx context.Context, key string) error
 }
 

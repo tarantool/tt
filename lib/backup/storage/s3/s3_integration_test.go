@@ -1,4 +1,4 @@
-//go:build integration
+//go:build integration_docker
 
 package s3
 
@@ -80,6 +80,27 @@ func TestGarageDelete(t *testing.T) {
 	require.NoError(t, st.Delete(ctx, key))
 	_, err := st.Get(ctx, key)
 	require.True(t, errors.Is(err, storage.ErrKeyNotFound))
+}
+
+func TestGarageGetMissingBucketIsNotKeyNotFound(t *testing.T) {
+	ctx := t.Context()
+	testcontainers.SkipIfProviderIsNotHealthy(t)
+
+	garage := startGarage(ctx, t)
+	st, err := New(Config{
+		Endpoint:        garage.endpoint,
+		Bucket:          "no-such-bucket",
+		Region:          garage.region,
+		AccessKeyID:     garage.accessKey,
+		SecretAccessKey: garage.secretKey,
+	})
+	require.NoError(t, err)
+
+	// A missing bucket must surface as a real error, not be flattened into
+	// ErrKeyNotFound the way a bodyless HEAD 404 would be.
+	_, err = st.Get(ctx, storage.ManifestKey("whatever"))
+	require.Error(t, err)
+	require.False(t, errors.Is(err, storage.ErrKeyNotFound))
 }
 
 type garageInstance struct {

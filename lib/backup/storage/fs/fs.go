@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/tarantool/tt/lib/backup/storage"
 )
@@ -20,7 +21,14 @@ const tempFilePrefix = ".tt-backup-"
 // tempFilePattern is the glob pattern passed to os.CreateTemp for temporary files.
 const tempFilePattern = tempFilePrefix + "*"
 
-var errPathRequired = errors.New("fs storage path is required")
+// staleTempFileAge is how old a leftover temp file must be before New sweeps it.
+// The threshold keeps the sweep from racing a concurrent Put in another process.
+const staleTempFileAge = 24 * time.Hour
+
+var (
+	errPathRequired = errors.New("fs storage path is required")
+	errNegativeSize = errors.New("fs object size must be non-negative")
+)
 
 // Config describes local filesystem storage configuration.
 type Config struct {
@@ -58,7 +66,37 @@ func New(cfg Config) (*Storage, error) {
 		return nil, fmt.Errorf("failed to resolve storage root %q: %w", cfg.Path, err)
 	}
 
-	return &Storage{root: root}, nil
+	s := &Storage{root: root}
+	s.sweepStaleTempFiles()
+
+	return s, nil
+}
+
+// sweepStaleTempFiles best-effort removes temp files left behind by interrupted
+// Put calls (process killed between os.CreateTemp and the deferred os.Remove).
+// Such files are hidden from List and cannot be Deleted through the API, so they
+// would otherwise accumulate forever. Errors are ignored: this is an optimization,
+// not a guarantee, and the root may not exist yet.
+func (s *Storage) sweepStaleTempFiles() {
+	cutoff := time.Now().Add(-staleTempFileAge)
+	_ = filepath.WalkDir(s.root, func(path string, d os.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return nil
+		case d.IsDir() || !isTempFile(d.Name()):
+			return nil
+		}
+
+		info, err := d.Info()
+		switch {
+		case err != nil:
+			return nil
+		case info.ModTime().Before(cutoff):
+			_ = os.Remove(path)
+		}
+
+		return nil
+	})
 }
 
 // List returns objects whose keys start with the given prefix, sorted by key.
@@ -74,7 +112,7 @@ func (s *Storage) List(ctx context.Context, prefix string) ([]storage.ObjectInfo
 
 	root := filepath.Join(s.root, filepath.FromSlash(path.Dir(cleanPrefix)))
 
-	var objects []storage.ObjectInfo
+	objects := make([]storage.ObjectInfo, 0)
 	if _, err := os.Stat(root); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return objects, nil
@@ -165,12 +203,25 @@ func (s *Storage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to open object %q: %w", key, err)
 	}
 
+	// A key that resolves to a directory is not a stored object; report it as
+	// missing here rather than deferring an opaque EISDIR to the caller's Read.
+	info, err := f.Stat()
+	switch {
+	case err != nil:
+		_ = f.Close()
+		return nil, fmt.Errorf("failed to stat object %q: %w", key, err)
+	case !info.Mode().IsRegular():
+		_ = f.Close()
+		return nil, storage.ErrKeyNotFound
+	}
+
 	return f, nil
 }
 
-// Put stores an object to the filesystem. The size parameter is unused;
-// it exists to satisfy the storage.Storage interface.
-func (s *Storage) Put(ctx context.Context, key string, r io.Reader, _ int64) error {
+// Put stores an object to the filesystem via a temp file and atomic rename.
+// size must be the exact, non-negative number of bytes r yields; a mismatch is
+// an error so a wrong size cannot silently store a truncated object.
+func (s *Storage) Put(ctx context.Context, key string, r io.Reader, size int64) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("failed to put object %q: %w", key, err)
 	}
@@ -178,6 +229,10 @@ func (s *Storage) Put(ctx context.Context, key string, r io.Reader, _ int64) err
 	path, err := s.objectPath(key)
 	if err != nil {
 		return fmt.Errorf("failed to resolve object path %q: %w", key, err)
+	}
+
+	if size < 0 {
+		return fmt.Errorf("failed to put object %q: %w", key, errNegativeSize)
 	}
 
 	dir := filepath.Dir(path)
@@ -193,9 +248,29 @@ func (s *Storage) Put(ctx context.Context, key string, r io.Reader, _ int64) err
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath)
 
-	if _, err := io.Copy(tmp, ctxReader{ctx, r}); err != nil {
+	written, err := io.Copy(tmp, ctxReader{ctx, r})
+	switch {
+	case err != nil:
 		_ = tmp.Close()
 		return fmt.Errorf("failed to write object %q: %w", key, err)
+	case written != size:
+		_ = tmp.Close()
+		return fmt.Errorf("failed to write object %q: wrote %d bytes, expected %d",
+			key, written, size)
+	}
+
+	// os.CreateTemp makes the file 0600; widen it to match the 0755 directories
+	// so a backup written by one user can be read back by another.
+	if err := tmp.Chmod(0o644); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("failed to set object mode %q: %w", key, err)
+	}
+
+	// Flush the data before the rename so a crash cannot leave the object present
+	// under its final name but truncated or empty.
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("failed to sync object %q: %w", key, err)
 	}
 
 	if err := tmp.Close(); err != nil {
@@ -204,6 +279,28 @@ func (s *Storage) Put(ctx context.Context, key string, r io.Reader, _ int64) err
 
 	if err := os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("failed to store object %q: %w", key, err)
+	}
+
+	// Flush the directory so the rename itself survives a crash.
+	if err := syncDir(dir); err != nil {
+		return fmt.Errorf("failed to persist object %q: %w", key, err)
+	}
+
+	return nil
+}
+
+// syncDir flushes a directory to disk so a rename within it is durable across a crash.
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return fmt.Errorf("failed to open directory %q: %w", dir, err)
+	}
+	if err := d.Sync(); err != nil {
+		_ = d.Close()
+		return fmt.Errorf("failed to sync directory %q: %w", dir, err)
+	}
+	if err := d.Close(); err != nil {
+		return fmt.Errorf("failed to close directory %q: %w", dir, err)
 	}
 
 	return nil
@@ -243,7 +340,11 @@ func (s *Storage) objectPath(key string) (string, error) {
 	}
 
 	path := filepath.Join(s.root, filepath.FromSlash(cleanKey))
-	if path != s.root && !strings.HasPrefix(path, s.root+string(os.PathSeparator)) {
+	// Use a relative-path check rather than a string prefix: the prefix form
+	// (s.root + separator) is "//" when the root resolves to "/", which no joined
+	// path ever has, so it would reject every key under a root of "/".
+	rel, err := filepath.Rel(s.root, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", fmt.Errorf("storage key %q escapes storage root", cleanKey)
 	}
 

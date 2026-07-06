@@ -1,11 +1,11 @@
 package s3
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"sort"
 	"strings"
 
@@ -120,7 +120,15 @@ func (s *Storage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to get s3 object %q: %w", cleanKey, err)
 	}
 
-	if _, err := object.Stat(); err != nil {
+	// GetObject is lazy: the request is issued on the first read. Force it here
+	// with a one-byte probe so a missing object is detected up front, and use a
+	// read (GET) rather than object.Stat (HEAD): a GET 404 carries a body, so
+	// minio-go reports NoSuchKey vs NoSuchBucket accurately, whereas a bodyless
+	// HEAD 404 is synthesized as NoSuchKey and would hide a missing bucket. The
+	// probed byte is replayed to the caller so no data is lost.
+	var probe [1]byte
+	n, err := object.Read(probe[:])
+	if err != nil && err != io.EOF {
 		_ = object.Close()
 		if isKeyNotFound(err) {
 			return nil, storage.ErrKeyNotFound
@@ -129,7 +137,27 @@ func (s *Storage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("failed to get s3 object %q: %w", cleanKey, err)
 	}
 
-	return object, nil
+	return &objectReadCloser{
+		Reader: io.MultiReader(bytes.NewReader(probe[:n]), object),
+		closer: object,
+	}, nil
+}
+
+// objectReadCloser rejoins the probed first byte with the rest of the object
+// stream (via the embedded Reader) while delegating Close to the underlying
+// object. Read is promoted from the embedded Reader so that io.EOF is passed
+// through unwrapped.
+type objectReadCloser struct {
+	io.Reader
+	closer io.Closer
+}
+
+func (o *objectReadCloser) Close() error {
+	if err := o.closer.Close(); err != nil {
+		return fmt.Errorf("failed to close s3 object: %w", err)
+	}
+
+	return nil
 }
 
 // Put uploads the object; size must be non-negative and is passed through to minio-go.
@@ -196,7 +224,13 @@ func validateConfig(cfg Config) error {
 }
 
 // isKeyNotFound reports whether err means the object key does not exist.
+//
+// It matches only the NoSuchKey code, never a bare 404: a missing bucket also
+// returns 404 (as NoSuchBucket), and treating that as "key not found" would make
+// Get report "not found" and Delete report success against a misconfigured bucket.
+// Callers must pass errors from body-bearing requests (GET, DELETE), where minio-go
+// decodes the real code; a HEAD 404 has no body and is synthesized as NoSuchKey
+// regardless of the actual cause, so Get probes with a read rather than a Stat.
 func isKeyNotFound(err error) bool {
-	resp := minio.ToErrorResponse(err)
-	return resp.Code == "NoSuchKey" || resp.StatusCode == http.StatusNotFound
+	return minio.ToErrorResponse(err).Code == "NoSuchKey"
 }
