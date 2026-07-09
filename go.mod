@@ -13,7 +13,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-version v1.8.0
 	github.com/jedib0t/go-pretty/v6 v6.7.8
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.18.6
 	github.com/magefile/mage v1.15.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mattn/go-isatty v0.0.20
@@ -30,10 +30,12 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/tarantool/cartridge-cli v0.0.0-00010101000000-000000000000
+	github.com/tarantool/go-iproto v1.1.0
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage v1.5.0
 	github.com/tarantool/go-tarantool v1.12.3
 	github.com/tarantool/go-tarantool/v2 v2.4.2
+	github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686
 	github.com/tarantool/tt/lib/cluster v0.0.0
 	github.com/tarantool/tt/lib/connect v0.0.0-0
 	github.com/tarantool/tt/lib/dial v0.0.0-0
@@ -145,7 +147,6 @@ require (
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/tarantool/go-iproto v1.1.0 // indirect
 	github.com/tarantool/go-openssl v1.2.2 // indirect
 	github.com/tarantool/go-option v1.0.0 // indirect
 	github.com/tarantool/go-tlsdialer v1.0.2 // indirect

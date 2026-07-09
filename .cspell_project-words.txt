@@ -37,6 +37,7 @@ heywoodlh
 iconfig
 incdir
 infof
+inprogress
 iproto
 leaderuuid
 libcluster
@@ -113,4 +114,5 @@ vshard
 vylog
 warnf
 xcall
+xdir
 xlog*
