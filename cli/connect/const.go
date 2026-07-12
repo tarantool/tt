@@ -86,5 +86,5 @@ const shortcutListText = `---
        Alt + F                     -- Move forwards one word
 ...`
 
-// maximal count of commands to output in \history command.
-const maxHistorySize = 10
+// Default maximal count of commands to output in \history command.
+const DefaultOutputHistorySize = 10

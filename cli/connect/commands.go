@@ -420,8 +420,8 @@ func getHistoryFunc(console *Console, _ string, _ []string) (string, error) {
 		return "", nil
 	}
 	outputData := console.history.commands
-	if len(console.history.commands) > maxHistorySize {
-		outputData = outputData[len(outputData)-maxHistorySize:]
+	if len(console.history.commands) > console.connOpts.MaxOutputHistoryLen {
+		outputData = outputData[len(outputData)-console.connOpts.MaxOutputHistoryLen:]
 	}
 	return strings.Join(outputData, "\n-----\n"), nil
 }

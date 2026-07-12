@@ -124,6 +124,13 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 	}
 }
 
+func getMaxHistoryOutputLen(cliOpts *config.CliOpts) int {
+	if cliOpts.Env == nil || cliOpts.Env.OutputHistoryMax <= 0 {
+		return connect.DefaultOutputHistorySize
+	}
+	return cliOpts.Env.OutputHistoryMax
+}
+
 // resolveConnectOpts tries to resolve target argument to replace it
 // with a control socket or as a URI with/without credentials.
 // It returns connection options and the remaining args.
@@ -183,6 +190,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	if connectCtx.ConnectTarget == "" {
 		connectCtx.ConnectTarget = target
 	}
+	connOpts.MaxOutputHistoryLen = getMaxHistoryOutputLen(cliOpts)
 	return connOpts, err
 }
 
