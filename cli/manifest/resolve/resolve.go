@@ -4,7 +4,7 @@
 //
 // Resolution runs per product: each product gets its own closure over the
 // newest versions that satisfy every constraint. The engine takes an already
-// parsed manifest plus an adapter over lib/luarocks; it never touches the
+// parsed manifest plus an adapter over go-luarocks; it never touches the
 // network itself. The adapter (cli/manifest/rocks) queries registries, fetches
 // rockspecs and reports source checksums; the policy - which versions, by which
 // product, what lands in the lock - lives here.
@@ -18,9 +18,9 @@ import (
 	"context"
 	"fmt"
 
+	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/tt/cli/manifest"
 	"github.com/tarantool/tt/cli/manifest/rocks"
-	luarocks "github.com/tarantool/tt/lib/luarocks"
 )
 
 // Adapter is the slice of cli/manifest/rocks the engine drives. The engine

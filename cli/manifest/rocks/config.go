@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"path/filepath"
 
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/client"
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/client"
 )
 
 // TarantoolInfo carries the Tarantool facts the adapter needs to build a
@@ -60,7 +60,7 @@ func BuildConfig(info TarantoolInfo, opts ConfigOptions) luarocks.Config {
 		Servers:         servers,
 		InsecureServers: insecureHosts(servers),
 		Logger:          opts.Logger,
-		Rockspec:        luarocks.RockspecConfig{Env: nil},
+		Rockspec:        luarocks.RockspecConfig{},
 		Tarantool: luarocks.TarantoolConfig{
 			Executable: info.Executable,
 			Prefix:     info.Prefix,
@@ -70,7 +70,7 @@ func BuildConfig(info TarantoolInfo, opts ConfigOptions) luarocks.Config {
 	}
 }
 
-// Client builds a lib/luarocks client for the bound config. backend selects the
+// Client builds a go-luarocks client for the bound config. backend selects the
 // engine: pass client.BackendLua for operations the native backend does not
 // implement (search/download), client.BackendNative otherwise.
 func (a *Adapter) Client(backend client.Backend) (*client.Rocks, error) {

@@ -3,10 +3,6 @@ run:
   build-tags:
     - go_tarantool_ssl_disable
     - tt_ssl_disable
-  # Vendored go-luarocks sources: part of the tt module but not held to tt's
-  # lint rules for now.
-  skip-dirs:
-    - lib/luarocks
 
 linters:
   disable-all: true

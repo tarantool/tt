@@ -11,11 +11,11 @@ import (
 	"strings"
 
 	"github.com/apex/log"
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/client"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/client"
 )
 
 //go:embed completions/*
@@ -118,7 +118,7 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 }
 
 // Exec runs a LuaRocks command through the embedded LuaRocks engine
-// (lib/luarocks). All args are passed verbatim to the upstream LuaRocks CLI
+// (go-luarocks). All args are passed verbatim to the upstream LuaRocks CLI
 // dispatcher, which parses them and prints its own output. This is the
 // transitional `tt rocks` escape-hatch; the new manifest commands go through
 // cli/manifest/rocks instead.

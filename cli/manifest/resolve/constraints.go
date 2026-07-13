@@ -1,8 +1,8 @@
 package resolve
 
 import (
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/deps"
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/deps"
 )
 
 // satisfiable reports whether some version could satisfy every constraint at
@@ -125,19 +125,21 @@ func narrowPessimistic(lower, upper *bound, version luarocks.Version) {
 func bumpLastComponent(version luarocks.Version) (luarocks.Version, bool) {
 	if len(version.Components) == 0 {
 		return luarocks.Version{
-			Raw: "", Components: nil, Revision: 0, IsSCM: false, IsDev: false,
+			Raw: "", Components: nil, Revision: 0, HasRevision: false,
+			IsSCM: false, IsDev: false,
 		}, false
 	}
 
-	components := append([]int(nil), version.Components...)
+	components := append([]float64(nil), version.Components...)
 	components[len(components)-1]++
 
 	return luarocks.Version{
-		Raw:        "",
-		Components: components,
-		Revision:   0,
-		IsSCM:      false,
-		IsDev:      false,
+		Raw:         "",
+		Components:  components,
+		Revision:    0,
+		HasRevision: false,
+		IsSCM:       false,
+		IsDev:       false,
 	}, true
 }
 

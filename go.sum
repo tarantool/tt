@@ -310,6 +310,8 @@ github.com/tarantool/go-config v1.4.0 h1:0T8aGfSYY81YXGB1+VsAF6NTaLV1OmwGiRRL0T1
 github.com/tarantool/go-config v1.4.0/go.mod h1:nvreKN/tfM6jUdfhPIfeD87Pp4eY/ZtSdaE8aFns2Dw=
 github.com/tarantool/go-iproto v1.1.0 h1:HULVOIHsiehI+FnHfM7wMDntuzUddO09DKqu2WnFQ5A=
 github.com/tarantool/go-iproto v1.1.0/go.mod h1:LNCtdyZxojUed8SbOiYHoc3v9NvaZTB7p96hUySMlIo=
+github.com/tarantool/go-luarocks v0.0.0-20260713120342-d0d2323e9ba5 h1:HbOq1Bic+EPk0OwBP/IpmvL/ldFov0zMj9mWFwqrQHw=
+github.com/tarantool/go-luarocks v0.0.0-20260713120342-d0d2323e9ba5/go.mod h1:eva2WZ5GkLBA4XO05/uxE91EG1xakTlMBI8R742LXNU=
 github.com/tarantool/go-openssl v1.2.2 h1:GaGMNsa68ZqoNgrMF7Ke4s9+tXGfc5ulfCUm3/Jb7/k=
 github.com/tarantool/go-openssl v1.2.2/go.mod h1:EwX1pKIGypLxkY49vKIIR4LTT+94DhKiunCqU2gEzLQ=
 github.com/tarantool/go-option v1.1.0 h1:ShoOhNsdL41sRpm4hXCRDjV8H0WzPkd4UnKhLKbW//w=

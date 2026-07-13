@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/client"
-	"github.com/tarantool/tt/lib/luarocks/fetch"
-	"github.com/tarantool/tt/lib/luarocks/rockspec"
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/go-luarocks/fetch"
+	"github.com/tarantool/go-luarocks/rockspec"
 )
 
 // Metadata fetches a resolved rock's rockspec and evaluates it into a typed
@@ -30,6 +30,10 @@ func (a *Adapter) Metadata(ctx context.Context, rock ResolvedRock) (*luarocks.Ro
 		UserAgent:       "",
 		Tag:             "",
 		Branch:          "",
+		File:            "",
+		MD5:             "",
+		Version:         "",
+		IdentifierOut:   nil,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("rocks: fetch %s: %w", rock.URL, err)
@@ -62,6 +66,10 @@ func (a *Adapter) FetchSource(
 		UserAgent:       "",
 		Tag:             spec.Source.Tag,
 		Branch:          spec.Source.Branch,
+		File:            spec.Source.File,
+		MD5:             spec.Source.MD5,
+		Version:         spec.Version,
+		IdentifierOut:   nil,
 	})
 	if err != nil {
 		return "", fmt.Errorf("rocks: fetch source %s: %w", spec.Source.URL, err)

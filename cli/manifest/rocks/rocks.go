@@ -1,5 +1,5 @@
-// Package rocks is the single point in tt that knows about the lib/luarocks
-// engine (github.com/tarantool/tt/lib/luarocks). It builds a luarocks.Config
+// Package rocks is the single point in tt that knows about the go-luarocks
+// engine (github.com/tarantool/go-luarocks). It builds a luarocks.Config
 // from the tt environment and the manifest platform, hands out a client
 // factory, and wraps the primitives the resolver, build and registry layers
 // compose: ordered multi-server resolve, rock metadata and source checksum,
@@ -15,8 +15,8 @@ package rocks
 import (
 	"errors"
 
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/build"
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/build"
 )
 
 // Default rock servers, queried in order (first-found-wins) unless a

@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"sort"
 
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/tt/cli/manifest"
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/deps"
 )
 
 // resolvePath resolves a path dependency: it hashes the local directory and,

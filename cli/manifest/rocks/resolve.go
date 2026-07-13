@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/deps"
-	"github.com/tarantool/tt/lib/luarocks/remote"
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/deps"
+	"github.com/tarantool/go-luarocks/remote"
 )
 
 // ResolvedRock is a rock chosen for a dependency: the name, the version picked
@@ -45,6 +45,7 @@ func httpIndexes(servers, insecure []string) []luarocks.RemoteIndex {
 			InsecureServers: insecure,
 			UserAgent:       "",
 			LuaVersion:      "",
+			Arch:            "",
 		})
 	}
 
@@ -54,12 +55,12 @@ func httpIndexes(servers, insecure []string) []luarocks.RemoteIndex {
 // Query asks each server in order and returns the first non-empty result,
 // satisfying luarocks.RemoteIndex so the resolver can consume it too.
 func (o *orderedIndex) Query(
-	ctx context.Context, name string,
+	ctx context.Context, name, namespace string,
 ) ([]luarocks.VersionedRock, error) {
 	var lastErr error
 
 	for _, index := range o.indexes {
-		found, err := index.Query(ctx, name)
+		found, err := index.Query(ctx, name, namespace)
 		if err != nil {
 			lastErr = err
 
@@ -98,7 +99,7 @@ func (a *Adapter) Resolve(
 func resolveWith(
 	ctx context.Context, index luarocks.RemoteIndex, name, constraintExpr string,
 ) (ResolvedRock, error) {
-	candidates, err := index.Query(ctx, name)
+	candidates, err := index.Query(ctx, name, "")
 	if err != nil {
 		return ResolvedRock{}, fmt.Errorf("rocks: resolve %q: %w", name, err)
 	}

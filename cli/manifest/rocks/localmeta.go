@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/rockspec"
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/rockspec"
 )
 
 // ErrNoLocalRockspec reports that a path dependency's directory ships no
