@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/tt/cli/manifest"
 	"github.com/tarantool/tt/cli/manifest/resolve"
 	"github.com/tarantool/tt/cli/manifest/rocks"
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/deps"
 )
 
 // fakeAdapter is an in-memory registry standing in for cli/manifest/rocks so
@@ -179,7 +179,7 @@ func dep(t *testing.T, name, constraintExpr string) luarocks.Dep {
 	constraints, err := deps.ParseConstraints(constraintExpr)
 	require.NoError(t, err)
 
-	return luarocks.Dep{Name: name, Constraints: constraints}
+	return luarocks.Dep{Name: name, Namespace: "", Constraints: constraints}
 }
 
 // parseManifest turns a manifest TOML body into a *Manifest.

@@ -93,7 +93,7 @@ linters:
             # cli/manifest/version derives SemVer with go-version so its
             # pre-release ordering matches the dependency resolver.
             - "github.com/hashicorp/go-version"
-            - "github.com/tarantool/tt/lib/luarocks"
+            - "github.com/tarantool/go-luarocks"
             # cli/manifest/resolve composes the model and the luarocks adapter
             # into the dependency-resolution engine.
             - "github.com/tarantool/tt/cli/manifest"
@@ -106,4 +106,4 @@ linters:
             - "github.com/hashicorp/go-version"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/cli/manifest"
-            - "github.com/tarantool/tt/lib/luarocks"
+            - "github.com/tarantool/go-luarocks"

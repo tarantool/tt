@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/tt/cli/manifest"
 	"github.com/tarantool/tt/cli/manifest/rocks"
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/deps"
 )
 
 // Dependency source values, mirroring the manifest package's closed enum.
@@ -49,7 +49,7 @@ type resolvedDep struct {
 }
 
 // walker performs the greedy depth-first closure walk. It mirrors
-// lib/luarocks/deps.Resolve (newest-that-fits, deepest-first topo order, one
+// go-luarocks/deps.Resolve (newest-that-fits, deepest-first topo order, one
 // version per name, cycle and conflict detection with the offending chain) but
 // drives the adapter per chosen rock - one rockspec fetch each, honoring
 // per-dependency registry overrides - instead of preloading every candidate.

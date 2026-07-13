@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/tt/cli/manifest/rocks"
-	luarocks "github.com/tarantool/tt/lib/luarocks"
 )
 
 // resolveCache memoizes the adapter calls and directory hashing across a single

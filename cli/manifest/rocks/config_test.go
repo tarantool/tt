@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	luarocks "github.com/tarantool/go-luarocks"
+	"github.com/tarantool/go-luarocks/build"
+	"github.com/tarantool/go-luarocks/client"
+	"github.com/tarantool/go-luarocks/rockspec"
 	"github.com/tarantool/tt/cli/manifest/rocks"
-	luarocks "github.com/tarantool/tt/lib/luarocks"
-	"github.com/tarantool/tt/lib/luarocks/build"
-	"github.com/tarantool/tt/lib/luarocks/client"
-	"github.com/tarantool/tt/lib/luarocks/rockspec"
 )
 
 // sampleTarantool is the Tarantool info the config tests build a config from.
@@ -156,7 +156,7 @@ func evalRockspec(t *testing.T, body string) *luarocks.Rockspec {
 	path := filepath.Join(t.TempDir(), "x-1.0-1.rockspec")
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
 
-	spec, err := rockspec.Eval(path, luarocks.RockspecConfig{Env: nil})
+	spec, err := rockspec.Eval(path, luarocks.RockspecConfig{})
 	require.NoError(t, err)
 
 	return spec

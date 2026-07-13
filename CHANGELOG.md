@@ -29,9 +29,9 @@ for machine-readable output.
   Tarantool JSON Schema instead of the in-tree enumerated path validator. The new validator
   is stricter (rejects unknown top-level / scope properties) and produces error messages in
   the upstream `<path> [code] <message>` format.
-- `tt rocks` now runs on the pure-Go go-luarocks engine (`lib/luarocks`) instead of the
-  bundled LuaRocks git submodule. Behavior is unchanged; the `cli/rocks/third_party/luarocks`
-  submodule is removed.
+- `tt rocks` now runs on the pure-Go go-luarocks engine
+  (`github.com/tarantool/go-luarocks`) instead of the bundled LuaRocks git submodule.
+  Behavior is unchanged; the `cli/rocks/third_party/luarocks` submodule is removed.
 
 ### Fixed
 
