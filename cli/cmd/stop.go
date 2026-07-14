@@ -79,11 +79,6 @@ func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return err
 	}
 
-	for _, run := range runningCtx.Instances {
-		if err = running.Stop(&run); err != nil {
-			log.Infof(err.Error())
-		}
-	}
-
+	running.Stop(runningCtx.Instances)
 	return nil
 }

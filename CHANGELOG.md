@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `tt stop`: preliminary interrupts the processes to enable parallel termination.
+
 ### Fixed
 
 ## [2.13.0] - 2026-05-21

@@ -88,7 +88,7 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 	}
 
 	log.Debugf("Stopping the instance")
-	if err = running.Stop(&instCtx); err != nil {
+	if err = running.Stop([]running.InstanceCtx{instCtx}); err != nil {
 		return fmt.Errorf("failed to stop the instance %s: %s", rbCtx.InstanceName, err)
 	}
 

@@ -31,6 +31,9 @@ const (
 	ProcessRunningCode = iota
 	ProcessStoppedCode
 	ProcessDeadCode
+
+	ProcessTermWaitTimeout     = 30 * time.Second
+	ProcessTermWaitCheckPeriod = 100 * time.Millisecond
 )
 
 var (
@@ -187,18 +190,30 @@ func getRunningPid(pidFile string) (int, error) {
 	return pid, nil
 }
 
-// StopProcess stops the process by pidFile.
-func StopProcess(pidFile string) (int, error) {
+// InterruptProcess requests the process interruption by pidFile.
+func InterruptProcess(pidFile string) (int, error) {
 	pid, err := getRunningPid(pidFile)
 	if err != nil {
 		return 0, fmt.Errorf("can't get pid of running process: %w", err)
 	}
-
 	if err = syscall.Kill(pid, syscall.SIGINT); err != nil {
 		return 0, fmt.Errorf(`can't terminate the process. Error: "%v"`, err)
 	}
+	return pid, nil
+}
 
-	if res := waitProcessTermination(pid, 30*time.Second, 100*time.Millisecond); !res {
+// StopProcess stops the process by pidFile.
+func StopProcess(pidFile string) (int, error) {
+	pid, err := InterruptProcess(pidFile)
+	if err != nil {
+		return 0, err
+	}
+
+	if res := WaitProcessTermination(
+		pid,
+		ProcessTermWaitTimeout,
+		ProcessTermWaitCheckPeriod,
+	); !res {
 		return 0, fmt.Errorf("can't terminate the process")
 	}
 
@@ -216,7 +231,11 @@ func QuitProcess(pidFile string) (int, error) {
 		return 0, fmt.Errorf("can't terminate the process with SIGQUIT: %s", err)
 	}
 
-	if res := waitProcessTermination(pid, 30*time.Second, 100*time.Millisecond); !res {
+	if res := WaitProcessTermination(
+		pid,
+		ProcessTermWaitTimeout,
+		ProcessTermWaitCheckPeriod,
+	); !res {
 		return 0, fmt.Errorf("can't terminate the process with SIGQUIT")
 	}
 
@@ -274,9 +293,9 @@ func IsProcessAlive(pid int) (bool, error) {
 	return true, nil
 }
 
-// waitProcessTermination waits while the process will be terminated.
+// WaitProcessTermination waits while the process will be terminated.
 // Returns true if the process was terminated and false if is steel alive.
-func waitProcessTermination(pid int, timeout time.Duration,
+func WaitProcessTermination(pid int, timeout time.Duration,
 	checkPeriod time.Duration,
 ) bool {
 	if res, _ := IsProcessAlive(pid); !res {
