@@ -822,27 +822,55 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	return nil
 }
 
-// Stop the Instance.
-func Stop(run *InstanceCtx) error {
-	fullInstanceName := GetAppInstanceName(*run)
+type instanceProc struct {
+	run      InstanceCtx
+	pid      int
+	fullName string
+}
 
-	pid, err := process_utils.StopProcess(run.PIDFile)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			log.Debugf("The instance %s is already stopped", fullInstanceName)
-			return nil
+// Stop the Instances.
+func Stop(runs []InstanceCtx) error {
+
+	// Request an interruption for each process.
+	// This is done in advance to enable parallel termination.
+	procsToWait := make([]instanceProc, 0, len(runs))
+	for _, run := range runs {
+		fullName := GetAppInstanceName(run)
+		pid, err := process_utils.InterruptProcess(run.PIDFile)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			log.Debugf("The instance %s is already stopped", fullName)
+		case err != nil:
+			log.Infof(err.Error())
+		default:
+			procsToWait = append(procsToWait, instanceProc{
+				run,
+				pid,
+				fullName,
+			})
 		}
-		return err
 	}
 
-	// tarantool 1.10 does not have a trigger on terminate a process.
-	// So the socket will be closed automatically on termination and
-	// we need to delete the file.
-	if _, err := os.Stat(run.ConsoleSocket); err == nil {
-		os.Remove(run.ConsoleSocket)
+	// Await for the processes termination.
+	for _, proc := range procsToWait {
+		isTerminated := process_utils.WaitProcessTermination(
+			proc.pid,
+			process_utils.ProcessTermWaitTimeout,
+			process_utils.ProcessTermWaitCheckPeriod,
+		)
+		if !isTerminated {
+			log.Infof("Can't terminate the instance %s (PID = %v).", proc.fullName, proc.pid)
+			continue
+		}
+		// tarantool 1.10 does not have a trigger on terminate a process.
+		// So the socket will be closed automatically on termination and
+		// we need to delete the file.
+		consoleSocket := proc.run.ConsoleSocket
+		if _, err := os.Stat(consoleSocket); err == nil {
+			os.Remove(consoleSocket)
+		}
+		log.Infof("The Instance %s (PID = %v) has been terminated.", proc.fullName, proc.pid)
 	}
-
-	log.Infof("The Instance %s (PID = %v) has been terminated.", fullInstanceName, pid)
 
 	return nil
 }
