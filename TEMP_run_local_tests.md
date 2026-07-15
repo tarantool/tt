@@ -1,7 +1,10 @@
 # build image 
 sudo docker build -t tt_test .
 # run
-sudo docker run -it --name tt_test_run tt_test /bin/bash
+docker network create --ipv6 --subnet fd01::/64 my-ipv6-network
+sudo docker run -it --security-opt seccomp=unconfined  --network my-ipv6-network --name tt_test_run tt_test /bin/bash
+
+
 container cmd:
 mage integration
 

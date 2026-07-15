@@ -33,7 +33,7 @@ RUN wget https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/etcd-
     && mv etcd-${ETCD_VERSION}-linux-amd64/etcd* /usr/local/bin/
 # install tt build requirements
 RUN  apt -y update \
-    && apt -y install git gcc make cmake unzip zip gdb libssl-dev bash-completion \
+    && apt -y install git gcc make cmake unzip zip rsync gdb libssl-dev bash-completion \
     && apt-get --allow-releaseinfo-change update \
     && apt-get -y -f install \
         build-essential ninja-build \
@@ -56,3 +56,5 @@ RUN mage build
 RUN pip3 install -r test/requirements.txt
 # Stop Mono server
 RUN systemctl kill mono-xsp4 || true
+
+#RUN sysctl -w net.ipv6.conf.all.disable_ipv6=0
