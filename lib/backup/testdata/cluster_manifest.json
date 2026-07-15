@@ -5,7 +5,7 @@
   "base_full_backup_id": "20260312T120000Z",
   "status": "OK",
   "creation_time": "2026-03-12T12:00:02.456Z",
-  "creation_duration": "2.3s",
+  "creation_duration": 2300000000,
   "shards": {
     "11111111-1111-1111-1111-111111111111": {
       "instance": {

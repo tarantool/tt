@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -25,35 +24,9 @@ var (
 func mustDecodeClusterManifest(t *testing.T, data []byte) ClusterManifest {
 	t.Helper()
 
-	type clusterManifestJSON struct {
-		SchemaVersion    int              `json:"schema_version"`
-		BackupID         BackupID         `json:"backup_id"`
-		PreviousBackupID BackupID         `json:"previous_backup_id"`
-		BaseFullBackupID BackupID         `json:"base_full_backup_id"`
-		Status           Status           `json:"status"`
-		CreationTime     time.Time        `json:"creation_time"`
-		CreationDuration string           `json:"creation_duration"`
-		Shards           map[string]Shard `json:"shards"`
-		Topology         Topology         `json:"topology"`
-		Warnings         []Warning        `json:"warnings"`
-	}
-
-	var raw clusterManifestJSON
-	require.NoError(t, json.Unmarshal(data, &raw))
-	duration, err := time.ParseDuration(raw.CreationDuration)
-	require.NoError(t, err)
-	return ClusterManifest{
-		SchemaVersion:    raw.SchemaVersion,
-		BackupID:         raw.BackupID,
-		PreviousBackupID: raw.PreviousBackupID,
-		BaseFullBackupID: raw.BaseFullBackupID,
-		Status:           raw.Status,
-		CreationTime:     raw.CreationTime,
-		CreationDuration: duration,
-		Shards:           raw.Shards,
-		Topology:         raw.Topology,
-		Warnings:         raw.Warnings,
-	}
+	var manifest ClusterManifest
+	require.NoError(t, json.Unmarshal(data, &manifest))
+	return manifest
 }
 
 func mustDecodeFragment(t *testing.T, data []byte) Fragment {
