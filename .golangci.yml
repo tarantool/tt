@@ -50,6 +50,9 @@ linters:
           - wrapcheck
           - err113
           - funlen
+          # Table-driven and fixture tests build partial structs on purpose;
+          # requiring every field spelled out is noise in tests.
+          - exhaustruct
 
   settings:
     varnamelen:
@@ -97,6 +100,12 @@ linters:
             # cli/manifest/resolve composes the model and the luarocks adapter
             # into the dependency-resolution engine.
             - "github.com/tarantool/tt/cli/manifest"
+            # cli/manifest/build/backend runs subprocesses through tt's shared
+            # helper rather than reinventing exec plumbing.
+            - "github.com/tarantool/tt/cli/util"
+            # cli/manifest/build filters component files with gitignore-syntax
+            # include/exclude patterns via go-git's matcher.
+            - "github.com/go-git/go-git/v5/plumbing/format/gitignore"
         test:
           files:
             - "$test"

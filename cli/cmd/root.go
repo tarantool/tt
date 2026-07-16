@@ -203,6 +203,7 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		NewInstallCmd(),
 		NewUninstallCmd(),
 		NewPackCmd(),
+		NewPackageCmd(),
 		NewInitCmd(),
 		NewDaemonCmd(),
 		NewCfgCmd(),

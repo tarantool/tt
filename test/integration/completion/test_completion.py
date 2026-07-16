@@ -31,6 +31,7 @@ tt_root_command: set[str] = set(
         "connect",
         "init",
         "pack",
+        "package",
         "start",
         "cat",
         "coredump",
