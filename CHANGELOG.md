@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt package build`: build a manifest package (`app.manifest.toml`) into
+  `.rocks/` — resolve and lock dependencies, materialize the pinned closure,
+  run each component's build backend, lay component files out under their
+  install namespace and generate `version.lua`. `--product` selects the product
+  and `--locked` fails on a stale lock instead of re-resolving.
+- `tt package fetch`: materialize `.rocks/` strictly from the lock, without
+  re-resolving or running component build backends.
 - `tt pack`: support nested `.packignore` at the root of tt environment.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.

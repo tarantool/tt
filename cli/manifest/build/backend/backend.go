@@ -7,8 +7,8 @@
 // driver serving both c and lua-c. Each executor receives the parsed
 // manifest.Build block, an absolute working directory, and the Env contract.
 // None of them order components, lay out install namespaces, resolve the lock,
-// or run lifecycle hooks — that orchestration is the caller's job (RFC 0010
-// task 06); a backend only runs one tool and writes into TT_OUTPUT_DIR.
+// or run lifecycle hooks — that orchestration is the caller's job; a backend
+// only runs one tool and writes into TT_OUTPUT_DIR.
 //
 // The process environment is assembled on the exec.Cmd, never via os.Chdir or
 // os.Setenv: the seven TT_* contract variables are applied last so a stray
@@ -58,9 +58,9 @@ var ErrMissingHeaders = errors.New(
 	"tarantool development headers not found: cannot compile c/lua-c component")
 
 // Env is the guaranteed environment contract handed to every backend. The
-// caller (RFC 0010 task 06) fully resolves OutputDir — including the install
-// namespace — before calling; the backend is namespace-agnostic and only ever
-// writes into OutputDir, creating it if absent.
+// caller fully resolves OutputDir — including the install namespace — before
+// calling; the backend is namespace-agnostic and only ever writes into
+// OutputDir, creating it if absent.
 type Env struct {
 	// OutputDir is where native artifacts are placed (TT_OUTPUT_DIR). It must
 	// be an absolute path.
@@ -102,13 +102,13 @@ func (e Env) platformArch() string {
 	return e.Arch
 }
 
-// environ builds the child process environment: os.Environ() first, then the
-// [build].env pairs in sorted key order, then the seven TT_* contract
-// variables last. exec.Cmd resolves duplicate keys last-wins, so the contract
-// variables are authoritative — a [build].env key cannot shadow TT_OUTPUT_DIR.
-// This is the only place the process environment is assembled; a backend never
-// re-reads manifest.Build.Env.
-func (e Env) environ() []string {
+// baseEnviron builds the shared prefix of every child environment: os.Environ()
+// first, then the [build].env pairs in sorted key order. The TT_* contract
+// variables are appended last by environ / hookEnviron so exec.Cmd's last-wins
+// resolution keeps them authoritative — a [build].env key cannot shadow
+// TT_OUTPUT_DIR. This is the only place the process environment is assembled; a
+// backend never re-reads manifest.Build.Env.
+func (e Env) baseEnviron() []string {
 	out := os.Environ()
 
 	keys := make([]string, 0, len(e.Extra))
@@ -122,11 +122,32 @@ func (e Env) environ() []string {
 		out = append(out, k+"="+e.Extra[k])
 	}
 
-	return append(out,
+	return out
+}
+
+// environ is the full component-build contract: baseEnviron plus the seven TT_*
+// variables, TT_OUTPUT_DIR / TT_COMPONENT_NAME included.
+func (e Env) environ() []string {
+	return append(e.baseEnviron(),
 		"TT_OUTPUT_DIR="+e.OutputDir,
 		"TT_PROJECT_ROOT="+e.ProjectRoot,
 		"TT_PACKAGE="+e.Package,
 		"TT_COMPONENT_NAME="+e.Component,
+		"TT_VERSION="+e.Version,
+		"TT_PLATFORM_OS="+e.platformOS(),
+		"TT_PLATFORM_ARCH="+e.platformArch(),
+	)
+}
+
+// hookEnviron is the reduced lifecycle-hook contract: baseEnviron plus the five
+// TT_* variables that exist before any component is built. TT_OUTPUT_DIR and
+// TT_COMPONENT_NAME are deliberately omitted — a pre_build / post_build hook
+// runs around all components and has no single output directory or component
+// name.
+func (e Env) hookEnviron() []string {
+	return append(e.baseEnviron(),
+		"TT_PROJECT_ROOT="+e.ProjectRoot,
+		"TT_PACKAGE="+e.Package,
 		"TT_VERSION="+e.Version,
 		"TT_PLATFORM_OS="+e.platformOS(),
 		"TT_PLATFORM_ARCH="+e.platformArch(),
@@ -175,15 +196,25 @@ func requireAbsPaths(cwd, outputDir string) error {
 	return nil
 }
 
-// run builds and runs one subprocess with the assembled contract environment.
-// It never mutates the tt process cwd or environment: the environment is set on
-// the exec.Cmd and util.RunCommand sets cmd.Dir. exec.CommandContext keeps ctx
-// cancellation working.
+// run builds and runs one subprocess with the full component-build contract
+// environment. It never mutates the tt process cwd or environment: the
+// environment is set on the exec.Cmd and util.RunCommand sets cmd.Dir.
+// exec.CommandContext keeps ctx cancellation working.
 func run(
 	ctx context.Context, cwd string, env Env, showOutput bool, name string, args ...string,
 ) error {
+	return runEnviron(ctx, cwd, env.environ(), showOutput, name, args...)
+}
+
+// runEnviron is the shared subprocess launcher: it takes the fully assembled
+// environment slice so the component path (run) and the hook path (RunHook) can
+// supply their respective contracts without duplicating exec wiring.
+func runEnviron(
+	ctx context.Context, cwd string, environ []string,
+	showOutput bool, name string, args ...string,
+) error {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Env = env.environ()
+	cmd.Env = environ
 
 	return util.RunCommand(cmd, cwd, showOutput)
 }
