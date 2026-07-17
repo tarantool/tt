@@ -749,7 +749,7 @@ def test_cluster_publish_config_no_auth(
             tt_cmd,
             "cluster",
             "publish",
-            f"{instance.endpoint}/prefix?timeout=0.1",
+            f"{instance.endpoint}/prefix?timeout=5",
             "src.yaml",
         ]
         instance_process = subprocess.Popen(
@@ -784,7 +784,7 @@ def test_cluster_publish_config_bad_auth(
         tt_cmd,
         "cluster",
         "publish",
-        f"http://invalid_user:invalid_pass@{instance.endpoint}/prefix?timeout=0.1",
+        f"http://invalid_user:invalid_pass@{instance.endpoint}/prefix?timeout=5",
         "src.yaml",
     ]
     instance_process = subprocess.Popen(
