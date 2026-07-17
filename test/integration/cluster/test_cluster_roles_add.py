@@ -72,7 +72,7 @@ def test_cluster_rs_roles_add_no_auth(
             "roles",
             "add",
             "-f",
-            f"{instance.endpoint}/prefix?timeout=0.1",
+            f"{instance.endpoint}/prefix?timeout=5",
             "role",
             "-G",
         ]
@@ -100,7 +100,7 @@ def test_cluster_rs_roles_add_bad_auth(
         "rs",
         "roles",
         "add",
-        f"http://invalid_user:invalid:pass@{instance.endpoint}/prefix?timeout=0.1",
+        f"http://invalid_user:invalid:pass@{instance.endpoint}/prefix?timeout=5",
         "role",
         "-G",
     ]
