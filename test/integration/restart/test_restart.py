@@ -75,7 +75,9 @@ def wait_pid_files_changed(tt_app, instances, orig_status):
                 return False
         return True
 
-    return utils.wait_event(5, all_pids_changed)
+    # A restarted instance writes its PID file only once it has been spawned,
+    # which a loaded CI runner can drag out well past a few seconds.
+    return utils.wait_event(30, all_pids_changed)
 
 
 def check_restart(tt, tt_app, target, input, is_confirm, *args):
@@ -98,8 +100,10 @@ def check_restart(tt, tt_app, target, input, is_confirm, *args):
     discarding_msg = "Restart is cancelled."
     if is_confirm:
         assert discarding_msg not in out
-        # Make sure all involved PIDs are updated.
-        wait_pid_files_changed(tt_app, target_instances, orig_status)
+        # Make sure all involved PIDs are updated. A timeout here must fail
+        # loudly: otherwise the checks below race the instance start and report
+        # a bare "NOT RUNNING" instead.
+        assert wait_pid_files_changed(tt_app, target_instances, orig_status)
     else:
         # Check the discarding message.
         assert discarding_msg in out
