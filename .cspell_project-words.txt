@@ -32,6 +32,7 @@ finalizer*
 flightrec
 getfixturevalue
 GKTTBACKUPTEST
+gofumpt
 golangci
 heywoodlh
 iconfig

@@ -830,7 +830,6 @@ type instanceProc struct {
 
 // Stop the Instances.
 func Stop(runs []InstanceCtx) error {
-
 	// Request an interruption for each process.
 	// This is done in advance to enable parallel termination.
 	procsToWait := make([]instanceProc, 0, len(runs))
