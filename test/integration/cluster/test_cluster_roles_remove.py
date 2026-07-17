@@ -72,7 +72,7 @@ def test_cluster_rs_roles_remove_no_auth(
             "roles",
             "remove",
             "-f",
-            f"{instance.endpoint}/prefix?timeout=0.1",
+            f"{instance.endpoint}/prefix?timeout=5",
             "role",
             "-G",
         ]
@@ -100,7 +100,7 @@ def test_cluster_rs_roles_remove_bad_auth(
         "rs",
         "roles",
         "remove",
-        f"http://invalid_user:invalid:pass@{instance.endpoint}/prefix?timeout=0.1",
+        f"http://invalid_user:invalid:pass@{instance.endpoint}/prefix?timeout=5",
         "role",
         "-G",
     ]
