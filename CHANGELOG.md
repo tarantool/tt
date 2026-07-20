@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   and `--locked` fails on a stale lock instead of re-resolving.
 - `tt package fetch`: materialize `.rocks/` strictly from the lock, without
   re-resolving or running component build backends.
+- `tt package pack`: run the full build and assemble the result into a
+  reproducible `.tt` archive (`tar.zst`) at
+  `_build/pack/<package>-<version>-<token>.tt`, printing the path to stdout. By
+  default the archive is self-contained: it carries `_runtime/` (Tarantool, tt,
+  and TCM when `[platform].tcm` is set) and the whole dependency closure, so
+  installing it needs no network. `--without-deps` drops both and leaves the
+  `bundled_*_version` lock fields empty. Runtime components are taken from
+  `<user cache>/tt/runtimes/<component>/<flavor>/<version>/`, falling back to
+  the active tt environment when it satisfies `[platform]`, with a warning.
+  Archives are byte-reproducible for a given commit; set `SOURCE_DATE_EPOCH` to
+  pin the build timestamp explicitly.
 - `tt pack`: support nested `.packignore` at the root of tt environment.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
