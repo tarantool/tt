@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/tarantool/tt/cli/backup"
 	"github.com/tarantool/tt/cli/connector"
-	"github.com/tarantool/tt/lib/backup"
 )
 
 type mockEvaler struct {
