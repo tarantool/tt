@@ -106,6 +106,10 @@ linters:
             # cli/manifest/build filters component files with gitignore-syntax
             # include/exclude patterns via go-git's matcher.
             - "github.com/go-git/go-git/v5/plumbing/format/gitignore"
+            # cli/manifest/pack compresses the .tt archive as tar+zstd.
+            - "github.com/klauspost/compress/zstd"
+            # cli/manifest/pack drives the build before archiving its result.
+            - "github.com/tarantool/tt/cli/manifest/build"
         test:
           files:
             - "$test"
@@ -116,3 +120,5 @@ linters:
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/cli/manifest"
             - "github.com/tarantool/go-luarocks"
+            # cli/manifest/pack tests decompress the archive they just wrote.
+            - "github.com/klauspost/compress/zstd"
