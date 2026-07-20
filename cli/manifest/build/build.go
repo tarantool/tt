@@ -93,19 +93,47 @@ func (o Options) builtAt() time.Time {
 	return o.Now
 }
 
-// Run executes the build (or fetch) described by opts. It returns an *ExitError
-// for the failures that carry a dedicated exit code (stale --locked,
-// version.lua collision, backend failure) and a plain error otherwise;
-// ExitCode maps either to a process exit code.
+// Result reports what a build produced. Callers that only drive the build for
+// its side effects ignore it; tt package pack consumes it to assemble the
+// archive without re-reading and re-deriving the same state from disk.
+type Result struct {
+	// Manifest is the parsed and validated app.manifest.toml.
+	Manifest *manifest.Manifest
+	// Lock is the lock the build resolved against, already gated. Its
+	// bundled_*_version fields are whatever was on disk; pack fills them.
+	Lock *manifest.Lock
+	// Version is the derived package version, with Flavor set from
+	// [platform].tarantool.
+	Version version.Version
+	// Product is the name of the product that was built, with the default
+	// already selected.
+	Product string
+	// Tree is the absolute path of the materialized .rocks/ tree.
+	Tree string
+}
+
+// Run executes the build (or fetch) described by opts, discarding the result.
+// It returns an *ExitError for the failures that carry a dedicated exit code
+// (stale --locked, version.lua collision, backend failure) and a plain error
+// otherwise; ExitCode maps either to a process exit code.
 func Run(ctx context.Context, opts Options) error {
+	_, err := RunResult(ctx, opts)
+
+	return err
+}
+
+// RunResult is Run, additionally reporting the manifest, lock, version and tree
+// the build worked with. A fetch run reports the manifest, lock and tree; it
+// derives no version and runs no backends.
+func RunResult(ctx context.Context, opts Options) (*Result, error) {
 	man, err := readManifest(opts.ProjectDir, opts)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	productName, product, err := selectProduct(man, opts.Product)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tree := filepath.Join(opts.ProjectDir, rocksDirName)
@@ -117,7 +145,7 @@ func Run(ctx context.Context, opts Options) error {
 	}))
 
 	if opts.FetchOnly {
-		return runFetch(ctx, adapter, opts.ProjectDir, productName)
+		return runFetch(ctx, adapter, opts.ProjectDir, man, tree, productName)
 	}
 
 	return runBuild(ctx, opts, man, adapter, tree, productName, product)
@@ -153,35 +181,40 @@ func readManifest(projectDir string, opts Options) (*manifest.Manifest, error) {
 // runFetch materializes the product's locked closure into the tree without
 // resolving or running backends — tt package fetch.
 func runFetch(
-	ctx context.Context, adapter *rocks.Adapter, projectDir, productName string,
-) error {
+	ctx context.Context, adapter *rocks.Adapter, projectDir string,
+	man *manifest.Manifest, tree, productName string,
+) (*Result, error) {
 	lock, err := loadLock(projectDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	prod, ok := lock.Products[productName]
 	if !ok {
-		return exitErrorf(exitStateError,
+		return nil, exitErrorf(exitStateError,
 			"lock has no closure for product %q; run tt package build", productName)
 	}
 
 	rockClient, err := adapter.Client(client.BackendNative)
 	if err != nil {
-		return fmt.Errorf("rocks client: %w", err)
+		return nil, fmt.Errorf("rocks client: %w", err)
 	}
 
-	return materialize(ctx, rockClient, projectDir, prod)
+	if err := materialize(ctx, rockClient, projectDir, prod); err != nil {
+		return nil, err
+	}
+
+	return &Result{Manifest: man, Lock: lock, Product: productName, Tree: tree}, nil
 }
 
 // runBuild runs the full build cycle.
 func runBuild(
 	ctx context.Context, opts Options, man *manifest.Manifest,
 	adapter *rocks.Adapter, tree, productName string, product manifest.Product,
-) error {
+) (*Result, error) {
 	components, err := selectComponents(product, opts.Component)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Version is derived before pre_build so the hook sees TT_VERSION, and
@@ -189,21 +222,21 @@ func runBuild(
 	// version.Derive spawns git internally and takes no context.
 	ver, err := version.Derive(opts.ProjectDir) //nolint:contextcheck // Derive has no ctx.
 	if err != nil {
-		return fmt.Errorf("deriving version: %w", err)
+		return nil, fmt.Errorf("deriving version: %w", err)
 	}
 
 	ver.Flavor = man.Platform.Tarantool.EffectiveFlavor()
 
 	preErr := runHook(ctx, man, ver, hookPreBuild, opts.ProjectDir, opts.ShowOutput)
 	if preErr != nil {
-		return exitErrorf(exitBackendError, "pre_build hook: %w", preErr)
+		return nil, exitErrorf(exitBackendError, "pre_build hook: %w", preErr)
 	}
 
 	engine := resolve.NewEngine(adapter, opts.ProjectDir, opts.TtVersion)
 
 	lock, warnings, err := gateLock(ctx, engine, man, opts.ProjectDir, opts.Locked)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	opts.emit(warnings)
@@ -212,36 +245,47 @@ func runBuild(
 	if !ok {
 		// A hash-fresh lock can still lack the product if it was hand-edited or
 		// truncated (IsStale only checks the manifest and path-dep hashes).
-		return exitErrorf(exitStateError, "lock has no closure for product %q", productName)
+		return nil, exitErrorf(exitStateError,
+			"lock has no closure for product %q", productName)
 	}
 
 	rockClient, err := adapter.Client(client.BackendNative)
 	if err != nil {
-		return fmt.Errorf("rocks client: %w", err)
+		return nil, fmt.Errorf("rocks client: %w", err)
 	}
 
 	matErr := materialize(ctx, rockClient, opts.ProjectDir, prod)
 	if matErr != nil {
-		return matErr
+		return nil, matErr
 	}
 
 	backendErr := runBackends(ctx, opts, man, adapter, tree, components, ver)
 	if backendErr != nil {
-		return backendErr
+		return nil, backendErr
 	}
 
 	laidOut, err := layoutComponents(opts.ProjectDir, tree, man, components)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	vluaErr := writeVersionLua(tree, man.Package.Name,
 		man.Package.GenerateVersionLuaValue(), ver, opts.builtAt(), laidOut)
 	if vluaErr != nil {
-		return vluaErr
+		return nil, vluaErr
 	}
 
-	return runPostBuild(ctx, opts, man, ver)
+	if err := runPostBuild(ctx, opts, man, ver); err != nil {
+		return nil, err
+	}
+
+	return &Result{
+		Manifest: man,
+		Lock:     lock,
+		Version:  ver,
+		Product:  productName,
+		Tree:     tree,
+	}, nil
 }
 
 // runBackends runs the build backend of every selected component that declares
