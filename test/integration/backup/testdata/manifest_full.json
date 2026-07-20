@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "backup_id": "2026-01-01-full",
+  "previous_backup_id": "",
+  "base_full_backup_id": "2026-01-01-full",
+  "status": "OK",
+  "creation_time": "2026-01-01T00:00:00Z",
+  "creation_duration": 1000000000,
+  "shards": {
+    "11111111-1111-1111-1111-111111111111": {
+      "instance": {
+        "instance_uuid": "aaaaaaaa-0000-0000-0000-000000000001",
+        "instance_name": "router-001",
+        "hostname": "localhost",
+        "vclock_begin": {"1": 0},
+        "vclock_end": {"1": 100},
+        "artifact": {
+          "path": "data/2026-01-01-full-11111111-1111-1111-1111-111111111111.tar.zst",
+          "size_bytes": 1024,
+          "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "compression": "zstd",
+          "files": ["00000000000000000000.snap"],
+          "recovery_points": [],
+          "type": "full"
+        }
+      }
+    }
+  },
+  "topology": {
+    "replicasets": {
+      "11111111-1111-1111-1111-111111111111": [
+        {
+          "instance_uuid": "aaaaaaaa-0000-0000-0000-000000000001",
+          "instance_name": "router-001",
+          "hostname": "localhost"
+        }
+      ]
+    }
+  },
+  "warnings": []
+}

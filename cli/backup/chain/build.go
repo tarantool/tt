@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/tarantool/tt/lib/backup"
-	"github.com/tarantool/tt/lib/backup/storage"
+	"github.com/tarantool/tt/cli/backup"
+	"github.com/tarantool/tt/cli/backup/storage"
 )
 
 // Load reads every stored manifest and builds a fully marked chain.

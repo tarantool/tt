@@ -41,6 +41,7 @@ incdir
 infof
 inprogress
 iproto
+itest
 leaderuuid
 libcluster
 libconnect
@@ -70,6 +71,7 @@ outputformat
 packignore
 payloadsize
 pflag
+PITR
 pkgs
 postinst
 preinst
@@ -111,7 +113,9 @@ unknownoffvotercandidatemanual
 unknownreadrw
 unknownuninitializedbootstrapped
 varbinary
+vbegin
 vclock
+vclocks
 vshard
 vylog
 warnf

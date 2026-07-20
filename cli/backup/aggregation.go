@@ -10,24 +10,24 @@ const artifactCompression = "zstd"
 
 // RecoveryPoint describes one engine recovery point returned by Tarantool.
 type RecoveryPoint struct {
-	UUID      string `json:"uuid"`
-	ReplicaID uint32 `json:"replica_id"`
-	LSN       uint64 `json:"lsn"`
-	Timestamp int64  `json:"timestamp"` // unix-time.
+	Label     string  `json:"label"`
+	ReplicaID uint32  `json:"replica_id"`
+	LSN       uint64  `json:"lsn"`
+	Timestamp float64 `json:"timestamp"` // unix-time (seconds, float).
 }
 
 // Fragment is a per-replicaset backup description stored in an instance archive.
 type Fragment struct {
-	ReplicasetUUID string           `json:"replicaset_uuid"`
-	InstanceUUID   string           `json:"instance_uuid"`
-	InstanceName   string           `json:"instance_name"`
-	Hostname       string           `json:"hostname"`
-	Type           BackupType       `json:"type"`
-	VclockBegin    Vclock           `json:"vclock_begin"`
-	VclockEnd      Vclock           `json:"vclock_end"`
-	Files          []string         `json:"files"`
-	ChecksumSHA256 string           `json:"checksum_sha256"`
-	RecoveryPoints []*RecoveryPoint `json:"recovery_points,omitempty"`
+	ReplicasetUUID string            `json:"replicaset_uuid"`
+	InstanceUUID   string            `json:"instance_uuid"`
+	InstanceName   string            `json:"instance_name"`
+	Hostname       string            `json:"hostname"`
+	Type           BackupType        `json:"type"`
+	VclockBegin    Vclock            `json:"vclock_begin"`
+	VclockEnd      Vclock            `json:"vclock_end"`
+	Files          []string          `json:"files"`
+	ChecksumSHA256 string            `json:"checksum_sha256"`
+	RecoveryPoints *[]*RecoveryPoint `json:"recovery_points,omitempty"`
 }
 
 // AggregateInput contains all external data needed to build a manifest.
@@ -216,11 +216,12 @@ func recoveryPointsFromFragment(
 		return recoveryPoints
 	}
 
-	for _, point := range fragment.RecoveryPoints {
+	for _, point := range *fragment.RecoveryPoints {
 		if point != nil {
 			recoveryPoints = append(recoveryPoints, *point)
 		}
 	}
+
 	return recoveryPoints
 }
 

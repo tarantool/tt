@@ -150,7 +150,7 @@ func collectShardEntries(entries []*Entry) map[string]map[string]shardEntry {
 			}
 
 			for _, rp := range shard.Instance.Artifact.RecoveryPoints {
-				name := rp.UUID
+				name := rp.Label
 				if _, ok := pointShards[name]; !ok {
 					pointShards[name] = make(map[string]shardEntry)
 				}
@@ -158,7 +158,7 @@ func collectShardEntries(entries []*Entry) map[string]map[string]shardEntry {
 				if _, seen := pointShards[name][replicasetUUID]; !seen {
 					pointShards[name][replicasetUUID] = shardEntry{
 						position:  Position{ReplicaID: rp.ReplicaID, LSN: rp.LSN},
-						timestamp: time.Unix(rp.Timestamp, 0).UTC(),
+						timestamp: time.Unix(int64(rp.Timestamp), 0).UTC(),
 					}
 				}
 			}

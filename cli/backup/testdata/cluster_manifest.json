@@ -24,8 +24,8 @@
             "00000000000000001500.xlog"
           ],
           "recovery_points": [
-            {"uuid": "550e8400-e29b-41d4-a716-446655440000", "replica_id": 1, "lsn": 1501, "timestamp": 1741780500},
-            {"uuid": "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "replica_id": 1, "lsn": 1502, "timestamp": 1741780780}
+            {"label": "550e8400-e29b-41d4-a716-446655440000", "replica_id": 1, "lsn": 1501, "timestamp": 1741780500},
+            {"label": "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "replica_id": 1, "lsn": 1502, "timestamp": 1741780780}
           ],
           "type": "full"
         }
@@ -48,8 +48,8 @@
             "00000000000000000800.xlog"
           ],
           "recovery_points": [
-            {"uuid": "550e8400-e29b-41d4-a716-446655440000", "replica_id": 3, "lsn": 800, "timestamp": 1741780501},
-            {"uuid": "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "replica_id": 3, "lsn": 801, "timestamp": 1741780781}
+            {"label": "550e8400-e29b-41d4-a716-446655440000", "replica_id": 3, "lsn": 800, "timestamp": 1741780501},
+            {"label": "6ba7b810-9dad-11d1-80b4-00c04fd430c8", "replica_id": 3, "lsn": 801, "timestamp": 1741780781}
           ],
           "type": "full"
         }

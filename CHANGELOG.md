@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt backup start` and `tt backup finalize`: add support for creating and
+  finalizing local backup artifacts.
+
 ### Changed
 
 - `tt stop`: preliminary interrupts the processes to enable parallel termination.

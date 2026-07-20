@@ -174,8 +174,8 @@ func TestAggregateBuildsClusterManifest(t *testing.T) {
 	require.Equal(t, "timeout: replicaset unreachable", manifest.Shards[testRSC].Error)
 	require.Equal(
 		t,
-		manifest.Shards[testRSA].Instance.Artifact.RecoveryPoints[0].UUID,
-		manifest.Shards[testRSB].Instance.Artifact.RecoveryPoints[0].UUID,
+		manifest.Shards[testRSA].Instance.Artifact.RecoveryPoints[0].Label,
+		manifest.Shards[testRSB].Instance.Artifact.RecoveryPoints[0].Label,
 	)
 }
 
