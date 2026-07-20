@@ -4,7 +4,7 @@ package chain
 import (
 	"time"
 
-	"github.com/tarantool/tt/lib/backup"
+	"github.com/tarantool/tt/cli/backup"
 )
 
 // Status describes the result of resolving a requested recovery time.

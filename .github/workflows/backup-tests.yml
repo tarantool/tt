@@ -1,0 +1,50 @@
+---
+name: Backup tests
+
+# Integration tests for the backup PITR feature (box.backup.start/finalize
+# and recovery points). Requires Tarantool 3.8.0+.
+
+on:
+  push:
+    branches-ignore:
+      - 'master'
+  pull_request:
+    paths:
+      - 'cli/backup/**'
+      - 'cli/cmd/backup.go'
+      - 'cli/cmd/backup_test.go'
+      - 'test/integration/backup/**'
+      - '.github/workflows/backup-tests.yml'
+
+env:
+  GO_VERSION: '1.25.7'
+  PYTHON_VERSION: '3.10'
+  TARANTOOL_VERSION: '3.8'
+
+jobs:
+  backup-tests:
+    if: |
+      (github.event_name == 'push') ||
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.owner.login != 'tarantool')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Prepare CE env
+        uses: ./.github/actions/prepare-ce-test-env
+        with:
+          tarantool-version: '${{ env.TARANTOOL_VERSION }}'
+
+      - name: Stop Mono server
+        run: sudo systemctl kill mono-xsp4 || true
+
+      - name: Run backup integration tests
+        run: |
+          cd test
+          python3 -m pytest integration/backup/ -v
+        shell: bash

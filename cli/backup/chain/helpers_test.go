@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/lib/backup"
-	"github.com/tarantool/tt/lib/backup/storage"
+	"github.com/tarantool/tt/cli/backup"
+	"github.com/tarantool/tt/cli/backup/storage"
 )
 
 const (
@@ -181,10 +181,10 @@ func recoveryPoint(name string, replicaID uint32,
 	lsn uint64, timestamp int64,
 ) backup.RecoveryPoint {
 	return backup.RecoveryPoint{
-		UUID:      name,
+		Label:     name,
 		ReplicaID: replicaID,
 		LSN:       lsn,
-		Timestamp: timestamp,
+		Timestamp: float64(timestamp),
 	}
 }
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/lib/backup"
+	"github.com/tarantool/tt/cli/backup"
 )
 
 func TestPlanForFullOnly(t *testing.T) {

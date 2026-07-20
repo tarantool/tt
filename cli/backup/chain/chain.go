@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/tarantool/tt/lib/backup"
+	"github.com/tarantool/tt/cli/backup"
 )
 
 // Chain is the in-memory view of all manifests in one storage.

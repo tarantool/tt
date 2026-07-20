@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tarantool/tt/lib/backup"
+	"github.com/tarantool/tt/cli/backup"
 )
 
 // String returns the status name.
@@ -190,7 +190,7 @@ func findSourceEntry(
 		}
 
 		for _, rp := range shard.Instance.Artifact.RecoveryPoints {
-			if rp.UUID == pointName {
+			if rp.Label == pointName {
 				return entry, nil
 			}
 		}
