@@ -52,6 +52,7 @@ func ConnectEtcd(opts EtcdOpts) (*clientv3.Client, error) {
 	var tlsConfig *tls.Config = nil
 	if opts.KeyFile != "" || opts.CertFile != "" || opts.CaFile != "" ||
 		opts.CaPath != "" || opts.SkipHostVerify {
+
 		tlsInfo := transport.TLSInfo{
 			CertFile:      opts.CertFile,
 			KeyFile:       opts.KeyFile,
@@ -453,7 +454,7 @@ func (publisher EtcdAllDataPublisher) Publish(revision int64, data []byte) error
 		defer cancel()
 	}
 
-	for true {
+	for {
 		// The code tries to put data with the key and remove all other
 		// data with the prefix. We need to remove all other data with the
 		// prefix because actually the cluster config could be split
@@ -514,8 +515,6 @@ func (publisher EtcdAllDataPublisher) Publish(revision int64, data []byte) error
 			return nil
 		}
 	}
-	// Unreachable.
-	return nil
 }
 
 // EtcdAllDataPublisher publishes a signed data into etcd to a prefix.

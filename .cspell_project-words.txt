@@ -33,6 +33,7 @@ flightrec
 getfixturevalue
 GKTTBACKUPTEST
 golangci
+golint
 heywoodlh
 iconfig
 incdir

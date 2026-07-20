@@ -111,6 +111,7 @@ func TestValidate_instance_schema(t *testing.T) {
 			"roles": []any{"foo", "bar"},
 		},
 	})
+	require.NoError(t, err)
 
 	err = cluster.Validate(config, cluster.TarantoolSchema)
 	unwrap := err.(interface{ Unwrap() []error })

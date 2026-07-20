@@ -1,6 +1,7 @@
 package cluster_test
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,17 +20,13 @@ const (
 )
 
 func TestNewFileCollector(t *testing.T) {
-	var collector cluster.DataCollector
-
-	collector = cluster.NewFileCollector(testYamlPath)
+	var collector cluster.DataCollector = cluster.NewFileCollector(testYamlPath)
 
 	assert.NotNil(t, collector)
 }
 
 func TestNewIntegrityFileCollector(t *testing.T) {
-	var collector cluster.DataCollector
-
-	collector = cluster.NewIntegrityFileCollector(nil, "")
+	var collector cluster.DataCollector = cluster.NewIntegrityFileCollector(nil, "")
 	require.NotNil(t, collector)
 	assert.Panics(t, func() {
 		collector.Collect()
@@ -41,7 +38,7 @@ func TestNewIntegrityFileCollector_fileReadFunc_error(t *testing.T) {
 
 	collector := cluster.NewIntegrityFileCollector(
 		func(path string) (io.ReadCloser, error) {
-			return nil, fmt.Errorf(errMsg)
+			return nil, errors.New(errMsg)
 		}, "foo")
 
 	require.NotNil(t, collector)
@@ -123,9 +120,7 @@ func TestNewFileCollector_not_exist(t *testing.T) {
 }
 
 func TestNewFileDataPublisher(t *testing.T) {
-	var publisher cluster.DataPublisher
-
-	publisher = cluster.NewFileDataPublisher("")
+	var publisher cluster.DataPublisher = cluster.NewFileDataPublisher("")
 	assert.NotNil(t, publisher)
 }
 

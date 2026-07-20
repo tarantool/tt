@@ -92,7 +92,7 @@ func (config *Config) getMap(path []string) (map[any]any, error) {
 
 // Set sets a value to a configuration path.
 func (config *Config) Set(path []string, value any) error {
-	if path == nil || len(path) == 0 {
+	if len(path) == 0 {
 		config.paths = value
 		return nil
 	}
@@ -114,7 +114,7 @@ func (config *Config) Set(path []string, value any) error {
 
 // Get returns a value from a configuration path.
 func (config *Config) Get(path []string) (any, error) {
-	if path == nil || len(path) == 0 {
+	if len(path) == 0 {
 		if config.paths == nil {
 			return nil, NotExistError{path}
 		}
@@ -136,7 +136,7 @@ func (config *Config) Get(path []string) (any, error) {
 // Elems returns a list of an elements for a path.
 func (config *Config) Elems(path []string) ([]string, error) {
 	var target map[any]any
-	if path == nil || len(path) == 0 {
+	if len(path) == 0 {
 		if config.paths == nil {
 			return nil, NotExistError{path}
 		}
@@ -182,7 +182,7 @@ func forEachMap(path []string, dst map[any]any, fun func([]string, any)) {
 // ForEach iterates over each value in the configuration.
 func (config *Config) ForEach(path []string, fun func(path []string, value any)) {
 	var target any
-	if path == nil || len(path) == 0 {
+	if len(path) == 0 {
 		if config.paths == nil {
 			return
 		} else {

@@ -206,7 +206,6 @@ func MakeClusterConfig(config *Config) (ClusterConfig, error) {
 			"failed to parse a configuration data as a cluster config: %w",
 			err)
 		return cconfig, err
-
 	}
 	return cconfig, nil
 }
