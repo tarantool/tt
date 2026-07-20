@@ -27,3 +27,24 @@ type BackupType string
 
 // Status is the aggregate health of the cluster backup.
 type Status string
+
+// BackupInfo is the decoded box.backup.info() result: files, vclocks, type
+// and recovery points of an open backup.
+type BackupInfo struct {
+	Files          []string          `json:"files"`
+	Type           BackupType        `json:"type"`
+	VclockBegin    Vclock            `json:"vclock_begin"`
+	VclockEnd      Vclock            `json:"vclock_end"`
+	RecoveryPoints *[]*RecoveryPoint `json:"recovery_points"`
+}
+
+// InstanceInfo holds instance-identifying fields and WAL directories fetched
+// from the instance via box.info.
+type InstanceInfo struct {
+	ReplicasetUUID string
+	InstanceUUID   string
+	InstanceName   string
+	Hostname       string
+	WalDir         string
+	MemtxDir       string
+}

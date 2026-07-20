@@ -1,4 +1,4 @@
-package boxbackup
+package backup
 
 import (
 	"errors"
@@ -8,51 +8,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/tarantool/tt/cli/backup"
 	"github.com/tarantool/tt/cli/connector"
 )
-
-type mockEvaler struct {
-	exprs []string
-	args  []any
-	ret   []any
-	queue [][]any
-	err   error
-	calls int
-}
-
-func (m *mockEvaler) Eval(expr string, args []any,
-	opts connector.RequestOpts,
-) ([]any, error) {
-	m.exprs = append(m.exprs, expr)
-	m.args = args
-	m.calls++
-	if m.queue != nil {
-		return m.queue[m.calls-1], m.err
-	}
-
-	return m.ret, m.err
-}
-
-func (m *mockEvaler) Close() error { return nil }
-
-// expr returns the expression of the last recorded Eval call.
-func (m *mockEvaler) expr() string {
-	if len(m.exprs) == 0 {
-		return ""
-	}
-
-	return m.exprs[len(m.exprs)-1]
-}
 
 func TestStart_full(t *testing.T) {
 	m := &mockEvaler{}
 
-	require.NoError(t, Start(m, StartOpts{}))
-	require.Equal(t, "box.backup.start(...)", m.expr())
+	require.NoError(t, startBackup(m, StartOpts{}))
+	require.Equal(t, "box.backup.start(...)", m.exprs[len(m.exprs)-1])
 
-	require.Len(t, m.args, 1)
-	got := m.args[0].(map[string]any)
+	require.Len(t, m.argsList, 1)
+	got := m.argsList[0][0].(map[string]any)
 	require.Equal(t, defaultTTL.Seconds(), got["ttl"])
 	_, hasFromVclock := got["from_vclock"]
 	require.False(t, hasFromVclock, "full backup must not send from_vclock")
@@ -61,31 +27,31 @@ func TestStart_full(t *testing.T) {
 func TestStart_incremental(t *testing.T) {
 	m := &mockEvaler{}
 
-	err := Start(m, StartOpts{FromVclock: backup.Vclock{1: 42}})
+	err := startBackup(m, StartOpts{FromVclock: Vclock{1: 42}})
 	require.NoError(t, err)
 
-	got := m.args[0].(map[string]any)
+	got := m.argsList[0][0].(map[string]any)
 	require.Equal(t, map[uint32]uint64{1: 42}, got["from_vclock"])
 }
 
 func TestStart_customTTL(t *testing.T) {
 	m := &mockEvaler{}
 
-	require.NoError(t, Start(m, StartOpts{TTL: 30 * time.Minute}))
-	got := m.args[0].(map[string]any)
+	require.NoError(t, startBackup(m, StartOpts{TTL: 30 * time.Minute}))
+	got := m.argsList[0][0].(map[string]any)
 	require.Equal(t, float64(1800), got["ttl"])
 }
 
 func TestStart_error(t *testing.T) {
-	m := &mockEvaler{err: errors.New("boom")}
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
 
-	err := Start(m, StartOpts{})
+	err := startBackup(m, StartOpts{})
 	require.ErrorContains(t, err, "failed to start backup")
 	require.ErrorContains(t, err, "boom")
 }
 
 func TestGetInfo_noBackup(t *testing.T) {
-	m := &mockEvaler{ret: []any{nil}}
+	m := &mockEvaler{queue: [][]any{nil}}
 
 	info, err := GetInfo(m)
 	require.NoError(t, err)
@@ -93,7 +59,7 @@ func TestGetInfo_noBackup(t *testing.T) {
 }
 
 func TestGetInfo_allFields(t *testing.T) {
-	m := &mockEvaler{ret: []any{map[any]any{
+	m := &mockEvaler{queue: [][]any{{map[any]any{
 		"files":        []any{"0.snap", "0.xlog"},
 		"type":         "full",
 		"vclock_begin": map[any]any{uint64(0): uint64(1)},
@@ -102,14 +68,14 @@ func TestGetInfo_allFields(t *testing.T) {
 			"uuid": "rp-1", "replica_id": uint64(1),
 			"lsn": uint64(7), "timestamp": uint64(123),
 		}},
-	}}}
+	}}}}
 
 	info, err := GetInfo(m)
 	require.NoError(t, err)
 	require.Equal(t, []string{"0.snap", "0.xlog"}, info.Files)
-	require.Equal(t, backup.BackupTypeFull, info.Type)
-	require.Equal(t, backup.Vclock{0: 1}, info.VclockBegin)
-	require.Equal(t, backup.Vclock{0: 5, 1: 9}, info.VclockEnd)
+	require.Equal(t, BackupTypeFull, info.Type)
+	require.Equal(t, Vclock{0: 1}, info.VclockBegin)
+	require.Equal(t, Vclock{0: 5, 1: 9}, info.VclockEnd)
 	require.NotNil(t, info.RecoveryPoints)
 	require.Len(t, *info.RecoveryPoints, 1)
 	rp := (*info.RecoveryPoints)[0]
@@ -153,14 +119,14 @@ func TestGetInfo_recoveryPointsStates(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// map[any]any shape (native net.box msgpack decoding).
-			infoAny, err := GetInfo(&mockEvaler{ret: []any{tc.resp}})
+			infoAny, err := GetInfo(&mockEvaler{queue: [][]any{{tc.resp}}})
 			require.NoError(t, err)
 
 			// map[string]any shape (e.g. a decoder yielding string keys).
-			infoStr, err := GetInfo(&mockEvaler{ret: []any{stringKeyed(tc.resp)}})
+			infoStr, err := GetInfo(&mockEvaler{queue: [][]any{{stringKeyed(tc.resp)}}})
 			require.NoError(t, err)
 
-			for _, info := range []*Info{infoAny, infoStr} {
+			for _, info := range []*BackupInfo{infoAny, infoStr} {
 				if tc.wantNil {
 					require.Nil(t, info.RecoveryPoints, "absent field must map to nil")
 					continue
@@ -202,7 +168,7 @@ func stringKeyed(in map[any]any) map[string]any {
 }
 
 func TestGetInfo_error(t *testing.T) {
-	m := &mockEvaler{err: errors.New("boom")}
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
 
 	_, err := GetInfo(m)
 	require.ErrorContains(t, err, "failed to get backup info")
@@ -211,14 +177,14 @@ func TestGetInfo_error(t *testing.T) {
 func TestStop_ok(t *testing.T) {
 	m := &mockEvaler{}
 
-	require.NoError(t, Stop(m))
-	require.Equal(t, "box.backup.stop()", m.expr())
+	require.NoError(t, stopBackup(m))
+	require.Equal(t, "box.backup.stop()", m.exprs[len(m.exprs)-1])
 }
 
 func TestStop_error(t *testing.T) {
-	m := &mockEvaler{err: errors.New("boom")}
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
 
-	err := Stop(m)
+	err := stopBackup(m)
 	require.ErrorContains(t, err, "failed to stop backup")
 	require.ErrorContains(t, err, "boom")
 }
@@ -234,15 +200,45 @@ func TestStartInfoStop(t *testing.T) {
 		nil, // stop()
 	}}
 
-	require.NoError(t, Start(m, StartOpts{}))
+	require.NoError(t, startBackup(m, StartOpts{}))
 
 	info, err := GetInfo(m)
 	require.NoError(t, err)
-	require.Equal(t, backup.BackupTypeFull, info.Type)
+	require.Equal(t, BackupTypeFull, info.Type)
 	require.NotNil(t, info.RecoveryPoints)
 
-	require.NoError(t, Stop(m))
+	require.NoError(t, stopBackup(m))
 	require.Equal(t,
 		[]string{"box.backup.start(...)", "return box.backup.info()", "box.backup.stop()"},
 		m.exprs)
 }
+
+func TestGetInstanceInfo(t *testing.T) {
+	m := &mockEvaler{queue: [][]any{{map[any]any{
+		"replicaset_uuid": testReplicasetUUID,
+		"instance_uuid":   testInstanceUUID,
+		"instance_name":   "router-001",
+		"wal_dir":         "/var/lib/tarantool/wal",
+		"memtx_dir":       "/var/lib/tarantool/memtx",
+	}}}}
+
+	inst, err := GetInstanceInfo(m)
+	require.NoError(t, err)
+	require.Equal(t, testReplicasetUUID, inst.ReplicasetUUID)
+	require.Equal(t, testInstanceUUID, inst.InstanceUUID)
+	require.Equal(t, "router-001", inst.InstanceName)
+	require.Equal(t, "/var/lib/tarantool/wal", inst.WalDir)
+	require.Equal(t, "/var/lib/tarantool/memtx", inst.MemtxDir)
+	require.NotEmpty(t, inst.Hostname, "hostname must be the node's own hostname")
+	require.Equal(t, instanceInfoExpr, m.exprs[len(m.exprs)-1])
+}
+
+func TestGetInstanceInfo_error(t *testing.T) {
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
+
+	_, err := GetInstanceInfo(m)
+	require.ErrorContains(t, err, "failed to get instance info")
+}
+
+// Ensure connector.RequestOpts zero value compiles (the wrappers pass it).
+var _ connector.RequestOpts
