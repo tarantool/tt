@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarantool/tt/lib/backup/storage"
+	"github.com/tarantool/tt/cli/backup/storage"
 )
 
 // tempFilePrefix is the reserved name prefix for temporary files created during Put.

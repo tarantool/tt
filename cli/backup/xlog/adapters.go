@@ -16,7 +16,7 @@ import (
 	"github.com/tarantool/go-xlog/tools"
 	"github.com/tarantool/go-xlog/writer"
 
-	"github.com/tarantool/tt/lib/backup"
+	"github.com/tarantool/tt/cli/backup"
 )
 
 // PatchInstanceUUID rewrites the Instance field in the src header

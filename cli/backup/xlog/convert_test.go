@@ -9,7 +9,7 @@ import (
 
 	"github.com/tarantool/go-xlog/format"
 
-	"github.com/tarantool/tt/lib/backup"
+	"github.com/tarantool/tt/cli/backup"
 )
 
 func TestToFormatVClock_RoundTrip(t *testing.T) {
