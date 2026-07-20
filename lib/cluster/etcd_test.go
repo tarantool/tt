@@ -90,9 +90,7 @@ func TestClientKVImplementsEtcdGetter(t *testing.T) {
 }
 
 func TestNewEtcdAllCollector(t *testing.T) {
-	var collector cluster.DataCollector
-
-	collector = cluster.NewEtcdAllCollector(&MockEtcdGetter{}, "", 0)
+	var collector cluster.DataCollector = cluster.NewEtcdAllCollector(&MockEtcdGetter{}, "", 0)
 
 	assert.NotNil(t, collector)
 }
@@ -256,9 +254,7 @@ func TestEtcdCollectors_Collect_empty(t *testing.T) {
 }
 
 func TestNewEtcdKeyCollector(t *testing.T) {
-	var collector cluster.DataCollector
-
-	collector = cluster.NewEtcdKeyCollector(&MockEtcdGetter{}, "", "", 0)
+	var collector cluster.DataCollector = cluster.NewEtcdKeyCollector(&MockEtcdGetter{}, "", "", 0)
 
 	assert.NotNil(t, collector)
 }
@@ -335,9 +331,7 @@ func TestEtcdKeyCollector_Collect_too_many(t *testing.T) {
 }
 
 func TestNewEtcdAllDataPublisher(t *testing.T) {
-	var publisher cluster.DataPublisher
-
-	publisher = cluster.NewEtcdAllDataPublisher(nil, "", 0)
+	var publisher cluster.DataPublisher = cluster.NewEtcdAllDataPublisher(nil, "", 0)
 
 	assert.NotNil(t, publisher)
 }
@@ -582,9 +576,7 @@ func TestEtcdAllDataPublisher_Publish_timeout_exit(t *testing.T) {
 }
 
 func TestNewEtcdKeyDataPublisher(t *testing.T) {
-	var publisher cluster.DataPublisher
-
-	publisher = cluster.NewEtcdKeyDataPublisher(nil, "", "", 0)
+	var publisher cluster.DataPublisher = cluster.NewEtcdKeyDataPublisher(nil, "", "", 0)
 
 	assert.NotNil(t, publisher)
 }

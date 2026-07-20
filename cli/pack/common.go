@@ -581,7 +581,7 @@ func createNewOpts(opts *config.CliOpts, packCtx PackCtx) *config.CliOpts {
 	// In case the user separates one of the directories for storing memtx, vinyl or wal artifacts
 	// the new environment will be also configured with separated standard directories for all
 	// of them.
-	if !((opts.App.VinylDir == opts.App.WalDir) && (opts.App.WalDir == opts.App.MemtxDir)) {
+	if (opts.App.VinylDir != opts.App.WalDir) || (opts.App.WalDir != opts.App.MemtxDir) {
 		cliOptsNew.App.VinylDir = configure.VarVinylPath
 		cliOptsNew.App.MemtxDir = configure.VarMemtxPath
 		cliOptsNew.App.WalDir = configure.VarWalPath

@@ -288,39 +288,80 @@ func CheckLicenses() error {
 
 type Lint mg.Namespace
 
-// Run golang and python linters.
-func (Lint) Full() error {
-	mg.Deps(Lint.Golang, Lint.Python)
-	return nil
-}
-
-// Run golang linters.
-func (Lint) Golang() error {
-	fmt.Println("Running golangci-lint...")
-
-	mg.Deps(PatchCC)
-	mg.Deps(GenerateGoCode)
-
+// runGolangciLint runs golangci-lint with the specified config across all Go
+// modules. Extra arguments are passed to golangci-lint as-is.
+func runGolangciLint(config string, extraArgs ...string) error {
 	lintDirs := append([]string{"."}, modules...)
 	root, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current dir: %w", err)
 	}
 
+	args := append([]string{"run", fmt.Sprintf("--config=%s/%s", root, config)}, extraArgs...)
+	if fixFlag() {
+		fmt.Println("Auto-fixing enabled")
+		args = append(args, "--fix")
+	}
+
 	for _, dir := range lintDirs {
 		os.Chdir(dir)
-		if err := sh.RunV("golangci-lint", "run",
-			fmt.Sprintf("--config=%s/golangci-lint.yml", root)); err != nil {
+		fmt.Println("Running linter in", dir)
+		err := sh.RunV("golangci-lint", args...)
+		os.Chdir(root)
+		if err != nil {
 			return err
 		}
-		os.Chdir(root)
 	}
 	return nil
 }
 
+// Run golang and python linters for all sources.
+func (Lint) Full() error {
+	mg.SerialDeps(Lint.GolangFull, Lint.Python)
+	return nil
+}
+
+// Run golang and python linters for committed changes.
+func (Lint) Diff() error {
+	mg.SerialDeps(Lint.GolangDiff, Lint.Python)
+	return nil
+}
+
+// fixFlag returns true if --fix is passed to mage (e.g. `mage lint:diff --fix`).
+func fixFlag() bool {
+	for _, arg := range os.Args[1:] {
+		if arg == "--fix" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Run golang linters for all sources.
+func (Lint) GolangFull() error {
+	fmt.Println("Running golangci-lint (full)...")
+
+	return runGolangciLint("golint-full.yml")
+}
+
+// Run golang linters for committed changes.
+func (Lint) GolangDiff() error {
+	fmt.Println("Running golangci-lint (diff)...")
+
+	baseBranch := os.Getenv("BASE_BRANCH")
+	if baseBranch == "" {
+		baseBranch = "master"
+	}
+
+	args := []string{"--new-from-rev=" + baseBranch}
+
+	return runGolangciLint("golint-diff.yml", args...)
+}
+
 // Run python linters.
 func (Lint) Python() error {
-	fmt.Println("Running Ruff...")
+	fmt.Println("Running Python Ruff...")
 
 	if err := sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test"); err != nil {
 		return err
@@ -340,6 +381,7 @@ func runUnitTests(flags []string) error {
 		if mg.Verbose() {
 			args = append(args, "-v")
 		}
+
 		args = append(args, "./...")
 		args = append(args, flags...)
 

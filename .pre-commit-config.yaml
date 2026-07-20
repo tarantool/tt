@@ -91,14 +91,14 @@ repos:
           Issue `golangci-lint` command does not have an option to accept specified list of files.
         pass_filenames: false
         stages: [pre-commit]
-        args: [--fast-only, --config=golint-precommit.yml]
+        args: [--fast-only, --config=golint-diff.yml]
 
       - id: golangci-lint-full
         name: "Go: verify all sources (CI)"
         description: Checking all Go sources.
         always_run: true
         stages: [manual]
-        args: [--config=golint-precommit-ci.yml, --allow-parallel-runners]
+        args: [--config=golint-full.yml, --allow-parallel-runners]
 
   - repo: local
     hooks:
@@ -111,9 +111,9 @@ repos:
         always_run: true
         entry: >-
           bash -c "golangci-lint run --new-from-rev=${BASE_BRANCH:-master}
-          --config=golint-precommit.yml --allow-parallel-runners"
+          --config=golint-diff.yml --allow-parallel-runners"
         additional_dependencies:
-          - github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+          - github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.2

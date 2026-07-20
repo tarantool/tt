@@ -11,8 +11,7 @@ import (
 )
 
 func TestNewYamlCollector(t *testing.T) {
-	var collector cluster.Collector
-	collector = cluster.NewYamlCollector(nil)
+	var collector cluster.Collector = cluster.NewYamlCollector(nil)
 	assert.NotNil(t, collector)
 }
 
@@ -214,8 +213,7 @@ func newYamlDecoratorMocked(data []byte, err error) cluster.YamlCollectorDecorat
 }
 
 func TestNewYamlCollectorDecorator(t *testing.T) {
-	var collector cluster.Collector
-	collector = cluster.NewYamlCollectorDecorator(nil)
+	var collector cluster.Collector = cluster.NewYamlCollectorDecorator(nil)
 	assert.NotNil(t, collector)
 }
 
@@ -335,8 +333,7 @@ func (f dataPublishFunc) Publish(revision int64, data []byte) error {
 }
 
 func TestNewYamlConfigPublisher(t *testing.T) {
-	var publisher cluster.ConfigPublisher
-	publisher = cluster.NewYamlConfigPublisher(nil)
+	var publisher cluster.ConfigPublisher = cluster.NewYamlConfigPublisher(nil)
 	assert.NotNil(t, publisher)
 }
 

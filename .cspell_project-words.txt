@@ -34,6 +34,7 @@ getfixturevalue
 GKTTBACKUPTEST
 gofumpt
 golangci
+golint
 heywoodlh
 iconfig
 incdir

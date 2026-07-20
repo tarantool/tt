@@ -1,5 +1,5 @@
 # Configuration for CI linters of all Go sources.
-# Note: here used less strict rules than in `golint-precommit.yml`, what applied to new changes.
+# Note: here used less strict rules than in `golint-diff.yml`, what applied to new changes.
 version: "2"
 run:
   build-tags:

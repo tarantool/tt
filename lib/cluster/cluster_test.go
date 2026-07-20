@@ -358,7 +358,7 @@ func TestReplaceInstanceConfig_not_found(t *testing.T) {
 	cconfig, err := cluster.MakeClusterConfig(config)
 	require.NoError(t, err)
 
-	cconfig, err = cluster.ReplaceInstanceConfig(cconfig, "any", cluster.NewConfig())
+	_, err = cluster.ReplaceInstanceConfig(cconfig, "any", cluster.NewConfig())
 	assert.EqualError(t, err, "cluster configuration has not an instance \"any\"")
 }
 

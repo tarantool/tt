@@ -18,8 +18,7 @@ var testFormatter = func(path []string) string {
 }
 
 func TestNewEnvCollector(t *testing.T) {
-	var collector cluster.Collector
-	collector = cluster.NewEnvCollector(testFormatter)
+	var collector cluster.Collector = cluster.NewEnvCollector(testFormatter)
 	assert.NotNil(t, collector)
 }
 
