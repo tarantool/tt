@@ -1,0 +1,17 @@
+{
+  "replicaset_uuid": "11111111-1111-1111-1111-111111111111",
+  "instance_uuid": "aaaaaaaa-0000-0000-0000-000000000001",
+  "instance_name": "router-001",
+  "hostname": "",
+  "type": "full",
+  "vclock_begin": {"1": 1500, "2": 230},
+  "vclock_end": {"1": 1502, "2": 230},
+  "files": [
+    "00000000000000001500.snap",
+    "00000000000000001500.xlog"
+  ],
+  "checksum_sha256": "",
+  "recovery_points": [
+    {"uuid": "rp-1", "replica_id": 1, "lsn": 1501, "timestamp": 1741780500}
+  ]
+}

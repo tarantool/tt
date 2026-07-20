@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tarantool/tt/lib/backup"
+	"github.com/tarantool/tt/cli/backup"
 )
 
 // String returns the status name.
