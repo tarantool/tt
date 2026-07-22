@@ -48,7 +48,7 @@ func Promote(ctx PromoteCtx) error {
 			return err
 		}
 	} else {
-		if orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn); err != nil {
+		if orchestrator, err = MakeInstanceOrchestrator(orchestratorType, ctx.Conn); err != nil {
 			return err
 		}
 	}

@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `tt backup start` and `tt backup finalize`: add support for creating and
   finalizing local backup artifacts.
+- `tt cluster topology`: add cluster topology discovery from a file, etcd, or
+  Tarantool Config Storage with table and JSON output.
 
 ### Changed
 

@@ -62,7 +62,7 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 			return err
 		}
 	} else {
-		if orchestrator, err = makeInstanceOrchestrator(
+		if orchestrator, err = MakeInstanceOrchestrator(
 			orchestratorType, ctx.Conn); err != nil {
 			return err
 		}

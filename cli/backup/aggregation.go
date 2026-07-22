@@ -9,6 +9,7 @@ import (
 const artifactCompression = "zstd"
 
 // RecoveryPoint describes one engine recovery point returned by Tarantool.
+// box.backup.info() returns {timestamp, replica_id, lsn, label}.
 type RecoveryPoint struct {
 	Label     string  `json:"label"`
 	ReplicaID uint32  `json:"replica_id"`

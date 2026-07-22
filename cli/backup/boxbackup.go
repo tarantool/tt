@@ -2,7 +2,6 @@ package backup
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -82,6 +81,7 @@ const instanceInfoExpr = `return {
 	replicaset_uuid = box.info.replicaset.uuid,
 	instance_uuid   = box.info.uuid,
 	instance_name   = box.info.name,
+	hostname        = box.info.hostname,
 	wal_dir         = box.cfg.wal_dir,
 	memtx_dir       = box.cfg.memtx_dir,
 	vinyl_dir       = box.cfg.vinyl_dir,
@@ -91,11 +91,6 @@ const instanceInfoExpr = `return {
 // from the instance (box.info/box.cfg) and augments them with the local
 // hostname (the command runs on the node).
 func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine hostname: %w", err)
-	}
-
 	res, err := conn.Eval(instanceInfoExpr, []any{}, connector.RequestOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get instance info: %w", err)
@@ -108,6 +103,7 @@ func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
 		ReplicasetUUID string `json:"replicaset_uuid"`
 		InstanceUUID   string `json:"instance_uuid"`
 		InstanceName   string `json:"instance_name"`
+		Hostname       string `json:"hostname"`
 		WalDir         string `json:"wal_dir"`
 		MemtxDir       string `json:"memtx_dir"`
 		VinylDir       string `json:"vinyl_dir"`
@@ -127,9 +123,9 @@ func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
 		ReplicasetUUID: decoded.ReplicasetUUID,
 		InstanceUUID:   decoded.InstanceUUID,
 		InstanceName:   decoded.InstanceName,
+		Hostname:       decoded.Hostname,
 		WalDir:         decoded.WalDir,
 		MemtxDir:       decoded.MemtxDir,
 		VinylDir:       decoded.VinylDir,
-		Hostname:       hostname,
 	}, nil
 }
