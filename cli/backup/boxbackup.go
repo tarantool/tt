@@ -2,7 +2,6 @@ package backup
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -75,26 +74,21 @@ func stopBackup(conn connector.Connector) error {
 	return nil
 }
 
-// instanceInfoExpr fetches replicaset/instance uuids, instance name and
-// WAL/memtx directories in one round-trip. box.info.name may be absent on
-// Tarantool 2.x.
+// instanceInfoExpr fetches replicaset/instance uuids, instance name,
+// hostname and WAL/memtx directories in one round-trip. box.info.name and
+// box.info.hostname may be absent on Tarantool 2.x.
 const instanceInfoExpr = `return {
 	replicaset_uuid = box.info.replicaset.uuid,
 	instance_uuid   = box.info.uuid,
 	instance_name   = box.info.name,
+	hostname        = box.info.hostname,
 	wal_dir         = box.cfg.wal_dir,
 	memtx_dir       = box.cfg.memtx_dir,
 }`
 
-// GetInstanceInfo fetches instance-identifying fields and WAL/memtx directories
-// from the instance (box.info/box.cfg) and augments them with the local
-// hostname (the command runs on the node).
+// GetInstanceInfo fetches instance-identifying fields, hostname and
+// WAL/memtx directories from the instance via net.box (box.info/box.cfg).
 func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine hostname: %w", err)
-	}
-
 	res, err := conn.Eval(instanceInfoExpr, []any{}, connector.RequestOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get instance info: %w", err)
@@ -107,6 +101,7 @@ func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
 		ReplicasetUUID string `json:"replicaset_uuid"`
 		InstanceUUID   string `json:"instance_uuid"`
 		InstanceName   string `json:"instance_name"`
+		Hostname       string `json:"hostname"`
 		WalDir         string `json:"wal_dir"`
 		MemtxDir       string `json:"memtx_dir"`
 	}
@@ -125,8 +120,8 @@ func GetInstanceInfo(conn connector.Connector) (*InstanceInfo, error) {
 		ReplicasetUUID: decoded.ReplicasetUUID,
 		InstanceUUID:   decoded.InstanceUUID,
 		InstanceName:   decoded.InstanceName,
+		Hostname:       decoded.Hostname,
 		WalDir:         decoded.WalDir,
 		MemtxDir:       decoded.MemtxDir,
-		Hostname:       hostname,
 	}, nil
 }

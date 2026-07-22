@@ -50,8 +50,8 @@ func (m *mockEvaler) Eval(expr string, args []any,
 func (m *mockEvaler) Close() error { return nil }
 
 // Golden fixtures for the start command: fixed WAL payloads and an expected
-// instance_backup.json. hostname and checksum_sha256 are dynamic (node hostname
-// and the sha256 of the produced archive), so they are masked out in tests.
+// instance_backup.json. checksum_sha256 is dynamic (the sha256 of the
+// produced archive), so it is masked out in tests.
 var (
 	//go:embed testdata/start/snap.bin
 	goldenSnap []byte
@@ -172,6 +172,7 @@ func instanceMap(
 		"replicaset_uuid": testReplicasetUUID,
 		"instance_uuid":   testInstanceUUID,
 		"instance_name":   instanceName,
+		"hostname":        "node-1.example.com",
 		"wal_dir":         walDir,
 		"memtx_dir":       memtxDir,
 	}
@@ -280,7 +281,7 @@ func TestStartBackup_fragmentFields(t *testing.T) {
 	require.Equal(t, golden.ReplicasetUUID, frag.ReplicasetUUID)
 	require.Equal(t, golden.InstanceUUID, frag.InstanceUUID)
 	require.Equal(t, golden.InstanceName, frag.InstanceName)
-	require.NotEmpty(t, frag.Hostname, "hostname must be the node's own hostname")
+	require.Equal(t, "node-1.example.com", frag.Hostname)
 	require.Equal(t, golden.Type, frag.Type)
 	require.Equal(t, golden.VclockBegin, frag.VclockBegin)
 	require.Equal(t, golden.VclockEnd, frag.VclockEnd)

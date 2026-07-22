@@ -363,7 +363,12 @@ func (Lint) GolangDiff() error {
 func (Lint) Python() error {
 	fmt.Println("Running Python Ruff...")
 
-	if err := sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test"); err != nil {
+	args := []string{"-m", "ruff", "check", "test"}
+	if fixFlag() {
+		args = append(args, "--fix")
+	}
+
+	if err := sh.RunV(pythonExecutableName, args...); err != nil {
 		return err
 	}
 
