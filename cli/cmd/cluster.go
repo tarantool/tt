@@ -439,6 +439,33 @@ func NewClusterCmd() *cobra.Command {
 	integrity.RegisterWithIntegrityFlag(publish.Flags(), &clusterIntegrityPrivateKey)
 
 	clusterCmd.AddCommand(publish)
+
+	topology := &cobra.Command{
+		Use:   "topology -c <CLUSTER_CONFIG|URI> [flags]",
+		Short: "Show the current cluster topology",
+		Long: "Discover and print the current cluster topology by connecting to " +
+			"cluster nodes via net.box.\n\n" +
+			"The cluster configuration can be loaded from a file, etcd, or " +
+			"Tarantool Config Storage. It is used to determine the list of " +
+			"instances and their listen URIs. Each instance is contacted " +
+			"via net.box, the live topology is collected and merged into " +
+			"a single view.\n\n" +
+			"JSON output contains replicasets keyed by UUID and their instances " +
+			"(instance_uuid, instance_name, hostname, mode, status). If a replicaset " +
+			"is unreachable and its UUID is not configured, its name is used as " +
+			"the key. Unreachable instances have the status \"not reachable\".\n\n" +
+			clusterUriHelp,
+		Run:  RunModuleFunc(internalClusterTopologyModule),
+		Args: cobra.NoArgs,
+	}
+	addTarantoolConnectFlags(topology)
+	topology.Flags().StringVarP(&topologyConfigPath, "config", "c", "",
+		"path or URI of the cluster configuration")
+	topology.Flags().StringVar(&topologyFormat, "format", topologyFormatTable,
+		"output format: table or json")
+	topology.MarkFlagRequired("config")
+	clusterCmd.AddCommand(topology)
+
 	clusterCmd.AddCommand(newClusterReplicasetCmd())
 	clusterCmd.AddCommand(newClusterFailoverCmd())
 	clusterCmd.AddCommand(newClusterWorkerCmd())

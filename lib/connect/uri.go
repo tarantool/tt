@@ -161,6 +161,9 @@ func ParseBaseURI(uri string) (string, string) {
 	case uriLen >= 7 && uri[0:7] == "unix://":
 		network = UnixNetwork
 		address = uri[7:]
+	case uriLen >= 6 && uri[0:6] == "unix/:":
+		network = UnixNetwork
+		address = uri[6:]
 	case uriLen >= 6 && uri[0:6] == "tcp://":
 		network = TCPNetwork
 		address = uri[6:]

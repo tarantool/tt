@@ -49,8 +49,8 @@ func makeApplicationOrchestrator(
 	return orchestrator, err
 }
 
-// makeInstanceOrchestrator creates an orchestrator for the single instance.
-func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
+// MakeInstanceOrchestrator creates an orchestrator for the single instance.
+func MakeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
 	conn connector.Connector,
 ) (replicasetOrchestrator, error) {
 	var (

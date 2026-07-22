@@ -34,7 +34,7 @@ func getReplicasets(ctx DiscoveryCtx) (replicaset.Replicasets, error) {
 		orchestrator, err = makeApplicationOrchestrator(orchestratorType,
 			ctx.RunningCtx, nil, nil)
 	} else {
-		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
+		orchestrator, err = MakeInstanceOrchestrator(orchestratorType, ctx.Conn)
 	}
 
 	if err != nil {

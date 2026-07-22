@@ -30,6 +30,13 @@ type Status string
 
 // BackupInfo is the decoded box.backup.info() result: files, vclocks, type
 // and recovery points of an open backup.
+//
+// Tarantool 3.8.0 returns:
+//   - vclock: the end vclock (max vclock to restore to);
+//   - prev_vclock: the begin vclock (only for incremental);
+//   - checkpoint_vclock: the begin vclock for full (cleared from output);
+//   - files: full paths to snap/xlog files;
+//   - recovery_points: {timestamp, replica_id, lsn, label}.
 type BackupInfo struct {
 	Files          []string          `json:"files"`
 	Type           BackupType        `json:"type"`
