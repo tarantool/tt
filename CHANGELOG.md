@@ -27,6 +27,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   the active tt environment when it satisfies `[platform]`, with a warning.
   Archives are byte-reproducible for a given commit; set `SOURCE_DATE_EPOCH` to
   pin the build timestamp explicitly.
+- `tt package install`: unpack a `.tt` archive into a scope and bring the tree
+  to a runnable state. `--scope project` (default) accepts both archive modes; a
+  with-deps archive in the project scope is a plain offline extraction, while a
+  `--without-deps` archive additionally refetches its dependency closure from
+  the registry using the lock's pins. `--scope user`/`--scope system` accept
+  only `--without-deps` archives — a with-deps archive there is refused from the
+  archive header before anything is written. Several packages installed into one
+  project share a `.rocks/` tree, so a dependency they lock at different
+  versions is reconciled to the highest locked version satisfying every
+  package's constraints, or the install fails with a breakdown. Per-package
+  metadata (manifest, lock, VERSION) is recorded under `.rocks/manifests/<pkg>/`
+  for inventory and dependency refcounting. `--locked` refuses an archive whose
+  lock diverges from its manifest, `--upgrade` installs only a strictly higher
+  version, `--force` reinstalls over a collision, and `--yes` skips the
+  reconciliation prompt. Installing several archives at once exits 3 when some
+  succeed and some fail.
 - `tt pack`: support nested `.packignore` at the root of tt environment.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
