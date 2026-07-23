@@ -11,9 +11,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/cli/manifest/build"
+	"github.com/tarantool/tt/cli/manifest/install"
 	"github.com/tarantool/tt/cli/manifest/pack"
 	manifestrocks "github.com/tarantool/tt/cli/manifest/rocks"
 	oldrocks "github.com/tarantool/tt/cli/rocks"
+	"github.com/tarantool/tt/cli/util"
 	ttversion "github.com/tarantool/tt/cli/version"
 )
 
@@ -27,6 +29,14 @@ var (
 	packageProduct     string
 	packageLocked      bool
 	packageWithoutDeps bool
+)
+
+// Flags specific to `tt package install`.
+var (
+	packageScope   string
+	packageUpgrade bool
+	packageForce   bool
+	packageYes     bool
 )
 
 // NewPackageCmd creates the `tt package` command group: the manifest build
@@ -43,9 +53,95 @@ func NewPackageCmd() *cobra.Command {
 		newPackageBuildCmd(),
 		newPackageFetchCmd(),
 		newPackagePackCmd(),
+		newPackageInstallCmd(),
 	)
 
 	return packageCmd
+}
+
+// newPackageInstallCmd wires `tt package install ARCHIVE...`.
+func newPackageInstallCmd() *cobra.Command {
+	installCmd := &cobra.Command{
+		Use:   "install ARCHIVE...",
+		Short: "Install a .tt package archive into a scope",
+		Long: "Unpack a package archive into the chosen scope and bring the tree " +
+			"to a runnable state. A with-deps archive in the project scope is a " +
+			"plain offline extraction; otherwise the package is unpacked and its " +
+			"dependencies are refetched from the registry using the lock's pins. " +
+			"Several packages installed into one project share a .rocks/ tree, so a " +
+			"dependency they lock at different versions is reconciled to one both " +
+			"accept, or the install fails with an explanation.",
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runPackageInstall(args); err != nil {
+				log.Error(err.Error())
+				os.Exit(install.ExitCode(err))
+			}
+		},
+	}
+
+	installCmd.Flags().StringVar(&packageScope, "scope", "project",
+		"install scope: project, user or system")
+	installCmd.Flags().BoolVar(&packageLocked, "locked", false,
+		"fail if the archive lock does not match its manifest")
+	installCmd.Flags().BoolVar(&packageUpgrade, "upgrade", false,
+		"install over an existing package only when the archive version is higher")
+	installCmd.Flags().BoolVar(&packageForce, "force", false,
+		"reinstall over an existing package (destructive)")
+	installCmd.Flags().BoolVarP(&packageYes, "yes", "y", false,
+		"skip the confirmation prompt when reconciling shared dependencies")
+
+	return installCmd
+}
+
+// runPackageInstall assembles install.Options from the environment and installs
+// every archive. Tarantool facts are gathered best-effort: an offline with-deps
+// install needs none, so a missing tarantool is only fatal when a dependency
+// must actually be refetched.
+func runPackageInstall(archives []string) error {
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	projectDir, err = filepath.Abs(projectDir)
+	if err != nil {
+		return err
+	}
+
+	// Missing tarantool is tolerated here; refetch surfaces its own error only
+	// if the install actually reaches the registry.
+	tntInfo, _ := tarantoolInfo()
+
+	result, err := install.Run(context.Background(), install.Options{
+		ProjectDir: projectDir,
+		Scope:      install.Scope(packageScope),
+		Archives:   archives,
+		Locked:     packageLocked,
+		Upgrade:    packageUpgrade,
+		Force:      packageForce,
+		Yes:        packageYes,
+		Tarantool:  tntInfo,
+		Warn:       func(msg string) { log.Warn(msg) },
+		Confirm: func(prompt string) bool {
+			ok, askErr := util.AskConfirm(os.Stdin, prompt)
+
+			return askErr == nil && ok
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, one := range result.Installed {
+		if one.Skipped {
+			continue
+		}
+
+		fmt.Printf("installed %s %s into %s scope\n", one.Package, one.Version, one.Scope)
+	}
+
+	return nil
 }
 
 // newPackageBuildCmd wires `tt package build [COMPONENT]`.
@@ -193,8 +289,8 @@ func runtimeRequest(ctx context.Context, tntInfo manifestrocks.TarantoolInfo) pa
 }
 
 // runtimeCacheDir returns the runtime cache root, <user cache>/tt/runtimes.
-// RFC 0010 leaves the exact path an open item and `tt runtime install` is a v1
-// command; until then this is the directory a user populates by hand.
+// The exact path is not yet finalized and nothing populates it automatically
+// yet; until then this is the directory a user populates by hand.
 func runtimeCacheDir() string {
 	base, err := os.UserCacheDir()
 	if err != nil {
