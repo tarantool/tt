@@ -110,6 +110,9 @@ linters:
             - "github.com/klauspost/compress/zstd"
             # cli/manifest/pack drives the build before archiving its result.
             - "github.com/tarantool/tt/cli/manifest/build"
+            # cli/manifest/install refetches dependencies through the luarocks
+            # adapter and reuses the build package's exit-code machinery.
+            - "github.com/tarantool/tt/cli/manifest/rocks"
         test:
           files:
             - "$test"
