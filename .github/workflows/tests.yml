@@ -48,6 +48,9 @@ jobs:
     strategy:
       matrix:
         tarantool-version: ["1.10", "2.10", "3.0"]
+        include:
+          - tarantool-version: "3.8"
+            suite: backup
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -61,12 +64,14 @@ jobs:
           tarantool-version: '${{ matrix.tarantool-version }}'
 
       - name: License checker
+        if: matrix.suite != 'backup'
         run: |
           go install github.com/uw-labs/lichen@latest
           mage checklicenses
         shell: bash
 
       - name: Unit tests
+        if: matrix.suite != 'backup'
         run: mage unit
 
       # This server starts and listen on 8084 port that is used for tests.
@@ -74,7 +79,15 @@ jobs:
         run: sudo systemctl kill mono-xsp4 || true
 
       - name: Integration tests
+        if: matrix.suite != 'backup'
         run: mage integration
+
+      - name: Backup integration tests
+        if: matrix.suite == 'backup'
+        run: |
+          cd test
+          python3 -m pytest integration/backup/ -v
+        shell: bash
 
   tests-ce-linux-arm64:
     if: false

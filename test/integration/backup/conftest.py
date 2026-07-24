@@ -1,0 +1,124 @@
+import shutil
+import subprocess
+import time
+from types import SimpleNamespace
+
+import pytest
+from minio import Minio
+
+GARAGE_IMAGE = "dxflrs/garage:v2.3.0"
+GARAGE_BUCKET = "tt-backup-test"
+GARAGE_REGION = "garage"
+GARAGE_ACCESS_KEY = "GKTTBACKUPTEST000000000000000000"
+GARAGE_SECRET_KEY = "tt-backup-test-secret-key"
+
+GARAGE_CONFIG = """metadata_dir = "/tmp/meta"
+data_dir = "/tmp/data"
+db_engine = "sqlite"
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+rpc_secret = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.garage.localhost"
+"""
+
+
+@pytest.fixture(scope="module")
+def garage(tmp_path_factory):
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("docker is not installed")
+
+    docker_info = subprocess.run(
+        [docker, "info"],
+        capture_output=True,
+        text=True,
+    )
+    if docker_info.returncode != 0:
+        pytest.skip(f"docker daemon is unavailable: {docker_info.stderr}")
+
+    config_path = tmp_path_factory.mktemp("garage") / "garage.toml"
+    config_path.write_text(GARAGE_CONFIG, encoding="utf-8")
+    started = subprocess.run(
+        [
+            docker,
+            "run",
+            "--detach",
+            "--rm",
+            "--publish",
+            "127.0.0.1::3900",
+            "--env",
+            f"GARAGE_DEFAULT_ACCESS_KEY={GARAGE_ACCESS_KEY}",
+            "--env",
+            f"GARAGE_DEFAULT_SECRET_KEY={GARAGE_SECRET_KEY}",
+            "--env",
+            f"GARAGE_DEFAULT_BUCKET={GARAGE_BUCKET}",
+            "--volume",
+            f"{config_path}:/etc/garage.toml:ro",
+            GARAGE_IMAGE,
+            "/garage",
+            "server",
+            "--single-node",
+            "--default-bucket",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert started.returncode == 0, started.stderr
+    container_id = started.stdout.strip()
+
+    try:
+        deadline = time.monotonic() + 60
+        last_bucket_output = ""
+        while time.monotonic() < deadline:
+            bucket_info = subprocess.run(
+                [docker, "exec", container_id, "/garage", "bucket", "info", GARAGE_BUCKET],
+                capture_output=True,
+                text=True,
+            )
+            if bucket_info.returncode == 0:
+                break
+            last_bucket_output = bucket_info.stdout + bucket_info.stderr
+            time.sleep(1)
+        else:
+            logs = subprocess.run(
+                [docker, "logs", container_id],
+                capture_output=True,
+                text=True,
+            )
+            pytest.fail(
+                "Garage default bucket was not created:\n"
+                f"{last_bucket_output}\ncontainer logs:\n{logs.stdout}{logs.stderr}",
+            )
+
+        port = subprocess.run(
+            [docker, "port", container_id, "3900/tcp"],
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout.strip()
+        yield SimpleNamespace(
+            endpoint=port,
+            bucket=GARAGE_BUCKET,
+            region=GARAGE_REGION,
+            access_key=GARAGE_ACCESS_KEY,
+            secret_key=GARAGE_SECRET_KEY,
+            client=Minio(
+                port,
+                access_key=GARAGE_ACCESS_KEY,
+                secret_key=GARAGE_SECRET_KEY,
+                region=GARAGE_REGION,
+                secure=False,
+            ),
+        )
+    finally:
+        subprocess.run(
+            [docker, "rm", "--force", container_id],
+            capture_output=True,
+            text=True,
+        )

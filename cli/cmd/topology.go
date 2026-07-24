@@ -29,8 +29,6 @@ var (
 const (
 	topologyStatusOK           = "OK"
 	topologyStatusNotReachable = "not reachable"
-	topologyFormatJSON         = "json"
-	topologyFormatTable        = "table"
 )
 
 type topologyOutput struct {
@@ -166,7 +164,7 @@ func discoverInstancesParallel(
 // internalClusterTopologyModule is an entrypoint for cluster topology command.
 func internalClusterTopologyModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	switch topologyFormat {
-	case topologyFormatJSON, topologyFormatTable, "":
+	case formatJSON, formatTable, "":
 	default:
 		return fmt.Errorf("unsupported format: %s (use table or json)", topologyFormat)
 	}
@@ -271,7 +269,7 @@ func printTopology(
 	reachable map[string]bool,
 ) error {
 	switch topologyFormat {
-	case topologyFormatJSON:
+	case formatJSON:
 		topology := replicasetsToTopology(merged, hostnames, reachable)
 		return printTopologyJSON(topology) //nolint:wrapcheck
 	default:

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   finalizing local backup artifacts.
 - `tt cluster topology`: add cluster topology discovery from a file, etcd, or
   Tarantool Config Storage with table and JSON output.
+- `tt backup last`: add support for displaying the latest backup manifest from
+  file or S3 storage.
 
 ### Changed
 

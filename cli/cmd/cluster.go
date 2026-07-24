@@ -461,7 +461,7 @@ func NewClusterCmd() *cobra.Command {
 	addTarantoolConnectFlags(topology)
 	topology.Flags().StringVarP(&topologyConfigPath, "config", "c", "",
 		"path or URI of the cluster configuration")
-	topology.Flags().StringVar(&topologyFormat, "format", topologyFormatTable,
+	topology.Flags().StringVar(&topologyFormat, "format", formatTable,
 		"output format: table or json")
 	topology.MarkFlagRequired("config")
 	clusterCmd.AddCommand(topology)
