@@ -92,6 +92,7 @@ env:
   instances_enabled: %[1]s
   restart_on_failure: false
   tarantoolctl_layout: false
+  ouptut_history_max: 0
 modules:
   directory: /root/modules
 app:
@@ -128,6 +129,7 @@ env:
   instances_enabled: %[1]s
   restart_on_failure: false
   tarantoolctl_layout: false
+  ouptut_history_max: 0
 modules:
   directory:
   - /root/modules
@@ -166,6 +168,7 @@ env:
   instances_enabled: %[1]s/instances.enabled
   restart_on_failure: false
   tarantoolctl_layout: false
+  ouptut_history_max: 0
 modules:
   directory: %[1]s/my_modules
 app:
@@ -203,6 +206,7 @@ env:
   instances_enabled: .
   restart_on_failure: false
   tarantoolctl_layout: false
+  ouptut_history_max: 0
 modules:
   directory: /root/modules
 app:

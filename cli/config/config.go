@@ -67,6 +67,9 @@ type TtEnvOpts struct {
 	// application sub-directories are not created for runtime artifacts like
 	// control socket, pid files and logs.
 	TarantoolctlLayout bool `mapstructure:"tarantoolctl_layout" yaml:"tarantoolctl_layout"`
+	// The maximum number of commands output by the "\history" command.
+	// Default vaule is 10
+	OutputHistoryMax int `mapstructure:"ouptut_history_max" yaml:"ouptut_history_max"`
 }
 
 // TemplateOpts contains configuration for applications templates.

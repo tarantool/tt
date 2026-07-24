@@ -311,6 +311,7 @@ env:
   inc_dir: path/to/inc_dir
   restart_on_failure: bool
   tarantoolctl_layout: bool
+  ouptut_history_max: 15
 modules:
   directory: path/to/modules/dir
 app:
@@ -341,6 +342,8 @@ templates:
     compatible mode for artifact files: control socket, pid, log files.
     Data files (wal, vinyl, snapshots) and multi-instance applications
     are not affected by this option.
+- `ouptut_history_max` (int) - the maximum number of commands output 
+    by the "\history" command. Default vaule is 10
 
 #### modules
 

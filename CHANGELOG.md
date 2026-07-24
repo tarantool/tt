@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `tt connect`: \history command.
+
 ### Changed
 
 - `tt stop`: preliminary interrupts the processes to enable parallel termination.
