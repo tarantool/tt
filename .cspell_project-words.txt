@@ -59,6 +59,8 @@ multireturn
 mvcc
 mvccpb
 myapp
+mybucket
+mycluster
 nilf
 noarch
 nodeps

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +19,7 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-// tt backup start / finalize flags. They are package-level because cobra
+// tt backup start / finalize / last flags. They are package-level because cobra
 // flag bindings need stable addresses; only one backup subcommand runs per process.
 var (
 	backupStartCfg        string
@@ -28,6 +29,15 @@ var (
 
 	backupFinalizeCfg string
 	backupFinalizeID  string
+
+	backupStorageConfig string
+	backupLastFormat    string
+	backupLastTimeout   time.Duration
+)
+
+const (
+	formatTable = "table"
+	formatJSON  = "json"
 )
 
 // NewBackupCmd creates the parent `tt backup` command.
@@ -36,10 +46,13 @@ func NewBackupCmd() *cobra.Command {
 		Use:   "backup",
 		Short: "Manage Tarantool backups (PITR)",
 	}
+
 	backupCmd.AddCommand(
 		newBackupStartCmd(),
 		newBackupFinalizeCmd(),
+		newBackupLastCmd(),
 	)
+
 	return backupCmd
 }
 
@@ -88,6 +101,117 @@ archive. Idempotent: if the backup is already closed, it does not fail.`,
 	cmd.MarkFlagRequired("backup-id")
 
 	return cmd
+}
+
+func newBackupLastCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "last",
+		Short: "Show the last backup manifest from the storage",
+		Long: `Find the latest manifest in the storage and print it to stdout.
+
+Usage:
+  tt backup last --backup-storage=<uri> [--format <table|json>]
+
+The --backup-storage flag accepts a URI describing the storage backend:
+
+  file://<abs_path>?Prefix=<subdir>
+      Local filesystem storage. The path must be absolute.
+      Query parameters:
+        Prefix  - subdirectory within the path (optional).
+
+  s3+https://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...
+  s3+http://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...
+      S3-compatible storage. Use s3+https for TLS, s3+http for plain TCP.
+      The first path segment after the host is the bucket name, the rest is
+      the optional key prefix.
+      Query parameters:
+        Region           - AWS region (optional).
+        AccessKeyID      - access key ID (required).
+        SecretAccessKey  - secret access key (required).
+
+Examples:
+  tt backup last --backup-storage=file:///var/backups
+  tt backup last --backup-storage=file:///var/backups?Prefix=mycluster
+  tt backup last --backup-storage=s3+https://s3.example.com:9000/... \
+    ?Region=us-east-1&AccessKeyID=minio&SecretAccessKey=minio123
+  tt backup last --backup-storage=file:///var/backups --format json`,
+		Args: cobra.NoArgs,
+		RunE: runBackupLast,
+	}
+
+	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
+		"storage URI (file://<path> or s3+http(s)://host:port/bucket/prefix?...")
+	cmd.Flags().StringVar(&backupLastFormat, "format", formatTable,
+		"output format: table or json")
+	cmd.Flags().DurationVar(&backupLastTimeout, "timeout", time.Minute,
+		"timeout for connecting to and reading from the storage")
+
+	cmd.MarkFlagRequired("backup-storage")
+
+	return cmd
+}
+
+func runBackupLast(cmd *cobra.Command, args []string) error {
+	cmdCtx.CommandName = cmd.Name()
+
+	if backupLastFormat != formatTable && backupLastFormat != formatJSON {
+		return fmt.Errorf("unsupported format %q: expected %q or %q",
+			backupLastFormat, formatTable, formatJSON)
+	}
+
+	cfg, err := backup.ParseStorageURI(backupStorageConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse storage URI: %w", err)
+	}
+
+	store, err := backup.OpenStorage(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to open storage: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), backupLastTimeout)
+	defer cancel()
+
+	manifest, err := backup.LatestManifest(ctx, store)
+	if err != nil {
+		return fmt.Errorf("failed to load latest backup manifest: %w", err)
+	}
+	if manifest == nil {
+		return fmt.Errorf("no backups found in storage")
+	}
+
+	switch backupLastFormat {
+	case formatJSON:
+		data, err := json.MarshalIndent(manifest, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal manifest: %w", err)
+		}
+
+		fmt.Println(string(data))
+	case formatTable:
+		printManifestTable(manifest)
+	}
+
+	return nil
+}
+
+func printManifestTable(manifest *backup.ClusterManifest) {
+	log.Info("Latest backup manifest")
+	log.Infof("  Backup ID:        %s", manifest.BackupID)
+	log.Infof("  Status:           %s", manifest.Status)
+	log.Infof("  Schema version:   %d", manifest.SchemaVersion)
+	if manifest.PreviousBackupID != "" {
+		log.Infof("  Previous backup:  %s", manifest.PreviousBackupID)
+	}
+	if manifest.BaseFullBackupID != "" {
+		log.Infof("  Base full backup: %s", manifest.BaseFullBackupID)
+	}
+	log.Infof("  Created:          %s", manifest.CreationTime.Format(time.RFC3339))
+	log.Infof("  Duration:         %s", manifest.CreationDuration)
+	log.Infof("  Shards:           %d", len(manifest.Shards))
+	if len(manifest.Warnings) > 0 {
+		log.Infof("  Warnings:         %d", len(manifest.Warnings))
+	}
 }
 
 // applyBackupConfig reloads cliOpts/cmdCtx.Cli.ConfigPath from a per-command
