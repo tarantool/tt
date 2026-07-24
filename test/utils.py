@@ -730,3 +730,10 @@ def update_dict_leaves(d, other):
                     d[k] = v
         elif v is not None:
             d[k] = v
+
+
+def wait_for_string(timeout, stream, s, interval=0.1):
+    def check_next_line():
+        return s in stream.readline()
+
+    return wait_event(timeout, check_next_line, interval)

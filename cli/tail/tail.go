@@ -12,7 +12,7 @@ import (
 
 	"github.com/apex/log"
 	"github.com/fatih/color"
-	"github.com/nxadm/tail"
+	"github.com/tarantool/go-tail"
 )
 
 const blockSize = 8192

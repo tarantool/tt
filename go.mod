@@ -24,7 +24,6 @@ require (
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.0
 	github.com/moby/term v0.5.2
-	github.com/nxadm/tail v1.4.11
 	github.com/otiai10/copy v1.14.1
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/spf13/cobra v1.10.2
@@ -33,6 +32,7 @@ require (
 	github.com/tarantool/go-iproto v1.1.0
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage v1.5.0
+	github.com/tarantool/go-tail v1.4.12
 	github.com/tarantool/go-tarantool v1.12.3
 	github.com/tarantool/go-tarantool/v2 v2.4.2
 	github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686
@@ -170,7 +170,6 @@ require (
 	go.opentelemetry.io/otel v1.42.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.42.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.42.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
