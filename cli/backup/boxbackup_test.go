@@ -218,6 +218,7 @@ func TestGetInstanceInfo(t *testing.T) {
 		"replicaset_uuid": testReplicasetUUID,
 		"instance_uuid":   testInstanceUUID,
 		"instance_name":   "router-001",
+		"hostname":        "node-1.example.com",
 		"wal_dir":         "/var/lib/tarantool/wal",
 		"memtx_dir":       "/var/lib/tarantool/memtx",
 	}}}}
@@ -227,9 +228,9 @@ func TestGetInstanceInfo(t *testing.T) {
 	require.Equal(t, testReplicasetUUID, inst.ReplicasetUUID)
 	require.Equal(t, testInstanceUUID, inst.InstanceUUID)
 	require.Equal(t, "router-001", inst.InstanceName)
+	require.Equal(t, "node-1.example.com", inst.Hostname)
 	require.Equal(t, "/var/lib/tarantool/wal", inst.WalDir)
 	require.Equal(t, "/var/lib/tarantool/memtx", inst.MemtxDir)
-	require.NotEmpty(t, inst.Hostname, "hostname must be the node's own hostname")
 	require.Equal(t, instanceInfoExpr, m.exprs[len(m.exprs)-1])
 }
 

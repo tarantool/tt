@@ -439,6 +439,30 @@ func NewClusterCmd() *cobra.Command {
 	integrity.RegisterWithIntegrityFlag(publish.Flags(), &clusterIntegrityPrivateKey)
 
 	clusterCmd.AddCommand(publish)
+
+	topology := &cobra.Command{
+		Use:   "topology -c <CLUSTER_CONFIG> [flags]",
+		Short: "Show the current cluster topology",
+		Long: "Discover and print the current cluster topology by connecting to " +
+			"cluster nodes via net.box.\n\n" +
+			"The cluster configuration file (config.yaml) is used to determine the " +
+			"list of instances and their listen URIs. Each instance is contacted " +
+			"via net.box, the live topology is collected and merged into " +
+			"a single view.\n\n" +
+			"The output is in the form of the backup manifest topology.replicasets " +
+			"(instance_uuid, instance_name, hostname).\n\n" +
+			libconnect.EnvTarantoolCredentialsHelp + "\n\n",
+		Run:  RunModuleFunc(internalClusterTopologyModule),
+		Args: cobra.NoArgs,
+	}
+	addTarantoolConnectFlags(topology)
+	topology.Flags().StringVarP(&topologyConfigPath, "config", "c", "",
+		"path to the cluster configuration file")
+	topology.Flags().StringVar(&topologyFormat, "format", "table",
+		"output format: table or json")
+	topology.MarkFlagRequired("config")
+	clusterCmd.AddCommand(topology)
+
 	clusterCmd.AddCommand(newClusterReplicasetCmd())
 	clusterCmd.AddCommand(newClusterFailoverCmd())
 	clusterCmd.AddCommand(newClusterWorkerCmd())

@@ -219,8 +219,11 @@ func TestParseBaseURI(t *testing.T) {
 		{"/path/to/socket", connect.UnixNetwork, "/path/to/socket"},
 		{"unix:///path/to/socket", connect.UnixNetwork, "/path/to/socket"},
 		{"unix://..//path/to/socket", connect.UnixNetwork, "..//path/to/socket"},
+		{"unix/:./instance-001.iproto", connect.UnixNetwork, "./instance-001.iproto"},
+		{"unix/:/var/run/tt.sock", connect.UnixNetwork, "/var/run/tt.sock"},
+		{"unix/:instance.sock", connect.UnixNetwork, "instance.sock"},
 		{"..//path", connect.UnixNetwork, "..//path"},
-		{"some_uri", connect.TCPNetwork, "some_uri"}, // Keeps unchanged
+		{"some_uri", connect.TCPNetwork, "some_uri"}, // Keeps unchanged.
 	}
 
 	for _, tc := range cases {
