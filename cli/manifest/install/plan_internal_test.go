@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/tt/cli/manifest/state"
 )
 
 // headerFor parses an archiveSpec into a Header without writing an archive, for
@@ -33,7 +34,7 @@ func TestPlanWithoutDepsRoutesToRegistry(t *testing.T) {
 		lockDeps: []LockDep{{Name: "luasocket", Version: "3.0.4", Source: "registry"}},
 	})
 
-	lay, err := resolveLayout(ScopeProject, t.TempDir())
+	lay, err := state.ResolveLayout(ScopeProject, t.TempDir())
 	require.NoError(t, err)
 
 	plan, err := planDeps(header, "default", nil, lay, false)
@@ -56,7 +57,7 @@ func TestPlanWithDepsRoutesToArchive(t *testing.T) {
 		lockDeps: []LockDep{{Name: "luasocket", Version: "3.0.4", Source: "registry"}},
 	})
 
-	lay, err := resolveLayout(ScopeProject, t.TempDir())
+	lay, err := state.ResolveLayout(ScopeProject, t.TempDir())
 	require.NoError(t, err)
 
 	plan, err := planDeps(header, "default", nil, lay, true)

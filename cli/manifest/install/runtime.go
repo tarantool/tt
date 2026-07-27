@@ -6,11 +6,12 @@ import (
 	"github.com/tarantool/go-luarocks/deps"
 
 	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/cli/manifest/state"
 )
 
 // runtimePath is the install-root's _runtime/ directory.
-func runtimePath(lay layout) string {
-	return filepath.Join(lay.root, runtimeDirName)
+func runtimePath(lay state.Layout) string {
+	return filepath.Join(lay.Root, runtimeDirName)
 }
 
 // versionHigher reports whether candidate is a strictly higher version than
@@ -62,17 +63,17 @@ func selectProduct(man *manifest.Manifest) (string, error) {
 // strong as the primary package's declared constraints: a bundled runtime that
 // violates them is refused (exit 1); with no primary package and no constraints,
 // the runtime is accepted and shared (the first install's tree is kept).
-func checkRuntime(opts Options, header *Header, installed []installedPackage) error {
+func checkRuntime(opts Options, header *Header, installed []state.Package) error {
 	if !header.WithDeps || opts.Scope != ScopeProject {
 		return nil
 	}
 
-	primary, ok := findPrimary(installed)
+	primary, ok := state.FindPrimary(installed)
 	if !ok {
 		return nil
 	}
 
-	plat := primary.manifest.Platform
+	plat := primary.Manifest.Platform
 
 	checks := []struct {
 		name       string
@@ -98,24 +99,11 @@ func checkRuntime(opts Options, header *Header, installed []installedPackage) er
 			return stateErrorf(
 				"%w: bundled %s %s does not satisfy the project's requirement %q (from %s)",
 				errRuntimeMismatch, check.name, check.bundled, check.constraint.Version,
-				primary.name)
+				primary.Name)
 		}
 	}
 
 	return nil
-}
-
-// findPrimary returns the project's primary package among the installed set.
-func findPrimary(installed []installedPackage) (installedPackage, bool) {
-	for _, pkg := range installed {
-		if pkg.primary && pkg.manifest != nil {
-			return pkg, true
-		}
-	}
-
-	var zero installedPackage
-
-	return zero, false
 }
 
 // runtimeSatisfies reports whether a concrete bundled version satisfies a

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/cli/manifest/state"
 )
 
 // sharedDep is the single registry dependency the multi-package tests share.
@@ -76,7 +77,7 @@ func TestInstallWritesMetadata(t *testing.T) {
 	lock, err := manifest.ParseLock([]byte(readFile(t, filepath.Join(metaDir, "lock.toml"))))
 	require.NoError(t, err)
 
-	pin, ok := lockedVersion(lock, "luasocket")
+	pin, ok := state.LockedVersion(lock, "luasocket")
 	require.True(t, ok)
 	assert.Equal(t, "3.0.4", pin)
 }

@@ -113,6 +113,15 @@ linters:
             # cli/manifest/install refetches dependencies through the luarocks
             # adapter and reuses the build package's exit-code machinery.
             - "github.com/tarantool/tt/cli/manifest/rocks"
+            # cli/manifest/install and cli/manifest/inventory both read and write
+            # the on-disk install state that cli/manifest/state owns.
+            #
+            # NOTE: depguard matches the longest prefix, not any prefix. Listing a
+            # sub-package here shadows the broader "…/cli/manifest" entry for its
+            # siblings, so an entry added for one package can start flagging
+            # imports that used to pass. Add sub-packages only where the broader
+            # entry is already shadowed, as it is in this list.
+            - "github.com/tarantool/tt/cli/manifest/state"
         test:
           files:
             - "$test"
