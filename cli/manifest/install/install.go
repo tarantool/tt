@@ -21,6 +21,7 @@ import (
 
 	"github.com/tarantool/tt/cli/manifest"
 	"github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/cli/manifest/state"
 )
 
 // Source constants mirror the closed set the resolver writes into the lock.
@@ -107,7 +108,7 @@ type Result struct {
 func Run(ctx context.Context, opts Options) (*Result, error) {
 	scope, err := ParseScope(string(opts.Scope))
 	if err != nil {
-		return nil, stateErrorf("%w", err)
+		return nil, err
 	}
 
 	opts.Scope = scope
@@ -174,14 +175,14 @@ func installOne(ctx context.Context, opts Options, archivePath string) (*OneResu
 		}
 	}
 
-	lay, err := resolveLayout(opts.Scope, opts.ProjectDir)
+	lay, err := state.ResolveLayout(opts.Scope, opts.ProjectDir)
 	if err != nil {
-		return nil, err
+		return nil, stateErrorf("%w", err)
 	}
 
-	installed, err := installedPackages(lay, opts.Scope)
+	installed, err := state.Packages(lay, opts.Scope)
 	if err != nil {
-		return nil, err
+		return nil, stateErrorf("%w", err)
 	}
 
 	skip, err := checkCollision(opts, header, installed)
@@ -215,15 +216,15 @@ func installOne(ctx context.Context, opts Options, archivePath string) (*OneResu
 // checkCollision enforces the name-collision policy and reports whether the
 // install is a no-op (a --upgrade with nothing newer). A collision without
 // --force or --upgrade is exit 1.
-func checkCollision(opts Options, header *Header, installed []installedPackage) (bool, error) {
+func checkCollision(opts Options, header *Header, installed []state.Package) (bool, error) {
 	name := header.Manifest.Package.Name
 
-	existing, ok := findInstalled(installed, name)
+	existing, ok := state.Find(installed, name)
 	if !ok {
 		return false, nil
 	}
 
-	if existing.primary {
+	if existing.Primary {
 		return false, stateErrorf(
 			"%w: %q is the project's primary package, not a guest", errNameCollision, name)
 	}
@@ -232,10 +233,10 @@ func checkCollision(opts Options, header *Header, installed []installedPackage) 
 	case opts.Force:
 		return false, nil
 	case opts.Upgrade:
-		if !versionHigher(header.Version, existing.version) {
+		if !versionHigher(header.Version, existing.Version) {
 			opts.warn(fmt.Sprintf(
 				"%s %s is not newer than the installed %s; nothing to do",
-				name, header.Version, existing.version))
+				name, header.Version, existing.Version))
 
 			return true, nil
 		}
@@ -243,7 +244,7 @@ func checkCollision(opts Options, header *Header, installed []installedPackage) 
 		return false, nil
 	default:
 		return false, stateErrorf("%w: %q %s (use --upgrade or --force)",
-			errNameCollision, name, existing.version)
+			errNameCollision, name, existing.Version)
 	}
 }
 
@@ -251,7 +252,7 @@ func checkCollision(opts Options, header *Header, installed []installedPackage) 
 // extract the archive, and refetch any registry-sourced dependency.
 func apply(
 	ctx context.Context, opts Options, archive *Archive,
-	header *Header, lay layout, installed []installedPackage,
+	header *Header, lay state.Layout, installed []state.Package,
 ) error {
 	productName, err := selectProduct(header.Manifest)
 	if err != nil {
@@ -277,7 +278,7 @@ func apply(
 
 	mapper := extractMapper(opts.Scope, plan.skipNames, extractRuntime)
 
-	err = archive.Extract(lay.root, mapper)
+	err = archive.Extract(lay.Root, mapper)
 	if err != nil {
 		return fmt.Errorf("extracting %s: %w", archive.Path(), err)
 	}
@@ -323,15 +324,15 @@ type rockInstaller interface {
 // refetch installs every registry-sourced dependency of the plan into the tree
 // at its reconciled version. It builds the rocks adapter lazily, so an offline
 // with-deps install (no registry decisions) never needs Tarantool.
-func refetch(ctx context.Context, opts Options, lay layout, plan installPlan) error {
+func refetch(ctx context.Context, opts Options, lay state.Layout, plan installPlan) error {
 	pending := registryDecisions(plan)
 	if len(pending) == 0 {
 		return nil
 	}
 
 	adapter := rocks.New(rocks.BuildConfig(opts.Tarantool, rocks.ConfigOptions{
-		Tree:       lay.tree,
-		WorkingDir: lay.root,
+		Tree:       lay.Tree,
+		WorkingDir: lay.Root,
 		Servers:    opts.Servers,
 		Logger:     opts.Logger,
 	}))
@@ -384,7 +385,7 @@ func installDeps(
 }
 
 // runtimeExists reports whether the install-root already holds a _runtime/ tree.
-func runtimeExists(lay layout) bool {
+func runtimeExists(lay state.Layout) bool {
 	info, err := os.Stat(runtimePath(lay))
 
 	return err == nil && info.IsDir()

@@ -1,6 +1,10 @@
 package install
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/tarantool/tt/cli/manifest/state"
+)
 
 // Path-segment counts for a rock's location under the .rocks/ tree:
 // share|lib / tarantool / <dep> is three deep, and the rock-manifest path
@@ -36,7 +40,7 @@ func extractMapper(
 			}
 
 			return name, true
-		case rocksDirName:
+		case state.RocksDirName:
 			return mapRocksEntry(scope, rest, skipNames)
 		default:
 			return "", false
@@ -53,7 +57,7 @@ func mapRocksEntry(scope Scope, rest string, skipNames map[string]struct{}) (str
 
 	// tt's own install state never travels inside an archive; ignore it if it
 	// somehow appears.
-	if top, _, _ := strings.Cut(rest, "/"); top == manifestsDirName {
+	if top, _, _ := strings.Cut(rest, "/"); top == state.ManifestsDirName {
 		return "", false
 	}
 
@@ -64,7 +68,7 @@ func mapRocksEntry(scope Scope, rest string, skipNames map[string]struct{}) (str
 	}
 
 	if scope == ScopeProject {
-		return rocksDirName + "/" + rest, true
+		return state.RocksDirName + "/" + rest, true
 	}
 
 	// user / system: the shared tree has no .rocks/ level.

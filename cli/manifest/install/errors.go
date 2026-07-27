@@ -27,9 +27,6 @@ const (
 )
 
 var (
-	// errUnknownScope reports a --scope value that is not project, user or
-	// system.
-	errUnknownScope = errors.New("unknown scope")
 	// errWithDepsScope reports a with-deps archive aimed at user or system,
 	// which accept only --without-deps archives. Caught from the archive header,
 	// before anything is written.
