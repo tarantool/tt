@@ -70,6 +70,14 @@ linters:
             - []
             - - skip-package-name-checks: true
 
+    tagliatelle:
+      case:
+        rules:
+          # tt's machine-readable payloads are snake_case, matching the manifest
+          # and lock files they are derived from.
+          json: snake
+          yaml: snake
+
     exhaustive:
       # A switch with a default clause is treated as exhaustive.
       default-signifies-exhaustive: true
@@ -122,6 +130,9 @@ linters:
             # imports that used to pass. Add sub-packages only where the broader
             # entry is already shadowed, as it is in this list.
             - "github.com/tarantool/tt/cli/manifest/state"
+            # cli/manifest/inventory renders tt package list as YAML, the
+            # machine-readable default for non-TTY output.
+            - "gopkg.in/yaml.v3"
         test:
           files:
             - "$test"
@@ -134,3 +145,5 @@ linters:
             - "github.com/tarantool/go-luarocks"
             # cli/manifest/pack tests decompress the archive they just wrote.
             - "github.com/klauspost/compress/zstd"
+            # cli/manifest/inventory tests round-trip the YAML they rendered.
+            - "gopkg.in/yaml.v3"

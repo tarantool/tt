@@ -224,9 +224,44 @@ func LockedVersion(lock *manifest.Lock, dep string) (string, bool) {
 	return "", false
 }
 
+// DeclaredDependencies returns the names a manifest declares for itself, across
+// the global dependency map and every component's.
+//
+// A lock records the whole transitive closure as one flat, name-sorted list with
+// no edges, so it cannot say which rocks the package actually asked for — only
+// the manifest can. The edges between rocks come from elsewhere, the LuaRocks
+// tree manifest; see DependencyEdges.
+//
+// Dev dependencies are excluded: they are not part of a product's runtime
+// closure and nothing installs them.
+func DeclaredDependencies(man *manifest.Manifest) map[string]struct{} {
+	declared := map[string]struct{}{}
+
+	if man == nil {
+		return declared
+	}
+
+	collect := func(deps map[string]manifest.Dependency) {
+		for name := range deps {
+			declared[name] = struct{}{}
+		}
+	}
+
+	collect(man.Dependencies)
+
+	for _, comp := range man.Components {
+		collect(comp.Dependencies)
+	}
+
+	return declared
+}
+
 // LockedDependencies lists every dependency a lock pins, deduplicated by name
-// across products and in no particular order. It is the set of rocks the
-// package brought into the tree, which is what ownership is counted over.
+// across products and in no particular order.
+//
+// This is the whole transitive closure, not just what the manifest declared, so
+// it is the correct set to count ownership over: a package owns every rock it
+// caused to be installed, at whatever depth.
 func LockedDependencies(lock *manifest.Lock) map[string]string {
 	pinned := map[string]string{}
 

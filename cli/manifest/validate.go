@@ -93,6 +93,15 @@ func (m *Manifest) validateVersion() error {
 	return nil
 }
 
+// ValidPackageName reports whether name is a well-formed, non-reserved package
+// name. Commands that take a package name as an argument and turn it into a
+// path — uninstall, which removes manifests/<name>/ and the rock subtrees named
+// after it — must check it first: the shape is what rules out a traversal or a
+// name that would resolve onto the metadata directory itself.
+func ValidPackageName(name string) bool {
+	return nameRe.MatchString(name) && !isReservedPackageName(name)
+}
+
 func (m *Manifest) validatePackage() error {
 	name := m.Package.Name
 	switch {
