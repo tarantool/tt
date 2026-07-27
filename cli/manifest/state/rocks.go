@@ -3,13 +3,64 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/tarantool/go-luarocks/deps"
+	"github.com/tarantool/go-luarocks/manif"
 )
 
 // rocksManifestDir is the tree subdirectory LuaRocks keeps per-rock manifests
 // in: <share>/rocks/<name>/<version>/.
 const rocksManifestDir = "rocks"
+
+// DependencyEdges reads which rock requires which, from the tree manifest
+// LuaRocks maintains at <share>/rocks/manifest. Its `dependencies` table records
+// every installed rock's own resolved requirements, so the edges a lock throws
+// away — it stores the closure flattened, with no parent — are recoverable from
+// the tree itself.
+//
+// The result maps a rock to the rocks it pulls in, deduplicated across versions
+// and in name order. A tree with no manifest, or one that cannot be parsed,
+// yields nil rather than an error: the edges are an enrichment, and a tree
+// assembled by an offline extraction may not carry them. Callers fall back to
+// reporting indirect rocks without a parent.
+func DependencyEdges(lay Layout) map[string][]string {
+	tree, err := manif.ReadTreeManifest(filepath.Join(lay.Share, rocksManifestDir))
+	if err != nil {
+		return nil
+	}
+
+	edges := make(map[string][]string, len(tree.Dependencies))
+
+	for rock, versions := range tree.Dependencies {
+		required := map[string]struct{}{}
+
+		for _, deps := range versions {
+			for _, dep := range deps {
+				// A rock never counts as its own requirement; a self-edge would make
+				// the graph walk cycle on the first step.
+				if dep.Name != rock {
+					required[dep.Name] = struct{}{}
+				}
+			}
+		}
+
+		if len(required) == 0 {
+			continue
+		}
+
+		names := make([]string, 0, len(required))
+		for name := range required {
+			names = append(names, name)
+		}
+
+		sort.Strings(names)
+
+		edges[rock] = names
+	}
+
+	return edges
+}
 
 // InstalledVersion reads the version of a rock currently installed in the tree
 // from <share>/rocks/<dep>/<version>/. It returns the first version directory

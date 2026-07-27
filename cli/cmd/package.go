@@ -6,14 +6,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/apex/log"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/cli/manifest/build"
 	"github.com/tarantool/tt/cli/manifest/install"
+	"github.com/tarantool/tt/cli/manifest/inventory"
 	"github.com/tarantool/tt/cli/manifest/pack"
 	manifestrocks "github.com/tarantool/tt/cli/manifest/rocks"
+	"github.com/tarantool/tt/cli/manifest/state"
 	oldrocks "github.com/tarantool/tt/cli/rocks"
 	"github.com/tarantool/tt/cli/util"
 	ttversion "github.com/tarantool/tt/cli/version"
@@ -31,7 +35,7 @@ var (
 	packageWithoutDeps bool
 )
 
-// Flags specific to `tt package install`.
+// Flags shared by the scope-addressed subcommands: install, list and uninstall.
 var (
 	packageScope   string
 	packageUpgrade bool
@@ -39,14 +43,21 @@ var (
 	packageYes     bool
 )
 
+// Flags specific to `tt package list`.
+var (
+	packageFormat string
+	packageTree   bool
+)
+
 // NewPackageCmd creates the `tt package` command group: the manifest build
-// pipeline (build, fetch and pack; install is not implemented yet).
+// pipeline (build, fetch and pack), installation, and the inventory over what
+// is installed (list and uninstall).
 func NewPackageCmd() *cobra.Command {
 	packageCmd := &cobra.Command{
 		Use:   "package",
 		Short: "Manage tt manifest packages",
-		Long: "Build, fetch and pack Tarantool packages described by " +
-			"app.manifest.toml.",
+		Long: "Build, fetch, pack and install Tarantool packages described by " +
+			"app.manifest.toml, and manage what is installed.",
 	}
 
 	packageCmd.AddCommand(
@@ -54,9 +65,161 @@ func NewPackageCmd() *cobra.Command {
 		newPackageFetchCmd(),
 		newPackagePackCmd(),
 		newPackageInstallCmd(),
+		newPackageListCmd(),
+		newPackageUninstallCmd(),
 	)
 
 	return packageCmd
+}
+
+// newPackageListCmd wires `tt package list`.
+func newPackageListCmd() *cobra.Command {
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List the packages installed in a scope",
+		Long: "Show the packages present in the chosen scope: in the project " +
+			"scope the project's own package plus every guest installed from an " +
+			"archive. The source is the metadata install records under " +
+			".rocks/manifests/, so nothing is fetched and nothing is resolved. " +
+			"This is what is on disk — not what the current manifest declares, " +
+			"which is what tt package deps reports. --tree additionally shows " +
+			"each package's dependencies and, for every one of them, whether " +
+			"another package holds it too — that is, whether it would be removed " +
+			"along with the package or stay.",
+		Args: cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runPackageList(); err != nil {
+				log.Error(err.Error())
+				os.Exit(inventory.ExitCode(err))
+			}
+		},
+	}
+
+	listCmd.Flags().StringVar(&packageScope, "scope", "project",
+		"scope to list: project, user or system")
+	listCmd.Flags().StringVarP(&packageFormat, "format", "o", "",
+		"output format: table, json or yaml (default: table on a terminal, yaml otherwise)")
+	listCmd.Flags().BoolVar(&packageTree, "tree", false,
+		"show each package's dependencies and which of them are shared")
+
+	return listCmd
+}
+
+// runPackageList reads the inventory and renders it to stdout in the resolved
+// format.
+func runPackageList() error {
+	projectDir, err := absoluteWorkingDir()
+	if err != nil {
+		return err
+	}
+
+	// The default format follows stdout: a terminal gets the human table, a pipe
+	// or a file gets YAML, so piped output is parseable without a flag.
+	format, err := inventory.ParseFormat(packageFormat, isatty.IsTerminal(os.Stdout.Fd()))
+	if err != nil {
+		return err
+	}
+
+	listing, err := inventory.List(inventory.ListOptions{
+		ProjectDir: projectDir,
+		Scope:      state.Scope(packageScope),
+		Rocks:      packageTree,
+	})
+	if err != nil {
+		return err
+	}
+
+	return inventory.Render(os.Stdout, listing, format)
+}
+
+// newPackageUninstallCmd wires `tt package uninstall NAME`.
+func newPackageUninstallCmd() *cobra.Command {
+	uninstallCmd := &cobra.Command{
+		Use:   "uninstall NAME",
+		Short: "Remove an installed guest package from a scope",
+		Long: "Remove a guest package: its files and its metadata, plus every " +
+			"shared dependency that nothing else still needs. A dependency is " +
+			"owned by every installed package whose lock pins it, so one that " +
+			"another package still holds stays in place. The project's own " +
+			"package — the one app.manifest.toml in the working directory " +
+			"declares — is not a guest, and uninstall refuses to remove it.",
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runPackageUninstall(args[0]); err != nil {
+				log.Error(err.Error())
+				os.Exit(inventory.ExitCode(err))
+			}
+		},
+	}
+
+	uninstallCmd.Flags().StringVar(&packageScope, "scope", "project",
+		"scope to remove from: project, user or system")
+	uninstallCmd.Flags().BoolVarP(&packageYes, "yes", "y", false,
+		"skip the confirmation prompt")
+
+	return uninstallCmd
+}
+
+// runPackageUninstall removes one package and reports what went with it.
+func runPackageUninstall(name string) error {
+	projectDir, err := absoluteWorkingDir()
+	if err != nil {
+		return err
+	}
+
+	result, err := inventory.Uninstall(inventory.UninstallOptions{
+		ProjectDir: projectDir,
+		Scope:      state.Scope(packageScope),
+		Package:    name,
+		Yes:        packageYes,
+		Warn:       func(msg string) { log.Warn(msg) },
+		Confirm: func(prompt string) bool {
+			ok, askErr := util.AskConfirm(os.Stdin, prompt)
+
+			return askErr == nil && ok
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("removed %s %s from %s scope\n", result.Package, result.Version, result.Scope)
+
+	for _, dep := range result.RemovedDependencies {
+		fmt.Printf("  removed unused dependency %s\n", dep)
+	}
+
+	for _, dep := range result.KeptDependencies {
+		fmt.Printf("  kept %s (%s)\n", dep.Name, keptReason(dep))
+	}
+
+	return nil
+}
+
+// keptReason says why a dependency survived the uninstall. A rock another
+// package pins is kept for that reference; a rock installed as a package in its
+// own right is kept because only an uninstall naming it may remove it, which is
+// a different thing and reads wrong as "required by itself".
+func keptReason(dep inventory.KeptDependency) string {
+	switch {
+	case len(dep.HeldBy) > 0 && dep.Installed:
+		return "installed as a package; also required by " + strings.Join(dep.HeldBy, ", ")
+	case dep.Installed:
+		return "installed as a package in its own right"
+	default:
+		return "required by " + strings.Join(dep.HeldBy, ", ")
+	}
+}
+
+// absoluteWorkingDir returns the caller's working directory as an absolute
+// path, which is the install-root every project-scope command works against.
+func absoluteWorkingDir() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Abs(dir)
 }
 
 // newPackageInstallCmd wires `tt package install ARCHIVE...`.
@@ -99,12 +262,7 @@ func newPackageInstallCmd() *cobra.Command {
 // install needs none, so a missing tarantool is only fatal when a dependency
 // must actually be refetched.
 func runPackageInstall(archives []string) error {
-	projectDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	projectDir, err = filepath.Abs(projectDir)
+	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return err
 	}
@@ -219,12 +377,7 @@ func newPackagePackCmd() *cobra.Command {
 // runPackagePack assembles pack.Options from the environment, packs, and prints
 // the resulting archive path to stdout so it can be piped.
 func runPackagePack() error {
-	projectDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	projectDir, err = filepath.Abs(projectDir)
+	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return err
 	}
@@ -312,12 +465,7 @@ func runPackageCmd(args []string, fetchOnly bool) {
 
 // runPackage assembles build.Options from the environment and drives the build.
 func runPackage(args []string, fetchOnly bool) error {
-	projectDir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	projectDir, err = filepath.Abs(projectDir)
+	projectDir, err := absoluteWorkingDir()
 	if err != nil {
 		return err
 	}

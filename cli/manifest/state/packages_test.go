@@ -288,3 +288,52 @@ func mustRead(t *testing.T, path string) []byte {
 
 	return data
 }
+
+// TestDeclaredDependencies covers the only depth information the install state
+// carries: which of a lock's rocks the manifest actually asked for.
+func TestDeclaredDependencies(t *testing.T) {
+	t.Parallel()
+
+	lay := projectLayout(t)
+
+	writeGuest(t, lay, "monitoring", "2.0.0",
+		map[string]string{"metrics": ">=1.0.0"},
+		map[string]string{"metrics": "1.0.0", "luasocket": "3.0.4"})
+
+	packages, err := state.Packages(lay, state.ScopeProject)
+	require.NoError(t, err)
+	require.Len(t, packages, 1)
+
+	declared := state.DeclaredDependencies(packages[0].Manifest)
+
+	assert.Contains(t, declared, "metrics")
+	assert.NotContains(t, declared, "luasocket",
+		"a rock the lock pins but the manifest never named is not declared")
+
+	// A nil manifest is the unreadable-metadata case and must not panic.
+	assert.Empty(t, state.DeclaredDependencies(nil))
+}
+
+// TestDeclaredDependenciesIncludesComponents pins that a component's own
+// dependency counts as declared: the resolver treats global and component
+// declarations alike, so the state reader has to as well.
+func TestDeclaredDependenciesIncludesComponents(t *testing.T) {
+	t.Parallel()
+
+	lay := projectLayout(t)
+
+	source := "manifest_version = '0.1'\n\n[package]\nname = 'monitoring'\n\n" +
+		"[platform]\ntarantool = '>=3.0.0'\ntt = '>=3.1.0'\n\n" +
+		"[products.default]\ncomponents = ['lua']\ndefault = true\n\n" +
+		"[components.lua]\npath = '.'\n\n" +
+		"[components.lua.dependencies]\nmetrics = '>=1.0.0'\n"
+
+	writeFile(t, filepath.Join(lay.Manifests, "monitoring", state.MetaManifestFile),
+		[]byte(source))
+
+	packages, err := state.Packages(lay, state.ScopeProject)
+	require.NoError(t, err)
+	require.Len(t, packages, 1)
+
+	assert.Contains(t, state.DeclaredDependencies(packages[0].Manifest), "metrics")
+}

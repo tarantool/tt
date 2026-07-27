@@ -43,6 +43,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   version, `--force` reinstalls over a collision, and `--yes` skips the
   reconciliation prompt. Installing several archives at once exits 3 when some
   succeed and some fail.
+- `tt package list`: show the packages installed in a scope — in the project
+  scope the project's own package plus every guest installed from an archive.
+  The source is the metadata `tt package install` records under
+  `.rocks/manifests/<pkg>/`, so nothing is fetched and nothing is resolved; this
+  reports what is on disk, not what the current manifest declares. `--scope`
+  selects the tree and `-o/--format` picks the output: `table` by default on a
+  terminal, `yaml` by default otherwise, or an explicit `table`/`json`/`yaml`.
+  `--tree` renders the scope as a single tree rooted at the project's own
+  package, with each guest beneath it and each rock beneath whatever requires
+  it, read from the LuaRocks tree manifest. Every rock is annotated with whether
+  another package holds it too — that is, whether `tt package uninstall` would
+  take it along or leave it. A rock the walk cannot root, because the tree
+  carries no manifest or its edges are incomplete, is still shown, under a group
+  that says its parent is not recorded. In the machine formats the same
+  information arrives as a top-level `rocks` index giving each rock's owners and
+  what it `requires`, plus a per-package `direct` list naming the declared
+  subset of the closure. The index is `rocks` rather than `dependencies` because
+  a package entry already carries a `dependencies` object, and one name must not
+  stand for two shapes.
+- `tt package uninstall <name>`: remove an installed guest package — its files
+  and its metadata, plus every shared dependency nothing else still needs. A
+  dependency is owned by every installed package whose lock pins it, so one
+  another package still holds stays in place and is reported as kept. The
+  project's own package is not a guest and uninstall refuses to remove it.
+  `--scope` selects the tree and `--yes` skips the confirmation prompt.
 - `tt pack`: support nested `.packignore` at the root of tt environment.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
