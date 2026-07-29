@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `tt stop`: preliminary interrupts the processes to enable parallel termination.
+- `tt create vshard_cluster`: the generated rockspec now pins `vshard 0.1.42`
+  instead of `0.1.25`. 0.1.42 is the first release shipping the `vshard-router`
+  backend of the `roles.recovery-point-manager` role, which is what lets a
+  backup take a cluster-wide recovery point.
 
 ### Fixed
 
