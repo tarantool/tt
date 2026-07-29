@@ -243,9 +243,13 @@ func TestBuildMarksVclockMismatchOnBothShards(t *testing.T) {
 
 func TestBuildSkipsVclockCheckForFullBackup(t *testing.T) {
 	// A full backup's vclock_begin is never compared with the previous manifest:
-	// a full is a chain root, not a delta.
+	// A full-backup fragment produced by `tt backup start` has vclock_begin == nil
+	// (box.backup.info() returns no prev_vclock for a full backup).
 	prev := manifestFixture("prev", "", "prev",
 		backup.BackupTypeFull, 10, 0, 10, nil)
+	for _, shard := range prev.Shards {
+		shard.Instance.VclockBegin = nil
+	}
 	// next is declared as a full with an arbitrary vclock_begin that would fail
 	// an incremental check against prev's vclock_end.
 	next := manifestFixture("next", "prev", "next",

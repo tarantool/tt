@@ -134,49 +134,53 @@ def _unpack_archive(archive_path, destination):
     return sorted(extracted)
 
 
-def inspect_backup_artifact(
-    archive_path,
-    unpack_dir,
-    backup_id,
-    instance,
-    expected_type,
-):
+# Fields that cannot be made deterministic in a test environment:
+#   hostname         — the OS hostname of the machine running the test.
+#   timestamp        — the wall-clock time of a recovery point.
+#   checksum_sha256  — the archive checksum.
+# Everything else is deterministic: UUIDs are pinned in the test app config,
+# vclock/LSNs are fixed by the deterministic operation sequence.
+_VOLATILE_FRAGMENT_KEYS = {"hostname", "checksum_sha256"}
+
+
+def assert_fragment_matches_golden(fragment, golden_path):
+    with open(golden_path, "r") as src:
+        golden = json.load(src)
+
+    actual = {k: v for k, v in fragment.items() if k not in _VOLATILE_FRAGMENT_KEYS}
+    for rp in actual["recovery_points"]:
+        rp.pop("timestamp", None)
+
+    assert actual == golden
+
+
+def inspect_backup_artifact(archive_path, unpack_dir, backup_id):
     expected_dir = backup_dir(backup_id)
     assert os.path.dirname(archive_path) == expected_dir
-    expected_base = f"{backup_id}-{instance['replicaset_uuid']}"
-    assert os.path.basename(archive_path) == f"{expected_base}.tar.zst"
     assert os.path.isfile(archive_path), f"archive not found: {archive_path}"
 
-    fragment_path = os.path.join(expected_dir, f"{expected_base}.json")
+    fragment_path = archive_path.removesuffix(".tar.zst") + ".json"
     assert os.path.isfile(fragment_path), f"manifest fragment not found: {fragment_path}"
     with open(fragment_path, "r") as src:
         fragment = json.load(src)
 
-    assert fragment["replicaset_uuid"] == instance["replicaset_uuid"]
-    assert fragment["instance_uuid"] == instance["instance_uuid"]
-    assert fragment["instance_name"] == instance["instance_name"]
-    assert fragment["hostname"] == instance["hostname"]
-    assert fragment["type"] == expected_type
+    # The replicaset_uuid in the fragment must match the archive file name.
+    assert os.path.basename(archive_path) == (
+        f"{backup_id}-{fragment['replicaset_uuid']}.tar.zst"
+    ), fragment
 
-    vclock_end = fragment["vclock_end"]
-    assert isinstance(vclock_end, dict) and vclock_end, fragment
-    assert all(int(replica_id) >= 0 for replica_id in vclock_end)
-    assert all(isinstance(lsn, int) and lsn >= 0 for lsn in vclock_end.values())
-
-    assert "recovery_points" in fragment, fragment
-    assert isinstance(fragment["recovery_points"], list), fragment
-
+    # Checksum is the sha256 of the actual archive bytes.
     checksum = fragment["checksum_sha256"]
     assert len(checksum) == 64 and all(c in "0123456789abcdef" for c in checksum)
-    assert _sha256_file(archive_path) == checksum
+    assert _sha256_file(archive_path) == checksum, fragment
 
-    manifest_files = fragment["files"]
-    assert manifest_files, fragment
-    assert len(manifest_files) == len(set(manifest_files)), fragment
-    assert all(os.path.basename(name) == name for name in manifest_files), fragment
+    # The archive must contain exactly the files listed in the fragment.
+    assert fragment["files"], fragment
+    assert len(fragment["files"]) == len(set(fragment["files"])), fragment
+    assert all(os.path.basename(name) == name for name in fragment["files"]), fragment
 
     extracted_files = _unpack_archive(archive_path, unpack_dir)
-    assert extracted_files == sorted(manifest_files)
+    assert extracted_files == sorted(fragment["files"]), fragment
 
     return fragment
 

@@ -85,6 +85,15 @@ def test_last_json_single_manifest(tt, backup_storage):
     assert parsed["status"] == "OK"
     assert parsed["schema_version"] == 1
 
+    shard = parsed["shards"]["11111111-1111-1111-1111-111111111111"]["instance"]
+    assert shard["vclock_begin"] is None, shard
+    assert shard["vclock_end"] == {"1": 100}, shard
+    artifact = shard["artifact"]
+    assert artifact["type"] == "full"
+    assert artifact["compression"] == "zstd"
+    assert any(name.endswith(".snap") for name in artifact["files"]), artifact
+    assert artifact["recovery_points"][0]["label"] == "rp-1", artifact
+
 
 @pytest.mark.parametrize("backup_storage", STORAGE_BACKENDS, indirect=True)
 def test_last_returns_latest_manifest(tt, backup_storage):

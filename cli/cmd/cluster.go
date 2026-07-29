@@ -446,14 +446,15 @@ func NewClusterCmd() *cobra.Command {
 		Long: "Discover and print the current cluster topology by connecting to " +
 			"cluster nodes via net.box.\n\n" +
 			"The cluster configuration can be loaded from a file, etcd, or " +
-			"Tarantool Config Storage. It is used to determine the list of " +
-			"instances and their listen URIs. Each instance is contacted " +
-			"via net.box, the live topology is collected and merged into " +
-			"a single view.\n\n" +
+			"Tarantool Config Storage.\n" +
+			"It is used to determine the list of instances and their listen URIs." +
+			"Each instance is contacted via net.box,\n" +
+			"the live topology is collected and merged into a single view.\n\n" +
 			"JSON output contains replicasets keyed by UUID and their instances " +
-			"(instance_uuid, instance_name, hostname, mode, status). If a replicaset " +
-			"is unreachable and its UUID is not configured, its name is used as " +
-			"the key. Unreachable instances have the status \"not reachable\".\n\n" +
+			"(instance_uuid, instance_name, hostname, mode, status).\n" +
+			"If a replicaset is unreachable and its UUID is not configured, its name is used as " +
+			"the key.\n" +
+			"Unreachable instances have the status \"not reachable\".\n\n" +
 			clusterUriHelp,
 		Run:  RunModuleFunc(internalClusterTopologyModule),
 		Args: cobra.NoArgs,
