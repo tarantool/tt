@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from minio import Minio
+from sharded_helpers import start_sharded_app
 
 GARAGE_IMAGE = "dxflrs/garage:v2.3.0"
 GARAGE_BUCKET = "tt-backup-test"
@@ -122,3 +123,20 @@ def garage(tmp_path_factory):
             capture_output=True,
             text=True,
         )
+
+
+@pytest.fixture(scope="module")
+def sharded_app(tt_cmd, tmp_path_factory):
+    """A running two-shard vshard cluster with the recovery point manager role.
+
+    Module-scoped: building the app downloads and installs the pinned vshard
+    rock, which is too slow to repeat per test.
+    """
+    # Short name on purpose: it is a prefix of every instance's console socket
+    # path, which must fit into sun_path (see start_sharded_app).
+    env_dir = tmp_path_factory.mktemp("shard")
+    app = start_sharded_app(tt_cmd, env_dir)
+    try:
+        yield app
+    finally:
+        app.tt("stop", "-y", assert_rc=False)
