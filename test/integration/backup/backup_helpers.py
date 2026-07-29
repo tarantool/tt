@@ -15,10 +15,10 @@ BACKUP_TMP_ROOT = os.path.join(tempfile.gettempdir(), "tt-backup")
 def eval_yaml_app(tt, target, lua):
     proc = tt.run("connect", target, "-f-", input=lua, timeout=30)
     assert proc.returncode == 0, proc.stdout
-    return _parse_yaml(proc.stdout)
+    return parse_yaml(proc.stdout)
 
 
-def _parse_yaml(out):
+def parse_yaml(out):
     marker = out.find("\n---")
     if marker != -1:
         out = out[marker + 1 :]
