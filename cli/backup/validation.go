@@ -59,6 +59,13 @@ func (manifest ClusterManifest) validateHeader() error {
 	if !isValidStatus(manifest.Status) {
 		return fmt.Errorf("invalid status %q", manifest.Status)
 	}
+	// Retention goes by this field, and a missing one reads as the zero time,
+	// which is either "delete it, it is ancient" or "keep it forever" depending
+	// on the rule. The schema requires it; catching it here keeps every consumer
+	// from having to invent an answer.
+	if manifest.CreationTime.IsZero() {
+		return fmt.Errorf("creation_time is empty")
+	}
 	if manifest.Shards == nil {
 		return fmt.Errorf("shards is nil")
 	}

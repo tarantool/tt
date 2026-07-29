@@ -12,6 +12,7 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/backup"
+	"github.com/tarantool/tt/cli/backup/gc"
 	"github.com/tarantool/tt/cli/backup/verify"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/connect"
@@ -20,7 +21,7 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-// tt backup start / finalize / last / verify flags. They are package-level because
+// tt backup start / finalize / last / verify / gc flags. They are package-level because
 // cobra flag bindings need stable addresses; only one backup subcommand runs per process.
 var (
 	backupStartCfg        string
@@ -37,6 +38,13 @@ var (
 
 	backupVerifyFormat  string
 	backupVerifyTimeout time.Duration
+
+	backupGcFormat    string
+	backupGcTimeout   time.Duration
+	backupGcKeepFull  int
+	backupGcKeepDays  int
+	backupGcOrphanAge time.Duration
+	backupGcDryRun    bool
 )
 
 const (
@@ -55,6 +63,10 @@ const (
 	// archive end to end to recompute its checksum, so it needs far more time than
 	// the metadata-only commands.
 	defaultVerifyTimeout = 30 * time.Minute
+
+	// defaultGcTimeout covers reading every manifest and deleting the objects the
+	// retention rules select; unlike verify, gc never reads archive contents.
+	defaultGcTimeout = 10 * time.Minute
 )
 
 // backupStorageURIHelp documents the --backup-storage flag value for every
@@ -89,6 +101,7 @@ func NewBackupCmd() *cobra.Command {
 		newBackupFinalizeCmd(),
 		newBackupLastCmd(),
 		newBackupVerifyCmd(),
+		newBackupGcCmd(),
 	)
 
 	return backupCmd
@@ -394,6 +407,196 @@ func verifyIssueTarget(issue verify.Issue) string {
 	}
 
 	return strings.Join(parts, " ")
+}
+
+func newBackupGcCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "gc",
+		Short: "Delete old backup chains and dangling archives from the storage",
+		Long: `Delete backups the retention rules no longer cover, and clean up archives
+no manifest refers to.
+
+Usage:
+  tt backup gc --backup-storage=<uri> [--keep-full N] [--keep-days D] [--dry-run]
+
+Retention rules combine: a backup is deleted only when no rule keeps it.
+Without --keep-full or --keep-days nothing is deleted at all, since every
+backup would then match "not kept". Deletion cascades: a full backup goes only
+together with every increment based on it, and a chain is cut from its newest
+end, so a kept increment always keeps the backups it is recovered from.
+
+Three things are never deleted, whatever the rules say: the chain holding the
+newest manifest, because an upload may be appending to it; the newest chain
+that can still be recovered from; and archives newer than the newest stored
+manifest. This means gc cannot empty a storage; remove the storage root with
+your storage tooling if that is what you want.
+
+Chains with problems (a fork, a tail whose full backup is gone) are left for
+'tt backup verify' to report, except a tail whose every manifest is older than
+--orphan-age, which is collected like a dangling archive.
+
+A dangling archive is re-checked with a direct read of its manifest just before
+it is deleted, so a run may keep an archive its plan listed; --dry-run reports
+the plan, and a real run reports what it kept.
+
+` + backupStorageURIHelp + `
+
+Examples:
+  tt backup gc --backup-storage=file:///var/backups --keep-full 3 --dry-run
+  tt backup gc --backup-storage=file:///var/backups --keep-days 30
+  tt backup gc --backup-storage=file:///var/backups --keep-full 2 --keep-days 7`,
+		Args: cobra.NoArgs,
+		RunE: runBackupGc,
+		// A failed run has already printed what it managed to delete; burying that
+		// under the flag list is the last thing an operator needs here.
+		SilenceUsage: true,
+	}
+
+	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
+		"storage URI (file://<path> or s3+http(s)://host:port/bucket/prefix?...")
+	cmd.Flags().IntVar(&backupGcKeepFull, "keep-full", 0,
+		"keep the last N healthy backup chains")
+	cmd.Flags().IntVar(&backupGcKeepDays, "keep-days", 0,
+		"keep backups created within the last D days")
+	cmd.Flags().DurationVar(&backupGcOrphanAge, "orphan-age", gc.DefaultOrphanAge,
+		"minimum age of a dangling archive before it is deleted; 0 means the default")
+	cmd.Flags().BoolVar(&backupGcDryRun, "dry-run", false,
+		"report what would be deleted without deleting anything")
+	cmd.Flags().StringVar(&backupGcFormat, "format", formatTable,
+		"output format: table or json")
+	cmd.Flags().DurationVar(&backupGcTimeout, "timeout", defaultGcTimeout,
+		"timeout for connecting to and working with the storage")
+
+	cmd.MarkFlagRequired("backup-storage")
+
+	return cmd
+}
+
+func runBackupGc(cmd *cobra.Command, args []string) error {
+	cmdCtx.CommandName = cmd.Name()
+
+	if backupGcFormat != formatTable && backupGcFormat != formatJSON {
+		return fmt.Errorf("unsupported format %q: expected %q or %q",
+			backupGcFormat, formatTable, formatJSON)
+	}
+
+	if backupGcKeepFull < 0 || backupGcKeepDays < 0 {
+		return fmt.Errorf("--keep-full and --keep-days must not be negative")
+	}
+
+	if backupGcOrphanAge < 0 {
+		return fmt.Errorf("--orphan-age must not be negative")
+	}
+
+	cfg, err := backup.ParseStorageURI(backupStorageConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse storage URI: %w", err)
+	}
+
+	store, err := backup.OpenStorage(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to open storage: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), backupGcTimeout)
+	defer cancel()
+
+	plan, err := gc.BuildPlan(ctx, store, gc.Options{
+		KeepFull:  backupGcKeepFull,
+		KeepDays:  backupGcKeepDays,
+		OrphanAge: backupGcOrphanAge,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to plan backup storage cleanup: %w", err)
+	}
+
+	if backupGcDryRun {
+		if err := reportBackupGc(plan, nil); err != nil {
+			return fmt.Errorf("failed to report the cleanup plan: %w", err)
+		}
+
+		return nil
+	}
+
+	// Execute reports what it managed to delete even when it fails midway, so the
+	// result is printed before the error is returned.
+	result, err := gc.Execute(ctx, store, plan)
+	if reportErr := reportBackupGc(plan, result); reportErr != nil {
+		return fmt.Errorf("failed to report the cleanup: %w", reportErr)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to clean up backup storage: %w", err)
+	}
+
+	return nil
+}
+
+// backupGcOutput is the machine-readable report of one gc run.
+type backupGcOutput struct {
+	DryRun bool       `json:"dry_run"`
+	Plan   *gc.Plan   `json:"plan"`
+	Result *gc.Result `json:"result,omitempty"`
+}
+
+// reportBackupGc prints the plan and, for a real run, what was deleted.
+func reportBackupGc(plan *gc.Plan, result *gc.Result) error {
+	if backupGcFormat == formatJSON {
+		data, err := json.MarshalIndent(backupGcOutput{
+			DryRun: result == nil,
+			Plan:   plan,
+			Result: result,
+		}, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal cleanup report: %w", err)
+		}
+
+		fmt.Println(string(data))
+
+		return nil
+	}
+
+	printBackupGcTable(plan, result)
+
+	return nil
+}
+
+func printBackupGcTable(plan *gc.Plan, result *gc.Result) {
+	if result == nil {
+		log.Info("Backup storage cleanup (dry run)")
+	} else {
+		log.Info("Backup storage cleanup")
+	}
+
+	log.Infof("  Backups:           %d", len(plan.Backups))
+	log.Infof("  Archives:          %d", plan.Archives())
+	log.Infof("  Dangling archives: %d", len(plan.Orphans))
+
+	for _, deleted := range plan.Backups {
+		log.Infof("  backup %s (%d archive(s))", deleted.BackupID, len(deleted.ArchiveKeys))
+	}
+
+	for _, orphan := range plan.Orphans {
+		log.Infof("  dangling %s (modified %s)",
+			orphan.Key, orphan.LastModified.UTC().Format(time.RFC3339))
+	}
+
+	if plan.Empty() {
+		log.Info("  Nothing to delete.")
+	}
+
+	for _, note := range plan.Notes {
+		log.Warnf("  %s", note)
+	}
+
+	if result != nil {
+		log.Infof("Deleted %d backup(s), %d archive(s), %d dangling archive(s)",
+			result.Backups, result.Archives, result.Orphans)
+
+		for _, kept := range result.Kept {
+			log.Warnf("  kept %s: its manifest showed up on a direct read", kept)
+		}
+	}
 }
 
 // applyBackupConfig reloads cliOpts/cmdCtx.Cli.ConfigPath from a per-command

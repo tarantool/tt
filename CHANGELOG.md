@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   Exits with 2 when problems are found. Archives of a backup newer than every
   stored manifest are reported as an upload in progress and do not make the
   storage unhealthy.
+- `tt backup gc`: add retention-based cleanup of a backup storage:
+  `--keep-full` / `--keep-days` delete whole backup chains from their newest
+  end, `--orphan-age` collects dangling archives, and `--dry-run` reports what
+  a run would delete. The chain holding the newest manifest and the newest
+  chain that can still be recovered from are never deleted, so no combination
+  of flags empties a storage.
 
 ### Changed
 

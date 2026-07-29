@@ -86,6 +86,29 @@ def backup_verify(tt, storage_uri, fmt=None, timeout=None):
     return tt.exec(*args)
 
 
+def backup_gc(
+    tt,
+    storage_uri,
+    keep_full=None,
+    keep_days=None,
+    orphan_age=None,
+    dry_run=False,
+    fmt=None,
+):
+    args = ["backup", "gc", "--backup-storage", storage_uri]
+    if keep_full is not None:
+        args.extend(["--keep-full", str(keep_full)])
+    if keep_days is not None:
+        args.extend(["--keep-days", str(keep_days)])
+    if orphan_age is not None:
+        args.extend(["--orphan-age", orphan_age])
+    if dry_run:
+        args.append("--dry-run")
+    if fmt:
+        args.extend(["--format", fmt])
+    return tt.exec(*args)
+
+
 def archive_path_from_output(output):
     paths = [line.strip() for line in output.splitlines() if line.strip().endswith(".tar.zst")]
     assert len(paths) == 1, f"expected one archive path in output, got {paths}:\n{output}"
