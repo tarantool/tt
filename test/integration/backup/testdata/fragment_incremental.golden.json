@@ -1,0 +1,16 @@
+{
+  "replicaset_uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  "instance_uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "instance_name": "storage-001-a",
+  "type": "incremental",
+  "vclock_begin": {
+    "1": 35
+  },
+  "vclock_end": {
+    "1": 41
+  },
+  "files": [
+    "00000000000000000035.xlog"
+  ],
+  "recovery_points": []
+}

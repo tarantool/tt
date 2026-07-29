@@ -55,13 +55,22 @@ func TestFragmentValidate(t *testing.T) {
 			wantError: "invalid backup type",
 		},
 		{
-			name: "empty vclock begin",
+			name: "incremental with empty vclock begin",
+			fragment: func() Fragment {
+				fragment := valid
+				fragment.Type = BackupTypeIncremental
+				fragment.VclockBegin = nil
+				return fragment
+			}(),
+			wantError: "vclock_begin is empty for an incremental backup",
+		},
+		{
+			name: "full backup with nil vclock begin is valid",
 			fragment: func() Fragment {
 				fragment := valid
 				fragment.VclockBegin = nil
 				return fragment
 			}(),
-			wantError: "vclock_begin is empty",
 		},
 		{
 			name: "empty vclock end",
@@ -155,7 +164,19 @@ func TestClusterManifestValidate(t *testing.T) {
 			wantError: "is not present in topology",
 		},
 		{
-			name: "successful shard with empty vclock begin",
+			name: "incremental shard with empty vclock begin",
+			manifest: func() ClusterManifest {
+				manifest := valid()
+				shard := manifest.Shards[testRSA]
+				shard.Instance.Artifact.Type = BackupTypeIncremental
+				shard.Instance.VclockBegin = nil
+				manifest.Shards[testRSA] = shard
+				return manifest
+			}(),
+			wantError: "vclock_begin is empty for an incremental backup",
+		},
+		{
+			name: "full shard with nil vclock begin is valid",
 			manifest: func() ClusterManifest {
 				manifest := valid()
 				shard := manifest.Shards[testRSA]
@@ -163,7 +184,6 @@ func TestClusterManifestValidate(t *testing.T) {
 				manifest.Shards[testRSA] = shard
 				return manifest
 			}(),
-			wantError: "vclock_begin is empty",
 		},
 		{
 			name: "invalid artifact type",

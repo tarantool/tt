@@ -130,9 +130,13 @@ func readArchiveEntries(t *testing.T, path string) map[string][]byte {
 // vend is mapped to vclock (end). rps == nil omits the recovery_points key;
 // an empty non-nil slice yields recovery_points = [].
 func infoMap(files []string, vbegin, vend Vclock, rps *[]map[any]any) map[any]any {
+	backupType := BackupTypeFull
+	if len(vbegin) > 0 {
+		backupType = BackupTypeIncremental
+	}
 	m := map[any]any{
 		"files":  toAnySlice(files),
-		"type":   "full",
+		"type":   backupType,
 		"vclock": toVclockMap(vend),
 	}
 	if len(vbegin) > 0 {
@@ -216,7 +220,7 @@ func TestStartBackup_buildsArchiveAndLeavesBackupOpen(t *testing.T) {
 	walDir := t.TempDir()
 	writeWalFiles(t, walDir)
 
-	info := infoMap(walFiles, Vclock{1: 1500, 2: 230}, Vclock{1: 1502, 2: 230}, &[]map[any]any{
+	info := infoMap(walFiles, nil, Vclock{1: 1502, 2: 230}, &[]map[any]any{
 		{
 			"label":      "rp-1",
 			"replica_id": uint64(1),
@@ -258,7 +262,7 @@ func TestStartBackup_fragmentFields(t *testing.T) {
 	writeWAL(t, walDir, "00000000000000001500.snap", goldenSnap)
 	writeWAL(t, walDir, "00000000000000001500.xlog", goldenXlog)
 
-	info := infoMap(walFiles, Vclock{1: 1500, 2: 230}, Vclock{1: 1502, 2: 230}, &[]map[any]any{
+	info := infoMap(walFiles, nil, Vclock{1: 1502, 2: 230}, &[]map[any]any{
 		{
 			"label":      "rp-1",
 			"replica_id": uint64(1),
@@ -305,7 +309,7 @@ func TestStartBackup_fragmentFields(t *testing.T) {
 // fails.
 func TestStartBackup_failLoudOnAlreadyOpen(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
-	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
 	m := &mockEvaler{queue: [][]any{{info}}}
 
 	_, err := Start(m, BackupStartOpts{BackupID: "bid"})
@@ -322,11 +326,11 @@ func TestStartBackup_fromVclockPropagated(t *testing.T) {
 	walDir := t.TempDir()
 	writeWalFiles(t, walDir)
 
-	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, Vclock{1: 42, 2: 7}, Vclock{1: 1502}, nil)
 	inst := instanceMap("router-001", walDir, "")
 	m := &mockEvaler{queue: startQueue(info, inst)}
 
-	_, err := Start(m, BackupStartOpts{
+	archivePath, err := Start(m, BackupStartOpts{
 		BackupID:   "bid",
 		FromVclock: Vclock{1: 42, 2: 7},
 	})
@@ -338,6 +342,14 @@ func TestStartBackup_fromVclockPropagated(t *testing.T) {
 	require.Len(t, startArgs, 1)
 	got := startArgs[0].(map[string]any)
 	require.Equal(t, map[uint32]uint64{1: 42, 2: 7}, got["from_vclock"])
+
+	fragmentData, err := os.ReadFile(fragmentPathFor(archivePath))
+	require.NoError(t, err)
+	var fragment Fragment
+	require.NoError(t, json.Unmarshal(fragmentData, &fragment))
+	require.Equal(t, BackupTypeIncremental, fragment.Type)
+	require.Equal(t, Vclock{1: 42, 2: 7}, fragment.VclockBegin)
+	require.Equal(t, Vclock{1: 1502}, fragment.VclockEnd)
 }
 
 // TestStartBackup_fullBackupOmitsFromVclock checks a full backup (FromVclock
@@ -347,7 +359,7 @@ func TestStartBackup_fullBackupOmitsFromVclock(t *testing.T) {
 	walDir := t.TempDir()
 	writeWalFiles(t, walDir)
 
-	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
 	inst := instanceMap("router-001", walDir, "")
 	m := &mockEvaler{queue: startQueue(info, inst)}
 
@@ -367,7 +379,7 @@ func TestStartBackup_ttlPropagated(t *testing.T) {
 	walDir := t.TempDir()
 	writeWalFiles(t, walDir)
 
-	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
 	inst := instanceMap("router-001", walDir, "")
 	m := &mockEvaler{queue: startQueue(info, inst)}
 
@@ -400,7 +412,7 @@ func TestStartBackup_recoveryPointsStates(t *testing.T) {
 			walDir := t.TempDir()
 			writeWalFiles(t, walDir)
 
-			info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, tc.rps)
+			info := infoMap(walFiles, nil, Vclock{1: 1502}, tc.rps)
 			inst := instanceMap("router-001", walDir, "")
 			m := &mockEvaler{queue: startQueue(info, inst)}
 
@@ -429,7 +441,7 @@ func TestStartBackup_fileNotFound(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 	walDir := t.TempDir()
 
-	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
 	inst := instanceMap("router-001", walDir, "")
 	m := &mockEvaler{queue: startQueue(info, inst)}
 
@@ -444,7 +456,7 @@ func TestStartBackup_instNameFallback(t *testing.T) {
 	walDir := t.TempDir()
 	writeWalFiles(t, walDir)
 
-	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
 	inst := instanceMap("", walDir, "")
 	delete(inst, "instance_name")
 	m := &mockEvaler{queue: startQueue(info, inst)}
@@ -490,7 +502,7 @@ func TestStartBackup_cleansUpOnFragmentWriteFailure(t *testing.T) {
 	walDir := t.TempDir()
 	writeWalFiles(t, walDir)
 
-	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
 	inst := instanceMap("router-001", walDir, "")
 	m := &mockEvaler{queue: startQueue(info, inst)}
 
@@ -534,7 +546,7 @@ func TestStartBackup_packError(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(walDir, "00000000000000001500.snap"), 0o755))
 	writeWAL(t, walDir, "00000000000000001500.xlog", []byte("xlog"))
 
-	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
 	inst := instanceMap("router-001", walDir, "")
 	m := &mockEvaler{queue: startQueue(info, inst)}
 
@@ -564,7 +576,7 @@ func TestStartBackup_resolveFilesSplitDirs(t *testing.T) {
 	writeWAL(t, vinylDir, vinylFile, []byte("vinyl"))
 
 	files := append(slices.Clone(walFiles), vinylFile)
-	info := infoMap(files, Vclock{1: 1500, 2: 230}, Vclock{1: 1502, 2: 230}, nil)
+	info := infoMap(files, nil, Vclock{1: 1502, 2: 230}, nil)
 	inst := instanceMap("router-001", walDir, memtxDir)
 	inst["vinyl_dir"] = vinylDir
 	m := &mockEvaler{queue: startQueue(info, inst)}

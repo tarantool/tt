@@ -4,7 +4,7 @@
   "instance_name": "storage-001",
   "hostname": "tarantool-node-03.prod.example.com",
   "type": "full",
-  "vclock_begin": {"3": 800, "4": 110},
+  "vclock_begin": null,
   "vclock_end": {"3": 801, "4": 110},
   "files": [
     "00000000000000000800.snap",

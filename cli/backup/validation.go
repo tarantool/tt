@@ -19,8 +19,10 @@ func (fragment Fragment) Validate() error {
 	if !isValidBackupType(fragment.Type) {
 		return fmt.Errorf("invalid backup type %q", fragment.Type)
 	}
-	if len(fragment.VclockBegin) == 0 {
-		return fmt.Errorf("vclock_begin is empty")
+	// vclock_begin (box.backup.info().prev_vclock) is only present for an
+	// incremental backup.
+	if fragment.Type == BackupTypeIncremental && len(fragment.VclockBegin) == 0 {
+		return fmt.Errorf("vclock_begin is empty for an incremental backup")
 	}
 	if len(fragment.VclockEnd) == 0 {
 		return fmt.Errorf("vclock_end is empty")
@@ -125,8 +127,11 @@ func validateShardInstance(replicasetUUID string, instance ShardInstance) error 
 	if instance.Hostname == "" {
 		return fmt.Errorf("shard %q hostname is empty", replicasetUUID)
 	}
-	if len(instance.VclockBegin) == 0 {
-		return fmt.Errorf("shard %q vclock_begin is empty", replicasetUUID)
+	if instance.Artifact.Type == BackupTypeIncremental && len(instance.VclockBegin) == 0 {
+		return fmt.Errorf(
+			"shard %q vclock_begin is empty for an incremental backup",
+			replicasetUUID,
+		)
 	}
 	if len(instance.VclockEnd) == 0 {
 		return fmt.Errorf("shard %q vclock_end is empty", replicasetUUID)

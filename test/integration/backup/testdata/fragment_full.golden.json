@@ -1,0 +1,24 @@
+{
+  "replicaset_uuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  "instance_uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "instance_name": "storage-001-a",
+  "type": "full",
+  "vclock_begin": null,
+  "vclock_end": {
+    "1": 37
+  },
+  "files": [
+    "00000000000000000035.snap",
+    "00000000000000000000.vylog",
+    "00000000000000000004.index",
+    "00000000000000000004.run",
+    "00000000000000000035.xlog"
+  ],
+  "recovery_points": [
+    {
+      "label": "rp-itest",
+      "replica_id": 1,
+      "lsn": 36
+    }
+  ]
+}

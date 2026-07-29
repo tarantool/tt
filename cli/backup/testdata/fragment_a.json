@@ -4,7 +4,7 @@
   "instance_name": "router-001",
   "hostname": "tarantool-node-01.prod.example.com",
   "type": "full",
-  "vclock_begin": {"1": 1500, "2": 230},
+  "vclock_begin": null,
   "vclock_end": {"1": 1502, "2": 230},
   "files": [
     "00000000000000001500.snap",
