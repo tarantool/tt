@@ -60,6 +60,29 @@ func TestManifestBackupID(t *testing.T) {
 	}
 }
 
+func TestArchiveBackupID(t *testing.T) {
+	const replicasetUUID = "550e8400-e29b-41d4-a716-446655440000"
+
+	// A backup id contains dashes of its own, so the key is parsed from the right.
+	backupID, parsedUUID, ok := ArchiveBackupID(
+		ArchiveKey("2026-01-02-full", replicasetUUID),
+	)
+	require.True(t, ok)
+	require.Equal(t, "2026-01-02-full", backupID)
+	require.Equal(t, replicasetUUID, parsedUUID)
+
+	for _, key := range []string{
+		"manifests/2026-01-02.json",
+		"data/2026-01-02.tar.zst",
+		"data/2026-01-02-not-a-uuid.tar.zst",
+		"data/-" + replicasetUUID + ".tar.zst",
+		"data/2026-01-02-" + replicasetUUID + ".tar.gz",
+	} {
+		_, _, ok := ArchiveBackupID(key)
+		require.Falsef(t, ok, "key %q must not parse as an archive key", key)
+	}
+}
+
 func TestErrKeyNotFoundComparable(t *testing.T) {
 	require.True(t, errors.Is(ErrKeyNotFound, ErrKeyNotFound))
 }

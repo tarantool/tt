@@ -253,6 +253,40 @@ func TestLoadPartialReportsPhantomManifest(t *testing.T) {
 	require.ErrorContains(t, unreadable[0].Err, "vanished")
 }
 
+func TestBuildKeepsManifestsInAPreviousBackupIDCycle(t *testing.T) {
+	// Two increments pointing at each other are reachable neither from the full
+	// backup nor as a tail root. They must still show up in the chain, flagged,
+	// rather than vanishing from every diagnostic.
+	full := manifestFixture("full", "", "full", backup.BackupTypeFull, 10, 0, 10, nil)
+	left := manifestFixture("left", "right", "full", backup.BackupTypeIncremental, 20, 10, 20, nil)
+	right := manifestFixture("right", "left", "full", backup.BackupTypeIncremental, 30, 20, 30, nil)
+
+	chain := buildFixtureChain(t, full, left, right)
+
+	require.Len(t, chain.Manifests(), 3)
+	require.Contains(t, problemKinds(chain.Problems()), ProblemInvalidManifest)
+
+	for _, entry := range chain.Groups()[0].Entries {
+		if entry.Manifest.BackupID == "full" {
+			continue
+		}
+
+		require.NotEmpty(t, entry.Problems,
+			"manifest must be flagged: ", entry.Manifest.BackupID)
+	}
+}
+
+func TestBuildDoesNotFlagAHealthyChainAsACycle(t *testing.T) {
+	full := manifestFixture("full", "", "full", backup.BackupTypeFull, 10, 0, 10, nil)
+	incremental := manifestFixture(
+		"incremental", "full", "full", backup.BackupTypeIncremental, 20, 10, 20, nil,
+	)
+
+	chain := buildFixtureChain(t, full, incremental)
+
+	require.Empty(t, chain.Problems())
+}
+
 func TestLoadReturnsListError(t *testing.T) {
 	wantErr := errors.New("list failed")
 	store := newMemoryStorage()

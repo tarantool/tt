@@ -1,0 +1,287 @@
+package gc
+
+import (
+	"fmt"
+	"slices"
+
+	"github.com/tarantool/tt/cli/backup"
+	"github.com/tarantool/tt/cli/backup/chain"
+	"github.com/tarantool/tt/cli/backup/storage"
+)
+
+// group is one backup chain plus everything gc needs to decide its fate.
+type group struct {
+	// entries run from the full backup to the newest increment.
+	entries []*chain.Entry
+	// baseID is the backup id of the full backup this chain is rooted at.
+	baseID backup.BackupID
+	// rooted reports that the full backup itself is present in the storage.
+	rooted bool
+	// healthy reports a rooted chain without a single chain problem.
+	healthy bool
+	// protected marks a chain gc never deletes, and why.
+	protected bool
+	// protectedAs explains the protection in the run's notes.
+	protectedAs string
+	// keptByFull marks a chain covered by --keep-full.
+	keptByFull bool
+}
+
+// Reasons a chain is protected regardless of the retention rules.
+const (
+	protectedAsHead    = "holds the newest manifest, so an upload may be appending to it"
+	protectedAsNewest  = "is the newest chain that can still be recovered from"
+	protectedAsOnlyOne = "is the only chain that can still be recovered from"
+)
+
+// classifyGroups turns the chain into gc's view of it: which chains are healthy,
+// which are protected outright, and which are covered by --keep-full.
+//
+// Chains are ordered the way the whole storage is ordered — by backup id, which
+// starts with a timestamp — so gc agrees with chain.Latest, storage.List and
+// every other consumer. Ids that do not sort chronologically are upload's
+// problem to reject, not gc's to work around.
+func classifyGroups(backupChain *chain.Chain, opts Options) []group {
+	// The head chain holds the newest manifest, problems or not: increments are
+	// only ever appended to it, so deleting it is the one way to orphan a backup
+	// that is being uploaded right now.
+	headBase := backup.BackupID("")
+	if latest := backupChain.Latest(); latest != nil {
+		headBase = latest.Manifest.BaseFullBackupID
+	}
+
+	chainGroups := backupChain.Groups()
+	groups := make([]group, 0, len(chainGroups))
+
+	for _, chainGroup := range chainGroups {
+		if len(chainGroup.Entries) == 0 {
+			continue
+		}
+
+		current := group{
+			entries: chainGroup.Entries,
+			baseID:  chainGroup.Entries[0].Manifest.BaseFullBackupID,
+		}
+		current.rooted = isRooted(chainGroup.Entries, current.baseID)
+		current.healthy = current.rooted && !hasProblems(chainGroup.Entries)
+
+		groups = append(groups, current)
+	}
+
+	protectHead(groups, headBase, opts)
+	protectNewestHealthy(groups)
+	markKeptByFull(groups, opts.KeepFull)
+
+	return groups
+}
+
+// protectHead shields the chain holding the newest manifest, because an upload
+// may be appending an increment to it right now. A chain that lost its full
+// backup and whose every manifest is older than --orphan-age is the one
+// exception: nothing can be appending to it, and protecting it would make the
+// leak the stale-tail rule exists to stop permanent.
+func protectHead(groups []group, headBase backup.BackupID, opts Options) {
+	for i := range groups {
+		if groups[i].baseID != headBase {
+			continue
+		}
+
+		if !groups[i].rooted && isStale(groups[i], opts) {
+			return
+		}
+
+		groups[i].protected = true
+		groups[i].protectedAs = protectedAsHead
+
+		return
+	}
+}
+
+// protectNewestHealthy keeps the newest chain that can actually be recovered
+// from. Head protection alone is not enough: the newest manifest may belong to a
+// chain whose full backup is gone, and protecting only that one would let gc
+// delete every usable backup and keep the unusable one.
+func protectNewestHealthy(groups []group) {
+	newest := -1
+	healthy := 0
+
+	for i := range groups {
+		if !groups[i].healthy {
+			continue
+		}
+
+		healthy++
+		newest = i
+	}
+
+	if newest < 0 || groups[newest].protected {
+		return
+	}
+
+	groups[newest].protected = true
+	groups[newest].protectedAs = protectedAsNewest
+
+	if healthy == 1 {
+		groups[newest].protectedAs = protectedAsOnlyOne
+	}
+}
+
+// isRooted reports whether the full backup of the chain is in the storage.
+func isRooted(entries []*chain.Entry, baseID backup.BackupID) bool {
+	return slices.ContainsFunc(entries, func(entry *chain.Entry) bool {
+		return entry.Manifest.BackupID == baseID
+	})
+}
+
+// hasProblems reports whether any manifest of the chain carries a chain problem.
+func hasProblems(entries []*chain.Entry) bool {
+	return slices.ContainsFunc(entries, func(entry *chain.Entry) bool {
+		return len(entry.Problems) > 0
+	})
+}
+
+// markKeptByFull keeps the last N healthy chains. A chain with problems is not
+// counted: it is not a usable recovery chain, and counting it would let a broken
+// tail push a healthy chain out of the retention window.
+func markKeptByFull(groups []group, keepFull int) {
+	if keepFull <= 0 {
+		return
+	}
+
+	kept := 0
+	for i := len(groups) - 1; i >= 0 && kept < keepFull; i-- {
+		if !groups[i].healthy {
+			continue
+		}
+
+		groups[i].keptByFull = true
+		kept++
+	}
+}
+
+// deletableBackups returns the backups of one chain that this run may delete,
+// in deletion order: newest first, so that an interrupted run leaves a valid
+// chain prefix behind rather than an orphaned tail.
+func deletableBackups(current group, opts Options) []Backup {
+	if !opts.hasRetentionRule() || current.protected || current.keptByFull {
+		return nil
+	}
+
+	if !current.healthy {
+		return staleTailBackups(current, opts)
+	}
+
+	// The chain is cut from the tail only: a backup may go only once every
+	// increment that depends on it goes too, otherwise the kept increment is
+	// left unrecoverable.
+	cut := len(current.entries)
+	for cut > 0 && !opts.keepsByAge(current.entries[cut-1].Manifest) {
+		cut--
+	}
+
+	return backupsOf(current.entries[cut:])
+}
+
+// staleTailBackups deletes a chain that lost its full backup once every manifest
+// in it is older than --orphan-age. Such a tail can never be recovered from, and
+// nothing else would ever collect it.
+func staleTailBackups(current group, opts Options) []Backup {
+	if current.rooted {
+		// A rooted chain with problems (a fork, say) is diagnostic material:
+		// gc does not fix or delete it, tt backup verify reports it.
+		return nil
+	}
+
+	if !isStale(current, opts) {
+		return nil
+	}
+
+	return backupsOf(current.entries)
+}
+
+// isStale reports whether every manifest of a chain is older than --orphan-age.
+func isStale(current group, opts Options) bool {
+	cutoff := opts.Now.Add(-opts.OrphanAge)
+	for _, entry := range current.entries {
+		// A manifest without a creation time cannot be shown to be old enough;
+		// treating the zero time as "ancient" would delete a fresh upload.
+		created := entry.Manifest.CreationTime
+		if created.IsZero() || !created.Before(cutoff) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// backupsOf turns chain entries into deletions, newest backup first.
+func backupsOf(entries []*chain.Entry) []Backup {
+	backups := make([]Backup, 0, len(entries))
+	for i := len(entries) - 1; i >= 0; i-- {
+		backups = append(backups, backupOf(entries[i].Manifest))
+	}
+
+	return backups
+}
+
+// backupOf collects the storage keys one manifest owns.
+func backupOf(manifest *backup.ClusterManifest) Backup {
+	archives := make([]string, 0, len(manifest.Shards))
+	for _, shard := range manifest.Shards {
+		if shard.Instance == nil {
+			continue
+		}
+
+		// A path that is not a storage key was never written by upload; leave it
+		// to verify to report rather than guessing what to delete.
+		key, err := storage.CleanKey(shard.Instance.Artifact.Path)
+		if err != nil {
+			continue
+		}
+
+		archives = append(archives, key)
+	}
+
+	slices.Sort(archives)
+
+	return Backup{
+		BackupID:    string(manifest.BackupID),
+		ManifestKey: storage.ManifestKey(string(manifest.BackupID)),
+		ArchiveKeys: archives,
+	}
+}
+
+// cannotEmptyNote is the sentence every run owes the user: no combination of
+// flags empties a storage, so nobody waits for a cleanup that will never happen.
+const cannotEmptyNote = "gc never deletes every chain: to wipe a storage, remove " +
+	"the storage root with your storage tooling instead"
+
+// planNotes explains what the run deliberately left alone.
+func planNotes(groups []group, opts Options) []string {
+	notes := make([]string, 0, len(groups)+1)
+
+	if !opts.hasRetentionRule() {
+		return append(notes,
+			"no retention rule given: pass --keep-full and/or --keep-days "+
+				"for gc to delete anything",
+			cannotEmptyNote,
+		)
+	}
+
+	for _, current := range groups {
+		switch {
+		case current.protected:
+			notes = append(notes, fmt.Sprintf(
+				"chain %q is kept whatever the rules say: it %s",
+				current.baseID, current.protectedAs,
+			))
+		case current.rooted && !current.healthy:
+			notes = append(notes, fmt.Sprintf(
+				"chain %q has chain problems and was left alone; run tt backup verify",
+				current.baseID,
+			))
+		}
+	}
+
+	return append(notes, cannotEmptyNote)
+}

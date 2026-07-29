@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 from minio import Minio
 from sharded_helpers import start_sharded_app
+from storage_helpers import FileStorage, S3Storage
 
 GARAGE_IMAGE = "dxflrs/garage:v2.3.0"
 GARAGE_BUCKET = "tt-backup-test"
@@ -123,6 +124,29 @@ def garage(tmp_path_factory):
             capture_output=True,
             text=True,
         )
+
+
+@pytest.fixture
+def storage(request, tmp_path):
+    """A backup storage on the backend named by the test's parameter.
+
+    Parametrized with (backend, prefix) pairs from storage_helpers, so one test
+    body runs against the local filesystem and against S3.
+    """
+    backend, prefix = request.param
+    if backend == "file":
+        root = tmp_path / "backups"
+        root.mkdir()
+        yield FileStorage(str(root), prefix)
+        return
+
+    garage = request.getfixturevalue("garage")
+    s3 = S3Storage(garage, prefix)
+    try:
+        yield s3
+    finally:
+        for key in s3.keys():
+            s3.delete(key)
 
 
 @pytest.fixture(scope="module")
