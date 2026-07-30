@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "backup_id": "2026-01-03-orphan",
+  "previous_backup_id": "nonexistent-backup",
+  "base_full_backup_id": "2026-01-01-full",
+  "status": "OK",
+  "creation_time": "2026-01-03T00:00:00Z",
+  "creation_duration": 500000000,
+  "shards": {
+    "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": {
+      "instance": {
+        "instance_uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "instance_name": "storage-001-a",
+        "hostname": "localhost",
+        "vclock_begin": {"1": 200},
+        "vclock_end": {"1": 300},
+        "artifact": {
+          "path": "data/2026-01-03-orphan-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.tar.zst",
+          "size_bytes": 512,
+          "checksum_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "compression": "zstd",
+          "files": ["00000000000000000200.xlog"],
+          "recovery_points": [],
+          "type": "incremental"
+        }
+      }
+    }
+  },
+  "topology": {
+    "replicasets": {
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": [
+        {
+          "instance_uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "instance_name": "storage-001-a",
+          "hostname": "localhost"
+        }
+      ]
+    }
+  },
+  "warnings": []
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "backup_id": "2026-01-01-full",
+  "previous_backup_id": null,
+  "base_full_backup_id": "2026-01-01-full",
+  "status": "OK",
+  "creation_time": "2026-01-01T00:00:00Z",
+  "creation_duration": 1000000000,
+  "shards": {
+    "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": {
+      "instance": {
+        "instance_uuid": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+        "instance_name": "old-master",
+        "hostname": "localhost",
+        "vclock_begin": null,
+        "vclock_end": {"1": 100},
+        "artifact": {
+          "path": "data/2026-01-01-full-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.tar.zst",
+          "size_bytes": 1024,
+          "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "compression": "zstd",
+          "files": ["00000000000000000099.snap"],
+          "recovery_points": [],
+          "type": "full"
+        }
+      }
+    }
+  },
+  "topology": {
+    "replicasets": {
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": [
+        {
+          "instance_uuid": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+          "instance_name": "old-master",
+          "hostname": "localhost"
+        }
+      ]
+    }
+  },
+  "warnings": []
+}

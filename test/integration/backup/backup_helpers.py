@@ -109,6 +109,15 @@ def backup_gc(
     return tt.exec(*args)
 
 
+def backup_plan(tt, target, storage_uri, config=None, fmt=None):
+    args = ["backup", "plan", "--target", target, "--backup-storage", storage_uri]
+    if config:
+        args.extend(["-c", config])
+    if fmt:
+        args.extend(["--format", fmt])
+    return tt.exec(*args)
+
+
 def archive_path_from_output(output):
     paths = [line.strip() for line in output.splitlines() if line.strip().endswith(".tar.zst")]
     assert len(paths) == 1, f"expected one archive path in output, got {paths}:\n{output}"
