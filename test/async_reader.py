@@ -111,6 +111,17 @@ class AsyncProcessReader:
         """
         return self.__wait_for(self.__q_stdout, expected, timeout)
 
+    def stdout_wait_for_all(
+        self,
+        expected: list[str],
+        timeout: float = 5.0,
+    ) -> tuple[list[str], bool]:
+        """
+        Expects all tokens in stdout in any order, collecting all lines.
+        Returns a list of lines and a flag if every token was found.
+        """
+        return self.__wait_for_all(self.__q_stdout, expected, timeout)
+
     def stderr_wait_for(self, expected: str, timeout: float = 5.0) -> tuple[list[str], bool]:
         """
         Expects a token in stderr, collecting all lines.
@@ -126,8 +137,8 @@ class AsyncProcessReader:
         """Stop process gracefully."""
         if not self._isExited():
             self.__stop_event.set()
-            self.__stdout_thread.join(timeout=5.0)
-            self.__stderr_thread.join(timeout=5.0)
+        self.__stdout_thread.join(timeout=5.0)
+        self.__stderr_thread.join(timeout=5.0)
 
     def pKill(self) -> None:
         """Force terminates the process."""
@@ -161,11 +172,19 @@ class AsyncProcessReader:
         expected: str,
         timeout: float = 10.0,
     ) -> tuple[list[str], bool]:
+        return self.__wait_for_all(q, [expected], timeout)
+
+    def __wait_for_all(
+        self,
+        q: _StreamQueue,
+        expected: list[str],
+        timeout: float,
+    ) -> tuple[list[str], bool]:
         stop_time = time.monotonic() + timeout
         wait_close = False
         FINAL_TIMEOUT = 1.0  # After process exit, tiny wait to collect remaining lines.
 
-        marker_found = False
+        pending = expected.copy()
         lines: list[str] = []
 
         while time.monotonic() < stop_time:
@@ -175,8 +194,8 @@ class AsyncProcessReader:
                     break
 
                 lines.append(line)
-                if expected in line:
-                    marker_found = True
+                pending = [marker for marker in pending if marker not in line]
+                if not pending:
                     break
 
             except queue.Empty:
@@ -188,7 +207,7 @@ class AsyncProcessReader:
                             stop_time = next_timeout
                 continue
 
-        return lines, marker_found
+        return lines, not pending
 
     def __stream_reader_thread_target(
         self,
