@@ -133,7 +133,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Possible line loss/duplication when the log file is renamed.
+- `tt log -f`: possible line loss/duplication on rename, hanging after
+  a watched log directory is removed, and lines written just as the
+  file was read to the end not showing up until the next write.
 
 ## [2.13.0] - 2026-05-21
 

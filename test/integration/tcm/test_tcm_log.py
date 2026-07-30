@@ -1,5 +1,4 @@
 import signal
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -8,9 +7,7 @@ from shutil import copyfile, rmtree
 import pytest
 from async_reader import AsyncProcessReader
 
-import utils
-
-# from utils import run_command_and_get_output
+from utils import run_command_and_get_output
 
 DATA_DIR = Path(__file__).parent / "testdata"
 EXPECTED_DATA = DATA_DIR / "expected"
@@ -88,7 +85,7 @@ def test_log_n_lines(
     if lines > 0:
         cmd.extend(("-n", str(lines)))
     cmd.extend(options)
-    rc, output = utils.run_command_and_get_output(cmd, cwd=DATA_DIR / mode)
+    rc, output = run_command_and_get_output(cmd, cwd=DATA_DIR / mode)
 
     assert rc == 0, f"Command failed with return code {rc}."
     expected_file = expected_file_name(mode, lines, options)
@@ -126,35 +123,6 @@ def handle_static_logs(
     return tmp_log, reader, stdout_lines
 
 
-def handle_static_logs2(
-    tt_cmd: Path,
-    tmp_path: Path,
-    mode: str,
-    lines: int,
-    options: list[str],
-) -> tuple[Path, AsyncProcessReader, list[str]]:
-    tmp_log, eof_marker = prepare_first_log(tmp_path, mode)
-
-    cmd = [tt_cmd, "tcm", "log", "--follow"]
-    if lines > 0:
-        cmd.append(f"--lines={lines + 1}")  # +1 to include the extra EOF marker line.
-    cmd.extend(options)
-
-    p = subprocess.Popen(
-        cmd,
-        cwd=tmp_path,
-        stderr=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-    )
-
-    assert utils.wait_for_string(10, p.stdout, eof_marker), \
-        f"Expected end marker {eof_marker} not found."
-
-    return tmp_log, p
-
-
 def prepare_second_log(
     tmp_log: Path,
     mode: str,
@@ -186,21 +154,14 @@ def handle_updating_logs(
 ) -> tuple[list[str], int]:
     eof_marker, write_cnt = prepare_second_log(tmp_log, mode, delay_time, is_append)
 
-    # print(f"@@@@@@@@@ {time.time()} handle_updating_logs")
     lines, is_found = reader.stdout_wait_for(eof_marker, timeout=10)
-    # print(f"@@@@@@@@@ {time.time()} handle_updating_logs2")
 
     reader.send_signal(signal.SIGINT)
+    if reader.pWait() is None:
+        reader.pKill()
     reader.pStop()
 
     stderr_lines = reader.stderr
-    assert "context canceled" in "".join(stderr_lines), (
-        f"Expected message not found in stderr {stderr_lines}"
-    )
-
-    if reader.pWait() is None:
-        reader.pKill()
-
     if not is_found:
         print(f"Second marker not found in stdout:\n{''.join(lines)}")
         rest_lines = reader.stdout
@@ -210,6 +171,10 @@ def handle_updating_logs(
             print(f"Got stderr:\n{''.join(stderr_lines)}", file=sys.stderr)
 
     assert is_found, f"Expected end marker {eof_marker} not found."
+
+    assert "context canceled" in "".join(stderr_lines), (
+        f"Expected message not found in stderr {stderr_lines}"
+    )
 
     assert reader.returncode == 1, (
         f"Command failed with return code {reader.returncode} (expected 1)."
@@ -264,51 +229,6 @@ def test_log_follow(
     )
 
 
-def handle_updating_logs2(
-    p,
-    tmp_log: Path,
-    mode: str,
-    delay_time: float,
-    is_append: bool,
-) -> tuple[list[str], int]:
-    eof_marker, write_cnt = prepare_second_log(tmp_log, mode, delay_time, is_append)
-
-    # print(f"@@@@@@@@@ {time.time()} handle_updating_logs")
-    assert utils.wait_for_string(10, p.stdout, eof_marker), \
-        f"Expected end marker {eof_marker} not found."
-    lines, is_found = reader.stdout_wait_for(eof_marker, timeout=10)
-    # print(f"@@@@@@@@@ {time.time()} handle_updating_logs2")
-
-    reader.send_signal(signal.SIGINT)
-    reader.pStop()
-
-
-
-
-    stderr_lines = reader.stderr
-    assert "context canceled" in "".join(stderr_lines), (
-        f"Expected message not found in stderr {stderr_lines}"
-    )
-
-    if reader.pWait() is None:
-        reader.pKill()
-
-    if not is_found:
-        print(f"Second marker not found in stdout:\n{''.join(lines)}")
-        rest_lines = reader.stdout
-        if rest_lines:
-            print(f"Rest output =>\n{''.join(rest_lines)}")
-        if stderr_lines:
-            print(f"Got stderr:\n{''.join(stderr_lines)}", file=sys.stderr)
-
-    assert is_found, f"Expected end marker {eof_marker} not found."
-
-    assert reader.returncode == 1, (
-        f"Command failed with return code {reader.returncode} (expected 1)."
-    )
-    return lines, write_cnt
-
-
 @pytest.mark.slow
 @pytest.mark.parametrize("delay_time", (0.1, 0.01, 0))
 @pytest.mark.parametrize("lines, options", TEST_CASES)
@@ -333,6 +253,11 @@ def test_log_rotate(
 
     tmp_log.rename(tmp_log.with_suffix(".bak"))
     assert not tmp_log.exists(), "Temporary log file should be deleted."
+
+    # Create the replacement separately so the asynchronous reopen path can
+    # attach its watcher before new records are written.
+    tmp_log.touch()
+    time.sleep(0.5)
 
     new_lines, cnt_lines = handle_updating_logs(reader, tmp_log, mode, delay_time, is_append=True)
     stdout_lines.extend(new_lines)

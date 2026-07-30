@@ -9,13 +9,17 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/apex/log"
 	"github.com/fatih/color"
 	"github.com/tarantool/go-tail"
 )
 
-const blockSize = 8192
+const (
+	blockSize           = 8192
+	tailShutdownTimeout = time.Second
+)
 
 // Reader is an interface for reading the last `lines` lines from a file.
 type Reader interface {
@@ -154,6 +158,19 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 	return out, nil
 }
 
+func stopTail(t *tail.Tail) error {
+	t.Kill(nil)
+	select {
+	case <-t.Dead():
+		if err := t.Err(); err != nil {
+			return fmt.Errorf("failed to stop tailer for %q: %w", t.Filename, err)
+		}
+		return nil
+	case <-time.After(tailShutdownTimeout):
+		return fmt.Errorf("timeout stopping tailer for %q", t.Filename)
+	}
+}
+
 // Follow sends to the channel each new line from the file as it grows.
 func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, fileName string,
 	n int, wg *sync.WaitGroup,
@@ -190,12 +207,13 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 		for {
 			select {
 			case <-ctx.Done():
-				t.Stop()
-				t.Wait()
+				if err := stopTail(t); err != nil {
+					log.Warn(err.Error())
+				}
 				return
 			case line, more := <-t.Lines:
 				if !more {
-					err := t.Stop()
+					err := stopTail(t)
 					if err != nil {
 						log.Error(err.Error())
 					} else {

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
@@ -19,6 +21,8 @@ var logOpts struct {
 	nLines int  // How many lines to print.
 	follow bool // Follow logs output.
 }
+
+const logRootCheckInterval = 100 * time.Millisecond
 
 // NewLogCmd creates log command.
 func NewLogCmd() *cobra.Command {
@@ -60,9 +64,45 @@ func printLines(ctx context.Context, in <-chan string) error {
 	}
 }
 
+type logRootContext struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func logRoot(inst running.InstanceCtx) string {
+	if inst.SingleApp {
+		return inst.LogDir
+	}
+	return filepath.Dir(inst.LogDir)
+}
+
+func monitorLogRoot(ctx context.Context, root string, cancel context.CancelFunc) {
+	ticker := time.NewTicker(logRootCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if _, err := os.Stat(root); errors.Is(err, os.ErrNotExist) {
+				cancel()
+				return
+			}
+		}
+	}
+}
+
 func follow(instances []running.InstanceCtx, n int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+
+	rootContexts := make(map[string]logRootContext)
+	defer func() {
+		for _, rootCtx := range rootContexts {
+			rootCtx.cancel()
+		}
+	}()
 
 	nextColor := tail.DefaultColorPicker()
 	color := nextColor()
@@ -72,9 +112,18 @@ func follow(instances []running.InstanceCtx, n int) error {
 	// Wait group to wait for completion of all log reading routines to close the channel once.
 	var wg sync.WaitGroup
 	for _, inst := range instances {
-		if err := tail.Follow(ctx, logLines,
+		root := logRoot(inst)
+		rootCtx, ok := rootContexts[root]
+		if !ok {
+			rootCtx.ctx, rootCtx.cancel = context.WithCancel(ctx)
+			rootContexts[root] = rootCtx
+			go monitorLogRoot(rootCtx.ctx, root, rootCtx.cancel)
+		}
+
+		err := tail.Follow(rootCtx.ctx, logLines,
 			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color),
-			inst.Log, n, &wg); err != nil {
+			inst.Log, n, &wg)
+		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
