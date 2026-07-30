@@ -2,11 +2,14 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 
 import tt_helper
 import yaml
 
-BACKUP_TMP_ROOT = os.path.join(os.path.realpath("/tmp"), "tt-backup")
+# Must resolve to the same directory as Go's os.TempDir() in cli/backup: both
+# honour TMPDIR, which on macOS points into /var/folders/... rather than /tmp.
+BACKUP_TMP_ROOT = os.path.join(tempfile.gettempdir(), "tt-backup")
 
 
 def eval_yaml_app(tt, target, lua):
