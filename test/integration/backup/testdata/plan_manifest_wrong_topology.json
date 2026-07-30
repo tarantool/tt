@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "backup_id": "2026-01-01-full",
+  "previous_backup_id": null,
+  "base_full_backup_id": "2026-01-01-full",
+  "status": "OK",
+  "creation_time": "2026-01-01T00:00:00Z",
+  "creation_duration": 1000000000,
+  "shards": {
+    "cccccccc-cccc-cccc-cccc-cccccccccccc": {
+      "instance": {
+        "instance_uuid": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        "instance_name": "other-001",
+        "hostname": "localhost",
+        "vclock_begin": null,
+        "vclock_end": {"1": 50},
+        "artifact": {
+          "path": "data/2026-01-01-full-cccccccc-cccc-cccc-cccc-cccccccccccc.tar.zst",
+          "size_bytes": 1024,
+          "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "compression": "zstd",
+          "files": ["00000000000000000049.snap"],
+          "recovery_points": [],
+          "type": "full"
+        }
+      }
+    }
+  },
+  "topology": {
+    "replicasets": {
+      "cccccccc-cccc-cccc-cccc-cccccccccccc": [
+        {
+          "instance_uuid": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+          "instance_name": "other-001",
+          "hostname": "localhost"
+        }
+      ]
+    }
+  },
+  "warnings": []
+}

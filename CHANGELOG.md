@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   a run would delete. The chain holding the newest manifest and the newest
   chain that can still be recovered from are never deleted, so no combination
   of flags empties a storage.
+- `tt backup plan`: add backup planning command that computes last
+  valid manifest for `tt backup start`.
 
 ### Changed
 

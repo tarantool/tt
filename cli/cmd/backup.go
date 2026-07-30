@@ -12,6 +12,7 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/backup"
+	"github.com/tarantool/tt/cli/backup/chain"
 	"github.com/tarantool/tt/cli/backup/gc"
 	"github.com/tarantool/tt/cli/backup/verify"
 	"github.com/tarantool/tt/cli/configure"
@@ -45,6 +46,11 @@ var (
 	backupGcKeepDays  int
 	backupGcOrphanAge time.Duration
 	backupGcDryRun    bool
+
+	backupPlanMode    string
+	backupPlanCfg     string
+	backupPlanFormat  string
+	backupPlanTimeout time.Duration
 )
 
 const (
@@ -102,6 +108,7 @@ func NewBackupCmd() *cobra.Command {
 		newBackupLastCmd(),
 		newBackupVerifyCmd(),
 		newBackupGcCmd(),
+		newBackupPlanCmd(),
 	)
 
 	return backupCmd
@@ -156,21 +163,15 @@ archive. Idempotent: if the backup is already closed, it does not fail.`,
 
 func newBackupLastCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "last",
+		Use:   "last --backup-storage=<uri> [--format <table|json>]",
 		Short: "Show the last backup manifest from the storage",
-		Long: `Find the latest manifest in the storage and print it to stdout.
-
-Usage:
-  tt backup last --backup-storage=<uri> [--format <table|json>]
-
-` + backupStorageURIHelp + `
-
-Examples:
-  tt backup last --backup-storage=file:///var/backups
-  tt backup last --backup-storage=file:///var/backups?Prefix=mycluster
-  tt backup last --backup-storage=s3+https://s3.example.com:9000/... \
+		Long: `Find the latest manifest in the storage and print it to stdout.` +
+			backupStorageURIHelp,
+		Example: `$ tt backup last --backup-storage=file:///var/backups
+  $ tt backup last --backup-storage=file:///var/backups?Prefix=mycluster
+  $ tt backup last --backup-storage=s3+https://s3.example.com:9000/... \
     ?Region=us-east-1&AccessKeyID=minio&SecretAccessKey=minio123
-  tt backup last --backup-storage=file:///var/backups --format json`,
+  $ tt backup last --backup-storage=file:///var/backups --format json`,
 		Args: cobra.NoArgs,
 		RunE: runBackupLast,
 	}
@@ -183,6 +184,51 @@ Examples:
 		"timeout for connecting to and reading from the storage")
 
 	cmd.MarkFlagRequired("backup-storage")
+
+	return cmd
+}
+
+func newBackupPlanCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "plan --target=(incremental|full) --backup-storage=<uri> [flags]",
+		Short: "Plan the next backup: mode, master source, from_vclock",
+		Long: `Compute a backup plan from the current cluster topology and the latest
+manifest in the storage.
+
+` + backupStorageURIHelp + `
+
+The --target flag selects the requested backup mode:
+  incremental - build on top of the latest manifest (requires a valid chain)
+  full        - start a new chain, no chain checks
+
+For --target=incremental the command loads the latest manifest, builds the
+backup chain, and verifies that the latest manifest is the chain's latest
+entry with no problems. If any check fails, the command exits with a
+detailed error (no auto-promotion to full).
+
+` + clusterUriHelp,
+		Example: `$ tt backup plan --target=incremental --backup-storage=file:///var/backups
+  $ tt backup plan --target=full --backup-storage=file:///var/backups --format json
+  $ tt backup plan --target=incremental --backup-storage=s3+https://... -c cluster.yaml`,
+		Args: cobra.NoArgs,
+		RunE: runBackupPlan,
+	}
+
+	addTarantoolConnectFlags(cmd)
+	cmd.Flags().StringVar(&backupPlanMode, "target", "",
+		"backup mode: incremental | full (required)")
+	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
+		"storage URI (file://<path> or s3+http(s)://host:port/bucket/prefix?...")
+	cmd.Flags().StringVarP(&backupPlanCfg, "config", "c", "",
+		"path or URI of the cluster configuration (same as 'tt cluster topology -c')")
+	cmd.Flags().StringVar(&backupPlanFormat, "format", formatJSON,
+		"output format: table or json")
+	cmd.Flags().DurationVar(&backupPlanTimeout, "timeout", time.Minute,
+		"timeout for storage operations")
+
+	cmd.MarkFlagRequired("target")
+	cmd.MarkFlagRequired("backup-storage")
+	cmd.MarkFlagRequired("config")
 
 	return cmd
 }
@@ -725,4 +771,175 @@ func parseFromVclock(s string) (backup.Vclock, error) {
 	}
 
 	return vc, nil
+}
+
+func runBackupPlan(cmd *cobra.Command, args []string) error {
+	cmdCtx.CommandName = cmd.Name()
+
+	target := backup.BackupType(backupPlanMode)
+	switch target {
+	case backup.BackupTypeFull, backup.BackupTypeIncremental:
+	default:
+		return fmt.Errorf("unsupported target %q: expected %q or %q",
+			backupPlanMode, backup.BackupTypeFull, backup.BackupTypeIncremental)
+	}
+
+	switch backupPlanFormat {
+	case formatTable, formatJSON:
+	default:
+		return fmt.Errorf("unsupported format %q: expected %q or %q",
+			backupPlanFormat, formatTable, formatJSON)
+	}
+
+	connectCtx := connect.ConnectCtx{
+		Username:    replicasetUser,
+		Password:    replicasetPassword,
+		SslKeyFile:  replicasetSslKeyFile,
+		SslCertFile: replicasetSslCertFile,
+		SslCaFile:   replicasetSslCaFile,
+		SslCiphers:  replicasetSslCiphers,
+	}
+
+	merged, hostnames, reachable, err := discoverClusterTopology(&cmdCtx, backupPlanCfg, connectCtx)
+	if err != nil {
+		return fmt.Errorf("failed to discover cluster topology: %w", err)
+	}
+
+	live := topologyToLive(replicasetsToTopology(merged, hostnames, reachable))
+
+	ctx, cancel := context.WithTimeout(context.Background(), backupPlanTimeout)
+	defer cancel()
+
+	// For incremental: load the chain, check problems, pass the latest manifest.
+	var latest *backup.ClusterManifest
+	if target == backup.BackupTypeIncremental {
+		latest, err = getLastFromChain(ctx, backupStorageConfig)
+		if err != nil {
+			return fmt.Errorf("failed to get latest backup: %w", err)
+		}
+	}
+
+	plan, err := backup.Plan(target, latest, &live)
+	if err != nil {
+		return fmt.Errorf("failed to plan backup: %w", err)
+	}
+
+	err = printPlan(plan)
+	if err != nil {
+		return fmt.Errorf("failed to print plan: %w", err)
+	}
+
+	return nil
+}
+
+func getLastFromChain(ctx context.Context, storageUri string) (*backup.ClusterManifest, error) {
+	storageCfg, err := backup.ParseStorageURI(storageUri)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse storage URI: %w", err)
+	}
+
+	store, err := backup.OpenStorage(storageCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open storage: %w", err)
+	}
+
+	ch, err := chain.Load(ctx, store)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build backup chain: %w", err)
+	}
+
+	chainLatest := ch.Latest()
+	if chainLatest == nil {
+		return nil, fmt.Errorf("failed to get latest backup: %w", backup.ErrNoBackups)
+	}
+
+	if problems := chainLatest.Problems; len(problems) > 0 {
+		return nil, fmt.Errorf(
+			"backup plan: latest backup %q has chain problems:"+
+				"\n%s\nuse --target=full to start a new chain",
+			chainLatest.Manifest.BackupID,
+			formatChainProblems(problems),
+		)
+	}
+
+	return chainLatest.Manifest, nil
+}
+
+func printPlan(plan *backup.BackupPlan) error {
+	switch backupPlanFormat {
+	case formatJSON:
+		data, err := json.MarshalIndent(plan, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal plan: %w", err)
+		}
+
+		fmt.Println(string(data))
+	case formatTable:
+		printPlanTable(plan)
+	}
+
+	return nil
+}
+
+// topologyToLive converts topology output into backup.LiveTopology.
+func topologyToLive(topo topologyOutput) backup.LiveTopology {
+	live := backup.LiveTopology{
+		Replicasets: make(map[string][]backup.LiveInstance, len(topo.Replicasets)),
+	}
+	for rsUUID, instances := range topo.Replicasets {
+		liveInstances := make([]backup.LiveInstance, 0, len(instances))
+		for _, inst := range instances {
+			liveInstances = append(liveInstances, backup.LiveInstance{
+				InstanceUUID: inst.InstanceUUID,
+				InstanceName: inst.InstanceName,
+				Hostname:     inst.Hostname,
+				Mode:         inst.Mode,
+				Status:       inst.Status,
+			})
+		}
+		live.Replicasets[rsUUID] = liveInstances
+	}
+	return live
+}
+
+// formatChainProblems renders chain problems as an indented list.
+func formatChainProblems(problems []*chain.Problem) string {
+	lines := make([]string, 0, len(problems))
+	for _, p := range problems {
+		prefix := "  "
+		if p.Inherited {
+			prefix += "[inherited] "
+		}
+		lines = append(lines, prefix+p.Detail)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// printPlanTable prints the backup plan as a human-readable table.
+func printPlanTable(plan *backup.BackupPlan) {
+	log.Info("Backup plan")
+	log.Infof("  Mode:              %s", plan.Mode)
+	if plan.PreviousBackupID != "" {
+		log.Infof("  Previous backup:   %s", plan.PreviousBackupID)
+	}
+	if len(plan.Replicasets) > 0 {
+		log.Infof("  Replicasets:       %d", len(plan.Replicasets))
+		for uuid, rs := range plan.Replicasets {
+			log.Infof("    %s", uuid)
+			log.Infof("      Master UUID:   %s", rs.MasterInstanceUUID)
+			log.Infof("      Master name:   %s", rs.MasterInstanceName)
+			if rs.FromVclock != nil {
+				log.Infof("      From vclock:   %s", formatVclock(rs.FromVclock))
+			}
+		}
+	}
+}
+
+// formatVclock renders a Vclock as {1:1500,2:230} for table output.
+func formatVclock(vc backup.Vclock) string {
+	parts := make([]string, 0, len(vc))
+	for id, lsn := range vc {
+		parts = append(parts, fmt.Sprintf("%d:%d", id, lsn))
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }

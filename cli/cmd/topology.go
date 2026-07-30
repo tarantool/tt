@@ -169,16 +169,6 @@ func internalClusterTopologyModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 		return fmt.Errorf("unsupported format: %s (use table or json)", topologyFormat)
 	}
 
-	clusterConfig, configDir, err := loadTopologyConfig(cmdCtx, topologyConfigPath)
-	if err != nil {
-		return fmt.Errorf("failed to load topology config: %w", err)
-	}
-
-	instanceNames := libcluster.Instances(clusterConfig)
-	if len(instanceNames) == 0 {
-		return fmt.Errorf("no instances found in the cluster config")
-	}
-
 	connectCtx := connect.ConnectCtx{
 		Username:    replicasetUser,
 		Password:    replicasetPassword,
@@ -186,6 +176,42 @@ func internalClusterTopologyModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 		SslCertFile: replicasetSslCertFile,
 		SslCaFile:   replicasetSslCaFile,
 		SslCiphers:  replicasetSslCiphers,
+	}
+
+	merged, hostnames, reachable, err := discoverClusterTopology(
+		cmdCtx,
+		topologyConfigPath,
+		connectCtx,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to discover cluster topology: %w", err)
+	}
+
+	if err := printTopology(merged, hostnames, reachable); err != nil {
+		return fmt.Errorf("failed to print topology: %w", err)
+	}
+
+	return nil
+}
+
+// discoverClusterTopology loads the cluster config, discovers the live topology
+// from all instances, and returns the merged result. It is shared by
+// 'tt cluster topology' and 'tt backup plan'.
+func discoverClusterTopology(
+	cmdCtx *cmdcontext.CmdCtx,
+	configPath string,
+	connectCtx connect.ConnectCtx,
+) (replicaset.Replicasets, map[string]string, map[string]bool, error) {
+	clusterConfig, configDir, err := loadTopologyConfig(cmdCtx, configPath)
+	if err != nil {
+		return replicaset.Replicasets{}, nil, nil,
+			fmt.Errorf("failed to load topology config: %w", err)
+	}
+
+	instanceNames := libcluster.Instances(clusterConfig)
+	if len(instanceNames) == 0 {
+		return replicaset.Replicasets{}, nil, nil,
+			fmt.Errorf("no instances found in the cluster config")
 	}
 
 	allTopologies, hostnames, reachable := discoverInstancesParallel(
@@ -207,11 +233,7 @@ func internalClusterTopologyModule(cmdCtx *cmdcontext.CmdCtx, args []string) err
 	)
 	merged := mergeReplicasets(allTopologies)
 
-	if err := printTopology(merged, hostnames, reachable); err != nil {
-		return fmt.Errorf("failed to print topology: %w", err)
-	}
-
-	return nil
+	return merged, hostnames, reachable, nil
 }
 
 func loadTopologyConfig(

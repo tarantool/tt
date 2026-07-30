@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "backup_id": "2026-01-01-full",
+  "previous_backup_id": null,
+  "base_full_backup_id": "2026-01-01-full",
+  "status": "OK",
+  "creation_time": "2026-01-01T00:00:00Z",
+  "creation_duration": 1000000000,
+  "shards": {
+    "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": {
+      "instance": {
+        "instance_uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "instance_name": "storage-001-a",
+        "hostname": "localhost",
+        "vclock_begin": null,
+        "vclock_end": {"1": 100},
+        "artifact": {
+          "path": "data/2026-01-01-full-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.tar.zst",
+          "size_bytes": 1024,
+          "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "compression": "zstd",
+          "files": [
+            "00000000000000000099.snap",
+            "00000000000000000099.xlog"
+          ],
+          "recovery_points": [
+            {"label": "rp-1", "replica_id": 1, "lsn": 99, "timestamp": 1735689600.0}
+          ],
+          "type": "full"
+        }
+      }
+    }
+  },
+  "topology": {
+    "replicasets": {
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": [
+        {
+          "instance_uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "instance_name": "storage-001-a",
+          "hostname": "localhost"
+        }
+      ]
+    }
+  },
+  "warnings": []
+}
