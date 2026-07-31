@@ -18,6 +18,7 @@ connpool
 containsf
 debugf
 demoter
+desynchronize
 disbalance
 distfile*
 drwxr
