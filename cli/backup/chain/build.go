@@ -13,62 +13,175 @@ import (
 	"github.com/tarantool/tt/cli/backup/storage"
 )
 
-// Load reads every stored manifest and builds a fully marked chain.
+// Unreadable is a listed manifest that could not be turned into a chain entry.
+type Unreadable struct {
+	// Key is the storage key of the manifest.
+	Key string
+	// Err explains why the manifest could not be used.
+	Err error
+}
+
+// Load reads every stored manifest and builds a fully marked chain. A manifest
+// that cannot be read or decoded fails the whole load: a chain silently missing
+// a link would send its caller down a broken recovery path. Callers that
+// diagnose the storage rather than recover from it use LoadPartial.
 func Load(ctx context.Context, store storage.Storage) (*Chain, error) {
-	manifests, err := loadManifests(ctx, store)
+	chain, unreadable, err := LoadPartial(ctx, store)
 	if err != nil {
-		if errors.Is(err, errManifestVanished) {
-			manifests, err = loadManifests(ctx, store)
-			if errors.Is(err, errManifestVanished) {
-				return nil, fmt.Errorf("load manifests: %w", err)
-			}
-		} else {
-			return nil, fmt.Errorf("load manifests: %w", err)
-		}
+		return nil, fmt.Errorf("load chain: %w", err)
 	}
 
-	chain, err := Build(manifests)
-	if err != nil {
-		return nil, fmt.Errorf("build chain: %w", err)
+	if len(unreadable) > 0 {
+		return nil, fmt.Errorf(
+			"load manifest %q: %w", unreadable[0].Key, unreadable[0].Err,
+		)
 	}
 
 	return chain, nil
 }
 
+// LoadPartial builds the chain from the manifests it could read and returns the
+// ones it could not, so that a diagnostic caller (tt backup verify) reports a
+// single broken object instead of going blind on the whole storage.
+func LoadPartial(
+	ctx context.Context,
+	store storage.Storage,
+) (*Chain, []Unreadable, error) {
+	loaded, unreadable, err := loadManifests(ctx, store)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load manifests: %w", err)
+	}
+
+	// A manifest that LIST reported but GET could not find is usually gc
+	// deleting it mid-run: redo the listing once before believing it.
+	if slices.ContainsFunc(unreadable, isVanished) {
+		loaded, unreadable, err = loadManifests(ctx, store)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load manifests: %w", err)
+		}
+	}
+
+	// A manifest with no backup_id, or two claiming the same one, would make
+	// Build reject the storage whole, leaving the diagnostic caller with nothing
+	// to report about the very defects it exists to name.
+	manifests, unusable := splitUnusable(loaded)
+	unreadable = append(unreadable, unusable...)
+
+	chain, err := Build(manifests)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build chain: %w", err)
+	}
+
+	return chain, unreadable, nil
+}
+
 // errManifestVanished marks a manifest that LIST reported but GET could not find.
 var errManifestVanished = errors.New("manifest vanished between list and get")
 
-// loadManifests lists and reads every manifest once, reporting errManifestVanished
-// when a listed key is missing on GET so Load can retry.
+// isVanished reports whether a manifest was listed but missing on GET.
+func isVanished(unreadable Unreadable) bool {
+	return errors.Is(unreadable.Err, errManifestVanished)
+}
+
+// loadedManifest pairs a decoded manifest with the key it came from. A defect
+// that only the key can name - two objects claiming one backup_id - is otherwise
+// impossible to report against the right object.
+type loadedManifest struct {
+	Key      string
+	Manifest *backup.ClusterManifest
+}
+
+// errDuplicateBackupID marks manifests sharing one backup_id.
+var errDuplicateBackupID = errors.New("duplicate backup_id")
+
+// errMissingBackupID marks a manifest with nothing to key it by.
+var errMissingBackupID = errors.New("manifest has no backup_id")
+
+// splitUnusable separates out manifests that cannot become chain entries: one
+// carrying no backup_id has nothing to key it by, and of two objects claiming
+// the same id neither can be told to be the authentic one. Both are reported
+// against their storage key - the only name they have left - while the rest of
+// the storage is still checked.
+func splitUnusable(loaded []loadedManifest) ([]*backup.ClusterManifest, []Unreadable) {
+	claims := make(map[backup.BackupID]int, len(loaded))
+	for _, item := range loaded {
+		claims[item.Manifest.BackupID]++
+	}
+
+	manifests := make([]*backup.ClusterManifest, 0, len(loaded))
+	unusable := make([]Unreadable, 0)
+
+	for _, item := range loaded {
+		switch id := item.Manifest.BackupID; {
+		case id == "":
+			unusable = append(unusable, Unreadable{Key: item.Key, Err: errMissingBackupID})
+		case claims[id] > 1:
+			unusable = append(unusable, Unreadable{
+				Key: item.Key,
+				Err: fmt.Errorf("%w %q: another object claims it too",
+					errDuplicateBackupID, id),
+			})
+		default:
+			manifests = append(manifests, item.Manifest)
+		}
+	}
+
+	slices.SortFunc(unusable, func(a, b Unreadable) int {
+		return strings.Compare(a.Key, b.Key)
+	})
+
+	return manifests, unusable
+}
+
+// loadManifests lists and reads every manifest once, collecting the ones that
+// could not be read or decoded instead of failing on the first of them. Only a
+// failure to list at all is returned as an error.
 func loadManifests(
 	ctx context.Context,
 	store storage.Storage,
-) ([]*backup.ClusterManifest, error) {
+) ([]loadedManifest, []Unreadable, error) {
 	objects, err := store.List(ctx, storage.ManifestsPrefix())
 	if err != nil {
-		return nil, fmt.Errorf("list manifests: %w", err)
+		return nil, nil, fmt.Errorf("list manifests: %w", err)
 	}
 
-	manifests := make([]*backup.ClusterManifest, 0, len(objects))
+	manifests := make([]loadedManifest, 0, len(objects))
+	unreadable := make([]Unreadable, 0)
+
 	for _, object := range objects {
-		data, err := storage.GetBytes(ctx, store, object.Key)
+		manifest, err := loadManifest(ctx, store, object.Key)
 		if err != nil {
-			if errors.Is(err, storage.ErrKeyNotFound) {
-				return nil, fmt.Errorf("%w: %q", errManifestVanished, object.Key)
-			}
-
-			return nil, fmt.Errorf("load manifest %q: %w", object.Key, err)
+			unreadable = append(unreadable, Unreadable{Key: object.Key, Err: err})
+			continue
 		}
 
-		var manifest backup.ClusterManifest
-		if err := json.Unmarshal(data, &manifest); err != nil {
-			return nil, fmt.Errorf("decode manifest %q: %w", object.Key, err)
-		}
-
-		manifests = append(manifests, &manifest)
+		manifests = append(manifests, loadedManifest{Key: object.Key, Manifest: manifest})
 	}
 
-	return manifests, nil
+	return manifests, unreadable, nil
+}
+
+// loadManifest reads and decodes one manifest.
+func loadManifest(
+	ctx context.Context,
+	store storage.Storage,
+	key string,
+) (*backup.ClusterManifest, error) {
+	data, err := storage.GetBytes(ctx, store, key)
+	if err != nil {
+		if errors.Is(err, storage.ErrKeyNotFound) {
+			return nil, fmt.Errorf("%w: %q", errManifestVanished, key)
+		}
+
+		return nil, fmt.Errorf("read manifest %q: %w", key, err)
+	}
+
+	var manifest backup.ClusterManifest
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, fmt.Errorf("decode manifest %q: %w", key, err)
+	}
+
+	return &manifest, nil
 }
 
 // Build groups manifests, attaches own and inherited chain problems, and
@@ -99,7 +212,7 @@ func Build(manifests []*backup.ClusterManifest) (*Chain, error) {
 	// Reverse previous_backup_id links after every backup_id is indexed.
 	children := make(map[backup.BackupID][]*Entry, len(entries))
 
-	for _, entry := range entries {
+	for _, entry := range sortedEntries(entries) {
 		if previousID := entry.Manifest.PreviousBackupID; previousID != "" {
 			children[previousID] = append(children[previousID], entry)
 		}
@@ -137,7 +250,7 @@ func markProblems(
 	children map[backup.BackupID][]*Entry,
 ) {
 	// A structurally invalid manifest poisons its whole tail.
-	for _, entry := range entries {
+	for _, entry := range sortedEntries(entries) {
 		if err := entry.Manifest.Validate(); err != nil {
 			propagateProblem(entry, &Problem{
 				Kind:     ProblemInvalidManifest,
@@ -148,7 +261,7 @@ func markProblems(
 	}
 
 	// Orphan and vclock mismatch belong to one entry and poison its whole tail.
-	for _, entry := range entries {
+	for _, entry := range sortedEntries(entries) {
 		previousID := entry.Manifest.PreviousBackupID
 		parent := entries[previousID]
 		if previousID != "" && parent == nil {
@@ -167,8 +280,23 @@ func markProblems(
 		}
 	}
 
+	// A manifest whose previous_backup_id leads back to itself has no full backup
+	// to replay from. Left unflagged it would also drop out of the ordered group
+	// (it is reachable neither from the base nor as a tail root), and a manifest
+	// no command can see is one gc would happily delete around.
+	for _, entry := range sortedEntries(entries) {
+		if cycle := cycleThrough(entry, entries); cycle != "" {
+			propagateProblem(entry, &Problem{
+				Kind:     ProblemInvalidManifest,
+				BackupID: string(entry.Manifest.BackupID),
+				Detail:   fmt.Sprintf("previous_backup_id forms a cycle through %q", cycle),
+			}, children)
+		}
+	}
+
 	// A fork poisons every branch, not the common parent before the fork.
-	for previousID, forks := range children {
+	for _, previousID := range slices.Sorted(maps.Keys(children)) {
+		forks := children[previousID]
 		if len(forks) < 2 {
 			continue
 		}
@@ -192,6 +320,45 @@ func markProblems(
 				Detail:   detail,
 			}, children)
 		}
+	}
+}
+
+// sortedEntries returns the entries ordered by backup id. Every loop that
+// attaches problems must be deterministic: map iteration order would otherwise
+// decide in which order an entry collects problems inherited from several
+// ancestors, and that order reaches the verify report, where a cron job diffing
+// --format json would see changes that are not there.
+func sortedEntries(entries map[backup.BackupID]*Entry) []*Entry {
+	ordered := make([]*Entry, 0, len(entries))
+	for _, id := range slices.Sorted(maps.Keys(entries)) {
+		ordered = append(ordered, entries[id])
+	}
+
+	return ordered
+}
+
+// cycleThrough walks previous_backup_id back from an entry and returns the
+// backup id where the walk meets itself, or an empty id when the walk ends.
+func cycleThrough(entry *Entry, entries map[backup.BackupID]*Entry) backup.BackupID {
+	visited := map[backup.BackupID]bool{entry.Manifest.BackupID: true}
+
+	for current := entry; ; {
+		previousID := current.Manifest.PreviousBackupID
+		if previousID == "" {
+			return ""
+		}
+
+		parent, ok := entries[previousID]
+		if !ok {
+			return ""
+		}
+
+		if visited[previousID] {
+			return previousID
+		}
+
+		visited[previousID] = true
+		current = parent
 	}
 }
 
@@ -377,6 +544,18 @@ func orderGroup(
 		}
 
 		appendTree(entry)
+	}
+
+	// Whatever is still unvisited is reachable neither from the full backup nor
+	// from a tail root, which means its links close a cycle. Such a manifest is
+	// marked as a problem, but it must not silently disappear from the chain:
+	// every consumer decides what to do with a manifest it can see, and none can
+	// account for one it cannot.
+	for _, entry := range group.Entries {
+		if !visited[entry.Manifest.BackupID] {
+			visited[entry.Manifest.BackupID] = true
+			ordered = append(ordered, entry)
+		}
 	}
 
 	group.Entries = ordered

@@ -44,6 +44,22 @@ func TestKeyHelpers(t *testing.T) {
 	)
 }
 
+func TestManifestBackupID(t *testing.T) {
+	backupID, ok := ManifestBackupID(ManifestKey("20260102T030405Z"))
+	require.True(t, ok)
+	require.Equal(t, "20260102T030405Z", backupID)
+
+	for _, key := range []string{
+		"data/20260102T030405Z-rs.tar.zst",
+		"manifests/20260102T030405Z.tar.zst",
+		"manifests/.json",
+		"20260102T030405Z.json",
+	} {
+		_, ok := ManifestBackupID(key)
+		require.Falsef(t, ok, "key %q must not parse as a manifest key", key)
+	}
+}
+
 func TestErrKeyNotFoundComparable(t *testing.T) {
 	require.True(t, errors.Is(ErrKeyNotFound, ErrKeyNotFound))
 }

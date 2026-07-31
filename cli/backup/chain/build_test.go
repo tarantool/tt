@@ -348,7 +348,9 @@ func TestBuildDetectsRealMismatchAcrossHole(t *testing.T) {
 func TestBuildHandlesCycleInPreviousBackupID(t *testing.T) {
 	// A cycle in previous_backup_id must not hang Build. Because both entries
 	// resolve their previous_backup_id to an existing entry, neither is marked
-	// as an orphan. The cycle itself is not currently detected as a Problem.
+	// as an orphan; the cycle is reported as an invalid manifest instead. Here
+	// "a" is its own group base, so both entries stay reachable - see
+	// TestLoadPartialKeepsManifestsInACycle for the case where they are not.
 	a := manifestFixture("a", "b", "a",
 		backup.BackupTypeFull, 10, 0, 10, nil)
 	b := manifestFixture("b", "a", "a",
@@ -356,6 +358,7 @@ func TestBuildHandlesCycleInPreviousBackupID(t *testing.T) {
 
 	chain := buildFixtureChain(t, a, b)
 	require.Len(t, chain.Manifests(), 2)
+	require.NotEmpty(t, chain.Problems())
 }
 
 type problemExpectation struct {

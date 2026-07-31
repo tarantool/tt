@@ -74,6 +74,15 @@ def backup_last(tt, storage_uri, fmt=None):
     return tt.exec(*args)
 
 
+def backup_verify(tt, storage_uri, fmt=None, timeout=None):
+    args = ["backup", "verify", "--backup-storage", storage_uri]
+    if fmt:
+        args.extend(["--format", fmt])
+    if timeout:
+        args.extend(["--timeout", timeout])
+    return tt.exec(*args)
+
+
 def archive_path_from_output(output):
     paths = [line.strip() for line in output.splitlines() if line.strip().endswith(".tar.zst")]
     assert len(paths) == 1, f"expected one archive path in output, got {paths}:\n{output}"
