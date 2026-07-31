@@ -31,6 +31,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt backup upload`: add a command that builds a cluster manifest from
   per-shard fragments and uploads archives and the manifest to file or S3
   storage.
+- `tt restore apply`: add preparation of an instance work directory from a
+  backup chain. Unpacks the archives in order, stamps `--patch-uuid` into
+  every snap/xlog header, and cuts the chain at `--target-point`: the xlog
+  holding the point is truncated and the files starting past it are removed.
+  `--checksums` verifies the archives before anything is touched. Re-running
+  for the same point is idempotent, and only the files a restore owns are
+  cleared, so an instance config kept in the same directory survives. Exits
+  with 2 when no xlog covers the point and 3 when an input is rejected, in
+  which case the work directory is left as it was. A `restore_state.json`
+  marker is written next to the work directory for the orchestrator to
+  compare across nodes before the cluster is started.
 
 ### Changed
 

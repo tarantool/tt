@@ -49,6 +49,7 @@ libcluster
 libconnect
 libwatchdog
 linecomment
+lsns
 luabody
 luajit
 luakit
@@ -84,6 +85,7 @@ protoc
 pseudographics
 rebootstrap
 regexputil
+replicaid
 replicaset*
 rescan
 rockspec*
@@ -116,6 +118,9 @@ unknownoffmanualeventualelectionstatefulsupervised
 unknownoffvotercandidatemanual
 unknownreadrw
 unknownuninitializedbootstrapped
+unparam
+unpatchable
+uuidbak
 varbinary
 vbegin
 vclock
