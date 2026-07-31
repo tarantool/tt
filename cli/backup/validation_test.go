@@ -135,6 +135,15 @@ func TestClusterManifestValidate(t *testing.T) {
 			wantError: "invalid status",
 		},
 		{
+			name: "empty shards",
+			manifest: func() ClusterManifest {
+				manifest := valid()
+				manifest.Shards = map[string]Shard{}
+				return manifest
+			}(),
+			wantError: "shards is empty",
+		},
+		{
 			name: "shard has both instance and error",
 			manifest: func() ClusterManifest {
 				manifest := valid()

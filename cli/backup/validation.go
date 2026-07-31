@@ -62,6 +62,12 @@ func (manifest ClusterManifest) validateHeader() error {
 	if manifest.Shards == nil {
 		return fmt.Errorf("shards is nil")
 	}
+	// A backup of no shards is not a backup. Left valid, such a manifest reads as
+	// healthy while referring to nothing, so verify blames its archives as
+	// dangling and gc collects them once they age past --orphan-age.
+	if len(manifest.Shards) == 0 {
+		return fmt.Errorf("shards is empty")
+	}
 	if manifest.Topology.Replicasets == nil {
 		return fmt.Errorf("topology.replicasets is nil")
 	}
