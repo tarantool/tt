@@ -254,6 +254,11 @@ The check reads the whole storage and reports:
   - increments whose vclock_begin does not continue the previous backup;
   - archives no manifest refers to.
 
+An archive of a backup newer than every stored manifest is reported too, but
+as an upload in progress rather than a problem: an upload writes its archives
+before the manifest that references them, so this is what a backup being taken
+right now looks like from the outside.
+
 Nothing is ever deleted or repaired: removing backups is 'tt backup gc'.
 Exit codes: 0 - the storage is healthy, 2 - problems were found, 1 - the
 storage could not be checked.
@@ -348,12 +353,11 @@ func printVerifyReportTable(report *verify.Report) {
 	log.Infof("  Manifests checked: %d", report.Manifests)
 	log.Infof("  Archives checked:  %d", report.Archives)
 
-	if report.OK() {
+	if problems := report.Problems(); problems > 0 {
+		log.Infof("  Problems:          %d", problems)
+	} else {
 		log.Info("  Problems:          none")
-		return
 	}
-
-	log.Infof("  Problems:          %d", len(report.Issues))
 
 	for _, issue := range report.Issues {
 		inherited := ""
@@ -361,8 +365,17 @@ func printVerifyReportTable(report *verify.Report) {
 			inherited = " (inherited)"
 		}
 
-		log.Warnf("  [%s]%s %s: %s",
+		line := fmt.Sprintf("  [%s]%s %s: %s",
 			issue.Kind, inherited, verifyIssueTarget(issue), issue.Detail)
+
+		// An informational finding is worth showing but is not what makes the
+		// storage unhealthy, so it must not look like the rest.
+		if issue.Informational {
+			log.Info(line)
+			continue
+		}
+
+		log.Warn(line)
 	}
 }
 

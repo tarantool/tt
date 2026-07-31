@@ -395,7 +395,9 @@ def test_verify_vclock_mismatch(tt, storage):
 @pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
 def test_verify_dangling_archive(tt, storage):
     write_chain(storage)
-    dangling = archive_key("2026-01-03-never-uploaded")
+    # Older than the newest manifest: the pipeline has moved past this backup id,
+    # so nothing can still be uploading it.
+    dangling = archive_key("2026-01-01-abandoned")
     storage.put(dangling, b"no manifest refers to me")
 
     rc, report = verify_json(tt, storage)
@@ -406,11 +408,53 @@ def test_verify_dangling_archive(tt, storage):
 
 
 @pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_verify_reports_an_upload_in_progress_without_failing(tt, storage):
+    # An upload writes its archives before the manifest referencing them, so a
+    # verify overlapping the nightly backup sees unreferenced archives of a
+    # healthy backup. Alerting on that would fire on every backup.
+    write_chain(storage)
+    uploading = archive_key("2026-01-03-uploading")
+    storage.put(uploading, b"still uploading")
+
+    rc, report = verify_json(tt, storage)
+
+    assert rc == VERIFY_OK, report
+    assert issue_kinds(report) == ["upload_in_progress"]
+    assert report["issues"][0]["archive"] == uploading
+    assert report["issues"][0]["informational"] is True
+
+
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_verify_reports_the_first_upload_of_an_empty_storage(tt, storage):
+    # No manifest to compare against: this is a cluster whose first backup has
+    # not finished uploading, not a storage full of garbage.
+    uploading = archive_key("2026-01-01-first")
+    storage.put(uploading, b"still uploading")
+
+    rc, report = verify_json(tt, storage)
+
+    assert rc == VERIFY_OK, report
+    assert issue_kinds(report) == ["upload_in_progress"]
+
+
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_verify_upload_in_progress_does_not_mask_a_real_problem(tt, storage):
+    write_chain(storage)
+    storage.put(archive_key("2026-01-03-uploading"), b"still uploading")
+    storage.put(archive_key("2026-01-01-full"), b"corrupted archive")
+
+    rc, report = verify_json(tt, storage)
+
+    assert rc == VERIFY_PROBLEMS_FOUND
+    assert sorted(issue_kinds(report)) == ["checksum_mismatch", "upload_in_progress"]
+
+
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
 def test_verify_reports_every_problem_class(tt, storage):
     write_chain(storage)
     storage.put(archive_key("2026-01-01-full"), b"corrupted archive")
     storage.delete(archive_key("2026-01-02-inc"))
-    storage.put(archive_key("2026-01-03-never-uploaded"), b"dangling")
+    storage.put(archive_key("2026-01-01-abandoned"), b"dangling")
     write_backup(
         storage,
         "2026-01-04-orphan",
