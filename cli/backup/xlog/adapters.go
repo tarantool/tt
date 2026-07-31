@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 
 	"github.com/google/uuid"
 
@@ -49,20 +48,20 @@ func PatchInstanceUUID(src, dst, newUUID string) error {
 
 // TruncateAt copies transactions from src to dst up to and including the
 // recovery point, dropping the rest.
+//
+// The meta header is carried over verbatim. A journal file's VClock is the
+// position it *starts* at, and its name is that vclock's signature, so
+// dropping a tail never moves it: rewriting VClock to the kept content's end
+// would desynchronize the header from the file name, which dir.OpenDir
+// rejects (ErrSignatureMismatch) and Tarantool treats as fatal in
+// xdir_open_cursor (src/box/xlog.c:451).
 func TruncateAt(src, dst string, replicaID uint32, lsn int64) error {
 	pred := filter.UntilVClock(format.VClock{replicaID: lsn})
-
-	outVClock, err := computeTruncatedVClock(src, pred)
-	if err != nil {
-		return err
-	}
 
 	meta, err := reader.ReadHeader(src)
 	if err != nil {
 		return fmt.Errorf("xlog: truncate: read header %q: %w", src, err)
 	}
-
-	meta.VClock = outVClock
 
 	return copyKeptTxs(src, dst, meta, pred)
 }
@@ -122,37 +121,6 @@ func fromFormatVClock(v format.VClock) (backup.Vclock, error) {
 		}
 
 		out[id] = uint64(lsn)
-	}
-
-	return out, nil
-}
-
-// computeTruncatedVClock returns the per-replica high-water of every row in
-// every kept transaction — the exact VClock for the truncated output.
-func computeTruncatedVClock(src string, pred filter.Filter) (format.VClock, error) {
-	r, err := reader.Open(src)
-	if err != nil {
-		return nil, fmt.Errorf("xlog: truncate: open %q: %w", src, err)
-	}
-
-	defer func() { _ = r.Close() }()
-
-	out := format.VClock{}
-
-	for tx, err := range r.Txs() {
-		if err != nil {
-			return nil, fmt.Errorf("xlog: truncate: read tx from %q: %w", src, err)
-		}
-
-		if !slices.ContainsFunc(tx.Rows, pred) {
-			continue
-		}
-
-		for i := range tx.Rows {
-			if row := tx.Rows[i]; row.LSN > out[row.ReplicaID] {
-				out[row.ReplicaID] = row.LSN
-			}
-		}
 	}
 
 	return out, nil
