@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   Tarantool Config Storage with table and JSON output.
 - `tt backup last`: add support for displaying the latest backup manifest from
   file or S3 storage.
+- `tt backup verify`: add a read-only health check of a backup storage: missing
+  and corrupted archives, breaks in the backup chain, and dangling archives.
+  Exits with 2 when problems are found.
 
 ### Changed
 
