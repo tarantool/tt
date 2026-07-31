@@ -229,6 +229,73 @@ func TestVerifyDanglingArchive(t *testing.T) {
 	require.Equal(t, dangling, issue.Archive)
 	require.Empty(t, issue.BackupID)
 	require.Contains(t, issue.Detail, "not referenced")
+	require.False(t, issue.Informational)
+	require.False(t, report.OK())
+}
+
+func TestVerifyReportsAnUploadInProgressWithoutFailing(t *testing.T) {
+	// An upload writes its archives before the manifest that references them, so
+	// a verify running during the nightly backup sees unreferenced archives of a
+	// backup that is perfectly fine. Failing here would fire an alert on every
+	// backup, and an alert that always fires is one nobody reads.
+	f := newFixture(t)
+	f.addBackup("2026-01-01", "", "2026-01-01", backup.BackupTypeFull, 0, 10)
+	uploading := storage.ArchiveKey("2026-01-02", replicasetA)
+	f.putObject(uploading, []byte("still uploading"))
+
+	report := f.verify()
+
+	require.True(t, report.OK())
+	require.Zero(t, report.Problems())
+
+	issue := findIssue(t, report, IssueUploadInProgress)
+	require.Equal(t, uploading, issue.Archive)
+	require.Equal(t, "2026-01-02", issue.BackupID)
+	require.True(t, issue.Informational)
+	require.Contains(t, issue.Detail, "upload may still be in progress")
+}
+
+func TestVerifyReportsTheFirstUploadOfAnEmptyStorageAsInProgress(t *testing.T) {
+	// Nothing to compare against: a storage holding archives and no manifest at
+	// all is a cluster whose first backup has not finished uploading.
+	f := newFixture(t)
+	uploading := storage.ArchiveKey("2026-01-01", replicasetA)
+	f.putObject(uploading, []byte("still uploading"))
+
+	report := f.verify()
+
+	require.True(t, report.OK())
+	require.Equal(t, []IssueKind{IssueUploadInProgress}, issueKinds(report))
+}
+
+func TestVerifyStillFailsOnAnArchiveOlderThanTheNewestManifest(t *testing.T) {
+	// The pipeline has moved past this backup id, so nothing is uploading it any
+	// more: the archive is abandoned and the storage is not healthy.
+	f := newFixture(t)
+	f.addBackup("2026-01-02", "", "2026-01-02", backup.BackupTypeFull, 0, 10)
+	abandoned := storage.ArchiveKey("2026-01-01", replicasetA)
+	f.putObject(abandoned, []byte("abandoned"))
+
+	report := f.verify()
+
+	require.False(t, report.OK())
+	require.Equal(t, 1, report.Problems())
+	require.Equal(t, []IssueKind{IssueDanglingArchive}, issueKinds(report))
+}
+
+func TestVerifyCountsOnlyRealProblems(t *testing.T) {
+	f := newFixture(t)
+	f.addBackup("2026-01-01", "", "2026-01-01", backup.BackupTypeFull, 0, 10)
+	// One real defect and one upload in progress: the verdict follows the defect,
+	// and the count reports only it.
+	f.putObject(storage.ArchiveKey("2026-01-01", replicasetA), []byte("corrupted"))
+	f.putObject(storage.ArchiveKey("2026-01-02", replicasetA), []byte("uploading"))
+
+	report := f.verify()
+
+	require.False(t, report.OK())
+	require.Equal(t, 1, report.Problems())
+	require.Len(t, report.Issues, 2)
 }
 
 func TestVerifySkipsShardsWithoutArtifact(t *testing.T) {

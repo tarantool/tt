@@ -31,6 +31,10 @@ const (
 	IssueChecksumMissing IssueKind = "checksum_missing"
 	// IssueDanglingArchive marks a stored archive no manifest refers to.
 	IssueDanglingArchive IssueKind = "dangling_archive"
+	// IssueUploadInProgress marks an unreferenced archive of a backup newer than
+	// every stored manifest: an upload writes its archives before the manifest
+	// that references them, so this is what a backup being uploaded looks like.
+	IssueUploadInProgress IssueKind = "upload_in_progress"
 	// IssueChainOrphan marks a manifest whose previous backup is absent.
 	IssueChainOrphan IssueKind = "chain_orphan"
 	// IssueChainFork marks a manifest sharing its previous backup with another one.
@@ -61,6 +65,10 @@ type Issue struct {
 	Archive string `json:"archive,omitempty"`
 	// Inherited reports a chain problem that originated in an ancestor manifest.
 	Inherited bool `json:"inherited,omitempty"`
+	// Informational marks a finding that a healthy storage can legitimately
+	// contain. It is reported, because an operator reading the output wants to
+	// see everything that is there, but it does not make the storage unhealthy.
+	Informational bool `json:"informational,omitempty"`
 	// Detail explains the problem in one line.
 	Detail string `json:"detail"`
 }
@@ -76,9 +84,29 @@ type Report struct {
 	Issues []Issue `json:"issues"`
 }
 
-// OK reports whether the storage is healthy.
+// OK reports whether the storage is healthy. Informational findings do not
+// count: a backup being uploaded right now is not a defect, and a check that
+// fails during every nightly backup teaches its operator to ignore it.
 func (r *Report) OK() bool {
-	return len(r.Issues) == 0
+	for _, issue := range r.Issues {
+		if !issue.Informational {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Problems counts the findings that make the storage unhealthy.
+func (r *Report) Problems() int {
+	problems := 0
+	for _, issue := range r.Issues {
+		if !issue.Informational {
+			problems++
+		}
+	}
+
+	return problems
 }
 
 // Verify reads every manifest, recomputes the checksum of every archive it
@@ -132,7 +160,14 @@ func Verify(ctx context.Context, store storage.Storage) (*Report, error) {
 		}
 	}
 
-	dangling, err := danglingIssues(ctx, store, referenced, undetermined)
+	// A storage with no manifest object at all may be a cluster whose very first
+	// backup is uploading now. One whose only manifest is unreadable is not: it
+	// has a manifest, it just cannot be believed, and that is reported already.
+	stored := len(backupChain.Manifests()) + len(unreadable)
+
+	dangling, err := danglingIssues(
+		ctx, store, newestBackupID(backupChain), stored > 0, referenced, undetermined,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for dangling archives: %w", err)
 	}
@@ -339,6 +374,8 @@ func undeterminedBackups(unreadable []chain.Unreadable) map[string]struct{} {
 func danglingIssues(
 	ctx context.Context,
 	store storage.Storage,
+	newest backup.BackupID,
+	anyManifests bool,
 	referenced map[string]struct{},
 	undetermined map[string]struct{},
 ) ([]Issue, error) {
@@ -353,22 +390,66 @@ func danglingIssues(
 			continue
 		}
 
-		if backupID, _, ok := storage.ArchiveBackupID(object.Key); ok {
+		backupID, _, parsed := storage.ArchiveBackupID(object.Key)
+		if parsed {
 			if _, undecided := undetermined[backupID]; undecided {
 				continue
 			}
 		}
 
-		issues = append(issues, Issue{
-			Kind:    IssueDanglingArchive,
-			Archive: object.Key,
-			Detail: fmt.Sprintf(
-				"archive is not referenced by any manifest (%d bytes, modified %s)",
-				object.Size,
-				object.LastModified.UTC().Format("2006-01-02T15:04:05Z"),
-			),
-		})
+		issues = append(issues, danglingIssue(object, backupID, parsed, newest, anyManifests))
 	}
 
 	return issues, nil
+}
+
+// danglingIssue describes one unreferenced archive: a backup being uploaded
+// right now, or an archive nothing points at any more.
+func danglingIssue(
+	object storage.ObjectInfo,
+	backupID string,
+	parsed bool,
+	newest backup.BackupID,
+	anyManifests bool,
+) Issue {
+	where := fmt.Sprintf(
+		"%d bytes, modified %s",
+		object.Size,
+		object.LastModified.UTC().Format("2006-01-02T15:04:05Z"),
+	)
+
+	// An upload writes every archive before the manifest that references them,
+	// so an archive of a backup newer than every stored manifest - or any archive
+	// at all when no manifest is stored yet - is what an upload in progress looks
+	// like from the outside. Age cannot tell the two apart: a long upload makes
+	// its first archives old while it is still running.
+	if parsed && (!anyManifests || (newest != "" && backup.BackupID(backupID) > newest)) {
+		return Issue{
+			Kind:          IssueUploadInProgress,
+			BackupID:      backupID,
+			Archive:       object.Key,
+			Informational: true,
+			Detail: fmt.Sprintf(
+				"archive of a backup newer than every stored manifest, "+
+					"an upload may still be in progress (%s)", where,
+			),
+		}
+	}
+
+	return Issue{
+		Kind:    IssueDanglingArchive,
+		Archive: object.Key,
+		Detail:  fmt.Sprintf("archive is not referenced by any manifest (%s)", where),
+	}
+}
+
+// newestBackupID returns the greatest stored backup id, or an empty id when the
+// storage holds no manifest at all.
+func newestBackupID(backupChain *chain.Chain) backup.BackupID {
+	latest := backupChain.Latest()
+	if latest == nil {
+		return ""
+	}
+
+	return latest.Manifest.BackupID
 }
