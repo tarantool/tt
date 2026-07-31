@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tarantool/tt/cli/backup/storage"
@@ -39,6 +40,9 @@ type Config struct {
 // Storage is a local filesystem backup storage backend.
 type Storage struct {
 	root string
+	// sweepOnce keeps the stale-temp-file sweep on the write path: a process that
+	// never puts anything must not delete anything either.
+	sweepOnce sync.Once
 }
 
 // New opens local filesystem backup storage.
@@ -66,10 +70,7 @@ func New(cfg Config) (*Storage, error) {
 		return nil, fmt.Errorf("failed to resolve storage root %q: %w", cfg.Path, err)
 	}
 
-	s := &Storage{root: root}
-	s.sweepStaleTempFiles()
-
-	return s, nil
+	return &Storage{root: root}, nil
 }
 
 // sweepStaleTempFiles best-effort removes temp files left behind by interrupted
@@ -77,6 +78,11 @@ func New(cfg Config) (*Storage, error) {
 // Such files are hidden from List and cannot be Deleted through the API, so they
 // would otherwise accumulate forever. Errors are ignored: this is an optimization,
 // not a guarantee, and the root may not exist yet.
+//
+// It runs on the first Put rather than in New. Only Put creates these files, and
+// read-only callers - tt backup verify above all, whose contract is that it
+// deletes nothing whatever it finds - must not remove anything just by opening
+// the storage.
 func (s *Storage) sweepStaleTempFiles() {
 	cutoff := time.Now().Add(-staleTempFileAge)
 	_ = filepath.WalkDir(s.root, func(path string, d os.DirEntry, err error) error {
@@ -225,6 +231,8 @@ func (s *Storage) Put(ctx context.Context, key string, r io.Reader, size int64) 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("failed to put object %q: %w", key, err)
 	}
+
+	s.sweepOnce.Do(s.sweepStaleTempFiles)
 
 	path, err := s.objectPath(key)
 	if err != nil {

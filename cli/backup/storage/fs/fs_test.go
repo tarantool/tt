@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/backup/storage"
@@ -238,6 +239,37 @@ func TestConcurrentPut(t *testing.T) {
 	actual, err := io.ReadAll(reader)
 	require.NoError(t, err)
 	require.Equal(t, []byte("data"), actual)
+}
+
+func TestStaleTempFileSurvivesReadOnlyUse(t *testing.T) {
+	// A leftover temp file is the residue of an interrupted upload - evidence an
+	// operator may want to look at, and something tt backup verify promises never
+	// to remove whatever it finds. Opening and reading the storage must therefore
+	// delete nothing; only a writer sweeps.
+	root := t.TempDir()
+	dir := filepath.Join(root, "cluster", "production", "data")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+
+	stale := filepath.Join(dir, tempFilePrefix+"interrupted")
+	require.NoError(t, os.WriteFile(stale, []byte("half an upload"), 0o600))
+	aged := time.Now().Add(-2 * staleTempFileAge)
+	require.NoError(t, os.Chtimes(stale, aged, aged))
+
+	s := newTestStorage(t, root)
+	require.FileExists(t, stale, "opening the storage must not delete anything")
+
+	_, err := s.List(t.Context(), storage.DataPrefix())
+	require.NoError(t, err)
+	require.FileExists(t, stale, "listing must not delete anything")
+
+	data := []byte("archive")
+	require.NoError(t, s.Put(
+		t.Context(),
+		storage.ArchiveKey("sweep", "11111111-1111-1111-1111-111111111111"),
+		bytes.NewReader(data),
+		int64(len(data)),
+	))
+	require.NoFileExists(t, stale, "the first put still sweeps stale temp files")
 }
 
 func newTestStorage(t *testing.T, root string) *Storage {
