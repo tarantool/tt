@@ -1,0 +1,18 @@
+credentials:
+  users:
+    guest:
+      roles: [super]
+    client:
+      password: 'secret'
+      roles: [super]
+groups:
+  storages:
+    app:
+      file: 'storage.lua'
+    replicasets:
+      storage-001:
+        instances:
+          storage-001-a:
+            database:
+              instance_uuid: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+              replicaset_uuid: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'

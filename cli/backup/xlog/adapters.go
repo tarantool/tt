@@ -93,6 +93,38 @@ func FindTrimFile(dir string, replicaID uint32, lsn int64) (string, error) {
 	return entry.Path, nil
 }
 
+// SignatureOf returns a journal file's start position: the vclock signature
+// its name encodes and its meta header repeats.
+func SignatureOf(path string) (int64, error) {
+	meta, err := reader.ReadHeader(path)
+	if err != nil {
+		return 0, fmt.Errorf("xlog: read header %q: %w", path, err)
+	}
+
+	return meta.VClock.Signature(), nil
+}
+
+// JournalsAfter returns the .snap and .xlog files in dir that start strictly
+// after signature — the part of a backup that reaches past a recovery point.
+func JournalsAfter(dir string, signature int64) ([]string, error) {
+	var after []string
+
+	for _, filetype := range []format.Filetype{format.FiletypeSNAP, format.FiletypeXLOG} {
+		d, err := xdir.OpenDir(dir, filetype)
+		if err != nil {
+			return nil, fmt.Errorf("xlog: index dir %q: %w", dir, err)
+		}
+
+		for _, entry := range d.Files() {
+			if entry.Signature > signature {
+				after = append(after, entry.Path)
+			}
+		}
+	}
+
+	return after, nil
+}
+
 // toFormatVClock converts a manifest vclock to format.VClock.
 func toFormatVClock(v backup.Vclock) (format.VClock, error) {
 	if v == nil {

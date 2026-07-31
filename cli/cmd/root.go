@@ -218,6 +218,7 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		NewTcmCmd(),
 		NewModulesCmd(),
 		NewBackupCmd(),
+		NewRestoreCmd(),
 	)
 	if err := injectCmds(rootCmd); err != nil {
 		panic(err.Error())
