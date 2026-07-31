@@ -147,6 +147,57 @@ func TestTruncateAt_EmptyXlog(t *testing.T) {
 	require.Empty(t, readAllRows(t, dst))
 }
 
+// Truncation is positional: transactions written by another replica of the
+// replicaset are kept when they sit before the point and dropped when they
+// sit after it. A master's journal always carries such rows, so filtering by
+// "rows of replicaID up to lsn" would silently lose the earlier ones.
+func TestTruncateAt_PositionalAcrossReplicas(t *testing.T) {
+	src := tmpPath(t, "src.xlog")
+	dst := tmpPath(t, "dst.xlog")
+
+	writeXlog(t, src, xlogMeta(t, testUUID, format.VClock{1: 0, 2: 0}, nil), [][]format.XRow{
+		{row(t, 1, 1)}, // Master, before the point.
+		{row(t, 2, 1)}, // Replica 2, before the point — must survive.
+		{row(t, 1, 2)}, // The point itself.
+		{row(t, 2, 2)}, // Replica 2, after the point — must go.
+		{row(t, 1, 3)}, // Master, above the point.
+	})
+
+	require.NoError(t, TruncateAt(src, dst, 1, 2))
+
+	require.Equal(t, []rowKey{{1, 1}, {2, 1}, {1, 2}}, readAllRows(t, dst))
+}
+
+// A point no transaction reaches (the log ends below it) keeps the file whole
+// rather than emptying it.
+func TestTruncateAt_PointBeyondFileKeepsAll(t *testing.T) {
+	src := tmpPath(t, "src.xlog")
+	dst := tmpPath(t, "dst.xlog")
+
+	writeXlog(t, src, xlogMeta(t, testUUID, format.VClock{1: 0}, nil), [][]format.XRow{
+		{row(t, 1, 1)}, {row(t, 1, 2)}, {row(t, 1, 3)},
+	})
+
+	require.NoError(t, TruncateAt(src, dst, 1, 99))
+
+	require.Equal(t, []rowKey{{1, 1}, {1, 2}, {1, 3}}, readAllRows(t, dst))
+}
+
+// A point naming an LSN the log skipped stops at the next transaction of that
+// replica instead of running off the end of the file.
+func TestTruncateAt_PointOnMissingLSN(t *testing.T) {
+	src := tmpPath(t, "src.xlog")
+	dst := tmpPath(t, "dst.xlog")
+
+	writeXlog(t, src, xlogMeta(t, testUUID, format.VClock{1: 0}, nil), [][]format.XRow{
+		{row(t, 1, 1)}, {row(t, 1, 4)}, {row(t, 1, 5)},
+	})
+
+	require.NoError(t, TruncateAt(src, dst, 1, 2))
+
+	require.Equal(t, []rowKey{{1, 1}, {1, 4}}, readAllRows(t, dst))
+}
+
 // The output always ends with a valid EOF marker.
 func TestTruncateAt_OutputIsFinalized(t *testing.T) {
 	src := tmpPath(t, "src.xlog")

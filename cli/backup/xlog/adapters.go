@@ -4,13 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/google/uuid"
 
 	xdir "github.com/tarantool/go-xlog/dir"
-	"github.com/tarantool/go-xlog/filter"
 	"github.com/tarantool/go-xlog/format"
-	"github.com/tarantool/go-xlog/pipe"
 	"github.com/tarantool/go-xlog/reader"
 	"github.com/tarantool/go-xlog/tools"
 	"github.com/tarantool/go-xlog/writer"
@@ -46,8 +45,17 @@ func PatchInstanceUUID(src, dst, newUUID string) error {
 	return nil
 }
 
-// TruncateAt copies transactions from src to dst up to and including the
-// recovery point, dropping the rest.
+// TruncateAt copies transactions from src to dst up to and including the one
+// that reaches the recovery point (replicaID, lsn), and drops everything
+// after it. A transaction is never split: one straddling the point is kept
+// whole. When no transaction reaches the point, everything is kept.
+//
+// Truncation is positional, not per-replica. A recovery point marks a place
+// in the log, so every transaction ahead of it belongs to the state it
+// describes, whichever replica wrote it. A master's journal does carry rows
+// from the other members of its replicaset — a vclock like {1: 1502, 2: 230}
+// is the normal case — and filtering by "rows of replicaID up to lsn" would
+// drop all of those, including ones committed long before the point.
 //
 // The meta header is carried over verbatim. A journal file's VClock is the
 // position it *starts* at, and its name is that vclock's signature, so
@@ -56,14 +64,12 @@ func PatchInstanceUUID(src, dst, newUUID string) error {
 // rejects (ErrSignatureMismatch) and Tarantool treats as fatal in
 // xdir_open_cursor (src/box/xlog.c:451).
 func TruncateAt(src, dst string, replicaID uint32, lsn int64) error {
-	pred := filter.UntilVClock(format.VClock{replicaID: lsn})
-
 	meta, err := reader.ReadHeader(src)
 	if err != nil {
 		return fmt.Errorf("xlog: truncate: read header %q: %w", src, err)
 	}
 
-	return copyKeptTxs(src, dst, meta, pred)
+	return copyUntilPoint(src, dst, meta, replicaID, lsn) //nolint:wrapcheck
 }
 
 // FindTrimFile returns the .xlog in dir whose transaction stream includes the
@@ -126,9 +132,14 @@ func fromFormatVClock(v format.VClock) (backup.Vclock, error) {
 	return out, nil
 }
 
-// copyKeptTxs writes meta to dst and streams every transaction from src that
-// passes pred, discarding the .inprogress file on any error.
-func copyKeptTxs(src, dst string, meta *format.Meta, pred filter.Filter) error {
+// copyUntilPoint writes meta to dst and streams transactions from src,
+// stopping after the one that reaches the point, and discarding the
+// .inprogress file on any error.
+//
+// pipe.Copy is deliberately not used here: it decides per row and keeps a
+// transaction when *any* row matches, which cannot express "stop at this
+// position in the log".
+func copyUntilPoint(src, dst string, meta *format.Meta, replicaID uint32, lsn int64) error {
 	r, err := reader.Open(src)
 	if err != nil {
 		return fmt.Errorf("xlog: truncate: open %q: %w", src, err)
@@ -149,8 +160,18 @@ func copyKeptTxs(src, dst string, meta *format.Meta, pred filter.Filter) error {
 		}
 	}()
 
-	if _, err := pipe.Copy(r, w, pred); err != nil {
-		return fmt.Errorf("xlog: truncate: copy %q to %q: %w", src, dst, err)
+	for tx, txErr := range r.Txs() {
+		if txErr != nil {
+			return fmt.Errorf("xlog: truncate: read tx from %q: %w", src, txErr)
+		}
+
+		if err := w.WriteTx(tx.Rows); err != nil {
+			return fmt.Errorf("xlog: truncate: write tx to %q: %w", dst, err)
+		}
+
+		if reachesPoint(tx.Rows, replicaID, lsn) {
+			break
+		}
 	}
 
 	if err := w.Close(); err != nil {
@@ -160,4 +181,14 @@ func copyKeptTxs(src, dst string, meta *format.Meta, pred filter.Filter) error {
 	committed = true
 
 	return nil
+}
+
+// reachesPoint reports whether a transaction carries the recovery point, i.e.
+// holds a row of replicaID at or past lsn. ">=" rather than "==" so a point
+// that names an LSN the log skipped still stops the copy instead of running
+// off the end of the file.
+func reachesPoint(rows []format.XRow, replicaID uint32, lsn int64) bool {
+	return slices.ContainsFunc(rows, func(row format.XRow) bool {
+		return row.ReplicaID == replicaID && row.LSN >= lsn
+	})
 }
