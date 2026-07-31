@@ -387,17 +387,17 @@ func addOrchestratorFlags(cmd *cobra.Command) {
 // addTarantoolConnectFlags adds flags to configure Tarantool connection.
 func addTarantoolConnectFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&replicasetUser, "username", "u", "",
-		`username for the URI case`)
+		`username for a cluster connection`)
 	cmd.Flags().StringVarP(&replicasetPassword, "password", "p", "",
-		`password for the URI case`)
+		`password for a cluster connection`)
 	cmd.Flags().StringVar(&replicasetSslKeyFile, "sslkeyfile", "",
-		`path to a private SSL key file for the URI case`)
+		`path to a private SSL key file for a cluster connection`)
 	cmd.Flags().StringVar(&replicasetSslCertFile, "sslcertfile", "",
-		`path to an SSL certificate file for the URI case`)
+		`path to an SSL certificate file for a cluster connection`)
 	cmd.Flags().StringVar(&replicasetSslCaFile, "sslcafile", "",
-		`path to a trusted certificate authorities (CA) file for the URI case`)
+		`path to a trusted certificate authorities (CA) file for a cluster connection`)
 	cmd.Flags().StringVar(&replicasetSslCiphers, "sslciphers", "",
-		`colon-separated (:) list of SSL cipher suites for the URI case`)
+		`colon-separated (:) list of SSL cipher suites for a cluster connection`)
 }
 
 // replicasetCtx describes a context for the replicaset command.

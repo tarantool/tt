@@ -259,7 +259,6 @@ func TestClusterManifestIsValidAndSerializable(t *testing.T) {
 	for _, want := range []string{
 		`"schema_version":1`,
 		`"previous_backup_id":""`,
-		`"creation_duration":2300000000`,
 		`"status":"OK"`,
 		`"550e8400-e29b-41d4-a716-446655440000"`,
 		`"6ba7b810-9dad-11d1-80b4-00c04fd430c8"`,
@@ -276,7 +275,6 @@ func TestClusterManifestIsValidAndSerializable(t *testing.T) {
 		BaseFullBackupID BackupID         `json:"base_full_backup_id"`
 		Status           Status           `json:"status"`
 		CreationTime     time.Time        `json:"creation_time"`
-		CreationDuration time.Duration    `json:"creation_duration"`
 		Shards           map[string]Shard `json:"shards"`
 		Topology         Topology         `json:"topology"`
 		Warnings         []Warning        `json:"warnings"`
@@ -286,7 +284,6 @@ func TestClusterManifestIsValidAndSerializable(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &roundTrip))
 	decoded := ClusterManifest(roundTrip)
 	require.NoError(t, decoded.Validate())
-	require.Equal(t, 2300*time.Millisecond, decoded.CreationDuration)
 }
 
 func testClusterManifest(t *testing.T, status Status) ClusterManifest {

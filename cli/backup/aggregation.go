@@ -37,7 +37,6 @@ type AggregateInput struct {
 	BaseFullBackupID BackupID
 	PreviousBackupID BackupID
 	CreationTime     time.Time
-	CreationDuration time.Duration
 	Topology         Topology
 	Shards           []*ShardInput
 }
@@ -77,7 +76,6 @@ func NewAggregateInput(
 	previousBackupID BackupID,
 	baseFullBackupID BackupID,
 	creationTime time.Time,
-	creationDuration time.Duration,
 	topology Topology,
 	shards []*ShardInput,
 ) AggregateInput {
@@ -86,7 +84,6 @@ func NewAggregateInput(
 		PreviousBackupID: previousBackupID,
 		BaseFullBackupID: baseFullBackupID,
 		CreationTime:     creationTime,
-		CreationDuration: creationDuration,
 		Topology:         topology,
 		Shards:           shards,
 	}
@@ -119,7 +116,6 @@ func newClusterManifest(in AggregateInput) *ClusterManifest {
 		BaseFullBackupID: in.BaseFullBackupID,
 		Status:           StatusFailed,
 		CreationTime:     in.CreationTime,
-		CreationDuration: in.CreationDuration,
 		Shards:           make(map[string]Shard, len(in.Shards)),
 		Topology:         in.Topology,
 		Warnings:         make([]Warning, 0),

@@ -109,6 +109,38 @@ def backup_gc(
     return tt.exec(*args)
 
 
+def backup_upload(
+    tt,
+    storage_uri,
+    archives,
+    fragments=None,
+    plan=None,
+    backup_id=None,
+    cluster_name=None,
+    environment=None,
+    keep_local=False,
+    timeout=None,
+):
+    args = ["backup", "upload", "--backup-storage", storage_uri]
+    if archives:
+        args.extend(["--archives", archives])
+    if fragments:
+        args.extend(["--fragments", fragments])
+    if plan:
+        args.extend(["--plan", plan])
+    if backup_id:
+        args.extend(["--backup-id", backup_id])
+    if cluster_name:
+        args.extend(["--cluster-name", cluster_name])
+    if environment:
+        args.extend(["--environment", environment])
+    if keep_local:
+        args.append("--keep-local")
+    if timeout:
+        args.extend(["--timeout", timeout])
+    return tt.exec(*args)
+
+
 def backup_plan(tt, target, storage_uri, config=None, fmt=None):
     args = ["backup", "plan", "--target", target, "--backup-storage", storage_uri]
     if config:

@@ -29,9 +29,10 @@ type ReplicasetPlan struct {
 
 // BackupPlan is the output of the plan command.
 type BackupPlan struct {
-	Mode             BackupType                `json:"mode"`
+	Type             BackupType                `json:"mode"`
 	Replicasets      map[string]ReplicasetPlan `json:"replicasets,omitempty"`
 	PreviousBackupID BackupID                  `json:"previous_backup_id,omitempty"`
+	BaseFullBackupID BackupID                  `json:"base_full_backup_id,omitempty"`
 }
 
 var (
@@ -90,7 +91,7 @@ func planFull(live *LiveTopology) (*BackupPlan, error) {
 		}
 	}
 
-	return &BackupPlan{Mode: BackupTypeFull, Replicasets: replicasets}, nil
+	return &BackupPlan{Type: BackupTypeFull, Replicasets: replicasets}, nil
 }
 
 // planIncremental validates the latest manifest against the live topology.
@@ -145,9 +146,10 @@ func planIncremental(latest *ClusterManifest, live *LiveTopology) (*BackupPlan, 
 	}
 
 	return &BackupPlan{
-		Mode:             BackupTypeIncremental,
+		Type:             BackupTypeIncremental,
 		Replicasets:      replicasets,
 		PreviousBackupID: latest.BackupID,
+		BaseFullBackupID: latest.BaseFullBackupID,
 	}, nil
 }
 

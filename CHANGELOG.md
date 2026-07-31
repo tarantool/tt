@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   of flags empties a storage.
 - `tt backup plan`: add backup planning command that computes last
   valid manifest for `tt backup start`.
+- `tt backup upload`: add a command that builds a cluster manifest from
+  per-shard fragments and uploads archives and the manifest to file or S3
+  storage.
 
 ### Changed
 
@@ -36,6 +39,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   instead of `0.1.25`. 0.1.42 is the first release shipping the `vshard-router`
   backend of the `roles.recovery-point-manager` role, which is what lets a
   backup take a cluster-wide recovery point.
+- `tt backup`: remove `creation_duration` from the cluster manifest — the
+  field was unused and is no longer serialized.
 
 ### Fixed
 

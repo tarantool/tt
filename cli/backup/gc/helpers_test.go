@@ -199,7 +199,6 @@ func (f *fixture) addBackup(spec backupSpec) *backup.ClusterManifest {
 		BaseFullBackupID: backup.BackupID(spec.base),
 		Status:           backup.StatusOK,
 		CreationTime:     creationTime,
-		CreationDuration: time.Second,
 		Shards:           make(map[string]backup.Shard, len(spec.replicasets)),
 		Topology:         backup.Topology{Replicasets: map[string][]backup.TopologyInstance{}},
 		Warnings:         []backup.Warning{},

@@ -155,7 +155,6 @@ func (f *fixture) addBackup(
 		BaseFullBackupID: backup.BackupID(base),
 		Status:           backup.StatusOK,
 		CreationTime:     time.Unix(0, 0).UTC(),
-		CreationDuration: time.Second,
 		Shards:           make(map[string]backup.Shard, 1),
 		Topology: backup.Topology{Replicasets: map[string][]backup.TopologyInstance{
 			replicasetA: {{

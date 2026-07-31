@@ -13,7 +13,6 @@ type ClusterManifest struct {
 	BaseFullBackupID BackupID         `json:"base_full_backup_id"`
 	Status           Status           `json:"status"`
 	CreationTime     time.Time        `json:"creation_time"`
-	CreationDuration time.Duration    `json:"creation_duration"`
 	Shards           map[string]Shard `json:"shards"` // Key is replicaset.
 	Topology         Topology         `json:"topology"`
 	Warnings         []Warning        `json:"warnings"` // Empty is [].

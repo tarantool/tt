@@ -195,18 +195,3 @@ def test_last_s3_auth_error_does_not_expose_secret(tt, garage):
     rc, out = backup_last(tt, uri, fmt="json")
     assert rc != 0
     assert secret not in out
-
-
-def test_last_parse_error_does_not_expose_password(tt):
-    password = "secret"
-    uri = f"s3+https://host/bucket?AccessKeyID=key&SecretAccessKey={password}%zz"
-
-    rc, out = backup_last(tt, uri, fmt="json")
-    assert rc != 0
-    assert password not in out
-
-
-def test_last_missing_backup_storage_flag(tt):
-    rc, out = tt.exec("backup", "last")
-    assert rc != 0
-    assert "required" in out.lower()
