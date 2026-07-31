@@ -15,7 +15,6 @@ func TestAggregateSuccessfulManifest(t *testing.T) {
 		BackupID:         testBackupID,
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
-		CreationDuration: 2300 * time.Millisecond,
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
 		Shards: []*ShardInput{
 			{
@@ -36,7 +35,6 @@ func TestAggregateSuccessfulManifest(t *testing.T) {
 	require.Equal(t, int64(42), shard.Instance.Artifact.SizeBytes)
 	require.Equal(t, "zstd", shard.Instance.Artifact.Compression)
 	require.Len(t, shard.Instance.Artifact.RecoveryPoints, 2)
-	require.Equal(t, 2300*time.Millisecond, manifest.CreationDuration)
 }
 
 func TestAggregateUnavailableShard(t *testing.T) {
@@ -44,7 +42,6 @@ func TestAggregateUnavailableShard(t *testing.T) {
 		BackupID:         testBackupID,
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
-		CreationDuration: time.Second,
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
 		Shards:           []*ShardInput{{ReplicasetUUID: testRSA}},
 	})
@@ -62,7 +59,6 @@ func TestAggregateNilRecoveryPointsAddsWarningAndEmptySlice(t *testing.T) {
 		BackupID:         testBackupID,
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
-		CreationDuration: time.Second,
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
 		Shards:           []*ShardInput{{ReplicasetUUID: testRSA, Fragment: &fragment}},
 	})
@@ -81,7 +77,6 @@ func TestAggregateEmptyRecoveryPointsDoesNotAddWarning(t *testing.T) {
 		BackupID:         testBackupID,
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
-		CreationDuration: time.Second,
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
 		Shards:           []*ShardInput{{ReplicasetUUID: testRSA, Fragment: &fragment}},
 	})
@@ -96,7 +91,6 @@ func TestAggregateShardErrorUsesErrorShard(t *testing.T) {
 		BackupID:         testBackupID,
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
-		CreationDuration: time.Second,
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
 		Shards: []*ShardInput{{
 			ReplicasetUUID: testRSA,
@@ -117,7 +111,6 @@ func TestAggregateRejectsInvalidFragment(t *testing.T) {
 		BackupID:         testBackupID,
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
-		CreationDuration: time.Second,
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
 		Shards:           []*ShardInput{{ReplicasetUUID: testRSA, Fragment: &fragment}},
 	})
@@ -131,7 +124,6 @@ func TestAggregateRejectsReplicasetMismatch(t *testing.T) {
 		BackupID:         testBackupID,
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
-		CreationDuration: time.Second,
 		Topology:         topologyFromClusterManifestFixture(t, testRSB),
 		Shards:           []*ShardInput{{ReplicasetUUID: testRSB, Fragment: &fragment}},
 	})
@@ -146,7 +138,6 @@ func TestAggregateBuildsClusterManifest(t *testing.T) {
 		BackupID:         testBackupID,
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
-		CreationDuration: 2300 * time.Millisecond,
 		Topology:         topologyFromClusterManifestFixture(t, testRSA, testRSB, testRSC),
 		Shards: []*ShardInput{
 			{

@@ -51,6 +51,15 @@ var (
 	backupPlanCfg     string
 	backupPlanFormat  string
 	backupPlanTimeout time.Duration
+
+	backupUploadArchives    string
+	backupUploadFragments   string
+	backupUploadPlan        string
+	backupUploadBackupID    string
+	backupUploadClusterName string
+	backupUploadEnvironment string
+	backupUploadKeepLocal   bool
+	backupUploadTimeout     time.Duration
 )
 
 const (
@@ -75,25 +84,36 @@ const (
 	defaultGcTimeout = 10 * time.Minute
 )
 
+const backupPlanTargetHelp = `backup mode (required):
+  incremental - build on top of the latest manifest (requires a valid chain)
+  full        - start a new chain, no chain checks
+
+For --target=incremental the command loads the latest manifest, builds the
+backup chain, and verifies that the latest manifest is the chain's latest
+entry with no problems. If any check fails, the command exits with a
+detailed error (no auto-promotion to full).`
+
 // backupStorageURIHelp documents the --backup-storage flag value for every
 // manager-side backup command.
 const backupStorageURIHelp = `The --backup-storage flag accepts a URI describing the
 storage backend:
 
-  file://<abs_path>?Prefix=<subdir>
-      Local filesystem storage. The path must be absolute.
-      Query parameters:
-        Prefix  - subdirectory within the path (optional).
+	Local filesystem storage. The path must be absolute.
+	  Query parameters:
+	    Prefix  - subdirectory within the path (optional).
+	  Examples:
+	    file://<abs_path>?Prefix=<subdir>
 
-  s3+https://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...
-  s3+http://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...
-      S3-compatible storage. Use s3+https for TLS, s3+http for plain TCP.
+    S3-compatible storage. Use s3+https for TLS, s3+http for plain TCP.
       The first path segment after the host is the bucket name, the rest is
       the optional key prefix.
       Query parameters:
         Region           - AWS region (optional).
         AccessKeyID      - access key ID (required).
-        SecretAccessKey  - secret access key (required).`
+        SecretAccessKey  - secret access key (required).
+      Examples:
+        s3+https://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...
+        s3+http://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...`
 
 // NewBackupCmd creates the parent `tt backup` command.
 func NewBackupCmd() *cobra.Command {
@@ -109,6 +129,7 @@ func NewBackupCmd() *cobra.Command {
 		newBackupVerifyCmd(),
 		newBackupGcCmd(),
 		newBackupPlanCmd(),
+		newBackupUploadCmd(),
 	)
 
 	return backupCmd
@@ -155,7 +176,7 @@ archive. Idempotent: if the backup is already closed, it does not fail.`,
 	cmd.Flags().StringVarP(&backupFinalizeCfg, "config", "c", "",
 		"path to the cluster configuration file (for <APP:INSTANCE>)")
 	cmd.Flags().StringVar(&backupFinalizeID, "backup-id", "",
-		"backup identifier; local artifacts of the target replicaset are removed")
+		"backup identifier (required); local artifacts of the target replicaset are removed")
 	cmd.MarkFlagRequired("backup-id")
 
 	return cmd
@@ -165,8 +186,7 @@ func newBackupLastCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "last --backup-storage=<uri> [--format <table|json>]",
 		Short: "Show the last backup manifest from the storage",
-		Long: `Find the latest manifest in the storage and print it to stdout.` +
-			backupStorageURIHelp,
+		Long:  `Find the latest manifest in the storage and print it to stdout.`,
 		Example: `$ tt backup last --backup-storage=file:///var/backups
   $ tt backup last --backup-storage=file:///var/backups?Prefix=mycluster
   $ tt backup last --backup-storage=s3+https://s3.example.com:9000/... \
@@ -177,9 +197,9 @@ func newBackupLastCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		"storage URI (file://<path> or s3+http(s)://host:port/bucket/prefix?...")
+		backupStorageURIHelp)
 	cmd.Flags().StringVar(&backupLastFormat, "format", formatTable,
-		"output format: table or json")
+		"output format: `table` or `json`")
 	cmd.Flags().DurationVar(&backupLastTimeout, "timeout", time.Minute,
 		"timeout for connecting to and reading from the storage")
 
@@ -193,20 +213,7 @@ func newBackupPlanCmd() *cobra.Command {
 		Use:   "plan --target=(incremental|full) --backup-storage=<uri> [flags]",
 		Short: "Plan the next backup: mode, master source, from_vclock",
 		Long: `Compute a backup plan from the current cluster topology and the latest
-manifest in the storage.
-
-` + backupStorageURIHelp + `
-
-The --target flag selects the requested backup mode:
-  incremental - build on top of the latest manifest (requires a valid chain)
-  full        - start a new chain, no chain checks
-
-For --target=incremental the command loads the latest manifest, builds the
-backup chain, and verifies that the latest manifest is the chain's latest
-entry with no problems. If any check fails, the command exits with a
-detailed error (no auto-promotion to full).
-
-` + clusterUriHelp,
+		manifest in the storage.`,
 		Example: `$ tt backup plan --target=incremental --backup-storage=file:///var/backups
   $ tt backup plan --target=full --backup-storage=file:///var/backups --format json
   $ tt backup plan --target=incremental --backup-storage=s3+https://... -c cluster.yaml`,
@@ -216,21 +223,189 @@ detailed error (no auto-promotion to full).
 
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().StringVar(&backupPlanMode, "target", "",
-		"backup mode: incremental | full (required)")
+		backupPlanTargetHelp)
 	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		"storage URI (file://<path> or s3+http(s)://host:port/bucket/prefix?...")
+		backupStorageURIHelp)
 	cmd.Flags().StringVarP(&backupPlanCfg, "config", "c", "",
-		"path or URI of the cluster configuration (same as 'tt cluster topology -c')")
+		clusterUriHelp)
 	cmd.Flags().StringVar(&backupPlanFormat, "format", formatJSON,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&backupPlanTimeout, "timeout", time.Minute,
-		"timeout for storage operations")
+		"timeout for storage operations in minutes")
 
 	cmd.MarkFlagRequired("target")
 	cmd.MarkFlagRequired("backup-storage")
 	cmd.MarkFlagRequired("config")
 
 	return cmd
+}
+
+func newBackupUploadCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "upload [flags]",
+		Short: "Build cluster manifest from per-shard fragments and upload to storage",
+		Long: `Run on the manager host after the orchestrator collected .tar.zst archives
+and instance_backup.json fragments from all cluster nodes.`,
+		Example: `$ tt backup upload \
+    --archives /tmp/bkp/20260326T120000Z-A.tar.zst,/tmp/bkp/20260326T120000Z-B.tar.zst \
+    --fragments /tmp/bkp/A.json,/tmp/bkp/B.json \
+    --plan /tmp/bkp/plan.json \
+    --backup-storage file:///var/backups \
+    --backup-id 20260326T120000Z \
+    --cluster-name payments-cluster \
+    --environment production`,
+		Args: cobra.NoArgs,
+		RunE: runBackupUpload,
+	}
+
+	cmd.Flags().StringVar(&backupUploadArchives, "archives", "",
+		"comma-separated paths to .tar.zst archives (required)")
+	cmd.Flags().StringVar(&backupUploadFragments, "fragments", "",
+		"comma-separated paths to per-shard instance_backup.json fragments")
+	cmd.Flags().StringVar(&backupUploadPlan, "plan", "",
+		"path to tt backup plan JSON (required); provides type, "+
+			"previous_backup_id and expected replicasets")
+	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
+		backupStorageURIHelp)
+	cmd.Flags().StringVar(&backupUploadBackupID, "backup-id", "",
+		"backup identifier, e.g. 20260326T120000Z (required)")
+	cmd.Flags().StringVar(&backupUploadClusterName, "cluster-name", "",
+		"cluster name; used as a storage path component")
+	cmd.Flags().StringVar(&backupUploadEnvironment, "environment", "",
+		"environment tag (production, staging, ...); used as a storage path component")
+	cmd.Flags().BoolVar(&backupUploadKeepLocal, "keep-local", false,
+		"keep local .tar.zst copies on the manager host after successful upload")
+	cmd.Flags().DurationVar(&backupUploadTimeout, "timeout", 30*time.Minute,
+		"timeout for storage operations in minutes")
+
+	cmd.MarkFlagRequired("archives")
+	cmd.MarkFlagRequired("fragments")
+	cmd.MarkFlagRequired("plan")
+	cmd.MarkFlagRequired("backup-storage")
+	cmd.MarkFlagRequired("backup-id")
+
+	return cmd
+}
+
+func runBackupUpload(cmd *cobra.Command, args []string) error {
+	cmdCtx.CommandName = cmd.Name()
+
+	keyPrefix := backup.StoragePrefix(backupUploadClusterName, backupUploadEnvironment)
+	backupID := backup.BackupID(backupUploadBackupID)
+	fragmentPaths := backup.SplitPaths(backupUploadFragments)
+	archivePaths := backup.SplitPaths(backupUploadArchives)
+
+	if len(fragmentPaths) != len(archivePaths) {
+		return fmt.Errorf("fragment and archive paths must have the same length")
+	}
+
+	// Read the plan, fragments, and validate coverage.
+	plan, err := backup.ReadPlan(backupUploadPlan)
+	if err != nil {
+		return fmt.Errorf("failed to read plan: %w", err)
+	}
+
+	fragments, err := backup.ReadFragments(fragmentPaths)
+	if err != nil {
+		return fmt.Errorf("failed to read fragments: %w", err)
+	}
+
+	if err := backup.ValidateFragmentsAgainstPlan(fragments, plan); err != nil {
+		return fmt.Errorf("failed to validate fragments: %w", err)
+	}
+
+	// Prepare archives: stat, extract UUIDs, compute storage keys..
+	archives, locationsByReplicaset, err := backup.PrepareArchives(
+		archivePaths, keyPrefix, backupID)
+	if err != nil {
+		return fmt.Errorf("failed to prepare archives: %w", err)
+	}
+
+	manifestData, err := buildUploadManifest(backupID, plan, fragments, locationsByReplicaset)
+	if err != nil {
+		return fmt.Errorf("failed to build manifest: %w", err)
+	}
+
+	// Open storage.
+	storeCfg, err := backup.ParseStorageURI(backupStorageConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse storage URI: %w", err)
+	}
+
+	store, err := backup.OpenStorage(storeCfg)
+	if err != nil {
+		return fmt.Errorf("failed to open storage: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), backupUploadTimeout)
+	defer cancel()
+
+	// Upload archives, then the manifest. On manifest failure, uploaded
+	// archives are rolled back (deleted from storage).
+	if err := backup.Upload(ctx, store, keyPrefix, backupID, manifestData, archives); err != nil {
+		return fmt.Errorf("failed to upload: %w", err)
+	}
+
+	log.Infof("backup %q uploaded successfully (%d shards)", backupID, len(fragments))
+
+	// Remove local archives unless --keep-local was requested.
+	if !backupUploadKeepLocal {
+		removeLocalArchives(archivePaths)
+	}
+
+	return nil
+}
+
+// buildUploadManifest aggregates the cluster manifest from the plan and
+// fragments and returns its JSON encoding.
+func buildUploadManifest(
+	backupID backup.BackupID,
+	plan *backup.BackupPlan,
+	fragments []*backup.Fragment,
+	locationsByReplicaset map[string]*backup.ArtifactLocation,
+) ([]byte, error) {
+	baseFullBackupID := plan.BaseFullBackupID
+	if plan.Type == backup.BackupTypeFull {
+		baseFullBackupID = backupID
+	}
+
+	shards := make([]*backup.ShardInput, 0, len(fragments))
+	for _, fragment := range fragments {
+		shards = append(shards, &backup.ShardInput{
+			ReplicasetUUID: fragment.ReplicasetUUID,
+			Fragment:       fragment,
+			Location:       locationsByReplicaset[fragment.ReplicasetUUID],
+		})
+	}
+
+	manifest, err := backup.Aggregate(backup.AggregateInput{
+		BackupID:         backupID,
+		PreviousBackupID: plan.PreviousBackupID,
+		BaseFullBackupID: baseFullBackupID,
+		CreationTime:     time.Now(),
+		Topology:         backup.BuildTopologyFromFragments(fragments),
+		Shards:           shards,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to aggregate manifest: %w", err)
+	}
+
+	manifestData, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+
+	return manifestData, nil
+}
+
+// removeLocalArchives best-effort removes local archive files, logging a
+// warning for any failure other than the file already being gone.
+func removeLocalArchives(paths []string) {
+	for _, path := range paths {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			log.Warnf("failed to remove local archive %q: %s", path, err)
+		}
+	}
 }
 
 func runBackupLast(cmd *cobra.Command, args []string) error {
@@ -289,7 +464,6 @@ func printManifestTable(manifest *backup.ClusterManifest) {
 		log.Infof("  Base full backup: %s", manifest.BaseFullBackupID)
 	}
 	log.Infof("  Created:          %s", manifest.CreationTime.Format(time.RFC3339))
-	log.Infof("  Duration:         %s", manifest.CreationDuration)
 	log.Infof("  Shards:           %d", len(manifest.Shards))
 	if len(manifest.Warnings) > 0 {
 		log.Infof("  Warnings:         %d", len(manifest.Warnings))
@@ -302,37 +476,29 @@ func newBackupVerifyCmd() *cobra.Command {
 		Short: "Check backup manifests and archives in the storage",
 		Long: `Health-check the backup storage and report what is wrong with it.
 
-Usage:
-  tt backup verify --backup-storage=<uri> [--format <table|json>]
+	The check reads the whole storage and reports:
+	  - manifests referring to archives that are not stored;
+	  - archives whose bytes do not match checksum_sha256 of the manifest;
+	  - breaks in the previous_backup_id chain (orphans and forks);
+	  - increments whose vclock_begin does not continue the previous backup;
+	  - archives no manifest refers to.
 
-The check reads the whole storage and reports:
+	An archive of a backup newer than every stored manifest is reported too, but
+	as an upload in progress rather than a problem: an upload writes its archives
+	before the manifest that references them, so this is what a backup being taken
+	right now looks like from the outside.
 
-  - manifests referring to archives that are not stored;
-  - archives whose bytes do not match checksum_sha256 of the manifest;
-  - breaks in the previous_backup_id chain (orphans and forks);
-  - increments whose vclock_begin does not continue the previous backup;
-  - archives no manifest refers to.
-
-An archive of a backup newer than every stored manifest is reported too, but
-as an upload in progress rather than a problem: an upload writes its archives
-before the manifest that references them, so this is what a backup being taken
-right now looks like from the outside.
-
-Nothing is ever deleted or repaired: removing backups is 'tt backup gc'.
-Exit codes: 0 - the storage is healthy, 2 - problems were found, 1 - the
-storage could not be checked.
-
-` + backupStorageURIHelp + `
-
-Examples:
-  tt backup verify --backup-storage=file:///var/backups
-  tt backup verify --backup-storage=file:///var/backups --format json`,
+	Nothing is ever deleted or repaired: removing backups is 'tt backup gc'.
+	Exit codes: 0 - the storage is healthy, 2 - problems were found, 1 - the
+	storage could not be checked.`,
+		Example: `$ tt backup verify --backup-storage=file:///var/backups
+  $ tt backup verify --backup-storage=file:///var/backups --format json`,
 		Args: cobra.NoArgs,
 		RunE: runBackupVerify,
 	}
 
 	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		"storage URI (file://<path> or s3+http(s)://host:port/bucket/prefix?...")
+		backupStorageURIHelp)
 	cmd.Flags().StringVar(&backupVerifyFormat, "format", formatTable,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&backupVerifyTimeout, "timeout", defaultVerifyTimeout,
@@ -460,37 +626,27 @@ func newBackupGcCmd() *cobra.Command {
 		Use:   "gc",
 		Short: "Delete old backup chains and dangling archives from the storage",
 		Long: `Delete backups the retention rules no longer cover, and clean up archives
-no manifest refers to.
+	no manifest refers to.
 
-Usage:
-  tt backup gc --backup-storage=<uri> [--keep-full N] [--keep-days D] [--dry-run]
+	Retention rules combine: a backup is deleted only when no rule keeps it.
+	Deletion cascades: a full backup goes only together with every increment
+	based on it, and a chain is cut from its newest end, so a kept increment
+	always keeps the backups it is recovered from.
 
-Retention rules combine: a backup is deleted only when no rule keeps it.
-Without --keep-full or --keep-days nothing is deleted at all, since every
-backup would then match "not kept". Deletion cascades: a full backup goes only
-together with every increment based on it, and a chain is cut from its newest
-end, so a kept increment always keeps the backups it is recovered from.
+	Three things are never deleted, whatever the rules say: the chain holding
+	the newest manifest, because an upload may be appending to it; the newest
+	chain that can still be recovered from; and archives newer than the newest
+	stored manifest. This means gc cannot empty a storage; remove the storage
+	root with your storage tooling if that is what you want.
 
-Three things are never deleted, whatever the rules say: the chain holding the
-newest manifest, because an upload may be appending to it; the newest chain
-that can still be recovered from; and archives newer than the newest stored
-manifest. This means gc cannot empty a storage; remove the storage root with
-your storage tooling if that is what you want.
+	Chains with problems (a fork, a tail whose full backup is gone) are left
+	for 'tt backup verify' to report.
 
-Chains with problems (a fork, a tail whose full backup is gone) are left for
-'tt backup verify' to report, except a tail whose every manifest is older than
---orphan-age, which is collected like a dangling archive.
-
-A dangling archive is re-checked with a direct read of its manifest just before
-it is deleted, so a run may keep an archive its plan listed; --dry-run reports
-the plan, and a real run reports what it kept.
-
-` + backupStorageURIHelp + `
-
-Examples:
-  tt backup gc --backup-storage=file:///var/backups --keep-full 3 --dry-run
-  tt backup gc --backup-storage=file:///var/backups --keep-days 30
-  tt backup gc --backup-storage=file:///var/backups --keep-full 2 --keep-days 7`,
+	A dangling archive is re-checked with a direct read of its manifest just
+	before it is deleted, so a run may keep an archive its plan listed.`,
+		Example: `$ tt backup gc --backup-storage=file:///var/backups --keep-full 3 --dry-run
+  $ tt backup gc --backup-storage=file:///var/backups --keep-days 30
+  $ tt backup gc --backup-storage=file:///var/backups --keep-full 2 --keep-days 7`,
 		Args: cobra.NoArgs,
 		RunE: runBackupGc,
 		// A failed run has already printed what it managed to delete; burying that
@@ -499,15 +655,18 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		"storage URI (file://<path> or s3+http(s)://host:port/bucket/prefix?...")
+		backupStorageURIHelp)
 	cmd.Flags().IntVar(&backupGcKeepFull, "keep-full", 0,
-		"keep the last N healthy backup chains")
+		"keep the last N healthy backup chains; "+
+			"without --keep-full or --keep-days nothing is deleted at all")
 	cmd.Flags().IntVar(&backupGcKeepDays, "keep-days", 0,
 		"keep backups created within the last D days")
 	cmd.Flags().DurationVar(&backupGcOrphanAge, "orphan-age", gc.DefaultOrphanAge,
-		"minimum age of a dangling archive before it is deleted; 0 means the default")
+		"minimum age before a dangling archive or a problem chain tail "+
+			"is deleted; 0 means the default")
 	cmd.Flags().BoolVar(&backupGcDryRun, "dry-run", false,
-		"report what would be deleted without deleting anything")
+		"report what would be deleted without deleting anything; "+
+			"a real run reports what it kept vs what the plan listed")
 	cmd.Flags().StringVar(&backupGcFormat, "format", formatTable,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&backupGcTimeout, "timeout", defaultGcTimeout,
@@ -918,7 +1077,7 @@ func formatChainProblems(problems []*chain.Problem) string {
 // printPlanTable prints the backup plan as a human-readable table.
 func printPlanTable(plan *backup.BackupPlan) {
 	log.Info("Backup plan")
-	log.Infof("  Mode:              %s", plan.Mode)
+	log.Infof("  Mode:              %s", plan.Type)
 	if plan.PreviousBackupID != "" {
 		log.Infof("  Previous backup:   %s", plan.PreviousBackupID)
 	}

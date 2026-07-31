@@ -65,6 +65,10 @@ class FileStorage:
                 found.append(os.path.relpath(path, self.root))
         return sorted(found)
 
+    def read(self, key):
+        with open(os.path.join(self.root, key), "rb") as src:
+            return src.read()
+
 
 class S3Storage:
     """Backup storage in an S3 bucket."""
@@ -95,6 +99,10 @@ class S3Storage:
             obj.object_name.removeprefix(self.prefix)
             for obj in self.garage.client.list_objects(self.garage.bucket, recursive=True)
         )
+
+    def read(self, key):
+        response = self.garage.client.get_object(self.garage.bucket, self.prefix + key)
+        return response.read()
 
 
 def archive_key(backup_id, replicaset=REPLICASET):
@@ -160,7 +168,6 @@ def build_manifest(
         "base_full_backup_id": base,
         "status": "OK",
         "creation_time": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "creation_duration": 1000000000,
         "shards": {
             REPLICASET: {
                 "instance": shard_instance(

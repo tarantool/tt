@@ -59,7 +59,7 @@ func TestPlanFullSelectsFirstRW(t *testing.T) {
 
 	plan, err := Plan(BackupTypeFull, nil, live)
 	require.NoError(t, err)
-	assert.Equal(t, BackupTypeFull, plan.Mode)
+	assert.Equal(t, BackupTypeFull, plan.Type)
 	assert.Empty(t, plan.PreviousBackupID)
 	assert.Nil(t, plan.Replicasets[testRSa].FromVclock)
 	assert.Equal(t, testInstA, plan.Replicasets[testRSa].MasterInstanceUUID)
@@ -96,7 +96,7 @@ func TestPlanIncrementalValid(t *testing.T) {
 
 	plan, err := Plan(BackupTypeIncremental, latest, live)
 	require.NoError(t, err)
-	assert.Equal(t, BackupTypeIncremental, plan.Mode)
+	assert.Equal(t, BackupTypeIncremental, plan.Type)
 	assert.Equal(t, BackupID("bk-1"), plan.PreviousBackupID)
 	assert.Equal(t, Vclock{1: 100}, plan.Replicasets[testRSa].FromVclock)
 }
@@ -211,7 +211,7 @@ func TestPlanIncrementalMasterStillRW(t *testing.T) {
 
 func TestPlanFullJSONNoFromVclockNoPrevious(t *testing.T) {
 	plan := &BackupPlan{
-		Mode: BackupTypeFull,
+		Type: BackupTypeFull,
 		Replicasets: map[string]ReplicasetPlan{
 			testRSa: {MasterInstanceUUID: testInstA, MasterInstanceName: "a-001"},
 		},
@@ -232,7 +232,7 @@ func TestPlanFullJSONNoFromVclockNoPrevious(t *testing.T) {
 
 func TestPlanIncrementalJSONHasFromVclockAndPrevious(t *testing.T) {
 	plan := &BackupPlan{
-		Mode:             BackupTypeIncremental,
+		Type:             BackupTypeIncremental,
 		PreviousBackupID: "20260312T110000Z",
 		Replicasets: map[string]ReplicasetPlan{
 			testRSa: {

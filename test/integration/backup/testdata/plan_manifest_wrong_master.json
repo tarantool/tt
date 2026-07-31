@@ -5,7 +5,6 @@
   "base_full_backup_id": "2026-01-01-full",
   "status": "OK",
   "creation_time": "2026-01-01T00:00:00Z",
-  "creation_duration": 1000000000,
   "shards": {
     "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb": {
       "instance": {
