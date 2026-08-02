@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/tarantool/tt/cli/backup"
@@ -119,6 +120,13 @@ func BuildPlan(
 
 	plan.Notes = append(plan.Notes, planNotes(groups, opts)...)
 
+	// A key gc derived from a manifest may name anything the manifest names, so
+	// it is checked against the layout before the survivors are reasoned about:
+	// a path outside data/ is not an archive, and the notes have to say so.
+	backups, dataNotes := keepKeysUnderTheDataPrefix(plan.Backups)
+	plan.Backups = backups
+	plan.Notes = append(plan.Notes, dataNotes...)
+
 	// Last safety net before anything is deleted: whatever the rules worked
 	// out per chain, no surviving manifest may end up pointing at a deleted
 	// object. Manifests that link across chains are not something chain.Build
@@ -140,13 +148,21 @@ func BuildPlan(
 
 // Execute deletes what the plan describes. Backups go first and, inside one
 // backup, the manifest goes before its archives, so that an interrupted run
-// leaves collectable garbage instead of a manifest pointing at nothing.
+// leaves collectable garbage instead of a manifest pointing at nothing: the
+// archives left behind are collected once they are older than --orphan-age.
 func Execute(
 	ctx context.Context,
 	store storage.Storage,
 	plan *Plan,
 ) (*Result, error) {
 	result := &Result{Kept: make([]string, 0)}
+
+	// The whole plan is checked before the first Delete: a plan gc did not build
+	// itself is still a plan, and a malformed key found halfway through would
+	// abort a run that had already deleted part of a chain.
+	if err := checkPlanKeys(plan); err != nil {
+		return result, err //nolint:wrapcheck
+	}
 
 	for _, deleted := range plan.Backups {
 		if err := store.Delete(ctx, deleted.ManifestKey); err != nil {
@@ -181,6 +197,45 @@ func Execute(
 	}
 
 	return result, nil
+}
+
+// errKeyOutsideLayout marks a deletion key that does not name an object gc
+// owns. It cannot come from a plan BuildPlan produced, so it means the caller
+// built the plan itself or the storage layout changed under gc.
+var errKeyOutsideLayout = errors.New("key does not name a backup object")
+
+// checkPlanKeys refuses a plan that would delete outside the backup layout.
+// Every key here is derived from manifest content, and a manifest is free to
+// name any object in the storage; deleting one is not something a retention
+// rule can ever ask for.
+func checkPlanKeys(plan *Plan) error {
+	for _, deleted := range plan.Backups {
+		if !strings.HasPrefix(deleted.ManifestKey, storage.ManifestsPrefix()) {
+			return fmt.Errorf(
+				"refusing to delete manifest %q of backup %q: %w",
+				deleted.ManifestKey, deleted.BackupID, errKeyOutsideLayout,
+			)
+		}
+
+		for _, key := range deleted.ArchiveKeys {
+			if !strings.HasPrefix(key, storage.DataPrefix()) {
+				return fmt.Errorf(
+					"refusing to delete archive %q of backup %q: %w",
+					key, deleted.BackupID, errKeyOutsideLayout,
+				)
+			}
+		}
+	}
+
+	for _, orphan := range plan.Orphans {
+		if !strings.HasPrefix(orphan.Key, storage.DataPrefix()) {
+			return fmt.Errorf(
+				"refusing to delete dangling archive %q: %w", orphan.Key, errKeyOutsideLayout,
+			)
+		}
+	}
+
+	return nil
 }
 
 // deleteOrphan removes one dangling archive after making sure its manifest

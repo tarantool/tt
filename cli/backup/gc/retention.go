@@ -3,6 +3,7 @@ package gc
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/tarantool/tt/cli/backup"
 	"github.com/tarantool/tt/cli/backup/chain"
@@ -249,6 +250,39 @@ func backupOf(manifest *backup.ClusterManifest) Backup {
 		ManifestKey: storage.ManifestKey(string(manifest.BackupID)),
 		ArchiveKeys: archives,
 	}
+}
+
+// keepKeysUnderTheDataPrefix drops from the plan every archive key that does not
+// live under data/. artifact.path is manifest content and nothing validates it,
+// so a hand-edited or third-party manifest can name any object in the storage -
+// another chain's manifest included - and gc would delete it as if it were an
+// archive it had uploaded itself.
+func keepKeysUnderTheDataPrefix(backups []Backup) ([]Backup, []string) {
+	kept := make([]Backup, 0, len(backups))
+	notes := make([]string, 0)
+
+	for _, deleted := range backups {
+		archives := make([]string, 0, len(deleted.ArchiveKeys))
+
+		for _, key := range deleted.ArchiveKeys {
+			if !strings.HasPrefix(key, storage.DataPrefix()) {
+				notes = append(notes, fmt.Sprintf(
+					"backup %q names %q, which is not an archive under %s: the "+
+						"manifest is malformed and the path was left alone",
+					deleted.BackupID, key, storage.DataPrefix(),
+				))
+
+				continue
+			}
+
+			archives = append(archives, key)
+		}
+
+		deleted.ArchiveKeys = archives
+		kept = append(kept, deleted)
+	}
+
+	return kept, notes
 }
 
 // cannotEmptyNote is the sentence every run owes the user: no combination of

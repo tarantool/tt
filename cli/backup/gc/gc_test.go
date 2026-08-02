@@ -2,6 +2,7 @@ package gc
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -173,6 +174,28 @@ func TestGcCollectsAStaleTailEvenWhenItHoldsTheNewestManifest(t *testing.T) {
 	require.Contains(t, f.store.keys(), storage.ManifestKey("2026-01-01"))
 }
 
+func TestGcInterruptedOnTheNewestManifestLeavesCollectableGarbage(t *testing.T) {
+	f := newFixture(t)
+	// The run above, killed between the manifest delete and the archive delete.
+	// The archive is left with the highest backup id in the storage, so the
+	// in-flight shield would protect it forever: nothing is going to upload that
+	// id again, and no other rule ever looks at an archive of a deleted backup.
+	f.addChain("2026-01-01", 60*day)
+	f.addBackup(backupSpec{
+		id: "2026-03-01-orphan", previous: "2026-02-28", base: "2026-02-28",
+		backupType: backup.BackupTypeIncremental, age: 40 * day,
+		vclockBegin: 100, vclockEnd: 200,
+	})
+	stranded := storage.ArchiveKey("2026-03-01-orphan", replicasetA)
+	f.removeObject(storage.ManifestKey("2026-03-01-orphan"))
+
+	plan, result := f.run(Options{KeepFull: 1, OrphanAge: day})
+
+	require.Equal(t, []string{stranded}, orphanKeys(plan))
+	require.Equal(t, 1, result.Orphans)
+	require.NotContains(t, f.store.keys(), stranded)
+}
+
 func TestGcDeletesASharedArchiveOnlyOnce(t *testing.T) {
 	f := newFixture(t)
 	f.addBackup(backupSpec{
@@ -282,9 +305,12 @@ func TestGcKeepsArchivesOfInvalidManifest(t *testing.T) {
 func TestGcKeepsArchiveNewerThanEveryManifest(t *testing.T) {
 	f := newFixture(t)
 	f.addChain("2026-01-01", 60*day)
-	// An upload that started long ago and is still running: its archives are old,
-	// but its backup id is newer than every manifest, so they are not orphans.
-	inFlight := f.addArchive("2026-02-28-uploading", 30*day)
+	// An upload in progress: archives land before the manifest that refers to
+	// them, so an archive written within --orphan-age whose backup id is above
+	// every manifest is not an orphan. Age still has the last word - see
+	// TestGcInterruptedOnTheNewestManifestLeavesCollectableGarbage - so an
+	// upload slower than --orphan-age needs a wider window, not a wider id rule.
+	inFlight := f.addArchive("2026-02-28-uploading", 30*time.Minute)
 
 	plan, result := f.run(Options{KeepFull: 1, OrphanAge: time.Hour})
 
@@ -462,6 +488,65 @@ func TestGcKeepsArchiveASurvivorStillRefersTo(t *testing.T) {
 	require.Empty(t, plan.Backups[0].ArchiveKeys)
 	require.Contains(t, f.store.keys(), shared)
 	require.True(t, containsNote(plan, "still refers to it"))
+}
+
+func TestGcRefusesToDeleteAKeyOutsideTheDataPrefix(t *testing.T) {
+	f := newFixture(t)
+	doomed := f.addBackup(backupSpec{
+		id: "2026-01-01", base: "2026-01-01", backupType: backup.BackupTypeFull,
+		age: 60 * day, vclockEnd: 100,
+	})
+	f.addChain("2026-02-20", 10*day)
+	// Nothing validates artifact.path, so a hand-edited or third-party manifest
+	// can name any object in the storage - here the surviving chain's manifest,
+	// the one object gc must never touch on its way to deleting an archive.
+	survivor := storage.ManifestKey("2026-02-20")
+	doomed.Shards[replicasetA].Instance.Artifact.Path = survivor
+	f.putObject(storage.ManifestKey("2026-01-01"), f.encode(doomed), testNow.Add(-60*day))
+
+	plan, result := f.run(Options{KeepFull: 1})
+
+	require.Equal(t, []string{"2026-01-01"}, deletedBackupIDs(plan))
+	require.Empty(t, plan.Backups[0].ArchiveKeys)
+	require.Zero(t, plan.Archives())
+	require.Zero(t, result.Archives)
+	require.Contains(t, f.store.keys(), survivor)
+	require.True(t, containsNote(plan, survivor))
+}
+
+func TestGcExecuteNeverDeletesOutsideDataPrefix(t *testing.T) {
+	f := newFixture(t)
+	f.addChain("2026-01-01", 60*day)
+	f.addChain("2026-02-20", 10*day)
+	// However the plan was built, Execute is the last place that can refuse.
+	plan := &Plan{Backups: []Backup{{
+		BackupID:    "2026-01-01",
+		ManifestKey: storage.ManifestKey("2026-01-01"),
+		ArchiveKeys: []string{storage.ManifestKey("2026-02-20"), "random/key"},
+	}}}
+
+	result, err := Execute(t.Context(), f.store, plan)
+
+	require.ErrorContains(t, err, storage.ManifestKey("2026-02-20"))
+	require.Zero(t, result.Backups)
+	require.Zero(t, result.Archives)
+
+	// The same invariant covers the two other kinds of key a plan carries.
+	_, err = Execute(t.Context(), f.store, &Plan{Backups: []Backup{{
+		BackupID: "2026-01-01", ManifestKey: "random/manifest.json",
+	}}})
+	require.ErrorContains(t, err, "random/manifest.json")
+
+	_, err = Execute(t.Context(), f.store, &Plan{
+		Orphans: []Orphan{{Key: storage.ManifestKey("2026-02-20")}},
+	})
+	require.ErrorContains(t, err, storage.ManifestKey("2026-02-20"))
+
+	require.False(t, slices.ContainsFunc(f.store.deletes, func(key string) bool {
+		return !strings.HasPrefix(key, storage.DataPrefix())
+	}), "deleted outside %s: %v", storage.DataPrefix(), f.store.deletes)
+	require.Contains(t, f.store.keys(), storage.ManifestKey("2026-02-20"))
+	require.Contains(t, f.store.keys(), storage.ManifestKey("2026-01-01"))
 }
 
 func TestGcKeepsBackupASurvivorIsRecoveredThrough(t *testing.T) {
