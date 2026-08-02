@@ -4,6 +4,11 @@
 +s
 addfinalizer
 aeon*
+AKIA
+AKIAAMBIENT
+AKIAENV
+AKIAEXAMPLE
+AKIAs
 anykey
 autoexpel
 bootstrapper
