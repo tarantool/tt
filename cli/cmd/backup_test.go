@@ -463,3 +463,188 @@ func TestRunBackupUploadZeroTimeoutMeansNoLimit(t *testing.T) {
 	require.NoError(t, runBackupUpload(cmd, nil))
 	assert.Contains(t, storageKeys(t, root), "manifests/"+testBackupID+".json")
 }
+
+func TestFormatVclockIsOrderedByReplicaID(t *testing.T) {
+	tests := map[string]struct {
+		vclock backup.Vclock
+		want   string
+	}{
+		"empty":  {vclock: backup.Vclock{}, want: "{}"},
+		"single": {vclock: backup.Vclock{2: 7}, want: "{2:7}"},
+		"many":   {vclock: backup.Vclock{3: 3, 1: 100, 2: 7}, want: "{1:100,2:7,3:3}"},
+		"gaps":   {vclock: backup.Vclock{10: 1, 2: 5}, want: "{2:5,10:1}"},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Once per render is not enough: Go randomises map iteration order
+			// per range statement, so an unsorted render only differs sometimes.
+			for range 20 {
+				assert.Equal(t, tc.want, formatVclock(tc.vclock))
+			}
+		})
+	}
+}
+
+// renderTable collects everything render logs, with the global logger restored
+// afterwards.
+func renderTable(t *testing.T, render func()) string {
+	t.Helper()
+
+	handler := captureLog(t)
+	render()
+
+	return logMessages(handler)
+}
+
+func TestPrintPlanTableIsDeterministic(t *testing.T) {
+	plan := &backup.BackupPlan{
+		Type:             backup.BackupTypeIncremental,
+		PreviousBackupID: testBackupID,
+		Replicasets: map[string]backup.ReplicasetPlan{
+			testShardA: {
+				MasterInstanceUUID: "a1",
+				MasterInstanceName: "instance-a1",
+				FromVclock:         backup.Vclock{3: 3, 1: 100, 2: 7},
+			},
+			testShardB: {
+				MasterInstanceUUID: "b1",
+				MasterInstanceName: "instance-b1",
+				FromVclock:         backup.Vclock{2: 42, 1: 11},
+			},
+		},
+	}
+
+	// A cron job diffing two runs of the same plan must not see changes that
+	// only the map iteration order made up.
+	renders := make(map[string]struct{})
+	for range 20 {
+		renders[renderTable(t, func() { printPlanTable(plan) })] = struct{}{}
+	}
+
+	require.Len(t, renders, 1, "table output varies between runs")
+
+	rendered := renderTable(t, func() { printPlanTable(plan) })
+	assert.Less(t, strings.Index(rendered, testShardA), strings.Index(rendered, testShardB),
+		"replicasets are listed in uuid order")
+	assert.Contains(t, rendered, "{1:100,2:7,3:3}")
+}
+
+// degradedManifest is a two-replicaset backup in which the second replicaset
+// produced nothing but an error.
+func degradedManifest() *backup.ClusterManifest {
+	return &backup.ClusterManifest{
+		SchemaVersion:    backup.SchemaVersion,
+		BackupID:         testBackupID,
+		BaseFullBackupID: testBackupID,
+		Status:           backup.StatusDegraded,
+		CreationTime:     time.Now(),
+		Shards: map[string]backup.Shard{
+			testShardA: {Instance: &backup.ShardInstance{InstanceUUID: "a1"}},
+			testShardB: {Error: "instance unreachable"},
+		},
+		Warnings: []backup.Warning{
+			{Code: backup.WarnShardUnreachable, Message: "storage-002-a is not reachable"},
+			{Code: backup.WarnStoragePartialUpload, Message: "upload was interrupted"},
+		},
+	}
+}
+
+func TestSplitManifestShards(t *testing.T) {
+	backedUp, failed := splitManifestShards(degradedManifest())
+
+	assert.Equal(t, []string{testShardA}, backedUp)
+	assert.Equal(t, []string{testShardB}, failed)
+}
+
+func TestPrintManifestTableNamesFailedShards(t *testing.T) {
+	rendered := renderTable(t, func() { printManifestTable(degradedManifest()) })
+
+	// A shard that produced nothing counted as backed up reads as a complete
+	// backup; the replicaset is then found missing at restore time.
+	assert.NotContains(t, rendered, "Shards:           2")
+	assert.Contains(t, rendered, "1 of 2 backed up")
+	assert.Contains(t, rendered, testShardB)
+	assert.Contains(t, rendered, "instance unreachable")
+	assert.Contains(t, rendered, string(backup.WarnShardUnreachable))
+	assert.Contains(t, rendered, string(backup.WarnStoragePartialUpload))
+}
+
+// A shard with neither an instance nor an error is malformed, not backed up.
+func TestPrintManifestTableNamesShardWithoutReason(t *testing.T) {
+	manifest := degradedManifest()
+	manifest.Shards[testShardB] = backup.Shard{}
+
+	rendered := renderTable(t, func() { printManifestTable(manifest) })
+
+	assert.Contains(t, rendered, "1 of 2 backed up")
+	assert.Contains(t, rendered, testShardB)
+	assert.Contains(t, rendered, "no instance recorded")
+}
+
+// keepBackupGlobals restores the process-wide config state applyBackupConfig
+// writes into.
+func keepBackupGlobals(t *testing.T) {
+	t.Helper()
+
+	previousOpts, previousPath := cliOpts, cmdCtx.Cli.ConfigPath
+	t.Cleanup(func() {
+		cliOpts = previousOpts
+		cmdCtx.Cli.ConfigPath = previousPath
+	})
+}
+
+func TestApplyBackupConfigMissingFileNamesThePath(t *testing.T) {
+	keepBackupGlobals(t)
+
+	// A missing config is answered with the built-in defaults, so the flag is
+	// ignored and the failure surfaces as "tt.yaml not found" -- pointing at the
+	// cwd instead of the path the job passed.
+	missing := filepath.Join(t.TempDir(), "nowhere", "tt.yaml")
+
+	err := applyBackupConfig(missing)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), missing)
+	assert.Nil(t, cliOpts, "a rejected config must not be applied")
+}
+
+func TestApplyBackupConfigLoadsExistingFile(t *testing.T) {
+	keepBackupGlobals(t)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "tt.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("env:\n  instances_enabled: .\n"), 0o644))
+
+	require.NoError(t, applyBackupConfig(path))
+	assert.Equal(t, path, cmdCtx.Cli.ConfigPath)
+	require.NotNil(t, cliOpts)
+}
+
+func TestApplyBackupConfigEmptyFlagIsANoop(t *testing.T) {
+	keepBackupGlobals(t)
+
+	require.NoError(t, applyBackupConfig(""))
+	assert.Nil(t, cliOpts, "without the flag the root config stays in charge")
+}
+
+func TestRunBackupPlanRejectsInvalidStorageURI(t *testing.T) {
+	// Nothing in the full path reads the storage, so the URI has to be rejected
+	// up front: otherwise the typo survives the plan and is only found a whole
+	// backup window later, at upload.
+	for _, target := range []string{
+		string(backup.BackupTypeFull),
+		string(backup.BackupTypeIncremental),
+	} {
+		t.Run(target, func(t *testing.T) {
+			cmd := newBackupPlanCmd()
+			setFlag(t, &backupPlanMode, target)
+			setFlag(t, &backupPlanFormat, formatJSON)
+			setFlag(t, &backupStorageConfig, "bogus://backups")
+
+			err := runBackupPlan(cmd, nil)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unsupported storage scheme")
+			assert.Contains(t, err.Error(), "bogus")
+		})
+	}
+}
