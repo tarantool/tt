@@ -96,24 +96,52 @@ detailed error (no auto-promotion to full).`
 // backupStorageURIHelp documents the --backup-storage flag value for every
 // manager-side backup command.
 const backupStorageURIHelp = `The --backup-storage flag accepts a URI describing the
-storage backend:
+storage backend, or @<path> naming a YAML config file:
 
-	Local filesystem storage. The path must be absolute.
-	  Query parameters:
-	    Prefix  - subdirectory within the path (optional).
-	  Examples:
-	    file://<abs_path>?Prefix=<subdir>
+    file://<abs_path>?Prefix=<subdir>
+      Local filesystem storage. The path must be absolute.
+      Query parameters:
+        Prefix           - subdirectory within the path (optional).
 
-    S3-compatible storage. Use s3+https for TLS, s3+http for plain TCP.
-      The first path segment after the host is the bucket name, the rest is
-      the optional key prefix.
+    s3://<bucket>/<prefix>
+      S3 storage taken from the standard AWS_* environment variables, so that
+      no credential is written in the command line:
+        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  - credentials (required).
+        AWS_SESSION_TOKEN                         - for temporary credentials.
+        AWS_REGION, AWS_DEFAULT_REGION            - region.
+        AWS_ENDPOINT_URL, AWS_ENDPOINT_URL_S3     - endpoint of an
+                                                    S3-compatible storage.
+        AWS_CA_BUNDLE                             - CA of an endpoint the
+                                                    system roots do not cover.
+
+    s3+https://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...
+    s3+http://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...
+      S3-compatible storage with the endpoint and the credentials in the URI.
+      Use s3+https for TLS, s3+http for plain TCP. The first path segment
+      after the host is the bucket name, the rest is the optional key prefix.
       Query parameters:
         Region           - AWS region (optional).
         AccessKeyID      - access key ID (required).
         SecretAccessKey  - secret access key (required).
-      Examples:
-        s3+https://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...
-        s3+http://endpoint:port/bucket/prefix?Region=...&AccessKeyID=...&SecretAccessKey=...`
+
+    @<path>.yaml
+      What a URI cannot express: a custom endpoint, a region, explicit
+      credentials, a private CA. The backend is chosen by 'type', an unknown
+      field is an error, and ${VAR} in a value is read from the environment
+      ('$$' is a literal '$'), so a secret stays out of the file:
+
+        type: s3
+        endpoint: https://storage.yandexcloud.net    # https unless http:// is asked for
+        region: ru-central1
+        bucket: payments-backups
+        prefix: tarantool                            # storage root in the bucket, optional
+        access_key_id: ${AWS_ACCESS_KEY_ID}          # optional, AWS_* by default
+        secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        ca_cert: /etc/ssl/private-ca.pem             # or skip_verify: true
+
+        type: fs
+        root: /mnt/backups/payments        # storage root, must be absolute
+        prefix: mycluster                  # subdirectory within the root, optional`
 
 // NewBackupCmd creates the parent `tt backup` command.
 func NewBackupCmd() *cobra.Command {
@@ -189,6 +217,8 @@ func newBackupLastCmd() *cobra.Command {
 		Long:  `Find the latest manifest in the storage and print it to stdout.`,
 		Example: `$ tt backup last --backup-storage=file:///var/backups
   $ tt backup last --backup-storage=file:///var/backups?Prefix=mycluster
+  $ tt backup last --backup-storage=s3://payments-backups/tarantool
+  $ tt backup last --backup-storage=@s3-prod.yaml
   $ tt backup last --backup-storage=s3+https://s3.example.com:9000/... \
     ?Region=us-east-1&AccessKeyID=minio&SecretAccessKey=minio123
   $ tt backup last --backup-storage=file:///var/backups --format json`,

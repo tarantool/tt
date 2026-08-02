@@ -3,9 +3,13 @@ package s3
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
 	"sort"
 	"strings"
 
@@ -20,6 +24,8 @@ var (
 	errAccessKeyIDRequired     = errors.New("s3 access_key_id is required")
 	errSecretAccessKeyRequired = errors.New("s3 secret_access_key is required")
 	errNegativeObjectSize      = errors.New("s3 object size must be non-negative")
+	errTLSWithoutSSL           = errors.New(
+		"s3 ca_cert and skip_verify need an https endpoint")
 )
 
 // Config describes S3-compatible storage configuration.
@@ -29,8 +35,15 @@ type Config struct {
 	Region          string
 	AccessKeyID     string
 	SecretAccessKey string
-	UseSSL          bool
-	Prefix          string
+	// SessionToken accompanies temporary credentials; empty for permanent ones.
+	SessionToken string
+	UseSSL       bool
+	// CACert is a PEM file with the certificate authority of an endpoint the
+	// system roots do not cover - the usual shape of an on-premise S3.
+	CACert string
+	// SkipVerify accepts any certificate the endpoint presents.
+	SkipVerify bool
+	Prefix     string
 }
 
 // Storage is an S3-compatible backup storage backend.
@@ -46,11 +59,25 @@ func New(cfg Config) (*Storage, error) {
 		return nil, fmt.Errorf("failed to validate s3 config: %w", err)
 	}
 
-	client, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
+	transport, err := newTLSTransport(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure s3 tls: %w", err)
+	}
+
+	options := &minio.Options{
+		Creds: credentials.NewStaticV4(
+			cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SessionToken),
 		Secure: cfg.UseSSL,
 		Region: cfg.Region,
-	})
+	}
+	// A typed nil in Options.Transport is not nil as an interface, and minio-go
+	// would use it instead of building its own transport, so it is only set
+	// when the config actually asked for one.
+	if transport != nil {
+		options.Transport = transport
+	}
+
+	client, err := minio.New(cfg.Endpoint, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create s3 client: %w", err)
 	}
@@ -207,6 +234,63 @@ func (s *Storage) objectName(key string) string {
 	return s.prefix + key
 }
 
+// newTLSTransport builds the transport minio-go talks through when the
+// endpoint's certificate is not one the system roots cover, and returns nil
+// when the defaults are enough. minio.DefaultTransport is the base rather than
+// http.DefaultTransport: it carries the connection pooling, the timeouts and
+// the disabled gzip decoding the client is written against.
+func newTLSTransport(cfg Config) (*http.Transport, error) {
+	if !cfg.UseSSL || (cfg.CACert == "" && !cfg.SkipVerify) {
+		return nil, nil
+	}
+
+	transport, err := minio.DefaultTransport(true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create s3 transport: %w", err)
+	}
+
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+
+	transport.TLSClientConfig.InsecureSkipVerify = cfg.SkipVerify
+
+	if cfg.CACert != "" {
+		pool, err := certPool(cfg.CACert)
+		if err != nil {
+			return nil, err //nolint:wrapcheck
+		}
+
+		transport.TLSClientConfig.RootCAs = pool
+	}
+
+	return transport, nil
+}
+
+// certPool returns the system roots plus the certificates of the PEM file at
+// path. The file adds to the system pool rather than replacing it, as minio-go
+// itself does for SSL_CERT_FILE: trusting a private CA must not untrust
+// everything else.
+func certPool(path string) (*x509.CertPool, error) {
+	pemData, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read s3 ca_cert: %w", err)
+	}
+
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		// A platform with no readable system store still gets a working trust
+		// anchor for this endpoint out of the file it was pointed at.
+		pool = x509.NewCertPool()
+	}
+
+	if !pool.AppendCertsFromPEM(pemData) {
+		return nil, fmt.Errorf("no certificates found in s3 ca_cert %q", path)
+	}
+
+	return pool, nil
+}
+
 // validateConfig ensures the required S3 connection fields are present.
 func validateConfig(cfg Config) error {
 	switch {
@@ -218,6 +302,10 @@ func validateConfig(cfg Config) error {
 		return errAccessKeyIDRequired
 	case strings.TrimSpace(cfg.SecretAccessKey) == "":
 		return errSecretAccessKeyRequired
+	case !cfg.UseSSL && (cfg.CACert != "" || cfg.SkipVerify):
+		// Silently dropping them would leave an operator convinced the private
+		// CA is in use over a plaintext connection.
+		return errTLSWithoutSSL
 	default:
 		return nil
 	}
