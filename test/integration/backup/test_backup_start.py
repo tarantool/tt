@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -120,3 +121,164 @@ def test_start_incremental_continues_full_artifact(tt, tt_app, tmp_path):
     finally:
         rc, cleanup_out = finalize_backup(tt, target, inc_id)
         assert rc == 0, f"incremental backup cleanup failed:\n{cleanup_out}"
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+def test_start_unreachable_instance(tt):
+    """An instance that cannot be reached fails the command cleanly and
+    leaves no half-made backup directory behind."""
+    backup_id = "itest-unreachable"
+
+    rc, out = start_backup(tt, "127.0.0.1:1", backup_id)
+
+    assert rc != 0
+    assert "failed" in out.lower()
+    assert not os.path.exists(backup_dir(backup_id))
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_start_rejects_backup_id(tt, tt_app, tmp_path):
+    """The id names both the directory under the backup root and the artifact
+    base name below it, so one that addresses anything else has to be refused
+    before box.backup is opened: a rejection that costs a lease is a stuck
+    backup, and an id that escapes the root writes archives nothing collects."""
+    target = app_instance(tt_app, STORAGE_1_A)
+
+    # A private temp root: everything the command would create lands in here,
+    # so "created nothing" is an exact statement about the whole tree it owns.
+    tmp_root = tmp_path / "tmproot"
+    tmp_root.mkdir()
+    env = dict(os.environ, TMPDIR=str(tmp_root))
+
+    for backup_id in ("../escape", "2026/08/02-full", ""):
+        rc, out = start_backup(tt, target, backup_id, env=env)
+
+        assert rc != 0, f"backup id {backup_id!r} was accepted:\n{out}"
+        assert list(tmp_root.iterdir()) == [], f"backup id {backup_id!r} created files"
+        assert get_backup_info_app(tt, target) is None, f"backup id {backup_id!r} left a lease open"
+
+    # The id is checked before the target is dialed: an instance nobody can
+    # reach still answers with the malformed id, not with a dial failure.
+    rc, out = start_backup(tt, "127.0.0.1:1", "../escape", env=env)
+    assert rc != 0
+    assert "invalid backup id" in out, out
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_start_concurrent_losers_exit_two(tt, tt_app):
+    """Exit 2 is the code an orchestrator keys on to route to its stuck-backup
+    branch, and a retry storm is exactly the situation that leaves a backup
+    stuck. A start that loses the race inside the instance must therefore be as
+    recognizable as one that loses it sequentially."""
+    target = app_instance(tt_app, STORAGE_1_A)
+    backup_ids = ["itest-c1", "itest-c2", "itest-c3"]
+
+    procs = [tt.popen("backup", "start", target, "--backup-id", i) for i in backup_ids]
+    results = {}
+    for backup_id, proc in zip(backup_ids, procs):
+        out, _ = proc.communicate(timeout=120)
+        results[backup_id] = (proc.returncode, out)
+
+    try:
+        winners = [won_id for won_id, (rc, _) in results.items() if rc == 0]
+        assert len(winners) == 1, f"exactly one start may win the race: {results}"
+
+        for backup_id, (rc, out) in results.items():
+            if backup_id in winners:
+                continue
+            assert rc == 2, f"{backup_id} lost with rc {rc}, not the stuck-backup code:\n{out}"
+            assert "already in progress" in out.lower(), out
+            assert not os.path.exists(backup_dir(backup_id)), "a loser must create no directory"
+    finally:
+        for backup_id in backup_ids:
+            finalize_backup(tt, target, backup_id)
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.skipif(os.geteuid() == 0, reason="root writes into a read-only directory anyway")
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_start_failure_after_open_closes_the_backup(tt, tt_app, tmp_path):
+    """An open backup pins the instance's WAL and checkpoint gc until the ttl
+    runs out and blocks every later start, so a run that cannot deliver an
+    archive -- here because the backup root is not writable -- has to close it
+    again instead of leaving the lease for an operator to find."""
+    target = app_instance(tt_app, STORAGE_1_A)
+
+    backup_root = tmp_path / "tmproot" / "tt-backup"
+    backup_root.mkdir(parents=True)
+    backup_root.chmod(0o500)
+    try:
+        rc, out = start_backup(
+            tt,
+            target,
+            "itest-readonly-root",
+            env=dict(os.environ, TMPDIR=str(backup_root.parent)),
+        )
+    finally:
+        backup_root.chmod(0o755)
+
+    assert rc != 0, f"a read-only backup root must fail the start:\n{out}"
+    # Names the directory it could not create, so the run really did get past
+    # box.backup.start() -- a failure before it would prove nothing here.
+    assert str(backup_root) in out, out
+    assert get_backup_info_app(tt, target) is None, "a failed start must not keep the lease"
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_start_with_explicit_config(tt, tt_app, tmp_path):
+    """--config is how the orchestrator points a start at an environment its
+    job does not stand in. The same command without it cannot even resolve the
+    target, so the flag has to carry the whole environment, not just the dial."""
+    target = app_instance(tt_app, STORAGE_1_A)
+    config = Path(tt.work_dir) / "tt.yaml"
+    backup_id = "itest-cfg"
+
+    # "/" is the one cwd guaranteed to be outside the environment: tt searches
+    # parent directories for tt.yaml, so any dir below it would find the config
+    # on its own and the flag would prove nothing.
+    rc, out = start_backup(tt, target, backup_id, cwd="/")
+    assert rc != 0, f"without --config the environment must not resolve:\n{out}"
+    assert not os.path.exists(backup_dir(backup_id))
+
+    rc, out = start_backup(tt, target, backup_id, config=config, cwd="/")
+    assert rc == 0, f"tt backup start -c failed:\n{out}"
+
+    try:
+        inspect_backup_artifact(archive_path_from_output(out), tmp_path / "cfg", backup_id)
+    finally:
+        rc, cleanup_out = finalize_backup(tt, target, backup_id, config=config, cwd="/")
+        assert rc == 0, f"backup cleanup failed:\n{cleanup_out}"
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_start_ttl_expiry_releases_the_lease(tt, tt_app):
+    """The --ttl lease expires on the instance side, so an orchestrator that
+    died between start and finalize does not pin the instance's gc forever.
+    Expiry releases only the lease: the local archive stays for the pipeline
+    to pick up, and finalize still cleans it like after any closed backup."""
+    target = app_instance(tt_app, STORAGE_1_A)
+    backup_id = "itest-ttl"
+
+    rc, out = start_backup(tt, target, backup_id, ttl="2s")
+    assert rc == 0, f"tt backup start failed:\n{out}"
+
+    try:
+        archive_path = archive_path_from_output(out)
+
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if get_backup_info_app(tt, target) is None:
+                break
+            time.sleep(1)
+        else:
+            pytest.fail("the backup lease did not expire within 30s of a 2s ttl")
+
+        assert os.path.isfile(archive_path), "expiry must not touch the local archive"
+    finally:
+        rc, cleanup_out = finalize_backup(tt, target, backup_id)
+        assert rc == 0, f"backup cleanup failed:\n{cleanup_out}"
+        assert not os.path.exists(backup_dir(backup_id))

@@ -72,6 +72,19 @@ func txsOf(replicaID uint32, lsns ...int64) [][]format.XRow {
 	return txs
 }
 
+// txsMixed turns (replica, lsn) pairs into one single-row transaction each, in
+// the order given. txsOf can only describe one replica's writes; a master's
+// journal holds the whole replicaset's, interleaved, and the order they were
+// written in is the only thing a recovery point can be resolved against.
+func txsMixed(keys ...rowKey) [][]format.XRow {
+	txs := make([][]format.XRow, 0, len(keys))
+	for _, key := range keys {
+		txs = append(txs, []format.XRow{row(key.ReplicaID, key.LSN)})
+	}
+
+	return txs
+}
+
 func meta(t *testing.T, ft format.Filetype, instUUID string, vclock, prev format.VClock,
 ) *format.Meta {
 	t.Helper()
@@ -312,6 +325,36 @@ func chainPastPoint(t *testing.T) string {
 	}
 
 	return packArchive(t, filepath.Join(t.TempDir(), "wide.tar.zst"), files...)
+}
+
+// twoReplicaChain packs one archive of a replicaset whose journals carry both
+// members' positions -- the normal case on a master, and what every other
+// fixture here leaves out. Each file is named after the combined signature, so
+// the name matches neither replica's LSN and the two axes disagree about which
+// file a given LSN sits in:
+//
+//	00000000000000000000.snap  {1:0, 2:0}
+//	00000000000000000000.xlog  {1:0, 2:0}  r1 1..5 with r2 1 in the middle
+//	00000000000000000006.xlog  {1:5, 2:1}  r2 2..6 with r1 6..7 in the middle
+//	00000000000000000013.xlog  {1:7, 2:6}  r1 8..9 with r2 7 in the middle
+func twoReplicaChain(t *testing.T) string {
+	t.Helper()
+
+	src := t.TempDir()
+
+	files := []string{
+		writeSnap(t, src, format.VClock{1: 0, 2: 0}),
+		writeXlog(t, src, format.VClock{1: 0, 2: 0}, nil, txsMixed(
+			rowKey{1, 1}, rowKey{1, 2}, rowKey{2, 1},
+			rowKey{1, 3}, rowKey{1, 4}, rowKey{1, 5})),
+		writeXlog(t, src, format.VClock{1: 5, 2: 1}, format.VClock{1: 0, 2: 0}, txsMixed(
+			rowKey{2, 2}, rowKey{1, 6}, rowKey{2, 3},
+			rowKey{2, 4}, rowKey{1, 7}, rowKey{2, 5}, rowKey{2, 6})),
+		writeXlog(t, src, format.VClock{1: 7, 2: 6}, format.VClock{1: 5, 2: 1}, txsMixed(
+			rowKey{1, 8}, rowKey{2, 7}, rowKey{1, 9})),
+	}
+
+	return packArchive(t, filepath.Join(t.TempDir(), "two-replicas.tar.zst"), files...)
 }
 
 // compactInstanceUUID rewrites a journal file's Instance line to the 32-char

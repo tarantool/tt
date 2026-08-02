@@ -5,6 +5,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -101,6 +102,36 @@ func TestGarageGetMissingBucketIsNotKeyNotFound(t *testing.T) {
 	_, err = st.Get(ctx, storage.ManifestKey("whatever"))
 	require.Error(t, err)
 	require.False(t, errors.Is(err, storage.ErrKeyNotFound))
+}
+
+// minio-go switches a known-size PutObject to the multipart path at 16 MiB.
+// Every other test here stays below that, on the single-PUT path; a real
+// backup archive lands on multipart from day one, so round-trip one.
+func TestGaragePutMultipartSized(t *testing.T) {
+	ctx := t.Context()
+	st := newGarageStorage(ctx, t)
+
+	const size = 20 << 20
+	data := bytes.Repeat([]byte("tt-backup-multipart-payload-0123"), size/32)
+
+	key := storage.ArchiveKey("garage-multipart", "rs1")
+	require.NoError(t, st.Put(ctx, key, bytes.NewReader(data), int64(len(data))))
+
+	objects, err := st.List(ctx, storage.DataPrefix())
+	require.NoError(t, err)
+	require.Len(t, objects, 1)
+	require.Equal(t, key, objects[0].Key)
+	require.Equal(t, int64(size), objects[0].Size)
+
+	reader, err := st.Get(ctx, key)
+	require.NoError(t, err)
+	defer reader.Close()
+
+	actual, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, size, len(actual))
+	require.Equal(t, sha256.Sum256(data), sha256.Sum256(actual),
+		"the multipart round-trip must return byte-identical content")
 }
 
 type garageInstance struct {

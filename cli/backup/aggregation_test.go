@@ -52,6 +52,48 @@ func TestAggregateUnavailableShard(t *testing.T) {
 	require.Equal(t, WarnShardUnreachable, manifest.Warnings[0].Code)
 }
 
+// A shard that produced a fragment but still reported an error is recorded
+// as an error entry with a shard_partial warning; the healthy shard keeps
+// the manifest degraded rather than failed. No CLI path builds such a
+// ShardInput yet -- upload refuses incomplete fragment sets -- so this pins
+// the contract for the orchestrator that will.
+func TestAggregatePartialShard(t *testing.T) {
+	fragmentA := mustDecodeFragment(t, fixtureFragmentA)
+	fragmentB := mustDecodeFragment(t, fixtureFragmentB)
+
+	manifest, err := Aggregate(AggregateInput{
+		BackupID:         testBackupID,
+		BaseFullBackupID: testBackupID,
+		CreationTime:     testCreationTime(),
+		Topology:         topologyFromClusterManifestFixture(t, testRSA, testRSB),
+		Shards: []*ShardInput{
+			{
+				ReplicasetUUID: testRSA,
+				Fragment:       &fragmentA,
+				Location:       &ArtifactLocation{Path: "data/rs-a.tar.zst", SizeBytes: 42},
+			},
+			{
+				ReplicasetUUID: testRSB,
+				Fragment:       &fragmentB,
+				Err:            errors.New("wal copy interrupted"),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusDegraded, manifest.Status)
+
+	require.Len(t, manifest.Warnings, 1)
+	warning := manifest.Warnings[0]
+	require.Equal(t, WarnShardPartial, warning.Code)
+	require.Equal(t, "wal copy interrupted", warning.Message)
+	require.Equal(t, testRSB, warning.Details["replicaset_uuid"])
+	require.Equal(t, fragmentB.InstanceUUID, warning.Details["instance_uuid"])
+
+	require.NotNil(t, manifest.Shards[testRSA].Instance)
+	require.Nil(t, manifest.Shards[testRSB].Instance)
+	require.Equal(t, "wal copy interrupted", manifest.Shards[testRSB].Error)
+}
+
 func TestAggregateNilRecoveryPointsAddsWarningAndEmptySlice(t *testing.T) {
 	fragment := mustDecodeFragment(t, fixtureFragmentWithoutRecoveryPoints)
 

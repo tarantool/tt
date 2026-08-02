@@ -186,11 +186,20 @@ def test_plan_incremental_master_changed(tt, tt_app, tmp_path):
     assert "--target=full" in out
 
 
-def test_plan_invalid_storage_uri(tt):
-    """Invalid storage URI is rejected."""
-    rc, out = backup_plan(tt, "full", "not-a-uri", config="/dev/null")
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_plan_invalid_storage_uri(tt, tt_app):
+    """Invalid storage URI is rejected, and the error is all that is printed.
+
+    The config has to be a working one: with a broken config the run never
+    reaches the storage, and the usage block a failure used to print carried
+    the word "storage" on its own.
+    """
+    rc, out = backup_plan(tt, "incremental", "not-a-uri", config=_config_path(tt_app))
     assert rc != 0
-    assert "storage" in out.lower()
+    assert "unsupported storage scheme" in out.lower()
+    assert "usage" not in out.lower()
+    assert "--backup-storage" not in out
 
 
 def test_plan_unsupported_target(tt, tmp_path):
@@ -285,3 +294,84 @@ def test_plan_incremental_s3(tt, tt_app, garage):
     finally:
         for obj in garage.client.list_objects(garage.bucket, recursive=True):
             garage.client.remove_object(garage.bucket, obj.object_name)
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_plan_timeout_expires(tt, tt_app, tmp_path):
+    """--timeout caps the storage phase. Only an incremental plan reads the
+    storage -- a full plan never touches it -- so that is where it expires."""
+    storage_uri, _ = _storage_uri(tmp_path)
+
+    rc, out = backup_plan(
+        tt,
+        "incremental",
+        storage_uri,
+        config=_config_path(tt_app),
+        timeout="1ns",
+    )
+
+    assert rc != 0
+    assert "context deadline exceeded" in out.lower()
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_plan_full_rejects_invalid_backup_storage(tt, tt_app):
+    """A full plan must reject a storage URI it cannot use.
+
+    Nothing in the full path reads the storage, so a typo'd --backup-storage
+    survives the plan and is only discovered a whole backup window later, when
+    upload tries to write the manifest with the archives already built. The
+    incremental sibling is test_plan_invalid_storage_uri.
+    """
+    rc, out = backup_plan(tt, "full", "bogus://backups", config=_config_path(tt_app), fmt="json")
+
+    assert rc != 0, out
+    assert "bogus" in out, out
+    assert '"mode"' not in out, "a plan was issued against a storage that cannot be opened"
+
+
+def test_plan_silences_usage_on_runtime_error(tt, tmp_path):
+    """A runtime failure prints the error and nothing else.
+
+    The flag list is ~60 lines and would bury the one line an operator reading a
+    cron log needs; the error also has to be the last thing printed so that
+    `tail -1` finds it.
+    """
+    storage_uri, _ = _storage_uri(tmp_path)
+
+    rc, out = backup_plan(tt, "full", storage_uri, config=str(tmp_path / "absent.yaml"))
+
+    assert rc != 0
+    assert "USAGE" not in out and "FLAGS" not in out, out
+    assert "Error:" in out.strip().splitlines()[-1], out
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_plan_table_output_is_deterministic(tt, tt_app, tmp_path):
+    """The same plan renders the same table every time.
+
+    A cron job diffing the plan between runs must not see changes that are not
+    there. The vclock has three components on purpose: rendering it walks a map,
+    and Go randomises map iteration order per run.
+    """
+    storage_uri, storage_dir = _storage_uri(tmp_path)
+    manifest = _load_manifest("plan_manifest_full.json")
+    manifest["shards"][REPLICASET_UUID]["instance"]["vclock_end"] = {"1": 100, "2": 7, "3": 3}
+    _write_manifest(storage_dir, manifest)
+
+    renders = set()
+    for _ in range(20):
+        rc, out = backup_plan(
+            tt,
+            "incremental",
+            storage_uri,
+            config=_config_path(tt_app),
+            fmt="table",
+        )
+        assert rc == 0, f"tt backup plan failed:\n{out}"
+        renders.add(out)
+
+    assert len(renders) == 1, f"table output varies between runs: {sorted(renders)}"

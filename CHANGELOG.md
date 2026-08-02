@@ -10,7 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - `tt backup start` and `tt backup finalize`: add support for creating and
-  finalizing local backup artifacts.
+  finalizing local backup artifacts. `--backup-id` must be a single safe path
+  component: it names a directory and a file on the node and an object key in
+  the storage, so an empty id, a path separator, a leading dot or an absolute
+  path is rejected before the instance is dialed.
 - `tt cluster topology`: add cluster topology discovery from a file, etcd, or
   Tarantool Config Storage with table and JSON output.
 - `tt backup last`: add support for displaying the latest backup manifest from
@@ -57,9 +60,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   backup chain. Unpacks the archives in order, stamps `--patch-uuid` into
   every snap/xlog header, and cuts the chain at `--target-point`: the xlog
   holding the point is truncated and the files starting past it are removed.
-  `--checksums` verifies the archives before anything is touched. Re-running
-  for the same point is idempotent, and only the files a restore owns are
-  cleared, so an instance config kept in the same directory survives. Exits
+  `--checksums` verifies the archives before anything is touched, and a chain
+  that is not one — archives out of order, a gap between an increment and its
+  base, or archives taken on different instances — is refused rather than
+  restored into a healthy-looking instance sitting at the wrong position.
+  Re-running for the same point is idempotent, and only the files a restore
+  owns are cleared, so an instance config kept in the same directory survives.
+  Exits
   with 2 when no xlog covers the point and 3 when an input is rejected, in
   which case the work directory is left as it was. A `restore_state.json`
   marker is written next to the work directory for the orchestrator to

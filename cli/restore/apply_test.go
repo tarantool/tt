@@ -103,6 +103,39 @@ func TestApply_PatchesVinylHeadersToo(t *testing.T) {
 	}
 }
 
+// The one file class the patch does not reach. An .inprogress journal -- the
+// WAL Tarantool had open when the backup was taken -- is named by its
+// extension, which is not one of the patched ones, so it lands still carrying
+// the backed-up master's UUID while every sibling is re-stamped. Cleanup does
+// own the extension, so a re-run stays consistent; what does not hold is the
+// invariant that everything the work directory ends up holding is the node's.
+func TestApply_InProgressEntryKeepsTheBackedUpMastersUUID(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	src := t.TempDir()
+	open := writeXlog(t, src, format.VClock{1: 2}, format.VClock{1: 0}, txsOf(1, 3))
+	require.NoError(t, os.Rename(open, open+".inprogress"))
+
+	result, err := Apply(ApplyOpts{
+		Archives: []string{packArchive(t, filepath.Join(t.TempDir(), "a.tar.zst"),
+			writeSnap(t, src, format.VClock{1: 0}),
+			writeXlog(t, src, format.VClock{1: 0}, nil, txsOf(1, 1, 2)),
+			open+".inprogress")},
+		WorkDir:   workDir,
+		PatchUUID: replicaUUID,
+	})
+	require.NoError(t, err)
+
+	require.Contains(t, result.Files, "00000000000000000002.xlog.inprogress")
+	require.Equal(t, 2, result.Patched, "the open journal is not among the stamped headers")
+
+	require.Equal(t, masterUUID,
+		readInstanceUUID(t, filepath.Join(workDir, "00000000000000000002.xlog.inprogress")))
+	require.Equal(t, replicaUUID,
+		readInstanceUUID(t, filepath.Join(workDir, "00000000000000000000.xlog")),
+		"its sibling of the same chain was re-stamped")
+}
+
 // Without --patch-uuid the headers keep the UUID they carry: the emergency
 // case, where the target UUID cannot be established.
 func TestApply_WithoutPatchUUIDKeepsHeaders(t *testing.T) {
@@ -133,6 +166,49 @@ func TestApply_TrimsFinalXlogAtPoint(t *testing.T) {
 		"earlier files must replay whole")
 	require.Equal(t, []rowKey{{1, 4}, {1, 5}},
 		readRows(t, filepath.Join(workDir, "00000000000000000003.xlog")))
+}
+
+// A point that falls exactly where the WAL rotated is one the chain can hit
+// exactly -- the previous journal ends there -- and the restore overshoots it
+// anyway: the lookup resolves "lsn 3" to the journal that *starts* at 3, and
+// the trim keeps whole the first transaction it reads, so the instance comes up
+// holding lsn 4, the transaction the operator asked to leave out. A point one
+// row lower is cut exactly, which is how narrow the window is.
+//
+// Flip the boundary case once the point resolves to the journal holding the row.
+func TestApply_PointOnAWalRotationBoundaryOvershootsIt(t *testing.T) {
+	// archiveChain(t) rotates at lsn 3: 0.xlog holds 1..3, 3.xlog holds 4..6.
+	tests := []struct {
+		name    string
+		point   Point
+		trimmed string
+		rows    []rowKey
+	}{
+		{
+			name:    "inside a journal the point is exact",
+			point:   Point{ReplicaID: 1, LSN: 2},
+			trimmed: "00000000000000000000.xlog",
+			rows:    []rowKey{{1, 1}, {1, 2}},
+		},
+		{
+			name:    "on the rotation boundary one transaction too many survives",
+			point:   Point{ReplicaID: 1, LSN: 3},
+			trimmed: "00000000000000000003.xlog",
+			rows:    []rowKey{{1, 4}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			workDir := filepath.Join(t.TempDir(), "instance-001")
+
+			result, err := Apply(applyOpts(t, workDir, &tc.point))
+			require.NoError(t, err)
+
+			require.Equal(t, tc.trimmed, result.TrimmedFile)
+			require.Equal(t, tc.rows, readRows(t, filepath.Join(workDir, tc.trimmed)))
+		})
+	}
 }
 
 // Row keys say which rows survived, not what they carry: a copy that shuffled
@@ -196,6 +272,86 @@ func TestApply_DropsFilesPastThePoint(t *testing.T) {
 
 	require.Equal(t, []rowKey{{1, 4}, {1, 5}},
 		readRows(t, filepath.Join(workDir, "00000000000000000003.xlog")))
+}
+
+// A recovery point names a replica, and a master's journals carry the whole
+// replicaset's positions, so the file holding lsn 3 of replica 2 is not the
+// file holding lsn 3 of replica 1. Resolving the point on the wrong axis
+// restores a shard that boots healthy at a position nobody asked for -- which
+// is invisible to every fixture whose journals mention one replica.
+func TestApply_MultiReplicaPointOnSecondaryAxis(t *testing.T) {
+	tests := []struct {
+		name    string
+		point   Point
+		trimmed string
+		rows    []rowKey
+	}{
+		{
+			name:    "on the replica the master's journals also carry",
+			point:   Point{ReplicaID: 2, LSN: 3},
+			trimmed: "00000000000000000006.xlog",
+			rows:    []rowKey{{2, 2}, {1, 6}, {2, 3}},
+		},
+		{
+			name:    "the same lsn on the master lands in another file",
+			point:   Point{ReplicaID: 1, LSN: 3},
+			trimmed: "00000000000000000000.xlog",
+			rows:    []rowKey{{1, 1}, {1, 2}, {2, 1}, {1, 3}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			workDir := filepath.Join(t.TempDir(), "instance-001")
+
+			result, err := Apply(ApplyOpts{
+				Archives:  []string{twoReplicaChain(t)},
+				WorkDir:   workDir,
+				Point:     &tc.point,
+				PatchUUID: replicaUUID,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, tc.trimmed, result.TrimmedFile)
+
+			// The rows of the other replica written before the point are part
+			// of the state it describes and stay; the ones after it go, whoever
+			// wrote them.
+			require.Equal(t, tc.rows, readRows(t, filepath.Join(workDir, tc.trimmed)))
+		})
+	}
+}
+
+// What is dropped past the point goes by the position each file name encodes --
+// the signature of every replica's LSN together -- and not by the LSN the point
+// names. On a multi-replica chain the two are different numbers, and taking the
+// point's would delete the very file the point sits in.
+func TestApply_DropsPastThePointBySignatureNotByReplicaLSN(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	// Signature 6 is where lsn 3 of replica 2 lives: 6 is above the point's 3
+	// and above the file's own {2: 1}, so either of those as the threshold
+	// takes the trimmed file down with the tail.
+	result, err := Apply(ApplyOpts{
+		Archives:  []string{twoReplicaChain(t)},
+		WorkDir:   workDir,
+		Point:     &Point{ReplicaID: 2, LSN: 3},
+		PatchUUID: replicaUUID,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"00000000000000000013.xlog"}, result.DroppedFiles)
+
+	require.ElementsMatch(t, []string{
+		"00000000000000000000.snap",
+		"00000000000000000000.xlog",
+		"00000000000000000006.xlog",
+	}, dirEntries(t, workDir))
+	require.ElementsMatch(t, result.Files, dirEntries(t, workDir))
+
+	require.Equal(t, []rowKey{{1, 1}, {1, 2}, {2, 1}, {1, 3}, {1, 4}, {1, 5}},
+		readRows(t, filepath.Join(workDir, "00000000000000000000.xlog")),
+		"a file wholly below the point replays whole on both axes")
 }
 
 // An entry name that is not already a base name is refused by the archive
@@ -391,6 +547,27 @@ func TestApply_WritesTheMarkerBesideARelativeWorkDir(t *testing.T) {
 
 	_, err = ReadState(".")
 	require.NoError(t, err)
+}
+
+// The marker is now written beside the directory a relative --work-dir names,
+// but the work_dir it records is still the spelling from the command line: a
+// marker written for "--work-dir ." says ".", and once it is collected off the
+// node it no longer says which directory it describes -- the one thing the
+// field is for. Flip this when the recorded path is resolved like its own.
+func TestApply_MarkerOfARelativeWorkDirRecordsItUnresolved(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
+
+	t.Chdir(workDir)
+
+	_, err := Apply(applyOpts(t, ".", nil))
+	require.NoError(t, err)
+
+	state, err := ReadState(".")
+	require.NoError(t, err)
+
+	require.Equal(t, ".", state.WorkDir,
+		"today the marker records the work directory unresolved")
 }
 
 // A run that dies partway must not leave the previous run's marker claiming

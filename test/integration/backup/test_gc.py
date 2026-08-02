@@ -1,10 +1,14 @@
 import json
+import os
+import re
 
 import pytest
 from backup_helpers import backup_gc
 from storage_helpers import (
+    PREFIXED_STORAGE_BACKENDS,
     STORAGE_BACKENDS,
     FileStorage,
+    add_shard,
     archive_key,
     days_ago,
     manifest_key,
@@ -279,17 +283,107 @@ def test_gc_deletes_old_dangling_archive(tt, tmp_path):
 def test_gc_keeps_archive_newer_than_every_manifest(tt, tmp_path):
     storage = FileStorage(str(tmp_path / "backups"))
     write_chain(storage, "2026-01-01-full", 60)
-    # A long-running upload: its archives are old, but its backup id is newer
-    # than every manifest, so they are not dangling.
+    # An upload in progress: archives land before the manifest that refers to
+    # them, so an archive written within --orphan-age whose backup id is above
+    # every manifest is not dangling.
     in_flight = archive_key("2026-02-28-uploading")
     storage.put(in_flight, b"uploading")
-    storage.set_age(in_flight, 30)
 
-    report = gc_json(tt, storage, keep_full=1, orphan_age="1h")
+    report = gc_json(tt, storage, keep_full=1, orphan_age="24h")
 
     assert orphan_keys(report) == []
     assert in_flight in storage.keys()
     assert any("newer than the newest manifest" in note for note in report["plan"]["notes"])
+
+
+def test_gc_collects_archive_newer_than_every_manifest_once_it_is_old(tt, tmp_path):
+    storage = FileStorage(str(tmp_path / "backups"))
+    write_chain(storage, "2026-01-01-full", 60)
+    # The same archive after a gc run was killed between the manifest delete and
+    # the archive delete: its id stays above every manifest forever, so the id
+    # alone must not shield it once it is past --orphan-age.
+    stranded = archive_key("2026-02-28-uploading")
+    storage.put(stranded, b"uploading")
+    storage.set_age(stranded, 30)
+
+    report = gc_json(tt, storage, keep_full=1, orphan_age="24h")
+
+    assert orphan_keys(report) == [stranded]
+    assert report["result"]["orphans_deleted"] == 1
+    assert stranded not in storage.keys()
+
+
+@pytest.mark.skipif(
+    os.getuid() == 0,
+    reason="Skipping the test, it shouldn't run as root",
+)
+def test_gc_reports_partial_completion_when_a_delete_is_denied(tt, tmp_path):
+    # A run that dies between the manifest delete and the archive delete has
+    # already changed the storage. Reporting what it managed to do, and naming
+    # the key it could not, is the difference between an operator who knows the
+    # storage no longer matches the last successful report and one who does not.
+    storage = FileStorage(str(tmp_path / "backups"))
+    write_chain(storage, "2026-01-01-full", 60)
+    write_chain(storage, "2026-02-20-full", 1)
+    doomed = archive_key("2026-01-01-full")
+    data = os.path.join(storage.root, "data")
+
+    os.chmod(data, 0o555)
+    try:
+        rc, out = backup_gc(tt, storage.uri, keep_full=1)
+    finally:
+        os.chmod(data, 0o755)
+
+    assert rc != GC_OK
+    assert "Deleted 1 backup(s), 0 archive(s)" in out
+    assert doomed in out
+    assert manifest_key("2026-01-01-full") not in storage.keys()
+    assert doomed in storage.keys()
+
+    # The archive the interrupted run left behind is collectable: a later run
+    # finishes the job instead of leaking it forever.
+    storage.set_age(doomed, 30)
+    report = gc_json(tt, storage, keep_full=1, orphan_age="24h")
+
+    assert orphan_keys(report) == [doomed]
+    assert doomed not in storage.keys()
+
+
+@pytest.mark.parametrize("storage", PREFIXED_STORAGE_BACKENDS, indirect=True)
+def test_gc_manages_a_prefixed_storage(tt, storage):
+    # Two clusters can share one bucket under different prefixes. Every key gc
+    # lists, plans and deletes is relative to the configured prefix, so a
+    # prefixed storage must be collected exactly like a bare one - not read as
+    # empty, which is indistinguishable from a working run that deletes nothing.
+    write_chain(storage, "2026-01-01-full", 60)
+    write_chain(storage, "2026-02-20-full", 1)
+
+    report = gc_json(tt, storage, keep_full=1)
+
+    assert deleted_backup_ids(report) == ["2026-01-01-full"]
+    assert report["result"]["archives_deleted"] == 1
+    assert storage.keys() == [
+        archive_key("2026-02-20-full"),
+        manifest_key("2026-02-20-full"),
+    ]
+
+
+def test_gc_table_reports_the_archive_count(tt, tmp_path):
+    # The archive count is the operator's only pre-deletion size signal, and a
+    # backup deletes one archive per shard rather than one archive.
+    storage = FileStorage(str(tmp_path / "backups"))
+    doomed = write_backup(storage, "2026-01-01-full", created=days_ago(60))
+    add_shard(storage, doomed)
+    write_chain(storage, "2026-02-20-full", 1)
+
+    rc, out = backup_gc(tt, storage.uri, keep_full=1, dry_run=True)
+    assert rc == GC_OK, out
+
+    report = gc_json(tt, storage, keep_full=1, dry_run=True)
+    planned = sum(len(deleted["archive_keys"]) for deleted in report["plan"]["backups"])
+
+    assert planned == 2, report
+    assert re.search(r"\bArchives:\s+(\d+)", out).group(1) == str(planned)
 
 
 def test_gc_table_format(tt, tmp_path):
@@ -330,3 +424,18 @@ def test_gc_missing_backup_storage_flag(tt):
 
     assert rc != GC_OK
     assert "required" in out.lower()
+
+
+def test_gc_timeout_expires(tt, tmp_path):
+    storage = FileStorage(str(tmp_path / "backups"))
+    write_chain(storage, "2026-01-01-full", 1)
+
+    rc, out = backup_gc(tt, storage.uri, keep_full=1, timeout="1ns")
+
+    assert rc != GC_OK
+    assert "context deadline exceeded" in out.lower()
+    # A run that timed out must not have deleted anything.
+    assert storage.keys() == [
+        archive_key("2026-01-01-full"),
+        manifest_key("2026-01-01-full"),
+    ]
