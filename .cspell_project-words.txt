@@ -90,6 +90,7 @@ preinst
 promptui
 protoc
 pseudographics
+randomises
 rebootstrap
 regexputil
 replicaid

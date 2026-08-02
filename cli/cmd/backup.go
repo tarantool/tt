@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -536,10 +538,51 @@ func printManifestTable(manifest *backup.ClusterManifest) {
 		log.Infof("  Base full backup: %s", manifest.BaseFullBackupID)
 	}
 	log.Infof("  Created:          %s", manifest.CreationTime.Format(time.RFC3339))
-	log.Infof("  Shards:           %d", len(manifest.Shards))
+
+	backedUp, failed := splitManifestShards(manifest)
+	total := len(backedUp) + len(failed)
+
+	log.Infof("  Shards:           %d of %d backed up", len(backedUp), total)
+	for _, replicasetUUID := range failed {
+		log.Warnf("    no backup for replicaset %s: %s",
+			replicasetUUID, shardFailure(manifest.Shards[replicasetUUID]))
+	}
+
 	if len(manifest.Warnings) > 0 {
 		log.Infof("  Warnings:         %d", len(manifest.Warnings))
+		for _, warning := range manifest.Warnings {
+			log.Warnf("    [%s] %s", warning.Code, warning.Message)
+		}
 	}
+}
+
+// splitManifestShards separates the replicasets the manifest has a backup for
+// from the ones it only carries an error for, both ordered by uuid. A shard
+// that produced nothing must never be counted as backed up: an operator who
+// reads the total as "the backup is complete" finds the replicaset missing at
+// restore time, when the local archives are long gone.
+func splitManifestShards(manifest *backup.ClusterManifest) (backedUp, failed []string) {
+	for _, replicasetUUID := range slices.Sorted(maps.Keys(manifest.Shards)) {
+		if manifest.Shards[replicasetUUID].Instance != nil {
+			backedUp = append(backedUp, replicasetUUID)
+			continue
+		}
+
+		failed = append(failed, replicasetUUID)
+	}
+
+	return backedUp, failed
+}
+
+// shardFailure explains why a shard has no backup. A shard carrying neither an
+// instance nor an error is malformed rather than backed up, so it gets named
+// too instead of being reported as an empty reason.
+func shardFailure(shard backup.Shard) string {
+	if shard.Error == "" {
+		return "no instance recorded"
+	}
+
+	return shard.Error
 }
 
 func newBackupVerifyCmd() *cobra.Command {
@@ -881,6 +924,14 @@ func applyBackupConfig(localCfg string) error {
 		return fmt.Errorf("failed to load config %q: %w", localCfg, err)
 	}
 
+	// A missing file is answered with the built-in defaults and an empty path,
+	// so the flag would be silently ignored and the run would fail much later
+	// with "tt.yaml not found" -- sending the operator to look in the cwd for a
+	// config the job passed by an explicit path.
+	if configPath == "" {
+		return fmt.Errorf("config file %q does not exist", localCfg)
+	}
+
 	cmdCtx.Cli.ConfigPath = configPath
 	cliOpts = opts
 
@@ -1041,6 +1092,15 @@ func runBackupPlan(cmd *cobra.Command, args []string) error {
 			backupPlanFormat, formatTable, formatJSON)
 	}
 
+	// A full plan never reads the storage, so a typo'd URI would survive the
+	// plan and only surface a whole backup window later, at upload, with every
+	// archive already built. Parsing is enough to catch it and costs no
+	// connection.
+	storageCfg, err := backup.ParseStorageURI(backupStorageConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse storage URI: %w", err)
+	}
+
 	connectCtx := connect.ConnectCtx{
 		Username:    replicasetUser,
 		Password:    replicasetPassword,
@@ -1063,7 +1123,7 @@ func runBackupPlan(cmd *cobra.Command, args []string) error {
 	// For incremental: load the chain, check problems, pass the latest manifest.
 	var latest *backup.ClusterManifest
 	if target == backup.BackupTypeIncremental {
-		latest, err = getLastFromChain(ctx, backupStorageConfig)
+		latest, err = getLastFromChain(ctx, storageCfg)
 		if err != nil {
 			return fmt.Errorf("failed to get latest backup: %w", err)
 		}
@@ -1082,12 +1142,10 @@ func runBackupPlan(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getLastFromChain(ctx context.Context, storageUri string) (*backup.ClusterManifest, error) {
-	storageCfg, err := backup.ParseStorageURI(storageUri)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse storage URI: %w", err)
-	}
-
+func getLastFromChain(
+	ctx context.Context,
+	storageCfg *backup.StorageConfig,
+) (*backup.ClusterManifest, error) {
 	store, err := backup.OpenStorage(storageCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open storage: %w", err)
@@ -1174,7 +1232,11 @@ func printPlanTable(plan *backup.BackupPlan) {
 	}
 	if len(plan.Replicasets) > 0 {
 		log.Infof("  Replicasets:       %d", len(plan.Replicasets))
-		for uuid, rs := range plan.Replicasets {
+		// Ordered by uuid: map iteration order would otherwise reshuffle the
+		// table between two runs of the same plan, and a cron job diffing its
+		// output would see changes that are not there.
+		for _, uuid := range slices.Sorted(maps.Keys(plan.Replicasets)) {
+			rs := plan.Replicasets[uuid]
 			log.Infof("    %s", uuid)
 			log.Infof("      Master UUID:   %s", rs.MasterInstanceUUID)
 			log.Infof("      Master name:   %s", rs.MasterInstanceName)
@@ -1185,11 +1247,13 @@ func printPlanTable(plan *backup.BackupPlan) {
 	}
 }
 
-// formatVclock renders a Vclock as {1:1500,2:230} for table output.
+// formatVclock renders a Vclock as {1:1500,2:230} for table output, ordered by
+// replica id so that the same vclock always renders as the same string.
 func formatVclock(vc backup.Vclock) string {
 	parts := make([]string, 0, len(vc))
-	for id, lsn := range vc {
-		parts = append(parts, fmt.Sprintf("%d:%d", id, lsn))
+	for _, id := range slices.Sorted(maps.Keys(vc)) {
+		parts = append(parts, fmt.Sprintf("%d:%d", id, vc[id]))
 	}
+
 	return "{" + strings.Join(parts, ",") + "}"
 }
