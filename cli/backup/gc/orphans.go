@@ -10,25 +10,42 @@ import (
 	"github.com/tarantool/tt/cli/backup/storage"
 )
 
-// danglingArchives lists archives that no manifest refers to and that are old
-// enough to delete, plus the notes explaining what was skipped.
-func danglingArchives(
+// archiveScan is what one pass over data/ tells gc.
+type archiveScan struct {
+	// orphans are the archives no manifest refers to and that are old enough to
+	// delete.
+	orphans []Orphan
+	// stored is every key the listing showed. A key the manifests name but the
+	// storage does not hold is not an archive gc can free, and the same listing
+	// answers that without a read per object.
+	stored map[string]struct{}
+	// notes explain the archives the pass deliberately kept.
+	notes []string
+}
+
+// scanArchives lists data/ once and works out both halves of what gc needs from
+// it: which archives are dangling, and which keys the storage really holds.
+func scanArchives(
 	ctx context.Context,
 	store storage.Storage,
 	backupChain *chain.Chain,
 	opts Options,
-) ([]Orphan, []string, error) {
-	orphans := make([]Orphan, 0)
-	notes := make([]string, 0)
+) (archiveScan, error) {
+	scan := archiveScan{
+		orphans: make([]Orphan, 0),
+		stored:  make(map[string]struct{}),
+		notes:   make([]string, 0),
+	}
 
 	if !opts.hasRetentionRule() {
-		// The run is a no-op as a whole; planNotes already said why.
-		return orphans, notes, nil
+		// The run is a no-op as a whole; planNotes already said why. Such a run
+		// deletes nothing, so it owes the storage no LIST either.
+		return scan, nil
 	}
 
 	objects, err := store.List(ctx, storage.DataPrefix())
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list archives: %w", err)
+		return scan, fmt.Errorf("failed to list archives: %w", err)
 	}
 
 	referenced := referencedArchives(backupChain)
@@ -38,6 +55,8 @@ func danglingArchives(
 	inFlight, unknown := 0, 0
 
 	for _, object := range objects {
+		scan.stored[object.Key] = struct{}{}
+
 		if _, ok := referenced[object.Key]; ok {
 			continue
 		}
@@ -48,7 +67,7 @@ func danglingArchives(
 		case archiveUnknown:
 			unknown++
 		case archiveOrphan:
-			orphans = append(orphans, Orphan{
+			scan.orphans = append(scan.orphans, Orphan{
 				Key:          object.Key,
 				LastModified: object.LastModified,
 			})
@@ -56,7 +75,9 @@ func danglingArchives(
 		}
 	}
 
-	return orphans, append(notes, orphanNotes(inFlight, unknown, newest == "")...), nil
+	scan.notes = append(scan.notes, orphanNotes(inFlight, unknown, newest == "")...)
+
+	return scan, nil
 }
 
 // archiveVerdict is why a listed archive is or is not collected.
