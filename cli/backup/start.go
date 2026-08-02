@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/tarantool/go-iproto"
+	"github.com/tarantool/go-tarantool"
 
 	"github.com/tarantool/tt/cli/backup/archive"
 	"github.com/tarantool/tt/cli/connector"
@@ -110,7 +114,8 @@ func buildArchive(
 }
 
 // openBackup fails loud if box.backup is already open (ErrAlreadyInProgress,
-// no silent cleanup), otherwise opens it and returns box.backup.info().
+// no silent cleanup, whether the pre-check or the instance itself catches it),
+// otherwise opens it and returns box.backup.info().
 func openBackup(conn connector.Connector, opts BackupStartOpts) (*BackupInfo, error) {
 	info, err := GetInfo(conn)
 	if err != nil {
@@ -124,6 +129,14 @@ func openBackup(conn connector.Connector, opts BackupStartOpts) (*BackupInfo, er
 		FromVclock: opts.FromVclock,
 		TTL:        opts.TTL,
 	}); err != nil {
+		// The check above cannot catch a run that lost the race after it: both
+		// starts read an empty box.backup.info() and only the instance rejects
+		// the second one. That loser is exactly as stuck as one the check
+		// caught, and the caller routes to its stuck-backup branch on the
+		// sentinel alone, so the instance-side refusal has to carry it too.
+		if isAlreadyInProgress(err) {
+			return nil, fmt.Errorf("%w: %w", ErrAlreadyInProgress, err)
+		}
 		return nil, fmt.Errorf("failed to open backup: %w", err)
 	}
 
@@ -137,6 +150,34 @@ func openBackup(conn connector.Connector, opts BackupStartOpts) (*BackupInfo, er
 	}
 
 	return info, nil
+}
+
+// isAlreadyInProgress reports whether the instance refused box.backup.start()
+// because a backup is already open there. ER_BACKUP_IN_PROGRESS is the stable
+// signal and is checked both in the response header and in the box.error
+// object, which keeps the original code when Lua re-raises the failure. The
+// message is the fallback for connections that deliver the instance's error
+// as plain text, with no code to inspect.
+func isAlreadyInProgress(err error) bool {
+	const (
+		code = uint32(iproto.ER_BACKUP_IN_PROGRESS)
+		// Lowercased, so the match survives a change of case upstream.
+		msg = "backup is already in progress"
+	)
+
+	var tntErr tarantool.Error
+	if errors.As(err, &tntErr) {
+		if tntErr.Code == code {
+			return true
+		}
+		for boxErr := tntErr.ExtendedInfo; boxErr != nil; boxErr = boxErr.Prev {
+			if boxErr.Code == uint64(code) {
+				return true
+			}
+		}
+	}
+
+	return strings.Contains(strings.ToLower(err.Error()), msg)
 }
 
 // resolveInstance fetches instance metadata (UUIDs, name, and data dirs) and
