@@ -149,6 +149,92 @@ func TestListEmpty(t *testing.T) {
 	require.Empty(t, objects)
 }
 
+// A storage the operator named must exist. A typo in --backup-storage reported
+// as an empty listing tells a cron job "the daemon never ran", and tt backup
+// plan --target=incremental answers that with "use --target=full", i.e. reset
+// the chain against the wrong path.
+func TestListMissingRootIsError(t *testing.T) {
+	s, err := New(Config{Path: filepath.Join(t.TempDir(), "typo")})
+	require.NoError(t, err)
+
+	_, err = s.List(t.Context(), storage.ManifestsPrefix())
+	require.ErrorIs(t, err, errRootNotFound)
+}
+
+func TestListRootIsFileIsError(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "regular")
+	require.NoError(t, os.WriteFile(root, []byte("not a storage"), 0o644))
+
+	s, err := New(Config{Path: root})
+	require.NoError(t, err)
+
+	_, err = s.List(t.Context(), storage.ManifestsPrefix())
+	require.ErrorIs(t, err, errNotDirectory)
+}
+
+// A file where manifests/ belongs is walked as the file itself, and the key
+// "manifests" fails the "manifests/" prefix test - which used to leave an empty
+// listing indistinguishable from a storage holding no backups.
+func TestListPrefixShadowedByFileIsError(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "manifests"), []byte("x"), 0o644))
+
+	s, err := New(Config{Path: root})
+	require.NoError(t, err)
+
+	_, err = s.List(t.Context(), storage.ManifestsPrefix())
+	require.ErrorIs(t, err, errNotDirectory)
+}
+
+// The first-upload case: the root is there, nothing has been stored in it yet.
+func TestListEmptyRootWithoutPrefix(t *testing.T) {
+	s, err := New(Config{Path: t.TempDir()})
+	require.NoError(t, err)
+
+	objects, err := s.List(t.Context(), storage.ManifestsPrefix())
+	require.NoError(t, err)
+	require.Empty(t, objects)
+}
+
+// Mid-first-upload: archives are stored before the manifest, so data/ exists
+// while manifests/ does not. That is an empty listing, not a broken storage -
+// gc's "no manifest stored yet" protection depends on it.
+func TestListMissingPrefixDirIsEmpty(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+
+	s, err := New(Config{Path: root})
+	require.NoError(t, err)
+
+	archive := []byte("archive")
+	require.NoError(t, s.Put(ctx, storage.ArchiveKey("first", "rs1"),
+		bytes.NewReader(archive), int64(len(archive))))
+	require.NoDirExists(t, filepath.Join(root, "manifests"))
+
+	objects, err := s.List(ctx, storage.ManifestsPrefix())
+	require.NoError(t, err)
+	require.Empty(t, objects)
+}
+
+// The root stays lazily created: requiring it on the read path must not make a
+// first backup into a fresh directory fail.
+func TestPutCreatesMissingRoot(t *testing.T) {
+	ctx := t.Context()
+	root := filepath.Join(t.TempDir(), "fresh")
+
+	s, err := New(Config{Path: root})
+	require.NoError(t, err)
+
+	key := storage.ManifestKey("fresh")
+	data := []byte(`{"ok":true}`)
+	require.NoError(t, s.Put(ctx, key, bytes.NewReader(data), int64(len(data))))
+
+	objects, err := s.List(ctx, storage.ManifestsPrefix())
+	require.NoError(t, err)
+	require.Len(t, objects, 1)
+	require.Equal(t, key, objects[0].Key)
+}
+
 func TestListWithObjectPrefix(t *testing.T) {
 	ctx := t.Context()
 	s := newTestStorage(t, t.TempDir())
