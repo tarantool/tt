@@ -137,15 +137,32 @@ func writeFile(tw *tar.Writer, path string) error {
 	return nil
 }
 
-// ensureLocal rejects archive entry names that would escape the extraction
-// directory (path traversal / "zip slip"): absolute paths, names containing a
-// ".." component, and (on Windows) reserved names. Pack only ever stores base
-// names, but Unpack/Entries decode arbitrary, possibly hostile archives.
-func ensureLocal(name string) error {
-	if !filepath.IsLocal(name) {
+// ensureBaseName rejects any archive entry name that is not a bare file name:
+// absolute paths, ".." traversal, "./" prefixes, subdirectory components and
+// (on Windows) reserved names. Pack only ever stores base names, but
+// Unpack/Entries decode arbitrary, possibly hostile archives, and a consumer
+// that creates the parent directories of a name like "sub/evil.xlog" writes
+// outside the destination as soon as one component is a pre-existing symlink.
+func ensureBaseName(name string) error {
+	if !filepath.IsLocal(name) || name != filepath.Base(name) {
 		return fmt.Errorf("unsafe archive entry name %q", name)
 	}
 	return nil
+}
+
+// checkEntry validates a tar header for both readers. A directory entry carries
+// no content and is skipped; any other non-regular entry is rejected, so an
+// archive holding a symlink where a journal belongs can never be read as a
+// shorter but healthy one.
+func checkEntry(header *tar.Header) (skip bool, err error) {
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return true, nil
+	case tar.TypeReg:
+		return false, ensureBaseName(header.Name) //nolint:wrapcheck
+	default:
+		return false, fmt.Errorf("unsupported tar entry %q (type %d)", header.Name, header.Typeflag)
+	}
 }
 
 // openArchive opens src and returns a tar reader over its zstd-decompressed
@@ -186,28 +203,26 @@ func Unpack(src, destDir string) error {
 			return fmt.Errorf("failed to read tar entry: %w", err)
 		}
 
-		switch header.Typeflag {
-		case tar.TypeDir:
+		skip, err := checkEntry(header)
+		if err != nil {
+			return err //nolint:wrapcheck
+		}
+		if skip {
 			continue
-		case tar.TypeReg:
-			if err := extractFile(tr, header, destDir); err != nil {
-				return fmt.Errorf("failed to extract %q: %w", header.Name, err)
-			}
-		default:
-			return fmt.Errorf("unsupported tar entry %q (type %d)", header.Name, header.Typeflag)
+		}
+
+		if err := extractFile(tr, header, destDir); err != nil {
+			return fmt.Errorf("failed to extract %q: %w", header.Name, err)
 		}
 	}
 	return nil
 }
 
-// extractFile writes one tar entry into destDir, creating parent dirs.
+// extractFile writes one tar entry into destDir, which it creates if missing.
+// The entry name is a validated base name, so nothing below destDir is created.
 func extractFile(tr *tar.Reader, header *tar.Header, destDir string) error {
-	if err := ensureLocal(header.Name); err != nil {
-		return fmt.Errorf("refusing unsafe entry: %w", err)
-	}
-
 	target := filepath.Join(destDir, header.Name)
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
@@ -249,13 +264,13 @@ func Entries(src string) iter.Seq2[Entry, error] {
 				return
 			}
 
-			if header.Typeflag != tar.TypeReg {
-				continue
-			}
-
-			if err := ensureLocal(header.Name); err != nil {
+			skip, err := checkEntry(header)
+			if err != nil {
 				yield(Entry{}, err)
 				return
+			}
+			if skip {
+				continue
 			}
 
 			entry := Entry{
