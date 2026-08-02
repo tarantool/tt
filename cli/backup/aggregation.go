@@ -126,6 +126,14 @@ func newClusterManifest(in AggregateInput) *ClusterManifest {
 func aggregateShard(manifest *ClusterManifest, shardInput *ShardInput) error {
 	replicasetUUID := shardInput.ReplicasetUUID
 
+	// A second input for one replicaset would overwrite the first, and the
+	// shard count checks see the collapsed map, not the input: the manifest
+	// would lose a whole shard with status OK and no warning, orphaning its
+	// archive for good.
+	if _, ok := manifest.Shards[replicasetUUID]; ok {
+		return fmt.Errorf("duplicate replicaset_uuid %q in shard inputs", replicasetUUID)
+	}
+
 	if shardInput.Fragment == nil {
 		aggregateFailedShard(manifest, replicasetUUID, shardInput.Err)
 		return nil
