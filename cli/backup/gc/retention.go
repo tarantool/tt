@@ -258,6 +258,45 @@ func backupOf(manifest *backup.ClusterManifest) Backup {
 // another chain's manifest included - and gc would delete it as if it were an
 // archive it had uploaded itself.
 func keepKeysUnderTheDataPrefix(backups []Backup) ([]Backup, []string) {
+	return keepArchiveKeys(backups, func(deleted Backup, key string) string {
+		if strings.HasPrefix(key, storage.DataPrefix()) {
+			return ""
+		}
+
+		return fmt.Sprintf(
+			"backup %q names %q, which is not an archive under %s: the "+
+				"manifest is malformed and the path was left alone",
+			deleted.BackupID, key, storage.DataPrefix(),
+		)
+	})
+}
+
+// keepKeysTheStorageHolds drops from the plan every archive key the storage does
+// not hold. Such a key frees nothing - a manifest may name an object no upload
+// ever wrote, or one an earlier run removed - while Delete answers OK for it all
+// the same, so leaving it in would make the run count a deletion that did not
+// happen and promise an operator bytes it cannot free.
+func keepKeysTheStorageHolds(backups []Backup, stored map[string]struct{}) ([]Backup, []string) {
+	return keepArchiveKeys(backups, func(deleted Backup, key string) string {
+		if _, ok := stored[key]; ok {
+			return ""
+		}
+
+		return fmt.Sprintf(
+			"backup %q names %q, which the storage does not hold: nothing was "+
+				"deleted for it and nothing is counted as freed",
+			deleted.BackupID, key,
+		)
+	})
+}
+
+// keepArchiveKeys drops from every backup of the plan the archive keys rejected
+// gives a reason for, and returns those reasons as the run's notes. What makes a
+// key undeletable differs from rule to rule; the bookkeeping does not.
+func keepArchiveKeys(
+	backups []Backup,
+	rejected func(deleted Backup, key string) string,
+) ([]Backup, []string) {
 	kept := make([]Backup, 0, len(backups))
 	notes := make([]string, 0)
 
@@ -265,12 +304,8 @@ func keepKeysUnderTheDataPrefix(backups []Backup) ([]Backup, []string) {
 		archives := make([]string, 0, len(deleted.ArchiveKeys))
 
 		for _, key := range deleted.ArchiveKeys {
-			if !strings.HasPrefix(key, storage.DataPrefix()) {
-				notes = append(notes, fmt.Sprintf(
-					"backup %q names %q, which is not an archive under %s: the "+
-						"manifest is malformed and the path was left alone",
-					deleted.BackupID, key, storage.DataPrefix(),
-				))
+			if note := rejected(deleted, key); note != "" {
+				notes = append(notes, note)
 
 				continue
 			}

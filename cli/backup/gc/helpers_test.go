@@ -38,7 +38,13 @@ type memoryStorage struct {
 	// whose listing lags behind its reads.
 	hiddenFromList map[string]bool
 	listErr        error
-	deleteErr      map[string]error
+	// listErrByPrefix fails one prefix only, the way a bucket policy grants
+	// manifests/ and denies data/.
+	listErrByPrefix map[string]error
+	deleteErr       map[string]error
+	// getErr fails a read with something other than "no such key": a 5xx, a
+	// throttled bucket, an expired credential.
+	getErr map[string]error
 	// deletes and gets record the calls in order.
 	deletes []string
 	gets    []string
@@ -46,16 +52,22 @@ type memoryStorage struct {
 
 func newMemoryStorage() *memoryStorage {
 	return &memoryStorage{
-		objects:        make(map[string][]byte),
-		modified:       make(map[string]time.Time),
-		hiddenFromList: make(map[string]bool),
-		deleteErr:      make(map[string]error),
+		objects:         make(map[string][]byte),
+		modified:        make(map[string]time.Time),
+		hiddenFromList:  make(map[string]bool),
+		listErrByPrefix: make(map[string]error),
+		deleteErr:       make(map[string]error),
+		getErr:          make(map[string]error),
 	}
 }
 
 func (s *memoryStorage) List(_ context.Context, prefix string) ([]storage.ObjectInfo, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
+	}
+
+	if err := s.listErrByPrefix[prefix]; err != nil {
+		return nil, err
 	}
 
 	objects := make([]storage.ObjectInfo, 0)
@@ -80,6 +92,10 @@ func (s *memoryStorage) List(_ context.Context, prefix string) ([]storage.Object
 
 func (s *memoryStorage) Get(_ context.Context, key string) (io.ReadCloser, error) {
 	s.gets = append(s.gets, key)
+
+	if err := s.getErr[key]; err != nil {
+		return nil, err
+	}
 
 	data, ok := s.objects[key]
 	if !ok {
@@ -146,6 +162,10 @@ type backupSpec struct {
 	vclockBegin uint64
 	vclockEnd   uint64
 	replicasets []string
+	// failedReplicasets are stored as a shard error instead of an instance, the
+	// way a degraded backup records a replicaset it could not reach. They own no
+	// archive.
+	failedReplicasets []string
 	// noCreationTime stores a manifest without the optional creation_time field.
 	noCreationTime bool
 }
@@ -205,24 +225,42 @@ func (f *fixture) addBackup(spec backupSpec) *backup.ClusterManifest {
 	}
 
 	for _, replicasetUUID := range spec.replicasets {
-		instanceUUID := masterA
-		if replicasetUUID == replicasetB {
-			instanceUUID = masterB
-		}
-
-		manifest.Topology.Replicasets[replicasetUUID] = []backup.TopologyInstance{{
-			InstanceUUID: instanceUUID,
-			InstanceName: instanceUUID,
-			Hostname:     "localhost",
-		}}
+		instanceUUID := instanceOf(replicasetUUID)
+		manifest.Topology.Replicasets[replicasetUUID] = topologyOf(instanceUUID)
 		manifest.Shards[replicasetUUID] = backup.Shard{
 			Instance: f.shardInstance(spec, replicasetUUID, instanceUUID),
 		}
 	}
 
+	for _, replicasetUUID := range spec.failedReplicasets {
+		manifest.Topology.Replicasets[replicasetUUID] = topologyOf(instanceOf(replicasetUUID))
+		manifest.Shards[replicasetUUID] = backup.Shard{Error: "replicaset unreachable"}
+		manifest.Status = backup.StatusDegraded
+		manifest.Warnings = append(manifest.Warnings,
+			backup.NewShardUnreachableWarning(replicasetUUID))
+	}
+
 	f.putObject(storage.ManifestKey(spec.id), f.encode(manifest), testNow.Add(-spec.age))
 
 	return manifest
+}
+
+// instanceOf returns the master instance the fixtures give a replicaset.
+func instanceOf(replicasetUUID string) string {
+	if replicasetUUID == replicasetB {
+		return masterB
+	}
+
+	return masterA
+}
+
+// topologyOf describes a single-instance replicaset.
+func topologyOf(instanceUUID string) []backup.TopologyInstance {
+	return []backup.TopologyInstance{{
+		InstanceUUID: instanceUUID,
+		InstanceName: instanceUUID,
+		Hostname:     "localhost",
+	}}
 }
 
 // shardInstance writes the archive of one shard and describes it.

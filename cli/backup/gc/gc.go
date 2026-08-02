@@ -80,7 +80,10 @@ func (p *Plan) Archives() int {
 	return archives
 }
 
-// Result is what a gc run actually deleted.
+// Result is what a gc run actually deleted. Deleting a key that does not exist
+// is a success on every backend, so the counts can only be as honest as the
+// plan: BuildPlan keeps out of it the keys the storage does not hold, and this
+// is the one number that tells an operator a destructive run did what it said.
 type Result struct {
 	// Backups is the number of backups whose manifest was deleted.
 	Backups int `json:"backups_deleted"`
@@ -135,13 +138,26 @@ func BuildPlan(
 	plan.Backups = backups
 	plan.Notes = append(plan.Notes, keptNotes...)
 
-	orphans, notes, err := danglingArchives(ctx, store, backupChain, opts)
+	scan, err := scanArchives(ctx, store, backupChain, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect dangling archives: %w", err)
 	}
 
-	plan.Orphans = orphans
-	plan.Notes = append(plan.Notes, notes...)
+	plan.Orphans = scan.orphans
+
+	// The listing scanArchives already did also says which of the keys the
+	// manifests name the storage really holds, so the check costs no read per
+	// object. The listing is trusted in this direction only: one that lags behind
+	// a write leaves an archive for the next run to collect, while deleting on
+	// the strength of a stale listing cannot be taken back - which is why
+	// deleteOrphan re-reads the manifest instead.
+	//
+	// The plan is empty here whenever the run has no retention rule, which is
+	// exactly when scanArchives lists nothing.
+	backups, absentNotes := keepKeysTheStorageHolds(plan.Backups, scan.stored)
+	plan.Backups = backups
+	plan.Notes = append(plan.Notes, absentNotes...)
+	plan.Notes = append(plan.Notes, scan.notes...)
 
 	return plan, nil
 }
