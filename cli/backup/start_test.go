@@ -15,6 +15,8 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
+	"github.com/tarantool/go-iproto"
+	"github.com/tarantool/go-tarantool"
 
 	"github.com/tarantool/tt/cli/backup/archive"
 	"github.com/tarantool/tt/cli/connector"
@@ -492,6 +494,63 @@ func TestStartBackup_startError(t *testing.T) {
 
 	_, err := Start(m, BackupStartOpts{BackupID: "bid"})
 	require.ErrorContains(t, err, "boom")
+}
+
+// The pre-check cannot catch a run that lost the race after it: both starts
+// read an empty box.backup.info() and only the instance rejects the second.
+// That loser is exactly as stuck as one the pre-check caught, so it has to
+// carry the same error -- runBackupStart routes ErrAlreadyInProgress to exit
+// 2, and an orchestrator keys its stuck-backup branch on that code alone.
+func TestStartBackup_mapsInstanceSideAlreadyInProgress(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	m := &mockEvaler{errOn: 2, err: errors.New(
+		"Backup is already in progress (ClientError, code 0x81), see eval line 1")}
+	m.queue = [][]any{nil}
+
+	_, err := Start(m, BackupStartOpts{BackupID: "bid"})
+
+	require.ErrorIs(t, err, ErrAlreadyInProgress)
+}
+
+// TestStartBackup_mapsAlreadyInProgressByErrorCode pins the signal the mapping
+// is meant to key on: ER_BACKUP_IN_PROGRESS survives message rewording across
+// Tarantool versions, so a refusal must be recognised by its code alone.
+func TestStartBackup_mapsAlreadyInProgressByErrorCode(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "response code",
+			err: tarantool.Error{
+				Code: uint32(iproto.ER_BACKUP_IN_PROGRESS),
+				Msg:  "reworded in a later version",
+			},
+		},
+		{
+			name: "box error code",
+			err: tarantool.Error{
+				Code: uint32(iproto.ER_PROC_LUA),
+				Msg:  "reworded in a later version",
+				ExtendedInfo: &tarantool.BoxError{
+					Type: "ClientError",
+					Code: uint64(iproto.ER_BACKUP_IN_PROGRESS),
+					Msg:  "reworded in a later version",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TMPDIR", t.TempDir())
+			m := &mockEvaler{errOn: 2, err: tc.err, queue: [][]any{nil}}
+
+			_, err := Start(m, BackupStartOpts{BackupID: "bid"})
+
+			require.ErrorIs(t, err, ErrAlreadyInProgress)
+		})
+	}
 }
 
 // TestStartBackup_cleansUpOnFragmentWriteFailure checks that if writing the
