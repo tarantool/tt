@@ -29,6 +29,8 @@ const staleTempFileAge = 24 * time.Hour
 var (
 	errPathRequired = errors.New("fs storage path is required")
 	errNegativeSize = errors.New("fs object size must be non-negative")
+	errRootNotFound = errors.New("storage root does not exist")
+	errNotDirectory = errors.New("storage path is not a directory")
 )
 
 // Config describes local filesystem storage configuration.
@@ -39,6 +41,12 @@ type Config struct {
 
 // Storage is a local filesystem backup storage backend.
 type Storage struct {
+	// base is the configured path, prefix excluded. Listing requires it to exist
+	// as a directory: an operator points at it explicitly, so a missing one is a
+	// misconfigured storage rather than an empty one.
+	base string
+	// root is base joined with the prefix. It, and everything below it, is created
+	// on demand by Put, so its absence only means nothing has been stored yet.
 	root string
 	// sweepOnce keeps the stale-temp-file sweep on the write path: a process that
 	// never puts anything must not delete anything either.
@@ -46,31 +54,34 @@ type Storage struct {
 }
 
 // New opens local filesystem backup storage.
-// The root directory is created lazily on the first Put call.
+// The root directory is created lazily on the first Put call; List, by contrast,
+// requires the configured path to exist, so a misconfigured storage cannot read
+// as an empty one.
 func New(cfg Config) (*Storage, error) {
-	root := strings.TrimSpace(cfg.Path)
-	if root == "" {
+	base := strings.TrimSpace(cfg.Path)
+	if base == "" {
 		return nil, errPathRequired
 	}
 
+	// Resolve the base to an absolute path once so path-escape checks are
+	// independent of the process working directory at call time.
+	base, err := filepath.Abs(base)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve storage root %q: %w", cfg.Path, err)
+	}
+
+	root := base
 	if cfg.Prefix != "" {
 		prefix, err := storage.CleanPrefix(cfg.Prefix)
 		if err != nil {
 			return nil, fmt.Errorf("failed to clean storage prefix %q: %w", cfg.Prefix, err)
 		}
 		if prefix != "" {
-			root = filepath.Join(root, filepath.FromSlash(strings.TrimRight(prefix, "/")))
+			root = filepath.Join(base, filepath.FromSlash(strings.TrimRight(prefix, "/")))
 		}
 	}
 
-	// Resolve root to an absolute path once so path-escape checks are independent
-	// of the process working directory at call time.
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve storage root %q: %w", cfg.Path, err)
-	}
-
-	return &Storage{root: root}, nil
+	return &Storage{base: base, root: root}, nil
 }
 
 // sweepStaleTempFiles best-effort removes temp files left behind by interrupted
@@ -106,6 +117,10 @@ func (s *Storage) sweepStaleTempFiles() {
 }
 
 // List returns objects whose keys start with the given prefix, sorted by key.
+// A storage whose configured path is missing, or is shadowed by something that
+// is not a directory, is an error: reported as an empty listing it would make a
+// typo in the storage URI read as "nothing was ever backed up here", which is
+// what tt backup plan answers with "start a new chain".
 func (s *Storage) List(ctx context.Context, prefix string) ([]storage.ObjectInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("failed to list prefix %q: %w", prefix, err)
@@ -116,15 +131,21 @@ func (s *Storage) List(ctx context.Context, prefix string) ([]storage.ObjectInfo
 		return nil, fmt.Errorf("failed to clean list prefix %q: %w", prefix, err)
 	}
 
+	if err := s.checkBase(); err != nil {
+		return nil, fmt.Errorf("failed to list prefix %q: %w", cleanPrefix, err)
+	}
+
 	root := filepath.Join(s.root, filepath.FromSlash(path.Dir(cleanPrefix)))
 
 	objects := make([]storage.ObjectInfo, 0)
-	if _, err := os.Stat(root); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return objects, nil
-		}
-
+	// Below the base everything is created on demand, so an absent prefix
+	// directory is a genuinely empty listing: that is how a storage looks before
+	// its first upload, and mid-upload with data/ written and no manifest yet.
+	switch exists, err := statDir(root); {
+	case err != nil:
 		return nil, fmt.Errorf("failed to stat prefix %q: %w", cleanPrefix, err)
+	case !exists:
+		return objects, nil
 	}
 
 	if err := s.walkDir(ctx, root, cleanPrefix, &objects); err != nil {
@@ -136,6 +157,37 @@ func (s *Storage) List(ctx context.Context, prefix string) ([]storage.ObjectInfo
 	})
 
 	return objects, nil
+}
+
+// checkBase fails when the configured storage path is missing or is not a
+// directory. Only the base is checked: the prefix under it is created on demand
+// by Put, so an absent prefix is an empty storage rather than a broken one.
+func (s *Storage) checkBase() error {
+	switch exists, err := statDir(s.base); {
+	case err != nil:
+		return err //nolint:wrapcheck
+	case !exists:
+		return fmt.Errorf("%w: %q", errRootNotFound, s.base)
+	}
+
+	return nil
+}
+
+// statDir reports whether path exists as a directory. A path occupied by
+// something else is an error rather than a missing directory, so a file
+// shadowing a storage directory cannot pass for an empty one.
+func statDir(path string) (bool, error) {
+	info, err := os.Stat(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("failed to stat %q: %w", path, err)
+	case !info.IsDir():
+		return false, fmt.Errorf("%w: %q", errNotDirectory, path)
+	}
+
+	return true, nil
 }
 
 // walkDir traverses root and appends matching files to objects, honoring ctx cancellation.
