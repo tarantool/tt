@@ -19,7 +19,6 @@ import (
 	"github.com/tarantool/tt/cli/connect"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/running"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // tt backup start / finalize / last / verify / gc flags. They are package-level because
@@ -143,6 +142,18 @@ storage backend, or @<path> naming a YAML config file:
         root: /mnt/backups/payments        # storage root, must be absolute
         prefix: mycluster                  # subdirectory within the root, optional`
 
+// storageContext builds the context of a command's storage phase. A zero or
+// negative --timeout means no limit rather than "already expired": a storage
+// large enough to outlast any sensible deadline still has to be usable, and the
+// flag has to mean the same thing on every backup subcommand.
+func storageContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.WithCancel(context.Background())
+	}
+
+	return context.WithTimeout(context.Background(), timeout)
+}
+
 // NewBackupCmd creates the parent `tt backup` command.
 func NewBackupCmd() *cobra.Command {
 	backupCmd := &cobra.Command{
@@ -159,6 +170,12 @@ func NewBackupCmd() *cobra.Command {
 		newBackupPlanCmd(),
 		newBackupUploadCmd(),
 	)
+
+	// A failed run has already said what it managed to do; burying that under
+	// the flag list is the last thing an operator needs in a cron log.
+	for _, subCmd := range backupCmd.Commands() {
+		subCmd.SilenceUsage = true
+	}
 
 	return backupCmd
 }
@@ -231,7 +248,7 @@ func newBackupLastCmd() *cobra.Command {
 	cmd.Flags().StringVar(&backupLastFormat, "format", formatTable,
 		"output format: `table` or `json`")
 	cmd.Flags().DurationVar(&backupLastTimeout, "timeout", time.Minute,
-		"timeout for connecting to and reading from the storage")
+		"timeout for connecting to and reading from the storage; 0 means no limit")
 
 	cmd.MarkFlagRequired("backup-storage")
 
@@ -261,7 +278,7 @@ func newBackupPlanCmd() *cobra.Command {
 	cmd.Flags().StringVar(&backupPlanFormat, "format", formatJSON,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&backupPlanTimeout, "timeout", time.Minute,
-		"timeout for storage operations in minutes")
+		"timeout for storage operations; 0 means no limit")
 
 	cmd.MarkFlagRequired("target")
 	cmd.MarkFlagRequired("backup-storage")
@@ -306,7 +323,7 @@ and instance_backup.json fragments from all cluster nodes.`,
 	cmd.Flags().BoolVar(&backupUploadKeepLocal, "keep-local", false,
 		"keep local .tar.zst copies on the manager host after successful upload")
 	cmd.Flags().DurationVar(&backupUploadTimeout, "timeout", 30*time.Minute,
-		"timeout for storage operations in minutes")
+		"timeout for storage operations; 0 means no limit")
 
 	cmd.MarkFlagRequired("archives")
 	cmd.MarkFlagRequired("fragments")
@@ -319,6 +336,13 @@ and instance_backup.json fragments from all cluster nodes.`,
 
 func runBackupUpload(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
+
+	// The id is the manifest key and the prefix of every archive key: reject it
+	// before anything is stored, so a malformed run cannot claim another
+	// object's name.
+	if err := backup.ValidateBackupID(backupUploadBackupID); err != nil {
+		return err //nolint:wrapcheck
+	}
 
 	keyPrefix := backup.StoragePrefix(backupUploadClusterName, backupUploadEnvironment)
 	backupID := backup.BackupID(backupUploadBackupID)
@@ -351,7 +375,11 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to prepare archives: %w", err)
 	}
 
-	manifestData, err := buildUploadManifest(backupID, plan, fragments, locationsByReplicaset)
+	// The manifest is built before the storage is touched, so a fragment that
+	// does not line up with an archive costs nothing: no object is written and
+	// no local archive is removed.
+	manifest, manifestData, err := buildUploadManifest(
+		backupID, plan, fragments, locationsByReplicaset)
 	if err != nil {
 		return fmt.Errorf("failed to build manifest: %w", err)
 	}
@@ -367,7 +395,7 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to open storage: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), backupUploadTimeout)
+	ctx, cancel := storageContext(backupUploadTimeout)
 	defer cancel()
 
 	// Upload archives, then the manifest. On manifest failure, uploaded
@@ -376,7 +404,9 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to upload: %w", err)
 	}
 
-	log.Infof("backup %q uploaded successfully (%d shards)", backupID, len(fragments))
+	// The manifest is what was stored: its shards are keyed by replicaset, the
+	// fragment list is only what the run was asked to aggregate.
+	log.Infof("backup %q uploaded successfully (%d shards)", backupID, len(manifest.Shards))
 
 	// Remove local archives unless --keep-local was requested.
 	if !backupUploadKeepLocal {
@@ -387,13 +417,13 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 }
 
 // buildUploadManifest aggregates the cluster manifest from the plan and
-// fragments and returns its JSON encoding.
+// fragments and returns it together with its JSON encoding.
 func buildUploadManifest(
 	backupID backup.BackupID,
 	plan *backup.BackupPlan,
 	fragments []*backup.Fragment,
 	locationsByReplicaset map[string]*backup.ArtifactLocation,
-) ([]byte, error) {
+) (*backup.ClusterManifest, []byte, error) {
 	baseFullBackupID := plan.BaseFullBackupID
 	if plan.Type == backup.BackupTypeFull {
 		baseFullBackupID = backupID
@@ -401,10 +431,22 @@ func buildUploadManifest(
 
 	shards := make([]*backup.ShardInput, 0, len(fragments))
 	for _, fragment := range fragments {
+		// Archives are keyed by the UUID in their file name, fragments by the
+		// UUID they carry. A fragment with no archive would be aggregated with
+		// an empty artifact path -- a manifest that validates, restores nothing
+		// and outlives the local archive removed right after the upload.
+		location, ok := locationsByReplicaset[fragment.ReplicasetUUID]
+		if !ok {
+			return nil, nil, fmt.Errorf(
+				"no archive given for replicaset %q: expected an archive named %q",
+				fragment.ReplicasetUUID,
+				fmt.Sprintf("%s-%s.tar.zst", backupID, fragment.ReplicasetUUID))
+		}
+
 		shards = append(shards, &backup.ShardInput{
 			ReplicasetUUID: fragment.ReplicasetUUID,
 			Fragment:       fragment,
-			Location:       locationsByReplicaset[fragment.ReplicasetUUID],
+			Location:       location,
 		})
 	}
 
@@ -417,15 +459,15 @@ func buildUploadManifest(
 		Shards:           shards,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to aggregate manifest: %w", err)
+		return nil, nil, fmt.Errorf("failed to aggregate manifest: %w", err)
 	}
 
 	manifestData, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal manifest: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal manifest: %w", err)
 	}
 
-	return manifestData, nil
+	return manifest, manifestData, nil
 }
 
 // removeLocalArchives best-effort removes local archive files, logging a
@@ -456,7 +498,7 @@ func runBackupLast(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to open storage: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), backupLastTimeout)
+	ctx, cancel := storageContext(backupLastTimeout)
 	defer cancel()
 
 	manifest, err := backup.LatestManifest(ctx, store)
@@ -574,14 +616,8 @@ func runBackupVerifyInner() (bool, error) {
 		return false, fmt.Errorf("failed to open storage: %w", err)
 	}
 
-	// A zero timeout means no limit, not "already expired": a storage large
-	// enough to outlast any sensible deadline still has to be checkable.
-	ctx := context.Background()
-	if backupVerifyTimeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, backupVerifyTimeout)
-		defer cancel()
-	}
+	ctx, cancel := storageContext(backupVerifyTimeout)
+	defer cancel()
 
 	report, err := verify.Verify(ctx, store)
 	if err != nil {
@@ -679,9 +715,6 @@ func newBackupGcCmd() *cobra.Command {
   $ tt backup gc --backup-storage=file:///var/backups --keep-full 2 --keep-days 7`,
 		Args: cobra.NoArgs,
 		RunE: runBackupGc,
-		// A failed run has already printed what it managed to delete; burying that
-		// under the flag list is the last thing an operator needs here.
-		SilenceUsage: true,
 	}
 
 	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
@@ -700,7 +733,7 @@ func newBackupGcCmd() *cobra.Command {
 	cmd.Flags().StringVar(&backupGcFormat, "format", formatTable,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&backupGcTimeout, "timeout", defaultGcTimeout,
-		"timeout for connecting to and working with the storage")
+		"timeout for connecting to and working with the storage; 0 means no limit")
 
 	cmd.MarkFlagRequired("backup-storage")
 
@@ -733,7 +766,7 @@ func runBackupGc(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to open storage: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), backupGcTimeout)
+	ctx, cancel := storageContext(backupGcTimeout)
 	defer cancel()
 
 	plan, err := gc.BuildPlan(ctx, store, gc.Options{
@@ -888,6 +921,12 @@ func instanceNameFromTarget(target string) string {
 func runBackupStart(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
 
+	// MarkFlagRequired only checks the flag was set, so the id is validated
+	// here as well as in backup.Start: the rejection then costs no dial.
+	if err := backup.ValidateBackupID(backupStartID); err != nil {
+		return err //nolint:wrapcheck
+	}
+
 	archivePath, err := runBackupStartInner(args)
 	if err != nil {
 		if errors.Is(err, backup.ErrAlreadyInProgress) {
@@ -907,7 +946,11 @@ func runBackupStart(cmd *cobra.Command, args []string) error {
 func runBackupStartInner(args []string) (string, error) {
 	fromVclock, err := parseFromVclock(backupStartFromVclock)
 	if err != nil {
-		return "", fmt.Errorf("invalid flag: %w", util.NewArgError(err.Error()))
+		// Deliberately not a util.ArgError: Execute answers one by repeating the
+		// error and printing the root command's usage, the list of every tt
+		// subcommand, which is what the backup commands silence the usage block
+		// to keep out of a cron log.
+		return "", fmt.Errorf("invalid flag: %w", err)
 	}
 
 	conn, err := dialBackupTarget(backupStartCfg, args[0])
@@ -931,6 +974,10 @@ func runBackupStartInner(args []string) (string, error) {
 
 func runBackupFinalize(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
+
+	if err := backup.ValidateBackupID(backupFinalizeID); err != nil {
+		return err //nolint:wrapcheck
+	}
 
 	conn, err := dialBackupTarget(backupFinalizeCfg, args[0])
 	if err != nil {
@@ -957,6 +1004,20 @@ func parseFromVclock(s string) (backup.Vclock, error) {
 	if err := json.Unmarshal([]byte(s), &vc); err != nil {
 		return nil, fmt.Errorf(
 			"invalid --from-vclock (expected JSON object like {\"1\":1500}): %w", err)
+	}
+
+	// Both decode without an error and both silently change what the backup is:
+	// null turns the run into a full backup, {} into an increment with no base
+	// that only 'tt backup upload' would reject, a backup window later.
+	switch {
+	case vc == nil:
+		return nil, errors.New(
+			"invalid --from-vclock: null is not a vclock; " +
+				"omit the flag to take a full backup")
+	case len(vc) == 0:
+		return nil, errors.New(
+			"invalid --from-vclock: {} is not a vclock; pass the vclock of the " +
+				"previous backup, or omit the flag to take a full backup")
 	}
 
 	return vc, nil
@@ -996,7 +1057,7 @@ func runBackupPlan(cmd *cobra.Command, args []string) error {
 
 	live := topologyToLive(replicasetsToTopology(merged, hostnames, reachable))
 
-	ctx, cancel := context.WithTimeout(context.Background(), backupPlanTimeout)
+	ctx, cancel := storageContext(backupPlanTimeout)
 	defer cancel()
 
 	// For incremental: load the chain, check problems, pass the latest manifest.
