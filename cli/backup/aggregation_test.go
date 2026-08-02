@@ -130,6 +130,53 @@ func TestAggregateRejectsReplicasetMismatch(t *testing.T) {
 	require.ErrorContains(t, err, "does not match shard input")
 }
 
+// TestAggregateRejectsDuplicateReplicaset checks two inputs for one replicaset
+// are refused. Overwriting the shard entry drops a whole shard's backup from
+// the manifest with status OK and no warning, and leaves its archive an
+// orphan nothing ever collects.
+func TestAggregateRejectsDuplicateReplicaset(t *testing.T) {
+	fragment := mustDecodeFragment(t, fixtureFragmentA)
+	replica := fragment
+	replica.InstanceUUID = "aaaaaaaa-0000-0000-0000-000000000002"
+
+	_, err := Aggregate(AggregateInput{
+		BackupID:         testBackupID,
+		BaseFullBackupID: testBackupID,
+		CreationTime:     testCreationTime(),
+		Topology:         topologyFromClusterManifestFixture(t, testRSA),
+		Shards: []*ShardInput{
+			{
+				ReplicasetUUID: testRSA,
+				Fragment:       &fragment,
+				Location:       &ArtifactLocation{Path: "data/rs-a.tar.zst", SizeBytes: 42},
+			},
+			{
+				ReplicasetUUID: testRSA,
+				Fragment:       &replica,
+				Location:       &ArtifactLocation{Path: "data/rs-a-2.tar.zst", SizeBytes: 43},
+			},
+		},
+	})
+	require.ErrorContains(t, err, "duplicate replicaset_uuid")
+	require.ErrorContains(t, err, testRSA)
+}
+
+// TestAggregateRejectsDuplicateFailedReplicaset checks the duplicate guard
+// also covers shards that produced no fragment.
+func TestAggregateRejectsDuplicateFailedReplicaset(t *testing.T) {
+	_, err := Aggregate(AggregateInput{
+		BackupID:         testBackupID,
+		BaseFullBackupID: testBackupID,
+		CreationTime:     testCreationTime(),
+		Topology:         topologyFromClusterManifestFixture(t, testRSA),
+		Shards: []*ShardInput{
+			{ReplicasetUUID: testRSA, Err: errors.New("timeout")},
+			{ReplicasetUUID: testRSA},
+		},
+	})
+	require.ErrorContains(t, err, "duplicate replicaset_uuid")
+}
+
 func TestAggregateBuildsClusterManifest(t *testing.T) {
 	fragmentA := mustDecodeFragment(t, fixtureFragmentA)
 	fragmentB := mustDecodeFragment(t, fixtureFragmentB)
