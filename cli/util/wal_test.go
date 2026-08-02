@@ -63,7 +63,15 @@ func restorePermissions(t *testing.T, path string) {
 }
 
 func TestCollectWalFiles_recursive(t *testing.T) {
-	tstDir := t.TempDir()
+	// Cases below feed CollectWalFiles a relative path, which it resolves with
+	// filepath.Abs, i.e. through os.Getwd - and getwd reports the directory
+	// with every symlink already resolved. On macOS t.TempDir() hands back
+	// /var/folders/... while getwd reports /private/var/folders/..., so
+	// expectations built on the unresolved name compare two spellings of the
+	// same path and every relative case fails. Resolving here is a no-op
+	// wherever the temp root is not a symlink, Linux CI included.
+	tstDir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 
 	testFilesMap := map[string][]string{
 		"01.xlog": {},
