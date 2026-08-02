@@ -467,6 +467,19 @@ func TestInitLoadTarantoolctlConfigErrorCases(t *testing.T) {
 
 	_, err = loadTarantoolctlConfig(&initCtx,
 		"testdata/tarantoolctl_invalid.lua")
-	require.True(t, strings.Contains(err.Error(),
-		"tarantoolctl config loading error: LuajitError:"))
+
+	// Matched in pieces, because only the first one belongs to tt. How
+	// Tarantool spells the error type moved in 3.5: up to 3.4 it prefixed the
+	// message ("LuajitError: <file>:9: unexpected symbol ..."), since 3.5 the
+	// type rides at the end ("<file>:9: unexpected symbol ...
+	// {"type":"LuajitError",...}"). Both spellings contain the type name, so
+	// matching it alone holds on either side of that change; matching
+	// "LuajitError:" with the colon only held before it.
+	//
+	// The parser diagnostic is matched as well: a config that cannot be opened
+	// at all is a LuajitError too, so the type by itself would not tell this
+	// fixture failing to parse from it having gone missing.
+	require.ErrorContains(t, err, "tarantoolctl config loading error:")
+	require.ErrorContains(t, err, "LuajitError")
+	require.ErrorContains(t, err, "unexpected symbol")
 }
