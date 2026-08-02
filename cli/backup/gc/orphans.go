@@ -101,19 +101,23 @@ func classifyArchive(
 		return archiveInFlight
 	}
 
-	// Backup ids sort chronologically, so an archive newer than every manifest
-	// belongs to an upload whose manifest is not written yet. Age cannot express
-	// this: a long upload makes its first archives old while it still runs.
-	if backup.BackupID(backupID) > newest {
-		return archiveInFlight
-	}
-
 	// An unknown modification time cannot be shown to be old enough.
-	if object.LastModified.IsZero() || !object.LastModified.Before(cutoff) {
-		return archiveYoung
-	}
+	young := object.LastModified.IsZero() || !object.LastModified.Before(cutoff)
 
-	return archiveOrphan
+	// Backup ids sort chronologically, so an archive whose id is above every
+	// manifest belongs to an upload whose manifest is not written yet - but only
+	// while the archive is still recent. Past --orphan-age that id is just as
+	// likely to be the one a killed gc run stripped its manifest from, and
+	// shielding it by id alone would leak it for good: no manifest will ever
+	// refer to it and no other rule looks at it again.
+	switch {
+	case young && backup.BackupID(backupID) > newest:
+		return archiveInFlight
+	case young:
+		return archiveYoung
+	default:
+		return archiveOrphan
+	}
 }
 
 // referencedArchives collects every archive key the stored manifests point at.

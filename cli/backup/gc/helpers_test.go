@@ -279,6 +279,15 @@ func (f *fixture) putObject(key string, data []byte, modified time.Time) {
 	f.store.modified[key] = modified
 }
 
+// removeObject drops an object behind gc's back, the way a run killed halfway
+// through Execute leaves the storage.
+func (f *fixture) removeObject(key string) {
+	f.t.Helper()
+
+	delete(f.store.objects, key)
+	delete(f.store.modified, key)
+}
+
 func (f *fixture) encode(manifest *backup.ClusterManifest) []byte {
 	f.t.Helper()
 
