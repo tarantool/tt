@@ -25,6 +25,16 @@ func roInst(uuid, name string) LiveInstance {
 	return LiveInstance{InstanceUUID: uuid, InstanceName: name, Mode: "ro", Status: "OK"}
 }
 
+// downInst is how cluster discovery reports an instance it could not reach.
+func downInst(uuid, name string) LiveInstance {
+	return LiveInstance{
+		InstanceUUID: uuid,
+		InstanceName: name,
+		Mode:         "unknown",
+		Status:       "not reachable",
+	}
+}
+
 func liveTopo(rs map[string][]LiveInstance) *LiveTopology {
 	return &LiveTopology{Replicasets: rs}
 }
@@ -181,6 +191,59 @@ func TestPlanIncrementalMasterChangedToRO(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMasterChanged)
 	assert.Contains(t, err.Error(), "no longer RW")
+}
+
+// TestPlanIncrementalMasterUnreachable checks a shard that could not be
+// reached is not diagnosed as a master change: an orchestrator obeying
+// "use --target=full" would answer a restart with a new full chain of the
+// whole cluster.
+func TestPlanIncrementalMasterUnreachable(t *testing.T) {
+	latest := manifestWithShard()
+	live := liveTopo(map[string][]LiveInstance{
+		testRSa: {
+			downInst(testInstA, "a-001"),
+			downInst(testInstB, "a-002"),
+		},
+	})
+
+	_, err := Plan(BackupTypeIncremental, latest, live)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrReplicasetUnreachable)
+	assert.NotErrorIs(t, err, ErrMasterChanged)
+	assert.NotContains(t, err.Error(), "--target=full")
+}
+
+// TestPlanIncrementalReplicasetNoLiveView checks a replicaset discovery
+// returned no reachable instance for is reported as unreachable, not as a
+// master change.
+func TestPlanIncrementalReplicasetNoLiveView(t *testing.T) {
+	latest := manifestWithShard()
+	live := liveTopo(map[string][]LiveInstance{
+		testRSa: {downInst(testInstB, "a-002")},
+	})
+
+	_, err := Plan(BackupTypeIncremental, latest, live)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrReplicasetUnreachable)
+	assert.NotContains(t, err.Error(), "--target=full")
+}
+
+// TestPlanIncrementalMasterDownAfterFailover checks that a down master with
+// another instance already RW is a real master change: retrying would never
+// produce an increment.
+func TestPlanIncrementalMasterDownAfterFailover(t *testing.T) {
+	latest := manifestWithShard()
+	live := liveTopo(map[string][]LiveInstance{
+		testRSa: {
+			downInst(testInstA, "a-001"),
+			rwInst(testInstB, "a-002"),
+		},
+	})
+
+	_, err := Plan(BackupTypeIncremental, latest, live)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrMasterChanged)
+	assert.Contains(t, err.Error(), "--target=full")
 }
 
 func TestPlanIncrementalMasterInstanceGone(t *testing.T) {
