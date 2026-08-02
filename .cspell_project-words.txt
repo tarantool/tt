@@ -72,6 +72,7 @@ mybucket
 mycluster
 nilf
 noarch
+nocfg
 nodeps
 nogc
 nolint
@@ -130,6 +131,7 @@ unknownuninitializedbootstrapped
 unmappable
 unparam
 unpatchable
+unsanitised
 uuidbak
 varbinary
 vbegin

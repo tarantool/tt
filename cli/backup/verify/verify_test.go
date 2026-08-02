@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/backup"
+	"github.com/tarantool/tt/cli/backup/chain"
 	"github.com/tarantool/tt/cli/backup/storage"
 )
 
@@ -419,6 +420,230 @@ func TestVerifyReportsManifestWithoutShards(t *testing.T) {
 
 	require.Contains(t, issueKinds(report), IssueInvalidManifest)
 	require.Contains(t, report.Issues[0].Detail, "shards is empty")
+}
+
+func TestVerifyStopsWhenAManifestReadIsCutShort(t *testing.T) {
+	// This is where the deadline of a real run lands: the listing comes back in
+	// one call, then the manifests are read one at a time. Turned into findings,
+	// an expired --timeout would exit 2 with "your backups are corrupt" - one
+	// such issue for every manifest the clock did not reach.
+	f := newFixture(t)
+	f.addBackup("full", "", "full", backup.BackupTypeFull, 0, 10)
+	f.addBackup("incremental", "full", "full", backup.BackupTypeIncremental, 10, 20)
+	f.store.readErrs[storage.ManifestKey("full")] = context.DeadlineExceeded
+
+	report, err := Verify(t.Context(), f.store)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorContains(t, err, storage.ManifestKey("full"))
+	require.Nil(t, report, "a run that was cut short must not produce a verdict")
+}
+
+func TestVerifyFailsWhenTheArchiveListingFails(t *testing.T) {
+	// The manifests were read, then the storage stopped answering. A run that
+	// never listed data/ knows nothing about what is stored there, so it must not
+	// answer at all: handing back the manifest-side issues would let a
+	// half-scanned storage pass for a complete verdict.
+	f := newFixture(t)
+	f.addBackup("full", "", "full", backup.BackupTypeFull, 0, 10)
+	f.putObject(storage.ArchiveKey("full", replicasetA), []byte("corrupted"))
+	f.store.listErrs[storage.DataPrefix()] = errors.New("permission denied")
+
+	report, err := Verify(t.Context(), f.store)
+
+	require.ErrorContains(t, err, "failed to check for dangling archives")
+	require.ErrorContains(t, err, "permission denied")
+	require.Nil(t, report, "a storage that could not be listed has no verdict")
+}
+
+// The in-flight/dangling split is one lexicographic comparison of two
+// operator-supplied strings: no clock, no LastModified, no age window. Backup
+// ids come from a free-form --backup-id flag nothing validates, so a site
+// numbering its backups without padding gets the opposite answer - "backup-10"
+// sorts below "backup-9", and an upload that is still running reads as
+// abandoned garbage that gc is then free to collect. Both rows below are
+// today's behaviour; a fix that consults LastModified when the id does not
+// order has to change the second one deliberately.
+func TestVerifyClassifiesInFlightArchiveByBackupIDOrder(t *testing.T) {
+	tests := []struct {
+		name      string
+		stored    string
+		uploading string
+		want      IssueKind
+		healthy   bool
+	}{
+		{
+			name:      "ids that sort in creation order",
+			stored:    "2026-01-01",
+			uploading: "2026-01-02",
+			want:      IssueUploadInProgress,
+			healthy:   true,
+		},
+		{
+			name:      "ids that do not",
+			stored:    "backup-9",
+			uploading: "backup-10",
+			want:      IssueDanglingArchive,
+			healthy:   false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.addBackup(test.stored, "", test.stored, backup.BackupTypeFull, 0, 10)
+			// An upload writes its archives before its manifest, so this is what
+			// any upload in progress looks like from the outside.
+			uploading := storage.ArchiveKey(test.uploading, replicasetA)
+			f.putObject(uploading, []byte("still uploading"))
+
+			report := f.verify()
+
+			require.Equal(t, []IssueKind{test.want}, issueKinds(report))
+			require.Equal(t, uploading, findIssue(t, report, test.want).Archive)
+			require.Equal(t, test.healthy, report.OK())
+		})
+	}
+}
+
+func TestVerifyRejectsATraversingArtifactPath(t *testing.T) {
+	// artifact.path is content: whoever writes a manifest chooses it, and the
+	// file backend turns a key into root + key. storage.CleanKey is the whole
+	// guard, so every key verify hands to the backend has to stay inside the
+	// root - a manifest must never make verify read /etc/passwd.
+	tests := []struct {
+		name    string
+		path    string
+		archive string
+		detail  string
+	}{
+		{
+			name:    "relative traversal",
+			path:    "../../etc/passwd",
+			archive: "../../etc/passwd",
+			detail:  "not a storage key",
+		},
+		{
+			name:    "traversal out of data/",
+			path:    "data/../../x",
+			archive: "data/../../x",
+			detail:  "not a storage key",
+		},
+		{
+			name:    "backslash separator",
+			path:    `a\b`,
+			archive: `a\b`,
+			detail:  "not a storage key",
+		},
+		{
+			// Not rejected, normalised: the leading slash is stripped and the key
+			// is looked up inside the storage, where there is no such object.
+			name:    "absolute path is read inside the root",
+			path:    "/etc/hosts",
+			archive: "etc/hosts",
+			detail:  "archive is not present in the storage",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f := newFixture(t)
+			manifest := f.addBackup("full", "", "full", backup.BackupTypeFull, 0, 10)
+			manifest.Shards[replicasetA].Instance.Artifact.Path = test.path
+			f.putManifest(manifest)
+
+			report := f.verify()
+
+			issue := findIssue(t, report, IssueMissingArchive)
+			require.Equal(t, test.archive, issue.Archive)
+			require.Contains(t, issue.Detail, test.detail)
+
+			require.NotEmpty(t, f.store.gets, "verify read nothing at all")
+			for _, key := range f.store.gets {
+				require.NotContains(t, key, "..",
+					"verify asked the storage for a key outside it: %q", key)
+				require.False(t, strings.HasPrefix(key, "/"),
+					"verify asked the storage for an absolute path: %q", key)
+			}
+		})
+	}
+}
+
+func TestVerifyReportsAnArtifactPathOutsideData(t *testing.T) {
+	// A key only has to be in-root, not under data/, so a manifest may point at
+	// any object - here at another manifest. Verify then checksums that object as
+	// if it were an archive and calls the real archive garbage. This is today's
+	// report, not the honest one: "artifact path is not under data/" deserves an
+	// issue class of its own, and adding it has to change this test.
+	f := newFixture(t)
+	manifest := f.addBackup("full", "", "full", backup.BackupTypeFull, 0, 10)
+	manifest.Shards[replicasetA].Instance.Artifact.Path = storage.ManifestKey("full")
+	f.putManifest(manifest)
+
+	report := f.verify()
+
+	require.Equal(t,
+		[]IssueKind{IssueChecksumMismatch, IssueDanglingArchive},
+		issueKinds(report),
+	)
+	require.Equal(t, storage.ManifestKey("full"),
+		findIssue(t, report, IssueChecksumMismatch).Archive)
+	require.Equal(t, storage.ArchiveKey("full", replicasetA),
+		findIssue(t, report, IssueDanglingArchive).Archive)
+}
+
+func TestVerifyReportsTwoManifestsClaimingOneArchive(t *testing.T) {
+	// Referenced archives are collected into a set of keys, so two manifests
+	// naming one object look exactly like one manifest naming it. What is left
+	// over is the second backup's own, live archive - and the report hands the
+	// operator, and gc after them, that archive to delete. The aliasing itself,
+	// which is the actual defect, is never named.
+	f := newFixture(t)
+	f.addBackup("2026-01-01-full", "", "2026-01-01-full", backup.BackupTypeFull, 0, 10)
+	shared := storage.ArchiveKey("2026-01-01-full", replicasetA)
+
+	second := f.addBackup("2026-01-02-full", "", "2026-01-02-full",
+		backup.BackupTypeFull, 0, 10)
+	// An orchestrator that copied the whole artifact block, checksum included.
+	artifact := &second.Shards[replicasetA].Instance.Artifact
+	artifact.Path = shared
+	artifact.ChecksumSHA256 = checksumOf(f.store.objects[shared])
+	f.putManifest(second)
+
+	report := f.verify()
+
+	require.Equal(t, []IssueKind{IssueDanglingArchive}, issueKinds(report))
+	require.Equal(t, storage.ArchiveKey("2026-01-02-full", replicasetA),
+		findIssue(t, report, IssueDanglingArchive).Archive)
+	// Two shard artifacts were checked; the count cannot see that a single
+	// object answered for both of them.
+	require.Equal(t, 2, report.Archives)
+}
+
+func TestChainIssueKindCoversEveryChainProblemKind(t *testing.T) {
+	// Every chain problem kind has an issue kind of its own; the fallback exists
+	// for the kind added next. Unmapped, that kind reaches the report as
+	// "chain_problem" - a class no output format lists, no help text mentions and
+	// no consumer handles, carrying nothing but a detail string. The last row is
+	// the value a newly declared kind would take, so declaring one fails this
+	// test and makes the mapping a decision instead of an omission.
+	tests := []struct {
+		name string
+		kind chain.ProblemKind
+		want IssueKind
+	}{
+		{"orphan", chain.ProblemOrphan, IssueChainOrphan},
+		{"fork", chain.ProblemFork, IssueChainFork},
+		{"vclock mismatch", chain.ProblemVclockMismatch, IssueVclockMismatch},
+		{"invalid manifest", chain.ProblemInvalidManifest, IssueInvalidManifest},
+		{"a kind declared later", chain.ProblemInvalidManifest + 1, IssueChainProblem},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, chainIssueKind(test.kind))
+		})
+	}
 }
 
 func TestVerifyKeepsArchivesOfUndecodableManifest(t *testing.T) {

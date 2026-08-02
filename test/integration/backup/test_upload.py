@@ -89,6 +89,46 @@ def _prepare_inputs(tmp_path, plan=None, fragment=None, backup_id=BACKUP_ID):
     return str(archive_path), str(fragment_path), str(plan_path)
 
 
+def _prepare_two_shard_inputs(tmp_path):
+    """Create two archives, their fragments and a plan naming both replicasets."""
+    work = tmp_path / "work"
+    work.mkdir()
+
+    plan_path = work / "plan.json"
+    _write_json(
+        plan_path,
+        _make_plan(
+            replicasets={
+                REPLICASET: {
+                    "master_instance_uuid": INSTANCE_UUID,
+                    "master_instance_name": "router-001",
+                },
+                REPLICASET_B: {
+                    "master_instance_uuid": INSTANCE_UUID_B,
+                    "master_instance_name": "router-002",
+                },
+            },
+        ),
+    )
+
+    frag_a = work / "fragment_a.json"
+    frag_b = work / "fragment_b.json"
+    _write_json(frag_a, _make_fragment(replicaset=REPLICASET))
+    _write_json(
+        frag_b,
+        _make_fragment(
+            replicaset=REPLICASET_B,
+            instance_uuid=INSTANCE_UUID_B,
+            instance_name="router-002",
+        ),
+    )
+
+    archive_a = _write_archive(str(work), BACKUP_ID, REPLICASET, ARCHIVE_CONTENT)
+    archive_b = _write_archive(str(work), BACKUP_ID, REPLICASET_B, ARCHIVE_CONTENT_B)
+
+    return [archive_a, archive_b], [str(frag_a), str(frag_b)], str(plan_path)
+
+
 def _load_golden(name):
     return json.loads((TESTDATA_DIR / name).read_text())
 
@@ -624,3 +664,243 @@ def test_upload_invalid_storage_uri(tt, tmp_path):
     )
     assert rc != 0
     assert "storage" in out.lower()
+
+
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_upload_same_backup_id_overwrites(tt, tmp_path, storage):
+    """A second upload under an already used backup id silently replaces the
+    stored archive and manifest on both backends. Nothing in upload guards
+    against id reuse -- unique ids are the orchestrator's contract -- so this
+    pins the overwrite; if upload ever learns to refuse, flip the test."""
+    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path)
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archive_path,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+    )
+    assert rc == 0, f"first upload failed:\n{out}"
+
+    manifest_key = f"manifests/{BACKUP_ID}.json"
+    archive_key = f"data/{BACKUP_ID}-{REPLICASET}.tar.zst"
+    first_manifest = json.loads(storage.read(manifest_key))
+    assert first_manifest["shards"][REPLICASET]["instance"]["vclock_end"] == {"1": 100}
+
+    replacement = b"replacement payload"
+    work = tmp_path / "work-again"
+    work.mkdir()
+    plan_again = work / "plan.json"
+    _write_json(plan_again, _make_plan())
+    fragment_again = work / "fragment.json"
+    _write_json(fragment_again, _make_fragment(vclock_end=999))
+    archive_again = _write_archive(str(work), BACKUP_ID, REPLICASET, replacement)
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archive_again,
+        fragments=str(fragment_again),
+        plan=str(plan_again),
+        backup_id=BACKUP_ID,
+    )
+    assert rc == 0, f"second upload failed:\n{out}"
+
+    keys = storage.keys()
+    assert keys.count(manifest_key) == 1
+    assert keys.count(archive_key) == 1
+    assert storage.read(archive_key) == replacement
+
+    second_manifest = json.loads(storage.read(manifest_key))
+    assert second_manifest["shards"][REPLICASET]["instance"]["vclock_end"] == {"1": 999}
+
+
+def test_upload_timeout_expires(tt, tmp_path):
+    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path)
+    root = tmp_path / "backups"
+    root.mkdir()
+
+    rc, out = backup_upload(
+        tt,
+        f"file://{root}",
+        archives=archive_path,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+        timeout="1ns",
+    )
+
+    # A run that could not finish within the timeout must fail, and the
+    # rollback leaves no half-uploaded backup behind.
+    assert rc != 0
+    assert "context deadline exceeded" in out.lower()
+    assert FileStorage(str(root)).keys() == []
+
+
+def test_upload_fragment_uuid_not_matching_archive_is_rejected(tt, tmp_path):
+    """An archive renamed to another replicaset's uuid used to be uploaded with
+    exit 0: the fragment found no archive of its own, so the shard was stored
+    with an empty artifact path and status OK, and the local archive was removed
+    right after. A backup that reports healthy, cannot be restored, and whose
+    only good copy is already deleted."""
+    work = tmp_path / "work"
+    work.mkdir()
+
+    # Plan and fragment agree on RS-B; only the archive's file name says RS-A.
+    plan_path = work / "plan.json"
+    _write_json(
+        plan_path,
+        _make_plan(
+            replicasets={
+                REPLICASET_B: {
+                    "master_instance_uuid": INSTANCE_UUID_B,
+                    "master_instance_name": "router-002",
+                },
+            },
+        ),
+    )
+
+    fragment_path = work / "fragment.json"
+    _write_json(
+        fragment_path,
+        _make_fragment(
+            replicaset=REPLICASET_B,
+            instance_uuid=INSTANCE_UUID_B,
+            instance_name="router-002",
+        ),
+    )
+
+    archive_path = _write_archive(str(work), BACKUP_ID, REPLICASET)
+    storage = FileStorage(str(tmp_path / "backups"))
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archive_path,
+        fragments=str(fragment_path),
+        plan=str(plan_path),
+        backup_id=BACKUP_ID,
+    )
+
+    assert rc != 0
+    assert REPLICASET_B in out
+    assert storage.keys() == []
+    assert os.path.isfile(archive_path), "the only copy of the data was removed"
+
+
+def test_upload_duplicate_replicaset_across_fragments_is_rejected(tt, tmp_path):
+    """Two fragments claiming one replicaset used to overwrite each other in the
+    manifest -- last write won. The run reported "2 shards", the manifest held
+    one, and the archive of the shard that lost is left in storage with no
+    manifest naming it: a shard's backup gone with no warning and no failure.
+
+    The plan names only the duplicated replicaset, so coverage against the plan
+    passes and the run reaches the aggregation this test is about."""
+    work = tmp_path / "work"
+    work.mkdir()
+
+    plan_path = work / "plan.json"
+    _write_json(plan_path, _make_plan())
+
+    fragments = []
+    for index, instance in enumerate((INSTANCE_UUID, INSTANCE_UUID_B)):
+        path = work / f"fragment_{index}.json"
+        _write_json(
+            path,
+            _make_fragment(
+                replicaset=REPLICASET,
+                instance_uuid=instance,
+                instance_name=f"router-00{index + 1}",
+            ),
+        )
+        fragments.append(str(path))
+
+    archive_a = _write_archive(str(work), BACKUP_ID, REPLICASET, ARCHIVE_CONTENT)
+    archive_b = _write_archive(str(work), BACKUP_ID, REPLICASET_B, ARCHIVE_CONTENT_B)
+    storage = FileStorage(str(tmp_path / "backups"))
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=f"{archive_a},{archive_b}",
+        fragments=",".join(fragments),
+        plan=str(plan_path),
+        backup_id=BACKUP_ID,
+    )
+
+    assert rc != 0
+    assert "duplicate" in out.lower()
+    assert REPLICASET in out
+    assert storage.keys() == []
+    assert os.path.isfile(archive_a) and os.path.isfile(archive_b)
+
+
+def test_upload_rollback_on_real_fs_backend(tt, tmp_path):
+    """Archives are uploaded before the manifest, so a failed manifest write must
+    take the archives back out: what is left otherwise is an archive set no
+    manifest names, which every other command reads as an upload still running.
+
+    Pinned against a mock storage only until now -- a real backend is what says
+    whether the rollback survives contact with a filesystem."""
+    archives, fragments, plan_path = _prepare_two_shard_inputs(tmp_path)
+
+    root = tmp_path / "backups"
+    root.mkdir()
+    # A regular file where the manifests/ directory has to go: the archives
+    # upload, the manifest write cannot.
+    (root / "manifests").write_text("not a directory")
+    storage = FileStorage(str(root))
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=",".join(archives),
+        fragments=",".join(fragments),
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+    )
+
+    assert rc != 0
+    assert "upload manifest" in out
+    # The blocking file is all that is left: both archives were rolled back.
+    assert storage.keys() == ["manifests"]
+    assert all(os.path.isfile(archive) for archive in archives)
+
+
+@pytest.mark.parametrize(
+    "archive_count,fragment_count,trailing_comma",
+    [
+        pytest.param(2, 1, False, id="two-archives-one-fragment"),
+        pytest.param(1, 2, False, id="one-archive-two-fragments"),
+        pytest.param(1, 1, True, id="trailing-comma"),
+    ],
+)
+def test_upload_archive_fragment_count_mismatch(
+    tt,
+    tmp_path,
+    archive_count,
+    fragment_count,
+    trailing_comma,
+):
+    """Archives and fragments are matched by position, so a list that lost an
+    entry -- or grew an empty one from a trailing comma in a generated command
+    line -- must stop the run before anything is stored."""
+    archives, fragments, plan_path = _prepare_two_shard_inputs(tmp_path)
+    storage = FileStorage(str(tmp_path / "backups"))
+
+    archives_flag = ",".join(archives[:archive_count]) + ("," if trailing_comma else "")
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archives_flag,
+        fragments=",".join(fragments[:fragment_count]),
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+    )
+
+    assert rc != 0
+    assert "same length" in out
+    assert storage.keys() == []

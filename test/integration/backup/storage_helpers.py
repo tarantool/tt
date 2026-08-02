@@ -160,9 +160,17 @@ def build_manifest(
     vclock_end,
     content,
     created=DEFAULT_CREATION_TIME,
+    schema_version=1,
 ):
+    """Build a manifest document.
+
+    schema_version is a parameter so that a test can store a manifest written by
+    a future tt (schema_version=2): reading it back is the forward-compatibility
+    contract, and a manifest silently accepted under an unknown schema is the
+    failure that would let a format change corrupt a restore.
+    """
     return {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "backup_id": backup_id,
         "previous_backup_id": previous,
         "base_full_backup_id": base,
@@ -205,6 +213,7 @@ def write_backup(
     vclock_begin=0,
     vclock_end=100,
     created=DEFAULT_CREATION_TIME,
+    schema_version=1,
 ):
     """Store a healthy backup: an archive plus the manifest referring to it."""
     content = f"archive of {backup_id}".encode()
@@ -217,6 +226,7 @@ def write_backup(
         vclock_end,
         content,
         created,
+        schema_version=schema_version,
     )
     storage.put(archive_key(backup_id), content)
     write_manifest(storage, manifest)
@@ -263,6 +273,20 @@ def add_failed_shard(storage, manifest, error="instance unreachable"):
 
 def write_manifest(storage, manifest):
     storage.put(manifest_key(manifest["backup_id"]), json.dumps(manifest).encode())
+
+
+def set_artifact_path(storage, manifest, path, replicaset=REPLICASET):
+    """Repoint a stored shard's artifact at an arbitrary storage key.
+
+    The archive written by write_backup stays where it is, so the manifest now
+    names something other than its own archive - the shape that lets a manifest
+    claim a key outside data/, up to another backup's manifest. Any command that
+    deletes or checksums what a manifest names has to survive that.
+    """
+    manifest["shards"][replicaset]["instance"]["artifact"]["path"] = path
+    write_manifest(storage, manifest)
+
+    return manifest
 
 
 def write_chain(storage):

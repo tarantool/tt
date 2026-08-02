@@ -59,21 +59,82 @@ TT_BACKUP_APP = dict(
 )
 
 
-def start_backup(tt, target, backup_id, from_vclock=None):
-    args = ["backup", "start", target, "--backup-id", backup_id]
+def _tt_binary_and_cwd(tt):
+    """The binary and the cwd this tt object's own exec() would use.
+
+    tt_helper.Tt name-mangles both attributes and publishes only work_dir;
+    sharded_helpers.ShardedApp keeps them as tt_cmd/env_dir. Reading them here
+    is what lets exec_split accept exactly the objects tt.exec accepts.
+    """
+    if hasattr(tt, "tt_cmd"):
+        return tt.tt_cmd, tt.env_dir
+    return tt._Tt__tt_cmd, tt.work_dir
+
+
+def exec_split(tt, *args, **kwargs):
+    """Run tt with stdout and stderr on separate pipes: (rc, stdout, stderr).
+
+    tt.exec merges the two streams (stderr=subprocess.STDOUT), so a test built
+    on it cannot tell which stream carried a report - and `tt backup ... --format
+    json | jq` only works if the document is on stdout by itself. Argument
+    filtering and cwd match tt.exec, so this is a drop-in wherever the split is
+    the property under test.
+
+    Keyword arguments go to subprocess.run and override the defaults, exactly as
+    tt.exec handles them - including env, which replaces the environment instead
+    of extending it, so pass dict(os.environ, VAR=...).
+    """
+    binary, cwd = _tt_binary_and_cwd(tt)
+    cmd = [binary, *(arg for arg in args if arg is not None)]
+    run_kwargs = dict(cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    run_kwargs.update(kwargs)
+    proc = subprocess.run(cmd, **run_kwargs)
+
+    # Same reason as utils.run_command_and_get_output: keeps `pytest -s` useful.
+    print(proc.stdout)
+    print(proc.stderr)
+
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def start_backup(tt, target, backup_id, from_vclock=None, ttl=None, config=None, **kwargs):
+    """Run tt backup start.
+
+    backup_id reaches the command line verbatim: "", "../escape" and
+    "2026/08/02-full" are passed through unsanitised, because rejecting them is
+    the command's job, not the helper's. Pass None to leave --backup-id off the
+    command line entirely. Extra keyword arguments go to tt.exec (cwd, env,
+    input); note that env there replaces the environment rather than extending
+    it, so pass dict(os.environ, VAR=...).
+    """
+    args = ["backup", "start", target]
+    if backup_id is not None:
+        args.extend(["--backup-id", backup_id])
     if from_vclock is not None:
         args.extend(["--from-vclock", json.dumps({str(k): v for k, v in from_vclock.items()})])
-    return tt.exec(*args)
+    if ttl is not None:
+        args.extend(["--ttl", ttl])
+    if config is not None:
+        args.extend(["-c", str(config)])
+    return tt.exec(*args, **kwargs)
 
 
-def finalize_backup(tt, target, backup_id):
-    return tt.exec("backup", "finalize", target, "--backup-id", backup_id)
+def finalize_backup(tt, target, backup_id, config=None, **kwargs):
+    """Run tt backup finalize. Same backup_id and kwargs contract as start_backup."""
+    args = ["backup", "finalize", target]
+    if backup_id is not None:
+        args.extend(["--backup-id", backup_id])
+    if config is not None:
+        args.extend(["-c", str(config)])
+    return tt.exec(*args, **kwargs)
 
 
-def backup_last(tt, storage_uri, fmt=None):
+def backup_last(tt, storage_uri, fmt=None, timeout=None):
     args = ["backup", "last", "--backup-storage", storage_uri]
     if fmt:
         args.extend(["--format", fmt])
+    if timeout:
+        args.extend(["--timeout", timeout])
     return tt.exec(*args)
 
 
@@ -94,6 +155,7 @@ def backup_gc(
     orphan_age=None,
     dry_run=False,
     fmt=None,
+    timeout=None,
 ):
     args = ["backup", "gc", "--backup-storage", storage_uri]
     if keep_full is not None:
@@ -106,6 +168,8 @@ def backup_gc(
         args.append("--dry-run")
     if fmt:
         args.extend(["--format", fmt])
+    if timeout:
+        args.extend(["--timeout", timeout])
     return tt.exec(*args)
 
 
@@ -141,12 +205,14 @@ def backup_upload(
     return tt.exec(*args)
 
 
-def backup_plan(tt, target, storage_uri, config=None, fmt=None):
+def backup_plan(tt, target, storage_uri, config=None, fmt=None, timeout=None):
     args = ["backup", "plan", "--target", target, "--backup-storage", storage_uri]
     if config:
         args.extend(["-c", config])
     if fmt:
         args.extend(["--format", fmt])
+    if timeout:
+        args.extend(["--timeout", timeout])
     return tt.exec(*args)
 
 

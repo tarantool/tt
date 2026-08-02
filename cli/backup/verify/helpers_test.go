@@ -33,7 +33,13 @@ type memoryStorage struct {
 	modified map[string]time.Time
 	// readErrs[key] makes Get succeed but the returned reader fail mid-stream.
 	readErrs map[string]error
+	// listErr fails every List; listErrs[prefix] fails only one of them, which is
+	// the storage that stops answering between the manifest and the archive scan.
 	listErr  error
+	listErrs map[string]error
+	// gets records every key Get was asked for, so that a test can assert nothing
+	// outside the storage root was ever read.
+	gets []string
 	// puts and deletes record mutations; verify must leave both empty.
 	puts    []string
 	deletes []string
@@ -44,12 +50,17 @@ func newMemoryStorage() *memoryStorage {
 		objects:  make(map[string][]byte),
 		modified: make(map[string]time.Time),
 		readErrs: make(map[string]error),
+		listErrs: make(map[string]error),
 	}
 }
 
 func (s *memoryStorage) List(_ context.Context, prefix string) ([]storage.ObjectInfo, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
+	}
+
+	if err := s.listErrs[prefix]; err != nil {
+		return nil, err
 	}
 
 	objects := make([]storage.ObjectInfo, 0)
@@ -73,6 +84,9 @@ func (s *memoryStorage) List(_ context.Context, prefix string) ([]storage.Object
 }
 
 func (s *memoryStorage) Get(_ context.Context, key string) (io.ReadCloser, error) {
+	// Recorded before the lookup: a key that is not there was still asked for.
+	s.gets = append(s.gets, key)
+
 	data, ok := s.objects[key]
 	if !ok {
 		return nil, storage.ErrKeyNotFound

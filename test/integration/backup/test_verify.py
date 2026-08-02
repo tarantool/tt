@@ -481,6 +481,51 @@ def test_verify_unreadable_archive(tt, tmp_path):
     assert report["issues"][0]["archive"] == archive_key("2026-01-01-full")
 
 
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_verify_reports_an_unsupported_schema_version(tt, storage):
+    """A manifest from a newer tt has to be reported as one unusable manifest and
+    nothing else. Once tt starts writing schema_version 2, every older tt reading
+    that storage produces this report: if the version were ignored the fields
+    would be read under the wrong meaning, and if it turned into a second finding
+    every backup of the storage would also look corrupt or abandoned."""
+    write_backup(storage, "2026-01-01-full", schema_version=2)
+
+    rc, report = verify_json(tt, storage)
+
+    assert rc == VERIFY_PROBLEMS_FOUND
+    assert issue_kinds(report) == ["invalid_manifest"]
+    assert "schema_version" in report["issues"][0]["detail"]
+    # The archive is still checked: the manifest is beyond this tt, the storage
+    # is not.
+    assert report["archives_checked"] == 1
+
+
+@pytest.mark.skipif(
+    os.getuid() == 0,
+    reason="Skipping the test, it shouldn't run as root",
+)
+def test_verify_failure_does_not_dump_the_flag_list(tt, tmp_path):
+    """A failed run used to print the whole flag list after the error, so the one
+    line saying what went wrong ended up thirty lines above the end of a cron
+    log."""
+    storage = FileStorage(str(tmp_path / "backups"))
+    write_chain(storage)
+    manifests = os.path.join(storage.root, "manifests")
+    os.chmod(manifests, 0o000)
+
+    try:
+        rc, out = backup_verify(tt, storage.uri)
+    finally:
+        os.chmod(manifests, 0o755)
+
+    assert rc == 1
+    assert "--format string" not in out
+    assert "help for verify" not in out
+
+    last_line = [line for line in out.splitlines() if line.strip()][-1]
+    assert "Error:" in last_line, out
+
+
 def test_verify_timeout_expires(tt, tmp_path):
     storage = FileStorage(str(tmp_path / "backups"))
     write_chain(storage)
