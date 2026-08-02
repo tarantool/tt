@@ -6,6 +6,13 @@ import (
 	"strings"
 )
 
+// Instance modes and statuses as cluster discovery reports them.
+const (
+	modeRW          = "rw"
+	modeUnknown     = "unknown"
+	statusReachable = "OK"
+)
+
 // LiveInstance is one instance in the live cluster topology.
 type LiveInstance struct {
 	InstanceUUID string `json:"instance_uuid"`
@@ -52,6 +59,13 @@ var (
 		"master changed since the last backup; use --target=full to start a new chain",
 	)
 
+	// A shard nobody could reach says nothing about where the master is, so
+	// this one deliberately does not recommend --target=full: answering a
+	// restart with a new full chain is not reversible.
+	ErrReplicasetUnreachable = fmt.Errorf(
+		"replicaset is not reachable; retry once the instance is back",
+	)
+
 	ErrNoMaster = fmt.Errorf("no RW master found in replicaset")
 )
 
@@ -76,7 +90,7 @@ func planFull(live *LiveTopology) (*BackupPlan, error) {
 	replicasets := make(map[string]ReplicasetPlan, len(live.Replicasets))
 	for rsUUID, instances := range live.Replicasets {
 		idx := slices.IndexFunc(instances, func(inst LiveInstance) bool {
-			return inst.Mode == "rw"
+			return inst.Mode == modeRW
 		})
 
 		if idx < 0 {
@@ -121,21 +135,8 @@ func planIncremental(latest *ClusterManifest, live *LiveTopology) (*BackupPlan, 
 	replicasets := make(map[string]ReplicasetPlan, len(latest.Shards))
 	for rsUUID, shard := range latest.Shards {
 		inst := shard.Instance
-		liveIdx := slices.IndexFunc(live.Replicasets[rsUUID], func(li LiveInstance) bool {
-			return li.InstanceUUID == inst.InstanceUUID
-		})
-		if liveIdx < 0 {
-			return nil, fmt.Errorf(
-				"%w: replicaset %q instance %q not found in live topology",
-				ErrMasterChanged, rsUUID, inst.InstanceUUID)
-		}
-
-		liveInst := live.Replicasets[rsUUID][liveIdx]
-
-		if liveInst.Mode != "rw" {
-			return nil, fmt.Errorf(
-				"%w: replicaset %q instance %q is no longer RW (mode=%q)",
-				ErrMasterChanged, rsUUID, inst.InstanceUUID, liveInst.Mode)
+		if err := checkMasterUsable(rsUUID, inst, live.Replicasets[rsUUID]); err != nil {
+			return nil, err //nolint:wrapcheck
 		}
 
 		replicasets[rsUUID] = ReplicasetPlan{
@@ -151,6 +152,69 @@ func planIncremental(latest *ClusterManifest, live *LiveTopology) (*BackupPlan, 
 		PreviousBackupID: latest.BackupID,
 		BaseFullBackupID: latest.BaseFullBackupID,
 	}, nil
+}
+
+// checkMasterUsable reports why the instance backed up last time cannot serve
+// the next increment, or nil if it still can.
+//
+// Discovery lists an instance it could not reach as part of the topology with
+// mode "unknown", so the mode alone cannot tell a down master from a demoted
+// one. The master has really moved only once another instance holds the RW
+// role; until then the replicaset merely has no live view, and answering a
+// transient outage with a whole new full chain cannot be undone.
+func checkMasterUsable(rsUUID string, inst *ShardInstance, live []LiveInstance) error {
+	var master *LiveInstance
+	if idx := slices.IndexFunc(live, func(li LiveInstance) bool {
+		return li.InstanceUUID == inst.InstanceUUID
+	}); idx >= 0 {
+		master = &live[idx]
+	}
+
+	reachable := master != nil && isReachable(*master)
+	failedOver := slices.ContainsFunc(live, func(li LiveInstance) bool {
+		return isReachable(li) && li.Mode == modeRW
+	})
+
+	switch {
+	case reachable && master.Mode == modeRW:
+		return nil
+	case reachable:
+		return fmt.Errorf(
+			"%w: replicaset %q instance %q is no longer RW (mode=%q)",
+			ErrMasterChanged, rsUUID, inst.InstanceUUID, master.Mode)
+	case master == nil && failedOver:
+		return fmt.Errorf(
+			"%w: replicaset %q instance %q not found in live topology",
+			ErrMasterChanged, rsUUID, inst.InstanceUUID)
+	case failedOver:
+		return fmt.Errorf(
+			"%w: replicaset %q instance %q is not reachable, another instance is RW now",
+			ErrMasterChanged, rsUUID, inst.InstanceUUID)
+	case master == nil:
+		return fmt.Errorf(
+			"%w: replicaset %q has no reachable instance",
+			ErrReplicasetUnreachable, rsUUID)
+	default:
+		return fmt.Errorf(
+			"%w: replicaset %q instance %q is not reachable (mode=%q, status=%q)",
+			ErrReplicasetUnreachable, rsUUID, inst.InstanceUUID,
+			master.Mode, master.Status)
+	}
+}
+
+// isReachable reports whether the live view of inst was taken from the
+// instance itself: discovery reports a node it could not reach with status
+// "not reachable" and mode "unknown". A caller that fills neither field is
+// taken at its word.
+func isReachable(inst LiveInstance) bool {
+	switch {
+	case inst.Status != "" && inst.Status != statusReachable:
+		return false
+	case inst.Mode == modeUnknown:
+		return false
+	default:
+		return true
+	}
 }
 
 // diffReplicasets returns a human-readable diff of replicaset UUIDs between a
