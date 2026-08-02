@@ -195,10 +195,16 @@ func TestPackOrdersNonWalFileLast(t *testing.T) {
 	assert.Equal(t, want, readArchiveNames(t, archivePath))
 }
 
-// writeMaliciousArchive builds a .tar.zst with a single regular entry whose
-// stored name is exactly entryName (no base-name flattening), for exercising
-// the extraction path-traversal guard.
-func writeMaliciousArchive(t *testing.T, path, entryName string, content []byte) {
+// rawEntry is a tar entry written verbatim, bypassing Pack.
+type rawEntry struct {
+	header tar.Header
+	body   []byte
+}
+
+// writeRawArchive builds a .tar.zst from entries written exactly as given (no
+// base-name flattening, any type flag), for exercising the reader-side guards
+// against archives tt did not produce.
+func writeRawArchive(t *testing.T, path string, entries []rawEntry) {
 	t.Helper()
 	f, err := os.Create(path)
 	require.NoError(t, err)
@@ -208,18 +214,31 @@ func writeMaliciousArchive(t *testing.T, path, entryName string, content []byte)
 	require.NoError(t, err)
 	tw := tar.NewWriter(zw)
 
-	require.NoError(t, tw.WriteHeader(&tar.Header{
-		Name:     entryName,
-		Mode:     0o644,
-		Size:     int64(len(content)),
-		Typeflag: tar.TypeReg,
-	}))
-	_, err = tw.Write(content)
-	require.NoError(t, err)
+	for _, entry := range entries {
+		require.NoError(t, tw.WriteHeader(&entry.header))
+		_, err = tw.Write(entry.body)
+		require.NoError(t, err)
+	}
 
 	require.NoError(t, tw.Close())
 	require.NoError(t, zw.Close())
 	require.NoError(t, f.Close())
+}
+
+// writeMaliciousArchive builds a .tar.zst with a single regular entry whose
+// stored name is exactly entryName (no base-name flattening), for exercising
+// the extraction path-traversal guard.
+func writeMaliciousArchive(t *testing.T, path, entryName string, content []byte) {
+	t.Helper()
+	writeRawArchive(t, path, []rawEntry{{
+		header: tar.Header{
+			Name:     entryName,
+			Mode:     0o644,
+			Size:     int64(len(content)),
+			Typeflag: tar.TypeReg,
+		},
+		body: content,
+	}})
 }
 
 func TestUnpackRejectsTraversal(t *testing.T) {
@@ -246,6 +265,128 @@ func TestEntriesRejectsTraversal(t *testing.T) {
 		}
 	}
 	assert.Error(t, gotErr, "traversal entry must surface an error")
+}
+
+// unsafeEntryNames are names Pack can never produce: it stores base names only,
+// so anything carrying a directory component is hostile or corrupt input. A
+// consumer creating the parent directories of such a name writes outside the
+// destination as soon as one component is a pre-existing symlink.
+var unsafeEntryNames = []string{
+	"sub/evil.snap",
+	"./name.snap",
+	"a/b/c.xlog",
+	"/etc/passwd",
+}
+
+func TestUnpackRejectsEntryNameWithPathSeparator(t *testing.T) {
+	for _, name := range unsafeEntryNames {
+		t.Run(name, func(t *testing.T) {
+			archivePath := filepath.Join(t.TempDir(), "evil.tar.zst")
+			writeMaliciousArchive(t, archivePath, name, []byte("pwn"))
+
+			destDir := t.TempDir()
+			assert.Error(t, Unpack(archivePath, destDir), "entry %q must be rejected", name)
+
+			entries, err := os.ReadDir(destDir)
+			require.NoError(t, err)
+			assert.Empty(t, entries, "nothing may be written for a rejected entry")
+		})
+	}
+}
+
+func TestEntriesRejectsEntryNameWithPathSeparator(t *testing.T) {
+	for _, name := range unsafeEntryNames {
+		t.Run(name, func(t *testing.T) {
+			archivePath := filepath.Join(t.TempDir(), "evil.tar.zst")
+			writeMaliciousArchive(t, archivePath, name, []byte("pwn"))
+
+			var gotNames []string
+			var gotErr error
+			for entry, err := range Entries(archivePath) {
+				if err != nil {
+					gotErr = err
+					break
+				}
+				gotNames = append(gotNames, entry.Name)
+			}
+			assert.Error(t, gotErr, "entry %q must surface an error", name)
+			assert.Empty(t, gotNames, "a rejected entry must not be yielded")
+		})
+	}
+}
+
+// TestEntriesRejectsNonRegularEntry checks the readers agree on a hostile
+// archive: a symlink entry must not be dropped silently, or a restore reports
+// success with a journal missing.
+func TestEntriesRejectsNonRegularEntry(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "symlink.tar.zst")
+	writeRawArchive(t, archivePath, []rawEntry{
+		{
+			header: tar.Header{
+				Name:     "00000000000000000000.snap",
+				Mode:     0o644,
+				Size:     4,
+				Typeflag: tar.TypeReg,
+			},
+			body: []byte("snap"),
+		},
+		{
+			header: tar.Header{
+				Name:     "00000000000000000000.xlog",
+				Mode:     0o777,
+				Typeflag: tar.TypeSymlink,
+				Linkname: "/etc/passwd",
+			},
+		},
+	})
+
+	var gotNames []string
+	var gotErr error
+	for entry, err := range Entries(archivePath) {
+		if err != nil {
+			gotErr = err
+			break
+		}
+		gotNames = append(gotNames, entry.Name)
+	}
+	require.Error(t, gotErr, "a non-regular entry must not be skipped silently")
+	assert.Contains(t, gotErr.Error(), "00000000000000000000.xlog")
+	assert.Equal(t, []string{"00000000000000000000.snap"}, gotNames)
+
+	assert.Error(t, Unpack(archivePath, t.TempDir()), "Unpack must reject the same archive")
+}
+
+// TestReadersSkipDirectoryEntry pins the one non-regular type both readers
+// ignore instead of rejecting: a directory entry carries no content, and any
+// file under it is rejected by the entry-name guard anyway.
+func TestReadersSkipDirectoryEntry(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "withdir.tar.zst")
+	writeRawArchive(t, archivePath, []rawEntry{
+		{header: tar.Header{Name: "sub/", Mode: 0o755, Typeflag: tar.TypeDir}},
+		{
+			header: tar.Header{
+				Name:     "00000000000000000000.snap",
+				Mode:     0o644,
+				Size:     4,
+				Typeflag: tar.TypeReg,
+			},
+			body: []byte("snap"),
+		},
+	})
+
+	var gotNames []string
+	for entry, err := range Entries(archivePath) {
+		require.NoError(t, err)
+		gotNames = append(gotNames, entry.Name)
+	}
+	assert.Equal(t, []string{"00000000000000000000.snap"}, gotNames)
+
+	destDir := t.TempDir()
+	require.NoError(t, Unpack(archivePath, destDir))
+	entries, err := os.ReadDir(destDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "00000000000000000000.snap", entries[0].Name())
 }
 
 func TestPackOrdersByLSN(t *testing.T) {
