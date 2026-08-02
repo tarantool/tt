@@ -59,18 +59,52 @@ func TestStop_alreadyClosedRemovesStaleOwnArtifactsAndEmptyDir(t *testing.T) {
 	require.NoDirExists(t, backupDir)
 }
 
-func TestStop_noBackupID(t *testing.T) {
+// TestStop_emptyBackupIDIsRejected replaces TestStop_noBackupID, which pinned
+// the leak: an unexpanded ${BACKUP_ID} closed the lease on every node, exited 0
+// and stranded a full archive per shard that nothing ever reclaims.
+func TestStop_emptyBackupIDIsRejected(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	const backupID = "empty-id"
+	backupDir := filepath.Join(os.TempDir(), localBackupRootDir, backupID)
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
+	archivePath := filepath.Join(backupDir, backupID+"-"+testReplicasetUUID+".tar.zst")
+	require.NoError(t, os.WriteFile(archivePath, []byte("archive"), 0o644))
+
 	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
 	m := &mockEvaler{queue: [][]any{{info}, nil}}
 
-	require.NoError(t, Stop(m, ""))
-	require.True(t, slices.Contains(m.exprs, "box.backup.stop()"), "stop must be called")
+	err := Stop(m, "")
+	require.ErrorIs(t, err, ErrInvalidBackupID)
+	require.ErrorContains(t, err, `""`, "the error must name the id it rejected")
+	require.False(t, slices.Contains(m.exprs, "box.backup.stop()"),
+		"the lease must survive a malformed invocation")
+	require.FileExists(t, archivePath, "artifacts must remain for a later retry")
+}
+
+// TestStop_rejectsUnsafeBackupID checks the id is refused before box.backup is
+// closed. Finalize unlinks files and rmdirs a directory both named by the id,
+// so a traversal deletes paths outside the backup root.
+func TestStop_rejectsUnsafeBackupID(t *testing.T) {
+	for _, tc := range unsafeBackupIDs {
+		t.Run(tc.name, func(t *testing.T) {
+			base, root, tmpDir := backupIDSandbox(t)
+
+			info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+			inst := instanceMap("router-001", "", "")
+			m := &mockEvaler{queue: [][]any{{info}, nil, {inst}}}
+
+			err := Stop(m, tc.id)
+			require.ErrorIs(t, err, ErrInvalidBackupID)
+			require.Empty(t, m.exprs, "the instance must not be touched")
+			requireSandboxIntact(t, base, root, tmpDir)
+		})
+	}
 }
 
 func TestStop_infoError(t *testing.T) {
 	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
 
-	err := Stop(m, "")
+	err := Stop(m, "info-err-bid")
 	require.ErrorContains(t, err, "boom")
 }
 

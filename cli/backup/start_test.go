@@ -563,6 +563,119 @@ func TestStartBackup_packError(t *testing.T) {
 	}
 }
 
+// breakMkdir makes the archive directory impossible to create by putting a
+// regular file where os.MkdirAll expects a directory.
+func breakMkdir(t *testing.T, backupID string) {
+	t.Helper()
+	root := filepath.Join(os.TempDir(), localBackupRootDir)
+	require.NoError(t, os.MkdirAll(root, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, backupID), []byte("x"), 0o644))
+}
+
+// breakPack makes archive.Pack fail by turning a listed WAL file into a
+// directory, which cannot be read as an archive entry.
+func breakPack(t *testing.T, walDir string) {
+	t.Helper()
+	require.NoError(t, os.Mkdir(filepath.Join(walDir, "00000000000000001500.snap"), 0o755))
+	writeWAL(t, walDir, "00000000000000001500.xlog", []byte("xlog"))
+}
+
+// TestStartBackup_stopsBackupOnFailure checks that a failure after
+// box.backup.start() closes the backup again: an open backup pins the
+// instance's WAL and checkpoint gc until the TTL expires.
+func TestStartBackup_stopsBackupOnFailure(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, backupID, walDir string)
+	}{
+		{
+			name: "mkdir",
+			setup: func(t *testing.T, backupID, walDir string) {
+				t.Helper()
+
+				writeWalFiles(t, walDir)
+				breakMkdir(t, backupID)
+			},
+		},
+		{
+			name:  "resolve files",
+			setup: func(t *testing.T, backupID, walDir string) { t.Helper() }, // no WAL on disk
+		},
+		{
+			name: "pack",
+			setup: func(t *testing.T, backupID, walDir string) {
+				t.Helper()
+
+				breakPack(t, walDir)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TMPDIR", t.TempDir())
+			walDir := t.TempDir()
+			tc.setup(t, "bid", walDir)
+
+			info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+			inst := instanceMap("router-001", walDir, "")
+			m := &mockEvaler{queue: startQueue(info, inst)}
+
+			_, err := Start(m, BackupStartOpts{BackupID: "bid"})
+			require.Error(t, err)
+			require.True(t, slices.Contains(m.exprs, "box.backup.stop()"),
+				"backup must be closed again after a failure, calls: %v", m.exprs)
+		})
+	}
+}
+
+// TestStartBackup_reportsFailedRollback checks that a failing box.backup.stop()
+// is reported without hiding the error that triggered the rollback.
+func TestStartBackup_reportsFailedRollback(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	walDir := t.TempDir()
+	writeWalFiles(t, walDir)
+	breakMkdir(t, "bid")
+
+	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+	inst := instanceMap("router-001", walDir, "")
+	// info -> start -> info -> instance info -> stop.
+	m := &mockEvaler{
+		queue: startQueue(info, inst),
+		err:   errors.New("connection reset"),
+		errOn: 5,
+	}
+
+	_, err := Start(m, BackupStartOpts{BackupID: "bid"})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "failed to create archive directory")
+	require.ErrorContains(t, err, "connection reset")
+}
+
+// TestStartBackup_rejectsUnsafeBackupID checks that an id which is not a single
+// safe path component is refused before the instance is touched. The id names
+// both the archive directory and the file base name below it, so a traversal
+// writes the archive outside the backup root, and a nested id fails halfway
+// with box.backup already open.
+func TestStartBackup_rejectsUnsafeBackupID(t *testing.T) {
+	for _, tc := range unsafeBackupIDs {
+		t.Run(tc.name, func(t *testing.T) {
+			base, root, tmpDir := backupIDSandbox(t)
+			walDir := t.TempDir()
+			writeWalFiles(t, walDir)
+
+			info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+			inst := instanceMap("router-001", walDir, "")
+			m := &mockEvaler{queue: startQueue(info, inst)}
+
+			_, err := Start(m, BackupStartOpts{BackupID: tc.id})
+			require.ErrorIs(t, err, ErrInvalidBackupID)
+			require.Empty(t, m.exprs, "the instance must not be touched")
+			requireSandboxIntact(t, base, root, tmpDir)
+		})
+	}
+}
+
 // TestStartBackup_resolveFilesSplitDirs checks resolveFiles finds files in
 // memtx_dir, wal_dir, and vinyl_dir instead of assuming a single data dir.
 func TestStartBackup_resolveFilesSplitDirs(t *testing.T) {

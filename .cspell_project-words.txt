@@ -95,6 +95,7 @@ regexputil
 replicaid
 replicaset*
 rescan
+rmdirs
 rockspec*
 rpmdeb
 rundir
