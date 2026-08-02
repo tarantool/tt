@@ -41,13 +41,42 @@ type BackupStartOpts struct {
 // Start opens box.backup on the instance, packs the WAL files and a
 // per-shard fragment into a .tar.zst archive under
 // /tmp/tt-backup/<backup-id>/, and leaves box.backup open. The archive path is
-// returned; the caller is expected to print it to stdout.
+// returned; the caller is expected to print it to stdout. A run that produces
+// no archive closes box.backup again.
 func Start(conn connector.Connector, opts BackupStartOpts) (string, error) {
+	// The id names both the archive directory and the file base name below it.
+	// Checking it before box.backup is opened keeps a malformed run from
+	// leaving a lease behind, and keeps the archive inside the backup root.
+	if err := ValidateBackupID(opts.BackupID); err != nil {
+		return "", err //nolint:wrapcheck
+	}
+
 	info, err := openBackup(conn, opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to open backup: %w", err)
 	}
 
+	archivePath, err := buildArchive(conn, info, opts)
+	if err != nil {
+		// An open backup pins the instance's WAL and checkpoint gc until the
+		// TTL expires and blocks every later start, so a run that cannot
+		// deliver an archive must close it again.
+		if stopErr := stopBackup(conn); stopErr != nil {
+			return "", fmt.Errorf("%w; the backup was left open: %w", err, stopErr)
+		}
+		return "", err //nolint:wrapcheck
+	}
+
+	return archivePath, nil
+}
+
+// buildArchive packs the open backup into a local archive. Every error it
+// returns leaves box.backup open for the caller to roll back.
+func buildArchive(
+	conn connector.Connector,
+	info *BackupInfo,
+	opts BackupStartOpts,
+) (string, error) {
 	inst, err := resolveInstance(conn, opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve instance: %w", err)

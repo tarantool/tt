@@ -9,9 +9,19 @@ import (
 )
 
 // Stop closes box.backup on the instance and removes only this replicaset's
-// local archive and manifest fragment. Stop is idempotent: if the backup is already closed,
-// stop() is skipped and stale local artifacts are still removed.
+// local archive and manifest fragment. Stop is idempotent: if the backup is
+// already closed, stop() is skipped and stale local artifacts are still
+// removed. A backupID that is not a safe path component (see ValidateBackupID)
+// is rejected before the instance is touched.
 func Stop(conn connector.Connector, backupID string) error {
+	// Both the artifacts to unlink and the directory to rmdir are named by the
+	// id, so it is checked before box.backup.stop() is issued: a run that
+	// released the lease and then refused to clean up would strand the archive
+	// with no way to finish the backup.
+	if err := ValidateBackupID(backupID); err != nil {
+		return err //nolint:wrapcheck
+	}
+
 	info, err := GetInfo(conn)
 	if err != nil {
 		return fmt.Errorf("failed to check backup state: %w", err)
@@ -20,10 +30,6 @@ func Stop(conn connector.Connector, backupID string) error {
 		if err := stopBackup(conn); err != nil {
 			return fmt.Errorf("finalize: %w", err)
 		}
-	}
-
-	if backupID == "" {
-		return nil
 	}
 
 	inst, err := GetInstanceInfo(conn)
