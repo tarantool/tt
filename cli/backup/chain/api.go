@@ -160,7 +160,7 @@ func shardPlan(
 		if current.Manifest.Shards[replicasetUUID].Instance != nil {
 			reversed = append(reversed, current.Manifest)
 		}
-		prevID := current.Manifest.PreviousBackupID
+		prevID := backup.BackupID(current.Manifest.PreviousBackupID)
 		if prevID == "" || visited[current.Manifest.BackupID] {
 			break
 		}

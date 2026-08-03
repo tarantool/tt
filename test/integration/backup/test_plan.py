@@ -75,7 +75,10 @@ def test_plan_full_empty_storage(tt, tt_app, tmp_path):
     # plan has to carry the one this tt writes.
     assert plan["format_version"] == 1
     assert plan["mode"] == "full"
-    assert "previous_backup_id" not in plan
+    # On an empty storage the chain head is null, not an absent key: a consumer
+    # reading plan["previous_backup_id"] gets None rather than a KeyError.
+    assert plan["previous_backup_id"] is None
+    assert plan["base_full_backup_id"] is None
     assert REPLICASET_UUID in plan["replicasets"]
     rs = plan["replicasets"][REPLICASET_UUID]
     assert rs["master_instance_uuid"] == INSTANCE_UUID
@@ -145,7 +148,11 @@ def test_plan_full_ignores_storage_manifests(tt, tt_app, tmp_path):
 
     plan = json.loads(out.strip())
     assert plan["mode"] == "full"
-    assert "previous_backup_id" not in plan
+    # Null because a full plan never reads the storage, so it names no head
+    # even when one exists. That is a known deviation from the RFC, which wants
+    # the chain head reported here; this asserts today's behaviour, and is the
+    # line to change when it is fixed.
+    assert plan["previous_backup_id"] is None
 
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)

@@ -107,7 +107,7 @@ func TestPlanIncrementalValid(t *testing.T) {
 	plan, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.NoError(t, err)
 	assert.Equal(t, BackupTypeIncremental, plan.Type)
-	assert.Equal(t, BackupID("bk-1"), plan.PreviousBackupID)
+	assert.Equal(t, OptionalBackupID("bk-1"), plan.PreviousBackupID)
 	assert.Equal(t, Vclock{1: 100}, plan.Replicasets[testRSa].FromVclock)
 }
 
@@ -330,8 +330,17 @@ func TestPlanFullJSONNoFromVclockNoPrevious(t *testing.T) {
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(data, &parsed))
 	assert.Equal(t, "full", parsed["mode"])
-	_, hasPrev := parsed["previous_backup_id"]
-	assert.False(t, hasPrev)
+
+	// The chain head is null on an empty storage, not an absent key: a
+	// consumer reading plan["previous_backup_id"] gets None, not a KeyError.
+	prev, hasPrev := parsed["previous_backup_id"]
+	assert.True(t, hasPrev)
+	assert.Nil(t, prev)
+
+	base, hasBase := parsed["base_full_backup_id"]
+	assert.True(t, hasBase)
+	assert.Nil(t, base)
+
 	rs := parsed["replicasets"].(map[string]any)[testRSa].(map[string]any)
 	_, hasVclock := rs["from_vclock"]
 	assert.False(t, hasVclock)

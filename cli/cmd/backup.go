@@ -552,7 +552,9 @@ func buildUploadManifest(
 	fragments []*backup.Fragment,
 	locationsByReplicaset map[string]*backup.ArtifactLocation,
 ) (*backup.ClusterManifest, []byte, error) {
-	baseFullBackupID := plan.BaseFullBackupID
+	// A full backup is the base of its own chain; only an increment inherits
+	// the base named by the plan.
+	baseFullBackupID := backup.BackupID(plan.BaseFullBackupID)
 	if plan.Type == backup.BackupTypeFull {
 		baseFullBackupID = backupID
 	}
@@ -580,7 +582,7 @@ func buildUploadManifest(
 
 	manifest, err := backup.Aggregate(backup.AggregateInput{
 		BackupID:         backupID,
-		PreviousBackupID: plan.PreviousBackupID,
+		PreviousBackupID: backup.BackupID(plan.PreviousBackupID),
 		BaseFullBackupID: baseFullBackupID,
 		CreationTime:     time.Now(),
 		Topology:         backup.BuildTopologyFromFragments(fragments),

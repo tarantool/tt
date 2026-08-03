@@ -214,7 +214,7 @@ func Build(manifests []*backup.ClusterManifest) (*Chain, error) {
 	children := make(map[backup.BackupID][]*Entry, len(entries))
 
 	for _, entry := range sortedEntries(entries) {
-		if previousID := entry.Manifest.PreviousBackupID; previousID != "" {
+		if previousID := backup.BackupID(entry.Manifest.PreviousBackupID); previousID != "" {
 			children[previousID] = append(children[previousID], entry)
 		}
 	}
@@ -283,7 +283,7 @@ func markProblems(
 
 	// Orphan and vclock mismatch belong to one entry and poison its whole tail.
 	for _, entry := range sortedEntries(entries) {
-		previousID := entry.Manifest.PreviousBackupID
+		previousID := backup.BackupID(entry.Manifest.PreviousBackupID)
 		parent := entries[previousID]
 		if previousID != "" && parent == nil {
 			propagateProblem(entry, &Problem{
@@ -364,7 +364,7 @@ func cycleThrough(entry *Entry, entries map[backup.BackupID]*Entry) backup.Backu
 	visited := map[backup.BackupID]bool{entry.Manifest.BackupID: true}
 
 	for current := entry; ; {
-		previousID := current.Manifest.PreviousBackupID
+		previousID := backup.BackupID(current.Manifest.PreviousBackupID)
 		if previousID == "" {
 			return ""
 		}
@@ -475,7 +475,7 @@ func nearestShardAncestor(
 	current := entry
 
 	for {
-		previousID := current.Manifest.PreviousBackupID
+		previousID := backup.BackupID(current.Manifest.PreviousBackupID)
 		if previousID == "" {
 			return nil, nil
 		}
@@ -560,7 +560,7 @@ func orderGroup(
 	// Append disconnected tails root-first (an entry whose previous is not a group
 	// member is a tail root), keeping parents before children in Problems().
 	for _, entry := range group.Entries {
-		if members[entry.Manifest.PreviousBackupID] {
+		if members[backup.BackupID(entry.Manifest.PreviousBackupID)] {
 			continue
 		}
 

@@ -128,7 +128,7 @@ func manifestFixture(
 	manifest := backup.ClusterManifest{
 		SchemaVersion:    backup.SchemaVersion,
 		BackupID:         backup.BackupID(id),
-		PreviousBackupID: backup.BackupID(previous),
+		PreviousBackupID: backup.OptionalBackupID(previous),
 		BaseFullBackupID: backup.BackupID(base),
 		Status:           backup.StatusOK,
 		CreationTime:     time.Unix(createdAt, 0).UTC(),
