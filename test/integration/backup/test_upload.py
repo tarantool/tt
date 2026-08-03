@@ -1,9 +1,10 @@
+import hashlib
 import json
 import os
 from pathlib import Path
 
 import pytest
-from backup_helpers import backup_upload
+from backup_helpers import backup_upload, backup_verify
 from storage_helpers import STORAGE_BACKENDS, FileStorage, S3Storage
 
 TESTDATA_DIR = Path(__file__).parent / "testdata"
@@ -133,6 +134,19 @@ def _load_golden(name):
     return json.loads((TESTDATA_DIR / name).read_text())
 
 
+def _with_prefix(uri, segment):
+    """Point a storage URI at a sub-prefix of the same storage.
+
+    The two backends spell it differently: on s3 the prefix is part of the
+    path after the bucket, on file it is the Prefix query parameter.
+    """
+    if uri.startswith("file://"):
+        return f"{uri}?Prefix={segment}"
+
+    base, _, query = uri.partition("?")
+    return f"{base}/{segment}?{query}"
+
+
 @pytest.fixture
 def storage(request, tmp_path):
     backend, prefix = request.param
@@ -202,10 +216,14 @@ def test_upload_happy_path(tt, tmp_path, storage, flags, expected_prefix):
     uploaded_manifest = json.loads(storage.read(expected_manifest_key))
     golden = _load_golden("upload_manifest_full.golden.json")
 
-    # The artifact path in the manifest must include the prefix.
-    expected_artifact_path = expected_prefix + f"data/{BACKUP_ID}-{REPLICASET}.tar.zst"
-    uploaded_manifest["shards"][REPLICASET]["instance"]["artifact"]["path"] = expected_artifact_path
-    golden["shards"][REPLICASET]["instance"]["artifact"]["path"] = expected_artifact_path
+    # The artifact path is relative to the storage root the manifest sits
+    # beside: the <cluster_name>/<environment>/ segment belongs to the object
+    # key, not to the path every reader resolves. The golden file carries it,
+    # so the comparison below covers it — this is the explicit statement.
+    assert (
+        uploaded_manifest["shards"][REPLICASET]["instance"]["artifact"]["path"]
+        == f"data/{BACKUP_ID}-{REPLICASET}.tar.zst"
+    )
 
     # creation_time is set to time.Now() by upload — strip it before comparing.
     uploaded_manifest.pop("creation_time", None)
@@ -379,6 +397,41 @@ def test_upload_with_cluster_name_prefixes_keys(tt, tmp_path, storage):
     keys = storage.keys()
     assert any(k.startswith("my-cluster/data/") for k in keys)
     assert any(k.startswith("my-cluster/manifests/") for k in keys)
+
+
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_upload_with_cluster_name_is_readable(tt, tmp_path, storage):
+    """A backup taken with --cluster-name verifies clean when read at its prefix.
+
+    The manifest records the archive relative to the storage root it sits
+    beside. A manifest repeating its own <cluster_name>/<environment>/ segment
+    sends every reader looking for <prefix>/<prefix>/data/…: restore cannot
+    download the archive, verify reports the live one missing and the stored
+    one dangling, and gc counts the stored one as an orphan.
+    """
+    fragment = _make_fragment()
+    fragment["checksum_sha256"] = hashlib.sha256(ARCHIVE_CONTENT).hexdigest()
+    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path, fragment=fragment)
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archive_path,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+        cluster_name="payments",
+        environment="production",
+    )
+    assert rc == 0, f"tt backup upload failed:\n{out}"
+
+    rc, out = backup_verify(tt, _with_prefix(storage.uri, "payments/production"), fmt="json")
+    assert rc == 0, f"tt backup verify reported problems:\n{out}"
+
+    report = json.loads(out)
+    assert report["issues"] == []
+    assert report["manifests_checked"] == 1
+    assert report["archives_checked"] == 1
 
 
 def test_upload_missing_backup_id(tt, tmp_path):
