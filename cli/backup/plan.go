@@ -74,8 +74,13 @@ func (v *PlanFormat) UnmarshalJSON(data []byte) error {
 
 // BackupPlan is the output of the plan command.
 type BackupPlan struct {
-	FormatVersion    PlanFormat                `json:"format_version"`
-	Type             BackupType                `json:"mode"`
+	FormatVersion PlanFormat `json:"format_version"`
+	Type          BackupType `json:"mode"`
+	// ClusterName and Environment name the storage subtree the backup belongs
+	// to. They are decided when the backup is planned and travel with the plan,
+	// so upload does not have to be told again what it is uploading.
+	ClusterName      string                    `json:"cluster_name,omitempty"`
+	Environment      string                    `json:"environment,omitempty"`
 	Replicasets      map[string]ReplicasetPlan `json:"replicasets,omitempty"`
 	PreviousBackupID BackupID                  `json:"previous_backup_id,omitempty"`
 	BaseFullBackupID BackupID                  `json:"base_full_backup_id,omitempty"`
@@ -109,15 +114,46 @@ var (
 )
 
 // Plan builds a backup plan from the latest manifest and the live topology.
-func Plan(target BackupType, latest *ClusterManifest, live *LiveTopology) (*BackupPlan, error) {
+func Plan(
+	target BackupType,
+	latest *ClusterManifest,
+	live *LiveTopology,
+	scope PlanScope,
+) (*BackupPlan, error) {
+	var (
+		plan *BackupPlan
+		err  error
+	)
+
 	switch target {
 	case BackupTypeFull:
-		return planFull(live) //nolint:wrapcheck
+		plan, err = planFull(live)
 	case BackupTypeIncremental:
-		return planIncremental(latest, live) //nolint:wrapcheck
+		plan, err = planIncremental(latest, live)
 	default:
 		return nil, fmt.Errorf("unknown target %q", target)
 	}
+
+	if err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	// Trimmed here rather than where the storage prefix is built, so that the
+	// plan records the name the objects will actually be stored under: a
+	// consumer of plan.json compares it against a storage key, and upload
+	// compares it against its own flags.
+	plan.ClusterName = strings.TrimSpace(scope.ClusterName)
+	plan.Environment = strings.TrimSpace(scope.Environment)
+
+	return plan, nil
+}
+
+// PlanScope is the storage subtree the planned backup belongs to. It is an
+// argument of its own because it is the one part of a plan that does not come
+// from the cluster: the operator names it, once, when planning.
+type PlanScope struct {
+	ClusterName string
+	Environment string
 }
 
 // planFull selects the first RW master per replicaset from the live topology.

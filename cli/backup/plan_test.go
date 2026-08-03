@@ -67,7 +67,7 @@ func TestPlanFullSelectsFirstRW(t *testing.T) {
 		},
 	})
 
-	plan, err := Plan(BackupTypeFull, nil, live)
+	plan, err := Plan(BackupTypeFull, nil, live, PlanScope{})
 	require.NoError(t, err)
 	assert.Equal(t, BackupTypeFull, plan.Type)
 	assert.Empty(t, plan.PreviousBackupID)
@@ -83,7 +83,7 @@ func TestPlanFullMasterMasterPicksFirst(t *testing.T) {
 		},
 	})
 
-	plan, err := Plan(BackupTypeFull, nil, live)
+	plan, err := Plan(BackupTypeFull, nil, live, PlanScope{})
 	require.NoError(t, err)
 	assert.Equal(t, testInstA, plan.Replicasets[testRSa].MasterInstanceUUID)
 }
@@ -93,7 +93,7 @@ func TestPlanFullNoRW(t *testing.T) {
 		testRSa: {roInst(testInstA, "a-001")},
 	})
 
-	_, err := Plan(BackupTypeFull, nil, live)
+	_, err := Plan(BackupTypeFull, nil, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoMaster)
 }
@@ -104,7 +104,7 @@ func TestPlanIncrementalValid(t *testing.T) {
 		testRSa: {rwInst(testInstA, "a-001")},
 	})
 
-	plan, err := Plan(BackupTypeIncremental, latest, live)
+	plan, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.NoError(t, err)
 	assert.Equal(t, BackupTypeIncremental, plan.Type)
 	assert.Equal(t, BackupID("bk-1"), plan.PreviousBackupID)
@@ -119,13 +119,40 @@ func TestPlanCarriesTheFormatVersion(t *testing.T) {
 		testRSa: {rwInst(testInstA, "a-001")},
 	})
 
-	full, err := Plan(BackupTypeFull, nil, live)
+	full, err := Plan(BackupTypeFull, nil, live, PlanScope{})
 	require.NoError(t, err)
 	assert.Equal(t, PlanFormatVersion, full.FormatVersion)
 
-	incremental, err := Plan(BackupTypeIncremental, manifestWithShard(), live)
+	incremental, err := Plan(BackupTypeIncremental, manifestWithShard(), live, PlanScope{})
 	require.NoError(t, err)
 	assert.Equal(t, PlanFormatVersion, incremental.FormatVersion)
+}
+
+// The scope is the one part of a plan that does not come from the cluster, and
+// upload reads it back out of the plan to decide where the backup goes.
+func TestPlanCarriesTheScope(t *testing.T) {
+	live := liveTopo(map[string][]LiveInstance{
+		testRSa: {rwInst(testInstA, "a-001")},
+	})
+	scope := PlanScope{ClusterName: "payments", Environment: "production"}
+
+	full, err := Plan(BackupTypeFull, nil, live, scope)
+	require.NoError(t, err)
+	assert.Equal(t, "payments", full.ClusterName)
+	assert.Equal(t, "production", full.Environment)
+
+	incremental, err := Plan(BackupTypeIncremental, manifestWithShard(), live, scope)
+	require.NoError(t, err)
+	assert.Equal(t, "payments", incremental.ClusterName)
+	assert.Equal(t, "production", incremental.Environment)
+
+	// Surrounding whitespace is not part of a path component: the plan records
+	// the name the storage will actually use, not what the flag was typed as.
+	padded, err := Plan(BackupTypeFull, nil, live,
+		PlanScope{ClusterName: "  payments  ", Environment: " production "})
+	require.NoError(t, err)
+	assert.Equal(t, "payments", padded.ClusterName)
+	assert.Equal(t, "production", padded.Environment)
 }
 
 func TestPlanIncrementalNilLatest(t *testing.T) {
@@ -133,7 +160,7 @@ func TestPlanIncrementalNilLatest(t *testing.T) {
 		testRSa: {rwInst(testInstA, "a-001")},
 	})
 
-	_, err := Plan(BackupTypeIncremental, nil, live)
+	_, err := Plan(BackupTypeIncremental, nil, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoBackups)
 }
@@ -155,7 +182,7 @@ func TestPlanIncrementalDegradedShard(t *testing.T) {
 		testRSa: {rwInst(testInstA, "a-001")},
 	})
 
-	_, err := Plan(BackupTypeIncremental, latest, live)
+	_, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrShardDegraded)
 }
@@ -167,7 +194,7 @@ func TestPlanIncrementalReplicasetAdded(t *testing.T) {
 		testRSb: {rwInst(testInstB, "b-001")},
 	})
 
-	_, err := Plan(BackupTypeIncremental, latest, live)
+	_, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrTopologyChanged)
 	assert.Contains(t, err.Error(), "added")
@@ -189,7 +216,7 @@ func TestPlanIncrementalReplicasetRemoved(t *testing.T) {
 		testRSa: {rwInst(testInstA, "a-001")},
 	})
 
-	_, err := Plan(BackupTypeIncremental, latest, live)
+	_, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrTopologyChanged)
 	assert.Contains(t, err.Error(), "removed")
@@ -204,7 +231,7 @@ func TestPlanIncrementalMasterChangedToRO(t *testing.T) {
 		},
 	})
 
-	_, err := Plan(BackupTypeIncremental, latest, live)
+	_, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMasterChanged)
 	assert.Contains(t, err.Error(), "no longer RW")
@@ -223,7 +250,7 @@ func TestPlanIncrementalMasterUnreachable(t *testing.T) {
 		},
 	})
 
-	_, err := Plan(BackupTypeIncremental, latest, live)
+	_, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrReplicasetUnreachable)
 	assert.NotErrorIs(t, err, ErrMasterChanged)
@@ -239,7 +266,7 @@ func TestPlanIncrementalReplicasetNoLiveView(t *testing.T) {
 		testRSa: {downInst(testInstB, "a-002")},
 	})
 
-	_, err := Plan(BackupTypeIncremental, latest, live)
+	_, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrReplicasetUnreachable)
 	assert.NotContains(t, err.Error(), "--target=full")
@@ -257,7 +284,7 @@ func TestPlanIncrementalMasterDownAfterFailover(t *testing.T) {
 		},
 	})
 
-	_, err := Plan(BackupTypeIncremental, latest, live)
+	_, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMasterChanged)
 	assert.Contains(t, err.Error(), "--target=full")
@@ -269,7 +296,7 @@ func TestPlanIncrementalMasterInstanceGone(t *testing.T) {
 		testRSa: {rwInst(testInstB, "a-002")},
 	})
 
-	_, err := Plan(BackupTypeIncremental, latest, live)
+	_, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrMasterChanged)
 	assert.Contains(t, err.Error(), "not found in live topology")
@@ -284,7 +311,7 @@ func TestPlanIncrementalMasterStillRW(t *testing.T) {
 		},
 	})
 
-	plan, err := Plan(BackupTypeIncremental, latest, live)
+	plan, err := Plan(BackupTypeIncremental, latest, live, PlanScope{})
 	require.NoError(t, err)
 	assert.Equal(t, testInstA, plan.Replicasets[testRSa].MasterInstanceUUID)
 }

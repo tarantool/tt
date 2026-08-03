@@ -107,22 +107,26 @@ type StorageConfig struct {
 // one path component, or is nothing but whitespace -- a variable the caller
 // meant to expand and did not would otherwise name a directory of blanks that
 // only a run with the same unexpanded variable ever finds again.
+//
+// The two are named as fields rather than as flags, because the values reach
+// here from a flag on one command and out of a plan file on another; the
+// caller says which by wrapping the error.
 func (cfg *StorageConfig) Scope(clusterName, environment string) error {
-	for _, flag := range []struct{ name, value string }{
-		{"--cluster-name", clusterName},
-		{"--environment", environment},
+	for _, field := range []struct{ name, value string }{
+		{"cluster_name", clusterName},
+		{"environment", environment},
 	} {
-		trimmed := strings.TrimSpace(flag.value)
+		trimmed := strings.TrimSpace(field.value)
 
 		switch {
-		case flag.value == "":
+		case field.value == "":
 			continue
 		case trimmed == "":
 			return fmt.Errorf("invalid %s %q: a storage path component cannot be "+
-				"blank; an unexpanded variable looks like this", flag.name, flag.value)
+				"blank; an unexpanded variable looks like this", field.name, field.value)
 		case strings.ContainsAny(trimmed, `/\`), trimmed == ".", trimmed == "..":
 			return fmt.Errorf("invalid %s %q: it is one storage path component, "+
-				"so it must not contain a path separator", flag.name, trimmed)
+				"so it must not contain a path separator", field.name, trimmed)
 		}
 	}
 
@@ -131,7 +135,7 @@ func (cfg *StorageConfig) Scope(clusterName, environment string) error {
 
 	if clusterName == "" {
 		if environment != "" {
-			return fmt.Errorf("--environment %q needs --cluster-name: "+
+			return fmt.Errorf("environment %q needs a cluster name: "+
 				"the two name one storage path component each", environment)
 		}
 

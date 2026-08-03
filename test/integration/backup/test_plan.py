@@ -85,6 +85,56 @@ def test_plan_full_empty_storage(tt, tt_app, tmp_path):
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_plan_records_the_scope_it_was_given(tt, tt_app, tmp_path):
+    """The cluster and the environment travel in the plan, for upload to read.
+
+    They are the one part of a plan that does not come from the cluster, and
+    naming them once -- when planning -- is what keeps upload from having to be
+    told again where the backup belongs.
+    """
+    storage_uri, _ = _storage_uri(tmp_path)
+
+    rc, out = backup_plan(
+        tt,
+        "full",
+        storage_uri,
+        config=_config_path(tt_app),
+        fmt="json",
+        cluster_name="payments",
+        environment="production",
+    )
+    assert rc == 0, f"tt backup plan failed:\n{out}"
+
+    plan = json.loads(out.strip())
+    assert plan["cluster_name"] == "payments"
+    assert plan["environment"] == "production"
+
+    # Without the flags the keys are absent rather than empty: a plan that names
+    # no cluster leaves the choice to upload.
+    rc, out = backup_plan(tt, "full", storage_uri, config=_config_path(tt_app), fmt="json")
+    assert rc == 0, out
+
+    plan = json.loads(out.strip())
+    assert "cluster_name" not in plan
+    assert "environment" not in plan
+
+    # The scope decides where the backup lands, so the table has to show it too.
+    rc, out = backup_plan(
+        tt,
+        "full",
+        storage_uri,
+        config=_config_path(tt_app),
+        fmt="table",
+        cluster_name="payments",
+        environment="production",
+    )
+    assert rc == 0, out
+    assert "payments" in out
+    assert "production" in out
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
 def test_plan_full_ignores_storage_manifests(tt, tt_app, tmp_path):
     """Full plan succeeds even when manifests exist in storage."""
     storage_uri, storage_dir = _storage_uri(tmp_path)

@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `--cluster-name`, and either of them holding a path separator, are refused
   rather than silently pointing at another storage location. Object keys inside
   the subtree, and the archive paths the manifest records, stay relative to it.
+  `tt backup plan` records the pair it was given in the plan, and `tt backup
+  upload` takes it from there — its own flags are only needed to override the
+  plan, which it reports when they do.
 - `tt restore plan`: add restore planning on the manager host. Lists the
   storage itself, walks the backup chain, resolves `--target-time` into the
   latest cluster recovery point not later than it, downloads the manifests and
