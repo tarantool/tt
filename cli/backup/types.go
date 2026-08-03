@@ -3,6 +3,12 @@ package backup
 // SchemaVersion is the current cluster manifest JSON schema version.
 const SchemaVersion = 1
 
+// PlanFormatVersion is the current backup plan JSON format version. The plan
+// travels from the manager host that produced it to the one that uploads,
+// possibly across a tt upgrade, so upload refuses a version it does not know
+// rather than reading the fields it knows and ignoring the rest.
+const PlanFormatVersion PlanFormat = 1
+
 const (
 	// BackupTypeFull marks a complete backup chain starting point.
 	BackupTypeFull BackupType = "full"

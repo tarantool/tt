@@ -349,17 +349,59 @@ func TestReadPlan(t *testing.T) {
 	}{
 		{
 			"valid plan",
-			`{"mode":"full","replicasets":{"rs-a":{"master_instance_uuid":"inst-a"}}}`,
+			`{"format_version":1,"mode":"full",` +
+				`"replicasets":{"rs-a":{"master_instance_uuid":"inst-a"}}}`,
 			"",
 			&BackupPlan{
-				Type:        BackupTypeFull,
-				Replicasets: map[string]ReplicasetPlan{"rs-a": {MasterInstanceUUID: "inst-a"}},
+				FormatVersion: PlanFormatVersion,
+				Type:          BackupTypeFull,
+				Replicasets:   map[string]ReplicasetPlan{"rs-a": {MasterInstanceUUID: "inst-a"}},
 			},
 		},
 		{
 			"invalid JSON",
 			`{invalid`,
 			"decode plan",
+			nil,
+		},
+		{
+			"a format version this tt does not know",
+			`{"format_version":99,"mode":"full",` +
+				`"replicasets":{"rs-a":{"master_instance_uuid":"inst-a"}}}`,
+			"has format_version 99, this tt understands 1",
+			nil,
+		},
+		{
+			"no format version at all",
+			`{"mode":"full","replicasets":{"rs-a":{"master_instance_uuid":"inst-a"}}}`,
+			"has no format_version",
+			nil,
+		},
+		{
+			// JSON has no integer type, so an orchestrator building the plan
+			// through jq or JavaScript writes what it means as 1 like this.
+			"a whole version written as a JSON float",
+			`{"format_version":1.0,"mode":"full",` +
+				`"replicasets":{"rs-a":{"master_instance_uuid":"inst-a"}}}`,
+			"",
+			&BackupPlan{
+				FormatVersion: PlanFormatVersion,
+				Type:          BackupTypeFull,
+				Replicasets:   map[string]ReplicasetPlan{"rs-a": {MasterInstanceUUID: "inst-a"}},
+			},
+		},
+		{
+			"a version that is not a number",
+			`{"format_version":"1","mode":"full",` +
+				`"replicasets":{"rs-a":{"master_instance_uuid":"inst-a"}}}`,
+			`format_version must be a number, got the string "1"`,
+			nil,
+		},
+		{
+			"a fractional version",
+			`{"format_version":1.5,"mode":"full",` +
+				`"replicasets":{"rs-a":{"master_instance_uuid":"inst-a"}}}`,
+			"format_version must be a whole number, got 1.5",
 			nil,
 		},
 	}
@@ -376,6 +418,7 @@ func TestReadPlan(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			assert.Equal(t, tc.want.FormatVersion, plan.FormatVersion)
 			assert.Equal(t, tc.want.Type, plan.Type)
 			assert.Equal(t, tc.want.Replicasets, plan.Replicasets)
 		})

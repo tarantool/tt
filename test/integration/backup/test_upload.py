@@ -14,6 +14,7 @@ REPLICASET_B = "22222222-2222-2222-2222-222222222222"
 INSTANCE_UUID = "aaaaaaaa-0000-0000-0000-000000000001"
 INSTANCE_UUID_B = "bbbbbbbb-0000-0000-0000-000000000001"
 BACKUP_ID = "20260326T120000Z"
+FORMAT_VERSION = 1
 ARCHIVE_CONTENT = b"archive payload abc"
 ARCHIVE_CONTENT_B = b"archive payload def"
 
@@ -50,7 +51,7 @@ def _make_plan(replicasets=None, mode="full", previous_backup_id=None, base_full
                 "master_instance_name": "router-001",
             },
         }
-    plan = {"mode": mode, "replicasets": replicasets}
+    plan = {"format_version": FORMAT_VERSION, "mode": mode, "replicasets": replicasets}
     if previous_backup_id:
         plan["previous_backup_id"] = previous_backup_id
     if base_full_backup_id:
@@ -572,6 +573,61 @@ def test_upload_invalid_plan_json(tt, tmp_path):
     )
     assert rc != 0
     assert "decode plan" in out.lower()
+
+
+@pytest.mark.parametrize(
+    "plan_patch,expected",
+    [
+        pytest.param(
+            {"format_version": 99},
+            "format_version 99, this tt understands 1",
+            id="unknown-version",
+        ),
+        pytest.param(
+            {"format_version": None},
+            "has no format_version",
+            id="no-version",
+        ),
+        pytest.param(
+            {"format_version": "1"},
+            "format_version must be a number, got the string",
+            id="version-as-a-string",
+        ),
+        pytest.param(
+            {"format_version": 1.5},
+            "format_version must be a whole number",
+            id="fractional-version",
+        ),
+    ],
+)
+def test_upload_refuses_a_plan_it_cannot_read(tt, tmp_path, plan_patch, expected):
+    """A plan of another format is refused, not read for the fields tt knows.
+
+    The plan crosses hosts and possibly a tt upgrade between `backup plan` and
+    `backup upload`, so taking the recognised fields out of an unknown version
+    would silently drop whatever that version added.
+    """
+    plan = _make_plan()
+    if plan_patch["format_version"] is None:
+        plan.pop("format_version")
+    else:
+        plan.update(plan_patch)
+
+    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path, plan=plan)
+    storage_dir = tmp_path / "backups"
+
+    rc, out = backup_upload(
+        tt,
+        f"file://{storage_dir}",
+        archives=archive_path,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+    )
+    assert rc != 0
+    assert expected in out
+    assert not storage_dir.exists(), "a refused plan must leave the storage untouched"
+    assert os.path.exists(archive_path), "the local archive is the only copy left"
 
 
 def test_upload_invalid_fragment_json(tt, tmp_path):

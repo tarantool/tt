@@ -332,7 +332,8 @@ func uploadInputs(t *testing.T, fragmentUUID, archiveUUID string) (*cobra.Comman
 	archive := writeArchive(t, work, archiveUUID)
 	fragment := writeJSON(t, work, "fragment.json", testFragment(fragmentUUID, "a1"))
 	planPath := writeJSON(t, work, "plan.json", backup.BackupPlan{
-		Type: backup.BackupTypeFull,
+		FormatVersion: backup.PlanFormatVersion,
+		Type:          backup.BackupTypeFull,
 		Replicasets: map[string]backup.ReplicasetPlan{
 			fragmentUUID: {MasterInstanceUUID: "a1", MasterInstanceName: "instance-a1"},
 		},
@@ -386,7 +387,8 @@ func twoShardUpload(t *testing.T, fragmentA, fragmentB *backup.Fragment) (
 		writeJSON(t, work, "b.json", fragmentB),
 	}
 	planPath := writeJSON(t, work, "plan.json", backup.BackupPlan{
-		Type: backup.BackupTypeFull,
+		FormatVersion: backup.PlanFormatVersion,
+		Type:          backup.BackupTypeFull,
 		Replicasets: map[string]backup.ReplicasetPlan{
 			fragmentA.ReplicasetUUID: {
 				MasterInstanceUUID: fragmentA.InstanceUUID,

@@ -130,7 +130,27 @@ func ReadPlan(filePath string) (*BackupPlan, error) {
 		return nil, fmt.Errorf("decode plan %q: %w", filePath, err)
 	}
 
-	return &plan, nil
+	// A plan is produced on one host and consumed on another, so the two tt
+	// binaries need not be the same build. Reading a version this one does not
+	// know would mean taking the fields it knows and silently dropping
+	// whatever the newer plan added -- a chain link, a topology, a scope.
+	//
+	// The comparison is exact in both directions: an older version is refused
+	// as well, because nothing here knows which of its fields this build would
+	// misread. A plan lives for the length of one backup, so regenerating it is
+	// the cheap answer; the day that stops being true, this becomes a set of
+	// accepted versions rather than one constant.
+	switch plan.FormatVersion {
+	case PlanFormatVersion:
+		return &plan, nil
+	case 0:
+		return nil, fmt.Errorf("plan %q has no format_version: "+
+			"it was not written by tt backup plan", filePath)
+	default:
+		return nil, fmt.Errorf("plan %q has format_version %d, this tt understands %d: "+
+			"regenerate the plan with tt backup plan",
+			filePath, plan.FormatVersion, PlanFormatVersion)
+	}
 }
 
 // ValidateFragmentsAgainstPlan checks that every replicaset expected by the
