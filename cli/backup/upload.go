@@ -55,6 +55,15 @@ func Upload(
 // PrepareArchives stats each local archive, extracts the replicaset UUID from
 // its filename, and computes the storage key. Returns a slice ready for Upload
 // and a map of replicaset_uuid → ArtifactLocation for manifest building.
+//
+// The two keys differ: an object is PUT under the full key, keyPrefix
+// included, while the manifest records the key relative to the storage root it
+// is stored beside. That is what every reader resolves an artifact path
+// against, and a manifest carrying its own prefix sends them looking for
+// <prefix>/<prefix>/data/…: restore cannot download the archive at all, verify
+// reports the live one missing and the stored one dangling, and gc counts the
+// stored one as an orphan (its re-check of the manifest is what keeps it from
+// being deleted).
 func PrepareArchives(
 	paths []string,
 	keyPrefix string,
@@ -78,16 +87,16 @@ func PrepareArchives(
 			return nil, nil, fmt.Errorf("duplicate archive for replicaset %q", replicasetUUID)
 		}
 
-		storageKey := keyPrefix + storage.ArchiveKey(string(backupID), replicasetUUID)
+		relativeKey := storage.ArchiveKey(string(backupID), replicasetUUID)
 
 		archives = append(archives, ArchiveToUpload{
 			LocalPath:      archivePath,
-			StorageKey:     storageKey,
+			StorageKey:     keyPrefix + relativeKey,
 			Size:           info.Size(),
 			ReplicasetUUID: replicasetUUID,
 		})
 		locations[replicasetUUID] = &ArtifactLocation{
-			Path:      storageKey,
+			Path:      relativeKey,
 			SizeBytes: info.Size(),
 		}
 	}

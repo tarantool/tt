@@ -221,8 +221,10 @@ func TestPrepareArchives(t *testing.T) {
 		require.Len(t, archives, 2)
 		require.Len(t, locations, 2)
 
-		wantKeyA := "cluster/prod/data/20260326T120000Z-" + testRSA + ".tar.zst"
-		wantKeyB := "cluster/prod/data/20260326T120000Z-" + testRSB + ".tar.zst"
+		wantPathA := "data/20260326T120000Z-" + testRSA + ".tar.zst"
+		wantPathB := "data/20260326T120000Z-" + testRSB + ".tar.zst"
+		wantKeyA := keyPrefix + wantPathA
+		wantKeyB := keyPrefix + wantPathB
 
 		assert.Equal(t, path1, archives[0].LocalPath)
 		assert.Equal(t, testRSA, archives[0].ReplicasetUUID)
@@ -234,14 +236,17 @@ func TestPrepareArchives(t *testing.T) {
 		assert.Equal(t, int64(10), archives[1].Size)
 		assert.Equal(t, wantKeyB, archives[1].StorageKey)
 
+		// The manifest records the key relative to the storage root, without
+		// the <cluster_name>/<environment>/ segment the object is stored
+		// under: that is what verify, gc and restore resolve it against.
 		locA := locations[testRSA]
 		require.NotNil(t, locA)
-		assert.Equal(t, wantKeyA, locA.Path)
+		assert.Equal(t, wantPathA, locA.Path)
 		assert.Equal(t, int64(9), locA.SizeBytes)
 
 		locB := locations[testRSB]
 		require.NotNil(t, locB)
-		assert.Equal(t, wantKeyB, locB.Path)
+		assert.Equal(t, wantPathB, locB.Path)
 		assert.Equal(t, int64(10), locB.SizeBytes)
 	})
 
