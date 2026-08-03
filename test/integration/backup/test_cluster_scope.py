@@ -53,7 +53,7 @@ def storage(request, tmp_path):
             s3.delete(key)
 
 
-def _upload_inputs(tmp_path, backup_id=BACKUP_ID):
+def _upload_inputs(tmp_path, backup_id=BACKUP_ID, plan_scope=None):
     """Write the archive, fragment and plan of a one-shard full backup."""
     work = tmp_path / backup_id
     work.mkdir()
@@ -87,11 +87,16 @@ def _upload_inputs(tmp_path, backup_id=BACKUP_ID):
     )
 
     plan = work / "plan.json"
+    plan_body = {
+        "format_version": 1,
+        "mode": "full",
+    }
+    if plan_scope is not None:
+        plan_body["cluster_name"], plan_body["environment"] = plan_scope
     plan.write_text(
         json.dumps(
             {
-                "format_version": 1,
-                "mode": "full",
+                **plan_body,
                 "replicasets": {
                     REPLICASET: {
                         "master_instance_uuid": INSTANCE_UUID,
@@ -112,8 +117,9 @@ def _upload_scoped(
     backup_id=BACKUP_ID,
     cluster_name=CLUSTER,
     environment=ENVIRONMENT,
+    plan_scope=None,
 ):
-    archive, fragment, plan = _upload_inputs(tmp_path, backup_id)
+    archive, fragment, plan = _upload_inputs(tmp_path, backup_id, plan_scope=plan_scope)
 
     rc, out = backup_upload(
         tt,
@@ -297,3 +303,82 @@ def test_the_scope_composes_with_the_uri_prefix(tt, tmp_path, storage):
     # Without the pair the URI prefix alone is a different, empty storage.
     rc, out = backup_last(tt, storage.uri, fmt="json")
     assert rc == 1, out
+
+
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_upload_takes_the_scope_from_the_plan(tt, tmp_path, storage):
+    """The plan says where the backup belongs; upload needs no flags for it."""
+    _upload_scoped(
+        tt,
+        tmp_path,
+        storage,
+        cluster_name=None,
+        environment=None,
+        plan_scope=(CLUSTER, ENVIRONMENT),
+    )
+
+    assert f"{CLUSTER}/{ENVIRONMENT}/manifests/{BACKUP_ID}.json" in storage.keys()
+
+    rc, out = backup_last(
+        tt,
+        storage.uri,
+        fmt="json",
+        cluster_name=CLUSTER,
+        environment=ENVIRONMENT,
+    )
+    assert rc == 0, out
+    assert json.loads(out)["backup_id"] == BACKUP_ID
+
+
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_upload_flags_override_the_plan_scope(tt, tmp_path, storage):
+    """A flag moves the backup elsewhere, and says that it did."""
+    out = _upload_scoped(
+        tt,
+        tmp_path,
+        storage,
+        cluster_name=None,
+        environment="staging",
+        plan_scope=(CLUSTER, ENVIRONMENT),
+    )
+
+    assert f"{CLUSTER}/staging/manifests/{BACKUP_ID}.json" in storage.keys()
+    assert f"{CLUSTER}/{ENVIRONMENT}/manifests/{BACKUP_ID}.json" not in storage.keys()
+    assert "overrides the plan" in out
+
+
+@pytest.mark.parametrize(
+    "plan_scope,expected",
+    [
+        pytest.param(("../escape", ENVIRONMENT), "path separator", id="escaping-cluster"),
+        pytest.param((CLUSTER, "a/b"), "path separator", id="separator-in-environment"),
+        pytest.param(("   ", ENVIRONMENT), "cannot be blank", id="blank-cluster"),
+        pytest.param((None, ENVIRONMENT), "needs a cluster name", id="environment-alone"),
+    ],
+)
+def test_a_plan_cannot_name_a_scope_outside_the_storage(tt, tmp_path, plan_scope, expected):
+    """The plan is input from another host, checked like any other input.
+
+    Whoever wrote the plan is not the operator running upload, so the scope it
+    carries goes through the same validation the flags do -- and the message
+    says the plan is where the value came from, not a flag nobody passed.
+    """
+    storage_dir = tmp_path / "backups"
+    cluster, environment = plan_scope
+    archive, fragment, plan = _upload_inputs(
+        tmp_path,
+        plan_scope=(cluster or "", environment),
+    )
+
+    rc, out = backup_upload(
+        tt,
+        f"file://{storage_dir}",
+        archives=archive,
+        fragments=fragment,
+        plan=plan,
+        backup_id=BACKUP_ID,
+    )
+    assert rc != 0
+    assert expected in out
+    assert "from the plan" in out, f"the message must name the plan as the source:\n{out}"
+    assert not storage_dir.exists(), "a refused scope must leave the storage untouched"

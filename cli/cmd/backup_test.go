@@ -650,3 +650,84 @@ func TestRunBackupPlanRejectsInvalidStorageURI(t *testing.T) {
 		})
 	}
 }
+
+// The plan says which cluster and environment a backup belongs to, so upload
+// does not have to be told again; a flag overrides it when the operator means
+// to put the backup somewhere else.
+func TestUploadScope(t *testing.T) {
+	planned := &backup.BackupPlan{ClusterName: "payments", Environment: "production"}
+
+	cases := []struct {
+		name           string
+		plan           *backup.BackupPlan
+		clusterFlag    string
+		envFlag        string
+		wantCluster    string
+		wantEnv        string
+		wantFlagOrigin bool
+	}{
+		{
+			name:        "from the plan",
+			plan:        planned,
+			wantCluster: "payments",
+			wantEnv:     "production",
+		},
+		{
+			name:           "environment overridden, cluster kept",
+			plan:           planned,
+			envFlag:        "staging",
+			wantCluster:    "payments",
+			wantEnv:        "staging",
+			wantFlagOrigin: true,
+		},
+		{
+			name:           "both overridden",
+			plan:           planned,
+			clusterFlag:    "orders",
+			envFlag:        "staging",
+			wantCluster:    "orders",
+			wantEnv:        "staging",
+			wantFlagOrigin: true,
+		},
+		{
+			name:           "a plan carrying no scope",
+			plan:           &backup.BackupPlan{},
+			clusterFlag:    "payments",
+			wantCluster:    "payments",
+			wantFlagOrigin: true,
+		},
+		{
+			name: "neither",
+			plan: &backup.BackupPlan{},
+		},
+		{
+			// The plan already holds trimmed names, so a flag padded with
+			// whitespace names the same place and overrides nothing.
+			name:        "a flag that differs from the plan only by whitespace",
+			plan:        planned,
+			clusterFlag: "  payments  ",
+			envFlag:     " production ",
+			wantCluster: "payments",
+			wantEnv:     "production",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setFlag(t, &backupClusterName, tc.clusterFlag)
+			setFlag(t, &backupEnvironment, tc.envFlag)
+
+			clusterName, environment, origin := uploadScope(tc.plan)
+			assert.Equal(t, tc.wantCluster, clusterName)
+			assert.Equal(t, tc.wantEnv, environment)
+
+			// The origin is what an invalid value is blamed on, so it has to
+			// name the flags only when the value actually came from them.
+			if tc.wantFlagOrigin {
+				assert.Equal(t, scopeFromFlags, origin)
+			} else {
+				assert.Contains(t, origin, "the plan")
+			}
+		})
+	}
+}

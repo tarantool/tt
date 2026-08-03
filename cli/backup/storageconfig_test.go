@@ -1185,9 +1185,12 @@ func TestStorageConfigScope(t *testing.T) {
 			want:        "tarantool/payments/production",
 		},
 		{
+			// Named as fields, not as flags: on upload these values come out
+			// of the plan, and blaming a flag nobody passed sends the operator
+			// looking for it. The caller adds where they came from.
 			name:        "environment without a cluster name",
 			environment: "production",
-			wantErr:     "--environment \"production\" needs --cluster-name",
+			wantErr:     "environment \"production\" needs a cluster name",
 		},
 		{
 			name:        "a cluster name that is not one path component",
@@ -1212,10 +1215,10 @@ func TestStorageConfigScope(t *testing.T) {
 			wantErr:     "cannot be blank",
 		},
 		{
-			name:        "both flags invalid names the first one",
+			name:        "both values invalid names the first one",
 			clusterName: "a/b",
 			environment: "c/d",
-			wantErr:     "--cluster-name",
+			wantErr:     "invalid cluster_name",
 		},
 	}
 

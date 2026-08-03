@@ -151,7 +151,8 @@ writing a storage takes them. They compose with the prefix above, so one
 storage can hold several clusters. Pass the same pair to every command: a
 backup uploaded with them is invisible to a verify, gc, last or plan run
 without them, and those commands report an empty storage rather than an
-error.`
+error. The exception is upload, which reads the pair out of the plan and
+needs the flags only to override it.`
 
 // addBackupStorageFlags binds the storage a command works on: the URI or
 // config file, and the cluster and environment naming the subtree inside it.
@@ -167,16 +168,31 @@ func addBackupStorageFlags(cmd *cobra.Command) {
 			"path component, requires --cluster-name")
 }
 
+// scopeFromFlags names the flags as the source of a rejected cluster or
+// environment, so the operator is pointed at what they typed.
+const scopeFromFlags = "--cluster-name / --environment"
+
 // backupStorageConfigScoped parses --backup-storage and narrows it to the
 // cluster and environment the command was given.
 func backupStorageConfigScoped() (*backup.StorageConfig, error) {
+	return backupStorageConfigScopedTo(backupClusterName, backupEnvironment, scopeFromFlags)
+}
+
+// backupStorageConfigScopedTo is backupStorageConfigScoped for a scope that
+// does not come from the flags: upload takes it from the plan, which is where
+// the cluster and the environment of a backup are decided. origin says where
+// the rejected value came from -- a plan arrives from another host, and
+// blaming a flag the operator never passed sends them looking for it.
+func backupStorageConfigScopedTo(clusterName, environment, origin string) (
+	*backup.StorageConfig, error,
+) {
 	cfg, err := backup.ParseStorageURI(backupStorageConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse storage URI: %w", err)
 	}
 
-	if err := cfg.Scope(backupClusterName, backupEnvironment); err != nil {
-		return nil, err //nolint:wrapcheck
+	if err := cfg.Scope(clusterName, environment); err != nil {
+		return nil, fmt.Errorf("%w (from %s)", err, origin)
 	}
 
 	return cfg, nil
@@ -185,7 +201,12 @@ func backupStorageConfigScoped() (*backup.StorageConfig, error) {
 // openBackupStorage opens the storage a command works on, at the subtree
 // --cluster-name / --environment name.
 func openBackupStorage() (storage.Storage, error) {
-	cfg, err := backupStorageConfigScoped()
+	return openBackupStorageScoped(backupClusterName, backupEnvironment, scopeFromFlags)
+}
+
+// openBackupStorageScoped opens the storage at the named subtree.
+func openBackupStorageScoped(clusterName, environment, origin string) (storage.Storage, error) {
+	cfg, err := backupStorageConfigScopedTo(clusterName, environment, origin)
 	if err != nil {
 		return nil, err
 	}
@@ -350,15 +371,23 @@ func newBackupUploadCmd() *cobra.Command {
 		Use:   "upload [flags]",
 		Short: "Build cluster manifest from per-shard fragments and upload to storage",
 		Long: `Run on the manager host after the orchestrator collected .tar.zst archives
-and instance_backup.json fragments from all cluster nodes.`,
+and instance_backup.json fragments from all cluster nodes.
+
+The cluster and the environment come from the plan, which is where they were
+decided; --cluster-name / --environment are only needed to override them, and
+the run says so when they do.`,
 		Example: `$ tt backup upload \
     --archives /tmp/bkp/20260326T120000Z-A.tar.zst,/tmp/bkp/20260326T120000Z-B.tar.zst \
     --fragments /tmp/bkp/A.json,/tmp/bkp/B.json \
     --plan /tmp/bkp/plan.json \
     --backup-storage file:///var/backups \
-    --backup-id 20260326T120000Z \
-    --cluster-name payments-cluster \
-    --environment production`,
+    --backup-id 20260326T120000Z
+
+  $ tt backup upload --plan /tmp/bkp/plan.json --environment staging \
+    --archives /tmp/bkp/20260326T120000Z-A.tar.zst \
+    --fragments /tmp/bkp/A.json \
+    --backup-storage file:///var/backups \
+    --backup-id 20260326T120000Z`,
 		Args: cobra.NoArgs,
 		RunE: runBackupUpload,
 	}
@@ -369,7 +398,8 @@ and instance_backup.json fragments from all cluster nodes.`,
 		"comma-separated paths to per-shard instance_backup.json fragments")
 	cmd.Flags().StringVar(&backupUploadPlan, "plan", "",
 		"path to tt backup plan JSON (required); provides type, "+
-			"previous_backup_id and expected replicasets")
+			"previous_backup_id, expected replicasets and the cluster and "+
+			"environment the backup belongs to")
 	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVar(&backupUploadBackupID, "backup-id", "",
 		"backup identifier, e.g. 20260326T120000Z (required)")
@@ -385,6 +415,43 @@ and instance_backup.json fragments from all cluster nodes.`,
 	cmd.MarkFlagRequired("backup-id")
 
 	return cmd
+}
+
+// uploadScope decides which subtree of the storage a backup is uploaded into,
+// and where that decision came from, for the error message if the value turns
+// out not to be a usable path component.
+//
+// The plan carries the scope, because that is where the backup was decided to
+// belong; the flags are there to override it, and say so when they do --
+// uploading a backup into a cluster other than the one it was planned for is a
+// thing an operator does on purpose, and a thing they do by accident.
+//
+// Both sides are compared trimmed: the plan records trimmed names, and a flag
+// that differs only by whitespace overrides nothing.
+func uploadScope(plan *backup.BackupPlan) (clusterName, environment, origin string) {
+	clusterName, environment = plan.ClusterName, plan.Environment
+	origin = fmt.Sprintf("the plan %q", backupUploadPlan)
+
+	flagCluster := strings.TrimSpace(backupClusterName)
+	flagEnvironment := strings.TrimSpace(backupEnvironment)
+
+	if flagCluster != "" && flagCluster != clusterName {
+		if clusterName != "" {
+			log.Warnf("--cluster-name %q overrides the plan's %q", flagCluster, clusterName)
+		}
+
+		clusterName, origin = flagCluster, scopeFromFlags
+	}
+
+	if flagEnvironment != "" && flagEnvironment != environment {
+		if environment != "" {
+			log.Warnf("--environment %q overrides the plan's %q", flagEnvironment, environment)
+		}
+
+		environment, origin = flagEnvironment, scopeFromFlags
+	}
+
+	return clusterName, environment, origin
 }
 
 func runBackupUpload(cmd *cobra.Command, args []string) error {
@@ -435,8 +502,10 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to build manifest: %w", err)
 	}
 
-	// Open storage.
-	store, err := openBackupStorage()
+	// Open storage at the subtree the plan named, which the flags may override.
+	clusterName, environment, scopeOrigin := uploadScope(plan)
+
+	store, err := openBackupStorageScoped(clusterName, environment, scopeOrigin)
 	if err != nil {
 		return err
 	}
@@ -1156,7 +1225,10 @@ func runBackupPlan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	plan, err := backup.Plan(target, latest, &live)
+	plan, err := backup.Plan(target, latest, &live, backup.PlanScope{
+		ClusterName: backupClusterName,
+		Environment: backupEnvironment,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to plan backup: %w", err)
 	}
@@ -1254,6 +1326,14 @@ func formatChainProblems(problems []*chain.Problem) string {
 func printPlanTable(plan *backup.BackupPlan) {
 	log.Info("Backup plan")
 	log.Infof("  Mode:              %s", plan.Type)
+	// The scope decides which subtree of the storage the backup ends up in, so
+	// an operator reading the table has to see it as well as one reading JSON.
+	if plan.ClusterName != "" {
+		log.Infof("  Cluster:           %s", plan.ClusterName)
+	}
+	if plan.Environment != "" {
+		log.Infof("  Environment:       %s", plan.Environment)
+	}
 	if plan.PreviousBackupID != "" {
 		log.Infof("  Previous backup:   %s", plan.PreviousBackupID)
 	}
