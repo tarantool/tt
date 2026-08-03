@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tarantool/tt/cli/backup/archive"
 	"github.com/tarantool/tt/cli/backup/storage"
 )
 
@@ -32,13 +33,14 @@ func Upload(
 ) error {
 	uploadedKeys := make([]string, 0, len(archives))
 
-	for _, archive := range archives {
-		if err := putFile(ctx, store, archive.StorageKey,
-			archive.LocalPath, archive.Size); err != nil {
+	// Named item, not archive: the archive package is imported in this file.
+	for _, item := range archives {
+		if err := putFile(ctx, store, item.StorageKey,
+			item.LocalPath, item.Size); err != nil {
 			deleteObjects(ctx, store, uploadedKeys)
-			return fmt.Errorf("upload archive for replicaset %q: %w", archive.ReplicasetUUID, err)
+			return fmt.Errorf("upload archive for replicaset %q: %w", item.ReplicasetUUID, err)
 		}
-		uploadedKeys = append(uploadedKeys, archive.StorageKey)
+		uploadedKeys = append(uploadedKeys, item.StorageKey)
 	}
 
 	manifestKey := storage.ManifestKey(string(backupID))
@@ -99,6 +101,63 @@ func PrepareArchives(
 	}
 
 	return archives, locations, nil
+}
+
+// VerifyArchives recomputes the sha256 of every archive about to be uploaded
+// and checks it against the fragment describing the same replicaset. The
+// fragment's checksum was computed on the node, before the archive crossed the
+// network to this host: a copy that went wrong in between is otherwise stored
+// and published as healthy, and found out at restore time.
+//
+// A fragment that carries no checksum gets the computed one, so the manifest
+// describes the archive either way. Those replicaset UUIDs are returned rather
+// than silently accepted: nothing was verified for them, and the caller says so.
+//
+// An archive no fragment describes is refused rather than skipped. Today the
+// caller cannot produce one -- the counts have to match, neither side may hold
+// a duplicate replicaset, and every fragment needs an archive -- but that is an
+// invariant of three other checks, and a function that verifies archives must
+// not report success on one it never looked at.
+//
+// The fragment ends up holding the checksum computed here, in the canonical
+// lower-case form, so the manifest records what this host actually read.
+func VerifyArchives(archives []ArchiveToUpload, fragments []*Fragment) ([]string, error) {
+	byReplicaset := make(map[string]*Fragment, len(fragments))
+	for _, fragment := range fragments {
+		byReplicaset[fragment.ReplicasetUUID] = fragment
+	}
+
+	unverified := make([]string, 0)
+
+	for _, item := range archives {
+		fragment, ok := byReplicaset[item.ReplicasetUUID]
+		if !ok {
+			return nil, fmt.Errorf(
+				"no fragment describes archive %q of replicaset %s",
+				item.LocalPath, item.ReplicasetUUID)
+		}
+
+		checksum, err := archive.Checksum(item.LocalPath)
+		if err != nil {
+			return nil, fmt.Errorf("checksum archive %q: %w", item.LocalPath, err)
+		}
+
+		switch {
+		case fragment.ChecksumSHA256 == "":
+			unverified = append(unverified, item.ReplicasetUUID)
+		case !strings.EqualFold(fragment.ChecksumSHA256, checksum):
+			return nil, fmt.Errorf(
+				"archive %q of replicaset %s has checksum %s, its fragment says %s: "+
+					"the archive changed after it was packed on the node",
+				item.LocalPath, item.ReplicasetUUID, checksum, fragment.ChecksumSHA256)
+		}
+
+		fragment.ChecksumSHA256 = checksum
+	}
+
+	slices.Sort(unverified)
+
+	return unverified, nil
 }
 
 // BuildTopologyFromFragments builds a Topology from the collected fragments.

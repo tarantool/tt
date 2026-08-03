@@ -36,7 +36,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   between the two commands.
 - `tt backup upload`: add a command that builds a cluster manifest from
   per-shard fragments and uploads archives and the manifest to file or S3
-  storage.
+  storage. Every archive is read through and checked against the checksum its
+  fragment carries before anything is stored, so a copy that went wrong between
+  the node and the manager host is refused rather than published as healthy. A
+  fragment with no checksum gets the computed one, and the run reports that
+  nothing was verified for that shard.
 - `tt backup plan`, `upload`, `verify`, `gc`, `last` and `tt restore plan`:
   `--cluster-name` and `--environment` select the
   `<storage_root>/<cluster_name>/<environment>/` subtree of the storage, so one

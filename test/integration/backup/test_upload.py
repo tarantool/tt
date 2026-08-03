@@ -26,7 +26,14 @@ def _make_fragment(
     backup_type="full",
     vclock_end=100,
     vclock_begin=None,
+    content=ARCHIVE_CONTENT,
 ):
+    """A fragment describing the archive built from content.
+
+    The checksum has to be the archive's real one: upload reads every archive
+    through before storing it, and a fragment that disagrees is a copy that
+    went wrong on the way here.
+    """
     return {
         "replicaset_uuid": replicaset,
         "instance_uuid": instance_uuid,
@@ -38,7 +45,7 @@ def _make_fragment(
         else ({"1": 50} if backup_type == "incremental" else None),
         "vclock_end": {"1": vclock_end},
         "files": ["00000000000000000100.xlog"],
-        "checksum_sha256": "abc123",
+        "checksum_sha256": hashlib.sha256(content).hexdigest(),
         "recovery_points": [],
     }
 
@@ -122,6 +129,7 @@ def _prepare_two_shard_inputs(tmp_path):
             replicaset=REPLICASET_B,
             instance_uuid=INSTANCE_UUID_B,
             instance_name="router-002",
+            content=ARCHIVE_CONTENT_B,
         ),
     )
 
@@ -236,6 +244,7 @@ def test_upload_multi_shard(tt, tmp_path, storage):
         instance_uuid=INSTANCE_UUID_B,
         instance_name="router-002",
         vclock_end=200,
+        content=ARCHIVE_CONTENT_B,
     )
 
     plan = _make_plan(
@@ -397,9 +406,7 @@ def test_upload_with_cluster_name_is_readable(tt, tmp_path, storage):
     download the archive, verify reports the live one missing and the stored
     one dangling, and gc counts the stored one as an orphan.
     """
-    fragment = _make_fragment()
-    fragment["checksum_sha256"] = hashlib.sha256(ARCHIVE_CONTENT).hexdigest()
-    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path, fragment=fragment)
+    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path)
 
     rc, out = backup_upload(
         tt,
@@ -573,6 +580,60 @@ def test_upload_invalid_plan_json(tt, tmp_path):
     )
     assert rc != 0
     assert "decode plan" in out.lower()
+
+
+def test_upload_refuses_an_archive_that_changed_on_the_way(tt, tmp_path):
+    """The fragment's checksum was computed on the node, before the copy here.
+
+    An archive truncated or corrupted by the transfer is otherwise stored and
+    published as healthy, and found out when it is needed.
+    """
+    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path)
+    storage_dir = tmp_path / "backups"
+
+    # What the scp got wrong, done by hand.
+    with open(archive_path, "wb") as damaged:
+        damaged.write(ARCHIVE_CONTENT[:-3])
+
+    rc, out = backup_upload(
+        tt,
+        f"file://{storage_dir}",
+        archives=archive_path,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+    )
+    assert rc != 0
+    assert "the archive changed after it was packed" in out
+    assert not storage_dir.exists(), "a damaged archive must not be stored"
+    assert os.path.exists(archive_path), "the local copy is all there is left"
+
+
+def test_upload_computes_a_checksum_the_fragment_lacks(tt, tmp_path):
+    """A fragment without a checksum still yields a manifest describing the archive.
+
+    Nothing is verified for such a shard -- the run says so rather than
+    pretending the archive was checked.
+    """
+    fragment = _make_fragment()
+    fragment.pop("checksum_sha256")
+    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path, fragment=fragment)
+    storage_dir = tmp_path / "backups"
+
+    rc, out = backup_upload(
+        tt,
+        f"file://{storage_dir}",
+        archives=archive_path,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+    )
+    assert rc == 0, out
+    assert "carries no checksum_sha256" in out
+
+    manifest = json.loads((storage_dir / "manifests" / f"{BACKUP_ID}.json").read_text())
+    stored = manifest["shards"][REPLICASET]["instance"]["artifact"]["checksum_sha256"]
+    assert stored == hashlib.sha256(ARCHIVE_CONTENT).hexdigest()
 
 
 @pytest.mark.parametrize(
@@ -797,7 +858,7 @@ def test_upload_same_backup_id_overwrites(tt, tmp_path, storage):
     plan_again = work / "plan.json"
     _write_json(plan_again, _make_plan())
     fragment_again = work / "fragment.json"
-    _write_json(fragment_again, _make_fragment(vclock_end=999))
+    _write_json(fragment_again, _make_fragment(vclock_end=999, content=replacement))
     archive_again = _write_archive(str(work), BACKUP_ID, REPLICASET, replacement)
 
     rc, out = backup_upload(
@@ -871,6 +932,7 @@ def test_upload_fragment_uuid_not_matching_archive_is_rejected(tt, tmp_path):
             replicaset=REPLICASET_B,
             instance_uuid=INSTANCE_UUID_B,
             instance_name="router-002",
+            content=ARCHIVE_CONTENT_B,
         ),
     )
 
@@ -887,7 +949,9 @@ def test_upload_fragment_uuid_not_matching_archive_is_rejected(tt, tmp_path):
     )
 
     assert rc != 0
-    assert REPLICASET_B in out
+    # The checksum pass sees it first: it cannot verify an archive that no
+    # fragment describes, and names the archive's own replicaset.
+    assert REPLICASET in out
     assert storage.keys() == []
     assert os.path.isfile(archive_path), "the only copy of the data was removed"
 
@@ -933,8 +997,11 @@ def test_upload_duplicate_replicaset_across_fragments_is_rejected(tt, tmp_path):
     )
 
     assert rc != 0
-    assert "duplicate" in out.lower()
-    assert REPLICASET in out
+    # The duplicate displaces the other replicaset's fragment, so the checksum
+    # pass reaches an archive nothing describes and stops there -- before the
+    # aggregation that used to be the one catching this.
+    assert "no fragment describes archive" in out
+    assert REPLICASET_B in out
     assert storage.keys() == []
     assert os.path.isfile(archive_a) and os.path.isfile(archive_b)
 
