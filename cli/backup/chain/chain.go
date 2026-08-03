@@ -31,6 +31,18 @@ func (c *Chain) covers(t time.Time) bool {
 	return !c.coverageStart.IsZero() && !t.Before(c.coverageStart)
 }
 
+// orderedEntries returns every entry from the oldest full backup to the newest,
+// following previous_backup_id within each group. It is the order to walk when
+// an answer must not depend on map iteration.
+func (c *Chain) orderedEntries() []*Entry {
+	var entries []*Entry
+	for _, group := range c.groups {
+		entries = append(entries, group.Entries...)
+	}
+
+	return entries
+}
+
 // segment is a contiguous run of cluster points with uniform topology plus the
 // reason it is separated from the previous segment.
 type segment struct {

@@ -123,9 +123,10 @@ func (c *Chain) PlanFor(p ClusterPoint) (Plan, error) {
 	}
 
 	index := c.byID
+	ordered := c.orderedEntries()
 	shards := make(map[string]ShardPlan, len(p.Shards))
 	for replicasetUUID, pos := range p.Shards {
-		sp, err := shardPlan(replicasetUUID, pos, p, index)
+		sp, err := shardPlan(replicasetUUID, pos, p, index, ordered)
 		if err != nil {
 			return Plan{}, fmt.Errorf("build plan for replicaset %q: %w", replicasetUUID, err)
 		}
@@ -143,8 +144,9 @@ func shardPlan(
 	pos Position,
 	point ClusterPoint,
 	index map[backup.BackupID]*Entry,
+	ordered []*Entry,
 ) (ShardPlan, error) {
-	source, err := findSourceEntry(replicasetUUID, point.Name, index)
+	source, err := findSourceEntry(replicasetUUID, point.Name, pos, ordered)
 	if err != nil {
 		return ShardPlan{}, fmt.Errorf("find source entry: %w", err)
 	}
@@ -189,16 +191,33 @@ func shardPlan(
 	return ShardPlan{Backups: backups, TrimTo: trimTo}, nil
 }
 
-// findSourceEntry returns the entry whose manifest carries the named recovery
-// point for the given replicaset.
+// findSourceEntry returns the backup the recovery position falls inside, for
+// the given replicaset.
+//
+// The position selects the entry, not the point's label. The caller trims
+// against this entry's vclock_end, so an entry that does not contain the
+// position yields either no trim at all or a trim inside the wrong backup -
+// both of which restore an instance that looks healthy at the wrong state.
+// Labels cannot carry that weight: the core creates two points with the same
+// label without complaint, and nothing downstream enforces uniqueness. The
+// label is still checked, because an entry that covers the position without
+// carrying the label means the manifests disagree with each other.
+//
+// Entries are walked in chain order, oldest first, so the answer does not
+// depend on map iteration order.
 func findSourceEntry(
 	replicasetUUID string,
 	pointName string,
-	index map[backup.BackupID]*Entry,
+	pos Position,
+	ordered []*Entry,
 ) (*Entry, error) {
-	for _, entry := range index {
+	for _, entry := range ordered {
 		shard := entry.Manifest.Shards[replicasetUUID]
 		if shard.Instance == nil {
+			continue
+		}
+
+		if !coversPosition(shard.Instance, pos) {
 			continue
 		}
 
@@ -207,10 +226,29 @@ func findSourceEntry(
 				return entry, nil
 			}
 		}
+
+		return nil, fmt.Errorf(
+			"backup %q covers %s for replicaset %q but carries no point %q",
+			entry.Manifest.BackupID, pos, replicasetUUID, pointName,
+		)
 	}
 
 	return nil, fmt.Errorf(
-		"no manifest carries point %q for replicaset %q",
-		pointName, replicasetUUID,
+		"no manifest covers %s for replicaset %q, wanted for point %q",
+		pos, replicasetUUID, pointName,
 	)
+}
+
+// coversPosition reports whether the shard's backup range contains pos. A full
+// backup has no begin vclock - the core reports none - so only the end bounds
+// it.
+func coversPosition(instance *backup.ShardInstance, pos Position) bool {
+	endLSN, ok := instance.VclockEnd[pos.ReplicaID]
+	if !ok || pos.LSN > endLSN {
+		return false
+	}
+
+	beginLSN, ok := instance.VclockBegin[pos.ReplicaID]
+
+	return !ok || pos.LSN > beginLSN
 }
