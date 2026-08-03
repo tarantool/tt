@@ -3,6 +3,8 @@ package backup
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -81,6 +83,88 @@ func writeArchiveFile(t *testing.T, dir, backupID, replicasetUUID string, conten
 	path := filepath.Join(dir, name)
 	require.NoError(t, os.WriteFile(path, content, 0o644))
 	return path
+}
+
+// The archive that reaches the manager host is not the file the node packed
+// until the two are compared: a copy that went wrong in between is otherwise
+// published as healthy and found out at restore time.
+func TestVerifyArchives(t *testing.T) {
+	dir := t.TempDir()
+	backupID := BackupID("bid")
+	content := []byte("archive payload")
+
+	path := writeArchiveFile(t, dir, string(backupID), testRSA, content)
+	sum := sha256.Sum256(content)
+	checksum := hex.EncodeToString(sum[:])
+
+	archives, _, err := PrepareArchives([]string{path}, backupID)
+	require.NoError(t, err)
+
+	fragmentWith := func(checksum string) []*Fragment {
+		fragment := testFragment(testRSA)
+		fragment.ChecksumSHA256 = checksum
+
+		return []*Fragment{&fragment}
+	}
+
+	t.Run("matching checksum", func(t *testing.T) {
+		unverified, err := VerifyArchives(archives, fragmentWith(checksum))
+		require.NoError(t, err)
+		assert.Empty(t, unverified)
+	})
+
+	t.Run("checksums are hex, case must not decide", func(t *testing.T) {
+		_, err := VerifyArchives(archives, fragmentWith(strings.ToUpper(checksum)))
+		require.NoError(t, err)
+	})
+
+	t.Run("the archive changed after it was packed", func(t *testing.T) {
+		_, err := VerifyArchives(archives, fragmentWith(strings.Repeat("0", 64)))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "the archive changed after it was packed")
+		assert.Contains(t, err.Error(), checksum)
+	})
+
+	t.Run("a fragment without a checksum takes the computed one", func(t *testing.T) {
+		fragments := fragmentWith("")
+
+		unverified, err := VerifyArchives(archives, fragments)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{testRSA}, unverified,
+			"nothing was verified for that shard, and the caller has to know")
+		assert.Equal(t, checksum, fragments[0].ChecksumSHA256,
+			"the manifest still has to describe the archive")
+	})
+
+	t.Run("an archive no fragment describes", func(t *testing.T) {
+		other := testFragment(testRSB)
+		other.ChecksumSHA256 = checksum
+
+		_, err := VerifyArchives(archives, []*Fragment{&other})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no fragment describes archive")
+	})
+
+	t.Run("the manifest records the checksum computed here", func(t *testing.T) {
+		fragments := fragmentWith(strings.ToUpper(checksum))
+
+		_, err := VerifyArchives(archives, fragments)
+		require.NoError(t, err)
+		assert.Equal(t, checksum, fragments[0].ChecksumSHA256,
+			"the stored checksum is the canonical form of what this host read")
+	})
+
+	t.Run("a missing archive is a failure, not a pass", func(t *testing.T) {
+		absent := []ArchiveToUpload{{
+			LocalPath:      filepath.Join(dir, "gone.tar.zst"),
+			ReplicasetUUID: testRSA,
+		}}
+
+		_, err := VerifyArchives(absent, fragmentWith(checksum))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "checksum archive")
+	})
 }
 
 // writeFragmentFile writes a valid fragment JSON to a temporary file.

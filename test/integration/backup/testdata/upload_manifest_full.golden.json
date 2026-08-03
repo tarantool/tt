@@ -18,7 +18,7 @@
         "artifact": {
           "path": "data/20260326T120000Z-11111111-1111-1111-1111-111111111111.tar.zst",
           "size_bytes": 19,
-          "checksum_sha256": "abc123",
+          "checksum_sha256": "55db441daf0ba3984a4a0f32602f2561ac51720a33d8d3656201af8183210f0d",
           "compression": "zstd",
           "files": [
             "00000000000000000100.xlog"

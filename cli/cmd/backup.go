@@ -493,6 +493,19 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to prepare archives: %w", err)
 	}
 
+	// Read every archive through before any of them is stored: what the node
+	// packed and what arrived here are two different files until compared.
+	unverified, err := backup.VerifyArchives(archives, fragments)
+	if err != nil {
+		return fmt.Errorf("failed to verify archives: %w", err)
+	}
+
+	for _, replicasetUUID := range unverified {
+		log.Warnf("fragment of replicaset %s carries no checksum_sha256: "+
+			"the manifest records the one computed here, and nothing was verified",
+			replicasetUUID)
+	}
+
 	// The manifest is built before the storage is touched, so a fragment that
 	// does not line up with an archive costs nothing: no object is written and
 	// no local archive is removed.

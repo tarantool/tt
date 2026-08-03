@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -166,6 +168,18 @@ const (
 	testShardB   = "22222222-2222-2222-2222-222222222222"
 )
 
+// archiveContent is what writeArchive stores; upload now reads every archive
+// through, so the fragment describing one has to carry its real checksum.
+var archiveContent = []byte("archive")
+
+// archiveChecksum is the sha256 of archiveContent, computed here rather than
+// taken from the code under test.
+func archiveChecksum() string {
+	sum := sha256.Sum256(archiveContent)
+
+	return hex.EncodeToString(sum[:])
+}
+
 // testFragment builds a valid full-backup fragment for one replicaset.
 func testFragment(replicasetUUID, instanceUUID string) *backup.Fragment {
 	return &backup.Fragment{
@@ -176,7 +190,7 @@ func testFragment(replicasetUUID, instanceUUID string) *backup.Fragment {
 		Type:           backup.BackupTypeFull,
 		VclockEnd:      backup.Vclock{1: 100},
 		Files:          []string{"00000000000000000000.snap"},
-		ChecksumSHA256: "c",
+		ChecksumSHA256: archiveChecksum(),
 		RecoveryPoints: &[]*backup.RecoveryPoint{},
 	}
 }
@@ -200,7 +214,7 @@ func writeArchive(t *testing.T, dir, replicasetUUID string) string {
 	t.Helper()
 
 	path := filepath.Join(dir, testBackupID+"-"+replicasetUUID+".tar.zst")
-	require.NoError(t, os.WriteFile(path, []byte("archive"), 0o644))
+	require.NoError(t, os.WriteFile(path, archiveContent, 0o644))
 
 	return path
 }
@@ -355,13 +369,14 @@ func uploadInputs(t *testing.T, fragmentUUID, archiveUUID string) (*cobra.Comman
 func TestRunBackupUploadRejectsFragmentWithoutArchive(t *testing.T) {
 	// The fragment names one replicaset, the archive filename another: the
 	// manifest would carry an empty artifact path for a backup nothing can
-	// restore from.
+	// restore from. The checksum pass sees it first, since it cannot verify an
+	// archive nothing describes.
 	cmd, root, archive := uploadInputs(t, testShardB, testShardA)
 	setFlag(t, &backupUploadKeepLocal, false)
 
 	err := runBackupUpload(cmd, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), testShardB)
+	assert.Contains(t, err.Error(), testShardA)
 
 	assert.Empty(t, storageKeys(t, root), "nothing may be stored for a rejected upload")
 	assert.FileExists(t, archive, "the local archive is the only copy left")
@@ -432,14 +447,16 @@ func TestRunBackupUploadReportsStoredShardCount(t *testing.T) {
 func TestRunBackupUploadRejectsDuplicateReplicaset(t *testing.T) {
 	// Two fragments naming one replicaset used to collapse into a single shard
 	// and be reported as two: the rejection has to happen before anything is
-	// stored, so no archive is orphaned and no local copy is removed.
+	// stored, so no archive is orphaned and no local copy is removed. The
+	// archive of the replicaset the second fragment displaced is what the
+	// checksum pass trips over first.
 	cmd, root := twoShardUpload(t,
 		testFragment(testShardA, "a1"), testFragment(testShardA, "b1"))
 	setFlag(t, &backupUploadKeepLocal, false)
 
 	err := runBackupUpload(cmd, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), testShardA)
+	assert.Contains(t, err.Error(), testShardB)
 
 	assert.Empty(t, storageKeys(t, root), "nothing may be stored for a rejected upload")
 	for _, archive := range strings.Split(backupUploadArchives, ",") {
