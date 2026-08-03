@@ -107,13 +107,17 @@ func Apply(opts ApplyOpts) (*ApplyResult, error) {
 		return nil, err //nolint:wrapcheck
 	}
 
-	// Everything that can reject the inputs without reading the archives
-	// through runs before the work directory is touched, so those rejections
-	// leave the previous attempt intact. The chain check is the exception: an
-	// archive only says which part of the journal it covers once its stream
-	// has been read, and reading every archive twice would double the work of
-	// a restore.
+	// Every rejection happens before the work directory is touched, so a
+	// rejected input leaves the previous attempt intact -- which is what an
+	// orchestrator retrying on that exit code relies on. The chain check needs
+	// the archives read through to say anything, so they are read twice: once
+	// here for their entry names and manifest fragments, and once again to
+	// unpack. The first pass writes nothing.
 	if err := verifyChecksums(opts.Archives, opts.Checksums); err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	if err := checkChain(opts.Archives); err != nil {
 		return nil, err //nolint:wrapcheck
 	}
 
@@ -264,25 +268,74 @@ func isRestoreArtifact(name string) bool {
 	return false
 }
 
-// unpackChain writes the archives into the work directory in the order they
-// were given, stamping the instance UUID into every header that lands, and
-// reports what the work directory ended up holding.
-func unpackChain(opts ApplyOpts) (*ApplyResult, error) {
-	result := &ApplyResult{}
-	landed := make(map[string]struct{})
+// checkChain reads the archives without unpacking them and refuses a chain
+// whose archives do not continue one another, so the refusal comes while the
+// work directory still holds whatever the last run left there.
+//
+// A single archive is no chain and is not read here: the pass costs a full
+// zstd decode of every archive given, and restoring one full backup is a
+// common enough case to be worth the exception.
+func checkChain(paths []string) error {
+	if len(paths) < 2 {
+		return nil
+	}
 
 	var previous archiveContent
 
-	for i, path := range opts.Archives {
-		content, err := unpackArchive(path, opts.WorkDir)
+	for i, path := range paths {
+		content, err := inspectArchive(path)
 		if err != nil {
-			return nil, err //nolint:wrapcheck
+			return err //nolint:wrapcheck
 		}
 
 		if i > 0 {
 			if err := checkChainOrder(previous, content); err != nil {
-				return nil, err //nolint:wrapcheck
+				return err //nolint:wrapcheck
 			}
+		}
+
+		previous = content
+	}
+
+	return nil
+}
+
+// inspectArchive reads one archive for what the chain check needs -- the names
+// it would land and the manifest fragment describing the backup -- without
+// writing anything. Entry bodies are left unread: the tar reader skips over
+// the ones nobody consumed.
+func inspectArchive(src string) (archiveContent, error) {
+	content := archiveContent{path: src}
+
+	for entry, err := range archive.Entries(src) {
+		if err != nil {
+			return archiveContent{}, fmt.Errorf("failed to read archive %q: %w", src, err)
+		}
+
+		if entry.Name == fragmentEntryName {
+			content.fragment = readFragment(entry.Body)
+
+			continue
+		}
+
+		content.files = append(content.files, entry.Name)
+	}
+
+	return content, nil
+}
+
+// unpackChain writes the archives into the work directory in the order they
+// were given, stamping the instance UUID into every header that lands, and
+// reports what the work directory ended up holding. The order itself has
+// already been checked, by checkChain, before the directory was cleared.
+func unpackChain(opts ApplyOpts) (*ApplyResult, error) {
+	result := &ApplyResult{}
+	landed := make(map[string]struct{})
+
+	for _, path := range opts.Archives {
+		content, err := unpackArchive(path, opts.WorkDir)
+		if err != nil {
+			return nil, err //nolint:wrapcheck
 		}
 
 		for _, name := range content.files {
@@ -305,8 +358,6 @@ func unpackChain(opts ApplyOpts) (*ApplyResult, error) {
 				result.Patched++
 			}
 		}
-
-		previous = content
 	}
 
 	return result, nil

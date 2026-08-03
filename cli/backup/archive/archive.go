@@ -22,9 +22,12 @@ type Entry struct {
 	Name string
 	Size int64
 	// Body streams the entry's content. It is backed by the shared archive
-	// reader and is only valid until the next iteration step: fully consume it
-	// before continuing the range loop. Do not retain it or read it after the
-	// loop advances — it will then point at another entry or a closed reader.
+	// reader and is only valid until the next iteration step: read what you
+	// need of it before continuing the range loop. Do not retain it or read it
+	// after the loop advances — it will then point at another entry or a closed
+	// reader. Leaving a body unread, whole or in part, is allowed: the iterator
+	// skips the remainder before yielding the next entry, which is what a
+	// consumer wanting only the entry names relies on.
 	Body io.Reader
 }
 
