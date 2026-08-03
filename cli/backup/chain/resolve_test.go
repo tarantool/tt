@@ -43,8 +43,9 @@ func TestResolveLatestPointNotLaterThanT(t *testing.T) {
 	require.Nil(t, resolution.After)
 }
 
-func TestResolveBetweenPoints(t *testing.T) {
-	manifest := manifestFixture("full", "", "full", backup.BackupTypeFull, 30, 0, 30,
+func TestResolveBeforeCoverage(t *testing.T) {
+	// T earlier than every manifest is outside what the storage holds at all.
+	manifest := manifestFixture("full", "", "full", backup.BackupTypeFull, 5, 0, 30,
 		map[string][]backup.RecoveryPoint{
 			replicasetA: {
 				recoveryPoint("before", 1, 10, 10),
@@ -56,11 +57,26 @@ func TestResolveBetweenPoints(t *testing.T) {
 			},
 		})
 
-	// T=9 is before every point.
-	resolution := buildFixtureChain(t, manifest).Resolve(time.Unix(9, 0).UTC())
-	require.Equal(t, StatusNoRecoveryPoint, resolution.Status)
+	resolution := buildFixtureChain(t, manifest).Resolve(time.Unix(1, 0).UTC())
+	require.Equal(t, StatusOutOfRange, resolution.Status)
 	require.Nil(t, resolution.Point)
 	require.Equal(t, "before", resolution.After.Name)
+	require.Nil(t, resolution.Before)
+}
+
+func TestResolveInsideCoverageBeforeFirstPoint(t *testing.T) {
+	// T inside the covered window but earlier than every point: the storage has
+	// backups for that moment, none of them carries a point to stop at.
+	manifest := manifestFixture("full", "", "full", backup.BackupTypeFull, 5, 0, 30,
+		map[string][]backup.RecoveryPoint{
+			replicasetA: {recoveryPoint("only", 1, 10, 10)},
+			replicasetB: {recoveryPoint("only", 2, 10, 11)},
+		})
+
+	resolution := buildFixtureChain(t, manifest).Resolve(time.Unix(7, 0).UTC())
+	require.Equal(t, StatusNoRecoveryPoint, resolution.Status)
+	require.Nil(t, resolution.Point)
+	require.Equal(t, "only", resolution.After.Name)
 	require.Nil(t, resolution.Before)
 }
 
