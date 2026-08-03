@@ -90,6 +90,7 @@ def _upload_inputs(tmp_path, backup_id=BACKUP_ID):
     plan.write_text(
         json.dumps(
             {
+                "format_version": 1,
                 "mode": "full",
                 "replicasets": {
                     REPLICASET: {

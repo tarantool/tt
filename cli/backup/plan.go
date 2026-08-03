@@ -1,7 +1,9 @@
 package backup
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 )
@@ -34,8 +36,45 @@ type ReplicasetPlan struct {
 	FromVclock         Vclock `json:"from_vclock,omitempty"`
 }
 
+// PlanFormat is the plan's format_version. It decodes from any JSON number
+// with an integral value, because JSON has no integer type and an orchestrator
+// building the plan through jq or JavaScript emits 1.0 for what it means as 1.
+// Anything else -- a string, a fraction -- is reported as what it is rather
+// than as a Go decoding failure.
+type PlanFormat int
+
+// UnmarshalJSON decodes a plan format version.
+func (v *PlanFormat) UnmarshalJSON(data []byte) error {
+	// json.Number decodes a quoted number too, and a quoted version is a
+	// different mistake from a fractional one -- name it as what it is.
+	var number json.Number
+	if len(data) > 0 && data[0] == '"' {
+		return fmt.Errorf("format_version must be a number, got the string %s", data)
+	}
+
+	if err := json.Unmarshal(data, &number); err != nil {
+		return fmt.Errorf("format_version must be a number, got %s", data)
+	}
+
+	if parsed, err := number.Int64(); err == nil {
+		*v = PlanFormat(parsed)
+
+		return nil
+	}
+
+	asFloat, err := number.Float64()
+	if err != nil || asFloat != math.Trunc(asFloat) {
+		return fmt.Errorf("format_version must be a whole number, got %s", number)
+	}
+
+	*v = PlanFormat(asFloat)
+
+	return nil
+}
+
 // BackupPlan is the output of the plan command.
 type BackupPlan struct {
+	FormatVersion    PlanFormat                `json:"format_version"`
 	Type             BackupType                `json:"mode"`
 	Replicasets      map[string]ReplicasetPlan `json:"replicasets,omitempty"`
 	PreviousBackupID BackupID                  `json:"previous_backup_id,omitempty"`
@@ -105,7 +144,11 @@ func planFull(live *LiveTopology) (*BackupPlan, error) {
 		}
 	}
 
-	return &BackupPlan{Type: BackupTypeFull, Replicasets: replicasets}, nil
+	return &BackupPlan{
+		FormatVersion: PlanFormatVersion,
+		Type:          BackupTypeFull,
+		Replicasets:   replicasets,
+	}, nil
 }
 
 // planIncremental validates the latest manifest against the live topology.
@@ -147,6 +190,7 @@ func planIncremental(latest *ClusterManifest, live *LiveTopology) (*BackupPlan, 
 	}
 
 	return &BackupPlan{
+		FormatVersion:    PlanFormatVersion,
 		Type:             BackupTypeIncremental,
 		Replicasets:      replicasets,
 		PreviousBackupID: latest.BackupID,

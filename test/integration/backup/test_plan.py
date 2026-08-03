@@ -71,6 +71,9 @@ def test_plan_full_empty_storage(tt, tt_app, tmp_path):
     assert rc == 0, f"tt backup plan failed:\n{out}"
 
     plan = json.loads(out.strip())
+    # upload refuses a plan whose format_version it does not know, so every
+    # plan has to carry the one this tt writes.
+    assert plan["format_version"] == 1
     assert plan["mode"] == "full"
     assert "previous_backup_id" not in plan
     assert REPLICASET_UUID in plan["replicasets"]
@@ -118,6 +121,7 @@ def test_plan_incremental_after_full(tt, tt_app, tmp_path):
     assert rc == 0, f"tt backup plan failed:\n{out}"
 
     plan = json.loads(out.strip())
+    assert plan["format_version"] == 1
     assert plan["mode"] == "incremental"
     assert plan["previous_backup_id"] == "2026-01-01-full"
 

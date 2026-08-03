@@ -30,7 +30,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   chain that can still be recovered from are never deleted, so no combination
   of flags empties a storage.
 - `tt backup plan`: add backup planning command that computes last
-  valid manifest for `tt backup start`.
+  valid manifest for `tt backup start`. The plan carries `format_version`, and
+  `tt backup upload` refuses a version it does not know instead of reading the
+  fields it knows: the plan crosses hosts, and possibly a tt upgrade,
+  between the two commands.
 - `tt backup upload`: add a command that builds a cluster manifest from
   per-shard fragments and uploads archives and the manifest to file or S3
   storage.

@@ -111,6 +111,23 @@ func TestPlanIncrementalValid(t *testing.T) {
 	assert.Equal(t, Vclock{1: 100}, plan.Replicasets[testRSa].FromVclock)
 }
 
+// upload refuses a plan whose format_version it does not know, so a plan that
+// left here without one would be unusable. Both modes, because they are built
+// by two separate functions.
+func TestPlanCarriesTheFormatVersion(t *testing.T) {
+	live := liveTopo(map[string][]LiveInstance{
+		testRSa: {rwInst(testInstA, "a-001")},
+	})
+
+	full, err := Plan(BackupTypeFull, nil, live)
+	require.NoError(t, err)
+	assert.Equal(t, PlanFormatVersion, full.FormatVersion)
+
+	incremental, err := Plan(BackupTypeIncremental, manifestWithShard(), live)
+	require.NoError(t, err)
+	assert.Equal(t, PlanFormatVersion, incremental.FormatVersion)
+}
+
 func TestPlanIncrementalNilLatest(t *testing.T) {
 	live := liveTopo(map[string][]LiveInstance{
 		testRSa: {rwInst(testInstA, "a-001")},
