@@ -48,6 +48,7 @@ incdir
 infof
 inprogress
 iproto
+ispytest
 itest
 leaderuuid
 libcluster
@@ -75,6 +76,7 @@ nodeps
 nogc
 nolint
 nontarantool
+normalised
 notarantool
 oldfd
 outputformat
@@ -123,6 +125,7 @@ unknownoffmanualeventualelectionstatefulsupervised
 unknownoffvotercandidatemanual
 unknownreadrw
 unknownuninitializedbootstrapped
+unmappable
 unparam
 unpatchable
 uuidbak

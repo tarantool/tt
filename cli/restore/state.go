@@ -20,11 +20,12 @@ const stateSuffix = ".restore_state.json"
 // State is the marker a successful apply leaves next to the work directory.
 //
 // It is the seam between apply and starting the cluster. A partial restore --
-// one node of N skipped or failed -- brings up a cluster whose shards sit on
-// different states: each is self-consistent and replication is healthy, so
+// one replicaset of N skipped or failed -- brings up a cluster whose shards sit
+// on different states: each is self-consistent and replication is healthy, so
 // nothing looks wrong until the buckets disagree. Comparing the markers of
-// every node before the cluster is started is the orchestrator's job; apply
-// only leaves the machine-readable evidence it needs.
+// every restored node before the cluster is started is the orchestrator's job;
+// apply only leaves the machine-readable evidence it needs. The members that
+// were wiped instead of restored leave no marker, and are not missing one.
 type State struct {
 	SchemaVersion int `json:"schema_version"`
 	// WorkDir is the directory this marker describes, so a marker found on

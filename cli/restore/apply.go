@@ -518,9 +518,11 @@ func writeEntry(path string, body io.Reader) error {
 }
 
 // patchHeader stamps newUUID into a landed snap/xlog, reporting whether it
-// touched the file. Patching is mandatory in a real restore: the archive was
-// taken on the master and handed to every node of the replicaset, so without
-// it the replicas come up sharing one instance UUID.
+// touched the file. The UUID a restored node must own is the one its own
+// `_cluster` records, so the stamp confirms the headers when the archives are
+// replayed onto the instance they were taken on, and rewrites them when they
+// are replayed onto another one. Every file has to agree: Tarantool checks the
+// `.vylog` at startup and refuses an instance whose UUID it does not share.
 func patchHeader(path, newUUID string) (bool, error) {
 	if newUUID == "" {
 		return false, nil

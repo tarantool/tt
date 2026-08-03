@@ -31,6 +31,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `tt backup upload`: add a command that builds a cluster manifest from
   per-shard fragments and uploads archives and the manifest to file or S3
   storage.
+- `tt restore plan`: add restore planning on the manager host. Lists the
+  storage itself, walks the backup chain, resolves `--target-time` into the
+  latest cluster recovery point not later than it, downloads the manifests and
+  archives that point needs into `-d/--dir` and verifies their checksums there.
+  Prints the download plan, the chosen point with its per-replicaset trim
+  positions, and — when the requested time cannot be reached — the recovery
+  times on either side of it. `restore_targets` names, per replicaset, the node
+  its chain is restored onto and the instance UUID that node has to own
+  afterwards, which is what `tt restore apply --patch-uuid` stamps in: a
+  replicaset is backed up on its master, so the master is the node whose
+  headers the archives already fit. With `-c` the other configured members are
+  listed beside it under `rejoin` — they are wiped before the restore and come
+  back by joining the restored node, needing no UUID of their own because
+  Tarantool 3.x identifies an instance by name. With `-c` the point's topology
+  is also checked against the cluster being restored: the composition comes
+  from the configuration rather than from the instances, and replicasets are
+  matched by instance name rather than by UUID, so a restore into a freshly
+  deployed cluster passes.
+  Exits with 2 for a topology boundary, 3 when no point is available, 4 for a
+  broken chain, 5 for a time outside the coverage and 6 for a topology that
+  does not match the cluster config. A missing or corrupt archive stops the
+  plan; nothing is distributed to the nodes and nothing is deleted.
 - `tt restore apply`: add preparation of an instance work directory from a
   backup chain. Unpacks the archives in order, stamps `--patch-uuid` into
   every snap/xlog header, and cuts the chain at `--target-point`: the xlog
@@ -41,7 +63,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   with 2 when no xlog covers the point and 3 when an input is rejected, in
   which case the work directory is left as it was. A `restore_state.json`
   marker is written next to the work directory for the orchestrator to
-  compare across nodes before the cluster is started.
+  compare across the restored nodes before the cluster is started.
 
 ### Changed
 

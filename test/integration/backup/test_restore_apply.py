@@ -20,8 +20,8 @@ STORAGE_1_A = "storage-001-a"
 
 # The UUID the test app pins for its only instance. A restored node has to be
 # stamped with the UUID recorded in _cluster at backup time -- which is what
-# the orchestrator takes from the manifest topology -- or the instance comes
-# up unknown to its own snapshot and fails to register.
+# `tt restore plan` hands out as restore_targets[<rs>].patch_uuid -- or the
+# instance comes up unknown to its own snapshot and fails to register.
 APP_INSTANCE_UUID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
 # A UUID that is *not* in _cluster, used where the point is to observe the
@@ -360,9 +360,9 @@ def test_apply_without_a_point_replays_the_whole_chain(tt, tmp_path, backup_arch
     assert state["rows"] == 50
 
 
-# Patching is what keeps the replicas of a replicaset from coming up sharing
-# the backed-up master's UUID, so it has to reach every header in the archive
-# -- a .vylog left behind fails recovery outright with "invalid instance UUID".
+# The stamp has to reach every header in the archive, not only the snapshot:
+# a .vylog left carrying another UUID fails recovery outright with "invalid
+# instance UUID", before any of the data is replayed.
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_RESTORE_APP)
 def test_apply_patches_every_header(tt, tmp_path, backup_archive):

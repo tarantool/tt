@@ -24,10 +24,12 @@ import (
 )
 
 const (
-	// masterUUID is the instance UUID a backup archive carries: the master
+	// masterUUID is the instance UUID a backup archive carries: the instance
 	// the backup was taken on.
 	masterUUID = "11111111-1111-1111-1111-111111111111"
-	// replicaUUID is what a node stamps into the headers on restore.
+	// replicaUUID is a different instance's UUID, used wherever a test needs
+	// the stamp to be visible: a restore onto the instance the archive came
+	// from would rewrite the headers to what they already say.
 	replicaUUID = "22222222-2222-2222-2222-222222222222"
 	// replicasetUUID is the replicaset every archive of one chain belongs to.
 	replicasetUUID = "33333333-3333-3333-3333-333333333333"
@@ -261,13 +263,13 @@ func checksumOf(t *testing.T, path string) string {
 	return sum
 }
 
-// chain builds a two-archive backup chain of one replicaset:
+// archiveChain builds a two-archive backup chain of one replicaset:
 //
 //	full: 0.snap + 0.xlog holding lsn 1..3 on replica 1
 //	inc:  3.xlog holding lsn 4..6 on replica 1
 //
 // It returns the archive paths in apply order.
-func chain(t *testing.T) (full, inc string) {
+func archiveChain(t *testing.T) (full, inc string) {
 	t.Helper()
 
 	src := t.TempDir()
