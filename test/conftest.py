@@ -46,6 +46,35 @@ def pytest_addoption(parser) -> None:
     )
 
 
+@pytest.fixture(scope="session")
+def tmp_path_factory(request: pytest.FixtureRequest) -> TempPathFactory:
+    """Root the temporary directory where a unix socket path still fits.
+
+    Overrides pytest's own fixture on macOS only. Tests that boot an instance
+    have it listen on <tmp_path>/<app>/var/run/<instance>/tarantool.sock, and
+    macOS caps a socket path at 104 bytes (sun_path) where Linux allows 108.
+    pytest builds tmp_path as
+    $TMPDIR/pytest-of-<user>/pytest-<n>/<test name cut to 30 chars>, and on
+    macOS $TMPDIR alone is a ~50 byte path under /var/folders, so the socket
+    overruns the cap and the test fails in two ways that name neither the cap
+    nor the path: the instance dies binding it with EADDRINUSE, because what is
+    left after the truncation is a directory that already exists, and tt fails
+    to dial it with EINVAL.
+
+    /tmp/tt-<pid> leaves the whole path under 90 bytes and stays unique between
+    concurrent runs. An explicit --basetemp still wins, and Linux keeps pytest's
+    own directory: its default is short enough and its cap is higher, so CI runs
+    exactly as before.
+    """
+    config = request.config
+    if platform.system() != "Darwin" or config.option.basetemp is not None:
+        return config._tmp_path_factory
+
+    config.option.basetemp = Path("/tmp") / f"tt-{os.getpid()}"
+
+    return TempPathFactory.from_config(config, _ispytest=True)
+
+
 @pytest.fixture(scope="module")
 def update_testdata(request: pytest.FixtureRequest) -> bool:
     """

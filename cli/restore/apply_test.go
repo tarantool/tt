@@ -18,7 +18,7 @@ import (
 func applyOpts(t *testing.T, workDir string, point *Point) ApplyOpts {
 	t.Helper()
 
-	full, inc := chain(t)
+	full, inc := archiveChain(t)
 
 	return ApplyOpts{
 		Archives:  []string{full, inc},
@@ -55,8 +55,9 @@ func TestApply_LeavesFragmentBehind(t *testing.T) {
 	require.NotContains(t, dirEntries(t, workDir), fragmentEntryName)
 }
 
-// Every snap and xlog takes the new UUID; without this the replicas of a
-// replicaset come up sharing the backed-up master's instance UUID.
+// Every snap and xlog takes the UUID the restored node has to own: a file left
+// carrying another one makes Tarantool refuse the whole directory, and the
+// .vylog is checked before recovery even starts.
 func TestApply_PatchesEveryHeader(t *testing.T) {
 	workDir := filepath.Join(t.TempDir(), "instance-001")
 
@@ -449,7 +450,7 @@ func TestApply_ChecksumComparisonIgnoresCase(t *testing.T) {
 
 func TestApply_RejectsBadInput(t *testing.T) {
 	workDir := filepath.Join(t.TempDir(), "instance-001")
-	full, inc := chain(t)
+	full, inc := archiveChain(t)
 
 	tests := []struct {
 		name string
@@ -560,7 +561,7 @@ func TestApply_LaterArchiveWinsOnOverlap(t *testing.T) {
 // the one every other node wrote, which is the divergence it exists to rule
 // out -- so the chain has to be refused instead.
 func TestApply_RefusesAChainThatIsNotAChain(t *testing.T) {
-	full, inc := chain(t)
+	full, inc := archiveChain(t)
 	describedFull, describedInc := describedChain(t)
 
 	// Begins past the end of the full backup: the increment continuing it is
