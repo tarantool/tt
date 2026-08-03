@@ -134,19 +134,6 @@ def _load_golden(name):
     return json.loads((TESTDATA_DIR / name).read_text())
 
 
-def _with_prefix(uri, segment):
-    """Point a storage URI at a sub-prefix of the same storage.
-
-    The two backends spell it differently: on s3 the prefix is part of the
-    path after the bucket, on file it is the Prefix query parameter.
-    """
-    if uri.startswith("file://"):
-        return f"{uri}?Prefix={segment}"
-
-    base, _, query = uri.partition("?")
-    return f"{base}/{segment}?{query}"
-
-
 @pytest.fixture
 def storage(request, tmp_path):
     backend, prefix = request.param
@@ -425,7 +412,13 @@ def test_upload_with_cluster_name_is_readable(tt, tmp_path, storage):
     )
     assert rc == 0, f"tt backup upload failed:\n{out}"
 
-    rc, out = backup_verify(tt, _with_prefix(storage.uri, "payments/production"), fmt="json")
+    rc, out = backup_verify(
+        tt,
+        storage.uri,
+        fmt="json",
+        cluster_name="payments",
+        environment="production",
+    )
     assert rc == 0, f"tt backup verify reported problems:\n{out}"
 
     report = json.loads(out)

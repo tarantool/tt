@@ -126,7 +126,7 @@ func TestUpload(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		store := newMockStorage()
-		err := Upload(ctx, store, "", backupID, manifestData, twoArchives)
+		err := Upload(ctx, store, backupID, manifestData, twoArchives)
 		require.NoError(t, err)
 
 		assert.True(t, store.has(keyA))
@@ -138,7 +138,7 @@ func TestUpload(t *testing.T) {
 
 	t.Run("manifest only, no archives", func(t *testing.T) {
 		store := newMockStorage()
-		err := Upload(ctx, store, "", backupID, manifestData, nil)
+		err := Upload(ctx, store, backupID, manifestData, nil)
 		require.NoError(t, err)
 
 		assert.True(t, store.has(manifestKey))
@@ -154,7 +154,7 @@ func TestUpload(t *testing.T) {
 			return nil
 		}
 
-		err := Upload(ctx, store, "", backupID, manifestData, twoArchives)
+		err := Upload(ctx, store, backupID, manifestData, twoArchives)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "upload manifest")
 
@@ -175,7 +175,7 @@ func TestUpload(t *testing.T) {
 			return nil
 		}
 
-		err := Upload(ctx, store, "", backupID, manifestData, twoArchives)
+		err := Upload(ctx, store, backupID, manifestData, twoArchives)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "upload archive for replicaset")
 		assert.Contains(t, err.Error(), testRSB)
@@ -196,7 +196,7 @@ func TestUpload(t *testing.T) {
 			return nil
 		}
 
-		err := Upload(ctx, store, "", backupID, manifestData, []ArchiveToUpload{
+		err := Upload(ctx, store, backupID, manifestData, []ArchiveToUpload{
 			{LocalPath: archiveA, StorageKey: keyA, Size: 9, ReplicasetUUID: testRSA},
 		})
 		require.Error(t, err)
@@ -210,21 +210,18 @@ func TestPrepareArchives(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		dir := t.TempDir()
 		backupID := BackupID("20260326T120000Z")
-		keyPrefix := "cluster/prod/"
 
 		path1 := writeArchiveFile(t, dir, string(backupID), testRSA, []byte("content-a"))
 		path2 := writeArchiveFile(t, dir, string(backupID), testRSB, []byte("content-bb"))
 
-		archives, locations, err := PrepareArchives([]string{path1, path2}, keyPrefix, backupID)
+		archives, locations, err := PrepareArchives([]string{path1, path2}, backupID)
 		require.NoError(t, err)
 
 		require.Len(t, archives, 2)
 		require.Len(t, locations, 2)
 
-		wantPathA := "data/20260326T120000Z-" + testRSA + ".tar.zst"
-		wantPathB := "data/20260326T120000Z-" + testRSB + ".tar.zst"
-		wantKeyA := keyPrefix + wantPathA
-		wantKeyB := keyPrefix + wantPathB
+		wantKeyA := "data/20260326T120000Z-" + testRSA + ".tar.zst"
+		wantKeyB := "data/20260326T120000Z-" + testRSB + ".tar.zst"
 
 		assert.Equal(t, path1, archives[0].LocalPath)
 		assert.Equal(t, testRSA, archives[0].ReplicasetUUID)
@@ -236,22 +233,23 @@ func TestPrepareArchives(t *testing.T) {
 		assert.Equal(t, int64(10), archives[1].Size)
 		assert.Equal(t, wantKeyB, archives[1].StorageKey)
 
-		// The manifest records the key relative to the storage root, without
-		// the <cluster_name>/<environment>/ segment the object is stored
-		// under: that is what verify, gc and restore resolve it against.
+		// The manifest records the same key the object is stored under, and
+		// both are relative to the storage root: the
+		// <cluster_name>/<environment>/ segment belongs to the storage the
+		// keys are resolved against, not to the keys.
 		locA := locations[testRSA]
 		require.NotNil(t, locA)
-		assert.Equal(t, wantPathA, locA.Path)
+		assert.Equal(t, wantKeyA, locA.Path)
 		assert.Equal(t, int64(9), locA.SizeBytes)
 
 		locB := locations[testRSB]
 		require.NotNil(t, locB)
-		assert.Equal(t, wantPathB, locB.Path)
+		assert.Equal(t, wantKeyB, locB.Path)
 		assert.Equal(t, int64(10), locB.SizeBytes)
 	})
 
 	t.Run("empty paths", func(t *testing.T) {
-		archives, locations, err := PrepareArchives(nil, "prefix/", "bid")
+		archives, locations, err := PrepareArchives(nil, "bid")
 		require.NoError(t, err)
 		assert.Empty(t, archives)
 		assert.Empty(t, locations)
@@ -264,7 +262,7 @@ func TestPrepareArchives(t *testing.T) {
 		path1 := writeArchiveFile(t, dir1, string(backupID), testRSA, []byte("a"))
 		path2 := writeArchiveFile(t, dir2, string(backupID), testRSA, []byte("b"))
 
-		_, _, err := PrepareArchives([]string{path1, path2}, "", backupID)
+		_, _, err := PrepareArchives([]string{path1, path2}, backupID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "duplicate archive for replicaset")
 	})
@@ -287,37 +285,17 @@ func TestPrepareArchives(t *testing.T) {
 			path := filepath.Join(dir, tc.filename)
 			require.NoError(t, os.WriteFile(path, []byte("x"), 0o644))
 
-			_, _, err := PrepareArchives([]string{path}, "", BackupID(tc.backupID))
+			_, _, err := PrepareArchives([]string{path}, BackupID(tc.backupID))
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
 
 	t.Run("non-existent file", func(t *testing.T) {
-		_, _, err := PrepareArchives([]string{"/nonexistent/path.tar.zst"}, "", "bid")
+		_, _, err := PrepareArchives([]string{"/nonexistent/path.tar.zst"}, "bid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "stat archive")
 	})
-}
-
-func TestStoragePrefix(t *testing.T) {
-	cases := []struct {
-		name        string
-		clusterName string
-		environment string
-		want        string
-	}{
-		{"both set", "cluster", "prod", "cluster/prod/"},
-		{"only cluster", "cluster", "", "cluster/"},
-		{"only env", "", "prod", ""},
-		{"both empty", "", "", ""},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, StoragePrefix(tc.clusterName, tc.environment))
-		})
-	}
 }
 
 func TestBuildTopologyFromFragments(t *testing.T) {

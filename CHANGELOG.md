@@ -33,10 +33,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   valid manifest for `tt backup start`.
 - `tt backup upload`: add a command that builds a cluster manifest from
   per-shard fragments and uploads archives and the manifest to file or S3
-  storage. `--cluster-name` and `--environment` prefix the object keys with
-  `<cluster_name>/<environment>/`; the manifest records each archive relative
-  to the storage root it sits beside, which is what `verify`, `gc` and
-  `restore` resolve it against.
+  storage.
+- `tt backup plan`, `upload`, `verify`, `gc`, `last` and `tt restore plan`:
+  `--cluster-name` and `--environment` select the
+  `<storage_root>/<cluster_name>/<environment>/` subtree of the storage, so one
+  storage can hold several clusters. Every command that reads or writes a
+  storage takes the pair and has to be given the same one: a backup uploaded
+  with it is invisible to a reader run without it. `--environment` without
+  `--cluster-name`, and either of them holding a path separator, are refused
+  rather than silently pointing at another storage location. Object keys inside
+  the subtree, and the archive paths the manifest records, stay relative to it.
 - `tt restore plan`: add restore planning on the manager host. Lists the
   storage itself, walks the backup chain, resolves `--target-time` into the
   latest cluster recovery point not later than it, downloads the manifests and

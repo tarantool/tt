@@ -16,6 +16,7 @@ import (
 	"github.com/tarantool/tt/cli/backup"
 	"github.com/tarantool/tt/cli/backup/chain"
 	"github.com/tarantool/tt/cli/backup/gc"
+	"github.com/tarantool/tt/cli/backup/storage"
 	"github.com/tarantool/tt/cli/backup/verify"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/cli/connect"
@@ -35,6 +36,8 @@ var (
 	backupFinalizeID  string
 
 	backupStorageConfig string
+	backupClusterName   string
+	backupEnvironment   string
 	backupLastFormat    string
 	backupLastTimeout   time.Duration
 
@@ -53,14 +56,12 @@ var (
 	backupPlanFormat  string
 	backupPlanTimeout time.Duration
 
-	backupUploadArchives    string
-	backupUploadFragments   string
-	backupUploadPlan        string
-	backupUploadBackupID    string
-	backupUploadClusterName string
-	backupUploadEnvironment string
-	backupUploadKeepLocal   bool
-	backupUploadTimeout     time.Duration
+	backupUploadArchives  string
+	backupUploadFragments string
+	backupUploadPlan      string
+	backupUploadBackupID  string
+	backupUploadKeepLocal bool
+	backupUploadTimeout   time.Duration
 )
 
 const (
@@ -142,7 +143,60 @@ storage backend, or @<path> naming a YAML config file:
 
         type: fs
         root: /mnt/backups/payments        # storage root, must be absolute
-        prefix: mycluster                  # subdirectory within the root, optional`
+        prefix: mycluster                  # subdirectory within the root, optional
+
+--cluster-name and --environment select a subtree of that storage,
+<storage_root>/<cluster_name>/<environment>/, and every command reading or
+writing a storage takes them. They compose with the prefix above, so one
+storage can hold several clusters. Pass the same pair to every command: a
+backup uploaded with them is invisible to a verify, gc, last or plan run
+without them, and those commands report an empty storage rather than an
+error.`
+
+// addBackupStorageFlags binds the storage a command works on: the URI or
+// config file, and the cluster and environment naming the subtree inside it.
+// Every command that touches a storage gets all three, so a backup written
+// into <cluster_name>/<environment>/ can be read back from there.
+func addBackupStorageFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
+		backupStorageURIHelp)
+	cmd.Flags().StringVar(&backupClusterName, "cluster-name", "",
+		"cluster name; used as a storage path component")
+	cmd.Flags().StringVar(&backupEnvironment, "environment", "",
+		"environment tag (production, staging, ...); used as a storage "+
+			"path component, requires --cluster-name")
+}
+
+// backupStorageConfigScoped parses --backup-storage and narrows it to the
+// cluster and environment the command was given.
+func backupStorageConfigScoped() (*backup.StorageConfig, error) {
+	cfg, err := backup.ParseStorageURI(backupStorageConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse storage URI: %w", err)
+	}
+
+	if err := cfg.Scope(backupClusterName, backupEnvironment); err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	return cfg, nil
+}
+
+// openBackupStorage opens the storage a command works on, at the subtree
+// --cluster-name / --environment name.
+func openBackupStorage() (storage.Storage, error) {
+	cfg, err := backupStorageConfigScoped()
+	if err != nil {
+		return nil, err
+	}
+
+	store, err := backup.OpenStorage(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open storage: %w", err)
+	}
+
+	return store, nil
+}
 
 // storageContext builds the context of a command's storage phase. A zero or
 // negative --timeout means no limit rather than "already expired": a storage
@@ -240,13 +294,14 @@ func newBackupLastCmd() *cobra.Command {
   $ tt backup last --backup-storage=@s3-prod.yaml
   $ tt backup last --backup-storage=s3+https://s3.example.com:9000/... \
     ?Region=us-east-1&AccessKeyID=minio&SecretAccessKey=minio123
-  $ tt backup last --backup-storage=file:///var/backups --format json`,
+  $ tt backup last --backup-storage=file:///var/backups --format json
+  $ tt backup last --backup-storage=file:///var/backups \
+    --cluster-name payments-cluster --environment production`,
 		Args: cobra.NoArgs,
 		RunE: runBackupLast,
 	}
 
-	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		backupStorageURIHelp)
+	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVar(&backupLastFormat, "format", formatTable,
 		"output format: `table` or `json`")
 	cmd.Flags().DurationVar(&backupLastTimeout, "timeout", time.Minute,
@@ -265,7 +320,9 @@ func newBackupPlanCmd() *cobra.Command {
 		manifest in the storage.`,
 		Example: `$ tt backup plan --target=incremental --backup-storage=file:///var/backups
   $ tt backup plan --target=full --backup-storage=file:///var/backups --format json
-  $ tt backup plan --target=incremental --backup-storage=s3+https://... -c cluster.yaml`,
+  $ tt backup plan --target=incremental --backup-storage=s3+https://... -c cluster.yaml
+  $ tt backup plan --target=incremental --backup-storage=file:///var/backups \
+    -c cluster.yaml --cluster-name payments-cluster --environment production`,
 		Args: cobra.NoArgs,
 		RunE: runBackupPlan,
 	}
@@ -273,8 +330,7 @@ func newBackupPlanCmd() *cobra.Command {
 	addTarantoolConnectFlags(cmd)
 	cmd.Flags().StringVar(&backupPlanMode, "target", "",
 		backupPlanTargetHelp)
-	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		backupStorageURIHelp)
+	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVarP(&backupPlanCfg, "config", "c", "",
 		clusterUriHelp)
 	cmd.Flags().StringVar(&backupPlanFormat, "format", formatJSON,
@@ -314,14 +370,9 @@ and instance_backup.json fragments from all cluster nodes.`,
 	cmd.Flags().StringVar(&backupUploadPlan, "plan", "",
 		"path to tt backup plan JSON (required); provides type, "+
 			"previous_backup_id and expected replicasets")
-	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		backupStorageURIHelp)
+	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVar(&backupUploadBackupID, "backup-id", "",
 		"backup identifier, e.g. 20260326T120000Z (required)")
-	cmd.Flags().StringVar(&backupUploadClusterName, "cluster-name", "",
-		"cluster name; used as a storage path component")
-	cmd.Flags().StringVar(&backupUploadEnvironment, "environment", "",
-		"environment tag (production, staging, ...); used as a storage path component")
 	cmd.Flags().BoolVar(&backupUploadKeepLocal, "keep-local", false,
 		"keep local .tar.zst copies on the manager host after successful upload")
 	cmd.Flags().DurationVar(&backupUploadTimeout, "timeout", 30*time.Minute,
@@ -346,7 +397,6 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 		return err //nolint:wrapcheck
 	}
 
-	keyPrefix := backup.StoragePrefix(backupUploadClusterName, backupUploadEnvironment)
 	backupID := backup.BackupID(backupUploadBackupID)
 	fragmentPaths := backup.SplitPaths(backupUploadFragments)
 	archivePaths := backup.SplitPaths(backupUploadArchives)
@@ -371,8 +421,7 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 	}
 
 	// Prepare archives: stat, extract UUIDs, compute storage keys..
-	archives, locationsByReplicaset, err := backup.PrepareArchives(
-		archivePaths, keyPrefix, backupID)
+	archives, locationsByReplicaset, err := backup.PrepareArchives(archivePaths, backupID)
 	if err != nil {
 		return fmt.Errorf("failed to prepare archives: %w", err)
 	}
@@ -387,14 +436,9 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 	}
 
 	// Open storage.
-	storeCfg, err := backup.ParseStorageURI(backupStorageConfig)
+	store, err := openBackupStorage()
 	if err != nil {
-		return fmt.Errorf("failed to parse storage URI: %w", err)
-	}
-
-	store, err := backup.OpenStorage(storeCfg)
-	if err != nil {
-		return fmt.Errorf("failed to open storage: %w", err)
+		return err
 	}
 
 	ctx, cancel := storageContext(backupUploadTimeout)
@@ -402,7 +446,7 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 
 	// Upload archives, then the manifest. On manifest failure, uploaded
 	// archives are rolled back (deleted from storage).
-	if err := backup.Upload(ctx, store, keyPrefix, backupID, manifestData, archives); err != nil {
+	if err := backup.Upload(ctx, store, backupID, manifestData, archives); err != nil {
 		return fmt.Errorf("failed to upload: %w", err)
 	}
 
@@ -490,14 +534,9 @@ func runBackupLast(cmd *cobra.Command, args []string) error {
 			backupLastFormat, formatTable, formatJSON)
 	}
 
-	cfg, err := backup.ParseStorageURI(backupStorageConfig)
+	store, err := openBackupStorage()
 	if err != nil {
-		return fmt.Errorf("failed to parse storage URI: %w", err)
-	}
-
-	store, err := backup.OpenStorage(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to open storage: %w", err)
+		return err
 	}
 
 	ctx, cancel := storageContext(backupLastTimeout)
@@ -612,8 +651,7 @@ func newBackupVerifyCmd() *cobra.Command {
 		RunE: runBackupVerify,
 	}
 
-	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		backupStorageURIHelp)
+	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVar(&backupVerifyFormat, "format", formatTable,
 		"output format: table or json")
 	cmd.Flags().DurationVar(&backupVerifyTimeout, "timeout", defaultVerifyTimeout,
@@ -649,14 +687,9 @@ func runBackupVerifyInner() (bool, error) {
 			backupVerifyFormat, formatTable, formatJSON)
 	}
 
-	cfg, err := backup.ParseStorageURI(backupStorageConfig)
+	store, err := openBackupStorage()
 	if err != nil {
-		return false, fmt.Errorf("failed to parse storage URI: %w", err)
-	}
-
-	store, err := backup.OpenStorage(cfg)
-	if err != nil {
-		return false, fmt.Errorf("failed to open storage: %w", err)
+		return false, err
 	}
 
 	ctx, cancel := storageContext(backupVerifyTimeout)
@@ -760,8 +793,7 @@ func newBackupGcCmd() *cobra.Command {
 		RunE: runBackupGc,
 	}
 
-	cmd.Flags().StringVar(&backupStorageConfig, "backup-storage", "",
-		backupStorageURIHelp)
+	addBackupStorageFlags(cmd)
 	cmd.Flags().IntVar(&backupGcKeepFull, "keep-full", 0,
 		"keep the last N healthy backup chains; "+
 			"without --keep-full or --keep-days nothing is deleted at all")
@@ -799,14 +831,9 @@ func runBackupGc(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--orphan-age must not be negative")
 	}
 
-	cfg, err := backup.ParseStorageURI(backupStorageConfig)
+	store, err := openBackupStorage()
 	if err != nil {
-		return fmt.Errorf("failed to parse storage URI: %w", err)
-	}
-
-	store, err := backup.OpenStorage(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to open storage: %w", err)
+		return err
 	}
 
 	ctx, cancel := storageContext(backupGcTimeout)
@@ -1096,9 +1123,9 @@ func runBackupPlan(cmd *cobra.Command, args []string) error {
 	// plan and only surface a whole backup window later, at upload, with every
 	// archive already built. Parsing is enough to catch it and costs no
 	// connection.
-	storageCfg, err := backup.ParseStorageURI(backupStorageConfig)
+	storageCfg, err := backupStorageConfigScoped()
 	if err != nil {
-		return fmt.Errorf("failed to parse storage URI: %w", err)
+		return err
 	}
 
 	connectCtx := connect.ConnectCtx{
