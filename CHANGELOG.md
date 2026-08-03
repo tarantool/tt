@@ -33,7 +33,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   valid manifest for `tt backup start`. The plan carries `format_version`, and
   `tt backup upload` refuses a version it does not know instead of reading the
   fields it knows: the plan crosses hosts, and possibly a tt upgrade,
-  between the two commands.
+  between the two commands. When the plan names no chain head,
+  `previous_backup_id` and `base_full_backup_id` are `null` rather than absent,
+  so a consumer reads them without a special case. The cluster manifest does
+  the same with `previous_backup_id` for the first full backup of a chain.
 - `tt backup upload`: add a command that builds a cluster manifest from
   per-shard fragments and uploads archives and the manifest to file or S3
   storage. Every archive is read through and checked against the checksum its

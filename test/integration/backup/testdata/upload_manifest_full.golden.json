@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "backup_id": "20260326T120000Z",
-  "previous_backup_id": "",
+  "previous_backup_id": null,
   "base_full_backup_id": "20260326T120000Z",
   "status": "OK",
   "creation_time": "0001-01-01T00:00:00Z",

@@ -112,7 +112,7 @@ func newClusterManifest(in AggregateInput) *ClusterManifest {
 	return &ClusterManifest{
 		SchemaVersion:    SchemaVersion,
 		BackupID:         in.BackupID,
-		PreviousBackupID: in.PreviousBackupID,
+		PreviousBackupID: OptionalBackupID(in.PreviousBackupID),
 		BaseFullBackupID: in.BaseFullBackupID,
 		Status:           StatusFailed,
 		CreationTime:     in.CreationTime,

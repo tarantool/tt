@@ -215,7 +215,7 @@ func (f *fixture) addBackup(spec backupSpec) *backup.ClusterManifest {
 	manifest := &backup.ClusterManifest{
 		SchemaVersion:    backup.SchemaVersion,
 		BackupID:         backup.BackupID(spec.id),
-		PreviousBackupID: backup.BackupID(spec.previous),
+		PreviousBackupID: backup.OptionalBackupID(spec.previous),
 		BaseFullBackupID: backup.BackupID(spec.base),
 		Status:           backup.StatusOK,
 		CreationTime:     creationTime,

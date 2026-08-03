@@ -79,11 +79,15 @@ type BackupPlan struct {
 	// ClusterName and Environment name the storage subtree the backup belongs
 	// to. They are decided when the backup is planned and travel with the plan,
 	// so upload does not have to be told again what it is uploading.
-	ClusterName      string                    `json:"cluster_name,omitempty"`
-	Environment      string                    `json:"environment,omitempty"`
-	Replicasets      map[string]ReplicasetPlan `json:"replicasets,omitempty"`
-	PreviousBackupID BackupID                  `json:"previous_backup_id,omitempty"`
-	BaseFullBackupID BackupID                  `json:"base_full_backup_id,omitempty"`
+	ClusterName string                    `json:"cluster_name,omitempty"`
+	Environment string                    `json:"environment,omitempty"`
+	Replicasets map[string]ReplicasetPlan `json:"replicasets,omitempty"`
+	// The chain head the next backup builds on, absent whenever there is none
+	// to name -- which today is every full plan, since planFull does not read
+	// the storage at all. Both are null rather than missing keys: a consumer
+	// reading plan["previous_backup_id"] gets None, not a KeyError.
+	PreviousBackupID OptionalBackupID `json:"previous_backup_id"`
+	BaseFullBackupID OptionalBackupID `json:"base_full_backup_id"`
 }
 
 var (
@@ -229,8 +233,8 @@ func planIncremental(latest *ClusterManifest, live *LiveTopology) (*BackupPlan, 
 		FormatVersion:    PlanFormatVersion,
 		Type:             BackupTypeIncremental,
 		Replicasets:      replicasets,
-		PreviousBackupID: latest.BackupID,
-		BaseFullBackupID: latest.BaseFullBackupID,
+		PreviousBackupID: OptionalBackupID(latest.BackupID),
+		BaseFullBackupID: OptionalBackupID(latest.BaseFullBackupID),
 	}, nil
 }
 

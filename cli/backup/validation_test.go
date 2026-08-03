@@ -258,7 +258,9 @@ func TestClusterManifestIsValidAndSerializable(t *testing.T) {
 	jsonText := string(data)
 	for _, want := range []string{
 		`"schema_version":1`,
-		`"previous_backup_id":""`,
+		// The first full backup of a chain has no predecessor, and the spec
+		// types that as null rather than as an empty id.
+		`"previous_backup_id":null`,
 		`"status":"OK"`,
 		`"550e8400-e29b-41d4-a716-446655440000"`,
 		`"6ba7b810-9dad-11d1-80b4-00c04fd430c8"`,
@@ -271,7 +273,7 @@ func TestClusterManifestIsValidAndSerializable(t *testing.T) {
 	type clusterManifestRoundTrip struct {
 		SchemaVersion    int              `json:"schema_version"`
 		BackupID         BackupID         `json:"backup_id"`
-		PreviousBackupID BackupID         `json:"previous_backup_id"`
+		PreviousBackupID OptionalBackupID `json:"previous_backup_id"`
 		BaseFullBackupID BackupID         `json:"base_full_backup_id"`
 		Status           Status           `json:"status"`
 		CreationTime     time.Time        `json:"creation_time"`
