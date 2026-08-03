@@ -1159,3 +1159,82 @@ func TestParseStorageURI_FTP(t *testing.T) {
 	require.ErrorIs(t, err, errFTPNotSupported)
 	assert.Nil(t, cfg)
 }
+
+func TestStorageConfigScope(t *testing.T) {
+	cases := []struct {
+		name        string
+		prefix      string
+		clusterName string
+		environment string
+		want        string
+		wantErr     string
+	}{
+		{name: "neither", want: ""},
+		{name: "cluster only", clusterName: "payments", want: "payments"},
+		{
+			name:        "cluster and environment",
+			clusterName: "payments",
+			environment: "production",
+			want:        "payments/production",
+		},
+		{
+			name:        "appended to the prefix the URI carried",
+			prefix:      "tarantool",
+			clusterName: "payments",
+			environment: "production",
+			want:        "tarantool/payments/production",
+		},
+		{
+			name:        "environment without a cluster name",
+			environment: "production",
+			wantErr:     "--environment \"production\" needs --cluster-name",
+		},
+		{
+			name:        "a cluster name that is not one path component",
+			clusterName: "payments/production",
+			wantErr:     "must not contain a path separator",
+		},
+		{
+			name:        "an environment that climbs out of the storage",
+			clusterName: "payments",
+			environment: "..",
+			wantErr:     "must not contain a path separator",
+		},
+		{
+			name:        "surrounding whitespace is not part of the name",
+			clusterName: "  payments  ",
+			environment: " production ",
+			want:        "payments/production",
+		},
+		{
+			name:        "a cluster name of nothing but whitespace",
+			clusterName: "   ",
+			wantErr:     "cannot be blank",
+		},
+		{
+			name:        "both flags invalid names the first one",
+			clusterName: "a/b",
+			environment: "c/d",
+			wantErr:     "--cluster-name",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &StorageConfig{Type: StorageTypeFile, Path: "/var/backups", Prefix: tc.prefix}
+
+			err := cfg.Scope(tc.clusterName, tc.environment)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				assert.Equal(t, tc.prefix, cfg.Prefix,
+					"a refused scope must not move the storage")
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, cfg.Prefix)
+		})
+	}
+}

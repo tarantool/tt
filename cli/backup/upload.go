@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -27,7 +26,6 @@ type ArchiveToUpload struct {
 func Upload(
 	ctx context.Context,
 	store storage.Storage,
-	keyPrefix string,
 	backupID BackupID,
 	manifestData []byte,
 	archives []ArchiveToUpload,
@@ -43,7 +41,7 @@ func Upload(
 		uploadedKeys = append(uploadedKeys, archive.StorageKey)
 	}
 
-	manifestKey := keyPrefix + storage.ManifestKey(string(backupID))
+	manifestKey := storage.ManifestKey(string(backupID))
 	if err := storage.PutBytes(ctx, store, manifestKey, manifestData); err != nil {
 		deleteObjects(ctx, store, uploadedKeys)
 		return fmt.Errorf("upload manifest: %w", err)
@@ -56,17 +54,16 @@ func Upload(
 // its filename, and computes the storage key. Returns a slice ready for Upload
 // and a map of replicaset_uuid → ArtifactLocation for manifest building.
 //
-// The two keys differ: an object is PUT under the full key, keyPrefix
-// included, while the manifest records the key relative to the storage root it
-// is stored beside. That is what every reader resolves an artifact path
-// against, and a manifest carrying its own prefix sends them looking for
-// <prefix>/<prefix>/data/…: restore cannot download the archive at all, verify
-// reports the live one missing and the stored one dangling, and gc counts the
-// stored one as an orphan (its re-check of the manifest is what keeps it from
-// being deleted).
+// Keys are relative to the storage root, which is where the manifest stored
+// beside them says they are and what every reader resolves them against. The
+// <cluster_name>/<environment>/ segment of the layout belongs to the storage
+// the objects are written into (StorageConfig.Scope), not to the keys: a
+// manifest carrying its own prefix sends readers looking for
+// <prefix>/<prefix>/data/…, where restore cannot download the archive at all,
+// verify reports the live one missing and the stored one dangling, and gc
+// counts the stored one as an orphan.
 func PrepareArchives(
 	paths []string,
-	keyPrefix string,
 	backupID BackupID,
 ) ([]ArchiveToUpload, map[string]*ArtifactLocation, error) {
 	archives := make([]ArchiveToUpload, 0, len(paths))
@@ -87,32 +84,21 @@ func PrepareArchives(
 			return nil, nil, fmt.Errorf("duplicate archive for replicaset %q", replicasetUUID)
 		}
 
-		relativeKey := storage.ArchiveKey(string(backupID), replicasetUUID)
+		key := storage.ArchiveKey(string(backupID), replicasetUUID)
 
 		archives = append(archives, ArchiveToUpload{
 			LocalPath:      archivePath,
-			StorageKey:     keyPrefix + relativeKey,
+			StorageKey:     key,
 			Size:           info.Size(),
 			ReplicasetUUID: replicasetUUID,
 		})
 		locations[replicasetUUID] = &ArtifactLocation{
-			Path:      relativeKey,
+			Path:      key,
 			SizeBytes: info.Size(),
 		}
 	}
 
 	return archives, locations, nil
-}
-
-// StoragePrefix builds a storage key prefix from a cluster name and an
-// optional environment. Returns "" when clusterName is empty, so keys never
-// start with a leading or doubled slash.
-func StoragePrefix(clusterName, environment string) string {
-	if clusterName == "" {
-		return ""
-	}
-
-	return storage.PrefixWithSlash(path.Join(clusterName, environment))
 }
 
 // BuildTopologyFromFragments builds a Topology from the collected fragments.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -88,6 +89,58 @@ type StorageConfig struct {
 	SkipVerify bool
 	// Common.
 	Prefix string
+}
+
+// Scope narrows the config to one cluster in one environment, the
+// <storage_root>/<cluster_name>/<environment>/ layout of the RFC. It appends
+// the two segments to whatever prefix the URI already carried, so a storage
+// pointed at a subtree and a storage scoped by the flags compose.
+//
+// Every command that touches a storage takes the same two flags, because a
+// backup written into the subtree has to be readable from it: a verify or a gc
+// aimed at the root of a storage laid out this way sees nothing at all, and
+// reports a healthy storage or a clean sweep for it.
+//
+// An environment without a cluster name is refused rather than dropped: the
+// pair names one directory level each, and honouring only the second one would
+// silently read or write somewhere else entirely. So is a value that is not
+// one path component, or is nothing but whitespace -- a variable the caller
+// meant to expand and did not would otherwise name a directory of blanks that
+// only a run with the same unexpanded variable ever finds again.
+func (cfg *StorageConfig) Scope(clusterName, environment string) error {
+	for _, flag := range []struct{ name, value string }{
+		{"--cluster-name", clusterName},
+		{"--environment", environment},
+	} {
+		trimmed := strings.TrimSpace(flag.value)
+
+		switch {
+		case flag.value == "":
+			continue
+		case trimmed == "":
+			return fmt.Errorf("invalid %s %q: a storage path component cannot be "+
+				"blank; an unexpanded variable looks like this", flag.name, flag.value)
+		case strings.ContainsAny(trimmed, `/\`), trimmed == ".", trimmed == "..":
+			return fmt.Errorf("invalid %s %q: it is one storage path component, "+
+				"so it must not contain a path separator", flag.name, trimmed)
+		}
+	}
+
+	clusterName = strings.TrimSpace(clusterName)
+	environment = strings.TrimSpace(environment)
+
+	if clusterName == "" {
+		if environment != "" {
+			return fmt.Errorf("--environment %q needs --cluster-name: "+
+				"the two name one storage path component each", environment)
+		}
+
+		return nil
+	}
+
+	cfg.Prefix = path.Join(cfg.Prefix, clusterName, environment)
+
+	return nil
 }
 
 // ParseStorageURI parses a --backup-storage value into a StorageConfig.

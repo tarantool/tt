@@ -13,7 +13,6 @@ import (
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
 
-	"github.com/tarantool/tt/cli/backup"
 	"github.com/tarantool/tt/cli/restore"
 )
 
@@ -28,7 +27,6 @@ var (
 	restoreApplyPatchUUID string
 
 	restorePlanTargetTime string
-	restorePlanStorage    string
 	restorePlanCfg        string
 	restorePlanDir        string
 	restorePlanFormat     string
@@ -256,6 +254,7 @@ the backups that would do it.
 
 Usage:
   tt restore plan --target-time <T> --backup-storage <config> -d <dir> \
+      [--cluster-name <name> --environment <env>] \
       [-c <cluster config>] [--format table|json]
 
 Run on the manager host, before anything is stopped. The command lists the
@@ -310,7 +309,10 @@ Examples:
   tt restore plan --target-time 2026-03-25T10:30:00Z \
       --backup-storage @s3-prod.yaml -d /tmp/restore/
   tt restore plan --target-time 1774435800 -c cluster.yaml \
-      --backup-storage file:///var/backups -d /tmp/restore/ --format table`
+      --backup-storage file:///var/backups -d /tmp/restore/ --format table
+  tt restore plan --target-time 2026-03-25T10:30:00Z \
+      --backup-storage file:///var/backups -d /tmp/restore/ \
+      --cluster-name payments-cluster --environment production`
 
 // newRestorePlanCmd creates `tt restore plan`.
 func newRestorePlanCmd() *cobra.Command {
@@ -327,8 +329,7 @@ func newRestorePlanCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&restorePlanTargetTime, "target-time", "",
 		"moment to recover to: RFC 3339 (2026-03-25T10:30:00Z) or a unix timestamp")
-	cmd.Flags().StringVar(&restorePlanStorage, "backup-storage", "",
-		backupStorageURIHelp)
+	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVarP(&restorePlanCfg, "config", "c", "",
 		"cluster configuration of the cluster being restored, to check the "+
 			"topology of the recovery point against.\n"+clusterUriHelp)
@@ -379,14 +380,9 @@ func runRestorePlanInner() (*restore.PlanResult, error) {
 		return nil, err //nolint:wrapcheck
 	}
 
-	storageCfg, err := backup.ParseStorageURI(restorePlanStorage)
+	store, err := openBackupStorage()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse storage URI: %w", err)
-	}
-
-	store, err := backup.OpenStorage(storageCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open storage: %w", err)
+		return nil, err
 	}
 
 	// Everything that can be rejected without touching the storage is rejected

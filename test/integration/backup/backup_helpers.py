@@ -129,8 +129,19 @@ def finalize_backup(tt, target, backup_id, config=None, **kwargs):
     return tt.exec(*args, **kwargs)
 
 
-def backup_last(tt, storage_uri, fmt=None, timeout=None):
+def scope_args(cluster_name=None, environment=None):
+    """The --cluster-name / --environment pair every storage command takes."""
+    args = []
+    if cluster_name:
+        args.extend(["--cluster-name", cluster_name])
+    if environment:
+        args.extend(["--environment", environment])
+    return args
+
+
+def backup_last(tt, storage_uri, fmt=None, timeout=None, cluster_name=None, environment=None):
     args = ["backup", "last", "--backup-storage", storage_uri]
+    args.extend(scope_args(cluster_name, environment))
     if fmt:
         args.extend(["--format", fmt])
     if timeout:
@@ -138,8 +149,9 @@ def backup_last(tt, storage_uri, fmt=None, timeout=None):
     return tt.exec(*args)
 
 
-def backup_verify(tt, storage_uri, fmt=None, timeout=None):
+def backup_verify(tt, storage_uri, fmt=None, timeout=None, cluster_name=None, environment=None):
     args = ["backup", "verify", "--backup-storage", storage_uri]
+    args.extend(scope_args(cluster_name, environment))
     if fmt:
         args.extend(["--format", fmt])
     if timeout:
@@ -156,8 +168,11 @@ def backup_gc(
     dry_run=False,
     fmt=None,
     timeout=None,
+    cluster_name=None,
+    environment=None,
 ):
     args = ["backup", "gc", "--backup-storage", storage_uri]
+    args.extend(scope_args(cluster_name, environment))
     if keep_full is not None:
         args.extend(["--keep-full", str(keep_full)])
     if keep_days is not None:
@@ -186,6 +201,7 @@ def backup_upload(
     timeout=None,
 ):
     args = ["backup", "upload", "--backup-storage", storage_uri]
+    args.extend(scope_args(cluster_name, environment))
     if archives:
         args.extend(["--archives", archives])
     if fragments:
@@ -194,10 +210,6 @@ def backup_upload(
         args.extend(["--plan", plan])
     if backup_id:
         args.extend(["--backup-id", backup_id])
-    if cluster_name:
-        args.extend(["--cluster-name", cluster_name])
-    if environment:
-        args.extend(["--environment", environment])
     if keep_local:
         args.append("--keep-local")
     if timeout:
@@ -205,14 +217,52 @@ def backup_upload(
     return tt.exec(*args)
 
 
-def backup_plan(tt, target, storage_uri, config=None, fmt=None, timeout=None):
+def backup_plan(
+    tt,
+    target,
+    storage_uri,
+    config=None,
+    fmt=None,
+    timeout=None,
+    cluster_name=None,
+    environment=None,
+):
     args = ["backup", "plan", "--target", target, "--backup-storage", storage_uri]
+    args.extend(scope_args(cluster_name, environment))
     if config:
         args.extend(["-c", config])
     if fmt:
         args.extend(["--format", fmt])
     if timeout:
         args.extend(["--timeout", timeout])
+    return tt.exec(*args)
+
+
+def restore_plan(
+    tt,
+    storage_uri,
+    target_time,
+    dest,
+    config=None,
+    fmt="json",
+    cluster_name=None,
+    environment=None,
+):
+    args = [
+        "restore",
+        "plan",
+        "--target-time",
+        target_time,
+        "--backup-storage",
+        storage_uri,
+        "-d",
+        str(dest),
+    ]
+    args.extend(scope_args(cluster_name, environment))
+    if config is not None:
+        args.extend(["-c", str(config)])
+    if fmt is not None:
+        args.extend(["--format", fmt])
     return tt.exec(*args)
 
 
