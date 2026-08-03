@@ -33,6 +33,37 @@ func TestApply_TruncatedArchiveFails(t *testing.T) {
 	require.Error(t, err, "a failed run must not leave a marker")
 }
 
+// A truncated archive inside a chain is caught by the pass that reads the
+// chain before the work directory is cleared, so the previous attempt survives
+// it. Exit 1 promises nothing about the directory -- this is the stronger
+// behavior the chain check happens to buy, and it is worth keeping.
+func TestApply_TruncatedArchiveInAChainLeavesWorkDirIntact(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	good, err := Apply(applyOpts(t, workDir, &Point{ReplicaID: 1, LSN: 5}))
+	require.NoError(t, err)
+
+	full, inc := archiveChain(t)
+
+	raw, err := os.ReadFile(inc)
+	require.NoError(t, err)
+
+	trunc := filepath.Join(t.TempDir(), "truncated.tar.zst")
+	require.NoError(t, os.WriteFile(trunc, raw[:len(raw)/2], 0o644))
+
+	_, err = Apply(ApplyOpts{
+		Archives:  []string{full, trunc},
+		WorkDir:   workDir,
+		PatchUUID: replicaUUID,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, trunc)
+
+	require.ElementsMatch(t, good.Files, dirEntries(t, workDir),
+		"the previous attempt must survive an archive that cannot be read")
+	require.FileExists(t, StatePath(workDir))
+}
+
 // A work directory the process cannot write into fails on the first entry,
 // with the unpack error naming what went wrong.
 func TestApply_UnwritableWorkDirFailsOnUnpack(t *testing.T) {

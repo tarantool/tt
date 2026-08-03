@@ -796,6 +796,32 @@ func TestApply_RefusesAChainThatIsNotAChain(t *testing.T) {
 	}
 }
 
+// A refused chain is a rejected input like any other, so it must leave the
+// previous attempt exactly as it was: an orchestrator reads that exit code as
+// "nothing happened" and retries on it.
+func TestApply_RefusedChainLeavesWorkDirIntact(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	good, err := Apply(applyOpts(t, workDir, &Point{ReplicaID: 1, LSN: 5}))
+	require.NoError(t, err)
+
+	trimmed := readRows(t, filepath.Join(workDir, "00000000000000000003.xlog"))
+
+	opts := applyOpts(t, workDir, &Point{ReplicaID: 1, LSN: 5})
+	opts.Archives[0], opts.Archives[1] = opts.Archives[1], opts.Archives[0]
+	opts.Checksums[0], opts.Checksums[1] = opts.Checksums[1], opts.Checksums[0]
+
+	_, err = Apply(opts)
+	require.ErrorIs(t, err, ErrValidation)
+
+	require.ElementsMatch(t, good.Files, dirEntries(t, workDir),
+		"the previous attempt must survive a refused chain")
+	require.FileExists(t, StatePath(workDir),
+		"a rejected input must not take the marker of the previous attempt with it")
+	require.Equal(t, trimmed, readRows(t, filepath.Join(workDir, "00000000000000000003.xlog")),
+		"the trimmed journal must still be the one the previous attempt left")
+}
+
 // The same archives in the order they were taken apply as they always did: the
 // increment's copy of the boundary journal is the one that stays, and a name
 // that lands twice is one file, reported once.

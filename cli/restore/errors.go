@@ -5,12 +5,10 @@ import "errors"
 var (
 	// ErrValidation marks a rejected input: a checksum that does not match
 	// its archive, a malformed recovery point, a missing archive, a chain
-	// whose archives do not continue one another. Apply reports all of them
-	// but the chain before it touches the work directory, so a previous
-	// attempt's files are still intact when it is returned. A chain is only
-	// known to be one once its archives have been read through, so that
-	// rejection comes mid-run -- without a marker, and a re-run in the right
-	// order rebuilds the directory.
+	// whose archives do not continue one another. Apply reports every one of
+	// them before it touches the work directory, so a previous attempt's files
+	// are still intact when it is returned -- the guarantee an orchestrator
+	// retries on.
 	ErrValidation = errors.New("restore: invalid input")
 
 	// ErrNoTrimFile marks a recovery point that no unpacked xlog covers.

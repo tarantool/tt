@@ -503,6 +503,59 @@ def test_apply_rejects_a_bad_checksum_without_touching_the_work_dir(
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_RESTORE_APP)
+def test_apply_rejects_a_reversed_chain_without_touching_the_work_dir(
+    tt,
+    tmp_path,
+    backup_chain,
+):
+    """A refused chain is a rejected input: exit 3 leaves the directory alone.
+
+    The chain is only known to be one once the archives have been read, so the
+    refusal used to arrive after the work directory had been cleared and
+    rebuilt -- exit 3 promising an untouched directory that was in fact the
+    unfinished result of the run that failed.
+    """
+    archives, point, fragments = backup_chain
+    work_dir = tmp_path / "restored"
+
+    def apply(ordered_archives, ordered_fragments):
+        return tt.exec(
+            "restore",
+            "apply",
+            "--archives",
+            ",".join(ordered_archives),
+            "--checksums",
+            ",".join(f["checksum_sha256"] for f in ordered_fragments),
+            "--work-dir",
+            str(work_dir),
+            "--target-point",
+            json.dumps(point),
+            "--patch-uuid",
+            APP_INSTANCE_UUID,
+        )
+
+    rc, out = apply(archives, fragments)
+    assert rc == 0, f"tt restore apply failed:\n{out}"
+
+    marker = str(work_dir) + ".restore_state.json"
+    prepared = {name: os.path.getsize(work_dir / name) for name in os.listdir(work_dir)}
+    marker_content = open(marker).read()
+
+    rc, out = apply(archives[::-1], fragments[::-1])
+    assert rc == 3, f"a refused chain must exit 3:\n{out}"
+
+    # Sizes, not just names: the increment applied first would put the
+    # untrimmed copy of the boundary journal back.
+    survived = {name: os.path.getsize(work_dir / name) for name in os.listdir(work_dir)}
+    assert survived == prepared, "the previous attempt must survive"
+    assert open(marker).read() == marker_content
+
+    state = boot_restored(work_dir, tmp_path)
+    assert state["lsn"] == point["lsn"]
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_RESTORE_APP)
 def test_apply_reports_a_point_no_xlog_covers(tt, tmp_path, backup_archive):
     archive, _, fragment = backup_archive
     work_dir = tmp_path / "restored"
