@@ -2,6 +2,7 @@
 package chain
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/tarantool/tt/cli/backup"
@@ -60,6 +61,12 @@ type Position struct {
 	ReplicaID uint32
 	// LSN is the xlog position on that replica.
 	LSN uint64
+}
+
+// String renders the position the way tt restore apply takes it on the command
+// line, so an error naming one can be acted on directly.
+func (p Position) String() string {
+	return fmt.Sprintf("{replica_id: %d, lsn: %d}", p.ReplicaID, p.LSN)
 }
 
 // ClusterPoint joins equally named points from every replicaset in a segment.

@@ -365,7 +365,7 @@ func (f *planFixture) standardChain() {
 		backupType: backup.BackupTypeIncremental, createdAt: 400,
 		shards: []shardBackup{
 			shardOfA(1000, 2000, recoveryPointAt("p2", replicaOfA, 1502, 310)),
-			shardOfB(900, 1800, recoveryPointAt("p2", replicaOfB, 877, 311)),
+			shardOfB(900, 1800, recoveryPointAt("p2", replicaOfB, 1377, 311)),
 		},
 	})
 
@@ -503,7 +503,7 @@ func (f *planFixture) chainAcrossAMasterChange() {
 		backupType: backup.BackupTypeIncremental, createdAt: 600,
 		shards: []shardBackup{
 			promoted,
-			shardOfB(900, 1800, recoveryPointAt("p3", replicaOfB, 877, 511)),
+			shardOfB(900, 1800, recoveryPointAt("p3", replicaOfB, 1377, 511)),
 		},
 	})
 }
@@ -528,7 +528,7 @@ func (f *planFixture) chainWithALateFirstPoint() {
 		backupType: backup.BackupTypeIncremental, createdAt: 400,
 		shards: []shardBackup{
 			shardOfA(1000, 2000, recoveryPointAt("p2", replicaOfA, 1502, 310)),
-			shardOfB(900, 1800, recoveryPointAt("p2", replicaOfB, 877, 311)),
+			shardOfB(900, 1800, recoveryPointAt("p2", replicaOfB, 1377, 311)),
 		},
 	})
 }
