@@ -39,13 +39,26 @@ func (s Status) MarshalJSON() ([]byte, error) {
 // Resolve maps a requested recovery time to a cluster recovery point.
 func (c *Chain) Resolve(t time.Time) Resolution {
 	if len(c.points) == 0 {
+		if c.covers(t) {
+			return Resolution{Status: StatusNoRecoveryPoint}
+		}
+
 		return Resolution{Status: StatusOutOfRange}
 	}
 
 	first := c.points[0]
 	last := c.points[len(c.points)-1]
 
+	// Before the first point the two failures look alike but are not: a time
+	// earlier than every manifest is out of what this storage holds at all,
+	// while a time inside the covered window merely has no point to land on.
+	// The operator's next move differs - reach for another storage, or take the
+	// neighbouring point offered here - so the two statuses stay apart.
 	if t.Before(first.Timestamp) {
+		if !c.covers(t) {
+			return Resolution{Status: StatusOutOfRange, After: &first}
+		}
+
 		return Resolution{Status: StatusNoRecoveryPoint, After: &first}
 	}
 

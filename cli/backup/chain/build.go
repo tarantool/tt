@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/tarantool/tt/cli/backup"
 	"github.com/tarantool/tt/cli/backup/storage"
@@ -236,11 +237,31 @@ func Build(manifests []*backup.ClusterManifest) (*Chain, error) {
 	segments := buildSegments(orderedGroups)
 
 	return &Chain{
-		groups:   orderedGroups,
-		byID:     byID,
-		points:   buildClusterPoints(segments),
-		segments: segments,
+		groups:        orderedGroups,
+		byID:          byID,
+		points:        buildClusterPoints(segments),
+		segments:      segments,
+		coverageStart: coverageStart(manifests),
 	}, nil
+}
+
+// coverageStart returns the creation time of the earliest manifest: the moment
+// from which the storage holds anything at all. Problematic manifests count -
+// a time before them is out of range whether or not they can be recovered from.
+func coverageStart(manifests []*backup.ClusterManifest) time.Time {
+	var earliest time.Time
+	for _, manifest := range manifests {
+		created := manifest.CreationTime
+		if created.IsZero() {
+			continue
+		}
+
+		if earliest.IsZero() || created.Before(earliest) {
+			earliest = created
+		}
+	}
+
+	return earliest
 }
 
 // markProblems finds broken links and immediately propagates each problem to

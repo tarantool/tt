@@ -3,6 +3,7 @@ package chain
 import (
 	"cmp"
 	"slices"
+	"time"
 
 	"github.com/tarantool/tt/cli/backup"
 )
@@ -18,6 +19,16 @@ type Chain struct {
 	// segments are time-ordered runs of points; the gap between two of them
 	// carries why the chain is not stitched across it, which Resolve reports.
 	segments []segment
+	// coverageStart is the creation time of the earliest manifest, zero when no
+	// manifest was loaded. It separates "this storage holds nothing for that
+	// time" from "it does, but no point sits there", which resolve to different
+	// statuses and different exit codes.
+	coverageStart time.Time
+}
+
+// covers reports whether t falls at or after the earliest stored manifest.
+func (c *Chain) covers(t time.Time) bool {
+	return !c.coverageStart.IsZero() && !t.Before(c.coverageStart)
 }
 
 // segment is a contiguous run of cluster points with uniform topology plus the
