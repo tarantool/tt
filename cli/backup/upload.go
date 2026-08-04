@@ -316,15 +316,20 @@ func ReadPlan(filePath string) (*BackupPlan, error) {
 }
 
 // ValidateFragmentsAgainstPlan checks that the fragments are the ones the plan
-// asked for: every expected replicaset produced one, each was taken on the
-// instance the plan named as that replicaset's master, and each is of the
-// backup type the plan asked for.
+// asked for: each was taken on the instance the plan named as that
+// replicaset's master, and each is of the backup type the plan asked for.
 //
 // The master check is what catches a failover between `plan` and `start`: the
 // backup is then taken on another instance, and an increment of another
 // instance's journal does not continue the chain it is being appended to. tt
 // notices a master change when it plans, but the window after that is exactly
 // where nothing was looking.
+//
+// A replicaset the plan expects and no fragment covers is deliberately not
+// checked here. It is not a disagreement about what was backed up -- it is a
+// shard that produced nothing, which a backup records rather than dies of: the
+// aggregation turns it into a failed shard with a shard_unreachable warning,
+// and the shards that did produce data are still stored.
 //
 // The comparisons are only as good as the plan: what tt derived from the
 // cluster is authoritative, what an operator wrote by hand is their word. So a
@@ -340,24 +345,6 @@ func ValidateFragmentsAgainstPlan(
 	plan *BackupPlan,
 	authentic bool,
 ) ([]string, error) {
-	covered := make(map[string]bool, len(fragments))
-	for _, fragment := range fragments {
-		covered[fragment.ReplicasetUUID] = true
-	}
-
-	var missing []string
-	for replicasetUUID := range plan.Replicasets {
-		if !covered[replicasetUUID] {
-			missing = append(missing, replicasetUUID)
-		}
-	}
-	if len(missing) > 0 {
-		slices.Sort(missing)
-
-		return nil, fmt.Errorf("plan expects %d replicasets but fragments are missing for: %s",
-			len(plan.Replicasets), strings.Join(missing, ", "))
-	}
-
 	unchecked := make([]string, 0)
 
 	for _, fragment := range fragments {

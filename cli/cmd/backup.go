@@ -378,7 +378,13 @@ and instance_backup.json fragments from all cluster nodes.
 
 The cluster and the environment come from the plan, which is where they were
 decided; --cluster-name / --environment are only needed to override them, and
-the run says so when they do.`,
+the run says so when they do.
+
+A replicaset the plan expects but no fragment covers, or a fragment whose
+archive never arrived, does not fail the run: it is recorded as a failed shard
+with a shard_unreachable / shard_partial warning, and the manifest is still
+stored for every replicaset that did produce data. The status the run reports
+says whether the backup is ok, degraded or failed.`,
 		Example: `$ tt backup upload \
     --archives /tmp/bkp/20260326T120000Z-A.tar.zst,/tmp/bkp/20260326T120000Z-B.tar.zst \
     --fragments /tmp/bkp/A.json,/tmp/bkp/B.json \
@@ -578,10 +584,10 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 	fragmentPaths := backup.SplitPaths(backupUploadFragments)
 	archivePaths := backup.SplitPaths(backupUploadArchives)
 
-	if len(fragmentPaths) != len(archivePaths) {
-		return fmt.Errorf("fragment and archive paths must have the same length")
-	}
-
+	// The two lists are matched by replicaset, not by position, and a fragment
+	// whose archive never made it across is a shard the manifest records rather
+	// than a run that dies: the counts are therefore allowed to differ. An
+	// archive nothing describes is still refused, in prepareUploadArchives.
 	plan, fragments, err := readUploadInputs(fragmentPaths)
 	if err != nil {
 		return err //nolint:wrapcheck
@@ -622,8 +628,15 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 	}
 
 	// The manifest is what was stored: its shards are keyed by replicaset, the
-	// fragment list is only what the run was asked to aggregate.
-	log.Infof("backup %q uploaded successfully (%d shards)", backupID, len(manifest.Shards))
+	// fragment list is only what the run was asked to aggregate. The status is
+	// part of the line because a run that ends with exit 0 may still have
+	// stored a backup missing a shard, and the warnings say which.
+	log.Infof("backup %q uploaded (status %s, %d shards)",
+		backupID, manifest.Status, len(manifest.Shards))
+
+	for _, warning := range manifest.Warnings {
+		log.Warnf("  [%s] %s", warning.Code, warning.Message)
+	}
 
 	// Remove local archives unless --keep-local was requested.
 	if !backupUploadKeepLocal {
@@ -635,6 +648,13 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 
 // buildUploadManifest aggregates the cluster manifest from the plan and
 // fragments and returns it together with its JSON encoding.
+//
+// A shard that produced nothing does not stop the run: a backup records what
+// it could not take rather than leaving the operator with no backup at all. A
+// replicaset the plan expects and no fragment covers becomes a failed shard
+// with a shard_unreachable warning, a fragment whose archive never arrived a
+// failed shard with a shard_partial one, and everything that did arrive is
+// stored either way. The manifest's status says which of the two it is.
 func buildUploadManifest(
 	backupID backup.BackupID,
 	plan *backup.BackupPlan,
@@ -649,25 +669,26 @@ func buildUploadManifest(
 		baseFullBackupID = backupID
 	}
 
-	shards := make([]*backup.ShardInput, 0, len(fragments))
+	// Two fragments of one replicaset would collapse into a single map entry,
+	// and the shard built from it would be aggregated once and reported as one
+	// -- the losing fragment's data silently absent from a manifest that says
+	// nothing is wrong.
+	fragmentsByReplicaset := make(map[string]*backup.Fragment, len(fragments))
 	for _, fragment := range fragments {
-		// Archives are keyed by the UUID in their file name, fragments by the
-		// UUID they carry. A fragment with no archive would be aggregated with
-		// an empty artifact path -- a manifest that validates, restores nothing
-		// and outlives the local archive removed right after the upload.
-		location, ok := locationsByReplicaset[fragment.ReplicasetUUID]
-		if !ok {
+		if _, duplicate := fragmentsByReplicaset[fragment.ReplicasetUUID]; duplicate {
 			return nil, nil, fmt.Errorf(
-				"no archive given for replicaset %q: expected an archive named %q",
-				fragment.ReplicasetUUID,
-				fmt.Sprintf("%s-%s.tar.zst", backupID, fragment.ReplicasetUUID))
+				"duplicate replicaset_uuid %q in fragments", fragment.ReplicasetUUID)
 		}
 
-		shards = append(shards, &backup.ShardInput{
-			ReplicasetUUID: fragment.ReplicasetUUID,
-			Fragment:       fragment,
-			Location:       location,
-		})
+		fragmentsByReplicaset[fragment.ReplicasetUUID] = fragment
+	}
+
+	topology := planTopology(backup.BuildTopologyFromFragments(fragments), plan)
+
+	shards := make([]*backup.ShardInput, 0, len(topology.Replicasets))
+	for replicasetUUID := range topology.Replicasets {
+		shards = append(shards, shardInput(
+			backupID, replicasetUUID, fragmentsByReplicaset, locationsByReplicaset))
 	}
 
 	manifest, err := backup.Aggregate(backup.AggregateInput{
@@ -675,7 +696,7 @@ func buildUploadManifest(
 		PreviousBackupID: backup.BackupID(plan.PreviousBackupID),
 		BaseFullBackupID: baseFullBackupID,
 		CreationTime:     time.Now(),
-		Topology:         backup.BuildTopologyFromFragments(fragments),
+		Topology:         topology,
 		Shards:           shards,
 		Warnings:         warnings,
 	})
@@ -689,6 +710,74 @@ func buildUploadManifest(
 	}
 
 	return manifest, manifestData, nil
+}
+
+// planTopology adds the replicasets the plan expects and no fragment
+// described. A shard is only allowed in a manifest whose topology knows its
+// replicaset, so a shard recorded as unreachable needs an entry as much as a
+// successful one does.
+//
+// The entry is the master the plan named, not an empty instance list: a
+// restore matches a backed-up replicaset to a configured one by the instance
+// names they share, and a replicaset with no names matches nothing. An empty
+// list would turn every unreachable shard into a topology mismatch at restore
+// time, months after the run that could still have been repeated.
+func planTopology(topology backup.Topology, plan *backup.BackupPlan) backup.Topology {
+	for replicasetUUID, replicasetPlan := range plan.Replicasets {
+		if _, described := topology.Replicasets[replicasetUUID]; described {
+			continue
+		}
+
+		instances := make([]backup.TopologyInstance, 0, 1)
+		if replicasetPlan.MasterInstanceUUID != "" || replicasetPlan.MasterInstanceName != "" {
+			instances = append(instances, backup.TopologyInstance{
+				InstanceUUID: replicasetPlan.MasterInstanceUUID,
+				InstanceName: replicasetPlan.MasterInstanceName,
+			})
+		}
+
+		topology.Replicasets[replicasetUUID] = instances
+	}
+
+	return topology
+}
+
+// shardInput builds the aggregation input of one replicaset: what it produced,
+// or why it produced nothing.
+func shardInput(
+	backupID backup.BackupID,
+	replicasetUUID string,
+	fragmentsByReplicaset map[string]*backup.Fragment,
+	locationsByReplicaset map[string]*backup.ArtifactLocation,
+) *backup.ShardInput {
+	fragment, described := fragmentsByReplicaset[replicasetUUID]
+	if !described {
+		// No fragment at all: the shard never reported, and the aggregation
+		// names it unreachable.
+		return &backup.ShardInput{ReplicasetUUID: replicasetUUID}
+	}
+
+	// Archives are keyed by the UUID in their file name, fragments by the UUID
+	// they carry. A fragment with no archive aggregated as a healthy shard
+	// would carry an empty artifact path -- a manifest that validates, restores
+	// nothing and outlives the local archive removed right after the upload.
+	location, stored := locationsByReplicaset[replicasetUUID]
+	if !stored {
+		return &backup.ShardInput{
+			ReplicasetUUID: replicasetUUID,
+			Fragment:       fragment,
+			Err: fmt.Errorf(
+				"no archive given for replicaset %q: expected an archive named %q",
+				replicasetUUID,
+				fmt.Sprintf("%s-%s.tar.zst", backupID, replicasetUUID)),
+		}
+	}
+
+	return &backup.ShardInput{
+		ReplicasetUUID: replicasetUUID,
+		Fragment:       fragment,
+		Location:       location,
+	}
 }
 
 // removeLocalArchives best-effort removes local archive files, logging a

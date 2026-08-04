@@ -61,7 +61,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   for is refused. This holds the plan to its word only when tt wrote it: for a
   plan written or edited by hand, checked by its `checksum_sha256`, the same
   disagreements are reported and the upload continues, which is also how an
-  operator overrides the check.
+  operator overrides the check. A shard that produced nothing does not fail the
+  run: a replicaset the plan expects and no fragment covers is stored as a
+  failed shard with `shard_unreachable` in `warnings[]`, a fragment whose
+  archive never arrived as one with `shard_partial`, and every shard that did
+  produce data is uploaded either way — the run reports the manifest status, so
+  a degraded backup is visible in the log of a run that exited 0. An archive no
+  fragment describes is still refused: its checksum can be compared against
+  nothing, and storing it would leave an object no manifest refers to.
 - `tt backup plan`, `upload`, `verify`, `gc`, `last` and `tt restore plan`:
   `--cluster-name` and `--environment` select the
   `<storage_root>/<cluster_name>/<environment>/` subtree of the storage, so one
