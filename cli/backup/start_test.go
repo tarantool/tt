@@ -311,11 +311,13 @@ func TestStartBackup_fragmentFields(t *testing.T) {
 // fails.
 func TestStartBackup_failLoudOnAlreadyOpen(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
-	info := infoMap(walFiles, nil, Vclock{1: 1502}, nil)
+	info := infoMap(walFiles, Vclock{1: 1200}, Vclock{1: 1502}, nil)
 	m := &mockEvaler{queue: [][]any{{info}}}
 
 	_, err := Start(m, BackupStartOpts{BackupID: "bid"})
 	require.ErrorIs(t, err, ErrAlreadyInProgress)
+	require.ErrorContains(t, err, "type=incremental")
+	require.ErrorContains(t, err, "vclock_begin=map[1:1200]")
 
 	require.False(t, slices.Contains(m.exprs, "box.backup.start(...)"))
 	require.False(t, slices.Contains(m.exprs, "box.backup.stop()"))
