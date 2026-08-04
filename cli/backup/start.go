@@ -122,7 +122,8 @@ func openBackup(conn connector.Connector, opts BackupStartOpts) (*BackupInfo, er
 		return nil, fmt.Errorf("failed to check backup state: %w", err)
 	}
 	if info != nil {
-		return nil, ErrAlreadyInProgress
+		return nil, fmt.Errorf("%w (type=%s, vclock_begin=%v)",
+			ErrAlreadyInProgress, info.Type, info.PrevVclock)
 	}
 
 	if err := startBackup(conn, StartOpts{

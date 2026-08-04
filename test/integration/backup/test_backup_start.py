@@ -56,6 +56,8 @@ def test_start_full_artifact_and_open_backup_lifecycle(tt, tt_app, tmp_path):
         conflict_rc, conflict_out = start_backup(tt, target, conflicting_id)
         assert conflict_rc == 2, conflict_out
         assert "backup already in progress" in conflict_out.lower()
+        assert "type=full" in conflict_out.lower(), conflict_out
+        assert "vclock_begin=" in conflict_out.lower(), conflict_out
         assert not os.path.exists(backup_dir(conflicting_id))
         with open(archive_path, "rb") as src:
             assert src.read() == archive_before
