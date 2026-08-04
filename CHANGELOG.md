@@ -22,7 +22,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   and corrupted archives, breaks in the backup chain, and dangling archives.
   Exits with 2 when problems are found. Archives of a backup newer than every
   stored manifest are reported as an upload in progress and do not make the
-  storage unhealthy.
+  storage unhealthy. A manifest carrying a warning code this tt does not know
+  is read normally: `warnings[]` is diagnostic, so an unfamiliar code neither
+  invalidates the manifest nor breaks the chain below it.
 - `tt backup gc`: add retention-based cleanup of a backup storage:
   `--keep-full` / `--keep-days` delete whole backup chains from their newest
   end, `--orphan-age` collects dangling archives, and `--dry-run` reports what
