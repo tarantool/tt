@@ -162,6 +162,19 @@ func storageKeys(t *testing.T, root string) []string {
 	return keys
 }
 
+// storedManifest decodes the manifest an upload stored under root.
+func storedManifest(t *testing.T, root string) backup.ClusterManifest {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(root, "manifests", testBackupID+".json"))
+	require.NoError(t, err)
+
+	var manifest backup.ClusterManifest
+	require.NoError(t, json.Unmarshal(data, &manifest))
+
+	return manifest
+}
+
 const (
 	testBackupID = "20260326T120000Z"
 	testShardA   = "11111111-1111-1111-1111-111111111111"
@@ -320,7 +333,10 @@ func TestRunBackupGcZeroTimeoutMeansNoLimit(t *testing.T) {
 	require.NoError(t, runBackupGc(cmd, nil))
 }
 
-func TestBuildUploadManifestRejectsFragmentWithoutArchive(t *testing.T) {
+func TestBuildUploadManifestWarnsOnFragmentWithoutArchive(t *testing.T) {
+	// A shard whose archive never arrived is recorded rather than fatal: the
+	// manifest carries it as a failed shard, so the backup says what it is
+	// missing instead of not existing at all.
 	plan := &backup.BackupPlan{Type: backup.BackupTypeFull}
 	fragments := []*backup.Fragment{testFragment(testShardB, "b1")}
 	locations := map[string]*backup.ArtifactLocation{
@@ -328,10 +344,61 @@ func TestBuildUploadManifestRejectsFragmentWithoutArchive(t *testing.T) {
 	}
 
 	manifest, data, err := buildUploadManifest(testBackupID, plan, fragments, locations, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), testShardB)
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+	require.NotEmpty(t, data)
+
+	// The only shard of this backup produced no artifact: nothing can be
+	// restored from the manifest, and its status says so.
+	assert.Equal(t, backup.StatusFailed, manifest.Status)
+	assert.Contains(t, manifest.Shards[testShardB].Error, testShardB)
+	require.Len(t, manifest.Warnings, 1)
+	assert.Equal(t, backup.WarnShardPartial, manifest.Warnings[0].Code)
+}
+
+func TestBuildUploadManifestRejectsDuplicateFragments(t *testing.T) {
+	// Two fragments of one replicaset collapse into a single shard, which the
+	// aggregation would then see as one input and report as one shard: the
+	// duplicate has to be caught before that.
+	plan := &backup.BackupPlan{Type: backup.BackupTypeFull}
+	fragments := []*backup.Fragment{
+		testFragment(testShardA, "a1"), testFragment(testShardA, "a2"),
+	}
+
+	manifest, data, err := buildUploadManifest(testBackupID, plan, fragments, nil, nil)
+	require.ErrorContains(t, err, "duplicate replicaset_uuid")
 	assert.Nil(t, manifest)
 	assert.Nil(t, data)
+}
+
+func TestBuildUploadManifestRecordsAPlannedShardThatProducedNothing(t *testing.T) {
+	// The plan expects two replicasets and one of them never reported: the
+	// backup of the other is still worth storing, and the manifest names the
+	// one that is missing. Its topology entry comes from the plan, so a restore
+	// can still match the replicaset to the cluster by instance name.
+	plan := &backup.BackupPlan{
+		Type: backup.BackupTypeFull,
+		Replicasets: map[string]backup.ReplicasetPlan{
+			testShardA: {MasterInstanceUUID: "a1", MasterInstanceName: "instance-a1"},
+			testShardB: {MasterInstanceUUID: "b1", MasterInstanceName: "instance-b1"},
+		},
+	}
+	fragments := []*backup.Fragment{testFragment(testShardA, "a1")}
+	locations := map[string]*backup.ArtifactLocation{
+		testShardA: {Path: "data/a.tar.zst", SizeBytes: 7},
+	}
+
+	manifest, _, err := buildUploadManifest(testBackupID, plan, fragments, locations, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, backup.StatusDegraded, manifest.Status)
+	assert.NotNil(t, manifest.Shards[testShardA].Instance)
+	assert.Equal(t, "shard unreachable", manifest.Shards[testShardB].Error)
+	require.Len(t, manifest.Warnings, 1)
+	assert.Equal(t, backup.WarnShardUnreachable, manifest.Warnings[0].Code)
+
+	require.Len(t, manifest.Topology.Replicasets[testShardB], 1)
+	assert.Equal(t, "instance-b1", manifest.Topology.Replicasets[testShardB][0].InstanceName)
 }
 
 // uploadInputs prepares a single-shard upload and returns the command, the
@@ -366,11 +433,13 @@ func uploadInputs(t *testing.T, fragmentUUID, archiveUUID string) (*cobra.Comman
 	return cmd, root, archive
 }
 
-func TestRunBackupUploadRejectsFragmentWithoutArchive(t *testing.T) {
-	// The fragment names one replicaset, the archive filename another: the
-	// manifest would carry an empty artifact path for a backup nothing can
-	// restore from. The checksum pass sees it first, since it cannot verify an
-	// archive nothing describes.
+func TestRunBackupUploadRejectsArchiveWithoutFragment(t *testing.T) {
+	// The fragment names one replicaset, the archive filename another. A shard
+	// that produced nothing is recorded and the run goes on, but an archive no
+	// fragment describes is not that: it is an input nothing accounts for,
+	// whose checksum cannot be verified against anything and which would be
+	// stored as an object the manifest never refers to. The checksum pass sees
+	// it first.
 	cmd, root, archive := uploadInputs(t, testShardB, testShardA)
 	setFlag(t, &backupUploadKeepLocal, false)
 
@@ -380,6 +449,91 @@ func TestRunBackupUploadRejectsFragmentWithoutArchive(t *testing.T) {
 
 	assert.Empty(t, storageKeys(t, root), "nothing may be stored for a rejected upload")
 	assert.FileExists(t, archive, "the local archive is the only copy left")
+}
+
+func TestRunBackupUploadStoresAShardWhoseArchiveIsMissing(t *testing.T) {
+	// The other direction of the same mismatch: two fragments, one archive.
+	// What arrived is stored, and the shard whose archive did not is recorded
+	// as partial -- the run does not throw away the half it does have.
+	work := t.TempDir()
+	root := t.TempDir()
+
+	cmd := newBackupUploadCmd()
+	fragmentA := testFragment(testShardA, "a1")
+	fragmentB := testFragment(testShardB, "b1")
+	fragments := []string{
+		writeJSON(t, work, "a.json", fragmentA),
+		writeJSON(t, work, "b.json", fragmentB),
+	}
+	planPath := writeJSON(t, work, "plan.json", backup.BackupPlan{
+		FormatVersion: backup.PlanFormatVersion,
+		Type:          backup.BackupTypeFull,
+		Replicasets: map[string]backup.ReplicasetPlan{
+			testShardA: {
+				MasterInstanceUUID: fragmentA.InstanceUUID,
+				MasterInstanceName: fragmentA.InstanceName,
+			},
+			testShardB: {
+				MasterInstanceUUID: fragmentB.InstanceUUID,
+				MasterInstanceName: fragmentB.InstanceName,
+			},
+		},
+	})
+
+	setFlag(t, &backupUploadArchives, writeArchive(t, work, testShardA))
+	setFlag(t, &backupUploadFragments, strings.Join(fragments, ","))
+	setFlag(t, &backupUploadPlan, planPath)
+	setFlag(t, &backupUploadBackupID, testBackupID)
+	setFlag(t, &backupClusterName, "")
+	setFlag(t, &backupEnvironment, "")
+	setFlag(t, &backupUploadKeepLocal, true)
+	setFlag(t, &backupUploadTimeout, time.Minute)
+	setFlag(t, &backupStorageConfig, "file://"+root)
+
+	require.NoError(t, runBackupUpload(cmd, nil))
+
+	manifest := storedManifest(t, root)
+	assert.Equal(t, backup.StatusDegraded, manifest.Status)
+	assert.NotNil(t, manifest.Shards[testShardA].Instance)
+	assert.Contains(t, manifest.Shards[testShardB].Error, "expected an archive named")
+	require.Len(t, manifest.Warnings, 1)
+	assert.Equal(t, backup.WarnShardPartial, manifest.Warnings[0].Code)
+
+	assert.Contains(t, storageKeys(t, root),
+		"data/"+testBackupID+"-"+testShardA+".tar.zst")
+}
+
+func TestRunBackupUploadStoresAShardThatNeverReported(t *testing.T) {
+	// The plan expects two replicasets and only one produced anything at all:
+	// the backup of that one is stored, degraded, and the shard that never
+	// reported is in the manifest as unreachable.
+	cmd, root, _ := uploadInputs(t, testShardA, testShardA)
+
+	plan := backup.BackupPlan{
+		FormatVersion: backup.PlanFormatVersion,
+		Type:          backup.BackupTypeFull,
+		Replicasets: map[string]backup.ReplicasetPlan{
+			testShardA: {MasterInstanceUUID: "a1", MasterInstanceName: "instance-a1"},
+			testShardB: {MasterInstanceUUID: "b1", MasterInstanceName: "instance-b1"},
+		},
+	}
+	setFlag(t, &backupUploadPlan,
+		writeJSON(t, t.TempDir(), "plan.json", plan))
+
+	handler := captureLog(t)
+	require.NoError(t, runBackupUpload(cmd, nil))
+
+	manifest := storedManifest(t, root)
+	assert.Equal(t, backup.StatusDegraded, manifest.Status)
+	assert.NotNil(t, manifest.Shards[testShardA].Instance)
+	assert.Equal(t, "shard unreachable", manifest.Shards[testShardB].Error)
+	require.Len(t, manifest.Warnings, 1)
+	assert.Equal(t, backup.WarnShardUnreachable, manifest.Warnings[0].Code)
+
+	// A degraded backup that exits 0 is only useful if the run says so.
+	messages := logMessages(handler)
+	assert.Contains(t, messages, string(backup.WarnShardUnreachable))
+	assert.Contains(t, messages, "status "+string(backup.StatusDegraded))
 }
 
 // twoShardUpload prepares an upload of two fragments, each with its own
@@ -432,16 +586,13 @@ func TestRunBackupUploadReportsStoredShardCount(t *testing.T) {
 	handler := captureLog(t)
 	require.NoError(t, runBackupUpload(cmd, nil))
 
-	data, err := os.ReadFile(filepath.Join(root, "manifests", testBackupID+".json"))
-	require.NoError(t, err)
-
-	var manifest backup.ClusterManifest
-	require.NoError(t, json.Unmarshal(data, &manifest))
+	manifest := storedManifest(t, root)
 
 	// Shards are keyed by replicaset: the count reported to the operator is the
-	// one the manifest carries, not the length of the fragment list.
+	// one the manifest carries, not the length of the fragment list. The status
+	// travels with it, since a run that stored a degraded backup also exits 0.
 	assert.Contains(t, logMessages(handler),
-		fmt.Sprintf("(%d shards)", len(manifest.Shards)))
+		fmt.Sprintf("(status %s, %d shards)", manifest.Status, len(manifest.Shards)))
 }
 
 func TestRunBackupUploadRejectsDuplicateReplicaset(t *testing.T) {

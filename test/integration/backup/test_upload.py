@@ -197,7 +197,8 @@ def test_upload_happy_path(tt, tmp_path, storage, flags, expected_prefix):
         environment=flags["environment"],
     )
     assert rc == 0, f"tt backup upload failed:\n{out}"
-    assert "uploaded successfully" in out.lower()
+    assert "uploaded" in out.lower()
+    assert "status ok" in out.lower()
 
     # The archive is in storage under the expected key.
     expected_archive_key = expected_prefix + f"data/{BACKUP_ID}-{REPLICASET}.tar.zst"
@@ -942,8 +943,11 @@ def test_upload_archive_wrong_extension(tt, tmp_path):
     assert ".tar.zst" in out.lower()
 
 
-def test_upload_fragment_missing_replicaset(tt, tmp_path):
-    """Plan expects a replicaset that has no fragment."""
+def test_upload_fragment_missing_replicaset_warns(tt, tmp_path):
+    """A replicaset the plan expects and no fragment covers is a shard that
+    produced nothing, not a run that has to die: the backup of every other
+    replicaset is still stored, and the manifest records the missing one as
+    unreachable so a restore knows the point is incomplete."""
     work = tmp_path / "work"
     work.mkdir()
 
@@ -969,19 +973,37 @@ def test_upload_fragment_missing_replicaset(tt, tmp_path):
 
     archive_path = _write_archive(str(work), BACKUP_ID, REPLICASET)
 
-    storage_uri = f"file://{tmp_path / 'backups'}"
+    storage = FileStorage(str(tmp_path / "backups"))
 
     rc, out = backup_upload(
         tt,
-        storage_uri,
+        storage.uri,
         archives=archive_path,
         fragments=str(fragment_path),
         plan=str(plan_path),
         backup_id=BACKUP_ID,
     )
-    assert rc != 0
-    assert "missing" in out.lower()
-    assert REPLICASET_B in out
+    assert rc == 0, f"tt backup upload failed:\n{out}"
+    assert "shard_unreachable" in out
+    assert "status degraded" in out.lower()
+
+    manifest = json.loads(storage.read(f"manifests/{BACKUP_ID}.json"))
+    assert manifest["status"] == "degraded"
+    assert manifest["shards"][REPLICASET_B]["error"] == "shard unreachable"
+    assert "artifact" in manifest["shards"][REPLICASET]["instance"]
+    assert manifest["warnings"] == [
+        {
+            "code": "shard_unreachable",
+            "message": "shard unreachable",
+            "details": {"replicaset_uuid": REPLICASET_B},
+        },
+    ]
+
+    # The topology entry of a shard that reported nothing comes from the plan,
+    # so a restore can still match the replicaset to the cluster by name.
+    assert manifest["topology"]["replicasets"][REPLICASET_B] == [
+        {"instance_uuid": INSTANCE_UUID_B, "instance_name": "router-002", "hostname": ""},
+    ]
 
 
 def test_upload_invalid_storage_uri(tt, tmp_path):
@@ -1213,38 +1235,66 @@ def test_upload_rollback_on_real_fs_backend(tt, tmp_path):
     assert all(os.path.isfile(archive) for archive in archives)
 
 
-@pytest.mark.parametrize(
-    "archive_count,fragment_count,trailing_comma",
-    [
-        pytest.param(2, 1, False, id="two-archives-one-fragment"),
-        pytest.param(1, 2, False, id="one-archive-two-fragments"),
-        pytest.param(1, 1, True, id="trailing-comma"),
-    ],
-)
-def test_upload_archive_fragment_count_mismatch(
-    tt,
-    tmp_path,
-    archive_count,
-    fragment_count,
-    trailing_comma,
-):
-    """Archives and fragments are matched by position, so a list that lost an
-    entry -- or grew an empty one from a trailing comma in a generated command
-    line -- must stop the run before anything is stored."""
+def test_upload_more_fragments_than_archives_warns(tt, tmp_path):
+    """The two lists are matched by replicaset, not by position: a fragment
+    whose archive never made it to the manager host is a partial shard, and the
+    archive that did arrive is still stored."""
     archives, fragments, plan_path = _prepare_two_shard_inputs(tmp_path)
     storage = FileStorage(str(tmp_path / "backups"))
 
-    archives_flag = ",".join(archives[:archive_count]) + ("," if trailing_comma else "")
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archives[0],
+        fragments=",".join(fragments),
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+    )
+
+    assert rc == 0, f"tt backup upload failed:\n{out}"
+    assert "shard_partial" in out
+
+    manifest = json.loads(storage.read(f"manifests/{BACKUP_ID}.json"))
+    assert manifest["status"] == "degraded"
+    assert manifest["shards"][REPLICASET]["instance"]["artifact"]["path"] == (
+        f"data/{BACKUP_ID}-{REPLICASET}.tar.zst"
+    )
+    assert "expected an archive named" in manifest["shards"][REPLICASET_B]["error"]
+    assert manifest["warnings"][0]["code"] == "shard_partial"
+    assert manifest["warnings"][0]["details"]["replicaset_uuid"] == REPLICASET_B
+
+
+@pytest.mark.parametrize(
+    "trailing_comma",
+    [
+        pytest.param(False, id="two-archives-one-fragment"),
+        pytest.param(True, id="trailing-comma"),
+    ],
+)
+def test_upload_archive_nothing_describes_is_rejected(tt, tmp_path, trailing_comma):
+    """The other direction is not a partial shard but an input nothing accounts
+    for: an archive no fragment describes cannot have its checksum verified and
+    would be stored as an object the manifest never refers to. A trailing comma
+    in a generated command line is the same kind of mistake -- an entry that
+    names no file at all."""
+    archives, fragments, plan_path = _prepare_two_shard_inputs(tmp_path)
+    storage = FileStorage(str(tmp_path / "backups"))
+
+    archives_flag = archives[0] + "," if trailing_comma else ",".join(archives)
 
     rc, out = backup_upload(
         tt,
         storage.uri,
         archives=archives_flag,
-        fragments=",".join(fragments[:fragment_count]),
+        fragments=fragments[0],
         plan=plan_path,
         backup_id=BACKUP_ID,
     )
 
     assert rc != 0
-    assert "same length" in out
+    if trailing_comma:
+        assert "stat archive" in out.lower()
+    else:
+        assert "no fragment describes archive" in out
+        assert REPLICASET_B in out
     assert storage.keys() == []
