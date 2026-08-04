@@ -206,13 +206,27 @@ func TestClusterManifestValidate(t *testing.T) {
 			wantError: "invalid backup type",
 		},
 		{
-			name: "invalid warning code",
+			// A code this build does not know belongs to a newer spec, not to a
+			// broken manifest: warnings are diagnostic, and refusing one used to
+			// take verify, last, plan and gc down with the whole chain tail.
+			//
+			// The code has to be one tt does not define anywhere, or the test
+			// passes again the day it is added and stops guarding anything.
+			name: "a warning code from a newer spec",
 			manifest: func() ClusterManifest {
 				manifest := valid()
-				manifest.Warnings = []Warning{{Code: WarningCode("unknown")}}
+				manifest.Warnings = []Warning{{Code: WarningCode("a_code_from_a_later_rfc")}}
 				return manifest
 			}(),
-			wantError: "invalid code",
+		},
+		{
+			name: "a warning with no code at all",
+			manifest: func() ClusterManifest {
+				manifest := valid()
+				manifest.Warnings = []Warning{{Message: "something happened"}}
+				return manifest
+			}(),
+			wantError: "warnings[0] has no code",
 		},
 		{
 			name: "nil warnings",

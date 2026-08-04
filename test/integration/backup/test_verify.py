@@ -500,6 +500,37 @@ def test_verify_reports_an_unsupported_schema_version(tt, storage):
     assert report["archives_checked"] == 1
 
 
+@pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
+def test_verify_accepts_a_warning_code_it_does_not_know(tt, storage):
+    """A warning from a newer spec is diagnostic, not a broken manifest.
+
+    Unlike schema_version, an unfamiliar warning code says nothing about how the
+    fields are to be read: no part of restoring the backup depends on it. It
+    used to make the manifest invalid, and since the same check decides whether
+    a chain entry is usable, the verdict travelled down the chain -- one word
+    took verify, last, plan and gc with it.
+
+    The code has to be one tt does not define anywhere: a code it later learns
+    to write would make this test pass for the wrong reason.
+    """
+    manifest = write_backup(storage, "2026-01-01-full")
+    manifest["warnings"] = [
+        {
+            "code": "a_code_from_a_later_rfc",
+            "message": "something a newer tt knows how to say",
+            "details": {"reason": "whatever it means"},
+        },
+    ]
+    write_manifest(storage, manifest)
+
+    rc, report = verify_json(tt, storage)
+
+    assert rc == 0, f"an unknown warning code must not make a storage unhealthy:\n{report}"
+    assert report["issues"] == []
+    assert report["manifests_checked"] == 1
+    assert report["archives_checked"] == 1
+
+
 @pytest.mark.skipif(
     os.getuid() == 0,
     reason="Skipping the test, it shouldn't run as root",

@@ -119,13 +119,22 @@ func (manifest ClusterManifest) validateShard(replicasetUUID string, shard Shard
 	return nil
 }
 
-// validateWarnings checks warning codes.
+// validateWarnings checks that every warning names itself.
+//
+// A code this build does not know is not an error. warnings[] is diagnostic:
+// nothing about restoring a backup depends on it, and the spec keeps adding
+// codes. Refusing an unknown one made a manifest written to a newer spec
+// invalid, which is not a local matter -- the same Validate decides whether a
+// chain entry is usable, so one unfamiliar word took `verify` (exit 2), `last`
+// (exit 1), and, through the problem it propagates down the chain, `plan` and
+// `gc` with it.
 func (manifest ClusterManifest) validateWarnings() error {
 	for i, warning := range manifest.Warnings {
-		if !isValidWarningCode(warning.Code) {
-			return fmt.Errorf("warnings[%d] has invalid code %q", i, warning.Code)
+		if warning.Code == "" {
+			return fmt.Errorf("warnings[%d] has no code", i)
 		}
 	}
+
 	return nil
 }
 
@@ -177,19 +186,6 @@ func isValidBackupType(backupType BackupType) bool {
 func isValidStatus(status Status) bool {
 	switch status {
 	case StatusOK, StatusDegraded, StatusFailed:
-		return true
-	default:
-		return false
-	}
-}
-
-// isValidWarningCode reports whether code is known by this schema.
-func isValidWarningCode(code WarningCode) bool {
-	switch code {
-	case WarnShardPartial,
-		WarnShardUnreachable,
-		WarnRecoveryPointsUnavailable,
-		WarnStoragePartialUpload:
 		return true
 	default:
 		return false
