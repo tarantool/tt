@@ -1,6 +1,8 @@
 package backup
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -88,6 +90,64 @@ type BackupPlan struct {
 	// reading plan["previous_backup_id"] gets None, not a KeyError.
 	PreviousBackupID OptionalBackupID `json:"previous_backup_id"`
 	BaseFullBackupID OptionalBackupID `json:"base_full_backup_id"`
+	// ChecksumSHA256 is what `tt backup plan` computed over the rest of this
+	// document. It is not a signature and guards nothing: it only tells upload
+	// whether the plan in front of it is the one tt produced, so that a plan
+	// written or edited by hand is treated as the operator's word rather than
+	// as tt's -- see PlanIsAuthentic.
+	ChecksumSHA256 string `json:"checksum_sha256,omitempty"`
+}
+
+// Sign records the checksum of the plan's own content, which is how upload
+// later tells a plan tt produced from one written by hand.
+func (plan *BackupPlan) Sign() error {
+	checksum, err := plan.checksum()
+	if err != nil {
+		return err
+	}
+
+	plan.ChecksumSHA256 = checksum
+
+	return nil
+}
+
+// PlanIsAuthentic reports whether the plan still carries the checksum tt wrote
+// for exactly this content.
+//
+// A plan without one was not written by `tt backup plan`; a plan whose checksum
+// does not match was edited after it. Both mean the same thing for the checks
+// upload makes against the plan: what it says is the operator's word, not
+// something tt derived from the cluster, so a disagreement is reported and not
+// refused. Anyone can recompute the checksum, so this stops nobody -- it only
+// keeps tt from claiming a guarantee it does not have.
+func PlanIsAuthentic(plan *BackupPlan) (bool, error) {
+	if plan.ChecksumSHA256 == "" {
+		return false, nil
+	}
+
+	checksum, err := plan.checksum()
+	if err != nil {
+		return false, err
+	}
+
+	return strings.EqualFold(plan.ChecksumSHA256, checksum), nil
+}
+
+// checksum is the sha256 of the plan without the checksum field. It is taken
+// over the canonical encoding rather than over the file, so reformatting a plan
+// -- piping it through jq, storing it re-indented -- does not change it.
+func (plan *BackupPlan) checksum() (string, error) {
+	unsigned := *plan
+	unsigned.ChecksumSHA256 = ""
+
+	data, err := json.Marshal(unsigned)
+	if err != nil {
+		return "", fmt.Errorf("encode plan for checksum: %w", err)
+	}
+
+	sum := sha256.Sum256(data)
+
+	return hex.EncodeToString(sum[:]), nil
 }
 
 var (
@@ -148,6 +208,11 @@ func Plan(
 	// compares it against its own flags.
 	plan.ClusterName = strings.TrimSpace(scope.ClusterName)
 	plan.Environment = strings.TrimSpace(scope.Environment)
+
+	// Last, so that the checksum covers the finished document.
+	if err := plan.Sign(); err != nil {
+		return nil, err
+	}
 
 	return plan, nil
 }

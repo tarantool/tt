@@ -308,3 +308,101 @@ def test_lifecycle_pitr(tt, tt_app, tmp_path):
     assert state["rows"] == 40
     assert state["max_id"] == 40
     assert state["uuid"] == APP_INSTANCE_UUID
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_LIFECYCLE_APP)
+def test_upload_refuses_a_backup_taken_off_the_planned_master(tt, tt_app, tmp_path):
+    """A backup taken on another instance than the plan named is refused.
+
+    This is the failover between `plan` and `start`: the plan says the master
+    is i-01, the backup ends up taken on i-02, and an increment of another
+    instance's journal does not continue the chain it is appended to. The
+    fragment is edited here instead of failing a master over, but it is the
+    same input upload sees.
+
+    The plan is the real thing -- `tt backup plan` output, checksum and all --
+    because that is what makes the disagreement a refusal rather than a note.
+    """
+    target = app_instance(tt_app, STORAGE_1_A)
+    config_path = tt_app.path("config.yaml")
+
+    storage_root = tmp_path / "backups"
+    storage_root.mkdir()
+    storage = FileStorage(str(storage_root))
+
+    plan, plan_path = plan_json(tt, "full", storage.uri, config_path, tmp_path, "plan.json")
+    assert plan["checksum_sha256"], "tt backup plan has to sign what it produced"
+    assert plan["replicasets"][REPLICASET_UUID]["master_instance_uuid"] == APP_INSTANCE_UUID
+
+    rc, out = start_backup(tt, target, FULL_ID)
+    assert rc == 0, f"tt backup start failed:\n{out}"
+    archive = archive_path_from_output(out)
+
+    fragment_path = archive.removesuffix(".tar.zst") + ".json"
+    fragment = read_fragment(archive)
+    fragment["instance_uuid"] = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    with open(fragment_path, "w") as dst:
+        json.dump(fragment, dst)
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archive,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id=FULL_ID,
+        keep_local=True,
+    )
+    assert rc != 0, f"a backup taken elsewhere must not be stored:\n{out}"
+    assert "does not continue the chain this plan was made for" in out
+    assert storage.keys() == [], "nothing may be stored for a refused upload"
+
+    finalize_backup(tt, target, FULL_ID)
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_LIFECYCLE_APP)
+def test_upload_reports_but_accepts_a_hand_written_plan(tt, tt_app, tmp_path):
+    """Editing the plan is the way out of the check, and it is said out loud.
+
+    A plan tt did not write states what the operator believes; tt compares the
+    fragments against it and reports the disagreement instead of refusing, so
+    an operator who knows better is not blocked.
+    """
+    target = app_instance(tt_app, STORAGE_1_A)
+    config_path = tt_app.path("config.yaml")
+
+    storage_root = tmp_path / "backups"
+    storage_root.mkdir()
+    storage = FileStorage(str(storage_root))
+
+    plan, _ = plan_json(tt, "full", storage.uri, config_path, tmp_path, "plan.json")
+
+    # The same edit as above, on the plan rather than on the fragment: the
+    # checksum stops matching, which is what tells tt the plan is hand-made.
+    plan["replicasets"][REPLICASET_UUID]["master_instance_uuid"] = (
+        "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    )
+    edited_path = tmp_path / "plan-edited.json"
+    edited_path.write_text(json.dumps(plan), encoding="utf-8")
+
+    rc, out = start_backup(tt, target, FULL_ID)
+    assert rc == 0, f"tt backup start failed:\n{out}"
+    archive = archive_path_from_output(out)
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archive,
+        fragments=archive.removesuffix(".tar.zst") + ".json",
+        plan=str(edited_path),
+        backup_id=FULL_ID,
+        keep_local=True,
+    )
+    assert rc == 0, f"an edited plan must not block the upload:\n{out}"
+    assert "was not written by tt backup plan" in out
+    assert "does not continue the chain this plan was made for" in out
+    assert f"manifests/{FULL_ID}.json" in storage.keys()
+
+    finalize_backup(tt, target, FULL_ID)

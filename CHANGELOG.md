@@ -38,7 +38,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   between the two commands. When the plan names no chain head,
   `previous_backup_id` and `base_full_backup_id` are `null` rather than absent,
   so a consumer reads them without a special case. The cluster manifest does
-  the same with `previous_backup_id` for the first full backup of a chain.
+  the same with `previous_backup_id` for the first full backup of a chain. The
+  plan also carries `checksum_sha256` of its own content, which is how `tt
+  backup upload` tells a plan tt produced from one written or edited by hand.
 - `tt backup upload`: add a command that builds a cluster manifest from
   per-shard fragments and uploads archives and the manifest to file or S3
   storage. Every archive is read through and checked against the checksum its
@@ -53,6 +55,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   chain whose replicaset set or master changed records `promoted_to_full` in
   `warnings[]` with the reason, so a forced full backup is distinguishable from
   a scheduled one; being informational, it leaves the manifest status alone.
+  The fragments are compared against the plan as well: one taken on an instance
+  the plan does not name as that replicaset's master — a failover between
+  `plan` and `start` — or one of a different backup type than the plan asked
+  for is refused. This holds the plan to its word only when tt wrote it: for a
+  plan written or edited by hand, checked by its `checksum_sha256`, the same
+  disagreements are reported and the upload continues, which is also how an
+  operator overrides the check.
 - `tt backup plan`, `upload`, `verify`, `gc`, `last` and `tt restore plan`:
   `--cluster-name` and `--environment` select the
   `<storage_root>/<cluster_name>/<environment>/` subtree of the storage, so one

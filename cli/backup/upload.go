@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -314,9 +315,31 @@ func ReadPlan(filePath string) (*BackupPlan, error) {
 	}
 }
 
-// ValidateFragmentsAgainstPlan checks that every replicaset expected by the
-// plan has a matching fragment.
-func ValidateFragmentsAgainstPlan(fragments []*Fragment, plan *BackupPlan) error {
+// ValidateFragmentsAgainstPlan checks that the fragments are the ones the plan
+// asked for: every expected replicaset produced one, each was taken on the
+// instance the plan named as that replicaset's master, and each is of the
+// backup type the plan asked for.
+//
+// The master check is what catches a failover between `plan` and `start`: the
+// backup is then taken on another instance, and an increment of another
+// instance's journal does not continue the chain it is being appended to. tt
+// notices a master change when it plans, but the window after that is exactly
+// where nothing was looking.
+//
+// The comparisons are only as good as the plan: what tt derived from the
+// cluster is authoritative, what an operator wrote by hand is their word. So a
+// disagreement with a plan tt produced is refused, and a disagreement with a
+// hand-written or edited one is returned as a note for the caller to report.
+// Which of the two it is comes from the plan's own checksum (PlanIsAuthentic),
+// and is the caller's answer to pass, since only it knows how the plan arrived.
+//
+// Returns the notes about checks that were made but not enforced, and about
+// checks the plan states too little to make at all.
+func ValidateFragmentsAgainstPlan(
+	fragments []*Fragment,
+	plan *BackupPlan,
+	authentic bool,
+) ([]string, error) {
 	covered := make(map[string]bool, len(fragments))
 	for _, fragment := range fragments {
 		covered[fragment.ReplicasetUUID] = true
@@ -330,11 +353,101 @@ func ValidateFragmentsAgainstPlan(fragments []*Fragment, plan *BackupPlan) error
 	}
 	if len(missing) > 0 {
 		slices.Sort(missing)
-		return fmt.Errorf("plan expects %d replicasets but fragments are missing for: %s",
+
+		return nil, fmt.Errorf("plan expects %d replicasets but fragments are missing for: %s",
 			len(plan.Replicasets), strings.Join(missing, ", "))
 	}
 
-	return nil
+	unchecked := make([]string, 0)
+
+	for _, fragment := range fragments {
+		replicasetPlan, planned := plan.Replicasets[fragment.ReplicasetUUID]
+		if !planned {
+			// A shard the plan does not expect: the cluster gained a
+			// replicaset since it was made, or the orchestrator collected a
+			// fragment from another backup.
+			note := fmt.Sprintf(
+				"fragment of replicaset %s is not in the plan, which expects %s",
+				fragment.ReplicasetUUID,
+				strings.Join(slices.Sorted(maps.Keys(plan.Replicasets)), ", "))
+
+			if authentic {
+				return nil, errors.New(note)
+			}
+
+			unchecked = append(unchecked, note+" (the plan was not written by tt backup plan)")
+
+			continue
+		}
+
+		notes, err := checkFragmentAgainstPlan(fragment, replicasetPlan, plan.Type, authentic)
+		if err != nil {
+			return nil, err
+		}
+
+		unchecked = append(unchecked, notes...)
+	}
+
+	slices.Sort(unchecked)
+
+	return unchecked, nil
+}
+
+// checkFragmentAgainstPlan compares one fragment with what the plan says about
+// its replicaset. It returns what could not be checked, or was checked and
+// disagreed with a plan tt did not write.
+func checkFragmentAgainstPlan(
+	fragment *Fragment,
+	replicasetPlan ReplicasetPlan,
+	mode BackupType,
+	authentic bool,
+) ([]string, error) {
+	notes := make([]string, 0, 2)
+
+	// A disagreement is a refusal only when the plan is tt's own: then it
+	// describes the cluster as tt found it, and a fragment that contradicts it
+	// was taken somewhere else. A hand-written plan describes what the operator
+	// believes, and tt is in no position to overrule it.
+	report := func(note string) error {
+		if authentic {
+			return errors.New(note)
+		}
+
+		notes = append(notes, note+" (the plan was not written by tt backup plan)")
+
+		return nil
+	}
+
+	switch {
+	case mode == "":
+		notes = append(notes, fmt.Sprintf(
+			"the plan states no backup mode, so the type of the fragment of "+
+				"replicaset %s is taken on trust", fragment.ReplicasetUUID))
+	case fragment.Type != mode:
+		if err := report(fmt.Sprintf(
+			"fragment of replicaset %s is a %s backup, the plan asks for %s",
+			fragment.ReplicasetUUID, fragment.Type, mode)); err != nil {
+			return nil, err
+		}
+	}
+
+	switch {
+	case replicasetPlan.MasterInstanceUUID == "":
+		notes = append(notes, fmt.Sprintf(
+			"the plan names no master for replicaset %s, so the instance its "+
+				"backup was taken on is taken on trust", fragment.ReplicasetUUID))
+	case fragment.InstanceUUID != replicasetPlan.MasterInstanceUUID:
+		if err := report(fmt.Sprintf(
+			"fragment of replicaset %s was taken on instance %s, the plan names %s "+
+				"as its master: a backup taken elsewhere -- after a failover, or on "+
+				"the wrong node -- does not continue the chain this plan was made for",
+			fragment.ReplicasetUUID, fragment.InstanceUUID,
+			replicasetPlan.MasterInstanceUUID)); err != nil {
+			return nil, err
+		}
+	}
+
+	return notes, nil
 }
 
 // SplitPaths splits a comma-separated list of paths and trims whitespace.

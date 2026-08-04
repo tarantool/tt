@@ -484,8 +484,27 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to read fragments: %w", err)
 	}
 
-	if err := backup.ValidateFragmentsAgainstPlan(fragments, plan); err != nil {
+	// Whether the plan is the one tt produced decides how much of it can be
+	// believed: a plan written or edited by hand states what the operator
+	// believes, and a fragment disagreeing with it is reported rather than
+	// refused. That is also the way out of these checks -- edit the plan.
+	authentic, err := backup.PlanIsAuthentic(plan)
+	if err != nil {
+		return fmt.Errorf("failed to check the plan: %w", err)
+	}
+
+	if !authentic {
+		log.Warnf("plan %q was not written by tt backup plan, or was edited after: "+
+			"what it says about the cluster is taken on trust", backupUploadPlan)
+	}
+
+	unchecked, err := backup.ValidateFragmentsAgainstPlan(fragments, plan, authentic)
+	if err != nil {
 		return fmt.Errorf("failed to validate fragments: %w", err)
+	}
+
+	for _, note := range unchecked {
+		log.Warn(note)
 	}
 
 	// Prepare archives: stat, extract UUIDs, compute storage keys..
