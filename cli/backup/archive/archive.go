@@ -32,10 +32,16 @@ type Entry struct {
 }
 
 // Pack packs files into dst as a flat .tar.zst archive.
-func Pack(dst string, files []string, level int) (err error) {
+func Pack(dst string, files []string, level int, roots ...string) (err error) {
 	ordered := slices.Clone(files)
 	sortWalFiles(ordered)
-	if err := checkUniqueBaseNames(ordered); err != nil {
+
+	names := make([]string, len(ordered))
+	for i, file := range ordered {
+		names[i] = EntryName(file, roots...)
+	}
+
+	if err := checkUniqueNames(ordered, names); err != nil {
 		return fmt.Errorf("failed to pack %q: %w", dst, err)
 	}
 
@@ -59,8 +65,8 @@ func Pack(dst string, files []string, level int) (err error) {
 
 	tw := tar.NewWriter(zw)
 
-	for _, file := range ordered {
-		if err = writeFile(tw, file); err != nil {
+	for i, file := range ordered {
+		if err = writeFile(tw, file, names[i]); err != nil {
 			return fmt.Errorf("failed to pack %q: %w", file, err)
 		}
 	}
@@ -81,19 +87,39 @@ func Pack(dst string, files []string, level int) (err error) {
 	return nil
 }
 
-// checkUniqueBaseNames rejects inputs that flatten to the same archive entry
-// name. Pack stores files under their base name only, so two inputs from
-// different directories sharing a base name would collide and Unpack would
-// silently overwrite one with the other — unrecoverable data loss in a backup.
-func checkUniqueBaseNames(files []string) error {
-	seen := make(map[string]string, len(files))
-	for _, f := range files {
-		base := filepath.Base(f)
-		if prev, ok := seen[base]; ok {
-			return fmt.Errorf("duplicate base name %q (from %q and %q)", base, prev, f)
+// EntryName returns the name file gets inside an archive packed with roots:
+// its path relative to whichever of roots contains it, or its base name when
+// none does (or none are given).
+func EntryName(file string, roots ...string) string {
+	for _, root := range roots {
+		if root == "" {
+			continue
 		}
-		seen[base] = f
+
+		rel, err := filepath.Rel(root, file)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+
+		return filepath.ToSlash(rel)
 	}
+
+	return filepath.Base(file)
+}
+
+// checkUniqueNames rejects inputs that resolve to the same archive entry
+// name.
+func checkUniqueNames(files, names []string) error {
+	seen := make(map[string]string, len(names))
+	for i, name := range names {
+		if prev, ok := seen[name]; ok {
+			return fmt.Errorf("duplicate archive entry name %q (from %q and %q)",
+				name, prev, files[i])
+		}
+
+		seen[name] = files[i]
+	}
+
 	return nil
 }
 
@@ -109,8 +135,8 @@ func sortWalFiles(files []string) {
 	})
 }
 
-// writeFile adds a single file to the tar writer under its base name.
-func writeFile(tw *tar.Writer, path string) error {
+// writeFile adds a single file to the tar writer under the given entry name.
+func writeFile(tw *tar.Writer, path, name string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open: %w", err)
@@ -127,7 +153,7 @@ func writeFile(tw *tar.Writer, path string) error {
 		return fmt.Errorf("failed to build tar header: %w", err)
 	}
 
-	header.Name = filepath.Base(path)
+	header.Name = name
 
 	if err := tw.WriteHeader(header); err != nil {
 		return fmt.Errorf("failed to write tar header: %w", err)
@@ -140,16 +166,16 @@ func writeFile(tw *tar.Writer, path string) error {
 	return nil
 }
 
-// ensureBaseName rejects any archive entry name that is not a bare file name:
-// absolute paths, ".." traversal, "./" prefixes, subdirectory components and
-// (on Windows) reserved names. Pack only ever stores base names, but
-// Unpack/Entries decode arbitrary, possibly hostile archives, and a consumer
-// that creates the parent directories of a name like "sub/evil.xlog" writes
-// outside the destination as soon as one component is a pre-existing symlink.
-func ensureBaseName(name string) error {
-	if !filepath.IsLocal(name) || name != filepath.Base(name) {
+// ensureSafeEntryName rejects any archive entry name that could write outside
+// destDir once its parent directories are created, or that is not already in
+// canonical form: absolute paths, ".." traversal, "./" prefixes, redundant
+// separators and (on Windows) reserved names.
+func ensureSafeEntryName(name string) error {
+	local := filepath.FromSlash(name)
+	if !filepath.IsLocal(local) || filepath.Clean(local) != local {
 		return fmt.Errorf("unsafe archive entry name %q", name)
 	}
+
 	return nil
 }
 
@@ -162,7 +188,7 @@ func checkEntry(header *tar.Header) (skip bool, err error) {
 	case tar.TypeDir:
 		return true, nil
 	case tar.TypeReg:
-		return false, ensureBaseName(header.Name) //nolint:wrapcheck
+		return false, ensureSafeEntryName(header.Name) //nolint:wrapcheck
 	default:
 		return false, fmt.Errorf("unsupported tar entry %q (type %d)", header.Name, header.Typeflag)
 	}
@@ -221,11 +247,12 @@ func Unpack(src, destDir string) error {
 	return nil
 }
 
-// extractFile writes one tar entry into destDir, which it creates if missing.
-// The entry name is a validated base name, so nothing below destDir is created.
+// extractFile writes one tar entry into destDir, which it creates if missing,
+// along with any subdirectories the entry's (already validated, safe) name
+// carries -- vinyl's .run/.index files land under <space_id>/<index_id>/.
 func extractFile(tr *tar.Reader, header *tar.Header, destDir string) error {
-	target := filepath.Join(destDir, header.Name)
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
+	target := filepath.Join(destDir, filepath.FromSlash(header.Name))
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 

@@ -107,7 +107,11 @@ func readArchiveNames(t *testing.T, path string) []string {
 	return names
 }
 
-func TestPackStoresBaseNameOnly(t *testing.T) {
+// TestPackStoresBaseNameOnlyWithoutRoots checks that a Pack call with no roots
+// (the wal/xlog case: those files sit flat in their data directory, so there is
+// nothing to preserve) still flattens to the base name, same as before roots
+// existed.
+func TestPackStoresBaseNameOnlyWithoutRoots(t *testing.T) {
 	dir := t.TempDir()
 	nested := filepath.Join(dir, "a", "b")
 	require.NoError(t, os.MkdirAll(nested, 0o755))
@@ -119,6 +123,41 @@ func TestPackStoresBaseNameOnly(t *testing.T) {
 	got := readArchiveRaw(t, archivePath)
 	want := map[string][]byte{"00000000000000000001.snap": []byte("x")}
 	assert.Equal(t, want, got)
+}
+
+// TestPackWithRootsPreservesNestedPath checks that a file under one of roots
+// keeps its subdirectory structure inside the archive -- the shape vinyl's
+// .run/.index files need, since they live under
+// <vinyl_dir>/<space_id>/<index_id>/, not flat like snap/xlog.
+func TestPackWithRootsPreservesNestedPath(t *testing.T) {
+	vinylDir := t.TempDir()
+	nested := filepath.Join(vinylDir, "512", "0")
+	require.NoError(t, os.MkdirAll(nested, 0o755))
+	path := writeFixture(t, nested, "00000000000000000001.run", []byte("run-data"))
+
+	archivePath := filepath.Join(t.TempDir(), "backup.tar.zst")
+	require.NoError(t, Pack(archivePath, []string{path}, 3, vinylDir))
+
+	got := readArchiveRaw(t, archivePath)
+	want := map[string][]byte{"512/0/00000000000000000001.run": []byte("run-data")}
+	assert.Equal(t, want, got)
+}
+
+// TestEntryName checks the relative-path-under-root and base-name-fallback
+// behaviors directly.
+func TestEntryName(t *testing.T) {
+	assert.Equal(t, "00000000000000000001.snap",
+		EntryName("/data/wal/00000000000000000001.snap"))
+	assert.Equal(t, "00000000000000000001.snap",
+		EntryName("/data/wal/00000000000000000001.snap", "/data/wal"))
+	assert.Equal(t, "512/0/00000000000000000001.run",
+		EntryName("/data/vinyl/512/0/00000000000000000001.run", "/data/vinyl"))
+	// A file under none of the given roots falls back to its base name.
+	assert.Equal(t, "00000000000000000001.run",
+		EntryName("/data/vinyl/512/0/00000000000000000001.run", "/data/wal", "/data/memtx"))
+	// An empty root (e.g. an instance with no vinyl_dir configured) is skipped.
+	assert.Equal(t, "00000000000000000001.run",
+		EntryName("/data/vinyl/512/0/00000000000000000001.run", ""))
 }
 
 func TestPackMissingFile(t *testing.T) {
@@ -267,18 +306,15 @@ func TestEntriesRejectsTraversal(t *testing.T) {
 	assert.Error(t, gotErr, "traversal entry must surface an error")
 }
 
-// unsafeEntryNames are names Pack can never produce: it stores base names only,
-// so anything carrying a directory component is hostile or corrupt input. A
-// consumer creating the parent directories of such a name writes outside the
-// destination as soon as one component is a pre-existing symlink.
+// unsafeEntryNames are archive entry names that must always be rejected.
 var unsafeEntryNames = []string{
-	"sub/evil.snap",
 	"./name.snap",
-	"a/b/c.xlog",
 	"/etc/passwd",
+	"sub/./evil.snap",
+	"sub//evil.snap",
 }
 
-func TestUnpackRejectsEntryNameWithPathSeparator(t *testing.T) {
+func TestUnpackRejectsUnsafeEntryName(t *testing.T) {
 	for _, name := range unsafeEntryNames {
 		t.Run(name, func(t *testing.T) {
 			archivePath := filepath.Join(t.TempDir(), "evil.tar.zst")
@@ -294,7 +330,7 @@ func TestUnpackRejectsEntryNameWithPathSeparator(t *testing.T) {
 	}
 }
 
-func TestEntriesRejectsEntryNameWithPathSeparator(t *testing.T) {
+func TestEntriesRejectsUnsafeEntryName(t *testing.T) {
 	for _, name := range unsafeEntryNames {
 		t.Run(name, func(t *testing.T) {
 			archivePath := filepath.Join(t.TempDir(), "evil.tar.zst")
@@ -313,6 +349,18 @@ func TestEntriesRejectsEntryNameWithPathSeparator(t *testing.T) {
 			assert.Empty(t, gotNames, "a rejected entry must not be yielded")
 		})
 	}
+}
+
+func TestUnpackAcceptsNestedEntryName(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "nested.tar.zst")
+	writeMaliciousArchive(t, archivePath, "512/0/00000000000000000001.run", []byte("run-data"))
+
+	destDir := t.TempDir()
+	require.NoError(t, Unpack(archivePath, destDir))
+
+	got, err := os.ReadFile(filepath.Join(destDir, "512", "0", "00000000000000000001.run"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("run-data"), got)
 }
 
 // TestEntriesRejectsNonRegularEntry checks the readers agree on a hostile

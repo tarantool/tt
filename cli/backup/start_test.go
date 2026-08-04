@@ -761,3 +761,41 @@ func TestStartBackup_resolveFilesSplitDirs(t *testing.T) {
 	require.Equal(t, []byte("xlog"), entries["00000000000000001500.xlog"])
 	require.Equal(t, []byte("vinyl"), entries[vinylFile])
 }
+
+// TestStartBackup_resolveFilesNestedVinylPath checks a vinyl .run file nested
+// under <vinyl_dir>/<space_id>/<index_id>/ -- reported as an absolute path,
+// the Tarantool 3.8+ shape -- keeps that subdirectory structure inside the
+// archive instead of flattening to its base name.
+func TestStartBackup_resolveFilesNestedVinylPath(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	walDir := t.TempDir()
+	memtxDir := t.TempDir()
+	vinylDir := t.TempDir()
+
+	vinylSubdir := filepath.Join(vinylDir, "512", "0")
+	require.NoError(t, os.MkdirAll(vinylSubdir, 0o755))
+	vinylPath := filepath.Join(vinylSubdir, "00000000000000001500.run")
+	require.NoError(t, os.WriteFile(vinylPath, []byte("vinyl"), 0o644))
+	writeWAL(t, memtxDir, "00000000000000001500.snap", []byte("snap"))
+	writeWAL(t, walDir, "00000000000000001500.xlog", []byte("xlog"))
+
+	files := append(slices.Clone(walFiles), vinylPath)
+	info := infoMap(files, nil, Vclock{1: 1502, 2: 230}, nil)
+	inst := instanceMap("router-001", walDir, memtxDir)
+	inst["vinyl_dir"] = vinylDir
+	m := &mockEvaler{queue: startQueue(info, inst)}
+
+	archivePath, err := Start(m, BackupStartOpts{BackupID: "nested-vinyl-bid"})
+	require.NoError(t, err)
+
+	entries := readArchiveEntries(t, archivePath)
+	require.Equal(t, []byte("snap"), entries["00000000000000001500.snap"])
+	require.Equal(t, []byte("xlog"), entries["00000000000000001500.xlog"])
+	require.Equal(t, []byte("vinyl"), entries["512/0/00000000000000001500.run"])
+
+	fragment, err := os.ReadFile(fragmentPathFor(archivePath))
+	require.NoError(t, err)
+	var parsed Fragment
+	require.NoError(t, json.Unmarshal(fragment, &parsed))
+	require.Contains(t, parsed.Files, "512/0/00000000000000001500.run")
+}
