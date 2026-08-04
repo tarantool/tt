@@ -672,49 +672,118 @@ func TestPromotionWarning(t *testing.T) {
 	})
 }
 
+// fragmentOfPlan is a fragment of one replicaset, taken on instanceUUID.
+func fragmentOfPlan(replicasetUUID, instanceUUID string, backupType BackupType) *Fragment {
+	return &Fragment{
+		ReplicasetUUID: replicasetUUID,
+		InstanceUUID:   instanceUUID,
+		Type:           backupType,
+	}
+}
+
+// planOf is a plan naming one master per replicaset.
+func planOf(mode BackupType, masters map[string]string) *BackupPlan {
+	replicasets := make(map[string]ReplicasetPlan, len(masters))
+	for replicasetUUID, master := range masters {
+		replicasets[replicasetUUID] = ReplicasetPlan{MasterInstanceUUID: master}
+	}
+
+	return &BackupPlan{Type: mode, Replicasets: replicasets}
+}
+
 func TestValidateFragmentsAgainstPlan(t *testing.T) {
 	cases := []struct {
 		name      string
 		fragments []*Fragment
 		plan      *BackupPlan
 		wantErr   string
+		// wantUnchecked is what the plan left unstated, so nothing could be
+		// compared against it.
+		wantUnchecked int
 	}{
 		{
-			"all covered",
-			[]*Fragment{{ReplicasetUUID: testRSA}, {ReplicasetUUID: testRSB}},
-			&BackupPlan{Replicasets: map[string]ReplicasetPlan{testRSA: {}, testRSB: {}}},
-			"",
+			name: "all covered",
+			fragments: []*Fragment{
+				fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull),
+				fragmentOfPlan(testRSB, testInstanceB, BackupTypeFull),
+			},
+			plan: planOf(BackupTypeFull, map[string]string{
+				testRSA: testInstanceA, testRSB: testInstanceB,
+			}),
 		},
 		{
-			"missing fragments",
-			[]*Fragment{{ReplicasetUUID: testRSA}},
-			&BackupPlan{Replicasets: map[string]ReplicasetPlan{
-				testRSA: {}, testRSB: {}, testRSC: {},
-			}},
-			"missing for",
+			name:      "missing fragments",
+			fragments: []*Fragment{fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull)},
+			plan: planOf(BackupTypeFull, map[string]string{
+				testRSA: testInstanceA, testRSB: "", testRSC: "",
+			}),
+			wantErr: "missing for",
 		},
 		{
-			"extra fragments are ok",
-			[]*Fragment{{ReplicasetUUID: testRSA}, {ReplicasetUUID: testRSB}},
-			&BackupPlan{Replicasets: map[string]ReplicasetPlan{testRSA: {}}},
-			"",
+			// A failover between plan and start: the backup exists, but it
+			// continues another instance's journal.
+			name:      "taken on an instance the plan did not name",
+			fragments: []*Fragment{fragmentOfPlan(testRSA, testInstanceB, BackupTypeFull)},
+			plan:      planOf(BackupTypeFull, map[string]string{testRSA: testInstanceA}),
+			wantErr:   "does not continue the chain this plan was made for",
 		},
 		{
-			"empty plan",
-			[]*Fragment{{ReplicasetUUID: testRSA}},
-			&BackupPlan{Replicasets: map[string]ReplicasetPlan{}},
-			"",
+			name:      "a full fragment against an incremental plan",
+			fragments: []*Fragment{fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull)},
+			plan:      planOf(BackupTypeIncremental, map[string]string{testRSA: testInstanceA}),
+			wantErr:   "the plan asks for incremental",
+		},
+		{
+			// The worse direction: no snapshot in the archive, and a manifest
+			// that says the chain starts here.
+			name: "an incremental fragment against a full plan",
+			fragments: []*Fragment{
+				fragmentOfPlan(testRSA, testInstanceA, BackupTypeIncremental),
+			},
+			plan:    planOf(BackupTypeFull, map[string]string{testRSA: testInstanceA}),
+			wantErr: "the plan asks for full",
+		},
+		{
+			name: "a fragment of a replicaset the plan does not expect",
+			fragments: []*Fragment{
+				fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull),
+				fragmentOfPlan(testRSB, testInstanceB, BackupTypeFull),
+			},
+			plan:    planOf(BackupTypeFull, map[string]string{testRSA: testInstanceA}),
+			wantErr: "is not in the plan",
+		},
+		{
+			// A hand-written plan states less than tt writes. What it does not
+			// state cannot be checked, and saying so is better than refusing
+			// the plan outright.
+			name:          "a plan naming no master",
+			fragments:     []*Fragment{fragmentOfPlan(testRSA, testInstanceB, BackupTypeFull)},
+			plan:          planOf(BackupTypeFull, map[string]string{testRSA: ""}),
+			wantUnchecked: 1,
+		},
+		{
+			name:          "a plan stating no mode",
+			fragments:     []*Fragment{fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull)},
+			plan:          planOf("", map[string]string{testRSA: testInstanceA}),
+			wantUnchecked: 1,
+		},
+		{
+			name:      "empty plan",
+			fragments: nil,
+			plan:      planOf(BackupTypeFull, map[string]string{}),
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateFragmentsAgainstPlan(tc.fragments, tc.plan)
+			// Authentic: the plan is tt's own, so a disagreement is a refusal.
+			unchecked, err := ValidateFragmentsAgainstPlan(tc.fragments, tc.plan, true)
 			if tc.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.wantErr)
 			} else {
 				require.NoError(t, err)
+				assert.Len(t, unchecked, tc.wantUnchecked)
 			}
 		})
 	}
@@ -727,9 +796,93 @@ func TestValidateFragmentsAgainstPlanMissingSorted(t *testing.T) {
 		testRSA: {}, testRSB: {}, testRSC: {},
 	}}
 
-	err := ValidateFragmentsAgainstPlan(fragments, plan)
+	_, err := ValidateFragmentsAgainstPlan(fragments, plan, true)
 	require.Error(t, err)
 	assert.Less(t, strings.Index(err.Error(), testRSB), strings.Index(err.Error(), testRSC))
+}
+
+// A plan tt did not write states what the operator believes. tt compares the
+// fragments against it all the same and says where they disagree, but it does
+// not overrule the operator -- which is also the way out of these checks.
+func TestValidateFragmentsAgainstAHandWrittenPlan(t *testing.T) {
+	fragments := []*Fragment{fragmentOfPlan(testRSA, testInstanceB, BackupTypeIncremental)}
+	plan := planOf(BackupTypeFull, map[string]string{testRSA: testInstanceA})
+
+	notes, err := ValidateFragmentsAgainstPlan(fragments, plan, false)
+	require.NoError(t, err)
+	require.Len(t, notes, 2, "both disagreements are reported, neither is enforced")
+
+	for _, note := range notes {
+		assert.Contains(t, note, "not written by tt backup plan")
+	}
+
+	// A shard the plan does not mention is reported the same way -- the plan is
+	// not authoritative about the composition either.
+	notes, err = ValidateFragmentsAgainstPlan(
+		[]*Fragment{
+			fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull),
+			fragmentOfPlan(testRSB, testInstanceB, BackupTypeFull),
+		}, plan, false)
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	assert.Contains(t, notes[0], "is not in the plan")
+
+	// What no plan can excuse: a replicaset it expects that produced no
+	// fragment at all. That is about the inputs of this run, not about what the
+	// plan believes -- a shard is missing from the backup either way.
+	_, err = ValidateFragmentsAgainstPlan(nil, plan, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing for")
+}
+
+// The checksum is what tells the two apart: tt signs the plan it produces, and
+// anything else -- written by hand, or edited afterwards -- does not match.
+func TestPlanIsAuthentic(t *testing.T) {
+	live := liveTopo(map[string][]LiveInstance{
+		testRSa: {rwInst(testInstA, "a-001")},
+	})
+
+	plan, err := Plan(BackupTypeFull, nil, live, PlanScope{ClusterName: "payments"})
+	require.NoError(t, err)
+	require.NotEmpty(t, plan.ChecksumSHA256)
+
+	authentic, err := PlanIsAuthentic(plan)
+	require.NoError(t, err)
+	assert.True(t, authentic)
+
+	t.Run("a plan carrying no checksum", func(t *testing.T) {
+		unsigned := *plan
+		unsigned.ChecksumSHA256 = ""
+
+		authentic, err := PlanIsAuthentic(&unsigned)
+		require.NoError(t, err)
+		assert.False(t, authentic)
+	})
+
+	t.Run("a plan edited after it was written", func(t *testing.T) {
+		edited := *plan
+		edited.Replicasets = map[string]ReplicasetPlan{
+			testRSa: {MasterInstanceUUID: testInstB},
+		}
+
+		authentic, err := PlanIsAuthentic(&edited)
+		require.NoError(t, err)
+		assert.False(t, authentic, "changing what the plan says has to break the checksum")
+	})
+
+	t.Run("a plan that only travelled", func(t *testing.T) {
+		// Re-encoding and decoding is what happens between the two hosts; it
+		// must not look like an edit.
+		data, err := json.Marshal(plan)
+		require.NoError(t, err)
+
+		var travelled BackupPlan
+		require.NoError(t, json.Unmarshal(data, &travelled))
+
+		authentic, err := PlanIsAuthentic(&travelled)
+		require.NoError(t, err)
+		assert.True(t, authentic)
+	})
 }
 
 func TestSplitPaths(t *testing.T) {
