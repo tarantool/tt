@@ -37,6 +37,52 @@ func TestAggregateSuccessfulManifest(t *testing.T) {
 	require.Len(t, shard.Instance.Artifact.RecoveryPoints, 2)
 }
 
+// A warning that describes the backup rather than something missing from it
+// must not degrade the status: a full backup forced by a master change holds
+// every byte a planned one would.
+func TestAggregateStatusIgnoresInformationalWarnings(t *testing.T) {
+	fragment := mustDecodeFragment(t, fixtureFragmentA)
+
+	aggregate := func(warnings ...Warning) *ClusterManifest {
+		t.Helper()
+
+		manifest, err := Aggregate(AggregateInput{
+			BackupID:         testBackupID,
+			BaseFullBackupID: testBackupID,
+			CreationTime:     testCreationTime(),
+			Topology:         topologyFromClusterManifestFixture(t, testRSA),
+			Warnings:         warnings,
+			Shards: []*ShardInput{
+				{
+					ReplicasetUUID: testRSA,
+					Fragment:       &fragment,
+					Location:       &ArtifactLocation{Path: "data/rs-a.tar.zst", SizeBytes: 42},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		return manifest
+	}
+
+	promoted := NewPromotedToFullWarning(PromotedMasterChanged, "the master changed")
+
+	informational := aggregate(promoted)
+	require.Equal(t, StatusOK, informational.Status)
+	require.Len(t, informational.Warnings, 1)
+
+	// A blocking warning still degrades, and does so next to an informational
+	// one: the two are counted separately, not as "any warning at all".
+	mixed := aggregate(promoted, NewStoragePartialUploadWarning([]string{"data/x.tar.zst"}))
+	require.Equal(t, StatusDegraded, mixed.Status)
+
+	// An unknown code counts as blocking: this build cannot tell whether it
+	// describes the backup or something lost from it, and calling it OK is the
+	// answer that hides a problem.
+	unknown := aggregate(Warning{Code: WarningCode("a_code_from_a_later_rfc")})
+	require.Equal(t, StatusDegraded, unknown.Status)
+}
+
 func TestAggregateUnavailableShard(t *testing.T) {
 	manifest, err := Aggregate(AggregateInput{
 		BackupID:         testBackupID,

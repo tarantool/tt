@@ -138,7 +138,12 @@ def _upload_scoped(
 
 @pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
 def test_readers_find_a_scoped_backup(tt, tmp_path, storage):
-    """last, verify and gc read the subtree upload wrote when given the same pair."""
+    """last, verify and gc read the subtree upload wrote when given the same pair.
+
+    Two backups, oldest first: ids order the chain, so upload refuses one that
+    does not sort above what the storage already holds.
+    """
+    _upload_scoped(tt, tmp_path, storage, backup_id=OLDER_BACKUP_ID)
     _upload_scoped(tt, tmp_path, storage)
 
     assert f"{CLUSTER}/{ENVIRONMENT}/manifests/{BACKUP_ID}.json" in storage.keys()
@@ -163,15 +168,13 @@ def test_readers_find_a_scoped_backup(tt, tmp_path, storage):
     assert rc == 0, f"tt backup verify reported problems:\n{out}"
 
     report = json.loads(out)
-    assert report["manifests_checked"] == 1
-    assert report["archives_checked"] == 1
+    assert report["manifests_checked"] == 2
+    assert report["archives_checked"] == 2
     assert report["issues"] == []
 
-    # gc sees the chains in the subtree: a second full backup and --keep-full 1
+    # gc sees the chains in the subtree: two full backups and --keep-full 1
     # leave the older one to delete. Reading the storage root instead would
     # find no chain at all and plan nothing, which is what the next test pins.
-    _upload_scoped(tt, tmp_path, storage, backup_id=OLDER_BACKUP_ID)
-
     rc, out = backup_gc(
         tt,
         storage.uri,

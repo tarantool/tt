@@ -21,6 +21,13 @@ var ErrInvalidBackupID = errors.New("invalid backup id")
 // The rules are a denylist on purpose: orchestrators emit timestamps
 // (20260326T120000Z), dashed ids (2026-01-01-full) and non-ASCII names, and all
 // of those stay valid.
+//
+// What this cannot check is the one property the storage layout rests on: ids
+// have to sort, as text, in the order the backups are taken. A single id says
+// nothing about that, so the storage is where it is enforced -- `upload`
+// refuses an id that does not sort above the newest stored backup, which is
+// what a bare counter (backup-2 then backup-10) produces. A zero-padded UTC
+// timestamp satisfies it by construction.
 func ValidateBackupID(id string) error {
 	switch {
 	case id == "":

@@ -29,7 +29,7 @@ const staleTempFileAge = 24 * time.Hour
 var (
 	errPathRequired = errors.New("fs storage path is required")
 	errNegativeSize = errors.New("fs object size must be non-negative")
-	errRootNotFound = errors.New("storage root does not exist")
+	errRootNotFound = fmt.Errorf("%w: no such storage root", storage.ErrStorageMissing)
 	errNotDirectory = errors.New("storage path is not a directory")
 )
 

@@ -305,9 +305,32 @@ def test_upload_multi_shard(tt, tmp_path, storage):
 
 @pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
 def test_upload_incremental(tt, tmp_path, storage):
-    """Upload an incremental backup with previous_backup_id and base_full_backup_id."""
+    """Upload an incremental backup with previous_backup_id and base_full_backup_id.
+
+    The full backup it continues has to be in the storage: upload compares the
+    plan against the chain head, and an increment continuing a backup nobody
+    stored is refused.
+    """
     previous_id = "20260325T120000Z"
-    base_id = "20260325T120000Z"
+    base_id = previous_id
+
+    full_dir = tmp_path / "full"
+    full_dir.mkdir()
+    full_archive = _write_archive(str(full_dir), previous_id, REPLICASET)
+    full_fragment = full_dir / "fragment.json"
+    _write_json(full_fragment, _make_fragment())
+    full_plan = full_dir / "plan.json"
+    _write_json(full_plan, _make_plan())
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=full_archive,
+        fragments=str(full_fragment),
+        plan=str(full_plan),
+        backup_id=previous_id,
+    )
+    assert rc == 0, f"tt backup upload of the base full backup failed:\n{out}"
 
     plan = _make_plan(
         mode="incremental",
@@ -582,6 +605,153 @@ def test_upload_invalid_plan_json(tt, tmp_path):
     assert "decode plan" in out.lower()
 
 
+def _upload_full(tt, storage_uri, tmp_path, backup_id, name="full", master=INSTANCE_UUID):
+    """Upload a one-shard full backup under its own directory."""
+    work = tmp_path / name
+    work.mkdir()
+
+    archive = _write_archive(str(work), backup_id, REPLICASET)
+    fragment = work / "fragment.json"
+    _write_json(fragment, _make_fragment(instance_uuid=master))
+    plan = work / "plan.json"
+    _write_json(
+        plan,
+        _make_plan(
+            replicasets={
+                REPLICASET: {
+                    "master_instance_uuid": master,
+                    "master_instance_name": "router-001",
+                },
+            },
+        ),
+    )
+
+    return backup_upload(
+        tt,
+        storage_uri,
+        archives=archive,
+        fragments=str(fragment),
+        plan=str(plan),
+        backup_id=backup_id,
+    )
+
+
+def test_upload_creates_a_storage_that_is_not_there_yet(tt, tmp_path):
+    """The first backup of a new storage is not "the storage is unreadable".
+
+    upload reads the chain head before writing anything, and a storage that
+    does not exist yet holds no head -- while for every reading command the
+    same answer is an error, since a mistyped path must not read as empty.
+    """
+    storage_dir = tmp_path / "not-created-yet"
+    archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path)
+
+    rc, out = backup_upload(
+        tt,
+        f"file://{storage_dir}",
+        archives=archive_path,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id=BACKUP_ID,
+    )
+    assert rc == 0, f"the first backup has to create its storage:\n{out}"
+    assert (storage_dir / "manifests" / f"{BACKUP_ID}.json").is_file()
+
+    # The same storage read by a command that only reads: still an error,
+    # because there is nothing there to read.
+    rc, out = backup_verify(tt, f"file://{tmp_path / 'never-created'}")
+    assert rc != 0
+    assert "does not exist" in out
+
+
+def test_upload_refuses_an_increment_the_storage_moved_under(tt, tmp_path):
+    """The plan was made against a backup that is no longer the chain head.
+
+    Another upload landed in between, so this increment continues something the
+    chain no longer ends with. Stored anyway, it would either orphan itself or
+    silently reorder the chain -- neither is recoverable afterwards.
+    """
+    storage = FileStorage(str(tmp_path / "backups"))
+
+    rc, out = _upload_full(tt, storage.uri, tmp_path, "20260325T120000Z")
+    assert rc == 0, out
+    rc, out = _upload_full(tt, storage.uri, tmp_path, "20260326T120000Z", name="second")
+    assert rc == 0, out
+
+    # Planned against the first backup, uploaded after the second landed.
+    plan = _make_plan(
+        mode="incremental",
+        previous_backup_id="20260325T120000Z",
+        base_full_backup_id="20260325T120000Z",
+    )
+    fragment = _make_fragment(backup_type="incremental", vclock_end=200, vclock_begin={"1": 100})
+    archive_path, fragment_path, plan_path = _prepare_inputs(
+        tmp_path,
+        plan=plan,
+        fragment=fragment,
+        backup_id="20260327T120000Z",
+    )
+
+    rc, out = backup_upload(
+        tt,
+        storage.uri,
+        archives=archive_path,
+        fragments=fragment_path,
+        plan=plan_path,
+        backup_id="20260327T120000Z",
+    )
+    assert rc != 0
+    assert "would not continue what it was planned against" in out
+    assert "manifests/20260327T120000Z.json" not in storage.keys()
+
+
+def test_upload_records_why_a_full_backup_was_forced(tt, tmp_path):
+    """A full backup on a changed cluster says why it is not an increment.
+
+    The orchestrator cannot tell tt why it asked for a full backup, and months
+    later nobody can tell a scheduled one from a forced one -- unless the
+    manifest says so.
+    """
+    storage = FileStorage(str(tmp_path / "backups"))
+
+    rc, out = _upload_full(tt, storage.uri, tmp_path, "20260325T120000Z")
+    assert rc == 0, out
+
+    # Same replicaset, another master: an increment is impossible.
+    rc, out = _upload_full(
+        tt,
+        storage.uri,
+        tmp_path,
+        "20260326T120000Z",
+        name="promoted",
+        master=INSTANCE_UUID_B,
+    )
+    assert rc == 0, out
+    assert "full backup on top of chain" in out, f"the run has to say what it recorded:\n{out}"
+    assert INSTANCE_UUID_B in out
+
+    manifest = json.loads(storage.read("manifests/20260326T120000Z.json"))
+    assert [w["code"] for w in manifest["warnings"]] == ["promoted_to_full"]
+    assert manifest["warnings"][0]["details"]["reason"] == "master_changed"
+    # The backup is complete: a forced full backup holds every byte a planned
+    # one would, so the warning must not degrade the status.
+    assert manifest["status"] == "OK"
+
+
+def test_upload_of_an_unchanged_cluster_records_no_promotion(tt, tmp_path):
+    """A scheduled full backup on top of a chain is not a promotion."""
+    storage = FileStorage(str(tmp_path / "backups"))
+
+    rc, out = _upload_full(tt, storage.uri, tmp_path, "20260325T120000Z")
+    assert rc == 0, out
+    rc, out = _upload_full(tt, storage.uri, tmp_path, "20260326T120000Z", name="scheduled")
+    assert rc == 0, out
+
+    manifest = json.loads(storage.read("manifests/20260326T120000Z.json"))
+    assert manifest["warnings"] == []
+    assert manifest["status"] == "OK"
+
+
 def test_upload_refuses_an_archive_that_changed_on_the_way(tt, tmp_path):
     """The fragment's checksum was computed on the node, before the copy here.
 
@@ -831,10 +1001,12 @@ def test_upload_invalid_storage_uri(tt, tmp_path):
 
 @pytest.mark.parametrize("storage", STORAGE_BACKENDS, indirect=True)
 def test_upload_same_backup_id_overwrites(tt, tmp_path, storage):
-    """A second upload under an already used backup id silently replaces the
-    stored archive and manifest on both backends. Nothing in upload guards
-    against id reuse -- unique ids are the orchestrator's contract -- so this
-    pins the overwrite; if upload ever learns to refuse, flip the test."""
+    """A second upload under an already used backup id is refused.
+
+    Ids order the chain, so one that does not sort above the newest stored
+    backup would be read as older than the backup it was taken after. Reusing
+    an id is the same input as a host whose clock went backwards, and both used
+    to overwrite the stored backup silently."""
     archive_path, fragment_path, plan_path = _prepare_inputs(tmp_path)
 
     rc, out = backup_upload(
@@ -869,15 +1041,17 @@ def test_upload_same_backup_id_overwrites(tt, tmp_path, storage):
         plan=str(plan_again),
         backup_id=BACKUP_ID,
     )
-    assert rc == 0, f"second upload failed:\n{out}"
+    assert rc != 0, f"reusing a backup id must be refused:\n{out}"
+    assert "does not sort above" in out
 
+    # The stored backup is the first one, untouched: nothing was overwritten
+    # and nothing was half-written either.
     keys = storage.keys()
     assert keys.count(manifest_key) == 1
     assert keys.count(archive_key) == 1
-    assert storage.read(archive_key) == replacement
+    assert storage.read(archive_key) == ARCHIVE_CONTENT
 
-    second_manifest = json.loads(storage.read(manifest_key))
-    assert second_manifest["shards"][REPLICASET]["instance"]["vclock_end"] == {"1": 999}
+    assert json.loads(storage.read(manifest_key)) == first_manifest
 
 
 def test_upload_timeout_expires(tt, tmp_path):
@@ -1017,9 +1191,9 @@ def test_upload_rollback_on_real_fs_backend(tt, tmp_path):
 
     root = tmp_path / "backups"
     root.mkdir()
-    # A regular file where the manifests/ directory has to go: the archives
-    # upload, the manifest write cannot.
-    (root / "manifests").write_text("not a directory")
+    # A directory where the manifest file has to go: the storage lists as empty
+    # and the archives upload, but the manifest write cannot land.
+    (root / "manifests" / f"{BACKUP_ID}.json").mkdir(parents=True)
     storage = FileStorage(str(root))
 
     rc, out = backup_upload(
@@ -1033,8 +1207,9 @@ def test_upload_rollback_on_real_fs_backend(tt, tmp_path):
 
     assert rc != 0
     assert "upload manifest" in out
-    # The blocking file is all that is left: both archives were rolled back.
-    assert storage.keys() == ["manifests"]
+    # Nothing but the blocking directory is left: both archives were rolled
+    # back, and a directory holds no objects to list.
+    assert storage.keys() == []
     assert all(os.path.isfile(archive) for archive in archives)
 
 
