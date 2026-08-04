@@ -103,7 +103,7 @@ type BackupPlan struct {
 func (plan *BackupPlan) Sign() error {
 	checksum, err := plan.checksum()
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck
 	}
 
 	plan.ChecksumSHA256 = checksum
@@ -127,7 +127,7 @@ func PlanIsAuthentic(plan *BackupPlan) (bool, error) {
 
 	checksum, err := plan.checksum()
 	if err != nil {
-		return false, err
+		return false, err //nolint:wrapcheck
 	}
 
 	return strings.EqualFold(plan.ChecksumSHA256, checksum), nil
@@ -211,7 +211,7 @@ func Plan(
 
 	// Last, so that the checksum covers the finished document.
 	if err := plan.Sign(); err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	return plan, nil
