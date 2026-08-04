@@ -316,8 +316,7 @@ def _unpack_archive(archive_path, destination):
     )
 
     extracted = []
-    for root, dirs, files in os.walk(destination):
-        assert not dirs, f"backup archive is not flat: {dirs} in {root}"
+    for root, _dirs, files in os.walk(destination):
         for name in files:
             path = os.path.join(root, name)
             assert os.path.isfile(path), f"archive entry is not a regular file: {path}"
@@ -366,10 +365,14 @@ def inspect_backup_artifact(archive_path, unpack_dir, backup_id):
     assert len(checksum) == 64 and all(c in "0123456789abcdef" for c in checksum)
     assert _sha256_file(archive_path) == checksum, fragment
 
-    # The archive must contain exactly the files listed in the fragment.
+    # The archive must contain exactly the files listed in the fragment. A name
+    # may carry a vinyl <space_id>/<index_id>/ prefix, but never an absolute
+    # path or a ".." component -- those would escape the destination on extract.
     assert fragment["files"], fragment
     assert len(fragment["files"]) == len(set(fragment["files"])), fragment
-    assert all(os.path.basename(name) == name for name in fragment["files"]), fragment
+    assert all(
+        not os.path.isabs(name) and ".." not in name.split("/") for name in fragment["files"]
+    ), fragment
 
     extracted_files = _unpack_archive(archive_path, unpack_dir)
     assert extracted_files == sorted(fragment["files"]), fragment

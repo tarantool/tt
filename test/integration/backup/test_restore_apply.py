@@ -34,10 +34,10 @@ def post_start_restore_app(tt_app):
     assert tt_helper.wait_box_status(30, tt_app, tt_app.running_instances, ["running"])
 
 
-# Deliberately not TT_BACKUP_APP: that app has a vinyl space, and a backup
-# archive stores files flat, so vinyl run/index files lose the
-# <space_id>/<index_id> directories Tarantool looks for them in. A restored
-# instance with vinyl data cannot start at all.
+# Deliberately not TT_BACKUP_APP: that app has a vinyl space, which is
+# incidental to what the tests in this file exercise (trimming, chain order,
+# UUID patching) and would only add an extra engine's files to every fixture.
+# See test_apply_vinyl_backup_boots_and_serves for the vinyl-specific path.
 TT_RESTORE_APP = dict(
     app_path="restore_app",
     app_name="app",
@@ -614,28 +614,31 @@ def test_apply_rejects_a_mismatched_checksum_count(tt, tmp_path):
     assert not work_dir.exists()
 
 
-# The flat archive layout suits memtx, whose snapshots and xlogs live at the
-# top of the work directory. Vinyl run/index files belong under
-# <space_id>/<index_id>/ and Tarantool looks for them only there.
+# The archive preserves each file's path relative to its data directory, so
+# vinyl run/index files land under <space_id>/<index_id>/, exactly where
+# Tarantool looks for them, and a restored instance boots normally.
 VINYL_BOOT_LUA = """
 local dir = os.getenv('TT_TEST_WORK_DIR')
 box.cfg{work_dir = dir, memtx_dir = dir, wal_dir = dir, vinyl_dir = dir}
-print('TT_TEST_BOOTED')
+print('TT_TEST_RESULT ' .. require('json').encode({
+    memtx_rows = box.space.backup_test:len(),
+    vinyl_rows = box.space.backup_test_vinyl:len(),
+}))
 os.exit(0)
 """
 
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_BACKUP_APP)
-def test_apply_vinyl_backup_is_not_restorable_yet(tt, tt_app, tmp_path):
-    """Pin of a known limitation, not of desired behavior.
+def test_apply_vinyl_backup_boots_and_serves(tt, tt_app, tmp_path):
+    """Vinyl restore round-trips.
 
-    A backup archive stores files flat, so vinyl run/index files lose the
-    <space_id>/<index_id> directories Tarantool looks for them in -- which
-    is why every other test in this file runs on a memtx-only app. Apply
-    itself succeeds and the vinyl files land, flat, in the work directory;
-    the restored instance then cannot start. When the archive layout learns
-    to preserve the directories, flip this into a boots-and-serves test.
+    Used to store vinyl run/index files flat, which lost the
+    <space_id>/<index_id> directories Tarantool looks for them in and left a
+    restored instance unable to start. The archive now preserves that layout
+    (files are named relative to their data directory instead of by base name
+    alone), so a restored vinyl instance boots and serves the data it was
+    backed up with, like any memtx-only instance.
     """
     target = app_instance(tt_app, STORAGE_1_A)
 
@@ -654,11 +657,14 @@ def test_apply_vinyl_backup_is_not_restorable_yet(tt, tt_app, tmp_path):
         rc, out = restore_apply(tt, archive, work_dir)
         assert rc == 0, f"tt restore apply failed:\n{out}"
 
-        landed = os.listdir(work_dir)
-        vinyl_files = [name for name in landed if name.endswith((".run", ".index"))]
+        vinyl_files = [
+            path
+            for path in work_dir.rglob("*")
+            if path.is_file() and path.suffix in (".run", ".index")
+        ]
         assert vinyl_files, "the backup must carry vinyl run/index files"
-        assert all(os.path.isfile(work_dir / name) for name in landed), (
-            "the archive layout is flat: every file lands at the top level"
+        assert all(path.parent != work_dir for path in vinyl_files), (
+            "vinyl run/index files must land under <space_id>/<index_id>/, not flat"
         )
 
         script = tmp_path / "boot.lua"
@@ -671,11 +677,16 @@ def test_apply_vinyl_backup_is_not_restorable_yet(tt, tt_app, tmp_path):
             env=dict(os.environ, TT_TEST_WORK_DIR=str(work_dir)),
         )
 
-        assert "TT_TEST_BOOTED" not in proc.stdout, (
-            "a restored vinyl instance booted: the layout limitation is "
-            "gone, turn this test into boots-and-serves assertions"
+        result = None
+        for line in proc.stdout.splitlines():
+            if line.startswith("TT_TEST_RESULT "):
+                result = json.loads(line.removeprefix("TT_TEST_RESULT "))
+
+        assert result is not None, (
+            f"restored vinyl instance did not boot:\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
         )
-        assert proc.returncode != 0
+        assert result["memtx_rows"] == 10
+        assert result["vinyl_rows"] == 10
     finally:
         rc, cleanup_out = finalize_backup(tt, target, backup_id)
         assert rc == 0, f"backup cleanup failed:\n{cleanup_out}"

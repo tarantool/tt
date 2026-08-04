@@ -729,7 +729,9 @@ func planTopology(topology backup.Topology, plan *backup.BackupPlan) backup.Topo
 		}
 
 		instances := make([]backup.TopologyInstance, 0, 1)
-		if replicasetPlan.MasterInstanceUUID != "" || replicasetPlan.MasterInstanceName != "" {
+		if replicasetPlan.MasterInstanceUUID != "" ||
+			replicasetPlan.MasterInstanceName != "" {
+
 			instances = append(instances, backup.TopologyInstance{
 				InstanceUUID: replicasetPlan.MasterInstanceUUID,
 				InstanceName: replicasetPlan.MasterInstanceName,

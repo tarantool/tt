@@ -354,10 +354,10 @@ func TestApply_DropsPastThePointBySignatureNotByReplicaLSN(t *testing.T) {
 		"a file wholly below the point replays whole on both axes")
 }
 
-// An entry name that is not already a base name is refused by the archive
-// reader, so the drop list -- which is by base name -- and what the run
-// reports as landed can never be told apart by name shape.
-func TestApply_RefusesAnEntryNameThatIsNotABaseName(t *testing.T) {
+// An entry name that is not already in canonical form (a "./" prefix here) is
+// refused by the archive reader: Pack itself never produces one, so a reader
+// seeing one knows the archive was not built by Pack.
+func TestApply_RefusesANonCanonicalEntryName(t *testing.T) {
 	src := t.TempDir()
 	snap := writeSnap(t, src, format.VClock{1: 0})
 
@@ -370,6 +370,31 @@ func TestApply_RefusesAnEntryNameThatIsNotABaseName(t *testing.T) {
 	require.ErrorContains(t, err, "./"+filepath.Base(snap), "the refused entry is named")
 
 	require.NoFileExists(t, StatePath(workDir))
+}
+
+// A vinyl .run/.index entry name carries a <space_id>/<index_id>/ prefix, not
+// a bare base name -- unlike snap/xlog, which sit flat in their data
+// directory. Apply must accept it, land it in that subdirectory, and patch
+// its header like any other journal, not refuse it as an unsafe entry name.
+func TestApply_AcceptsAndPatchesNestedVinylEntry(t *testing.T) {
+	src := t.TempDir()
+	run := writeJournal(t, src, format.FiletypeRUN, format.VClock{1: 4}, nil, nil)
+
+	arch := packRawArchive(t, filepath.Join(t.TempDir(), "vinyl.tar.zst"),
+		rawEntry{name: "512/0/" + filepath.Base(run), path: run})
+
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+
+	result, err := Apply(ApplyOpts{
+		Archives:  []string{arch},
+		WorkDir:   workDir,
+		PatchUUID: replicaUUID,
+	})
+	require.NoError(t, err)
+
+	name := "512/0/" + filepath.Base(run)
+	require.Equal(t, []string{name}, result.Files)
+	require.Equal(t, replicaUUID, readInstanceUUID(t, filepath.Join(workDir, name)))
 }
 
 // A point past the end of the chain trims nothing rather than emptying the
@@ -457,6 +482,25 @@ func TestApply_ClearsFilesOfAPreviousAttempt(t *testing.T) {
 	require.ElementsMatch(t, result.Files, dirEntries(t, workDir))
 }
 
+// A previous run's leftovers can be nested (vinyl's .run/.index files carry a
+// <space_id>/<index_id>/ prefix): cleanup has to recurse into subdirectories
+// to remove them, and prune any directory it leaves empty behind it, rather
+// than only inspecting the top level of workDir.
+func TestApply_ClearsNestedFilesOfAPreviousAttempt(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+	vinylSubdir := filepath.Join(workDir, "512", "0")
+	require.NoError(t, os.MkdirAll(vinylSubdir, 0o755))
+
+	stale := filepath.Join(vinylSubdir, "00000000000000000900.run")
+	require.NoError(t, os.WriteFile(stale, []byte("x"), 0o644))
+
+	_, err := Apply(applyOpts(t, workDir, &Point{ReplicaID: 1, LSN: 5}))
+	require.NoError(t, err)
+
+	require.NoFileExists(t, stale)
+	require.NoDirExists(t, vinylSubdir, "an emptied subdirectory must be pruned")
+}
+
 // Cleanup owns the files a restore produces, not the whole directory: an
 // instance config or log living beside the data survives.
 func TestApply_KeepsForeignFiles(t *testing.T) {
@@ -465,6 +509,22 @@ func TestApply_KeepsForeignFiles(t *testing.T) {
 
 	keep := filepath.Join(workDir, "config.yaml")
 	require.NoError(t, os.WriteFile(keep, []byte("groups: {}\n"), 0o644))
+
+	_, err := Apply(applyOpts(t, workDir, nil))
+	require.NoError(t, err)
+
+	require.FileExists(t, keep)
+}
+
+// Cleanup's recursion must stop at a foreign file, not just a foreign top-level
+// name: a subdirectory holding one is neither emptied nor pruned.
+func TestApply_KeepsForeignNestedDir(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "instance-001")
+	foreignDir := filepath.Join(workDir, "512", "0")
+	require.NoError(t, os.MkdirAll(foreignDir, 0o755))
+
+	keep := filepath.Join(foreignDir, "notes.txt")
+	require.NoError(t, os.WriteFile(keep, []byte("keep me"), 0o644))
 
 	_, err := Apply(applyOpts(t, workDir, nil))
 	require.NoError(t, err)

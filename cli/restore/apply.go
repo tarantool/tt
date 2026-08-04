@@ -79,8 +79,9 @@ type ApplyOpts struct {
 
 // ApplyResult reports what a run produced.
 type ApplyResult struct {
-	// Files are the base names landed in the work directory, in the order
-	// they were unpacked.
+	// Files are the entry names landed in the work directory, relative to it
+	// and in the order they were unpacked. Flat for snap/xlog, but vinyl's
+	// .run/.index carry a <space_id>/<index_id>/ prefix.
 	Files []string
 	// Patched counts the headers restamped with the new instance UUID.
 	Patched int
@@ -235,23 +236,63 @@ func prepareWorkDir(workDir string) error {
 		return err //nolint:wrapcheck
 	}
 
-	entries, err := os.ReadDir(workDir)
+	return removeRestoreArtifacts(workDir) //nolint:wrapcheck
+}
+
+// removeRestoreArtifacts recursively removes every file cleanup owns
+// (isRestoreArtifact) under dir, at any depth, and prunes directories it
+// leaves empty behind it. Depth matters here: vinyl's .run/.index files from
+// a previous attempt nest under <space_id>/<index_id>/, and a run that only
+// swept the top level would leave them for the next unpack to land beside,
+// stale data a fresh instance would replay right along with the real thing.
+// Files cleanup does not own, wherever they live, are left untouched, and so
+// is any directory that still holds one.
+func removeRestoreArtifacts(dir string) error {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("failed to read work directory %q: %w", workDir, err)
+		return fmt.Errorf("failed to read directory %q: %w", dir, err)
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || !isRestoreArtifact(entry.Name()) {
+		path := filepath.Join(dir, entry.Name())
+
+		if entry.IsDir() {
+			if err := removeRestoreArtifacts(path); err != nil {
+				return fmt.Errorf("failed to remove restore artifacts from %q: %w", path, err)
+			}
+
+			empty, err := isEmptyDir(path)
+			if err != nil {
+				return fmt.Errorf("failed to check if directory %q is empty: %w", path, err)
+			}
+			if empty {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("failed to remove empty directory %q: %w", path, err)
+				}
+			}
+
 			continue
 		}
 
-		path := filepath.Join(workDir, entry.Name())
+		if !isRestoreArtifact(entry.Name()) {
+			continue
+		}
+
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to remove stale file %q: %w", path, err)
 		}
 	}
 
 	return nil
+}
+
+// isEmptyDir reports whether dir holds no entries.
+func isEmptyDir(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, fmt.Errorf("failed to read directory %q: %w", dir, err)
+	}
+	return len(entries) == 0, nil
 }
 
 // isRestoreArtifact reports whether cleanup owns this file. The name has to be
@@ -339,7 +380,10 @@ func unpackChain(opts ApplyOpts) (*ApplyResult, error) {
 		}
 
 		for _, name := range content.files {
-			patched, err := patchHeader(filepath.Join(opts.WorkDir, name), opts.PatchUUID)
+			patched, err := patchHeader(
+				filepath.Join(opts.WorkDir, filepath.FromSlash(name)),
+				opts.PatchUUID,
+			)
 			if err != nil {
 				return nil, err //nolint:wrapcheck
 			}
@@ -389,7 +433,10 @@ func unpackArchive(src, workDir string) (archiveContent, error) {
 			continue
 		}
 
-		if err := writeEntry(filepath.Join(workDir, entry.Name), entry.Body); err != nil {
+		if err := writeEntry(
+			filepath.Join(workDir, filepath.FromSlash(entry.Name)),
+			entry.Body,
+		); err != nil {
 			return archiveContent{}, fmt.Errorf("failed to unpack %q from %q: %w",
 				entry.Name, src, err)
 		}

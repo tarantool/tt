@@ -229,10 +229,10 @@ type rawEntry struct {
 	path string
 }
 
-// packRawArchive packs the entries under the names they carry, which
-// archive.Pack cannot do: it stores base names only. Plain `tar -C dir .`
-// prefixes every entry with "./", and an archive from anywhere but tt backup
-// is under no obligation to be flat.
+// packRawArchive packs the entries under exactly the names they carry,
+// bypassing archive.Pack's own name computation -- useful for entry names
+// archive.Pack would never itself produce (a "./" prefix, an absolute path)
+// or for building an archive without needing roots in scope.
 func packRawArchive(t *testing.T, dst string, entries ...rawEntry) string {
 	t.Helper()
 
