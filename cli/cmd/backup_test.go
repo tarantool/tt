@@ -327,7 +327,7 @@ func TestBuildUploadManifestRejectsFragmentWithoutArchive(t *testing.T) {
 		testShardA: {Path: "data/x.tar.zst", SizeBytes: 7},
 	}
 
-	manifest, data, err := buildUploadManifest(testBackupID, plan, fragments, locations)
+	manifest, data, err := buildUploadManifest(testBackupID, plan, fragments, locations, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), testShardB)
 	assert.Nil(t, manifest)

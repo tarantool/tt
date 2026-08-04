@@ -402,7 +402,8 @@ the run says so when they do.`,
 			"environment the backup belongs to")
 	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVar(&backupUploadBackupID, "backup-id", "",
-		"backup identifier, e.g. 20260326T120000Z (required)")
+		"backup identifier, e.g. 20260326T120000Z (required); ids order the "+
+			"chain, so it must sort as text above every backup already stored")
 	cmd.Flags().BoolVar(&backupUploadKeepLocal, "keep-local", false,
 		"keep local .tar.zst copies on the manager host after successful upload")
 	cmd.Flags().DurationVar(&backupUploadTimeout, "timeout", 30*time.Minute,
@@ -506,15 +507,6 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 			replicasetUUID)
 	}
 
-	// The manifest is built before the storage is touched, so a fragment that
-	// does not line up with an archive costs nothing: no object is written and
-	// no local archive is removed.
-	manifest, manifestData, err := buildUploadManifest(
-		backupID, plan, fragments, locationsByReplicaset)
-	if err != nil {
-		return fmt.Errorf("failed to build manifest: %w", err)
-	}
-
 	// Open storage at the subtree the plan named, which the flags may override.
 	clusterName, environment, scopeOrigin := uploadScope(plan)
 
@@ -525,6 +517,40 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 
 	ctx, cancel := storageContext(backupUploadTimeout)
 	defer cancel()
+
+	// What the storage holds now, which the plan was made against and may no
+	// longer describe. Reading it changes nothing: everything below still
+	// happens before the first object is written, so a rejected upload leaves
+	// the storage and the local archives as they were.
+	// A storage that does not exist yet holds no backup: this run is the one
+	// creating it. Every reader command treats the same answer as an error,
+	// because for them a mistyped path must not read as an empty storage.
+	head, err := backup.LatestManifest(ctx, store)
+	if err != nil && !errors.Is(err, storage.ErrStorageMissing) {
+		// The newest manifest is what this backup is chained onto, so an
+		// unreadable one cannot be worked around by uploading past it -- say
+		// what to do about it instead.
+		return fmt.Errorf("failed to read the newest stored backup: %w; "+
+			"run tt backup verify to see what the storage holds, and remove or "+
+			"repair that manifest before uploading", err)
+	}
+
+	if err := backup.CheckChainHead(head, plan, backupID); err != nil {
+		return err //nolint:wrapcheck
+	}
+
+	var warnings []backup.Warning
+	if promotion := backup.PromotionWarning(head, plan); promotion != nil {
+		log.Warnf("full backup on top of chain %q: %s", head.BaseFullBackupID, promotion.Message)
+
+		warnings = append(warnings, *promotion)
+	}
+
+	manifest, manifestData, err := buildUploadManifest(
+		backupID, plan, fragments, locationsByReplicaset, warnings)
+	if err != nil {
+		return fmt.Errorf("failed to build manifest: %w", err)
+	}
 
 	// Upload archives, then the manifest. On manifest failure, uploaded
 	// archives are rolled back (deleted from storage).
@@ -551,6 +577,7 @@ func buildUploadManifest(
 	plan *backup.BackupPlan,
 	fragments []*backup.Fragment,
 	locationsByReplicaset map[string]*backup.ArtifactLocation,
+	warnings []backup.Warning,
 ) (*backup.ClusterManifest, []byte, error) {
 	// A full backup is the base of its own chain; only an increment inherits
 	// the base named by the plan.
@@ -587,6 +614,7 @@ func buildUploadManifest(
 		CreationTime:     time.Now(),
 		Topology:         backup.BuildTopologyFromFragments(fragments),
 		Shards:           shards,
+		Warnings:         warnings,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to aggregate manifest: %w", err)

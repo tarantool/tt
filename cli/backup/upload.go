@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -45,7 +46,14 @@ func Upload(
 
 	manifestKey := storage.ManifestKey(string(backupID))
 	if err := storage.PutBytes(ctx, store, manifestKey, manifestData); err != nil {
-		deleteObjects(ctx, store, uploadedKeys)
+		// The manifest key goes into the rollback too. A PUT that reached the
+		// storage and then failed the client -- a timeout on the response -- is
+		// invisible from here, and it would leave a manifest naming archives
+		// this rollback is about to delete. Worse, that manifest becomes the
+		// chain head, so the retry of this very backup is refused for reusing
+		// an id, and the next one is refused for not continuing it.
+		deleteObjects(ctx, store, append(uploadedKeys, manifestKey))
+
 		return fmt.Errorf("upload manifest: %w", err)
 	}
 
@@ -158,6 +166,100 @@ func VerifyArchives(archives []ArchiveToUpload, fragments []*Fragment) ([]string
 	slices.Sort(unverified)
 
 	return unverified, nil
+}
+
+// CheckChainHead compares the storage against the plan the backup was taken
+// from. head is the newest manifest in the storage, nil when there is none.
+//
+// Two things can have happened between planning and uploading, and both are
+// silent: another upload landed -- so the increment about to be stored does not
+// continue the backup it was planned against -- or the id of this backup does
+// not sort above the stored one, and the manifest would land in the middle of a
+// chain that is read by id. Neither is recoverable afterwards, so both are
+// refused before anything is written.
+//
+// Ids are compared as strings, which is how every reader of a storage orders
+// them -- LatestManifest takes the greatest key, the chain sorts by backup id,
+// gc walks that order. An id scheme that does not sort in the order the backups
+// are taken (a bare counter: backup-2, backup-10) is therefore refused here
+// rather than quietly producing a storage whose newest backup is not the last
+// one taken.
+func CheckChainHead(head *ClusterManifest, plan *BackupPlan, backupID BackupID) error {
+	previous := BackupID(plan.PreviousBackupID)
+
+	if head == nil {
+		if previous != "" {
+			return fmt.Errorf(
+				"the plan continues backup %q, but the storage holds no backup at all",
+				previous)
+		}
+
+		return nil
+	}
+
+	// Ids order the chain, so an id that does not sort above the head would be
+	// read as older than the backup it was taken after.
+	if backupID <= head.BackupID {
+		return fmt.Errorf(
+			"backup id %q does not sort above the newest stored backup %q: "+
+				"ids are compared as text and order the chain, so either the clock "+
+				"of this host is behind, the id is already used, or the ids are not "+
+				"generated in an order that sorts (a zero-padded timestamp does)",
+			backupID, head.BackupID)
+	}
+
+	if plan.Type == BackupTypeIncremental && previous != head.BackupID {
+		return fmt.Errorf(
+			"the plan continues backup %q, but the newest stored backup is %q: "+
+				"the storage changed since the plan was made, so this increment "+
+				"would not continue what it was planned against",
+			previous, head.BackupID)
+	}
+
+	return nil
+}
+
+// PromotionWarning reports why a full backup is landing on top of an existing
+// chain, or nil when it is not landing on one or nothing changed.
+//
+// The reason is derived rather than declared: an orchestrator asking for a full
+// backup has no way to tell tt why, and the two manifests already say it. A
+// scheduled full backup of an unchanged cluster produces no warning.
+func PromotionWarning(head *ClusterManifest, plan *BackupPlan) *Warning {
+	if head == nil || plan.Type != BackupTypeFull {
+		return nil
+	}
+
+	planned := slices.Sorted(maps.Keys(plan.Replicasets))
+	backedUp := slices.Sorted(maps.Keys(head.Shards))
+
+	if !slices.Equal(planned, backedUp) {
+		warning := NewPromotedToFullWarning(PromotedTopologyChanged, fmt.Sprintf(
+			"the cluster holds replicasets %s, backup %q holds %s",
+			strings.Join(planned, ", "), head.BackupID, strings.Join(backedUp, ", ")))
+
+		return &warning
+	}
+
+	for _, replicasetUUID := range planned {
+		shard := head.Shards[replicasetUUID]
+		if shard.Instance == nil {
+			continue
+		}
+
+		master := plan.Replicasets[replicasetUUID].MasterInstanceUUID
+		if master == shard.Instance.InstanceUUID {
+			continue
+		}
+
+		warning := NewPromotedToFullWarning(PromotedMasterChanged, fmt.Sprintf(
+			"replicaset %s is backed up on instance %s now, backup %q was taken on %s",
+			replicasetUUID, master, head.BackupID, shard.Instance.InstanceUUID))
+
+		return &warning
+	}
+
+	return nil
 }
 
 // BuildTopologyFromFragments builds a Topology from the collected fragments.

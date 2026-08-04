@@ -42,6 +42,11 @@ var (
 	ErrKeyNotFound = errors.New("storage: key not found")
 	// ErrInvalidKey is returned when a key is not a canonical storage key.
 	ErrInvalidKey = errors.New("storage: invalid key")
+	// ErrStorageMissing is returned when the storage itself is not there. A
+	// reader treats that as an error -- a mistyped path must not read as an
+	// empty storage -- while a writer creating the first backup of a new
+	// storage treats it as "nothing stored yet".
+	ErrStorageMissing = errors.New("storage: does not exist")
 )
 
 // GetBytes reads a small object into memory.

@@ -12,7 +12,26 @@ const (
 	WarnRecoveryPointsUnavailable WarningCode = "recovery_points_unavailable"
 	// WarnStoragePartialUpload marks archives that were not fully uploaded.
 	WarnStoragePartialUpload WarningCode = "storage_partial_upload"
+	// WarnPromotedToFull marks a full backup taken because an incremental one
+	// had become impossible: the replicaset set or a master changed since the
+	// backup this chain would have continued.
+	WarnPromotedToFull WarningCode = "promoted_to_full"
 )
+
+// Reasons a full backup was not the plan.
+const (
+	// PromotedTopologyChanged: the replicaset set is not the one backed up.
+	PromotedTopologyChanged = "topology_changed"
+	// PromotedMasterChanged: a replicaset is backed up on another instance now.
+	PromotedMasterChanged = "master_changed"
+)
+
+// Informational reports whether a warning describes the backup rather than
+// something missing from it. Only these leave the status alone: a full backup
+// forced by a master change is as complete as a planned one.
+func (code WarningCode) Informational() bool {
+	return code == WarnPromotedToFull
+}
 
 // Warning is a typed, serializable non-fatal backup issue.
 type Warning struct {
@@ -62,6 +81,19 @@ func NewStoragePartialUploadWarning(keys []string) Warning {
 		Message: "storage partial upload",
 		Details: map[string]any{
 			"keys": keys,
+		},
+	}
+}
+
+// NewPromotedToFullWarning records why a full backup landed on top of an
+// existing chain: an operator reading the storage months later cannot
+// otherwise tell a scheduled full backup from one the cluster forced.
+func NewPromotedToFullWarning(reason, message string) Warning {
+	return Warning{
+		Code:    WarnPromotedToFull,
+		Message: message,
+		Details: map[string]any{
+			"reason": reason,
 		},
 	}
 }

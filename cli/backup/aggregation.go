@@ -39,6 +39,9 @@ type AggregateInput struct {
 	CreationTime     time.Time
 	Topology         Topology
 	Shards           []*ShardInput
+	// Warnings are the ones the caller derived rather than the shards did --
+	// today only promoted_to_full, which needs the previous manifest to see.
+	Warnings []Warning
 }
 
 // ShardInput describes one expected replicaset backup result.
@@ -118,7 +121,7 @@ func newClusterManifest(in AggregateInput) *ClusterManifest {
 		CreationTime:     in.CreationTime,
 		Shards:           make(map[string]Shard, len(in.Shards)),
 		Topology:         in.Topology,
-		Warnings:         make([]Warning, 0),
+		Warnings:         append(make([]Warning, 0, len(in.Warnings)), in.Warnings...),
 	}
 }
 
@@ -256,6 +259,20 @@ func calculateStatus(manifest *ClusterManifest) Status {
 // isDegraded reports whether a partially useful manifest has issues.
 func isDegraded(manifest *ClusterManifest, successful, failed int) bool {
 	return failed > 0 ||
-		len(manifest.Warnings) > 0 ||
+		hasBlockingWarning(manifest.Warnings) ||
 		successful < len(manifest.Topology.Replicasets)
+}
+
+// hasBlockingWarning reports whether any warning says something was lost.
+// An informational one does not: promoted_to_full leaves the status alone, and
+// it should -- a full backup forced by a master change holds every byte a
+// planned one would.
+func hasBlockingWarning(warnings []Warning) bool {
+	for _, warning := range warnings {
+		if !warning.Code.Informational() {
+			return true
+		}
+	}
+
+	return false
 }

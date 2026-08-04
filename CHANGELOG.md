@@ -45,7 +45,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   fragment carries before anything is stored, so a copy that went wrong between
   the node and the manager host is refused rather than published as healthy. A
   fragment with no checksum gets the computed one, and the run reports that
-  nothing was verified for that shard.
+  nothing was verified for that shard. The storage is also compared against the
+  plan before the first object is written: an increment whose chain head moved
+  since the plan was made, and a backup id that does not sort above the newest
+  stored backup, are both refused — the second is what a host with a clock
+  behind produces, and reusing an id looks the same. A full backup landing on a
+  chain whose replicaset set or master changed records `promoted_to_full` in
+  `warnings[]` with the reason, so a forced full backup is distinguishable from
+  a scheduled one; being informational, it leaves the manifest status alone.
 - `tt backup plan`, `upload`, `verify`, `gc`, `last` and `tt restore plan`:
   `--cluster-name` and `--environment` select the
   `<storage_root>/<cluster_name>/<environment>/` subtree of the storage, so one

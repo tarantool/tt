@@ -515,6 +515,163 @@ func TestReadPlan(t *testing.T) {
 	})
 }
 
+// headManifest is a stored backup of one replicaset, taken on instanceUUID.
+func headManifest(backupID BackupID, replicasetUUID, instanceUUID string) *ClusterManifest {
+	return &ClusterManifest{
+		BackupID:         backupID,
+		BaseFullBackupID: backupID,
+		Shards: map[string]Shard{
+			replicasetUUID: {Instance: &ShardInstance{InstanceUUID: instanceUUID}},
+		},
+	}
+}
+
+// planFor is a plan of one replicaset backed up on instanceUUID.
+func planFor(
+	backupType BackupType,
+	previous BackupID,
+	replicasetUUID, instanceUUID string,
+) *BackupPlan {
+	return &BackupPlan{
+		FormatVersion:    PlanFormatVersion,
+		Type:             backupType,
+		PreviousBackupID: OptionalBackupID(previous),
+		Replicasets: map[string]ReplicasetPlan{
+			replicasetUUID: {MasterInstanceUUID: instanceUUID},
+		},
+	}
+}
+
+// Between planning and uploading another backup can land, and this host's
+// clock can be behind. Both leave a chain that reads wrong afterwards, so both
+// are refused before the first object is written.
+func TestCheckChainHead(t *testing.T) {
+	head := headManifest("20260326T120000Z", testRSA, testInstanceA)
+
+	cases := []struct {
+		name     string
+		head     *ClusterManifest
+		plan     *BackupPlan
+		backupID BackupID
+		wantErr  string
+	}{
+		{
+			name:     "the first backup of an empty storage",
+			plan:     planFor(BackupTypeFull, "", testRSA, testInstanceA),
+			backupID: "20260326T120000Z",
+		},
+		{
+			name:     "an increment continuing the head",
+			head:     head,
+			plan:     planFor(BackupTypeIncremental, head.BackupID, testRSA, testInstanceA),
+			backupID: "20260327T120000Z",
+		},
+		{
+			name:     "a full backup on top of a chain",
+			head:     head,
+			plan:     planFor(BackupTypeFull, "", testRSA, testInstanceA),
+			backupID: "20260327T120000Z",
+		},
+		{
+			name:     "the plan names a backup the storage does not hold",
+			plan:     planFor(BackupTypeIncremental, "20260101T000000Z", testRSA, testInstanceA),
+			backupID: "20260327T120000Z",
+			wantErr:  "the storage holds no backup at all",
+		},
+		{
+			name:     "another upload landed since the plan was made",
+			head:     head,
+			plan:     planFor(BackupTypeIncremental, "20260101T000000Z", testRSA, testInstanceA),
+			backupID: "20260327T120000Z",
+			wantErr:  "would not continue what it was planned against",
+		},
+		{
+			name:     "a backup id that sorts below the head",
+			head:     head,
+			plan:     planFor(BackupTypeIncremental, head.BackupID, testRSA, testInstanceA),
+			backupID: "20260101T000000Z",
+			wantErr:  "the clock of this host is behind",
+		},
+		{
+			// Ids are compared as text, which is how every reader of the
+			// storage orders them. A bare counter does not sort that way, and
+			// the run that would break the order is the one refused.
+			name:     "an id scheme that does not sort",
+			head:     headManifest("backup-2", testRSA, testInstanceA),
+			plan:     planFor(BackupTypeFull, "", testRSA, testInstanceA),
+			backupID: "backup-10",
+			wantErr:  "not generated in an order that sorts",
+		},
+		{
+			name:     "a backup id equal to the head",
+			head:     head,
+			plan:     planFor(BackupTypeFull, "", testRSA, testInstanceA),
+			backupID: head.BackupID,
+			wantErr:  "does not sort above",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckChainHead(tc.head, tc.plan, tc.backupID)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+// An operator reading the storage months later cannot otherwise tell a
+// scheduled full backup from one the cluster forced.
+func TestPromotionWarning(t *testing.T) {
+	head := headManifest("20260326T120000Z", testRSA, testInstanceA)
+
+	t.Run("no chain to promote over", func(t *testing.T) {
+		assert.Nil(t, PromotionWarning(nil, planFor(BackupTypeFull, "", testRSA, testInstanceA)))
+	})
+
+	t.Run("an increment is not a promotion", func(t *testing.T) {
+		plan := planFor(BackupTypeIncremental, head.BackupID, testRSA, testInstanceA)
+		assert.Nil(t, PromotionWarning(head, plan))
+	})
+
+	t.Run("a scheduled full backup of an unchanged cluster", func(t *testing.T) {
+		assert.Nil(t, PromotionWarning(head, planFor(BackupTypeFull, "", testRSA, testInstanceA)))
+	})
+
+	t.Run("the replicaset set changed", func(t *testing.T) {
+		plan := planFor(BackupTypeFull, "", testRSB, testInstanceA)
+
+		warning := PromotionWarning(head, plan)
+		require.NotNil(t, warning)
+		assert.Equal(t, WarnPromotedToFull, warning.Code)
+		assert.Equal(t, PromotedTopologyChanged, warning.Details["reason"])
+	})
+
+	t.Run("the master changed", func(t *testing.T) {
+		plan := planFor(BackupTypeFull, "", testRSA, testInstanceB)
+
+		warning := PromotionWarning(head, plan)
+		require.NotNil(t, warning)
+		assert.Equal(t, PromotedMasterChanged, warning.Details["reason"])
+		assert.Contains(t, warning.Message, testInstanceB)
+	})
+
+	t.Run("a shard the previous backup failed on", func(t *testing.T) {
+		failed := headManifest("20260326T120000Z", testRSA, testInstanceA)
+		failed.Shards[testRSA] = Shard{Error: "unreachable"}
+
+		// The backup that failed says nothing about where the master was, so
+		// there is nothing to call a change.
+		assert.Nil(t, PromotionWarning(failed, planFor(BackupTypeFull, "", testRSA, testInstanceB)))
+	})
+}
+
 func TestValidateFragmentsAgainstPlan(t *testing.T) {
 	cases := []struct {
 		name      string
