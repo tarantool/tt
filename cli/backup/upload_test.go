@@ -515,13 +515,13 @@ func TestReadPlan(t *testing.T) {
 	})
 }
 
-// headManifest is a stored backup of one replicaset, taken on instanceUUID.
-func headManifest(backupID BackupID, replicasetUUID, instanceUUID string) *ClusterManifest {
+// headManifest is a stored backup of replicaset testRSA, taken on its master.
+func headManifest(backupID BackupID) *ClusterManifest {
 	return &ClusterManifest{
 		BackupID:         backupID,
 		BaseFullBackupID: backupID,
 		Shards: map[string]Shard{
-			replicasetUUID: {Instance: &ShardInstance{InstanceUUID: instanceUUID}},
+			testRSA: {Instance: &ShardInstance{InstanceUUID: testInstanceA}},
 		},
 	}
 }
@@ -546,7 +546,7 @@ func planFor(
 // clock can be behind. Both leave a chain that reads wrong afterwards, so both
 // are refused before the first object is written.
 func TestCheckChainHead(t *testing.T) {
-	head := headManifest("20260326T120000Z", testRSA, testInstanceA)
+	head := headManifest("20260326T120000Z")
 
 	cases := []struct {
 		name     string
@@ -597,7 +597,7 @@ func TestCheckChainHead(t *testing.T) {
 			// storage orders them. A bare counter does not sort that way, and
 			// the run that would break the order is the one refused.
 			name:     "an id scheme that does not sort",
-			head:     headManifest("backup-2", testRSA, testInstanceA),
+			head:     headManifest("backup-2"),
 			plan:     planFor(BackupTypeFull, "", testRSA, testInstanceA),
 			backupID: "backup-10",
 			wantErr:  "not generated in an order that sorts",
@@ -629,7 +629,7 @@ func TestCheckChainHead(t *testing.T) {
 // An operator reading the storage months later cannot otherwise tell a
 // scheduled full backup from one the cluster forced.
 func TestPromotionWarning(t *testing.T) {
-	head := headManifest("20260326T120000Z", testRSA, testInstanceA)
+	head := headManifest("20260326T120000Z")
 
 	t.Run("no chain to promote over", func(t *testing.T) {
 		assert.Nil(t, PromotionWarning(nil, planFor(BackupTypeFull, "", testRSA, testInstanceA)))
@@ -663,7 +663,7 @@ func TestPromotionWarning(t *testing.T) {
 	})
 
 	t.Run("a shard the previous backup failed on", func(t *testing.T) {
-		failed := headManifest("20260326T120000Z", testRSA, testInstanceA)
+		failed := headManifest("20260326T120000Z")
 		failed.Shards[testRSA] = Shard{Error: "unreachable"}
 
 		// The backup that failed says nothing about where the master was, so

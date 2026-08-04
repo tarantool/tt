@@ -57,10 +57,6 @@ const (
 	restorePlanTopologyMismatchExitCode = 6
 )
 
-// defaultRestorePlanTimeout covers listing the storage and downloading a whole
-// backup chain, which is the bulk of the data a cluster holds.
-const defaultRestorePlanTimeout = 30 * time.Minute
-
 // NewRestoreCmd creates the parent `tt restore` command.
 func NewRestoreCmd() *cobra.Command {
 	restoreCmd := &cobra.Command{
@@ -337,7 +333,7 @@ func newRestorePlanCmd() *cobra.Command {
 		"local directory to download the manifests and archives into")
 	cmd.Flags().StringVar(&restorePlanFormat, "format", formatJSON,
 		"output format: table or json")
-	cmd.Flags().DurationVar(&restorePlanTimeout, "timeout", defaultRestorePlanTimeout,
+	cmd.Flags().DurationVar(&restorePlanTimeout, "timeout", defaultWholeStorageTimeout,
 		"timeout for reading from and downloading out of the storage; 0 means no limit")
 
 	cmd.MarkFlagRequired("target-time")
@@ -382,7 +378,7 @@ func runRestorePlanInner() (*restore.PlanResult, error) {
 
 	store, err := openBackupStorage()
 	if err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	// Everything that can be rejected without touching the storage is rejected

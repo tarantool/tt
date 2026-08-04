@@ -382,7 +382,7 @@ func ValidateFragmentsAgainstPlan(
 
 		notes, err := checkFragmentAgainstPlan(fragment, replicasetPlan, plan.Type, authentic)
 		if err != nil {
-			return nil, err
+			return nil, err //nolint:wrapcheck
 		}
 
 		unchecked = append(unchecked, notes...)
@@ -427,7 +427,7 @@ func checkFragmentAgainstPlan(
 		if err := report(fmt.Sprintf(
 			"fragment of replicaset %s is a %s backup, the plan asks for %s",
 			fragment.ReplicasetUUID, fragment.Type, mode)); err != nil {
-			return nil, err
+			return nil, err //nolint:wrapcheck
 		}
 	}
 
@@ -443,7 +443,7 @@ func checkFragmentAgainstPlan(
 				"the wrong node -- does not continue the chain this plan was made for",
 			fragment.ReplicasetUUID, fragment.InstanceUUID,
 			replicasetPlan.MasterInstanceUUID)); err != nil {
-			return nil, err
+			return nil, err //nolint:wrapcheck
 		}
 	}
 

@@ -76,10 +76,11 @@ const (
 	// the fail-loud code of `tt backup start`.
 	backupVerifyProblemsExitCode = 2
 
-	// defaultVerifyTimeout covers a full pass over the storage: verify reads every
-	// archive end to end to recompute its checksum, so it needs far more time than
-	// the metadata-only commands.
-	defaultVerifyTimeout = 30 * time.Minute
+	// defaultWholeStorageTimeout covers a pass that reads archive contents and
+	// not just metadata -- verify recomputing every checksum, restore plan
+	// downloading a chain. Those need far longer than the metadata-only
+	// commands, and they need the same amount.
+	defaultWholeStorageTimeout = 30 * time.Minute
 
 	// defaultGcTimeout covers reading every manifest and deleting the objects the
 	// retention rules select; unlike verify, gc never reads archive contents.
@@ -175,6 +176,7 @@ const scopeFromFlags = "--cluster-name / --environment"
 // backupStorageConfigScoped parses --backup-storage and narrows it to the
 // cluster and environment the command was given.
 func backupStorageConfigScoped() (*backup.StorageConfig, error) {
+	//nolint:wrapcheck
 	return backupStorageConfigScopedTo(backupClusterName, backupEnvironment, scopeFromFlags)
 }
 
@@ -201,6 +203,7 @@ func backupStorageConfigScopedTo(clusterName, environment, origin string) (
 // openBackupStorage opens the storage a command works on, at the subtree
 // --cluster-name / --environment name.
 func openBackupStorage() (storage.Storage, error) {
+	//nolint:wrapcheck
 	return openBackupStorageScoped(backupClusterName, backupEnvironment, scopeFromFlags)
 }
 
@@ -208,7 +211,7 @@ func openBackupStorage() (storage.Storage, error) {
 func openBackupStorageScoped(clusterName, environment, origin string) (storage.Storage, error) {
 	cfg, err := backupStorageConfigScopedTo(clusterName, environment, origin)
 	if err != nil {
-		return nil, err
+		return nil, err //nolint:wrapcheck
 	}
 
 	store, err := backup.OpenStorage(cfg)
@@ -455,6 +458,112 @@ func uploadScope(plan *backup.BackupPlan) (clusterName, environment, origin stri
 	return clusterName, environment, origin
 }
 
+// readUploadInputs reads the plan and the fragments and checks that they
+// describe one another.
+//
+// Whether the plan is the one tt produced decides how much of it can be
+// believed: a plan written or edited by hand states what the operator
+// believes, and a fragment disagreeing with it is reported rather than
+// refused. That is also the way out of these checks -- edit the plan.
+func readUploadInputs(fragmentPaths []string) (
+	*backup.BackupPlan, []*backup.Fragment, error,
+) {
+	plan, err := backup.ReadPlan(backupUploadPlan)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read plan: %w", err)
+	}
+
+	fragments, err := backup.ReadFragments(fragmentPaths)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read fragments: %w", err)
+	}
+
+	authentic, err := backup.PlanIsAuthentic(plan)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to check the plan: %w", err)
+	}
+
+	if !authentic {
+		log.Warnf("plan %q was not written by tt backup plan, or was edited after: "+
+			"what it says about the cluster is taken on trust", backupUploadPlan)
+	}
+
+	unchecked, err := backup.ValidateFragmentsAgainstPlan(fragments, plan, authentic)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to validate fragments: %w", err)
+	}
+
+	for _, note := range unchecked {
+		log.Warn(note)
+	}
+
+	return plan, fragments, nil
+}
+
+// prepareUploadArchives resolves each archive to its storage key and reads it
+// through, so that what is about to be stored is what the node packed.
+func prepareUploadArchives(
+	archivePaths []string,
+	backupID backup.BackupID,
+	fragments []*backup.Fragment,
+) ([]backup.ArchiveToUpload, map[string]*backup.ArtifactLocation, error) {
+	archives, locationsByReplicaset, err := backup.PrepareArchives(archivePaths, backupID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to prepare archives: %w", err)
+	}
+
+	unverified, err := backup.VerifyArchives(archives, fragments)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to verify archives: %w", err)
+	}
+
+	for _, replicasetUUID := range unverified {
+		log.Warnf("fragment of replicaset %s carries no checksum_sha256: "+
+			"the manifest records the one computed here, and nothing was verified",
+			replicasetUUID)
+	}
+
+	return archives, locationsByReplicaset, nil
+}
+
+// checkUploadAgainstStorage compares what the storage holds now against the
+// plan this backup was taken from, and returns the warnings that comparison
+// produced. Reading changes nothing: this still happens before the first
+// object is written, so a rejected upload leaves the storage and the local
+// archives as they were.
+func checkUploadAgainstStorage(
+	ctx context.Context,
+	store storage.Storage,
+	plan *backup.BackupPlan,
+	backupID backup.BackupID,
+) ([]backup.Warning, error) {
+	// A storage that does not exist yet holds no backup: this run is the one
+	// creating it. Every reader command treats the same answer as an error,
+	// because for them a mistyped path must not read as an empty storage.
+	head, err := backup.LatestManifest(ctx, store)
+	if err != nil && !errors.Is(err, storage.ErrStorageMissing) {
+		// The newest manifest is what this backup is chained onto, so an
+		// unreadable one cannot be worked around by uploading past it -- say
+		// what to do about it instead.
+		return nil, fmt.Errorf("failed to read the newest stored backup: %w; "+
+			"run tt backup verify to see what the storage holds, and remove or "+
+			"repair that manifest before uploading", err)
+	}
+
+	if err := backup.CheckChainHead(head, plan, backupID); err != nil {
+		return nil, err //nolint:wrapcheck
+	}
+
+	promotion := backup.PromotionWarning(head, plan)
+	if promotion == nil {
+		return nil, nil
+	}
+
+	log.Warnf("full backup on top of chain %q: %s", head.BaseFullBackupID, promotion.Message)
+
+	return []backup.Warning{*promotion}, nil
+}
+
 func runBackupUpload(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
 
@@ -473,57 +582,15 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("fragment and archive paths must have the same length")
 	}
 
-	// Read the plan, fragments, and validate coverage.
-	plan, err := backup.ReadPlan(backupUploadPlan)
+	plan, fragments, err := readUploadInputs(fragmentPaths)
 	if err != nil {
-		return fmt.Errorf("failed to read plan: %w", err)
+		return err //nolint:wrapcheck
 	}
 
-	fragments, err := backup.ReadFragments(fragmentPaths)
+	archives, locationsByReplicaset, err := prepareUploadArchives(
+		archivePaths, backupID, fragments)
 	if err != nil {
-		return fmt.Errorf("failed to read fragments: %w", err)
-	}
-
-	// Whether the plan is the one tt produced decides how much of it can be
-	// believed: a plan written or edited by hand states what the operator
-	// believes, and a fragment disagreeing with it is reported rather than
-	// refused. That is also the way out of these checks -- edit the plan.
-	authentic, err := backup.PlanIsAuthentic(plan)
-	if err != nil {
-		return fmt.Errorf("failed to check the plan: %w", err)
-	}
-
-	if !authentic {
-		log.Warnf("plan %q was not written by tt backup plan, or was edited after: "+
-			"what it says about the cluster is taken on trust", backupUploadPlan)
-	}
-
-	unchecked, err := backup.ValidateFragmentsAgainstPlan(fragments, plan, authentic)
-	if err != nil {
-		return fmt.Errorf("failed to validate fragments: %w", err)
-	}
-
-	for _, note := range unchecked {
-		log.Warn(note)
-	}
-
-	// Prepare archives: stat, extract UUIDs, compute storage keys..
-	archives, locationsByReplicaset, err := backup.PrepareArchives(archivePaths, backupID)
-	if err != nil {
-		return fmt.Errorf("failed to prepare archives: %w", err)
-	}
-
-	// Read every archive through before any of them is stored: what the node
-	// packed and what arrived here are two different files until compared.
-	unverified, err := backup.VerifyArchives(archives, fragments)
-	if err != nil {
-		return fmt.Errorf("failed to verify archives: %w", err)
-	}
-
-	for _, replicasetUUID := range unverified {
-		log.Warnf("fragment of replicaset %s carries no checksum_sha256: "+
-			"the manifest records the one computed here, and nothing was verified",
-			replicasetUUID)
+		return err //nolint:wrapcheck
 	}
 
 	// Open storage at the subtree the plan named, which the flags may override.
@@ -531,38 +598,15 @@ func runBackupUpload(cmd *cobra.Command, args []string) error {
 
 	store, err := openBackupStorageScoped(clusterName, environment, scopeOrigin)
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck
 	}
 
 	ctx, cancel := storageContext(backupUploadTimeout)
 	defer cancel()
 
-	// What the storage holds now, which the plan was made against and may no
-	// longer describe. Reading it changes nothing: everything below still
-	// happens before the first object is written, so a rejected upload leaves
-	// the storage and the local archives as they were.
-	// A storage that does not exist yet holds no backup: this run is the one
-	// creating it. Every reader command treats the same answer as an error,
-	// because for them a mistyped path must not read as an empty storage.
-	head, err := backup.LatestManifest(ctx, store)
-	if err != nil && !errors.Is(err, storage.ErrStorageMissing) {
-		// The newest manifest is what this backup is chained onto, so an
-		// unreadable one cannot be worked around by uploading past it -- say
-		// what to do about it instead.
-		return fmt.Errorf("failed to read the newest stored backup: %w; "+
-			"run tt backup verify to see what the storage holds, and remove or "+
-			"repair that manifest before uploading", err)
-	}
-
-	if err := backup.CheckChainHead(head, plan, backupID); err != nil {
+	warnings, err := checkUploadAgainstStorage(ctx, store, plan, backupID)
+	if err != nil {
 		return err //nolint:wrapcheck
-	}
-
-	var warnings []backup.Warning
-	if promotion := backup.PromotionWarning(head, plan); promotion != nil {
-		log.Warnf("full backup on top of chain %q: %s", head.BaseFullBackupID, promotion.Message)
-
-		warnings = append(warnings, *promotion)
 	}
 
 	manifest, manifestData, err := buildUploadManifest(
@@ -667,7 +711,7 @@ func runBackupLast(cmd *cobra.Command, args []string) error {
 
 	store, err := openBackupStorage()
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck
 	}
 
 	ctx, cancel := storageContext(backupLastTimeout)
@@ -785,7 +829,7 @@ func newBackupVerifyCmd() *cobra.Command {
 	addBackupStorageFlags(cmd)
 	cmd.Flags().StringVar(&backupVerifyFormat, "format", formatTable,
 		"output format: table or json")
-	cmd.Flags().DurationVar(&backupVerifyTimeout, "timeout", defaultVerifyTimeout,
+	cmd.Flags().DurationVar(&backupVerifyTimeout, "timeout", defaultWholeStorageTimeout,
 		"timeout for connecting to and reading from the storage; 0 means no limit")
 
 	cmd.MarkFlagRequired("backup-storage")
@@ -820,7 +864,7 @@ func runBackupVerifyInner() (bool, error) {
 
 	store, err := openBackupStorage()
 	if err != nil {
-		return false, err
+		return false, err //nolint:wrapcheck
 	}
 
 	ctx, cancel := storageContext(backupVerifyTimeout)
@@ -964,7 +1008,7 @@ func runBackupGc(cmd *cobra.Command, args []string) error {
 
 	store, err := openBackupStorage()
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck
 	}
 
 	ctx, cancel := storageContext(backupGcTimeout)
@@ -1232,6 +1276,26 @@ func parseFromVclock(s string) (backup.Vclock, error) {
 	return vc, nil
 }
 
+// discoverLiveTopology reads the cluster the plan is made for: which
+// replicasets it has and which instance of each is writable right now.
+func discoverLiveTopology() (backup.LiveTopology, error) {
+	connectCtx := connect.ConnectCtx{
+		Username:    replicasetUser,
+		Password:    replicasetPassword,
+		SslKeyFile:  replicasetSslKeyFile,
+		SslCertFile: replicasetSslCertFile,
+		SslCaFile:   replicasetSslCaFile,
+		SslCiphers:  replicasetSslCiphers,
+	}
+
+	merged, hostnames, reachable, err := discoverClusterTopology(&cmdCtx, backupPlanCfg, connectCtx)
+	if err != nil {
+		return backup.LiveTopology{}, fmt.Errorf("failed to discover cluster topology: %w", err)
+	}
+
+	return topologyToLive(replicasetsToTopology(merged, hostnames, reachable)), nil
+}
+
 func runBackupPlan(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
 
@@ -1256,24 +1320,13 @@ func runBackupPlan(cmd *cobra.Command, args []string) error {
 	// connection.
 	storageCfg, err := backupStorageConfigScoped()
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck
 	}
 
-	connectCtx := connect.ConnectCtx{
-		Username:    replicasetUser,
-		Password:    replicasetPassword,
-		SslKeyFile:  replicasetSslKeyFile,
-		SslCertFile: replicasetSslCertFile,
-		SslCaFile:   replicasetSslCaFile,
-		SslCiphers:  replicasetSslCiphers,
-	}
-
-	merged, hostnames, reachable, err := discoverClusterTopology(&cmdCtx, backupPlanCfg, connectCtx)
+	live, err := discoverLiveTopology()
 	if err != nil {
-		return fmt.Errorf("failed to discover cluster topology: %w", err)
+		return err //nolint:wrapcheck
 	}
-
-	live := topologyToLive(replicasetsToTopology(merged, hostnames, reachable))
 
 	ctx, cancel := storageContext(backupPlanTimeout)
 	defer cancel()
