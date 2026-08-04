@@ -712,12 +712,14 @@ func TestValidateFragmentsAgainstPlan(t *testing.T) {
 			}),
 		},
 		{
+			// A shard that produced nothing is not a disagreement about what was
+			// backed up: the aggregation records it as unreachable, and this
+			// check has nothing to say about it.
 			name:      "missing fragments",
 			fragments: []*Fragment{fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull)},
 			plan: planOf(BackupTypeFull, map[string]string{
 				testRSA: testInstanceA, testRSB: "", testRSC: "",
 			}),
-			wantErr: "missing for",
 		},
 		{
 			// A failover between plan and start: the backup exists, but it
@@ -789,16 +791,19 @@ func TestValidateFragmentsAgainstPlan(t *testing.T) {
 	}
 }
 
-func TestValidateFragmentsAgainstPlanMissingSorted(t *testing.T) {
-	// Missing UUIDs must appear sorted in the error message.
-	fragments := []*Fragment{{ReplicasetUUID: testRSA}}
-	plan := &BackupPlan{Replicasets: map[string]ReplicasetPlan{
-		testRSA: {}, testRSB: {}, testRSC: {},
-	}}
+// A plan tt wrote is authoritative about what the fragments say, but a
+// replicaset that produced no fragment is not something it can refuse: the run
+// that cannot back up a shard still backs up the others, and the manifest is
+// where that is recorded.
+func TestValidateFragmentsAgainstPlanIgnoresMissingFragments(t *testing.T) {
+	fragments := []*Fragment{fragmentOfPlan(testRSA, testInstanceA, BackupTypeFull)}
+	plan := planOf(BackupTypeFull, map[string]string{
+		testRSA: testInstanceA, testRSB: testInstanceB, testRSC: testInstanceB,
+	})
 
-	_, err := ValidateFragmentsAgainstPlan(fragments, plan, true)
-	require.Error(t, err)
-	assert.Less(t, strings.Index(err.Error(), testRSB), strings.Index(err.Error(), testRSC))
+	unchecked, err := ValidateFragmentsAgainstPlan(fragments, plan, true)
+	require.NoError(t, err)
+	assert.Empty(t, unchecked)
 }
 
 // A plan tt did not write states what the operator believes. tt compares the
@@ -826,13 +831,6 @@ func TestValidateFragmentsAgainstAHandWrittenPlan(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notes, 1)
 	assert.Contains(t, notes[0], "is not in the plan")
-
-	// What no plan can excuse: a replicaset it expects that produced no
-	// fragment at all. That is about the inputs of this run, not about what the
-	// plan believes -- a shard is missing from the backup either way.
-	_, err = ValidateFragmentsAgainstPlan(nil, plan, false)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing for")
 }
 
 // The checksum is what tells the two apart: tt signs the plan it produces, and
