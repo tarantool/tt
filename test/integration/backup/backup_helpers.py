@@ -119,9 +119,11 @@ def start_backup(tt, target, backup_id, from_vclock=None, ttl=None, config=None,
     return tt.exec(*args, **kwargs)
 
 
-def finalize_backup(tt, target, backup_id, config=None, **kwargs):
+def finalize_backup(tt, target, backup_id, config=None, force=False, **kwargs):
     """Run tt backup finalize. Same backup_id and kwargs contract as start_backup."""
     args = ["backup", "finalize", target]
+    if force:
+        args.append("--force")
     if backup_id is not None:
         args.extend(["--backup-id", backup_id])
     if config is not None:

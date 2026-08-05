@@ -32,8 +32,9 @@ var (
 	backupStartFromVclock string
 	backupStartTTL        time.Duration
 
-	backupFinalizeCfg string
-	backupFinalizeID  string
+	backupFinalizeCfg   string
+	backupFinalizeID    string
+	backupFinalizeForce bool
 
 	backupStorageConfig string
 	backupClusterName   string
@@ -293,7 +294,11 @@ func newBackupFinalizeCmd() *cobra.Command {
 		Use:   "finalize (<APP:INSTANCE>|<URI>) [flags]",
 		Short: "Close the backup on the instance and remove the local archive",
 		Long: `Run box.backup.stop() on the instance and remove the local .tar.zst
-archive. Idempotent: if the backup is already closed, it does not fail.`,
+archive. Idempotent: if the backup is already closed, it does not fail.
+
+--force closes whatever backup is open on the instance without naming a
+--backup-id, for when the id that opened it is unknown or not trusted. It
+only runs box.backup.stop(): no local archive or fragment is removed.`,
 		Args: cobra.ExactArgs(1),
 		RunE: runBackupFinalize,
 	}
@@ -301,8 +306,11 @@ archive. Idempotent: if the backup is already closed, it does not fail.`,
 	cmd.Flags().StringVarP(&backupFinalizeCfg, "config", "c", "",
 		"path to the cluster configuration file (for <APP:INSTANCE>)")
 	cmd.Flags().StringVar(&backupFinalizeID, "backup-id", "",
-		"backup identifier (required); local artifacts of the target replicaset are removed")
-	cmd.MarkFlagRequired("backup-id")
+		"backup identifier; local artifacts of the target replicaset are removed")
+	cmd.Flags().BoolVar(&backupFinalizeForce, "force", false,
+		"close whatever backup is open on the instance; removes no local file")
+	cmd.MarkFlagsOneRequired("backup-id", "force")
+	cmd.MarkFlagsMutuallyExclusive("backup-id", "force")
 
 	return cmd
 }
@@ -1319,8 +1327,10 @@ func runBackupStartInner(args []string) (string, error) {
 func runBackupFinalize(cmd *cobra.Command, args []string) error {
 	cmdCtx.CommandName = cmd.Name()
 
-	if err := backup.ValidateBackupID(backupFinalizeID); err != nil {
-		return err //nolint:wrapcheck
+	if !backupFinalizeForce {
+		if err := backup.ValidateBackupID(backupFinalizeID); err != nil {
+			return fmt.Errorf("invalid backup id: %w", err)
+		}
 	}
 
 	conn, err := dialBackupTarget(backupFinalizeCfg, args[0])
@@ -1328,6 +1338,13 @@ func runBackupFinalize(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to dial backup target %q: %w", args[0], err)
 	}
 	defer conn.Close()
+
+	if backupFinalizeForce {
+		if err := backup.CloseIfOpen(conn); err != nil {
+			return fmt.Errorf("failed to finalize backup: %w", err)
+		}
+		return nil
+	}
 
 	if err := backup.Stop(conn, backupFinalizeID); err != nil {
 		return fmt.Errorf("failed to finalize backup: %w", err)

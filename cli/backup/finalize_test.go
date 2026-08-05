@@ -138,3 +138,45 @@ func TestStop_instanceInfoErrorLeavesArtifacts(t *testing.T) {
 	require.ErrorContains(t, err, "failed to resolve instance metadata")
 	require.FileExists(t, archivePath)
 }
+
+func TestStopForce_closesOpenBackupAndTouchesNoFile(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	const backupID = "force-bid"
+	backupDir := filepath.Join(os.TempDir(), localBackupRootDir, backupID)
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
+	basePath := filepath.Join(backupDir, backupID+"-"+testReplicasetUUID)
+	archivePath := basePath + ".tar.zst"
+	fragmentPath := basePath + ".json"
+	require.NoError(t, os.WriteFile(archivePath, []byte("archive"), 0o644))
+	require.NoError(t, os.WriteFile(fragmentPath, []byte("fragment"), 0o644))
+
+	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	m := &mockEvaler{queue: [][]any{{info}, nil}}
+
+	require.NoError(t, CloseIfOpen(m))
+	require.True(t, slices.Contains(m.exprs, "box.backup.stop()"), "stop must be called")
+	require.FileExists(t, archivePath, "force must remove no local artifact")
+	require.FileExists(t, fragmentPath, "force must remove no local artifact")
+}
+
+func TestStopForce_noBackupOpenIsANoop(t *testing.T) {
+	m := &mockEvaler{queue: [][]any{nil}}
+
+	require.NoError(t, CloseIfOpen(m))
+	require.False(t, slices.Contains(m.exprs, "box.backup.stop()"), "stop must not be called")
+}
+
+func TestStopForce_infoError(t *testing.T) {
+	m := &mockEvaler{err: errors.New("boom"), errOn: 1}
+
+	err := CloseIfOpen(m)
+	require.ErrorContains(t, err, "boom")
+}
+
+func TestStopForce_stopErrorPropagates(t *testing.T) {
+	info := infoMap(walFiles, Vclock{1: 1500}, Vclock{1: 1502}, nil)
+	m := &mockEvaler{err: errors.New("boom"), errOn: 2, queue: [][]any{{info}}}
+
+	err := CloseIfOpen(m)
+	require.ErrorContains(t, err, "boom")
+}

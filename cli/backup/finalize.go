@@ -22,14 +22,8 @@ func Stop(conn connector.Connector, backupID string) error {
 		return err //nolint:wrapcheck
 	}
 
-	info, err := GetInfo(conn)
-	if err != nil {
-		return fmt.Errorf("failed to check backup state: %w", err)
-	}
-	if info != nil {
-		if err := stopBackup(conn); err != nil {
-			return fmt.Errorf("finalize: %w", err)
-		}
+	if err := CloseIfOpen(conn); err != nil {
+		return fmt.Errorf("failed to close backup: %w", err)
 	}
 
 	inst, err := GetInstanceInfo(conn)
@@ -61,6 +55,25 @@ func Stop(conn connector.Connector, backupID string) error {
 		if err := os.Remove(backupDir); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to remove empty backup directory %q: %w", backupDir, err)
 		}
+	}
+
+	return nil
+}
+
+// CloseIfOpen calls box.backup.stop() if a backup is currently open, and does
+// nothing if it is not.
+func CloseIfOpen(conn connector.Connector) error {
+	info, err := GetInfo(conn)
+	if err != nil {
+		return fmt.Errorf("failed to check backup state: %w", err)
+	}
+
+	if info == nil {
+		return nil
+	}
+
+	if err := stopBackup(conn); err != nil {
+		return fmt.Errorf("finalize: %w", err)
 	}
 
 	return nil

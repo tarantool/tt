@@ -230,11 +230,62 @@ def test_finalize_bad_config_names_the_path(tt, tt_app, tmp_path):
 
 @pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
 @pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_finalize_force_closes_open_backup_and_keeps_local_artifacts(tt, tt_app):
+    target = app_instance(tt_app, STORAGE_1_A)
+    backup_id = "itest-finalize-force"
+
+    rc, out = start_backup(tt, target, backup_id)
+    assert rc == 0, f"backup start failed:\n{out}"
+    archive_path = Path(archive_path_from_output(out))
+    fragment_path = Path(str(archive_path).removesuffix(".tar.zst") + ".json")
+
+    try:
+        rc, out = finalize_backup(tt, target, None, force=True)
+        assert rc == 0, f"tt backup finalize --force failed:\n{out}"
+
+        assert get_backup_info_app(tt, target) is None
+        assert archive_path.is_file(), "force must remove no local artifact"
+        assert fragment_path.is_file(), "force must remove no local artifact"
+    finally:
+        shutil.rmtree(backup_dir(backup_id), ignore_errors=True)
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_finalize_force_with_no_backup_open_is_a_noop(tt, tt_app):
+    target = app_instance(tt_app, STORAGE_1_A)
+
+    assert get_backup_info_app(tt, target) is None
+
+    rc, out = finalize_backup(tt, target, None, force=True)
+
+    assert rc == 0, f"tt backup finalize --force failed:\n{out}"
+    assert get_backup_info_app(tt, target) is None
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_finalize_force_and_backup_id_are_mutually_exclusive(tt, tt_app):
+    target = app_instance(tt_app, STORAGE_1_A)
+
+    rc, out = finalize_backup(tt, target, "itest-fin-both", force=True)
+
+    assert rc != 0, f"--force and --backup-id together must be rejected:\n{out}"
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
+def test_finalize_requires_backup_id_or_force(tt, tt_app):
+    target = app_instance(tt_app, STORAGE_1_A)
+
+    rc, out = finalize_backup(tt, target, None)
+
+    assert rc != 0, f"finalize with neither --backup-id nor --force must be rejected:\n{out}"
+
+
+@pytest.mark.skipif(not BACKUP_SUPPORTED, reason=skip_reason)
+@pytest.mark.tt_app(**TT_BACKUP_APP)
 def test_finalize_after_instance_restart(tt, tt_app):
-    """A restart takes the lease down with the process but leaves the archive
-    on the node, so finalize has to sweep artifacts that outlived the
-    box.backup namespace they were made in -- the state an orchestrator finds
-    after the instance was bounced mid-backup."""
     target = app_instance(tt_app, STORAGE_1_A)
     backup_id = "itest-fin-restart"
 
