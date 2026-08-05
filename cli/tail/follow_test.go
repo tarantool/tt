@@ -103,10 +103,6 @@ func TestFollow2_ReadExistingContent(t *testing.T) {
 }
 
 func TestFollow2_FollowNewContent(t *testing.T) {
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping flaky test on CI until issue #TNTP-3131 is fixed")
-	}
-
 	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -195,7 +191,7 @@ func TestFollow2_NonExistentFile(t *testing.T) {
 	}
 }
 
-func rotationTest(t *testing.T, use_delay bool) {
+func TestFollow2_FileRotation(t *testing.T) {
 	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -217,10 +213,6 @@ func rotationTest(t *testing.T, use_delay bool) {
 	err = os.Rename(lf, lf+".bak")
 	if err != nil {
 		t.Fatalf("Failed to rotate log file: %v", err)
-	}
-
-	if use_delay {
-		time.Sleep(500 * time.Millisecond) // Add delay to avoid flaky fails.
 	}
 
 	newFile, err := os.Create(lf)
@@ -247,37 +239,4 @@ func rotationTest(t *testing.T, use_delay bool) {
 
 	cancel()
 	f.Wait()
-}
-
-// TestFollow2_FileRotation_Flaky tests the file rotation with flaky retries.
-// It retries the test multiple times to handle potential flakiness in the tail library.
-// This is a workaround for the issue #TNTP-3131, where the tail library
-// does not handle file rotation correctly.
-//   - TODO: Need fix `tail` library, see #TNTP-3131 for more details.
-func TestFollow2_FileRotation_Flaky(t *testing.T) {
-	if os.Getenv("CI") != "" {
-		t.Skip("Skipping flaky test on CI until issue #TNTP-3131 is fixed")
-	}
-
-	const flakyRepeatCount = 3
-
-	test_pass := false
-
-	for i := range flakyRepeatCount {
-		t.Run(fmt.Sprintf("Rotation-%d", i+1), func(t *testing.T) {
-			rotationTest(t, i > 0)
-
-			test_pass = !t.Skipped()
-		})
-
-		if test_pass {
-			break
-		}
-
-		t.Logf("FLAKY test %s failed, retrying flaky test iteration", t.Name())
-	}
-
-	if !test_pass {
-		t.Fatalf("Test failed after all flaky iterations")
-	}
 }

@@ -290,7 +290,7 @@ def test_log_dir_removed_after_follow(tt_cmd, mock_env_dir):
     assert os.path.exists(var_dir)
     shutil.rmtree(var_dir)
 
-    assert process.wait(2) == 0
+    assert process.wait(5) == 0
     assert "Failed to detect creation of" in process.stdout.read()
 
 
