@@ -140,6 +140,45 @@ func TestAggregatePartialShard(t *testing.T) {
 	require.Equal(t, "wal copy interrupted", manifest.Shards[testRSB].Error)
 }
 
+// A fragment with no archive location and no Err must be treated exactly like
+// the Err case above -- shard_partial, no Instance, not a silently "successful"
+// shard with an empty artifact.path.
+func TestAggregateFragmentWithoutLocationIsPartial(t *testing.T) {
+	fragmentA := mustDecodeFragment(t, fixtureFragmentA)
+	fragmentB := mustDecodeFragment(t, fixtureFragmentB)
+
+	manifest, err := Aggregate(AggregateInput{
+		BackupID:         testBackupID,
+		BaseFullBackupID: testBackupID,
+		CreationTime:     testCreationTime(),
+		Topology:         topologyFromClusterManifestFixture(t, testRSA, testRSB),
+		Shards: []*ShardInput{
+			{
+				ReplicasetUUID: testRSA,
+				Fragment:       &fragmentA,
+				Location:       &ArtifactLocation{Path: "data/rs-a.tar.zst", SizeBytes: 42},
+			},
+			{
+				ReplicasetUUID: testRSB,
+				Fragment:       &fragmentB,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, manifest.Validate())
+	require.Equal(t, StatusDegraded, manifest.Status)
+
+	require.Len(t, manifest.Warnings, 1)
+	warning := manifest.Warnings[0]
+	require.Equal(t, WarnShardPartial, warning.Code)
+	require.Equal(t, testRSB, warning.Details["replicaset_uuid"])
+	require.Equal(t, fragmentB.InstanceUUID, warning.Details["instance_uuid"])
+
+	require.NotNil(t, manifest.Shards[testRSA].Instance)
+	require.Nil(t, manifest.Shards[testRSB].Instance)
+	require.NotEmpty(t, manifest.Shards[testRSB].Error)
+}
+
 func TestAggregateNilRecoveryPointsAddsWarningAndEmptySlice(t *testing.T) {
 	fragment := mustDecodeFragment(t, fixtureFragmentWithoutRecoveryPoints)
 
@@ -148,7 +187,11 @@ func TestAggregateNilRecoveryPointsAddsWarningAndEmptySlice(t *testing.T) {
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
-		Shards:           []*ShardInput{{ReplicasetUUID: testRSA, Fragment: &fragment}},
+		Shards: []*ShardInput{{
+			ReplicasetUUID: testRSA,
+			Fragment:       &fragment,
+			Location:       &ArtifactLocation{Path: "data/rs-a.tar.zst", SizeBytes: 42},
+		}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, StatusDegraded, manifest.Status)
@@ -166,7 +209,11 @@ func TestAggregateEmptyRecoveryPointsDoesNotAddWarning(t *testing.T) {
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
-		Shards:           []*ShardInput{{ReplicasetUUID: testRSA, Fragment: &fragment}},
+		Shards: []*ShardInput{{
+			ReplicasetUUID: testRSA,
+			Fragment:       &fragment,
+			Location:       &ArtifactLocation{Path: "data/rs-a.tar.zst", SizeBytes: 42},
+		}},
 	})
 	require.NoError(t, err)
 	require.Equal(t, StatusOK, manifest.Status)
@@ -200,7 +247,11 @@ func TestAggregateRejectsInvalidFragment(t *testing.T) {
 		BaseFullBackupID: testBackupID,
 		CreationTime:     testCreationTime(),
 		Topology:         topologyFromClusterManifestFixture(t, testRSA),
-		Shards:           []*ShardInput{{ReplicasetUUID: testRSA, Fragment: &fragment}},
+		Shards: []*ShardInput{{
+			ReplicasetUUID: testRSA,
+			Fragment:       &fragment,
+			Location:       &ArtifactLocation{Path: "data/rs-a.tar.zst", SizeBytes: 42},
+		}},
 	})
 	require.ErrorContains(t, err, "invalid backup type")
 }

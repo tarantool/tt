@@ -163,6 +163,16 @@ func aggregateShard(manifest *ClusterManifest, shardInput *ShardInput) error {
 		)
 	}
 
+	if shardInput.Location == nil {
+		reason := "fragment present but no archive location given"
+		manifest.Shards[replicasetUUID] = Shard{Error: reason}
+		manifest.Warnings = append(
+			manifest.Warnings,
+			NewShardPartialWarning(replicasetUUID, shardInput.Fragment.InstanceUUID, reason),
+		)
+		return nil
+	}
+
 	aggregateSuccessfulShard(manifest, replicasetUUID, shardInput)
 	return nil
 }
@@ -186,10 +196,7 @@ func aggregateSuccessfulShard(
 	shardInput *ShardInput,
 ) {
 	fragment := shardInput.Fragment
-	location := ArtifactLocation{}
-	if shardInput.Location != nil {
-		location = *shardInput.Location
-	}
+	location := *shardInput.Location
 
 	manifest.Shards[replicasetUUID] = Shard{
 		Instance: &ShardInstance{
