@@ -32,7 +32,7 @@ require (
 	github.com/tarantool/go-iproto v1.1.0
 	github.com/tarantool/go-prompt v1.0.1
 	github.com/tarantool/go-storage v1.5.0
-	github.com/tarantool/go-tail v1.4.14
+	github.com/tarantool/go-tail v1.4.15-0.20260806154205-254b9b0cd094
 	github.com/tarantool/go-tarantool v1.12.3
 	github.com/tarantool/go-tarantool/v2 v2.4.2
 	github.com/tarantool/go-xlog v0.0.0-20260707203858-fed522934686

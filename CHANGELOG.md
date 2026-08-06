@@ -167,6 +167,9 @@ and fixes line loss and hangs in `tt log -f` around log rotation.
 - `tt log -f`: possible line loss/duplication on rename, hanging after
   a watched log directory is removed, and lines written just as the
   file was read to the end not showing up until the next write.
+- `tt log -f` / `tt tcm log --follow`: a line could be delivered twice
+  right after a log rotation, and the follow could stall, never picking
+  up the rotated file (go-tail v1.4.15).
 
 ## [2.13.0] - 2026-05-21
 
