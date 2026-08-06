@@ -217,7 +217,8 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 					if err != nil {
 						log.Error(err.Error())
 					} else {
-						log.Errorf("The log file %q is unavailable for reading. Exiting.")
+						log.Errorf("The log file %q is unavailable for reading. Exiting.",
+							t.Filename)
 					}
 					return
 				}
