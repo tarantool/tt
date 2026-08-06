@@ -86,16 +86,18 @@ func (f *fileFollower) tryReopenTailer(ctx context.Context, cfg *tail.Config) (*
 	}
 
 	for i := range maxRetriesReopen {
-		timer := time.NewTimer(retryOpenDelay)
-		defer timer.Stop()
+		if i > 0 {
+			timer := time.NewTimer(retryOpenDelay)
 
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("context (%w) while waiting to retry for %q",
-				ctx.Err(), f.name)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, fmt.Errorf("context (%w) while waiting to retry for %q",
+					ctx.Err(), f.name)
 
-		case <-timer.C:
-			log.Infof("Wake up to retry tailing %q", f.name)
+			case <-timer.C:
+				log.Infof("Wake up to retry tailing %q", f.name)
+			}
 		}
 
 		newT, err := tail.TailFile(f.name, newCfg)
@@ -139,7 +141,11 @@ func (f *fileFollower) handleTailerStopStatus(ctx context.Context, curT *tail.Ta
 		return t, nil
 	}
 
-	return nil, fmt.Errorf("failed to stop tailer for %q: %w", f.name, stopErr)
+	if stopErr != nil {
+		return nil, fmt.Errorf("failed to stop tailer for %q: %w", f.name, stopErr)
+	}
+
+	return nil, fmt.Errorf("tailer for %q stopped unexpectedly", f.name)
 }
 
 func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- string) {
