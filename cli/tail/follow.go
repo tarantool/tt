@@ -229,7 +229,12 @@ func (f *fileFollower) startFollowing(ctx context.Context, out chan<- string, li
 		MustExist: true,
 		Follow:    true,
 		ReOpen:    true,
-		Logger:    tail.DiscardingLogger,
+		// Half-written lines stay buffered until their newline arrives:
+		// yielding them early would split a log record in two, and the
+		// seek-to-end after an early yield can skip bytes appended in
+		// the meantime.
+		CompleteLines: true,
+		Logger:        tail.DiscardingLogger,
 	}
 
 	t, err := tail.TailFile(f.name, tCfg)

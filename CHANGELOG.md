@@ -158,6 +158,9 @@ and fixes line loss and hangs in `tt log -f` around log rotation.
   backup take a cluster-wide recovery point.
 - `tt backup`: remove `creation_duration` from the cluster manifest — the
   field was unused and is no longer serialized.
+- `tt log -f` / `tt tcm log --follow`: only complete lines are printed. A
+  half-written line stays buffered until its newline arrives instead of
+  being split into two records.
 
 ### Fixed
 
