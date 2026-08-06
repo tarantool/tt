@@ -191,10 +191,14 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 			Offset: startPos,
 			Whence: io.SeekStart,
 		},
-		MustExist:     true,
-		Follow:        true,
-		ReOpen:        true,
-		CompleteLines: false,
+		MustExist: true,
+		Follow:    true,
+		ReOpen:    true,
+		// Half-written lines stay buffered until their newline arrives:
+		// yielding them early would split a log record in two, and the
+		// seek-to-end after an early yield can skip bytes appended in
+		// the meantime.
+		CompleteLines: true,
 		Logger:        tail.DiscardingLogger,
 	})
 	if err != nil {
