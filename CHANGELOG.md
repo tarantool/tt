@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.14.0] - 2026-08-06
+
+This release introduces cluster backup and restore: `tt backup` plans a
+backup, takes it on the nodes, uploads the archives with a cluster manifest
+to file or S3 storage, and verifies and prunes that storage, while
+`tt restore` plans a recovery point and prepares the instance work
+directories for it. It also adds cluster topology discovery with
+`tt cluster topology` and the `\history` command in the interactive console,
+and fixes line loss and hangs in `tt log -f` around log rotation.
+
+### Added
+
 - `tt backup start` and `tt backup finalize`: add support for creating and
   finalizing local backup artifacts. `--backup-id` must be a single safe path
   component: it names a directory and a file on the node and an object key in
@@ -113,17 +129,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   restored into a healthy-looking instance sitting at the wrong position.
   Re-running for the same point is idempotent, and only the files a restore
   owns are cleared, so an instance config kept in the same directory survives.
-  Exits
-  with 2 when no xlog covers the point and 3 when an input is rejected, in
-  which case the work directory is left as it was. A `restore_state.json`
-  marker is written next to the work directory for the orchestrator to
-  compare across the restored nodes before the cluster is started.
+  Exits with 2 when no xlog covers the point and 3 when an input is
+  rejected, in which case the work directory is left as it was. A
+  `restore_state.json` marker is written next to the work directory for the
+  orchestrator to compare across the restored nodes before the cluster is
+  started.
 - `tt connect`: add `\history` command to display the last executed
   commands in the interactive console.
 
 ### Changed
 
-- `tt stop`: preliminary interrupts the processes to enable parallel termination.
+- `tt stop`: preliminary interrupts the processes to enable parallel
+  termination.
 - `tt create vshard_cluster`: the generated rockspec now pins `vshard 0.1.42`
   instead of `0.1.25`. 0.1.42 is the first release shipping the `vshard-router`
   backend of the `roles.recovery-point-manager` role, which is what lets a
@@ -224,8 +241,9 @@ docker container used by these commands is upgraded to Ubuntu 20.04.
 
 ## [2.11.0] - 2025-09-10
 
-The release supports Tarantool Config Storage in `tt cluster failover` commands and
-introduces templates to create Tarantool Config Storage and non-vshard cluster.
+The release supports Tarantool Config Storage in `tt cluster failover`
+commands and introduces templates to create Tarantool Config Storage and
+non-vshard cluster.
 
 ### Added
 
