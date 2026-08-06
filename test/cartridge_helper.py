@@ -21,6 +21,10 @@ cartridge_name = "cartridge_app"
 cartridge_username = "admin"
 cartridge_password = "secret-cluster-cookie"
 
+# The default 10s is not enough for a two-phase commit over the whole cluster
+# on a loaded CI runner.
+bootstrap_timeout = 60
+
 instances = [
     "router",
     "s1-master",
@@ -111,6 +115,30 @@ def wait_inst_files(dir, inst):
     assert file != ""
 
 
+# Cartridge logs every confapplier state change, e.g.
+# "Instance state changed: ConfiguringRoles -> RolesConfigured".
+state_change_re = re.compile(r"Instance state changed: \S+ -> (\S+)")
+
+
+def wait_inst_roles_configured(dir, inst):
+    # The last recorded transition is checked instead of the mere presence of one:
+    # every clusterwide config apply drives the instance through ConfiguringRoles
+    # again, and a 2PC started before it settles is rejected with a Prepare2pcError.
+    log = os.path.join(dir, cartridge_name, log_path, inst, log_file)
+    state = None
+    trying = 0
+    while trying < 200:
+        with open(log, "r") as fp:
+            states = state_change_re.findall(fp.read())
+        if states:
+            state = states[-1]
+            if state == "RolesConfigured":
+                return
+        time.sleep(0.05)
+        trying = trying + 1
+    assert state == "RolesConfigured", f"{inst} is in state {state}, expected RolesConfigured"
+
+
 def wait_inst_start(dir, inst):
     wait_inst_files(dir, inst)
 
@@ -198,7 +226,14 @@ class CartridgeApp:
         self.bootstrap(bootstrap_vshard=bootstrap_vshard)
 
     def bootstrap(self, bootstrap_vshard=True):
-        cmd = [self.tt_cmd, "replicaset", "bootstrap", cartridge_name]
+        cmd = [
+            self.tt_cmd,
+            "replicaset",
+            "bootstrap",
+            "--timeout",
+            str(bootstrap_timeout),
+            cartridge_name,
+        ]
         if bootstrap_vshard:
             cmd.append("--bootstrap-vshard")
         rc, out = run_command_and_get_output(cmd, cwd=self.workdir)
@@ -206,26 +241,13 @@ class CartridgeApp:
         assert re.search(r"Done.", out)
 
         # Wait until the instances are configured.
+        self.wait_roles_configured()
+
+    def wait_roles_configured(self):
         for inst in self.instances:
             if inst == "stateboard":
                 continue
-            configured = False
-            log_dir = os.path.join(self.workdir, cartridge_name, log_path, inst)
-            trying = 0
-            while not configured and trying < 200:
-                with open(os.path.join(log_dir, log_file), "r") as fp:
-                    lines = fp.readlines()
-                    lines = [line.rstrip() for line in lines]
-                for line in lines:
-                    if re.search(
-                        r"Instance state changed: ConfiguringRoles -> RolesConfigured",
-                        line,
-                    ):
-                        configured = True
-                        break
-                time.sleep(0.05)
-                trying = trying + 1
-            assert configured is True
+            wait_inst_roles_configured(self.workdir, inst)
 
     def set_failover(self, data):
         with open(os.path.join(self.workdir, cartridge_name, "failover.yml"), "w") as f:
@@ -234,6 +256,10 @@ class CartridgeApp:
         rc, out = run_command_and_get_output(cmd, cwd=os.path.join(self.workdir, cartridge_name))
         assert rc == 0
         assert re.search(r"Failover configured successfully", out)
+        # Failover setup patches the clusterwide config, so the instances reconfigure
+        # their roles once more. Without waiting for that, a command issued right away
+        # races with the reconfiguration and fails to start its own 2PC.
+        self.wait_roles_configured()
 
     def stop(self):
         cmd = [self.tt_cmd, "stop", "-y", cartridge_name]
