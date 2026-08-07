@@ -254,10 +254,7 @@ def test_log_rotate(
     tmp_log.rename(tmp_log.with_suffix(".bak"))
     assert not tmp_log.exists(), "Temporary log file should be deleted."
 
-    # Create the replacement separately so the asynchronous reopen path can
-    # attach its watcher before new records are written.
     tmp_log.touch()
-    time.sleep(0.5)
 
     new_lines, cnt_lines = handle_updating_logs(reader, tmp_log, mode, delay_time, is_append=True)
     stdout_lines.extend(new_lines)
