@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `status`: added `--instance-timeout` flag to bound how long collecting a single
+  instance's status may take.
 - `tt package build`: build a manifest package (`app.manifest.toml`) into
   `.rocks/` — resolve and lock dependencies, materialize the pinned closure,
   run each component's build backend, lay component files out under their
@@ -239,6 +241,8 @@ for machine-readable output.
   `github.com/tarantool/tt/sdk/connect`, `github.com/tarantool/tt/sdk/dial`
   and `github.com/tarantool/tt/sdk/integrity`. Their API is alpha and may
   change incompatibly.
+- `status`: status requests now have a default timeout of 5 seconds.
+- `status`: status requests were parallelized for faster collection.
 - Updated Go client dependencies to `go-tarantool/v3`, `go-config/v2`,
   `go-storage/v2`, and `go-tlsdialer/v2`.
 - TLS build modes are now selected through `TT_CLI_BUILD_SSL`: leave it unset or
@@ -339,6 +343,7 @@ for machine-readable output.
 
 ### Fixed
 
+<<<<<<< HEAD
 - A second `tt tcm start --watchdog` in a directory where one runs is refused
   before it starts anything. Before, it started a second TCM and stopped it
   again once it found the pid file taken.
@@ -358,6 +363,9 @@ for machine-readable output.
   still names the killed watchdog.
 - Signals sent to an instance while its watchdog stops it are handled at once
   instead of after the stop, which could take 30 seconds.
+=======
+- `status`: replication errors were ignored.
+>>>>>>> 1c0a01d2 (status: add parallel status execution)
 - Table formatter: fix a potential panic when the scalar encoder receives a
   `float32` value. Format it with 32-bit precision while preserving the existing
   `float64` formatting.

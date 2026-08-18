@@ -2120,10 +2120,12 @@ Columns:
   tt status [<APP_NAME> | <APP_NAME:INSTANCE_NAME>] [flags]
 [0;1;39m
 FLAGS[0m
-  -d, --details         print detailed alerts.
-  -f, --format string   output format: json, yaml, table, pretty-table (default
-                        "table")
-  -h, --help            help for status
+  -d, --details                     print detailed alerts.
+  -f, --format string               output format: json, yaml, table,
+                                    pretty-table (default "table")
+  -h, --help                        help for status
+      --instance-timeout duration   timeout for collecting a single instance's
+                                    status; 0 disables the timeout (default 5s)
 
 === tt stop --help
 Stop tarantool instance(s)
