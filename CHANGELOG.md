@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `status`: added `--instance-timeout` flag to bound how long collecting a single
+  instance's status may take.
 - `tt package build`: build a manifest package (`app.manifest.toml`) into
   `.rocks/` — resolve and lock dependencies, materialize the pinned closure,
   run each component's build backend, lay component files out under their
@@ -166,6 +168,8 @@ for machine-readable output.
 
 ### Changed
 
+- `status`: status requests now have a default timeout of 5 seconds.
+- `status`: status requests were parallelized for faster collection.
 - Updated Go client dependencies to `go-tarantool/v3`, `go-config/v2`,
   `go-storage/v2`, and `go-tlsdialer/v2`.
 - TLS build modes are now selected through `TT_CLI_BUILD_SSL`: leave it unset or
@@ -219,6 +223,7 @@ for machine-readable output.
 
 ### Fixed
 
+- `status`: replication errors were ignored.
 - Table formatter: fix a potential panic when the scalar encoder receives a
   `float32` value. Format it with 32-bit precision while preserving the existing
   `float64` formatting.

@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/cmd/internal"
@@ -23,6 +24,10 @@ type statusOpts struct {
 	details bool
 	// Deprecated: use --format instead.
 	pretty bool
+	// instanceTimeout bounds how long collecting a single instance's status may
+	// take, so that one stuck instance can't hang the whole command. Zero disables
+	// the timeout.
+	instanceTimeout time.Duration
 }
 
 var opts statusOpts
@@ -66,6 +71,9 @@ Columns:
 	statusCmd.Flags().BoolVarP(&opts.pretty, "pretty", "p", false,
 		"output a pretty-formatted table (deprecated, use --format instead)")
 	_ = statusCmd.Flags().MarkDeprecated("pretty", "use --format instead")
+	statusCmd.Flags().DurationVar(&opts.instanceTimeout, "instance-timeout",
+		status.DefaultInstanceTimeout,
+		"timeout for collecting a single instance's status; 0 disables the timeout")
 
 	return statusCmd
 }
@@ -111,5 +119,8 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		printer = status.NewTablePrinter(status.WithDetails(opts.details))
 	}
 
-	return status.Status(runningCtx, printer)
+	if err := status.Status(runningCtx, printer, opts.instanceTimeout); err != nil {
+		return fmt.Errorf("failed to get status: %w", err)
+	}
+	return nil
 }
