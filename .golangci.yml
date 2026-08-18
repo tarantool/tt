@@ -674,10 +674,12 @@ linters:
             - "github.com/fatih/color"
             - "github.com/jedib0t/go-pretty/v6"
             - "github.com/mitchellh/mapstructure"
+            - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/v3/cli/connector"
             - "github.com/tarantool/tt/v3/cli/process_utils"
             - "github.com/tarantool/tt/v3/cli/running"
             - "github.com/tarantool/tt/v3/cli/status"
+            - "golang.org/x/sync/semaphore"
             - "gopkg.in/yaml.v3"
         dir-cli-tail:
           files:
