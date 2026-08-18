@@ -335,13 +335,13 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 	return script, nil
 }
 
-// loadInstanceConfig load instance configuration from cluster config.
-func loadInstanceConfig(configPath, instName string,
+// loadClusterConfig reads and parses a cluster config.
+func loadClusterConfig(configPath string,
 	integrityCtx integrity.IntegrityCtx,
-) (libcluster.InstanceConfig, error) {
-	var instCfg libcluster.InstanceConfig
+) (libcluster.ClusterConfig, error) {
+	var clusterCfg libcluster.ClusterConfig
 	if configPath == "" {
-		return instCfg, nil
+		return clusterCfg, nil
 	}
 
 	var dataCollectors libcluster.DataCollectorFactory
@@ -349,7 +349,7 @@ func loadInstanceConfig(configPath, instName string,
 	if err == integrity.ErrNotConfigured {
 		dataCollectors = libcluster.NewDataCollectorFactory()
 	} else if err != nil {
-		return instCfg,
+		return clusterCfg,
 			fmt.Errorf("failed to create collectors with integrity check: %w", err)
 	} else {
 		dataCollectors = libcluster.NewIntegrityDataCollectorFactory(checkFunc,
@@ -359,12 +359,24 @@ func loadInstanceConfig(configPath, instName string,
 	}
 	collectors := libcluster.NewCollectorFactory(dataCollectors)
 
-	clusterCfg, err := cluster.GetClusterConfig(collectors, configPath)
+	clusterCfg, err = cluster.GetClusterConfig(collectors, configPath)
 	if err != nil {
-		return instCfg, err
+		return clusterCfg, fmt.Errorf("failed to get cluster config: %w", err)
 	}
-	if instCfg, err = cluster.GetInstanceConfig(clusterCfg, instName); err != nil {
-		return instCfg, err
+	return clusterCfg, nil
+}
+
+// loadInstanceConfig derives an instance configuration from an
+// cluster config.
+func loadInstanceConfig(clusterCfg libcluster.ClusterConfig, configPath,
+	instName string,
+) (libcluster.InstanceConfig, error) {
+	if configPath == "" {
+		return libcluster.InstanceConfig{}, nil
+	}
+	instCfg, err := cluster.GetInstanceConfig(clusterCfg, instName)
+	if err != nil {
+		return instCfg, fmt.Errorf("failed to get instance config: %w", err)
 	}
 	return instCfg, nil
 }
@@ -418,6 +430,13 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 	if err != nil {
 		return nil, err
 	}
+
+	clusterCfg, err := loadClusterConfig(appDirFiles.clusterCfgPath, integrityCtx)
+	if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
+		return nil, fmt.Errorf("error loading cluster configuration from config %q: %w",
+			appDirFiles.clusterCfgPath, err)
+	}
+
 	log.Debug("Processing application instances file")
 	instances := []InstanceCtx{}
 	for inst := range instParams {
@@ -433,8 +452,8 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 		}
 		log.Debugf("Instance %q", instance.InstName)
 
-		instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
-			instance.InstName, integrityCtx)
+		instance.Configuration, err = loadInstanceConfig(clusterCfg,
+			instance.ClusterConfigPath, instance.InstName)
 		if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
 			return instances, fmt.Errorf("error loading instance %q configuration from "+
 				"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
