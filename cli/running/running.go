@@ -295,16 +295,32 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 	return script, nil
 }
 
-// loadInstanceConfig loads instance configuration from cluster config.
-func loadInstanceConfig(configPath, instName string,
+// loadClusterConfig reads and parses a cluster config.
+func loadClusterConfig(configPath string,
 	integrityCtx integrity.IntegrityCtx,
-) (*goconfig.Config, error) {
+) (*goconfig.MutableConfig, error) {
+	if configPath == "" {
+		return nil, nil //nolint:nilnil // Script applications have no cluster configuration.
+	}
+
 	cfg, err := cluster.GetClusterConfig(context.Background(), configPath, integrityCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	instCfg, err := cluster.GetInstanceConfig(cfg, instName)
+	return cfg, nil
+}
+
+// loadInstanceConfig derives an instance configuration from a
+// cluster config.
+func loadInstanceConfig(clusterCfg *goconfig.MutableConfig,
+	instName string,
+) (*goconfig.Config, error) {
+	if clusterCfg == nil {
+		return nil, nil //nolint:nilnil // No cluster configuration means no instance configuration.
+	}
+
+	instCfg, err := cluster.GetInstanceConfig(clusterCfg, instName)
 	if err != nil {
 		return nil, err
 	}
@@ -383,6 +399,12 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 		return nil, err
 	}
 
+	clusterCfg, err := loadClusterConfig(appDirFiles.clusterCfgPath, integrityCtx)
+	if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
+		return nil, fmt.Errorf("error loading cluster configuration from config %q: %w",
+			appDirFiles.clusterCfgPath, err)
+	}
+
 	log.Debug("Processing application instances file")
 
 	instances := []InstanceCtx{}
@@ -425,8 +447,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 		log.Debugf("Instance %q", instance.InstName)
 
 		if instance.ClusterConfigPath != "" {
-			instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
-				instance.InstName, integrityCtx)
+			instance.Configuration, err = loadInstanceConfig(clusterCfg, instance.InstName)
 			if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
 				return instances, fmt.Errorf("error loading instance %q configuration from "+
 					"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
