@@ -48,6 +48,7 @@ require (
 	go.etcd.io/etcd/tests/v3 v3.6.8
 	golang.org/x/crypto v0.51.0
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
+	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.45.0
 	golang.org/x/term v0.43.0
 	google.golang.org/grpc v1.79.3
@@ -179,7 +180,6 @@ require (
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/net v0.53.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools/godoc v0.1.0-deprecated // indirect
