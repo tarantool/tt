@@ -9,9 +9,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `status`: added `--instance-timeout` flag to bound how long collecting a single
+  instance's status may take.
+
 ### Changed
 
+- `status`: status requests now have a default timeout of 5 seconds.
+- `status`: status requests were parallelized for faster collection.
+
 ### Fixed
+
+- `status`: replication errors were ignored.
 
 ## [2.14.0] - 2026-08-06
 

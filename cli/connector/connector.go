@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/tarantool/go-tarantool"
@@ -17,6 +18,59 @@ const (
 	maxSocketPathLinux       = 108
 	maxSocketPathMac         = 106
 )
+
+// connectMutex serializes connections that depend on the process-wide working
+// directory. prepareUnixAddress may temporarily change it to shorten a socket path.
+var connectMutex sync.Mutex
+
+// unixSocketPathLimit returns the maximum socket path length for the current OS.
+func unixSocketPathLimit() int {
+	if runtime.GOOS == "darwin" {
+		return maxSocketPathMac
+	}
+	return maxSocketPathLinux
+}
+
+// prepareUnixAddress prepares a Unix socket address for use with Tarantool.
+func prepareUnixAddress(address string) (string, func(), error) {
+	maxSocketPath := unixSocketPathLimit()
+
+	pathNeedsShortening := len(address)+1 > maxSocketPath
+	if filepath.IsAbs(address) && !pathNeedsShortening {
+		return address, nil, nil
+	}
+
+	shortAddress := "./" + filepath.Base(address)
+	if pathNeedsShortening && len(shortAddress)+1 > maxSocketPath {
+		return "", nil, fmt.Errorf("socket name is longer than %d symbols: %s",
+			maxSocketPath-3, filepath.Base(address))
+	}
+
+	// Relative paths also depend on the process-wide working directory.
+	connectMutex.Lock() // Unlock in cleanup.
+
+	if !pathNeedsShortening {
+		return address, connectMutex.Unlock, nil
+	}
+
+	workDir, err := os.Getwd()
+	if err != nil {
+		connectMutex.Unlock()
+		return "", nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	if err := os.Chdir(filepath.Dir(address)); err != nil {
+		connectMutex.Unlock()
+		return "", nil, fmt.Errorf("failed to change directory to socket directory: %w", err)
+	}
+
+	cleanup := func() {
+		_ = os.Chdir(workDir)
+		connectMutex.Unlock()
+	}
+
+	return shortAddress, cleanup, nil
+}
 
 // RequestOpts describes the parameters of a request to be executed.
 type RequestOpts struct {
@@ -43,29 +97,20 @@ type Connector interface {
 
 // Connect connects to the tarantool instance according to options.
 func Connect(opts ConnectOpts) (Connector, error) {
-	// It became common that address is longer than 108 symbols(sun_path limit).
-	// To reduce length of address we use relative path
-	// with chdir into a directory of socket.
-	// e.g foo/bar/123.sock -> ./123.sock
-	workDir, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	maxSocketPath := maxSocketPathLinux
-	if runtime.GOOS == "darwin" {
-		maxSocketPath = maxSocketPathMac
-	}
-
-	if _, err := os.Stat(opts.Address); err == nil {
-		os.Chdir(filepath.Dir(opts.Address))
-		opts.Address = "./" + filepath.Base(opts.Address)
-		if len(opts.Address)+1 > maxSocketPath {
-			return nil, fmt.Errorf("socket name is longer than %d symbols: %s",
-				maxSocketPath-3, filepath.Base(opts.Address))
+	if opts.Network == "unix" {
+		address, cleanup, err := prepareUnixAddress(opts.Address)
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare unix socket address: %w", err)
 		}
-		defer os.Chdir(workDir)
+
+		if cleanup != nil {
+			defer cleanup()
+		}
+
+		// Use the short address if it was prepared.
+		opts.Address = address
 	}
+
 	// Connect to specified address.
 	greetingConn, err := net.Dial(opts.Network, opts.Address)
 	if err != nil {
@@ -85,6 +130,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 			protocol = BinaryProtocol
 			transport = "ssl"
 		} else {
+			greetingConn.Close()
 			return nil, fmt.Errorf("failed to get protocol: %s", err)
 		}
 	} else if ssl {
