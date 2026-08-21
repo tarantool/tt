@@ -51,7 +51,7 @@ type EtcdOpts struct {
 func ConnectEtcd(opts EtcdOpts) (*clientv3.Client, error) {
 	var tlsConfig *tls.Config = nil
 	if opts.KeyFile != "" || opts.CertFile != "" || opts.CaFile != "" ||
-		opts.CaPath != "" || opts.SkipHostVerify {
+		opts.CaPath != "" || opts.SkipHostVerify || hasSecureEndpoint(opts.Endpoints) {
 
 		tlsInfo := transport.TLSInfo{
 			CertFile:      opts.CertFile,
@@ -73,7 +73,7 @@ func ConnectEtcd(opts EtcdOpts) (*clientv3.Client, error) {
 			}
 		}
 
-		if opts.SkipHostVerify {
+		if shouldSkipEtcdHostVerify(opts) {
 			tlsConfig.InsecureSkipVerify = true
 		}
 	}
@@ -87,6 +87,24 @@ func ConnectEtcd(opts EtcdOpts) (*clientv3.Client, error) {
 		Logger:      zap.NewNop(),
 		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 	})
+}
+
+// hasSecureEndpoint returns true if any of the endpoints uses the "https"
+// scheme.
+func hasSecureEndpoint(endpoints []string) bool {
+	for _, endpoint := range endpoints {
+		if strings.HasPrefix(endpoint, "https://") {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldSkipEtcdHostVerify returns true when host verification is explicitly
+// disabled or HTTPS is used without a custom CA.
+func shouldSkipEtcdHostVerify(opts EtcdOpts) bool {
+	return opts.SkipHostVerify ||
+		(hasSecureEndpoint(opts.Endpoints) && opts.CaFile == "" && opts.CaPath == "")
 }
 
 // EtcdGetter is the interface that wraps get from etcd method.

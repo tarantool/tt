@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `status`: replication errors were ignored.
+- `tt cluster publish` / `tt cluster show`: fix a connection timeout to an
+  `https://` Tarantool Config Storage or etcd endpoint with SSL enabled but no
+  client certificate configured.
 
 ## [2.14.0] - 2026-08-06
 

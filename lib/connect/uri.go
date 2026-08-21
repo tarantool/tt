@@ -68,6 +68,8 @@ const (
 type UriOpts struct {
 	// Endpoint is a an endpoint to connect: [scheme://]host[:port].
 	Endpoint string
+	// Scheme is a scheme part of the URI (e.g. "tcp", "https").
+	Scheme string
 	// Host is a an address to connect: host[:port].
 	Host string
 	// Prefix is a configuration prefix.
@@ -235,6 +237,7 @@ func parseUriOpts(uri *url.URL) (UriOpts, error) {
 	opts := UriOpts{
 		Endpoint: endpoint.String(),
 		Host:     uri.Host,
+		Scheme:   uri.Scheme,
 		Prefix:   uri.Path,
 		Tag:      uri.Fragment,
 		Username: uri.User.Username(),

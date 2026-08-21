@@ -581,6 +581,11 @@ func ConnectTarantool(uriOpts libconnect.UriOpts,
 		SslCaFile:   uriOpts.CaFile,
 		SslCiphers:  uriOpts.Ciphers,
 	}
+	if uriOpts.Scheme == "https" {
+		// The "https" scheme means the user explicitly requested a secure
+		// connection, even if no ssl_* URI parameters were passed.
+		dialOpts.Transport = "ssl"
+	}
 
 	dialer, err := dial.New(dialOpts)
 	if err != nil {
