@@ -19,7 +19,17 @@ import (
 	"github.com/tarantool/tt/lib/integrity"
 )
 
-const addAction = true
+const (
+	addAction = true
+
+	clusterHTTPSHelp = `HTTPS connection behavior:
+* The https:// scheme enables SSL for both etcd and Tarantool Config Storage
+  (TCS), even when no ssl_* URL arguments are specified.
+* If no CA certificate is specified, host verification is skipped for both
+  etcd and TCS.
+* Do not mix http:// and https:// addresses in the same endpoint list. If any
+  endpoint uses https://, SSL is enabled for all endpoints.`
+)
 
 var showCtx = clustercmd.ShowCtx{
 	Username: "",
@@ -98,7 +108,9 @@ var (
 		"param_name":           "a name of an instance in the cluster configuration",
 		"env_TT_CLI_auth":      "Tarantool",
 		"env_TT_CLI_ETCD_auth": "Etcd",
-		"footer": `The priority of credentials:
+		"footer": clusterHTTPSHelp + `
+
+The priority of credentials:
 environment variables < command flags < URL credentials.`,
 	})
 
