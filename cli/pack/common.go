@@ -504,7 +504,6 @@ func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
 	return nil
 }
 
-// TODO replace by tt enable
 // createAppSymlink creates a relative link for an application that must be packed.
 func createAppSymlink(appPath, appName, instancesEnabledDir string) error {
 	var err error

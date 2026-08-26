@@ -521,10 +521,6 @@ from repository `tt` can be used along with `tarantoolctl` for managing
 applications instances. Here is an example:
 
 ``` text
-$ sudo tt instances
-List of enabled applications:
-• example
-
 $ tarantoolctl start example
 Starting instance example...
 Forwarding to 'systemctl start tarantool@example'
@@ -611,4 +607,3 @@ Forwarding to 'systemctl status tarantool@example'
     - 42
     ...
 ```
-
