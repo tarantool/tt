@@ -25,7 +25,6 @@ func TestCheckConfig(t *testing.T) {
 		{"clean", internalCleanModule(&cmdcontext.CmdCtx{}, nil)},
 		{"create", internalCreateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"install", internalInstallModule(&cmdcontext.CmdCtx{}, nil)},
-		{"instances", internalInstancesModule(&cmdcontext.CmdCtx{}, nil)},
 		{"logrotate", internalLogrotateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"pack", internalPackModule(&cmdcontext.CmdCtx{}, nil)},
 		{"restart", internalRestartModule(&cmdcontext.CmdCtx{}, nil)},

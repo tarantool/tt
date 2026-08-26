@@ -659,15 +659,12 @@ Common description. For a detailed description, use `tt help command` .
 - `daemon (experimental)` - manage tt daemon.
 - `cfg dump` - print tt environment configuration.
 - `pack` - pack an environment into a tarball/RPM/Deb.
-- `instances` - show enabled applications.
 - `binaries list` - show a list of installed binaries and their versions.
 - `binaries switch` - switch to installed binary.
 - `cluster` - manage cluster configuration.
 - `env` - add current environment binaries location to the PATH variable.
 - `replicaset` - manage replicasets.
 - `download` - download Tarantool SDK.
-- `enable` - create a symbolic link in 'instances_enabled' directory to a script
-   or an application directory.
 
 [godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/tt.svg
 [godoc-url]: https://pkg.go.dev/github.com/tarantool/tt
