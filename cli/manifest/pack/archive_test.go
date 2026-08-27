@@ -93,8 +93,8 @@ func TestWriteArchiveRoundTrip(t *testing.T) {
 	}
 }
 
-// TestWriteArchiveReproducible is the reason this package does not reuse
-// cli/pack.WriteTarArchive: tar.FileInfoHeader stamps real mtimes, so the same
+// TestWriteArchiveReproducible verifies that tar.FileInfoHeader does not leak
+// real mtimes into the result: the same
 // content packed twice would differ. Identical content must yield an identical
 // archive byte for byte.
 func TestWriteArchiveReproducible(t *testing.T) {

@@ -3,7 +3,13 @@ import platform
 import subprocess
 from pathlib import Path
 
-from utils import log_file, log_path, run_command_and_get_output, wait_string_in_file
+from utils import (
+    create_tt_config,
+    log_file,
+    log_path,
+    run_command_and_get_output,
+    wait_string_in_file,
+)
 
 instances = ["router-001-a", "storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b"]
 
@@ -21,8 +27,7 @@ class VshardCluster:
             print(f"Wrapping existing application in {self.env_dir / self.app_name}.")
             return
 
-        rc, out = run_command_and_get_output([tt_cmd, "init"], cwd=self.env_dir)
-        assert rc == 0
+        create_tt_config(self.env_dir, "")
 
         rc, out = run_command_and_get_output(
             [tt_cmd, "create", "vshard_cluster", "--name", self.app_name, "-s", "-f"],
@@ -32,8 +37,8 @@ class VshardCluster:
 
     def build(self):
         rc, out = run_command_and_get_output(
-            [self.tt_cmd, "build", self.app_name],
-            cwd=self.env_dir,
+            [self.tt_cmd, "package", "build"],
+            cwd=self.app_dir,
         )
         assert rc == 0
 

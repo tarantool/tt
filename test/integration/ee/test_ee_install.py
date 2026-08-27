@@ -5,7 +5,7 @@ from typing import Optional
 
 import pytest
 
-from utils import run_command_and_get_output
+from utils import create_tt_config, run_command_and_get_output
 
 # ##### #
 # Tests #
@@ -27,12 +27,7 @@ def test_install_ee(
     exec: str,
     incl: Optional[str],
 ) -> None:
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "init"],
-        cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
-    )
-    assert rc == 0
+    create_tt_config(tmp_path, "")
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "search", prog],
@@ -73,12 +68,7 @@ def test_install_ee_dev(
     exec: str,
     incl: Optional[str],
 ) -> None:
-    rc, output = run_command_and_get_output(
-        [tt_cmd, "init"],
-        cwd=tmp_path,
-        env=dict(os.environ, PWD=tmp_path),
-    )
-    assert rc == 0
+    create_tt_config(tmp_path, "")
 
     rc, output = run_command_and_get_output(
         [tt_cmd, "search", prog, "--dev"],

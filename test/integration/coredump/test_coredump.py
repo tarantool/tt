@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from utils import get_tarantool_version, run_command_and_get_output
+from utils import create_tt_config, get_tarantool_version, run_command_and_get_output
 
 # spell-checker:ignore getrlimit setrlimit rlimit rlim coredumps coredumpctl apport
 
@@ -169,7 +169,8 @@ def test_coredump_pack_executable(tt_cmd, tmp_path, coredump_alt, tmpdir_with_ta
 def test_coredump_pack_executable_tt_env(tt_cmd, tmp_path, coredump_alt, tmpdir_with_tarantool):
     tarantool_bin = tmpdir_with_tarantool / "bin" / "tarantool"
 
-    assert subprocess.run([tt_cmd, "init"], cwd=tmp_path).returncode == 0
+    create_tt_config(tmp_path, "")
+    (tmp_path / "bin").mkdir()
     os.symlink(tarantool_bin, tmp_path / "bin" / "tarantool")
 
     cmd = [tt_cmd, "coredump", "pack", coredump_alt]

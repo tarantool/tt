@@ -68,18 +68,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   another package still holds stays in place and is reported as kept. The
   project's own package is not a guest and uninstall refuses to remove it.
   `--scope` selects the tree and `--yes` skips the confirmation prompt.
-- `tt pack`: support nested `.packignore` at the root of tt environment.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
 
 ### Changed
 
 - `tt enable` and `tt instances` commands removed.
+- `tt init`, `tt pack`, and `tt build` commands removed. Use
+  `tt package build` and `tt package pack` for manifest-based applications.
 - `tt status`: deprecate `--pretty` option in favor of `--format=pretty-table`.
-- `tt init`: tarantoolctl support removed.
 - tarantoolctl layout is no longer supported.
-- `tt init/create`: cartridge support removed.
-- `tt build/pack`: cartridge support removed.
+- `tt create`: cartridge support removed.
 - tarantoolctl support has been completely removed.
 - Removed support for Tarantool 1.10 and 2.x. Only Tarantool 3.x is supported.
 - `lib/cluster`: removed `EnvCollector` and the generated `ConfigEnvPaths`;

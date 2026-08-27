@@ -34,8 +34,8 @@ var archiveModTime = time.Unix(0, 0).UTC()
 // returns the archive's sha256, lowercase hex.
 //
 // The archive is reproducible: identical staged content yields a byte-identical
-// file. That rules out cli/pack.WriteTarArchive, whose tar.FileInfoHeader
-// stamps each entry's real mtime, uid and gid — three inputs that change
+// file. That rules out the legacy archive writer, whose tar.FileInfoHeader
+// stamped each entry's real mtime, uid and gid — three inputs that change
 // between runs on the same content. Here every header is normalized (epoch
 // mtime, root:root, fixed mode) and entries are emitted in lexical order, which
 // filepath.WalkDir already guarantees.

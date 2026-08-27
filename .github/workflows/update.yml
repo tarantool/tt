@@ -32,7 +32,7 @@ jobs:
         sudo apt install -y tt
         mkdir /tmp/tt
         cd /tmp/tt
-        tt init
+        printf '{}\n' > tt.yaml
         tt install tarantool master
         echo "/tmp/tt/bin" >> $GITHUB_PATH
 

@@ -12,7 +12,7 @@ import (
 
 // errNoConfig is returned if environment config file tt.yaml not found.
 var errNoConfig = errors.New(configure.ConfigName +
-	" not found, you need to create tt environment config with 'tt init'" +
+	" not found, you need to create a tt environment config" +
 	" or provide exact config location with --cfg option")
 
 // isConfigExist returns `true` if environment config file tt.yaml exist.

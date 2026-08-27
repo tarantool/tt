@@ -2,7 +2,9 @@ description: Vshard cluster template
 follow-up-message: |
   What's next?
   Build and start '{{ .name }}' application:
-      $ tt build {{ .name }}
+      $ cd {{ .name }}
+      $ tt package build
+      $ cd ..
       $ tt start {{ .name }}
 
   Pay attention that default passwords were generated,

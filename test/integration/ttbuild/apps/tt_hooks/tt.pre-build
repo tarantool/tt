@@ -1,2 +1,0 @@
-#!/bin/sh
-touch "./tt-pre-build-invoked"
