@@ -1284,7 +1284,7 @@ func installTarantoolDev(ttBinDir, ttIncludeDir, buildDir,
 			}
 			if includeDir == "" {
 				log.Warn("Tarantool headers location was not specified. " +
-					"`tt build`, `tt rocks` may not work properly.\n" +
+					"`tt package build`, `tt rocks` may not work properly.\n" +
 					"  To specify include files location use --include-dir option.")
 			} else {
 				err = util.CreateSymlink(includeDir, tarantoolIncludeSymlink, true)

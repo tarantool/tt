@@ -7,7 +7,7 @@ This file contains various examples of working with tt.
 - [Working with a set of instances](#working-with-a-set-of-instances)
 - [Working with application templates](#working-with-application-templates)
 - [Working with tt cluster (experimental)](#working-with-tt-cluster-experimental)
-- [Packing environments](#packing-environments)
+- [Packaging applications](#packaging-applications)
 - [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
 - [Transition from tarantoolctl to tt](#transition-from-tarantoolctl-to-tt)
   + [System-wide configuration](#system-wide-configuration)
@@ -333,122 +333,40 @@ tt cluster show --help
 tt cluster publish --help
 ```
 
-## Packing environments
+## Packaging applications
 
-For example, we want to pack a single application. Here is the content
-of the sample application:
+`tt package pack` builds a manifest-based application and writes a
+reproducible `.tt` archive. The application root must contain
+`app.manifest.toml`; for example:
 
-```text
-    single_environment/
-    ├── tt.yaml
-    └── init.lua
+```toml
+manifest_version = '0.1'
+
+[package]
+name = 'my-app'
+
+[platform]
+tarantool = '>=3.0.0,<4.0.0'
+tt = '>=2.11.0'
+
+[components.app]
+path = '.'
+include = ['*.lua']
+
+[products.default]
+components = ['app']
+default = true
 ```
 
-`tt.yaml`:
+Run the command from the application root:
 
-``` yaml
-app:
+```console
+$ tt package pack
+_build/pack/my-app-1.0.0-linux-amd64.tt
 ```
 
-For packing it into tarball, call:
-
-``` console
-$ tt pack tgz
-   • Apps to pack: single_environment
-   • Generating new tt.yaml for the new package.
-   • Creating tarball.
-   • Bundle is packed successfully to /Users/dev/tt_demo/single_environment/single_environment_0.1.0.0.x86_64.tar.gz.
-```
-
-In the case of a single application, a sub-directory is created for it
-within the resulting package. This directory contains the application's code,
-`tt` configuration file, and the "bin" directory with executable files:
-`tt` and `tarantool`. The file structure of the resulting package can be
-seen below:
-
-``` text
-    unpacked_dir/
-    └── single_environment
-        ├── bin
-        │   ├── tarantool
-        │   └── tt
-        ├── init.lua
-        └── tt.yaml
-```
-
-`tt` also supports multiple applications environment. Here's how a typical
-packed environment for multiple applications looks like:
-
-```text
-    bundle/
-    ├── bin
-    │   ├── tarantool
-    │   └── tt
-    ├── instances.enabled
-    │   ├── multi -> ../multi
-    │   ├── script_app.lua -> ../script.lua
-    │   └── single -> ../single
-    ├── multi
-    │   ├── init.lua
-    │   ├── instances.yaml
-    │   └── var
-    ├── script.lua
-    ├── single
-    │   ├── init.lua
-    │   └── var
-    └── tt.yaml
-```
-
-`tt.yaml`:
-
-``` yaml
-env:
-  bin_dir: bin
-  inc_dir: include
-  instances_enabled: instances.enabled
-  restart_on_failure: false
-modules:
-  directory: modules
-app:
-  run_dir: var/run
-  log_dir: var/log
-  wal_dir: var/lib
-  vinyl_dir: var/lib
-  memtx_dir: var/lib
-ee:
-  credential_path: ""
-templates:
-- path: templates
-repo:
-  rocks: ""
-  distfiles: distfiles
-```
-
-Pay attention, that all absolute symlinks from
-`instances_enabled` will be resolved, all
-sources will be copied to the result package and the final
-instances_enabled directory will contain only relative links.
-
-For packing deb package call:
-
-``` console
-$ tt pack deb --name dev_bundle --version 1.0.0
-• A root for package is located in: /var/folders/c6/jv1r5h211dn1280d7580000gp/T/2166098848
-   • Apps to pack: app1 app2 app3 app4 app5
-
-myapp scm-1 is now installed in /var/folders/c6/jv1r5h211dn1280d7580000gp/T/tt_pack4173588242/myapp/.rocks
-
-   • myapp rocks are built successfully
-   • Generating new tt.yaml for the new package
-   • Initialize the app directory for prefix: data/usr/share/tarantool/bundle
-   • Create data tgz
-   • Created control in /var/folders/***/control_dir
-   • Created result DEB package: /var/folders/***/T/tt_pack4173588242
-```
-
-Now the result package may be distributed and installed using dpkg
-command. The package will be installed in
-/usr/share/tarantool/package_name directory.
+The command performs the same dependency resolution and component build as
+`tt package build`; a separate build is not required.
 
 ## Working with tt daemon (experimental)
 

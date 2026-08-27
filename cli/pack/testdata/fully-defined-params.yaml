@@ -1,4 +1,0 @@
-TT: /usr/bin/tt
-ConfigPath: /path/cfg
-AppName: TntService
-FdLimit: 2048

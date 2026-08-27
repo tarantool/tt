@@ -1,0 +1,22 @@
+manifest_version = '0.1'
+
+[package]
+name = '{{ replace .name "_" "-" }}'
+generate_version_lua = false
+
+[platform]
+tarantool = '>=3.0.0,<4.0.0'
+tt = '>=2.11.0'
+
+[dependencies.vshard]
+source = 'registry'
+version = '==0.1.25'
+
+[components.app]
+path = '.'
+include = ['*.lua']
+namespace = ''
+
+[products.default]
+components = ['app']
+default = true

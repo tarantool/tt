@@ -11,7 +11,7 @@ import (
 
 func TestCheckConfig(t *testing.T) {
 	const expected = configure.ConfigName +
-		" not found, you need to create tt environment config with 'tt init'" +
+		" not found, you need to create a tt environment config" +
 		" or provide exact config location with --cfg option"
 
 	cases := []struct {
@@ -20,13 +20,11 @@ func TestCheckConfig(t *testing.T) {
 	}{
 		{"binaries list", internalListModule(&cmdcontext.CmdCtx{}, nil)},
 		{"binaries switch", internalSwitchModule(&cmdcontext.CmdCtx{}, nil)},
-		{"build", internalBuildModule(&cmdcontext.CmdCtx{}, nil)},
 		{"check", internalCheckModule(&cmdcontext.CmdCtx{}, nil)},
 		{"clean", internalCleanModule(&cmdcontext.CmdCtx{}, nil)},
 		{"create", internalCreateModule(&cmdcontext.CmdCtx{}, nil)},
 		{"install", internalInstallModule(&cmdcontext.CmdCtx{}, nil)},
 		{"logrotate", internalLogrotateModule(&cmdcontext.CmdCtx{}, nil)},
-		{"pack", internalPackModule(&cmdcontext.CmdCtx{}, nil)},
 		{"restart", internalRestartModule(&cmdcontext.CmdCtx{}, nil)},
 		{"run", internalRunModule(&cmdcontext.CmdCtx{}, nil)},
 		{"start", internalStartModule(&cmdcontext.CmdCtx{}, nil)},

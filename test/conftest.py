@@ -106,9 +106,7 @@ def tmpdir_with_cfg(tmp_path):
 def tmpdir_with_tarantool(tt_cmd, tmp_path_factory):
     tmpdir = tmp_path_factory.mktemp("tarantool_env")
 
-    cmd = [tt_cmd, "init"]
-    p = subprocess.run(cmd, cwd=tmpdir)
-    assert p.returncode == 0
+    utils.create_tt_config(tmpdir, "")
 
     cmd = [tt_cmd, "install", "-f", "tarantool", "--dynamic"]
     p = subprocess.run(cmd, cwd=tmpdir)
@@ -142,7 +140,6 @@ def etcd_session(request, tmp_path_factory):
 def etcd(etcd_session):
     etcd_session.truncate()
     return etcd_session
-
 
 
 @pytest.fixture

@@ -15,7 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/pack/test_helpers"
 )
 
 type inputValue struct {
@@ -429,11 +428,15 @@ func TestCollectAppList(t *testing.T) {
 		"app2/init.lua",
 	}
 
-	err := test_helpers.CreateDirs(testDir, dirsToCreate)
-	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
+	for _, dir := range dirsToCreate {
+		err := os.MkdirAll(filepath.Join(testDir, dir), 0o750)
+		require.NoErrorf(t, err, "failed to create directory %q: %v", dir, err)
+	}
 
-	err = test_helpers.CreateFiles(testDir, filesToCreate)
-	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
+	for _, file := range filesToCreate {
+		err := os.WriteFile(filepath.Join(testDir, file), nil, 0o600)
+		require.NoErrorf(t, err, "failed to create file %q: %v", file, err)
+	}
 
 	collected, err := CollectAppList("", testDir, true)
 	assert.Nilf(t, err, "failed to collect an app list: %v", err)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"text/template"
 )
 
@@ -21,6 +22,7 @@ func makeTemplate(name string) *template.Template {
 		"metricsPort": state.genMetricsPort,
 		"replicasets": genReplicasets,
 		"atoi":        strconv.Atoi,
+		"replace":     strings.ReplaceAll,
 	}
 	return template.New(name).Funcs(funcMap)
 }

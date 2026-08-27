@@ -44,7 +44,7 @@ func NewSigner(path string) (Signer, error) {
 }
 
 // RegisterWithIntegrityFlag is a noop function that is intended to add
-// flags to `tt pack` command.
+// integrity flags to commands that publish signed data.
 func RegisterWithIntegrityFlag(flagset *pflag.FlagSet, dst *string) {}
 
 // RegisterIntegrityCheckFlag is a noop function that is intended to add

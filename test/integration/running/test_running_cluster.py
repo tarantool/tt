@@ -188,17 +188,16 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
 
     # Build app.
-    build_cmd = [tt_cmd, "build", app_name]
+    build_cmd = [tt_cmd, "package", "build"]
     instance_process = subprocess.Popen(
         build_cmd,
-        cwd=tmpdir,
+        cwd=app_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
     )
     rc = instance_process.wait()
     assert rc == 0
-    assert "Application was successfully built" in instance_process.stdout.read()
 
     instances = ["router", "storage1", "storage2"]
     inst_conf = default_inst_conf

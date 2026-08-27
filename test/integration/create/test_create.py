@@ -740,7 +740,8 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
 
     expected_lines = [
         "Build and start 'app1' application",
-        "$ tt build app1",
+        "$ cd app1",
+        "$ tt package build",
         "$ tt start app1",
         "Application 'app1' created successfully",
         "Pay attention that default passwords were generated,",
@@ -753,21 +754,19 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     assert os.path.exists(app_path / "storage.lua")
     assert os.path.exists(app_path / "router.lua")
 
-    assert os.path.exists(app_path / "app1-scm-1.rockspec")
+    assert os.path.exists(app_path / "app.manifest.toml")
     assert os.path.exists(app_path / "instances.yaml")
 
-    build_cmd = [tt_cmd, "build", "app1"]
+    build_cmd = [tt_cmd, "package", "build"]
     tt_process = subprocess.Popen(
         build_cmd,
-        cwd=tmp_path,
+        cwd=app_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
     )
     tt_process.wait()
     assert tt_process.returncode == 0
-    build_output = tt_process.stdout.readlines()
-    assert "Application was successfully built" in build_output[len(build_output) - 1]
 
     # Start vshard cluster app.
     start_cmd = [tt_cmd, "start", "app1"]

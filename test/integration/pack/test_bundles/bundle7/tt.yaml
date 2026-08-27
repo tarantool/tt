@@ -1,6 +1,0 @@
-env:
-  instances_enabled: instances.enabled
-app:
-  wal_dir: var/lib
-  vinyl_dir: var/lib
-  memtx_dir: var/lib/memtx_custom

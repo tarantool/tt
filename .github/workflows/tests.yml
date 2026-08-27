@@ -192,7 +192,7 @@ jobs:
 
       - name: Install tarantool
         run: |
-          ./tt init
+          printf '{}\n' > tt.yaml
           ./tt -V install tarantool 3.0.2
           # Delete the tt config so that it does not affect the test environment.
           rm -f tt.yaml

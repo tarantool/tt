@@ -113,4 +113,11 @@ func TestTextRendering(t *testing.T) {
 	actualText, err = engine.RenderText(templateText, nil)
 	require.NoError(t, err)
 	assert.Equal(t, expectedText, actualText)
+
+	templateText = `{{replace .name "_" "-"}}`
+	expectedText = "vshard-app"
+	actualText, err = engine.RenderText(templateText,
+		map[string]string{"name": "vshard_app"})
+	require.NoError(t, err)
+	assert.Equal(t, expectedText, actualText)
 }
