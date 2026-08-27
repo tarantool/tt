@@ -71,8 +71,7 @@ func BuildConfig(info TarantoolInfo, opts ConfigOptions) luarocks.Config {
 }
 
 // Client builds a go-luarocks client for the bound config. backend selects the
-// engine: pass client.BackendLua for operations the native backend does not
-// implement (search/download), client.BackendNative otherwise.
+// engine. Callers choose it according to the operation's compatibility needs.
 func (a *Adapter) Client(backend client.Backend) (*client.Rocks, error) {
 	rocksClient, err := client.New(a.cfg, client.WithBackend(backend))
 	if err != nil {

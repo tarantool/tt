@@ -38,22 +38,26 @@ func (f *fakeRockClient) Build(_ context.Context, specPath string, _ client.Buil
 func TestMaterialize_registryDepsPinnedNoDeps(t *testing.T) {
 	t.Parallel()
 
-	rc := &fakeRockClient{}
+	registryClient := &fakeRockClient{}
+	pathClient := &fakeRockClient{}
 	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
 		{Name: "checks", Version: "3.1.0-1", Source: sourceRegistry},
 		{Name: "metrics", Version: "1.5.0-1", Source: sourceRegistry},
 	}}
 
-	require.NoError(t, materialize(context.Background(), rc, t.TempDir(), prod))
+	servers := []string{"https://rocks.example.test"}
+	require.NoError(t, materialize(context.Background(), registryClient, pathClient,
+		t.TempDir(), prod, servers))
 
-	require.Len(t, rc.installs, 2)
+	require.Len(t, registryClient.installs, 2)
 	// Order is preserved (topological), each pinned to the exact version with
 	// dependency resolution off.
-	assert.Equal(t, "checks", rc.installs[0].name)
-	assert.Equal(t, "3.1.0-1", rc.installs[0].opts.Version)
-	assert.Equal(t, client.DepsNone, rc.installs[0].opts.Deps)
-	assert.Equal(t, "metrics", rc.installs[1].name)
-	assert.Empty(t, rc.builds)
+	assert.Equal(t, "checks", registryClient.installs[0].name)
+	assert.Equal(t, "3.1.0-1", registryClient.installs[0].opts.Version)
+	assert.Equal(t, servers, registryClient.installs[0].opts.Servers)
+	assert.Equal(t, client.DepsNone, registryClient.installs[0].opts.Deps)
+	assert.Equal(t, "metrics", registryClient.installs[1].name)
+	assert.Empty(t, pathClient.builds)
 }
 
 func TestMaterialize_pathDepBuildsRockspec(t *testing.T) {
@@ -62,16 +66,19 @@ func TestMaterialize_pathDepBuildsRockspec(t *testing.T) {
 	project := t.TempDir()
 	writeFile(t, filepath.Join(project, "vendor", "mylib", "mylib-scm-1.rockspec"), "-- spec")
 
-	rc := &fakeRockClient{}
+	registryClient := &fakeRockClient{}
+	pathClient := &fakeRockClient{}
 	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
 		{Name: "mylib", Source: sourcePath, Path: "vendor/mylib"},
 	}}
 
-	require.NoError(t, materialize(context.Background(), rc, project, prod))
+	require.NoError(t, materialize(context.Background(), registryClient, pathClient,
+		project, prod, nil))
 
-	require.Len(t, rc.builds, 1)
-	assert.Equal(t, filepath.Join(project, "vendor", "mylib", "mylib-scm-1.rockspec"), rc.builds[0])
-	assert.Empty(t, rc.installs)
+	require.Len(t, pathClient.builds, 1)
+	assert.Equal(t, filepath.Join(project, "vendor", "mylib", "mylib-scm-1.rockspec"),
+		pathClient.builds[0])
+	assert.Empty(t, registryClient.installs)
 }
 
 func TestMaterialize_leafPathDepIsSkipped(t *testing.T) {
@@ -85,7 +92,7 @@ func TestMaterialize_leafPathDepIsSkipped(t *testing.T) {
 		{Name: "leaf", Source: sourcePath, Path: "vendor/leaf"},
 	}}
 
-	require.NoError(t, materialize(context.Background(), rc, project, prod))
+	require.NoError(t, materialize(context.Background(), rc, rc, project, prod, nil))
 	assert.Empty(t, rc.builds)
 	assert.Empty(t, rc.installs)
 }
@@ -98,7 +105,7 @@ func TestMaterialize_unknownSource(t *testing.T) {
 		{Name: "weird", Source: "http"},
 	}}
 
-	err := materialize(context.Background(), rc, t.TempDir(), prod)
+	err := materialize(context.Background(), rc, rc, t.TempDir(), prod, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errUnknownSource)
 }

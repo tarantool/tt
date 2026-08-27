@@ -195,12 +195,24 @@ func runFetch(
 			"lock has no closure for product %q; run tt package build", productName)
 	}
 
-	rockClient, err := adapter.Client(client.BackendNative)
+	// Registry materialization must preserve LuaRocks' install semantics:
+	// in particular, prefer ready-to-install .all.rock artifacts and deploy
+	// CMake-produced Lua modules into the public tree, so materialized
+	// dependencies are visible to Tarantool at runtime.
+	registryClient, err := adapter.Client(client.BackendLua)
 	if err != nil {
-		return nil, fmt.Errorf("rocks client: %w", err)
+		return nil, fmt.Errorf("rocks registry client: %w", err)
 	}
 
-	if err := materialize(ctx, rockClient, projectDir, prod); err != nil {
+	// Path rocks are built by the native backend, whose typed Build operation
+	// never resolves dependencies again; the lock remains the only closure.
+	pathClient, err := adapter.Client(client.BackendNative)
+	if err != nil {
+		return nil, fmt.Errorf("rocks path client: %w", err)
+	}
+
+	if err := materialize(ctx, registryClient, pathClient, projectDir, prod,
+		adapter.Config().Servers); err != nil {
 		return nil, err
 	}
 
@@ -249,12 +261,18 @@ func runBuild(
 			"lock has no closure for product %q", productName)
 	}
 
-	rockClient, err := adapter.Client(client.BackendNative)
+	registryClient, err := adapter.Client(client.BackendLua)
 	if err != nil {
-		return nil, fmt.Errorf("rocks client: %w", err)
+		return nil, fmt.Errorf("rocks registry client: %w", err)
 	}
 
-	matErr := materialize(ctx, rockClient, opts.ProjectDir, prod)
+	pathClient, err := adapter.Client(client.BackendNative)
+	if err != nil {
+		return nil, fmt.Errorf("rocks path client: %w", err)
+	}
+
+	matErr := materialize(ctx, registryClient, pathClient, opts.ProjectDir, prod,
+		adapter.Config().Servers)
 	if matErr != nil {
 		return nil, matErr
 	}
