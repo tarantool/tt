@@ -7,13 +7,12 @@ import yaml
 from utils import config_name
 
 
-def check_env_dirs(dir, instances_enabled):
+def check_env_dirs(dir):
     assert os.path.isdir(os.path.join(dir, "bin"))
     assert os.path.isdir(os.path.join(dir, "modules"))
     assert os.path.isdir(os.path.join(dir, "distfiles"))
     assert os.path.isdir(os.path.join(dir, "include"))
     assert os.path.isdir(os.path.join(dir, "templates"))
-    assert os.path.isdir(os.path.join(dir, instances_enabled))
 
 
 def test_init_basic_functionality(tt_cmd, tmp_path):
@@ -36,9 +35,8 @@ def test_init_basic_functionality(tt_cmd, tmp_path):
         assert data_loaded["app"]["wal_dir"] == "var/lib"
         assert data_loaded["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["app"]["memtx_dir"] == "var/lib"
-        assert data_loaded["env"]["instances_enabled"] == "instances.enabled"
 
-    check_env_dirs(tmp_path, "instances.enabled")
+    check_env_dirs(tmp_path)
 
 
 def test_init_missing_configs(tt_cmd, tmp_path):
@@ -61,12 +59,11 @@ def test_init_missing_configs(tt_cmd, tmp_path):
         assert data_loaded["app"]["wal_dir"] == "var/lib"
         assert data_loaded["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["app"]["memtx_dir"] == "var/lib"
-        assert data_loaded["env"]["instances_enabled"] == "instances.enabled"
         assert data_loaded["modules"]["directory"] == ["modules"]
         assert data_loaded["env"]["bin_dir"] == "bin"
         assert data_loaded["templates"][0]["path"] == "templates"
         assert data_loaded["repo"]["distfiles"] == "distfiles"
-    check_env_dirs(tmp_path, "instances.enabled")
+    check_env_dirs(tmp_path)
 
 
 def test_init_in_app_dir(tt_cmd, tmp_path):
@@ -92,10 +89,8 @@ def test_init_in_app_dir(tt_cmd, tmp_path):
         assert data_loaded["app"]["wal_dir"] == "var/lib"
         assert data_loaded["app"]["vinyl_dir"] == "var/lib"
         assert data_loaded["app"]["memtx_dir"] == "var/lib"
-        assert data_loaded["env"]["instances_enabled"] == "."
 
-    assert not os.path.exists(os.path.join(app_dir, "instances.enabled"))
-    check_env_dirs(app_dir, ".")
+    check_env_dirs(app_dir)
 
 
 def test_init_existing_tt_env_conf_dont_overwrite(tt_cmd, tmp_path):

@@ -40,9 +40,9 @@ def app_cmd(tt_cmd, tmpdir_with_cfg, cmd, input):
 
 
 def test_restart_no_args(tt_cmd, tmp_path):
-    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
+    test_app_path_src = os.path.join(os.path.dirname(__file__), "..", "running", "multi_inst_app")
 
-    test_app_path = os.path.join(tmp_path, "multi_app")
+    test_app_path = os.path.join(tmp_path, "app")
     shutil.copytree(test_app_path_src, test_app_path)
 
     start_output = app_cmd(tt_cmd, test_app_path, ["start"], [])

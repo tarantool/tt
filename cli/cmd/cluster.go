@@ -395,7 +395,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	}
 
 	// It looks like an application or an application:instance.
-	configPath, appName, instName, err := parseAppStr(cmdCtx, args[0])
+	configPath, _, instName, err := parseAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
 	}
@@ -404,8 +404,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 			return fmt.Errorf("can not to update an instance configuration " +
 				"if a cluster configuration file does not exist for the application")
 		}
-		configPath, err = running.GetClusterConfigPath(cliOpts,
-			cmdCtx.Cli.ConfigDir, appName, false)
+		configPath, err = running.GetClusterConfigPath(cmdCtx.Cli.ConfigDir, false)
 		if err != nil {
 			return err
 		}

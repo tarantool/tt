@@ -1,5 +1,6 @@
 import os
 import subprocess
+from pathlib import Path
 
 import yaml
 
@@ -14,6 +15,10 @@ class Tt:
     @property
     def work_dir(self):
         return self.__work_dir
+
+    @work_dir.setter
+    def work_dir(self, work_dir):
+        self.__work_dir = Path(work_dir)
 
     def exec(self, *args, **kwargs):
         args = list(filter(lambda x: x is not None, args))

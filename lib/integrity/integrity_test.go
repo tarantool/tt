@@ -17,12 +17,12 @@ func TestNewSigner(t *testing.T) {
 }
 
 func TestInitializeIntegrityCheckWithKey(t *testing.T) {
-	_, err := integrity.InitializeIntegrityCheck("public.pem", "app", "instances.enabled")
+	_, err := integrity.InitializeIntegrityCheck("public.pem", "app")
 	require.EqualError(t, err, "integrity checks should never be initialized in ce")
 }
 
 func TestInitializeIntegrityCheckWithoutKey(t *testing.T) {
-	ctx, err := integrity.InitializeIntegrityCheck("", "app", "instances.enabled")
+	ctx, err := integrity.InitializeIntegrityCheck("", "app")
 	require.NoError(t, err)
 	require.NotNil(t, ctx.Repository)
 }

@@ -75,6 +75,9 @@ for machine-readable output.
 ### Changed
 
 - `tt enable` and `tt instances` commands removed.
+- The `instances.enabled` application registry and the `env.instances_enabled`
+  configuration option were removed. The directory containing `tt.yaml` is now
+  treated as the application root.
 - `tt status`: deprecate `--pretty` option in favor of `--format=pretty-table`.
 - `tt init`: tarantoolctl support removed.
 - tarantoolctl layout is no longer supported.

@@ -13,7 +13,6 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
-	"github.com/tarantool/tt/cli/pack/test_helpers"
 	"github.com/tarantool/tt/lib/integrity"
 )
 
@@ -27,42 +26,6 @@ func (mock *mockRepository) ValidateAll() error {
 	return nil
 }
 
-func TestCreateAppSymlink(t *testing.T) {
-	testDir := t.TempDir()
-	testPackageDir := t.TempDir()
-	var (
-		srcApp  = "app1.lua"
-		appName = "app1_link"
-	)
-	filesToCreate := []string{
-		srcApp,
-	}
-	dirsToCreate := []string{
-		configure.InstancesEnabledDirName,
-	}
-
-	err := test_helpers.CreateDirs(testPackageDir, dirsToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-	err = test_helpers.CreateFiles(testPackageDir, filesToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-	err = test_helpers.CreateFiles(testDir, filesToCreate)
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-	err = test_helpers.CreateSymlink(filepath.Join(testDir, srcApp), appName+".lua")
-	require.NoErrorf(t, err, "failed to create test directories: %v", err)
-
-	err = createAppSymlink(filepath.Join(testDir, srcApp), appName,
-		filepath.Join(testPackageDir, configure.InstancesEnabledDirName))
-	require.NoErrorf(t, err, "failed to create a symlink: %v", err)
-
-	_, err = os.Lstat(filepath.Join(testPackageDir, configure.InstancesEnabledDirName, appName))
-	require.NoErrorf(t, err, "failed to find a symlink: %v", err)
-	resolvedPath, err := filepath.EvalSymlinks(filepath.Join(testPackageDir,
-		configure.InstancesEnabledDirName, appName))
-	require.NoErrorf(t, err, "failed to resolve a symlink: %v", err)
-	require.Equalf(t, srcApp, filepath.Base(resolvedPath),
-		"wrong created symlink: points to %s", srcApp)
-}
-
 func TestGetVersion(t *testing.T) {
 	testCases := []struct {
 		name            string
@@ -72,22 +35,11 @@ func TestGetVersion(t *testing.T) {
 		defaultVersion  string
 	}{
 		{
-			name:    "No parameters in context",
-			packCtx: &PackCtx{},
-			opts: &config.CliOpts{
-				Env: &config.TtEnvOpts{InstancesEnabled: "../any_dir"},
-			},
-			expectedVersion: defaultLongVersion,
-			defaultVersion:  defaultLongVersion,
-		},
-		{
 			name: "Set version to pack context",
 			packCtx: &PackCtx{
 				Version: "1.0.0",
 			},
-			opts: &config.CliOpts{
-				Env: &config.TtEnvOpts{InstancesEnabled: "."},
-			},
+			opts:            &config.CliOpts{Env: &config.TtEnvOpts{}},
 			expectedVersion: "1.0.0",
 			defaultVersion:  "",
 		},
@@ -96,9 +48,7 @@ func TestGetVersion(t *testing.T) {
 			packCtx: &PackCtx{
 				Version: "v2",
 			},
-			opts: &config.CliOpts{
-				Env: &config.TtEnvOpts{InstancesEnabled: "."},
-			},
+			opts:            &config.CliOpts{Env: &config.TtEnvOpts{}},
 			defaultVersion:  "",
 			expectedVersion: "v2",
 		},
@@ -217,10 +167,9 @@ func Test_createNewOpts(t *testing.T) {
 			},
 			expectedOps: &config.CliOpts{
 				Env: &config.TtEnvOpts{
-					BinDir:             "bin",
-					IncludeDir:         "include",
-					InstancesEnabled:   configure.InstancesEnabledDirName,
-					Restartable:        true,
+					BinDir:      "bin",
+					IncludeDir:  "include",
+					Restartable: true,
 				},
 				App: &config.AppOpts{
 					WalDir:   "var/lib",
@@ -253,10 +202,9 @@ func Test_createNewOpts(t *testing.T) {
 			},
 			expectedOps: &config.CliOpts{
 				Env: &config.TtEnvOpts{
-					BinDir:             "bin",
-					IncludeDir:         "include",
-					InstancesEnabled:   configure.InstancesEnabledDirName,
-					Restartable:        true,
+					BinDir:      "bin",
+					IncludeDir:  "include",
+					Restartable: true,
 				},
 				App: &config.AppOpts{
 					WalDir:   "/var/lib/tarantool/bundle",
@@ -283,8 +231,7 @@ func Test_createNewOpts(t *testing.T) {
 			args: args{
 				opts: &config.CliOpts{
 					Env: &config.TtEnvOpts{
-						Restartable:      true,
-						InstancesEnabled: ".",
+						Restartable: true,
 					},
 					App: &config.AppOpts{},
 				},
@@ -295,10 +242,9 @@ func Test_createNewOpts(t *testing.T) {
 			},
 			expectedOps: &config.CliOpts{
 				Env: &config.TtEnvOpts{
-					BinDir:             "bin",
-					IncludeDir:         "include",
-					InstancesEnabled:   ".",
-					Restartable:        true,
+					BinDir:      "bin",
+					IncludeDir:  "include",
+					Restartable: true,
 				},
 				App: &config.AppOpts{
 					WalDir:   "var/lib",
@@ -353,209 +299,7 @@ func Test_prepareBundle(t *testing.T) {
 		checks  []check
 	}{
 		{
-			name: "Default packing multiple applications",
-			params: params{
-				configPath:    "testdata/env1/tt.yaml",
-				tntExecutable: "testdata/env1/bin/tarantool",
-				tcmExecutable: "testdata/env1/bin/tcm",
-				packCtx: PackCtx{
-					WithBinaries: true,
-				},
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.DirExists, "instances.enabled"},
-				{assert.FileExists, "bin/tarantool"},
-				{assert.FileExists, "bin/tt"},
-				{assert.FileExists, "bin/tcm"},
-				{assert.NoDirExists, "include"},
-				{assert.DirExists, "modules"},
-				{assert.FileExists, "tt.yaml"},
-
-				// Single app.
-				{assert.FileExists, "instances.enabled/single"},
-				{assert.DirExists, "single/var"},
-				{assert.FileExists, "single/init.lua"},
-				{assert.NoDirExists, "single/var/lib"},
-				{assert.NoDirExists, "single/var/log"},
-				{assert.NoDirExists, "single/var/run"},
-				{func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool {
-					assert.FileExists(t, path)
-					stat, err := os.Lstat(path)
-					if assert.NoError(t, err) {
-						assert.NotZero(t, stat.Mode()&os.ModeSymlink)
-						target, err := os.Readlink(path)
-						assert.NoError(t, err)
-						assert.Equal(t, "../single", target)
-					}
-					return true
-				}, "instances.enabled/single"},
-
-				// Multi-instance app.
-				{assert.FileExists, "multi/init.lua"},
-				{assert.FileExists, "multi/instances.yaml"},
-				{assert.NoDirExists, "multi/var/lib"},
-				{assert.NoDirExists, "multi/var/log"},
-				{assert.NoDirExists, "multi/var/run"},
-				{func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool {
-					assert.FileExists(t, path)
-					stat, err := os.Lstat(path)
-					if assert.NoError(t, err) {
-						assert.NotZero(t, stat.Mode()&os.ModeSymlink)
-						target, err := os.Readlink(path)
-						assert.NoError(t, err)
-						assert.Equal(t, "../multi", target)
-					}
-					return true
-				}, "instances.enabled/multi"},
-
-				// Script app.
-				{assert.FileExists, "script.lua"},
-				{assert.NoFileExists, "script_app.lua"},
-				{func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool {
-					assert.FileExists(t, path)
-					stat, err := os.Lstat(path)
-					if assert.NoError(t, err) {
-						assert.NotZero(t, stat.Mode()&os.ModeSymlink)
-						target, err := os.Readlink(path)
-						assert.NoError(t, err)
-						assert.Equal(t, "../script.lua", target)
-					}
-					return true
-				}, "instances.enabled/script_app.lua"},
-
-				{assert.DirExists, "instances.enabled/script_app"},
-				{assert.NoFileExists, "instances.enabled/script_app/init.lua"},
-				{assert.NoDirExists, "instances.enabled/script_app/var/lib"},
-				{assert.NoDirExists, "instances.enabled/script_app/var/log"},
-				{assert.NoDirExists, "instances.enabled/script_app/var/run"},
-
-				{
-					func(t assert.TestingT, path string, msgAndArgs ...interface{}) bool {
-						cliOpts, _, err := configure.GetCliOpts(filepath.Join(path, "tt.yaml"),
-							&mockRepository{})
-						if assert.NoError(t, err) {
-							assert.Equal(t, filepath.Join(path, "instances.enabled"),
-								cliOpts.Env.InstancesEnabled)
-							assert.Equal(t, filepath.Join(path, "include"), cliOpts.Env.IncludeDir)
-							assert.Equal(t, "var/lib", cliOpts.App.WalDir)
-							assert.Equal(t, "var/lib", cliOpts.App.VinylDir)
-							assert.Equal(t, "var/lib", cliOpts.App.MemtxDir)
-							assert.Equal(t, "var/log", cliOpts.App.LogDir)
-							assert.Equal(t, "var/run", cliOpts.App.RunDir)
-						}
-						return true
-					},
-					".",
-				},
-			},
-		},
-		{
-			name: "Packing multiple applications with artifacts",
-			params: params{
-				configPath:    "testdata/env1/tt.yaml",
-				tntExecutable: "testdata/env1/bin/tarantool",
-				packCtx: PackCtx{
-					Archive: ArchiveCtx{
-						All: true,
-					},
-				},
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.DirExists, "instances.enabled"},
-				{assert.NoDirExists, "include"},
-				{assert.DirExists, "modules"},
-				{assert.FileExists, "tt.yaml"},
-
-				// Single app.
-				{assert.FileExists, "instances.enabled/single"},
-				{assert.DirExists, "single/var"},
-				{assert.FileExists, "single/init.lua"},
-				{assert.FileExists, "single/var/lib/single/00000000000000000000.snap"},
-				{assert.FileExists, "single/var/lib/single/00000000000000000000.xlog"},
-				{assert.FileExists, "single/var/log/single/tt.log"},
-				{assert.NoDirExists, "single/var/run"},
-
-				// Multi-instance app.
-				{assert.FileExists, "multi/init.lua"},
-				{assert.FileExists, "multi/instances.yaml"},
-				{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.snap"},
-				{assert.FileExists, "multi/var/lib/inst1/00000000000000000000.xlog"},
-				{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.snap"},
-				{assert.FileExists, "multi/var/lib/inst2/00000000000000000000.xlog"},
-				{assert.FileExists, "multi/var/log/inst1/tt.log"},
-				{assert.FileExists, "multi/var/log/inst2/tt.log"},
-				{assert.NoDirExists, "multi/var/run"},
-
-				// Script app.
-				{assert.FileExists, "script.lua"},
-				{assert.NoFileExists, "script_app.lua"},
-				{assert.FileExists, "instances.enabled/script_app.lua"},
-				{assert.DirExists, "instances.enabled/script_app"},
-				{assert.FileExists, "instances.enabled/script_app/var/lib/script_app/" +
-					"00000000000000000000.snap"},
-				{assert.FileExists, "instances.enabled/script_app/var/log/script_app/tt.log"},
-				{assert.NoFileExists, "instances.enabled/script_app/init.lua"},
-				{assert.NoDirExists, "instances.enabled/script_app/var/run"},
-			},
-		},
-		{
-			name: "Packing multiple applications with different data directories",
-			params: params{
-				configPath:    "testdata/env_different_dirs/tt.yaml",
-				tntExecutable: "testdata/env1/bin/tarantool",
-				packCtx: PackCtx{
-					Archive: ArchiveCtx{
-						All: true,
-					},
-				},
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.DirExists, "instances.enabled"},
-				{assert.NoDirExists, "include"},
-				{assert.DirExists, "modules"},
-				{assert.FileExists, "tt.yaml"},
-
-				// Single app.
-				{assert.FileExists, "instances.enabled/single"},
-				{assert.FileExists, "single/init.lua"},
-				{assert.FileExists, "single/var/snap/single/00000000000000000000.snap"},
-				{assert.FileExists, "single/var/wal/single/00000000000000000000.xlog"},
-				{assert.DirExists, "single/var/vinyl/single/"},
-				{assert.FileExists, "single/var/log/single/tt.log"},
-				{assert.NoDirExists, "single/var/run"},
-
-				// Multi-instance app.
-				{assert.FileExists, "instances.enabled/multi"},
-				{assert.FileExists, "multi/init.lua"},
-				{assert.FileExists, "multi/instances.yaml"},
-				{assert.FileExists, "multi/var/snap/inst1/00000000000000000000.snap"},
-				{assert.FileExists, "multi/var/snap/inst2/00000000000000000000.snap"},
-				{assert.FileExists, "multi/var/wal/inst1/00000000000000000000.xlog"},
-				{assert.FileExists, "multi/var/wal/inst2/00000000000000000000.xlog"},
-				{assert.FileExists, "multi/var/log/inst1/tt.log"},
-				{assert.FileExists, "multi/var/log/inst2/tt.log"},
-				{assert.NoDirExists, "multi/var/run"},
-
-				// Script app.
-				{assert.FileExists, "script.lua"},
-				{assert.FileExists, "instances.enabled/script_app.lua"},
-				{assert.FileExists, "instances.enabled/script_app/var/snap/script_app/" +
-					"00000000000000000000.snap"},
-				{assert.DirExists, "instances.enabled/script_app/var/wal"},
-				{assert.DirExists, "instances.enabled/script_app/var/vinyl"},
-				{assert.FileExists, "instances.enabled/script_app/var/log/script_app/tt.log"},
-				{assert.NoFileExists, "instances.enabled/script_app/init.lua"},
-				{assert.NoDirExists, "instances.enabled/script_app/var/run"},
-			},
-		},
-		{
-			name: "Packing env with instances.enabled:.",
+			name: "Packing current application",
 			params: params{
 				configPath:    "testdata/single_app/tt.yml",
 				tntExecutable: "testdata/single_app/bin/tarantool",
@@ -563,12 +307,10 @@ func Test_prepareBundle(t *testing.T) {
 			},
 			wantErr: false,
 			checks: []check{
-				{assert.NoDirExists, "instances.enabled"},
 				{assert.NoFileExists, "tt.yaml"},
 				{assert.NoFileExists, "tt.yml"},
 				{assert.NoDirExists, "include"},
 
-				{assert.NoDirExists, "single_app/instances.enabled"},
 				{assert.NoDirExists, "single_app/include"},
 				{assert.NoDirExists, "single_app/templates"},
 				{assert.NoDirExists, "single_app/modules"},
@@ -586,7 +328,7 @@ func Test_prepareBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "Packing env with instances.enabled:. and changed name",
+			name: "Packing current application with changed name",
 			params: params{
 				configPath:    "testdata/single_app/tt.yml",
 				tntExecutable: "testdata/single_app/bin/tarantool",
@@ -594,13 +336,11 @@ func Test_prepareBundle(t *testing.T) {
 			},
 			wantErr: false,
 			checks: []check{
-				{assert.NoDirExists, "instances.enabled"},
 				{assert.NoFileExists, "tt.yaml"},
 				{assert.NoFileExists, "tt.yml"},
 				{assert.NoDirExists, "include"},
 				{assert.NoDirExists, "single_app"},
 
-				{assert.NoDirExists, "app/instances.enabled"},
 				{assert.NoDirExists, "app/include"},
 				{assert.NoDirExists, "app/templates"},
 				{assert.NoDirExists, "app/modules"},
@@ -618,7 +358,7 @@ func Test_prepareBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "Packing env with instances.enabled:., without binaries",
+			name: "Packing current application without binaries",
 			params: params{
 				configPath:    "testdata/single_app/tt.yml",
 				tntExecutable: "testdata/single_app/bin/tarantool",
@@ -626,8 +366,6 @@ func Test_prepareBundle(t *testing.T) {
 			},
 			wantErr: false,
 			checks: []check{
-				{assert.NoDirExists, "instances.enabled"},
-				{assert.NoDirExists, "single_app/instances.enabled"},
 				{assert.NoDirExists, "include"},
 				{assert.NoDirExists, "single_app/include"},
 				{assert.NoDirExists, "single_app/templates"},
@@ -640,7 +378,7 @@ func Test_prepareBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "Packing env with instances.enabled:., no modules",
+			name: "Packing current application without modules",
 			params: params{
 				configPath:    "testdata/single_app_no_modules/tt.yaml",
 				tntExecutable: "testdata/single_app_no_modules/bin/tarantool",
@@ -650,8 +388,6 @@ func Test_prepareBundle(t *testing.T) {
 			},
 			wantErr: false,
 			checks: []check{
-				{assert.NoDirExists, "instances.enabled"},
-				{assert.NoDirExists, "single_app_no_modules/instances.enabled"},
 				{assert.NoDirExists, "include"},
 				{assert.NoDirExists, "single_app_no_modules/include"},
 				{assert.NoDirExists, "single_app_no_modules/templates"},
@@ -664,7 +400,7 @@ func Test_prepareBundle(t *testing.T) {
 			},
 		},
 		{
-			name: "Packing env with instances.enabled:. and no tarantool",
+			name: "Packing current application without tarantool",
 			params: params{
 				configPath: "testdata/single_app_no_binaries/tt.yaml",
 				packCtx:    PackCtx{},
@@ -672,13 +408,11 @@ func Test_prepareBundle(t *testing.T) {
 			wantErr: false,
 			checks: []check{
 				// Root.
-				{assert.NoDirExists, "instances.enabled"},
 				{assert.NoDirExists, "include"},
 				{assert.NoDirExists, "bin"},
 				{assert.NoFileExists, "tt.yaml"},
 
 				// App sub-dir.
-				{assert.NoDirExists, "single_app_no_binaries/instances.enabled"},
 				{assert.NoDirExists, "single_app_no_binaries/include"},
 				{assert.NoDirExists, "single_app_no_binaries/templates"},
 				{assert.NoDirExists, "single_app_no_binaries/modules"},
@@ -698,13 +432,11 @@ func Test_prepareBundle(t *testing.T) {
 			wantErr: false,
 			checks: []check{
 				// Root.
-				{assert.NoDirExists, "instances.enabled"},
 				{assert.NoDirExists, "include"},
 				{assert.NoDirExists, "bin"},
 				{assert.NoFileExists, "tt.yaml"},
 
 				// App sub-dir.
-				{assert.NoDirExists, "app_with_rockspec/instances.enabled"},
 				{assert.NoDirExists, "app_with_rockspec/include"},
 				{assert.NoDirExists, "app_with_rockspec/templates"},
 				{assert.NoDirExists, "app_with_rockspec/modules"},
@@ -730,14 +462,12 @@ func Test_prepareBundle(t *testing.T) {
 			wantErr: false,
 			checks: []check{
 				// Root.
-				{assert.NoDirExists, "instances.enabled"},
 				{assert.NoDirExists, "include"},
 				{assert.NoDirExists, "bin"},
 				{assert.NoFileExists, "tt.yaml"},
 				{assert.NoDirExists, "app_with_rockspec"},
 
 				// App sub-dir.
-				{assert.NoDirExists, "app/instances.enabled"},
 				{assert.NoDirExists, "app/include"},
 				{assert.NoDirExists, "app/templates"},
 				{assert.NoDirExists, "app/modules"},
@@ -750,82 +480,6 @@ func Test_prepareBundle(t *testing.T) {
 				{assert.NoFileExists, "app/app_with_rockspec-scm-1.rockspec"},
 				{assert.NoFileExists, "app/tt.pre-build"},
 				{assert.NoFileExists, "app/tt.post-build"},
-			},
-		},
-		{
-			name: "Packing 2 apps and build rocks in one only",
-			params: params{
-				configPath:    "testdata/only_one_app_buildable/tt.yaml",
-				tntExecutable: tntExecutable,
-				packCtx:       PackCtx{},
-				build:         true,
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.DirExists, "instances.enabled"},
-				{assert.NoDirExists, "include"},
-				{assert.NoDirExists, "modules"},
-				{assert.FileExists, "bin/tt"},
-				{assert.FileExists, "tt.yaml"},
-
-				// App1.
-				{assert.DirExists, "app1/.rocks"},
-				{assert.FileExists, "app1/init.lua"},
-
-				// App2.
-				{assert.NoDirExists, "app2/.rocks"},
-				{assert.FileExists, "app2/init.lua"},
-			},
-		},
-		{
-			name: "Packing 2 apps and skip building",
-			params: params{
-				configPath:    "testdata/only_one_app_buildable/tt.yaml",
-				tntExecutable: tntExecutable,
-				packCtx:       PackCtx{},
-				build:         false,
-			},
-			wantErr: false,
-			checks: []check{
-				// Root.
-				{assert.DirExists, "instances.enabled"},
-				{assert.NoDirExists, "include"},
-				{assert.NoDirExists, "modules"},
-				{assert.FileExists, "bin/tt"},
-				{assert.FileExists, "tt.yaml"},
-
-				// App1.
-				{assert.NoDirExists, "app1/.rocks"},
-				{assert.FileExists, "app1/init.lua"},
-
-				// App2.
-				{assert.NoDirExists, "app2/.rocks"},
-				{assert.FileExists, "app2/init.lua"},
-			},
-		},
-		{
-			name: "Broken application symlink",
-			params: params{
-				configPath:    "testdata/broken_app_symlink/tt.yaml",
-				tntExecutable: tntExecutable,
-				packCtx:       PackCtx{},
-				build:         false,
-			},
-			checks: []check{
-				// Root.
-				{assert.NoFileExists, "instances.enabled/app1"},
-				{assert.FileExists, "instances.enabled/app2"},
-				{assert.NoDirExists, "include"},
-				{assert.NoDirExists, "modules"},
-				{assert.FileExists, "bin/tt"},
-				{assert.FileExists, "tt.yaml"},
-
-				// App1 is skipped due to broken symlink.
-				{assert.NoDirExists, "app1"},
-
-				// App2.
-				{assert.FileExists, "app2/init.lua"},
 			},
 		},
 		{
@@ -849,13 +503,11 @@ func Test_prepareBundle(t *testing.T) {
 			wantErr: false,
 			checks: []check{
 				// Root.
-				{assert.NoDirExists, "instances.enabled"},
 				{assert.NoDirExists, "include"},
 				{assert.NoDirExists, "bin"},
 				{assert.NoFileExists, "tt.yaml"},
 
 				// App sub-dir.
-				{assert.NoDirExists, "app/instances.enabled"},
 				{assert.NoDirExists, "app/include"},
 				{assert.NoDirExists, "app/templates"},
 				{assert.NoDirExists, "app/modules"},
@@ -887,7 +539,11 @@ func Test_prepareBundle(t *testing.T) {
 				},
 				Integrity: integrity.IntegrityCtx{Repository: &mockRepository{}},
 			}
-			require.NoError(t, FillCtx(&cmdCtx, &tt.params.packCtx, cliOpts, []string{"tgz"}))
+			err = FillCtx(&cmdCtx, &tt.params.packCtx, cliOpts, []string{"tgz"})
+			if tt.wantErr && err != nil {
+				return
+			}
+			require.NoError(t, err)
 
 			bundleDir, err := prepareBundle(&cmdCtx, &tt.params.packCtx, cliOpts, tt.params.build)
 			if tt.wantErr {

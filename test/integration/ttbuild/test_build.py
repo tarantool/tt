@@ -174,19 +174,13 @@ def test_build_app_by_name(tt_cmd, tmp_path, flag):
         os.path.join(os.path.dirname(__file__), "apps", app_name),
         os.path.join(tmp_path, "appdir", app_name),
     )
-    os.symlink(
-        os.path.join("../appdir", app_name),
-        os.path.join(tmp_path, "instances.enabled", app_name),
-        True,
-    )
-
     cmd = [tt_cmd]
     if flag:
         cmd.append(flag)
-    cmd.extend(["build", app_name])
+    cmd.append("build")
     p = subprocess.run(
         cmd,
-        cwd=tmp_path,
+        cwd=app_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -207,12 +201,6 @@ def test_build_app_local_tarantool(tt_cmd, tmpdir_with_tarantool):
         os.path.join(os.path.dirname(__file__), "apps", app_name),
         app_dir,
     )
-    # Create a symlink in instances.enabled so tt can find the app.
-    instances_enabled = os.path.join(tmpdir_with_tarantool, "instances.enabled")
-    os.symlink(
-        os.path.relpath(app_dir, instances_enabled), os.path.join(instances_enabled, app_name)
-    )
-
     cmd = [tt_cmd, "build", app_name]
     p = subprocess.run(
         cmd,

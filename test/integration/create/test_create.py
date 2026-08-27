@@ -19,9 +19,7 @@ from utils import (
     wait_files,
 )
 
-tt_config_text = """env:
-  instances_enabled: test.instances.enabled
-app:
+tt_config_text = """app:
   run_dir: .
   log_dir: .
 templates:
@@ -55,8 +53,6 @@ def create_tnt_env_in_dir(tmp_path):
     # Create env file.
     with open(tmp_path / config_name, "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path.as_posix()))
-
-    os.mkdir(tmp_path / "test.instances.enabled")
 
     # Copy templates to tmp dir.
     shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"), tmp_path / "templates")
@@ -112,10 +108,6 @@ def test_create_basic_functionality(tt_cmd, tmp_path):
 
     # Check "--name" value is used in file name.
     assert os.path.exists(app_path / "app1.cfg")
-
-    # Check symlink to application is created in instances enabled directory.
-    assert (tmp_path / "test.instances.enabled" / "app1").exists()
-    assert os.readlink(tmp_path / "test.instances.enabled" / "app1") == "../subdir/app1"
 
     # Check output.
     out_lines = tt_process.stdout.readlines()
@@ -387,7 +379,6 @@ def test_template_search_paths(tt_cmd, tmp_path):
     # Create env file.
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write("""app:
-  instances_enabled: ./any-dir
   run_dir: .
   log_dir: .
 templates:
@@ -783,11 +774,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         assert "Starting an instance" in line
     instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
     for inst in instances:
-        file = wait_file(
-            os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
-            pid_file,
-            [],
-        )
+        file = wait_file(os.path.join(tmp_path, "app1", inst), pid_file, [])
         assert file != ""
 
     # Check status.

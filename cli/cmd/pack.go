@@ -32,8 +32,6 @@ The supported types are: tgz, deb, rpm`,
 		"Package name")
 	packCmd.Flags().StringVar(&packCtx.Version, "version", packCtx.Version,
 		"Package version")
-	packCmd.Flags().StringSliceVar(&packCtx.AppList, "app-list", packCtx.AppList,
-		"List of applications for packaging")
 	packCmd.Flags().StringVar(&packCtx.FileName, "filename", packCtx.FileName,
 		"Explicitly set filename of the bundle")
 	packCmd.Flags().BoolVar(&packCtx.WithoutBinaries, "without-binaries",

@@ -130,24 +130,7 @@ func NewCmdRoot() *cobra.Command {
 		Long:  "Utility for managing Tarantool packages and Tarantool-based applications",
 		Example: `$ tt -L /path/to/local/dir version
   $ tt -S -I help
-  $ tt completion
-
-If tt was installed from a repository, then the basic replicaset examples were installed with it.
-To start work with these examples create a symbolic link in system instances enabled directory
-(requires root permissions) to enable the application:
-
-Tarantool 2.*:
-  # ln -s /etc/tarantool/instances.available/replicaset_example_tarantool_2 \
-/etc/tarantool/instances.enabled/replicaset_example
-
-Tarantool 3.*:
-  # ln -s /etc/tarantool/instances.available/replicaset_example_tarantool_3 \
-/etc/tarantool/instances.enabled/replicaset_example
-
-After that tt will be able to manage the application using 'replicaset_example' name:
-  # tt start replicaset_example
-    • Starting an instance [replicaset_example:master]...
-    • Starting an instance [replicaset_example:replica]...`,
+  $ tt completion`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()
@@ -279,32 +262,14 @@ func InitRoot() {
 		false,
 	)
 
-	// There is a kind of deadlock between integrity initialization and loading of
-	// tt config: config loader need integrity is initialized to check integrity of
-	// the tt config itself, while initialization of integrity depends on configuration
-	// (namely it depends on InstancesEnabled directory). It is resolved with
-	// the following steps:
-	// 1. Initial loading of the configuration w/o integrity checking
-	// 2. Initialization of integrity
-	// 3. Re-loading of configuration w/ integrity checking
-
-	// 1.
-	cliOptsNoIntegrity, _, err := configure.GetCliOpts(configPath, nil)
-	if err != nil {
-		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
-	}
-
-	// 2.
 	cmdCtx.Integrity, err = integrity.InitializeIntegrityCheck(
 		cmdCtx.Cli.IntegrityCheck,
 		filepath.Dir(configPath),
-		cliOptsNoIntegrity.Env.InstancesEnabled,
 	)
 	if err != nil {
 		log.Fatalf("integrity check failed: %s", err)
 	}
 
-	// 3.
 	if err := configure.Cli(&cmdCtx); err != nil {
 		log.Fatalf("Failed to configure Tarantool CLI: %s", err)
 	}

@@ -591,17 +591,8 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 // GetClusterConfigPath returns a cluster config path for the application.
 // If mustExist flag is set and config is not found, ErrNotExists error is returned,
 // default config filepath is returned otherwise.
-func GetClusterConfigPath(cliOpts *config.CliOpts,
-	ttConfigDir, appName string, mustExist bool,
-) (string, error) {
-	instEnabledPath := cliOpts.Env.InstancesEnabled
-	var appDir string
-	if instEnabledPath == "." {
-		appDir = ttConfigDir
-	} else {
-		appDir = filepath.Join(instEnabledPath, appName)
-	}
-	configPath := filepath.Join(appDir, clusterConfigDefaultFileName)
+func GetClusterConfigPath(ttConfigDir string, mustExist bool) (string, error) {
+	configPath := filepath.Join(ttConfigDir, clusterConfigDefaultFileName)
 	ret, err := util.GetYamlFileName(configPath, true)
 	if errors.Is(err, os.ErrNotExist) {
 		if mustExist {
@@ -620,14 +611,10 @@ func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 	ttConfigDir string, integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
 	map[string][]InstanceCtx, error,
 ) {
-	instEnabledPath := cliOpts.Env.InstancesEnabled
-	if cliOpts.Env.InstancesEnabled == "." {
-		instEnabledPath = ttConfigDir
-	}
 	apps := make(map[string][]InstanceCtx)
 	for _, appName := range appList {
 		appName = strings.TrimSuffix(appName, ".lua")
-		collectedInstances, err := CollectInstances(appName, instEnabledPath, integrityCtx,
+		collectedInstances, err := CollectInstances(appName, ttConfigDir, integrityCtx,
 			loadConfig)
 		if err != nil {
 			return apps, fmt.Errorf("can't collect instance information for %s: %w",
@@ -689,12 +676,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	var appList []string
 	if len(args) == 0 {
-		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.Env.InstancesEnabled,
-			true)
-		if err != nil {
-			return fmt.Errorf("can't collect an application list "+
-				"from instances enabled path %s: %s", cliOpts.Env.InstancesEnabled, err)
-		}
+		appList = append(appList, filepath.Base(cmdCtx.Cli.ConfigDir))
 	} else {
 		appList = append(appList, args[0])
 	}

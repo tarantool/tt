@@ -1,5 +1,0 @@
-modules:
-  directory: modules
-env:
-  instances_enabled: instances_enabled
-  restart_on_failure: true

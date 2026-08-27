@@ -376,36 +376,12 @@ seen below:
         └── tt.yaml
 ```
 
-`tt` also supports multiple applications environment. Here's how a typical
-packed environment for multiple applications looks like:
-
-```text
-    bundle/
-    ├── bin
-    │   ├── tarantool
-    │   └── tt
-    ├── instances.enabled
-    │   ├── multi -> ../multi
-    │   ├── script_app.lua -> ../script.lua
-    │   └── single -> ../single
-    ├── multi
-    │   ├── init.lua
-    │   ├── instances.yaml
-    │   └── var
-    ├── script.lua
-    ├── single
-    │   ├── init.lua
-    │   └── var
-    └── tt.yaml
-```
-
 `tt.yaml`:
 
 ``` yaml
 env:
   bin_dir: bin
   inc_dir: include
-  instances_enabled: instances.enabled
   restart_on_failure: false
 modules:
   directory: modules
@@ -423,11 +399,6 @@ repo:
   rocks: ""
   distfiles: distfiles
 ```
-
-Pay attention, that all absolute symlinks from
-`instances_enabled` will be resolved, all
-sources will be copied to the result package and the final
-instances_enabled directory will contain only relative links.
 
 For packing deb package call:
 

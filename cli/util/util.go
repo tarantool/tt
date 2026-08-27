@@ -697,31 +697,6 @@ func CreateSymlink(oldName, newName string, overwrite bool) error {
 	return os.Symlink(oldName, newName)
 }
 
-// IsApp detects if the passed path is an application.
-func IsApp(path string) bool {
-	entry, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	if entry.IsDir() {
-		// Check if the directory contains init.lua script or instances.yml file.
-		for _, fileToCheck := range [...]string{"init.lua", "instances.yml", "instances.yaml"} {
-			if fileInfo, err := os.Stat(filepath.Join(path, fileToCheck)); err == nil {
-				if !fileInfo.IsDir() {
-					return true
-				}
-			}
-		}
-	} else {
-		if filepath.Ext(entry.Name()) == ".lua" {
-			return true
-		}
-	}
-
-	return false
-}
-
 // CheckRequiredBinaries returns an error if some binaries not found in PATH.
 func CheckRequiredBinaries(binaries ...string) error {
 	missedBinaries := getMissedBinaries(binaries...)
@@ -883,35 +858,6 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 		return err
 	}
 	return nil
-}
-
-// CollectAppList collects all the supposed applications in passed appsPath directory.
-func CollectAppList(baseDir, appsPath string, verbose bool) ([]string, error) {
-	if appsPath == "." {
-		// Check whether base directory is application.
-		if IsApp(baseDir) {
-			return []string{filepath.Base(baseDir)}, nil
-		}
-		// Instances enabled is '.', if base directory is not an application,
-		// consider base directory as directory containing a set of applications.
-		appsPath = baseDir
-	}
-	dirEntries, err := os.ReadDir(appsPath)
-	if err != nil {
-		return nil, err
-	}
-
-	apps := make([]string, 0)
-	for _, entry := range dirEntries {
-		dirItem := filepath.Join(appsPath, entry.Name())
-		if IsApp(dirItem) {
-			apps = append(apps, entry.Name())
-		} else if verbose {
-			log.Debugf("Skipping %s: the source is not an application.", entry.Name())
-		}
-	}
-
-	return apps, nil
 }
 
 // RelativeToCurrentWorkingDir returns a path relative to current working dir.

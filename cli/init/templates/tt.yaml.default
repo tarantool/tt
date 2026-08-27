@@ -12,10 +12,6 @@ env:
   # Directory that stores Tarantool header files.
   inc_dir: {{ .Env.IncludeDir }}
 
-  # Path to directory that stores all applications.
-  # The directory can also contain symbolic links to applications.
-  instances_enabled: {{ .Env.InstancesEnabled }}
-
 app:
   # Directory that stores various instance runtime
   # artifacts like console socket, PID file, etc.

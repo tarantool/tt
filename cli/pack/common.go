@@ -114,8 +114,7 @@ func ttEnvironmentFilters(packCtx *PackCtx, cliOpts *config.CliOpts) []skipFilte
 
 	envPaths := make([]string, 0, 6)
 	if cliOpts.Env != nil {
-		envPaths = append(envPaths, cliOpts.Env.IncludeDir,
-			cliOpts.Env.InstancesEnabled, cliOpts.Env.BinDir)
+		envPaths = append(envPaths, cliOpts.Env.IncludeDir, cliOpts.Env.BinDir)
 	}
 	if cliOpts.Modules != nil {
 		envPaths = append(envPaths, cliOpts.Modules.Directories...)
@@ -180,29 +179,12 @@ func appSrcCopySkip(packCtx *PackCtx, cliOpts *config.CliOpts,
 	}, nil
 }
 
-// getAppNamesToPack generates application names list to pack.
-func getAppNamesToPack(packCtx *PackCtx, cliOpts *config.CliOpts) []string {
-	if cliOpts.Env.InstancesEnabled == "." {
-		return nil
-	}
-	appList := make([]string, len(packCtx.AppsInfo))
-	i := 0
-	for appName := range packCtx.AppsInfo {
-		appList[i] = appName
-		i = i + 1
-	}
-	return appList
-}
-
 // updateEnvPath sets base path for the tt environment in temporary package directory.
-// By default it is a base directory passed as an argument. Or an application name sub-dir
-// in case of single application environment.
-func updateEnvPath(basePath string, packCtx *PackCtx, cliOpts *config.CliOpts) (string, error) {
-	if cliOpts.Env.InstancesEnabled == "." {
-		basePath = util.JoinPaths(basePath, packCtx.Name)
-		if err := os.MkdirAll(basePath, dirPermissions); err != nil {
-			return basePath, fmt.Errorf("cannot create bundle directory %q: %s", basePath, err)
-		}
+// The application is stored in a directory named after the package.
+func updateEnvPath(basePath string, packCtx *PackCtx) (string, error) {
+	basePath = util.JoinPaths(basePath, packCtx.Name)
+	if err := os.MkdirAll(basePath, dirPermissions); err != nil {
+		return basePath, fmt.Errorf("cannot create bundle directory %q: %s", basePath, err)
 	}
 	return basePath, nil
 }
@@ -289,19 +271,9 @@ func copyBinaries(bundleEnvPath string, packCtx *PackCtx, cmdCtx *cmdcontext.Cmd
 	return nil
 }
 
-// getDestAppDir returns application directory in the result bundle.
-func getDestAppDir(bundleEnvPath, appName string,
-	packCtx *PackCtx, cliOpts *config.CliOpts,
-) string {
-	if cliOpts.Env.InstancesEnabled == "." {
-		return bundleEnvPath
-	}
-	return filepath.Join(bundleEnvPath, appName)
-}
-
 // copyApplications copies applications from current env to the result bundle.
 func copyApplications(bundleEnvPath string, packCtx *PackCtx,
-	cliOpts, newOpts *config.CliOpts,
+	cliOpts *config.CliOpts,
 ) error {
 	var err error
 	for appName, instances := range packCtx.AppsInfo {
@@ -321,32 +293,8 @@ func copyApplications(bundleEnvPath string, packCtx *PackCtx,
 				return fmt.Errorf("failed to copy application %q: %s", resolvedAppPath, err)
 			}
 		} else {
-			bundleAppDir := getDestAppDir(bundleEnvPath, appName, packCtx, cliOpts)
-			if err = copyAppSrc(packCtx, cliOpts, appPath, bundleAppDir); err != nil {
+			if err = copyAppSrc(packCtx, cliOpts, appPath, bundleEnvPath); err != nil {
 				return err
-			}
-		}
-
-		if newOpts.Env.InstancesEnabled != "." {
-			// Create applications symlink in instances enabled.
-			if err = os.MkdirAll(util.JoinPaths(bundleEnvPath, newOpts.Env.InstancesEnabled),
-				dirPermissions); err != nil {
-				return fmt.Errorf("cannot create instances.enabled directory: %s", err)
-			}
-			packagingInstEnabledDir := util.JoinPaths(bundleEnvPath, newOpts.Env.InstancesEnabled)
-			err = createAppSymlink(appPath, filepath.Base(appPath), packagingInstEnabledDir)
-			if err != nil {
-				return err
-			}
-			// Create working dir for script-only applications. This is required to do not attempt
-			// to create it on target system which may lead to permissions denied error.
-			if inst.IsFileApp {
-				workingDir := util.JoinPaths(packagingInstEnabledDir, filepath.Base(inst.AppDir))
-				if err = os.Mkdir(workingDir, dirPermissions); err != nil {
-					return fmt.Errorf(
-						"cannot create working directory %q for application: %s",
-						workingDir, err)
-				}
 			}
 		}
 	}
@@ -385,10 +333,9 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}()
 	bundleEnvPath := tmpDir
 
-	packCtx.AppList = getAppNamesToPack(packCtx, cliOpts)
 	log.Infof("Apps to pack: %s", strings.Join(packCtx.AppList, " "))
 
-	if bundleEnvPath, err = updateEnvPath(bundleEnvPath, packCtx, cliOpts); err != nil {
+	if bundleEnvPath, err = updateEnvPath(bundleEnvPath, packCtx); err != nil {
 		return "", err
 	}
 	newOpts := createNewOpts(cliOpts, *packCtx)
@@ -398,7 +345,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 		return "", fmt.Errorf("error copying binaries: %s", err)
 	}
 
-	if err = copyApplications(bundleEnvPath, packCtx, cliOpts, newOpts); err != nil {
+	if err = copyApplications(bundleEnvPath, packCtx, cliOpts); err != nil {
 		return "", fmt.Errorf("error copying applications: %s", err)
 	}
 
@@ -418,7 +365,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	if buildRocks {
-		err = buildAppRocks(cmdCtx, packCtx, cliOpts, bundleEnvPath)
+		err = buildAppRocks(cmdCtx, cliOpts, bundleEnvPath)
 		if err != nil && !os.IsNotExist(err) {
 			return "", err
 		}
@@ -430,7 +377,7 @@ func prepareBundle(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	}
 
 	if signer != nil {
-		err = signer.Sign(bundleEnvPath, packCtx.AppList)
+		err = signer.Sign(bundleEnvPath, nil)
 		if err != nil {
 			return "", err
 		}
@@ -466,14 +413,8 @@ func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
 ) error {
 	for _, appName := range packCtx.AppList {
 		for _, inst := range appsInfo[appName] {
-			appDirName := filepath.Base(inst.AppDir)
-			destAppDir := util.JoinPaths(basePath, newOpts.Env.InstancesEnabled, appDirName)
-			if newOpts.Env.InstancesEnabled == "." {
-				destAppDir = basePath
-			}
-
 			dstDir := func(dir string) string {
-				return util.JoinPaths(destAppDir, dir)
+				return util.JoinPaths(basePath, dir)
 			}
 			copyInfo := []struct{ src, dest string }{}
 			copyInfo = append(copyInfo,
@@ -504,22 +445,6 @@ func copyArtifacts(packCtx PackCtx, basePath string, newOpts *config.CliOpts,
 	return nil
 }
 
-// createAppSymlink creates a relative link for an application that must be packed.
-func createAppSymlink(appPath, appName, instancesEnabledDir string) error {
-	var err error
-	appPath, err = filepath.EvalSymlinks(appPath)
-	if err != nil {
-		return err
-	}
-
-	err = os.Symlink(filepath.Join("..", filepath.Base(appPath)),
-		filepath.Join(instancesEnabledDir, appName))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // createNewOpts generates new CLI opts using some data from current opts.
 func createNewOpts(opts *config.CliOpts, packCtx PackCtx) *config.CliOpts {
 	log.Infof("Generating new %s for the new package", configure.ConfigName)
@@ -537,9 +462,6 @@ func createNewOpts(opts *config.CliOpts, packCtx PackCtx) *config.CliOpts {
 		cliOptsNew = configure.GetDefaultCliOpts()
 	}
 
-	if opts.Env.InstancesEnabled != "." {
-		cliOptsNew.Env.InstancesEnabled = configure.InstancesEnabledDirName
-	}
 	cliOptsNew.Env.Restartable = opts.Env.Restartable
 
 	// In case the user separates one of the directories for storing memtx, vinyl or wal artifacts
@@ -617,25 +539,11 @@ func cleanupAfterBuild(appDir string) {
 }
 
 // buildAppRocks finds a rockspec file of the application and builds it.
-func buildAppRocks(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
-	cliOpts *config.CliOpts, bundlePath string,
-) error {
-	if cliOpts.Env.InstancesEnabled == "." {
-		if err := buildAppInBundle(cmdCtx, cliOpts, bundlePath); err != nil {
-			return err
-		}
-		cleanupAfterBuild(bundlePath)
+func buildAppRocks(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, bundlePath string) error {
+	if err := buildAppInBundle(cmdCtx, cliOpts, bundlePath); err != nil {
+		return err
 	}
-
-	for appName := range packCtx.AppsInfo {
-		appDir := filepath.Join(bundlePath, appName)
-		if util.IsDir(appDir) {
-			if err := buildAppInBundle(cmdCtx, cliOpts, appDir); err != nil {
-				return err
-			}
-			cleanupAfterBuild(appDir)
-		}
-	}
+	cleanupAfterBuild(bundlePath)
 
 	return nil
 }
@@ -647,12 +555,9 @@ func getVersion(packCtx *PackCtx, opts *config.CliOpts, defaultVersion string) s
 		return packCtx.Version
 	}
 
-	// Try to get version from git only if packing an application from the current directory.
-	if opts.Env.InstancesEnabled == "." {
-		version, err := util.CheckVersionFromGit(opts.Env.InstancesEnabled)
-		if err == nil {
-			return version
-		}
+	version, err := util.CheckVersionFromGit(".")
+	if err == nil {
+		return version
 	}
 
 	return defaultVersion

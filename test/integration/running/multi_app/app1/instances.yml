@@ -1,8 +1,0 @@
-app1:
-  cluster-cookie: cookie
-
-router:
-
-master:
-
-replica:

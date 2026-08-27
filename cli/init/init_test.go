@@ -15,14 +15,13 @@ import (
 	"github.com/tarantool/tt/cli/util"
 )
 
-func checkDefaultEnv(t *testing.T, configName, instancesEnabled string) {
+func checkDefaultEnv(t *testing.T, configName string) {
 	rawConfigOpts, err := util.ParseYAML(configName)
 	require.NoError(t, err)
 
 	var cfg config.CliOpts
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
-	assert.Equal(t, instancesEnabled, cfg.Env.InstancesEnabled)
 	assert.Equal(t, "var/lib", cfg.App.WalDir)
 	assert.Equal(t, "var/lib", cfg.App.VinylDir)
 	assert.Equal(t, "var/lib", cfg.App.MemtxDir)
@@ -34,7 +33,6 @@ func checkDefaultEnv(t *testing.T, configName, instancesEnabled string) {
 	assert.Equal(t, "include", cfg.Env.IncludeDir)
 	assert.Equal(t, "templates", cfg.Templates[0].Path)
 
-	assert.DirExists(t, instancesEnabled)
 	assert.DirExists(t, "modules")
 	assert.DirExists(t, "include")
 	assert.DirExists(t, "bin")
@@ -50,12 +48,10 @@ func TestGenerateTtEnvDefault(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Chdir(wd)
 
-	err = generateTtEnv(configure.ConfigName, configData{
-		instancesEnabled: configure.InstancesEnabledDirName,
-	})
+	err = generateTtEnv(configure.ConfigName, configData{})
 	require.NoError(t, err)
 	require.FileExists(t, configure.ConfigName)
-	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
+	checkDefaultEnv(t, configure.ConfigName)
 }
 
 func TestGenerateTtEnv(t *testing.T) {
@@ -81,14 +77,11 @@ func TestGenerateTtEnv(t *testing.T) {
 	var cfg config.CliOpts
 	require.NoError(t, mapstructure.Decode(rawConfigOpts, &cfg))
 
-	// Instances enabled directory must be "." if there is an app in current directory.
-	assert.Equal(t, ".", cfg.Env.InstancesEnabled)
 	assert.Equal(t, "wal_dir", cfg.App.WalDir)
 	assert.Equal(t, "var/lib", cfg.App.VinylDir)
 	assert.Equal(t, "var/lib", cfg.App.MemtxDir)
 	assert.Equal(t, "run_dir", cfg.App.RunDir)
 	assert.Equal(t, "log_dir", cfg.App.LogDir)
-	assert.NoDirExists(t, configure.InstancesEnabledDirName)
 }
 
 func TestInitRunNoConfig(t *testing.T) {
@@ -99,7 +92,7 @@ func TestInitRunNoConfig(t *testing.T) {
 	defer os.Chdir(wd)
 
 	require.NoError(t, Run(&InitCtx{}))
-	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
+	checkDefaultEnv(t, configure.ConfigName)
 }
 
 func TestInitRunFailCreateResultFile(t *testing.T) {
@@ -149,7 +142,7 @@ func TestInitRunOverwriteTtEnv(t *testing.T) {
 
 	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("Y\n")}))
 	// Make sure the file is overwritten.
-	checkDefaultEnv(t, configure.ConfigName, configure.InstancesEnabledDirName)
+	checkDefaultEnv(t, configure.ConfigName)
 
 	// Test overwrite of existing tt.yml file.
 	require.NoError(t, os.Remove(configure.ConfigName))
@@ -160,7 +153,7 @@ func TestInitRunOverwriteTtEnv(t *testing.T) {
 
 	require.NoError(t, Run(&InitCtx{reader: strings.NewReader("Y\n")}))
 	// Make sure the file is overwritten.
-	checkDefaultEnv(t, "tt.yml", configure.InstancesEnabledDirName)
+	checkDefaultEnv(t, "tt.yml")
 
 	// Multiple configs - error.
 	require.NoError(t, copy.Copy("tt.yml", configure.ConfigName))

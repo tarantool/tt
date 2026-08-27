@@ -89,9 +89,7 @@ func (packer *debPacker) Run(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx,
 	log.Info("Creating a data directory")
 
 	rootPrefix := filepath.Join(dataDirName, defaultEnvPrefix, packCtx.Name)
-	if opts.Env.InstancesEnabled == "." {
-		rootPrefix = filepath.Dir(rootPrefix)
-	}
+	rootPrefix = filepath.Dir(rootPrefix)
 	packageDataDir := filepath.Join(packageDir, dataDirName)
 
 	log.Debugf("Initialize the app directory for prefix: %s", rootPrefix)

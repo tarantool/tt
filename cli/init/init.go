@@ -28,12 +28,11 @@ type InitCtx struct {
 
 // configData is a configuration data loaded from an existing config.
 type configData struct {
-	instancesEnabled   string
-	logDir             string
-	runDir             string
-	walDir             string
-	vinylDir           string
-	memtxDir           string
+	logDir   string
+	runDir   string
+	walDir   string
+	vinylDir string
+	memtxDir string
 }
 
 // createDirectories creates directories specified in dirList.
@@ -71,10 +70,6 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 	if sourceCfg.logDir != "" {
 		cfg.App.LogDir = sourceCfg.logDir
 	}
-	if sourceCfg.instancesEnabled != "" {
-		cfg.Env.InstancesEnabled = sourceCfg.instancesEnabled
-	}
-
 	ttYamlContent, err := util.GetTextTemplatedStr(&ttYamlTemplate, cfg)
 	if err != nil {
 		return err
@@ -86,7 +81,6 @@ func generateTtEnv(configPath string, sourceCfg configData) error {
 	}
 
 	directoriesToCreate := []string{
-		cfg.Env.InstancesEnabled,
 		cfg.Env.IncludeDir,
 		cfg.Env.BinDir,
 		cfg.Repo.Install,
@@ -152,14 +146,7 @@ func Run(initCtx *InitCtx) error {
 		return err
 	}
 
-	var sourceCfg configData
-
-	if !util.IsApp(".") {
-		// Current directory is not app dir, instances enabled dir will be used.
-		sourceCfg.instancesEnabled = configure.InstancesEnabledDirName
-	}
-
-	if err := generateTtEnv(configName, sourceCfg); err != nil {
+	if err := generateTtEnv(configName, configData{}); err != nil {
 		return err
 	}
 

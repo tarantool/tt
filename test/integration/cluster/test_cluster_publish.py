@@ -51,15 +51,12 @@ iproto:
 """
 
 
-def test_cluster_publish_in_place_instances_enabled(tt_cmd, tmp_path):
+def test_cluster_publish_from_app_directory(tt_cmd, tmp_path):
     env_path = tmp_path / "app"
     env_path.mkdir(0o755)
 
     with open(env_path / "tt.yml", "w") as f:
-        f.write("""\
-env:
-  instances.enabled: "."
-""")
+        f.write("{}\n")
     with open(env_path / "init.lua", "w") as f:
         f.write("print('hello world!')")
 
@@ -182,17 +179,20 @@ def test_cluster_publish_valid_cluster_without_app_config(
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
-    src_cfg_path = os.path.join(tmpdir, "src.yaml")
+    app_path = os.path.join(tmpdir, app_name)
+    with open(os.path.join(app_path, "tt.yml"), "w") as f:
+        f.write("{}\n")
+
+    src_cfg_path = os.path.join(app_path, "src.yaml")
     with open(src_cfg_path, "w") as f:
         f.write(valid_cluster_cfg)
 
-    app_path = os.path.join(tmpdir, app_name)
     dst_cfg_path = os.path.join(app_path, config_file)
     os.remove(dst_cfg_path)
     publish_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         publish_cmd,
-        cwd=tmpdir,
+        cwd=app_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,

@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/running"
@@ -23,30 +22,8 @@ const (
 
 // initAppsInfo collects environment applications info, set related pack context fields.
 func initAppsInfo(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx) error {
-	// Collect applications info.
+	packCtx.AppList = []string{filepath.Base(cmdCtx.Cli.ConfigDir)}
 	var err error
-	appList := []string{}
-	if packCtx.AppList == nil {
-		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.Env.InstancesEnabled,
-			true)
-		if err != nil {
-			return err
-		}
-	} else {
-		for _, appName := range packCtx.AppList {
-			if util.IsApp(filepath.Join(cliOpts.Env.InstancesEnabled, appName)) {
-				appList = append(appList, appName)
-			} else {
-				log.Warnf("Skip packing of '%s': specified name is not an application.", appName)
-			}
-		}
-	}
-
-	if len(appList) == 0 {
-		err = fmt.Errorf("there are no apps found in instance_enabled directory")
-		return err
-	}
-	packCtx.AppList = appList
 	packCtx.AppsInfo, err = running.CollectInstancesForApps(packCtx.AppList, cliOpts,
 		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity, running.ConfigLoadScripts)
 	if err != nil {
@@ -56,25 +33,11 @@ func initAppsInfo(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx, packCtx *P
 }
 
 // setBundleName sets the name of the bundle.
-func setBundleName(packCtx *PackCtx, cliOpts *config.CliOpts) {
+func setBundleName(packCtx *PackCtx) {
 	if packCtx.Name != "" {
 		return
 	}
-	packCtx.Name = "package"
-	if cliOpts.Env.InstancesEnabled == "." {
-		packCtx.Name = packCtx.AppList[0]
-		return
-	}
-	if packCtx.configFilePath == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Warnf("failed to get current working dir: %s", err)
-			return
-		}
-		packCtx.Name = filepath.Base(cwd)
-		return
-	}
-	packCtx.Name = filepath.Base(filepath.Dir(packCtx.configFilePath))
+	packCtx.Name = packCtx.AppList[0]
 }
 
 // FillCtx fills pack context.
@@ -96,7 +59,7 @@ func FillCtx(cmdCtx *cmdcontext.CmdCtx, packCtx *PackCtx, cliOpts *config.CliOpt
 		return fmt.Errorf("error collect applications info: %s", err)
 	}
 
-	setBundleName(packCtx, cliOpts)
+	setBundleName(packCtx)
 
 	// Initialize packignore filter.
 	ignoreFilter, err := createIgnoreFilter(util.GetOsFS(), cmdCtx.Cli.ConfigDir, ignoreFile)

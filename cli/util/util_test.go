@@ -15,7 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tarantool/tt/cli/pack/test_helpers"
 )
 
 type inputValue struct {
@@ -224,97 +223,6 @@ func TestCreateSymlink(t *testing.T) {
 	assert.Equal(t, "./tgtFile.txt", targetPath)
 }
 
-func TestIsApp(t *testing.T) {
-	testCases := []struct {
-		testName   string
-		createFunc func() (string, error)
-		isApp      bool
-	}{
-		{
-			testName: "Application is a directory with init.lua",
-			createFunc: func() (string, error) {
-				baseDir := t.TempDir()
-				filePath := filepath.Join(baseDir, "init.lua")
-				_, err := os.Create(filePath)
-				if err != nil {
-					return "", err
-				}
-				return baseDir, nil
-			},
-			isApp: true,
-		},
-		{
-			testName: "Application is a directory, no init.lua, instances.yml exists",
-			createFunc: func() (string, error) {
-				baseDir := t.TempDir()
-				filePath := filepath.Join(baseDir, "instances.yml")
-				_, err := os.Create(filePath)
-				if err != nil {
-					return "", err
-				}
-				return baseDir, nil
-			},
-			isApp: true,
-		},
-		{
-			testName: "Application is a directory, no init.lua, instances.yaml exists",
-			createFunc: func() (string, error) {
-				baseDir := t.TempDir()
-				filePath := filepath.Join(baseDir, "instances.yaml")
-				_, err := os.Create(filePath)
-				if err != nil {
-					return "", err
-				}
-				return baseDir, nil
-			},
-			isApp: true,
-		},
-		{
-			testName: "Application is file",
-			createFunc: func() (string, error) {
-				baseDir := t.TempDir()
-				filePath := filepath.Join(baseDir, "app.lua")
-				_, err := os.Create(filePath)
-				if err != nil {
-					return "", err
-				}
-				return filePath, nil
-			},
-			isApp: true,
-		},
-		{
-			testName: "Empty directory",
-			createFunc: func() (string, error) {
-				baseDir := t.TempDir()
-				return baseDir, nil
-			},
-			isApp: false,
-		},
-		{
-			testName: "Non lua file",
-			createFunc: func() (string, error) {
-				baseDir := t.TempDir()
-				filePath := filepath.Join(baseDir, "app.py")
-				_, err := os.Create(filePath)
-				if err != nil {
-					return "", err
-				}
-				return filePath, nil
-			},
-			isApp: false,
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.testName, func(t *testing.T) {
-			path, err := testCase.createFunc()
-			require.NoError(t, err, "no error expected")
-			assert.Equal(t, testCase.isApp, IsApp(path),
-				"Unexpected result of application check")
-		})
-	}
-}
-
 func TestGetYamlFileName(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -397,52 +305,6 @@ func TestInstantiateFileFromTemplate(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedContent, string(content))
 		})
-	}
-}
-
-func TestCollectAppList(t *testing.T) {
-	testDir := t.TempDir()
-	defaultPaths := []string{
-		"var",
-		"log",
-		"run",
-		"lib",
-		"env",
-		filepath.Join("env", "bin"),
-		filepath.Join("env", "modules"),
-	}
-
-	apps := map[string]bool{
-		"app1.lua": true,
-		"app2":     true,
-	}
-
-	dirsToCreate := []string{
-		"app2",
-		".rocks",
-	}
-	dirsToCreate = append(dirsToCreate, defaultPaths...)
-
-	filesToCreate := []string{
-		"app1.lua",
-		"somefile",
-		"app2/init.lua",
-	}
-
-	err := test_helpers.CreateDirs(testDir, dirsToCreate)
-	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
-
-	err = test_helpers.CreateFiles(testDir, filesToCreate)
-	require.NoErrorf(t, err, "failed to initialize a directory structure: %v", err)
-
-	collected, err := CollectAppList("", testDir, true)
-	assert.Nilf(t, err, "failed to collect an app list: %v", err)
-
-	require.Equalf(t, len(apps), len(collected), "wrong count applications collected,"+
-		" expected: %d, got %d", len(apps), len(collected))
-
-	for _, item := range collected {
-		require.Truef(t, apps[item], "wrong item got collected in app list: %s", item)
 	}
 }
 

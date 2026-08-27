@@ -205,16 +205,21 @@ def tt(tt_cmd, tmpdir_with_cfg):
 @pytest.fixture(scope="function")
 def tt_path(tmp_path, request):
     mark_app = request.node.get_closest_marker("tt_app")
-    app_path = mark_app.kwargs["app_path"]
-    if not os.path.isabs(app_path):
-        app_path = os.path.join(os.path.dirname(request.path), app_path)
-    if os.path.isdir(app_path):
-        app_name = mark_app.kwargs.get("app_name", os.path.basename(app_path))
-        app_path = shutil.copytree(app_path, tmp_path / app_name)
+    source_path = Path(mark_app.kwargs["app_path"])
+    if not source_path.is_absolute():
+        source_path = request.path.parent / source_path
+
+    default_app_name = source_path.name if source_path.is_dir() else source_path.stem
+    app_name = mark_app.kwargs.get("app_name", default_app_name)
+    app_path = tmp_path / app_name
+    if source_path.is_dir():
+        shutil.copytree(source_path, app_path)
     else:
-        app_name, app_ext = os.path.splitext(os.path.basename(app_path))
-        app_name = mark_app.kwargs.get("app_name", app_name)
-        app_path = shutil.copy(app_path, tmp_path / (app_name + app_ext))
+        app_path.mkdir()
+        shutil.copy(source_path, app_path / "init.lua")
+
+    if not (app_path / "tt.yaml").exists() and not (app_path / "tt.yml").exists():
+        utils.create_tt_config(app_path, "")
     return app_path
 
 
@@ -223,12 +228,9 @@ def tt_instances(tt_path, request):
     mark_app = request.node.get_closest_marker("tt_app")
     instances = mark_app.kwargs.get("instances")
     app_name = os.path.basename(tt_path)
-    if not os.path.isdir(tt_path):
-        app_name, _ = os.path.splitext(app_name)
-        assert instances is None
+    if instances is None:
         instances = [app_name]
     else:
-        assert instances is not None
         instances = list(map(lambda x: f"{app_name}:{x}", instances))
     return instances
 
@@ -247,6 +249,7 @@ def tt_post_start(request):
 
 @pytest.fixture(scope="function")
 def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
+    tt.work_dir = tt_path
     app = tt_helper.TtApp(tt, tt_path, tt_instances)
     for target in tt_running_targets:
         p = tt.run("start", target)

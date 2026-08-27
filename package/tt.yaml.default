@@ -1,8 +1,4 @@
 env:
-  # Path to directory that stores all applications.
-  # The directory can also contain symbolic links to applications.
-  instances_enabled: /etc/tarantool/instances.enabled
-
   # Directory that stores binary files.
   bin_dir: /opt/tarantool/bin
 

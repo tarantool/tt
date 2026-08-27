@@ -8,7 +8,6 @@ import (
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
-	"github.com/tarantool/tt/cli/util"
 )
 
 // BuildCtx contains information for application building.
@@ -20,7 +19,7 @@ type BuildCtx struct {
 }
 
 // FillCtx fills build context.
-func FillCtx(buildCtx *BuildCtx, cliOpts *config.CliOpts, args []string) error {
+func FillCtx(buildCtx *BuildCtx, args []string) error {
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return err
@@ -40,19 +39,7 @@ func FillCtx(buildCtx *BuildCtx, cliOpts *config.CliOpts, args []string) error {
 		}
 		fileInfo, err := os.Stat(appPath)
 		if err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
-			log.Debugf("%q does not exist. Looking for %q in instances enabled directory.",
-				appPath, appName)
-			appLink := filepath.Join(cliOpts.Env.InstancesEnabled, appName)
-			if appPath, err = util.ResolveSymlink(appLink); err != nil {
-				return err
-			}
-			fileInfo, err = os.Stat(appPath)
-			if err != nil {
-				return err
-			}
+			return err
 		}
 		if !fileInfo.IsDir() {
 			return fmt.Errorf("%s is not a directory", appPath)

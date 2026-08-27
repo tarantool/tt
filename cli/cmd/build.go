@@ -45,7 +45,7 @@ func internalBuildModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var buildCtx build.BuildCtx
-	if err := build.FillCtx(&buildCtx, cliOpts, args); err != nil {
+	if err := build.FillCtx(&buildCtx, args); err != nil {
 		return err
 	}
 
