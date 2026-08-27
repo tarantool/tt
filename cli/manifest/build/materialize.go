@@ -16,12 +16,17 @@ const (
 	sourcePath     = "path"
 )
 
-// rockClient is the slice of go-luarocks' *client.Rocks the materializer drives:
-// fetch-and-build a pinned registry rock into the tree, or build a path
-// dependency's rockspec in place. *client.Rocks satisfies it; tests fake it so
-// the lock walk is exercised without a registry or a compiler.
-type rockClient interface {
+// rockInstaller is the registry-install slice of go-luarocks' *client.Rocks.
+// Registry dependencies use the Lua backend for full LuaRocks artifact and
+// deployment compatibility.
+type rockInstaller interface {
 	Install(ctx context.Context, name string, opts client.InstallOpts) error
+}
+
+// rockBuilder is the path-build slice of go-luarocks' *client.Rocks. Path
+// dependencies use the native backend so Build cannot resolve outside the
+// already pinned lock closure.
+type rockBuilder interface {
 	Build(ctx context.Context, specPath string, opts client.BuildOpts) error
 }
 
@@ -36,10 +41,12 @@ type rockClient interface {
 // rockspec in their directory; a leaf path dependency that ships no rockspec is
 // nothing to build and is skipped.
 func materialize(
-	ctx context.Context, client rockClient, projectDir string, prod manifest.LockProduct,
+	ctx context.Context, registryClient rockInstaller, pathClient rockBuilder,
+	projectDir string, prod manifest.LockProduct,
+	servers []string,
 ) error {
 	for _, dep := range prod.Dependencies {
-		depErr := materializeDep(ctx, client, projectDir, dep)
+		depErr := materializeDep(ctx, registryClient, pathClient, projectDir, dep, servers)
 		if depErr != nil {
 			return depErr
 		}
@@ -50,20 +57,26 @@ func materialize(
 
 // materializeDep materializes one locked dependency.
 func materializeDep(
-	ctx context.Context, rockClient rockClient, projectDir string, dep manifest.LockDependency,
+	ctx context.Context, registryClient rockInstaller, pathClient rockBuilder,
+	projectDir string, dep manifest.LockDependency,
+	servers []string,
 ) error {
 	switch dep.Source {
 	case sourceRegistry:
-		opts := client.InstallOpts{Version: dep.Version, Servers: nil, Deps: client.DepsNone}
+		opts := client.InstallOpts{
+			Version: dep.Version,
+			Servers: servers,
+			Deps:    client.DepsNone,
+		}
 
-		installErr := rockClient.Install(ctx, dep.Name, opts)
+		installErr := registryClient.Install(ctx, dep.Name, opts)
 		if installErr != nil {
 			return fmt.Errorf("installing %s %s: %w", dep.Name, dep.Version, installErr)
 		}
 
 		return nil
 	case sourcePath:
-		return materializePathDep(ctx, rockClient, projectDir, dep)
+		return materializePathDep(ctx, pathClient, projectDir, dep)
 	default:
 		return fmt.Errorf("dependency %q: %w %q", dep.Name, errUnknownSource, dep.Source)
 	}
@@ -73,7 +86,7 @@ func materializeDep(
 // directory. A directory with no rockspec is a leaf pinned by content hash with
 // nothing to build; more than one rockspec is ambiguous and is an error.
 func materializePathDep(
-	ctx context.Context, rockClient rockClient, projectDir string, dep manifest.LockDependency,
+	ctx context.Context, rockClient rockBuilder, projectDir string, dep manifest.LockDependency,
 ) error {
 	dir := filepath.Join(projectDir, dep.Path)
 
