@@ -69,6 +69,80 @@ func TestLockRoundTrip(t *testing.T) {
 	assert.Equal(t, "tt 3.1.0", back.GeneratedBy)
 }
 
+// TestLockDevDependenciesRoundTrip pins the dev closure's on-disk shape: one
+// global [[lock.dev_dependencies]] array beside the per-product tables, both
+// registry and path entries surviving a marshal/parse cycle intact.
+func TestLockDevDependenciesRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	lock := &manifest.Lock{
+		LockVersion:     manifest.LockVersion,
+		ManifestVersion: manifest.ManifestVersion,
+		GeneratedBy:     "tt 3.1.0",
+		ManifestHash:    "sha256:abc123",
+		Products: map[string]manifest.LockProduct{
+			"default": {Dependencies: []manifest.LockDependency{
+				{Name: "metrics", Version: "1.5.0-1", Source: "registry"},
+			}},
+		},
+		DevDependencies: []manifest.LockDependency{
+			{
+				Name:     "luatest",
+				Version:  "1.0.1-1",
+				Source:   "registry",
+				Checksum: "md5:deadbeef",
+			},
+			{
+				Name:        "dev-helper",
+				Version:     "0.1.0",
+				Source:      "path",
+				Path:        "../dev-helper",
+				ContentHash: "sha256:cafe",
+			},
+		},
+	}
+
+	out, err := lock.Marshal()
+	require.NoError(t, err)
+
+	text := string(out)
+	assert.Contains(t, text, "[[lock.dev_dependencies]]")
+	assert.Contains(t, text, "[lock.products.default]")
+	assert.NotContains(t, text, "'lock.dev_dependencies'", "must not be a single quoted key")
+
+	back, err := manifest.ParseLock(out)
+	require.NoError(t, err)
+	assert.Equal(t, lock.DevDependencies, back.DevDependencies)
+	assert.Equal(t, lock.Products, back.Products)
+}
+
+// TestLockWithoutDevDependenciesOmitsKey pins that a lock with no dev closure
+// carries no dev_dependencies key at all, so locks written before dev
+// dependencies were resolved keep marshaling byte-for-byte as they did.
+func TestLockWithoutDevDependenciesOmitsKey(t *testing.T) {
+	t.Parallel()
+
+	lock := &manifest.Lock{
+		LockVersion:     manifest.LockVersion,
+		ManifestVersion: manifest.ManifestVersion,
+		GeneratedBy:     "tt 3.1.0",
+		ManifestHash:    "sha256:abc123",
+		Products: map[string]manifest.LockProduct{
+			"default": {Dependencies: []manifest.LockDependency{
+				{Name: "metrics", Version: "1.5.0-1", Source: "registry"},
+			}},
+		},
+	}
+
+	out, err := lock.Marshal()
+	require.NoError(t, err)
+	assert.NotContains(t, string(out), "dev_dependencies")
+
+	back, err := manifest.ParseLock(out)
+	require.NoError(t, err)
+	assert.Empty(t, back.DevDependencies)
+}
+
 func TestLockNewerMajorRefused(t *testing.T) {
 	t.Parallel()
 

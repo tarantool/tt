@@ -25,6 +25,15 @@ type Lock struct {
 	// Products maps product name to its resolution snapshot. On disk this is
 	// the [lock.products.<name>] table tree.
 	Products map[string]LockProduct `toml:"-"`
+
+	// DevDependencies is the closure of [dev_dependencies], as
+	// [[lock.dev_dependencies]]. It is one list rather than one per product:
+	// the manifest declares dev dependencies globally, so there is nothing to
+	// key them by. Empty for a manifest that declares none, and then absent
+	// from the file entirely - a lock written before dev dependencies existed
+	// is therefore indistinguishable from one whose manifest declares none,
+	// which is why IsStale checks the manifest side too.
+	DevDependencies []LockDependency `toml:"-"`
 }
 
 // LockProduct is one product's resolution snapshot - the full transitive
@@ -44,9 +53,10 @@ type LockDependency struct {
 	ContentHash string `toml:"content_hash,omitempty"` // Path: sha256 of contents.
 }
 
-// lockWire is the on-disk shape of the lock. It nests Products under a [lock]
-// table so the file reads [lock.products.<name>]; go-toml does not split dotted
-// struct tags, so the nesting is expressed with a real struct.
+// lockWire is the on-disk shape of the lock. It nests Products and the dev
+// closure under a [lock] table so the file reads [lock.products.<name>] and
+// [[lock.dev_dependencies]]; go-toml does not split dotted struct tags, so the
+// nesting is expressed with a real struct.
 type lockWire struct {
 	LockVersion      string `toml:"lock_version"`
 	ManifestVersion  string `toml:"manifest_version"`
@@ -57,6 +67,10 @@ type lockWire struct {
 	BundledTcm       string `toml:"bundled_tcm_version,omitempty"`
 	Lock             struct {
 		Products map[string]LockProduct `toml:"products,omitempty"`
+		// omitempty keeps the key out of a lock with no dev closure, so every
+		// lock written before dev dependencies were resolved still round-trips
+		// byte-for-byte.
+		DevDependencies []LockDependency `toml:"dev_dependencies,omitempty"`
 	} `toml:"lock"`
 }
 
@@ -123,6 +137,7 @@ func (l Lock) toWire() lockWire {
 	wire.BundledTt = l.BundledTt
 	wire.BundledTcm = l.BundledTcm
 	wire.Lock.Products = l.Products
+	wire.Lock.DevDependencies = l.DevDependencies
 
 	return wire
 }
@@ -137,5 +152,6 @@ func (w lockWire) toLock() Lock {
 		BundledTt:        w.BundledTt,
 		BundledTcm:       w.BundledTcm,
 		Products:         w.Lock.Products,
+		DevDependencies:  w.Lock.DevDependencies,
 	}
 }
