@@ -1,7 +1,16 @@
+import functools
+import http.server
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
+
+# The rock repository the `tt rocks` suite already ships: a LuaRocks `manifest`
+# next to two versions of `stat`. Serving it over loopback is what lets the
+# dependency commands resolve for real without a network — the manifest
+# pipeline's remote index speaks HTTP and cannot read a directory.
+ROCKS_REPO = Path(__file__).parent.parent / "rocks" / "repo"
 
 MANIFEST_TEMPLATE = """manifest_version = '0.1'
 
@@ -226,6 +235,27 @@ def system_staging(tmp_path: Path) -> Tree:
     staging.install_guest("monitoring", "2.0.0", {"metrics": "1.0.0", "checks": "3.1.0"})
     staging.install_guest("alerting", "0.5.0", {"checks": "3.1.0"})
     return staging
+
+
+@pytest.fixture()
+def rock_server():
+    """Serve the fixture rock repository over loopback and yield its base URL.
+
+    The dependency commands re-resolve, and resolution talks to a rock server
+    over HTTP. Pointing a dependency's `registry` key at this one is what keeps
+    the suite offline: no flag routes the whole server list at a local
+    directory, and the remote index cannot read one anyway.
+    """
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(ROCKS_REPO))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}/"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 @pytest.fixture()

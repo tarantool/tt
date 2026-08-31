@@ -13,6 +13,8 @@ importlib-metadata<4.3
 pytest-timeout==2.4.0
 retry==0.9.2
 pytest-rerunfailures==15.1
+# tomllib is stdlib from 3.11 on; CI runs 3.10, so the tests fall back to this.
+tomli==2.2.1; python_version < "3.11"
 # HOTFIX: Workaround to avoid cmake warning that appears after upgrading cmake on CI runners.
 # The warning occurs during CI tests in 'checks' repo and finally leads to CI failure.
 # REMOVE IT as soon as proper fixes are applied to 'checks' and all dependent repos.
