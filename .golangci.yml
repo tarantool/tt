@@ -130,6 +130,9 @@ linters:
             # imports that used to pass. Add sub-packages only where the broader
             # entry is already shadowed, as it is in this list.
             - "github.com/tarantool/tt/cli/manifest/state"
+            # cli/manifest/build and cli/manifest/deps drive the dependency
+            # resolver; deps also names resolve.Pins in its own signatures.
+            - "github.com/tarantool/tt/cli/manifest/resolve"
             # cli/manifest/inventory renders tt package list as YAML, the
             # machine-readable default for non-TTY output.
             - "gopkg.in/yaml.v3"
@@ -142,6 +145,7 @@ linters:
             - "github.com/hashicorp/go-version"
             - "github.com/stretchr/testify"
             - "github.com/tarantool/tt/cli/manifest"
+            - "github.com/tarantool/tt/cli/manifest/resolve"
             - "github.com/tarantool/go-luarocks"
             # cli/manifest/pack tests decompress the archive they just wrote.
             - "github.com/klauspost/compress/zstd"
