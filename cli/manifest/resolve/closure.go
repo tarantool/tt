@@ -62,11 +62,20 @@ type walker struct {
 	// since the walk order is name-sorted - the transitive edge must not silently
 	// resolve it from the default registry or drop its path source. See
 	// authoritative.
-	directs  map[string]depReq
-	chosen   map[string]*resolvedDep
-	inFlight map[string]bool
-	order    []string // post-order: deepest dependency first
-	warnings []string
+	directs map[string]depReq
+	// pins holds the versions this pass prefers, by rock name; nil for an
+	// unpinned resolution. It applies to transitive rocks as much as to direct
+	// ones - holding the whole closure steady is the point, since
+	// tt package update <name> is specified to move exactly one rock.
+	pins Pins
+	// pinnedPick records the rocks whose pin was actually honored, so a later
+	// requirement they cannot satisfy is reported as a droppable pin rather
+	// than as a dependency conflict. Per product, like chosen.
+	pinnedPick map[string]bool
+	chosen     map[string]*resolvedDep
+	inFlight   map[string]bool
+	order      []string // post-order: deepest dependency first
+	warnings   []string
 }
 
 // walk visits each requirement in reqs, recursing into a chosen rock's
@@ -102,11 +111,22 @@ func (w *walker) walk(ctx context.Context, parent string, reqs []depReq, chain [
 			// its version may be unknown (a leaf directory shipping no rockspec).
 			if existing.lockDep.Source != manifestSourcePath &&
 				!deps.Match(existing.version, req.constraints) {
-				return &conflictError{
+				conflict := &conflictError{
 					detail: fmt.Sprintf("chose %s %s but %s requires %s",
 						req.name, existing.version.Raw, parentLabel(parent), constraintLabel(req)),
 					chain: appendChain(chain, req.name),
 				}
+
+				// When the pick is only what it is because a pin asked for it,
+				// the pin is what gives way - it is a preference, and the
+				// manifest is genuinely resolvable without it. ResolvePinned
+				// drops it and re-runs the pass; the unpinned pick then either
+				// satisfies this edge or fails here as a real conflict.
+				if w.pinnedPick[req.name] {
+					return &pinConflictError{name: req.name, conflict: conflict}
+				}
+
+				return conflict
 			}
 
 			continue
@@ -164,8 +184,7 @@ func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []de
 		return w.resolvePath(req)
 	}
 
-	resolved, err := w.cache.resolveRock(
-		ctx, w.engine.adapter, req.name, req.constraintExpr, req.registry)
+	resolved, err := w.resolveRegistry(ctx, req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("resolving %q: %w", req.name, err)
 	}
@@ -197,6 +216,56 @@ func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []de
 	}
 
 	return resolvedDependency, transitiveReqs(spec.Dependencies), nil
+}
+
+// resolveRegistry resolves a registry requirement, preferring the pin held for
+// req.name when there is one.
+//
+// The pin is expressed as an extra ==<version> AND'd onto the requirement, so
+// the adapter applies it exactly like any other constraint - and so the
+// resolution cache, which is keyed on (name, constraint expression, registry),
+// cannot serve a pinned answer to an unpinned query or the reverse: the two
+// differ in the key itself. That is also why the pin has to ride in the
+// expression rather than in a field beside it.
+//
+// A pin that no longer fits is dropped rather than enforced. The two sentinels
+// checked here are the adapter's two ways of saying "no such version" -
+// ErrNotFound (no server carries the rock at all) and ErrNoMatch (a server
+// carries it, but in no version this expression allows) - which is what both
+// failure modes look like from here: a constraint the pinned version now
+// violates, and a version the registry stopped serving. Every other error - a
+// transport failure, an unparseable expression - is a real failure and
+// propagates, so the second query cannot paper over one.
+func (w *walker) resolveRegistry(ctx context.Context, req depReq) (rocks.ResolvedRock, error) {
+	pinned, held := w.pins[req.name]
+	if !held {
+		return w.cache.resolveRock(
+			ctx, w.engine.adapter, req.name, req.constraintExpr, req.registry)
+	}
+
+	resolved, err := w.cache.resolveRock(
+		ctx, w.engine.adapter, req.name, joinConstraints(req.constraintExpr, "=="+pinned),
+		req.registry)
+	if err == nil {
+		w.pinnedPick[req.name] = true
+
+		return resolved, nil
+	}
+
+	if !errors.Is(err, rocks.ErrNotFound) && !errors.Is(err, rocks.ErrNoMatch) {
+		return rocks.ResolvedRock{}, err
+	}
+
+	// Emit once per run: the walker is per-product, but a rock shared by
+	// several products loses its pin in each of them for the same reason.
+	if w.cache.markPinDropped(req.name) {
+		w.warnings = append(w.warnings, fmt.Sprintf(
+			"locked version %s of %q no longer fits its constraints or is gone from the "+
+				"registry; resolved afresh", pinned, req.name))
+	}
+
+	return w.cache.resolveRock(
+		ctx, w.engine.adapter, req.name, req.constraintExpr, req.registry)
 }
 
 // transitiveReqs turns a rockspec's dependency list into requirements. They
