@@ -76,6 +76,7 @@ func (f *fakeResolver) ResolvePinned(
 
 	if f.lock != nil {
 		out.Products = f.lock.Products
+		out.DevDependencies = f.lock.DevDependencies
 	}
 
 	return &out, f.warnings, nil
