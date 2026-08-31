@@ -398,7 +398,8 @@ func movesBetween(before, after *manifest.Lock) []Move {
 	return moves
 }
 
-// closureOf flattens a lock into rock name -> version across every product.
+// closureOf flattens a lock into rock name -> version across every product and
+// the dev closure.
 //
 // Products hold independent closures, so two of them may legitimately pin
 // different versions of one rock. The moves are a human report of what changed,
@@ -416,6 +417,12 @@ func closureOf(lock *manifest.Lock) map[string]string {
 			if _, seen := out[dependency.Name]; !seen {
 				out[dependency.Name] = dependency.Version
 			}
+		}
+	}
+
+	for _, dependency := range lock.DevDependencies {
+		if _, seen := out[dependency.Name]; !seen {
+			out[dependency.Name] = dependency.Version
 		}
 	}
 
