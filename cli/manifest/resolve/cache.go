@@ -13,7 +13,10 @@ import (
 // hash it once rather than once per product. It is scoped to one resolution
 // pass; a rock version's rockspec is immutable, and a requirement is keyed by
 // its exact (name, constraint, registry), so every cached value is sound to
-// reuse within the run. Not safe for concurrent use - resolution is sequential.
+// reuse within the run. A preferred version rides in the constraint expression
+// (see walker.resolveRegistry) rather than beside it, which is what keeps a
+// pinned and an unpinned query for the same rock in distinct cache slots. Not
+// safe for concurrent use - resolution is sequential.
 type resolveCache struct {
 	resolved map[string]rocks.ResolvedRock
 	metadata map[string]*luarocks.Rockspec
@@ -26,6 +29,9 @@ type resolveCache struct {
 	// reproducibility warning is emitted once per run, not once per product that
 	// shares the rock (the walker is per-product, but this cache is run-wide).
 	warnedNoMD5 map[string]bool
+	// droppedPins records the rocks whose preferred version was dropped for no
+	// longer fitting, so that warning too is emitted once per run.
+	droppedPins map[string]bool
 }
 
 func newResolveCache() *resolveCache {
@@ -35,6 +41,7 @@ func newResolveCache() *resolveCache {
 		content:     map[string]string{},
 		local:       map[string]*luarocks.Rockspec{},
 		warnedNoMD5: map[string]bool{},
+		droppedPins: map[string]bool{},
 	}
 }
 
@@ -47,6 +54,19 @@ func (c *resolveCache) markNoMD5(url string) bool {
 	}
 
 	c.warnedNoMD5[url] = true
+
+	return true
+}
+
+// markPinDropped records that name's preferred version did not fit and reports
+// whether this is the first time in the run - so a pin dropped for a rock that
+// several products depend on warns once, not once per product.
+func (c *resolveCache) markPinDropped(name string) bool {
+	if c.droppedPins[name] {
+		return false
+	}
+
+	c.droppedPins[name] = true
 
 	return true
 }
