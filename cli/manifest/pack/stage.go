@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/tarantool/go-luarocks/manif"
+
 	"github.com/tarantool/tt/cli/manifest"
 )
 
@@ -61,6 +63,11 @@ type stageRequest struct {
 	// HasFlatNamespace records that some component declares namespace = "",
 	// which --without-deps cannot express (see stageRocks).
 	HasFlatNamespace bool
+	// DevOnly lists the locked rocks that only the dev closure brings. Their
+	// files are dropped from .rocks/ in both packing modes: they are the
+	// developer's tools, and the spec is explicit that they never reach the
+	// archive. See devOnlyRocks.
+	DevOnly []manifest.LockDependency
 }
 
 // stageMetadata writes the three tt-owned metadata files.
@@ -144,6 +151,12 @@ func stageEntry(stageDir, projectDir, entry, field string) error {
 // namespace subtrees under share/tarantool/ and lib/tarantool/ survive, which
 // is what leaves the dependency closure to be refetched from the lock at
 // install time.
+//
+// Dev-only rocks are dropped in both modes. The two filters compose rather than
+// override: --without-deps decides which subtrees are copied at all, the dev
+// filter decides which files inside a copied subtree are skipped, and the skip
+// predicate is evaluated against the tree-relative path either way, so a
+// namespace that happens to share a dev rock's name is not a hole in it.
 func stageRocks(stageDir string, req stageRequest) error {
 	if _, err := os.Stat(req.Tree); os.IsNotExist(err) {
 		// A pure-metadata package need not have produced a tree.
@@ -151,9 +164,10 @@ func stageRocks(stageDir string, req stageRequest) error {
 	}
 
 	dstRocks := filepath.Join(stageDir, rocksDirName)
+	skip := devRockFilter(req.Tree, req.DevOnly)
 
 	if req.WithDeps {
-		return copyTree(req.Tree, dstRocks)
+		return copyTreeFiltered(req.Tree, dstRocks, "", skip)
 	}
 
 	if req.HasFlatNamespace {
@@ -181,8 +195,10 @@ func stageRocks(stageDir string, req stageRequest) error {
 			}
 
 			dst := filepath.Join(dstRocks, filepath.FromSlash(sub), ns)
-			if err := copyTree(src, dst); err != nil {
-				return err
+
+			copyErr := copyTreeFiltered(src, dst, sub+"/"+ns, skip)
+			if copyErr != nil {
+				return copyErr
 			}
 		}
 	}
@@ -194,7 +210,93 @@ func stageRocks(stageDir string, req stageRequest) error {
 const (
 	shareTarantool = "share/tarantool"
 	libTarantool   = "lib/tarantool"
+	// rocksInstallDir is where LuaRocks keeps per-rock metadata:
+	// <tree>/share/tarantool/rocks/<name>/<version>/.
+	rocksInstallDir = shareTarantool + "/rocks"
+	// binDir holds the console scripts a rock installs. luatest - the canonical
+	// dev dependency - ships one, which is why the filter has to reach here and
+	// not only into the two module trees.
+	binDir = "bin"
+	// rockManifestFile enumerates, per rock, every file it deployed.
+	rockManifestFile = "rock_manifest"
 )
+
+// devRockFilter builds the predicate stageRocks skips paths by: it reports
+// whether a tree-relative slash path belongs to one of the dev-only rocks. A
+// nil DevOnly yields nil, which copyTreeFiltered reads as "copy everything".
+//
+// A rock's footprint is taken from its own rock_manifest, which lists every
+// file it deployed - the authoritative answer, and the only one that catches a
+// rock installing a bare share/tarantool/<name>.lua rather than a directory, or
+// a console script in bin/. Its per-rock metadata directory is excluded whole
+// and separately, since that is where the rock_manifest itself, the rockspec,
+// doc/ and conf/ live.
+//
+// A rock whose rock_manifest is missing or unreadable falls back to the
+// name-keyed directories cli/manifest/state.RockPaths uses. That under-excludes
+// a rock laying files outside them, which is the safe direction to be wrong in:
+// the archive keeps a file it did not need rather than losing one it did.
+func devRockFilter(tree string, devOnly []manifest.LockDependency) func(string) bool {
+	if len(devOnly) == 0 {
+		return nil
+	}
+
+	excluded := map[string]bool{}
+
+	for _, rock := range devOnly {
+		excluded[rocksInstallDir+"/"+rock.Name] = true
+
+		deployed, ok := deployedPaths(tree, rock)
+		if !ok {
+			excluded[shareTarantool+"/"+rock.Name] = true
+			excluded[libTarantool+"/"+rock.Name] = true
+
+			continue
+		}
+
+		for _, path := range deployed {
+			excluded[path] = true
+		}
+	}
+
+	return func(rel string) bool {
+		for path := range excluded {
+			if rel == path || strings.HasPrefix(rel, path+"/") {
+				return true
+			}
+		}
+
+		return false
+	}
+}
+
+// deployedPaths reads one rock's rock_manifest and returns the tree-relative
+// paths it deployed outside its own metadata directory. The second result is
+// false when the rock_manifest cannot be read, which is the caller's signal to
+// fall back to the name-keyed directories.
+func deployedPaths(tree string, rock manifest.LockDependency) ([]string, bool) {
+	specPath := filepath.Join(tree, filepath.FromSlash(rocksInstallDir),
+		rock.Name, rock.Version, rockManifestFile)
+
+	rockManifest, err := manif.FileStore{}.ReadRock(specPath)
+	if err != nil || rockManifest == nil {
+		return nil, false
+	}
+
+	var paths []string
+
+	for root, files := range map[string]map[string]string{
+		shareTarantool: rockManifest.Lua,
+		libTarantool:   rockManifest.Lib,
+		binDir:         rockManifest.Bin,
+	} {
+		for file := range files {
+			paths = append(paths, root+"/"+filepath.ToSlash(file))
+		}
+	}
+
+	return paths, true
+}
 
 // copyTree recursively copies src to dst, creating parents as needed. The
 // archive carries no link structure, so symlinks are dereferenced: a link to a
@@ -205,6 +307,15 @@ const (
 // directory down the file-copy path. Package prefixes hit this routinely
 // (Homebrew's share/tarantool is a link into the Cellar).
 func copyTree(src, dst string) error {
+	return copyTreeFiltered(src, dst, "", nil)
+}
+
+// copyTreeFiltered is copyTree with an optional skip predicate. relBase is the
+// slash path src sits at inside the rocks tree, so the predicate always sees a
+// tree-relative path however deep the copy root is - which is what lets the
+// same filter apply to a whole-tree copy and to a per-namespace one. A nil skip
+// copies everything.
+func copyTreeFiltered(src, dst, relBase string, skip func(string) bool) error {
 	if resolved, err := filepath.EvalSymlinks(src); err == nil {
 		src = resolved
 	}
@@ -228,6 +339,14 @@ func copyTree(src, dst string) error {
 			return err
 		}
 
+		if skip != nil && skip(joinRel(relBase, rel)) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
 		target := filepath.Join(dst, rel)
 
 		if d.IsDir() {
@@ -248,7 +367,7 @@ func copyTree(src, dst string) error {
 			}
 
 			if resolved.IsDir() {
-				return copyTree(path, target)
+				return copyTreeFiltered(path, target, joinRel(relBase, rel), skip)
 			}
 
 			return copyFile(path, target)
@@ -261,6 +380,22 @@ func copyTree(src, dst string) error {
 
 		return copyFile(path, target)
 	})
+}
+
+// joinRel appends a walk-relative path to the copy root's tree-relative base,
+// in slash form. WalkDir reports the root itself as ".", which contributes
+// nothing to the path.
+func joinRel(base, rel string) string {
+	slashed := filepath.ToSlash(rel)
+	if slashed == "." {
+		return base
+	}
+
+	if base == "" {
+		return slashed
+	}
+
+	return base + "/" + slashed
 }
 
 // within reports whether path is inside root (or is root itself). Both sides
