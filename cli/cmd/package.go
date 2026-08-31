@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tarantool/tt/cli/manifest/build"
+	"github.com/tarantool/tt/cli/manifest/deps"
 	"github.com/tarantool/tt/cli/manifest/install"
 	"github.com/tarantool/tt/cli/manifest/inventory"
 	"github.com/tarantool/tt/cli/manifest/pack"
@@ -49,27 +50,242 @@ var (
 	packageTree   bool
 )
 
+// Flags specific to `tt package add`.
+var packageDev bool
+
 // NewPackageCmd creates the `tt package` command group: the manifest build
-// pipeline (build, fetch and pack), installation, and the inventory over what
-// is installed (list and uninstall).
+// pipeline (build, fetch and pack), the dependency-changing commands (add,
+// remove and update), installation, and the inventory over what is installed
+// (list and uninstall).
 func NewPackageCmd() *cobra.Command {
 	packageCmd := &cobra.Command{
 		Use:   "package",
 		Short: "Manage tt manifest packages",
 		Long: "Build, fetch, pack and install Tarantool packages described by " +
-			"app.manifest.toml, and manage what is installed.",
+			"app.manifest.toml, manage their dependencies, and manage what is " +
+			"installed.",
 	}
 
 	packageCmd.AddCommand(
 		newPackageBuildCmd(),
 		newPackageFetchCmd(),
 		newPackagePackCmd(),
+		newPackageAddCmd(),
+		newPackageRemoveCmd(),
+		newPackageUpdateCmd(),
 		newPackageInstallCmd(),
 		newPackageListCmd(),
 		newPackageUninstallCmd(),
 	)
 
 	return packageCmd
+}
+
+// newPackageAddCmd wires `tt package add NAME [CONSTRAINT]`.
+func newPackageAddCmd() *cobra.Command {
+	addCmd := &cobra.Command{
+		Use:   "add NAME [CONSTRAINT]",
+		Short: "Declare a dependency and re-resolve the lock",
+		Long: "Add NAME to [dependencies] — or, with --dev, to " +
+			"[dev_dependencies] — at the given version constraint, then " +
+			"re-resolve app.manifest.lock around it. Without a constraint the " +
+			"dependency is declared as '*': whatever the registry serves. A name " +
+			"the table already declares has its constraint rewritten in place; " +
+			"the rest of the declaration, and every comment and blank line in the " +
+			"file, is left exactly as it was. Every version the lock already " +
+			"holds is kept: only the new dependency and whatever it requires can " +
+			"move, because an edit to one dependency is not a request to upgrade " +
+			"the others — that is what tt package update is for. Nothing is " +
+			"fetched into .rocks/; the next tt package build picks the new lock " +
+			"up.",
+		Args: cobra.RangeArgs(1, 2),
+		Run: func(cmd *cobra.Command, args []string) {
+			constraint := ""
+			if len(args) == 2 {
+				constraint = args[1]
+			}
+
+			if err := runPackageAdd(args[0], constraint); err != nil {
+				log.Error(err.Error())
+				os.Exit(deps.ExitCode(err))
+			}
+		},
+	}
+
+	addCmd.Flags().BoolVar(&packageDev, "dev", false,
+		"declare the dependency in [dev_dependencies] instead of [dependencies]")
+
+	return addCmd
+}
+
+// runPackageAdd declares one dependency and reports what moved.
+func runPackageAdd(name, constraint string) error {
+	opts, err := dependencyOptions()
+	if err != nil {
+		return err
+	}
+
+	result, err := deps.Add(context.Background(), opts, name, constraint, packageDev)
+	if err != nil {
+		return err
+	}
+
+	table := "dependencies"
+	if packageDev {
+		table = "dev_dependencies"
+	}
+
+	declared := result.Manifest.Dependencies[name].Version
+	if packageDev {
+		declared = result.Manifest.DevDependencies[name].Version
+	}
+
+	if result.Change.Existed {
+		fmt.Printf("changed %s in [%s]: %s -> %s\n",
+			name, table, result.Change.Previous, declared)
+	} else {
+		fmt.Printf("added %s %s to [%s]\n", name, declared, table)
+	}
+
+	printMoves(result.Moves)
+
+	return nil
+}
+
+// newPackageRemoveCmd wires `tt package remove NAME`.
+func newPackageRemoveCmd() *cobra.Command {
+	removeCmd := &cobra.Command{
+		Use:   "remove NAME",
+		Short: "Drop a declared dependency and re-resolve the lock",
+		Long: "Remove NAME from [dependencies] and [dev_dependencies], then " +
+			"re-resolve app.manifest.lock without it. The rocks that were only " +
+			"there to satisfy it drop out of the closure with it; every other " +
+			"version is held. A name the manifest does not declare is an error " +
+			"rather than a silent success — it is almost always a typo — and so " +
+			"is a name only a component declares, since which component owns a " +
+			"dependency is not this command's decision to unmake. Nothing is " +
+			"deleted from .rocks/; tt package uninstall is what removes files.",
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runPackageRemove(args[0]); err != nil {
+				log.Error(err.Error())
+				os.Exit(deps.ExitCode(err))
+			}
+		},
+	}
+
+	return removeCmd
+}
+
+// runPackageRemove drops one dependency and reports what left the closure.
+func runPackageRemove(name string) error {
+	opts, err := dependencyOptions()
+	if err != nil {
+		return err
+	}
+
+	result, err := deps.Remove(context.Background(), opts, name)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("removed %s %s\n", name, result.Change.Previous)
+	printMoves(result.Moves)
+
+	return nil
+}
+
+// newPackageUpdateCmd wires `tt package update [NAME]`.
+func newPackageUpdateCmd() *cobra.Command {
+	updateCmd := &cobra.Command{
+		Use:   "update [NAME]",
+		Short: "Re-resolve the lock against newer registry versions",
+		Long: "Re-resolve app.manifest.lock, taking the newest version every " +
+			"constraint allows. This is the only command that pulls newer " +
+			"registry versions: a release upstream never makes a lock stale by " +
+			"itself, so a build keeps the versions it has until an update is " +
+			"asked for. With NAME only that dependency is freed and every other " +
+			"version is held, so the diff stays confined to it and whatever its " +
+			"new version requires. No declaration is changed — app.manifest.toml " +
+			"is not touched at all — and nothing is fetched into .rocks/.",
+		Args: cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			name := ""
+			if len(args) == 1 {
+				name = args[0]
+			}
+
+			if err := runPackageUpdate(name); err != nil {
+				log.Error(err.Error())
+				os.Exit(deps.ExitCode(err))
+			}
+		},
+	}
+
+	return updateCmd
+}
+
+// runPackageUpdate re-resolves the lock and reports what moved.
+func runPackageUpdate(name string) error {
+	opts, err := dependencyOptions()
+	if err != nil {
+		return err
+	}
+
+	result, err := deps.Update(context.Background(), opts, name)
+	if err != nil {
+		return err
+	}
+
+	if len(result.Moves) == 0 {
+		fmt.Println("everything is already up to date")
+
+		return nil
+	}
+
+	printMoves(result.Moves)
+
+	return nil
+}
+
+// dependencyOptions assembles the options the three dependency commands share.
+//
+// All three re-resolve, and resolution evaluates rockspecs — which are Lua and
+// may branch on the Tarantool version — so a missing tarantool is a real error
+// here rather than something to work around.
+func dependencyOptions() (deps.Options, error) {
+	projectDir, err := absoluteWorkingDir()
+	if err != nil {
+		return deps.Options{}, err
+	}
+
+	tntInfo, err := tarantoolInfo()
+	if err != nil {
+		return deps.Options{}, err
+	}
+
+	return deps.Options{
+		ProjectDir: projectDir,
+		TtVersion:  "tt " + ttversion.GetVersion(true, false),
+		Tarantool:  tntInfo,
+		Warn:       func(msg string) { log.Warn(msg) },
+	}, nil
+}
+
+// printMoves reports the closure changes one per line: a rock that arrived
+// shows only its new version, one that dropped out is marked as such, and one
+// that moved shows both ends.
+func printMoves(moves []deps.Move) {
+	for _, move := range moves {
+		switch {
+		case move.From == "":
+			fmt.Printf("  %s %s\n", move.Name, move.To)
+		case move.To == "":
+			fmt.Printf("  %s %s -> (dropped)\n", move.Name, move.From)
+		default:
+			fmt.Printf("  %s %s -> %s\n", move.Name, move.From, move.To)
+		}
+	}
 }
 
 // newPackageListCmd wires `tt package list`.

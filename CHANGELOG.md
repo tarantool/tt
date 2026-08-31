@@ -68,6 +68,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   another package still holds stays in place and is reported as kept. The
   project's own package is not a guest and uninstall refuses to remove it.
   `--scope` selects the tree and `--yes` skips the confirmation prompt.
+- `tt package add <name> [<constraint>]`, `tt package remove <name>` and
+  `tt package update [<name>]`: edit `[dependencies]` in `app.manifest.toml`
+  and re-resolve the lock. `add` takes `*` when no constraint is given, writes
+  to `[dev_dependencies]` under `--dev`, and rewrites the constraint of a
+  dependency that is already declared, reporting the previous one. The manifest
+  is edited in place: comments, key order and the formatting of every untouched
+  part of the file survive, and a declaration form that cannot be rewritten
+  safely is refused by name rather than guessed at. `add` and `remove` hold
+  every version the lock already pinned, so they never drag an unrelated
+  dependency forward; `tt package update` is the only command that pulls fresh
+  versions from the registry, and with a name it moves that one dependency and
+  holds the rest.
 - `tt pack`: support nested `.packignore` at the root of tt environment.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.

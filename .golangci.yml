@@ -144,6 +144,14 @@ linters:
             - "github.com/pelletier/go-toml/v2"
             - "github.com/hashicorp/go-version"
             - "github.com/stretchr/testify"
+            # Covers every cli/manifest sub-package a test may import, including
+            # the rocks adapter the resolve engine fakes and the resolve package
+            # deps names in its own signatures. Do NOT list those sub-packages
+            # individually here: per the NOTE on the main list, depguard matches
+            # the longest prefix, so a sub-package entry shadows this one for its
+            # siblings and starts flagging imports that used to pass. Adding two
+            # such entries cost 14 spurious findings across inventory, install,
+            # state and version tests before this was understood.
             - "github.com/tarantool/tt/cli/manifest"
             - "github.com/tarantool/tt/cli/manifest/resolve"
             - "github.com/tarantool/go-luarocks"
