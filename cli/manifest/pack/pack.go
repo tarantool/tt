@@ -7,6 +7,12 @@
 // network. The --without-deps mode drops both, leaving the package's own
 // namespace subtrees; installing that archive extracts it and refetches the
 // dependencies from the registry using the lock's pins.
+//
+// Neither mode carries the dev closure. The build pack runs first materializes
+// [dev_dependencies] into .rocks/ like any other build, and so did every build
+// the developer ran before it, so the archive is kept clean here - where its
+// content is selected - rather than by declining to install them. See
+// devOnlyRocks and stageRocks.
 package pack
 
 import (
@@ -99,6 +105,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		WithDeps:         !opts.WithoutDeps,
 		Namespaces:       namespaces,
 		HasFlatNamespace: hasFlat,
+		DevOnly:          devOnlyRocks(built.Lock),
 	}); err != nil {
 		return nil, err
 	}
@@ -262,6 +269,44 @@ func packageNamespaces(man *manifest.Manifest, productName string) ([]string, bo
 	}
 
 	return namespaces, flat
+}
+
+// devOnlyRocks lists the dev closure's rocks that no product closure holds -
+// the ones the archive must not carry. A nil lock, or one with no dev closure,
+// yields nothing and the staging tree is copied exactly as before.
+//
+// Not installing dev dependencies during a pack-driven build would not do this
+// job: .rocks/ is the developer's standing tree, so a tt package build run an
+// hour earlier has already put them there, and pack would stage them. The
+// exclusion therefore belongs where the archive content is selected.
+//
+// "No product closure holds it" is deliberately checked against every product,
+// not just the one being packed. A with-deps archive copies the whole tree,
+// which may incidentally carry another product's rocks; a rock that is dev in
+// this reading and runtime in another product's is not a dev-only rock, and
+// stripping it would under-pack a tree the archive promises to reproduce.
+func devOnlyRocks(lock *manifest.Lock) []manifest.LockDependency {
+	if lock == nil || len(lock.DevDependencies) == 0 {
+		return nil
+	}
+
+	runtime := map[string]bool{}
+
+	for _, product := range lock.Products {
+		for _, dependency := range product.Dependencies {
+			runtime[dependency.Name] = true
+		}
+	}
+
+	var devOnly []manifest.LockDependency
+
+	for _, dependency := range lock.DevDependencies {
+		if !runtime[dependency.Name] {
+			devOnly = append(devOnly, dependency)
+		}
+	}
+
+	return devOnly
 }
 
 // hasNativeArtifacts reports whether the staged tree carries any compiled
