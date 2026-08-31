@@ -1,12 +1,22 @@
 version: "2"
 
 # NOTE: this config is intentionally scoped to the freshly written code only.
-# The `cli/manifest` exclusion below limits all linters to that package so the
-# strict ruleset can be adopted incrementally instead of flooding the whole tt
-# tree with findings. Drop the `path-except` rule to lint everything.
+# The `path-except` exclusion below names the packages that are actually clean
+# under it, so the strict ruleset can be adopted incrementally instead of
+# flooding the whole tt tree with findings. Widening the scope means adding a
+# package to that rule - and cleaning it first, because the rule is a gate:
+# `mage lint:strict` runs this config in CI on every push, with no diff filter.
+#
+# The list is deliberately per-package rather than the whole `cli/manifest/`
+# subtree. The subtree form claimed packages that had never been cleaned:
+# measured on 2026-08-31, `pack` carried 171 findings, `inventory` 83, `build`
+# 55 and `build/backend` 50, and nothing complained because the only job that
+# ran this config was gated behind a `full-commit-check` PR label. Those four
+# are the outstanding work; every other package under cli/manifest is at zero.
 #
 # The project-wide lint still runs from `golangci-lint.yml` (see magefile.go);
-# this `.golangci.yml` is what a bare `golangci-lint run` picks up.
+# that one is a v1-format config and needs a v1 linter, which is why
+# `mage lint:golang` and `mage lint:strict` are separate targets.
 
 run:
   timeout: 3m
@@ -41,9 +51,12 @@ linters:
   exclusions:
     generated: lax
     rules:
-      # Scope linting to the freshly written code only. An issue is excluded
-      # when its path is NOT under cli/manifest/.
-      - path-except: (^|/)cli/manifest/
+      # Scope linting to the packages adopted into the strict ruleset. An issue
+      # is excluded when its path is NOT one of them: either a file directly in
+      # cli/manifest/, or anything under one of the named sub-packages. Add a
+      # sub-package here once it lints clean; build, build/backend, inventory
+      # and pack are the ones still outstanding.
+      - path-except: (^|/)cli/manifest/((deps|install|resolve|rocks|state|version)/|[^/]+\.go$)
         text: ".*"
       - path: _test.go
         linters:
@@ -153,7 +166,6 @@ linters:
             # such entries cost 14 spurious findings across inventory, install,
             # state and version tests before this was understood.
             - "github.com/tarantool/tt/cli/manifest"
-            - "github.com/tarantool/tt/cli/manifest/resolve"
             - "github.com/tarantool/go-luarocks"
             # cli/manifest/pack tests decompress the archive they just wrote.
             - "github.com/klauspost/compress/zstd"

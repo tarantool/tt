@@ -38,6 +38,46 @@ jobs:
       - name: Static code check
         uses: ./.github/actions/static-code-check
 
+  # The strict `default: all` ruleset (.golangci.yml), over the packages its
+  # path-except rule names as adopted. Unlike static-code-check this job carries
+  # no label condition: it runs on every push and pull request, which is the
+  # point. The same ruleset was already wired as a pre-commit hook, but only
+  # inside the label-gated job above, so in practice it never ran - `pack` and
+  # `inventory` were added to its scope and accumulated 254 findings between
+  # them without anything going red.
+  strict-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@master
+        with:
+          # golangci-lint type-checks the whole module, and cli/aeon/protos is a
+          # submodule.
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '${{ env.GO_VERSION }}'
+
+      - name: Setup Mage
+        run: |
+          git clone https://github.com/magefile/mage
+          cd mage
+          go run bootstrap.go
+        shell: bash
+
+      # Pinned, and pinned to the same version the golangci-lint-strict
+      # pre-commit hook installs: linter releases add checks, so an unpinned
+      # install turns an unrelated push red. Measured on 2026-08-31 - 2.12.2
+      # reports six findings on this tree that 2.11.4 does not.
+      - name: Setup golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+        shell: bash
+
+      - name: Strict lint
+        run: mage lint:strict
+        shell: bash
+
   tests-ce:
     if: |
       (github.event_name == 'push') ||
