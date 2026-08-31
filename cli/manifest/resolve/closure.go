@@ -317,6 +317,28 @@ func effectiveDeps(man *manifest.Manifest, product manifest.Product) ([]depReq, 
 		}
 	}
 
+	return finalizeDeps(byName)
+}
+
+// devDeps assembles the direct dependencies of the dev closure: the global
+// [dev_dependencies] table and nothing else. Unlike runtime dependencies there
+// is no per-component dev table, so the dev closure is global too - one per
+// manifest, not one per product.
+func devDeps(man *manifest.Manifest) ([]depReq, error) {
+	byName := map[string]*depReq{}
+
+	err := mergeDeps(byName, "dev_dependencies", man.DevDependencies)
+	if err != nil {
+		return nil, err
+	}
+
+	return finalizeDeps(byName)
+}
+
+// finalizeDeps turns a merged declaration set into the sorted, constraint-parsed
+// requirement list the walker consumes, rejecting a multiply-declared
+// dependency whose merged constraints cannot be jointly satisfied.
+func finalizeDeps(byName map[string]*depReq) ([]depReq, error) {
 	out := make([]depReq, 0, len(byName))
 
 	for _, name := range sortedKeys(byName) {

@@ -1,6 +1,8 @@
 package resolve
 
 import (
+	"maps"
+
 	"github.com/tarantool/go-luarocks/deps"
 	"github.com/tarantool/tt/cli/manifest"
 )
@@ -25,9 +27,15 @@ import (
 type Pins map[string]string
 
 // PinsFromLock collects the registry-sourced dependencies of every product in
-// lock into a pin set. Names listed in except are left out, so the caller can
-// free one dependency while holding the rest - which is exactly
-// `tt package update <name>`. A nil lock yields an empty set.
+// lock, and of its dev closure, into a pin set. Names listed in except are left
+// out, so the caller can free one dependency while holding the rest - which is
+// exactly `tt package update <name>`. A nil lock yields an empty set.
+//
+// The dev closure is walked for the same reason the products are: editing the
+// manifest changes manifest_hash and forces a re-resolve, so a dev dependency
+// left out of the pin set would be dragged to its newest version by a
+// `tt package add` that had nothing to do with it - the very bug pins exist to
+// prevent, reintroduced for half the manifest.
 //
 // Path dependencies are skipped: they are pinned by path and content hash
 // already, and the engine never applies a version pin to them.
@@ -63,23 +71,49 @@ func PinsFromLock(lock *manifest.Lock, except ...string) Pins {
 	}
 
 	for _, product := range sortedKeys(lock.Products) {
-		for _, dependency := range lock.Products[product].Dependencies {
-			if dependency.Source != manifestSourceRegistry || dependency.Version == "" {
-				continue
-			}
-
-			if excluded[dependency.Name] {
-				continue
-			}
-
-			held, seen := pins[dependency.Name]
-			if !seen || ordersAbove(dependency.Version, held) {
-				pins[dependency.Name] = dependency.Version
-			}
-		}
+		pins.absorb(lock.Products[product].Dependencies, excluded)
 	}
 
+	// The dev closure is absorbed last, but order does not decide anything: the
+	// same highest-version-wins tie-break settles a rock that appears in both a
+	// product closure and the dev closure at different versions, for the reason
+	// spelled out above - a downgrade is the more damaging outcome.
+	pins.absorb(lock.DevDependencies, excluded)
+
 	return pins
+}
+
+// absorb folds one locked closure into the pin set, skipping path sources,
+// versionless entries and excluded names, and keeping the highest version where
+// a rock is already pinned.
+func (p Pins) absorb(dependencies []manifest.LockDependency, excluded map[string]bool) {
+	for _, dependency := range dependencies {
+		if dependency.Source != manifestSourceRegistry || dependency.Version == "" {
+			continue
+		}
+
+		if excluded[dependency.Name] {
+			continue
+		}
+
+		held, seen := p[dependency.Name]
+		if !seen || ordersAbove(dependency.Version, held) {
+			p[dependency.Name] = dependency.Version
+		}
+	}
+}
+
+// merge returns a copy of p with other's pins layered on top, other winning
+// where both hold a name. It is how the dev resolution states its precedence:
+// the runtime picks this pass just made are authoritative over whatever the
+// caller was holding, because they are what is already going into the tree.
+func (p Pins) merge(other Pins) Pins {
+	out := make(Pins, len(p)+len(other))
+
+	maps.Copy(out, p)
+	maps.Copy(out, other)
+
+	return out
 }
 
 // ordersAbove reports whether candidate sorts strictly above held. An
