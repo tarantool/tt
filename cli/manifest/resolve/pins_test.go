@@ -432,6 +432,79 @@ func TestPinsFromLockPrefersHighestOnDisagreement(t *testing.T) {
 	assert.Equal(t, resolve.Pins{"common": "2.0.0-1"}, resolve.PinsFromLock(lock))
 }
 
+// TestPinsFromLockIncludesDevClosure pins that the dev closure is pinned like
+// any product closure, under the same three rules: path sources are skipped,
+// except is honoured, and the highest version wins where a rock is in both a
+// product closure and the dev closure. Without it a tt package add - which
+// re-resolves with these pins precisely so unrelated dependencies stay put -
+// would drag every dev dependency to its newest version.
+func TestPinsFromLockIncludesDevClosure(t *testing.T) {
+	t.Parallel()
+
+	lock := &manifest.Lock{
+		Products: map[string]manifest.LockProduct{
+			"default": {Dependencies: []manifest.LockDependency{
+				{Name: "metrics", Version: "1.0.0-1", Source: "registry"},
+				{Name: "common", Version: "1.5.0-1", Source: "registry"},
+			}},
+		},
+		DevDependencies: []manifest.LockDependency{
+			{Name: "luatest", Version: "1.0.1-1", Source: "registry"},
+			{Name: "luacov", Version: "0.15.0-1", Source: "registry"},
+			{Name: "dev-helper", Version: "0.1.0", Source: "path", Path: "dev/helper"},
+			// Higher than the product's pick of the same rock: the tie-break
+			// takes the highest, exactly as it does between two products.
+			{Name: "common", Version: "2.0.0-1", Source: "registry"},
+		},
+	}
+
+	assert.Equal(t, resolve.Pins{
+		"metrics": "1.0.0-1",
+		"common":  "2.0.0-1",
+		"luatest": "1.0.1-1",
+		"luacov":  "0.15.0-1",
+	}, resolve.PinsFromLock(lock))
+
+	assert.Equal(t, resolve.Pins{
+		"metrics": "1.0.0-1",
+		"common":  "2.0.0-1",
+		"luacov":  "0.15.0-1",
+	}, resolve.PinsFromLock(lock, "luatest"),
+		"except must free a dev dependency like any other")
+}
+
+// TestPinsFromLockHoldsDevDependencyAcrossReresolve is the end-to-end shape of
+// the same rule: a dev dependency that published a newer version between two
+// resolutions stays where the lock put it.
+func TestPinsFromLockHoldsDevDependencyAcrossReresolve(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAdapter().
+		add("metrics", "1.0.0-1", "m1").
+		add("luatest", "1.0.0-1", "l1")
+
+	man := parseManifest(t, oneProduct+`[dependencies]
+metrics = '>=1.0.0'
+[dev_dependencies]
+luatest = '>=1.0.0'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	first, _, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	require.Equal(t, "1.0.0-1", findDep(t, first.DevDependencies, "luatest").Version)
+
+	fake.add("luatest", "2.0.0-1", "l2")
+
+	second, warnings, err := engine.ResolvePinned(
+		context.Background(), man, resolve.PinsFromLock(first))
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+	assert.Equal(t, "1.0.0-1", findDep(t, second.DevDependencies, "luatest").Version,
+		"a new registry version must not move a pinned dev dependency")
+}
+
 func TestPinsFromLockEdgeCases(t *testing.T) {
 	t.Parallel()
 

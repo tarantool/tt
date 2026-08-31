@@ -3,9 +3,12 @@
 // lock (app.manifest.lock) - declared, resolved, locked.
 //
 // Resolution runs per product: each product gets its own closure over the
-// newest versions that satisfy every constraint. A caller that must not move
-// versions it already holds - every command other than tt package update -
-// passes a pin set (see Pins) so the lock's own picks are preferred over the
+// newest versions that satisfy every constraint. [dev_dependencies] adds one
+// further closure, global rather than per-product, resolved last and against
+// the products' own picks - it lands in the same .rocks/ tree, which can hold
+// only one version of a rock. A caller that must not move versions it already
+// holds - every command other than tt package update - passes a pin set (see
+// Pins) so the lock's own picks are preferred over the
 // newest ones. The engine takes an already parsed manifest plus an adapter over
 // go-luarocks; it never touches the network itself. The adapter
 // (cli/manifest/rocks) queries registries, fetches rockspecs and reports source
@@ -165,6 +168,7 @@ func (e *Engine) resolveOnce(
 		BundledTt:        "",
 		BundledTcm:       "",
 		Products:         map[string]manifest.LockProduct{},
+		DevDependencies:  nil, // Filled by resolveDev once the products are in.
 	}
 
 	var warnings []string
@@ -183,7 +187,76 @@ func (e *Engine) resolveOnce(
 		lock.Products[name] = manifest.LockProduct{Dependencies: dependencies}
 	}
 
+	devDependencies, devWarnings, err := e.resolveDev(ctx, man, pins, lock)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	warnings = append(warnings, devWarnings...)
+	lock.DevDependencies = devDependencies
+
 	return lock, warnings, nil
+}
+
+// resolveDev resolves the closure of [dev_dependencies] against the products
+// already resolved into lock. A manifest declaring none resolves to nothing.
+//
+// Dev dependencies are installed into the same .rocks/ tree as the runtime
+// closure, and one tree cannot hold two versions of a rock. So the dev closure
+// is resolved with every product's pick pinned - PinsFromLock over the lock
+// this very pass just built, layered over the caller's own pins so a dev-only
+// rock still holds the version it already had. A dev constraint that cannot
+// accept the runtime pick drops that pin and warns, which is the ordinary pin
+// semantics: the tree then genuinely holds two versions, and saying so is
+// better than refusing to resolve.
+//
+// The pin retry lives here rather than in ResolvePinned because these pins are
+// derived from the pass's own output: dropping one from the caller's set would
+// not remove it, since the next pass would re-derive it from the same products.
+// Each attempt gets a fresh cache for the reason resolveOnce documents - the
+// cache carries the warning dedup, and a discarded attempt must not mark
+// warnings the surviving one then owes the caller and never emits.
+func (e *Engine) resolveDev(
+	ctx context.Context, man *manifest.Manifest, pins Pins, lock *manifest.Lock,
+) ([]manifest.LockDependency, []string, error) {
+	if len(man.DevDependencies) == 0 {
+		return nil, nil, nil
+	}
+
+	directs, err := devDeps(man)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolving dev dependencies: %w", err)
+	}
+
+	attempt := pins.merge(PinsFromLock(lock))
+
+	var dropped []string
+
+	for {
+		dependencies, warnings, err := e.resolveClosure(
+			ctx, newResolveCache(), directs, attempt)
+		if err == nil {
+			return dependencies, append(dropped, warnings...), nil
+		}
+
+		var conflict *pinConflictError
+		if !errors.As(err, &conflict) {
+			return nil, nil, fmt.Errorf("resolving dev dependencies: %w", err)
+		}
+
+		held, pinned := attempt[conflict.name]
+		if !pinned {
+			// Unreachable: only a pinned pick raises this. Returning the
+			// conflict rather than looping keeps a future bug a failed
+			// resolution instead of a hang.
+			return nil, nil, fmt.Errorf("resolving dev dependencies: %w", err)
+		}
+
+		dropped = append(dropped, fmt.Sprintf(
+			"version %s of %q cannot satisfy every dev dependency on it; resolved afresh",
+			held, conflict.name))
+		attempt = attempt.without(conflict.name)
+	}
 }
 
 // resolveProduct assembles a product's effective direct dependencies and walks
@@ -202,6 +275,17 @@ func (e *Engine) resolveProduct(
 		return nil, nil, err
 	}
 
+	return e.resolveClosure(ctx, cache, directs, pins)
+}
+
+// resolveClosure walks a set of direct requirements into a pinned,
+// topologically ordered closure. It is the shared body of a product resolution
+// and of the dev resolution, which differ only in where their direct
+// requirements come from. pins is read, never written, so every closure of a
+// pass sees the same one.
+func (e *Engine) resolveClosure(
+	ctx context.Context, cache *resolveCache, directs []depReq, pins Pins,
+) ([]manifest.LockDependency, []string, error) {
 	directsByName := make(map[string]depReq, len(directs))
 	for _, direct := range directs {
 		directsByName[direct.name] = direct
