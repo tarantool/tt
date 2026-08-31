@@ -80,6 +80,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   dependency forward; `tt package update` is the only command that pulls fresh
   versions from the registry, and with a name it moves that one dependency and
   holds the rest.
+- `[dev_dependencies]` are now resolved and installed. They were parsed and
+  validated but reached neither the lock nor `.rocks/`. The lock records them
+  as a single `[[lock.dev_dependencies]]` closure, resolved against the picks
+  the products just made so a rock needed by both lands in the tree once;
+  `tt package build` and `tt package fetch` install them, and `tt package pack`
+  keeps dev-only rocks out of the archive. A lock written before this change,
+  against a manifest that declares dev dependencies, is reported stale so the
+  closure is filled in on the next resolve.
 - `tt status`: add `--format` option to support JSON and YAML output formats
 for machine-readable output.
 
