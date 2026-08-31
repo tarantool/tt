@@ -11,6 +11,13 @@
 // tt package fetch is the same materialization step in isolation: strictly from
 // the lock, without resolving or running backends.
 //
+// Both operate on a developer's project, so both materialize the lock's dev
+// closure into the same .rocks/ tree alongside the product's: [dev_dependencies]
+// exists to be requirable while developing and testing. Nothing here keeps them
+// out of a package archive - that is cli/manifest/pack's exclusion, applied
+// where the archive content is selected, because .rocks/ is a standing tree and
+// a build run an hour ago has already put dev rocks in it.
+//
 // The build always works in project scope: <ProjectDir>/.rocks/. Selecting the
 // product, choosing versions, deriving flags and archiving are neighbouring
 // packages' jobs; this package only drives the cycle.
@@ -200,8 +207,9 @@ func runFetch(
 		return nil, fmt.Errorf("rocks client: %w", err)
 	}
 
-	if err := materialize(ctx, rockClient, projectDir, prod); err != nil {
-		return nil, err
+	matErr := materialize(ctx, rockClient, projectDir, prod, lock.DevDependencies)
+	if matErr != nil {
+		return nil, matErr
 	}
 
 	return &Result{Manifest: man, Lock: lock, Product: productName, Tree: tree}, nil
@@ -254,7 +262,7 @@ func runBuild(
 		return nil, fmt.Errorf("rocks client: %w", err)
 	}
 
-	matErr := materialize(ctx, rockClient, opts.ProjectDir, prod)
+	matErr := materialize(ctx, rockClient, opts.ProjectDir, prod, lock.DevDependencies)
 	if matErr != nil {
 		return nil, matErr
 	}

@@ -38,22 +38,22 @@ func (f *fakeRockClient) Build(_ context.Context, specPath string, _ client.Buil
 func TestMaterialize_registryDepsPinnedNoDeps(t *testing.T) {
 	t.Parallel()
 
-	rc := &fakeRockClient{}
+	fake := &fakeRockClient{}
 	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
 		{Name: "checks", Version: "3.1.0-1", Source: sourceRegistry},
 		{Name: "metrics", Version: "1.5.0-1", Source: sourceRegistry},
 	}}
 
-	require.NoError(t, materialize(context.Background(), rc, t.TempDir(), prod))
+	require.NoError(t, materialize(context.Background(), fake, t.TempDir(), prod, nil))
 
-	require.Len(t, rc.installs, 2)
+	require.Len(t, fake.installs, 2)
 	// Order is preserved (topological), each pinned to the exact version with
 	// dependency resolution off.
-	assert.Equal(t, "checks", rc.installs[0].name)
-	assert.Equal(t, "3.1.0-1", rc.installs[0].opts.Version)
-	assert.Equal(t, client.DepsNone, rc.installs[0].opts.Deps)
-	assert.Equal(t, "metrics", rc.installs[1].name)
-	assert.Empty(t, rc.builds)
+	assert.Equal(t, "checks", fake.installs[0].name)
+	assert.Equal(t, "3.1.0-1", fake.installs[0].opts.Version)
+	assert.Equal(t, client.DepsNone, fake.installs[0].opts.Deps)
+	assert.Equal(t, "metrics", fake.installs[1].name)
+	assert.Empty(t, fake.builds)
 }
 
 func TestMaterialize_pathDepBuildsRockspec(t *testing.T) {
@@ -62,16 +62,17 @@ func TestMaterialize_pathDepBuildsRockspec(t *testing.T) {
 	project := t.TempDir()
 	writeFile(t, filepath.Join(project, "vendor", "mylib", "mylib-scm-1.rockspec"), "-- spec")
 
-	rc := &fakeRockClient{}
+	fake := &fakeRockClient{}
 	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
 		{Name: "mylib", Source: sourcePath, Path: "vendor/mylib"},
 	}}
 
-	require.NoError(t, materialize(context.Background(), rc, project, prod))
+	require.NoError(t, materialize(context.Background(), fake, project, prod, nil))
 
-	require.Len(t, rc.builds, 1)
-	assert.Equal(t, filepath.Join(project, "vendor", "mylib", "mylib-scm-1.rockspec"), rc.builds[0])
-	assert.Empty(t, rc.installs)
+	require.Len(t, fake.builds, 1)
+	assert.Equal(t,
+		filepath.Join(project, "vendor", "mylib", "mylib-scm-1.rockspec"), fake.builds[0])
+	assert.Empty(t, fake.installs)
 }
 
 func TestMaterialize_leafPathDepIsSkipped(t *testing.T) {
@@ -80,25 +81,94 @@ func TestMaterialize_leafPathDepIsSkipped(t *testing.T) {
 	project := t.TempDir()
 	writeFile(t, filepath.Join(project, "vendor", "leaf", "leaf.lua"), "-- leaf")
 
-	rc := &fakeRockClient{}
+	fake := &fakeRockClient{}
 	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
 		{Name: "leaf", Source: sourcePath, Path: "vendor/leaf"},
 	}}
 
-	require.NoError(t, materialize(context.Background(), rc, project, prod))
-	assert.Empty(t, rc.builds)
-	assert.Empty(t, rc.installs)
+	require.NoError(t, materialize(context.Background(), fake, project, prod, nil))
+	assert.Empty(t, fake.builds)
+	assert.Empty(t, fake.installs)
+}
+
+// TestMaterialize_devDepsInstalledAfterProduct pins that the dev closure goes
+// into the same tree as the product's, after it, so a rock in both is already
+// present at the product's version when the dev list reaches it.
+func TestMaterialize_devDepsInstalledAfterProduct(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeRockClient{}
+	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
+		{Name: "metrics", Version: "1.5.0-1", Source: sourceRegistry},
+	}}
+	dev := []manifest.LockDependency{
+		{Name: "checks", Version: "3.1.0-1", Source: sourceRegistry},
+		{Name: "luatest", Version: "1.0.1-1", Source: sourceRegistry},
+	}
+
+	require.NoError(t, materialize(context.Background(), fake, t.TempDir(), prod, dev))
+
+	require.Len(t, fake.installs, 3)
+	assert.Equal(t, "metrics", fake.installs[0].name)
+	assert.Equal(t, "checks", fake.installs[1].name)
+	assert.Equal(t, "luatest", fake.installs[2].name)
+	assert.Equal(t, "1.0.1-1", fake.installs[2].opts.Version)
+	assert.Equal(t, client.DepsNone, fake.installs[2].opts.Deps)
+}
+
+// TestMaterialize_devDepSharedWithProductInstalledOnce covers the overlap the
+// resolver deliberately allows: a rock pinned in both closures is one rock in
+// one tree, so it is installed once rather than reinstalled at the same
+// version.
+func TestMaterialize_devDepSharedWithProductInstalledOnce(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeRockClient{}
+	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
+		{Name: "checks", Version: "3.1.0-1", Source: sourceRegistry},
+	}}
+	dev := []manifest.LockDependency{
+		{Name: "checks", Version: "3.1.0-1", Source: sourceRegistry},
+		{Name: "luatest", Version: "1.0.1-1", Source: sourceRegistry},
+	}
+
+	require.NoError(t, materialize(context.Background(), fake, t.TempDir(), prod, dev))
+
+	require.Len(t, fake.installs, 2)
+	assert.Equal(t, "checks", fake.installs[0].name)
+	assert.Equal(t, "luatest", fake.installs[1].name)
+}
+
+// TestMaterialize_devPathDepBuilt pins that a path-sourced dev dependency goes
+// through the same build path as a runtime one.
+func TestMaterialize_devPathDepBuilt(t *testing.T) {
+	t.Parallel()
+
+	project := t.TempDir()
+	writeFile(t, filepath.Join(project, "dev", "helper", "helper-scm-1.rockspec"), "-- spec")
+
+	fake := &fakeRockClient{}
+	dev := []manifest.LockDependency{
+		{Name: "helper", Source: sourcePath, Path: "dev/helper"},
+	}
+
+	require.NoError(t, materialize(
+		context.Background(), fake, project, manifest.LockProduct{}, dev))
+
+	require.Len(t, fake.builds, 1)
+	assert.Equal(t,
+		filepath.Join(project, "dev", "helper", "helper-scm-1.rockspec"), fake.builds[0])
 }
 
 func TestMaterialize_unknownSource(t *testing.T) {
 	t.Parallel()
 
-	rc := &fakeRockClient{}
+	fake := &fakeRockClient{}
 	prod := manifest.LockProduct{Dependencies: []manifest.LockDependency{
 		{Name: "weird", Source: "http"},
 	}}
 
-	err := materialize(context.Background(), rc, t.TempDir(), prod)
+	err := materialize(context.Background(), fake, t.TempDir(), prod, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errUnknownSource)
 }
