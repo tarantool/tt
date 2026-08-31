@@ -32,24 +32,51 @@ type rockBuilder interface {
 
 // materialize realizes a product's pinned closure into the rocks tree, in the
 // lock's topological order so every dependency is present before the rock that
-// needs it. This is the whole of tt package fetch and step 4 of tt package
-// build.
+// needs it, and then the lock's dev closure into the same tree. This is the
+// whole of tt package fetch and step 4 of tt package build.
 //
 // Registry rocks are installed at their exact locked version with dependency
 // resolution off (DepsNone): the closure is already complete and ordered, so no
 // rock re-resolves its own deps. Path dependencies are built from the single
 // rockspec in their directory; a leaf path dependency that ships no rockspec is
 // nothing to build and is skipped.
+//
+// Dev dependencies go into the same tree because they are meant to be
+// requirable from the project exactly like runtime ones - that is what makes
+// tt test work - and they are installed after it so a rock in both closures is
+// already present at the product's version when the dev list reaches it. Such
+// a rock is skipped rather than reinstalled: the resolver pins the dev closure
+// to the products' picks, so the two agree by construction, and installing the
+// same version twice is work with no effect. Keeping them out of the archive
+// is cli/manifest/pack's job, not this one - .rocks/ is the developer's tree
+// and holds whatever the last build put there.
 func materialize(
 	ctx context.Context, registryClient rockInstaller, pathClient rockBuilder,
-	projectDir string, prod manifest.LockProduct,
+	projectDir string, prod manifest.LockProduct, dev []manifest.LockDependency,
 	servers []string,
 ) error {
+	done := make(map[string]bool, len(prod.Dependencies))
+
 	for _, dep := range prod.Dependencies {
 		depErr := materializeDep(ctx, registryClient, pathClient, projectDir, dep, servers)
 		if depErr != nil {
 			return depErr
 		}
+
+		done[dep.Name+"\x00"+dep.Version] = true
+	}
+
+	for _, dep := range dev {
+		if done[dep.Name+"\x00"+dep.Version] {
+			continue
+		}
+
+		depErr := materializeDep(ctx, registryClient, pathClient, projectDir, dep, servers)
+		if depErr != nil {
+			return fmt.Errorf("dev dependency: %w", depErr)
+		}
+
+		done[dep.Name+"\x00"+dep.Version] = true
 	}
 
 	return nil
