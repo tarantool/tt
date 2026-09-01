@@ -28,6 +28,21 @@ import (
 // re-resolves and rewrites it (Engine.Resolve); a --locked build treats
 // staleness as a hard error. The engine only reports the fact.
 func (e *Engine) IsStale(man *manifest.Manifest, lock *manifest.Lock) (bool, string, error) {
+	return IsStale(e.projectDir, man, lock)
+}
+
+// IsStale is Engine.IsStale without an engine: the check reads the manifest's
+// hash and the path dependencies' contents under projectDir, and queries no
+// registry at all.
+//
+// It is exported in this form for tt package deps, which reports the lock's
+// versions and has to say whether they still stand. That command builds no
+// adapter — it neither resolves nor fetches — and constructing an engine around
+// a nil one to reach a method that never touches it is how a later change to
+// the engine turns into a nil dereference in a read-only command.
+func IsStale(
+	projectDir string, man *manifest.Manifest, lock *manifest.Lock,
+) (bool, string, error) {
 	if lock.ManifestHash != man.Hash() {
 		return true, "manifest changed since the lock was written", nil
 	}
@@ -57,7 +72,7 @@ func (e *Engine) IsStale(man *manifest.Manifest, lock *manifest.Lock) (bool, str
 
 			hash, cached := hashes[dependency.Path]
 			if !cached {
-				computed, err := contentHash(filepath.Join(e.projectDir, dependency.Path))
+				computed, err := contentHash(filepath.Join(projectDir, dependency.Path))
 				if err != nil {
 					return false, "", fmt.Errorf(
 						"checking path dependency %q: %w", dependency.Name, err)
