@@ -187,6 +187,7 @@ func NewCmdRoot() *cobra.Command {
 		NewSearchCmd(),
 		NewCleanCmd(),
 		NewCreateCmd(),
+		NewNewCmd(),
 		NewInstallCmd(),
 		NewUninstallCmd(),
 		NewPackageCmd(),
