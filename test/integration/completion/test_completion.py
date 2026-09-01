@@ -36,6 +36,7 @@ tt_root_command: set[str] = set(
         "status",
         "cfg",
         "create",
+        "new",
         "replicaset",
         "stop",
         "check",
