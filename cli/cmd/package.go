@@ -44,7 +44,8 @@ var (
 	packageYes     bool
 )
 
-// Flags specific to `tt package list`.
+// Flags shared by the commands that render a listing: tt package list and
+// tt package deps.
 var (
 	packageFormat string
 	packageTree   bool
@@ -73,6 +74,8 @@ func NewPackageCmd() *cobra.Command {
 		newPackageAddCmd(),
 		newPackageRemoveCmd(),
 		newPackageUpdateCmd(),
+		newPackageResolveCmd(),
+		newPackageDepsCmd(),
 		newPackageInstallCmd(),
 		newPackageListCmd(),
 		newPackageUninstallCmd(),
@@ -248,7 +251,108 @@ func runPackageUpdate(name string) error {
 	return nil
 }
 
-// dependencyOptions assembles the options the three dependency commands share.
+// newPackageResolveCmd wires `tt package resolve`.
+func newPackageResolveCmd() *cobra.Command {
+	resolveCmd := &cobra.Command{
+		Use:   "resolve",
+		Short: "Rewrite the lock from the manifest without building",
+		Long: "Re-resolve app.manifest.lock from app.manifest.toml, so a manifest " +
+			"edited by hand gets its lock back in step without waiting for a " +
+			"build. Nothing is fetched into .rocks/ and no component build " +
+			"backend runs. Every version the lock already holds is kept: a hand " +
+			"edit to one dependency is not a request to upgrade the others, and " +
+			"pulling newer registry versions is what tt package update is for.",
+		Args: cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runPackageResolve(); err != nil {
+				log.Error(err.Error())
+				os.Exit(deps.ExitCode(err))
+			}
+		},
+	}
+
+	return resolveCmd
+}
+
+// runPackageResolve rewrites the lock and reports what moved.
+func runPackageResolve() error {
+	opts, err := dependencyOptions()
+	if err != nil {
+		return err
+	}
+
+	result, err := deps.Resolve(context.Background(), opts)
+	if err != nil {
+		return err
+	}
+
+	if len(result.Moves) == 0 {
+		fmt.Println("the lock is up to date")
+
+		return nil
+	}
+
+	printMoves(result.Moves)
+
+	return nil
+}
+
+// newPackageDepsCmd wires `tt package deps`.
+func newPackageDepsCmd() *cobra.Command {
+	depsCmd := &cobra.Command{
+		Use:   "deps",
+		Short: "Show the dependencies the manifest declares, at their locked versions",
+		Long: "Print the runtime dependencies of every product and the dev " +
+			"dependencies, each with the version app.manifest.lock resolved it " +
+			"to. This is what the current manifest declares — not what is " +
+			"installed on disk, which is what tt package list reports. Nothing " +
+			"is resolved and no registry is contacted: the answer comes from the " +
+			"manifest and the lock, so a lock that no longer matches the manifest " +
+			"is reported as stale rather than silently re-resolved.",
+		Args: cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runPackageDeps(); err != nil {
+				log.Error(err.Error())
+				os.Exit(deps.ExitCode(err))
+			}
+		},
+	}
+
+	depsCmd.Flags().StringVarP(&packageFormat, "format", "o", "",
+		"output format: table, json or yaml (default: table on a terminal, yaml otherwise)")
+
+	return depsCmd
+}
+
+// runPackageDeps reads the manifest and the lock and renders the report.
+//
+// Unlike the commands that re-resolve, this one needs no Tarantool: nothing
+// evaluates a rockspec here, so a project's dependencies can be listed on a
+// machine that has no tarantool installed at all.
+func runPackageDeps() error {
+	projectDir, err := absoluteWorkingDir()
+	if err != nil {
+		return err
+	}
+
+	format, err := deps.ParseFormat(packageFormat, isatty.IsTerminal(os.Stdout.Fd()))
+	if err != nil {
+		return err
+	}
+
+	report, err := deps.Deps(deps.Options{
+		ProjectDir: projectDir,
+		Warn:       func(msg string) { log.Warn(msg) },
+	})
+	if err != nil {
+		return err
+	}
+
+	return deps.Render(os.Stdout, report, format)
+}
+
+// dependencyOptions assembles the options the re-resolving dependency commands
+// share.
 //
 // All three re-resolve, and resolution evaluates rockspecs — which are Lua and
 // may branch on the Tarantool version — so a missing tarantool is a real error

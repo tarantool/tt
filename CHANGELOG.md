@@ -80,6 +80,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   dependency forward; `tt package update` is the only command that pulls fresh
   versions from the registry, and with a name it moves that one dependency and
   holds the rest.
+- `tt package resolve`: rewrite `app.manifest.lock` from the manifest without
+  building — the way to bring the lock back in step after editing
+  `[dependencies]` by hand. Nothing is fetched into `.rocks/` and no component
+  build backend runs. Every version the lock already holds is kept, exactly as
+  `add` and `remove` keep them, so a hand edit to one dependency does not drag
+  the others forward.
+- `tt package deps`: print the dependencies the current manifest declares, per
+  product plus the dev closure, each with the version the lock resolved it to
+  and whether it was declared or pulled in behind a declaration. It reads the
+  manifest and the lock and contacts no registry, so a lock that no longer
+  matches the manifest is reported as stale rather than silently re-resolved,
+  and the command works on a machine with no Tarantool installed. `-o` selects
+  the format (table, json or yaml; the default is the table on a terminal and
+  YAML otherwise). This is what the manifest declares — what is installed on
+  disk is `tt package list`.
 - `[dev_dependencies]` are now resolved and installed. They were parsed and
   validated but reached neither the lock nor `.rocks/`. The lock records them
   as a single `[[lock.dev_dependencies]]` closure, resolved against the picks
