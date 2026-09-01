@@ -57,7 +57,7 @@ func RegisterIntegrityCheckPeriodFlag(flagset *pflag.FlagSet, dst *int) {}
 
 // InitializeIntegrityCheck is a noop setup of integrity checking.
 func InitializeIntegrityCheck(
-	publicKeyPath, configDir, instancesEnabledDir string,
+	publicKeyPath, configDir string,
 ) (IntegrityCtx, error) {
 	if publicKeyPath != "" {
 		return IntegrityCtx{}, ErrNoVerifierInCE

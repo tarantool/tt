@@ -211,7 +211,13 @@ def tt_path(tmp_path, request):
     else:
         app_name, app_ext = os.path.splitext(os.path.basename(app_path))
         app_name = mark_app.kwargs.get("app_name", app_name)
-        app_path = shutil.copy(app_path, tmp_path / (app_name + app_ext))
+        app_dir = tmp_path / app_name
+        app_dir.mkdir()
+        app_path = shutil.copy(app_path, app_dir / (app_name + app_ext))
+
+    app_dir = Path(app_path) if os.path.isdir(app_path) else Path(app_path).parent
+    if not (app_dir / utils.config_name).exists():
+        utils.create_tt_config(app_dir, "")
     return app_path
 
 
@@ -245,6 +251,7 @@ def tt_post_start(request):
 @pytest.fixture(scope="function")
 def tt_app(tt, tt_path, tt_instances, tt_running_targets, tt_post_start):
     app = tt_helper.TtApp(tt, tt_path, tt_instances)
+    tt.work_dir = app.work_dir
     for target in tt_running_targets:
         p = tt.run("start", target)
         assert p.returncode == 0

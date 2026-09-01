@@ -23,12 +23,11 @@ All relative paths in this section are relative to the config file location.
 
 Runtime artifacts layout is changed:
 
-- Relative paths are relative to the application directory. In case of
-single script instance, a directory is created in the instances
-enabled directory.
+- Relative paths are relative to the application directory.
 - Since relative paths already contains an application name,
 only instance name is appended to the result directory. Here is an
-example of 2.0.0 default layout for a local environment:
+example of the legacy 2.0.0 layout, in which applications were discovered
+under `instances.enabled`:
 
 ```text
 instances.enabled/app/
@@ -46,12 +45,33 @@ instances.enabled/app/
         └── inst2
 ```
 
+Current versions do not scan `instances.enabled`. Move each application that
+still uses this legacy layout into its own root and put `tt.yaml` there:
+
+```text
+<app_dir>/
+├── tt.yaml
+├── init.lua
+├── instances.yml
+└── var
+    ├── lib
+    │   ├── inst1
+    │   └── inst2
+    ├── log
+    │   ├── inst1
+    │   └── inst2
+    └── run
+        ├── inst1
+        └── inst2
+```
+
 Moving artifacts from 1.* versions:
 
-- Create artifacts directories in application dir: var/lib, var/log, var/run.
+- Create artifact directories in the new application root: `var/lib`,
+  `var/log`, and `var/run`.
 - Copy instance sub-directories from 1.* environment to application
 dir. Data artifacts copying example:
-`cp -r <env_dir>/var/lib/app/* <instances_enabled>/app/var/lib/`
+`cp -r <env_dir>/var/lib/app/* <app_dir>/var/lib/`
 
 Absolute paths are not affected by these layout changes, because an application
 name is always appended for them.

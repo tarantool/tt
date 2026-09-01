@@ -18,12 +18,11 @@ import (
 
 const (
 	ConfigName        = "tt.yaml"
+	DefaultAppPath    = "."
 	cliExecutableName = "tt"
 	// systemConfigDirEnvName is an environment variable that contains a path to
 	// search system config.
 	systemConfigDirEnvName = "TT_SYSTEM_CONFIG_DIR"
-	// instancesEnabledDirName is a default instances enabled directory name.
-	InstancesEnabledDirName = "instances.enabled"
 )
 
 const (
@@ -76,10 +75,10 @@ func getDefaultAppOpts() *config.AppOpts {
 // getDefaultAppOpts generates default app config.
 func getDefaultTtEnvOpts() *config.TtEnvOpts {
 	return &config.TtEnvOpts{
-		InstancesEnabled:   ".",
-		Restartable:        false,
-		BinDir:             BinPath,
-		IncludeDir:         IncludePath,
+		InstancesEnabled: DefaultAppPath,
+		Restartable:      false,
+		BinDir:           BinPath,
+		IncludeDir:       IncludePath,
 	}
 }
 
@@ -198,17 +197,7 @@ func adjustListPathWithConfigLocation(listPaths []string, configDir string,
 func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	var err error
 
-	if cliOpts.Env.InstancesEnabled == "" {
-		cliOpts.Env.InstancesEnabled = "."
-	}
-	if cliOpts.Env.InstancesEnabled != "." || (cliOpts.Env.InstancesEnabled == "." &&
-		!util.IsApp(configDir)) {
-
-		if cliOpts.Env.InstancesEnabled, err =
-			adjustPathWithConfigLocation(cliOpts.Env.InstancesEnabled, configDir, ""); err != nil {
-			return err
-		}
-	}
+	cliOpts.Env.InstancesEnabled = DefaultAppPath
 
 	for _, dir := range []struct {
 		path       *string

@@ -50,7 +50,7 @@ func waitForMsgInBuffer(reader io.Reader, msgToWait string, waitFor time.Duratio
 }
 
 func TestClusterInstance_Start(t *testing.T) {
-	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
+	configPath, err := filepath.Abs(filepath.Join("testdata", "applications",
 		"cluster_app", "config.yml"))
 	require.NoError(t, err)
 
@@ -84,7 +84,7 @@ func TestClusterInstance_Start(t *testing.T) {
 }
 
 func TestClusterInstance_StartChangeDefaults(t *testing.T) {
-	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
+	configPath, err := filepath.Abs(filepath.Join("testdata", "applications",
 		"cluster_app", "config.yml"))
 	require.NoError(t, err)
 
@@ -129,7 +129,7 @@ func TestClusterInstance_StartChangeDefaults(t *testing.T) {
 }
 
 func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
-	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
+	configPath, err := filepath.Abs(filepath.Join("testdata", "applications",
 		"cluster_app", "config.yml"))
 	require.NoError(t, err)
 
@@ -181,7 +181,7 @@ func TestClusterInstance_StartChangeSomeDefaults(t *testing.T) {
 }
 
 func TestClusterInstance_StopByContext(t *testing.T) {
-	configPath, err := filepath.Abs(filepath.Join("testdata", "instances_enabled",
+	configPath, err := filepath.Abs(filepath.Join("testdata", "applications",
 		"cluster_app", "config.yml"))
 	require.NoError(t, err)
 

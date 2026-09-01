@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
@@ -17,7 +16,6 @@ import (
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/console"
 	"github.com/tarantool/tt/cli/modules"
-	"github.com/tarantool/tt/cli/running"
 	"github.com/tarantool/tt/cli/util"
 	libconnect "github.com/tarantool/tt/lib/connect"
 )
@@ -115,12 +113,10 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	case len(args) == 1 && !util.IsURL(args[0]):
-		configPath, _, _, err := parseAppStr(&cmdCtx, args[0])
+		configPath, instName, err := parseAppStr(&cmdCtx, args[0])
 		if err != nil {
 			return err
 		}
-
-		_, instName, _ := strings.Cut(args[0], string(running.InstanceDelimiter))
 
 		if err := readConfigFilePath(configPath, instName); err != nil {
 			return err

@@ -1,8 +1,6 @@
-import os
-import shutil
-
 import pytest
 from integration.replicaset.replicaset_helpers import (
+    copy_application,
     get_group_by_replicaset_name,
     get_group_replicaset_by_instance_name,
     parse_yml,
@@ -155,18 +153,17 @@ def test_replicaset_cconfig_roles_add(
     is_add_role,
 ):
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir_with_cfg, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir_with_cfg, app_name)
 
     kv = read_kv(app_path)
     instances = parse_yml(kv["instances"]).keys()
 
     try:
-        start_application(tt_cmd, tmpdir_with_cfg, app_name, instances)
+        start_application(tt_cmd, app_path, app_name, instances)
 
         if stop_instance:
             stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_instance}"]
-            rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
+            rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
             assert rc == 0
         if is_add_role:
             add_first_role_cmd = [
@@ -177,7 +174,7 @@ def test_replicaset_cconfig_roles_add(
                 f"{app_name}:{inst}" if inst else app_name,
                 role_name,
             ]
-            rc, _ = run_command_and_get_output(add_first_role_cmd, cwd=tmpdir_with_cfg)
+            rc, _ = run_command_and_get_output(add_first_role_cmd, cwd=app_path)
             assert rc == 0
 
         flags = []
@@ -194,7 +191,7 @@ def test_replicaset_cconfig_roles_add(
 
         uri = None
         if is_uri:
-            uri = f"client:secret@{tmpdir_with_cfg}/{app_name}/{next(iter(instances))}.iproto"
+            uri = f"client:secret@{app_path}/{next(iter(instances))}.iproto"
 
         roles_add_cmd = [
             tt_cmd,
@@ -206,7 +203,7 @@ def test_replicaset_cconfig_roles_add(
         ]
         if len(flags) != 0:
             roles_add_cmd.extend(flags)
-        rc, out = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
+        rc, out = run_command_and_get_output(roles_add_cmd, cwd=app_path)
         if err_msg == "":
             assert rc == 0
             kv = read_kv(app_path)
@@ -235,7 +232,7 @@ def test_replicaset_cconfig_roles_add(
         stop_application(
             tt_cmd,
             app_name,
-            tmpdir_with_cfg,
+            app_path,
             instances,
             force=True if stop_instance else False,
         )

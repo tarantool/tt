@@ -30,6 +30,15 @@ def kill_remain_processes_wrapper(tt_cmd):
     utils.kill_procs(procs)
 
 
+def prepare_test_app(tmpdir):
+    app_dir = os.path.join(tmpdir, "test_app")
+    os.mkdir(app_dir)
+    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
+    shutil.copy(test_app_path, app_dir)
+    shutil.copy(os.path.join(tmpdir, utils.config_name), app_dir)
+    return app_dir
+
+
 def test_daemon_base_functionality(tt_cmd, tmp_path):
     # Start daemon.
     start_cmd = [tt_cmd, "daemon", "start"]
@@ -176,16 +185,13 @@ def test_daemon_with_cfg(tt_cmd, tmp_path):
 
 
 def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
-    tmp_path = tmpdir_with_cfg
-    # Copy the test application to the "run" directory.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
-    shutil.copy(test_app_path, tmp_path)
+    app_dir = prepare_test_app(tmpdir_with_cfg)
 
     # Start daemon.
     start_cmd = [tt_cmd, "daemon", "start"]
     daemon_process = subprocess.Popen(
         start_cmd,
-        cwd=tmp_path,
+        cwd=app_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -194,10 +200,10 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "tt_daemon.pid", [])
+    file = utils.wait_file(os.path.join(app_dir, utils.run_path), "tt_daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
-    status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
+    status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=app_dir)
     assert status_rc == 0
     assert re.search(r"RUNNING. PID: \d+.", status_out)
 
@@ -207,7 +213,7 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", response.json()["res"])
 
     file = utils.wait_file(
-        os.path.join(tmp_path, "test_app", utils.run_path, "test_app"),
+        os.path.join(app_dir, utils.run_path, "test_app"),
         utils.pid_file,
         [],
     )
@@ -229,7 +235,7 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
 
     # Stop daemon.
     stop_cmd = [tt_cmd, "daemon", "stop"]
-    stop_rc, stop_out = utils.run_command_and_get_output(stop_cmd, cwd=tmp_path)
+    stop_rc, stop_out = utils.run_command_and_get_output(stop_cmd, cwd=app_dir)
     assert stop_rc == 0
     assert re.search(r"The Daemon \(PID = \d+\) has been terminated.", stop_out)
 
@@ -239,15 +245,12 @@ def test_daemon_http_requests(tt_cmd, tmpdir_with_cfg):
 
 
 def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
-    tmp_path = tmpdir_with_cfg
-    # Copy the test application to the "run" directory.
-    test_app_path = os.path.join(os.path.dirname(__file__), "test_app", "test_app.lua")
-    shutil.copy(test_app_path, tmp_path)
+    app_dir = prepare_test_app(tmpdir_with_cfg)
 
     iface = utils.get_test_iface()
     port = utils.find_port()
 
-    with open(os.path.join(tmp_path, "tt_daemon.yaml"), "w") as tnt_env_file:
+    with open(os.path.join(app_dir, "tt_daemon.yaml"), "w") as tnt_env_file:
         line = """
         daemon:
             listen_interface: {}
@@ -259,7 +262,7 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     start_cmd = [tt_cmd, "daemon", "start"]
     daemon_process = subprocess.Popen(
         start_cmd,
-        cwd=tmp_path,
+        cwd=app_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -268,14 +271,14 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting tt daemon...", start_out)
 
     # Check status.
-    file = utils.wait_file(os.path.join(tmp_path, utils.run_path), "tt_daemon.pid", [])
+    file = utils.wait_file(os.path.join(app_dir, utils.run_path), "tt_daemon.pid", [])
     assert file != ""
     status_cmd = [tt_cmd, "daemon", "status"]
-    status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=tmp_path)
+    status_rc, status_out = utils.run_command_and_get_output(status_cmd, cwd=app_dir)
     assert status_rc == 0
     assert re.search(r"RUNNING. PID: \d+.", status_out)
 
-    conn = utils.get_process_conn(os.path.join(tmp_path, utils.run_path, file), port)
+    conn = utils.get_process_conn(os.path.join(app_dir, utils.run_path, file), port)
     assert conn is not None
 
     # spell-checker:ignore laddr
@@ -288,7 +291,7 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
     assert re.search(r"Starting an instance", response.json()["res"])
 
     file = utils.wait_file(
-        os.path.join(tmp_path, "test_app", utils.run_path, "test_app"),
+        os.path.join(app_dir, utils.run_path, "test_app"),
         utils.pid_file,
         [],
     )
@@ -309,7 +312,7 @@ def test_daemon_http_requests_with_cfg(tt_cmd, tmpdir_with_cfg):
 
     # Stop daemon.
     stop_cmd = [tt_cmd, "daemon", "stop"]
-    stop_rc, stop_out = utils.run_command_and_get_output(stop_cmd, cwd=tmp_path)
+    stop_rc, stop_out = utils.run_command_and_get_output(stop_cmd, cwd=app_dir)
     assert stop_rc == 0
     assert re.search(r"The Daemon \(PID = \d+\) has been terminated.", stop_out)
 

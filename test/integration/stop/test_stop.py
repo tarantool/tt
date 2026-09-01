@@ -20,38 +20,19 @@ confirmation_input_params = [
 ]
 
 
-def test_stop_no_args(tt_cmd, tmp_path):
-    app_name = "multi_app"
-    test_app_path_src = os.path.join(os.path.dirname(__file__), app_name)
-    test_app_path = os.path.join(tmp_path, app_name)
-    shutil.copytree(test_app_path_src, test_app_path)
-
-    start_cmd = [tt_cmd, "start"]
-    rc, out = utils.run_command_and_get_output(start_cmd, cwd=test_app_path)
-    assert rc == 0
-    assert "Starting an instance" in out
-
-    try:
-        # Test confirmed stop of all instances.
-        stop_cmd = [tt_cmd, "stop"]
-        rc, out = utils.run_command_and_get_output(stop_cmd, cwd=test_app_path, input="y\n")
-        assert "Confirm stop of all instances [y/n]" in out
-
-    finally:
-        stop_cmd = [tt_cmd, "stop", "-y"]
-        utils.run_command_and_get_output(stop_cmd, cwd=test_app_path)
-
-
-def test_stop_no_prompt(tt_cmd, tmpdir_with_cfg):
-    shutil.copy(os.path.join(os.path.dirname(__file__), "test_app.lua"), tmpdir_with_cfg)
+def test_stop_no_prompt(tt_cmd, tmp_path):
     app_name = "test_app"
+    app_path = tmp_path / app_name
+    utils.create_tt_config(app_path, "")
+    shutil.copy(os.path.join(os.path.dirname(__file__), "test_app.lua"), app_path)
+
     start_cmd = [tt_cmd, "start", app_name]
-    rc, out = utils.run_command_and_get_output(start_cmd, cwd=tmpdir_with_cfg)
+    rc, out = utils.run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
     assert "Starting an instance" in out
     assert (
         utils.wait_file(
-            os.path.join(tmpdir_with_cfg, app_name, utils.run_path, app_name),
+            os.path.join(app_path, utils.run_path, app_name),
             utils.pid_file,
             [],
         )
@@ -61,15 +42,15 @@ def test_stop_no_prompt(tt_cmd, tmpdir_with_cfg):
     try:
         # Test stop with tt --no-prompt flag.
         stop_cmd = [tt_cmd, "--no-prompt", "stop", app_name]
-        rc, out = utils.run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
+        rc, out = utils.run_command_and_get_output(stop_cmd, cwd=app_path)
         assert f"Confirm stop of '{app_name}' [y/n]" not in out
         assert "has been terminated" in out
-        app_path = os.path.join(tmpdir_with_cfg, app_name, utils.run_path, app_name, utils.pid_file)
-        assert not os.path.exists(app_path)
+        pid_path = os.path.join(app_path, utils.run_path, app_name, utils.pid_file)
+        assert not os.path.exists(pid_path)
 
     finally:
         stop_cmd = [tt_cmd, "stop", "-y", app_name]
-        utils.run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
+        utils.run_command_and_get_output(stop_cmd, cwd=app_path)
 
 
 def check_stop(tt, tt_app, target, input, is_confirm, *args):

@@ -399,56 +399,6 @@ func TestInstantiateFileFromTemplate(t *testing.T) {
 	}
 }
 
-func TestCollectAppList(t *testing.T) {
-	testDir := t.TempDir()
-	defaultPaths := []string{
-		"var",
-		"log",
-		"run",
-		"lib",
-		"env",
-		filepath.Join("env", "bin"),
-		filepath.Join("env", "modules"),
-	}
-
-	apps := map[string]bool{
-		"app1.lua": true,
-		"app2":     true,
-	}
-
-	dirsToCreate := []string{
-		"app2",
-		".rocks",
-	}
-	dirsToCreate = append(dirsToCreate, defaultPaths...)
-
-	filesToCreate := []string{
-		"app1.lua",
-		"somefile",
-		"app2/init.lua",
-	}
-
-	for _, dir := range dirsToCreate {
-		err := os.MkdirAll(filepath.Join(testDir, dir), 0o750)
-		require.NoErrorf(t, err, "failed to create directory %q: %v", dir, err)
-	}
-
-	for _, file := range filesToCreate {
-		err := os.WriteFile(filepath.Join(testDir, file), nil, 0o600)
-		require.NoErrorf(t, err, "failed to create file %q: %v", file, err)
-	}
-
-	collected, err := CollectAppList("", testDir, true)
-	assert.Nilf(t, err, "failed to collect an app list: %v", err)
-
-	require.Equalf(t, len(apps), len(collected), "wrong count applications collected,"+
-		" expected: %d, got %d", len(apps), len(collected))
-
-	for _, item := range collected {
-		require.Truef(t, apps[item], "wrong item got collected in app list: %s", item)
-	}
-}
-
 func TestRelativeToCurrentWorkingDir(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)

@@ -93,6 +93,12 @@ for machine-readable output.
 
 ### Changed
 
+- Application discovery now uses only the directory containing `tt.yaml` as
+  the application root. The multi-application layout is no longer supported;
+  `env.instances_enabled` is retained as an ignored compatibility option.
+- `tt create` now creates the application directory directly under the
+  selected environment root and no longer creates a symlink in
+  `instances.enabled`.
 - `tt enable` and `tt instances` commands removed.
 - `tt init`, `tt pack`, and `tt build` commands removed. Use
   `tt package build` and `tt package pack` for manifest-based applications.

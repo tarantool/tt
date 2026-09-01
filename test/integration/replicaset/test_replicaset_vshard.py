@@ -4,7 +4,7 @@ import re
 import shutil
 
 import pytest
-from replicaset_helpers import eval_on_instance, parse_status, stop_application
+from replicaset_helpers import copy_application, eval_on_instance, parse_status, stop_application
 
 from utils import (
     create_tt_config,
@@ -38,11 +38,10 @@ def test_vshard_bootstrap(tt_cmd, tmpdir_with_cfg, case):
 def test_vshard_bootstrap_no_instance(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
 
     status_cmd = [tt_cmd, "rs", "vs", "bootstrap", "test_custom_app:noexist"]
-    rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir_with_cfg)
+    rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
     assert rc == 1
     assert re.search(r"   ⨯ instance \"noexist\" not found", out)
 
@@ -52,16 +51,15 @@ def test_vshard_bootstrap_no_instance(tt_cmd, tmpdir_with_cfg):
 def test_vshard_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
+        file = wait_file(app_path, "ready", [])
         assert file != ""
 
         cmd = [tt_cmd, "rs", "vs", "bootstrap"]
@@ -69,7 +67,7 @@ def test_vshard_bootstrap_custom_app(tt_cmd, tmpdir_with_cfg, flag):
             cmd.append(flag)
         cmd.append("test_custom_app:test_custom_app")
 
-        rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(cmd, cwd=app_path)
         assert rc == 1
         assert re.search(
             r"""  • Discovery application...*
@@ -89,7 +87,7 @@ Replicasets state: bootstrapped
         )
     finally:
         stop_cmd = [tt_cmd, "stop", "-y", app_name]
-        rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+        rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0
 
 
@@ -100,21 +98,20 @@ Replicasets state: bootstrapped
 def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(os.path.join(tmpdir, app_name), f"ready-instance-00{i}", [])
+            file = wait_file(app_path, f"ready-instance-00{i}", [])
             assert file != ""
 
         cmd = [tt_cmd, "rs", "vs", "bootstrap", app_name]
 
-        rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(cmd, cwd=app_path)
 
         assert rc != 0
         buf = io.StringIO(out)
@@ -125,7 +122,7 @@ def test_vshard_bootstrap_cconfig_vshard_not_installed(tt_cmd, tmpdir_with_cfg):
         assert "Bootstrapping vshard" in buf.readline()
         assert "failed to get sharding roles" in buf.readline()
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, [])
+        stop_application(tt_cmd, app_name, app_path, [])
 
 
 @pytest.fixture(scope="session")
@@ -145,41 +142,43 @@ vshard_cconfig_app_name = "test_vshard_app"
 
 
 @pytest.fixture
-def vshard_cconfig_app_tt_env(request, tt_cmd, vshard_tt_env_session):
-    tmpdir = vshard_tt_env_session
-    app_path = tmpdir / vshard_cconfig_app_name
-
-    # Copy application.
-    shutil.copytree(os.path.join(os.path.dirname(__file__), vshard_cconfig_app_name), app_path)
+def vshard_cconfig_app_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
+    app_path = tmp_path / vshard_cconfig_app_name
+    shutil.copytree(vshard_tt_env_session, app_path)
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), vshard_cconfig_app_name),
+        app_path,
+        dirs_exist_ok=True,
+    )
 
     # Start a cluster.
     start_cmd = [tt_cmd, "start", vshard_cconfig_app_name]
-    rc, _ = run_command_and_get_output(start_cmd, cwd=tmpdir)
+    rc, _ = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
 
     instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
 
-    def stop_and_clean():
+    try:
+        for inst in instances:
+            file = wait_file(app_path, f"ready-{inst}", [])
+            assert file != ""
+
+        wait_string_in_file(
+            app_path / log_path / "router-001-a" / log_file,
+            "All replicas are ok",
+        )
+        for inst in ["storage-001-a", "storage-002-a"]:
+            wait_string_in_file(app_path / log_path / inst / log_file, "leaving orphan mode")
+        for inst in ["storage-001-b", "storage-002-b"]:
+            wait_string_in_file(app_path / log_path / inst / log_file, "subscribed replica")
+        yield app_path
+    finally:
         stop_application(
             tt_cmd,
             app_name=vshard_cconfig_app_name,
-            workdir=tmpdir,
+            workdir=app_path,
             instances=instances,
         )
-        shutil.rmtree(app_path)
-
-    request.addfinalizer(stop_and_clean)
-
-    for inst in instances:
-        file = wait_file(app_path, f"ready-{inst}", [])
-        assert file != ""
-
-    wait_string_in_file(app_path / log_path / "router-001-a" / log_file, "All replicas are ok")
-    for inst in ["storage-001-a", "storage-002-a"]:
-        wait_string_in_file(app_path / log_path / inst / log_file, "leaving orphan mode")
-    for inst in ["storage-001-b", "storage-002-b"]:
-        wait_string_in_file(app_path / log_path / inst / log_file, "subscribed replica")
-    return tmpdir
 
 
 @pytest.mark.skipif(
@@ -197,7 +196,7 @@ def test_vshard_bootstrap_cconfig_via_uri_no_router(tt_cmd, vshard_cconfig_app_t
         "client",
         "--password",
         "secret",
-        os.path.join(tmpdir, vshard_cconfig_app_name, "storage-001-a.iproto"),
+        os.path.join(tmpdir, "storage-001-a.iproto"),
     ]
     rc, out = run_command_and_get_output(cmd, cwd=tmpdir)
     assert rc != 0
@@ -238,36 +237,32 @@ vshard_cconfig_app_name_timeout = "test_vshard_app_timeout"
 
 
 @pytest.fixture
-def vshard_cconfig_app_timeout_tt_env(request, tt_cmd, vshard_tt_env_session):
-    tmpdir = vshard_tt_env_session
-    app_path = tmpdir / vshard_cconfig_app_name_timeout
-
-    # Copy application.
+def vshard_cconfig_app_timeout_tt_env(tt_cmd, tmp_path, vshard_tt_env_session):
+    app_path = tmp_path / vshard_cconfig_app_name_timeout
+    shutil.copytree(vshard_tt_env_session, app_path)
     shutil.copytree(
         os.path.join(os.path.dirname(__file__), vshard_cconfig_app_name_timeout),
         app_path,
+        dirs_exist_ok=True,
     )
 
     # Start a cluster.
     start_cmd = [tt_cmd, "start", vshard_cconfig_app_name_timeout]
-    rc, _ = run_command_and_get_output(start_cmd, cwd=tmpdir)
+    rc, _ = run_command_and_get_output(start_cmd, cwd=app_path)
     assert rc == 0
 
     instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
 
-    def stop_and_clean():
+    try:
+        yield app_path
+    finally:
         stop_application(
             tt_cmd,
             app_name=vshard_cconfig_app_name_timeout,
-            workdir=tmpdir,
+            workdir=app_path,
             instances=instances,
             force=True,
         )
-        shutil.rmtree(app_path)
-
-    request.addfinalizer(stop_and_clean)
-
-    return tmpdir
 
 
 @pytest.mark.skipif(

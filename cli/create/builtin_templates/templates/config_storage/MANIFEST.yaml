@@ -1,8 +1,9 @@
 description: Config storage template
 follow-up-message: |
   What's next?
-  Start '{{ .name }}' application:
-      $ tt start {{ .name }}
+  Enter and start '{{ .name }}' application:
+      $ cd {{ .name }}
+      $ tt start
 
   Pay attention that default user and password were generated
   for the 'replication' role, you can change it in the config.yaml.

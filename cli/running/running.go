@@ -244,7 +244,7 @@ func (provider *providerImpl) IsRestartable() (bool, error) {
 func searchApplicationScript(applicationsDir, appName string) (InstanceCtx, error) {
 	instCtx := InstanceCtx{
 		AppName: appName, InstName: appName, SingleApp: true,
-		IsFileApp: true, AppDir: util.JoinPaths(applicationsDir, appName),
+		IsFileApp: true, AppDir: applicationsDir,
 	}
 
 	luaPath := filepath.Join(applicationsDir, appName+".lua")
@@ -432,8 +432,8 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 	return instances, nil
 }
 
-// CollectInstances searches all instances available in application.
-func CollectInstances(appName, applicationsDir string,
+// collectInstances searches all instances available in the configured application.
+func collectInstances(appName, applicationDir string,
 	integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
 	[]InstanceCtx, error,
 ) {
@@ -446,26 +446,21 @@ func CollectInstances(appName, applicationsDir string,
 		appName = appNameTmp[:colonIds]
 		selectedInstName = appNameTmp[colonIds+1:]
 	}
+	appName = strings.TrimSuffix(appName, ".lua")
+	expectedAppName := filepath.Base(filepath.Clean(applicationDir))
+	if appName != expectedAppName {
+		return nil, fmt.Errorf("application %q not found", appName)
+	}
 
-	// We considering several scenarios:
-	// 1) The application starts by `appName.lua`
-	// 2) The application starts by `appName/init.lua`
-	// 3) The application starts by `dirName:appName`
-	// 4) Read application list from `appName/instances.yml`
-	// If appName equals to base directory name, current working
-	// directory is considered as application to work with.
-	if instCtx, err := searchApplicationScript(applicationsDir, appName); err != nil ||
+	// A single application can be represented by `<appName>.lua` or by
+	// the application directory itself.
+	if instCtx, err := searchApplicationScript(applicationDir, appName); err != nil ||
 		instCtx.InstanceScript != "" {
 
 		return []InstanceCtx{instCtx}, err
 	}
 
-	appDir := filepath.Join(applicationsDir, appName)
-	if filepath.Base(applicationsDir) == appName {
-		appDir = applicationsDir
-	}
-
-	return collectInstancesFromAppDir(appDir, selectedInstName, integrityCtx, loadConfig)
+	return collectInstancesFromAppDir(applicationDir, selectedInstName, integrityCtx, loadConfig)
 }
 
 // cleanup removes runtime artifacts.
@@ -591,17 +586,8 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 // GetClusterConfigPath returns a cluster config path for the application.
 // If mustExist flag is set and config is not found, ErrNotExists error is returned,
 // default config filepath is returned otherwise.
-func GetClusterConfigPath(cliOpts *config.CliOpts,
-	ttConfigDir, appName string, mustExist bool,
-) (string, error) {
-	instEnabledPath := cliOpts.Env.InstancesEnabled
-	var appDir string
-	if instEnabledPath == "." {
-		appDir = ttConfigDir
-	} else {
-		appDir = filepath.Join(instEnabledPath, appName)
-	}
-	configPath := filepath.Join(appDir, clusterConfigDefaultFileName)
+func GetClusterConfigPath(ttConfigDir string, mustExist bool) (string, error) {
+	configPath := filepath.Join(ttConfigDir, clusterConfigDefaultFileName)
 	ret, err := util.GetYamlFileName(configPath, true)
 	if errors.Is(err, os.ErrNotExist) {
 		if mustExist {
@@ -615,45 +601,36 @@ func GetClusterConfigPath(cliOpts *config.CliOpts,
 	return ret, nil
 }
 
-// CollectInstancesForApps collects instances information per application.
-func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
+// CollectInstancesForApp collects instances information for the configured application.
+func CollectInstancesForApp(appName string, cliOpts *config.CliOpts,
 	ttConfigDir string, integrityCtx integrity.IntegrityCtx, loadConfig ConfigLoad) (
-	map[string][]InstanceCtx, error,
+	[]InstanceCtx, error,
 ) {
-	instEnabledPath := cliOpts.Env.InstancesEnabled
-	if cliOpts.Env.InstancesEnabled == "." {
-		instEnabledPath = ttConfigDir
+	appName = strings.TrimSuffix(appName, ".lua")
+	collectedInstances, err := collectInstances(appName, ttConfigDir, integrityCtx, loadConfig)
+	if err != nil {
+		return nil, fmt.Errorf("can't collect instance information for %s: %w", appName, err)
 	}
-	apps := make(map[string][]InstanceCtx)
-	for _, appName := range appList {
-		appName = strings.TrimSuffix(appName, ".lua")
-		collectedInstances, err := CollectInstances(appName, instEnabledPath, integrityCtx,
-			loadConfig)
-		if err != nil {
-			return apps, fmt.Errorf("can't collect instance information for %s: %w",
-				appName, err)
+
+	instances := make([]InstanceCtx, 0, len(collectedInstances))
+	for _, inst := range collectedInstances {
+		instance := inst
+
+		if err = setInstCtxFromTtConfig(&instance, cliOpts); err != nil {
+			return nil, err
 		}
 
-		apps[appName] = make([]InstanceCtx, 0, len(collectedInstances))
-		for _, inst := range collectedInstances {
-			instance := inst
-
-			if err = setInstCtxFromTtConfig(&instance, cliOpts); err != nil {
-				return apps, err
-			}
-
-			if err = setInstCtxFromClusterConfig(&instance); err != nil {
-				return apps, err
-			}
-
-			if err = renderInstCtxMembers(&instance); err != nil {
-				return apps, err
-			}
-
-			apps[appName] = append(apps[appName], instance)
+		if err = setInstCtxFromClusterConfig(&instance); err != nil {
+			return nil, err
 		}
+
+		if err = renderInstCtxMembers(&instance); err != nil {
+			return nil, err
+		}
+
+		instances = append(instances, instance)
 	}
-	return apps, nil
+	return instances, nil
 }
 
 // createInstanceDataDirectories creates directories for data and runtime artifacts.
@@ -687,26 +664,19 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 		return fmt.Errorf(`%s not found`, configure.ConfigName)
 	}
 
-	var appList []string
+	var appName string
 	if len(args) == 0 {
-		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.Env.InstancesEnabled,
-			true)
-		if err != nil {
-			return fmt.Errorf("can't collect an application list "+
-				"from instances enabled path %s: %s", cliOpts.Env.InstancesEnabled, err)
-		}
+		appName = filepath.Base(filepath.Clean(cmdCtx.Cli.ConfigDir))
 	} else {
-		appList = append(appList, args[0])
+		appName = args[0]
 	}
 
-	instances, err := CollectInstancesForApps(appList, cliOpts, cmdCtx.Cli.ConfigDir,
+	instances, err := CollectInstancesForApp(appName, cliOpts, cmdCtx.Cli.ConfigDir,
 		cmdCtx.Integrity, loadConfig)
 	if err != nil {
 		return err
 	}
-	for _, v := range instances {
-		runningCtx.Instances = append(runningCtx.Instances, v...)
-	}
+	runningCtx.Instances = append(runningCtx.Instances, instances...)
 
 	return nil
 }

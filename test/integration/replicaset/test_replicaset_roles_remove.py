@@ -1,8 +1,8 @@
 import os
-import shutil
 
 import pytest
 from integration.replicaset.replicaset_helpers import (
+    copy_application,
     get_group_by_replicaset_name,
     get_group_replicaset_by_instance_name,
     parse_yml,
@@ -186,8 +186,7 @@ def test_replicaset_cconfig_roles_remove(
     patch_cfg_content,
 ):
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir_with_cfg, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir_with_cfg, app_name)
 
     if patch_cfg_content:
         with open(os.path.join(app_path, "config.yaml"), "a") as f:
@@ -197,11 +196,11 @@ def test_replicaset_cconfig_roles_remove(
     instances = parse_yml(kv["instances"]).keys()
 
     try:
-        start_application(tt_cmd, tmpdir_with_cfg, app_name, instances)
+        start_application(tt_cmd, app_path, app_name, instances)
 
         if stop_instance:
             stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_instance}"]
-            rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir_with_cfg)
+            rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
             assert rc == 0
 
         flags = []
@@ -218,7 +217,7 @@ def test_replicaset_cconfig_roles_remove(
 
         uri = None
         if is_uri:
-            uri = f"client:secret@{tmpdir_with_cfg}/{app_name}/{next(iter(instances))}.iproto"
+            uri = f"client:secret@{app_path}/{next(iter(instances))}.iproto"
 
         roles_add_cmd = [
             tt_cmd,
@@ -230,7 +229,7 @@ def test_replicaset_cconfig_roles_remove(
         ]
         if len(flags) != 0:
             roles_add_cmd.extend(flags)
-        rc, out = run_command_and_get_output(roles_add_cmd, cwd=tmpdir_with_cfg)
+        rc, out = run_command_and_get_output(roles_add_cmd, cwd=app_path)
         if err_msg == "":
             assert rc == 0
             kv = read_kv(app_path)
@@ -260,7 +259,7 @@ def test_replicaset_cconfig_roles_remove(
         stop_application(
             tt_cmd,
             app_name,
-            tmpdir_with_cfg,
+            app_path,
             instances,
             force=True if stop_instance else False,
         )

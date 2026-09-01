@@ -1,2 +1,8 @@
 description: Single instance application
+follow-up-message: |
+  What's next?
+  Enter and start '{{ .name }}' application:
+      $ cd {{ .name }}
+      $ tt start
+
 vars:

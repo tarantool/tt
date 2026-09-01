@@ -1,8 +1,7 @@
-import os
 import re
-import shutil
 
 import pytest
+from replicaset_helpers import copy_application
 
 from utils import get_tarantool_version, run_command_and_get_output, wait_file
 
@@ -32,11 +31,10 @@ def test_expel_invalid_argument(tt_cmd, tmpdir_with_cfg):
 def test_expel_no_instance(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
 
     status_cmd = [tt_cmd, "replicaset", "expel", "test_custom_app:noexist"]
-    rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir_with_cfg)
+    rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
     assert rc == 1
     assert re.search(r"   ⨯ instance \"noexist\" not found", out)
 
@@ -46,16 +44,15 @@ def test_expel_no_instance(tt_cmd, tmpdir_with_cfg):
 def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
+        file = wait_file(app_path, "ready", [])
         assert file != ""
 
         expel_cmd = [tt_cmd, "replicaset", "expel"]
@@ -63,7 +60,7 @@ def test_expel_custom_app(tt_cmd, tmpdir_with_cfg, flag):
             expel_cmd.append(flag)
         expel_cmd.append("test_custom_app:test_custom_app")
 
-        rc, out = run_command_and_get_output(expel_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(expel_cmd, cwd=app_path)
         assert rc == 1
         assert re.search(
             r"""  • Discovery application...*
@@ -83,7 +80,7 @@ Replicasets state: bootstrapped
         )
     finally:
         stop_cmd = [tt_cmd, "stop", "-y", app_name]
-        rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+        rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0
 
 
@@ -95,16 +92,15 @@ Replicasets state: bootstrapped
 def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(os.path.join(tmpdir, app_name), f"ready-instance-00{i}", [])
+            file = wait_file(app_path, f"ready-instance-00{i}", [])
             assert file != ""
 
         expel_cmd = [tt_cmd, "replicaset", "expel"]
@@ -112,7 +108,7 @@ def test_expel_cconfig(tt_cmd, tmpdir_with_cfg, flag):
             expel_cmd.append(flag)
         expel_cmd.append(f"{app_name}:instance-003")
 
-        rc, out = run_command_and_get_output(expel_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(expel_cmd, cwd=app_path)
         assert rc == 0
         assert re.search(
             """   • Discovery application...*
@@ -140,7 +136,7 @@ Replicasets state: bootstrapped
 
         # Check that the instance has been expelled.
         status_cmd = [tt_cmd, "replicaset", "status", app_name]
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
         assert (
             """Orchestrator:      centralized config
@@ -162,5 +158,5 @@ Replicasets state: bootstrapped
 
     finally:
         stop_cmd = [tt_cmd, "stop", "-y", app_name]
-        rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+        rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert rc == 0

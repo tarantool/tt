@@ -885,35 +885,6 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 	return nil
 }
 
-// CollectAppList collects all the supposed applications in passed appsPath directory.
-func CollectAppList(baseDir, appsPath string, verbose bool) ([]string, error) {
-	if appsPath == "." {
-		// Check whether base directory is application.
-		if IsApp(baseDir) {
-			return []string{filepath.Base(baseDir)}, nil
-		}
-		// Instances enabled is '.', if base directory is not an application,
-		// consider base directory as directory containing a set of applications.
-		appsPath = baseDir
-	}
-	dirEntries, err := os.ReadDir(appsPath)
-	if err != nil {
-		return nil, err
-	}
-
-	apps := make([]string, 0)
-	for _, entry := range dirEntries {
-		dirItem := filepath.Join(appsPath, entry.Name())
-		if IsApp(dirItem) {
-			apps = append(apps, entry.Name())
-		} else if verbose {
-			log.Debugf("Skipping %s: the source is not an application.", entry.Name())
-		}
-	}
-
-	return apps, nil
-}
-
 // RelativeToCurrentWorkingDir returns a path relative to current working dir.
 // In case of error, fullPath is returned.
 func RelativeToCurrentWorkingDir(fullPath string) string {

@@ -5,7 +5,6 @@ package config
 //
 // tt.yaml file format:
 //  env:
-//    instances_enabled: path
 //    restart_on_failure: bool
 //  modules:
 //    directory: path/to
@@ -57,7 +56,8 @@ type TtEnvOpts struct {
 	// IncludeDir is the directory where all the header files
 	// are stored.
 	IncludeDir string `mapstructure:"inc_dir" yaml:"inc_dir"`
-	// InstancesEnabled is the directory where all enabled applications are stored.
+	// InstancesEnabled is kept for configuration compatibility.
+	// Application discovery always uses the directory containing tt.yaml.
 	InstancesEnabled string `mapstructure:"instances_enabled" yaml:"instances_enabled"`
 	// Restartable - if set the instance is started under the watchdog it should
 	// restart on if it crashes.

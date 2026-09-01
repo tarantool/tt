@@ -8,6 +8,11 @@ import pytest
 def copy_app(tmpdir, app_name):
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    shutil.copy(os.path.join(tmpdir, "tt.yaml"), app_path)
+
+
+def app_cmd(tt_cmd, tmpdir, app_name):
+    return [tt_cmd, "--cfg", os.path.join(tmpdir, app_name, "tt.yaml")]
 
 
 valid_cluster_cfg = r"""groups:
@@ -51,15 +56,12 @@ iproto:
 """
 
 
-def test_cluster_publish_in_place_instances_enabled(tt_cmd, tmp_path):
+def test_cluster_publish_in_place(tt_cmd, tmp_path):
     env_path = tmp_path / "app"
     env_path.mkdir(0o755)
 
     with open(env_path / "tt.yml", "w") as f:
-        f.write("""\
-env:
-  instances.enabled: "."
-""")
+        f.write("")
     with open(env_path / "init.lua", "w") as f:
         f.write("print('hello world!')")
 
@@ -93,7 +95,13 @@ def test_cluster_publish_no_configuration(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
-    publish_cmd = [tt_cmd, "cluster", "publish", app_name, "not_exist.yaml"]
+    publish_cmd = [
+        *app_cmd(tt_cmd, tmpdir, app_name),
+        "cluster",
+        "publish",
+        app_name,
+        "not_exist.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -148,7 +156,7 @@ def test_cluster_publish_valid_cluster(tt_cmd, tmpdir_with_cfg, app_name, config
     app_path = os.path.join(tmpdir, app_name)
     dst_cfg_path = os.path.join(app_path, config_file)
 
-    publish_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
+    publish_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -189,7 +197,7 @@ def test_cluster_publish_valid_cluster_without_app_config(
     app_path = os.path.join(tmpdir, app_name)
     dst_cfg_path = os.path.join(app_path, config_file)
     os.remove(dst_cfg_path)
-    publish_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
+    publish_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -222,7 +230,7 @@ def test_cluster_publish_invalid_cluster(tt_cmd, tmpdir_with_cfg, app_name):
     with open(src_cfg_path, "w") as f:
         f.write(invalid_cluster_cfg)
 
-    publish_cmd = [tt_cmd, "cluster", "publish", app_name, "src.yaml"]
+    publish_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "publish", app_name, "src.yaml"]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -257,7 +265,14 @@ def test_cluster_publish_invalid_cluster_force(tt_cmd, tmpdir_with_cfg, app_name
 
     app_path = os.path.join(tmpdir, app_name)
     dst_cfg_path = os.path.join(app_path, config_file)
-    publish_cmd = [tt_cmd, "cluster", "publish", "--force", app_name, "src.yaml"]
+    publish_cmd = [
+        *app_cmd(tt_cmd, tmpdir, app_name),
+        "cluster",
+        "publish",
+        "--force",
+        app_name,
+        "src.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -298,7 +313,13 @@ def test_cluster_publish_instance_without_app_config(
     app_path = os.path.join(tmpdir, app_name)
     cfg_path = os.path.join(app_path, config_file)
     os.remove(cfg_path)
-    publish_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:master", "src.yaml"]
+    publish_cmd = [
+        *app_cmd(tt_cmd, tmpdir, app_name),
+        "cluster",
+        "publish",
+        f"{app_name}:master",
+        "src.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -332,7 +353,13 @@ def test_cluster_publish_valid_instance(tt_cmd, tmpdir_with_cfg, app_name, confi
 
     app_path = os.path.join(tmpdir, app_name)
     cfg_path = os.path.join(app_path, config_file)
-    publish_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:master", "src.yaml"]
+    publish_cmd = [
+        *app_cmd(tt_cmd, tmpdir, app_name),
+        "cluster",
+        "publish",
+        f"{app_name}:master",
+        "src.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -379,7 +406,7 @@ def test_cluster_publish_wrong_replicaset_name(tt_cmd, tmpdir_with_cfg, app_name
         f.write(valid_instance_cfg)
 
     publish_cmd = [
-        tt_cmd,
+        *app_cmd(tt_cmd, tmpdir, app_name),
         "cluster",
         "publish",
         "--replicaset",
@@ -410,7 +437,7 @@ def test_cluster_publish_wrong_group_name(tt_cmd, tmpdir_with_cfg, app_name):
         f.write(valid_instance_cfg)
 
     publish_cmd = [
-        tt_cmd,
+        *app_cmd(tt_cmd, tmpdir, app_name),
         "cluster",
         "publish",
         "--group",
@@ -455,7 +482,7 @@ def test_cluster_publish_new_instance_config(
 
     app_path = os.path.join(tmpdir, app_name)
     cfg_path = os.path.join(app_path, config_file)
-    publish_cmd = [tt_cmd, "cluster", "publish"]
+    publish_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "publish"]
     if specify_replicaset:
         publish_cmd.extend(["--replicaset", "replicaset-001"])
     publish_cmd.extend([f"{app_name}:router", "src.yaml"])
@@ -522,7 +549,13 @@ def test_cluster_publish_valid_new_instance_config_new_replicaset(
     with open(src_cfg_path, "w") as f:
         f.write(valid_instance_cfg)
 
-    publish_cmd = [tt_cmd, "cluster", "publish", "--replicaset", "replicaset-002"]
+    publish_cmd = [
+        *app_cmd(tt_cmd, tmpdir, app_name),
+        "cluster",
+        "publish",
+        "--replicaset",
+        "replicaset-002",
+    ]
     if specify_group:
         publish_cmd.extend(["--group", "group-002"])
     publish_cmd.extend([f"{app_name}:router", "src.yaml"])
@@ -591,7 +624,13 @@ def test_cluster_publish_invalid_instance(tt_cmd, tmpdir_with_cfg, app_name):
     with open(src_cfg_path, "w") as f:
         f.write(invalid_instance_cfg)
 
-    publish_cmd = [tt_cmd, "cluster", "publish", f"{app_name}:master", "src.yaml"]
+    publish_cmd = [
+        *app_cmd(tt_cmd, tmpdir, app_name),
+        "cluster",
+        "publish",
+        f"{app_name}:master",
+        "src.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
@@ -626,7 +665,14 @@ def test_cluster_publish_invalid_instance_force(tt_cmd, tmpdir_with_cfg, app_nam
 
     app_path = os.path.join(tmpdir, app_name)
     dst_cfg_path = os.path.join(app_path, config_file)
-    publish_cmd = [tt_cmd, "cluster", "publish", "--force", f"{app_name}:master", "src.yaml"]
+    publish_cmd = [
+        *app_cmd(tt_cmd, tmpdir, app_name),
+        "cluster",
+        "publish",
+        "--force",
+        f"{app_name}:master",
+        "src.yaml",
+    ]
     instance_process = subprocess.Popen(
         publish_cmd,
         cwd=tmpdir,
