@@ -26,6 +26,8 @@ def check_tt_aeon_response(output: str):
 def copy_app(tmpdir, app_name):
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    shutil.copy2(os.path.join(tmpdir, "tt.yaml"), app_path)
+    return app_path
 
 
 def copy_file(path_file, tmpdir):
@@ -361,14 +363,14 @@ def test_cli_plain_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_plain_fil
     print(f"Aeon plain at: {aeon_plain_file}")
 
     tmpdir = tmpdir_with_cfg
-    copy_app(tmpdir, app_name)
+    app_path = copy_app(tmpdir, app_name)
 
-    aeon_cmd = [str(tt_cmd), *AeonConnectCommand, "app:aeon-router-002"]
+    aeon_cmd = [str(tt_cmd), *AeonConnectCommand, f"{app_name}:aeon-router-002"]
     print(f"Run: {' '.join(aeon_cmd)}")
 
     tt = run(
         aeon_cmd,
-        cwd=tmpdir,
+        cwd=app_path,
         capture_output=True,
         input="",
         text=True,
@@ -450,12 +452,12 @@ def test_cli_ssl_app_flag_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, c
     print(f"Aeon ssl at: {aeon_ssl}")
 
     tmp_path = tmpdir_with_cfg
-    copy_app(tmp_path, app_name)
+    app_path = copy_app(tmp_path, app_name)
 
     for v in certificates.values():
-        shutil.copy2(v, tmp_path)
+        shutil.copy2(v, app_path)
 
-    cmd = [str(tt_cmd), *AeonConnectCommand, "app_ssl:aeon-router-001"]
+    cmd = [str(tt_cmd), *AeonConnectCommand, f"{app_name}:aeon-router-001"]
 
     cmd += (
         f"--sslcafile={certificates['ca']}",
@@ -468,7 +470,7 @@ def test_cli_ssl_app_flag_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, c
 
     tt = run(
         cmd,
-        cwd=tmp_path,
+        cwd=app_path,
         capture_output=True,
         input="",
         text=True,
@@ -484,18 +486,18 @@ def test_cli_ssl_app_success(tt_cmd, app_name, tmpdir_with_cfg, aeon_ssl, certif
     print(f"Aeon ssl at: {aeon_ssl}")
 
     tmp_path = tmpdir_with_cfg
-    copy_app(tmp_path, app_name)
+    app_path = copy_app(tmp_path, app_name)
 
     for v in certificates.values():
-        shutil.copy2(v, f"{tmp_path}/{app_name}")
+        shutil.copy2(v, app_path)
 
-    cmd = [str(tt_cmd), *AeonConnectCommand, "app_ssl:aeon-router-001"]
+    cmd = [str(tt_cmd), *AeonConnectCommand, f"{app_name}:aeon-router-001"]
 
     print(f"Run: {' '.join(cmd)}")
 
     tt = run(
         cmd,
-        cwd=tmp_path,
+        cwd=app_path,
         capture_output=True,
         input="",
         text=True,

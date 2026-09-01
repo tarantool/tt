@@ -1,9 +1,14 @@
 import io
 import os
-import shutil
 
 import pytest
-from replicaset_helpers import box_ctl_promote, parse_status, start_application, stop_application
+from replicaset_helpers import (
+    box_ctl_promote,
+    copy_application,
+    parse_status,
+    start_application,
+    stop_application,
+)
 
 from utils import get_tarantool_version, run_command_and_get_output
 
@@ -18,19 +23,18 @@ tarantool_major_version, tarantool_minor_version = get_tarantool_version()
 def test_demote_cconfig_failover_off(tt_cmd, tmpdir_with_cfg, force):
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_failovers"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     instances = ["off-failover-1", "off-failover-2"]
     # Replace instances.yml to start only necessary replicaset.
     with open(os.path.join(app_path, "instances.yml"), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
 
     try:
-        start_application(tt_cmd, tmpdir, app_name, instances)
+        start_application(tt_cmd, app_path, app_name, instances)
         if force:
             # Stop an instance.
             stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:off-failover-2"]
-            rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+            rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
             instances.remove("off-failover-2")
             assert rc == 0
 
@@ -39,7 +43,7 @@ def test_demote_cconfig_failover_off(tt_cmd, tmpdir_with_cfg, force):
             demote_cmd.append("-f")
         demote_cmd.append(f"{app_name}:off-failover-1")
 
-        rc, out = run_command_and_get_output(demote_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(demote_cmd, cwd=app_path)
         assert rc == 0
         buf = io.StringIO(out)
         # Skip init status in the output.
@@ -50,14 +54,14 @@ def test_demote_cconfig_failover_off(tt_cmd, tmpdir_with_cfg, force):
 
         # Check status.
         status_cmd = [tt_cmd, "rs", "status", app_name]
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
 
         actual = parse_status(io.StringIO(out))["replicasets"]["off-failover"]
         assert actual["instances"]["off-failover-1"]["mode"] == "read"
 
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, instances)
+        stop_application(tt_cmd, app_name, app_path, instances)
 
 
 @pytest.mark.skipif(
@@ -67,20 +71,19 @@ def test_demote_cconfig_failover_off(tt_cmd, tmpdir_with_cfg, force):
 def test_demote_cconfig_failover_election(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_failovers"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     instances = ["election-failover-1", "election-failover-2"]
     # Replace instances.yml to start only necessary replicaset.
     with open(os.path.join(app_path, "instances.yml"), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
 
     try:
-        start_application(tt_cmd, tmpdir, app_name, instances)
+        start_application(tt_cmd, app_path, app_name, instances)
         # To exactly know who is leader of the election replicaset at the beginning.
-        box_ctl_promote(tt_cmd, app_name, "election-failover-1", tmpdir)
+        box_ctl_promote(tt_cmd, app_name, "election-failover-1", app_path)
 
         demote_cmd = [tt_cmd, "rs", "demote", f"{app_name}:election-failover-1"]
-        rc, out = run_command_and_get_output(demote_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(demote_cmd, cwd=app_path)
         assert rc == 0
         buf = io.StringIO(out)
         # Skip init status in the output.
@@ -91,7 +94,7 @@ def test_demote_cconfig_failover_election(tt_cmd, tmpdir_with_cfg):
 
         # Check status.
         status_cmd = [tt_cmd, "rs", "status", app_name]
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
 
         parsed_replicaset = parse_status(io.StringIO(out))["replicasets"]["election-failover"]
@@ -100,7 +103,7 @@ def test_demote_cconfig_failover_election(tt_cmd, tmpdir_with_cfg):
         assert not actual["is_leader"]
 
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, instances)
+        stop_application(tt_cmd, app_name, app_path, instances)
 
 
 @pytest.mark.skipif(
@@ -152,28 +155,27 @@ def test_demote_cconfig_errors(
 ):
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_failovers"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     # Replace instances.yml to start only necessary replicaset.
     with open(os.path.join(app_path, "instances.yml"), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
 
     try:
-        start_application(tt_cmd, tmpdir, app_name, instances)
+        start_application(tt_cmd, app_path, app_name, instances)
         if instances[0].startswith("election-failover"):
             # To exactly know who is leader of the election replicaset at the beginning.
-            box_ctl_promote(tt_cmd, app_name, "election-failover-1", tmpdir)
+            box_ctl_promote(tt_cmd, app_name, "election-failover-1", app_path)
 
         if stop_inst:
             stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_inst}"]
-            rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+            rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
             assert rc == 0
             instances.remove(stop_inst)
 
         demote_cmd = [tt_cmd, "rs", "demote", f"{app_name}:{inst_name}"]
-        rc, out = run_command_and_get_output(demote_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(demote_cmd, cwd=app_path)
         assert rc != 0
         assert err_text in out
 
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, instances)
+        stop_application(tt_cmd, app_name, app_path, instances)

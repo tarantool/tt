@@ -1,5 +1,6 @@
 import os
 import subprocess
+from pathlib import Path
 
 import yaml
 
@@ -14,6 +15,10 @@ class Tt:
     @property
     def work_dir(self):
         return self.__work_dir
+
+    @work_dir.setter
+    def work_dir(self, work_dir):
+        self.__work_dir = work_dir
 
     def exec(self, *args, **kwargs):
         args = list(filter(lambda x: x is not None, args))
@@ -69,9 +74,12 @@ class TtApp:
         if os.path.isdir(app_path):
             self.__work_dir = app_path
         else:
-            self.__work_dir = os.path.splitext(app_path)[0]
-            os.mkdir(self.__work_dir)
+            self.__work_dir = os.path.dirname(app_path)
         self.__instances = instances
+
+    @property
+    def work_dir(self):
+        return self.__work_dir
 
     @property
     def instances(self):
@@ -118,6 +126,10 @@ class TtCluster:
         input = "".join(["\n" if x is None else f"{x}\n" for x in input_params])
         p = self.__tt.run("create", "cluster", "--name", self.__app_name, input=input)
         assert p.returncode == 0
+        app_dir = Path(self.__tt.path(self.__app_name))
+        if not (app_dir / utils.config_name).exists():
+            utils.create_tt_config(app_dir, "")
+        self.__tt.work_dir = app_dir
         self.__instances = None
 
     @property
@@ -141,7 +153,7 @@ class TtCluster:
 
     @property
     def config_path(self):
-        return self.__tt.work_dir / self.__app_name / "config.yaml"
+        return self.__tt.work_dir / "config.yaml"
 
     @property
     def config(self):

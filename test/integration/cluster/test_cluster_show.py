@@ -8,6 +8,11 @@ import pytest
 def copy_app(tmpdir, app_name):
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    shutil.copy(os.path.join(tmpdir, "tt.yaml"), app_path)
+
+
+def app_cmd(tt_cmd, tmpdir, app_name):
+    return [tt_cmd, "--cfg", os.path.join(tmpdir, app_name, "tt.yaml")]
 
 
 test_simple_app_cfg = r"""groups:
@@ -91,7 +96,7 @@ def test_cluster_show_config_app_without_config(tt_cmd, tmpdir_with_cfg, app_nam
     cfg_path = os.path.join(app_path, config_file)
     os.remove(cfg_path)
 
-    show_cmd = [tt_cmd, "cluster", "show", app_name]
+    show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -110,7 +115,7 @@ def test_cluster_show_config_app(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "show", app_name]
+    show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -128,7 +133,7 @@ def test_cluster_show_config_app_validate_no_error(tt_cmd, tmpdir_with_cfg, app_
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "show", "--validate", app_name]
+    show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", "--validate", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -151,7 +156,7 @@ def test_cluster_show_config_app_validate_error(tt_cmd, tmpdir_with_cfg):
     app_name = "test_error_app"
     copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "show", "--validate", app_name]
+    show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", "--validate", app_name]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -185,7 +190,7 @@ def test_cluster_show_config_app_not_exist_instance(tt_cmd, tmpdir_with_cfg, app
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "show", f"{app_name}:unknown"]
+    show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", f"{app_name}:unknown"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,
@@ -204,7 +209,7 @@ def test_cluster_show_config_app_instance(tt_cmd, tmpdir_with_cfg, app_name):
     tmpdir = tmpdir_with_cfg
     copy_app(tmpdir, app_name)
 
-    show_cmd = [tt_cmd, "cluster", "show", f"{app_name}:storage"]
+    show_cmd = [*app_cmd(tt_cmd, tmpdir, app_name), "cluster", "show", f"{app_name}:storage"]
     instance_process = subprocess.Popen(
         show_cmd,
         cwd=tmpdir,

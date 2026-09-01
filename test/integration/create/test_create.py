@@ -19,9 +19,7 @@ from utils import (
     wait_files,
 )
 
-tt_config_text = """env:
-  instances_enabled: test.instances.enabled
-app:
+tt_config_text = """app:
   run_dir: .
   log_dir: .
 templates:
@@ -55,8 +53,6 @@ def create_tnt_env_in_dir(tmp_path):
     # Create env file.
     with open(tmp_path / config_name, "w") as tnt_env_file:
         tnt_env_file.write(tt_config_text.format(tmp_path.as_posix()))
-
-    os.mkdir(tmp_path / "test.instances.enabled")
 
     # Copy templates to tmp dir.
     shutil.copytree(os.path.join(os.path.dirname(__file__), "templates"), tmp_path / "templates")
@@ -112,10 +108,6 @@ def test_create_basic_functionality(tt_cmd, tmp_path):
 
     # Check "--name" value is used in file name.
     assert os.path.exists(app_path / "app1.cfg")
-
-    # Check symlink to application is created in instances enabled directory.
-    assert (tmp_path / "test.instances.enabled" / "app1").exists()
-    assert os.readlink(tmp_path / "test.instances.enabled" / "app1") == "../subdir/app1"
 
     # Check output.
     out_lines = tt_process.stdout.readlines()
@@ -387,7 +379,6 @@ def test_template_search_paths(tt_cmd, tmp_path):
     # Create env file.
     with open(os.path.join(tmp_path, config_name), "w") as tnt_env_file:
         tnt_env_file.write("""app:
-  instances_enabled: ./any-dir
   run_dir: .
   log_dir: .
 templates:
@@ -742,15 +733,18 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
         "Build and start 'app1' application",
         "$ cd app1",
         "$ tt package build",
-        "$ tt start app1",
+        "$ tt start",
         "Application 'app1' created successfully",
         "Pay attention that default passwords were generated,",
         "you can change it in the config.yaml.",
     ]
     for line in expected_lines:
         assert output.find(line) != -1
+    assert "$ tt start app1" not in output
 
     app_path = tmp_path / "app1"
+    assert os.path.exists(app_path / config_name)
+    shutil.copy(tmp_path / config_name, app_path / config_name)
     assert os.path.exists(app_path / "storage.lua")
     assert os.path.exists(app_path / "router.lua")
 
@@ -772,7 +766,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     start_cmd = [tt_cmd, "start", "app1"]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmp_path,
+        cwd=app_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -783,7 +777,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     instances = ["storage-001-a", "storage-001-b", "storage-002-a", "storage-002-b", "router-001-a"]
     for inst in instances:
         file = wait_file(
-            os.path.join(tmp_path, "test.instances.enabled", "app1", inst),
+            os.path.join(app_path, inst),
             pid_file,
             [],
         )
@@ -791,7 +785,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
 
     # Check status.
     status_cmd = [tt_cmd, "status", "app1"]
-    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmp_path)
+    status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
     assert status_rc == 0
     status_info = extract_status(status_out)
     for key in status_info.keys():
@@ -800,7 +794,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
     def eval_cmd_func(inst, cmd):
         connect_process = subprocess.Popen(
             [tt_cmd, "connect", f"app1:{inst}", "-f-"],
-            cwd=tmp_path,
+            cwd=app_path,
             stdin=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
@@ -832,7 +826,7 @@ def test_create_app_from_builtin_vshard_cluster_template(tt_cmd, tmp_path):
 
     # Stop the vshard_cluster app.
     stop_cmd = [tt_cmd, "stop", "--yes", "app1"]
-    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=tmp_path)
+    stop_rc, stop_out = run_command_and_get_output(stop_cmd, cwd=app_path)
     assert stop_rc == 0
     for inst in instances:
         assert re.search(rf"The Instance app1:{inst} \(PID = \d+\) has been terminated.", stop_out)
@@ -872,6 +866,9 @@ def check_create_cluster(
         assert os.path.exists(path)
         assert os.access(path, os.W_OK)
 
+    with open(workdir / app_name / config_name, "w") as f:
+        f.write("app:\n  run_dir: .\n  log_dir: .\n")
+
 
 def get_status_info(tt_cmd, workdir, target):
     cmd = [tt_cmd, "status", target]
@@ -902,6 +899,8 @@ def wait_cluster_started(timeout, tt_cmd, workdir, app_name, instances):
 
 
 def check_running_cluster(tt_cmd, workdir, app_name, instances, check_func, *check_func_args):
+    workdir = workdir / app_name
+
     # Start app.
     cmd = [tt_cmd, "start", app_name]
     p = subprocess.run(
@@ -912,7 +911,7 @@ def check_running_cluster(tt_cmd, workdir, app_name, instances, check_func, *che
     try:
         # Common check.
         assert p.returncode == 0
-        pid_files = [os.path.join(workdir, app_name, inst, pid_file) for inst in instances]
+        pid_files = [os.path.join(workdir, inst, pid_file) for inst in instances]
         assert wait_files(5, pid_files)
         assert wait_cluster_started(10, tt_cmd, workdir, app_name, instances)
 
@@ -986,7 +985,7 @@ def test_create_config_storage(tt_cmd, tmp_path, num_replicas):
     app_name = "app1"
     params = [num_replicas, None, None, None]
 
-    files = ["config.yaml", "instances.yaml"]
+    files = ["config.yaml", "instances.yaml", config_name]
     instances = [f"replicaset-001-{chr(ord('a') + i)}" for i in range(num_replicas)]
 
     check_create_cluster(tt_cmd, tmp_path, "config_storage", app_name, params, files)
@@ -1096,7 +1095,7 @@ def test_create_simple_cluster(tt_cmd, tmp_path, num_replicasets, num_replicas):
     def inst_name(rs_name, i):
         return f"{rs_name}-{chr(ord('a') + i)}"
 
-    files = ["config.yaml", "instances.yaml", "app.lua"]
+    files = ["config.yaml", "instances.yaml", "app.lua", config_name]
     replicasets = [f"replicaset-00{i + 1}" for i in range(num_replicasets)]
     instances = [inst_name(rs, i) for rs in replicasets for i in range(num_replicas)]
     instances_tree = {rs: [inst_name(rs, i) for i in range(num_replicas)] for rs in replicasets}
@@ -1142,7 +1141,7 @@ def test_create_builtin_template_with_defaults(tt_cmd, tmp_path, template):
             "parametrizable_files": ["config.yaml", "instances.yaml"],
         },
     }
-    files = templates_data[template]["parametrizable_files"]
+    files = [*templates_data[template]["parametrizable_files"], config_name]
 
     # Create reference app (default values are specified explicitly).
     ref_app_name = "ref_app"

@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 
 import pytest
-from replicaset_helpers import start_application, stop_application
+from replicaset_helpers import copy_application, start_application, stop_application
 from vshard_cluster import VshardCluster
 
 from utils import get_tarantool_version, run_command_and_get_output, wait_file
@@ -46,26 +46,25 @@ def run_command_on_instance(tt_cmd, tmpdir, full_inst_name, cmd):
 def test_downgrade_multi_master(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(os.path.join(tmpdir, app_name), f"ready-instance-00{i}", [])
+            file = wait_file(app_path, f"ready-instance-00{i}", [])
             assert file != ""
 
         downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "3.0.0"]
 
-        rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(downgrade_cmd, cwd=app_path)
         assert rc == 1
         assert "replicaset-002: error" in out and "are both masters" in out
 
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, [])
+        stop_application(tt_cmd, app_name, app_path, [])
 
 
 # The `box.schema.downgrade()` function was introduced in Tarantool 2.11.0.
@@ -121,17 +120,22 @@ def test_cluster_replicasets(tt_cmd, tmp_path):
             for replica in replicaset:
                 out = run_command_on_instance(
                     tt_cmd,
-                    tmp_path,
+                    app.env_dir,
                     f"{app_name}:{replica}",
                     "box.cfg{force_recovery=true} return box.cfg.force_recovery",
                 )
                 assert "true" in out
 
         for replicaset in replicasets.values():
-            _ = run_command_on_instance(tt_cmd, tmp_path, f"{app_name}:{replicaset[0]}", cmd_master)
+            _ = run_command_on_instance(
+                tt_cmd,
+                app.env_dir,
+                f"{app_name}:{replicaset[0]}",
+                cmd_master,
+            )
 
         downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "2.11.1", "-t=15"]
-        rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmp_path)
+        rc, out = run_command_and_get_output(downgrade_cmd, cwd=app.env_dir)
 
         assert rc == 0
 
@@ -149,7 +153,7 @@ def test_cluster_replicasets(tt_cmd, tmp_path):
         # successful downgrade.
         out = run_command_on_instance(
             tt_cmd,
-            tmp_path,
+            app.env_dir,
             f"{app_name}:storage-001-a",
             "return box.space._schema:get('version')",
         )
@@ -170,13 +174,13 @@ def test_downgrade_invalid_version(tt_cmd, tmp_path):
         app.start()
 
         downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "1.1.1", "-t=15"]
-        rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmp_path)
+        rc, out = run_command_and_get_output(downgrade_cmd, cwd=app.env_dir)
 
         assert rc == 1
         assert "Version '1.1.1' is not allowed." in out
 
         downgrade_cmd = [tt_cmd, "replicaset", "downgrade", app_name, "3.0", "-t=15"]
-        rc, out = run_command_and_get_output(downgrade_cmd, cwd=tmp_path)
+        rc, out = run_command_and_get_output(downgrade_cmd, cwd=app.env_dir)
 
         assert "version must be in the format 'x.x.x', where x is a number" in out
     finally:
@@ -190,28 +194,32 @@ def test_downgrade_invalid_version(tt_cmd, tmp_path):
 def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     instances = ["storage-master", "storage-replica"]
 
     try:
-        start_application(tt_cmd, tmpdir, app_name, instances)
+        start_application(tt_cmd, app_path, app_name, instances)
 
         # This is necessary to downgrade a Tarantool 3.x cluster to 2.x.
         for inst in instances:
             out = run_command_on_instance(
                 tt_cmd,
-                tmpdir,
+                app_path,
                 f"{app_name}:{inst}",
                 "box.cfg{force_recovery=true} return box.cfg.force_recovery",
             )
             assert "true" in out
 
-        _ = run_command_on_instance(tt_cmd, tmpdir, f"{app_name}:{instances[0]}", cmd_master)
+        _ = run_command_on_instance(
+            tt_cmd,
+            app_path,
+            f"{app_name}:{instances[0]}",
+            cmd_master,
+        )
 
         uri = "tcp://client:secret@127.0.0.1:3301"
         upgrade_cmd = [tt_cmd, "replicaset", "downgrade", uri, "2.11.1", "-t=15"]
-        rc, out = run_command_and_get_output(upgrade_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(upgrade_cmd, cwd=app_path)
         assert rc == 0
         assert "ok" in out
 
@@ -219,7 +227,7 @@ def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
         # rather than the post-downgrade DDL error.
         out = run_command_on_instance(
             tt_cmd,
-            tmpdir,
+            app_path,
             f"{app_name}:{instances[0]}",
             "return box.space._schema:get('version')",
         )
@@ -227,7 +235,7 @@ def test_downgrade_remote_replicasets(tt_cmd, tmpdir_with_cfg):
 
     finally:
         stop_cmd = [tt_cmd, "stop", app_name, "-y"]
-        stop_rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+        stop_rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
         assert stop_rc == 0
 
 

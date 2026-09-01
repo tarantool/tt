@@ -10,14 +10,19 @@ This file contains various examples of working with tt.
 - [Packaging applications](#packaging-applications)
 - [Working with tt daemon (experimental)](#working-with-tt-daemon-experimental)
 - [Transition from tarantoolctl to tt](#transition-from-tarantoolctl-to-tt)
-  + [System-wide configuration](#system-wide-configuration)
   + [Commands difference](#commands-difference)
 
 ## Working with a set of instances
 
 For example, we want to launch two instances based on one `init.lua`
 file and one instance based on the `router.init.lua` file. In order to
-do this, we create a directory called `demo` with the content:
+do this, we create an application directory called `demo` with the content:
+
+`tt.yaml`:
+
+```yaml
+{}
+```
 
 `init.lua`:
 
@@ -63,6 +68,12 @@ master:
 replica:
 ```
 
+Run the commands from the application root:
+
+```console
+$ cd demo
+```
+
 Now we can run all instances at once:
 
 ``` console
@@ -79,14 +90,14 @@ $ tt start demo:master
 • Starting an instance [demo:master]...
 ```
 
-For starting all instances of environment, run:
+To start all instances of the current application without specifying its name,
+run:
 
 ``` console
 $ tt start
 • Starting an instance [demo:router]...
 • Starting an instance [demo:master]...
 • Starting an instance [demo:replica]...
-• Starting an instance [demo_single_instance_app]...
 ```
 
 ## Working with application templates
@@ -107,6 +118,12 @@ local app_name = {{.name}}
 local login = {{.user_name}}
 
 require("fiber").sleep(1)
+```
+
+`tt.yaml`:
+
+```yaml
+{}
 ```
 
 `MANIFEST.yaml`:
@@ -139,6 +156,7 @@ Here is how the current directory structure looks like:
     └── templates
         └── simple
             ├── init.lua.tt.template
+            ├── tt.yaml
             └── MANIFEST.yaml
 ```
 
@@ -158,9 +176,13 @@ following content:
 
 ``` text
     simple_app/
-    ├── Dockerfile.build.tt
-    └── init.lua
+    ├── init.lua
+    └── tt.yaml
 ```
+
+The generated `tt.yaml` makes `simple_app` an independent application root.
+Change into that directory before running lifecycle commands for the new
+application.
 
 Instantiated `init.lua` content:
 
@@ -280,7 +302,8 @@ You could see the configuration in etcd with the command:
 etcdctl get --prefix "/tt/"
 ```
 
-The same works for an application configuration:
+The same works for an application configuration. The following commands are
+run from the `test_app` application root, which contains `tt.yaml`:
 
 ```text
 $ tt cluster publish test_app cluster.yaml
@@ -397,9 +420,10 @@ $ tt daemon status
 • RUNNING. PID: 6189.
 ```
 
-To send request to daemon you can use CURL. In this example the client
-sends a request to start `test_app` instance on the server side. Note:
-directory `test_app` (or file `test_app.lua`) exists on the server side.
+To send request to daemon you can use CURL. In this example the client sends a
+request to start the `test_app` application. The daemon is started in the
+`test_app` application root, which contains `tt.yaml` and the application
+files.
 
 ``` sh
 curl --header "Content-Type: application/json" --request POST \
@@ -431,46 +455,6 @@ http://127.0.0.1:1024/tarantool
 
 ## Transition from tarantoolctl to tt
 
-### System-wide configuration
-
-`tt` packages come with a system-wide environment configuration which
-supports `tarantoolctl` configuration defaults. So, after installation
-from repository `tt` can be used along with `tarantoolctl` for managing
-applications instances. Here is an example:
-
-``` text
-$ tarantoolctl start example
-Starting instance example...
-Forwarding to 'systemctl start tarantool@example'
-
-$ tarantoolctl status example
-Forwarding to 'systemctl status tarantool@example'
-● tarantool@example.service - Tarantool Database Server
-    Loaded: loaded (/lib/systemd/system/tarantool@.service; enabled; vendor preset: enabled)
-    Active: active (running)
-    Docs: man:tarantool(1)
-    Main PID: 6698 (tarantool)
-. . .
-
-$ sudo tt status
-• example: RUNNING. PID: 6698.
-
-$ sudo tt connect example
-• Connecting to the instance...
-• Connected to /var/run/tarantool/example.control
-
-/var/run/tarantool/example.control>
-
-$ sudo tt stop example
-• The Instance example (PID = 6698) has been terminated.
-
-$ tarantoolctl status example
-Forwarding to 'systemctl status tarantool@example'
-○ tarantool@example.service - Tarantool Database Server
-    Loaded: loaded (/lib/systemd/system/tarantool@.service; enabled; vendor preset: enabled)
-    Active: inactive (dead)
-```
-
 ### Commands difference
 
 `tarantoolctl enter/connect/eval` functionality is covered by
@@ -500,7 +484,9 @@ Forwarding to 'systemctl status tarantool@example'
     ...
 ```
 
-`tt` analog:
+`tt` analog follows. The name-based commands are run from the `app1`
+application root containing `tt.yaml`; URI-based connections do not require
+application discovery:
 
 ```text
     $ tt connect app1

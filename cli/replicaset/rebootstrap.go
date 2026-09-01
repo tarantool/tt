@@ -59,7 +59,7 @@ func cleanDataFiles(instCtx running.InstanceCtx) error {
 // Rebootstrap re-bootstraps the instance by stopping it, removing its artifacts,
 // and starting it again.
 func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx RebootstrapCtx) error {
-	apps, err := running.CollectInstancesForApps([]string{rbCtx.AppName}, &cliOpts,
+	instances, err := running.CollectInstancesForApp(rbCtx.AppName, &cliOpts,
 		cmdCtx.Cli.ConfigDir, cmdCtx.Integrity, running.ConfigLoadAll)
 	if err != nil {
 		return fmt.Errorf("cannot collect application instances info: %s", err)
@@ -67,7 +67,7 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 
 	found := false
 	var instCtx running.InstanceCtx
-	for _, instCtx = range apps[rbCtx.AppName] {
+	for _, instCtx = range instances {
 		if instCtx.InstName == rbCtx.InstanceName {
 			found = true
 			break

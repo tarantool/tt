@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from utils import (
+    config_name,
     control_socket,
     extract_status,
     get_tarantool_version,
@@ -45,7 +46,7 @@ def stop_application(tt_cmd, workdir, app_name, instances):
             rf"The Instance {app_name}:{inst} \(PID = \d+\) has been terminated.",
             stop_out,
         )
-        assert not os.path.exists(os.path.join(workdir, run_path, app_name, inst, "tarantool.pid"))
+        assert not os.path.exists(os.path.join(workdir, run_path, inst, "tarantool.pid"))
 
 
 def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
@@ -70,43 +71,48 @@ def wait_cluster_started(tt_cmd, workdir, app_name, instances, inst_conf):
     assert wait_event(5, are_all_box_statuses_running)
 
 
-def default_inst_conf(workdir, app_name, inst):
-    app_path = os.path.join(workdir, app_name)
+def default_inst_conf(workdir, _app_name, inst):
     return {
-        "pid_file": os.path.join(app_path, run_path, inst, "tarantool.pid"),
-        "log_file": os.path.join(app_path, log_path, inst, "tt.log"),
-        "console_socket": os.path.join(app_path, run_path, inst, control_socket),
-        "wal_dir": os.path.join(app_path, lib_path),
-        "snapshot_dir": os.path.join(app_path, lib_path),
+        "pid_file": os.path.join(workdir, run_path, inst, "tarantool.pid"),
+        "log_file": os.path.join(workdir, log_path, inst, "tt.log"),
+        "console_socket": os.path.join(workdir, run_path, inst, control_socket),
+        "wal_dir": os.path.join(workdir, lib_path),
+        "snapshot_dir": os.path.join(workdir, lib_path),
     }
 
 
-def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
+def prepare_app(tmpdir, app_name):
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    shutil.copy(os.path.join(tmpdir, config_name), app_path)
+    return app_path
+
+
+def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
+    app_path = prepare_app(tmpdir, app_name)
 
     try:
         # Start an instance.
         start_cmd = [tt_cmd, "start", app_name]
-        start_application(start_cmd, tmpdir, app_name, instances)
-        wait_cluster_started(tt_cmd, tmpdir, app_name, instances, inst_conf)
+        start_application(start_cmd, app_path, app_name, instances)
+        wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
         status_cmd = [tt_cmd, "status", app_name]
-        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
         pidByInstanceName = {}
         for inst in instances:
             assert status_info[f"{app_name}:{inst}"]["STATUS"] == "RUNNING"
-            conf = inst_conf(tmpdir, app_name, inst)
+            conf = inst_conf(app_path, app_name, inst)
             with open(conf["pid_file"]) as f:
                 pidByInstanceName[inst] = f.readline()
             assert os.path.exists(conf["wal_dir"])
             assert os.path.exists(conf["snapshot_dir"])
             assert os.path.exists(conf["log_file"])
             if inst_conf != default_inst_conf:
-                assert os.path.exists(default_inst_conf(tmpdir, app_name, inst)["log_file"])
+                assert os.path.exists(default_inst_conf(app_path, app_name, inst)["log_file"])
             assert not os.path.exists(
                 os.path.join(os.path.dirname(conf["log_file"]), "tarantool.log"),
             )
@@ -116,7 +122,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
             start_cmd = [tt_cmd, "connect", f"{app_name}:{inst}", "-f", "-"]
             instance_process = subprocess.Popen(
                 start_cmd,
-                cwd=tmpdir,
+                cwd=app_path,
                 stderr=subprocess.STDOUT,
                 stdout=subprocess.PIPE,
                 stdin=subprocess.PIPE,
@@ -131,7 +137,7 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
         restart_cmd = [tt_cmd, "restart", app_name, "-y"]
         instance_process = subprocess.Popen(
             restart_cmd,
-            cwd=tmpdir,
+            cwd=app_path,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
@@ -142,27 +148,27 @@ def check_base_functionality(tt_cmd, tmpdir, app_name, instances, inst_conf):
         for inst in instances:
             # Wait when PID that was fetched on start disappears.
             wait_pid_disappear(
-                inst_conf(tmpdir, app_name, inst)["pid_file"],
+                inst_conf(app_path, app_name, inst)["pid_file"],
                 pidByInstanceName.get(inst),
             )
 
         for inst in instances:
             assert f"Starting an instance [{app_name}:{inst}]" in start_output
 
-        wait_cluster_started(tt_cmd, tmpdir, app_name, instances, inst_conf)
+        wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
         status_cmd = [tt_cmd, "status", app_name]
-        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
         for inst in instances:
             assert status_info[f"{app_name}:{inst}"]["STATUS"] == "RUNNING"
-            with open(inst_conf(tmpdir, app_name, inst)["pid_file"]) as f:
+            with open(inst_conf(app_path, app_name, inst)["pid_file"]) as f:
                 assert pidByInstanceName[inst] != f.readline()
 
     finally:
-        stop_application(tt_cmd, tmpdir, app_name, instances)
+        stop_application(tt_cmd, app_path, app_name, instances)
 
 
 @pytest.mark.skipif(
@@ -184,8 +190,7 @@ def test_running_base_functionality(tt_cmd, tmpdir_with_cfg):
 def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_crud_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = prepare_app(tmpdir, app_name)
 
     # Build app.
     build_cmd = [tt_cmd, "package", "build"]
@@ -205,19 +210,19 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
     try:
         # Start an application.
         start_cmd = [tt_cmd, "start", app_name]
-        start_application(start_cmd, tmpdir, app_name, instances)
-        wait_cluster_started(tt_cmd, tmpdir, app_name, instances, inst_conf)
+        start_application(start_cmd, app_path, app_name, instances)
+        wait_cluster_started(tt_cmd, app_path, app_name, instances, inst_conf)
 
         # Check status.
         status_cmd = [tt_cmd, "status", app_name]
-        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
         status_info = extract_status(status_out)
         for inst in instances:
             assert status_info[f"{app_name}:{inst}"]["STATUS"] == "RUNNING"
 
     finally:
-        stop_application(tt_cmd, tmpdir, app_name, instances)
+        stop_application(tt_cmd, app_path, app_name, instances)
 
 
 @pytest.mark.skipif(
@@ -227,14 +232,13 @@ def test_running_base_functionality_crud_app(tt_cmd, tmpdir_with_cfg):
 def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = prepare_app(tmpdir, app_name)
 
     # Start unknown instance.
     start_cmd = [tt_cmd, "start", f"{app_name}:unknown"]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=app_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -251,7 +255,7 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
     start_cmd = [tt_cmd, "start", f"{app_name}:storage-master"]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=app_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -266,14 +270,13 @@ def test_running_base_functionality_error_cases(tt_cmd, tmpdir_with_cfg):
 def test_cluster_config_not_supported(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "small_cluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = prepare_app(tmpdir, app_name)
 
     # Start storage-master instance.
     start_cmd = [tt_cmd, "start", f"{app_name}:storage-master"]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=app_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -293,14 +296,13 @@ def test_cluster_cfg_changes_defaults(tt_cmd, tmpdir_with_cfg):
     app_name = "cluster_app_changed_defaults"
     instances = ["master"]
 
-    def inst_conf(workdir, app_name, inst):
-        app_path = os.path.join(workdir, app_name)
+    def inst_conf(workdir, _app_name, inst):
         return {
-            "pid_file": os.path.join(app_path, f"run_{inst}.pid"),
-            "console_socket": os.path.join(app_path, f"run_{inst}.control"),
-            "wal_dir": os.path.join(app_path, lib_path, f"{inst}_wal"),
-            "snapshot_dir": os.path.join(app_path, lib_path, f"{inst}_snapshot"),
-            "log_file": os.path.join(app_path, "tnt_" + inst + ".log"),
+            "pid_file": os.path.join(workdir, f"run_{inst}.pid"),
+            "console_socket": os.path.join(workdir, f"run_{inst}.control"),
+            "wal_dir": os.path.join(workdir, lib_path, f"{inst}_wal"),
+            "snapshot_dir": os.path.join(workdir, lib_path, f"{inst}_snapshot"),
+            "log_file": os.path.join(workdir, "tnt_" + inst + ".log"),
         }
 
     check_base_functionality(tt_cmd, tmpdir_with_cfg, app_name, instances, inst_conf)
@@ -313,8 +315,7 @@ def test_cluster_cfg_changes_defaults(tt_cmd, tmpdir_with_cfg):
 def test_cluster_error_cases(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_changed_defaults"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = prepare_app(tmpdir, app_name)
 
     cluster_config = os.path.join(app_path, "instances.yml")
     with open(cluster_config, "w") as f:
@@ -323,7 +324,7 @@ def test_cluster_error_cases(tt_cmd, tmpdir_with_cfg):
     start_cmd = [tt_cmd, "start", app_name]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir,
+        cwd=app_path,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,

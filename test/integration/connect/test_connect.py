@@ -51,7 +51,44 @@ def copy_data(dst, file_paths):
         shutil.copy(path, dst)
 
 
+def prepare_app_workdir(workdir, app_name):
+    workdir = Path(workdir)
+    if workdir.name == app_name:
+        app_dir = workdir
+    else:
+        app_dir = workdir / app_name
+        app_dir.mkdir(exist_ok=True)
+
+        app_script = workdir / f"{app_name}.lua"
+        dst_script = app_dir / app_script.name
+        if app_script.exists() and not dst_script.exists():
+            shutil.copy(app_script, dst_script)
+
+    config_path = app_dir / "tt.yaml"
+    if not config_path.exists():
+        source_config = workdir / "tt.yaml"
+        if source_config != config_path and source_config.exists():
+            shutil.copy(source_config, config_path)
+        else:
+            create_tt_config(app_dir, "")
+    return app_dir
+
+
+def find_app_workdir(workdir, app_name=None):
+    workdir = Path(workdir)
+    if app_name is not None:
+        app_dir = workdir / app_name
+        if app_dir.is_dir() and (app_dir / "tt.yaml").exists():
+            return app_dir
+    if (workdir / "tt.yaml").exists() and (workdir / "init.lua").exists():
+        return workdir
+    app_dirs = [path for path in workdir.iterdir() if path.is_dir() and (path / "tt.yaml").exists()]
+    assert len(app_dirs) == 1
+    return app_dirs[0]
+
+
 def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
+    app_dir = prepare_app_workdir(tmpdir_with_cfg, app_name)
     test_env = os.environ.copy()
     # Set empty TT_LISTEN, so no binary port will be created.
     if start_binary_port is False:
@@ -61,7 +98,7 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
     start_cmd = [tt_cmd, "start", app_name]
     instance_process = subprocess.Popen(
         start_cmd,
-        cwd=tmpdir_with_cfg,
+        cwd=app_dir,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
         text=True,
@@ -73,7 +110,7 @@ def start_app(tt_cmd, tmpdir_with_cfg, app_name, start_binary_port=False):
 
 def stop_app(tt_cmd, tmpdir, app_name):
     stop_cmd = [tt_cmd, "stop", "-y", app_name]
-    run_command_and_get_output(stop_cmd, cwd=tmpdir)
+    run_command_and_get_output(stop_cmd, cwd=find_app_workdir(tmpdir, app_name))
 
 
 def try_execute_on_instance(
@@ -87,11 +124,15 @@ def try_execute_on_instance(
     opts=None,
     args=None,
 ):
+    app_dir = find_app_workdir(tmpdir)
     connect_cmd = [tt_cmd, "connect", instance]
 
     if file_path is not None:
         connect_cmd.append("-f")
-        connect_cmd.append(file_path)
+        source_file = Path(file_path)
+        if not source_file.is_absolute() and (Path(tmpdir) / source_file).exists():
+            source_file = Path(tmpdir) / source_file
+        connect_cmd.append(str(source_file))
 
     if stdin_as_file:
         connect_cmd.append("-f-")
@@ -106,7 +147,7 @@ def try_execute_on_instance(
 
     instance_process = subprocess.run(
         connect_cmd,
-        cwd=tmpdir,
+        cwd=app_dir,
         input=stdin,
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
@@ -465,9 +506,9 @@ def test_connect_to_ssl_app(tt_cmd, tmpdir_with_cfg):
 
         # Connect to the instance.
         opts = {
-            "--sslkeyfile": "test_ssl_app/localhost.key",
-            "--sslcertfile": "test_ssl_app/localhost.crt",
-            "--sslcafile": "test_ssl_app/ca.crt",
+            "--sslkeyfile": "localhost.key",
+            "--sslcertfile": "localhost.crt",
+            "--sslcafile": "ca.crt",
         }
         ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file, opts=opts)
         assert ret
@@ -688,7 +729,7 @@ def test_connect_to_single_instance_app_credentials(tt_cmd, tmpdir_with_cfg):
 def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     instances = ["master", "replica", "router"]
-    app_name = "test_multi_app"
+    app_name = "test_multi_inst_app"
     empty_file = "empty.lua"
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), app_name)
@@ -727,7 +768,7 @@ def test_connect_to_multi_instances_app(tt_cmd, tmpdir_with_cfg):
 
 def test_connect_to_multi_instances_app_credentials(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
-    app_name = "test_multi_app"
+    app_name = "test_multi_inst_app"
     empty_file = "empty.lua"
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), app_name)
@@ -2871,11 +2912,11 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
             "-p",
             "password",
             "-f",
-            empty_file,
+            empty_file_path,
         ]
         instance_process = subprocess.run(
             connect_cmd,
-            cwd=tmpdir,
+            cwd=find_app_workdir(tmpdir, "test_app"),
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
@@ -2886,7 +2927,7 @@ def test_connect_to_single_instance_app_binary(tt_cmd):
         connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
         instance_process = subprocess.run(
             connect_cmd,
-            cwd=tmpdir,
+            cwd=find_app_workdir(tmpdir, "test_app"),
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
@@ -2905,7 +2946,7 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
         pytest.skip("/set platform is unsupported by test")
     tmpdir = tempfile.mkdtemp()
     create_tt_config(tmpdir, "")
-    app_name = "test_multi_app"
+    app_name = "test_multi_inst_app"
     empty_file = "empty.lua"
     # Copy the test application to the "run" directory.
     test_app_path = os.path.join(os.path.dirname(__file__), app_name)
@@ -2943,7 +2984,7 @@ def test_connect_to_multi_instances_app_binary(tt_cmd):
         ]
         instance_process = subprocess.run(
             connect_cmd,
-            cwd=tmpdir,
+            cwd=find_app_workdir(tmpdir, app_name),
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
@@ -2987,7 +3028,7 @@ def test_connect_to_instance_binary_missing_port(tt_cmd):
         connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
         instance_process = subprocess.run(
             connect_cmd,
-            cwd=tmpdir,
+            cwd=find_app_workdir(tmpdir, "test_app"),
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
@@ -3037,7 +3078,7 @@ def test_connect_to_instance_binary_port_is_broken(tt_cmd):
         connect_cmd = [tt_cmd, "connect", "test_app", "--binary", "-u", "test", "-p", "password"]
         instance_process = subprocess.run(
             connect_cmd,
-            cwd=tmpdir,
+            cwd=find_app_workdir(tmpdir, "test_app"),
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,
@@ -3086,7 +3127,7 @@ def test_connect_to_cluster_app(tt_cmd):
         connect_cmd = [tt_cmd, "connect", app_name + ":master", "--binary"]
         instance_process = subprocess.run(
             connect_cmd,
-            cwd=tmpdir,
+            cwd=find_app_workdir(tmpdir, app_name),
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             text=True,

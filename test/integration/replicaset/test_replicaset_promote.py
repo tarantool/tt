@@ -1,11 +1,11 @@
 import io
 import os
-import shutil
 import time
 
 import pytest
 from replicaset_helpers import (
     box_ctl_promote,
+    copy_application,
     eval_on_instance,
     parse_status,
     parse_yml,
@@ -143,8 +143,7 @@ def test_promote_cconfig_failovers(
 
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_failovers"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
 
     instances = list(
         filter(
@@ -165,32 +164,30 @@ def test_promote_cconfig_failovers(
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
 
     try:
-        start_application(tt_cmd, tmpdir, app_name, instances)
+        start_application(tt_cmd, app_path, app_name, instances)
 
         if replicaset == "election-failover":
             # To exactly know who is leader of the election replicaset at the beginning.
-            box_ctl_promote(tt_cmd, app_name, "election-failover-1", tmpdir)
+            box_ctl_promote(tt_cmd, app_name, "election-failover-1", app_path)
             # Both voters must have accepted the current term and leader
             # before the test's follow-up promote can win the next election.
             # Without this wait the second promote races raft term
             # propagation and intermittently fails with "Not enough peers
             # connected to start elections".
             wait_election_leader_known(
-                tt_cmd, app_name, "election-failover-1", tmpdir
+                tt_cmd, app_name, "election-failover-1", app_path,
             )
             wait_election_leader_known(
-                tt_cmd, app_name, "election-failover-2", tmpdir
+                tt_cmd, app_name, "election-failover-2", app_path,
             )
 
         if stop_inst:
             stop_cmd = [tt_cmd, "stop", "-y", f"{app_name}:{stop_inst}"]
-            rc, _ = run_command_and_get_output(stop_cmd, cwd=tmpdir)
+            rc, _ = run_command_and_get_output(stop_cmd, cwd=app_path)
             assert rc == 0
 
         # Promote an instance.
-        promote_target = (
-            f"{app_name}:{inst}" if not is_uri else os.path.join(tmpdir, app_name, inst)
-        )
+        promote_target = f"{app_name}:{inst}" if not is_uri else os.path.join(app_path, inst)
         promote_cmd = [tt_cmd, "rs", "promote"]
         if args:
             promote_cmd.extend(args)
@@ -205,7 +202,7 @@ def test_promote_cconfig_failovers(
         # failing the test — the underlying state always converges.
         rc, out = 1, ""
         for _ in range(6):
-            rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir)
+            rc, out = run_command_and_get_output(promote_cmd, cwd=app_path)
             if rc == 0 or "Not enough peers connected" not in out:
                 break
             time.sleep(0.5)
@@ -229,7 +226,7 @@ def test_promote_cconfig_failovers(
 
         # Check status.
         status_cmd = [tt_cmd, "rs", "status", app_name]
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
 
         expected = parse_yml(kv[key])
@@ -238,7 +235,7 @@ def test_promote_cconfig_failovers(
     finally:
         if stop_inst:
             instances.remove(stop_inst)
-        stop_application(tt_cmd, app_name, tmpdir, instances)
+        stop_application(tt_cmd, app_name, app_path, instances)
 
 
 @pytest.mark.skipif(
@@ -253,29 +250,28 @@ def test_promote_cconfig_election_errors(
 ):
     tmpdir = tmpdir_with_cfg
     app_name = "cluster_app_failovers"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
 
     instances = ["election-failover-1", "election-failover-2"]
     # Replace instances.yml to start only necessary replicaset.
     with open(os.path.join(app_path, "instances.yml"), "w") as f:
         f.write("\n".join(list(map(lambda x: f"{x}:", instances))))
     try:
-        start_application(tt_cmd, tmpdir, app_name, instances)
+        start_application(tt_cmd, app_path, app_name, instances)
 
         # To exactly know who is leader of the election replicaset now.
-        box_ctl_promote(tt_cmd, app_name, "election-failover-1", tmpdir)
+        box_ctl_promote(tt_cmd, app_name, "election-failover-1", app_path)
 
         # Set an incorrect election_mode to the promote target.
         eval = f"box.cfg{{ election_mode = '{election_mode}' }}"
-        eval_on_instance(tt_cmd, app_name, "election-failover-2", tmpdir, eval)
+        eval_on_instance(tt_cmd, app_name, "election-failover-2", app_path, eval)
 
         def is_election_mode_set():
             out = eval_on_instance(
                 tt_cmd,
                 app_name,
                 "election-failover-2",
-                tmpdir,
+                app_path,
                 "box.cfg.election_mode",
             )
             return out.find(election_mode) != -1
@@ -283,8 +279,8 @@ def test_promote_cconfig_election_errors(
         assert wait_event(10, is_election_mode_set)
 
         promote_cmd = [tt_cmd, "rs", "promote", f"{app_name}:election-failover-2"]
-        rc, out = run_command_and_get_output(promote_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(promote_cmd, cwd=app_path)
         assert rc != 0
         assert f'unexpected election_mode: "{election_mode}"' in out
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, instances)
+        stop_application(tt_cmd, app_name, app_path, instances)

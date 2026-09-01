@@ -1,7 +1,9 @@
 import io
 import os
 import re
+import shutil
 import subprocess
+from pathlib import Path
 
 import yaml
 
@@ -10,13 +12,22 @@ from utils import run_command_and_get_output, wait_event, wait_file
 run_path = os.path.join("var", "run")
 
 
+def copy_application(env_dir, app_name):
+    """Copy a test application and make it a standalone tt environment."""
+    env_dir = Path(env_dir)
+    app_dir = env_dir / app_name
+    shutil.copytree(Path(__file__).parent / app_name, app_dir)
+    shutil.copy(env_dir / "tt.yaml", app_dir / "tt.yaml")
+    return app_dir.as_posix()
+
+
 def start_application(tt_cmd, workdir, app_name, instances):
     start_cmd = [tt_cmd, "start", app_name]
     rc, _ = run_command_and_get_output(start_cmd, cwd=workdir)
 
     assert rc == 0
     for inst in instances:
-        file = wait_file(os.path.join(workdir, app_name), f"ready-{inst}", [])
+        file = wait_file(workdir, f"ready-{inst}", [])
         assert file != ""
 
 
@@ -32,7 +43,7 @@ def stop_application(tt_cmd, app_name, workdir, instances, force=False):
                 stop_out,
             )
             assert not os.path.exists(
-                os.path.join(workdir, run_path, app_name, inst, "tarantool.pid"),
+                os.path.join(workdir, run_path, inst, "tarantool.pid"),
             )
 
 

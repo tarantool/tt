@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/lib/integrity"
 	"golang.org/x/exp/slices"
@@ -26,52 +25,38 @@ func (mock *mockRepository) ValidateAll() error {
 	return nil
 }
 
-func Test_CollectInstances(t *testing.T) {
+func TestCollectInstances(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
-	instancesEnabledPath := filepath.Join("testdata", "instances_enabled")
+	applicationsRoot := filepath.Join("testdata", "applications")
+	singleAppPath := filepath.Join(applicationsRoot, "single_inst")
 
-	instances, err := CollectInstances("script", instancesEnabledPath,
+	instances, err := collectInstances("single_inst", singleAppPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
 	require.Equal(t, InstanceCtx{
-		AppDir:         "testdata/instances_enabled/script",
-		AppName:        "script",
-		InstName:       "script",
-		InstanceScript: "testdata/instances_enabled/script.lua",
-		SingleApp:      true,
-		IsFileApp:      true,
-	}, instances[0])
-
-	instances, err = CollectInstances("single_inst", instancesEnabledPath,
-		integrity.IntegrityCtx{
-			Repository: &mockRepository{},
-		}, ConfigLoadAll)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(instances))
-	require.Equal(t, InstanceCtx{
-		AppDir:         "testdata/instances_enabled/single_inst",
+		AppDir:         "testdata/applications/single_inst",
 		AppName:        "single_inst",
 		InstName:       "single_inst",
-		InstanceScript: "testdata/instances_enabled/single_inst/init.lua",
+		InstanceScript: "testdata/applications/single_inst/init.lua",
 		SingleApp:      true,
 		IsFileApp:      false,
 	}, instances[0])
 
 	appName := "multi_inst_app"
-	appPath := filepath.Join(instancesEnabledPath, appName)
-	instances, err = CollectInstances(appName, instancesEnabledPath,
+	appPath := filepath.Join(applicationsRoot, appName)
+	instances, err = collectInstances(appName, appPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Equal(t, 3, len(instances))
 	assert.True(t, slices.Contains(instances, InstanceCtx{
-		AppDir:         "testdata/instances_enabled/multi_inst_app",
+		AppDir:         "testdata/applications/multi_inst_app",
 		AppName:        appName,
 		InstName:       "router",
 		InstanceScript: filepath.Join(appPath, "router.init.lua"),
@@ -79,54 +64,57 @@ func Test_CollectInstances(t *testing.T) {
 		IsFileApp:      false,
 	}))
 	assert.True(t, slices.Contains(instances, InstanceCtx{
-		AppDir:         "testdata/instances_enabled/multi_inst_app",
+		AppDir:         "testdata/applications/multi_inst_app",
 		AppName:        appName,
 		InstName:       "master1",
 		InstanceScript: filepath.Join(appPath, "init.lua"),
 		SingleApp:      false,
 		IsFileApp:      false,
 	}))
-	// Error cases.
-	tmpDir := t.TempDir()
-	instancesEnabledPath = filepath.Join(tmpDir, "instances.enabled")
-	require.NoError(t, os.Mkdir(instancesEnabledPath, 0o755))
+	_, err = collectInstances("another_app", singleAppPath, integrity.IntegrityCtx{
+		Repository: &mockRepository{},
+	}, ConfigLoadAll)
+	assert.ErrorContains(t, err, `application "another_app" not found`)
 
-	instances, err = CollectInstances("script", instancesEnabledPath,
+	appPath = filepath.Join(t.TempDir(), "script")
+	require.NoError(t, os.Mkdir(appPath, 0o755))
+
+	instances, err = collectInstances("script", appPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
-	assert.ErrorContains(t, err, "script\" doesn't exist or not a directory")
+	assert.ErrorContains(t, err, "require files are missing")
 	assert.Equal(t, 0, len(instances))
 
-	err = os.WriteFile(filepath.Join(instancesEnabledPath, "script.lua"),
+	err = os.WriteFile(filepath.Join(appPath, "script.lua"),
 		[]byte("print(42)"), 0o644)
 	require.NoError(t, err)
-	instances, err = CollectInstances("script", instancesEnabledPath,
+	instances, err = collectInstances("script", appPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(instances))
 
-	require.NoError(t, os.Chmod(instancesEnabledPath, 0o666))
-	instances, err = CollectInstances("script", instancesEnabledPath,
+	require.NoError(t, os.Chmod(appPath, 0o666))
+	instances, err = collectInstances("script", appPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	assert.ErrorContains(t, err, "script.lua: permission denied")
 	assert.Equal(t, 1, len(instances))
-	require.NoError(t, os.Chmod(instancesEnabledPath, 0o755))
+	require.NoError(t, os.Chmod(appPath, 0o755))
 }
 
-func Test_CollectInstancesInstanceScript(t *testing.T) {
+func TestCollectInstancesInstanceScript(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
 	tmpDir := t.TempDir()
-	instancesEnabledPath := filepath.Join(tmpDir, "instances.enabled")
-	require.NoError(t, os.Mkdir(instancesEnabledPath, 0o755))
+	appPath := filepath.Join(tmpDir, "script")
+	require.NoError(t, os.Mkdir(appPath, 0o755))
 
-	err := os.WriteFile(filepath.Join(instancesEnabledPath, "script.lua"),
+	err := os.WriteFile(filepath.Join(appPath, "script.lua"),
 		[]byte("print(42)"), 0o644)
 	require.NoError(t, err)
 
@@ -161,8 +149,8 @@ func Test_CollectInstancesInstanceScript(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run("test", func(t *testing.T) {
-			require.NoError(t, os.Chmod(instancesEnabledPath, tc.access))
-			instances, err := CollectInstances("script", instancesEnabledPath,
+			require.NoError(t, os.Chmod(appPath, tc.access))
+			instances, err := collectInstances("script", appPath,
 				integrity.IntegrityCtx{
 					Repository: &mockRepository{},
 				}, tc.mode)
@@ -172,16 +160,16 @@ func Test_CollectInstancesInstanceScript(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, 1, len(instances))
 			}
-			require.NoError(t, os.Chmod(instancesEnabledPath, 0o755))
+			require.NoError(t, os.Chmod(appPath, 0o755))
 		})
 	}
 }
 
-func Test_CollectInstancesEtcdNotAvailable(t *testing.T) {
+func TestCollectInstancesEtcdNotAvailable(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
-	instancesEnabledPath := filepath.Join("testdata", "instances_enabled")
+	appPath := filepath.Join("testdata", "applications", "config_load")
 
 	cases := []struct {
 		mode ConfigLoad
@@ -189,11 +177,11 @@ func Test_CollectInstancesEtcdNotAvailable(t *testing.T) {
 	}{
 		{
 			mode: ConfigLoadAll,
-			err:  "unable to connect to etcd",
+			err:  "etcd",
 		},
 		{
 			mode: ConfigLoadCluster,
-			err:  "unable to connect to etcd",
+			err:  "etcd",
 		},
 		{
 			mode: ConfigLoadScripts,
@@ -205,7 +193,7 @@ func Test_CollectInstancesEtcdNotAvailable(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.err, func(t *testing.T) {
-			_, err := CollectInstances("config_load", instancesEnabledPath,
+			_, err := collectInstances("config_load", appPath,
 				integrity.IntegrityCtx{
 					Repository: &mockRepository{},
 				}, tc.mode)
@@ -269,23 +257,20 @@ func Test_collectAppDirFiles(t *testing.T) {
 	require.Equal(t, expectedInstancesConfig, appDirFiles.instCfgPath)
 }
 
-func Test_collectInstancesForApps(t *testing.T) {
+func TestCollectInstancesForApp(t *testing.T) {
 	appName := "cluster_app"
-	instancesEnabled, err := filepath.Abs("./testdata/instances_enabled")
+	applicationsRoot, err := filepath.Abs("./testdata/applications")
 	require.NoError(t, err)
-	appLocation := filepath.Join(instancesEnabled, appName)
-	apps := []string{appName}
+	appLocation := filepath.Join(applicationsRoot, appName)
 	cliOpts := configure.GetDefaultCliOpts()
-	cliOpts.Env.InstancesEnabled = instancesEnabled
-	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
+	instances, err := CollectInstancesForApp(appName, cliOpts, appLocation,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	require.NoError(t, err)
-	require.Contains(t, instances, appName)
 
 	comparisonsCount := 0
-	for _, inst := range instances[appName] {
+	for _, inst := range instances {
 		switch inst.InstName {
 		case "instance-001":
 			assert.Equal(t, filepath.Join(appLocation, "var", "lib", "instance-001"),
@@ -381,23 +366,22 @@ echo "Tarantool 3.0.0"`), 0o644)
 	assert.Contains(t, reason, "permission denied")
 }
 
-func Test_collectInstancesForSingleInstApp(t *testing.T) {
+func TestCollectInstancesForFileApp(t *testing.T) {
 	appName := "script"
-	instancesEnabled, err := filepath.Abs("./testdata/instances_enabled")
-	require.NoError(t, err)
-	apps := []string{appName + ".lua"}
-	appDir := filepath.Join(instancesEnabled, appName)
+	appDir := filepath.Join(t.TempDir(), appName)
+	require.NoError(t, os.Mkdir(appDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(appDir, appName+".lua"),
+		[]byte("print(42)"), 0o644))
+
 	cliOpts := configure.GetDefaultCliOpts()
-	cliOpts.Env.InstancesEnabled = instancesEnabled
-	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
+	instances, err := CollectInstancesForApp(appName+".lua", cliOpts, appDir,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(instances))
-	require.Contains(t, instances, appName)
 
-	inst := instances[appName][0]
+	inst := instances[0]
 	assert.Equal(t, filepath.Join(appDir, "var", "lib", appName), inst.WalDir)
 	assert.Equal(t, filepath.Join(appDir, "var", "lib", appName), inst.VinylDir)
 	assert.Equal(t, filepath.Join(appDir, "var", "lib", appName), inst.MemtxDir)
@@ -408,7 +392,8 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 	assert.Equal(t, filepath.Join(appDir, "var", "log", appName), inst.LogDir)
 	assert.Equal(t, filepath.Join(appDir, "var", "log", appName, "tt.log"), inst.Log)
 	assert.Equal(t, "", inst.ClusterConfigPath)
-	assert.Equal(t, filepath.Join(instancesEnabled, appName), inst.AppDir)
+	assert.Equal(t, appDir, inst.AppDir)
+	assert.Equal(t, filepath.Join(appDir, appName+".lua"), inst.InstanceScript)
 }
 
 func Test_getInstanceName(t *testing.T) {
@@ -455,57 +440,44 @@ func TestGetAppPath(t *testing.T) {
 }
 
 func TestGetClusterConfigPath(t *testing.T) {
-	instEnabled := filepath.Join("testdata", "instances_enabled")
-	defaultCliOpts := &config.CliOpts{Env: &config.TtEnvOpts{InstancesEnabled: instEnabled}}
+	applicationsRoot := filepath.Join("testdata", "applications")
 	cases := []struct {
-		cliOpts     *config.CliOpts
+		name        string
 		ttConfigDir string
-		app         string
 		mustExist   bool
 		expected    string
 		wantErr     bool
 	}{
 		{
-			cliOpts:   defaultCliOpts,
-			app:       "cluster_app",
-			mustExist: true,
-			expected:  filepath.Join(instEnabled, "cluster_app", "config.yml"),
+			name:        "yml config",
+			ttConfigDir: filepath.Join(applicationsRoot, "cluster_app"),
+			mustExist:   true,
+			expected:    filepath.Join(applicationsRoot, "cluster_app", "config.yml"),
 		},
 		{
-			cliOpts:   &config.CliOpts{Env: &config.TtEnvOpts{InstancesEnabled: instEnabled}},
-			app:       "cluster_app_yaml_config_extension",
-			mustExist: true,
-			expected: filepath.Join(instEnabled, "cluster_app_yaml_config_extension",
+			name:        "yaml config",
+			ttConfigDir: filepath.Join(applicationsRoot, "cluster_app_yaml_config_extension"),
+			mustExist:   true,
+			expected: filepath.Join(applicationsRoot, "cluster_app_yaml_config_extension",
 				"config.yaml"),
 		},
 		{
-			cliOpts:   defaultCliOpts,
-			app:       "single_inst",
-			mustExist: true,
-			wantErr:   true,
-		},
-		{
-			cliOpts:   defaultCliOpts,
-			app:       "single_inst",
-			mustExist: false,
-			expected:  filepath.Join(instEnabled, "single_inst", "config.yml"),
-		},
-		{
-			cliOpts: &config.CliOpts{
-				Env: &config.TtEnvOpts{
-					InstancesEnabled: ".",
-				},
-			},
-			ttConfigDir: filepath.Join(instEnabled, "cluster_app"),
-			app:         "cluster_app",
+			name:        "missing config",
+			ttConfigDir: filepath.Join(applicationsRoot, "single_inst"),
 			mustExist:   true,
-			expected:    filepath.Join(instEnabled, "cluster_app", "config.yml"),
+			wantErr:     true,
+		},
+		{
+			name:        "default config path",
+			ttConfigDir: filepath.Join(applicationsRoot, "single_inst"),
+			mustExist:   false,
+			expected:    filepath.Join(applicationsRoot, "single_inst", "config.yml"),
 		},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.app, func(t *testing.T) {
-			actual, err := GetClusterConfigPath(tc.cliOpts, tc.ttConfigDir, tc.app, tc.mustExist)
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := GetClusterConfigPath(tc.ttConfigDir, tc.mustExist)
 			if tc.wantErr {
 				assert.Error(t, err)
 				return

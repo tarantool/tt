@@ -1,7 +1,3 @@
-import os
-import shutil
-import subprocess
-
 import pytest
 import tt_helper
 
@@ -19,42 +15,6 @@ confirmation_input_params = [
     pytest.param("N\n", False, id="N"),  # Discard (uppercase).
     pytest.param("b\nyy\nn\n", False, id="b,yy,n"),  # Wrong answers then discard.
 ]
-
-
-def app_cmd(tt_cmd, tmpdir_with_cfg, cmd, input):
-    start_cmd = [tt_cmd, *cmd]
-    tt_process = subprocess.Popen(
-        start_cmd,
-        cwd=tmpdir_with_cfg,
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
-        stdin=subprocess.PIPE,
-        text=True,
-    )
-
-    tt_process.stdin.writelines(input)
-    tt_process.stdin.close()
-    rc = tt_process.wait()
-    assert rc == 0
-    return tt_process.stdout.readlines()
-
-
-def test_restart_no_args(tt_cmd, tmp_path):
-    test_app_path_src = os.path.join(os.path.dirname(__file__), "multi_app")
-
-    test_app_path = os.path.join(tmp_path, "multi_app")
-    shutil.copytree(test_app_path_src, test_app_path)
-
-    start_output = app_cmd(tt_cmd, test_app_path, ["start"], [])
-    assert "Starting an instance" in start_output[0]
-
-    try:
-        # Test confirmed restart.
-        restart_output = app_cmd(tt_cmd, test_app_path, ["restart"], ["y\n"])
-        assert "Confirm restart of all instances [y/n]" in restart_output[0]
-
-    finally:
-        app_cmd(tt_cmd, test_app_path, ["stop"], ["y\n"])
 
 
 def wait_pid_files_changed(tt_app, instances, orig_status):

@@ -9,6 +9,7 @@ import pytest
 import tarantool
 
 from utils import (
+    config_name,
     control_socket,
     extract_status,
     extract_status_from_json,
@@ -133,13 +134,14 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
     app_name = "small_cluster_app"
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), f"../running/{app_name}"), app_path)
+    shutil.copy(os.path.join(tmpdir, config_name), app_path)
 
-    run_dir = os.path.join(tmpdir, app_name, run_path)
+    run_dir = os.path.join(app_path, run_path)
     instances = ["storage-master", "storage-replica"]
     try:
         # Start an instance.
         start_cmd = [tt_cmd, "start", app_name]
-        start_application(start_cmd, tmpdir, app_name, instances)
+        start_application(start_cmd, app_path, app_name, instances)
 
         # Check status.
         for inst in instances:
@@ -153,25 +155,25 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
                 ([tt_cmd, "status", app_name, "--format=json"], extract_status_from_json),
                 ([tt_cmd, "status", app_name, "--format=yaml"], extract_status_from_yaml),
             ]:
-                status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+                status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
                 assert status_rc == 0
                 status_info = extract_func(status_out)
 
                 field_mapping = field_mappings[extract_func]
                 for inst in instances:
                     assert status_info[app_name + ":" + inst][field_mapping["status"]] == "RUNNING"
-                    assert os.path.exists(os.path.join(tmpdir, app_name, "var", "lib", inst))
+                    assert os.path.exists(os.path.join(app_path, "var", "lib", inst))
                     assert os.path.exists(
-                        os.path.join(tmpdir, app_name, "var", "log", inst, "tt.log"),
+                        os.path.join(app_path, "var", "log", inst, "tt.log"),
                     )
                     assert not os.path.exists(
-                        os.path.join(tmpdir, app_name, "var", "log", inst, "tarantool.log"),
+                        os.path.join(app_path, "var", "log", inst, "tarantool.log"),
                     )
 
         full_master_inst_name = f"{app_name}:{instances[0]}"
 
         # Wait for the configuration setup to complete
-        assert wait_instance_status(tt_cmd, tmpdir, full_master_inst_name, "config")
+        assert wait_instance_status(tt_cmd, app_path, full_master_inst_name, "config")
 
         # Break the configuration by modifying the config.yaml file
         config_path = os.path.join(app_path, "config.yaml")
@@ -179,14 +181,14 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
 
         # Reload the configuration on the instance
         reload_cmd = "require('config'):reload()"
-        res = run_command_on_instance(tt_cmd, tmpdir, full_master_inst_name, reload_cmd)
+        res = run_command_on_instance(tt_cmd, app_path, full_master_inst_name, reload_cmd)
 
         # Check if the expected error message is present in the response
         error_message = '[cluster_config] Unexpected field "invalid_field"'
         assert error_message in res
 
         status_cmd = [tt_cmd, "status", full_master_inst_name, "--details"]
-        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        status_rc, status_out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert status_rc == 0
 
         status_table = status_out[status_out.find("INSTANCE") :]
@@ -201,7 +203,7 @@ def test_t3_instance_names_with_config(tt_cmd, tmpdir_with_cfg):
         assert status_info[full_master_inst_name]["UPSTREAM"] in ["--", "loading"]
         assert f"[config][error]: {error_message}" in status_out
     finally:
-        stop_application(tt_cmd, app_name, tmpdir)
+        stop_application(tt_cmd, app_name, app_path)
 
 
 @pytest.mark.skipif(
@@ -313,6 +315,7 @@ def test_t3_no_instance_names_no_config(tt_cmd, tmpdir_with_cfg):
     app_name = "single_app"
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    shutil.copy(os.path.join(tmpdir, config_name), app_path)
 
     try:
         start_cmd = [tt_cmd, "start", app_name]
@@ -353,14 +356,15 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
     app_name = "test_custom_app"
     app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    shutil.copy(os.path.join(tmpdir, config_name), app_path)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
+        file = wait_file(app_path, "ready", [])
         assert file != ""
 
         for status_cmd, extract_func in [
@@ -368,7 +372,7 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
             ([tt_cmd, "status", "test_custom_app", "--format=json"], extract_status_from_json),
             ([tt_cmd, "status", "test_custom_app", "--format=yaml"], extract_status_from_yaml),
         ]:
-            rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+            rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
             assert rc == 0
             status_out = extract_func(out)
             field_mapping = field_mappings[extract_func]
@@ -378,7 +382,7 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg):
             assert status_out[app_name][field_mapping["box"]] == "running"
             assert status_out[app_name][field_mapping["upstream"]] == "--"
     finally:
-        stop_application(tt_cmd, app_name, tmpdir)
+        stop_application(tt_cmd, app_name, app_path)
 
 
 def test_status_invalid_format(tt_cmd, tmpdir_with_cfg):

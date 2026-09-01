@@ -296,63 +296,70 @@ def test_play_to_single_instance_app(tt_cmd, tmp_path):
         "timestamp",
         test_xlog_name,
     )
-    # Copy test data into temporary directory.
-    shutil.copy(test_app_path, tmp_path)
-    shutil.copy(test_xlog_path, tmp_path)
-    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "config.yml"), tmp_path)
-    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "instances.yml"), tmp_path)
-    create_tt_config(tmp_path, "")
+    app_dir = tmp_path / app_name
+    app_dir.mkdir()
+    # Copy test data into the standalone application directory.
+    shutil.copy(test_app_path, app_dir)
+    shutil.copy(test_xlog_path, app_dir)
+    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "config.yml"), app_dir)
+    shutil.copy(os.path.join(os.path.dirname(__file__), "test_file", "instances.yml"), app_dir)
+    create_tt_config(app_dir, "")
 
     # Start an instance.
-    start_app(tt_cmd, tmp_path, "test_app", start_binary_port=True)
+    start_app(tt_cmd, tmp_path, app_name, start_binary_port=True)
     try:
         # Check for start.
         file = wait_file(
-            os.path.join(tmp_path, "test_app", run_path, "test_app"),
+            os.path.join(app_dir, run_path, app_name),
             control_socket,
             [],
         )
         assert file != ""
 
         # Wait until application is ready.
-        lib_dir = os.path.join(tmp_path, app_name, lib_path, app_name)
+        lib_dir = os.path.join(app_dir, lib_path, app_name)
         file = wait_file(lib_dir, initial_snap, [])
         assert file != ""
         file = wait_file(lib_dir, initial_xlog, [])
         assert file != ""
 
         # Connect to the instance and execute a script.
-        rc, _ = try_execute_on_instance(tt_cmd, tmp_path, "test_app", test_app_path)
+        rc, _ = try_execute_on_instance(tt_cmd, tmp_path, app_name, test_app_path)
         assert rc
 
         cmd = [tt_cmd, "play", "test_app", test_xlog_name]
-        rc, _ = run_command_and_get_output(cmd, cwd=tmp_path)
+        rc, _ = run_command_and_get_output(cmd, cwd=app_dir)
         assert rc == 0
 
     finally:
         # Stop the Instance.
-        stop_app(tt_cmd, tmp_path, "test_app")
+        stop_app(tt_cmd, tmp_path, app_name)
 
 
 def test_play_to_single_instance_without_binary_port(tt_cmd, test_instance):
     test_xlog_name = "test.xlog"
     test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", test_xlog_name)
-    shutil.copy(test_xlog_path, test_instance._tmpdir)
-
-    create_tt_config(test_instance._tmpdir, "")
+    app_name = "remote_instance_cfg"
+    app_dir = test_instance._tmpdir / app_name
+    app_dir.mkdir()
+    shutil.copy(test_xlog_path, app_dir)
+    shutil.copy(test_instance._tmpdir / INSTANCE_NAME, app_dir)
+    shutil.copy(test_instance._tmpdir / "utils.lua", app_dir)
+    create_tt_config(app_dir, "")
 
     # Start an instance.
-    start_app(tt_cmd, test_instance._tmpdir, "remote_instance_cfg", start_binary_port=False)
+    start_app(tt_cmd, test_instance._tmpdir, app_name, start_binary_port=False)
 
-    cmd = [tt_cmd, "play", "remote_instance_cfg", test_xlog_name]
-    rc, cmd_output = run_command_and_get_output(cmd, cwd=test_instance._tmpdir)
+    cmd = [tt_cmd, "play", app_name, test_xlog_name]
+    rc, cmd_output = run_command_and_get_output(cmd, cwd=app_dir)
     assert rc == 1
     assert "application binary port does not exist" in cmd_output
+
+    stop_app(tt_cmd, test_instance._tmpdir, app_name)
 
 
 def test_play_to_cluster_app(tt_cmd):
     tmpdir = tempfile.mkdtemp()
-    create_tt_config(tmpdir, "")
     skip_if_cluster_app_unsupported()
 
     empty_file = "empty.lua"
@@ -362,34 +369,35 @@ def test_play_to_cluster_app(tt_cmd):
     test_app_path = os.path.join(os.path.dirname(__file__), app_name)
     tmp_app_path = os.path.join(tmpdir, app_name)
     shutil.copytree(test_app_path, tmp_app_path)
+    create_tt_config(tmp_app_path, "")
     # The test file.
     empty_file_path = os.path.join(os.path.dirname(__file__), "test_file", empty_file)
     test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", test_xlog_name)
     # Copy test data into temporary directory.
     for item in (empty_file_path, test_xlog_path):
-        shutil.copy(item, tmpdir)
+        shutil.copy(item, tmp_app_path)
 
     # Start instances.
-    start_app(tt_cmd, tmpdir, app_name, True)
+    start_app(tt_cmd, tmp_app_path, app_name, True)
     try:
         # Check for start.
         instances = ["master"]
         for instance in instances:
-            master_run_path = os.path.join(tmpdir, app_name, run_path, instance)
+            master_run_path = os.path.join(tmp_app_path, run_path, instance)
             file = wait_file(master_run_path, control_socket, [])
             assert file != ""
             file = wait_file(master_run_path, BINARY_PORT_NAME, [])
             assert file != ""
-            file = wait_file(os.path.join(tmpdir, app_name), "configured", [])
+            file = wait_file(tmp_app_path, "configured", [])
             assert file != ""
 
         # Play to the instances.
         cmd = [tt_cmd, "play", app_name + ":master", test_xlog_name]
-        rc, cmd_output = run_command_and_get_output(cmd, cwd=tmpdir)
+        rc, cmd_output = run_command_and_get_output(cmd, cwd=tmp_app_path)
         assert rc == 0
 
         cmd = [tt_cmd, "play", app_name + ":master123", test_xlog_name]
-        rc, cmd_output = run_command_and_get_output(cmd, cwd=tmpdir)
+        rc, cmd_output = run_command_and_get_output(cmd, cwd=tmp_app_path)
         assert rc == 1
         assert (
             "could not resolve URI or application: " + '"test_simple_cluster_app:master123"'
@@ -397,7 +405,7 @@ def test_play_to_cluster_app(tt_cmd):
 
     finally:
         # Stop the Instance.
-        stop_app(tt_cmd, tmpdir, app_name)
+        stop_app(tt_cmd, tmp_app_path, app_name)
         shutil.rmtree(tmpdir)
 
 
@@ -415,19 +423,21 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
     test_xlog_path = os.path.join(os.path.dirname(__file__), "test_file", "test.snap")
 
     # Copy test data into temporary directory.
-    shutil.copytree(test_app_path, os.path.join(tmpdir, "test_ssl_app"))
-    shutil.copy(empty_file_path, os.path.join(tmpdir, "test_ssl_app", empty_file))
+    app_dir = Path(tmpdir) / "test_ssl_app"
+    shutil.copytree(test_app_path, app_dir)
+    shutil.copy(empty_file_path, app_dir / empty_file)
+    create_tt_config(app_dir, "")
 
     # Start an instance.
-    start_app(tt_cmd, tmpdir, "test_ssl_app")
+    start_app(tt_cmd, app_dir, "test_ssl_app")
     try:
         # 'ready' file should be created by application.
-        file = wait_file(os.path.join(tmpdir, "test_ssl_app"), "ready", [])
+        file = wait_file(app_dir, "ready", [])
         assert file != ""
 
         server = "localhost:3013"
         # Connect without SSL options.
-        ret, output = try_execute_on_instance(tt_cmd, tmpdir, server, empty_file)
+        ret, output = try_execute_on_instance(tt_cmd, app_dir, server, empty_file)
         assert not ret
         assert re.search(r"   ⨯ unable to establish connection", output)
 
@@ -436,16 +446,16 @@ def test_play_to_ssl_app(tt_cmd, tmpdir_with_cfg):
             "play",
             "localhost:3013",
             test_xlog_path,
-            "--sslkeyfile=test_ssl_app/localhost.key",
-            "--sslcertfile=test_ssl_app/localhost.crt",
-            "--sslcafile=test_ssl_app/ca.crt",
+            "--sslkeyfile=localhost.key",
+            "--sslcertfile=localhost.crt",
+            "--sslcafile=ca.crt",
         ]
-        rc, _ = run_command_and_get_output(cmd, cwd=tmpdir)
+        rc, _ = run_command_and_get_output(cmd, cwd=app_dir)
         assert rc == 0
 
     finally:
         # Stop the Instance.
-        stop_app(tt_cmd, tmpdir, "test_ssl_app")
+        stop_app(tt_cmd, app_dir, "test_ssl_app")
 
 
 @pytest.mark.tt_app(

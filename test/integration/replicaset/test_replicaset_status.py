@@ -1,9 +1,7 @@
-import os
 import re
-import shutil
 
 import pytest
-from replicaset_helpers import stop_application
+from replicaset_helpers import copy_application, stop_application
 
 from utils import get_tarantool_version, run_command_and_get_output, wait_file
 
@@ -31,15 +29,14 @@ def test_status_orchestrators_force_mix(tt_cmd, tmpdir_with_cfg, case):
 def test_status_cconfig_uri(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
-        file = wait_file(os.path.join(tmpdir, app_name), "ready-instance-001", [])
+        file = wait_file(app_path, "ready-instance-001", [])
         assert file != ""
 
         status_cmd = [tt_cmd, "replicaset", "status"]
@@ -51,10 +48,10 @@ def test_status_cconfig_uri(tt_cmd, tmpdir_with_cfg, flag):
                 "client",
                 "-p",
                 "secret",
-                f"./{app_name}/instance-001.iproto",
+                "./instance-001.iproto",
             ],
         )
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
         assert (
             out
@@ -69,7 +66,7 @@ Replicasets state: bootstrapped
 """
         )
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, [])
+        stop_application(tt_cmd, app_name, app_path, [])
 
 
 @pytest.mark.skipif(
@@ -79,15 +76,14 @@ Replicasets state: bootstrapped
 def test_status_cconfig_uri_force_custom(tt_cmd, tmpdir_with_cfg):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
-        file = wait_file(os.path.join(tmpdir, app_name), "ready-instance-001", [])
+        file = wait_file(app_path, "ready-instance-001", [])
         assert file != ""
 
         status_cmd = [
@@ -99,9 +95,9 @@ def test_status_cconfig_uri_force_custom(tt_cmd, tmpdir_with_cfg):
             "client",
             "-p",
             "secret",
-            f"./{app_name}/instance-001.iproto",
+            "./instance-001.iproto",
         ]
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
         assert (
             out
@@ -116,7 +112,7 @@ Replicasets state: bootstrapped
 """
         )
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, [])
+        stop_application(tt_cmd, app_name, app_path, [])
 
 
 @pytest.mark.skipif(
@@ -128,16 +124,15 @@ Replicasets state: bootstrapped
 def test_status_cconfig_app_and_instance(tt_cmd, tmpdir_with_cfg, flag, target):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(os.path.join(tmpdir, app_name), f"ready-instance-00{i}", [])
+            file = wait_file(app_path, f"ready-instance-00{i}", [])
             assert file != ""
 
         status_cmd = [tt_cmd, "replicaset", "status"]
@@ -145,7 +140,7 @@ def test_status_cconfig_app_and_instance(tt_cmd, tmpdir_with_cfg, flag, target):
             status_cmd.append(flag)
         status_cmd.append(target)
 
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
         assert (
             out
@@ -166,7 +161,7 @@ Replicasets state: bootstrapped
 """
         )
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, [])
+        stop_application(tt_cmd, app_name, app_path, [])
 
 
 @pytest.mark.skipif(
@@ -177,21 +172,20 @@ Replicasets state: bootstrapped
 def test_status_cconfig_app_and_instance_force_custom(tt_cmd, tmpdir_with_cfg, target):
     tmpdir = tmpdir_with_cfg
     app_name = "test_ccluster_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         for i in range(1, 6):
-            file = wait_file(os.path.join(tmpdir, app_name), f"ready-instance-00{i}", [])
+            file = wait_file(app_path, f"ready-instance-00{i}", [])
             assert file != ""
 
         status_cmd = [tt_cmd, "replicaset", "status", "--custom", target]
 
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
         assert (
             out
@@ -212,7 +206,7 @@ Replicasets state: bootstrapped
 """
         )
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, [])
+        stop_application(tt_cmd, app_name, app_path, [])
 
 
 @pytest.mark.skipif(tarantool_major_version > 2, reason="skip custom test for Tarantool > 2")
@@ -220,16 +214,15 @@ Replicasets state: bootstrapped
 def test_status_custom_app(tt_cmd, tmpdir_with_cfg, flag):
     tmpdir = tmpdir_with_cfg
     app_name = "test_custom_app"
-    app_path = os.path.join(tmpdir, app_name)
-    shutil.copytree(os.path.join(os.path.dirname(__file__), app_name), app_path)
+    app_path = copy_application(tmpdir, app_name)
     try:
         # Start a cluster.
         start_cmd = [tt_cmd, "start", app_name]
-        rc, out = run_command_and_get_output(start_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(start_cmd, cwd=app_path)
         assert rc == 0
 
         # Check for start.
-        file = wait_file(os.path.join(tmpdir, app_name), "ready", [])
+        file = wait_file(app_path, "ready", [])
         assert file != ""
 
         status_cmd = [tt_cmd, "replicaset", "status"]
@@ -237,7 +230,7 @@ def test_status_custom_app(tt_cmd, tmpdir_with_cfg, flag):
             status_cmd.append(flag)
         status_cmd.append("test_custom_app")
 
-        rc, out = run_command_and_get_output(status_cmd, cwd=tmpdir)
+        rc, out = run_command_and_get_output(status_cmd, cwd=app_path)
         assert rc == 0
         assert re.search(
             r"""Orchestrator:      custom
@@ -250,4 +243,4 @@ Replicasets state: bootstrapped
             out,
         )
     finally:
-        stop_application(tt_cmd, app_name, tmpdir, [])
+        stop_application(tt_cmd, app_name, app_path, [])

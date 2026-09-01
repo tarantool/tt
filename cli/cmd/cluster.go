@@ -361,7 +361,7 @@ func internalClusterShowModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	// It looks like an application or an application:instance.
-	configPath, _, instName, err := parseAppStr(cmdCtx, args[0])
+	configPath, instName, err := parseAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
 	}
@@ -395,7 +395,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 	}
 
 	// It looks like an application or an application:instance.
-	configPath, appName, instName, err := parseAppStr(cmdCtx, args[0])
+	configPath, instName, err := parseAppStr(cmdCtx, args[0])
 	if err != nil {
 		return err
 	}
@@ -404,8 +404,7 @@ func internalClusterPublishModule(cmdCtx *cmdcontext.CmdCtx, args []string) erro
 			return fmt.Errorf("can not to update an instance configuration " +
 				"if a cluster configuration file does not exist for the application")
 		}
-		configPath, err = running.GetClusterConfigPath(cliOpts,
-			cmdCtx.Cli.ConfigDir, appName, false)
+		configPath, err = running.GetClusterConfigPath(cmdCtx.Cli.ConfigDir, false)
 		if err != nil {
 			return err
 		}
@@ -520,10 +519,10 @@ func readSourceFile(path string) ([]byte, map[string]any, error) {
 }
 
 // parseAppStr parses a string and returns an application cluster config path,
-// application name and instance name or an error.
-func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, string, error) {
+// instance name and an error.
+func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, error) {
 	if !isConfigExist(cmdCtx) {
-		return "", "", "",
+		return "", "",
 			fmt.Errorf("unable to resolve the application name %q: %w", appStr, errNoConfig)
 	}
 
@@ -535,7 +534,7 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, stri
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{appName},
 		running.ConfigLoadCluster)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 
 	configPath := ""
@@ -543,7 +542,7 @@ func parseAppStr(cmdCtx *cmdcontext.CmdCtx, appStr string) (string, string, stri
 		configPath = runningCtx.Instances[0].ClusterConfigPath
 	}
 
-	return configPath, appName, instName, nil
+	return configPath, instName, nil
 }
 
 // checkRolesChangeFlags checks that flags from 'cluster rs roles add/remove' command

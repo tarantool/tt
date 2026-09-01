@@ -4,8 +4,7 @@ follow-up-message: |
   Build and start '{{ .name }}' application:
       $ cd {{ .name }}
       $ tt package build
-      $ cd ..
-      $ tt start {{ .name }}
+      $ tt start
 
   Pay attention that default passwords were generated,
   you can change it in the config.yaml.

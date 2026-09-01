@@ -47,15 +47,15 @@ Tarantool-based applications.
 ## Intro
 
 `tt` is tarantool's instance and environment management utility and is used to
-develop, deploy, run and operate applications.
+develop, deploy, run and operate an application.
 
 One of the basic concepts that `tt` introduces is "environment".
-The "environment" is an isolated workspace for the tarantool application suite.
+The "environment" is an isolated workspace for a tarantool application.
 [`tt.yaml` configuration file](#configuration) defines the root and
-configuration of the *environment*. When `tt` is installed from a repository by
-a package manager (`apt`, `rpm`, ...) a "system" config file
-(`/etc/tarantool/tt.yaml`) is included which forms the "system" environment -
-the case when `tt` replaces the [`tarantoolctl`](https://github.com/tarantool/tt/blob/master/doc/examples.md#transition-from-tarantoolctl-to-tt).
+configuration of the *environment*. A package-manager installation may include
+the system configuration `/etc/tarantool/tt.yaml`, selected by `--system`.
+Its directory is still treated as a single application root; `tt` does not
+scan child directories for applications.
 For local development, place a `tt.yaml` in the application root. This keeps
 the application's `tarantool`/`tt` versions, runtime paths, repositories,
 and external modules isolated from other applications.
@@ -67,44 +67,30 @@ graph LR
     %% Colors %%
     classDef lime fill:#C7EA46,stroke:#000,color:#000
 
-    subgraph dot[Environment root]
-      config
+    subgraph dot[Application root]
+      config(tt.yaml):::lime
+      init(init.lua):::lime
+      instances(instances.yml):::lime
+      cluster_config(config.yaml):::lime
       bin
       modules
-      local_reps
-      inst_enabled[instances.enabled]
+      templates
+      var
+      subgraph local_reps[Local repositories]
+        dist[distfiles]
+        rocks[rocks]
+      end
     end
-    subgraph local_reps[Local repositories]
-      dist[distfiles]
-      rocks[rocks]
-    end
-    subgraph app1_files[Application]
-        app_dir[app]
-        app_dir --> init(init.lua):::lime
-        app_dir --> |multi-instance|instances(instances.yaml):::lime
-        app_dir --> |3.0|cluster_config(config.yaml):::lime
-        app_dir --> var[var]
-        var --> run[run] --> inst11[instance]
-        inst11 --> pid1(tt.pid):::lime
-        inst11 --> control1(tarantool.control):::lime
-        inst11 --> binary1(tarantool.sock):::lime
+    var --> run[run] --> inst11[instance]
+    inst11 --> pid1(tt.pid):::lime
+    inst11 --> control1(tarantool.control):::lime
+    inst11 --> binary1(tarantool.sock):::lime
 
-        var --> log1[log] --> inst12[instance] --> logfile1(tt.log):::lime
-
-        var --> lib1[lib] --> inst13[instance]--> xlogs1(*.xlog,*.snap):::lime
-    end
-
-    root[.] --> config(tt.yaml):::lime
+    var --> log1[log] --> inst12[instance] --> logfile1(tt.log):::lime
+    var --> lib1[lib] --> inst13[instance] --> xlogs1(*.xlog,*.snap):::lime
 
     bin --> bin_dir(tarantool<br/>tarantool-ee<br/>tt-ee<br/>tt):::lime
-    root --> bin[bin]
-
     modules --> modules_dir(ext_module_1<br/>ext_module_2):::lime
-    root --> modules[modules]
-
-    root --> dist
-    root --> rocks
-    inst_enabled --> app_dir
 ```
 
 ## Getting started
@@ -307,7 +293,8 @@ file format:
 
 ``` yaml
 env:
-  instances_enabled: path/to/available/applications
+  # Deprecated compatibility option. Application discovery ignores it.
+  instances_enabled: .
   bin_dir: path/to/bin_dir
   inc_dir: path/to/inc_dir
   restart_on_failure: bool
@@ -331,8 +318,9 @@ templates:
 
 #### env
 
-- `instances_enabled` (string) - path to directory that stores all
-    applications.
+- `instances_enabled` (string) - deprecated compatibility option. `tt` ignores
+    it and always loads the application from the directory containing
+    `tt.yaml`.
 - `bin_dir` (string) - directory that stores binary files.
 - `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
@@ -385,25 +373,30 @@ A configured application can use the following filesystem tree:
 ```text
     .
     ├── bin
+    ├── config.yaml
+    ├── init.lua
     ├── include
     ├── distfiles
-    ├── instances.enabled
+    ├── instances.yml
     ├── modules
+    ├── templates
     ├── tt.yaml
-    └── templates
+    └── var
 ```
 
 Where:
 
 - `bin` - directory that stores binary files.
+- `config.yaml` - optional Tarantool 3 application configuration.
+- `init.lua` - application source file (primarily for Tarantool 2).
 - `include` - directory that stores header files.
 - `distfiles` - directory that stores installation files for local
     install.
-- `instances.enabled` - directory that stores enabled applications or
-    symlinks.
+- `instances.yml` - optional declaration of the application's instances.
 - `modules` - the directory where the external modules are stored.
 - `tt.yaml` - tt environment configuration file.
 - `templates` - the directory where external templates are stored.
+- `var` - default directory for application runtime artifacts and data.
 
 ## External modules
 
@@ -438,7 +431,8 @@ Arguments of Tarantool CLI:
 - `--internal | -I` - use internal module.
 - `--local | -L` (string) - run Tarantool CLI as local, in the
     specified directory.
-- `--system | -S` - run Tarantool CLI as system.
+- `--system | -S` - use the system configuration
+    `/etc/tarantool/tt.yaml`.
 - `--help | -h` - help.
 
 ### Autocompletion
@@ -452,9 +446,9 @@ You can generate autocompletion for `bash`, `zsh` and `fish` shell:
 Enter `tt`, press tab and you will see a list of available modules with
 descriptions. Also, autocomplete supports external modules.
 
-For commands, which argument is app or instance, autocompletion
-will show suitable apps, in case of the pattern doesn't contain
-delimiter `:`, and suitable instances otherwise.
+For commands whose argument is an application or instance, autocompletion
+shows the current application name before the `:` delimiter and instances
+declared by that application after it.
 
 For `tt create` command it will show a list of built-in templates and
 templates from the configuration file.
@@ -463,11 +457,14 @@ templates from the configuration file.
 
 ### Working with a set of instances
 
-`tt` can manage a set of instances based on one source file.
+`tt` can manage a set of instances of one application based on one source
+file.
 
-To work with a set of instances, you need: a directory where the files
-will be located: `init.lua` and `instances.yml`.
+To work with a set of instances, create an application root containing
+`tt.yaml`, `init.lua`, and `instances.yml`. Run `tt` from this directory (or
+select its `tt.yaml` using `--cfg`).
 
+- `tt.yaml` - tt environment configuration file.
 - `init.lua` - application source file.
 - `instances.yml` - description of instances.
 
@@ -640,19 +637,23 @@ Common description. For a detailed description, use `tt help command` .
 - `search` - show available tt/tarantool versions.
 - `clean` - clean instance(s) files.
 - `create` - create an application from a template.
-- `build` - build an application.
 - `install` - install tarantool/tt.
 - `uninstall` - uninstall tarantool/tt.
-- `init` - create tt environment configuration file.
 - `daemon (experimental)` - manage tt daemon.
 - `cfg dump` - print tt environment configuration.
-- `pack` - pack an environment into a tarball/RPM/Deb.
+- `package` - build, pack, install, and manage manifest-based application
+    packages.
 - `binaries list` - show a list of installed binaries and their versions.
 - `binaries switch` - switch to installed binary.
 - `cluster` - manage cluster configuration.
 - `env` - add current environment binaries location to the PATH variable.
 - `replicaset` - manage replicasets.
 - `download` - download Tarantool SDK.
+- `kill` - kill application instances.
+- `log` - show instance logs.
+- `aeon` - connect to an Aeon instance.
+- `tcm` - manage Tarantool Cluster Manager.
+- `modules` - list external modules.
 
 [godoc-badge]: https://pkg.go.dev/badge/github.com/tarantool/tt.svg
 [godoc-url]: https://pkg.go.dev/github.com/tarantool/tt
