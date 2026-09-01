@@ -42,6 +42,7 @@ goconst
 gofumpt
 golangci
 golint
+govulncheck
 heywoodlh
 iconfig
 incdir
@@ -64,6 +65,7 @@ magefile
 MAKEFLAGS
 mapstructure
 memtx
+moby
 multireturn
 mvcc
 mvccpb
