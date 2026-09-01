@@ -266,13 +266,20 @@ def run_tt(tt_cmd, tree: Tree):
         *args: str,
         stdin: str | None = None,
         cwd: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess:
+        """`env` replaces the environment outright rather than adding to it.
+
+        That is what makes it useful here: the only caller uses it to take
+        `tarantool` off `PATH`, and an inherited `PATH` would leave it findable.
+        """
         return subprocess.run(
             [str(tt_cmd), *args],
             cwd=cwd or tree.root,
             input=stdin,
             capture_output=True,
             text=True,
+            env=env,
         )
 
     return run
