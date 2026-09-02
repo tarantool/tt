@@ -5,6 +5,7 @@ This file contains various examples of working with tt.
 ## Contents
 
 - [Working with a set of instances](#working-with-a-set-of-instances)
+- [Migrating from instances.enabled](#migrating-from-instancesenabled)
 - [Working with application templates](#working-with-application-templates)
 - [Working with tt cluster (experimental)](#working-with-tt-cluster-experimental)
 - [Packaging applications](#packaging-applications)
@@ -71,7 +72,7 @@ replica:
 Run the commands from the application root:
 
 ```console
-$ cd demo
+cd demo
 ```
 
 Now we can run all instances at once:
@@ -99,6 +100,11 @@ $ tt start
 • Starting an instance [demo:master]...
 • Starting an instance [demo:replica]...
 ```
+
+## Migrating from instances.enabled
+
+See the [2.x to 3.0 migration guide](migration_from_older_versions.md#2x---300)
+for the legacy layout and the complete upgrade procedure.
 
 ## Working with application templates
 

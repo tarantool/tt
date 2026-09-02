@@ -1,8 +1,4 @@
 env:
-  # Compatibility option. The application is always loaded from the directory
-  # containing tt.yaml.
-  instances_enabled: .
-
   # Directory that stores binary files.
   bin_dir: /opt/tarantool/bin
 

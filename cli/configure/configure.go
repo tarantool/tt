@@ -18,7 +18,6 @@ import (
 
 const (
 	ConfigName        = "tt.yaml"
-	DefaultAppPath    = "."
 	cliExecutableName = "tt"
 	// systemConfigDirEnvName is an environment variable that contains a path to
 	// search system config.
@@ -75,10 +74,9 @@ func getDefaultAppOpts() *config.AppOpts {
 // getDefaultAppOpts generates default app config.
 func getDefaultTtEnvOpts() *config.TtEnvOpts {
 	return &config.TtEnvOpts{
-		InstancesEnabled: DefaultAppPath,
-		Restartable:      false,
-		BinDir:           BinPath,
-		IncludeDir:       IncludePath,
+		Restartable: false,
+		BinDir:      BinPath,
+		IncludeDir:  IncludePath,
 	}
 }
 
@@ -196,8 +194,6 @@ func adjustListPathWithConfigLocation(listPaths []string, configDir string,
 // sets uninitialized values to defaults.
 func updateCliOpts(cliOpts *config.CliOpts, configDir string) error {
 	var err error
-
-	cliOpts.Env.InstancesEnabled = DefaultAppPath
 
 	for _, dir := range []struct {
 		path       *string

@@ -8,7 +8,8 @@
 # Tarantool CLI
 
 > [!WARNING]
-> The `v3` branch is under heavy development. Expect breaking changes and unstable APIs.
+> The `v3` branch is under heavy development. Expect breaking changes and
+> unstable APIs.
 
 [![Go Reference][godoc-badge]][godoc-url]
 [![Go Report][report-badge]][report-url]
@@ -31,6 +32,7 @@ Tarantool-based applications.
 - [Configuration](#configuration)
   + [Configuration file](#configuration-file)
 - [Creating a local tt configuration](#creating-a-local-tt-configuration)
+- [Migrating from instances.enabled](#migrating-from-instancesenabled)
 - [External modules](#external-modules)
 - [CLI Args](#cli-args)
   + [Autocompletion](#autocompletion)
@@ -293,8 +295,6 @@ file format:
 
 ``` yaml
 env:
-  # Deprecated compatibility option. Application discovery ignores it.
-  instances_enabled: .
   bin_dir: path/to/bin_dir
   inc_dir: path/to/inc_dir
   restart_on_failure: bool
@@ -318,9 +318,6 @@ templates:
 
 #### env
 
-- `instances_enabled` (string) - deprecated compatibility option. `tt` ignores
-    it and always loads the application from the directory containing
-    `tt.yaml`.
 - `bin_dir` (string) - directory that stores binary files.
 - `inc_dir` (string) - directory that stores header files. The path
     will be padded with a directory named include.
@@ -397,6 +394,11 @@ Where:
 - `tt.yaml` - tt environment configuration file.
 - `templates` - the directory where external templates are stored.
 - `var` - default directory for application runtime artifacts and data.
+
+## Migrating from instances.enabled
+
+See the [2.x to 3.0 migration guide](doc/migration_from_older_versions.md#2x---300)
+for converting a symlink-based environment to the single-application layout.
 
 ## External modules
 

@@ -34,7 +34,6 @@ def test_cfg_dump_default(tt_cmd, tmp_path):
     assert f"inc_dir: {os.path.join(tmp_path, 'include')}" in output
     assert f"modules:\n  directory: {os.path.join(tmp_path, 'new_modules')}" in output
     assert f"distfiles: {os.path.join(tmp_path, 'distfiles')}" in output
-    assert "instances_enabled: ." in output
     assert f"templates:\n- path: {os.path.join(tmp_path, 'templates')}" in output
     assert 'credential_path: ""' in output
 
@@ -119,7 +118,6 @@ def test_cfg_dump_default_no_config(tt_cmd, tmp_path):
     assert f"inc_dir: {os.path.join(tmp_path, 'include')}" in output
     assert f"modules:\n  directory: {os.path.join(tmp_path, 'modules')}" in output
     assert f"distfiles: {os.path.join(tmp_path, 'distfiles')}" in output
-    assert "instances_enabled: ." in output
     assert f"templates:\n- path: {os.path.join(tmp_path, 'templates')}" in output
     assert 'credential_path: ""' in output
 
@@ -153,6 +151,5 @@ def test_cfg_dump_default_no_config(tt_cmd, tmp_path):
     assert f"inc_dir: {os.path.join(tmp_path, 'include')}" in output
     assert f"modules:\n  directory: {os.path.join(tmp_path, 'modules')}" in output
     assert f"distfiles: {os.path.join(tmp_path, 'distfiles')}" in output
-    assert "instances_enabled: ." in output
     assert f"templates:\n- path: {os.path.join(tmp_path, 'templates')}" in output
     assert 'credential_path: ""' in output

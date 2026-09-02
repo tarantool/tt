@@ -89,7 +89,6 @@ modules:
 env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
-  instances_enabled: .
   restart_on_failure: false
 modules:
   directory: /root/modules
@@ -124,7 +123,6 @@ repo:
 env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/include
-  instances_enabled: .
   restart_on_failure: false
 modules:
   directory:
@@ -161,7 +159,6 @@ repo:
 env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/include
-  instances_enabled: .
   restart_on_failure: false
 modules:
   directory: %[1]s/my_modules
@@ -197,7 +194,6 @@ repo:
 env:
   bin_dir: %[1]s/bin
   inc_dir: %[1]s/test_inc
-  instances_enabled: .
   restart_on_failure: false
 modules:
   directory: /root/modules

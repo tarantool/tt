@@ -1,5 +1,3 @@
-env:
-  instances_enabled: ./instances.enabled
 modules:
   directory: my_modules
 templates:
