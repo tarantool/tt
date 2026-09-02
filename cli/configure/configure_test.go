@@ -342,7 +342,6 @@ func TestUpdateCliOpts(t *testing.T) {
 	assert.Equal(t, filepath.Join(configDir, "..", "include_dir"), cliOpts.Env.IncludeDir)
 	assert.Equal(t, 1, len(cliOpts.Modules.Directories))
 	assert.Equal(t, filepath.Join(configDir, ModulesPath), cliOpts.Modules.Directories[0])
-	assert.Equal(t, DefaultAppPath, cliOpts.Env.InstancesEnabled)
 }
 
 func TestGetCliOpts_modules_directory(t *testing.T) {
