@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -61,25 +62,27 @@ type possibleModules map[string]modulesEntry
 // readManifest parses the manifest file to module requirements.
 func readManifest(dir, manifest string) (Manifest, error) {
 	mf := Manifest{}
+
 	data, err := os.ReadFile(manifest)
 	if err != nil {
-		return mf, fmt.Errorf("failed to read manifest: %s", err)
+		return mf, fmt.Errorf("failed to read manifest: %w", err)
 	}
 
 	if err := yaml.Unmarshal(data, &mf); err != nil {
-		return mf, fmt.Errorf("failed to parse manifest: %s", err)
+		return mf, fmt.Errorf("failed to parse manifest: %w", err)
 	}
 
 	mf.Main, err = exec.LookPath(filepath.Join(dir, mf.Main))
 	if err != nil {
-		return mf, fmt.Errorf("failed to find module executable: %s", err)
+		return mf, fmt.Errorf("failed to find module executable: %w", err)
 	}
 
 	if mf.Version == "" {
-		return mf, fmt.Errorf("version field is mandatory for module Manifest")
+		return mf, errors.New("version field is mandatory for module Manifest")
 	}
+
 	if mf.Help == "" {
-		return mf, fmt.Errorf("help field is mandatory for module Manifest")
+		return mf, errors.New("help field is mandatory for module Manifest")
 	}
 
 	return mf, nil
@@ -108,23 +111,29 @@ func GetModulesInfo(
 	if err != nil {
 		return nil, err
 	}
+
 	modulesDirs = append(modulesDirs, modulesEnvDirs...)
 
 	externalModules, err := getExternalModules(modulesDirs)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to get available external modules information: %s", err)
+			"failed to get available external modules information: %w", err)
 	}
 
 	modulesInfo := ModulesInfo{}
+
 	for name, info := range externalModules {
 		mf, err := makeManifest(info)
 		if err != nil {
 			log.Warnf("Failed to get information about module %q: %s", name, err)
+
 			continue
 		}
+
 		mf.Name = name
+
 		commandPath := rootCmd + " " + name
+
 		modulesInfo[commandPath] = mf
 	}
 
@@ -141,8 +150,9 @@ func collectDirectoriesList(paths []string) ([]string, error) {
 	for _, dir := range paths {
 		if info, err := os.Stat(dir); err == nil {
 			if !info.IsDir() {
-				return dirs, fmt.Errorf("specified path in configuration file is not a directory")
+				return dirs, errors.New("specified path in configuration file is not a directory")
 			}
+
 			dirs = append(dirs, dir)
 		}
 	}
@@ -174,6 +184,7 @@ func getEnvironmentModulesDirs() ([]string, error) {
 	}
 
 	paths := strings.Split(env_var, ":")
+
 	return collectDirectoriesList(paths)
 }
 
@@ -182,6 +193,7 @@ func isPossibleModule(dir string) (modulesEntry, bool) {
 	is_module := false
 	entries := modulesEntry{Directory: dir}
 	manifest, _ := util.GetYamlFileName(filepath.Join(dir, manifestFileName), false)
+
 	if manifest != "" {
 		entries.Manifest = manifest
 		is_module = true
@@ -199,7 +211,7 @@ func isPossibleModule(dir string) (modulesEntry, bool) {
 func readSubDirectories(path string) ([]string, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return nil, fmt.Errorf(`failed to read "%s" directory: %s`, path, err)
+		return nil, fmt.Errorf(`failed to read "%s" directory: %w`, path, err)
 	}
 
 	entries = slices.DeleteFunc(entries, func(e os.DirEntry) bool {
@@ -222,6 +234,7 @@ func readSubDirectories(path string) ([]string, error) {
 // parsing the contents of the list folders.
 func getExternalModules(paths []string) (possibleModules, error) {
 	modules := possibleModules{}
+
 	for _, path := range paths {
 		dirs, err := readSubDirectories(path)
 		if err != nil {
@@ -234,6 +247,7 @@ func getExternalModules(paths []string) (possibleModules, error) {
 			e, exists := modules[d]
 			if exists {
 				log.Warnf("Ignore duplicate module %q overlap with %q", mod_path, e.Directory)
+
 				continue
 			}
 
@@ -246,5 +260,6 @@ func getExternalModules(paths []string) (possibleModules, error) {
 			}
 		}
 	}
+
 	return modules, nil
 }

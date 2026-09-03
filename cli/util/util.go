@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -26,7 +27,6 @@ import (
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/constraints"
 	"gopkg.in/yaml.v2"
 )
 
@@ -63,6 +63,7 @@ type VersionFunc func(bool, bool) string
 func FileLinesScanner(reader io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanLines)
+
 	return scanner
 }
 
@@ -95,6 +96,7 @@ func GetFileContent(path string) (string, error) {
 // JoinPaths concat paths.
 func JoinPaths(paths ...string) string {
 	path := ""
+
 	for _, pathPart := range paths {
 		if filepath.IsAbs(pathPart) {
 			path = pathPart
@@ -109,9 +111,11 @@ func JoinPaths(paths ...string) string {
 // JoinAbspath concat paths and makes the resulting path absolute.
 func JoinAbspath(paths ...string) (string, error) {
 	var err error
+
 	path := JoinPaths(paths...)
+
 	if path, err = filepath.Abs(path); err != nil {
-		return "", fmt.Errorf("failed to get absolute path: %s", err)
+		return "", fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
 	return path, nil
@@ -131,7 +135,7 @@ func Find(src []string, find string) int {
 }
 
 // InternalError shows error information, version of tt and call stack.
-func InternalError(format string, f VersionFunc, err ...interface{}) error {
+func InternalError(format string, f VersionFunc, err ...any) error {
 	errorFmt := `whoops! It looks like something is wrong with this version of Tarantool CLI.
 Error: %s
 Version: %s
@@ -143,15 +147,16 @@ Stacktrace:
 }
 
 // ParseYAML parse yaml file at specified path.
-func ParseYAML(path string) (map[string]interface{}, error) {
+func ParseYAML(path string) (map[string]any, error) {
 	fileContent, err := GetFileContentBytes(path)
 	if err != nil {
-		return nil, fmt.Errorf(`failed to read "%s" file: %s`, path, err)
+		return nil, fmt.Errorf(`failed to read "%s" file: %w`, path, err)
 	}
 
-	var raw map[string]interface{}
+	var raw map[string]any
+
 	if err := yaml.Unmarshal(fileContent, &raw); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %s", err)
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
 	return raw, nil
@@ -163,17 +168,18 @@ func GetHomeDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return usr.HomeDir, nil
 }
 
 func readFromPos(readSeeker io.ReadSeeker, pos int64, buf *[]byte) (int, error) {
 	if _, err := readSeeker.Seek(pos, io.SeekStart); err != nil {
-		return 0, fmt.Errorf("failed to seek: %s", err)
+		return 0, fmt.Errorf("failed to seek: %w", err)
 	}
 
 	n, err := readSeeker.Read(*buf)
 	if err != nil {
-		return n, fmt.Errorf("failed to read: %s", err)
+		return n, fmt.Errorf("failed to read: %w", err)
 	}
 
 	return n, nil
@@ -191,13 +197,14 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 
 	f, err := os.Open(filepath)
 	if err != nil {
-		return 0, fmt.Errorf("failed to open file: %s", err)
+		return 0, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer f.Close()
 
 	var fileSize int64
+
 	if fileInfo, err := os.Stat(filepath); err != nil {
-		return 0, fmt.Errorf("failed to get fileinfo: %s", err)
+		return 0, fmt.Errorf("failed to get fileinfo: %w", err)
 	} else {
 		fileSize = fileInfo.Size()
 	}
@@ -209,7 +216,9 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 	buf := make([]byte, bufSize)
 
 	filePos := fileSize - bufSize
+
 	var lastNewLinePos int64 = 0
+
 	newLinesN := 0
 
 	// Check last symbol of the last line.
@@ -217,6 +226,7 @@ func GetLastNLinesBegin(filepath string, lines int) (int64, error) {
 	if _, err := readFromPos(f, fileSize-1, &buf); err != nil {
 		return 0, err
 	}
+
 	if buf[0] != '\n' {
 		newLinesN++
 	}
@@ -267,11 +277,11 @@ func GetLastNLines(filepath string, linesN int) ([]string, error) {
 
 	file, err := os.Open(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %s", err)
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 
 	if _, err := file.Seek(lastNLinesBeginPos, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("failed to seek in file: %s", err)
+		return nil, fmt.Errorf("failed to seek in file: %w", err)
 	}
 
 	lines := []string{}
@@ -292,7 +302,9 @@ func AskConfirm(ioReader io.Reader, question string) (bool, error) {
 		fmt.Printf("%s [y/n]: ", question)
 
 		resp, err := reader.ReadString('\n')
+
 		resp = strings.ToLower(strings.TrimSpace(resp))
+
 		if err != nil {
 			return false, err
 		}
@@ -420,6 +432,7 @@ func IsURL(str string) bool {
 	if strings.HasPrefix(str, "unix:") {
 		return true
 	}
+
 	u, err := url.Parse(str)
 
 	return err == nil && u.Scheme != "" && u.Host != "" && u.Opaque == "" && u.User == nil
@@ -431,12 +444,15 @@ func RemoveScheme(inputURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if parsedURL.Scheme == "unix" {
 		return inputURL, nil
 	}
+
 	parsedURL.Scheme = ""
 
 	result := strings.Replace(parsedURL.String(), "//", "", 1)
+
 	return result, nil
 }
 
@@ -447,26 +463,36 @@ func Chdir(newPath string) (func() error, error) {
 	if err != nil {
 		return nil, nil
 	}
-	if err = os.Chdir(newPath); err != nil {
-		return nil, fmt.Errorf("failed to change directory: %s", err)
+
+	err = os.Chdir(newPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to change directory: %w", err)
 	}
 
 	// Update PWD environment var.
-	if err = os.Setenv("PWD", newPath); err != nil {
-		if err = os.Chdir(cwd); err != nil {
+	err = os.Setenv("PWD", newPath)
+	if err != nil {
+		err = os.Chdir(cwd)
+		if err != nil {
 			return nil, fmt.Errorf("failed to change directory back: %w", err)
 		}
+
 		os.Setenv("PWD", cwd) // Return PWD back.
+
 		return nil, fmt.Errorf("failed to change PWD environment variable: %w", err)
 	}
 
 	return func() error {
-		if err = os.Chdir(cwd); err != nil {
+		err = os.Chdir(cwd)
+		if err != nil {
 			return fmt.Errorf("failed to change directory back: %w", err)
 		}
-		if err = os.Setenv("PWD", cwd); err != nil {
+
+		err = os.Setenv("PWD", cwd)
+		if err != nil {
 			return fmt.Errorf("failed to change PWD environment variable: %w", err)
 		}
+
 		return nil
 	}, nil
 }
@@ -481,6 +507,7 @@ func FsCopyFileChangePerms(fsys fs.FS, src, dst string, perms int) error {
 	if err != nil {
 		return err
 	}
+
 	// Write data to dst.
 	return os.WriteFile(dst, data, fs.FileMode(perms))
 }
@@ -492,12 +519,15 @@ func CopyFilePreserve(src, dst string) error {
 	if err != nil {
 		return err
 	}
+
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
+
 	// Write data to dst.
 	err = os.WriteFile(dst, data, info.Mode().Perm())
+
 	return err
 }
 
@@ -508,12 +538,15 @@ func CopyFileChangePerms(src, dst string, perms int) error {
 	if err != nil {
 		return err
 	}
+
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
+
 	// Write data to dst.
 	err = os.WriteFile(dst, data, fs.FileMode(perms))
+
 	return err
 }
 
@@ -527,6 +560,7 @@ func ResolveSymlink(linkPath string) (string, error) {
 	if !filepath.IsAbs(resolvedLink) {
 		resolvedLink = path.Join(path.Dir(linkPath), resolvedLink)
 	}
+
 	return resolvedLink, nil
 }
 
@@ -546,7 +580,9 @@ func ExtractTar(tarName string) error {
 	if err != nil {
 		return err
 	}
+
 	dir := filepath.Dir(path) + "/"
+
 	archive, err := os.Open(path)
 	if err != nil {
 		return err
@@ -559,9 +595,11 @@ func ExtractTar(tarName string) error {
 	}
 
 	tarReader := tar.NewReader(uncompressedStream)
+
 	if err != nil {
 		return err
 	}
+
 	for {
 		header, err := tarReader.Next()
 
@@ -576,6 +614,7 @@ func ExtractTar(tarName string) error {
 			continue
 		case tar.TypeReg:
 			var pos int
+
 			// Some archives have strange order of objects,
 			// so we check that all folders exist before
 			// creating a file.
@@ -583,6 +622,7 @@ func ExtractTar(tarName string) error {
 			if pos == -1 {
 				pos = 0
 			}
+
 			if _, err := os.Stat(dir + header.Name[0:pos]); os.IsNotExist(err) {
 				// 0755:
 				//    user:   read/write/execute
@@ -590,21 +630,27 @@ func ExtractTar(tarName string) error {
 				//    others: read/execute
 				os.MkdirAll(dir+header.Name[0:pos], 0o755)
 			}
+
 			outFile, err := os.Create(dir + header.Name)
 			if err != nil {
 				outFile.Close()
+
 				return err
 			}
+
 			if _, err := io.Copy(outFile, tarReader); err != nil {
 				outFile.Close()
+
 				return err
 			}
+
 			outFile.Close()
 
 		default:
 			return fmt.Errorf("unknown type: %b in %s", header.Typeflag, header.Name)
 		}
 	}
+
 	return nil
 }
 
@@ -616,6 +662,7 @@ func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir st
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
 	}
+
 	if isVerbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -623,15 +670,20 @@ func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir st
 		cmd.Stdout = writer
 		cmd.Stderr = writer
 	}
+
 	if workDir == "" {
 		workDir, _ = os.Getwd()
 	}
+
 	cmd.Dir = workDir
+
 	err := cmd.Start()
 	if err != nil {
 		return err
 	}
+
 	err = cmd.Wait()
+
 	return err
 }
 
@@ -644,6 +696,7 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
 	}
+
 	if isVerbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -656,9 +709,11 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 			cmd.Stderr = io.Discard
 		}
 	}
+
 	if workDir == "" {
 		workDir, _ = os.Getwd()
 	}
+
 	cmd.Dir = workDir
 
 	stdin, err := cmd.StdinPipe()
@@ -675,6 +730,7 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 	stdin.Close()
 
 	err = cmd.Wait()
+
 	return err
 }
 
@@ -686,12 +742,14 @@ func CreateSymlink(oldName, newName string, overwrite bool) error {
 			return fmt.Errorf("symbolic link cannot be created: '%s' already exists", newName)
 		} else {
 			log.Debugf("Replace existing '%s' with new symlink.", newName)
-			if err := os.Remove(newName); err != nil {
+
+			err := os.Remove(newName)
+			if err != nil {
 				return err
 			}
 		}
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("symbolic link cannot be created: %s", err)
+		return fmt.Errorf("symbolic link cannot be created: %w", err)
 	}
 
 	return os.Symlink(oldName, newName)
@@ -744,29 +802,37 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 		if !stat.IsDir() {
 			return fmt.Errorf("'%s' already exists and is not a directory", dirName)
 		}
+
 		return nil
 	}
-	if err = os.MkdirAll(dirName, fileMode); err != nil {
+
+	err = os.MkdirAll(dirName, fileMode)
+	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
 // writeYaml writes YAML encoding of object o to fileName.
-func WriteYaml(fileName string, o interface{}) error {
+func WriteYaml(fileName string, o any) error {
 	file, err := os.Create(fileName)
 	if err != nil {
 		return err
 	}
+
 	defer func() {
-		if err := file.Close(); err != nil {
+		err := file.Close()
+		if err != nil {
 			log.Warnf("Failed to close a file '%s': %s", file.Name(), err)
 		}
 	}()
 
-	if err = yaml.NewEncoder(file).Encode(o); err != nil {
+	err = yaml.NewEncoder(file).Encode(o)
+	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -786,7 +852,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 	destFile, err := os.Create(destFilePath)
 	if err != nil {
 		_ = os.Remove(destFilePath)
-		return fmt.Errorf("failed to create result file %s: %s", destFilePath, err)
+		return fmt.Errorf("failed to create result file %s: %w", destFilePath, err)
 	}
 	defer destFile.Close()
 
@@ -794,7 +860,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 		srcFile, err := os.Open(srcFilePath)
 		if err != nil {
 			_ = os.Remove(destFilePath)
-			return fmt.Errorf("failed to open source file %s: %s", srcFilePath, err)
+			return fmt.Errorf("failed to open source file %s: %w", srcFilePath, err)
 		}
 
 		_, err = io.Copy(destFile, srcFile)
@@ -825,8 +891,10 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	default:
 		return "", fmt.Errorf("provided file '%s' has no .yaml/.yml extension", fileName)
 	}
+
 	foundYamlFiles := []string{}
-	if foundFiles, err := filepath.Glob(fmt.Sprintf("%s.y*ml", fileBaseName)); err == nil {
+
+	if foundFiles, err := filepath.Glob(fileBaseName + ".y*ml"); err == nil {
 		for _, fileName := range foundFiles {
 			switch filepath.Ext(fileName) {
 			case ".yaml", ".yml":
@@ -836,6 +904,7 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 	} else {
 		return "", err
 	}
+
 	yamlFilesCount := len(foundYamlFiles)
 	if yamlFilesCount > 1 {
 		return "", fmt.Errorf("more than one YAML files are found:\n%s\nAmbiguous selection",
@@ -864,13 +933,15 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 		if removeErr != nil {
 			log.Warnf("Failed to remove a file %s", templatePath)
 		}
+
 		return err
 	}
 
 	parsedTemplate, err := template.New(templatePath).Parse(unitContent)
 	if err != nil {
-		return fmt.Errorf("error parsing %s: %s", templatePath, err)
+		return fmt.Errorf("error parsing %s: %w", templatePath, err)
 	}
+
 	// spell-checker:ignore missingkey
 	parsedTemplate.Option("missingkey=error") // Treat missing variable as error.
 
@@ -880,8 +951,10 @@ func InstantiateFileFromTemplate(templatePath, templateContent string, params an
 		if removeErr != nil {
 			log.Warnf("Failed to remove a file %s", templatePath)
 		}
+
 		return err
 	}
+
 	return nil
 }
 
@@ -892,16 +965,19 @@ func CollectAppList(baseDir, appsPath string, verbose bool) ([]string, error) {
 		if IsApp(baseDir) {
 			return []string{filepath.Base(baseDir)}, nil
 		}
+
 		// Instances enabled is '.', if base directory is not an application,
 		// consider base directory as directory containing a set of applications.
 		appsPath = baseDir
 	}
+
 	dirEntries, err := os.ReadDir(appsPath)
 	if err != nil {
 		return nil, err
 	}
 
 	apps := make([]string, 0)
+
 	for _, entry := range dirEntries {
 		dirItem := filepath.Join(appsPath, entry.Name())
 		if IsApp(dirItem) {
@@ -921,18 +997,21 @@ func RelativeToCurrentWorkingDir(fullPath string) string {
 	if err != nil {
 		return fullPath
 	}
+
 	relPath, err := filepath.Rel(cwd, fullPath)
 	if err != nil {
 		return fullPath
 	}
+
 	return relPath
 }
 
 // Min returns minimal of two values.
-func Min[T constraints.Ordered](a, b T) T {
+func Min[T cmp.Ordered](a, b T) T {
 	if a < b {
 		return a
 	}
+
 	return b
 }
 
@@ -941,14 +1020,17 @@ func Min[T constraints.Ordered](a, b T) T {
 func HandleCmdErr(cmd *cobra.Command, err error) {
 	if err != nil {
 		var argError *ArgError
+
 		if errors.As(err, &argError) {
 			log.Error(argError.Error())
 			cmd.Usage()
 			os.Exit(1)
 		}
+
 		if errors.Is(err, ErrCmdAbort) {
 			os.Exit(1)
 		}
+
 		log.Fatalf(err.Error())
 	}
 }
@@ -959,6 +1041,7 @@ func CopyFileDeep(src, dst string) error {
 	if err != nil {
 		return err
 	}
+
 	return copy.Copy(src, dst)
 }
 
@@ -981,6 +1064,7 @@ func StringToTimestamp(input string) (string, error) {
 		// Incorrect input, trigger an error.
 		return "", err
 	}
+
 	tsSec := rfc3339NanoTs.Unix()
 	tsNanoSec := rfc3339NanoTs.Nanosecond()
 	ts := fmt.Sprintf("%s.%s", strconv.FormatInt(tsSec, 10),

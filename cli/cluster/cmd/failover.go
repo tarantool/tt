@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -80,9 +81,12 @@ func connectFailoverStorage(uriOpts connect.UriOpts,
 		storageType, nil, "")
 	if err != nil {
 		cleanup()
+
 		return nil, fmt.Errorf("unable to bind %s storage: %w", storageType, err)
 	}
+
 	raw.SetCleanup(cleanup)
+
 	return raw, nil
 }
 
@@ -92,6 +96,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
+
 	connOpts := libcluster.ConnectOpts{
 		Username: switchCtx.Username,
 		Password: switchCtx.Password,
@@ -121,13 +126,16 @@ func Switch(url string, switchCtx SwitchCtx) error {
 		ctxWatch, cancelWatch := context.WithTimeout(context.Background(),
 			time.Duration(switchCtx.Timeout)*time.Second+cmdAdditionalWait)
 		defer cancelWatch()
+
 		watchChan, err := conn.Watch(ctxWatch, key)
 		if err != nil {
 			return fmt.Errorf("unable to create watch channel: %w", err)
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
+
 		err = conn.Put(ctx, key, string(yamlCmd))
+
 		cancel()
 
 		if err != nil {
@@ -136,17 +144,22 @@ func Switch(url string, switchCtx SwitchCtx) error {
 
 		for ev := range watchChan {
 			var result switchCmdResult
+
 			err = yaml.Unmarshal(ev.Value, &result)
 			if err != nil {
 				return err
 			}
+
 			fmt.Printf("%s", ev.Value)
+
 			if result.Status == "success" || result.Status == "failed" {
 				return nil
 			}
 		}
-		if ctxWatch.Err() == context.DeadlineExceeded {
+
+		if errors.Is(ctxWatch.Err(), context.DeadlineExceeded) {
 			log.Info("Timeout for command execution reached.")
+
 			return nil
 		}
 
@@ -154,7 +167,9 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
+
 	err = conn.Put(ctx, key, string(yamlCmd))
+
 	cancel()
 
 	if err != nil {
@@ -175,7 +190,9 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL %q: %w", url, err)
 	}
+
 	var connOpts libcluster.ConnectOpts
+
 	conn, err := connectFailoverStorage(uriOpts, connOpts)
 	if err != nil {
 		return err
@@ -186,6 +203,7 @@ func SwitchStatus(url string, switchCtx SwitchStatusCtx) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
 	result, err := conn.Get(ctx, key)
+
 	cancel()
 
 	if err != nil {

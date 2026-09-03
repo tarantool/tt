@@ -70,6 +70,7 @@ func internalCoredumpPackModule(cmdCtx *cmdcontext.CmdCtx, args []string) error 
 	if coredumpPackExecutable == "" {
 		executable = cmdCtx.Cli.TarantoolCli.Executable
 	}
+
 	return coredump.Pack(args[0],
 		executable,
 		coredumpPackOutputDirectory,

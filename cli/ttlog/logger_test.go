@@ -28,7 +28,7 @@ func TestLoggerBase(t *testing.T) {
 
 	// Check that the rotation does not create new file.
 	files, _ := os.ReadDir(tmpDir)
-	assert.Equal(t, len(files), 1)
+	assert.Len(t, files, 1)
 
 	os.Rename(fileName, fileName+".old")
 	assert.NoFileExists(t, fileName)
@@ -44,6 +44,7 @@ func TestLoggerBase(t *testing.T) {
 
 	content, err := os.ReadFile(fileName + ".old")
 	require.NoError(t, err)
+
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "watchdog")
 	assert.Contains(t, contentStr, "Test msg 1")
@@ -52,6 +53,7 @@ func TestLoggerBase(t *testing.T) {
 
 	content, err = os.ReadFile(fileName)
 	require.NoError(t, err)
+
 	contentStr = string(content)
 	assert.Contains(t, contentStr, "Test msg 3")
 	assert.Contains(t, contentStr, "log file has been reopened")
@@ -71,6 +73,7 @@ func TestLoggerNoDir(t *testing.T) {
 
 	content, err := os.ReadFile(fileName)
 	require.NoError(t, err)
+
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "watchdog")
 	assert.Contains(t, contentStr, "Test msg 1")

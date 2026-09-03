@@ -1,6 +1,7 @@
 package running
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,9 +13,12 @@ import (
 // newProcessController create new process controller.
 func newProcessController(cmd *exec.Cmd) (*processController, error) {
 	dpc := processController{Cmd: cmd}
-	if err := dpc.start(); err != nil {
+
+	err := dpc.start()
+	if err != nil {
 		return nil, err
 	}
+
 	return &dpc, nil
 }
 
@@ -22,6 +26,7 @@ func newProcessController(cmd *exec.Cmd) (*processController, error) {
 type processController struct {
 	// Cmd represents an external command to run.
 	*exec.Cmd
+
 	// waitMutex is used to prevent several invokes of the "Wait"
 	// for the same process.
 	// https://github.com/golang/go/issues/28461
@@ -33,10 +38,13 @@ type processController struct {
 // start starts the process.
 func (pc *processController) start() error {
 	// Start an Instance.
-	if err := pc.Start(); err != nil {
+	err := pc.Start()
+	if err != nil {
 		return err
 	}
+
 	pc.done = false
+
 	return nil
 }
 
@@ -45,23 +53,27 @@ func (pc *processController) Wait() error {
 	if pc.done {
 		return nil
 	}
+
 	// waitMutex is used to prevent several invokes of the "Wait"
 	// for the same process.
 	// https://github.com/golang/go/issues/28461
 	pc.waitMutex.Lock()
 	defer pc.waitMutex.Unlock()
+
 	err := pc.Cmd.Wait()
 	if err == nil {
 		pc.done = true
 	}
+
 	return err
 }
 
 // SendSignal sends a signal to tarantool instance.
 func (pc *processController) SendSignal(sig os.Signal) error {
 	if pc.Cmd == nil || pc.Process == nil {
-		return fmt.Errorf("the instance hasn't started yet")
+		return errors.New("the instance hasn't started yet")
 	}
+
 	return pc.Process.Signal(sig)
 }
 
@@ -95,8 +107,9 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 
 	// Trying to terminate the process by using a stopSignal.
 	// In case of failure a "SIGKILL" signal will be used.
-	if err := pc.SendSignal(stopSignal); err != nil {
-		return fmt.Errorf("failed to send %v to instance: %s", stopSignal, err)
+	err := pc.SendSignal(stopSignal)
+	if err != nil {
+		return fmt.Errorf("failed to send %v to instance: %w", stopSignal, err)
 	}
 
 	// Terminate the process at any cost.
@@ -104,11 +117,13 @@ func (pc *processController) StopWithSignal(waitTimeout time.Duration, stopSigna
 	case <-time.After(waitTimeout):
 		if pc.IsAlive() {
 			// Send "SIGKILL" signal if process is still alive.
-			if err := pc.Process.Kill(); err != nil {
-				return fmt.Errorf("failed to send SIGKILL to instance: %s", err)
+			err := pc.Process.Kill()
+			if err != nil {
+				return fmt.Errorf("failed to send SIGKILL to instance: %w", err)
 			} else {
 				// Wait for the process to terminate.
 				<-waitDone
+
 				return nil
 			}
 		}

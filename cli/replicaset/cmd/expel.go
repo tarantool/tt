@@ -55,6 +55,7 @@ func Expel(expelCtx ExpelCtx) error {
 	if err != nil {
 		return err
 	}
+
 	statusReplicasets(replicasets)
 
 	fmt.Println("")
@@ -69,5 +70,6 @@ func Expel(expelCtx ExpelCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }

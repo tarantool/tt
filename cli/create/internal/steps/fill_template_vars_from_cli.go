@@ -15,9 +15,11 @@ Format: var-name=value`
 func parseVarDefinition(varDefText string) (struct{ name, value string }, error) {
 	varDefinition := strings.TrimSpace(strings.TrimSuffix(varDefText, "\n"))
 	varName, value, found := strings.Cut(varDefinition, "=")
+
 	if !found || varName == "" || value == "" {
 		return struct{ name, value string }{}, fmt.Errorf(varDefFormatError, varDefText)
 	}
+
 	return struct{ name, value string }{name: varName, value: value}, nil
 }
 
@@ -33,8 +35,11 @@ func (FillTemplateVarsFromCli) Run(createCtx *create_ctx.CreateCtx,
 		if err != nil {
 			return err
 		}
+
 		log.Debugf("Setting var from CLI: %s = %s", varDef.name, varDef.value)
+
 		templateCtx.Vars[varDef.name] = varDef.value
 	}
+
 	return nil
 }

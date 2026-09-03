@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -38,7 +39,9 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 	if err != nil {
 		return fmt.Errorf("integrity check failed for %q: %w", manifest.Main, err)
 	}
+
 	f.Close()
+
 	if rc := RunExec(manifest.Main, args); rc != 0 {
 		os.Exit(rc)
 	}
@@ -62,12 +65,15 @@ func RunExec(command string, args []string) int {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	if err := cmd.Run(); err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
+	err := cmd.Run()
+	if err != nil {
+		exitError := &exec.ExitError{}
+		if errors.As(err, &exitError) {
 			return exitError.ExitCode()
 		}
 
 		log.Errorf("failed to exec external module: %s", err)
+
 		return 1
 	}
 
@@ -100,13 +106,15 @@ func fillManifest(mf Manifest) (Manifest, error) {
 	}
 
 	if info.Version == "" {
-		return mf, fmt.Errorf("reply for --version is mandatory for module")
+		return mf, errors.New("reply for --version is mandatory for module")
 	}
+
 	if info.Help == "" {
-		return mf, fmt.Errorf("reply for --description is mandatory for module")
+		return mf, errors.New("reply for --description is mandatory for module")
 	}
 
 	mf.Version = info.Version
 	mf.Help = info.Help
+
 	return mf, nil
 }

@@ -74,9 +74,9 @@ type UriOpts struct {
 	Prefix string
 	// Tag value of #fragment URL part.
 	Tag string
-	// Username is a user name for authorization
+	// Username is a user name for authorization.
 	Username string
-	// Password is a password for authorization
+	// Password is a password for authorization.
 	Password string
 	// KeyFile is a path to a private SSL key file.
 	KeyFile string
@@ -115,11 +115,12 @@ func IsBaseURI(str string) bool {
 	// ../path
 	// ~/path
 	// /path
-	// ./path
+	// ./path.
 	pathReStr := systemPathPrefixRe + `[^\./].*`
 
 	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
+
 	return uriRe.MatchString(str)
 }
 
@@ -145,13 +146,15 @@ func IsCredentialsURI(str string) bool {
 
 	uriReStr := "^((" + tcpReStr + ")|(" + httpsReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
+
 	return uriRe.MatchString(str)
 }
 
 // ParseBaseURI parses an URI and returns:
-// (network, address)
+// (network, address).
 func ParseBaseURI(uri string) (string, string) {
 	var network, address string
+
 	uriLen := len(uri)
 
 	switch {
@@ -181,7 +184,7 @@ func ParseBaseURI(uri string) (string, string) {
 }
 
 // ParseCredentialsURI parses a URI with credentials and returns:
-// (URI without credentials, user, password)
+// (URI without credentials, user, password).
 func ParseCredentialsURI(str string) (string, string, string) {
 	if !IsCredentialsURI(str) {
 		return str, "", ""
@@ -207,6 +210,7 @@ func getBooleanParam(param string, defaultValue bool) (bool, error) {
 	}
 
 	param = strings.ToLower(param)
+
 	return strconv.ParseBool(param)
 }
 
@@ -219,12 +223,14 @@ func getDurationParam(param string, defaultValue time.Duration) (time.Duration, 
 	if err != nil {
 		return defaultValue, err
 	}
+
 	return time.Duration(seconds * float64(time.Second)), nil
 }
 
 // parseUriOpts extract options from a URL to UriOpts.
 func parseUriOpts(uri *url.URL) (UriOpts, error) {
 	var err error
+
 	endpoint := url.URL{
 		Scheme: uri.Scheme,
 		Host:   uri.Host,
@@ -238,6 +244,7 @@ func parseUriOpts(uri *url.URL) (UriOpts, error) {
 		Timeout:  defaultTimeoutParam,
 		Params:   make(map[string]string),
 	}
+
 	if password, ok := uri.User.Password(); ok {
 		opts.Password = password
 	}
@@ -259,22 +266,24 @@ func parseUriOpts(uri *url.URL) (UriOpts, error) {
 		case timeoutParam:
 			opts.Timeout, err = getDurationParam(v[0], defaultTimeoutParam)
 			if err != nil {
-				return opts, fmt.Errorf("invalid %q param, float (in seconds) expected: %s",
+				return opts, fmt.Errorf("invalid %q param, float (in seconds) expected: %w",
 					k, err)
 			}
 
 		case verifyHostParam:
 			verify, err := getBooleanParam(v[0], defaultVerifyHostParam)
 			if err != nil {
-				return opts, fmt.Errorf("invalid %q param, boolean expected: %s", k, err)
+				return opts, fmt.Errorf("invalid %q param, boolean expected: %w", k, err)
 			}
+
 			opts.SkipHostVerify = !verify
 
 		case verifyPeerParam:
 			verify, err := getBooleanParam(v[0], defaultVerifyHostParam)
 			if err != nil {
-				return opts, fmt.Errorf("invalid %q param, boolean expected: %s", k, err)
+				return opts, fmt.Errorf("invalid %q param, boolean expected: %w", k, err)
 			}
+
 			opts.SkipPeerVerify = !verify
 
 		default:
@@ -299,9 +308,11 @@ func parseUrl(str string) (*url.URL, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if uri.Scheme == "" || uri.Host == "" {
 		return nil, errors.New("URL must contain the scheme and the host parts")
 	}
+
 	return uri, nil
 }
 

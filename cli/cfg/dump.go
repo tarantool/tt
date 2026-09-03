@@ -1,7 +1,7 @@
 package cfg
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"os"
 
@@ -23,14 +23,16 @@ func dumpRaw(writer io.Writer, cmdCtx *cmdcontext.CmdCtx) error {
 		if err != nil {
 			return err
 		}
+
 		fileContent, err := os.ReadFile(cmdCtx.Cli.ConfigPath)
 		if err != nil {
 			return err
 		}
+
 		writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
 		writer.Write(fileContent)
 	} else {
-		return fmt.Errorf("tt configuration file is not found")
+		return errors.New("tt configuration file is not found")
 	}
 
 	return nil
@@ -45,7 +47,9 @@ func dumpConfiguration(writer io.Writer, cmdCtx *cmdcontext.CmdCtx,
 			writer.Write([]byte(cmdCtx.Cli.ConfigPath + ":\n"))
 		}
 	}
+
 	err := yaml.NewEncoder(writer).Encode(cliOpts)
+
 	return err
 }
 
@@ -56,5 +60,6 @@ func RunDump(writer io.Writer, cmdCtx *cmdcontext.CmdCtx, dumpCtx *DumpCtx,
 	if dumpCtx.RawDump {
 		return dumpRaw(writer, cmdCtx)
 	}
+
 	return dumpConfiguration(writer, cmdCtx, cliOpts)
 }

@@ -2,6 +2,7 @@ package cluster_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,6 +40,7 @@ func tcsIsSupported(t *testing.T) bool {
 	if err != nil {
 		t.Fatalf("Failed to check if TCS is supported: %s", err)
 	}
+
 	return ok
 }
 
@@ -52,6 +54,7 @@ func stopTcs(t *testing.T, inst any) {
 	if !ok {
 		t.Fatalf("Shutdown expected *tcs_helper.TCS, got %T", inst)
 	}
+
 	tcs.Stop()
 }
 
@@ -66,6 +69,7 @@ type etcdOpts struct {
 func doWithCtx(action func(context.Context) error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
 	return action(ctx)
 }
 
@@ -78,21 +82,29 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 	}
 
 	var tls *transport.TLSInfo
+
 	if opts.CaFile != "" || opts.CertFile != "" || opts.KeyFile != "" {
 		tls = &transport.TLSInfo{}
+
 		if opts.CaFile != "" {
 			caPath := filepath.Join(myDir, opts.CaFile)
+
 			tls.TrustedCAFile = caPath
 		}
+
 		if opts.CertFile != "" {
 			certPath := filepath.Join(myDir, opts.CertFile)
+
 			tls.CertFile = certPath
 		}
+
 		if opts.KeyFile != "" {
 			keyPath := filepath.Join(myDir, opts.KeyFile)
+
 			tls.KeyFile = keyPath
 		}
 	}
+
 	config := etcdtest.ClusterConfig{Size: 1, PeerTLS: tls}
 	inst := etcdtest.NewLazyCluster(config)
 
@@ -101,6 +113,7 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 			Endpoints: inst.EndpointsGRPC(),
 		})
 		require.NoError(t, err)
+
 		defer etcd.Close()
 
 		if err := doWithCtx(func(ctx context.Context) error {
@@ -113,18 +126,20 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 
 		if opts.Username != "root" {
 			// We need the root user for auth enable anyway.
-			if err := doWithCtx(func(ctx context.Context) error {
+			err = doWithCtx(func(ctx context.Context) error {
 				_, err := etcd.UserAdd(ctx, "root", "")
 				return err
-			}); err != nil {
+			})
+			if err != nil {
 				inst.Terminate()
 				t.Fatalf("Failed to create root in etcd: %s", err)
 			}
 
-			if err := doWithCtx(func(ctx context.Context) error {
+			err := doWithCtx(func(ctx context.Context) error {
 				_, err := etcd.UserGrantRole(ctx, "root", "root")
 				return err
-			}); err != nil {
+			})
+			if err != nil {
 				inst.Terminate()
 				t.Fatalf("Failed to grant root in etcd: %s", err)
 			}
@@ -152,10 +167,12 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 
 func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 	t.Helper()
+
 	var (
 		pResp *clientv3.PutResponse
 		err   error
 	)
+
 	doWithCtx(func(ctx context.Context) error {
 		pResp, err = etcd.Put(ctx, key, value)
 		return nil
@@ -166,20 +183,25 @@ func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 
 func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
 	t.Helper()
+
 	var (
 		resp *clientv3.GetResponse
 		err  error
 	)
+
 	doWithCtx(func(ctx context.Context) error {
 		resp, err = etcd.Get(ctx, key)
 		return nil
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
+
 	if len(resp.Kvs) == 0 {
 		return []byte(""), 0
 	}
+
 	require.Len(t, resp.Kvs, 1)
+
 	return resp.Kvs[0].Value, resp.Kvs[0].ModRevision
 }
 
@@ -213,7 +235,9 @@ func TestEtcdCollectors_single(t *testing.T) {
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/bar", "foo: bar")
@@ -231,7 +255,9 @@ func TestEtcdCollectors_single(t *testing.T) {
 			data, err := tc.Collector.Collect()
 			require.NoError(t, err)
 			require.Len(t, data, 1)
+
 			var parsed map[string]any
+
 			require.NoError(t, yamlUnmarshal(data[0].Value, &parsed))
 			assert.Equal(t, "bar", parsed["foo"])
 		})
@@ -245,8 +271,10 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	endpoints := inst.EndpointsGRPC()
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
+
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
 	require.NotNil(t, etcd)
+
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/a", "foo: bar")
@@ -256,11 +284,14 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	require.NoError(t, err)
 	// Two separate etcd keys → two Data entries.
 	require.Len(t, data, 2)
+
 	// Each entry should contain valid YAML.
 	for _, d := range data {
 		var parsed map[string]any
+
 		require.NoError(t, yamlUnmarshal(d.Value, &parsed))
 	}
+
 	// Verify that the first-wins key ("foo") comes from the alphabetically
 	// first key ("/foo/config/a") in the raw data returned by the collector.
 	parsed0 := map[string]any{}
@@ -275,8 +306,10 @@ func TestEtcdCollectors_empty(t *testing.T) {
 	endpoints := inst.EndpointsGRPC()
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	defer etcd.Close()
 
 	cases := []struct {
@@ -304,7 +337,9 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+
 	defer etcd.Close()
 
 	data := []byte("foo bar")
@@ -322,6 +357,7 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 			err = tc.Publisher.Publish(0, data)
 
 			assert.NoError(t, err)
+
 			actual, _ := etcdGet(t, etcd, "/foo/config/"+tc.Key)
 			assert.Equal(t, data, actual)
 		})
@@ -336,7 +372,9 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+
 	defer etcd.Close()
 
 	oldData := []byte("foo bar zoo")
@@ -354,8 +392,10 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			err = tc.Publisher.Publish(0, oldData)
 			require.NoError(t, err)
+
 			err = tc.Publisher.Publish(0, newData)
 			assert.NoError(t, err)
+
 			actual, _ := etcdGet(t, etcd, "/foo/config/"+tc.Key)
 			assert.Equal(t, newData, actual)
 		})
@@ -370,13 +410,16 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/foo", "foo")
 	etcdPut(t, etcd, "/foo/config/zoo", "zoo")
 
 	data := []byte("zoo bar foo")
+
 	err = newEtcdPublisher(t, stor, "/foo/", "", timeout).Publish(0, data)
 	require.NoError(t, err)
 
@@ -398,10 +441,13 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/key", "bar")
+
 	_, modRevision := etcdGet(t, etcd, "/foo/config/key")
 
 	data := []byte("baz")
@@ -410,12 +456,14 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 	// Use wrong revision.
 	err = publisher.Publish(modRevision-1, data)
 	assert.Errorf(t, err, "failed to put data into etcd: wrong revision")
+
 	actual, _ := etcdGet(t, etcd, "/foo/config/key")
 	assert.Equal(t, []byte("bar"), actual)
 
 	// Use right revision.
 	err = publisher.Publish(modRevision, data)
 	assert.NoError(t, err)
+
 	actual, _ = etcdGet(t, etcd, "/foo/config/key")
 	assert.Equal(t, data, actual)
 }
@@ -428,13 +476,16 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/", "foo")
 	etcdPut(t, etcd, "/foo/config/foo", "zoo")
 
 	data := []byte("zoo bar foo")
+
 	err = newEtcdPublisher(t, stor, "/foo/", "all", timeout).Publish(0, data)
 
 	assert.NoError(t, err)
@@ -457,7 +508,9 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	etcd, err := clientv3.New(clientv3.Config{Endpoints: endpoints})
 	require.NoError(t, err)
 	require.NotNil(t, etcd)
+
 	stor := pkgstorage.NewStorage(etcddriver.New(etcd))
+
 	defer etcd.Close()
 
 	etcdPut(t, etcd, "/foo/config/foo", "zoo: bar")
@@ -470,12 +523,15 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	data, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, data, 1)
+
 	var parsed map[string]any
+
 	require.NoError(t, yamlUnmarshal(data[0].Value, &parsed))
 	assert.Equal(t, "bar", parsed["zoo"])
 
 	// Publish new data.
 	newConfig := []byte("foo: bar\n")
+
 	err = publisher.Publish(0, newConfig)
 	assert.NoError(t, err)
 
@@ -483,9 +539,11 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	data, err = collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, data, 1)
+
 	parsed = map[string]any{}
 	require.NoError(t, yamlUnmarshal(data[0].Value, &parsed))
 	assert.Equal(t, "bar", parsed["foo"])
+
 	_, hasFoo := parsed["zoo"]
 	assert.False(t, hasFoo)
 }
@@ -493,29 +551,29 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 var testsIntegrity = []struct {
 	Name         string
 	Applicable   func(t *testing.T) bool
-	Setup        func(t *testing.T) interface{}
-	Shutdown     func(t *testing.T, inst interface{})
+	Setup        func(t *testing.T) any
+	Shutdown     func(t *testing.T, inst any)
 	NewPublisher func(
 		t *testing.T,
 		integrityOpts cluster.IntegrityOptions,
 		prefix, key string,
-		inst interface{},
+		inst any,
 	) (cluster.DataPublisher, func())
 	NewCollector func(
 		t *testing.T,
 		integrityOpts cluster.IntegrityOptions,
 		prefix, key string,
-		inst interface{},
+		inst any,
 	) (cluster.DataCollector, func())
 }{
 	{
 		Name:       "tarantool",
 		Applicable: tcsIsSupported,
-		Setup: func(t *testing.T) interface{} {
+		Setup: func(t *testing.T) any {
 			inst := startTcs(t)
 			return inst
 		},
-		Shutdown: func(t *testing.T, inst interface{}) {
+		Shutdown: func(t *testing.T, inst any) {
 			stopTcs(t, inst)
 		},
 		NewPublisher: func(
@@ -523,7 +581,7 @@ var testsIntegrity = []struct {
 			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
-			inst interface{},
+			inst any,
 		) (cluster.DataPublisher, func()) {
 			tcs, ok := inst.(*tcs_helper.TCS)
 			if !ok {
@@ -554,12 +612,13 @@ var testsIntegrity = []struct {
 			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
-			inst interface{},
+			inst any,
 		) (cluster.DataCollector, func()) {
 			tcs, ok := inst.(*tcs_helper.TCS)
 			if !ok {
 				t.Fatalf("NewCollector expected *tcs_helper.TCS, got %T", inst)
 			}
+
 			collectorFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
@@ -583,11 +642,11 @@ var testsIntegrity = []struct {
 	{
 		Name:       "etcd",
 		Applicable: func(t *testing.T) bool { return true },
-		Setup: func(t *testing.T) interface{} {
+		Setup: func(t *testing.T) any {
 			inst := startEtcd(t, etcdOpts{})
 			return inst
 		},
-		Shutdown: func(t *testing.T, inst interface{}) {
+		Shutdown: func(t *testing.T, inst any) {
 			inst.(*etcdtest.LazyCluster).Terminate()
 		},
 		NewPublisher: func(
@@ -595,7 +654,7 @@ var testsIntegrity = []struct {
 			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
-			inst interface{},
+			inst any,
 		) (cluster.DataPublisher, func()) {
 			publisherFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
@@ -619,7 +678,7 @@ var testsIntegrity = []struct {
 			integrityOpts cluster.IntegrityOptions,
 			prefix,
 			key string,
-			inst interface{},
+			inst any,
 		) (cluster.DataCollector, func()) {
 			collectorFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
@@ -715,6 +774,7 @@ func requireDataEqualIgnoreRevision(t *testing.T, expected, actual []cluster.Dat
 	t.Helper()
 
 	require.Len(t, actual, len(expected))
+
 	for i := range expected {
 		require.Equal(t, expected[i].Source, actual[i].Source)
 		require.Equal(t, expected[i].Value, actual[i].Value)
@@ -927,7 +987,7 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 					Verifiers: []gcrypto.Verifier{
 						failingSignerVerifier{
 							name: "sig",
-							err:  fmt.Errorf("any error"),
+							err:  errors.New("any error"),
 						},
 					},
 				}, testPrefix, "", inst)
@@ -965,7 +1025,7 @@ func TestIntegrityDataPublisher_CollectorKey_check_error(t *testing.T) {
 					Verifiers: []gcrypto.Verifier{
 						failingSignerVerifier{
 							name: "sig",
-							err:  fmt.Errorf("any error"),
+							err:  errors.New("any error"),
 						},
 					},
 				}, testPrefix, "all", inst)
@@ -996,7 +1056,7 @@ func TestIntegrityDataPublisherKey_sign_error(t *testing.T) {
 					SignerVerifiers: []gcrypto.SignerVerifier{
 						failingSignerVerifier{
 							name: "sig",
-							err:  fmt.Errorf("any error"),
+							err:  errors.New("any error"),
 						},
 					},
 				}, testPrefix, "bar", inst)
@@ -1027,7 +1087,7 @@ func TestIntegrityDataPublisherAll_sign_error(t *testing.T) {
 					SignerVerifiers: []gcrypto.SignerVerifier{
 						failingSignerVerifier{
 							name: "sig",
-							err:  fmt.Errorf("any error"),
+							err:  errors.New("any error"),
 						},
 					},
 				}, testPrefix, "", inst)

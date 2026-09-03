@@ -1,6 +1,7 @@
 package pack
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -69,9 +70,7 @@ default = true
 		"README.md":      "readme body",
 		"LICENSE":        "license body",
 	}
-	for k, v := range extra {
-		files[k] = v
-	}
+	maps.Copy(files, extra)
 
 	writeTree(t, dir, files)
 
@@ -147,6 +146,7 @@ func TestStageWithoutDeps(t *testing.T) {
 	stageDir := t.TempDir()
 
 	req := baseRequest(projectDir, man, tree)
+
 	req.WithDeps = false
 
 	require.NoError(t, stage(stageDir, req))
@@ -285,6 +285,7 @@ func TestCopyTreeRefusesSelfNesting(t *testing.T) {
 // metadata with the package's file — silent archive corruption.
 func TestStageReservedNameIsCaseInsensitive(t *testing.T) {
 	projectDir, man := testProject(t, map[string]string{"version": "NOT THE VERSION"})
+
 	man.Package.Include = []string{"version"}
 
 	err := stage(t.TempDir(), baseRequest(projectDir, man, filepath.Join(projectDir, ".rocks")))
@@ -302,6 +303,7 @@ func TestStageWithoutDepsRejectsFlatNamespace(t *testing.T) {
 	tree := testTree(t, projectDir)
 
 	req := baseRequest(projectDir, man, tree)
+
 	req.WithDeps = false
 	req.HasFlatNamespace = true
 
@@ -318,6 +320,7 @@ func TestStageWithDepsAllowsFlatNamespace(t *testing.T) {
 	tree := testTree(t, projectDir)
 
 	req := baseRequest(projectDir, man, tree)
+
 	req.HasFlatNamespace = true
 
 	require.NoError(t, stage(t.TempDir(), req))

@@ -1,6 +1,7 @@
 package search
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -43,6 +44,7 @@ func (bundles BundleInfoSlice) Len() int {
 func (bundles BundleInfoSlice) Less(i, j int) bool {
 	verLeft := bundles[i].Version
 	verRight := bundles[j].Version
+
 	return Less(verLeft, verRight)
 }
 
@@ -61,8 +63,9 @@ func Less(verLeft, verRight version.Version) bool {
 
 	largestLen := util.Max(len(left), len(right))
 
-	for i := 0; i < largestLen; i++ {
+	for i := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
+
 		if i < len(left) {
 			valLeft = left[i]
 		}
@@ -93,6 +96,7 @@ func compileVersionRegexp(prg Program) (*regexp.Regexp, error) {
 	}
 
 	re := regexp.MustCompile(expr)
+
 	return re, nil
 }
 
@@ -128,10 +132,12 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 					pkg,
 					err,
 				)
+
 				continue
 			}
 
 			version.Tarball = pkg
+
 			eeVer := BundleInfo{
 				Version: version,
 				Package: searchCtx.Package,
@@ -155,7 +161,7 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 	}
 
 	if len(bundles) == 0 {
-		return nil, fmt.Errorf("no packages found for this OS or release version")
+		return nil, errors.New("no packages found for this OS or release version")
 	}
 
 	sort.Sort(bundles)
@@ -175,6 +181,7 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 	}
 
 	var credPath string
+
 	if cliOpts.EE != nil {
 		credPath = cliOpts.EE.CredPath
 	}
@@ -201,8 +208,9 @@ func FetchBundlesInfo(searchCtx *SearchCtx, cliOpts *config.CliOpts) (
 // If no version is specified, it returns the latest version.
 func SelectVersion(bs BundleInfoSlice, ver string) (BundleInfo, error) {
 	if bs == nil || bs.Len() == 0 {
-		return BundleInfo{}, fmt.Errorf("no available versions")
+		return BundleInfo{}, errors.New("no available versions")
 	}
+
 	if ver == "" {
 		// No version specified, return the latest one.
 		return bs[bs.Len()-1], nil

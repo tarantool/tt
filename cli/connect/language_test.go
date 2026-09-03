@@ -36,6 +36,7 @@ func TestLanguage_ParseLanguage(t *testing.T) {
 		t.Run(c.str, func(t *testing.T) {
 			lang, ok := ParseLanguage(c.str)
 			assert.Equal(t, c.ok, ok, "Unexpected result")
+
 			if ok {
 				assert.Equal(t, c.expected, lang, "Unexpected language")
 			}
@@ -70,13 +71,13 @@ func TestLanguage_String(t *testing.T) {
 
 type inputEvaler struct {
 	fun  string
-	args []interface{}
+	args []any
 	opts connector.RequestOpts
 }
 
 func (evaler *inputEvaler) Eval(fun string,
-	args []interface{}, opts connector.RequestOpts,
-) ([]interface{}, error) {
+	args []any, opts connector.RequestOpts,
+) ([]any, error) {
 	evaler.fun = fun
 	evaler.args = args
 	evaler.opts = opts
@@ -87,6 +88,7 @@ func (evaler *inputEvaler) Eval(fun string,
 func TestChangeLanguage_requestInputs(t *testing.T) {
 	rawFun, err := os.ReadFile("./internal/luabody/eval_func_body.lua")
 	require.NoError(t, err, "Failed to read lua file")
+
 	rawFunStr := string(rawFun)
 	expectedFun, err := luabody.GetTemplatedStr(rawFunStr, map[string]string{})
 	require.NoError(t, err, "Failed to render eval func body template")
@@ -113,37 +115,39 @@ func TestChangeLanguage_requestInputs(t *testing.T) {
 }
 
 type outputEvaler struct {
-	ret []interface{}
+	ret []any
 	err error
 }
 
-func (evaler outputEvaler) Eval(f string, a []interface{},
+func (evaler outputEvaler) Eval(f string, a []any,
 	o connector.RequestOpts,
-) ([]interface{}, error) {
+) ([]any, error) {
 	return evaler.ret, evaler.err
 }
 
 func TestChangeLanguage_requestOutputsValid(t *testing.T) {
-	evaler := outputEvaler{ret: []interface{}{"- true"}}
+	evaler := outputEvaler{ret: []any{"- true"}}
 	assert.NoError(t, ChangeLanguage(evaler, LuaLanguage))
 }
 
 func TestChangeLanguage_requestOutputsInvalid(t *testing.T) {
+	const repeatedTrueYAML = "- true\n  " + "true"
+
 	cases := []struct {
-		ret      []interface{}
+		ret      []any
 		err      error
 		expected string
 	}{
 		{nil, nil, "unexpected response: empty"},
 		{nil, errors.New("any error"), "any error"},
-		{[]interface{}{true}, nil, "unexpected response: [true]"},
-		{[]interface{}{",,,"}, nil, "unable to decode response: yaml:" +
+		{[]any{true}, nil, "unexpected response: [true]"},
+		{[]any{",,,"}, nil, "unable to decode response: yaml:" +
 			" did not find expected node content"},
-		{[]interface{}{"true"}, nil, "unexpected response: true"},
-		{[]interface{}{"- true", "- true"}, nil, "unexpected response: [- true - true]"},
-		{[]interface{}{"- true\n  true"}, nil, "unexpected response: - true\n  true"},
-		{[]interface{}{"- 123"}, nil, "unexpected response: - 123"},
-		{[]interface{}{"- false"}, nil, "\\set language lua returns false"},
+		{[]any{"true"}, nil, "unexpected response: true"},
+		{[]any{"- true", "- true"}, nil, "unexpected response: [- true - true]"},
+		{[]any{repeatedTrueYAML}, nil, "unexpected response: " + repeatedTrueYAML},
+		{[]any{"- 123"}, nil, "unexpected response: - 123"},
+		{[]any{"- false"}, nil, "\\set language lua returns false"},
 	}
 
 	for _, c := range cases {

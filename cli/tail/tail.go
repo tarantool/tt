@@ -45,10 +45,12 @@ func (t *tailer) Read(ctx context.Context, lines int) (<-chan string, error) {
 func NewLogFormatter(prefix string, color color.Color) LogFormatter {
 	buf := strings.Builder{}
 	buf.Grow(512)
+
 	return func(str string) string {
 		buf.Reset()
 		color.Fprint(&buf, prefix)
 		buf.WriteString(str)
+
 		return buf.String()
 	}
 }
@@ -74,6 +76,7 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 
 	buf := make([]byte, blockSize)
 	linesFound := 0
+
 	for readOffset != 0 && linesFound != count {
 		select {
 		case <-ctx.Done():
@@ -82,19 +85,25 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 		}
 
 		limitedReader := io.LimitedReader{R: reader, N: int64(len(buf))}
+
 		readOffset -= limitedReader.N
+
 		if readOffset < 0 {
 			limitedReader.N += readOffset
+
 			readOffset = 0
 		}
+
 		readOffset, err = reader.Seek(readOffset, io.SeekStart)
 		if err != nil {
 			return nil, 0, err
 		}
+
 		readBytes, err := limitedReader.Read(buf)
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, startPos, fmt.Errorf("failed to read: %s", err)
+			return nil, startPos, fmt.Errorf("failed to read: %w", err)
 		}
+
 		for i := readBytes - 1; i > 0; i-- {
 			if buf[i] == '\n' {
 				// In case of \n\n\n bytes, start position should not be moved one byte forward.
@@ -111,11 +120,15 @@ func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Rea
 			}
 		}
 	}
+
 	if linesFound == count {
 		reader.Seek(startPos, io.SeekStart)
+
 		return &io.LimitedReader{R: reader, N: end - startPos}, startPos, nil
 	}
+
 	reader.Seek(0, io.SeekStart)
+
 	return &io.LimitedReader{R: reader, N: end}, 0, nil
 }
 
@@ -124,7 +137,7 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 	n int,
 ) (<-chan string, error) {
 	if n < 0 {
-		return nil, fmt.Errorf("negative lines count is not supported")
+		return nil, errors.New("negative lines count is not supported")
 	}
 
 	file, err := os.Open(fileName)
@@ -135,14 +148,17 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 	reader, _, err := newTailReader(ctx, file, n)
 	if err != nil {
 		file.Close()
+
 		return nil, err
 	}
 
 	scanner := bufio.NewScanner(reader)
 	out := make(chan string, 8)
+
 	go func() {
 		defer close(out)
 		defer file.Close()
+
 		for scanner.Scan() {
 			select {
 			case <-ctx.Done():
@@ -151,6 +167,7 @@ func TailN(ctx context.Context, logFormatter LogFormatter, fileName string,
 			}
 		}
 	}()
+
 	return out, nil
 }
 
@@ -184,14 +201,13 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 		return err
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			select {
 			case <-ctx.Done():
 				t.Stop()
 				t.Wait()
+
 				return
 			case line, more := <-t.Lines:
 				if !more {
@@ -201,11 +217,14 @@ func Follow(ctx context.Context, out chan<- string, logFormatter LogFormatter, f
 					} else {
 						log.Errorf("The log file %q is unavailable for reading. Exiting.")
 					}
+
 					return
 				}
+
 				out <- logFormatter(line.Text)
 			}
 		}
-	}()
+	})
+
 	return nil
 }

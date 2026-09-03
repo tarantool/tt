@@ -1,6 +1,7 @@
 package replicasetcmd
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -32,6 +33,7 @@ func getReplicasets(ctx DiscoveryCtx) (replicaset.Replicasets, error) {
 	}
 
 	var orchestrator replicasetOrchestrator
+
 	if ctx.IsApplication {
 		orchestrator, err = makeApplicationOrchestrator(orchestratorType,
 			ctx.RunningCtx, libcluster.Factory{}, libcluster.Factory{}, integrity.IntegrityCtx{})
@@ -59,7 +61,7 @@ func Status(discoveryCtx DiscoveryCtx) error {
 // statusReplicasets show the current status of known replicasets.
 func statusReplicasets(replicasets replicaset.Replicasets) error {
 	if replicasets.State == replicaset.StateUnknown {
-		return fmt.Errorf("unknown or empty replicasets configuration")
+		return errors.New("unknown or empty replicasets configuration")
 	}
 
 	fmt.Println("Orchestrator:     ", replicasets.Orchestrator)
@@ -71,9 +73,11 @@ func statusReplicasets(replicasets replicaset.Replicasets) error {
 	if len(replicasets.Replicasets) > 0 {
 		fmt.Println()
 	}
+
 	for _, replicaset := range replicasets.Replicasets {
 		fmt.Print(replicasetToString(replicaset))
 	}
+
 	return nil
 }
 
@@ -103,33 +107,46 @@ func sortAliases(replicasets replicaset.Replicasets) replicaset.Replicasets {
 			return replicaset.Instances[i].Alias < replicaset.Instances[j].Alias
 		})
 	}
+
 	sort.Slice(replicasets.Replicasets, func(i, j int) bool {
 		return replicasets.Replicasets[i].Alias < replicasets.Replicasets[j].Alias
 	})
+
 	return replicasets
 }
 
 // replicasetToString returns a string representation of a replicaset.
 func replicasetToString(replicas replicaset.Replicaset) string {
 	ret := "• " + replicas.Alias + "\n"
+
 	ret += "  Failover: " + replicas.Failover.String() + "\n"
+
 	if replicas.StateProvider != replicaset.StateProviderUnknown {
 		ret += "  Provider: " + replicas.StateProvider.String() + "\n"
 	}
+
 	if replicas.Master != replicaset.MasterUnknown {
 		ret += "  Master:   " + replicas.Master.String() + "\n"
 	}
+
 	if len(replicas.Roles) > 0 {
 		ret += "  Roles:    " + strings.Join(replicas.Roles, ", ") + "\n"
 	}
+
+	var retSb125 strings.Builder
+
 	for _, instance := range replicas.Instances {
 		if replicas.LeaderUUID != "" && replicas.LeaderUUID == instance.UUID {
-			ret += "    ★ "
+			retSb125.WriteString("    ★ ")
 		} else {
-			ret += "    • "
+			retSb125.WriteString("    • ")
 		}
-		ret += instanceToString(instance) + "\n"
+
+		retSb125.WriteString(instanceToString(instance) + "\n")
 	}
+
+	ret += retSb125.String()
+
 	return ret
 }
 

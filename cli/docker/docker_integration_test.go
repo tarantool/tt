@@ -5,10 +5,8 @@ package docker
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	mobyclient "github.com/moby/moby/client"
@@ -20,22 +18,26 @@ func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client, expe
 	ctx := context.Background()
 	imageListResult, err := dockerClient.ImageList(ctx, mobyclient.ImageListOptions{})
 	require.NoError(t, err)
+
 	imgFound := false
+
 	for _, img := range imageListResult.Items {
 		for _, imgTag := range img.RepoTags {
 			if imgTag == "ubuntu:tt_test" {
 				imgFound = true
+
 				dockerClient.ImageRemove(ctx, img.ID, mobyclient.ImageRemoveOptions{})
 			}
 		}
 	}
+
 	require.True(t, imgFound)
 }
 
 func TestBuildImage(t *testing.T) {
-	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
-		mobyclient.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.New(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
+
 	defer dockerClient.Close()
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", false,
@@ -51,20 +53,20 @@ func TestBuildImageFail(t *testing.T) {
 	COPY /non-existing-file /
 	`), 0o664))
 
-	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
-		mobyclient.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.New(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
+
 	defer dockerClient.Close()
 
 	err = buildDockerImage(dockerClient, "ubuntu:tt_test", tmpDir, false, os.Stdout)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "COPY failed"))
+	require.Contains(t, err.Error(), "COPY failed")
 }
 
 func TestBuildImageOutputVerbose(t *testing.T) {
-	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
-		mobyclient.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.New(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
+
 	defer dockerClient.Close()
 
 	tmpDir := t.TempDir()
@@ -77,21 +79,23 @@ func TestBuildImageOutputVerbose(t *testing.T) {
 
 	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
+
 	defer in.Close()
+
 	scanner := bufio.NewScanner(in)
 	require.True(t, scanner.Scan())
 	require.Equal(t, "Step 1/1 : FROM ubuntu:16.04", scanner.Text())
 	require.True(t, scanner.Scan())
 	require.True(t, scanner.Scan())
-	require.True(t, strings.Contains(scanner.Text(), "Successfully built"))
+	require.Contains(t, scanner.Text(), "Successfully built")
 	require.True(t, scanner.Scan())
 	require.Equal(t, "Successfully tagged ubuntu:tt_test", scanner.Text())
 }
 
 func TestBuildImageOutput(t *testing.T) {
-	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
-		mobyclient.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.New(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
+
 	defer dockerClient.Close()
 
 	tmpDir := t.TempDir()
@@ -104,15 +108,18 @@ func TestBuildImageOutput(t *testing.T) {
 
 	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
+
 	defer in.Close()
+
 	scanner := bufio.NewScanner(in)
 	require.False(t, scanner.Scan())
 }
 
 func checkNoContainers(t *testing.T, imageTag string) {
 	ctx := context.Background()
-	cli, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
+	cli, err := mobyclient.New(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
 	require.NoError(t, err)
+
 	defer cli.Close()
 
 	containerListResult, err := cli.ContainerList(ctx, mobyclient.ContainerListOptions{
@@ -121,6 +128,7 @@ func checkNoContainers(t *testing.T, imageTag string) {
 		},
 	})
 	require.NoError(t, err)
+
 	containerFound := len(containerListResult.Items) > 0
 	require.False(t, containerFound)
 }
@@ -132,7 +140,7 @@ func TestRunContainer(t *testing.T) {
 		BuildCtxDir: "testdata",
 		ImageTag:    "ubuntu:tt_test",
 		Command:     []string{"touch", "/work/file_from_container"},
-		Binds:       []string{fmt.Sprintf("%s:/work", tmpDir)},
+		Binds:       []string{tmpDir + ":/work"},
 	}, os.Stdout)
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(tmpDir, "file_from_container"))
@@ -149,9 +157,9 @@ func TestRunContainerInvalidDockerfile(t *testing.T) {
 		BuildCtxDir: tmpDir,
 		ImageTag:    "ubuntu:tt_test",
 		Command:     []string{"touch", "/work/file_from_container"},
-		Binds:       []string{fmt.Sprintf("%s:/work", tmpDir)},
+		Binds:       []string{tmpDir + ":/work"},
 	}, os.Stdout)
-	require.True(t, strings.Contains(err.Error(), "dockerfile parse error"))
+	require.Contains(t, err.Error(), "dockerfile parse error")
 	assert.NoFileExists(t, filepath.Join(tmpDir, "file_from_container"))
 }
 
@@ -162,7 +170,7 @@ func TestRunContainerFailContainerCommand(t *testing.T) {
 		BuildCtxDir: "testdata",
 		ImageTag:    "ubuntu:tt_test",
 		Command:     []string{"touch", "/file_in_root"},
-		Binds:       []string{fmt.Sprintf("%s:/work", tmpDir)},
+		Binds:       []string{tmpDir + ":/work"},
 	}, os.Stdout)
 	require.Error(t, err)
 
@@ -176,7 +184,7 @@ func TestRunContainerNotExistingBind(t *testing.T) {
 		BuildCtxDir: "testdata",
 		ImageTag:    "ubuntu:tt_test",
 		Command:     []string{"touch", "/work/file_from_container"},
-		Binds:       []string{fmt.Sprintf("%s:/work", filepath.Join(tmpDir, "non_existing_dir"))},
+		Binds:       []string{filepath.Join(tmpDir, "non_existing_dir") + ":/work"},
 	}, os.Stdout)
 	require.NoError(t, err)
 	assert.FileExists(t, filepath.Join(tmpDir, "non_existing_dir", "file_from_container"))

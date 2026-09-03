@@ -23,6 +23,7 @@ func TestFormatter_ParseTableDialect(t *testing.T) {
 		t.Run(c.str, func(t *testing.T) {
 			format, ok := formatter.ParseTableDialect(c.str)
 			assert.Equal(t, c.ok, ok, "Unexpected result")
+
 			if ok {
 				assert.Equal(t, c.expected, format, "Unexpected table dialect")
 			}

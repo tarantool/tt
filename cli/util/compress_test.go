@@ -12,6 +12,7 @@ import (
 func TestExtractTgz(t *testing.T) {
 	tempDir := t.TempDir()
 	require.NoError(t, ExtractTarGz(filepath.Join("testdata", "arch.tgz"), tempDir))
+
 	/* Archive file tree:
 	.
 	├── file_link -> file.sh
@@ -21,7 +22,8 @@ func TestExtractTgz(t *testing.T) {
 	*/
 	stat, err := os.Stat(filepath.Join(tempDir, "test_archive", "file.sh"))
 	require.NoError(t, err)
-	assert.True(t, stat.Mode().Perm()&0o100 != 0) // Executable bit is set.
+	assert.NotEqual(t, 0, stat.Mode().Perm()&0o100) // Executable bit is set.
+
 	linkTarget, err := os.Readlink(filepath.Join(tempDir, "test_archive", "file_link"))
 	require.NoError(t, err)
 	assert.Equal(t, "file.sh", linkTarget)

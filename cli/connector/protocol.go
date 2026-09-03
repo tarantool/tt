@@ -65,5 +65,6 @@ func ParseProtocol(greeting string) (Protocol, bool) {
 			return TextProtocol, true
 		}
 	}
+
 	return BinaryProtocol, false
 }

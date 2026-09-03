@@ -50,14 +50,15 @@ func TestGetList(t *testing.T) {
 
 	cliOpts, _, err := configure.GetCliOpts(cfgPath, &mockRepository{})
 	require.NoError(t, err)
+
 	result := GetList(cliOpts, "tt")
-	assert.Equal(result, []string{"1.2.3"})
+	assert.Equal([]string{"1.2.3"}, result)
 
 	result = GetList(cliOpts, "tarantool")
-	assert.Equal(result, []string{"1.2.10"})
+	assert.Equal([]string{"1.2.10"}, result)
 
 	result = GetList(cliOpts, "tarantool-ee")
-	assert.Equal(result, []string{"master"})
+	assert.Equal([]string{"master"}, result)
 }
 
 func TestSearchLatestVersion(t *testing.T) {

@@ -95,8 +95,9 @@ func (process *Process) IsChild() bool {
 func (process *Process) Start() error {
 	if process.IsChild() {
 		var err error
+
 		if process.logger, err = ttlog.NewFileLogger(process.logOpts); err != nil {
-			return fmt.Errorf("failed to create log: %s", err)
+			return fmt.Errorf("failed to create log: %w", err)
 		}
 
 		if err := process_utils.CreatePIDFile(process.pidFileName, os.Getpid()); err != nil {
@@ -107,18 +108,23 @@ func (process *Process) Start() error {
 		process.worker.SetLogger(process.logger)
 
 		go process.worker.Start(process.cmdPath)
+
 		process.startSignalHandling()
+
 		return nil
 	}
 
-	if err := process_utils.CheckPIDFile(process.pidFileName); err != nil {
+	err := process_utils.CheckPIDFile(process.pidFileName)
+	if err != nil {
 		return err
 	}
 
 	cmd := exec.Command(process.cmdPath, process.cmdArgs...)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=true", process.DaemonTag))
 
-	if err := cmd.Start(); err != nil {
+	cmd.Env = append(os.Environ(), process.DaemonTag+"=true")
+
+	err = cmd.Start()
+	if err != nil {
 		return err
 	}
 
@@ -128,12 +134,15 @@ func (process *Process) Start() error {
 // Stop stops the process.
 func (process *Process) Stop() {
 	process.logger.Println(stopDaemonMsg)
+
 	done := make(chan error, 1)
+
 	go func() {
 		done <- process.worker.Stop()
 	}()
 
 	os.Remove(process.pidFileName)
+
 	_ = os.Unsetenv(process.DaemonTag)
 
 	err := <-done
@@ -141,5 +150,6 @@ func (process *Process) Stop() {
 		process.logger.Println(err.Error())
 		os.Exit(1)
 	}
+
 	os.Exit(0)
 }

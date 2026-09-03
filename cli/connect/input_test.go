@@ -15,6 +15,7 @@ func TestNewLuaValidator(t *testing.T) {
 
 func TestNewLuaValidator_implementsValidateCloser(t *testing.T) {
 	var s ValidateCloser = NewLuaValidator()
+
 	defer s.Close()
 }
 
@@ -138,17 +139,22 @@ func (m *ValidatorMock) Validate(str string) bool {
 
 func TestAddStmtPart(t *testing.T) {
 	validator := &ValidatorMock{}
-	const stmt = "1part"
-	const part = "2part"
-	const expected = "1part\n2part"
+
+	const (
+		stmt     = "1part"
+		part     = "2part"
+		expected = "1part\n2part"
+	)
 
 	for _, c := range []bool{false, true} {
 		name := "false"
 		if c == true {
 			name = "true"
 		}
+
 		t.Run(name, func(t *testing.T) {
 			validator.ret = c
+
 			result, completed := AddStmtPart(stmt, part, "", validator)
 			assert.Equal(t, expected, result)
 			assert.Equal(t, c, completed)
@@ -176,8 +182,10 @@ func TestAddStmtPart_luaValidator(t *testing.T) {
 	}
 
 	stmt := ""
+
 	for _, part := range parts {
 		var completed bool
+
 		stmt, completed = AddStmtPart(stmt, part.str, "", validator)
 
 		assert.Equal(t, part.expected, stmt)
@@ -240,8 +248,10 @@ func TestAddStmtPart_luaValidator_Delimiter(t *testing.T) {
 	}
 
 	stmt := ""
+
 	for _, part := range parts {
 		var completed bool
+
 		stmt, completed = AddStmtPart(stmt, part.str, part.delim, validator)
 
 		assert.Equal(t, part.expected, stmt)

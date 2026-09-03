@@ -23,13 +23,15 @@ const subdirName = "subdir"
 func createArchive(buf io.Writer, files ...string) error {
 	gzipWriter := gzip.NewWriter(buf)
 	defer gzipWriter.Close()
+
 	tarWriter := tar.NewWriter(gzipWriter)
+
 	defer tarWriter.Close()
 
 	for _, fileName := range files {
 		err := addToArchive(tarWriter, fileName)
 		if err != nil {
-			return fmt.Errorf("error adding %s to archive: %s", fileName, err)
+			return fmt.Errorf("error adding %s to archive: %w", fileName, err)
 		}
 	}
 
@@ -70,17 +72,20 @@ func TestCopyTemplateDirectory(t *testing.T) {
 	dstDir := t.TempDir()
 	workDir2 := t.TempDir()
 
-	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
+	require.NoError(t, copy.Copy("testdata/copy_template", workDir2))
 
 	var createCtx create_ctx.CreateCtx
+
 	createCtx.TemplateName = "basic"
 	createCtx.TemplateSearchPaths = []string{dstDir, filepath.Join(workDir2, "templates")}
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = filepath.Join(dstDir, "app1")
 
 	// CopyAppTemplate must copy "src" template from workdir2 to workdir1 using "app1" as dst name.
 	copyAppTemplate := CopyAppTemplate{}
-	require.Nil(t, copyAppTemplate.Run(&createCtx, &templateCtx))
+	require.NoError(t, copyAppTemplate.Run(&createCtx, &templateCtx))
 	require.DirExists(t, templateCtx.AppPath)
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, "init.lua"))
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, subdirName, "file.txt"))
@@ -90,22 +95,26 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 	dstDir := t.TempDir()
 	workDir2 := t.TempDir()
 
-	require.Nil(t, copy.Copy("testdata/copy_template", workDir2))
+	require.NoError(t, copy.Copy("testdata/copy_template", workDir2))
 
 	var createCtx create_ctx.CreateCtx
+
 	createCtx.TemplateName = "basic"
 	createCtx.TemplateSearchPaths = []string{"./templates"}
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = filepath.Join(dstDir, "app1")
 
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	require.NoError(t, os.Chdir(workDir2))
+
 	defer os.Chdir(cwd)
 
 	// CopyAppTemplate must copy "src" template from workdir2 to workdir1 using "app1" as dst name.
 	copyAppTemplate := CopyAppTemplate{}
-	require.Nil(t, copyAppTemplate.Run(&createCtx, &templateCtx))
+	require.NoError(t, copyAppTemplate.Run(&createCtx, &templateCtx))
 	require.DirExists(t, templateCtx.AppPath)
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, "init.lua"))
 	require.FileExists(t, filepath.Join(templateCtx.AppPath, subdirName, "file.txt"))
@@ -113,6 +122,7 @@ func TestCopyTemplateDirectoryRelative(t *testing.T) {
 
 func TestExtractTemplateArchive(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	dstDir := t.TempDir()
@@ -130,6 +140,7 @@ func TestExtractTemplateArchive(t *testing.T) {
 	archivePath := filepath.Join(workDir, "tmpl.tgz")
 	archiveOut, err := os.Create(archivePath)
 	require.NoError(t, err)
+
 	defer archiveOut.Close()
 
 	require.NoError(t, createArchive(archiveOut, filepath.Join(srcDir, "file1.txt")))
@@ -151,6 +162,7 @@ func TestCopyEmbeddedFs(t *testing.T) {
 	assert.FileExists(t, filepath.Join(tmpDir, "init.lua"))
 	assert.FileExists(t, filepath.Join(tmpDir, "subdir", "file.txt"))
 	assert.FileExists(t, filepath.Join(tmpDir, "echo.sh"))
+
 	stat, err := os.Stat(filepath.Join(tmpDir, "echo.sh"))
 	require.NoError(t, err)
 	assert.Equal(t, fs.FileMode(0o644), stat.Mode().Perm())

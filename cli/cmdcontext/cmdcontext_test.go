@@ -118,16 +118,16 @@ func TestTtCli_GetVersion(t *testing.T) {
 			versionToCheck: "2131f7cc1de",
 			expectedVer:    version.Version{},
 			isErr:          true,
-			expectedErrMsg: fmt.Sprintf(`failed to parse version "2131f7cc1de\n":` +
-				` format is not valid`),
+			expectedErrMsg: `failed to parse version "2131f7cc1de\n":` +
+				` format is not valid`,
 		},
 		{
 			name:           "version does not match",
 			versionToCheck: "2.1.3.1.f7cc1de",
 			expectedVer:    version.Version{},
 			isErr:          true,
-			expectedErrMsg: fmt.Sprintf(`the version of "2.1.3.1" does not match` +
-				` <major>.<minor>.<patch> format`),
+			expectedErrMsg: `the version of "2.1.3.1" does not match` +
+				` <major>.<minor>.<patch> format`,
 		},
 		{
 			name:           "hash does not match",
@@ -152,6 +152,7 @@ func TestTtCli_GetVersion(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			require.Equal(t, tc.expectedVer, ttVersion)
 		})
 	}

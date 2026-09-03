@@ -37,6 +37,7 @@ func NewHistory(file string, maxCommands int) (History, error) {
 		timestamps:  make([]int64, 0),
 	}
 	err := h.load()
+
 	return h, err
 }
 
@@ -46,7 +47,9 @@ func DefaultHistoryFile() (History, error) {
 	if err != nil {
 		return History{}, fmt.Errorf("failed to get home directory: %w", err)
 	}
+
 	file := filepath.Join(dir, DefaultHistoryFileName)
+
 	return NewHistory(file, DefaultHistoryLines)
 }
 
@@ -54,12 +57,14 @@ func (h *History) load() error {
 	if !util.IsRegularFile(h.filepath) {
 		return nil
 	}
+
 	rawLines, err := util.GetLastNLines(h.filepath, h.maxCommands)
 	if err != nil {
 		return err
 	}
 
 	h.parseCells(rawLines)
+
 	return nil
 }
 
@@ -68,20 +73,25 @@ func (h *History) parseCells(lines []string) {
 
 	// startPos is the first position of a timestamp.
 	startPos := -1
+
 	for i, line := range lines {
 		if timeRecord.MatchString(line) {
 			startPos = i
 			break
 		}
 	}
+
 	if startPos == -1 {
 		// Read one line per command.
 		// Set the current timestamp for each command.
 		h.commands = lines
+
 		now := time.Now().Unix()
+
 		for range lines {
 			h.timestamps = append(h.timestamps, now)
 		}
+
 		return
 	}
 
@@ -100,6 +110,7 @@ func (h *History) parseCells(lines []string) {
 			h.timestamps = append(h.timestamps, timestamp)
 			h.commands = append(h.commands, strings.Join(lines[startPos+1:j], "\n"))
 		}
+
 		startPos = j
 	}
 }
@@ -108,10 +119,12 @@ func (h *History) parseCells(lines []string) {
 func (h *History) writeToFile() error {
 	buff := bytes.Buffer{}
 	for i, c := range h.commands {
-		buff.WriteString(fmt.Sprintf("#%d\n%s\n", h.timestamps[i], c))
+		fmt.Fprintf(&buff, "#%d\n%s\n", h.timestamps[i], c)
 	}
-	if err := os.WriteFile(h.filepath, buff.Bytes(), 0o640); err != nil {
-		return fmt.Errorf("failed to write to history file: %s", err)
+
+	err := os.WriteFile(h.filepath, buff.Bytes(), 0o640)
+	if err != nil {
+		return fmt.Errorf("failed to write to history file: %w", err)
 	}
 
 	return nil
@@ -122,10 +135,12 @@ func (h *History) writeToFile() error {
 func (h *History) AppendCommand(input string) {
 	h.commands = append(h.commands, input)
 	h.timestamps = append(h.timestamps, time.Now().Unix())
+
 	if len(h.commands) > h.maxCommands {
 		h.commands = h.commands[1:]
 		h.timestamps = h.timestamps[1:]
 	}
+
 	h.writeToFile()
 }
 

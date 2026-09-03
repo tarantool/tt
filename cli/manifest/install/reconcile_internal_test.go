@@ -58,6 +58,7 @@ func TestReconcileIncompatible(t *testing.T) {
 	require.ErrorIs(t, err, errIncompatibleDeps)
 
 	var exit *ExitError
+
 	require.ErrorAs(t, err, &exit)
 	assert.Equal(t, exitStateError, exit.Code)
 

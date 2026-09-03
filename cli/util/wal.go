@@ -35,14 +35,18 @@ func sortWalFiles(files []string) {
 		if hasExt(left, snapSuffix) && hasExt(right, xlogSuffix) {
 			return -1
 		}
+
 		if hasExt(left, xlogSuffix) && hasExt(right, snapSuffix) {
 			return 1
 		}
+
 		lDir, fName := filepath.Split(left)
 		rDir, rName := filepath.Split(right)
+
 		if lDir != rDir {
 			return strings.Compare(lDir, rDir)
 		}
+
 		return strings.Compare(fName, rName)
 	})
 }
@@ -57,6 +61,7 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat path %q: %w", path, err)
 	}
+
 	path, err = filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for %q: %w", path, err)
@@ -66,6 +71,7 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 		if isWal(info.Name()) {
 			collected = append(collected, path)
 		}
+
 		return collected, nil
 	}
 
@@ -74,16 +80,19 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 		err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				log.Warnf("Skipping %q due to error during walk: %s", p, err)
+
 				if d != nil && d.IsDir() && errors.Is(err, fs.ErrPermission) {
 					// Skip directory if permission denied, but continue walking other parts.
 					return fs.SkipDir
 				}
+
 				return nil
 			}
 
 			if !d.IsDir() && isWal(d.Name()) {
 				collected = append(collected, p)
 			}
+
 			return nil
 		})
 		if err != nil {
@@ -93,8 +102,10 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 		dirEntries, readErr := os.ReadDir(path)
 		if readErr != nil {
 			log.Warnf("Failed to read directory %q: %s", path, readErr)
+
 			return collected, nil
 		}
+
 		for _, entry := range dirEntries {
 			if !entry.IsDir() && isWal(entry.Name()) {
 				collected = append(collected, filepath.Join(path, entry.Name()))
@@ -123,9 +134,12 @@ func CollectWalFiles(paths []string, isRecursive bool) ([]string, error) {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil, fmt.Errorf("required %q not found: %w", p, err)
 			}
+
 			log.Warnf("Error processing path %q: %v. Skipping this path.", p, err)
+
 			continue
 		}
+
 		if len(filesFromPath) == 0 {
 			log.Warnf("No WAL files found at %q", p)
 		} else {

@@ -62,11 +62,12 @@ func TestLoadManifest(t *testing.T) {
 	for _, inFile := range input {
 		manifest, err := LoadManifest(filepath.Join("testdata", inFile))
 		if output[inFile].errMsg == "" {
-			if !assert.Nil(err) {
+			if !assert.NoError(err) {
 				continue
 			}
 		} else {
 			assert.EqualError(err, output[inFile].errMsg)
+
 			continue
 		}
 

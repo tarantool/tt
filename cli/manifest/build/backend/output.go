@@ -13,7 +13,8 @@ import (
 // an error — the build claimed an output it did not produce. Shared by the
 // shell and make backends and run only after a zero-exit build.
 func copyOutputs(outputDir, cwd string, outputs []string) error {
-	if err := os.MkdirAll(outputDir, dirPerm); err != nil {
+	err := os.MkdirAll(outputDir, dirPerm)
+	if err != nil {
 		return fmt.Errorf("create output directory %q: %w", outputDir, err)
 	}
 
@@ -21,7 +22,8 @@ func copyOutputs(outputDir, cwd string, outputs []string) error {
 		src := filepath.Join(cwd, entry)
 		dst := filepath.Join(outputDir, filepath.Base(entry))
 
-		if err := copyFile(src, dst); err != nil {
+		err := copyFile(src, dst)
+		if err != nil {
 			return fmt.Errorf("copy declared output %q: %w", entry, err)
 		}
 	}

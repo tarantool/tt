@@ -1,7 +1,9 @@
 package version
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/tarantool/tt/cli/util"
 )
@@ -40,6 +42,7 @@ func (e NotFoundError) Error() string {
 // that define the rules for checking for version consistency.
 func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 	var version Version
+
 	fields := make(requiredFields, 0, countOfRequiredFields)
 
 	matches, err := matchVersionParts(verStr, false)
@@ -56,26 +59,31 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 		if version.Major, err = util.AtoiUint64(matches["major"]); err != nil {
 			return version, fields, fmt.Errorf("can't parse Major: %w", err)
 		}
+
 		fields = append(fields, requiredFieldMajor)
 	}
 
 	if matches["minor"] != "" {
 		if matches["major"] == "" {
-			return version, fields, fmt.Errorf("minor version requires major to be specified")
+			return version, fields, errors.New("minor version requires major to be specified")
 		}
+
 		if version.Minor, err = util.AtoiUint64(matches["minor"]); err != nil {
 			return version, fields, fmt.Errorf("can't parse Minor: %w", err)
 		}
+
 		fields = append(fields, requiredFieldMinor)
 	}
 
 	if matches["patch"] != "" {
 		if matches["minor"] == "" {
-			return version, fields, fmt.Errorf("patch version requires minor to be specified")
+			return version, fields, errors.New("patch version requires minor to be specified")
 		}
+
 		if version.Patch, err = util.AtoiUint64(matches["patch"]); err != nil {
 			return version, fields, fmt.Errorf("can't parse Patch version: %w", err)
 		}
+
 		fields = append(fields, requiredFieldPatch)
 	}
 
@@ -84,6 +92,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 		if err != nil {
 			return version, fields, fmt.Errorf("can't parse Release: %w", err)
 		}
+
 		fields = append(fields, requiredFieldReleaseType)
 		if matches["releaseNum"] != "" {
 			fields = append(fields, requiredFieldReleaseNum)
@@ -91,6 +100,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 	} else if len(fields) > 0 {
 		// By default require 'release' version.
 		version.Release.Type = TypeRelease
+
 		fields = append(fields, requiredFieldReleaseType)
 	}
 
@@ -98,6 +108,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 		if version.Additional, err = util.AtoiUint64(matches["additional"]); err != nil {
 			return version, fields, fmt.Errorf("can't parse Additional: %w", err)
 		}
+
 		fields = append(fields, requiredFieldAdditional)
 	}
 
@@ -110,6 +121,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 		if version.Revision, err = util.AtoiUint64(matches["revision"]); err != nil {
 			return version, fields, fmt.Errorf("can't parse Revision: %w", err)
 		}
+
 		fields = append(fields, requiredFieldRevision)
 	}
 
@@ -124,6 +136,7 @@ func exploreMatchVersion(verStr string) (Version, requiredFields, error) {
 func compareVersions(ref, other Version, fields requiredFields) bool {
 	for _, m := range fields {
 		isMatch := false
+
 		switch m {
 		case requiredFieldBuildName:
 			isMatch = ref.BuildName == other.BuildName
@@ -144,10 +157,12 @@ func compareVersions(ref, other Version, fields requiredFields) bool {
 		case requiredFieldRevision:
 			isMatch = ref.Revision == other.Revision
 		}
+
 		if !isMatch {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -167,11 +182,12 @@ func MatchVersion(expected string, sortedVersions []Version) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for i := len(sortedVersions) - 1; i >= 0; i-- {
-		ver := sortedVersions[i]
+
+	for _, ver := range slices.Backward(sortedVersions) {
 		if compareVersions(reference, ver, fields) {
 			return ver.Str, nil
 		}
 	}
+
 	return "", NotFoundError{expected}
 }

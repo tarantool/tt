@@ -9,7 +9,7 @@ import "strings"
 // The semver constraint itself is kept verbatim - validating the range is the
 // resolver's job, not this layer's. Only the flavor suffix is parsed here.
 //
-//nolint:recvcheck // TextMarshaler needs a value receiver, UnmarshalText a pointer.
+
 type Constraint struct {
 	// Version is the semver constraint part, e.g. ">=3.0.0,<4.0.0". Empty for
 	// an unset (omitted) constraint.

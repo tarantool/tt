@@ -27,6 +27,7 @@ type Opts struct {
 // Returns an error if such occur during reading files.
 func Cat(tntCli cmdcontext.TarantoolCli) error {
 	cmd := exec.Command(tntCli.Executable, "-")
+
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 
@@ -34,6 +35,7 @@ func Cat(tntCli cmdcontext.TarantoolCli) error {
 	if err != nil {
 		return err
 	}
+
 	stdinPipe.Write([]byte(catFile))
 	stdinPipe.Close()
 
@@ -48,17 +50,21 @@ func Cat(tntCli cmdcontext.TarantoolCli) error {
 // Returns an error if such occur during playing.
 func Play(tntCli cmdcontext.TarantoolCli) error {
 	var errBuff bytes.Buffer
+
 	cmd := exec.Command(tntCli.Executable, "-")
+
 	cmd.Stderr = &errBuff
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
+
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		return err
 	}
+
 	stdinPipe.Write([]byte(playFile))
 	stdinPipe.Close()
 
@@ -68,9 +74,11 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 
 	scanner := bufio.NewScanner(stdoutPipe)
 	scanner.Split(bufio.ScanLines)
+
 	for scanner.Scan() {
 		fmt.Println(scanner.Text())
 	}
+
 	cmd.Wait()
 
 	if len(errBuff.String()) > 0 {

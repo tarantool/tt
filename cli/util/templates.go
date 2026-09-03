@@ -7,7 +7,7 @@ import (
 )
 
 // GetTextTemplatedStr returns the processed string text template.
-func GetTextTemplatedStr(text *string, obj interface{}) (string, error) {
+func GetTextTemplatedStr(text *string, obj any) (string, error) {
 	funcMap := textTemplate.FuncMap{
 		"ToLower": strings.ToLower,
 	}
@@ -18,7 +18,9 @@ func GetTextTemplatedStr(text *string, obj interface{}) (string, error) {
 	}
 
 	buf := new(bytes.Buffer)
-	if err = tmpl.Execute(buf, obj); err != nil {
+
+	err = tmpl.Execute(buf, obj)
+	if err != nil {
 		return "", err
 	}
 

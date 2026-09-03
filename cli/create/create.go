@@ -2,7 +2,7 @@ package create
 
 import (
 	"bufio"
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/tarantool/tt/cli/config"
@@ -23,6 +23,7 @@ func FillCtx(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 	if err != nil {
 		return err
 	}
+
 	createCtx.WorkDir = workingDir
 
 	return nil
@@ -33,6 +34,7 @@ func rollbackOnErr(templateCtx *app_template.TemplateCtx) {
 	if templateCtx.AppPath != "" {
 		os.RemoveAll(templateCtx.AppPath)
 	}
+
 	templateCtx.AppPath = ""
 }
 
@@ -40,7 +42,8 @@ func rollbackOnErr(templateCtx *app_template.TemplateCtx) {
 func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 	util.CheckRecommendedBinaries("git")
 
-	if err := checkCtx(createCtx); err != nil {
+	err := checkCtx(createCtx)
+	if err != nil {
 		return util.InternalError("Create context check failed: %s", version.GetVersion, err)
 	}
 
@@ -63,8 +66,10 @@ func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 
 	templateCtx := app_template.NewTemplateContext()
 	for _, step := range stepsChain {
-		if err := step.Run(createCtx, &templateCtx); err != nil {
+		err := step.Run(createCtx, &templateCtx)
+		if err != nil {
 			rollbackOnErr(&templateCtx)
+
 			return err
 		}
 	}
@@ -75,7 +80,7 @@ func Run(cliOpts *config.CliOpts, createCtx *create_ctx.CreateCtx) error {
 // checkCtx checks create context for validity.
 func checkCtx(ctx *create_ctx.CreateCtx) error {
 	if ctx.TemplateName == "" {
-		return fmt.Errorf("template name is missing")
+		return errors.New("template name is missing")
 	}
 
 	return nil

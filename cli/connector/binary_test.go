@@ -12,6 +12,7 @@ import (
 
 type binaryConnectorStub struct {
 	tarantool.Connector
+
 	err    error
 	closed int
 }
@@ -41,6 +42,7 @@ func TestBinaryConnector_Close(t *testing.T) {
 
 func TestBinaryConnector_Close_error(t *testing.T) {
 	const errMsg = "any error"
+
 	stub := &binaryConnectorStub{err: errors.New(errMsg)}
 	conn := NewBinaryConnector(stub)
 

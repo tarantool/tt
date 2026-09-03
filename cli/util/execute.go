@@ -61,7 +61,7 @@ func StartCommandSpinner(readyChannel readyChan, wg *sync.WaitGroup, prefix stri
 
 	spinner := spinner.New(spinnerPicture, spinnerUpdateTime)
 	if prefix != "" {
-		spinner.Prefix = fmt.Sprintf("%s ", strings.TrimSpace(prefix))
+		spinner.Prefix = strings.TrimSpace(prefix) + " "
 	}
 
 	spinner.Start()
@@ -76,8 +76,11 @@ func StartCommandSpinner(readyChannel readyChan, wg *sync.WaitGroup, prefix stri
 // If showOutput is set to true, command output is shown.
 // Else spinner is shown while command is running.
 func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
-	var err error
-	var workGroup sync.WaitGroup
+	var (
+		err       error
+		workGroup sync.WaitGroup
+	)
+
 	readyChannel := make(readyChan, 1)
 
 	var outputBuf *os.File
@@ -90,31 +93,36 @@ func RunCommand(cmd *exec.Cmd, workingDir string, showOutput bool) error {
 		if outputBuf, err = os.CreateTemp("", "out"); err != nil {
 			log.Warnf("Failed to create tmp file to store command output: %s", err)
 		}
+
 		cmd.Stdout = outputBuf
 		cmd.Stderr = outputBuf
+
 		defer outputBuf.Close()
 		defer os.Remove(outputBuf.Name())
 
 		if isatty.IsTerminal(os.Stdout.Fd()) {
 			workGroup.Add(1)
+
 			go StartCommandSpinner(readyChannel, &workGroup, "")
 		}
 	}
 
 	workGroup.Add(1)
+
 	go startAndWaitCommand(cmd, readyChannel, &workGroup, &err)
 
 	workGroup.Wait()
 
 	if err != nil {
 		if outputBuf != nil {
-			if err := PrintFromStart(outputBuf); err != nil {
+			err := PrintFromStart(outputBuf)
+			if err != nil {
 				log.Warnf("Failed to show command output: %s", err)
 			}
 		}
 
 		return fmt.Errorf(
-			"failed to run \n%s\n\n%s", cmd.String(), err,
+			"failed to run \n%s\n\n%w", cmd.String(), err,
 		)
 	}
 
@@ -128,15 +136,16 @@ func RunHook(hookPath string, showOutput bool) error {
 	hookDir := filepath.Dir(hookPath)
 
 	if isExec, err := IsExecOwner(hookPath); err != nil {
-		return fmt.Errorf("failed go check hook file `%s`: %s", hookName, err)
+		return fmt.Errorf("failed go check hook file `%s`: %w", hookName, err)
 	} else if !isExec {
 		return fmt.Errorf("hook `%s` should be executable", hookName)
 	}
 
 	hookCmd := exec.Command(hookPath)
+
 	err := RunCommand(hookCmd, hookDir, showOutput)
 	if err != nil {
-		return fmt.Errorf("failed to run hook `%s`: %s", hookName, err)
+		return fmt.Errorf("failed to run hook `%s`: %w", hookName, err)
 	}
 
 	return nil
@@ -150,13 +159,15 @@ func IsExecOwner(path string) (bool, error) {
 	}
 
 	perm := fileInfo.Mode().Perm()
+
 	return BitHas32(uint32(perm), execOwnerPerm), nil
 }
 
 func PrintFromStart(file *os.File) error {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("failed to seek file begin: %s", err)
+		return fmt.Errorf("failed to seek file begin: %w", err)
 	}
+
 	if _, err := io.Copy(os.Stdout, file); err != nil {
 		log.Warnf("Failed to print file content: %s", err)
 	}
@@ -172,15 +183,18 @@ func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
 	cmd := exec.Command(program, args...)
 
 	var out bytes.Buffer
+
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 
 	if workDir == "" {
 		var err error
+
 		if workDir, err = os.Getwd(); err != nil {
 			return out.Bytes(), err
 		}
 	}
+
 	cmd.Dir = workDir
 
 	stdin, err := cmd.StdinPipe()
@@ -197,5 +211,6 @@ func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
 	stdin.Close()
 
 	err = cmd.Wait()
+
 	return out.Bytes(), err
 }

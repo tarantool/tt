@@ -116,6 +116,7 @@ func ParseManifest(data []byte) (*Manifest, []string, error) {
 // otherwise; any other decode failure is returned wrapped.
 func handleDecodeError(decErr error, declared formatVersion) ([]string, error) {
 	var strict *toml.StrictMissingError
+
 	if !errors.As(decErr, &strict) {
 		return nil, fmt.Errorf("parsing manifest: %w", decErr)
 	}

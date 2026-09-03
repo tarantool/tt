@@ -84,6 +84,7 @@ func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
+
 		return nil, fmt.Errorf("API request failed with status %s: %q; %w",
 			resp.Status, string(bodyBytes), err)
 	}
@@ -94,6 +95,7 @@ func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read API response body: %w", err)
 	}
+
 	return respBody, nil
 }
 
@@ -142,6 +144,7 @@ func getArchForApi(informer PlatformInformer, program Program) (string, error) {
 		// Return arch only if it in valid mapping.
 		return arch, nil
 	}
+
 	return "", fmt.Errorf("unsupported architecture: %s", arch)
 }
 
@@ -149,6 +152,7 @@ func getBuildType(isDev bool) string {
 	if isDev {
 		return "dev"
 	}
+
 	return "release"
 }
 
@@ -157,7 +161,7 @@ func TntIoMakePkgURI(searchCtx *SearchCtx, Tarball string) (string, error) {
 	var uri string
 
 	if searchCtx.platformInformer == nil || reflect.ValueOf(searchCtx.platformInformer).IsNil() {
-		return "", fmt.Errorf("no platform informer was applied")
+		return "", errors.New("no platform informer was applied")
 	}
 
 	arch, err := getArchForApi(searchCtx.platformInformer, searchCtx.Program)
@@ -225,12 +229,14 @@ func sendApiRequest(request apiRequest, doer TntIoDoer) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
+
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "tt") // Consider making User-Agent configurable or dynamic
+	req.Header.Set("User-Agent", "tt") // Consider making User-Agent configurable or dynamic.
 
 	if doer != nil {
 		return doer.Do(req)
 	}
+
 	return nil, errors.New("no API doer was applied")
 }
 
@@ -241,6 +247,7 @@ func getSessionToken(cookies []*http.Cookie) string {
 			return cookie.Value
 		}
 	}
+
 	return ""
 }
 
@@ -248,11 +255,13 @@ func getSessionToken(cookies []*http.Cookie) string {
 func filterChecksums(apiReply map[string][]string) {
 	for release, pkgs := range apiReply {
 		var filtered []string
+
 		for _, pkg := range pkgs {
 			if !strings.HasSuffix(pkg, ".sha256") {
 				filtered = append(filtered, pkg)
 			}
 		}
+
 		apiReply[release] = filtered
 	}
 }
@@ -260,6 +269,7 @@ func filterChecksums(apiReply map[string][]string) {
 // parseApiResponse processes the HTTP response from the tarantool.io API.
 func parseApiResponse(respBody []byte) (map[string][]string, error) {
 	var apiReply map[string][]string
+
 	err := json.Unmarshal(respBody, &apiReply)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal API response JSON: %w. Body: %s",
@@ -276,10 +286,11 @@ func tntIoGetPkgVersions(credentials connect.UserCredentials, searchCtx *SearchC
 	map[string][]string, error,
 ) {
 	if searchCtx.TntIoDoer == nil {
-		return nil, fmt.Errorf("no tarantool.io doer was applied")
+		return nil, errors.New("no tarantool.io doer was applied")
 	}
+
 	if searchCtx.platformInformer == nil {
-		return nil, fmt.Errorf("no platform informer was applied")
+		return nil, errors.New("no platform informer was applied")
 	}
 
 	request, err := buildApiQuery(searchCtx, credentials)

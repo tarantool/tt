@@ -2,6 +2,7 @@ package replicaset
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -18,11 +19,11 @@ type Orchestrator int
 
 const (
 	// OrchestratorUnknown is an unknown orchestrator.
-	OrchestratorUnknown Orchestrator = iota // unknown
+	OrchestratorUnknown Orchestrator = iota // unknown.
 	// OrchestratorCentralizedConfig is centralized config for Tarantool 3.0.
-	OrchestratorCentralizedConfig // centralized config
+	OrchestratorCentralizedConfig // centralized config.
 	// OrchestratorCustom is a custom orchestrator.
-	OrchestratorCustom // custom
+	OrchestratorCustom // custom.
 )
 
 var knownOrchestrators = []Orchestrator{
@@ -45,19 +46,23 @@ func ParseOrchestrator(str string) Orchestrator {
 // evaler.
 func EvalOrchestrator(evaler connector.Evaler) (Orchestrator, error) {
 	opts := connector.RequestOpts{}
+
 	data, err := evaler.Eval(getOrchestratorBody, []any{}, opts)
 	if err != nil {
 		return OrchestratorCustom,
-			fmt.Errorf("failed to recognize orchestrator: %s", err)
+			fmt.Errorf("failed to recognize orchestrator: %w", err)
 	}
+
 	if len(data) == 1 {
 		if str, ok := data[0].(string); ok {
 			parsed := ParseOrchestrator(str)
 			if parsed == OrchestratorUnknown {
 				return parsed, fmt.Errorf("unknown orchestrator: %s", str)
 			}
+
 			return parsed, nil
 		}
 	}
-	return OrchestratorCustom, fmt.Errorf("unexpected response")
+
+	return OrchestratorCustom, errors.New("unexpected response")
 }

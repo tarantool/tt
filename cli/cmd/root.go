@@ -42,7 +42,7 @@ func GetCmdCtxPtr() *cmdcontext.CmdCtx {
 // TT-EE.
 func injectCmds(root *cobra.Command) error {
 	if root == nil {
-		return fmt.Errorf("can't inject commands. The root is nil")
+		return errors.New("can't inject commands. The root is nil")
 	}
 
 	if InjectedCmds == nil {
@@ -58,6 +58,7 @@ func injectCmds(root *cobra.Command) error {
 		for j := range origCmds {
 			if cmd.Name() == origCmds[j].Name() {
 				root.RemoveCommand(origCmds[j])
+
 				break
 			}
 		}
@@ -93,13 +94,16 @@ func (h *LogHandler) HandleLog(logEntry *log.Entry) error {
 			Message: cli.Colors[logEntry.Level].Sprint(logEntry.Message),
 		}
 	}
+
 	return h.baseHandler.HandleLog(logEntry)
 }
 
 // setWriter sets the underlying writer and returns the original one.
 func (h *LogHandler) setWriter(w io.Writer) io.Writer {
 	orig := h.baseHandler.Writer
+
 	h.baseHandler.Writer = w
+
 	return orig
 }
 
@@ -114,10 +118,13 @@ type logErrorWriterDecorator struct {
 func (d logErrorWriterDecorator) Write(p []byte) (int, error) {
 	// Setup LogHandler to write to string to get the decorated string.
 	var logDst strings.Builder
+
 	orig := d.handler.setWriter(&logDst)
+
 	log.Errorf(string(p))
 	// Restore LogHandler with the original writer.
 	d.handler.setWriter(orig)
+
 	// Send the decorated data.
 	return fmt.Fprint(d.writer, logDst.String())
 }
@@ -213,7 +220,9 @@ After that tt will be able to manage the application using 'replicaset_example' 
 		NewTcmCmd(),
 		NewModulesCmd(),
 	)
-	if err := injectCmds(rootCmd); err != nil {
+
+	err := injectCmds(rootCmd)
+	if err != nil {
 		panic(err.Error())
 	}
 
@@ -234,12 +243,15 @@ After that tt will be able to manage the application using 'replicaset_example' 
 // Execute root command.
 // If received error is of an ArgError type, usage help is printed.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	err := rootCmd.Execute()
+	if err != nil {
 		var argError *util.ArgError
+
 		if errors.As(err, &argError) {
 			log.Error(argError.Error())
 			rootCmd.Usage()
 		}
+
 		os.Exit(1)
 	}
 }
@@ -259,6 +271,7 @@ func InitRoot() {
 		if err != nil {
 			log.Fatalf("failed getting config path from environment variable: %s", err)
 		}
+
 		cmdCtx.Cli.ConfigPath = configPathEnv
 	}
 
@@ -283,7 +296,7 @@ func InitRoot() {
 	// the following steps:
 	// 1. Initial loading of the configuration w/o integrity checking
 	// 2. Initialization of integrity
-	// 3. Re-loading of configuration w/ integrity checking
+	// 3. Re-loading of configuration w/ integrity checking.
 
 	// 1.
 	cliOptsNoIntegrity, _, err := configure.GetCliOpts(configPath, nil)
@@ -311,6 +324,7 @@ func InitRoot() {
 	if err != nil {
 		log.Fatalf("Failed to get Tarantool CLI configuration: %s", err)
 	}
+
 	if cmdCtx.Cli.ConfigPath == "" {
 		// Config is not found, use current dir as base dir.
 		if cmdCtx.Cli.ConfigDir, err = os.Getwd(); err != nil {
@@ -323,6 +337,7 @@ func InitRoot() {
 
 	// TCM config, if any, is located next to tt config.
 	tcmConfigBasename := filepath.Join(cmdCtx.Cli.ConfigDir, "tcm")
+
 	cmdCtx.Cli.TcmCli.ConfigPath, _ = util.GetYamlFileName(tcmConfigBasename, false)
 
 	// Getting modules information.

@@ -9,6 +9,7 @@ import (
 
 func Test_CreateEnvString(t *testing.T) {
 	cliOpts := configure.GetDefaultCliOpts()
+
 	cliOpts.Env.BinDir = "foo/bin/"
 	cliOpts.Env.IncludeDir = "bar/include/"
 	assert.Contains(t, CreateEnvString(cliOpts),

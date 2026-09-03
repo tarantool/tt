@@ -38,6 +38,7 @@ func makeApplicationOrchestrator(
 		orchestrator replicasetOrchestrator
 		err          error
 	)
+
 	switch orchestratorType {
 	case replicaset.OrchestratorCentralizedConfig:
 		orchestrator = replicaset.NewCConfigApplication(runningCtx, collectors, publishers, integ)
@@ -46,6 +47,7 @@ func makeApplicationOrchestrator(
 	default:
 		err = fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
 	}
+
 	return orchestrator, err
 }
 
@@ -57,6 +59,7 @@ func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
 		orchestrator replicasetOrchestrator
 		err          error
 	)
+
 	switch orchestratorType {
 	case replicaset.OrchestratorCentralizedConfig:
 		orchestrator = replicaset.NewCConfigInstance(conn)
@@ -65,6 +68,7 @@ func makeInstanceOrchestrator(orchestratorType replicaset.Orchestrator,
 	default:
 		err = fmt.Errorf("unsupported orchestrator: %s", orchestratorType)
 	}
+
 	return orchestrator, err
 }
 
@@ -88,19 +92,24 @@ func getApplicationOrchestrator(manual replicaset.Orchestrator,
 	}
 
 	var orchestrator replicaset.Orchestrator
+
 	eval := func(_ running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 		instanceOrchestrator, err := replicaset.EvalOrchestrator(evaler)
 		if err == nil {
 			orchestrator = instanceOrchestrator
 		}
+
 		return true, err
 	}
 
 	instances := runningCtx.Instances
-	if err := replicaset.EvalAny(instances, replicaset.InstanceEvalFunc(eval)); err != nil {
+
+	err := replicaset.EvalAny(instances, replicaset.InstanceEvalFunc(eval))
+	if err != nil {
 		return orchestrator,
 			fmt.Errorf("unable to determinate an orchestrator type: %w", err)
 	}
+
 	return orchestrator, nil
 }
 
@@ -113,5 +122,6 @@ func getOrchestratorType(
 	if conn != nil {
 		return getInstanceOrchestrator(orchestrator, conn)
 	}
+
 	return getApplicationOrchestrator(orchestrator, runningCtx)
 }

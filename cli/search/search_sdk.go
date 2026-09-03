@@ -15,6 +15,7 @@ func GetApiPackage(program Program) string {
 	case ProgramTcm:
 		return "tarantool-cluster-manager"
 	}
+
 	return ""
 }
 
@@ -37,5 +38,6 @@ func searchVersionsTntIo(cliOpts *config.CliOpts, searchCtx *SearchCtx) (
 	for i, bundle := range bundles {
 		vers[i] = bundle.Version
 	}
+
 	return vers, nil
 }

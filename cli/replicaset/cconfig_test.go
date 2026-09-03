@@ -2,7 +2,6 @@ package replicaset_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -332,6 +331,7 @@ func TestCConfigInstance_Discovery_force(t *testing.T) {
 
 	replicasets, err := getter.Discovery(replicaset.SkipCache)
 	require.NoError(t, err)
+
 	expected := replicaset.Replicasets{
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCentralizedConfig,
@@ -347,6 +347,7 @@ func TestCConfigInstance_Discovery_force(t *testing.T) {
 	// Force re-discovery.
 	replicasets, err = getter.Discovery(replicaset.SkipCache)
 	require.NoError(t, err)
+
 	expected = replicaset.Replicasets{
 		State:        replicaset.StateBootstrapped,
 		Orchestrator: replicaset.OrchestratorCentralizedConfig,
@@ -456,7 +457,7 @@ func TestCConfigInstance_Discovery_errors(t *testing.T) {
 }
 
 func TestCConfigInstance_Promote_error(t *testing.T) {
-	err := fmt.Errorf("some error")
+	err := errors.New("some error")
 	evaler := &instanceMockEvaler{
 		Error: []error{err},
 	}

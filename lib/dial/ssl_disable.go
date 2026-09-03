@@ -1,5 +1,4 @@
 //go:build tt_ssl_disable
-// +build tt_ssl_disable
 
 package dial
 

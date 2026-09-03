@@ -25,6 +25,7 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadAll)
 	if err != nil {
 		return err
@@ -32,8 +33,10 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	// Collect a list of instances with unique scripts.
 	uniqueInst := []running.InstanceCtx{}
+
 	for _, inst := range runningCtx.Instances {
 		found := false
+
 		for _, unique := range uniqueInst {
 			if inst.InstanceScript == unique.InstanceScript {
 				found = true
@@ -47,9 +50,11 @@ func internalCheckModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	for _, inst := range uniqueInst {
-		if err := running.Check(cmdCtx, &inst); err != nil {
+		err := running.Check(cmdCtx, &inst)
+		if err != nil {
 			return err
 		}
+
 		log.Infof("Result of check: syntax of file '%s' is OK", inst.InstanceScript)
 	}
 

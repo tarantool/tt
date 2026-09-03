@@ -18,23 +18,26 @@ func (s *Server) SQLCheck(ctx context.Context,
 	request *pb.SQLRequest,
 ) (*pb.SQLCheckResponse, error) {
 	status := pb.SQLCheckStatus_SQL_QUERY_INCOMPLETE
-	switch strings.ToLower(request.Query) {
+
+	switch strings.ToLower(request.GetQuery()) {
 	case "ok":
 		status = pb.SQLCheckStatus_SQL_QUERY_VALID
 	case "error":
 		status = pb.SQLCheckStatus_SQL_QUERY_INVALID
 	}
+
 	return &pb.SQLCheckResponse{Status: status}, nil
 }
 
 func (s *Server) SQL(ctx context.Context, in *pb.SQLRequest) (*pb.SQLResponse, error) {
-	res := makeSQLResponse(in.Query)
+	res := makeSQLResponse(in.GetQuery())
 	return &res, nil
 }
 
 func (s *Server) SQLStream(in *pb.SQLRequest, stream pb.SQLService_SQLStreamServer) error {
-	res := makeSQLResponse(in.Query)
+	res := makeSQLResponse(in.GetQuery())
 	stream.Send(&res)
+
 	return nil
 }
 
@@ -65,6 +68,7 @@ func makeSQLResponse(query string) pb.SQLResponse {
 			Msg:  "error in mock SQL request",
 		}}
 	}
+
 	return pb.SQLResponse{Error: &pb.Error{
 		Type: "AeonError",
 		Name: "UNEXPECTED_ERROR",

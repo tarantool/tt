@@ -2,6 +2,7 @@ package connect
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -23,7 +24,7 @@ import (
 )
 
 // EvalFunc defines a function type for evaluating an expression via connection.
-type EvalFunc func(console *Console, funcBodyFmt string, args ...interface{}) (interface{}, error)
+type EvalFunc func(console *Console, funcBodyFmt string, args ...any) (any, error)
 
 const (
 	HistoryFileName = ".tarantool_history"
@@ -77,6 +78,7 @@ func genConsoleTitle(connOpts connector.ConnectOpts, connCtx ConnectCtx) string 
 	if connCtx.ConnectTarget != "" {
 		return connCtx.ConnectTarget
 	}
+
 	return connOpts.Address
 }
 
@@ -103,7 +105,8 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	console.history, err = newCommandHistory(HistoryFileName, MaxHistoryLines)
 	if err == nil {
 		// Load Tarantool console history from file.
-		if err := console.history.load(); err != nil {
+		err := console.history.load()
+		if err != nil {
 			log.Debugf("Failed to load Tarantool console history: %s", err)
 		}
 	} else {
@@ -113,20 +116,21 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	// Connect to specified address.
 	console.conn, err = connector.Connect(connOpts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %s", err)
+		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
 
 	// Change a language.
 	if connectCtx.Language != DefaultLanguage {
-		if err := ChangeLanguage(console.conn, connectCtx.Language); err != nil {
-			return nil, fmt.Errorf("unable to change a language: %s", err)
+		err := ChangeLanguage(console.conn, connectCtx.Language)
+		if err != nil {
+			return nil, fmt.Errorf("unable to change a language: %w", err)
 		}
 	}
 
 	// Initialize user commands executor.
 	console.executor, err = getExecutor(console, connectCtx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to init prompt: %s", err)
+		return nil, fmt.Errorf("failed to init prompt: %w", err)
 	}
 
 	// Initialize commands completer.
@@ -135,6 +139,7 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 	// Initialize syntax checkers.
 	luaValidator := NewLuaValidator()
 	sqlValidator := NewSQLValidator()
+
 	console.validators = make(map[Language]ValidateCloser)
 	console.validators[DefaultLanguage] = luaValidator
 	console.validators[LuaLanguage] = luaValidator
@@ -151,11 +156,13 @@ func NewConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title str
 func (console *Console) Run() error {
 	if !terminal.IsTerminal(syscall.Stdin) {
 		log.Debugf("Found piped input")
+
 		pipedInputScanner := bufio.NewScanner(os.Stdin)
 		for pipedInputScanner.Scan() {
 			line := pipedInputScanner.Text()
 			console.executor(line)
 		}
+
 		return nil
 	} else {
 		log.Infof("Connected to %s\n", console.title)
@@ -181,6 +188,7 @@ func (console *Console) Close() {
 	for _, v := range console.validators {
 		v.Close()
 	}
+
 	console.validators = nil
 	if console.conn != nil {
 		console.conn.Close()
@@ -204,13 +212,17 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 					log.Infof("Quit from the console")
 					os.Exit(0)
 				}
+
 				return
 			}
 		}
 
 		var completed bool
+
 		validator := console.validators[console.language]
+
 		console.input, completed = AddStmtPart(console.input, in, console.delimiter, validator)
+
 		if !completed {
 			console.livePrefixEnabled = true
 			return
@@ -219,29 +231,34 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		trimmedInput := strings.TrimSpace(console.input)
 		if console.history != nil {
 			console.history.appendCommand(trimmedInput)
-			if err := console.history.writeToFile(); err != nil {
+
+			err := console.history.writeToFile()
+			if err != nil {
 				log.Debug(err.Error())
 			}
 		}
 
 		if console.prompt != nil {
-			if err := console.prompt.PushToHistory(trimmedInput); err != nil {
+			err := console.prompt.PushToHistory(trimmedInput)
+			if err != nil {
 				log.Debug(err.Error())
 			}
 		}
 
 		var results []string
+
 		needMetaInfo := console.format == formatter.TableFormat ||
 			console.format == formatter.TTableFormat
-		args := []interface{}{
+		args := []any{
 			console.input, console.language == SQLLanguage,
 			needMetaInfo,
 		}
 		opts := connector.RequestOpts{
-			PushCallback: func(pushedData interface{}) {
+			PushCallback: func(pushedData any) {
 				encodedData, err := yaml.Marshal(pushedData)
 				if err != nil {
 					log.Warnf("Failed to encode pushed data: %s", err)
+
 					return
 				}
 
@@ -251,8 +268,9 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		}
 
 		var data string
+
 		if _, err := console.conn.Eval(evalBody, args, opts); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				// We need to call 'console.Close()' here because in some cases (e.g 'os.exit()')
 				// it won't be called from 'defer console.Close' in 'connect.runConsole()'.
 				console.Close()
@@ -285,6 +303,7 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 		handleSignals := func(console *Console, stop chan struct{}) {
 			sig := make(chan os.Signal, 1)
 			signal.Notify(sig, syscall.SIGINT, syscall.SIGQUIT)
+
 			select {
 			case <-stop:
 				return
@@ -296,7 +315,9 @@ func getExecutor(console *Console, connectCtx ConnectCtx) (func(string), error) 
 
 		stop := make(chan struct{})
 		go handleSignals(console, stop)
+
 		executor(in)
+
 		stop <- struct{}{}
 	}
 
@@ -329,7 +350,8 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 		}
 
 		var suggestionsTexts []string
-		args := []interface{}{lastWord, len(lastWord)}
+
+		args := []any{lastWord, len(lastWord)}
 		opts := connector.RequestOpts{
 			ReadTimeout: 3 * time.Second,
 			ResData:     &suggestionsTexts,
@@ -368,14 +390,11 @@ func setTitle(console *Console, title string) {
 }
 
 func setPrefix(console *Console) {
-	console.prefix = fmt.Sprintf("%s> ", console.title)
+	console.prefix = console.title + "> "
 
-	livePrefixIndent := len(console.title)
-	if livePrefixIndent > MaxLivePrefixIndent {
-		livePrefixIndent = MaxLivePrefixIndent
-	}
+	livePrefixIndent := min(len(console.title), MaxLivePrefixIndent)
 
-	console.livePrefix = fmt.Sprintf("%s> ", strings.Repeat(" ", livePrefixIndent))
+	console.livePrefix = strings.Repeat(" ", livePrefixIndent) + "> "
 
 	console.livePrefixFunc = func() (string, bool) {
 		return console.livePrefix, console.livePrefixEnabled
@@ -412,6 +431,7 @@ func getPromptOptions(console *Console) []prompt.Option {
 				Fn: func(buf *prompt.Buffer) {
 					console.input = ""
 					console.livePrefixEnabled = false
+
 					fmt.Println("^C")
 				},
 			},

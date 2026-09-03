@@ -2,6 +2,7 @@ package aeon
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/tarantool/tt/cli/aeon/pb"
 	"github.com/tarantool/tt/cli/console"
@@ -24,16 +25,23 @@ type resultError struct {
 
 // asYaml prepare results for formatter.MakeOutput.
 func (r resultType) asYaml() string {
-	yaml := "---\n"
+	var output strings.Builder
+
+	output.WriteString("---\n")
+
 	for _, row := range r.rows {
 		mark := "-"
+
 		for i, v := range row {
 			n := r.names[i]
-			yaml += fmt.Sprintf("%s %s: %v\n", mark, n, v)
+
+			fmt.Fprintf(&output, "%s %s: %v\n", mark, n, v)
+
 			mark = " "
 		}
 	}
-	return yaml
+
+	return output.String()
 }
 
 // Format produce formatted string according required console.Format settings.
@@ -41,10 +49,12 @@ func (r resultType) Format(f console.Format) (string, error) {
 	if len(r.names) == 0 {
 		return "", nil
 	}
+
 	output, err := formatter.MakeOutput(f.Mode, r.asYaml(), f.Opts)
 	if err != nil {
 		return "", err
 	}
+
 	return output, nil
 }
 

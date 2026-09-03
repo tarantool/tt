@@ -21,6 +21,7 @@ const lockFile = "app.manifest.lock"
 // git runs a git command in dir and fails the test on error.
 func git(t *testing.T, dir string, args ...string) {
 	t.Helper()
+
 	//nolint:gosec // Fixed program (git) with test-controlled args.
 	cmd := exec.CommandContext(
 		context.Background(), "git", append([]string{"-C", dir}, args...)...)

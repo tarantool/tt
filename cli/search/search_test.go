@@ -19,6 +19,7 @@ func Test_getBundles(t *testing.T) {
 		rawBundleInfoList map[string][]string
 		flags             SearchFlags
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -105,6 +106,7 @@ func Test_getBundles(t *testing.T) {
 			wantErr: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sCtx := SearchCtx{
@@ -113,10 +115,13 @@ func Test_getBundles(t *testing.T) {
 				Filter:  tt.args.flags,
 			}
 			got, err := getBundles(tt.args.rawBundleInfoList, &sCtx)
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getBundles() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
+
 			assert.Equalf(t, tt.want, got, "getBundles()")
 		})
 	}
@@ -126,6 +131,7 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 	tmpDir := t.TempDir()
 	tarPath := filepath.Join(tmpDir, "test_repo.tar")
 	require.NoError(t, copy.Copy("./testdata/test_repo.tar", tarPath))
+
 	extractedRepoPath := filepath.Join(tmpDir, "empty_repo")
 
 	tests := []struct {
@@ -154,10 +160,12 @@ func Test_GetCommitFromGitLocal(t *testing.T) {
 	for _, repo := range tests {
 		t.Run(repo.name, func(t *testing.T) {
 			require.NoError(t, util.ExtractTar(repo.tarLink))
+
 			for _, hash := range repo.hashes {
 				_, err := GetCommitFromGitLocal(repo.link, hash)
 				if (err != nil) != repo.wantErr {
 					t.Errorf("GetCommitsFromGitLocal() error = %v, wantErr %v", err, repo.wantErr)
+
 					return
 				}
 			}
@@ -169,6 +177,7 @@ func Test_GetCommitFromGitRemote(t *testing.T) {
 	tmpDir := t.TempDir()
 	tarPath := filepath.Join(tmpDir, "test_repo.tar")
 	require.NoError(t, copy.Copy("./testdata/test_repo.tar", tarPath))
+
 	extractedRepoPath := filepath.Join(tmpDir, "empty_repo")
 
 	tests := []struct {
@@ -197,10 +206,12 @@ func Test_GetCommitFromGitRemote(t *testing.T) {
 	for _, repo := range tests {
 		t.Run(repo.name, func(t *testing.T) {
 			require.NoError(t, util.ExtractTar(repo.tarLink))
+
 			for _, hash := range repo.hashes {
 				_, err := GetCommitFromGitRemote(repo.link, hash)
 				if (err != nil) != repo.wantErr {
 					t.Errorf("GetCommitsFromGitRemote() error = %v, wantErr %v", err, repo.wantErr)
+
 					return
 				}
 			}
@@ -212,11 +223,11 @@ func TestNewSearchCtx(t *testing.T) {
 	t.Run("Valid context", func(t *testing.T) {
 		got := NewSearchCtx(NewPlatformInformer(), NewTntIoDoer())
 		require.NotNil(t, got)
-		assert.Equal(t, got.Filter, SearchRelease)
-		assert.Equal(t, got.Program, ProgramUnknown)
-		assert.Equal(t, got.Package, "")
-		assert.Equal(t, got.ReleaseVersion, "")
-		assert.Equal(t, got.DevBuilds, false)
+		assert.Equal(t, SearchRelease, got.Filter)
+		assert.Equal(t, ProgramUnknown, got.Program)
+		assert.Empty(t, got.Package)
+		assert.Empty(t, got.ReleaseVersion)
+		assert.False(t, got.DevBuilds)
 		assert.Implements(t, (*PlatformInformer)(nil), got.platformInformer)
 		assert.Implements(t, (*TntIoDoer)(nil), got.TntIoDoer)
 	})

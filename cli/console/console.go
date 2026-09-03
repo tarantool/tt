@@ -54,17 +54,21 @@ func NewConsole(opts ConsoleOpts) (Console, error) {
 	if opts.Handler == nil {
 		return Console{quit: true}, errors.New("no handler for commands has been set")
 	}
+
 	c := Console{
 		impl: opts,
 		quit: false,
 	}
 	c.setPrefix()
+
 	return c, nil
 }
 
 func (c *Console) runOnPipe() error {
 	pipe := bufio.NewScanner(os.Stdin)
+
 	log.Infof("Processing piped input")
+
 	for pipe.Scan() {
 		line := pipe.Text()
 		c.execute(line)
@@ -76,6 +80,7 @@ func (c *Console) runOnPipe() error {
 	} else {
 		log.Warnf("Error on pipe %v", err)
 	}
+
 	return err
 }
 
@@ -84,11 +89,13 @@ func (c *Console) Run() error {
 	if c.quit {
 		return errors.New("can't run on stopped console")
 	}
+
 	if !term.IsTerminal(syscall.Stdin) {
 		return c.runOnPipe()
 	}
 
 	log.Infof("Connected to %s\n", c.title())
+
 	c.prompt = prompt.New(
 		c.execute,
 		c.complete,
@@ -102,6 +109,7 @@ func (c *Console) Run() error {
 // Close frees up resources used by the console.
 func (c *Console) Close() {
 	c.impl.Handler.Close()
+
 	if c.impl.History != nil {
 		c.impl.History.Close()
 	}
@@ -116,9 +124,11 @@ func (c *Console) executeEmbeddedCommand(in string) bool {
 				log.Infof("Quit from the console")
 				os.Exit(0)
 			}
+
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -128,14 +138,17 @@ func (c *Console) cleanupDelimiter() bool {
 	if c.delimiter == "" {
 		return true
 	}
+
 	no_space := strings.TrimRightFunc(c.input, func(r rune) bool {
 		return unicode.IsSpace(r)
 	})
 	no_delim := strings.TrimSuffix(no_space, c.delimiter)
+
 	if len(no_space) > len(no_delim) {
 		c.input = no_delim
 		return true
 	}
+
 	return false
 }
 
@@ -152,7 +165,9 @@ func (c *Console) addStmt(part string) bool {
 	}
 
 	has_delim := c.cleanupDelimiter()
+
 	c.livePrefixEnabled = !has_delim || !c.impl.Handler.Validate(c.input)
+
 	return !c.livePrefixEnabled
 }
 
@@ -168,7 +183,8 @@ func (c *Console) execute(in string) {
 	}
 
 	if c.prompt != nil {
-		if err := c.prompt.PushToHistory(trimmed); err != nil {
+		err := c.prompt.PushToHistory(trimmed)
+		if err != nil {
 			log.Debug(err.Error())
 		}
 	}
@@ -181,6 +197,7 @@ func (c *Console) execute(in string) {
 	}
 
 	fmt.Println("---")
+
 	output, err := c.impl.Format.Sprint(results)
 	if err == nil {
 		fmt.Println(output)
@@ -203,19 +220,17 @@ func (c *Console) complete(input prompt.Document) []prompt.Suggest {
 	if c.input == "" && c.internal != nil {
 		return c.internal.Complete(input)
 	}
+
 	return c.impl.Handler.Complete(input)
 }
 
 // setPrefix adjust console prefix string.
 func (c *Console) setPrefix() {
-	c.prefix = fmt.Sprintf("%s> ", c.title())
+	c.prefix = c.title() + "> "
 
-	livePrefixIndent := len(c.title())
-	if livePrefixIndent > maxLivePrefixIndent {
-		livePrefixIndent = maxLivePrefixIndent
-	}
+	livePrefixIndent := min(len(c.title()), maxLivePrefixIndent)
 
-	c.livePrefix = fmt.Sprintf("%s> ", strings.Repeat(" ", livePrefixIndent))
+	c.livePrefix = strings.Repeat(" ", livePrefixIndent) + "> "
 }
 
 // getPromptOptions prepare option for prompt.
@@ -251,6 +266,7 @@ func (c *Console) getPromptOptions() []prompt.Option {
 				Fn: func(buf *prompt.Buffer) {
 					c.input = ""
 					c.livePrefixEnabled = false
+
 					fmt.Println("^C")
 				},
 			},

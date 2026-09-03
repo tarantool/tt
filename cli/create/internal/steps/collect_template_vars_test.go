@@ -14,7 +14,9 @@ import (
 
 func TestNonInteractiveMode(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.Manifest.Vars = append(templateCtx.Manifest.Vars,
 		app_template.UserPrompt{
 			Prompt:  "User name",
@@ -25,6 +27,7 @@ func TestNonInteractiveMode(t *testing.T) {
 
 	templateCtx.IsManifestPresent = true
 	createCtx.SilentMode = true
+
 	collectVars := CollectTemplateVarsFromUser{&bytes.Buffer{}}
 	require.NoError(t, collectVars.Run(&createCtx, &templateCtx), "Collecting vars failed")
 
@@ -36,7 +39,9 @@ func TestNonInteractiveMode(t *testing.T) {
 
 func TestNonInteractiveModeReMismatch(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.Manifest.Vars = append(templateCtx.Manifest.Vars,
 		app_template.UserPrompt{
 			Prompt:  "User name",
@@ -47,6 +52,7 @@ func TestNonInteractiveModeReMismatch(t *testing.T) {
 
 	templateCtx.IsManifestPresent = true
 	createCtx.SilentMode = true
+
 	collectVars := CollectTemplateVarsFromUser{&bytes.Buffer{}}
 	err := collectVars.Run(&createCtx, &templateCtx)
 	assert.EqualError(t, err, "invalid format of user_name variable")
@@ -54,7 +60,9 @@ func TestNonInteractiveModeReMismatch(t *testing.T) {
 
 func TestInteractiveMode(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.Manifest.Vars = append(templateCtx.Manifest.Vars,
 		app_template.UserPrompt{
 			Prompt:  "User name",
@@ -97,7 +105,9 @@ func TestInteractiveMode(t *testing.T) {
 	templateCtx.Vars["first_name"] = "John"
 
 	templateCtx.IsManifestPresent = true
+
 	var mockReader bytes.Buffer
+
 	mockReader.Write([]byte("user2\n" + // Invalid input.
 		"\n" + // Empty input. Will take the Default value.
 		"@)(#*(sd[f[\n" + // Invalid pwd input.
@@ -108,6 +118,7 @@ func TestInteractiveMode(t *testing.T) {
 		"cluster-cookie\n" + // Valid cookie value.
 		"5\n", // Valid retry count value.
 	))
+
 	collectVars := CollectTemplateVarsFromUser{Reader: &mockReader}
 	require.NoError(t, collectVars.Run(&createCtx, &templateCtx))
 

@@ -23,6 +23,7 @@ func isConfigExist(cmdCtx *cmdcontext.CmdCtx) bool {
 func RunModuleFunc(internalModule modules.InternalFunc) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, args []string) {
 		cmdCtx.CommandName = cmd.Name()
+
 		err := modules.RunCmd(&cmdCtx, cmd.CommandPath(), &modulesInfo, internalModule, args)
 		if err != nil {
 			util.HandleCmdErr(cmd, err)

@@ -2,7 +2,7 @@ package daemon
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -46,7 +46,7 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 	}
 
 	if iface.Flags&net.FlagUp == 0 {
-		return "", fmt.Errorf("interface down")
+		return "", errors.New("interface down")
 	}
 
 	addrs, err := iface.Addrs()
@@ -58,6 +58,7 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 	// IP address on the specified interface.
 	for _, addr := range addrs {
 		var ip net.IP
+
 		switch v := addr.(type) {
 		case *net.IPNet:
 			ip = v.IP
@@ -78,7 +79,7 @@ func (httpServer *HTTPServer) listenIP() (string, error) {
 		return ip.String(), nil
 	}
 
-	return "", fmt.Errorf("listen IP is not available")
+	return "", errors.New("listen IP is not available")
 }
 
 // NewHTTPServer creates new HTTPServer.
@@ -110,6 +111,7 @@ func (httpServer *HTTPServer) Start(ttPath string) {
 	}
 
 	httpServerAddr := ip + ":" + strconv.Itoa(httpServer.port)
+
 	httpServer.srv = &http.Server{
 		Addr: httpServerAddr,
 	}
@@ -124,7 +126,7 @@ func (httpServer *HTTPServer) Start(ttPath string) {
 		httpServer.logger.Fatal(err)
 	}
 
-	if err := httpServer.srv.Serve(socket); err != http.ErrServerClosed {
+	if err := httpServer.srv.Serve(socket); !errors.Is(err, http.ErrServerClosed) {
 		httpServer.logger.Fatalf("Can't start HTTP server")
 	}
 }
@@ -134,13 +136,16 @@ func (httpServer *HTTPServer) Stop() error {
 	var err error
 
 	if httpServer.srv == nil {
-		return fmt.Errorf("server is not started")
+		return errors.New("server is not started")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), httpServer.timeout)
-	if err = httpServer.srv.Shutdown(ctx); err != nil {
+
+	err = httpServer.srv.Shutdown(ctx)
+	if err != nil {
 		httpServer.logger.Printf(`HTTP server shutdown error: "%v"`, err)
 	}
+
 	cancel()
 
 	return err

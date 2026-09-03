@@ -79,6 +79,7 @@ func ExitCode(err error) int {
 	}
 
 	var exit *ExitError
+
 	if errors.As(err, &exit) {
 		return exit.Code
 	}

@@ -13,6 +13,7 @@ import (
 func CreateEnvString(cliOpts *config.CliOpts) string {
 	binDir := cliOpts.Env.BinDir
 	path := os.Getenv("PATH")
+
 	if !strings.Contains(path, binDir) {
 		path = binDir + ":" + path
 	}

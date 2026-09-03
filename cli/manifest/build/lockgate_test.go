@@ -2,7 +2,6 @@ package build
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,6 +49,7 @@ func freshLock() *manifest.Lock {
 // writeLock marshals lock into projectDir.
 func writeLock(t *testing.T, projectDir string, lock *manifest.Lock) {
 	t.Helper()
+
 	data, err := lock.Marshal()
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, lockFileName), data, 0o600))
@@ -57,10 +57,13 @@ func writeLock(t *testing.T, projectDir string, lock *manifest.Lock) {
 
 func lockOnDisk(t *testing.T, projectDir string) *manifest.Lock {
 	t.Helper()
+
 	data, err := os.ReadFile(filepath.Join(projectDir, lockFileName)) //nolint:gosec // temp path
 	require.NoError(t, err)
+
 	lock, err := manifest.ParseLock(data)
 	require.NoError(t, err)
+
 	return lock
 }
 
@@ -86,7 +89,7 @@ func TestGateLock_noLockUnderLockedFails(t *testing.T) {
 
 	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, true)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errLockStale))
+	assert.ErrorIs(t, err, errLockStale)
 	assert.Equal(t, exitStateError, ExitCode(err))
 	assert.False(t, r.resolveCalled)
 }
@@ -96,6 +99,7 @@ func TestGateLock_freshLockReused(t *testing.T) {
 
 	dir := t.TempDir()
 	existing := freshLock()
+
 	existing.ManifestHash = "sha256:existing"
 	writeLock(t, dir, existing)
 
@@ -111,6 +115,7 @@ func TestGateLock_staleUnlockedRewrites(t *testing.T) {
 
 	dir := t.TempDir()
 	existing := freshLock()
+
 	existing.ManifestHash = "sha256:existing"
 	writeLock(t, dir, existing)
 
@@ -130,7 +135,7 @@ func TestGateLock_staleLockedFails(t *testing.T) {
 	r := &fakeResolver{stale: true, reason: "manifest changed"}
 	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, true)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errLockStale))
+	assert.ErrorIs(t, err, errLockStale)
 	assert.Contains(t, err.Error(), "manifest changed")
 	assert.False(t, r.resolveCalled)
 }
@@ -140,5 +145,5 @@ func TestLoadLock_missingIsError(t *testing.T) {
 
 	_, err := loadLock(t.TempDir())
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errNoLock))
+	assert.ErrorIs(t, err, errNoLock)
 }

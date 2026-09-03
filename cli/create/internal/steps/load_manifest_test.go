@@ -16,8 +16,11 @@ func TestManifestLoad(t *testing.T) {
 	require.NoError(t, copy.Copy("testdata/sample", workDir))
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
+
 	loadManifest := LoadManifest{}
 	require.NoError(t, loadManifest.Run(&createCtx, &templateCtx))
 
@@ -49,7 +52,9 @@ func TestMissingManifest(t *testing.T) {
 	workDir := t.TempDir()
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 
 	loadManifest := LoadManifest{}
@@ -64,7 +69,9 @@ func TestManifestInvalidYaml(t *testing.T) {
 		[]byte(`Description: [`), 0o644))
 
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
+
 	templateCtx.AppPath = workDir
 
 	loadManifest := LoadManifest{}

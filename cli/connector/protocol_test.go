@@ -36,6 +36,7 @@ func TestProtocol_String(t *testing.T) {
 
 type greetingReadStub struct {
 	io.Reader
+
 	err  error
 	data []byte
 }
@@ -44,6 +45,7 @@ func (stub *greetingReadStub) Read(dst []byte) (int, error) {
 	if stub.err != nil {
 		return 0, stub.err
 	}
+
 	return copy(dst, stub.data), nil
 }
 
@@ -79,6 +81,7 @@ func TestGetProtocol(t *testing.T) {
 			s := &greetingReadStub{err: c.err, data: []byte(c.greeting)}
 			p, err := GetProtocol(s)
 			assert.Equal(t, c.expected, p)
+
 			if c.err != nil {
 				assert.ErrorContains(t, err, "failed to read Tarantool greeting:")
 				assert.ErrorContains(t, err, c.err.Error())

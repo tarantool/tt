@@ -129,6 +129,7 @@ func (e *Engine) ResolvePinned(
 		}
 
 		var conflict *pinConflictError
+
 		if !errors.As(err, &conflict) {
 			return nil, nil, err
 		}
@@ -240,6 +241,7 @@ func (e *Engine) resolveDev(
 		}
 
 		var conflict *pinConflictError
+
 		if !errors.As(err, &conflict) {
 			return nil, nil, fmt.Errorf("resolving dev dependencies: %w", err)
 		}

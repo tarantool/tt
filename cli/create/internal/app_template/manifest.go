@@ -1,6 +1,7 @@
 package app_template
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -46,20 +47,23 @@ type TemplateManifest struct {
 func validateManifest(manifest *TemplateManifest) error {
 	for _, varInfo := range manifest.Vars {
 		if varInfo.Prompt == "" {
-			return fmt.Errorf("missing user prompt")
+			return errors.New("missing user prompt")
 		}
+
 		if varInfo.Name == "" {
-			return fmt.Errorf("missing variable name")
+			return errors.New("missing variable name")
 		}
 	}
+
 	return nil
 }
 
 // LoadManifest loads template manifest from manifestPath.
 func LoadManifest(manifestPath string) (TemplateManifest, error) {
 	var templateManifest TemplateManifest
+
 	if _, err := os.Stat(manifestPath); err != nil {
-		return templateManifest, fmt.Errorf("failed to get access to manifest file: %s", err)
+		return templateManifest, fmt.Errorf("failed to get access to manifest file: %w", err)
 	}
 
 	rawConfigOpts, err := util.ParseYAML(manifestPath)
@@ -68,11 +72,11 @@ func LoadManifest(manifestPath string) (TemplateManifest, error) {
 	}
 
 	if err := mapstructure.Decode(rawConfigOpts, &templateManifest); err != nil {
-		return templateManifest, fmt.Errorf("failed to decode template manifest: %s", err)
+		return templateManifest, fmt.Errorf("failed to decode template manifest: %w", err)
 	}
 
 	if err := validateManifest(&templateManifest); err != nil {
-		return templateManifest, fmt.Errorf("invalid manifest format: %s", err)
+		return templateManifest, fmt.Errorf("invalid manifest format: %w", err)
 	}
 
 	return templateManifest, nil

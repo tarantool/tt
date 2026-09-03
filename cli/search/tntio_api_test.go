@@ -38,6 +38,7 @@ func (p *platformInfo) GetArch() (string, error) {
 	if p.arch == "" {
 		return "", errors.New("mock architecture not applied")
 	}
+
 	return p.arch, nil
 }
 
@@ -57,31 +58,38 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 
 	if req.Method != http.MethodPost {
 		m.t.Errorf("expected POST method, got %s", req.Method)
+
 		return nil, errors.New("invalid request method")
 	}
 
 	if req.URL.Path != "/en/accounts/customer_zone/api" {
 		m.t.Errorf("expected /en/accounts/customer_zone/api path, got %s", req.URL.Path)
+
 		return nil, errors.New("invalid request path")
 	}
 
 	if req.Header.Get("Content-Type") != "application/json" {
 		m.t.Errorf("expected application/json content type, got %s",
 			req.Header.Get("Content-Type"))
+
 		return nil, errors.New("invalid content type")
 	}
 
 	// Read and check the request body.
 	if req.Body == nil {
 		m.t.Error("expected request body, got nil")
+
 		return nil, errors.New("missing request body")
 	}
+
 	bodyBytes, err := io.ReadAll(req.Body)
 	if err != nil {
 		m.t.Errorf("failed to read request body: %v", err)
+
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
-	// Restore the body for potential re-reads
+
+	// Restore the body for potential re-reads.
 	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	type expectedApiRequest struct {
@@ -91,9 +99,11 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 	}
 
 	var actualRequest expectedApiRequest
+
 	err = json.Unmarshal(bodyBytes, &actualRequest)
 	if err != nil {
 		m.t.Errorf("failed to unmarshal request body: %v. Body: %s", err, string(bodyBytes))
+
 		return nil, fmt.Errorf("failed to unmarshal request body: %w", err)
 	}
 
@@ -104,6 +114,7 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 	}
 
 	require.Equal(m.t, expectedRequest, actualRequest, "request body mismatch")
+
 	if m.t.Failed() {
 		return nil, errors.New("invalid request body content")
 	}
@@ -118,34 +129,38 @@ func (m *mockDoer) Token() string {
 func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 	t.Helper()
 
-	// Verify the output contains the expected versions in the correct order
+	// Verify the output contains the expected versions in the correct order.
 	lastIndex := -1
+
 	for _, ver := range expected {
 		currentIndex := strings.Index(got, ver)
-		require.True(t,
-			currentIndex >= 0,
+		require.GreaterOrEqual(t,
+			currentIndex, 0,
 			"Expected version %q not found in output",
 			ver,
 		)
+
 		if currentIndex >= 0 {
-			require.True(t,
-				currentIndex > lastIndex,
+			require.Greater(t,
+				currentIndex, lastIndex,
 				"Version %q is not in the expected order",
 				ver,
 			)
+
 			lastIndex = currentIndex
 		}
 	}
 
-	// Ensure no unexpected versions are printed (optional, stricter check)
+	// Ensure no unexpected versions are printed (optional, stricter check).
 	lines := strings.Split(strings.TrimSpace(got), "\n")
-	require.Equal(t, len(expected), len(lines),
+	require.Len(t, lines, len(expected),
 		"Output contains unexpected lines or missing expected versions")
 }
 
 func TestSearchVersions_TntIo(t *testing.T) {
 	os.Setenv("TT_CLI_EE_USERNAME", testingUsername)
 	os.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
+
 	defer os.Unsetenv("TT_CLI_EE_USERNAME")
 	defer os.Unsetenv("TT_CLI_EE_PASSWORD")
 
@@ -400,7 +415,9 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			log.SetLevel(log.DebugLevel)
 
 			r, w, _ := os.Pipe()
+
 			os.Stdout = w
+
 			defer func() {
 				os.Stdout = originalStdout
 			}()
@@ -414,9 +431,11 @@ func TestSearchVersions_TntIo(t *testing.T) {
 
 			// Create SearchCtx with the configured mock.
 			sCtx := search.NewSearchCtx(&tt.platform, &mockDoer)
+
 			sCtx.Program = tt.program
 			sCtx.ReleaseVersion = tt.specificVersion
 			sCtx.DevBuilds = tt.devBuilds
+
 			if tt.searchDebug {
 				sCtx.Filter = search.SearchDebug
 			}
@@ -424,15 +443,20 @@ func TestSearchVersions_TntIo(t *testing.T) {
 			err := search.SearchVersions(sCtx, &opts)
 
 			w.Close()
+
 			var outBuf bytes.Buffer
+
 			_, readErr := outBuf.ReadFrom(r)
 			require.NoError(t, readErr, "Failed to read from stdout pipe")
+
 			gotOutput := outBuf.String()
 
 			var logBuilder strings.Builder
+
 			for _, entry := range handler.Entries {
-				logBuilder.WriteString(fmt.Sprintf("%s %s\n", entry.Level, entry.Message))
+				fmt.Fprintf(&logBuilder, "%s %s\n", entry.Level, entry.Message)
 			}
+
 			gotLog := logBuilder.String()
 			t.Logf("Log:\n%s", gotLog)
 
@@ -440,8 +464,10 @@ func TestSearchVersions_TntIo(t *testing.T) {
 				require.Error(t, err, "Expected an error, but got nil")
 				require.Contains(t, err.Error(), tt.errMsg,
 					"Expected error message does not match")
+
 				return
 			}
+
 			require.NoError(t, err, "Expected no error, but got: %v", err)
 			require.Contains(t,
 				gotLog,
@@ -462,6 +488,7 @@ func TestTntIoMakePkgURI(t *testing.T) {
 		devBuilds bool
 		tarball   string
 	}
+
 	tests := map[string]struct {
 		args     args
 		expected string
@@ -474,7 +501,7 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				version:  "1.3",
 				tarball:  "tcm.tar.gz",
 			},
-			// nolint: lll
+			//nolint: lll
 			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/tarantool-cluster-manager/release/linux/amd64/1.3/tcm.tar.gz",
 		},
 
@@ -486,7 +513,7 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				devBuilds: true,
 				tarball:   "tcm.tar.gz",
 			},
-			// nolint: lll
+			//nolint: lll
 			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/tarantool-cluster-manager/dev/macos/arm64/1.1/tcm.tar.gz",
 		},
 
@@ -497,7 +524,7 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				version:  "3.0",
 				tarball:  "tarantool.tar.gz",
 			},
-			// nolint: lll
+			//nolint: lll
 			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/enterprise/release/linux/x86_64/3.0/tarantool.tar.gz",
 		},
 
@@ -509,7 +536,7 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				devBuilds: true,
 				tarball:   "tarantool.tar.gz",
 			},
-			// nolint: lll
+			//nolint: lll
 			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/enterprise/dev/macos/aarch64/3.3/tarantool.tar.gz",
 		},
 
@@ -557,6 +584,7 @@ func TestTntIoMakePkgURI(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			sCtx := search.NewSearchCtx(tt.args.platform, nil)
+
 			sCtx.Program = tt.args.program
 			sCtx.ReleaseVersion = tt.args.version
 			sCtx.DevBuilds = tt.args.devBuilds
@@ -566,8 +594,10 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				require.Error(t, err, "Expected an error, but got nil")
 				require.Contains(t, err.Error(), tt.errMsg,
 					"Expected error message does not match")
+
 				return
 			}
+
 			require.NoError(t, err, "Expected no error, but got: %v", err)
 			require.Equal(t, tt.expected, got)
 		})

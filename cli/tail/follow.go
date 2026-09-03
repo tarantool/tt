@@ -48,7 +48,8 @@ func NewTailFollower(fileName string) Follower {
 func (f *fileFollower) Follow(ctx context.Context, lines int) (<-chan string, error) {
 	out := make(chan string, linesChannelCapacity)
 
-	if err := f.startFollowing(ctx, out, lines); err != nil {
+	err := f.startFollowing(ctx, out, lines)
+	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("not found file %q", f.name)
 		}
@@ -58,6 +59,7 @@ func (f *fileFollower) Follow(ctx context.Context, lines int) (<-chan string, er
 
 	go func() {
 		defer close(f.followDone)
+
 		f.wg.Wait()
 		close(out)
 	}()
@@ -101,6 +103,7 @@ func (f *fileFollower) tryReopenTailer(ctx context.Context, cfg *tail.Config) (*
 		newT, err := tail.TailFile(f.name, newCfg)
 		if err == nil {
 			log.Infof("Successfully re-established tailing for %q, after %d retries", f.name, i)
+
 			return newT, nil
 		}
 
@@ -132,6 +135,7 @@ func (f *fileFollower) handleTailerStopStatus(ctx context.Context, curT *tail.Ta
 
 		if ctx.Err() != nil {
 			t.Stop()
+
 			return nil, fmt.Errorf("context (%w) while reopening tailer %q",
 				ctx.Err(), f.name)
 		}
@@ -148,6 +152,7 @@ func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- 
 	for {
 		if t == nil || t.Lines == nil {
 			log.Errorf("Tailer or its Lines channel is nil for %s", f.name)
+
 			return
 		}
 
@@ -155,7 +160,8 @@ func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- 
 		case <-ctx.Done():
 			log.Infof("Context cancelled. Stopping tailing of %q.", f.name)
 
-			if err := t.Stop(); err != nil {
+			err := t.Stop()
+			if err != nil {
 				log.Infof("Error stopping tailer for %q on context cancellation: %v",
 					f.name, err)
 			}
@@ -188,7 +194,8 @@ func (f *fileFollower) followFile(ctx context.Context, t *tail.Tail, out chan<- 
 				log.Infof("Context cancelled while attempting to send line from %q. Stopping.",
 					f.name)
 
-				if stopErr := t.Stop(); stopErr != nil {
+				stopErr := t.Stop()
+				if stopErr != nil {
 					log.Warnf(
 						"Error stopping tailer for %q on context cancellation (during send): %v",
 						f.name, stopErr)
@@ -232,6 +239,7 @@ func (f *fileFollower) startFollowing(ctx context.Context, out chan<- string, li
 	}
 
 	f.wg.Add(1)
+
 	go f.followFile(ctx, t, out)
 
 	return nil

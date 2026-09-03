@@ -3,9 +3,10 @@ package regexputil
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 var varPattern = regexp.MustCompile(`{{\s*([^ ]+)\s*}}`)
@@ -21,12 +22,13 @@ func ApplyVars(templateStr string, data map[string]string) (string, error) {
 				return val
 			}
 		}
+
 		return varNameStr
 	})
 
 	if len(missingVars) > 0 {
 		return renderedStr, fmt.Errorf("missing vars: %s\nin template string: %q",
-			strings.Join(maps.Keys(missingVars), ","), templateStr)
+			strings.Join(slices.AppendSeq(make([]string, 0, len(missingVars)), maps.Keys(missingVars)), ","), templateStr)
 	}
 
 	return renderedStr, nil

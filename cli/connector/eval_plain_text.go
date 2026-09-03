@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -30,8 +31,8 @@ const (
 
 type EvalPlainTextOpts struct {
 	ReadTimeout  time.Duration
-	PushCallback func(interface{})
-	ResData      interface{}
+	PushCallback func(any)
+	ResData      any
 }
 
 type PlainTextEvalRes struct {
@@ -41,21 +42,21 @@ type PlainTextEvalRes struct {
 // evalPlainTextConnYAML calls function on Tarantool instance
 // Function should return `interface{}`, `string` (res, err)
 // to be correctly processed.
-func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{},
+func evalPlainTextConn(conn net.Conn, funcBody string, args []any,
 	opts EvalPlainTextOpts,
-) ([]interface{}, error) {
+) ([]any, error) {
 	if err := formatAndSendEvalFunc(conn, funcBody, args, evalFuncTmpl); err != nil {
 		return nil, err
 	}
 
-	// recv from socket
+	// recv from socket.
 	resBytes, err := readFromPlainTextConn(conn, opts)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return nil, err
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to check returned data: %s", err)
+		return nil, fmt.Errorf("failed to check returned data: %w", err)
 	}
 
 	data, err := processEvalTarantoolRes(resBytes, opts.ResData)
@@ -66,34 +67,35 @@ func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{},
 	return data, nil
 }
 
-func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{},
+func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []any,
 	evalFuncTmpl string,
 ) error {
 	if args == nil {
-		args = []interface{}{}
+		args = []any{}
 	}
 
 	argsEncoded, err := msgpack.Marshal(args)
 	if err != nil {
-		return fmt.Errorf("failed to encode args: %s", err)
+		return fmt.Errorf("failed to encode args: %w", err)
 	}
 
 	evalFunc, err := util.GetTextTemplatedStr(&evalFuncTmpl, map[string]string{
 		"FunctionBody": funcBody,
-		"ArgsEncoded":  fmt.Sprintf("%x", argsEncoded),
+		"ArgsEncoded":  hex.EncodeToString(argsEncoded),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to instantiate eval function template: %s", err)
+		return fmt.Errorf("failed to instantiate eval function template: %w", err)
 	}
 
 	evalFuncFormatted := strings.Join(
 		strings.Split(strings.TrimSpace(evalFunc), "\n"), " ",
 	)
+
 	evalFuncFormatted = strings.Join(strings.Fields(evalFuncFormatted), " ") + "\n"
 
-	// write to socket
+	// write to socket.
 	if err := writeToPlainTextConn(conn, evalFuncFormatted); err != nil {
-		return fmt.Errorf("failed to send eval function to socket: %s", err)
+		return fmt.Errorf("failed to send eval function to socket: %w", err)
 	}
 
 	return nil
@@ -102,11 +104,12 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{},
 func writeToPlainTextConn(conn net.Conn, data string) error {
 	writer := bufio.NewWriter(conn)
 	if _, err := writer.WriteString(data); err != nil {
-		return fmt.Errorf("failed to send to socket: %s", err)
+		return fmt.Errorf("failed to send to socket: %w", err)
 	}
 
-	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("failed to flush: %s", err)
+	err := writer.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to flush: %w", err)
 	}
 
 	return nil
@@ -143,6 +146,7 @@ func writeToPlainTextConn(conn net.Conn, data string) error {
 // yaml-encoded value was read).
 func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error) {
 	var dataBytes []byte
+
 	buffer := bytes.Buffer{}
 
 	for {
@@ -158,15 +162,15 @@ func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error
 		// ...
 		//
 		// So, when data portion starts with a tag prefix, we have to read one more value
-		// received tag string can be handled via pushCallback function
+		// received tag string can be handled via pushCallback function.
 		//
 		dataPortionBytes, err := readDataPortionFromPlainTextConn(conn, &buffer, opts.ReadTimeout)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil, err
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to read from instance socket: %s", err)
+			return nil, fmt.Errorf("failed to read from instance socket: %w", err)
 		}
 
 		dataPortion := string(dataPortionBytes)
@@ -177,7 +181,7 @@ func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error
 		}
 
 		if opts.PushCallback != nil {
-			var pushedData interface{}
+			var pushedData any
 
 			pushedData, err := getPushedData(dataPortionBytes)
 			if err != nil {
@@ -217,11 +221,10 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 		// but not process them in this function call (see examples above).
 		// This structure allows us to save this data and process it in the next function call.
 		//
-
 		if buffer.Len() == 0 {
-			if n, err := conn.Read(tmp); err != nil && err != io.EOF {
-				return nil, fmt.Errorf("failed to read: %s", err)
-			} else if n == 0 || err == io.EOF {
+			if n, err := conn.Read(tmp); err != nil && !errors.Is(err, io.EOF) {
+				return nil, fmt.Errorf("failed to read: %w", err)
+			} else if n == 0 || errors.Is(err, io.EOF) {
 				return nil, io.EOF
 			} else {
 				buffer.Write(tmp[:n])
@@ -230,23 +233,22 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 
 		nextByte, err := buffer.ReadByte()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get byte from buffer: %s", err)
+			return nil, fmt.Errorf("failed to get byte from buffer: %w", err)
 		}
 
 		data = append(data, nextByte)
+
 		dataString := string(data)
 
 		if strings.HasPrefix(endOfYAMLOutput, dataString) ||
 			strings.HasPrefix(tagPushPrefixYAML, dataString) ||
 			strings.HasPrefix(tagPushPrefixLua, dataString) {
-
 			continue
 		}
 
 		if !hasYAMLOutputPrefix &&
 			strings.HasPrefix(dataString, startOfYamlOutput) ||
 			strings.HasPrefix(dataString, tagPushPrefixYAML) {
-
 			hasYAMLOutputPrefix = true
 		}
 
@@ -260,7 +262,7 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 	}
 
 	if len(data) == 0 {
-		return nil, fmt.Errorf("connection was closed")
+		return nil, errors.New("connection was closed")
 	}
 
 	return data, nil
@@ -278,21 +280,23 @@ func pushTagIsReceived(dataPortion string) bool {
 	return false
 }
 
-func getPushedData(pushedDataBytes []byte) (interface{}, error) {
-	var pushedData interface{}
+func getPushedData(pushedDataBytes []byte) (any, error) {
+	var pushedData any
+
 	pushedDataString := string(pushedDataBytes)
 
 	if strings.HasPrefix(pushedDataString, tagPushPrefixYAML) {
-		// YAML - just decode tag
-		if err := yaml.Unmarshal(pushedDataBytes, &pushedData); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal pushed data: %s", err)
+		// YAML - just decode tag.
+		err := yaml.Unmarshal(pushedDataBytes, &pushedData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal pushed data: %w", err)
 		}
 	} else {
-		// Lua
+		// Lua.
 
-		// remove first line (-- Push)
+		// remove first line (-- Push).
 		pushedDataString = strings.SplitN(pushedDataString, "\n", 2)[1]
-		// remove ";"
+		// remove ";".
 		pushedDataString = strings.TrimRight(pushedDataString, ";")
 
 		pushedData = pushedDataString
@@ -301,11 +305,14 @@ func getPushedData(pushedDataBytes []byte) (interface{}, error) {
 	return pushedData, nil
 }
 
-func processEvalTarantoolRes(resBytes []byte, result interface{}) ([]interface{}, error) {
-	var err error
-	var evalResultEncBase64 string
+func processEvalTarantoolRes(resBytes []byte, result any) ([]any, error) {
+	var (
+		err                 error
+		evalResultEncBase64 string
+	)
 
 	var getResultEncBase64Func func([]byte) (string, error)
+
 	// Result data is returned as a table
 	// `{ data_enc = msgpack.encode(ret):hex() }`.
 	// It can't be returned as a string because of Lua output -
@@ -327,7 +334,7 @@ func processEvalTarantoolRes(resBytes []byte, result interface{}) ([]interface{}
 	// tarantool> return 'XXX'
 	// "XXX";
 	// tarantool> error('XXX')
-	// "XXX";
+	// "XXX";.
 
 	resString := string(resBytes)
 	if strings.HasPrefix(resString, startOfYamlOutput) {
@@ -342,20 +349,22 @@ func processEvalTarantoolRes(resBytes []byte, result interface{}) ([]interface{}
 
 	dataEnc, err := base64.StdEncoding.DecodeString(evalResultEncBase64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode hex value: %s", err)
+		return nil, fmt.Errorf("failed to decode hex value: %w", err)
 	}
 
 	if result != nil {
-		if err := msgpack.Unmarshal(dataEnc, result); err != nil {
-			return nil, fmt.Errorf("failed to parse eval result: %s", err)
+		err := msgpack.Unmarshal(dataEnc, result)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse eval result: %w", err)
 		}
 
 		return nil, nil
 	}
 
-	var data []interface{}
+	var data []any
+
 	if err := msgpack.Unmarshal(dataEnc, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse eval result: %s", err)
+		return nil, fmt.Errorf("failed to parse eval result: %w", err)
 	}
 
 	return data, nil
@@ -363,9 +372,13 @@ func processEvalTarantoolRes(resBytes []byte, result interface{}) ([]interface{}
 
 func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 	evalResults := []PlainTextEvalRes{}
-	if err := yaml.UnmarshalStrict(resBytes, &evalResults); err != nil {
+
+	err := yaml.UnmarshalStrict(resBytes, &evalResults)
+	if err != nil {
 		errorStrings := make([]map[string]string, 0)
-		if err := yaml.UnmarshalStrict(resBytes, &errorStrings); err == nil {
+
+		err := yaml.UnmarshalStrict(resBytes, &errorStrings)
+		if err == nil {
 			if len(errorStrings) > 0 {
 				errStr, found := errorStrings[0]["error"]
 				if found {
@@ -374,7 +387,7 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 			}
 		}
 
-		return "", fmt.Errorf("failed to parse eval result: %s", err)
+		return "", fmt.Errorf("failed to parse eval result: %w", err)
 	}
 
 	if len(evalResults) != 1 {
@@ -382,6 +395,7 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 	}
 
 	evalResult := evalResults[0]
+
 	return evalResult.DataEncBase64, nil
 }
 
@@ -391,7 +405,8 @@ func getPlainTextEvalResLua(resBytes []byte) (string, error) {
 
 	doString := fmt.Sprintf(`res = %s`, resBytes)
 
-	if err := L.DoString(doString); err != nil {
+	err := L.DoString(doString)
+	if err != nil {
 		return "", err
 	}
 

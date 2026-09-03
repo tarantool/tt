@@ -401,11 +401,15 @@ func placeRuntime(stageDir string, src runtimeSource) error {
 	dst := filepath.Join(stageDir, runtimeDirName, src.Name)
 
 	if src.Dir != "" {
-		if err := copyTree(src.Dir, dst); err != nil {
+		err := copyTree(src.Dir, dst)
+		if err != nil {
 			return fmt.Errorf("bundling %s: %w", src.Name, err)
 		}
-	} else if err := placeBinaryRuntime(dst, src); err != nil {
-		return err
+	} else {
+		err := placeBinaryRuntime(dst, src)
+		if err != nil {
+			return err
+		}
 	}
 
 	if src.Name == runtimeTarantool {
@@ -421,7 +425,9 @@ func placeRuntime(stageDir string, src runtimeSource) error {
 // require time rather than at pack time, so they come along when present.
 func placeBinaryRuntime(dst string, src runtimeSource) error {
 	target := filepath.Join(dst, "bin", src.Name)
-	if err := copyFile(src.Binary, target); err != nil {
+
+	err := copyFile(src.Binary, target)
+	if err != nil {
 		return fmt.Errorf("bundling %s: %w", src.Name, err)
 	}
 
@@ -436,7 +442,8 @@ func placeBinaryRuntime(dst string, src runtimeSource) error {
 		return nil //nolint:nilerr // No share tree to bundle.
 	}
 
-	if err := copyTree(share, filepath.Join(dst, "share", "tarantool")); err != nil {
+	err = copyTree(share, filepath.Join(dst, "share", "tarantool"))
+	if err != nil {
 		return fmt.Errorf("bundling Tarantool share/: %w", err)
 	}
 

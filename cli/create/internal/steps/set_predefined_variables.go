@@ -17,5 +17,6 @@ func (SetPredefinedVariables) Run(createCtx *create_ctx.CreateCtx,
 	if createCtx.CliOpts != nil && createCtx.CliOpts.App != nil {
 		templateCtx.Vars["rundir"] = util.RelativeToCurrentWorkingDir(createCtx.CliOpts.App.RunDir)
 	}
+
 	return nil
 }

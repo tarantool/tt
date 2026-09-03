@@ -22,6 +22,7 @@ import (
 // requireHostToolchain, so it points at the host's real Tarantool headers.
 func integrationFlags(includeDir string) lrbuild.Flags {
 	cfg := luarocks.Config{}
+
 	cfg.Tarantool.IncludeDir = includeDir
 
 	return lrbuild.DeriveFlags(cfg)

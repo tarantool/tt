@@ -30,6 +30,7 @@ func ParseTableDialect(str string) (TableDialect, bool) {
 	case jiraTableDialectStr:
 		return JiraTableDialect, true
 	}
+
 	return DefaultTableDialect, false
 }
 

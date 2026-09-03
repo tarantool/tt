@@ -82,6 +82,7 @@ func newInstallTarantoolDevCmd() *cobra.Command {
 
 	tntCmd.Flags().StringVar(&installCtx.IncDir, "include-dir", "",
 		"tarantool headers directory")
+
 	return tntCmd
 }
 
@@ -129,10 +130,13 @@ func internalInstallModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var err error
-	if err = install.FillCtx(cmdCtx, &installCtx, args); err != nil {
+
+	err = install.FillCtx(cmdCtx, &installCtx, args)
+	if err != nil {
 		return err
 	}
 
 	err = install.Install(installCtx, cliOpts)
+
 	return err
 }

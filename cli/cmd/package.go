@@ -105,7 +105,8 @@ func newPackageAddCmd() *cobra.Command {
 				constraint = args[1]
 			}
 
-			if err := runPackageAdd(args[0], constraint); err != nil {
+			err := runPackageAdd(args[0], constraint)
+			if err != nil {
 				log.Error(err.Error())
 				os.Exit(deps.ExitCode(err))
 			}
@@ -167,7 +168,8 @@ func newPackageRemoveCmd() *cobra.Command {
 			"deleted from .rocks/; tt package uninstall is what removes files.",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageRemove(args[0]); err != nil {
+			err := runPackageRemove(args[0])
+			if err != nil {
 				log.Error(err.Error())
 				os.Exit(deps.ExitCode(err))
 			}
@@ -215,7 +217,8 @@ func newPackageUpdateCmd() *cobra.Command {
 				name = args[0]
 			}
 
-			if err := runPackageUpdate(name); err != nil {
+			err := runPackageUpdate(name)
+			if err != nil {
 				log.Error(err.Error())
 				os.Exit(deps.ExitCode(err))
 			}
@@ -304,7 +307,8 @@ func newPackageListCmd() *cobra.Command {
 			"along with the package or stay.",
 		Args: cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageList(); err != nil {
+			err := runPackageList()
+			if err != nil {
 				log.Error(err.Error())
 				os.Exit(inventory.ExitCode(err))
 			}
@@ -361,7 +365,8 @@ func newPackageUninstallCmd() *cobra.Command {
 			"declares — is not a guest, and uninstall refuses to remove it.",
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageUninstall(args[0]); err != nil {
+			err := runPackageUninstall(args[0])
+			if err != nil {
 				log.Error(err.Error())
 				os.Exit(inventory.ExitCode(err))
 			}
@@ -452,7 +457,8 @@ func newPackageInstallCmd() *cobra.Command {
 			"accept, or the install fails with an explanation.",
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackageInstall(args); err != nil {
+			err := runPackageInstall(args)
+			if err != nil {
 				log.Error(err.Error())
 				os.Exit(install.ExitCode(err))
 			}
@@ -573,7 +579,8 @@ func newPackagePackCmd() *cobra.Command {
 			"beforehand is not needed. The archive path is printed to stdout.",
 		Args: cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPackagePack(); err != nil {
+			err := runPackagePack()
+			if err != nil {
 				log.Error(err.Error())
 				os.Exit(pack.ExitCode(err))
 			}
@@ -673,7 +680,8 @@ func runtimeCacheDir() string {
 // 1 for a state error (stale --locked, version.lua collision), 2 for a
 // component build backend failure.
 func runPackageCmd(args []string, fetchOnly bool) {
-	if err := runPackage(args, fetchOnly); err != nil {
+	err := runPackage(args, fetchOnly)
+	if err != nil {
 		log.Error(err.Error())
 		os.Exit(build.ExitCode(err))
 	}

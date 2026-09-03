@@ -2,7 +2,6 @@ package running
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -18,6 +17,7 @@ import (
 type baseInstance struct {
 	// processController is a child process controller.
 	*processController
+
 	// logger represents an active logging object.
 	logger ttlog.Logger
 	// tarantoolPath describes the path to the tarantool binary
@@ -75,6 +75,7 @@ func newBaseInstance(tarantoolPath string, instanceCtx InstanceCtx,
 	for _, opt := range opts {
 		opt(&baseInst)
 	}
+
 	return baseInst
 }
 
@@ -86,6 +87,7 @@ func IntegrityOpt(integrityCtx integrity.IntegrityCtx) InstanceOption {
 	return func(inst *baseInstance) error {
 		inst.integrityChecks = true
 		inst.integrityCtx = integrityCtx
+
 		return nil
 	}
 }
@@ -112,6 +114,7 @@ func StdLoggerOpt(logger ttlog.Logger) InstanceOption {
 		inst.logger = logger
 		inst.stdOut = logger
 		inst.stdErr = logger
+
 		return nil
 	}
 }
@@ -119,16 +122,18 @@ func StdLoggerOpt(logger ttlog.Logger) InstanceOption {
 // Wait waits for the child process to complete.
 func (inst *baseInstance) Wait() error {
 	if inst.processController == nil {
-		return fmt.Errorf("instance is not started")
+		return errors.New("instance is not started")
 	}
+
 	return inst.processController.Wait()
 }
 
 // SendSignal sends a signal to tarantool instance.
 func (inst *baseInstance) SendSignal(sig os.Signal) error {
 	if inst.processController == nil {
-		return fmt.Errorf("instance is not started")
+		return errors.New("instance is not started")
 	}
+
 	return inst.processController.SendSignal(sig)
 }
 
@@ -137,6 +142,7 @@ func (inst *baseInstance) IsAlive() bool {
 	if inst.processController == nil {
 		return false
 	}
+
 	return inst.processController.IsAlive()
 }
 
@@ -145,6 +151,7 @@ func (inst *baseInstance) StopWithSignal(waitTimeout time.Duration, usedSignal o
 	if inst.processController == nil {
 		return nil
 	}
+
 	return inst.processController.StopWithSignal(waitTimeout, usedSignal)
 }
 
@@ -155,16 +162,22 @@ func (inst *baseInstance) Run(opts RunOpts) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return errors.New("tarantool executable is not found")
 		}
+
 		return err
 	}
+
 	f.Close()
+
 	newInstanceEnv := os.Environ()
 	args := []string{inst.tarantoolPath}
+
 	args = append(args, opts.RunArgs...)
 	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
+
 	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)
 	if execErr != nil {
 		return execErr
 	}
+
 	return nil
 }

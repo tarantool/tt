@@ -1,7 +1,7 @@
 package rocks
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 
@@ -18,6 +18,7 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 		cliOpts *config.CliOpts
 		args    []string
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -110,21 +111,22 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			require.EqualValues(t, got, tt.want)
+
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestGetRocksRepoPath(t *testing.T) {
 	os.Unsetenv(repoRocksPathEnvVarName)
-	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
-	assert.EqualValues(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
+	assert.Equal(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
+	assert.Equal(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
 
 	os.Setenv(repoRocksPathEnvVarName, "./other_repo")
 	// If env var is set, return it if manifests is missing in passed repo.
-	assert.EqualValues(t, "./other_repo", getRocksRepoPath("./testdata/emptyrepo"))
+	assert.Equal(t, "./other_repo", getRocksRepoPath("./testdata/emptyrepo"))
 	// Return passed repo path, since manifest exists. Env var is ignored.
-	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
+	assert.Equal(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
 	os.Unsetenv(repoRocksPathEnvVarName)
 }
 
@@ -187,7 +189,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		IsTarantoolBinFromRepo: false,
 		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData0}] = prefixOutput{
-		err: fmt.Errorf("failed to get prefix path: regexp does not match"),
+		err: errors.New("failed to get prefix path: regexp does not match"),
 	}
 
 	tntBadData1 := []byte("#!/bin/sh\n" +
@@ -198,7 +200,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		IsTarantoolBinFromRepo: false,
 		TarantoolCli:           cmdcontext.TarantoolCli{Executable: tntBinPath},
 	}, data: &tntBadData1}] = prefixOutput{
-		err: fmt.Errorf("failed to get prefix path: expected more data"),
+		err: errors.New("failed to get prefix path: expected more data"),
 	}
 
 	appOpts := config.TtEnvOpts{IncludeDir: "hdr"}
@@ -219,6 +221,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 
 	for input, output := range testCases {
 		os.Unsetenv(tarantoolPrefixEnvVarName)
+
 		tntFile, err := os.Create(tntBinPath)
 		require.NoError(t, err)
 
@@ -232,10 +235,13 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		if input.tntPrefixEnv != "" {
 			os.Setenv(tarantoolPrefixEnvVarName, input.tntPrefixEnv)
 		}
+
 		tarantoolPrefix, err := GetTarantoolPrefix(&input.cli, input.cliOpts)
+
 		os.Unsetenv(tarantoolPrefixEnvVarName)
+
 		if err == nil {
-			assert.Nil(err)
+			assert.NoError(err)
 			assert.Equal(output.prefix, tarantoolPrefix)
 		} else {
 			assert.Equal(output.err, err)

@@ -30,7 +30,7 @@ const (
 func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 	if err != nil {
-		return fmt.Errorf("cannot create a temporary directory for archiving: %v", err)
+		return fmt.Errorf("cannot create a temporary directory for archiving: %w", err)
 	}
 	defer os.RemoveAll(tmpDir) // Clean up on function return.
 
@@ -38,51 +38,64 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	if executable != "" {
 		scriptArgs = append(scriptArgs, "-e", executable)
 	}
+
 	if outputDir != "" {
 		scriptArgs = append(scriptArgs, "-d", outputDir)
 	}
+
 	if pid != 0 {
 		scriptArgs = append(scriptArgs, "-p", strconv.FormatUint(uint64(pid), 10))
 	}
 
 	// Prepare gdb wrapper for packing.
 	inspectPath := filepath.Join(tmpDir, filepath.Base(inspectEmbedPath))
+
 	err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, inspectPath, 0o755)
 	if err != nil {
-		return fmt.Errorf("failed to put the inspecting script into the archive: %v", err)
+		return fmt.Errorf("failed to put the inspecting script into the archive: %w", err)
 	}
+
 	scriptArgs = append(scriptArgs, "-g", inspectPath)
 
 	// Prepare gdb extensions for packing.
 	const extDirName = "extensions"
+
 	extEntries, err := extensions.ReadDir(extDirName)
 	if err != nil {
-		return fmt.Errorf("failed to find embedded GDB-extensions: %v", err)
+		return fmt.Errorf("failed to find embedded GDB-extensions: %w", err)
 	}
+
 	for _, extEntry := range extEntries {
 		extSrc := filepath.Join(extDirName, extEntry.Name())
 		extDst := filepath.Join(tmpDir, extEntry.Name())
+
 		err = util.FsCopyFileChangePerms(extensions, extSrc, extDst, 0o644)
 		if err != nil {
-			return fmt.Errorf("failed to put GDB-extension into the archive: %v", err)
+			return fmt.Errorf("failed to put GDB-extension into the archive: %w", err)
 		}
+
 		scriptArgs = append(scriptArgs, "-x", extDst)
 	}
 
 	script, err := coreScripts.Open(packEmbedPath)
 	if err != nil {
-		return fmt.Errorf("failed to open pack script: %v", err)
+		return fmt.Errorf("failed to open pack script: %w", err)
 	}
+
 	cmdArgs := []string{"-s", "--"}
 	cmd := exec.Command("bash", append(cmdArgs, scriptArgs...)...)
+
 	cmd.Stdin = script
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("pack script execution failed: %v", err)
+		return fmt.Errorf("pack script execution failed: %w", err)
 	}
+
 	log.Info("Core was successfully packed.")
+
 	return nil
 }
 
@@ -90,9 +103,11 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 func Unpack(archivePath string) error {
 	err := util.ExtractTarGz(archivePath, ".")
 	if err != nil {
-		return fmt.Errorf("failed to unpack: %v", err)
+		return fmt.Errorf("failed to unpack: %w", err)
 	}
+
 	log.Info("Archive was successfully unpacked.")
+
 	return nil
 }
 
@@ -100,10 +115,11 @@ func Unpack(archivePath string) error {
 func Inspect(archiveOrDir, sourceDir string) error {
 	stat, err := os.Stat(archiveOrDir)
 	if err != nil {
-		return fmt.Errorf("failed to inspect: %v", err)
+		return fmt.Errorf("failed to inspect: %w", err)
 	}
 
 	var dir string
+
 	if stat.IsDir() {
 		dir = archiveOrDir
 	} else {
@@ -111,13 +127,13 @@ func Inspect(archiveOrDir, sourceDir string) error {
 		// temporary directory.
 		tmpDir, err := os.MkdirTemp(os.TempDir(), "tt-coredump-*")
 		if err != nil {
-			return fmt.Errorf("cannot create a temporary directory for unpacking: %v", err)
+			return fmt.Errorf("cannot create a temporary directory for unpacking: %w", err)
 		}
 		defer os.RemoveAll(tmpDir) // Clean up on function return.
 
 		err = util.ExtractTarGz(archiveOrDir, tmpDir)
 		if err != nil {
-			return fmt.Errorf("failed to unpack: %v", err)
+			return fmt.Errorf("failed to unpack: %w", err)
 		}
 
 		// Directory name is archive basename w/o extensions.
@@ -128,14 +144,16 @@ func Inspect(archiveOrDir, sourceDir string) error {
 
 	// First, try to find gdb wrapper within the unpacked directory.
 	scriptPath := filepath.Join(dir, filepath.Base(inspectEmbedPath))
+
 	_, err = os.Stat(scriptPath)
+
 	if errors.Is(err, fs.ErrNotExist) {
 		// If the wrapper is missing in archive, then use the embedded one.
 		err = util.FsCopyFileChangePerms(coreScripts, inspectEmbedPath, scriptPath, 0o755)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to find inspect script: %v", err)
+		return fmt.Errorf("failed to find inspect script: %w", err)
 	}
 
 	scriptArgs := []string{}
@@ -146,12 +164,15 @@ func Inspect(archiveOrDir, sourceDir string) error {
 	// GDB-wrapper use standard input, so we need to launch it directly
 	// rather than pass it over standard input to bash -s.
 	cmd := exec.Command(scriptPath, scriptArgs...)
+
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("inspect script execution failed: %v", err)
+		return fmt.Errorf("inspect script execution failed: %w", err)
 	}
+
 	return nil
 }

@@ -18,15 +18,18 @@ func Validate(cfg goconfig.Config) error {
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
+
 	if len(bytes.TrimSpace(yamlBytes)) == 0 {
 		return nil
 	}
 
 	versions := gcttarantool.SchemaVersions()
 	if len(versions) == 0 {
-		return fmt.Errorf("no Tarantool schemas registered")
+		return errors.New("no Tarantool schemas registered")
 	}
+
 	newest := versions[len(versions)-1]
+
 	schemaBytes, err := gcttarantool.Schema(newest)
 	if err != nil {
 		return fmt.Errorf("schema for Tarantool version %q not found: %w", newest, err)
@@ -51,5 +54,6 @@ func Validate(cfg goconfig.Config) error {
 	for i := range valErrs {
 		errs[i] = &valErrs[i]
 	}
+
 	return errors.Join(errs...)
 }

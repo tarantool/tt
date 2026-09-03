@@ -23,14 +23,15 @@ func (LoadVarsFile) Run(ctx *create_ctx.CreateCtx,
 	}
 
 	varsDefFileFullPath := filepath.Join(templateCtx.AppPath, ctx.VarsFile)
+
 	_, err := os.Stat(varsDefFileFullPath)
 	if err != nil {
-		return fmt.Errorf("vars file loading error: %s", err)
+		return fmt.Errorf("vars file loading error: %w", err)
 	}
 
 	varsFile, err := os.Open(varsDefFileFullPath)
 	if err != nil {
-		return fmt.Errorf("vars file loading error: %s", err)
+		return fmt.Errorf("vars file loading error: %w", err)
 	}
 	defer varsFile.Close()
 
@@ -38,13 +39,16 @@ func (LoadVarsFile) Run(ctx *create_ctx.CreateCtx,
 	for scanner.Scan() {
 		varDef, err := parseVarDefinition(scanner.Text())
 		if err != nil {
-			return fmt.Errorf("failed to load vars from %s: %s", varsDefFileFullPath, err)
+			return fmt.Errorf("failed to load vars from %s: %w", varsDefFileFullPath, err)
 		}
+
 		log.Debugf("Setting var from vars file: %s = %s", varDef.name, varDef.value)
+
 		templateCtx.Vars[varDef.name] = varDef.value
 	}
 
-	if err = scanner.Err(); err != nil {
+	err = scanner.Err()
+	if err != nil {
 		return err
 	}
 

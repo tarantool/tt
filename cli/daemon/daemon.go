@@ -42,7 +42,8 @@ func RunHTTPServerOnBackground(daemonCtx *DaemonCtx) error {
 	proc := NewProcess(NewHTTPServer(daemonCtx.ListenInterface, daemonCtx.Port),
 		daemonCtx.PIDFile, logOpts).CmdPath(os.Args[0]).CmdArgs(args)
 
-	if err := proc.Start(); err != nil {
+	err := proc.Start()
+	if err != nil {
 		return err
 	}
 

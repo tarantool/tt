@@ -16,6 +16,7 @@ func (f formatterImpl) Format(_ console.Format) (string, error) {
 	if len(f.data) > 0 {
 		return f.data, nil
 	}
+
 	return "", errors.New("formatter error message")
 }
 
@@ -70,8 +71,10 @@ func TestFormat_Print(t *testing.T) {
 			got, err := f.Sprint(tt.data)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Format.Sprint() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
+
 			if got != tt.want {
 				t.Errorf("Format.Sprint() = %v, want %v", got, tt.want)
 			}

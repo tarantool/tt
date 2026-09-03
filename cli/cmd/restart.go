@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -46,7 +47,7 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if cmdCtx.Cli.TarantoolCli.Executable == "" {
-		return fmt.Errorf("tarantool binary is not found")
+		return errors.New("tarantool binary is not found")
 	}
 
 	if !autoYes {
@@ -56,22 +57,26 @@ func internalRestartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		} else {
 			instancesToConfirm = fmt.Sprintf("'%s'", args[0])
 		}
-		confirmed, err := util.AskConfirm(os.Stdin, fmt.Sprintf("Confirm restart of %s",
-			instancesToConfirm))
+
+		confirmed, err := util.AskConfirm(os.Stdin, "Confirm restart of "+instancesToConfirm)
 		if err != nil {
 			return err
 		}
+
 		if !confirmed {
 			log.Info("Restart is cancelled.")
+
 			return nil
 		}
 	}
 
-	if err := internalStopModule(cmdCtx, args); err != nil {
+	err := internalStopModule(cmdCtx, args)
+	if err != nil {
 		return err
 	}
 
-	if err := internalStartModule(cmdCtx, args); err != nil {
+	err = internalStartModule(cmdCtx, args)
+	if err != nil {
 		return err
 	}
 

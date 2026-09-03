@@ -22,7 +22,7 @@ type DaemonHandler struct {
 
 // resResult describes a failure during the command execution.
 type resResult struct {
-	Res interface{} `json:"res"`
+	Res any `json:"res"`
 }
 
 // errorResult describes a failure during the command execution.
@@ -36,11 +36,14 @@ func (handler *DaemonHandler) callCommand(ttCmd *command) (string, error) {
 
 	cmd := exec.Command(handler.cmdPath, newArgs...)
 
-	var stderr bytes.Buffer
-	var stdout bytes.Buffer
+	var (
+		stderr bytes.Buffer
+		stdout bytes.Buffer
+	)
 
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
+
 	err := cmd.Run()
 	if err != nil {
 		err = errors.New(fmt.Sprint(err) + ": " + stderr.String())
@@ -70,7 +73,7 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 	// IP address of the client machine.
 	// Note: this header can easily be spoofed
 	// by the client.
-	ip := req.Header.Get("X-REAL-IP")
+	ip := req.Header.Get("X-Real-IP")
 	// Check IP is correct.
 	netIP := net.ParseIP(ip)
 	if netIP != nil {
@@ -82,10 +85,11 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 	// addresses – proxy chaining.
 	// Note: it can also be easily spoofed
 	// by the client.
-	ips := req.Header.Get("X-FORWARDED-FOR")
-	splitIps := strings.Split(ips, ",")
-	for _, ip := range splitIps {
-		// Check IP is correct
+	ips := req.Header.Get("X-Forwarded-For")
+	splitIps := strings.SplitSeq(ips, ",")
+
+	for ip := range splitIps {
+		// Check IP is correct.
 		netIP := net.ParseIP(ip)
 		if netIP != nil {
 			return ip, nil
@@ -108,18 +112,21 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 		return req.RemoteAddr, nil
 	}
 
-	return "", fmt.Errorf("no valid IP found")
+	return "", errors.New("no valid IP found")
 }
 
 // ServeHTTP handles requests to the tt daemon.
 func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
 	// Parse, check and call the command.
-	var res interface{}
-	var status int
-	var cmd command
+	var (
+		res    any
+		status int
+		cmd    command
+	)
 
 	// Construct client IP msg.
 	var clientIpMsg string
+
 	if ip, err := handler.getClientIP(req); err != nil {
 		clientIpMsg = err.Error()
 	} else {
@@ -132,6 +139,7 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 		res = &errorResult{err.Error()}
 	} else {
 		status = http.StatusOK
+
 		commandRes, err := handler.callCommand(&cmd)
 		if err != nil {
 			res = &errorResult{err.Error()}
@@ -142,6 +150,7 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 
 	// Construct json response.
 	var jsonResMsg string
+
 	if jsonRes, err := json.Marshal(res); err != nil {
 		jsonResMsg = err.Error()
 	} else {
@@ -155,6 +164,7 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 	// Write the result.
 	wr.Header().Set("Content-Type", "application/json")
 	wr.WriteHeader(status)
+
 	if err := json.NewEncoder(wr).Encode(res); err != nil {
 		handler.logger.Printf("An error occurred while encoding the response: \"%v\"\n", err)
 	}

@@ -7,11 +7,11 @@ type Program int
 
 const (
 	ProgramUnknown Program = iota
-	ProgramCe              // tarantool
-	ProgramEe              // tarantool-ee
-	ProgramTt              // tt
-	ProgramDev             // tarantool-dev
-	ProgramTcm             // tcm
+	ProgramCe              // tarantool.
+	ProgramEe              // tarantool-ee.
+	ProgramTt              // tt.
+	ProgramDev             // tarantool-dev.
+	ProgramTcm             // tcm.
 )
 
 // programToExec contains executables matched for each Program types.
@@ -47,6 +47,7 @@ func (p Program) String() string {
 	if s, ok := programToString[p]; ok {
 		return s
 	}
+
 	return fmt.Sprintf("unknown(%d)", p)
 }
 
@@ -55,6 +56,7 @@ func ParseProgram(s string) (Program, error) {
 	if p, ok := stringToProgram[s]; ok {
 		return p, nil
 	}
+
 	return ProgramUnknown, fmt.Errorf("unknown program: %q", s)
 }
 
@@ -63,6 +65,7 @@ func (p Program) Exec() string {
 	if s, ok := programToExec[p]; ok {
 		return s
 	}
+
 	return fmt.Sprintf("unknown(%d)", p)
 }
 

@@ -1,6 +1,7 @@
 package replicasetcmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/apex/log"
@@ -31,12 +32,11 @@ type BootstrapCtx struct {
 func Bootstrap(ctx BootstrapCtx) error {
 	if ctx.Instance != "" {
 		if ctx.Replicaset == "" {
-			return fmt.Errorf("the replicaset must be specified to bootstrap an instance")
+			return errors.New("the replicaset must be specified to bootstrap an instance")
 		}
 	} else {
 		if ctx.Replicaset != "" {
-			return fmt.Errorf(
-				"the replicaset can not be specified in the case of application bootstrapping")
+			return errors.New("the replicaset can not be specified in the case of application bootstrapping")
 		}
 	}
 
@@ -64,9 +64,11 @@ func Bootstrap(ctx BootstrapCtx) error {
 		if err != nil {
 			return err
 		}
+
 		statusReplicasets(replicasets)
 		fmt.Println()
 		log.Info("Done.")
 	}
+
 	return err
 }

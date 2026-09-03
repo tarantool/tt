@@ -40,6 +40,7 @@ func TestTemplateFileRender(t *testing.T) {
 	if err != nil {
 		t.Errorf("error getting info for %s: %s", dstFileName, err)
 	}
+
 	if stat.Mode() != fileMode {
 		t.Errorf("%s file permissions are changed. Expected %o, actual %o",
 			dstFileName, fileMode, stat.Mode())
@@ -47,12 +48,14 @@ func TestTemplateFileRender(t *testing.T) {
 
 	// Check file content.
 	var buf []byte
+
 	buf, err = os.ReadFile(dstFileName)
 	require.NoError(t, err)
 
 	const expected = `cluster_cookie=test_cookie
 login=admin
 password=pwd`
+
 	require.Equal(t, expected, string(buf))
 }
 
@@ -63,7 +66,7 @@ func TestTemplateFileRenderMissingValues(t *testing.T) {
 	require.NoError(t, os.WriteFile(srcFileName, []byte(templateText), 0o666))
 
 	dstFileName := filepath.Join(workDir, resultFileName)
-	data := map[string]string{"cluster_cookie": "test_cookie"} // login & password are missing
+	data := map[string]string{"cluster_cookie": "test_cookie"} // login & password are missing.
 	engine := GoTextEngine{}
 	require.EqualError(t, engine.RenderFile(srcFileName, dstFileName, data), "template execution "+
 		"failed: template: origin.lua.tt.template:2:9: executing \"origin.lua.tt.template\" at "+
@@ -84,6 +87,7 @@ func TestTextRendering(t *testing.T) {
 
 	// Test missing key.
 	delete(data, "hello")
+
 	_, err = engine.RenderText(templateText, data)
 	require.EqualError(t, err, "template execution failed: template: file:1:2: "+
 		"executing \"file\" at <.hello>: map has no entry for key \"hello\"")

@@ -32,6 +32,7 @@ func ShowUri(showCtx ShowCtx, opts connect.UriOpts) error {
 		Username: showCtx.Username,
 		Password: showCtx.Password,
 	}
+
 	collector, cancel, err := openRemoteCollector(showCtx.Collectors, connOpts, opts)
 	if err != nil {
 		return err
@@ -45,7 +46,8 @@ func ShowUri(showCtx ShowCtx, opts connect.UriOpts) error {
 
 	instance := opts.Params["name"]
 	if showCtx.Validate {
-		if err = validateRawConfig(yamlBytes, instance); err != nil {
+		err = validateRawConfig(yamlBytes, instance)
+		if err != nil {
 			return err
 		}
 	}
@@ -56,6 +58,7 @@ func ShowUri(showCtx ShowCtx, opts connect.UriOpts) error {
 // ShowCluster shows a full cluster configuration for a configuration path.
 func ShowCluster(showCtx ShowCtx, path, name string) error {
 	ctx := context.Background()
+
 	config, err := cluster.GetClusterConfig(ctx, path, showCtx.Integrity)
 	if err != nil {
 		return fmt.Errorf("failed to get a cluster configuration: %w", err)
@@ -70,14 +73,19 @@ func printClusterConfig(cconfig *goconfig.MutableConfig,
 	instance string, validate bool,
 ) error {
 	snap := cconfig.Snapshot()
+
 	if instance == "" {
 		var validateErr error
+
 		if validate {
 			validateErr = validateGoConfig(snap, true)
 		}
-		if printErr := printGoConfig(snap); printErr != nil {
+
+		printErr := printGoConfig(snap)
+		if printErr != nil {
 			return printErr
 		}
+
 		return validateErr
 	}
 

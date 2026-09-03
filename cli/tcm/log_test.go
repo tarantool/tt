@@ -145,7 +145,9 @@ func makeDataFileName(t *testing.T, tc *testCase) string {
 	t.Helper()
 
 	fName := filepath.Base(tc.log)
+
 	fName = strings.TrimSuffix(fName, filepath.Ext(fName))
+
 	fName += fmt.Sprintf("_%d_", tc.lines)
 
 	if !tc.isFormat {
@@ -169,6 +171,7 @@ func compareResults(t *testing.T, got, dataFile string) {
 	want, err := os.ReadFile(dataFile)
 	if err != nil {
 		t.Errorf("failed to read expected data %q: %v", dataFile, err)
+
 		return
 	}
 
@@ -191,11 +194,13 @@ func compareResults(t *testing.T, got, dataFile string) {
 func saveResults(t *testing.T, data []byte, dataFile string) {
 	t.Helper()
 
-	if err := os.MkdirAll(filepath.Dir(dataFile), 0o755); err != nil {
+	err := os.MkdirAll(filepath.Dir(dataFile), 0o755)
+	if err != nil {
 		t.Fatalf("failed to create expected subdirectory: %v", err)
 	}
 
-	if err := os.WriteFile(dataFile, data, 0o644); err != nil {
+	err = os.WriteFile(dataFile, data, 0o644)
+	if err != nil {
 		t.Fatalf("failed to write expected data %q: %v", dataFile, err)
 	}
 }
@@ -294,6 +299,7 @@ func TestFollowLogs(t *testing.T) {
 			err := tcm.FollowLogs(&mf, p, tt.lines)
 			if tt.wantErr {
 				require.Error(t, err, "expected an error but got none")
+
 				return
 			}
 
@@ -328,6 +334,7 @@ func TestTailLogs(t *testing.T) {
 			err := tcm.TailLogs(&mt, p, tt.lines)
 			if tt.wantErr {
 				require.Error(t, err, "expected an error but got none")
+
 				return
 			}
 

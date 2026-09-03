@@ -19,7 +19,9 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 		if err != nil {
 			return err
 		}
+
 		cmd.Help()
+
 		return nil
 	}
 
@@ -41,10 +43,16 @@ func configureHelpCommand(rootCmd *cobra.Command, modulesInfo *modules.ModulesIn
 // of descriptions for external modules.
 func getExternalCommandsString(modulesInfo *modules.ModulesInfo) string {
 	str := ""
+
+	var strSb44 strings.Builder
+
 	for _, path := range sortExternalModules() {
 		mf := (*modulesInfo)[path]
-		str += fmt.Sprintf("  %s\t%s\n", mf.Name, mf.Help)
+
+		fmt.Fprintf(&strSb44, "  %s\t%s\n", mf.Name, mf.Help)
 	}
+
+	str += strSb44.String()
 
 	if str != "" {
 		str = util.Bold("\nEXTERNAL COMMANDS\n") + str

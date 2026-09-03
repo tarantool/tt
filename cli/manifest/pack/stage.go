@@ -27,15 +27,18 @@ const (
 // from the project, so the tar layer sees one flat, already-correct tree and
 // the mode filtering happens exactly once, in one place.
 func stage(stageDir string, req stageRequest) error {
-	if err := os.MkdirAll(stageDir, dirPerm); err != nil {
+	err := os.MkdirAll(stageDir, dirPerm)
+	if err != nil {
 		return fmt.Errorf("creating staging directory: %w", err)
 	}
 
-	if err := stageMetadata(stageDir, req); err != nil {
+	err = stageMetadata(stageDir, req)
+	if err != nil {
 		return err
 	}
 
-	if err := stagePayload(stageDir, req); err != nil {
+	err = stagePayload(stageDir, req)
+	if err != nil {
 		return err
 	}
 
@@ -83,7 +86,9 @@ func stageMetadata(stageDir string, req stageRequest) error {
 
 	for _, f := range files {
 		path := filepath.Join(stageDir, f.name)
-		if err := os.WriteFile(path, f.data, filePerm); err != nil {
+
+		err := os.WriteFile(path, f.data, filePerm)
+		if err != nil {
 			return fmt.Errorf("staging %s: %w", f.name, err)
 		}
 	}
@@ -97,13 +102,15 @@ func stagePayload(stageDir string, req stageRequest) error {
 	pkg := req.Manifest.Package
 
 	for _, entry := range pkg.LicenseFiles {
-		if err := stageEntry(stageDir, req.ProjectDir, entry, "license_files"); err != nil {
+		err := stageEntry(stageDir, req.ProjectDir, entry, "license_files")
+		if err != nil {
 			return err
 		}
 	}
 
 	for _, entry := range pkg.Include {
-		if err := stageEntry(stageDir, req.ProjectDir, entry, "include"); err != nil {
+		err := stageEntry(stageDir, req.ProjectDir, entry, "include")
+		if err != nil {
 			return err
 		}
 	}
@@ -418,6 +425,7 @@ func resolveExisting(path string) string {
 	path = filepath.Clean(path)
 
 	rest := ""
+
 	for cur := path; ; {
 		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
 			return filepath.Join(resolved, rest)
@@ -456,6 +464,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
+
 	defer func() { _ = in.Close() }()
 
 	//nolint:gosec // The destination is inside our own staging tree.

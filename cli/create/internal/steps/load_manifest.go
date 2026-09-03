@@ -22,20 +22,23 @@ func (LoadManifest) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 		return err
 	} else if os.IsNotExist(err) {
 		log.Info("There is no manifest in template.")
+
 		templateCtx.IsManifestPresent = false
+
 		return nil
 	}
 
 	manifest, err := app_template.LoadManifest(manifestPath)
 	if err != nil {
-		return fmt.Errorf("failed to load manifest file: %s", err)
+		return fmt.Errorf("failed to load manifest file: %w", err)
 	}
 
 	templateCtx.Manifest = manifest
 	templateCtx.IsManifestPresent = true
 
-	if err = os.Remove(manifestPath); err != nil {
-		return fmt.Errorf("failed to remove manifest %s: %s", manifestPath, err)
+	err = os.Remove(manifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to remove manifest %s: %w", manifestPath, err)
 	}
 
 	return nil

@@ -16,6 +16,7 @@ func TestNewHistory(t *testing.T) {
 		file        string
 		maxCommands int
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -38,13 +39,16 @@ func TestNewHistory(t *testing.T) {
 			wantErr: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hist, err := console.NewHistory(tt.args.file, tt.args.maxCommands)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewHistory() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
+
 			cmds := hist.Commands()
 			if !reflect.DeepEqual(cmds, tt.want) {
 				fmt.Print(cmds)
@@ -84,9 +88,11 @@ func TestHistory_AppendCommand(t *testing.T) {
 			name := filepath.Join(tmp, fmt.Sprintf("history_%d.info", i))
 			h, err := console.NewHistory(name, tt.max)
 			require.NoError(t, err)
+
 			for _, c := range tt.commands {
 				h.AppendCommand(c)
 			}
+
 			from := max(len(tt.commands)-tt.max, 0)
 			reflect.DeepEqual(tt.commands[from:], h.Commands())
 		})
@@ -98,9 +104,11 @@ func TestHistory_AppendCommand(t *testing.T) {
 			name := filepath.Join(tmp, fmt.Sprintf("history%d.info", i))
 			h, err := console.NewHistory(name, tt.max)
 			require.NoError(t, err)
+
 			from := max(len(tt.commands)-tt.max, 0)
 			reflect.DeepEqual(tt.commands[from:], h.Commands())
 		})
 	}
+
 	os.RemoveAll(tmp)
 }

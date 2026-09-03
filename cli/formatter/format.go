@@ -40,6 +40,7 @@ func ParseFormat(str string) (Format, bool) {
 	case ttableFormatStr:
 		return TTableFormat, true
 	}
+
 	return DefaultFormat, false
 }
 

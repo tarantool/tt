@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,6 +36,7 @@ func (collector FileCollector) Collect() ([]Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf(fmtErr, collector.path, err)
 	}
+
 	return []Data{{Source: collector.path, Value: data}}, nil
 }
 
@@ -55,16 +57,20 @@ func (publisher FilePublisher) Publish(revision int64, data []byte) error {
 		return fmt.Errorf("failed to publish data into file: target revision %d is not supported",
 			revision)
 	}
+
 	if publisher.path == "" {
-		return fmt.Errorf("file path is empty")
+		return errors.New("file path is empty")
 	}
+
 	if data == nil {
 		return fmt.Errorf("failed to publish data into %q: data does not exist",
 			publisher.path)
 	}
 
-	if err := os.WriteFile(publisher.path, data, 0o644); err != nil {
+	err := os.WriteFile(publisher.path, data, 0o644)
+	if err != nil {
 		return fmt.Errorf("failed to publish data into %q: %w", publisher.path, err)
 	}
+
 	return nil
 }

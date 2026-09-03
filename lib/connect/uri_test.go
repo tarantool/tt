@@ -113,6 +113,7 @@ func TestIsBaseURIValid(t *testing.T) {
 
 func TestIsBaseURIInvalid(t *testing.T) {
 	invalid := []string{}
+
 	invalid = append(invalid, invalidBaseUris...)
 	invalid = append(invalid, validCredentialsUris...)
 	invalid = append(invalid, invalidCredentialsUris...)
@@ -134,6 +135,7 @@ func TestIsCredentialsURIValid(t *testing.T) {
 
 func TestIsCredentialsURIInvalid(t *testing.T) {
 	invalid := []string{}
+
 	invalid = append(invalid, validBaseUris...)
 	invalid = append(invalid, invalidBaseUris...)
 	invalid = append(invalid, invalidCredentialsUris...)
@@ -181,14 +183,15 @@ func TestParseCredentialsURI_parseValid(t *testing.T) {
 		t.Run(uri, func(t *testing.T) {
 			newUri, user, pass := connect.ParseCredentialsURI(uri)
 			assert.NotEqual(t, uri, newUri, "URI must change")
-			assert.NotEqual(t, "", user, "username must not be empty")
-			assert.NotEqual(t, "", pass, "password must not be empty")
+			assert.NotEmpty(t, user, "username must not be empty")
+			assert.NotEmpty(t, pass, "password must not be empty")
 		})
 	}
 }
 
 func TestParseCredentialsURI_notParseInvalid(t *testing.T) {
 	invalid := []string{}
+
 	invalid = append(invalid, validBaseUris...)
 	invalid = append(invalid, invalidBaseUris...)
 	invalid = append(invalid, invalidCredentialsUris...)
@@ -197,8 +200,8 @@ func TestParseCredentialsURI_notParseInvalid(t *testing.T) {
 		t.Run(uri, func(t *testing.T) {
 			newUri, user, pass := connect.ParseCredentialsURI(uri)
 			assert.Equal(t, uri, newUri, "URI must no change")
-			assert.Equal(t, "", user, "username must be empty")
-			assert.Equal(t, "", pass, "password must be empty")
+			assert.Empty(t, user, "username must be empty")
+			assert.Empty(t, pass, "password must be empty")
 		})
 	}
 }
@@ -220,7 +223,7 @@ func TestParseBaseURI(t *testing.T) {
 		{"unix:///path/to/socket", connect.UnixNetwork, "/path/to/socket"},
 		{"unix://..//path/to/socket", connect.UnixNetwork, "..//path/to/socket"},
 		{"..//path", connect.UnixNetwork, "..//path"},
-		{"some_uri", connect.TCPNetwork, "some_uri"}, // Keeps unchanged
+		{"some_uri", connect.TCPNetwork, "some_uri"}, // Keeps unchanged.
 	}
 
 	for _, tc := range cases {
@@ -546,6 +549,7 @@ func TestParseUriOpts(t *testing.T) {
 			if tc.Opts.Params == nil {
 				tc.Opts.Params = make(map[string]string)
 			}
+
 			opts, err := connect.CreateUriOpts(tc.Url)
 			if tc.Err != "" {
 				assert.ErrorContains(t, err, tc.Err)

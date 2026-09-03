@@ -1,7 +1,6 @@
 package build
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +46,7 @@ func TestSelectProduct_unknown(t *testing.T) {
 	t.Parallel()
 
 	_, _, err := selectProduct(multiProductManifest(), "nope")
-	assert.True(t, errors.Is(err, errUnknownProduct))
+	assert.ErrorIs(t, err, errUnknownProduct)
 }
 
 func TestSelectProduct_singleImplicitDefault(t *testing.T) {
@@ -68,7 +67,7 @@ func TestSelectProduct_noProducts(t *testing.T) {
 	t.Parallel()
 
 	_, _, err := selectProduct(&manifest.Manifest{}, "")
-	assert.True(t, errors.Is(err, errNoProducts))
+	assert.ErrorIs(t, err, errNoProducts)
 }
 
 func TestSelectComponents_all(t *testing.T) {
@@ -94,5 +93,5 @@ func TestSelectComponents_unknown(t *testing.T) {
 
 	product := manifest.Product{Components: []string{"lua"}}
 	_, err := selectComponents(product, "native")
-	assert.True(t, errors.Is(err, errUnknownComponent))
+	assert.ErrorIs(t, err, errUnknownComponent)
 }

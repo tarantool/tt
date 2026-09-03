@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -94,26 +95,26 @@ func PublishRWS() error {
 
 		patterns, err := getPatterns(targetDistro)
 		if err != nil {
-			return fmt.Errorf("failed to publish package for %s/%s: %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %w",
 				targetDistro.OS, targetDistro.Dist, err)
 		}
 
 		files, err := walkMatch(distPath, patterns)
 		if err != nil {
-			return fmt.Errorf("failed to publish package for %s/%s: %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %w",
 				targetDistro.OS, targetDistro.Dist, err)
 		}
 
 		rwsUrlPart := os.Getenv("RWS_URL_PART")
 		if rwsUrlPart == "" {
-			return fmt.Errorf("failed to publish package: RWS_URL_PART is not set")
+			return errors.New("failed to publish package: RWS_URL_PART is not set")
 		}
 
 		flags := []string{
 			"-v",
 			"-LfsS",
 			"-X", "PUT", fmt.Sprintf("%s/%s/%s", rwsUrlPart, targetDistro.OS, targetDistro.Dist),
-			"-F", fmt.Sprintf("product=%s", packageName),
+			"-F", "product=" + packageName,
 		}
 
 		for _, file := range files {
@@ -124,15 +125,16 @@ func PublishRWS() error {
 
 		rwsAuth := os.Getenv("RWS_AUTH")
 		if rwsAuth == "" {
-			return fmt.Errorf("failed to publish package: RWS_AUTH is not set")
+			return errors.New("failed to publish package: RWS_AUTH is not set")
 		}
+
 		flags = append(flags, "-u", rwsAuth)
 
 		cmd := exec.Command("curl", flags...)
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("failed to publish package for %s/%s: %s, %s",
+			return fmt.Errorf("failed to publish package for %s/%s: %w, %s",
 				targetDistro.OS, targetDistro.Dist, err, output)
 		}
 	}

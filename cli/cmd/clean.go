@@ -52,6 +52,7 @@ func collectFiles(files map[string]bool, dirname string) (map[string]bool, error
 			if !info.IsDir() {
 				files[path] = true
 			}
+
 			return nil
 		})
 	if err != nil {
@@ -64,6 +65,7 @@ func collectFiles(files map[string]bool, dirname string) (map[string]bool, error
 func clean(run *running.InstanceCtx) error {
 	removeFiles := map[string]bool{}
 	confirm := false
+
 	var err error
 
 	for _, dir := range [...]string{run.LogDir, run.WalDir, run.VinylDir, run.MemtxDir} {
@@ -86,6 +88,7 @@ func clean(run *running.InstanceCtx) error {
 			if err != nil {
 				return err
 			}
+
 			log.Debugf("removed %q", file)
 		}
 
@@ -102,6 +105,7 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadCluster)
 	if err != nil {
 		return err

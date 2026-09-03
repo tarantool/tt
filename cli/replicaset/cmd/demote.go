@@ -55,6 +55,7 @@ func Demote(ctx DemoteCtx) error {
 	if err != nil {
 		return err
 	}
+
 	statusReplicasets(replicasets)
 	fmt.Println()
 
@@ -70,5 +71,6 @@ func Demote(ctx DemoteCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }

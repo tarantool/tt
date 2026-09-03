@@ -92,7 +92,7 @@ type InstanceCtx struct {
 	BinaryPort string
 	// True if this is a single instance application (no instances.yml).
 	SingleApp bool
-	// IsFileApp true if this instance is lua-script instance (no-dir)
+	// IsFileApp true if this instance is lua-script instance (no-dir).
 	IsFileApp bool
 	// ClusterConfigPath is a path of cluster configuration.
 	ClusterConfigPath string
@@ -143,6 +143,7 @@ func GetAppPath(instance InstanceCtx) string {
 	if instance.IsFileApp {
 		return instance.InstanceScript
 	}
+
 	return instance.AppDir
 }
 
@@ -155,6 +156,7 @@ func (provider *providerImpl) updateCtx() error {
 	}
 
 	var args []string
+
 	if provider.instanceCtx.SingleApp {
 		args = []string{provider.instanceCtx.AppName}
 	} else {
@@ -163,11 +165,15 @@ func (provider *providerImpl) updateCtx() error {
 	}
 
 	var runningCtx RunningCtx
-	if err = FillCtx(
-		cliOpts, provider.cmdCtx, &runningCtx, args, ConfigLoadSkip); err != nil {
+
+	err = FillCtx(
+		cliOpts, provider.cmdCtx, &runningCtx, args, ConfigLoadSkip)
+	if err != nil {
 		return err
 	}
+
 	provider.instanceCtx = &runningCtx.Instances[0]
+
 	return nil
 }
 
@@ -178,12 +184,14 @@ func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
 	if instanceCtx.ClusterConfigPath != "" {
 		return newClusterInstance(cmdCtx.Cli.TarantoolCli, instanceCtx, opts...)
 	}
+
 	return newScriptInstance(cmdCtx.Cli.TarantoolCli.Executable, instanceCtx, opts...)
 }
 
 // createInstance reads config and creates an Instance.
 func (provider *providerImpl) CreateInstance(logger ttlog.Logger) (inst Instance, err error) {
-	if err = provider.updateCtx(); err != nil {
+	err = provider.updateCtx()
+	if err != nil {
 		return inst, err
 	}
 
@@ -198,6 +206,7 @@ func (provider *providerImpl) CreateInstance(logger ttlog.Logger) (inst Instance
 			provider.instanceCtx.InstName,
 		)
 	}
+
 	return createInstance(*provider.cmdCtx, *provider.instanceCtx, opts...)
 }
 
@@ -206,15 +215,18 @@ func isLoggerChanged(logger ttlog.Logger, instanceCtx *InstanceCtx) (bool, error
 	if logger == nil {
 		return true, nil
 	}
+
 	if instanceCtx == nil {
-		return true, fmt.Errorf("logger changed check failed: passing null as an instance context")
+		return true, errors.New("logger changed check failed: passing null as an instance context")
 	}
+
 	loggerOpts := logger.GetOpts()
 
 	// Check if some of the parameters have been changed.
 	if loggerOpts.Filename != instanceCtx.Log {
 		return true, nil
 	}
+
 	return false, nil
 }
 
@@ -224,16 +236,20 @@ func (provider *providerImpl) UpdateLogger(logger ttlog.Logger) (ttlog.Logger, e
 	if err != nil {
 		return logger, err
 	}
+
 	if updateLogger {
 		logger.Close()
+
 		return createLogger(provider.instanceCtx)
 	}
+
 	return logger, nil
 }
 
 // IsRestartable checks if the instance should be restarted in case of crash.
 func (provider *providerImpl) IsRestartable() (bool, error) {
-	if err := provider.updateCtx(); err != nil {
+	err := provider.updateCtx()
+	if err != nil {
 		return false, err
 	}
 
@@ -257,6 +273,7 @@ func searchApplicationScript(applicationsDir, appName string) (InstanceCtx, erro
 	}
 
 	instCtx.InstanceScript = luaPath
+
 	return instCtx, nil
 }
 
@@ -298,11 +315,13 @@ func getInstanceName(fullInstanceName string, isClusterInstance bool) string {
 		// If we have a cluster instance, delimiters are ignored.
 		return fullInstanceName
 	}
-	sepIndex := strings.Index(fullInstanceName, ".")
-	if sepIndex == -1 {
+
+	_, after, ok := strings.Cut(fullInstanceName, ".")
+	if !ok {
 		return fullInstanceName
 	}
-	return fullInstanceName[sepIndex+1:]
+
+	return after
 }
 
 // findInstanceScriptInAppDir searches for instance script.
@@ -313,6 +332,7 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 		// TODO: add searching for app: file: script from instance config.
 		return "", nil
 	}
+
 	script := filepath.Join(appDir, instName+".init.lua")
 	if _, err := os.Stat(script); err != nil {
 		if defaultScript != "" {
@@ -321,6 +341,7 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 			return "", fmt.Errorf("init.lua or %s.init.lua is missing", instName)
 		}
 	}
+
 	return script, nil
 }
 
@@ -336,10 +357,12 @@ func loadInstanceConfig(configPath, instName string,
 	if err != nil {
 		return nil, err
 	}
+
 	instCfg, err := cluster.GetInstanceConfig(cfg, instName)
 	if err != nil {
 		return nil, err
 	}
+
 	return &instCfg, nil
 }
 
@@ -350,6 +373,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 	error,
 ) {
 	log.Debugf("Collecting instances from application directory %q", appDir)
+
 	if !util.IsDir(appDir) {
 		return nil, fmt.Errorf("%q doesn't exist or not a directory", appDir)
 	}
@@ -386,25 +410,34 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 	if err != nil {
 		return nil, fmt.Errorf("can't check integrity of %q: %w", appDirFiles.instCfgPath, err)
 	}
+
 	f.Close()
 
 	instParams, err := util.ParseYAML(appDirFiles.instCfgPath)
 	if err != nil {
 		return nil, err
 	}
+
 	log.Debug("Processing application instances file")
+
 	instances := []InstanceCtx{}
+
 	for inst := range instParams {
 		instance := InstanceCtx{AppDir: appDir, ClusterConfigPath: appDirFiles.clusterCfgPath}
+
 		instance.InstName = getInstanceName(inst, instance.ClusterConfigPath != "")
 		instance.AppName = filepath.Base(appDir)
+
 		if selectedInstName != "" && instance.InstName != selectedInstName {
 			continue
 		}
+
 		if instance.InstName == instance.AppName {
 			log.Debugf("Skipping %q instance since it is an application name", instance.InstName)
+
 			continue
 		}
+
 		log.Debugf("Instance %q", instance.InstName)
 
 		instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
@@ -417,6 +450,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 		instance.SingleApp = false
 		instance.InstanceScript, err = findInstanceScriptInAppDir(appDir, instance.InstName,
 			appDirFiles.clusterCfgPath, appDirFiles.defaultLuaPath)
+
 		if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts) {
 			return instances, fmt.Errorf("cannot find instance script for %q in config %q: %w ",
 				instance.InstName, appDirFiles.clusterCfgPath, err)
@@ -426,7 +460,7 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 	}
 
 	if len(instances) == 0 {
-		return nil, fmt.Errorf("instance(s) not found")
+		return nil, errors.New("instance(s) not found")
 	}
 
 	return instances, nil
@@ -441,8 +475,10 @@ func CollectInstances(appName, applicationsDir string,
 	// Example: `tt status application:server`.
 	selectedInstName := ""
 	colonIds := strings.Index(appName, string(InstanceDelimiter))
+
 	if colonIds != -1 {
 		appNameTmp := appName
+
 		appName = appNameTmp[:colonIds]
 		selectedInstName = appNameTmp[colonIds+1:]
 	}
@@ -456,7 +492,6 @@ func CollectInstances(appName, applicationsDir string,
 	// directory is considered as application to work with.
 	if instCtx, err := searchApplicationScript(applicationsDir, appName); err != nil ||
 		instCtx.InstanceScript != "" {
-
 		return []InstanceCtx{instCtx}, err
 	}
 
@@ -492,6 +527,7 @@ func createLogger(run *InstanceCtx) (ttlog.Logger, error) {
 		Filename: run.Log,
 		Prefix:   "Watchdog ",
 	}
+
 	return ttlog.NewFileLogger(opts)
 }
 
@@ -510,22 +546,28 @@ func mapValuesFromConfig[T any](cfg goconfig.Config, mapFunc func(val T) (T, err
 ) error {
 	for _, cfgMapping := range maps {
 		var raw any
+
 		if _, err := cfg.Get(cfgMapping.path, &raw); err != nil {
 			if errors.Is(err, goconfig.ErrKeyNotFound) {
 				continue
 			}
+
 			return err
 		}
+
 		castedValue, ok := raw.(T)
 		if !ok {
 			return fmt.Errorf("cannot get config value at %q as %T", cfgMapping.path, *new(T))
 		}
+
 		newValue, err := mapFunc(castedValue)
 		if err != nil {
 			return err
 		}
+
 		*cfgMapping.destination = newValue
 	}
+
 	return nil
 }
 
@@ -534,6 +576,7 @@ func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts) error {
 	if cliOpts.Env != nil {
 		inst.Restartable = cliOpts.Env.Restartable
 	}
+
 	if cliOpts.App != nil {
 		envLayout, err := layout.NewMultiInstLayout(inst.AppDir, inst.AppName, inst.InstName)
 		if err != nil {
@@ -552,6 +595,7 @@ func setInstCtxFromTtConfig(inst *InstanceCtx, cliOpts *config.CliOpts) error {
 		inst.VinylDir = envLayout.DataDir(cliOpts.App.VinylDir)
 		inst.MemtxDir = envLayout.DataDir(cliOpts.App.MemtxDir)
 	}
+
 	return nil
 }
 
@@ -567,6 +611,7 @@ func setInstCtxFromClusterConfig(instance *InstanceCtx) error {
 			configMap[string]{goconfig.NewKeyPath("snapshot/dir"), &instance.MemtxDir},
 			configMap[string]{goconfig.NewKeyPath("console/socket"), &instance.ConsoleSocket})
 	}
+
 	return nil
 }
 
@@ -583,8 +628,10 @@ func renderInstCtxMembers(instance *InstanceCtx) error {
 		if err != nil {
 			return fmt.Errorf("error instantiating template: %w", err)
 		}
+
 		*dstString = renderedString
 	}
+
 	return nil
 }
 
@@ -595,23 +642,30 @@ func GetClusterConfigPath(cliOpts *config.CliOpts,
 	ttConfigDir, appName string, mustExist bool,
 ) (string, error) {
 	instEnabledPath := cliOpts.Env.InstancesEnabled
+
 	var appDir string
+
 	if instEnabledPath == "." {
 		appDir = ttConfigDir
 	} else {
 		appDir = filepath.Join(instEnabledPath, appName)
 	}
+
 	configPath := filepath.Join(appDir, clusterConfigDefaultFileName)
 	ret, err := util.GetYamlFileName(configPath, true)
+
 	if errors.Is(err, os.ErrNotExist) {
 		if mustExist {
 			return "", err
 		}
+
 		return configPath, nil
 	}
+
 	if err != nil {
 		return "", err
 	}
+
 	return ret, nil
 }
 
@@ -624,9 +678,12 @@ func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 	if cliOpts.Env.InstancesEnabled == "." {
 		instEnabledPath = ttConfigDir
 	}
+
 	apps := make(map[string][]InstanceCtx)
+
 	for _, appName := range appList {
 		appName = strings.TrimSuffix(appName, ".lua")
+
 		collectedInstances, err := CollectInstances(appName, instEnabledPath, integrityCtx,
 			loadConfig)
 		if err != nil {
@@ -638,21 +695,25 @@ func CollectInstancesForApps(appList []string, cliOpts *config.CliOpts,
 		for _, inst := range collectedInstances {
 			instance := inst
 
-			if err = setInstCtxFromTtConfig(&instance, cliOpts); err != nil {
+			err = setInstCtxFromTtConfig(&instance, cliOpts)
+			if err != nil {
 				return apps, err
 			}
 
-			if err = setInstCtxFromClusterConfig(&instance); err != nil {
+			err = setInstCtxFromClusterConfig(&instance)
+			if err != nil {
 				return apps, err
 			}
 
-			if err = renderInstCtxMembers(&instance); err != nil {
+			err = renderInstCtxMembers(&instance)
+			if err != nil {
 				return apps, err
 			}
 
 			apps[appName] = append(apps[appName], instance)
 		}
 	}
+
 	return apps, nil
 }
 
@@ -662,10 +723,12 @@ func createInstanceDataDirectories(instance InstanceCtx) error {
 		instance.WalDir, instance.VinylDir,
 		instance.MemtxDir, instance.RunDir, instance.LogDir,
 	} {
-		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
+		err := util.CreateDirectory(dataDir, defaultDirPerms)
+		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -677,7 +740,6 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	if len(args) > 1 && cmdCtx.CommandName != "run" && cmdCtx.CommandName != "connect" &&
 		cmdCtx.CommandName != "add" && cmdCtx.CommandName != "remove" {
-
 		return util.NewArgError("currently, you can specify only one instance at a time")
 	}
 
@@ -688,6 +750,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	}
 
 	var appList []string
+
 	if len(args) == 0 {
 		appList, err = util.CollectAppList(cmdCtx.Cli.ConfigDir, cliOpts.Env.InstancesEnabled,
 			true)
@@ -704,6 +767,7 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 	if err != nil {
 		return err
 	}
+
 	for _, v := range instances {
 		runningCtx.Instances = append(runningCtx.Instances, v...)
 	}
@@ -716,7 +780,8 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 	stdOut, stdErr io.Writer,
 ) error {
 	for _, dataDir := range [...]string{inst.WalDir, inst.VinylDir, inst.MemtxDir, inst.RunDir} {
-		if err := util.CreateDirectory(dataDir, defaultDirPerms); err != nil {
+		err := util.CreateDirectory(dataDir, defaultDirPerms)
+		if err != nil {
 			return err
 		}
 	}
@@ -727,16 +792,21 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 		StdOutOpt(stdOut),
 		StdErrOpt(stdErr),
 	}
+
 	if cmdCtx.Cli.IntegrityCheck != "" {
 		opts = append(opts, IntegrityOpt(cmdCtx.Integrity))
 	}
+
 	instance, err := createInstance(*cmdCtx, inst, opts...)
 	if err != nil {
-		return fmt.Errorf("failed to create the instance %q: %s", inst.InstName, err)
+		return fmt.Errorf("failed to create the instance %q: %w", inst.InstName, err)
 	}
+
 	logger.Println("(INFO) Start")
-	if err = instance.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start the instance %q: %s", inst.InstName, err)
+
+	err = instance.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start the instance %q: %w", inst.InstName, err)
 	}
 
 	defer func() {
@@ -745,7 +815,8 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 
 	if err := process_utils.CreatePIDFile(inst.PIDFile, instance.GetPid()); err != nil {
 		instance.Stop(10 * time.Second)
-		return fmt.Errorf("cannot create the pid file %q: %s", inst.PIDFile, err)
+
+		return fmt.Errorf("cannot create the pid file %q: %w", inst.PIDFile, err)
 	}
 
 	return instance.Wait()
@@ -754,19 +825,23 @@ func RunInstance(ctx context.Context, cmdCtx *cmdcontext.CmdCtx, inst InstanceCt
 // Start an Instance.
 func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	if err := createInstanceDataDirectories(*inst); err != nil {
-		return fmt.Errorf("failed to create a directory: %s", err)
+		return fmt.Errorf("failed to create a directory: %w", err)
 	}
+
 	logger, err := createLogger(inst)
 	if err != nil {
-		return fmt.Errorf("cannot create a logger: %s", err)
+		return fmt.Errorf("cannot create a logger: %w", err)
 	}
+
 	logger.Println("[INFO] Start") // Create a log file before any other actions.
 
 	provider := providerImpl{cmdCtx: cmdCtx, instanceCtx: inst}
 	preStartAction := func() error {
-		if err := process_utils.CreatePIDFile(inst.PIDFile, os.Getpid()); err != nil {
+		err := process_utils.CreatePIDFile(inst.PIDFile, os.Getpid())
+		if err != nil {
 			return err
 		}
+
 		return nil
 	}
 	wd := NewWatchdog(inst.Restartable, 5*time.Second, logger,
@@ -778,6 +853,7 @@ func Start(cmdCtx *cmdcontext.CmdCtx, inst *InstanceCtx) error {
 	}()
 
 	wd.Start()
+
 	return nil
 }
 
@@ -789,8 +865,10 @@ func Stop(run *InstanceCtx) error {
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			log.Debugf("The instance %s is already stopped", fullInstanceName)
+
 			return nil
 		}
+
 		return err
 	}
 
@@ -803,7 +881,7 @@ func Stop(run *InstanceCtx) error {
 func Kill(run InstanceCtx) error {
 	pid, err := process_utils.KillProcessGroup(run.PIDFile)
 	if err != nil {
-		return fmt.Errorf("failed to kill the processes: %s", err)
+		return fmt.Errorf("failed to kill the processes: %w", err)
 	}
 
 	// Remove PID files because due to SIGKILL watchdog can't cleanup itself.
@@ -819,11 +897,12 @@ func Kill(run InstanceCtx) error {
 func Quit(run InstanceCtx) error {
 	pid, err := process_utils.QuitProcess(run.PIDFile)
 	if err != nil {
-		return fmt.Errorf("failed to quit the process: %s", err)
+		return fmt.Errorf("failed to quit the process: %w", err)
 	}
 
 	if _, err := os.Stat(run.ConsoleSocket); err == nil {
-		if err = os.Remove(run.ConsoleSocket); err != nil {
+		err = os.Remove(run.ConsoleSocket)
+		if err != nil {
 			log.Warnf("cannot remove console socket %q: %s", run.ConsoleSocket, err)
 		}
 	}
@@ -840,6 +919,7 @@ func Run(runInfo *RunInfo) error {
 		integrityCtx:  runInfo.CmdCtx.Integrity,
 	}}
 	err := inst.Run(runInfo.RunOpts)
+
 	return err
 }
 
@@ -862,10 +942,10 @@ func Logrotate(run *InstanceCtx) error {
 	}
 
 	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {
-		return fmt.Errorf(`can't rotate logs: "%v"`, err)
+		return fmt.Errorf(`can't rotate logs: "%w"`, err)
 	}
 
-	// Rotates logs [instance name pid]
+	// Rotates logs [instance name pid].
 	log.Infof("%s (PID = %v): logs has been rotated.", fullInstanceName, pid)
 
 	return nil
@@ -874,11 +954,15 @@ func Logrotate(run *InstanceCtx) error {
 // Check returns the result of checking the syntax of the application file.
 func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	var errBuff bytes.Buffer
+
 	os.Setenv("TT_CLI_INSTANCE", run.InstanceScript)
 
 	cmd := exec.Command(cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
+
 	cmd.Stderr = &errBuff
-	if err := cmd.Run(); err != nil {
+
+	err := cmd.Run()
+	if err != nil {
 		return errors.New(errBuff.String())
 	}
 
@@ -895,6 +979,7 @@ func GetAppInstanceName(instance InstanceCtx) string {
 	} else {
 		fullInstanceName = instance.AppName + string(InstanceDelimiter) + instance.InstName
 	}
+
 	return fullInstanceName
 }
 
@@ -905,6 +990,7 @@ func IsAbleToStartInstances(instances []InstanceCtx, cmdCtx *cmdcontext.CmdCtx) 
 	if _, err := cmdCtx.Cli.TarantoolCli.GetVersion(); err != nil {
 		return false, err.Error()
 	}
+
 	return true, ""
 }
 
@@ -918,6 +1004,7 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	procStatus := process_utils.ProcessStatus(instance.PIDFile)
 	if procStatus.Code == process_utils.ProcStateRunning.Code {
 		log.Infof("The instance %s (PID = %d) is already running.", appName, procStatus.PID)
+
 		return nil
 	}
 
@@ -925,6 +1012,7 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	if cmdCtx.Cli.IntegrityCheck != "" {
 		newArgs = append(newArgs, "--integrity-check", cmdCtx.Cli.IntegrityCheck)
 	}
+
 	newArgs = append(newArgs, args...)
 
 	if cmdCtx.Cli.IsSystem {
@@ -941,6 +1029,7 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	if err != nil {
 		return err
 	}
+
 	f.Close()
 
 	log.Infof("Starting an instance [%s]...", appName)
@@ -948,5 +1037,6 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	wdCmd := exec.Command(ttExecutable, newArgs...)
 	// Set new pgid for watchdog process, so it will not be killed after a session is closed.
 	wdCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
 	return wdCmd.Start()
 }

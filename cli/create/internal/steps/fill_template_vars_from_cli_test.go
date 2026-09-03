@@ -11,14 +11,17 @@ import (
 
 func TestCliVarsParsing(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	createCtx.VarsFromCli = append(createCtx.VarsFromCli, "var1=value1",
 		"var2=value2", "var3=value=value")
+
 	fillTemplateVarsFromCli := FillTemplateVarsFromCli{}
 	require.NoError(t, fillTemplateVarsFromCli.Run(&createCtx, &templateCtx))
 
 	require.Len(t, templateCtx.Vars, 3)
+
 	expected := map[string]string{
 		"var1": "value1",
 		"var2": "value2",
@@ -29,6 +32,7 @@ func TestCliVarsParsing(t *testing.T) {
 
 func TestCliVarsParseErrorHandling(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	invalidVarDefinitions := []string{
@@ -39,6 +43,7 @@ func TestCliVarsParseErrorHandling(t *testing.T) {
 		"",
 	}
 	fillTemplateVarsFromCli := FillTemplateVarsFromCli{}
+
 	for _, def := range invalidVarDefinitions {
 		createCtx.VarsFromCli = []string{def}
 		require.EqualError(t, fillTemplateVarsFromCli.Run(&createCtx, &templateCtx),
@@ -57,6 +62,6 @@ func TestCliParseVars(t *testing.T) {
 
 	v, err := parseVarDefinition("var=val")
 	require.NoError(t, err)
-	require.Equal(t, v.name, "var")
-	require.Equal(t, v.value, "val")
+	require.Equal(t, "var", v.name)
+	require.Equal(t, "val", v.value)
 }

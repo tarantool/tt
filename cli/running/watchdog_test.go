@@ -64,10 +64,10 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 
 	// Need absolute path to the script, because working dir is changed on start.
 	appPath, err := filepath.Abs(filepath.Join(wdTestAppDir, wdTestAppName+".lua"))
-	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
+	assert.NoErrorf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")
-	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
 	logger := ttlog.NewCustomLogger(io.Discard, "", 0)
 
@@ -98,10 +98,13 @@ func killAndCheckRestart(t *testing.T, wd *Watchdog, signal syscall.Signal) {
 // cleanupWatchdog kills the instance and stops the watchdog.
 func cleanupWatchdog(wd *Watchdog) {
 	provider := wd.provider.(*providerTestImpl)
+
 	provider.restartable = false
+
 	if wd.instance != nil && wd.instance.IsAlive() {
 		wd.instance.Stop(5 * time.Second)
 	}
+
 	os.Remove(os.Getenv("started_flag_file"))
 }
 
@@ -116,8 +119,10 @@ func TestWatchdogBase(t *testing.T) {
 	t.Cleanup(func() { cleanupWatchdog(wd) })
 
 	wdDoneChan := make(chan bool, 1)
+
 	go func() {
 		wd.Start()
+
 		wdDoneChan <- true
 	}()
 
@@ -131,6 +136,7 @@ func TestWatchdogBase(t *testing.T) {
 
 	// Let's try to stop the watchdog by a signal.
 	syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+
 	select {
 	case <-time.After(wdTestStopTimeout):
 		assert.Fail("Can't stop the watchdog.")
@@ -149,10 +155,13 @@ func TestWatchdogNotRestartable(t *testing.T) {
 	t.Cleanup(func() { cleanupWatchdog(wd) })
 
 	wdDoneChan := make(chan bool, 1)
+
 	go func() {
 		wd.Start()
+
 		wdDoneChan <- true
 	}()
+
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
 
 	alive := wd.instance.IsAlive()

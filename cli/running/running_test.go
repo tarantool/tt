@@ -7,13 +7,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"slices"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/configure"
 	"github.com/tarantool/tt/lib/integrity"
-	"golang.org/x/exp/slices"
 )
 
 type mockRepository struct{}
@@ -30,6 +31,7 @@ func Test_CollectInstances(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	instancesEnabledPath := filepath.Join("testdata", "instances_enabled")
 
 	instances, err := CollectInstances("script", instancesEnabledPath,
@@ -37,7 +39,7 @@ func Test_CollectInstances(t *testing.T) {
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(instances))
+	require.Len(t, instances, 1)
 	require.Equal(t, InstanceCtx{
 		AppDir:         "testdata/instances_enabled/script",
 		AppName:        "script",
@@ -52,7 +54,7 @@ func Test_CollectInstances(t *testing.T) {
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(instances))
+	require.Len(t, instances, 1)
 	require.Equal(t, InstanceCtx{
 		AppDir:         "testdata/instances_enabled/single_inst",
 		AppName:        "single_inst",
@@ -64,12 +66,13 @@ func Test_CollectInstances(t *testing.T) {
 
 	appName := "multi_inst_app"
 	appPath := filepath.Join(instancesEnabledPath, appName)
+
 	instances, err = CollectInstances(appName, instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	require.NoError(t, err)
-	require.Equal(t, 3, len(instances))
+	require.Len(t, instances, 3)
 	assert.True(t, slices.Contains(instances, InstanceCtx{
 		AppDir:         "testdata/instances_enabled/multi_inst_app",
 		AppName:        appName,
@@ -86,8 +89,10 @@ func Test_CollectInstances(t *testing.T) {
 		SingleApp:      false,
 		IsFileApp:      false,
 	}))
+
 	// Error cases.
 	tmpDir := t.TempDir()
+
 	instancesEnabledPath = filepath.Join(tmpDir, "instances.enabled")
 	require.NoError(t, os.Mkdir(instancesEnabledPath, 0o755))
 
@@ -96,25 +101,27 @@ func Test_CollectInstances(t *testing.T) {
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	assert.ErrorContains(t, err, "script\" doesn't exist or not a directory")
-	assert.Equal(t, 0, len(instances))
+	assert.Empty(t, instances)
 
 	err = os.WriteFile(filepath.Join(instancesEnabledPath, "script.lua"),
 		[]byte("print(42)"), 0o644)
 	require.NoError(t, err)
+
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(instances))
+	assert.Len(t, instances, 1)
 
 	require.NoError(t, os.Chmod(instancesEnabledPath, 0o666))
+
 	instances, err = CollectInstances("script", instancesEnabledPath,
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	assert.ErrorContains(t, err, "script.lua: permission denied")
-	assert.Equal(t, 1, len(instances))
+	assert.Len(t, instances, 1)
 	require.NoError(t, os.Chmod(instancesEnabledPath, 0o755))
 }
 
@@ -122,6 +129,7 @@ func Test_CollectInstancesInstanceScript(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	tmpDir := t.TempDir()
 	instancesEnabledPath := filepath.Join(tmpDir, "instances.enabled")
 	require.NoError(t, os.Mkdir(instancesEnabledPath, 0o755))
@@ -162,6 +170,7 @@ func Test_CollectInstancesInstanceScript(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("test", func(t *testing.T) {
 			require.NoError(t, os.Chmod(instancesEnabledPath, tc.access))
+
 			instances, err := CollectInstances("script", instancesEnabledPath,
 				integrity.IntegrityCtx{
 					Repository: &mockRepository{},
@@ -170,8 +179,9 @@ func Test_CollectInstancesInstanceScript(t *testing.T) {
 				assert.ErrorContains(t, err, tc.err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, 1, len(instances))
+				assert.Len(t, instances, 1)
 			}
+
 			require.NoError(t, os.Chmod(instancesEnabledPath, 0o755))
 		})
 	}
@@ -181,6 +191,7 @@ func Test_CollectInstancesEtcdNotAvailable(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	instancesEnabledPath := filepath.Join("testdata", "instances_enabled")
 
 	cases := []struct {
@@ -230,22 +241,25 @@ func Test_collectAppDirFiles(t *testing.T) {
 
 	// Cluster config exists, but no instances config.
 	os.Create(expectedClusterConfig)
+
 	appDirFiles, err := collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
-	require.Equal(t, "", appDirFiles.defaultLuaPath)
-	require.Equal(t, "", appDirFiles.instCfgPath)
+	require.Empty(t, appDirFiles.defaultLuaPath)
+	require.Empty(t, appDirFiles.instCfgPath)
 
 	// Cluster config and default instance script exist, but no instances config.
 	os.Create(expectedDefaultScript)
+
 	appDirFiles, err = collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
 	require.Equal(t, expectedDefaultScript, appDirFiles.defaultLuaPath)
-	require.Equal(t, "", appDirFiles.instCfgPath)
+	require.Empty(t, appDirFiles.instCfgPath)
 
 	// All files exist.
 	os.Create(expectedInstancesConfig)
+
 	appDirFiles, err = collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
@@ -254,18 +268,20 @@ func Test_collectAppDirFiles(t *testing.T) {
 
 	// No default script.
 	os.Remove(expectedDefaultScript)
+
 	appDirFiles, err = collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
 	require.Equal(t, expectedClusterConfig, appDirFiles.clusterCfgPath)
-	require.Equal(t, "", appDirFiles.defaultLuaPath)
+	require.Empty(t, appDirFiles.defaultLuaPath)
 	require.Equal(t, expectedInstancesConfig, appDirFiles.instCfgPath)
 
 	// Only instances config.
 	os.Remove(expectedClusterConfig)
+
 	appDirFiles, err = collectAppDirFiles(tmpdir)
 	require.NoError(t, err)
-	require.Equal(t, "", appDirFiles.clusterCfgPath)
-	require.Equal(t, "", appDirFiles.defaultLuaPath)
+	require.Empty(t, appDirFiles.clusterCfgPath)
+	require.Empty(t, appDirFiles.defaultLuaPath)
 	require.Equal(t, expectedInstancesConfig, appDirFiles.instCfgPath)
 }
 
@@ -273,10 +289,13 @@ func Test_collectInstancesForApps(t *testing.T) {
 	appName := "cluster_app"
 	instancesEnabled, err := filepath.Abs("./testdata/instances_enabled")
 	require.NoError(t, err)
+
 	appLocation := filepath.Join(instancesEnabled, appName)
 	apps := []string{appName}
 	cliOpts := configure.GetDefaultCliOpts()
+
 	cliOpts.Env.InstancesEnabled = instancesEnabled
+
 	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
@@ -285,6 +304,7 @@ func Test_collectInstancesForApps(t *testing.T) {
 	require.Contains(t, instances, appName)
 
 	comparisonsCount := 0
+
 	for _, inst := range instances[appName] {
 		switch inst.InstName {
 		case "instance-001":
@@ -303,6 +323,7 @@ func Test_collectInstancesForApps(t *testing.T) {
 			assert.Equal(t, filepath.Join(appLocation, "var", "log", "instance-001", "tt.log"),
 				inst.Log)
 			assert.Equal(t, filepath.Join(appLocation, "config.yml"), inst.ClusterConfigPath)
+
 			comparisonsCount++
 
 		case "instance-002":
@@ -318,6 +339,7 @@ func Test_collectInstancesForApps(t *testing.T) {
 			assert.Equal(t, filepath.Join(appLocation, "var", "run", "instance-002", "tt.pid"),
 				inst.PIDFile)
 			assert.Equal(t, filepath.Join(appLocation, "instance-002.control"), inst.ConsoleSocket)
+
 			comparisonsCount++
 
 		case "instance-003":
@@ -331,12 +353,14 @@ func Test_collectInstancesForApps(t *testing.T) {
 				inst.PIDFile)
 			assert.Equal(t, filepath.Join(appLocation, "var", "run", "instance-003",
 				"tarantool.control"), inst.ConsoleSocket)
+
 			comparisonsCount++
 
 		default:
 			t.Fatalf("unknown %q", inst.InstName)
 		}
 	}
+
 	require.Equal(t, 3, comparisonsCount)
 }
 
@@ -366,6 +390,7 @@ echo "Tarantool 3.0.0"`),
 		[]byte(`#!/bin/bash
 echo "Tarantool 3.0.0"`), 0o644)
 	require.NoError(t, err)
+
 	canStart, reason := IsAbleToStartInstances([]InstanceCtx{
 		{
 			InstanceScript: "init.lua",
@@ -385,16 +410,19 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 	appName := "script"
 	instancesEnabled, err := filepath.Abs("./testdata/instances_enabled")
 	require.NoError(t, err)
+
 	apps := []string{appName + ".lua"}
 	appDir := filepath.Join(instancesEnabled, appName)
 	cliOpts := configure.GetDefaultCliOpts()
+
 	cliOpts.Env.InstancesEnabled = instancesEnabled
+
 	instances, err := CollectInstancesForApps(apps, cliOpts, "/etc/tarantool/",
 		integrity.IntegrityCtx{
 			Repository: &mockRepository{},
 		}, ConfigLoadAll)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(instances))
+	require.Len(t, instances, 1)
 	require.Contains(t, instances, appName)
 
 	inst := instances[appName][0]
@@ -407,7 +435,7 @@ func Test_collectInstancesForSingleInstApp(t *testing.T) {
 		inst.ConsoleSocket)
 	assert.Equal(t, filepath.Join(appDir, "var", "log", appName), inst.LogDir)
 	assert.Equal(t, filepath.Join(appDir, "var", "log", appName, "tt.log"), inst.Log)
-	assert.Equal(t, "", inst.ClusterConfigPath)
+	assert.Empty(t, inst.ClusterConfigPath)
 	assert.Equal(t, filepath.Join(instancesEnabled, appName), inst.AppDir)
 }
 
@@ -508,8 +536,10 @@ func TestGetClusterConfigPath(t *testing.T) {
 			actual, err := GetClusterConfigPath(tc.cliOpts, tc.ttConfigDir, tc.app, tc.mustExist)
 			if tc.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
+
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, actual)
 		})

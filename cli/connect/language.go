@@ -1,6 +1,7 @@
 package connect
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -37,6 +38,7 @@ func ParseLanguage(str string) (Language, bool) {
 	case sqlStr:
 		return SQLLanguage, true
 	}
+
 	return DefaultLanguage, false
 }
 
@@ -61,12 +63,14 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 	}
 
 	languageCmd := setLanguagePrefix + " " + lang.String()
+
 	evalBody, err := luabody.GetEvalFuncBody("")
 	if err != nil {
 		return err
 	}
+
 	response, err := evaler.Eval(evalBody,
-		[]interface{}{languageCmd},
+		[]any{languageCmd},
 		connector.RequestOpts{},
 	)
 	if err != nil {
@@ -74,28 +78,35 @@ func ChangeLanguage(evaler connector.Evaler, lang Language) error {
 	}
 
 	if len(response) == 0 {
-		return fmt.Errorf("unexpected response: empty")
+		return errors.New("unexpected response: empty")
 	} else if len(response) > 1 {
 		return fmt.Errorf("unexpected response: %v", response)
 	}
 
-	var ret string
-	var ok bool
+	var (
+		ret string
+		ok  bool
+	)
+
 	if ret, ok = response[0].(string); !ok {
 		return fmt.Errorf("unexpected response: %v", response)
 	}
 
-	var decoded interface{}
-	if err = yaml.Unmarshal([]byte(ret), &decoded); err != nil {
+	var decoded any
+
+	err = yaml.Unmarshal([]byte(ret), &decoded)
+	if err != nil {
 		return fmt.Errorf("unable to decode response: %w", err)
 	}
 
-	var decodedArray []interface{}
-	if decodedArray, ok = decoded.([]interface{}); !ok || len(decodedArray) != 1 {
+	var decodedArray []any
+
+	if decodedArray, ok = decoded.([]any); !ok || len(decodedArray) != 1 {
 		return fmt.Errorf("unexpected response: %s", ret)
 	}
 
 	var value bool
+
 	if value, ok = decodedArray[0].(bool); !ok {
 		return fmt.Errorf("unexpected response: %s", ret)
 	}

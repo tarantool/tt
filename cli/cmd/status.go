@@ -89,12 +89,14 @@ func internalStatusModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
 	if err != nil {
 		return err
 	}
 
 	var printer status.InstanceStatusPrinter
+
 	switch opts.format {
 	case "json":
 		printer = status.NewJSONPrinter()

@@ -3,6 +3,7 @@ package connect
 import (
 	"fmt"
 	"html/template"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -87,8 +88,8 @@ The command supports the following environment variables:
 		"ssl_ciphers":         sslCiphersParam,
 		"verify_host":         verifyHostParam,
 		"verify_peer":         verifyPeerParam,
-		"default_verify_host": fmt.Sprintf("%t", defaultVerifyHostParam),
-		"default_verify_peer": fmt.Sprintf("%t", defaultVerifyPeerParam),
+		"default_verify_host": strconv.FormatBool(defaultVerifyHostParam),
+		"default_verify_peer": strconv.FormatBool(defaultVerifyPeerParam),
 	}
 
 	envAuth := map[string]template.HTML{}
@@ -96,8 +97,8 @@ The command supports the following environment variables:
 
 	makeEnvVars := func(key, info string) {
 		h := template.HTML(info)
-		if strings.HasSuffix(key, "_auth") {
-			envAuth[strings.TrimSuffix(key, "_auth")] = h
+		if before, ok := strings.CutSuffix(key, "_auth"); ok {
+			envAuth[before] = h
 		} else {
 			envVars[key] = h
 		}
@@ -109,6 +110,7 @@ The command supports the following environment variables:
 			if !ok {
 				s = fmt.Sprintf("%v", value)
 			}
+
 			makeEnvVars(strings.TrimPrefix(key, "env_"), s)
 		} else {
 			s, ok := value.(string)
@@ -120,10 +122,13 @@ The command supports the following environment variables:
 			}
 		}
 	}
+
 	params["env_auth"] = envAuth
 	params["env_vars"] = envVars
 
 	var sb strings.Builder
+
 	t.Execute(&sb, params)
+
 	return sb.String()
 }

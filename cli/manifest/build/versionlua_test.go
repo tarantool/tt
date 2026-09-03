@@ -1,7 +1,6 @@
 package build
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,7 +49,7 @@ func TestWriteVersionLua_collisionWithLaidOutFile(t *testing.T) {
 	// A component laid a version.lua at the exact generated path this run.
 	err := writeVersionLua(tree, "my-app", true, version.Version{}, time.Unix(0, 0), []string{dst})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, errVersionLuaCollision))
+	assert.ErrorIs(t, err, errVersionLuaCollision)
 	assert.Equal(t, exitStateError, ExitCode(err))
 }
 

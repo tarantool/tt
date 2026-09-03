@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -34,8 +34,9 @@ func NewCreateCmd() *cobra.Command {
 		Run:   RunModuleFunc(internalCreateModule),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("requires template name argument")
+				return errors.New("requires template name argument")
 			}
+
 			return nil
 		},
 		ValidArgsFunction: createValidArgsFunction,
@@ -88,6 +89,7 @@ func createValidArgsFunction(
 	if len(args) != 0 {
 		return nil, cobra.ShellCompDirectiveDefault
 	}
+
 	templates := make([]string, 0, len(builtin_templates.Names))
 
 	// Append built-in templates.
@@ -98,13 +100,16 @@ func createValidArgsFunction(
 	// Append cfg's templates.
 	for _, templateDir := range cliOpts.Templates {
 		path := templateDir.Path
+
 		entries, err := os.ReadDir(path)
 		if err != nil {
 			continue
 		}
+
 		for _, entry := range entries {
 			eName := entry.Name()
 			ext := filepath.Ext(eName)
+
 			if entry.IsDir() {
 				templates = append(templates, eName)
 			} else if ext == ".tgz" {
@@ -114,6 +119,7 @@ func createValidArgsFunction(
 			}
 		}
 	}
+
 	return templates, cobra.ShellCompDirectiveNoFileComp
 }
 
@@ -122,6 +128,7 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if !isConfigExist(cmdCtx) {
 		return errNoConfig
 	}
+
 	if len(appName) == 0 {
 		return errNoAppName
 	}
@@ -137,7 +144,8 @@ func internalCreateModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		CliOpts:        cliOpts,
 	}
 
-	if err := create.FillCtx(cliOpts, &createCtx); err != nil {
+	err := create.FillCtx(cliOpts, &createCtx)
+	if err != nil {
 		return err
 	}
 

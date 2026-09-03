@@ -1,7 +1,7 @@
 package aeon
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +15,7 @@ import (
 //
 // Copy from https://github.com/tarantool/aeon/blob/master/aeon/grpc/server/pb/decode.go
 func decodeValue(val *pb.Value) (any, error) {
-	switch casted := val.Kind.(type) {
+	switch casted := val.GetKind().(type) {
 	case *pb.Value_UnsignedValue:
 		return val.GetUnsignedValue(), nil
 	case *pb.Value_StringValue:
@@ -30,72 +30,87 @@ func decodeValue(val *pb.Value) (any, error) {
 		return val.GetVarbinaryValue(), nil
 	case *pb.Value_DecimalValue:
 		decStr := val.GetDecimalValue()
+
 		res, err := decimal.MakeDecimalFromString(decStr)
 		if err != nil {
 			return nil, err
 		}
+
 		return res, nil
 	case *pb.Value_UuidValue:
 		uuidStr := val.GetUuidValue()
+
 		res, err := uuid.Parse(uuidStr)
 		if err != nil {
 			return nil, err
 		}
+
 		return res, nil
 	case *pb.Value_DatetimeValue:
-		sec := casted.DatetimeValue.Seconds
-		nsec := casted.DatetimeValue.Nsec
+		sec := casted.DatetimeValue.GetSeconds()
+		nsec := casted.DatetimeValue.GetNsec()
 		t := time.Unix(sec, nsec)
-		if len(casted.DatetimeValue.Location) > 0 {
-			locStr := casted.DatetimeValue.Location
+
+		if len(casted.DatetimeValue.GetLocation()) > 0 {
+			locStr := casted.DatetimeValue.GetLocation()
+
 			loc, err := time.LoadLocation(locStr)
 			if err != nil {
 				return nil, err
 			}
+
 			t = t.In(loc)
 		}
+
 		res, err := datetime.MakeDatetime(t)
 		if err != nil {
 			return nil, err
 		}
+
 		return res, nil
 	case *pb.Value_IntervalValue:
 		res := datetime.Interval{
-			Year:   casted.IntervalValue.Year,
-			Month:  casted.IntervalValue.Month,
-			Week:   casted.IntervalValue.Week,
-			Day:    casted.IntervalValue.Day,
-			Hour:   casted.IntervalValue.Hour,
-			Min:    casted.IntervalValue.Min,
-			Sec:    casted.IntervalValue.Sec,
-			Nsec:   casted.IntervalValue.Nsec,
-			Adjust: datetime.Adjust(casted.IntervalValue.Adjust),
+			Year:   casted.IntervalValue.GetYear(),
+			Month:  casted.IntervalValue.GetMonth(),
+			Week:   casted.IntervalValue.GetWeek(),
+			Day:    casted.IntervalValue.GetDay(),
+			Hour:   casted.IntervalValue.GetHour(),
+			Min:    casted.IntervalValue.GetMin(),
+			Sec:    casted.IntervalValue.GetSec(),
+			Nsec:   casted.IntervalValue.GetNsec(),
+			Adjust: datetime.Adjust(casted.IntervalValue.GetAdjust()),
 		}
+
 		return res, nil
 	case *pb.Value_ArrayValue:
 		array := val.GetArrayValue()
-		res := make([]any, len(array.Fields))
-		for k, v := range array.Fields {
+		res := make([]any, len(array.GetFields()))
+
+		for k, v := range array.GetFields() {
 			field, err := decodeValue(v)
 			if err != nil {
 				return nil, err
 			}
+
 			res[k] = field
 		}
+
 		return res, nil
 	case *pb.Value_MapValue:
-		res := make(map[any]any, len(casted.MapValue.Fields))
-		for k, v := range casted.MapValue.Fields {
+		res := make(map[any]any, len(casted.MapValue.GetFields()))
+		for k, v := range casted.MapValue.GetFields() {
 			item, err := decodeValue(v)
 			if err != nil {
 				return nil, err
 			}
+
 			res[k] = item
 		}
+
 		return res, nil
 	case *pb.Value_NullValue:
 		return nil, nil
 	default:
-		return nil, fmt.Errorf("unsupported type for value")
+		return nil, errors.New("unsupported type for value")
 	}
 }

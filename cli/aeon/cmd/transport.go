@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 // Transport is a type, with a restriction on the list of supported connection modes.
@@ -40,13 +40,16 @@ func (t *Transport) Set(v string) error {
 	if !ok {
 		return fmt.Errorf(`must be %s`, ListValidTransports())
 	}
+
 	*t = Transport(v)
+
 	return nil
 }
 
 // ListValidTransports returns string representation with list of supported transport modes.
 func ListValidTransports() string {
-	ks := maps.Keys(ValidTransport)
+	ks := slices.AppendSeq(make([]Transport, 0, len(ValidTransport)), maps.Keys(ValidTransport))
 	slices.Sort(ks)
+
 	return fmt.Sprintf("%v", ks)
 }

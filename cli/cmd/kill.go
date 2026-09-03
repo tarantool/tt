@@ -44,9 +44,12 @@ func NewKillCmd() *cobra.Command {
 
 func askConfirmation(args []string) (bool, error) {
 	var err error
+
 	confirm := true
+
 	if !forceKill {
 		confirmationMsg := "Kill all instances?"
+
 		if len(args) > 0 {
 			if strings.ContainsRune(args[0], running.InstanceDelimiter) {
 				confirmationMsg = fmt.Sprintf("Kill %s instance?", args[0])
@@ -54,11 +57,13 @@ func askConfirmation(args []string) (bool, error) {
 				confirmationMsg = fmt.Sprintf("Kill instances of %s?", args[0])
 			}
 		}
+
 		confirm, err = util.AskConfirm(os.Stdin, confirmationMsg)
 		if err != nil {
 			return confirm, err
 		}
 	}
+
 	return confirm, nil
 }
 
@@ -70,11 +75,12 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	confirm, err := askConfirmation(args)
 	if err != nil {
-		return fmt.Errorf("error asking for confirmation: %s", err)
+		return fmt.Errorf("error asking for confirmation: %w", err)
 	}
 
 	if confirm {
 		var runningCtx running.RunningCtx
+
 		err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
 		if err != nil {
 			return err
@@ -82,11 +88,13 @@ func internalKillModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 		for _, run := range runningCtx.Instances {
 			if dumpQuit {
-				if err = running.Quit(run); err != nil {
+				err = running.Quit(run)
+				if err != nil {
 					log.Infof(err.Error())
 				}
 			} else {
-				if err = running.Kill(run); err != nil {
+				err = running.Kill(run)
+				if err != nil {
 					log.Infof(err.Error())
 				}
 			}

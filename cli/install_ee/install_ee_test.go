@@ -49,6 +49,7 @@ func (m *mockBundleDoer) Do(req *http.Request) ([]byte, error) {
 	if m.resErr != nil {
 		return nil, m.resErr
 	}
+
 	return m.resBody, nil
 }
 
@@ -60,6 +61,7 @@ func (m *mockBundleDoer) Token() string {
 func TestDownloadBundle(t *testing.T) {
 	defaultDstSetup := func(t *testing.T, dir string) string {
 		t.Helper()
+
 		return dir
 	}
 
@@ -114,7 +116,9 @@ func TestDownloadBundle(t *testing.T) {
 			bundleSource: "http://tarantool.io/bundle.tar.gz",
 			dstSetup: func(t *testing.T, baseDir string) string {
 				t.Helper()
+
 				nonExistentDir := filepath.Join(baseDir, "non_existent_subdir_for_sure")
+
 				return nonExistentDir
 			},
 			doer: &mockBundleDoer{
@@ -128,10 +132,13 @@ func TestDownloadBundle(t *testing.T) {
 			bundleSource: "http://tarantool.io/bundle.tar.gz",
 			dstSetup: func(t *testing.T, baseDir string) string {
 				t.Helper()
+
 				file, err := os.CreateTemp(baseDir, "destination_as_file_*")
 				require.NoError(t, err)
+
 				filePath := file.Name()
 				file.Close()
+
 				return filePath
 			},
 			doer: &mockBundleDoer{
@@ -156,10 +163,12 @@ func TestDownloadBundle(t *testing.T) {
 			bundleSource: "http://tarantool.io/bundle.tar.gz",
 			dstSetup: func(t *testing.T, baseDir string) string {
 				t.Helper()
+
 				conflictingFile := filepath.Join(baseDir, "conflict_dir")
 				f, err := os.Create(conflictingFile)
 				require.NoError(t, err)
 				f.Close()
+
 				return baseDir
 			},
 			doer: &mockBundleDoer{
@@ -179,6 +188,7 @@ func TestDownloadBundle(t *testing.T) {
 				tc.doer.t = t
 				tc.doer.expectedUrl = tc.bundleSource
 			}
+
 			err := DownloadBundle(tc.doer, tc.bundleName, tc.bundleSource, dst)
 
 			if tc.errMsg != "" {
@@ -188,6 +198,7 @@ func TestDownloadBundle(t *testing.T) {
 				require.NoError(t, err, "DownloadBundle failed unexpectedly")
 
 				require.FileExists(t, filepath.Join(dst, tc.bundleName))
+
 				destFilePath := filepath.Join(dst, tc.bundleName)
 				content, readErr := os.ReadFile(destFilePath)
 				require.NoError(t, readErr, "Failed to read downloaded file")

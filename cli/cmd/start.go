@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
@@ -73,10 +72,12 @@ func startInstancesUnderWatchdog(cmdCtx *cmdcontext.CmdCtx, instances []running.
 	}
 
 	for _, instance := range instances {
-		if err := running.StartWatchdog(cmdCtx, ttBin, instance, startArgs); err != nil {
+		err := running.StartWatchdog(cmdCtx, ttBin, instance, startArgs)
+		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -87,10 +88,13 @@ func startInstancesInteractive(cmdCtx *cmdcontext.CmdCtx, instances []running.In
 
 	wg := sync.WaitGroup{}
 	pickColor := tail.DefaultColorPicker()
+
 	for _, instCtx := range instances {
 		clr := pickColor()
 		prefix := running.GetAppInstanceName(instCtx) + " "
+
 		wg.Add(1)
+
 		go func(inst running.InstanceCtx) {
 			running.RunInstance(ctx, cmdCtx, inst,
 				running.NewColorizedPrefixWriter(os.Stdout, clr, prefix),
@@ -98,7 +102,9 @@ func startInstancesInteractive(cmdCtx *cmdcontext.CmdCtx, instances []running.In
 			wg.Done()
 		}(instCtx)
 	}
+
 	wg.Wait()
+
 	return nil
 }
 
@@ -107,6 +113,7 @@ func startInstances(cmdCtx *cmdcontext.CmdCtx, instances []running.InstanceCtx) 
 	if startInteractive {
 		return startInstancesInteractive(cmdCtx, instances)
 	}
+
 	return startInstancesUnderWatchdog(cmdCtx, instances)
 }
 
@@ -117,10 +124,11 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if cmdCtx.Cli.TarantoolCli.Executable == "" {
-		return fmt.Errorf("cannot start: tarantool binary is not found")
+		return errors.New("cannot start: tarantool binary is not found")
 	}
 
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadAll)
 	if err != nil {
 		return err
@@ -131,9 +139,11 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if !watchdog {
-		if err := startInstances(cmdCtx, runningCtx.Instances); err != nil {
+		err := startInstances(cmdCtx, runningCtx.Instances)
+		if err != nil {
 			return err
 		}
+
 		return nil
 	}
 
@@ -144,5 +154,6 @@ func internalStartModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if err := running.Start(cmdCtx, &runningCtx.Instances[0]); err != nil {
 		return err
 	}
+
 	return nil
 }

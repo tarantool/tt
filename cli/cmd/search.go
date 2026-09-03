@@ -106,6 +106,7 @@ func NewSearchCmd() *cobra.Command {
 // internalSearchModule is a default search module.
 func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var err error
+
 	if searchCtx.Program, err = search.ParseProgram(cmdCtx.CommandName); err != nil {
 		return fmt.Errorf("failed to search: %w", err)
 	}
@@ -117,5 +118,6 @@ func internalSearchModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if debug {
 		searchCtx.Filter = search.SearchDebug
 	}
+
 	return search.SearchVersions(searchCtx, cliOpts)
 }

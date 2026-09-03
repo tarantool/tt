@@ -201,6 +201,7 @@ func TestGetModulesInfo(t *testing.T) {
 	}
 
 	os.Unsetenv("TT_CLI_MODULES_PATH")
+
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			cmdCtx := cmdcontext.CmdCtx{
@@ -213,25 +214,33 @@ func TestGetModulesInfo(t *testing.T) {
 					Directories: tt.modules,
 				},
 			}
+
 			if tt.env_modules != "" {
 				os.Setenv("TT_CLI_MODULES_PATH", tt.env_modules)
 			}
+
 			var buf bytes.Buffer
+
 			log.SetOutput(&buf)
+
 			defer func() {
 				log.SetOutput(os.Stderr)
 			}()
 
 			got, err := modules.GetModulesInfo(&cmdCtx, "root", &cliOpts)
+
 			os.Unsetenv("TT_CLI_MODULES_PATH")
 			t.Log(buf.String())
 
 			if err != nil || tt.err != "" {
-				assert.NotNil(t, err, "Expecting msg: %q", tt.err)
+				assert.Error(t, err, "Expecting msg: %q", tt.err)
 				assert.ErrorContains(t, err, tt.err)
+
 				return
 			}
-			assert.EqualValues(t, tt.want, got)
+
+			assert.Equal(t, tt.want, got)
+
 			if len(tt.log) > 0 {
 				for _, log := range tt.log {
 					assert.Contains(t, buf.String(), log)

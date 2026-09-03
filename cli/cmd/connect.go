@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -70,10 +71,12 @@ func NewConnectCmd() *cobra.Command {
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
+
 			validArgs, _ := internal.ValidArgsFunction(
 				cliOpts, &cmdCtx, cmd, toComplete,
 				running.ExtractActiveAppNames,
 				running.ExtractActiveInstanceNames)
+
 			return validArgs, cobra.ShellCompDirectiveDefault
 		},
 	}
@@ -115,6 +118,7 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 		CaFile:   connCtx.SslCaFile,
 		Ciphers:  connCtx.SslCiphers,
 	}
+
 	return connector.ConnectOpts{
 		Network:  network,
 		Address:  address,
@@ -133,18 +137,22 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 ) {
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
+
 	fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{target},
 		running.ConfigLoadCluster)
 	if fillErr == nil {
 		if len(runningCtx.Instances) > 1 {
-			err = fmt.Errorf("specify instance name")
+			err = errors.New("specify instance name")
 			return connOpts, err
 		}
+
 		if (connectCtx.Username != "" || connectCtx.Password != "") && !connectCtx.Binary {
-			err = fmt.Errorf("username and password are not supported" +
+			err = errors.New("username and password are not supported" +
 				" with a connection via a control socket")
+
 			return connOpts, err
 		}
+
 		if connectCtx.Binary {
 			connOpts = makeConnOpts(
 				connector.UnixNetwork, runningCtx.Instances[0].BinaryPort, *connectCtx,
@@ -156,12 +164,15 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		}
 	} else if libconnect.IsCredentialsURI(target) {
 		if connectCtx.Username != "" || connectCtx.Password != "" {
-			err = fmt.Errorf("username and password are specified with" +
+			err = errors.New("username and password are specified with" +
 				" flags and a URI")
+
 			return connOpts, err
 		}
+
 		newURI, user, pass := libconnect.ParseCredentialsURI(target)
 		network, address := libconnect.ParseBaseURI(newURI)
+
 		connectCtx.Username = user
 		connectCtx.Password = pass
 		connOpts = makeConnOpts(network, address, *connectCtx)
@@ -171,18 +182,23 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		if connectCtx.Username == "" {
 			connectCtx.Username = os.Getenv(libconnect.TarantoolUsernameEnv)
 		}
+
 		if connectCtx.Password == "" {
 			connectCtx.Password = os.Getenv(libconnect.TarantoolPasswordEnv)
 		}
+
 		network, address := libconnect.ParseBaseURI(target)
+
 		connOpts = makeConnOpts(network, address, *connectCtx)
 	} else {
 		err = fillErr
 		return connOpts, err
 	}
+
 	if connectCtx.ConnectTarget == "" {
 		connectCtx.ConnectTarget = target
 	}
+
 	return connOpts, err
 }
 
@@ -202,11 +218,13 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var ok bool
+
 	if connectCtx.Language, ok = connect.ParseLanguage(connectLanguage); !ok {
-		return util.NewArgError(fmt.Sprintf("unsupported language: %s", connectLanguage))
+		return util.NewArgError("unsupported language: " + connectLanguage)
 	}
+
 	if connectCtx.Format, ok = formatter.ParseFormat(connectFormat); !ok {
-		return util.NewArgError(fmt.Sprintf("unsupported output format: %s", connectFormat))
+		return util.NewArgError("unsupported output format: " + connectFormat)
 	}
 
 	connOpts, err := resolveConnectOpts(cmdCtx, cliOpts, &connectCtx, args[0])
@@ -219,19 +237,22 @@ func internalConnectModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
+
 		// "Println" is used instead of "log..." to print the result without
 		// any decoration.
 		fmt.Println(string(res))
+
 		if !connectInteractive || !terminal.IsTerminal(syscall.Stdin) {
 			return nil
 		}
 	} else if len(args) != 1 {
-		return fmt.Errorf("should be specified one connection string")
+		return errors.New("should be specified one connection string")
 	}
 
 	if terminal.IsTerminal(syscall.Stdin) {
 		log.Info("Connecting to the instance...")
 	}
+
 	if err := connect.Connect(connectCtx, connOpts); err != nil {
 		return err
 	}

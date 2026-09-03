@@ -26,9 +26,11 @@ are passed after '--'.
 			for _, opt := range args {
 				if opt == "-h" || opt == "--help" {
 					cmd.Help()
+
 					return
 				}
 			}
+
 			RunModuleFunc(internalRunModule)(cmd, args)
 		},
 		Example: `
@@ -76,7 +78,8 @@ func internalRunModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	runInfo.RunOpts.RunArgs = args
 
-	if err := running.Run(runInfo); err != nil {
+	err := running.Run(runInfo)
+	if err != nil {
 		return err
 	}
 

@@ -3,6 +3,7 @@ package rocks
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,15 +42,18 @@ func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) ([]string, erro
 	// Check whether rocks repository is specified in tt config.
 	if cliOpts.Repo != nil && cliOpts.Repo.Rocks != "" {
 		isServerSet := false
+
 		for i, opt := range args {
 			if opt == "--server" {
 				isServerSet = true
 				args[i+1] = args[i+1] + " " + cliOpts.Repo.Rocks
 			} else if strings.HasPrefix(opt, "--server=") {
 				isServerSet = true
+
 				args[i] += " " + cliOpts.Repo.Rocks
 			}
 		}
+
 		if !isServerSet {
 			args = append(args, "--server", cliOpts.Repo.Rocks)
 		}
@@ -64,11 +68,11 @@ func getRocksRepoPath(rocksRepoPath string) string {
 	rockRepoPathFromEnv := os.Getenv(repoRocksPathEnvVarName)
 	if rocksRepoPath == "" || (rocksRepoPath != "" &&
 		!util.IsRegularFile(filepath.Join(rocksRepoPath, rocksRepoManifestName))) {
-
 		if rockRepoPathFromEnv != "" {
 			rocksRepoPath = rockRepoPathFromEnv
 		}
 	}
+
 	return rocksRepoPath
 }
 
@@ -81,28 +85,31 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 		}
 
 		log.Debugf("Tarantool prefix path: %q", prefixDir)
+
 		return prefixDir, nil
 	}
 
 	if prefixPathFromEnv := os.Getenv(tarantoolPrefixEnvVarName); prefixPathFromEnv != "" {
 		log.Debugf("Tarantool prefix path: %q", prefixPathFromEnv)
+
 		return prefixPathFromEnv, nil
 	}
 
 	output, err := exec.Command(cli.TarantoolCli.Executable, "--version").Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get tarantool version: %s", err)
+		return "", fmt.Errorf("failed to get tarantool version: %w", err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	if len(lines) < 3 {
-		return "", fmt.Errorf("failed to get prefix path: expected more data")
+		return "", errors.New("failed to get prefix path: expected more data")
 	}
 
 	re := regexp.MustCompile(`^.*\s-DCMAKE_INSTALL_PREFIX=(?P<prefix>\/.*)\s.*$`)
 	matches := util.FindNamedMatches(re, lines[2])
+
 	if len(matches) == 0 {
-		return "", fmt.Errorf("failed to get prefix path: regexp does not match")
+		return "", errors.New("failed to get prefix path: regexp does not match")
 	}
 
 	prefixDir := matches["prefix"]
@@ -110,10 +117,12 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 	if !util.IsDir(prefixDir) {
 		log.Debugf("%q does not exist or is not a directory. Using default: %q",
 			prefixDir, tarantoolDefaultPrefixDir)
+
 		prefixDir = tarantoolDefaultPrefixDir
 	}
 
 	log.Debugf("Tarantool prefix path: %q", prefixDir)
+
 	return prefixDir, nil
 }
 
@@ -126,6 +135,7 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	cliOpts.Repo.Rocks = getRocksRepoPath(cliOpts.Repo.Rocks)
 
 	var err error
+
 	if args, err = addLuarocksRepoOpts(cliOpts, args); err != nil {
 		return err
 	}
@@ -134,10 +144,12 @@ func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) err
 	if err != nil {
 		return err
 	}
+
 	tarantoolPrefixDir, err := GetTarantoolPrefix(&cmdCtx.Cli, cliOpts)
 	if err != nil {
 		return err
 	}
+
 	tarantoolIncludeDir, err := util.JoinAbspath(tarantoolPrefixDir, "include", "tarantool")
 	if err != nil {
 		return err

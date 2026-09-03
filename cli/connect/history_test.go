@@ -55,7 +55,7 @@ func TestParseHistoryCells(t *testing.T) {
 		}
 		commands, timestamps := parseHistoryCells(lines)
 		assert.Equal(t, []string{"a=3", "b=4", "print(a+b)", "box.cfg{}"}, commands)
-		assert.Equal(t, 4, len(timestamps))
+		assert.Len(t, timestamps, 4)
 	})
 }
 
@@ -63,7 +63,7 @@ func TestHistoryAppend(t *testing.T) {
 	limit := 20
 
 	h, _ := newCommandHistory("", limit)
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		h.appendCommand(fmt.Sprintf("command%d", i))
 		assert.Equal(t, len(h.commands), i+1)
 		assert.Equal(t, len(h.timestamps), i+1)

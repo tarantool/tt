@@ -29,14 +29,15 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 
 	// Need absolute path to the script, because working dir is changed on start.
 	appPath, err := filepath.Abs(filepath.Join(instTestAppDir, app+".lua"))
-	assert.Nilf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
+	assert.NoErrorf(err, `Unknown application: "%v". Error: "%v".`, appPath, err)
 
 	tarantoolBin, err := exec.LookPath("tarantool")
-	assert.Nilf(err, `Can't find a tarantool binary. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't find a tarantool binary. Error: "%v".`, err)
 
 	instTestDataDir := t.TempDir()
 	binPath, err := os.Executable()
 	require.NoError(t, err)
+
 	binDir := filepath.Dir(binPath)
 	inst, err := newScriptInstance(tarantoolBin, InstanceCtx{
 		AppDir:         binDir,
@@ -47,15 +48,18 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 		MemtxDir:       instTestDataDir,
 		BinaryPort:     binaryPort,
 	}, StdLoggerOpt(logger))
-	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't create an instance. Error: "%v".`, err)
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	os.Setenv("started_flag_file", filepath.Join(binDir, app))
+
 	defer os.Remove(os.Getenv("started_flag_file"))
+
 	err = inst.Start(ctx)
-	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't start the instance. Error: "%v".`, err)
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+
 	alive := inst.IsAlive()
 	assert.True(alive, "Can't start the instance.")
 
@@ -69,6 +73,7 @@ func cleanupTestInstance(t *testing.T, inst *scriptInstance) {
 		err := inst.Stop(stopTimeout)
 		assert.NoError(t, err)
 	}
+
 	if _, err := os.Stat(inst.consoleSocket); err == nil {
 		os.Remove(inst.consoleSocket)
 	}
@@ -78,7 +83,8 @@ func TestInstanceBase(t *testing.T) {
 	assert := assert.New(t)
 
 	binPath, err := os.Executable()
-	assert.Nilf(err, `Can't get the path to the executable. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't get the path to the executable. Error: "%v".`, err)
+
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
 	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
 
@@ -88,7 +94,7 @@ func TestInstanceBase(t *testing.T) {
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	conn, err := net.Dial("unix", consoleSock)
-	assert.Nilf(err, `Can't connect to console socket. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't connect to console socket. Error: "%v".`, err)
 	conn.Close()
 }
 
@@ -103,6 +109,7 @@ func TestInstanceLogger(t *testing.T) {
 	t.Cleanup(func() {
 		defer reader.Close()
 		defer writer.Close()
+
 		cleanupTestInstance(t, inst)
 	})
 
@@ -111,7 +118,7 @@ func TestInstanceLogger(t *testing.T) {
 	buf := bytes.NewBufferString("")
 	_, err := io.CopyN(buf, reader, msgLen)
 	assert.Equal(msg, buf.String(), "The message in the log is different from what was expected.")
-	assert.Nilf(err, `Can't read log output. Error: "%v".`, err)
+	assert.NoErrorf(err, `Can't read log output. Error: "%v".`, err)
 }
 
 func Test_shortenSocketPath(t *testing.T) {
@@ -124,9 +131,10 @@ func Test_shortenSocketPath(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		maxSocketPathLen = maxSocketPathMac
 	}
+
 	dirLen := maxSocketPathLen - len("/tarantool.control") - 1
 	maxSocketPath := "/" + strings.Repeat("a", dirLen) + "/tarantool.control"
-	require.Equal(t, maxSocketPathLen, len(maxSocketPath))
+	require.Len(t, maxSocketPath, maxSocketPathLen)
 
 	tests := []struct {
 		name    string
@@ -206,6 +214,7 @@ func Test_shortenSocketPath(t *testing.T) {
 func TestInstanceLogs(t *testing.T) {
 	binPath, err := os.Executable()
 	assert.NoError(t, err)
+
 	consoleSock := filepath.Join(filepath.Dir(binPath), "test.sock")
 	binaryPort := filepath.Join(filepath.Dir(binPath), "testbin.sock")
 
@@ -235,11 +244,14 @@ func TestInstanceLogs(t *testing.T) {
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
 	os.Setenv("started_flag_file", filepath.Join(binDir, app))
+
 	defer os.Remove(os.Getenv("started_flag_file"))
+
 	err = inst.Start(context.Background())
 	require.NoError(t, err)
 
 	require.NotZero(t, waitForFile(os.Getenv("started_flag_file")), "Instance is not started")
+
 	alive := inst.IsAlive()
 	assert.True(t, alive)
 
@@ -259,6 +271,6 @@ func TestInstanceStopByContext(t *testing.T) {
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	cancel()
-	assert.Error(t, inst.Wait(), context.Canceled)
+	assert.ErrorIs(t, inst.Wait(), context.Canceled)
 	assert.True(t, inst.ProcessState().Success())
 }

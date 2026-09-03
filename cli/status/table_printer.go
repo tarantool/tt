@@ -19,7 +19,7 @@ type TablePrinterOption func(*TablePrinter)
 
 // TablePrinter implements InstanceStatusPrinter for table output.
 type TablePrinter struct {
-	// Options for table formatting
+	// Options for table formatting.
 	pretty  bool
 	details bool
 }
@@ -47,6 +47,7 @@ func NewTablePrinter(opts ...TablePrinterOption) *TablePrinter {
 	for _, opt := range opts {
 		opt(tp)
 	}
+
 	return tp
 }
 
@@ -67,10 +68,13 @@ func (t TablePrinter) printInstanceAlerts(instanceName string, instStatus *insta
 	if len(instStatus.Alerts) == 0 {
 		return
 	}
+
 	fmt.Printf("Alerts for %s:\n", instanceName)
+
 	for _, alert := range instStatus.Alerts {
 		fmt.Printf("  • %s\n", formatAlert(alert))
 	}
+
 	fmt.Println()
 }
 
@@ -81,6 +85,7 @@ func hasAlerts(instances map[string]*instanceStatus) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -93,12 +98,16 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 
 	for instName, instData := range instances {
 		row := []any{}
+
 		row = append(row, instName)
 		row = append(row, instData.procStatus.FormattedStatus())
+
 		if instData.PID == nil {
 			ts.AppendRow(row)
+
 			continue
 		}
+
 		row = append(row, *instData.PID)
 		row = append(row, instData.Mode)
 		row = append(row, instData.Config)
@@ -106,6 +115,7 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		row = append(row, instData.Upstream)
 		ts.AppendRow(row)
 	}
+
 	ts.SortBy([]table.SortBy{{Name: "INSTANCE", Mode: table.Asc}})
 
 	if t.details {
@@ -113,6 +123,7 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 			t.printInstanceAlerts(instanceName, instStatus)
 		}
 	}
+
 	if t.pretty {
 		ts.SetStyle(table.StyleRounded)
 	} else {
@@ -120,6 +131,7 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		ts.Style().Options.SeparateColumns = false
 		ts.Style().Options.SeparateHeader = false
 	}
+
 	ts.SetColumnConfigs([]table.ColumnConfig{
 		{Number: 1, Align: text.AlignLeft, AlignHeader: text.AlignLeft},
 		{Number: 2, Align: text.AlignLeft, AlignHeader: text.AlignLeft},

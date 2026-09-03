@@ -1,6 +1,7 @@
 package replicaset
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/apex/log"
@@ -21,16 +22,21 @@ func (evaler EvalFunc) Eval(expr string, args []any, opts connector.RequestOpts)
 func MakeInstanceEvalFunc(instance running.InstanceCtx) EvalFunc {
 	return func(expr string, args []any, opts connector.RequestOpts) ([]any, error) {
 		var resp []any
+
 		instEvaler := func(instance running.InstanceCtx, evaler connector.Evaler) (bool, error) {
 			var err error
+
 			resp, err = evaler.Eval(expr, args, opts)
+
 			return true, err
 		}
+
 		err := EvalForeach(
 			[]running.InstanceCtx{instance}, InstanceEvalFunc(instEvaler))
 		if err != nil {
 			return nil, err
 		}
+
 		return resp, nil
 	}
 }
@@ -85,10 +91,11 @@ func evalForeach(instances []running.InstanceCtx,
 	iEvaler InstanceEvaler, skipConnectError bool,
 ) error {
 	if len(instances) == 0 {
-		return fmt.Errorf("no instances to connect")
+		return errors.New("no instances to connect")
 	}
 
 	connected := 0
+
 	for _, instance := range instances {
 		conn, err := connector.Connect(connector.ConnectOpts{
 			Network: "unix",
@@ -101,23 +108,28 @@ func evalForeach(instances []running.InstanceCtx,
 			} else {
 				log.Debugf("failed to connect to '%s:%s': %s",
 					instance.AppName, instance.InstName, err)
+
 				continue
 			}
 		}
 
 		connected++
+
 		done, err := iEvaler.Eval(instance, conn)
 		conn.Close()
 
 		if err != nil {
 			return err
 		}
+
 		if done {
 			break
 		}
 	}
+
 	if connected == 0 {
-		return fmt.Errorf("failed to connect to any instance")
+		return errors.New("failed to connect to any instance")
 	}
+
 	return nil
 }

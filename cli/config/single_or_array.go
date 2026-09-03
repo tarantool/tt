@@ -20,14 +20,20 @@ func NewSingleOrArray[T any](v ...T) SingleOrArray[T] {
 // UnmarshalJSON implements json.Unmarshaler interface.
 func (o *SingleOrArray[T]) UnmarshalJSON(data []byte) error {
 	var ret []T
+
 	if json.Unmarshal(data, &ret) != nil {
 		var s T
-		if err := json.Unmarshal(data, &s); err != nil {
+
+		err := json.Unmarshal(data, &s)
+		if err != nil {
 			return err
 		}
+
 		ret = []T{s}
 	}
+
 	*o = ret
+
 	return nil
 }
 
@@ -36,30 +42,40 @@ func (o SingleOrArray[T]) MarshalJSON() ([]byte, error) {
 	if len(o) == 1 {
 		return json.Marshal(o[0])
 	}
+
 	return json.Marshal([]T(o))
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler interface.
 func (o *SingleOrArray[T]) UnmarshalYAML(node *yaml.Node) error {
 	var ret []T
+
 	if node.Decode(&ret) != nil {
 		var s T
-		if err := node.Decode(&s); err != nil {
+
+		err := node.Decode(&s)
+		if err != nil {
 			return err
 		}
+
 		ret = []T{s}
 	}
+
 	*o = ret
+
 	return nil
 }
 
 // MarshalYAML implements yaml.Marshaler interface.
 func (o SingleOrArray[T]) MarshalYAML() (any, error) {
 	var v any
+
 	v = []T(o)
+
 	if len(o) == 1 {
 		v = o[0]
 	}
+
 	return v, nil
 }
 

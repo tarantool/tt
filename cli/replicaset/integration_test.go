@@ -4,9 +4,11 @@ package replicaset_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -47,6 +49,7 @@ func doRequest(req tarantool.Request) error {
 	defer conn.Close()
 
 	_, err = conn.Do(req).Get()
+
 	return err
 }
 
@@ -83,6 +86,7 @@ func setCConfigTestEnvironment(t *testing.T) func() {
 
 func setCustomTestEnvironment(t *testing.T, version string) func() {
 	t.Helper()
+
 	err := setTarantoolVersion(version)
 	require.NoError(t, err)
 
@@ -133,6 +137,7 @@ func (e *instanceEvalerMock) Eval(instance running.InstanceCtx,
 
 	// Ensure that we already connected to the instance.
 	require.NotNil(e.T, evaler)
+
 	data, err := evaler.Eval("return box.cfg.listen", []any{}, connector.RequestOpts{})
 	require.NoError(e.T, err)
 	require.Equal(e.T, []any{"127.0.0.1:3015"}, data)
@@ -217,7 +222,7 @@ func TestEvalForeach_stops_after_evaler_done(t *testing.T) {
 	evaler := &instanceEvalerMock{T: t, Done: true}
 	err := replicaset.EvalForeach(instances, evaler)
 	assert.NoError(t, err)
-	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
+	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
 func TestEvalForeach_stops_after_evaler_error(t *testing.T) {
@@ -230,10 +235,10 @@ func TestEvalForeach_stops_after_evaler_error(t *testing.T) {
 		validInstance,
 	}
 
-	evaler := &instanceEvalerMock{T: t, Error: fmt.Errorf("foo")}
+	evaler := &instanceEvalerMock{T: t, Error: errors.New("foo")}
 	err := replicaset.EvalForeach(instances, evaler)
 	assert.EqualError(t, err, "foo")
-	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
+	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
 func TestEvalForeach_error(t *testing.T) {
@@ -347,7 +352,7 @@ func TestEvalForeachAlive_stops_after_evaler_done(t *testing.T) {
 	evaler := &instanceEvalerMock{T: t, Done: true}
 	err := replicaset.EvalForeachAlive(instances, evaler)
 	assert.NoError(t, err)
-	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
+	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
 func TestEvalForeachAlive_stops_after_evaler_err(t *testing.T) {
@@ -360,10 +365,10 @@ func TestEvalForeachAlive_stops_after_evaler_err(t *testing.T) {
 		validInstance,
 	}
 
-	evaler := &instanceEvalerMock{T: t, Error: fmt.Errorf("foo")}
+	evaler := &instanceEvalerMock{T: t, Error: errors.New("foo")}
 	err := replicaset.EvalForeachAlive(instances, evaler)
 	assert.EqualError(t, err, "foo")
-	assert.Equal(t, evaler.Instances, []running.InstanceCtx{validInstance})
+	assert.Equal(t, []running.InstanceCtx{validInstance}, evaler.Instances)
 }
 
 func TestEvalForeachAlive_error(t *testing.T) {
@@ -454,8 +459,9 @@ func TestEvalAny_ignore_evaler_done(t *testing.T) {
 			ConsoleSocket: console,
 		},
 	}
+
 	for _, tc := range []bool{true, false} {
-		t.Run(fmt.Sprintf("%t", tc), func(t *testing.T) {
+		t.Run(strconv.FormatBool(tc), func(t *testing.T) {
 			evaler := &instanceEvalerMock{T: t, Done: tc}
 			err := replicaset.EvalAny(instances, evaler)
 			assert.NoError(t, err)
@@ -472,7 +478,7 @@ func TestEvalAny_stop_after_evaler_error(t *testing.T) {
 		},
 	}
 
-	evaler := &instanceEvalerMock{T: t, Error: fmt.Errorf("foo")}
+	evaler := &instanceEvalerMock{T: t, Error: errors.New("foo")}
 	err := replicaset.EvalAny(instances, evaler)
 	assert.EqualError(t, err, "foo")
 }
@@ -517,6 +523,7 @@ func runTestMain(m *testing.M) int {
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
 		fmt.Println("Failed to prepare test work dir:", err)
+
 		return 1
 	}
 
@@ -531,6 +538,7 @@ func runTestMain(m *testing.M) int {
 	})
 	if err != nil {
 		fmt.Println("Failed to prepare test tarantool:", err)
+
 		return 1
 	}
 	defer test_helpers.StopTarantoolWithCleanup(inst)
@@ -538,13 +546,16 @@ func runTestMain(m *testing.M) int {
 	conn, err := tarantool.Connect(context.Background(), dialer, opts)
 	if err != nil {
 		fmt.Println("Failed to check tarantool version:", err)
+
 		return 1
 	}
 
 	_, err = conn.Do(tarantool.NewPingRequest()).Get()
 	conn.Close()
+
 	if err != nil {
 		fmt.Println("Failed to ping tarantool server:", err)
+
 		return 1
 	}
 

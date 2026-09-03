@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/tarantool/go-storage"
@@ -36,6 +36,7 @@ func WithIntegrity(opts IntegrityOptions) Option {
 		Verifiers:       append([]gcrypto.Verifier(nil), opts.Verifiers...),
 		SignerVerifiers: append([]gcrypto.SignerVerifier(nil), opts.SignerVerifiers...),
 	}
+
 	return func(f *Factory) {
 		f.integrity = &optsCopy
 	}
@@ -51,11 +52,13 @@ func WithFileReadFunc(fileReadFunc FileReadFunc) Option {
 // NewFactory creates a new Factory configured by the given options.
 func NewFactory(opts ...Option) Factory {
 	var f Factory
+
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&f)
 		}
 	}
+
 	return f
 }
 
@@ -65,6 +68,7 @@ func (f Factory) NewFileCollector(path string) DataCollector {
 	if f.fileReadFunc != nil {
 		return FileCollector{path: path, fileReadFunc: f.fileReadFunc}
 	}
+
 	return NewFileCollector(path)
 }
 
@@ -73,8 +77,9 @@ func (f Factory) NewFileCollector(path string) DataCollector {
 // auxiliary data needed for signatures).
 func (f Factory) NewFilePublisher(path string) (DataPublisher, error) {
 	if f.integrity != nil {
-		return nil, fmt.Errorf("publishing into a file with integrity data is not supported")
+		return nil, errors.New("publishing into a file with integrity data is not supported")
 	}
+
 	return NewFilePublisher(path), nil
 }
 

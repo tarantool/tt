@@ -34,8 +34,10 @@ var errNotInstalled = errors.New("program is not installed")
 func remove(program search.Program, programVersion, directory string,
 	cmdCtx *cmdcontext.CmdCtx,
 ) (bool, error) {
-	var linkPath string
-	var err error
+	var (
+		linkPath string
+		err      error
+	)
 
 	if linkPath, err = util.JoinAbspath(directory, program.Exec()); err != nil {
 		return false, err
@@ -63,6 +65,7 @@ func remove(program search.Program, programVersion, directory string,
 		if !os.IsNotExist(err) {
 			return false, fmt.Errorf("failed to access %q: %w", linkPath, err)
 		}
+
 		isSymlinkRemoved = false
 	} else {
 		// Get path where symlink point.
@@ -73,12 +76,15 @@ func remove(program search.Program, programVersion, directory string,
 
 		// Remove symlink if it points to program.
 		if strings.Contains(resolvedPath, fileName) {
-			if err = os.Remove(linkPath); err != nil {
+			err = os.Remove(linkPath)
+			if err != nil {
 				return false, err
 			}
+
 			isSymlinkRemoved = true
 		}
 	}
+
 	err = os.RemoveAll(path)
 	if err != nil {
 		return isSymlinkRemoved, err
@@ -96,27 +102,36 @@ func UninstallProgram(
 	cmdCtx *cmdcontext.CmdCtx,
 ) error {
 	log.Infof("Removing binary...")
+
 	var err error
 
 	if program == search.ProgramDev {
 		tarantoolBinarySymlink := filepath.Join(binDst, "tarantool")
+
 		_, isTarantoolDevInstalled, err := install.IsTarantoolDev(tarantoolBinarySymlink, binDst)
 		if err != nil {
 			return err
 		}
+
 		if !isTarantoolDevInstalled {
 			return fmt.Errorf("%s is not installed", program)
 		}
+
 		if err := os.Remove(tarantoolBinarySymlink); err != nil {
 			return err
 		}
+
 		headerDir := filepath.Join(headerDst, "tarantool")
+
 		log.Infof("Removing headers...")
+
 		// There can be no headers when `tarantool-dev` is installed.
 		if err := os.Remove(headerDir); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+
 		err = switchProgramToLatestVersion(program, binDst, headerDst)
+
 		return err
 	}
 
@@ -132,31 +147,37 @@ func UninstallProgram(
 	}
 
 	var isSymlinkRemoved bool
+
 	for _, verToDel := range versionsToDelete {
 		isSymlinkRemoved, err = remove(program, verToDel, binDst, cmdCtx)
 		if err != nil && !errors.Is(err, errNotInstalled) {
 			return err
 		}
+
 		if err == nil {
 			break
 		}
 	}
+
 	if err != nil {
 		return err
 	}
 
 	if program.IsTarantool() {
 		log.Infof("Removing headers...")
+
 		_, err = remove(program, programVersion, headerDst, cmdCtx)
 		if err != nil {
 			return err
 		}
 	}
+
 	log.Infof("%s%s%s is uninstalled.", program, version.CliSeparator, programVersion)
 
 	if isSymlinkRemoved {
 		err = switchProgramToLatestVersion(program, binDst, headerDst)
 	}
+
 	return err
 }
 
@@ -168,10 +189,11 @@ func getAllTtVersionFormats(program search.Program, ttVersion string) ([]string,
 	if program == search.ProgramTt {
 		// Need to determine if we have x.y.z format in tt uninstall argument
 		// to make sure we add version prefix.
-		versionMatches, err := regexp.Match(MajorMinorPatchRegexp, []byte(ttVersion))
+		versionMatches, err := regexp.MatchString(MajorMinorPatchRegexp, ttVersion)
 		if err != nil {
 			return versionsToDelete, err
 		}
+
 		if versionMatches {
 			versionsToDelete = append(versionsToDelete, "v"+ttVersion)
 		}
@@ -195,6 +217,7 @@ func getDefault(program search.Program, dir string) (string, error) {
 
 	for _, file := range installedPrograms {
 		matches := util.FindNamedMatches(re, file.Name())
+
 		if ver != "" {
 			return "", fmt.Errorf("%s has more than one installed version, "+
 				"please specify the version to uninstall", program)
@@ -206,6 +229,7 @@ func getDefault(program search.Program, dir string) (string, error) {
 	if ver == "" {
 		return "", fmt.Errorf("%s has no installed version", program)
 	}
+
 	return ver, nil
 }
 
@@ -261,12 +285,14 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 		if binary.IsDir() {
 			continue
 		}
+
 		binaryName := binary.Name()
 		matches := util.FindNamedMatches(programRegex, binaryName)
 
 		// Need to match for the program and version.
 		if len(matches) != 2 {
 			log.Debugf("%q skipped: unexpected format", binaryName)
+
 			continue
 		}
 
@@ -276,6 +302,7 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 		if !slices.Contains(programsToSearch, programName) {
 			continue
 		}
+
 		if latestHash == "" {
 			isHash, _ := util.IsValidCommitHash(matches["ver"])
 			if isHash {
@@ -285,7 +312,9 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 						continue
 					}
 				}
+
 				latestHash = binaryName
+
 				continue
 			}
 		}
@@ -293,23 +322,28 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 		ver, err := version.Parse(matches["ver"])
 		if err != nil {
 			log.Debugf("%q skipped: wrong version format", binaryName)
+
 			continue
 		}
+
 		if program.IsTarantool() {
 			// Check for headers.
 			if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
 				continue
 			}
 		}
+
 		// Update latest version.
 		if latestVersion == "" || version.IsLess(latestVersionInfo, ver) {
 			latestVersionInfo = ver
 			latestVersion = binaryName
 		}
 	}
+
 	if latestVersion != "" {
 		return latestVersion, nil
 	}
+
 	return latestHash, nil
 }
 
@@ -321,12 +355,15 @@ func switchProgramToLatestVersion(program search.Program, binDst, headerDst stri
 	if err != nil {
 		return err
 	}
+
 	if progToSwitch == "" {
 		return nil
 	}
 
 	log.Infof("Changing symlinks...")
+
 	binaryPath := filepath.Join(binDst, linkName)
+
 	err = util.CreateSymlink(filepath.Join(binDst, progToSwitch), binaryPath, true)
 	if err != nil {
 		return err
@@ -334,6 +371,7 @@ func switchProgramToLatestVersion(program search.Program, binDst, headerDst stri
 
 	if linkName == "tarantool" {
 		headerPath := filepath.Join(headerDst, linkName)
+
 		err = util.CreateSymlink(filepath.Join(headerDst, progToSwitch), headerPath, true)
 		if err != nil {
 			return err
@@ -341,5 +379,6 @@ func switchProgramToLatestVersion(program search.Program, binDst, headerDst stri
 	}
 
 	log.Infof("Current %q is set to %q.", linkName, progToSwitch)
+
 	return nil
 }

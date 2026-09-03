@@ -39,7 +39,9 @@ func TestBuildTimeIsDeterministic(t *testing.T) {
 	dir := gitRepo(t)
 
 	first := buildTime(context.Background(), dir)
+
 	time.Sleep(1100 * time.Millisecond)
+
 	second := buildTime(context.Background(), dir)
 
 	assert.Equal(t, first, second, "the same commit must yield the same timestamp")

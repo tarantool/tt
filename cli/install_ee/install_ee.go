@@ -1,6 +1,7 @@
 package install_ee
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -75,6 +76,7 @@ func NewTntIoDownloader(token string) *httpDoer {
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				req.Host = req.URL.Hostname()
 				addSessionIdCookie(req, token)
+
 				return nil
 			},
 		},
@@ -91,6 +93,7 @@ func createHttpRequest(bundleSource, token string) (*http.Request, error) {
 
 	addSessionIdCookie(req, token)
 	req.Header.Set("User-Agent", "tt")
+
 	return req, nil
 }
 
@@ -102,8 +105,9 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 	}
 
 	defer func() {
-		// Report close error only if no other error occurred during copy
-		if closeErr := file.Close(); closeErr != nil && errRet == nil {
+		// Report close error only if no other error occurred during copy.
+		closeErr := file.Close()
+		if closeErr != nil && errRet == nil {
 			errRet = fmt.Errorf("failed to close destination file %s: %w", destFilePath, closeErr)
 		}
 	}()
@@ -112,6 +116,7 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 	if err != nil {
 		file.Close()
 		os.Remove(destFilePath)
+
 		return fmt.Errorf("failed to write downloaded content to %s: %w", destFilePath, err)
 	}
 
@@ -122,7 +127,7 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 // It handles potential redirects and uses the provided token for authentication via cookies.
 func DownloadBundle(doer search.TntIoDoer, bundleName, bundleSource, dst string) error {
 	if doer == nil || reflect.ValueOf(doer).IsNil() {
-		return fmt.Errorf("no tarantool.io doer was applied")
+		return errors.New("no tarantool.io doer was applied")
 	}
 
 	if err := validateDestination(dst); err != nil {

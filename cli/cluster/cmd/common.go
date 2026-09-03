@@ -18,7 +18,9 @@ func printGoConfig(cfg goconfig.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
+
 	fmt.Print(string(b))
+
 	return nil
 }
 
@@ -35,12 +37,16 @@ func printRawClusterConfig(yamlBytes []byte,
 
 	if instance == "" {
 		var validateErr error
+
 		if validate {
 			validateErr = validateGoConfig(view, false)
 		}
-		if printErr := printGoConfig(view); printErr != nil {
+
+		printErr := printGoConfig(view)
+		if printErr != nil {
 			return printErr
 		}
+
 		return validateErr
 	}
 
@@ -59,12 +65,16 @@ func printInstanceConfig(goView goconfig.Config,
 	}
 
 	var validateErr error
+
 	if validate {
 		validateErr = validateInstanceConfig(goView, instance)
 	}
-	if printErr := printGoConfig(instView); printErr != nil {
+
+	printErr := printGoConfig(instView)
+	if printErr != nil {
 		return printErr
 	}
+
 	return validateErr
 }
 
@@ -75,10 +85,12 @@ func validateRawConfig(yamlBytes []byte, name string) error {
 	if name == "" {
 		return validateRawClusterConfig(yamlBytes)
 	}
+
 	view, err := cluster.BuildGoConfigFromBytes(context.Background(), yamlBytes)
 	if err != nil {
 		return fmt.Errorf("failed to build config for validation: %w", err)
 	}
+
 	return validateInstanceConfig(view, name)
 }
 
@@ -88,6 +100,7 @@ func validateRawClusterConfig(yamlBytes []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to build config for validation: %w", err)
 	}
+
 	return validateGoConfig(view, false)
 }
 
@@ -97,8 +110,9 @@ func validateRawClusterConfig(yamlBytes []byte) error {
 // The full parameter is unused for the raw-bytes path but kept for symmetry.
 func validateGoConfig(view goconfig.Config, _ bool) error {
 	var errs []error
+
 	if err := cluster.Validate(view); err != nil {
-		errs = append(errs, fmt.Errorf("an invalid cluster configuration: %s", err))
+		errs = append(errs, fmt.Errorf("an invalid cluster configuration: %w", err))
 	}
 
 	names, err := cluster.Instances(view)
@@ -111,6 +125,7 @@ func validateGoConfig(view goconfig.Config, _ bool) error {
 		if err != nil {
 			return err
 		}
+
 		if err := validateInstanceConfig(instView, name); err != nil {
 			errs = append(errs, err)
 		}
@@ -123,9 +138,11 @@ func validateGoConfig(view goconfig.Config, _ bool) error {
 // instCfg is the already-resolved (effective) goconfig.Config for that instance.
 // name is used only in the error message.
 func validateInstanceConfig(instCfg goconfig.Config, name string) error {
-	if err := cluster.Validate(instCfg); err != nil {
+	err := cluster.Validate(instCfg)
+	if err != nil {
 		return fmt.Errorf("an invalid instance %q configuration: %w", name, err)
 	}
+
 	return nil
 }
 
@@ -139,12 +156,15 @@ func openRemoteCollector(factory libcluster.Factory,
 	if err != nil {
 		return nil, nil, err
 	}
+
 	collector, err := factory.NewRemoteStorage(stor, opts.Prefix,
 		opts.Params["key"], opts.Timeout, storageType)
 	if err != nil {
 		cleanup()
+
 		return nil, nil, fmt.Errorf("failed to create %s collector: %w", storageType, err)
 	}
+
 	return collector, func() { cleanup() }, nil
 }
 
@@ -167,6 +187,7 @@ func openCollectorAndPublisher(
 	publisher, err := publishers.NewRemoteStorage(stor, prefix, key, timeout, storageType)
 	if err != nil {
 		cleanup()
+
 		return nil, nil, nil,
 			fmt.Errorf("failed to create %s publisher: %w", storageType, err)
 	}
@@ -174,6 +195,7 @@ func openCollectorAndPublisher(
 	collector, err := collectors.NewRemoteStorage(stor, prefix, key, timeout, storageType)
 	if err != nil {
 		cleanup()
+
 		return nil, nil, nil,
 			fmt.Errorf("failed to create %s collector: %w", storageType, err)
 	}

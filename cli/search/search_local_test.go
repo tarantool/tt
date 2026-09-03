@@ -37,9 +37,11 @@ func (m mockFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if m.entries == nil {
 		return nil, fs.ErrPermission
 	}
+
 	if len(m.entries) == 0 {
 		return nil, fs.ErrNotExist
 	}
+
 	return m.entries, nil
 }
 
@@ -62,7 +64,7 @@ func TestFindLocalBundles(t *testing.T) {
 				mockDirEntry{name: "random-file.txt"},
 				mockDirEntry{name: "another-file.log"},
 			},
-			// TODO: Проверять запись в логе:
+			// TODO: Проверять запись в логе:.
 			logMsg: fmt.Sprintf("No local SDK files found for %q", search.ProgramEe),
 		},
 		"No permission to read directory": {
@@ -72,7 +74,7 @@ func TestFindLocalBundles(t *testing.T) {
 		"Not exists directory": {
 			program: search.ProgramEe,
 			files:   []fs.DirEntry{},
-			// TODO: Проверять запись в логе:
+			// TODO: Проверять запись в логе:.
 			logMsg: "Directory not found, cannot search for local SDK files",
 		},
 		"Matching files for " + search.ProgramEe.String(): {
@@ -234,12 +236,15 @@ func TestFindLocalBundles(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected an error but got none")
 				}
+
 				require.ErrorContains(t, err, tt.errMsg)
+
 				return
 			}
+
 			require.NoError(t, err)
 
-			require.Equal(t, len(tt.expectedVersion), len(bundles))
+			require.Len(t, bundles, len(tt.expectedVersion))
 
 			for i, bundle := range bundles {
 				require.Equal(t, tt.expectedVersion[i], bundle.Version, "index %d", i)
@@ -247,12 +252,14 @@ func TestFindLocalBundles(t *testing.T) {
 
 			if tt.logMsg != "" {
 				found := false
+
 				for _, entry := range handler.Entries {
 					if strings.Contains(entry.Message, tt.logMsg) {
 						found = true
 						break
 					}
 				}
+
 				require.True(t, found, "expected %q not found in log entries", tt.logMsg)
 			}
 		})

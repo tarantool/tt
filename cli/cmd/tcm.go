@@ -53,6 +53,7 @@ func newTcmStatusCmd() *cobra.Command {
 		tt tcm status`,
 		Run: RunModuleFunc(internalTcmStatus),
 	}
+
 	return tcmCmd
 }
 
@@ -63,6 +64,7 @@ func newTcmStopCmd() *cobra.Command {
 		Long:  `Stop to the tcm. tt tcm stop`,
 		Run:   RunModuleFunc(internalTcmStop),
 	}
+
 	return tcmCmd
 }
 
@@ -101,6 +103,7 @@ func NewTcmCmd() *cobra.Command {
 		newTcmStopCmd(),
 		newTcmLogCmd(),
 	)
+
 	return tcmCmd
 }
 
@@ -127,14 +130,18 @@ func startTcmInteractive(logLevel string) error {
 	}
 
 	log.Infof("Interactive process PID %d written to %q\n", tcmApp.Process.Pid, tcmPidFile)
+
 	return nil
 }
 
 func startTcmUnderWatchDog() error {
 	wd := libwatchdog.NewWatchdog(tcmPidFile, watchdogPidFile, 5*time.Second)
-	if err := wd.Start(tcmCtx.Executable); err != nil {
+
+	err := wd.Start(tcmCtx.Executable)
+	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -150,11 +157,13 @@ func internalStartTcm(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	tcmCtx.Executable = cmdCtx.Cli.TcmCli.Executable
 
 	if !tcmCtx.Watchdog {
-		if err := startTcmInteractive(tcmCtx.Log.Level); err != nil {
+		err := startTcmInteractive(tcmCtx.Log.Level)
+		if err != nil {
 			return err
 		}
 	} else {
-		if err := startTcmUnderWatchDog(); err != nil {
+		err := startTcmUnderWatchDog()
+		if err != nil {
 			return err
 		}
 	}
@@ -169,7 +178,7 @@ func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	if _, err := os.Stat(pidAbsPath); err != nil {
-		return fmt.Errorf("path does not exist: %v", err)
+		return fmt.Errorf("path does not exist: %w", err)
 	}
 
 	ts := table.NewWriter()
@@ -191,6 +200,7 @@ func internalTcmStatus(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		{"TCM", status.Status, status.PID},
 	})
 	ts.Render()
+
 	return nil
 }
 

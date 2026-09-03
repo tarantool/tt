@@ -42,6 +42,7 @@ func parseCommand(r io.Reader, cmd *command) (string, error) {
 	decoder.DisallowUnknownFields()
 
 	var cmdJSON commandJSON
+
 	if err := decoder.Decode(&cmdJSON); err != nil {
 		return rawBody, err
 	}

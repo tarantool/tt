@@ -45,6 +45,7 @@ func Promote(ctx PromoteCtx) error {
 	}
 
 	var orchestrator replicasetOrchestrator
+
 	if ctx.IsApplication {
 		if orchestrator, err = makeApplicationOrchestrator(
 			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity); err != nil {
@@ -64,6 +65,7 @@ func Promote(ctx PromoteCtx) error {
 	if err != nil {
 		return err
 	}
+
 	statusReplicasets(replicasets)
 	fmt.Println()
 
@@ -79,5 +81,6 @@ func Promote(ctx PromoteCtx) error {
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }

@@ -1,6 +1,7 @@
 package cmdcontext
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -34,7 +35,7 @@ type TarantoolCli struct {
 type TcmCli struct {
 	// Executable is a path to tcm executable.
 	Executable string
-	// ConfigPath is a path to tcm config (tcm.yaml)
+	// ConfigPath is a path to tcm config (tcm.yaml).
 	ConfigPath string
 }
 
@@ -45,19 +46,19 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 	}
 
 	if tntCli.Executable == "" {
-		return tntCli.version, fmt.Errorf(
-			"tarantool executable is not set, unable to get tarantool version")
+		return tntCli.version, errors.New("tarantool executable is not set, unable to get tarantool version")
 	}
+
 	output, err := exec.Command(tntCli.Executable, "--version").Output()
 	if err != nil {
-		return tntCli.version, fmt.Errorf("failed to get tarantool version: %s", err)
+		return tntCli.version, fmt.Errorf("failed to get tarantool version: %w", err)
 	}
 
 	versionOut := strings.Split(string(output), "\n")
 	versionLine := strings.Split(versionOut[0], " ")
 
 	if len(versionLine) < 2 {
-		return tntCli.version, fmt.Errorf("failed to get tarantool version: corrupted data")
+		return tntCli.version, errors.New("failed to get tarantool version: corrupted data")
 	}
 
 	tntVersion, err := version.Parse(versionLine[len(versionLine)-1])
@@ -79,7 +80,7 @@ func GetTtVersion(pathToBin string) (version.Version, error) {
 	output, err := exec.Command(pathToBin, "--self", "version",
 		"--commit").Output()
 	if err != nil {
-		return version.Version{}, fmt.Errorf("failed to get tt version: %s", err)
+		return version.Version{}, fmt.Errorf("failed to get tt version: %w", err)
 	}
 
 	ttVersion, err := version.ParseTt(string(output))

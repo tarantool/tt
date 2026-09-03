@@ -2,6 +2,7 @@ package status
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -23,13 +24,16 @@ var defaultModuleStatus = "--"
 
 func filterComments(script string) string {
 	var filteredLines []string
-	lines := strings.Split(script, "\n")
-	for _, line := range lines {
+
+	lines := strings.SplitSeq(script, "\n")
+
+	for line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 		if !strings.HasPrefix(trimmedLine, "--") {
 			filteredLines = append(filteredLines, line)
 		}
 	}
+
 	return strings.Join(filteredLines, "\n")
 }
 
@@ -82,8 +86,8 @@ type instanceStatus struct {
 	Box                string                     `json:"box"`
 	Upstream           string                     `json:"upstream"`
 	Alerts             []instanceAlert            `json:"alerts"`
-	rawReplicationInfo []rawReplicationInfo       `json:"-" yaml:"-"`
-	procStatus         process_utils.ProcessState `json:"-" yaml:"-"`
+	rawReplicationInfo []rawReplicationInfo       `json:"-"        yaml:"-"`
+	procStatus         process_utils.ProcessState `json:"-"        yaml:"-"`
 }
 
 func (is *instanceStatus) addAlert(message string, severity severity) {
@@ -106,7 +110,7 @@ type instanceStatusMap = map[string]*instanceStatus
 func processReplicationInfo(instStatus *instanceStatus, uuid2name map[string]string) {
 	for _, repl := range instStatus.rawReplicationInfo {
 		fullInstanceUpstreamName, ok := uuid2name[repl.UUID]
-		// Use repl.Name if available, otherwise fallback to repl.UUID
+		// Use repl.Name if available, otherwise fallback to repl.UUID.
 		if !ok {
 			if repl.Name != nil {
 				fullInstanceUpstreamName = *repl.Name
@@ -114,19 +118,22 @@ func processReplicationInfo(instStatus *instanceStatus, uuid2name map[string]str
 				fullInstanceUpstreamName = repl.UUID
 			}
 		}
+
 		if repl.Upstream.Status == "follow" || len(repl.Upstream.Message) == 0 {
 			continue
 		}
+
 		instStatus.Upstream = repl.Upstream.Status
 
 		var upstreamInstanceDesc string
+
 		if ok || repl.Name != nil {
 			upstreamInstanceDesc = fmt.Sprintf("instance with name %q",
 				fullInstanceUpstreamName)
 		} else {
-			upstreamInstanceDesc = fmt.Sprintf("instance with UUID %s",
-				fullInstanceUpstreamName)
+			upstreamInstanceDesc = "instance with UUID " + fullInstanceUpstreamName
 		}
+
 		instStatus.addAlert(fmt.Sprintf(
 			"[upstream][warning]: replication from %s is in %q status: %q",
 			upstreamInstanceDesc, repl.Upstream.Status,
@@ -138,11 +145,13 @@ func processConfigInfo(instStatus *instanceStatus, instanceState rawInstanceStat
 	if len(instanceState.ConfigInfo.Alerts) == 0 {
 		return
 	}
+
 	for _, alert := range instanceState.ConfigInfo.Alerts {
 		severity := severityWarning
 		if alert.Type == "error" {
 			severity = severityError
 		}
+
 		instStatus.addAlert(fmt.Sprintf("[config][%s]: %s", alert.Type, alert.Message), severity)
 	}
 }
@@ -163,6 +172,7 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 				"Error while connecting to instance %s via socket %s: %v",
 				fullInstanceName, run.ConsoleSocket, err), severityError)
 		}
+
 		return instanceState, fmt.Errorf("failed to connect to instance %s: %w",
 			fullInstanceName, err)
 	}
@@ -173,21 +183,22 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 		instStatus.addAlert(fmt.Sprintf(
 			"Error while executing Lua script on instance %s: %v",
 			fullInstanceName, err), severityError)
+
 		return instanceState, fmt.Errorf("failed to execute Lua script on instance %s: %w",
 			fullInstanceName, err)
 	}
 
 	if len(res) == 0 {
-		instStatus.addAlert(fmt.Sprintf(
-			"No data returned from Lua script on instance %s",
-			fullInstanceName), severityError)
-		return instanceState, fmt.Errorf("no data returned from Lua script")
+		instStatus.addAlert("No data returned from Lua script on instance "+fullInstanceName, severityError)
+
+		return instanceState, errors.New("no data returned from Lua script")
 	}
 
 	err = mapstructure.Decode(res[0], &instanceState)
 	if err != nil {
 		instStatus.addAlert(fmt.Sprintf("Error while decoding data from "+
 			"instance %s: %v", fullInstanceName, err), severityError)
+
 		return instanceState, fmt.Errorf("failed to decode data from instance %s: %w",
 			fullInstanceName, err)
 	}
@@ -199,9 +210,11 @@ func collectInstanceState(run running.InstanceCtx, fullInstanceName string,
 func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter) error {
 	instances := make(instanceStatusMap)
 	uuid2name := map[string]string{}
+
 	for _, run := range runningCtx.Instances {
 		fullInstanceName := running.GetAppInstanceName(run)
 		instStatus := newInstanceStatus()
+
 		instStatus.procStatus = running.Status(&run)
 		instStatus.Status = instStatus.procStatus.Status
 		instances[fullInstanceName] = &instStatus
@@ -219,6 +232,7 @@ func Status(runningCtx running.RunningCtx, printer InstanceStatusPrinter) error 
 		uuid2name[instanceState.UUID] = fullInstanceName
 
 		processConfigInfo(&instStatus, instanceState)
+
 		instStatus.Mode = instanceState.ReadOnly
 		instStatus.Config = instanceState.ConfigInfo.Status
 		instStatus.Box = instanceState.BoxStatus

@@ -15,6 +15,7 @@ func Test_dirsAreWriteable(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	tmpDirNonWriteableForAll := t.TempDir()
 	// dr-xr-xr-x mode.
 	permissions := 0o555
@@ -28,6 +29,7 @@ func Test_dirsAreWriteable(t *testing.T) {
 	type args struct {
 		dir string
 	}
+
 	tests := []struct {
 		name string
 		args args
@@ -44,6 +46,7 @@ func Test_dirsAreWriteable(t *testing.T) {
 			want: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equalf(t, tt.want, dirIsWritable(tt.args.dir),
@@ -56,6 +59,7 @@ func Test_subDirIsWritable(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	tmpDirNonWriteableForAll := t.TempDir()
 	// dr-xr-xr-x mode.
 	permissions := 0o555
@@ -69,6 +73,7 @@ func Test_subDirIsWritable(t *testing.T) {
 	type args struct {
 		dir string
 	}
+
 	tests := []struct {
 		name string
 		args args
@@ -85,6 +90,7 @@ func Test_subDirIsWritable(t *testing.T) {
 			want: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equalf(t, tt.want, subDirIsWritable(tt.args.dir), "subDirIsWritable(%v)",
@@ -116,7 +122,7 @@ func Test_getLatestRelease(t *testing.T) {
 	require.Equal(t, "3.0.0", latestRelease)
 
 	latestRelease = getLatestRelease(versions[1:6])
-	require.Equal(t, "", latestRelease)
+	require.Empty(t, latestRelease)
 }
 
 func Test_installTarantoolDev(t *testing.T) {
@@ -133,7 +139,6 @@ func Test_installTarantoolDev(t *testing.T) {
 		//	│       └── src
 		//	│           └── tarantool
 		//	└── ttIncDir
-
 		tempDir := os.TempDir()
 		tempsDir, _ := os.MkdirTemp(tempDir, "install_tarantool_dev_test")
 
@@ -145,12 +150,14 @@ func Test_installTarantoolDev(t *testing.T) {
 
 		buildDir1 := filepath.Join(tempsDir, "build_ce")
 		os.MkdirAll(filepath.Join(buildDir1, "src"), os.ModePerm)
+
 		binaryPath1 := filepath.Join(buildDir1, "src/tarantool")
 		os.Create(binaryPath1)
 		os.Chmod(binaryPath1, 0o700)
 
 		buildDir2 := filepath.Join(tempsDir, "build_invalid")
 		os.MkdirAll(filepath.Join(buildDir2, "tarantool/src"), os.ModePerm)
+
 		binaryPath2 := filepath.Join(buildDir2, "tarantool/src/tarantool")
 		os.Create(binaryPath2)
 		os.Chmod(binaryPath2, 0o700)
@@ -176,6 +183,7 @@ func Test_installTarantoolDev(t *testing.T) {
 		for _, tc := range cases {
 			err := installTarantoolDev(ttBinPath, ttIncPath, tc.buildDir, "")
 			assert.NoError(t, err)
+
 			link, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
 			assert.NoError(t, err)
 			assert.Equal(t, filepath.Join(tc.buildDir, tc.relExecPath), link)
@@ -201,6 +209,7 @@ func Test_installTarantoolDev(t *testing.T) {
 		// Custom include-dir.
 		customIncDirectoryPath := filepath.Join(tempDirectory, "build_invalid", "custom_inc")
 		os.MkdirAll(customIncDirectoryPath, os.ModePerm)
+
 		cases := []struct {
 			buildDir        string
 			incDir          string
@@ -225,6 +234,7 @@ func Test_installTarantoolDev(t *testing.T) {
 		for _, tc := range cases {
 			err := installTarantoolDev(ttBinPath, ttIncPath, tc.buildDir, tc.incDir)
 			assert.NoError(t, err)
+
 			execLink, err := os.Readlink(filepath.Join(ttBinPath, "tarantool"))
 			assert.NoError(t, err)
 			assert.Equal(t, execLink, filepath.Join(tc.buildDir, tc.relExecPath))
@@ -244,6 +254,7 @@ func Test_installTarantoolDev(t *testing.T) {
 
 		buildDir := filepath.Join(tempDirectory, "build_ee")
 		os.MkdirAll(buildDir, os.ModePerm)
+
 		err := installTarantoolDev(ttBinPath, ttIncPath, buildDir, "")
 		assert.Error(t, err)
 	})
@@ -252,6 +263,7 @@ func Test_installTarantoolDev(t *testing.T) {
 func TestSearchTarantoolHeaders(t *testing.T) {
 	tempDir := os.TempDir()
 	tempsDir, _ := os.MkdirTemp(tempDir, "search_tarantool_headers_test")
+
 	defer os.RemoveAll(tempsDir)
 
 	buildEmptyPath := filepath.Join(tempsDir, "build_empty")
@@ -307,6 +319,7 @@ func TestSearchTarantoolHeaders(t *testing.T) {
 	for _, tc := range cases {
 		incDir, err := searchTarantoolHeaders(tc.buildDir, tc.includeDir)
 		assert.Equal(t, tc.expectedIncludeDir, incDir)
+
 		if tc.isErr {
 			assert.Error(t, err)
 		}

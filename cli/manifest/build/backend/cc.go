@@ -50,6 +50,7 @@ func ccArgs(b manifest.Build, flags lrbuild.Flags, out, goos string) []string {
 	libraries := concat(b.Libraries, overlay.Libraries)
 
 	args := make([]string, 0, initialArgsCap)
+
 	args = append(args, flags.CFLAGS...)
 
 	for _, d := range defines {
@@ -82,6 +83,7 @@ func ccArgs(b manifest.Build, flags lrbuild.Flags, out, goos string) []string {
 // overlay merge that never mutates either input).
 func concat(base, extra []string) []string {
 	out := make([]string, 0, len(base)+len(extra))
+
 	out = append(out, base...)
 
 	return append(out, extra...)
@@ -102,7 +104,8 @@ func artifactName(module, ext string) string {
 // is not slashed into subdirectories. c / lua-c ignore b.Output (the artifact
 // is the compiled library, not a copy list).
 func (c ccBackend) Run(ctx context.Context, b manifest.Build, cwd string, env Env) error {
-	if err := requireAbsPaths(cwd, env.OutputDir); err != nil {
+	err := requireAbsPaths(cwd, env.OutputDir)
+	if err != nil {
 		return err
 	}
 
@@ -110,7 +113,8 @@ func (c ccBackend) Run(ctx context.Context, b manifest.Build, cwd string, env En
 		return ErrMissingHeaders
 	}
 
-	if err := os.MkdirAll(env.OutputDir, dirPerm); err != nil {
+	err = os.MkdirAll(env.OutputDir, dirPerm)
+	if err != nil {
 		return fmt.Errorf("create output directory %q: %w", env.OutputDir, err)
 	}
 

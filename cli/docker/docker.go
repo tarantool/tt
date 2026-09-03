@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -47,6 +48,7 @@ type RunOptions struct {
 func interruptHandler(cancelFunc context.CancelFunc) (stopSignalProcessing func()) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
+
 	go func() {
 		_, ok := <-signals
 		if ok {
@@ -79,24 +81,31 @@ func buildDockerImage(dockerClient *mobyclient.Client, imageTag, buildContextDir
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer interruptHandler(cancelFunc)()
+
 	if buildResult, err := dockerClient.ImageBuild(ctx, buildCtx, opts); err == nil {
 		if buildResult.Body != nil {
 			defer buildResult.Body.Close()
+
 			if !verbose {
 				writer = io.Discard
 			}
+
 			termFd, isTerm := term.GetFdInfo(writer)
-			if err = jsonmessage.DisplayJSONMessagesStream(buildResult.Body,
-				writer, termFd, isTerm, nil); err != nil {
-				if ctx.Err() == context.Canceled {
-					return fmt.Errorf("the operation is interrupted")
+
+			err = jsonmessage.DisplayJSONMessagesStream(buildResult.Body,
+				writer, termFd, isTerm, nil)
+			if err != nil {
+				if errors.Is(ctx.Err(), context.Canceled) {
+					return errors.New("the operation is interrupted")
 				}
+
 				return err
 			}
 		}
 	} else {
-		return fmt.Errorf("docker image build failed: %s", err)
+		return fmt.Errorf("docker image build failed: %w", err)
 	}
+
 	return nil
 }
 
@@ -106,7 +115,8 @@ func createContainer(dockerClient *mobyclient.Client, runOptions RunOptions) (st
 	for _, bind := range runOptions.Binds {
 		if hostDir, _, separatorAppears := strings.Cut(bind, ":"); separatorAppears {
 			if hostDir != "" {
-				if err := os.MkdirAll(hostDir, defaultDirPermissions); err != nil {
+				err := os.MkdirAll(hostDir, defaultDirPermissions)
+				if err != nil {
 					return "", err
 				}
 			}
@@ -119,7 +129,9 @@ func createContainer(dockerClient *mobyclient.Client, runOptions RunOptions) (st
 	}
 
 	log.Debug("Creating docker container.")
+
 	ctx := context.Background()
+
 	createResponse, err := dockerClient.ContainerCreate(ctx, mobyclient.ContainerCreateOptions{
 		Image: runOptions.ImageTag,
 		Config: &container.Config{
@@ -132,6 +144,7 @@ func createContainer(dockerClient *mobyclient.Client, runOptions RunOptions) (st
 	if err != nil {
 		return "", err
 	}
+
 	log.Debugf("Docker container '%s' is created.", createResponse.ID[:12])
 
 	return createResponse.ID, nil
@@ -139,26 +152,30 @@ func createContainer(dockerClient *mobyclient.Client, runOptions RunOptions) (st
 
 // RunContainer builds docker image and runs a container.
 func RunContainer(runOptions RunOptions, writer io.Writer) error {
-	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
-		mobyclient.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.New(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
 	}
 	defer dockerClient.Close()
 
 	log.Infof("Building docker image '%s'.", runOptions.ImageTag)
-	if err = buildDockerImage(dockerClient, runOptions.ImageTag, runOptions.BuildCtxDir,
-		runOptions.Verbose, writer); err != nil {
+
+	err = buildDockerImage(dockerClient, runOptions.ImageTag, runOptions.BuildCtxDir,
+		runOptions.Verbose, writer)
+	if err != nil {
 		return err
 	}
+
 	log.Info("Docker image is built.")
 
 	containerId, err := createContainer(dockerClient, runOptions)
 	if err != nil {
 		return fmt.Errorf("failed to create container: %w", err)
 	}
+
 	defer func() {
 		log.Debugf("Removing container %s", containerId[:12])
+
 		if _, err := dockerClient.ContainerRemove(context.Background(), containerId,
 			mobyclient.ContainerRemoveOptions{}); err != nil {
 			log.Warnf("Failed to remove container %s", containerId[:12])
@@ -167,13 +184,17 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 
 	// Start docker container.
 	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	log.Debugf("The following command is going to be invoked in the container: %s.",
 		strings.Join(runOptions.Command, " "))
+
 	if _, err := dockerClient.ContainerStart(ctx, containerId,
 		mobyclient.ContainerStartOptions{}); err != nil {
 		cancelFunc()
+
 		return err
 	}
+
 	defer interruptHandler(cancelFunc)()
 
 	out, err := dockerClient.ContainerLogs(ctx, containerId, mobyclient.ContainerLogsOptions{
@@ -184,6 +205,7 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 	if err != nil {
 		return err
 	}
+
 	stdcopy.StdCopy(writer, writer, out)
 	out.Close()
 
@@ -191,18 +213,21 @@ func RunContainer(runOptions RunOptions, writer io.Writer) error {
 		mobyclient.ContainerWaitOptions{Condition: container.WaitConditionNotRunning})
 	select {
 	case err := <-waitResult.Error:
-		if ctx.Err() == context.Canceled {
+		if errors.Is(ctx.Err(), context.Canceled) {
 			if _, err = dockerClient.ContainerStop(context.Background(), containerId,
 				mobyclient.ContainerStopOptions{}); err != nil {
 				log.Warnf("Failed to stop the container %s", containerId[:12])
 			}
-			return fmt.Errorf("the operation is interrupted")
+
+			return errors.New("the operation is interrupted")
 		}
+
 		return err
 	case st := <-waitResult.Result:
 		if st.StatusCode != 0 {
 			return fmt.Errorf("container exit code is %d", st.StatusCode)
 		}
 	}
+
 	return nil
 }

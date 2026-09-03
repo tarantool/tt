@@ -1,6 +1,7 @@
 package connect
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -39,7 +40,7 @@ type ConnectCtx struct {
 	Interactive bool
 	// ConnectTarget contains connection target string: URI or instance name.
 	ConnectTarget string
-	// Binary port is used
+	// Binary port is used.
 	Binary bool
 	// Evaler lua expression.
 	Evaler string
@@ -60,9 +61,10 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 			if err != nil {
 				return "", err
 			}
+
 			cmd = string(cmdByte)
 		} else {
-			return "", fmt.Errorf("can't use interactive input as a source file")
+			return "", errors.New("can't use interactive input as a source file")
 		}
 	} else {
 		cmdPath := path.Clean(connectCtx.SrcFile)
@@ -71,6 +73,7 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 			if err != nil {
 				return "", err
 			}
+
 			cmd = string(cmdByte)
 		}
 	}
@@ -80,9 +83,11 @@ func getEvalCmd(connectCtx ConnectCtx) (string, error) {
 
 // Connect establishes a connection to the instance and starts the console.
 func Connect(connectCtx ConnectCtx, connOpts connector.ConnectOpts) error {
-	if err := runConsole(connOpts, connectCtx, ""); err != nil {
-		return fmt.Errorf("failed to run interactive console: %s", err)
+	err := runConsole(connOpts, connectCtx, "")
+	if err != nil {
+		return fmt.Errorf("failed to run interactive console: %w", err)
 	}
+
 	return nil
 }
 
@@ -96,21 +101,25 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	// Connecting to the instance.
 	conn, err := connector.Connect(connOpts)
 	if err != nil {
-		return nil, fmt.Errorf("unable to establish connection: %s", err)
+		return nil, fmt.Errorf("unable to establish connection: %w", err)
 	}
 	defer conn.Close()
 
-	evalArgs := []interface{}{command, connectCtx.Language == SQLLanguage}
+	evalArgs := []any{command, connectCtx.Language == SQLLanguage}
 	if connectCtx.Language != DefaultLanguage {
 		// Change a language.
-		if err := ChangeLanguage(conn, connectCtx.Language); err != nil {
-			return nil, fmt.Errorf("unable to change a language: %s", err)
+		err := ChangeLanguage(conn, connectCtx.Language)
+		if err != nil {
+			return nil, fmt.Errorf("unable to change a language: %w", err)
 		}
+
 		evalArgs = append(evalArgs, false)
 	} else {
 		needMetaInfo := connectCtx.Format == formatter.TableFormat ||
 			connectCtx.Format == formatter.TTableFormat
+
 		evalArgs = append(evalArgs, needMetaInfo)
+
 		for i := range args {
 			evalArgs = append(evalArgs, args[i])
 		}
@@ -121,6 +130,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	if err != nil {
 		return nil, err
 	}
+
 	response, err := conn.Eval(evalBody, evalArgs, connector.RequestOpts{})
 	if err != nil {
 		return nil, err
@@ -130,6 +140,7 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 	// since the ""gopkg.in/yaml.v2" library handles YAML as an array
 	// of bytes.
 	var resYAML string
+
 	if len(response) > 0 {
 		if str, ok := response[0].(string); ok {
 			resYAML = str
@@ -137,8 +148,11 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 			return nil, fmt.Errorf("unexpected response type: %T", response[0])
 		}
 	}
-	var checkMock interface{}
-	if err = yaml.Unmarshal([]byte(resYAML), &checkMock); err != nil {
+
+	var checkMock any
+
+	err = yaml.Unmarshal([]byte(resYAML), &checkMock)
+	if err != nil {
 		return nil, err
 	}
 
@@ -149,12 +163,12 @@ func Eval(connectCtx ConnectCtx, connOpts connector.ConnectOpts, args []string) 
 func runConsole(connOpts connector.ConnectOpts, connectCtx ConnectCtx, title string) error {
 	console, err := NewConsole(connOpts, connectCtx, title)
 	if err != nil {
-		return fmt.Errorf("failed to create new console: %s", err)
+		return fmt.Errorf("failed to create new console: %w", err)
 	}
 	defer console.Close()
 
 	if err := console.Run(); err != nil {
-		return fmt.Errorf("failed to start new console: %s", err)
+		return fmt.Errorf("failed to start new console: %w", err)
 	}
 
 	return nil

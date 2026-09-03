@@ -96,25 +96,31 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 
 		// Start the managed process.
 		wd.cmdMutex.Lock()
+
 		wd.cmd = exec.Command(bin, args...)
 		// Create new process group for proper signal handling.
 		wd.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 		// Start the process.
-		if err := wd.cmd.Start(); err != nil {
+		err := wd.cmd.Start()
+		if err != nil {
 			wd.cmdMutex.Unlock()
 			log.Errorf("Failed to start process: %v", err)
+
 			return err
 		}
 
-		// Store process group PID atomically
+		// Store process group PID atomically.
 		wd.processGroupPID.Store(int32(wd.cmd.Process.Pid))
 		wd.cmdMutex.Unlock()
 
-		// Write PID files after successful start
-		if err := wd.writePIDFiles(); err != nil {
+		// Write PID files after successful start.
+		err = wd.writePIDFiles()
+		if err != nil {
 			log.Errorf("Failed to write PID files: %v", err)
+
 			_ = wd.terminateProcess() // Clean up if PID files fail.
+
 			return err
 		}
 
@@ -138,6 +144,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 					log.Warnf("Process exited with error: %v", err)
 				} else {
 					log.Errorf("Process failed: %v", err)
+
 					return err
 				}
 			} else {
@@ -155,8 +162,9 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 			return nil
 		}
 
-		// Wait before restarting
+		// Wait before restarting.
 		log.Infof("Waiting %s before restart...", wd.restartTimeout)
+
 		select {
 		case <-time.After(wd.restartTimeout):
 			// Continue to next iteration after timeout.
@@ -174,7 +182,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 // It ensures all resources are properly cleaned up and goroutines are terminated.
 func (wd *Watchdog) Stop() {
 	// Atomically set shouldStop flag to prevent multiple concurrent stops
-	// CompareAndSwap ensures only one goroutine can execute the stop sequence
+	// CompareAndSwap ensures only one goroutine can execute the stop sequence.
 	if !wd.shouldStop.CompareAndSwap(false, true) {
 		return // Already stopping or stopped.
 	}
@@ -235,14 +243,16 @@ func (wd *Watchdog) writePIDFiles() error {
 		return errors.New("process is not running")
 	}
 
-	if err := process_utils.CreatePIDFile(wd.pidFile, wd.cmd.Process.Pid); err != nil {
+	err := process_utils.CreatePIDFile(wd.pidFile, wd.cmd.Process.Pid)
+	if err != nil {
 		return err
 	}
 
 	log.Infof("Process PID %d written to %s", wd.cmd.Process.Pid, wd.pidFile)
 
 	if isExistsAndRecord, _ := process_utils.ExistsAndRecord(wd.wdPidFile); !isExistsAndRecord {
-		if err := process_utils.CreatePIDFile(wd.wdPidFile, os.Getpid()); err != nil {
+		err := process_utils.CreatePIDFile(wd.wdPidFile, os.Getpid())
+		if err != nil {
 			return err
 		}
 	}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"strings"
@@ -28,7 +29,7 @@ func NewCompletionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "completion <SHELL_TYPE>",
 		Short: "Generate autocomplete for a specified shell. " +
-			fmt.Sprintf("Supported shell type: %s", listShells()),
+			"Supported shell type: " + listShells(),
 		ValidArgs: shellSupported,
 		Run:       RunModuleFunc(internalCompletionCmd),
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
@@ -46,6 +47,7 @@ func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 	toComplete string,
 ) ([]string, cobra.ShellCompDirective) {
 	var commands []string
+
 	for name, manifest := range modulesInfo {
 		commands = append(commands, fmt.Sprintf("%s\t%s", name, manifest.Help))
 	}
@@ -75,8 +77,9 @@ func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 	} else {
 		label := []byte(`    # The user could have moved the cursor backwards on the command-line.`)
 		idx := bytes.Index(completion, label)
+
 		if idx == -1 {
-			return nil, fmt.Errorf("failed to inject LuaRocks completions")
+			return nil, errors.New("failed to inject LuaRocks completions")
 		}
 
 		res.Write(completion[:idx])
@@ -91,35 +94,42 @@ func injectRocksCompletion(shell string, completion []byte) ([]byte, error) {
 // internalCompletionCmd is a default (internal) completion module function.
 func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	var buf bytes.Buffer
+
 	switch shell := args[0]; shell {
 	case shellBash:
 		if err := rootCmd.GenBashCompletionV2(&buf, true); err != nil {
 			return err
 		}
+
 		res, err := injectRocksCompletion(shell, buf.Bytes())
 		if err != nil {
 			return err
 		}
+
 		fmt.Print(string(res))
 
 	case shellZsh:
 		if err := rootCmd.GenZshCompletion(&buf); err != nil {
 			return err
 		}
+
 		res, err := injectRocksCompletion(shell, buf.Bytes())
 		if err != nil {
 			return err
 		}
+
 		fmt.Print(string(res))
 
 	case shellFish:
 		if err := rootCmd.GenFishCompletion(&buf, true); err != nil {
 			return err
 		}
+
 		res, err := injectRocksCompletion(shell, buf.Bytes())
 		if err != nil {
 			return err
 		}
+
 		fmt.Print(string(res))
 
 	default:

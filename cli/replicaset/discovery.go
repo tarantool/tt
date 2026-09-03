@@ -23,6 +23,7 @@ type discoverer interface {
 // cachedDiscoverer allows to automatically cache discovery results.
 type cachedDiscoverer struct {
 	discoverer
+
 	cached      bool
 	replicasets Replicasets
 }
@@ -33,13 +34,18 @@ func (c *cachedDiscoverer) Discovery(behavior CacheBehavior) (Replicasets, error
 	if behavior == UseCache && c.cached {
 		return c.replicasets, nil
 	}
+
 	c.cached = false
+
 	var err error
+
 	c.replicasets, err = c.discovery()
 	if err != nil {
 		return c.replicasets, err
 	}
+
 	c.cached = true
+
 	return c.replicasets, nil
 }
 

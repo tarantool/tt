@@ -31,6 +31,7 @@ func (RolesAdder) Change(roles []string, r string) ([]string, error) {
 	if len(roles) > 0 && slices.Index(roles, r) != -1 {
 		return []string{}, fmt.Errorf("role %q already exists", r)
 	}
+
 	return append(roles, r), nil
 }
 
@@ -48,9 +49,11 @@ func (RolesRemover) Change(roles []string, r string) ([]string, error) {
 	if idx == -1 {
 		return []string{}, fmt.Errorf("role %q not found", r)
 	}
+
 	if len(roles) == 1 {
 		return []string{}, nil
 	}
+
 	return append(roles[:idx], roles[idx+1:]...), nil
 }
 
@@ -94,6 +97,7 @@ func newErrRolesChangeByInstanceNotSupported(orchestrator Orchestrator,
 	if changeRoleAction.Action() == RemoveAction {
 		return fmt.Errorf(msg, "remove", orchestrator)
 	}
+
 	return fmt.Errorf(msg, "add", orchestrator)
 }
 
@@ -106,23 +110,27 @@ func newErrRolesChangeByAppNotSupported(orchestrator Orchestrator,
 	if changeRoleAction.Action() == RemoveAction {
 		return fmt.Errorf(msg, "remove", orchestrator)
 	}
+
 	return fmt.Errorf(msg, "add", orchestrator)
 }
 
 // parseRoles is a function to convert roles type 'any'
 // from yaml config. Returns slice of roles and error.
 func parseRoles(value any) ([]string, error) {
-	sliceVal, ok := value.([]interface{})
+	sliceVal, ok := value.([]any)
 	if !ok {
 		return []string{}, fmt.Errorf("%v is not a slice", value)
 	}
+
 	existingRoles := make([]string, 0, len(sliceVal)+1)
 	for _, v := range sliceVal {
 		vStr, ok := v.(string)
 		if !ok {
 			return []string{}, fmt.Errorf("%v is not a string", v)
 		}
+
 		existingRoles = append(existingRoles, vStr)
 	}
+
 	return existingRoles, nil
 }

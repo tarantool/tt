@@ -2,6 +2,7 @@ package connect
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -27,18 +28,23 @@ func getCredsInteractive() (UserCredentials, error) {
 
 	fmt.Println("Signing in to Customer zone.")
 	fmt.Printf("Enter Email: ")
+
 	resp, err := reader.ReadString('\n')
 	if err != nil {
 		return res, err
 	}
+
 	res.Username = strings.TrimSpace(resp)
 
 	fmt.Printf("Enter Password: ")
+
 	bytePass, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		return res, err
 	}
+
 	res.Password = strings.TrimSpace(string(bytePass))
+
 	fmt.Println("")
 
 	return res, nil
@@ -72,8 +78,10 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 
 	scanner := bufio.NewScanner(fh)
 	scanner.Scan()
+
 	res.Username = scanner.Text()
 	scanner.Scan()
+
 	res.Password = scanner.Text()
 
 	if scanner.Err() != nil {
@@ -81,10 +89,11 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 	}
 
 	if len(res.Username) == 0 {
-		return res, fmt.Errorf("login not set")
+		return res, errors.New("login not set")
 	}
+
 	if len(res.Password) == 0 {
-		return res, fmt.Errorf("password not set")
+		return res, errors.New("password not set")
 	}
 
 	return res, nil
@@ -93,11 +102,14 @@ func getCredsFromFile(path string) (UserCredentials, error) {
 // getCredsFromFile gets credentials from environment variables.
 func getCredsFromEnvVars() (UserCredentials, error) {
 	res := UserCredentials{}
+
 	res.Username = os.Getenv(EnvSdkUsername)
 	res.Password = os.Getenv(EnvSdkPassword)
+
 	if res.Username == "" || res.Password == "" {
-		return res, fmt.Errorf("no credentials in environment variables were found")
+		return res, errors.New("no credentials in environment variables were found")
 	}
+
 	return res, nil
 }
 
@@ -108,6 +120,7 @@ func GetCreds(credPath string) (UserCredentials, error) {
 		if err == nil {
 			return creds, nil
 		}
+
 		return getCredsInteractive()
 	}
 

@@ -1,7 +1,6 @@
 package connect
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 
@@ -50,7 +49,7 @@ func (s *LuaValidator) Validate(str string) bool {
 		return true
 	}
 
-	if _, err := s.state.LoadString(fmt.Sprintf("return %s", str)); err == nil {
+	if _, err := s.state.LoadString("return " + str); err == nil {
 		// Certain obscure inputs like '(42\n)' yield the same error as
 		// incomplete statement.
 		return true
@@ -63,8 +62,10 @@ func (s *LuaValidator) Validate(str string) bool {
 func (s *LuaValidator) Close() error {
 	if s.state != nil {
 		s.state.Close()
+
 		s.state = nil
 	}
+
 	return nil
 }
 
@@ -92,13 +93,16 @@ func cleanupDelimiter(stmt, delim string) (string, bool) {
 	if delim == "" {
 		return stmt, true
 	}
+
 	no_space := strings.TrimRightFunc(stmt, func(r rune) bool {
 		return unicode.IsSpace(r)
 	})
 	no_delim := strings.TrimSuffix(no_space, delim)
+
 	if len(no_space) > len(no_delim) {
 		return no_delim, true
 	}
+
 	return stmt, false
 }
 
@@ -115,6 +119,8 @@ func AddStmtPart(stmt, part, delim string, validator Validator) (string, bool) {
 	}
 
 	var hasDelim bool
+
 	stmt, hasDelim = cleanupDelimiter(stmt, delim)
+
 	return stmt, hasDelim && validator.Validate(stmt)
 }

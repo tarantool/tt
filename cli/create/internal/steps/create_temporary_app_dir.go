@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -18,11 +19,13 @@ type CreateTemporaryAppDirectory struct{}
 func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 	templateCtx *app_template.TemplateCtx,
 ) error {
-	var appDirectory string
-	var err error
+	var (
+		appDirectory string
+		err          error
+	)
 
 	if createCtx.AppName == "" {
-		return fmt.Errorf("application name cannot be empty")
+		return errors.New("application name cannot be empty")
 	}
 
 	if createCtx.DestinationDir != "" {
@@ -43,11 +46,12 @@ func (CreateTemporaryAppDirectory) Run(createCtx *create_ctx.CreateCtx,
 	}
 
 	log.Infof("Creating application in %q", appDirectory)
+
 	templateCtx.TargetAppPath = appDirectory
 
 	templateCtx.AppPath, err = os.MkdirTemp("", createCtx.AppName+"*")
 	if err != nil {
-		return fmt.Errorf("failed to create temporary application directory: %s", err)
+		return fmt.Errorf("failed to create temporary application directory: %w", err)
 	}
 
 	return nil

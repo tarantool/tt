@@ -18,6 +18,7 @@ func newGenState() *genState {
 func (state *genState) genPort() int {
 	ret := state.port
 	state.port++
+
 	return ret
 }
 
@@ -25,6 +26,7 @@ func (state *genState) genPort() int {
 func (state *genState) genMetricsPort() int {
 	ret := state.metricsPort
 	state.metricsPort++
+
 	return ret
 }
 
@@ -48,6 +50,7 @@ func genReplicasets(
 	if replicasetsNumber <= 0 || replicasetsNumber > maxReplicasetsNumber {
 		return nil, fmt.Errorf("replicasetsNumber must be in [%d, %d]", 0, maxReplicasetsNumber)
 	}
+
 	if replicasetSize <= 0 || replicasetSize > maxReplicasetSize {
 		return nil, fmt.Errorf("replicasetSize must be in [%d, %d]", 0, maxReplicasetSize)
 	}
@@ -56,6 +59,7 @@ func genReplicasets(
 	for i := range replicasets {
 		replicasetName := fmt.Sprintf("%s-%03d", baseName, i+1)
 		instNames := make([]string, replicasetSize)
+
 		for j := range instNames {
 			if replicasetSize <= 26 {
 				instNames[j] = fmt.Sprintf("%s-%c", replicasetName, 'a'+byte(j))
@@ -63,8 +67,10 @@ func genReplicasets(
 				instNames[j] = fmt.Sprintf("%s-%03d", replicasetName, j+1)
 			}
 		}
+
 		replicasets[i].Name = replicasetName
 		replicasets[i].InstNames = instNames
 	}
+
 	return replicasets, nil
 }

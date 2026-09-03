@@ -34,6 +34,7 @@ func GetVersion(showShort, needCommit bool) string {
 			version = gitTag
 		} else {
 			var versionStrNumbers []string
+
 			for _, num := range normalizedVersion.Segments() {
 				versionStrNumbers = append(versionStrNumbers, strconv.Itoa(num))
 			}

@@ -11,9 +11,11 @@ import (
 
 func TestLoadVarsFile(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	createCtx.VarsFile = "testdata/vars-file.txt"
+
 	loadVarsFile := LoadVarsFile{}
 	require.NoError(t, loadVarsFile.Run(&createCtx, &templateCtx))
 	require.Equal(t, map[string]string{"user-name": "admin", "password": "weak_pwd"},
@@ -22,10 +24,12 @@ func TestLoadVarsFile(t *testing.T) {
 
 func TestLoadVarsFileVariablesAlreadySet(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	templateCtx.Vars["user-name"] = "root"
 	createCtx.VarsFile = "testdata/vars-file.txt"
+
 	loadVarsFile := LoadVarsFile{}
 	require.NoError(t, loadVarsFile.Run(&createCtx, &templateCtx))
 	require.Equal(t, map[string]string{"user-name": "admin", "password": "weak_pwd"},
@@ -34,9 +38,11 @@ func TestLoadVarsFileVariablesAlreadySet(t *testing.T) {
 
 func TestNonExistingVarsFile(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	createCtx.VarsFile = "testdata/non-existing-vars-file.txt"
+
 	loadVarsFile := LoadVarsFile{}
 	require.EqualError(t, loadVarsFile.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("vars file loading error: stat %s: no such file or directory",
@@ -45,9 +51,11 @@ func TestNonExistingVarsFile(t *testing.T) {
 
 func TestLoadVarsFileWrongFormat(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	createCtx.VarsFile = "testdata/invalid_vars_file.txt"
+
 	loadVarsFile := LoadVarsFile{}
 	require.EqualError(t, loadVarsFile.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("failed to load vars from %s: wrong variable definition "+

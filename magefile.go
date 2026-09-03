@@ -1,5 +1,4 @@
 //go:build mage
-// +build mage
 
 package main
 
@@ -10,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/apex/log"
@@ -32,19 +30,9 @@ const (
 	defaultLinuxConfigPath  = "/etc/tarantool"
 	defaultDarwinConfigPath = "/usr/local/etc/tarantool"
 
-	// Two golangci-lint configs live in the tree, one per major version of the
-	// linter, and they are mutually unreadable: v2 refuses a config with no
-	// `version` key and v1 refuses one that has it. lintConfigV1 is the
-	// project-wide ruleset; lintConfigV2 is the strict `default: all` one, whose
-	// own path-except rule scopes it to the packages already cleaned up for it.
-	lintConfigV1 = "golangci-lint.yml"
-	lintConfigV2 = ".golangci.yml"
-
-	// Env vars naming an alternative linter binary, one per major version. There
-	// are two because the two targets need two different majors, so a single
-	// override could not serve both.
-	lintExeEnvV1 = "GOLANGCI_LINT_V1"
-	lintExeEnvV2 = "GOLANGCI_LINT_V2"
+	lintConfig  = ".golangci.yml"
+	lintVersion = "2.13.2"
+	lintExeEnv  = "GOLANGCI_LINT"
 )
 
 var (
@@ -72,19 +60,17 @@ var (
 		"lib/integrity",
 		"lib/cluster",
 	}
-
-	// lintExeCandidates lists the binaries tried, in order, when the matching
-	// env var is unset. The version-suffixed names are what a side-by-side
-	// install provides; the bare name is the fallback for a single install, and
-	// it is checked rather than assumed - which major it happens to be is the
-	// whole question.
-	lintExeCandidates = map[int][]string{
-		1: {"golangci-lint@v1", "golangci-lint"},
-		2: {"golangci-lint@v2", "golangci-lint"},
+	lintModules = []string{
+		".",
+		"lib/cluster",
+		"lib/connect",
+		"lib/dial",
+		"lib/integrity",
+		"test/integration/aeon/server",
 	}
 
 	// lintVersionRe pulls the version out of `golangci-lint version`, which
-	// prints e.g. "golangci-lint has version 2.11.4 built with go1.26.1 from ...".
+	// prints e.g. "golangci-lint has version 2.13.2 built with go1.26.8 from ...".
 	lintVersionRe = regexp.MustCompile(`\bversion v?(\d+)\.(\d+)\.(\d+)\b`)
 )
 
@@ -111,6 +97,7 @@ func init() {
 			panic(err)
 		}
 	}
+
 	// We want to use Go 1.11 modules even if the source lives inside GOPATH.
 	// The default is "auto".
 	os.Setenv("GO111MODULE", "on")
@@ -130,12 +117,14 @@ func appendLdFlags(flags ...string) optsUpdater {
 	return func(args []string) ([]string, error) {
 		buildLdflags := make([]string, len(ldflags))
 		copy(buildLdflags, ldflags)
+
 		buildLdflags = append(buildLdflags, flags...)
 
 		buildType := os.Getenv(buildTypeEnv)
 		if BuildType(buildType) == BuildTypeStatic && runtime.GOOS != "darwin" {
 			buildLdflags = append(buildLdflags, staticLdflags...)
 		}
+
 		return append(append(args, "-ldflags"), strings.Join(buildLdflags, " ")), nil
 	}
 }
@@ -158,6 +147,7 @@ func appendTags(args []string) ([]string, error) {
 			"%s, %s, %s",
 			buildType, BuildTypeNoCgo, BuildTypeStatic, BuildTypeShared)
 	}
+
 	return append(append(args, "-tags"), strings.Join(tags, ",")), nil
 }
 
@@ -165,19 +155,23 @@ func appendTags(args []string) ([]string, error) {
 // TT_CLI_BUILD_SSL=(no|static|shared).
 func buildTt(argUpdaters ...optsUpdater) error {
 	args := []string{"build", "-o", ttExecutableName}
+
 	var err error
+
 	for _, updateArguments := range argUpdaters {
 		if args, err = updateArguments(args); err != nil {
 			return err
 		}
 	}
+
 	args = append(args,
 		"-asmflags", asmflags,
 		"-gcflags", gcflags,
 		packagePath)
+
 	err = sh.RunWith(getBuildEnvironment(), goExecutableName, args...)
 	if err != nil {
-		return fmt.Errorf("failed to build tt executable: %s", err)
+		return fmt.Errorf("failed to build tt executable: %w", err)
 	}
 
 	return nil
@@ -207,8 +201,10 @@ func (Build) Coverage() error {
 	if err != nil {
 		return err
 	}
+
 	fmt.Println(`Set coverage data destination directory (must exist) and run tt:
 	GOCOVERDIR=./<coverage_dest_dir> tt <opts>`)
+
 	return nil
 }
 
@@ -232,149 +228,94 @@ type Lint mg.Namespace
 
 // Run golang and python linters.
 func (Lint) Full() error {
-	mg.Deps(Lint.Golang, Lint.Strict, Lint.Python)
+	mg.Deps(Lint.Golang, Lint.Python)
+
 	return nil
 }
 
 // Run golang linters.
 func (Lint) Golang() error {
-	linter, err := resolveLinter(1, lintExeEnvV1)
+	linter, err := resolveLinter()
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Running %s over %s...\n", linter, lintConfigV1)
+	fmt.Printf("Running %s over %s...\n", linter, lintConfig)
 
-	lintDirs := append([]string{"."}, modules...)
 	root, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current dir: %w", err)
 	}
 
-	for _, dir := range lintDirs {
-		os.Chdir(dir)
-		if err := sh.RunV(linter, "run",
-			fmt.Sprintf("--config=%s/%s", root, lintConfigV1)); err != nil {
+	for _, dir := range lintModules {
+		err := os.Chdir(filepath.Join(root, dir))
+		if err != nil {
+			return fmt.Errorf("failed to enter lint directory %q: %w", dir, err)
+		}
+
+		err = sh.RunV(linter, "run",
+			fmt.Sprintf("--config=%s/%s", root, lintConfig))
+		if err != nil {
+			_ = os.Chdir(root)
 			return err
 		}
-		os.Chdir(root)
+
+		err = os.Chdir(root)
+		if err != nil {
+			return fmt.Errorf("failed to restore working directory: %w", err)
+		}
 	}
+
 	return nil
 }
 
-// Run the strict golang ruleset over the packages that have been cleaned up for
-// it.
-//
-// This is a separate target rather than part of Lint.Golang because the two
-// rulesets need different linters: .golangci.yml is a v2 config and
-// golangci-lint.yml is a v1 one, and neither major can read the other's format.
-// The strict config carries its own path-except rule naming the adopted
-// packages, so no path arguments are passed here - widening the scope is an
-// edit to that rule, not to this target.
-func (Lint) Strict() error {
-	linter, err := resolveLinter(2, lintExeEnvV2)
+// resolveLinter returns the configured golangci-lint executable after checking
+// that it is the project-pinned version.
+func resolveLinter() (string, error) {
+	linter := os.Getenv(lintExeEnv)
+	if linter == "" {
+		linter = "golangci-lint"
+	}
+
+	version, err := linterVersionOf(linter)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("%s=%s: %w", lintExeEnv, linter, err)
 	}
 
-	fmt.Printf("Running %s over %s...\n", linter, lintConfigV2)
+	if version != lintVersion {
+		return "", fmt.Errorf(
+			"%s is golangci-lint %s, want the project-pinned version %s",
+			linter, version, lintVersion)
+	}
 
-	// Only the root module: the strict config's scope lives inside cli/, and
-	// lib/* are separate modules that have not been adopted.
-	return sh.RunV(linter, "run", "--config="+lintConfigV2)
+	return linter, nil
 }
 
-// resolveLinter returns the golangci-lint executable to run a config of the
-// given major version, having checked that it exists and reports that major.
-//
-// The check is worth its weight because the failure it replaces is unreadable:
-// a v2 binary handed a v1 config dies with `unsupported version of the
-// configuration: ""`, and a v1 binary handed a v2 one dies complaining about
-// the Go version, neither of which names the actual problem.
-//
-// envVar names an alternative binary and is honored exactly: a binary named
-// there whose major is wrong is an error, never a silent fallback to another
-// one, because the caller asked for that binary specifically. With envVar
-// unset, the versioned names a side-by-side install provides are tried first
-// and the bare name last.
-func resolveLinter(major int, envVar string) (string, error) {
-	if specified := os.Getenv(envVar); specified != "" {
-		found, version, err := linterMajor(specified)
-		if err != nil {
-			return "", fmt.Errorf("%s=%s: %w", envVar, specified, err)
-		}
-
-		if found != major {
-			return "", fmt.Errorf(
-				"%s=%s is golangci-lint %s, but %s is a v%d config that only a v%d "+
-					"linter can read", envVar, specified, version, lintConfigFor(major),
-				major, major)
-		}
-
-		return specified, nil
-	}
-
-	var tried []string
-
-	for _, candidate := range lintExeCandidates[major] {
-		tried = append(tried, candidate)
-
-		if _, err := exec.LookPath(candidate); err != nil {
-			continue
-		}
-
-		found, _, err := linterMajor(candidate)
-		if err != nil || found != major {
-			continue
-		}
-
-		return candidate, nil
-	}
-
-	return "", fmt.Errorf(
-		"no golangci-lint v%d found for %s (tried: %s); install one or point %s at it",
-		major, lintConfigFor(major), strings.Join(tried, ", "), envVar)
-}
-
-// linterMajor runs `<exe> version` and reports the major version it prints,
-// along with the full version string for diagnostics.
-func linterMajor(exe string) (int, string, error) {
+// linterVersionOf runs `<exe> version` and reports its semantic version.
+func linterVersionOf(exe string) (string, error) {
 	if _, err := exec.LookPath(exe); err != nil {
-		return 0, "", fmt.Errorf("not found: %w", err)
+		return "", fmt.Errorf("not found: %w", err)
 	}
 
 	out, err := sh.Output(exe, "version")
 	if err != nil {
-		return 0, "", fmt.Errorf("running %q version: %w", exe, err)
+		return "", fmt.Errorf("running %q version: %w", exe, err)
 	}
 
 	match := lintVersionRe.FindStringSubmatch(out)
 	if match == nil {
-		return 0, "", fmt.Errorf("cannot parse a version out of %q", strings.TrimSpace(out))
+		return "", fmt.Errorf("cannot parse a version out of %q", strings.TrimSpace(out))
 	}
 
-	major, err := strconv.Atoi(match[1])
-	if err != nil {
-		return 0, "", fmt.Errorf("cannot parse major version from %q", match[0])
-	}
-
-	return major, match[1] + "." + match[2] + "." + match[3], nil
-}
-
-// lintConfigFor names the config a given linter major reads.
-func lintConfigFor(major int) string {
-	if major == 1 {
-		return lintConfigV1
-	}
-
-	return lintConfigV2
+	return match[1] + "." + match[2] + "." + match[3], nil
 }
 
 // Run python linters.
 func (Lint) Python() error {
 	fmt.Println("Running Ruff...")
 
-	if err := sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test"); err != nil {
+	err := sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test")
+	if err != nil {
 		return err
 	}
 
@@ -390,6 +331,7 @@ func runUnitTests(flags []string) error {
 		if mg.Verbose() {
 			args = append(args, "-v")
 		}
+
 		args = append(args, "./...")
 		args = append(args, flags...)
 		args = append(args, "-count=1")
@@ -432,11 +374,14 @@ func (Unit) Coverage() error {
 	if err != nil {
 		return err
 	}
+
 	coverDir := filepath.Join(cwd, "coverage", "unit")
+
 	coverageDirInfo, err := os.Stat(coverDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(coverDir, 0o750); err != nil {
+			err := os.MkdirAll(coverDir, 0o750)
+			if err != nil {
 				return err
 			}
 		} else {
@@ -451,15 +396,17 @@ func (Unit) Coverage() error {
 	err = runUnitTests([]string{
 		"-tags", "integration,integration_docker",
 		"-cover",
-		"-args", fmt.Sprintf(`-test.gocoverdir=%s`, coverDir),
+		"-args", "-test.gocoverdir=" + coverDir,
 	})
 	if err != nil {
 		return err
 	}
+
 	relCoverDir, err := filepath.Rel(cwd, coverDir)
 	if err != nil {
 		relCoverDir = coverDir
 	}
+
 	fmt.Printf("Coverage data is saved to %q\n", relCoverDir)
 	fmt.Printf(`Example command for analysis:
 	go tool covdata func -i %q
@@ -550,6 +497,7 @@ func Generate() error {
 			return fmt.Errorf("failed to generate sources for path %q: %w", path, err)
 		}
 	}
+
 	return nil
 }
 
@@ -564,6 +512,7 @@ func getDefaultConfigPath() string {
 	}
 
 	log.Fatalf("Trying to get default config path file on an unsupported OS")
+
 	return ""
 }
 
@@ -571,11 +520,13 @@ func getDefaultConfigPath() string {
 func getBuildEnvironment() map[string]string {
 	var err error
 
-	var currentDir string
-	var gitTag string
-	var gitTagShort string
-	var gitCommit string
-	var gitCommitSinceTag string
+	var (
+		currentDir        string
+		gitTag            string
+		gitTagShort       string
+		gitCommit         string
+		gitCommitSinceTag string
+	)
 
 	if currentDir, err = os.Getwd(); err != nil {
 		log.Warnf("Failed to get current directory: %s", err)

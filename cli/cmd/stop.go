@@ -49,18 +49,21 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 		} else {
 			instancesToConfirm = fmt.Sprintf("'%s'", args[0])
 		}
-		confirmed, err := util.AskConfirm(os.Stdin, fmt.Sprintf("Confirm stop of %s",
-			instancesToConfirm))
+
+		confirmed, err := util.AskConfirm(os.Stdin, "Confirm stop of "+instancesToConfirm)
 		if err != nil {
 			return err
 		}
+
 		if !confirmed {
 			log.Info("Stop is cancelled.")
+
 			return nil
 		}
 	}
 
-	if err := internalStopModule(cmdCtx, args); err != nil {
+	err := internalStopModule(cmdCtx, args)
+	if err != nil {
 		return err
 	}
 
@@ -74,13 +77,15 @@ func internalStopModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadSkip)
 	if err != nil {
 		return err
 	}
 
 	for _, run := range runningCtx.Instances {
-		if err = running.Stop(&run); err != nil {
+		err = running.Stop(&run)
+		if err != nil {
 			log.Infof(err.Error())
 		}
 	}

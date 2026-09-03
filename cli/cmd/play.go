@@ -94,6 +94,7 @@ func playValidateArgs(cmd *cobra.Command, args []string) error {
 		return errors.New("it is required to specify an URI and at least one .xlog/.snap file " +
 			"or directory")
 	}
+
 	return nil
 }
 
@@ -101,6 +102,7 @@ func playValidateArgs(cmd *cobra.Command, args []string) error {
 func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{args[0]}, running.ConfigLoadAll)
 	if err == nil {
 		if len(runningCtx.Instances) > 1 {
@@ -122,7 +124,9 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			return errors.New("username and password are specified with" +
 				" flags and a URI")
 		}
+
 		uri, user, pass := libconnect.ParseCredentialsURI(args[0])
+
 		playUsername = user
 		playPassword = pass
 		args[0] = uri
@@ -130,6 +134,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if playUsername == "" {
 			playUsername = os.Getenv(libconnect.TarantoolUsernameEnv)
 		}
+
 		if playPassword == "" {
 			playPassword = os.Getenv(libconnect.TarantoolPasswordEnv)
 		}
@@ -157,9 +162,11 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	}
 
 	os.Setenv("TT_CLI_PLAY_FILES_AND_URI", string(filesAndUriJson))
+
 	if playUsername != "" {
 		os.Setenv("TT_CLI_PLAY_USERNAME", playUsername)
 	}
+
 	if playPassword != "" {
 		os.Setenv("TT_CLI_PLAY_PASSWORD", playPassword)
 	}
@@ -167,18 +174,21 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	if playSslCertFile != "" {
 		os.Setenv("TT_CLI_PLAY_SSL_CERT_FILE", playSslCertFile)
 	}
+
 	if playSslKeyFile != "" {
 		os.Setenv("TT_CLI_PLAY_SSL_KEY_FILE", playSslKeyFile)
 	}
+
 	if playSslCaFile != "" {
 		os.Setenv("TT_CLI_PLAY_SSL_CA_FILE", playSslCaFile)
 	}
+
 	if playSslCiphers != "" {
 		os.Setenv("TT_CLI_PLAY_SSL_CIPHERS", playSslCiphers)
 	}
+
 	if playSslCertFile != "" || playSslKeyFile != "" ||
 		playSslCaFile != "" || playSslCiphers != "" {
-
 		os.Setenv("TT_CLI_PLAY_TRANSPORT", "ssl")
 	}
 
@@ -191,6 +201,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			"Internal error: problem with creating json params with spaces: %s",
 			version.GetVersion, err)
 	}
+
 	if string(spacesJson) != "null" {
 		os.Setenv("TT_CLI_PLAY_SPACES", string(spacesJson))
 	}
@@ -200,8 +211,9 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	timestamp, err := util.StringToTimestamp(playFlags.Timestamp)
 	if err != nil {
-		return fmt.Errorf("failed to parse a timestamp: %s", err)
+		return fmt.Errorf("failed to parse a timestamp: %w", err)
 	}
+
 	os.Setenv("TT_CLI_PLAY_TIMESTAMP", timestamp)
 
 	// List of replicas is passed to lua play script via environment variable in json format.
@@ -211,11 +223,13 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			"Internal error: problem with creating json params with replicas: %s",
 			version.GetVersion, err)
 	}
+
 	if string(replicasJson) != "null" {
 		os.Setenv("TT_CLI_PLAY_REPLICAS", string(replicasJson))
 	}
 
 	log.Infof("Running play with URI=%s and files: %s\n", args[0], args[1:])
+
 	if err := checkpoint.Play(cmdCtx.Cli.TarantoolCli); err != nil {
 		return err
 	}

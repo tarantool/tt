@@ -36,11 +36,13 @@ func (f colorizedWriter) Write(msg []byte) (int, error) {
 func NewColorizedPrefixWriter(writer io.Writer, color color.Color, prefix string) io.Writer {
 	buf := bytes.Buffer{}
 	buf.Grow(1024)
+
 	return colorizedWriter(func(msg []byte) (int, error) {
-		for _, line := range bytes.Split(msg, []byte{'\n'}) {
+		for line := range bytes.SplitSeq(msg, []byte{'\n'}) {
 			if len(line) == 0 {
 				continue
 			}
+
 			buf.Reset()
 
 			// spell-checker:ignore submatch
@@ -48,6 +50,7 @@ func NewColorizedPrefixWriter(writer io.Writer, color color.Color, prefix string
 				color.Fprint(&buf, prefix)
 				logLevelColors[string(submatch[1])].Fprintln(&buf, string(line))
 				writer.Write(buf.Bytes())
+
 				continue
 			}
 
@@ -56,6 +59,7 @@ func NewColorizedPrefixWriter(writer io.Writer, color color.Color, prefix string
 			buf.WriteByte('\n')
 			writer.Write(buf.Bytes())
 		}
+
 		return len(msg), nil
 	})
 }

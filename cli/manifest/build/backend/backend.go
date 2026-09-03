@@ -214,6 +214,7 @@ func runEnviron(
 	showOutput bool, name string, args ...string,
 ) error {
 	cmd := exec.CommandContext(ctx, name, args...)
+
 	cmd.Env = environ
 
 	return util.RunCommand(cmd, cwd, showOutput)

@@ -2,6 +2,7 @@ package tail_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -28,7 +29,7 @@ func readWithTimeout(t *testing.T, ch <-chan string, timeout time.Duration) (str
 	case s := <-ch:
 		return s, nil
 	case <-timer.C:
-		return "", fmt.Errorf("timeout waiting for data")
+		return "", errors.New("timeout waiting for data")
 	}
 }
 
@@ -37,6 +38,7 @@ func writeLogLines(t *testing.T, f *os.File, count int, line_fmt string) error {
 		_, err := fmt.Fprintln(f, fmt.Sprintf(line_fmt, i+1))
 		if err != nil {
 			t.Fatalf("Failed to write line %d: %v", i+1, err)
+
 			return err
 		}
 	}
@@ -53,7 +55,8 @@ func createTmpLogFile(t *testing.T, count int, line_fmt string) string {
 	}
 	defer f.Close()
 
-	if err = writeLogLines(t, f, count, line_fmt); err != nil {
+	err = writeLogLines(t, f, count, line_fmt)
+	if err != nil {
 		t.Fatalf("Failed to write initial log lines: %v", err)
 	}
 
@@ -124,7 +127,7 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 		t.Fatalf("Failed to check lines in file: %v", err)
 	}
 
-	// Append new content
+	// Append new content.
 	appendFile, err := os.OpenFile(lf, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		t.Fatalf("Failed to open file for append: %v", err)
@@ -164,11 +167,12 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 		t.Fatalf("Failed to check lines in file: %v", err)
 	}
 
-	// Cancel context and wait for goroutine to finish
+	// Cancel context and wait for goroutine to finish.
 	cancel()
 
-	// Wait with timeout to ensure goroutine completes
+	// Wait with timeout to ensure goroutine completes.
 	waitCh := make(chan struct{})
+
 	go func() {
 		f.Wait()
 		close(waitCh)
@@ -176,7 +180,7 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 
 	select {
 	case <-waitCh:
-		// Success - goroutine completed
+		// Success - goroutine completed.
 
 	case <-time.After(3 * time.Second):
 		t.Fatal("Timeout waiting for Follow2 goroutine to terminate after context cancellation")
@@ -184,8 +188,7 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 }
 
 func TestFollow2_NonExistentFile(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	f := tail.NewTailFollower("/path/to/nonexistent/file")
 
@@ -211,6 +214,7 @@ func rotationTest(t *testing.T, use_delay bool) {
 	err = checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
 	if err != nil {
 		t.Skipf("Failed to check initial lines in file: %v", err)
+
 		return
 	}
 
@@ -234,6 +238,7 @@ func rotationTest(t *testing.T, use_delay bool) {
 
 	if err != nil {
 		t.Skipf("Failed to write new log lines after rotation: %v", err)
+
 		return
 	}
 
@@ -242,6 +247,7 @@ func rotationTest(t *testing.T, use_delay bool) {
 	err = checksLinesInFile(t, linesPerStep, outCh, logNewLineFormat)
 	if err != nil {
 		t.Skipf("Failed to check appended lines in file: %v", err)
+
 		return
 	}
 

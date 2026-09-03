@@ -78,6 +78,7 @@ type combinedCmd struct {
 // newCombinedCmd creates a new combined command object.
 func newCombinedCmd(cmds []cmd) combinedCmd {
 	cmdsMap := make(map[string]cmd)
+
 	for _, cmd := range cmds {
 		for _, alias := range cmd.Aliases() {
 			cmdsMap[alias] = cmd
@@ -130,8 +131,9 @@ func (command noArgsCmdDecorator) Run(console *Console,
 	cmd string, args []string,
 ) (string, error) {
 	if len(args) != 0 {
-		return "", fmt.Errorf("the command does not expect arguments")
+		return "", errors.New("the command does not expect arguments")
 	}
+
 	return command.base.Run(console, cmd, args)
 }
 
@@ -198,6 +200,7 @@ func (command argUnsignedCmdDecorator) Run(console *Console,
 	if len(args) != 1 {
 		return "", errNotUnsigned
 	}
+
 	if _, err := strconv.ParseUint(args[0], 10, 64); err != nil {
 		return "", errNotUnsigned
 	}
@@ -231,6 +234,7 @@ func (command argBooleanCmdDecorator) Run(console *Console,
 	if len(args) != 1 {
 		return "", errNotBoolean
 	}
+
 	if _, err := strconv.ParseBool(args[0]); err != nil {
 		return "", errNotBoolean
 	}
@@ -275,20 +279,26 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 		if len(info.Short) > shortMaxLen {
 			shortMaxLen = len(info.Short)
 		}
+
 		shorts = append(shorts, info.Short)
 		longs = append(longs, info.Long)
 	}
 
-	for i := 0; i < len(shorts); i++ {
-		msg += "  " + shorts[i]
-		for j := len(shorts[i]); j < shortMaxLen; j++ {
-			msg += " "
-		}
-		msg += " -- " + longs[i] + "\n"
+	var output strings.Builder
+
+	output.WriteString(msg)
+
+	for i := range shorts {
+		output.WriteString("  ")
+		output.WriteString(shorts[i])
+		output.WriteString(strings.Repeat(" ", shortMaxLen-len(shorts[i])))
+		output.WriteString(" -- ")
+		output.WriteString(longs[i])
+		output.WriteByte('\n')
 	}
 
 	return helpCmd{
-		help: msg,
+		help: output.String(),
 	}
 }
 
@@ -307,14 +317,16 @@ func (command helpCmd) Run(console *Console,
 // setLanguageFunc sets a language for the console.
 func setLanguageFunc(console *Console, cmd string, args []string) (string, error) {
 	if lang, ok := ParseLanguage(args[0]); ok {
-		if err := ChangeLanguage(console.conn, lang); err != nil {
-			return "", fmt.Errorf("failed to change language: %s", err)
+		err := ChangeLanguage(console.conn, lang)
+		if err != nil {
+			return "", fmt.Errorf("failed to change language: %w", err)
 		} else {
 			console.language = lang
 		}
 	} else {
 		return "", fmt.Errorf("unsupported language: %s", args[0])
 	}
+
 	return "", nil
 }
 
@@ -327,6 +339,7 @@ func setFormatFunc(console *Console, cmd string, args []string) (string, error) 
 		// It should not happen in practice.
 		return "", fmt.Errorf("unsupported format: %s", formatStr)
 	}
+
 	return "", nil
 }
 
@@ -339,6 +352,7 @@ func setTableDialectFunc(console *Console, cmd string, args []string) (string, e
 		// It should not happen in practice.
 		return "", fmt.Errorf("unsupported dialect: %s", dialectStr)
 	}
+
 	return "", nil
 }
 
@@ -353,6 +367,7 @@ func setGraphicsFunc(console *Console,
 	}
 
 	console.formatOpts.Graphics = val
+
 	return "", nil
 }
 
@@ -367,6 +382,7 @@ func setTableColumnWidthMaxFunc(console *Console,
 	}
 
 	console.formatOpts.ColumnWidthMax = int(val)
+
 	return "", nil
 }
 
@@ -378,8 +394,9 @@ func setDelimiterMarker(console *Console, cmd string, args []string) (string, er
 	case 1:
 		console.delimiter = args[0]
 	default:
-		return "", fmt.Errorf("the command expects zero or single argument")
+		return "", errors.New("the command expects zero or single argument")
 	}
+
 	return "", nil
 }
 
@@ -579,12 +596,14 @@ func newCmdExecutor() cmdExecutor {
 	// Create a full list of console commands.
 	helpCmd := newNoArgsCmdDecorator(newHelpCmd(cmdInfos))
 	cmds := []cmd{helpCmd}
+
 	for _, info := range cmdInfos {
 		cmds = append(cmds, info.Cmd)
 	}
 
 	// Create a map of commands.
 	cmdsMap := make(map[string]cmd)
+
 	for _, cmd := range cmds {
 		for _, alias := range cmd.Aliases() {
 			cmdsMap[alias] = cmd
@@ -603,6 +622,7 @@ func (executor cmdExecutor) Execute(console *Console, in string) bool {
 
 	tokens := []string{}
 	lowerTokens := []string{}
+
 	for _, token := range dirtyTokens {
 		token = strings.Trim(token, " ")
 		if token != "" {
@@ -620,6 +640,7 @@ func (executor cmdExecutor) Execute(console *Console, in string) bool {
 			} else if msg != "" {
 				fmt.Printf("%s\n", msg)
 			}
+
 			return true
 		}
 	}

@@ -27,13 +27,16 @@ func copyEmbedFs(srcFs fs.FS, dst string) error {
 		dirPerm  fs.FileMode = 0o755
 		filePerm fs.FileMode = 0o644
 	)
+
 	err := fs.WalkDir(srcFs, ".", func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk %q: %w", path, err)
 		}
+
 		if dirEntry.IsDir() {
 			return util.CreateDirectory(filepath.Join(dst, path), dirPerm)
 		}
+
 		inFile, err := srcFs.Open(path)
 		if err != nil {
 			return fmt.Errorf("open template file %q: %w", path, err)
@@ -49,11 +52,13 @@ func copyEmbedFs(srcFs fs.FS, dst string) error {
 		if _, err := io.Copy(outFile, inFile); err != nil {
 			return fmt.Errorf("copy %q: %w", path, err)
 		}
+
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("copy embedded template: %w", err)
 	}
+
 	return nil
 }
 
@@ -69,9 +74,12 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 
 		if util.IsDir(templatePath) {
 			log.Infof("Using template from %s", templatePath)
-			if err := copy.Copy(templatePath, templateCtx.AppPath); err != nil {
-				return fmt.Errorf("template copying failed: %s", err)
+
+			err := copy.Copy(templatePath, templateCtx.AppPath)
+			if err != nil {
+				return fmt.Errorf("template copying failed: %w", err)
 			}
+
 			return nil
 		}
 
@@ -82,6 +90,7 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 		for _, archivePath := range archivesToCheck {
 			if util.IsRegularFile(archivePath) {
 				log.Infof("Using template from %s", archivePath)
+
 				return util.ExtractTarGz(archivePath, templateCtx.AppPath)
 			}
 		}
@@ -96,12 +105,14 @@ func (CopyAppTemplate) Run(createCtx *create_ctx.CreateCtx,
 	for _, templateDir := range templateDirs {
 		if templateName == templateDir.Name() {
 			log.Infof("Using built-in '%s' template.", templateName)
+
 			templateFs, err := fs.Sub(builtin_templates.TemplatesFs,
 				filepath.Join("templates", templateDir.Name()))
 			if err != nil {
 				return err
 			}
-			return copyEmbedFs(templateFs, templateCtx.AppPath) //nolint:wrapcheck // already wraps.
+
+			return copyEmbedFs(templateFs, templateCtx.AppPath)
 		}
 	}
 

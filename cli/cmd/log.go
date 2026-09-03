@@ -55,6 +55,7 @@ func printLines(ctx context.Context, in <-chan string) error {
 			if !ok {
 				return nil
 			}
+
 			fmt.Println(line)
 		}
 	}
@@ -66,22 +67,30 @@ func follow(instances []running.InstanceCtx, n int) error {
 
 	nextColor := tail.DefaultColorPicker()
 	color := nextColor()
+
 	const logLinesChannelCapacity = 64
+
 	logLines := make(chan string, logLinesChannelCapacity)
 	tailRoutinesStarted := 0
 	// Wait group to wait for completion of all log reading routines to close the channel once.
 	var wg sync.WaitGroup
+
 	for _, inst := range instances {
-		if err := tail.Follow(ctx, logLines,
+		err := tail.Follow(ctx, logLines,
 			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color),
-			inst.Log, n, &wg); err != nil {
+			inst.Log, n, &wg)
+		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
+
 			stop()
-			return fmt.Errorf("cannot read log file %q: %s", inst.Log, err)
+
+			return fmt.Errorf("cannot read log file %q: %w", inst.Log, err)
 		}
+
 		tailRoutinesStarted++
+
 		color = nextColor()
 	}
 
@@ -90,8 +99,10 @@ func follow(instances []running.InstanceCtx, n int) error {
 			wg.Wait()
 			close(logLines)
 		}()
+
 		return printLines(ctx, logLines)
 	}
+
 	return nil
 }
 
@@ -101,6 +112,7 @@ func printLastN(instances []running.InstanceCtx, n int) error {
 
 	nextColor := tail.DefaultColorPicker()
 	color := nextColor()
+
 	for _, inst := range instances {
 		logLines, err := tail.TailN(ctx,
 			tail.NewLogFormatter(running.GetAppInstanceName(inst)+": ", color), inst.Log, n)
@@ -108,14 +120,19 @@ func printLastN(instances []running.InstanceCtx, n int) error {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
+
 			stop()
-			return fmt.Errorf("cannot read log file %q: %s", inst.Log, err)
+
+			return fmt.Errorf("cannot read log file %q: %w", inst.Log, err)
 		}
+
 		if err := printLines(ctx, logLines); err != nil {
 			return err
 		}
+
 		color = nextColor()
 	}
+
 	return nil
 }
 
@@ -125,8 +142,11 @@ func internalLogModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		return errNoConfig
 	}
 
-	var err error
-	var runningCtx running.RunningCtx
+	var (
+		err        error
+		runningCtx running.RunningCtx
+	)
+
 	err = running.FillCtx(cliOpts, cmdCtx, &runningCtx, args, running.ConfigLoadCluster)
 	if err != nil {
 		return err

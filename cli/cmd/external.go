@@ -20,8 +20,10 @@ func externalModuleHelpFunc(manifest modules.Manifest) func(*cobra.Command, []st
 		help, err := modules.GetExternalModuleHelp(manifest.Main)
 		if err != nil {
 			cmd.PrintErrf("failed to get help for module %q: %s\n", manifest.Name, err)
+
 			return
 		}
+
 		cmd.Print(help)
 	}
 }
@@ -67,5 +69,6 @@ func newExternalCmd(manifest modules.Manifest) *cobra.Command {
 		DisableFlagParsing: true,
 	}
 	cmd.SetHelpFunc(externalModuleHelpFunc(manifest))
+
 	return cmd
 }

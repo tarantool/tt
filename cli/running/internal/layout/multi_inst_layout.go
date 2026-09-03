@@ -1,7 +1,7 @@
 package layout
 
 import (
-	"fmt"
+	"errors"
 	"path/filepath"
 
 	"github.com/tarantool/tt/cli/util"
@@ -17,13 +17,15 @@ type MultiInstLayout struct {
 // NewMultiInstLayout creates new multi-instance layout.
 func NewMultiInstLayout(baseDir, appName, instanceName string) (*MultiInstLayout, error) {
 	if baseDir == "" {
-		return nil, fmt.Errorf("base directory cannot be empty")
+		return nil, errors.New("base directory cannot be empty")
 	}
+
 	if appName == "" {
-		return nil, fmt.Errorf("application name cannot be empty")
+		return nil, errors.New("application name cannot be empty")
 	}
+
 	if instanceName == "" {
-		return nil, fmt.Errorf("instance name cannot be empty")
+		return nil, errors.New("instance name cannot be empty")
 	}
 
 	return &MultiInstLayout{
@@ -36,11 +38,13 @@ func NewMultiInstLayout(baseDir, appName, instanceName string) (*MultiInstLayout
 // genFilePath generate file path.
 func (layout MultiInstLayout) genFilePath(subdir, fileName string) string {
 	var dstDir string
+
 	if filepath.IsAbs(subdir) {
 		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.appName, layout.instanceName)
 	} else {
 		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.instanceName)
 	}
+
 	return filepath.Join(dstDir, fileName)
 }
 

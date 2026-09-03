@@ -79,6 +79,7 @@ func tarantoolInfoForTest(t *testing.T) rocks.TarantoolInfo {
 
 	prefix := ""
 	prefixRe := regexp.MustCompile(`-DCMAKE_INSTALL_PREFIX=(\S+)`)
+
 	if m := prefixRe.FindStringSubmatch(lines[2]); m != nil {
 		prefix = m[1]
 	}
@@ -100,6 +101,7 @@ func TestRunE2E_compilesNativeComponent(t *testing.T) {
 	})
 
 	opts := dryOptions(dir)
+
 	opts.Tarantool = info
 	require.NoError(t, Run(context.Background(), opts))
 

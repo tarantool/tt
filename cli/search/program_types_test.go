@@ -51,6 +51,7 @@ func TestParseProgram(t *testing.T) {
 			program, err := search.ParseProgram(tc.input)
 			if tc.wantErr {
 				assert.Error(t, err)
+
 				if tc.errMsg != "" {
 					assert.EqualError(t, err, tc.errMsg)
 				}

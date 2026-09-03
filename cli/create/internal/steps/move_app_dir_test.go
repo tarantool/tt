@@ -15,14 +15,17 @@ import (
 
 func TestMoveAppDirBasic(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/sample", srcAppDir))
 
 	dstAppDir := t.TempDir()
+
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "app")
 	templateCtx.AppPath = srcAppDir
+
 	moveAppDir := MoveAppDirectory{}
 	require.NoError(t, moveAppDir.Run(&createCtx, &templateCtx))
 	require.FileExists(t, filepath.Join(templateCtx.TargetAppPath, "conf.lua"))
@@ -34,6 +37,7 @@ func TestMoveAppDirBasic(t *testing.T) {
 
 func TestMoveAppDirDstDirExist(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
@@ -41,6 +45,7 @@ func TestMoveAppDirDstDirExist(t *testing.T) {
 
 	templateCtx.TargetAppPath = dstAppDir
 	templateCtx.AppPath = srcAppDir
+
 	moveAppDir := MoveAppDirectory{}
 	require.EqualError(t, moveAppDir.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("'%s' already exists", dstAppDir))
@@ -48,11 +53,14 @@ func TestMoveAppDirDstDirExist(t *testing.T) {
 
 func TestMoveAppDirSourceDirMissing(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	dstAppDir := t.TempDir()
+
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "app")
 	templateCtx.AppPath = "/non/existing/dir"
+
 	moveAppDir := MoveAppDirectory{}
 	require.EqualError(t, moveAppDir.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("lstat %s: no such file or directory", templateCtx.AppPath))
@@ -62,7 +70,9 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 	if user, err := user.Current(); err == nil && user.Uid == "0" {
 		t.Skip("Skipping the test, it shouldn't run as root")
 	}
+
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
@@ -77,6 +87,7 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 
 	templateCtx.TargetAppPath = filepath.Join(dstAppDir, "parent", "apps")
 	templateCtx.AppPath = srcAppDir
+
 	moveAppDir := MoveAppDirectory{}
 	require.EqualError(t, moveAppDir.Run(&createCtx, &templateCtx),
 		fmt.Sprintf("stat %[1]s: permission denied", templateCtx.TargetAppPath))
@@ -88,12 +99,14 @@ func TestMoveAppDirTargetDirRemovalFailure(t *testing.T) {
 
 func TestMoveAppDirEmptyTargetDir(t *testing.T) {
 	var createCtx create_ctx.CreateCtx
+
 	templateCtx := app_template.NewTemplateContext()
 
 	srcAppDir := t.TempDir()
 	require.NoError(t, copy.Copy("testdata/sample", srcAppDir))
 
 	templateCtx.AppPath = srcAppDir
+
 	moveAppDir := MoveAppDirectory{}
 	require.NoError(t, moveAppDir.Run(&createCtx, &templateCtx))
 	require.DirExists(t, srcAppDir)

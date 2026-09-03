@@ -87,10 +87,10 @@ func TestConnect_Eval(t *testing.T) {
 			eval := "local val = 'testtest'\n return val"
 			opts := RequestOpts{}
 
-			ret, err := c.connect.Eval(eval, []interface{}{}, opts)
+			ret, err := c.connect.Eval(eval, []any{}, opts)
 
 			assert.NoError(t, err)
-			assert.Equal(t, []interface{}{"testtest"}, ret)
+			assert.Equal(t, []any{"testtest"}, ret)
 		})
 	}
 }
@@ -106,10 +106,10 @@ func TestBinaryConnector_Eval_args(t *testing.T) {
 			eval := "return ..."
 			opts := RequestOpts{}
 
-			ret, err := c.connect.Eval(eval, []interface{}{"test1", "test2"}, opts)
+			ret, err := c.connect.Eval(eval, []any{"test1", "test2"}, opts)
 
 			assert.NoError(t, err)
-			assert.Equal(t, []interface{}{"test1", "test2"}, ret)
+			assert.Equal(t, []any{"test1", "test2"}, ret)
 		})
 	}
 }
@@ -127,7 +127,7 @@ func TestBinaryConnector_Eval_readTimeout(t *testing.T) {
 				ReadTimeout: 10 * time.Millisecond,
 			}
 
-			_, err := c.connect.Eval(eval, []interface{}{}, opts)
+			_, err := c.connect.Eval(eval, []any{}, opts)
 
 			assert.ErrorContains(t, err, "i/o timeout")
 		})
@@ -149,7 +149,7 @@ func TestBinaryConnector_Eval_resData(t *testing.T) {
 			opts := RequestOpts{
 				ResData: &result,
 			}
-			ret, err := c.connect.Eval(eval, []interface{}{}, opts)
+			ret, err := c.connect.Eval(eval, []any{}, opts)
 
 			assert.NoError(t, err)
 			assert.Nil(t, ret)
@@ -166,21 +166,21 @@ func TestBinaryConnector_Eval_pushCallback(t *testing.T) {
 
 	for _, c := range connects {
 		t.Run(c.protocol.String(), func(t *testing.T) {
-			var pushes []interface{}
+			var pushes []any
 
 			eval := "box.session.push('hello')\n" +
 				"box.session.push('world')\n" +
 				"return 'return'"
 			opts := RequestOpts{
-				PushCallback: func(push interface{}) {
+				PushCallback: func(push any) {
 					pushes = append(pushes, push)
 				},
 			}
-			ret, err := c.connect.Eval(eval, []interface{}{}, opts)
+			ret, err := c.connect.Eval(eval, []any{}, opts)
 
 			assert.NoError(t, err)
-			assert.Equal(t, []interface{}{"return"}, ret)
-			assert.Equal(t, []interface{}{"hello", "world"}, pushes)
+			assert.Equal(t, []any{"return"}, ret)
+			assert.Equal(t, []any{"hello", "world"}, pushes)
 		})
 	}
 }
@@ -193,12 +193,13 @@ func TestConnect_binary(t *testing.T) {
 		Password: "password",
 	})
 	require.NoError(t, err)
+
 	defer conn.Close()
 
 	eval := "return 'hello', 'world'"
-	ret, err := conn.Eval(eval, []interface{}{}, RequestOpts{})
+	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
 	assert.NoError(t, err)
-	assert.Equal(t, []interface{}{"hello", "world"}, ret)
+	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
 func TestConnect_binaryTlsToNoTls(t *testing.T) {
@@ -217,6 +218,7 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 	if !tarantoolEe {
 		t.Skip("Only for Tarantool Enterprise.")
 	}
+
 	conn, err := Connect(ConnectOpts{
 		Network:  "tcp",
 		Address:  serverTls,
@@ -225,12 +227,13 @@ func TestConnect_binaryTlsToTls(t *testing.T) {
 		Ssl:      sslOpts,
 	})
 	require.NoError(t, err)
+
 	defer conn.Close()
 
 	eval := "return 'hello', 'world'"
-	ret, err := conn.Eval(eval, []interface{}{}, RequestOpts{})
+	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
 	assert.NoError(t, err)
-	assert.Equal(t, []interface{}{"hello", "world"}, ret)
+	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
 func TestConnect_text(t *testing.T) {
@@ -239,12 +242,13 @@ func TestConnect_text(t *testing.T) {
 		Address: console,
 	})
 	require.NoError(t, err)
+
 	defer conn.Close()
 
 	eval := "return 'hello', 'world'"
-	ret, err := conn.Eval(eval, []interface{}{}, RequestOpts{})
+	ret, err := conn.Eval(eval, []any{}, RequestOpts{})
 	assert.NoError(t, err)
-	assert.Equal(t, []interface{}{"hello", "world"}, ret)
+	assert.Equal(t, []any{"hello", "world"}, ret)
 }
 
 func TestConnect_textTls(t *testing.T) {
@@ -308,11 +312,12 @@ func TestPoolEval_success(t *testing.T) {
 			pool, err := ConnectPool(tc.Opts)
 			require.NoError(t, err)
 			require.NotNil(t, pool)
+
 			defer pool.Close()
 
 			ret, err := pool.Eval("return ...", []any{"foo"}, RequestOpts{})
 			assert.NoError(t, err)
-			assert.Equal(t, ret, []any{"foo"})
+			assert.Equal(t, []any{"foo"}, ret)
 		})
 	}
 }
@@ -323,9 +328,10 @@ func TestPoolEval_error(t *testing.T) {
 			pool, err := ConnectPool(tc.Opts)
 			require.NoError(t, err)
 			require.NotNil(t, pool)
+
 			defer pool.Close()
 
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				_, err = pool.Eval("error('foo')", []any{"foo"}, RequestOpts{})
 				assert.ErrorContains(t, err, "foo")
 			}
@@ -337,6 +343,7 @@ func runTestMain(m *testing.M) int {
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
 		fmt.Println("Failed to prepare test work dir:", err)
+
 		return 1
 	}
 
@@ -351,23 +358,28 @@ func runTestMain(m *testing.M) int {
 	})
 	if err != nil {
 		fmt.Println("Failed to prepare test tarantool:", err)
+
 		return 1
 	}
 	defer test_helpers.StopTarantoolWithCleanup(inst)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
+
 	conn, err := tarantool.Connect(ctx, dialer, opts)
 	if err != nil {
 		fmt.Println("Failed to check tarantool version:", err)
+
 		return 1
 	}
+
 	req := tarantool.NewEvalRequest("return box.info.package")
 	data, err := conn.Do(req).Get()
 	conn.Close()
 
 	if err != nil {
 		fmt.Println("Failed to get box.info.package:", err)
+
 		return 1
 	}
 
@@ -381,6 +393,7 @@ func runTestMain(m *testing.M) int {
 		absTLSWorkDir, err := filepath.Abs(workDir + "_tls")
 		if err != nil {
 			fmt.Println("Failed to prepare TLS test work dir:", err)
+
 			return 1
 		}
 
@@ -398,6 +411,7 @@ func runTestMain(m *testing.M) int {
 			SslCertFile: sslOpts.CertFile,
 			SslCaFile:   sslOpts.CaFile,
 		}
+
 		inst, err = test_helpers.StartTarantool(test_helpers.StartOpts{
 			InitScript:   "testdata/config.lua",
 			Listen:       listen,
@@ -410,6 +424,7 @@ func runTestMain(m *testing.M) int {
 		})
 		if err != nil {
 			fmt.Println("Failed to prepare test tarantool with TLS:", err)
+
 			return 1
 		}
 		defer test_helpers.StopTarantoolWithCleanup(inst)

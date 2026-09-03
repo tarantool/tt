@@ -51,11 +51,13 @@ func filterReplicasetsByAliases(replicasets replicaset.Replicasets,
 	}
 
 	var chosenReplicasets []replicaset.Replicaset
+
 	for _, alias := range chosenReplicasetAliases {
 		rs, exists := replicasetMap[alias]
 		if !exists {
 			return nil, fmt.Errorf("replicaset with alias %q doesn't exist", alias)
 		}
+
 		chosenReplicasets = append(chosenReplicasets, rs)
 	}
 
@@ -70,6 +72,7 @@ func Upgrade(discoveryCtx DiscoveryCtx, opts UpgradeOpts, connOpts connector.Con
 	}
 
 	replicasets = fillAliases(replicasets)
+
 	replicasetsToUpgrade, err := filterReplicasetsByAliases(replicasets,
 		opts.ChosenReplicasetAliases)
 	if err != nil {
@@ -86,10 +89,13 @@ func internalUpgrade(replicasets []replicaset.Replicaset, lsnTimeout int,
 		err := upgradeReplicaset(replicaset, lsnTimeout, connOpts)
 		if err != nil {
 			fmt.Printf("• %s: error\n", replicaset.Alias)
+
 			return fmt.Errorf("replicaset %s: %w", replicaset.Alias, err)
 		}
+
 		fmt.Printf("• %s: ok\n", replicaset.Alias)
 	}
+
 	return nil
 }
 
@@ -97,6 +103,7 @@ func closeConnectors(master *instanceMeta, replicas []instanceMeta) {
 	if master != nil {
 		master.conn.Close()
 	}
+
 	for _, replica := range replicas {
 		replica.conn.Close()
 	}
@@ -107,9 +114,11 @@ func getInstanceConnector(instance replicaset.Instance,
 ) (connector.Connector, error) {
 	run := instance.InstanceCtx
 	fullInstanceName := running.GetAppInstanceName(run)
+
 	if fullInstanceName == "" {
 		fullInstanceName = instance.Alias
 	}
+
 	if fullInstanceName == "" {
 		fullInstanceName = "unknown"
 	}
@@ -121,6 +130,7 @@ func getInstanceConnector(instance replicaset.Instance,
 	})
 	if err != nil {
 		fErr := err
+
 		conn, err = connector.Connect(connector.ConnectOpts{
 			Network:  connOpts.Network,
 			Address:  instance.URI,
@@ -133,6 +143,7 @@ func getInstanceConnector(instance replicaset.Instance,
 				"and uri: %w %w", fullInstanceName, err, fErr)
 		}
 	}
+
 	return conn, nil
 }
 
@@ -140,11 +151,15 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 	connOpts connector.ConnectOpts) (*instanceMeta, []instanceMeta,
 	error,
 ) {
-	var master *instanceMeta = nil
-	var replicas []instanceMeta
+	var (
+		master   *instanceMeta = nil
+		replicas []instanceMeta
+	)
+
 	for _, instance := range rs.Instances {
 		run := instance.InstanceCtx
 		fullInstanceName := running.GetAppInstanceName(run)
+
 		conn, err := getInstanceConnector(instance, connOpts)
 		if err != nil {
 			return nil, nil, err
@@ -164,6 +179,7 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 					"can't determine RO/RW mode on instance: %s",
 					fullInstanceName)
 			}
+
 			isRW = !res[0].(bool)
 		} else {
 			isRW = instance.Mode.String() == "rw"
@@ -171,6 +187,7 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 
 		if isRW && master != nil {
 			closeConnectors(master, replicas)
+
 			return nil, nil, fmt.Errorf("%s and %s are both masters",
 				running.GetAppInstanceName((*master).run), fullInstanceName)
 		} else if isRW {
@@ -179,14 +196,17 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 			replicas = append(replicas, instanceMeta{run, conn})
 		}
 	}
+
 	return master, replicas, nil
 }
 
 func waitLSN(conn connector.Connector, masterIID uint32, masterLSN uint64, lsnTimeout int) error {
 	var lastError error
+
 	query := fmt.Sprintf("return box.info.vclock[%d]", masterIID)
 
 	deadline := time.Now().Add(time.Duration(lsnTimeout) * time.Second)
+
 	for {
 		res, err := conn.Eval(query, []any{}, connector.RequestOpts{})
 		if err != nil {
@@ -195,7 +215,9 @@ func waitLSN(conn connector.Connector, masterIID uint32, masterLSN uint64, lsnTi
 			lastError = errors.New("empty result from LSN query")
 		} else {
 			var lsn uint64
-			if err := mapstructure.Decode(res[0], &lsn); err != nil {
+
+			err := mapstructure.Decode(res[0], &lsn)
+			if err != nil {
 				lastError = fmt.Errorf("failed to decode LSN: %w", err)
 			} else if lsn >= masterLSN {
 				return nil
@@ -217,7 +239,9 @@ func waitLSN(conn connector.Connector, masterIID uint32, masterLSN uint64, lsnTi
 
 func upgradeMaster(master *instanceMeta) (syncInfo, error) {
 	var upgradeInfo syncInfo
+
 	fullMasterName := running.GetAppInstanceName(master.run)
+
 	res, err := master.conn.Eval(upgradeMasterLua, []any{}, connector.RequestOpts{})
 	if err != nil {
 		return upgradeInfo, fmt.Errorf(
@@ -236,6 +260,7 @@ func upgradeMaster(master *instanceMeta) (syncInfo, error) {
 			"master instance upgrade failed - %s: %w",
 			fullMasterName, err)
 	}
+
 	return upgradeInfo, nil
 }
 
@@ -245,6 +270,7 @@ func snapshot(instance *instanceMeta) error {
 	if err != nil {
 		return fmt.Errorf("failed to execute snapshot on replica: %w", err)
 	}
+
 	if len(res) == 0 {
 		return fmt.Errorf("snapshot command on %s returned an empty result, "+
 			"'ok' expected", running.GetAppInstanceName(instance.run))
@@ -254,6 +280,7 @@ func snapshot(instance *instanceMeta) error {
 		return fmt.Errorf("snapshot command on %s returned unexpected result: '%v', "+
 			"'ok' expected", running.GetAppInstanceName(instance.run), res[0])
 	}
+
 	return nil
 }
 
@@ -279,6 +306,7 @@ func upgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int,
 
 	for _, replica := range replicas {
 		fullReplicaName := running.GetAppInstanceName(replica.run)
+
 		err := waitLSN(replica.conn, masterIID, masterLSN, lsnTimeout)
 		if err != nil {
 			return fmt.Errorf("can't ensure that upgrade operations performed on %s "+
@@ -287,10 +315,12 @@ func upgradeReplicaset(replicaset replicaset.Replicaset, lsnTimeout int,
 				running.GetAppInstanceName(master.run), fullReplicaName,
 				masterLSN, masterIID, err)
 		}
+
 		err = snapshot(&replica)
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }

@@ -53,6 +53,7 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	}
 
 	var orchestrator replicasetOrchestrator
+
 	if ctx.IsApplication {
 		if orchestrator, err = makeApplicationOrchestrator(
 			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity); err != nil {
@@ -72,6 +73,7 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	if err != nil {
 		return err
 	}
+
 	statusReplicasets(replicasets)
 	fmt.Println()
 
@@ -83,13 +85,16 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	if ctx.IsGlobal {
 		log.Infof("%s role %s %s global scope", action[0], ctx.RoleName, action[1])
 	}
+
 	if ctx.GroupName != "" {
 		log.Infof("%s role %s %s group: %s", action[0], ctx.RoleName, action[1], ctx.GroupName)
 	}
+
 	if ctx.InstName != "" {
 		log.Infof("%s role %s %s instance: %s", action[0], ctx.RoleName,
 			action[1], ctx.InstName)
 	}
+
 	if ctx.ReplicasetName != "" {
 		log.Infof("%s role %s %s replicaset: %s", action[0], ctx.RoleName,
 			action[1], ctx.ReplicasetName)
@@ -107,5 +112,6 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	if err == nil {
 		log.Info("Done.")
 	}
+
 	return err
 }

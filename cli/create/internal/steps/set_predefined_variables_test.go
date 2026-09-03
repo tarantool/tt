@@ -10,7 +10,9 @@ import (
 
 func TestSetPredefinedVariables(t *testing.T) {
 	createCtx := create_ctx.CreateCtx{}
+
 	createCtx.AppName = "app1"
+
 	templateCtx := app_template.NewTemplateContext()
 	setPredefinedVars := SetPredefinedVariables{}
 	require.NoError(t, setPredefinedVars.Run(&createCtx, &templateCtx))

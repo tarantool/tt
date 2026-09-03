@@ -26,6 +26,7 @@ func ValidArgsFunction(
 	directive = cobra.ShellCompDirectiveNoFileComp
 
 	var runningCtx running.RunningCtx
+
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, nil, running.ConfigLoadSkip)
 	if err != nil {
 		return args, directive
@@ -37,5 +38,6 @@ func ValidArgsFunction(
 	}
 
 	args = appPicker(runningCtx.Instances)
+
 	return args, directive
 }

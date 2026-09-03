@@ -12,6 +12,7 @@ import (
 
 type plainConnectorStub struct {
 	net.Conn
+
 	err    error
 	closed int
 }
@@ -41,6 +42,7 @@ func TestTextConnector_Close(t *testing.T) {
 
 func TestTextConnector_Close_error(t *testing.T) {
 	const errMsg = "any error"
+
 	stub := &plainConnectorStub{err: errors.New(errMsg)}
 	conn := NewTextConnector(stub)
 

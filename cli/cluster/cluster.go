@@ -21,21 +21,29 @@ func fillOnlyMerge(dst *goconfig.MutableConfig, src goconfig.Config) error {
 		if errors.Is(err, goconfig.ErrPathNotFound) {
 			return nil
 		}
+
 		return err
 	}
+
 	for v := range ch {
 		p := v.Meta().Key
 		if _, ok := dst.Lookup(p); ok {
 			continue
 		}
+
 		var value any
-		if err := v.Get(&value); err != nil {
+
+		err := v.Get(&value)
+		if err != nil {
 			return fmt.Errorf("fillOnlyMerge get %s: %w", p, err)
 		}
-		if err := dst.Set(p, value); err != nil {
+
+		err = dst.Set(p, value)
+		if err != nil {
 			return fmt.Errorf("fillOnlyMerge set %s: %w", p, err)
 		}
 	}
+
 	return nil
 }
 
@@ -57,7 +65,7 @@ func GetClusterConfig(
 	integ integrity.IntegrityCtx,
 ) (*goconfig.MutableConfig, error) {
 	if path == "" {
-		return nil, fmt.Errorf("a configuration file must be set")
+		return nil, errors.New("a configuration file must be set")
 	}
 
 	// Phase-1: env (excluding *_DEFAULT) + file → mut.
@@ -75,13 +83,15 @@ func GetClusterConfig(
 	if err != nil {
 		return nil, err
 	}
+
 	if cleanup != nil {
 		defer cleanup()
 	}
 
 	// Fill-only merge storage layer (file > storage per Tarantool docs).
 	if _, ok := storageCfg.Lookup(nil); ok {
-		if err := fillOnlyMerge(mut, storageCfg); err != nil {
+		err := fillOnlyMerge(mut, storageCfg)
+		if err != nil {
 			return nil, fmt.Errorf("unable to merge storage config: %w", err)
 		}
 	}
@@ -95,6 +105,7 @@ func GetClusterConfig(
 	if err != nil {
 		return nil, fmt.Errorf("unable to load config from %q with default env: %w", path, err)
 	}
+
 	if err := fillOnlyMerge(mut, def.Snapshot()); err != nil {
 		return nil, fmt.Errorf("unable to merge default env config: %w", err)
 	}
@@ -112,6 +123,7 @@ func GetInstanceConfig(
 		return goconfig.Config{},
 			fmt.Errorf("an instance %q not found", instance)
 	}
+
 	return InstanceConfig(cfg.Snapshot(), instance)
 }
 
@@ -122,9 +134,9 @@ type bytesSource struct {
 	data []byte
 }
 
-func (s bytesSource) Name() string                              { return s.name }
-func (s bytesSource) SourceType() goconfig.SourceType          { return goconfig.UnknownSource }
-func (s bytesSource) Revision() goconfig.RevisionType          { return "" }
+func (s bytesSource) Name() string                    { return s.name }
+func (s bytesSource) SourceType() goconfig.SourceType { return goconfig.UnknownSource }
+func (s bytesSource) Revision() goconfig.RevisionType { return "" }
 func (s bytesSource) FetchStream(_ context.Context) (io.ReadCloser, error) {
 	return io.NopCloser(bytes.NewReader(s.data)), nil
 }
@@ -134,6 +146,7 @@ func (s bytesSource) FetchStream(_ context.Context) (io.ReadCloser, error) {
 // The returned Collector can be passed to goconfig.Builder.AddCollector.
 func NewBytesSource(name string, data []byte) (goconfig.Collector, error) {
 	ctx := context.Background()
+
 	return collectors.NewSource(
 		ctx,
 		bytesSource{name: name, data: data},
@@ -160,8 +173,10 @@ func clusterInheritanceOpts() []goconfig.InheritanceOption {
 // standard Tarantool cluster inheritance hierarchy and WithoutValidation.
 func newClusterBuilder() goconfig.Builder {
 	b := goconfig.NewBuilder()
+
 	b = b.WithoutValidation()
 	b = b.WithInheritance(clusterLevels(), clusterInheritanceOpts()...)
+
 	return b
 }
 
@@ -182,6 +197,7 @@ func BuildGoConfigFromBytes(ctx context.Context, b []byte) (goconfig.Config, err
 		if err != nil {
 			return goconfig.Config{}, fmt.Errorf("build go-config from bytes: create source: %w", err)
 		}
+
 		builder = builder.AddCollector(src)
 	}
 
@@ -189,6 +205,7 @@ func BuildGoConfigFromBytes(ctx context.Context, b []byte) (goconfig.Config, err
 	if len(errs) > 0 {
 		return goconfig.Config{}, fmt.Errorf("build go-config from bytes: %w", errors.Join(errs...))
 	}
+
 	return cfg, nil
 }
 
@@ -210,6 +227,7 @@ func BuildMutableFromBytes(ctx context.Context, b []byte) (*goconfig.MutableConf
 			return nil,
 				fmt.Errorf("build mutable go-config from bytes: create source: %w", err)
 		}
+
 		builder = builder.AddCollector(src)
 	}
 
@@ -217,5 +235,6 @@ func BuildMutableFromBytes(ctx context.Context, b []byte) (*goconfig.MutableConf
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("build mutable go-config from bytes: %w", errors.Join(errs...))
 	}
+
 	return &mut, nil
 }

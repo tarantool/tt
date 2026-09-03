@@ -47,10 +47,12 @@ default = true
 // deterministic without git) and the given extra files into a fresh temp dir.
 func setupProject(t *testing.T, manifest string, files map[string]string) string {
 	t.Helper()
+
 	dir := t.TempDir()
 
 	writeFile(t, filepath.Join(dir, manifestFileName), manifest)
 	writeFile(t, filepath.Join(dir, "VERSION"), "1.2.3\n")
+
 	for name, content := range files {
 		writeFile(t, filepath.Join(dir, name), content)
 	}
@@ -71,10 +73,12 @@ func dryOptions(dir string) Options {
 
 func exists(t *testing.T, path string) bool {
 	t.Helper()
+
 	_, err := os.Stat(path)
 	if err != nil && !os.IsNotExist(err) {
 		require.NoError(t, err)
 	}
+
 	return err == nil
 }
 
@@ -111,9 +115,11 @@ func TestRun_productSelectsComponentSet(t *testing.T) {
 [products.minimal]
 components = ['lua']
 `
+
 	dir := setupProject(t, manifest, map[string]string{"init.lua": "-- init"})
 
 	opts := dryOptions(dir)
+
 	opts.Product = "minimal"
 	require.NoError(t, Run(context.Background(), opts))
 
@@ -149,6 +155,7 @@ output = ['fast_hash.so']
 components = ['native']
 default = true
 `
+
 	dir := setupProject(t, manifest, map[string]string{"native/x.txt": "x"})
 
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
@@ -172,11 +179,13 @@ func TestRun_lockedGate(t *testing.T) {
 
 	// --locked on a fresh lock builds fine.
 	locked := dryOptions(dir)
+
 	locked.Locked = true
 	require.NoError(t, Run(context.Background(), locked))
 
 	// Change the manifest so the lock goes stale, then --locked must fail (1).
 	writeFile(t, filepath.Join(dir, manifestFileName), baseManifest+"\n# drift\n")
+
 	err := Run(context.Background(), locked)
 	require.Error(t, err)
 	assert.Equal(t, exitStateError, ExitCode(err))
@@ -219,6 +228,7 @@ include = ['*.lua']
 components = ['lua']
 default = true
 `
+
 	dir := setupProject(t, manifest, map[string]string{"init.lua": "-- init"})
 
 	require.NoError(t, Run(context.Background(), dryOptions(dir)))
@@ -237,6 +247,7 @@ backend = 'shell'
 command = 'sh'
 args = ['-c', 'echo generated > generated.lua']
 `
+
 	dir := setupProject(t, manifest, map[string]string{
 		"init.lua":           "-- init",
 		"native/fast_hash.c": "int x;",
@@ -263,12 +274,14 @@ func TestRun_fetchMaterializesWithoutBackends(t *testing.T) {
 	tree := filepath.Join(dir, ".rocks")
 	so := filepath.Join(tree, "lib/tarantool/my-app/fast_hash.so")
 	vlua := filepath.Join(tree, "share/tarantool/my-app/version.lua")
+
 	require.NoError(t, os.Remove(so))
 	require.NoError(t, os.Remove(vlua))
 
 	// Fetch runs materialization only; with no deps it neither rebuilds the
 	// native artifact nor regenerates version.lua.
 	opts := dryOptions(dir)
+
 	opts.FetchOnly = true
 	require.NoError(t, Run(context.Background(), opts))
 
@@ -282,7 +295,9 @@ func TestRun_fetchWithoutLockFails(t *testing.T) {
 	dir := setupProject(t, baseManifest, map[string]string{"init.lua": "-- init"})
 
 	opts := dryOptions(dir)
+
 	opts.FetchOnly = true
+
 	err := Run(context.Background(), opts)
 	require.Error(t, err)
 	assert.Equal(t, exitStateError, ExitCode(err))
