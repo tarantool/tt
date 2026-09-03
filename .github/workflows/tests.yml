@@ -11,7 +11,7 @@ on:
 
 env:
   # Note: Use exactly match version of tool, to avoid unexpected issues with test on CI.
-  GO_VERSION: '1.25.7'
+  GO_VERSION: '1.26.0'
   PYTHON_VERSION: '3.10'
 
 jobs:
@@ -38,14 +38,8 @@ jobs:
       - name: Static code check
         uses: ./.github/actions/static-code-check
 
-  # The strict `default: all` ruleset (.golangci.yml), over the packages its
-  # path-except rule names as adopted. Unlike static-code-check this job carries
-  # no label condition: it runs on every push and pull request, which is the
-  # point. The same ruleset was already wired as a pre-commit hook, but only
-  # inside the label-gated job above, so in practice it never ran - `pack` and
-  # `inventory` were added to its scope and accumulated 254 findings between
-  # them without anything going red.
-  strict-lint:
+  # Run the single project-wide Go lint ruleset on every push and pull request.
+  golang-lint:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -66,16 +60,14 @@ jobs:
           go run bootstrap.go
         shell: bash
 
-      # Pinned, and pinned to the same version the golangci-lint-strict
-      # pre-commit hook installs: linter releases add checks, so an unpinned
-      # install turns an unrelated push red. Measured on 2026-08-31 - 2.12.2
-      # reports six findings on this tree that 2.11.4 does not.
+      # Linter releases add checks, so keep the CI version in sync with the
+      # version required by mage lint:golang.
       - name: Setup golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
         shell: bash
 
-      - name: Strict lint
-        run: mage lint:strict
+      - name: Golint
+        run: mage lint:golang
         shell: bash
 
   tests-ce:
