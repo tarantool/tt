@@ -1,9 +1,28 @@
 package resolve
 
 import (
+	"fmt"
+
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/deps"
+
+	"github.com/tarantool/tt/cli/manifest"
 )
+
+// ValidateConstraint reports whether expr is a version constraint the resolver
+// can act on: "*", the empty expression, or a comma- or space-separated list of
+// "<operator><version>" segments.
+//
+// It is the check a command runs before writing a declaration, so an expression
+// no resolver can use is refused while the manifest is still untouched.
+func ValidateConstraint(expr string) error {
+	_, err := deps.ParseConstraints(manifest.ConstraintExpr(expr))
+	if err != nil {
+		return fmt.Errorf("invalid version constraint %q: %w", expr, err)
+	}
+
+	return nil
+}
 
 // satisfiable reports whether some version could satisfy every constraint at
 // once. It is a structural check over the version order (deps.Compare), so a

@@ -258,6 +258,53 @@ metrics = '>=1.0.0,<2.0.0'
 	assert.Equal(t, "md5:bbb", got.Checksum)
 }
 
+func TestAnyConstraintTakesTheHighestVersion(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAdapter().
+		add("metrics", "1.0.0-1", "aaa").
+		add("metrics", "2.0.0-1", "ccc")
+
+	man := parseManifest(t, oneProduct+`[dependencies]
+metrics = '*'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	lock, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+
+	got := findDep(t, lock.Products["default"].Dependencies, "metrics")
+	assert.Equal(t, "2.0.0-1", got.Version)
+}
+
+func TestAnyConstraintMergesWithABound(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAdapter().
+		add("metrics", "1.0.0-1", "aaa").
+		add("metrics", "1.5.0-1", "bbb").
+		add("metrics", "2.0.0-1", "ccc")
+
+	// The global declaration places no bound, so the component's bound is the
+	// only one the closure must honour.
+	man := parseManifest(t, oneProduct+`[dependencies]
+metrics = '*'
+
+[components.app.dependencies]
+metrics = '<2.0.0'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	lock, _, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+
+	got := findDep(t, lock.Products["default"].Dependencies, "metrics")
+	assert.Equal(t, "1.5.0-1", got.Version)
+}
+
 func TestTransitiveClosure(t *testing.T) {
 	t.Parallel()
 

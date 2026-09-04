@@ -2,6 +2,24 @@ package manifest
 
 import "strings"
 
+// AnyConstraint is how a dependency declares that any version will do. It is
+// what tt package add writes when the user names no version.
+const AnyConstraint = "*"
+
+// ConstraintExpr renders a declared dependency constraint for the resolver.
+// AnyConstraint becomes the empty expression, which bounds the version from
+// neither side; every other expression is passed through verbatim.
+//
+// The empty expression is also what an omitted constraint yields, so the two
+// spellings of "any version" reach the resolver as one.
+func ConstraintExpr(declared string) string {
+	if strings.TrimSpace(declared) == AnyConstraint {
+		return ""
+	}
+
+	return declared
+}
+
 // Constraint is a platform version requirement parsed into its semver part and
 // an optional flavor. It is stored as "<semver-constraint>[<flavor>]" in TOML,
 // where <flavor> is [ce] or [ee].

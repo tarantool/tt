@@ -48,6 +48,43 @@ func TestAdd_noLockPinsNothing(t *testing.T) {
 	assert.Contains(t, manifestOnDisk(t, dir), "metrics = \"*\"")
 }
 
+// TestAdd_refusesAConstraintNoResolverCanUse pins that the constraint is
+// checked before the manifest is opened for editing: a declaration the resolver
+// could never act on leaves the file exactly as it was, and no resolve is
+// attempted.
+func TestAdd_refusesAConstraintNoResolverCanUse(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, nil)
+	res := &fakeResolver{}
+
+	_, err := addWith(context.Background(), optsFor(dir), res, "metrics", "~~1.0", false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "~~1.0")
+
+	assert.Equal(t, baseManifest, manifestOnDisk(t, dir))
+	assert.Empty(t, res.pins)
+}
+
+// TestAdd_acceptsTheAnyConstraint covers the constraint tt package add writes
+// when the user names no version: it reaches the resolver as "no bound at all"
+// rather than as a literal the version grammar rejects.
+func TestAdd_acceptsTheAnyConstraint(t *testing.T) {
+	t.Parallel()
+
+	dir := writeProject(t, baseManifest, nil)
+	res := &fakeResolver{}
+
+	_, err := addWith(context.Background(), optsFor(dir), res, "metrics", "*", false)
+	require.NoError(t, err)
+
+	assert.Contains(t, manifestOnDisk(t, dir), "metrics = \"*\"")
+
+	declared := res.seen[0].Dependencies["metrics"]
+	assert.Equal(t, "*", declared.Version)
+	assert.Empty(t, manifest.ConstraintExpr(declared.Version))
+}
+
 // TestAdd_lockRecordsTheEditedManifestHash pins the invariant the whole
 // read-edit-write-reparse-resolve order exists for. manifest_hash is taken over
 // the raw source bytes a Manifest was parsed from, so resolving the pre-edit
