@@ -70,7 +70,7 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 	// IP address of the client machine.
 	// Note: this header can easily be spoofed
 	// by the client.
-	ip := req.Header.Get("X-REAL-IP")
+	ip := req.Header.Get("X-Real-IP")
 	// Check IP is correct.
 	netIP := net.ParseIP(ip)
 	if netIP != nil {
@@ -82,10 +82,10 @@ func (handler *DaemonHandler) getClientIP(req *http.Request) (string, error) {
 	// addresses – proxy chaining.
 	// Note: it can also be easily spoofed
 	// by the client.
-	ips := req.Header.Get("X-FORWARDED-FOR")
+	ips := req.Header.Get("X-Forwarded-For")
 	splitIps := strings.Split(ips, ",")
 	for _, ip := range splitIps {
-		// Check IP is correct
+		// Check IP is correct.
 		netIP := net.ParseIP(ip)
 		if netIP != nil {
 			return ip, nil

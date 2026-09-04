@@ -312,7 +312,7 @@ func updateSymlinks(bp *bundleParams) error {
 	}
 
 	log.Infof("Symlinks updated successfully.")
-	// Log the final symlink paths for clarity
+	// Log the final symlink paths for clarity.
 	log.Infof("Active version set by symlinks: %q and %q",
 		filepath.Join(bp.opts.Env.BinDir, bp.inst.Program.Exec()),
 		filepath.Join(bp.inst.IncDir, bp.inst.Program.Exec()))
@@ -392,7 +392,7 @@ func executeBundleInstallation(bp *bundleParams) (logFilePath string, errRet err
 		if errRet != nil {
 			log.Errorf("Installation failed: %v", errRet)
 			log.Infof("See log for details: %s", logFilePath)
-			printLog(logFilePath) // Attempt to print log content
+			printLog(logFilePath) // Attempt to print log content.
 		}
 	}()
 

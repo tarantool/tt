@@ -220,7 +220,7 @@ func TestParseBaseURI(t *testing.T) {
 		{"unix:///path/to/socket", connect.UnixNetwork, "/path/to/socket"},
 		{"unix://..//path/to/socket", connect.UnixNetwork, "..//path/to/socket"},
 		{"..//path", connect.UnixNetwork, "..//path"},
-		{"some_uri", connect.TCPNetwork, "some_uri"}, // Keeps unchanged
+		{"some_uri", connect.TCPNetwork, "some_uri"}, // Keeps unchanged.
 	}
 
 	for _, tc := range cases {

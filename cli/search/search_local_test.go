@@ -62,7 +62,7 @@ func TestFindLocalBundles(t *testing.T) {
 				mockDirEntry{name: "random-file.txt"},
 				mockDirEntry{name: "another-file.log"},
 			},
-			// TODO: Проверять запись в логе:
+			// TODO: Проверять запись в логе:.
 			logMsg: fmt.Sprintf("No local SDK files found for %q", search.ProgramEe),
 		},
 		"No permission to read directory": {
@@ -72,7 +72,7 @@ func TestFindLocalBundles(t *testing.T) {
 		"Not exists directory": {
 			program: search.ProgramEe,
 			files:   []fs.DirEntry{},
-			// TODO: Проверять запись в логе:
+			// TODO: Проверять запись в логе:.
 			logMsg: "Directory not found, cannot search for local SDK files",
 		},
 		"Matching files for " + search.ProgramEe.String(): {

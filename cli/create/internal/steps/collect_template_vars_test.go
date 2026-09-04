@@ -98,7 +98,7 @@ func TestInteractiveMode(t *testing.T) {
 
 	templateCtx.IsManifestPresent = true
 	var mockReader bytes.Buffer
-	mockReader.Write([]byte("user2\n" + // Invalid input.
+	mockReader.WriteString("user2\n" + // Invalid input.
 		"\n" + // Empty input. Will take the Default value.
 		"@)(#*(sd[f[\n" + // Invalid pwd input.
 		"\n" + // Empty input. Invalid if Default is not set.
@@ -107,7 +107,7 @@ func TestInteractiveMode(t *testing.T) {
 		"^(*&\\/..zxzc.>))!@(*)(\n" + // Valid input: no Re check, no Default value.
 		"cluster-cookie\n" + // Valid cookie value.
 		"5\n", // Valid retry count value.
-	))
+	)
 	collectVars := CollectTemplateVarsFromUser{Reader: &mockReader}
 	require.NoError(t, collectVars.Run(&createCtx, &templateCtx))
 

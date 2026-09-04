@@ -16,6 +16,7 @@ import (
 // clusterInstance describes tarantool 3 instance running using cluster config.
 type clusterInstance struct {
 	baseInstance
+
 	// clusterConfigPath is a path of the cluster config.
 	clusterConfigPath string
 	runDir            string

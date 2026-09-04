@@ -7,11 +7,11 @@ type Master int
 
 const (
 	// MasterUnknown is unknown type of a replicaset.
-	MasterUnknown Master = iota // unknown
+	MasterUnknown Master = iota // unknown.
 	// MasterNo is used when no master in a replicaset.
-	MasterNo // no
+	MasterNo // no.
 	// MasterSingle is used when there is a single master in a replicaset.
-	MasterSingle // single
+	MasterSingle // single.
 	// MasterMulti is used when there are > 1 master in a replicaset.
-	MasterMulti // multi
+	MasterMulti // multi.
 )

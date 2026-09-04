@@ -21,7 +21,7 @@ type Provider interface {
 	// UpdateLogger updates the logger settings or creates a new logger,
 	// if passed nil.
 	UpdateLogger(logger ttlog.Logger) (ttlog.Logger, error)
-	// IsRestartable checks
+	// IsRestartable checks.
 	IsRestartable() (bool, error)
 }
 

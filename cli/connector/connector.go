@@ -48,7 +48,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	// It became common that address is longer than 108 symbols(sun_path limit).
 	// To reduce length of address we use relative path
 	// with chdir into a directory of socket.
-	// e.g foo/bar/123.sock -> ./123.sock
+	// e.g foo/bar/123.sock -> ./123.sock.
 	workDir, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func Connect(opts ConnectOpts) (Connector, error) {
 	}
 
 	// Reset the deadline. From the SetDeadline doc:
-	// "A zero value for t means I/O operations will not time out."
+	// "A zero value for t means I/O operations will not time out.".
 	greetingConn.SetDeadline(time.Time{})
 
 	// Initialize connection.
