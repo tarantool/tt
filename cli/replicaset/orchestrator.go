@@ -30,7 +30,7 @@ var knownOrchestrators = []Orchestrator{
 	OrchestratorCustom,
 }
 
-// PraseOrchestrator parses an orchestrator from the string.
+// ParseOrchestrator parses an orchestrator from the string.
 func ParseOrchestrator(str string) Orchestrator {
 	for _, o := range knownOrchestrators {
 		if strings.EqualFold(str, o.String()) {

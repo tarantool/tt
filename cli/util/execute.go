@@ -164,7 +164,7 @@ func PrintFromStart(file *os.File) error {
 	return nil
 }
 
-// ExecuteCommandStdin executes program with given args in verbose or quiet mode
+// ExecuteCommandGetOutput executes program with given args in verbose or quiet mode
 // and sends stdinData to stdin pipe.
 func ExecuteCommandGetOutput(program, workDir string, stdinData []byte,
 	args ...string,

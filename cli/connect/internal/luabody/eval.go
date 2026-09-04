@@ -50,7 +50,7 @@ func GetEvalFuncBody(evaler string) (string, error) {
 	return GetTemplatedStr(evalFuncBody, mapping)
 }
 
-// getSuggestionsFuncBody returns lua code for completions.
+// GetSuggestionsFuncBody returns lua code for completions.
 func GetSuggestionsFuncBody() string {
 	return getSuggestionsFuncBody
 }

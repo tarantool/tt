@@ -372,12 +372,12 @@ func acquireBundleInfoToInstall(bp *bundleParams) error {
 // executeBundleInstallation performs the core installation steps:
 // dependency check, download/copy, unpack, copy artifacts.
 // It manages temporary directories and log files.
-func executeBundleInstallation(bp *bundleParams) (logFilePath string, errRet error) {
+func executeBundleInstallation(bp *bundleParams) (string, error) {
 	err := prepareTemporaryDirs(bp)
 	if err != nil {
 		return "", err
 	}
-	logFilePath = bp.logFile.Name()
+	logFilePath := bp.logFile.Name()
 
 	if !bp.inst.KeepTemp {
 		defer func() {
@@ -389,44 +389,50 @@ func executeBundleInstallation(bp *bundleParams) (logFilePath string, errRet err
 
 	defer func() {
 		// Note: capture the error, if any, and dump the saved log on the screen.
-		if errRet != nil {
-			log.Errorf("Installation failed: %v", errRet)
+		if err != nil {
+			log.Errorf("Installation failed: %v", err)
 			log.Infof("See log for details: %s", logFilePath)
 			printLog(logFilePath) // Attempt to print log content.
 		}
 	}()
 
+	err = executeBundleInstallationSteps(bp)
+	return logFilePath, err
+}
+
+// executeBundleInstallationSteps installs the bundle using the prepared temporary files.
+func executeBundleInstallationSteps(bp *bundleParams) error {
 	log.Infof("Starting installation steps in %s...", bp.tmpDir)
 	fmt.Fprintf(bp.logFile, "Installation started for %s version %s\n",
 		bp.inst.Program, bp.bundleInfo.Version.Str)
 
-	if err = checkDependencies(bp.inst.Program, bp.inst.Force); err != nil {
+	if err := checkDependencies(bp.inst.Program, bp.inst.Force); err != nil {
 		fmt.Fprintf(bp.logFile, "Dependency check failed: %v\n", err)
-		return logFilePath, err
+		return err
 	}
 	fmt.Fprintf(bp.logFile, "Dependency check passed.\n")
 
-	err = obtainBundle(bp)
+	err := obtainBundle(bp)
 	if err != nil {
-		return logFilePath, err
+		return err
 	}
 	fmt.Fprintf(bp.logFile, "Bundle obtained successfully.\n")
 	bundlePath := filepath.Join(bp.tmpDir, bp.bundleInfo.Version.Tarball)
 
 	if err = unpackBundle(bundlePath, bp.logFile); err != nil {
-		return logFilePath, err
+		return err
 	}
 	fmt.Fprintf(bp.logFile, "Bundle unpacked successfully.\n")
 
 	err = copyNewArtifacts(bp)
 	if err != nil {
-		return logFilePath, err
+		return err
 	}
 	fmt.Fprintf(bp.logFile, "Artifacts copied successfully.\n")
 
 	log.Infof("Core installation steps completed successfully.")
 	fmt.Fprintf(bp.logFile, "Core installation steps completed successfully.\n")
-	return logFilePath, nil
+	return nil
 }
 
 // installBundleProgram orchestrates the installation process for programs distributed as bundles.

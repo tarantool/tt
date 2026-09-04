@@ -324,7 +324,10 @@ func getCConfigRolesPath(goView goconfig.Config,
 // we consider the configs which contains the paths (in the priority order):
 // * "/groups/g/replicasets/r/leader"
 // * "/groups/g/replicasets/r".
-func getCConfigPromotePath(inst cconfigInstance) (path goconfig.KeyPath, depth int, err error) {
+func getCConfigPromotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
+	var path goconfig.KeyPath
+	var depth int
+	var err error
 	var (
 		failover       = inst.failover
 		groupName      = inst.groupName
@@ -352,7 +355,10 @@ func getCConfigPromotePath(inst cconfigInstance) (path goconfig.KeyPath, depth i
 
 // getCConfigDemotePath returns a path and it's minimum interesting depth
 // to patch the config for instance demoting.
-func getCConfigDemotePath(inst cconfigInstance) (path goconfig.KeyPath, depth int, err error) {
+func getCConfigDemotePath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
+	var path goconfig.KeyPath
+	var depth int
+	var err error
 	var (
 		failover       = inst.failover
 		groupName      = inst.groupName
@@ -375,17 +381,17 @@ func getCConfigDemotePath(inst cconfigInstance) (path goconfig.KeyPath, depth in
 
 // getCConfigExpelPath returns a path and it's minimum interesting depth
 // to patch the config for instance expelling.
-func getCConfigExpelPath(inst cconfigInstance) (path goconfig.KeyPath, depth int, err error) {
+func getCConfigExpelPath(inst cconfigInstance) (goconfig.KeyPath, int, error) {
 	var (
 		groupName      = inst.groupName
 		replicasetName = inst.replicasetName
 		instName       = inst.name
 	)
-	path = goconfig.NewKeyPath(fmt.Sprintf(
+	path := goconfig.NewKeyPath(fmt.Sprintf(
 		"groups/%s/replicasets/%s/instances/%s/iproto/listen",
 		groupName, replicasetName, instName))
-	depth = len(path) - 2
-	return
+	depth := len(path) - 2
+	return path, depth, nil
 }
 
 // patchTarget describes a cluster config patch target.

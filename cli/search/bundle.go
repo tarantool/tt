@@ -29,17 +29,17 @@ type BundleInfo struct {
 // sorting from oldest to newest.
 type BundleInfoSlice []BundleInfo
 
-// sort.Interface Swap implementation.
+// Swap implements sort.Interface.
 func (bundles BundleInfoSlice) Swap(i, j int) {
 	bundles[i], bundles[j] = bundles[j], bundles[i]
 }
 
-// sort.Interface Len implementation.
+// Len implements sort.Interface.
 func (bundles BundleInfoSlice) Len() int {
 	return len(bundles)
 }
 
-// sort.Interface Less implementation.
+// Less implements sort.Interface.
 func (bundles BundleInfoSlice) Less(i, j int) bool {
 	verLeft := bundles[i].Version
 	verRight := bundles[j].Version

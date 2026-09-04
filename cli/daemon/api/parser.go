@@ -21,9 +21,9 @@ type commandJSON struct {
 // command describes the tt command.
 type command struct {
 	// Name is name of the command.
-	Name string
+	Name string `mapstructure:"name"`
 	// Params are command parameters.
-	Params []string
+	Params []string `mapstructure:"params"`
 }
 
 // parseCommand decodes JSON, checks the parameters

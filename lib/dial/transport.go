@@ -16,7 +16,7 @@ const (
 	TransportDefault Transport = iota
 	// TransportPlain used for insecure connection mode.
 	TransportPlain
-	// TransportSSL used for encrypted connection mode.
+	// TransportSsl is used for encrypted connection mode.
 	TransportSsl
 )
 
