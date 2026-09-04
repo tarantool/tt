@@ -61,7 +61,7 @@ func fetchBundlesInfoLocal(files []string, program Program) (BundleInfoSlice, er
 
 	versions := make(BundleInfoSlice, 0, len(files))
 	for _, file := range files {
-		parsedData := util.FindNamedMatches(re, file) // Assumes util package is imported
+		parsedData := util.FindNamedMatches(re, file) // Assumes util package is imported.
 		if len(parsedData) == 0 {
 			continue
 		}

@@ -33,6 +33,8 @@ func readWithTimeout(t *testing.T, ch <-chan string, timeout time.Duration) (str
 }
 
 func writeLogLines(t *testing.T, f *os.File, count int, line_fmt string) error {
+	t.Helper()
+
 	for i := range count {
 		_, err := fmt.Fprintln(f, fmt.Sprintf(line_fmt, i+1))
 		if err != nil {
@@ -124,7 +126,7 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 		t.Fatalf("Failed to check lines in file: %v", err)
 	}
 
-	// Append new content
+	// Append new content.
 	appendFile, err := os.OpenFile(lf, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		t.Fatalf("Failed to open file for append: %v", err)
@@ -164,10 +166,10 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 		t.Fatalf("Failed to check lines in file: %v", err)
 	}
 
-	// Cancel context and wait for goroutine to finish
+	// Cancel context and wait for goroutine to finish.
 	cancel()
 
-	// Wait with timeout to ensure goroutine completes
+	// Wait with timeout to ensure goroutine completes.
 	waitCh := make(chan struct{})
 	go func() {
 		f.Wait()
@@ -176,7 +178,7 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 
 	select {
 	case <-waitCh:
-		// Success - goroutine completed
+		// Success - goroutine completed.
 
 	case <-time.After(3 * time.Second):
 		t.Fatal("Timeout waiting for Follow2 goroutine to terminate after context cancellation")
@@ -196,6 +198,8 @@ func TestFollow2_NonExistentFile(t *testing.T) {
 }
 
 func rotationTest(t *testing.T, use_delay bool) {
+	t.Helper()
+
 	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())

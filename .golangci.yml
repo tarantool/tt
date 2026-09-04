@@ -1,28 +1,13 @@
 version: "2"
 
-# NOTE: this config is intentionally scoped to the freshly written code only.
-# The `path-except` exclusion below names the packages that are actually clean
-# under it, so the strict ruleset can be adopted incrementally instead of
-# flooding the whole tt tree with findings. Widening the scope means adding a
-# package to that rule - and cleaning it first, because the rule is a gate:
-# `mage lint:strict` runs this config in CI on every push, with no diff filter.
-#
-# The list is deliberately per-package rather than the whole `cli/manifest/`
-# subtree. The subtree form claimed packages that had never been cleaned:
-# measured on 2026-08-31, `pack` carried 171 findings, `inventory` 83, `build`
-# 55 and `build/backend` 50, and nothing complained because the only job that
-# ran this config was gated behind a `full-commit-check` PR label. Those four
-# are the outstanding work; every other package under cli/manifest is at zero.
-#
-# The project-wide lint still runs from `golangci-lint.yml` (see magefile.go);
-# that one is a v1-format config and needs a v1 linter, which is why
-# `mage lint:golang` and `mage lint:strict` are separate targets.
-
 run:
   timeout: 3m
   build-tags:
     - go_tarantool_ssl_disable
     - tt_ssl_disable
+    - integration
+    - integration_docker
+    - mage
 
 formatters:
   enable:
@@ -37,37 +22,81 @@ linters:
   default: all
 
   disable:
-    - dupl # Dupl is disabled, since we're generating a lot of boilerplate code.
-    - cyclop # Cyclop is disabled, since cyclomatic complexities is very abstract metric,
-      # that sometimes lead to strange linter behaviour.
-    - wsl # WSL is disabled, since it's obsolete. Using WSL_v5.
-    - nlreturn # nlreturn is disabled, since it's duplicated by wsl_v5.return check.
-    - ireturn # ireturn is disabled, since it's not needed.
-    - godox # godox is disabled to allow TODO comments for unimplemented functionality.
-    - gocognit # gocognit is disabled, cognitive complexity is too restrictive.
-    - funlen # funlen is disabled, function length limits are too restrictive.
-    - maintidx # maintidx is disabled, purpose of this metric is unknown.
-
-  exclusions:
-    generated: lax
-    rules:
-      # Scope linting to the packages adopted into the strict ruleset. An issue
-      # is excluded when its path is NOT one of them: either a file directly in
-      # cli/manifest/, or anything under one of the named sub-packages. Add a
-      # sub-package here once it lints clean; build, build/backend, inventory
-      # and pack are the ones still outstanding.
-      - path-except: (^|/)cli/manifest/((deps|install|resolve|rocks|state|version)/|[^/]+\.go$)
-        text: ".*"
-      - path: _test.go
-        linters:
-          - wrapcheck
-          - err113
-          - funlen
-          # Table-driven and fixture tests build partial structs on purpose;
-          # requiring every field spelled out is noise in tests.
-          - exhaustruct
+    - arangolint
+    - clickhouselint
+    - containedctx
+    - contextcheck
+    - cyclop
+    - decorder
+    - depguard
+    - dupl
+    - dupword
+    - err113
+    - errcheck
+    - errorlint
+    - exhaustive
+    - exhaustruct
+    - exhaustruct_v5
+    - exptostd
+    - forbidigo
+    - forcetypeassert
+    - funcorder
+    - funlen
+    - gochecknoglobals
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godoclint
+    - godox
+    - goheader
+    - gomodguard
+    - gomodguard_v2
+    - gosec
+    - gosmopolitan
+    - govet
+    - iface
+    - inamedparam
+    - intrange
+    - ireturn
+    - maintidx
+    - misspell
+    - mnd
+    - modernize
+    - musttag
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
+    - noctx
+    - noinlineerr
+    - nonamedreturns
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - protogetter
+    - recvcheck
+    - revive
+    - staticcheck
+    - tagliatelle
+    - testifylint
+    - testpackage
+    - tparallel
+    - unconvert
+    - unparam
+    - usetesting
+    - varnamelen
+    - wastedassign
+    - wrapcheck
+    - wsl
+    - wsl_v5
 
   settings:
+    gomoddirectives:
+      replace-local: true
+      replace-allow-list:
+        - github.com/c-bata/go-prompt
     varnamelen:
       ignore-names:
         - tt
@@ -105,6 +134,7 @@ linters:
       branch-max-lines: 2
       case-max-lines: 0
       default: all
+
     depguard:
       rules:
         main:
@@ -171,3 +201,12 @@ linters:
             - "github.com/klauspost/compress/zstd"
             # cli/manifest/inventory tests round-trip the YAML they rendered.
             - "gopkg.in/yaml.v3"
+
+  exclusions:
+    rules:
+      # Go struct tags cannot be split across source lines. Keep the 100-column
+      # limit everywhere else without scattering nolint directives in code.
+      - path: ^cli/manifest/inventory/uninstall\.go$
+        source: ^\s+(RemovedDependencies|KeptDependencies)\s
+        linters:
+          - lll

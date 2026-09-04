@@ -168,7 +168,7 @@ func getAllTtVersionFormats(program search.Program, ttVersion string) ([]string,
 	if program == search.ProgramTt {
 		// Need to determine if we have x.y.z format in tt uninstall argument
 		// to make sure we add version prefix.
-		versionMatches, err := regexp.Match(MajorMinorPatchRegexp, []byte(ttVersion))
+		versionMatches, err := regexp.MatchString(MajorMinorPatchRegexp, ttVersion)
 		if err != nil {
 			return versionsToDelete, err
 		}

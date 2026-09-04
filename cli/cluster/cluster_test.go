@@ -41,12 +41,6 @@ func getCfgString(t *testing.T, cfg goconfig.Config, path string) string {
 	return v
 }
 
-// cfgHasPath reports whether the given slash-separated path exists in cfg.
-func cfgHasPath(cfg goconfig.Config, path string) bool {
-	_, ok := cfg.Lookup(goconfig.NewKeyPath(path))
-	return ok
-}
-
 func TestGetClusterConfig_path(t *testing.T) {
 	clearAmbientTTEnv(t)
 	cfg, err := cluster.GetClusterConfig(context.Background(), "testdata/app/config.yaml",
@@ -179,8 +173,8 @@ func TestGetInstanceConfig_noinstance(t *testing.T) {
 func TestGetClusterConfig_env_two_tier_priority(t *testing.T) {
 	cases := []struct {
 		name          string
-		mainEnv       string // TT_REPLICATION_FAILOVER value ("" means unset)
-		defaultEnv    string // TT_REPLICATION_FAILOVER_DEFAULT value ("" means unset)
+		mainEnv       string // TT_REPLICATION_FAILOVER value ("" means unset).
+		defaultEnv    string // TT_REPLICATION_FAILOVER_DEFAULT value ("" means unset).
 		expectedValue string
 	}{
 		{
@@ -271,7 +265,7 @@ groups:
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	_ = cfg // just built for sanity
+	_ = cfg // just built for sanity.
 
 	// With two unreachable endpoints, GetClusterConfig should error.
 	_, err = cluster.GetClusterConfig(context.Background(), f.Name(), integrity.IntegrityCtx{})

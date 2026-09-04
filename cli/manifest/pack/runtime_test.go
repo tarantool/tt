@@ -103,7 +103,12 @@ func TestFindInCachePicksHighest(t *testing.T) {
 		runtimeTarantool: {"3.0.1", "3.2.0", "3.10.0", "2.11.0", "4.0.0"},
 	})
 
-	dir, ver, ok, err := findInCache(cache, runtimeTarantool, flavorCE, constraint(">=3.0.0,<4.0.0"))
+	dir, ver, ok, err := findInCache(
+		cache,
+		runtimeTarantool,
+		flavorCE,
+		constraint(">=3.0.0,<4.0.0"),
+	)
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, "3.10.0", ver, "3.10.0 > 3.2.0 numerically, not lexically")

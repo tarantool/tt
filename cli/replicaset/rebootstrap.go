@@ -97,7 +97,7 @@ func Rebootstrap(cmdCtx cmdcontext.CmdCtx, cliOpts config.CliOpts, rbCtx Reboots
 	}
 
 	// TODO: need to support integrity check continuation on this start.
-	// tarantool/tt-ee#203
+	// tarantool/tt-ee#203.
 	log.Debugf("Starting the instance")
 	ttBin, err := os.Executable()
 	if err != nil {

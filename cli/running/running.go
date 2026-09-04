@@ -92,7 +92,7 @@ type InstanceCtx struct {
 	BinaryPort string
 	// True if this is a single instance application (no instances.yml).
 	SingleApp bool
-	// IsFileApp true if this instance is lua-script instance (no-dir)
+	// IsFileApp true if this instance is lua-script instance (no-dir).
 	IsFileApp bool
 	// ClusterConfigPath is a path of cluster configuration.
 	ClusterConfigPath string
@@ -456,7 +456,6 @@ func collectInstances(appName, applicationDir string,
 	// the application directory itself.
 	if instCtx, err := searchApplicationScript(applicationDir, appName); err != nil ||
 		instCtx.InstanceScript != "" {
-
 		return []InstanceCtx{instCtx}, err
 	}
 
@@ -654,7 +653,6 @@ func FillCtx(cliOpts *config.CliOpts, cmdCtx *cmdcontext.CmdCtx,
 
 	if len(args) > 1 && cmdCtx.CommandName != "run" && cmdCtx.CommandName != "connect" &&
 		cmdCtx.CommandName != "add" && cmdCtx.CommandName != "remove" {
-
 		return util.NewArgError("currently, you can specify only one instance at a time")
 	}
 
@@ -835,7 +833,7 @@ func Logrotate(run *InstanceCtx) error {
 		return fmt.Errorf(`can't rotate logs: "%v"`, err)
 	}
 
-	// Rotates logs [instance name pid]
+	// Rotates logs [instance name pid].
 	log.Infof("%s (PID = %v): logs has been rotated.", fullInstanceName, pid)
 
 	return nil

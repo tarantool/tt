@@ -16,7 +16,9 @@ const (
 	TypeBeta
 	TypeRC
 	TypeRelease
+)
 
+const (
 	// CliSeparator is used in commands to specify version. E.g: program=version.
 	CliSeparator = "="
 	// FsSeparator is used in file names to specify version. E.g: program_version.
@@ -61,9 +63,9 @@ func (release Release) String() string {
 }
 
 type Version struct {
-	Major      uint64  // Major
-	Minor      uint64  // Minor
-	Patch      uint64  // Patch
+	Major      uint64  // Major.
+	Minor      uint64  // Minor.
+	Patch      uint64  // Patch.
 	Additional uint64  // Additional commits.
 	Revision   uint64  // Revision number.
 	Release    Release // Release type.

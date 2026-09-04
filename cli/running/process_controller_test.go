@@ -40,7 +40,7 @@ func TestProcessController(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, dpc.IsAlive())
 
-	// Test sending signal
+	// Test sending signal.
 	require.NoError(t, waitForMsgInBuffer(&outBuf, "started", 5*time.Second))
 	dpc.SendSignal(syscall.SIGUSR1)
 	require.NoError(t, waitForMsgInBuffer(&outBuf, "sigusr1", 5*time.Second))

@@ -989,7 +989,6 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 		pathToBin := filepath.Join(binDir, versionStr)
 		if util.IsRegularFile(pathToBin) &&
 			util.IsDir(filepath.Join(incDir, versionStr)) {
-
 			isBinExecutable, err := util.IsExecOwner(pathToBin)
 			if err != nil {
 				return err

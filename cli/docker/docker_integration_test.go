@@ -17,6 +17,8 @@ import (
 )
 
 func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client, expectedTag string) {
+	t.Helper()
+
 	ctx := context.Background()
 	imageListResult, err := dockerClient.ImageList(ctx, mobyclient.ImageListOptions{})
 	require.NoError(t, err)
@@ -110,8 +112,13 @@ func TestBuildImageOutput(t *testing.T) {
 }
 
 func checkNoContainers(t *testing.T, imageTag string) {
+	t.Helper()
+
 	ctx := context.Background()
-	cli, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv, mobyclient.WithAPIVersionNegotiation())
+	cli, err := mobyclient.NewClientWithOpts(
+		mobyclient.FromEnv,
+		mobyclient.WithAPIVersionNegotiation(),
+	)
 	require.NoError(t, err)
 	defer cli.Close()
 

@@ -46,12 +46,14 @@ func Promote(ctx PromoteCtx) error {
 
 	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
-		if orchestrator, err = makeApplicationOrchestrator(
-			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity); err != nil {
+		orchestrator, err = makeApplicationOrchestrator(
+			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
+		if err != nil {
 			return err
 		}
 	} else {
-		if orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn); err != nil {
+		orchestrator, err = makeInstanceOrchestrator(orchestratorType, ctx.Conn)
+		if err != nil {
 			return err
 		}
 	}

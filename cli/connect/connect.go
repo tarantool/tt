@@ -39,14 +39,15 @@ type ConnectCtx struct {
 	Interactive bool
 	// ConnectTarget contains connection target string: URI or instance name.
 	ConnectTarget string
-	// Binary port is used
+	// Binary port is used.
 	Binary bool
 	// Evaler lua expression.
 	Evaler string
 }
 
 const (
-	// see https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/src/box/lua/console.c#L265
+	// see https://github.com/tarantool/tarantool/blob/b53cb2aeceedc39f356ceca30bd0087ee8de7c16/
+	// src/box/lua/console.c#L265.
 	tarantoolWordSeparators = "\t\r\n !\"#$%&'()*+,-/;<=>?@[\\]^`{|}~"
 )
 

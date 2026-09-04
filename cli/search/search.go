@@ -78,7 +78,7 @@ func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
 		vers, err = searchVersionsGit(cliOpts, GitRepoTarantool)
 	case ProgramTt:
 		vers, err = searchVersionsGit(cliOpts, GitRepoTT)
-	case ProgramEe, ProgramTcm: // Group of API-based searches
+	case ProgramEe, ProgramTcm: // Group of API-based searches.
 		vers, err = searchVersionsTntIo(cliOpts, &searchCtx)
 	default:
 		return fmt.Errorf("remote search for program '%s' is not implemented", prg)

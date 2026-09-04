@@ -7,11 +7,11 @@ type Program int
 
 const (
 	ProgramUnknown Program = iota
-	ProgramCe              // tarantool
-	ProgramEe              // tarantool-ee
-	ProgramTt              // tt
-	ProgramDev             // tarantool-dev
-	ProgramTcm             // tcm
+	ProgramCe              // tarantool.
+	ProgramEe              // tarantool-ee.
+	ProgramTt              // tt.
+	ProgramDev             // tarantool-dev.
+	ProgramTcm             // tcm.
 )
 
 // programToExec contains executables matched for each Program types.

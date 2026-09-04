@@ -74,9 +74,9 @@ type UriOpts struct {
 	Prefix string
 	// Tag value of #fragment URL part.
 	Tag string
-	// Username is a user name for authorization
+	// Username is a user name for authorization.
 	Username string
-	// Password is a password for authorization
+	// Password is a password for authorization.
 	Password string
 	// KeyFile is a path to a private SSL key file.
 	KeyFile string
@@ -115,7 +115,7 @@ func IsBaseURI(str string) bool {
 	// ../path
 	// ~/path
 	// /path
-	// ./path
+	// ./path.
 	pathReStr := systemPathPrefixRe + `[^\./].*`
 
 	uriReStr := "^((" + tcpReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
@@ -143,13 +143,14 @@ func IsCredentialsURI(str string) bool {
 	// https://user:password@host
 	httpsReStr := `(http|https)://` + userPassRe + `@([\w\.-]+(:\d+)?)(/[\w\-\./~]*)?`
 
-	uriReStr := "^((" + tcpReStr + ")|(" + httpsReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
+	uriReStr := "^((" + tcpReStr +
+		")|(" + httpsReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
 	return uriRe.MatchString(str)
 }
 
 // ParseBaseURI parses an URI and returns:
-// (network, address)
+// (network, address).
 func ParseBaseURI(uri string) (string, string) {
 	var network, address string
 	uriLen := len(uri)
@@ -181,7 +182,7 @@ func ParseBaseURI(uri string) (string, string) {
 }
 
 // ParseCredentialsURI parses a URI with credentials and returns:
-// (URI without credentials, user, password)
+// (URI without credentials, user, password).
 func ParseCredentialsURI(str string) (string, string, string) {
 	if !IsCredentialsURI(str) {
 		return str, "", ""

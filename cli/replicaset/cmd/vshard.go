@@ -60,8 +60,9 @@ func BootstrapVShard(ctx VShardCmdCtx) error {
 
 	var orchestrator replicasetOrchestrator
 	if ctx.IsApplication {
-		if orchestrator, err = makeApplicationOrchestrator(
-			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity); err != nil {
+		orchestrator, err = makeApplicationOrchestrator(
+			orchestratorType, ctx.RunningCtx, ctx.Collectors, ctx.Publishers, ctx.Integrity)
+		if err != nil {
 			return err
 		}
 	} else {

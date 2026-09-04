@@ -67,7 +67,7 @@ five
 				count: 10,
 			},
 			want:    []byte{},
-			wantErr: true, // EOF
+			wantErr: true, // EOF.
 		},
 		{
 			name: "No new-line, want 0",
@@ -134,6 +134,8 @@ five
 }
 
 func linesChecker(t *testing.T, expected []string) func(str string) {
+	t.Helper()
+
 	i := 0
 	return func(str string) {
 		require.Less(t, i, len(expected))
@@ -374,7 +376,6 @@ func TestFollow(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			outFile, err := os.CreateTemp(tmpDir, "*.txt")

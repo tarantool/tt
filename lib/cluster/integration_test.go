@@ -35,6 +35,8 @@ func yamlUnmarshal(data []byte, v any) error {
 const timeout = 5 * time.Second
 
 func tcsIsSupported(t *testing.T) bool {
+	t.Helper()
+
 	ok, err := test_helpers.IsTcsSupported()
 	if err != nil {
 		t.Fatalf("Failed to check if TCS is supported: %s", err)
@@ -43,11 +45,15 @@ func tcsIsSupported(t *testing.T) bool {
 }
 
 func startTcs(t *testing.T) *tcs_helper.TCS {
+	t.Helper()
+
 	tcs := tcs_helper.StartTesting(t, 3301)
 	return &tcs
 }
 
 func stopTcs(t *testing.T, inst any) {
+	t.Helper()
+
 	tcs, ok := inst.(*tcs_helper.TCS)
 	if !ok {
 		t.Fatalf("Shutdown expected *tcs_helper.TCS, got %T", inst)
@@ -512,10 +518,14 @@ var testsIntegrity = []struct {
 		Name:       "tarantool",
 		Applicable: tcsIsSupported,
 		Setup: func(t *testing.T) interface{} {
+			t.Helper()
+
 			inst := startTcs(t)
 			return inst
 		},
 		Shutdown: func(t *testing.T, inst interface{}) {
+			t.Helper()
+
 			stopTcs(t, inst)
 		},
 		NewPublisher: func(
@@ -525,6 +535,8 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataPublisher, func()) {
+			t.Helper()
+
 			tcs, ok := inst.(*tcs_helper.TCS)
 			if !ok {
 				t.Fatalf("NewPublisher expected *tcs_helper.TCS, got %T", inst)
@@ -544,7 +556,13 @@ var testsIntegrity = []struct {
 			require.NoError(t, err)
 
 			stor := pkgstorage.NewStorage(tcsdriver.New(conn))
-			pub, err := publisherFactory.NewRemoteStorage(stor, prefix, key, 1*time.Second, "tarantool")
+			pub, err := publisherFactory.NewRemoteStorage(
+				stor,
+				prefix,
+				key,
+				1*time.Second,
+				"tarantool",
+			)
 			require.NoError(t, err)
 
 			return pub, func() { conn.Close() }
@@ -556,6 +574,8 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataCollector, func()) {
+			t.Helper()
+
 			tcs, ok := inst.(*tcs_helper.TCS)
 			if !ok {
 				t.Fatalf("NewCollector expected *tcs_helper.TCS, got %T", inst)
@@ -570,24 +590,42 @@ var testsIntegrity = []struct {
 				MaxReconnects: 10,
 			}
 
-			conn, err := tarantool.Connect(context.Background(), tcs.Dialer(), opts)
+			conn, err := tarantool.Connect(
+				context.Background(),
+				tcs.Dialer(),
+				opts,
+			)
 			require.NoError(t, err)
 
 			stor := pkgstorage.NewStorage(tcsdriver.New(conn))
-			coll, err := collectorFactory.NewRemoteStorage(stor, prefix, key, 1*time.Second, "tarantool")
+			coll, err := collectorFactory.NewRemoteStorage(
+				stor,
+				prefix,
+				key,
+				1*time.Second,
+				"tarantool",
+			)
 			require.NoError(t, err)
 
 			return coll, func() { conn.Close() }
 		},
 	},
 	{
-		Name:       "etcd",
-		Applicable: func(t *testing.T) bool { return true },
+		Name: "etcd",
+		Applicable: func(t *testing.T) bool {
+			t.Helper()
+
+			return true
+		},
 		Setup: func(t *testing.T) interface{} {
+			t.Helper()
+
 			inst := startEtcd(t, etcdOpts{})
 			return inst
 		},
 		Shutdown: func(t *testing.T, inst interface{}) {
+			t.Helper()
+
 			inst.(*etcdtest.LazyCluster).Terminate()
 		},
 		NewPublisher: func(
@@ -597,6 +635,8 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataPublisher, func()) {
+			t.Helper()
+
 			publisherFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
@@ -621,6 +661,8 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataCollector, func()) {
+			t.Helper()
+
 			collectorFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
@@ -633,7 +675,13 @@ var testsIntegrity = []struct {
 			require.NoError(t, err)
 
 			stor := pkgstorage.NewStorage(etcddriver.New(etcd))
-			coll, err := collectorFactory.NewRemoteStorage(stor, prefix, key, 10*time.Second, "etcd")
+			coll, err := collectorFactory.NewRemoteStorage(
+				stor,
+				prefix,
+				key,
+				10*time.Second,
+				"etcd",
+			)
 			require.NoError(t, err)
 
 			return coll, func() { etcd.Close() }
@@ -754,7 +802,13 @@ func TestIntegrityDataPublisherKey_CollectorAll_valid(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validIntegrityOptions, testPrefix, "", inst)
+			collector, closeConn := test.NewCollector(
+				t,
+				validIntegrityOptions,
+				testPrefix,
+				"",
+				inst,
+			)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -843,7 +897,13 @@ func TestIntegrityDataCollectorAllPublisherAll_valid(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validIntegrityOptions, testPrefix, "", inst)
+			collector, closeConn := test.NewCollector(
+				t,
+				validIntegrityOptions,
+				testPrefix,
+				"",
+				inst,
+			)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -889,7 +949,13 @@ func TestIntegrityDataCollectorKeyPublisherAll_valid(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			collector, closeConn := test.NewCollector(t, validIntegrityOptions, testPrefix, "all", inst)
+			collector, closeConn := test.NewCollector(
+				t,
+				validIntegrityOptions,
+				testPrefix,
+				"all",
+				inst,
+			)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -914,7 +980,13 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 
 			const testPrefix = "/test5"
 
-			publisher, closeConn := test.NewPublisher(t, validIntegrityOptions, testPrefix, "bar", inst)
+			publisher, closeConn := test.NewPublisher(
+				t,
+				validIntegrityOptions,
+				testPrefix,
+				"bar",
+				inst,
+			)
 			defer closeConn()
 
 			exampleData1 := []byte("abcdefg")
@@ -930,7 +1002,11 @@ func TestIntegrityDataPublisher_CollectorAll_check_error(t *testing.T) {
 							err:  fmt.Errorf("any error"),
 						},
 					},
-				}, testPrefix, "", inst)
+				},
+				testPrefix,
+				"",
+				inst,
+			)
 			defer closeConn()
 
 			result, err := collector.Collect()
@@ -952,7 +1028,13 @@ func TestIntegrityDataPublisher_CollectorKey_check_error(t *testing.T) {
 
 			const testPrefix = "/test6"
 
-			publisher, closeConn := test.NewPublisher(t, validIntegrityOptions, testPrefix, "", inst)
+			publisher, closeConn := test.NewPublisher(
+				t,
+				validIntegrityOptions,
+				testPrefix,
+				"",
+				inst,
+			)
 			defer closeConn()
 
 			exampleData1 := []byte("abcdefg")
