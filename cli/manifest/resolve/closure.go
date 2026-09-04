@@ -382,7 +382,7 @@ func mergeDeps(
 		if !seen {
 			byName[name] = &depReq{
 				name:           name,
-				constraintExpr: dependency.Version,
+				constraintExpr: manifest.ConstraintExpr(dependency.Version),
 				constraints:    nil,
 				registry:       dependency.Registry,
 				source:         dependency.Source,
@@ -438,7 +438,8 @@ func mergeInto(existing *depReq, name string, dependency manifest.Dependency) er
 		existing.registry = dependency.Registry
 	}
 
-	existing.constraintExpr = joinConstraints(existing.constraintExpr, dependency.Version)
+	existing.constraintExpr = joinConstraints(
+		existing.constraintExpr, manifest.ConstraintExpr(dependency.Version))
 
 	return nil
 }

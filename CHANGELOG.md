@@ -120,6 +120,12 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt package`: a dependency declared as `*` — which is what `tt package add`
+  writes when no version is given — now resolves to whatever the registry
+  serves instead of failing with `cannot parse constraint "*"`. A constraint
+  the resolver cannot act on is also refused before the manifest is edited, so
+  a rejected `tt package add` no longer leaves a declaration behind with the
+  lock out of step.
 - `tt`: return non-zero exit code on unknown command.
 - `tt run`: report `tarantool executable is not found` instead of a raw
   `open "": no such file or directory` error when Tarantool is missing.
