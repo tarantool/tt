@@ -15,22 +15,22 @@ const (
 // UserPrompt describes interactive prompt to get the value of variable from a user.
 type UserPrompt struct {
 	// Prompt is an input prompt for the variable.
-	Prompt string
+	Prompt string `mapstructure:"prompt"`
 	// Name is a variable name to store a value to.
-	Name string
+	Name string `mapstructure:"name"`
 	// Default is a default value.
-	Default string
+	Default string `mapstructure:"default"`
 	// Re is a regular expression for the value validation.
-	Re string
+	Re string `mapstructure:"re"`
 }
 
 // TemplateManifest is a manifest for application template.
 type TemplateManifest struct {
 	// Description is a template description.
-	Description string
+	Description string `mapstructure:"description"`
 	// Vars is a set of variables, which values are to be
 	// requested from a user.
-	Vars []UserPrompt
+	Vars []UserPrompt `mapstructure:"vars"`
 	// PreHook is a path to the executable to run before template instantiation.
 	// Application path is passed as a first parameter.
 	PreHook string `mapstructure:"pre-hook"`
@@ -38,7 +38,7 @@ type TemplateManifest struct {
 	// Application path is passed as a first parameter.
 	PostHook string `mapstructure:"post-hook"`
 	// Include contains a list of files to keep after template instantiation.
-	Include []string
+	Include []string `mapstructure:"include"`
 	// FollowUpMessage is a message to print to console after application creation.
 	FollowUpMessage string `mapstructure:"follow-up-message"`
 }

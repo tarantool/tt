@@ -18,7 +18,7 @@ const (
 	StateProviderNone // none.
 	// StateProviderTarantool is used when a state provider is tarantool.
 	StateProviderTarantool // tarantool.
-	// StateProviderEtcdv2 is used when a state provider is etcdv2.
+	// StateProviderEtcd2 is used when a state provider is etcdv2.
 	StateProviderEtcd2 // etcd2.
 )
 

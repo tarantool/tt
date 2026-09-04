@@ -98,7 +98,7 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 }
 
 // ListBinaries outputs installed versions of programs from bin_dir.
-func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) (err error) {
+func ListBinaries(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts) error {
 	binDir := cliOpts.Env.BinDir
 	binDirFilesList, err := os.ReadDir(binDir)
 

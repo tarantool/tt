@@ -79,9 +79,11 @@ func deepCastAnyMapToStringMap(v any) interface{} {
 
 // encodeScalar encodes a scalar into a string.
 func encodeScalar(val any) string {
-	switch val.(type) {
-	case float64, float32:
-		return strconv.FormatFloat(val.(float64), 'f', -1, 64)
+	switch value := val.(type) {
+	case float64:
+		return strconv.FormatFloat(value, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(value), 'f', -1, 32)
 	case nil:
 		return "nil"
 	default:
@@ -145,7 +147,10 @@ func isSingleArrayOfArrays(batch []any) bool {
 // renderArrays returns a string representation of arrays.
 func renderArrays(batch []any, transpose bool, opts Opts) (string, error) {
 	if isSingleArrayOfArrays(batch) {
-		array := batch[0].([]any)
+		array, ok := batch[0].([]any)
+		if !ok {
+			return "", fmt.Errorf("expected an array, got %T", batch[0])
+		}
 		return renderArraysAsTable(array, transpose, opts)
 	} else {
 		return renderArraysAsTable(batch, transpose, opts)
@@ -156,7 +161,11 @@ func renderArrays(batch []any, transpose bool, opts Opts) (string, error) {
 func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error) {
 	maxLen := 0
 	for _, item := range batch {
-		itemLen := len(item.([]any))
+		array, ok := item.([]any)
+		if !ok {
+			return "", fmt.Errorf("expected an array, got %T", item)
+		}
+		itemLen := len(array)
 		if itemLen > maxLen {
 			maxLen = itemLen
 		}
@@ -168,12 +177,15 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 
 	var mapped []unorderedMap[any]
 	for _, item := range batch {
-		item := item.([]any)
+		array, ok := item.([]any)
+		if !ok {
+			return "", fmt.Errorf("expected an array, got %T", item)
+		}
 		itemMap := createUnorderedMap[any](maxLen)
 
 		for i := range maxLen {
-			if i < len(item) {
-				itemMap.insert(strconv.Itoa(i+1), item[i])
+			if i < len(array) {
+				itemMap.insert(strconv.Itoa(i+1), array[i])
 			} else {
 				itemMap.insert(strconv.Itoa(i+1), "")
 			}
@@ -371,8 +383,10 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 			switch n := node.(type) {
 			case unorderedMap[any]:
 				castedMap = n
+			case map[any]any:
+				castedMap = castMapToUMap(n)
 			default:
-				castedMap = castMapToUMap(node.(map[any]any))
+				return "", fmt.Errorf("expected a map, got %T", node)
 			}
 			anyMaps = append(anyMaps, castedMap)
 		}

@@ -120,6 +120,9 @@ for machine-readable output.
 
 ### Fixed
 
+- Table formatter: fix a potential panic when the scalar encoder receives a
+  `float32` value. Format it with 32-bit precision while preserving the existing
+  `float64` formatting.
 - `tt`: return non-zero exit code on unknown command.
 - `tt run`: report `tarantool executable is not found` instead of a raw
   `open "": no such file or directory` error when Tarantool is missing.

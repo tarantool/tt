@@ -55,7 +55,7 @@ type SwitchCtx struct {
 	Timeout uint64
 }
 
-// SwitchStatus describes the context to the master switching status.
+// SwitchStatusCtx describes the context to the master switching status.
 type SwitchStatusCtx struct {
 	// Task ID.
 	TaskID string

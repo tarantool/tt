@@ -92,7 +92,7 @@ func getSystemAppOpts() *config.AppOpts {
 	}
 }
 
-// GetDefaultCliOpts returns `CliOpts` filled with default values.
+// GetSystemCliOpts returns `CliOpts` filled with system defaults.
 func GetSystemCliOpts() *config.CliOpts {
 	modules := config.ModulesOpts{
 		Directories: []string{ModulesPath},
@@ -233,7 +233,11 @@ func decodeStringAsArrayField(from, to reflect.Type, value interface{}) (
 	if to != reflect.TypeOf(config.FieldStringArrayType{}) || from.Kind() != reflect.String {
 		return value, nil
 	}
-	return []string{value.(string)}, nil
+	str, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("expected a string value, got %T", value)
+	}
+	return []string{str}, nil
 }
 
 func decodeConfig(input map[string]any, cfg *config.CliOpts) error {

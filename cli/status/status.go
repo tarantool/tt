@@ -70,18 +70,18 @@ const (
 )
 
 type instanceAlert struct {
-	Message  string   `json:"message"`
-	Severity severity `json:"severity"`
+	Message  string   `json:"message"  yaml:"message"`
+	Severity severity `json:"severity" yaml:"severity"`
 }
 
 type instanceStatus struct {
-	Status             string                     `json:"status"`
-	PID                *int                       `json:"pid"`
-	Mode               string                     `json:"mode"`
-	Config             string                     `json:"config"`
-	Box                string                     `json:"box"`
-	Upstream           string                     `json:"upstream"`
-	Alerts             []instanceAlert            `json:"alerts"`
+	Status             string                     `json:"status"   yaml:"status"`
+	PID                *int                       `json:"pid"      yaml:"pid"`
+	Mode               string                     `json:"mode"     yaml:"mode"`
+	Config             string                     `json:"config"   yaml:"config"`
+	Box                string                     `json:"box"      yaml:"box"`
+	Upstream           string                     `json:"upstream" yaml:"upstream"`
+	Alerts             []instanceAlert            `json:"alerts"   yaml:"alerts"`
 	rawReplicationInfo []rawReplicationInfo       `json:"-"        yaml:"-"`
 	procStatus         process_utils.ProcessState `json:"-"        yaml:"-"`
 }
