@@ -329,7 +329,7 @@ func TestPoolEval_error(t *testing.T) {
 			require.NotNil(t, pool)
 			defer pool.Close()
 
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				_, err = pool.Eval("error('foo')", []any{"foo"}, RequestOpts{})
 				assert.ErrorContains(t, err, "foo")
 			}

@@ -34,7 +34,7 @@ func getCredsInteractive() (UserCredentials, error) {
 	res.Username = strings.TrimSpace(resp)
 
 	fmt.Printf("Enter Password: ")
-	bytePass, err := term.ReadPassword(int(syscall.Stdin))
+	bytePass, err := term.ReadPassword(syscall.Stdin)
 	if err != nil {
 		return res, err
 	}

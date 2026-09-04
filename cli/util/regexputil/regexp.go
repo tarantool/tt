@@ -2,10 +2,10 @@ package regexputil
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/maps"
 )
 
 var varPattern = regexp.MustCompile(`{{\s*([^ ]+)\s*}}`)
@@ -26,7 +26,7 @@ func ApplyVars(templateStr string, data map[string]string) (string, error) {
 
 	if len(missingVars) > 0 {
 		return renderedStr, fmt.Errorf("missing vars: %s\nin template string: %q",
-			strings.Join(maps.Keys(missingVars), ","), templateStr)
+			strings.Join(slices.Collect(maps.Keys(missingVars)), ","), templateStr)
 	}
 
 	return renderedStr, nil

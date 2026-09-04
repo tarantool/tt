@@ -136,6 +136,8 @@ func getArchForApi(informer PlatformInformer, program Program) (string, error) {
 	case ProgramTcm:
 		m["x86_64"] = "amd64"
 		m["aarch64"] = "arm64"
+	case ProgramUnknown, ProgramCe, ProgramEe, ProgramTt, ProgramDev:
+		// Use the default architecture mapping.
 	}
 
 	if arch, ok := m[arch]; ok {

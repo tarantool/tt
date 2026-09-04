@@ -2,21 +2,20 @@ package cmd
 
 import (
 	"fmt"
+	"maps"
 	"slices"
-
-	"golang.org/x/exp/maps"
 )
 
 // Transport is a type, with a restriction on the list of supported connection modes.
 type Transport string
 
 // String is used both by fmt.Print and by Cobra in help text.
-func (t Transport) String() string {
-	return string(t)
+func (t *Transport) String() string {
+	return string(*t)
 }
 
 // Type is only used in Cobra help text.
-func (t Transport) Type() string {
+func (t *Transport) Type() string {
 	return "MODE"
 }
 
@@ -46,7 +45,7 @@ func (t *Transport) Set(v string) error {
 
 // ListValidTransports returns string representation with list of supported transport modes.
 func ListValidTransports() string {
-	ks := maps.Keys(ValidTransport)
+	ks := slices.Collect(maps.Keys(ValidTransport))
 	slices.Sort(ks)
 	return fmt.Sprintf("%v", ks)
 }

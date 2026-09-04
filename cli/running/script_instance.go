@@ -164,7 +164,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	if inst.processController, err = newProcessController(cmd); err != nil {
 		return err
 	}
-	StdinPipe.Write([]byte(instanceLauncher))
+	StdinPipe.Write(instanceLauncher)
 	StdinPipe.Close()
 
 	return nil

@@ -19,7 +19,7 @@ func TestTransport_Set(t *testing.T) {
 		{"mode", cmd.Transport(""), true},
 	}
 	for _, tt := range tests {
-		t.Run(string(tt.val), func(t *testing.T) {
+		t.Run(tt.val, func(t *testing.T) {
 			var tr cmd.Transport
 			if err := tr.Set(tt.val); (err != nil) != tt.wantErr {
 				t.Errorf("Transport.Set() error = %v, wantErr %v", err, tt.wantErr)

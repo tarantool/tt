@@ -22,51 +22,34 @@ linters:
   default: all
 
   disable:
-    - arangolint
-    - clickhouselint
-    - containedctx
-    - contextcheck
     - cyclop
-    - decorder
     - depguard
     - dupl
-    - dupword
     - err113
     - errcheck
     - errorlint
-    - exhaustive
     - exhaustruct
     - exhaustruct_v5
-    - exptostd
     - forbidigo
     - forcetypeassert
     - funcorder
     - funlen
     - gochecknoglobals
-    - gochecknoinits
     - gocognit
     - goconst
     - gocritic
     - gocyclo
     - godoclint
     - godox
-    - goheader
     - gomodguard
-    - gomodguard_v2
     - gosec
-    - gosmopolitan
     - govet
-    - iface
-    - inamedparam
-    - intrange
     - ireturn
     - maintidx
-    - misspell
     - mnd
     - modernize
     - musttag
     - nestif
-    - nilerr
     - nilnil
     - nlreturn
     - noctx
@@ -74,20 +57,15 @@ linters:
     - nonamedreturns
     - paralleltest
     - perfsprint
-    - prealloc
     - protogetter
-    - recvcheck
     - revive
     - staticcheck
-    - tagliatelle
     - testifylint
     - testpackage
     - tparallel
-    - unconvert
     - unparam
     - usetesting
     - varnamelen
-    - wastedassign
     - wrapcheck
     - wsl
     - wsl_v5
@@ -110,6 +88,27 @@ linters:
           # Table-driven and fixture tests build partial structs on purpose;
           # requiring every field spelled out is noise in tests.
           - exhaustruct
+      # recvcheck accepts Constraint's mixed value and pointer receivers, so
+      # its existing compatibility directive is intentionally retained.
+      - path: ^cli/manifest/constraint\.go$
+        text: 'directive `//nolint:recvcheck'
+        linters:
+          - nolintlint
+      # This repeated word is intentional YAML test data, not prose.
+      - path: ^cli/connect/language_test\.go$
+        text: Duplicate words \(true\) found
+        linters:
+          - dupword
+      # This key is part of the public module manifest format.
+      - path: ^cli/modules/modules\.go$
+        text: 'yaml\(snake\): got ''tt-version'''
+        linters:
+          - tagliatelle
+      # Mage configures its process environment before any target runs.
+      - path: ^magefile\.go$
+        text: don't use `init` function
+        linters:
+          - gochecknoinits
 
   settings:
     gomoddirectives:

@@ -123,7 +123,7 @@ func (r *RawStorage) withTimeout() (context.Context, context.CancelFunc) {
 }
 
 // Collect collects values from storage by prefix (if no key bound) or by key.
-func (r RawStorage) Collect() ([]Data, error) {
+func (r *RawStorage) Collect() ([]Data, error) {
 	ctx, cancel := r.withTimeout()
 	defer cancel()
 
@@ -159,7 +159,7 @@ func (r RawStorage) Collect() ([]Data, error) {
 // If the collector key is empty, it publishes to all keys with the prefix
 // (deleting other keys under the prefix). Otherwise, it publishes to a
 // specific key.
-func (r RawStorage) Publish(revision int64, data []byte) error {
+func (r *RawStorage) Publish(revision int64, data []byte) error {
 	ctx, cancel := r.withTimeout()
 	defer cancel()
 

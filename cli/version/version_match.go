@@ -143,6 +143,8 @@ func compareVersions(ref, other Version, fields requiredFields) bool {
 			isMatch = ref.Hash == other.Hash
 		case requiredFieldRevision:
 			isMatch = ref.Revision == other.Revision
+		case countOfRequiredFields:
+			// The sentinel is not a version field and never matches.
 		}
 		if !isMatch {
 			return false

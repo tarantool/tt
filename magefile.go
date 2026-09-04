@@ -150,7 +150,8 @@ func appendTags(args []string) ([]string, error) {
 // Building tt executable. Supported environment variables:
 // TT_CLI_BUILD_SSL=(no|static|shared).
 func buildTt(argUpdaters ...optsUpdater) error {
-	args := []string{"build", "-o", ttExecutableName}
+	args := make([]string, 0, 8)
+	args = append(args, "build", "-o", ttExecutableName)
 	var err error
 	for _, updateArguments := range argUpdaters {
 		if args, err = updateArguments(args); err != nil {

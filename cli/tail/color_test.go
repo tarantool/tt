@@ -17,7 +17,7 @@ func TestDefaultColorPicker(t *testing.T) {
 	}
 
 	colorPicker := tail.DefaultColorPicker()
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		got := colorPicker()
 		got.Equals(&expectedColors[i%len(expectedColors)])
 	}

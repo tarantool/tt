@@ -63,7 +63,7 @@ func TestHistoryAppend(t *testing.T) {
 	limit := 20
 
 	h, _ := newCommandHistory("", limit)
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		h.appendCommand(fmt.Sprintf("command%d", i))
 		assert.Equal(t, len(h.commands), i+1)
 		assert.Equal(t, len(h.timestamps), i+1)

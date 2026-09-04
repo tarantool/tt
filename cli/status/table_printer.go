@@ -92,7 +92,7 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 		table.Row{"INSTANCE", "STATUS", "PID", "MODE", "CONFIG", "BOX", "UPSTREAM"})
 
 	for instName, instData := range instances {
-		row := []any{}
+		row := make([]any, 0, 7)
 		row = append(row, instName)
 		row = append(row, instData.procStatus.FormattedStatus())
 		if instData.PID == nil {

@@ -43,7 +43,7 @@ func internalStopWithConfirmationModule(cmdCtx *cmdcontext.CmdCtx, args []string
 	}
 
 	if !autoYes && !cmdCtx.Cli.NoPrompt {
-		instancesToConfirm := ""
+		var instancesToConfirm string
 		if len(args) == 0 {
 			instancesToConfirm = "all instances"
 		} else {
