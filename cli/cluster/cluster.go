@@ -122,9 +122,9 @@ type bytesSource struct {
 	data []byte
 }
 
-func (s bytesSource) Name() string                              { return s.name }
-func (s bytesSource) SourceType() goconfig.SourceType          { return goconfig.UnknownSource }
-func (s bytesSource) Revision() goconfig.RevisionType          { return "" }
+func (s bytesSource) Name() string                    { return s.name }
+func (s bytesSource) SourceType() goconfig.SourceType { return goconfig.UnknownSource }
+func (s bytesSource) Revision() goconfig.RevisionType { return "" }
 func (s bytesSource) FetchStream(_ context.Context) (io.ReadCloser, error) {
 	return io.NopCloser(bytes.NewReader(s.data)), nil
 }
@@ -180,7 +180,8 @@ func BuildGoConfigFromBytes(ctx context.Context, b []byte) (goconfig.Config, err
 			collectors.NewYamlFormat(),
 		)
 		if err != nil {
-			return goconfig.Config{}, fmt.Errorf("build go-config from bytes: create source: %w", err)
+			return goconfig.Config{},
+				fmt.Errorf("build go-config from bytes: create source: %w", err)
 		}
 		builder = builder.AddCollector(src)
 	}

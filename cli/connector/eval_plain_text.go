@@ -114,7 +114,8 @@ func writeToPlainTextConn(conn net.Conn, data string) error {
 
 // readFromPlainTextConn function reads plain text from Tarantool connection
 // These code was inspired by Tarantool console eval
-// https://github.com/tarantool/tarantool/blob/3bc4a156e937102f23e2157ef88aa6c007759005/src/box/lua/console.lua#L469
+// https://github.com/tarantool/tarantool/blob/3bc4a156e937102f23e2157ef88aa6c007759005/
+// src/box/lua/console.lua#L469
 //
 // By default, Tarantool sends YAML-encoded values as user command response.
 // In this case the end of output value is `\n...\n`.

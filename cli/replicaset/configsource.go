@@ -151,7 +151,10 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 	getPathFunc func(clusterConfig goconfig.Config,
 		ctx RolesChangeCtx) (paths []path, err error),
 	updateRolesFunc func([]string, string) ([]string, error),
-	patchFunc func(config *goconfig.MutableConfig, prt []patchRoleTarget) (*goconfig.MutableConfig, error),
+	patchFunc func(config *goconfig.MutableConfig, prt []patchRoleTarget) (
+		*goconfig.MutableConfig,
+		error,
+	),
 ) error {
 	configData, goView, err := collectCConfig(c.collector)
 	if err != nil {
@@ -220,7 +223,10 @@ func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigPromotePath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (*goconfig.MutableConfig, error) {
+		func(config *goconfig.MutableConfig, inst cconfigInstance) (
+			*goconfig.MutableConfig,
+			error,
+		) {
 			return patchCConfigPromote(config, inst)
 		},
 	)
@@ -232,7 +238,10 @@ func (c *CConfigSource) Demote(ctx DemoteCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigDemotePath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (*goconfig.MutableConfig, error) {
+		func(config *goconfig.MutableConfig, inst cconfigInstance) (
+			*goconfig.MutableConfig,
+			error,
+		) {
 			return patchCConfigDemote(config, inst)
 		},
 	)
@@ -244,7 +253,10 @@ func (c *CConfigSource) Expel(ctx ExpelCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigExpelPath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (*goconfig.MutableConfig, error) {
+		func(config *goconfig.MutableConfig, inst cconfigInstance) (
+			*goconfig.MutableConfig,
+			error,
+		) {
 			return patchCConfigExpel(config, inst)
 		},
 	)

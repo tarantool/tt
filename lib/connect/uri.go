@@ -143,7 +143,8 @@ func IsCredentialsURI(str string) bool {
 	// https://user:password@host
 	httpsReStr := `(http|https)://` + userPassRe + `@([\w\.-]+(:\d+)?)(/[\w\-\./~]*)?`
 
-	uriReStr := "^((" + tcpReStr + ")|(" + httpsReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
+	uriReStr := "^((" + tcpReStr +
+		")|(" + httpsReStr + ")|(" + unixReStr + ")|(" + pathReStr + "))$"
 	uriRe := regexp.MustCompile(uriReStr)
 	return uriRe.MatchString(str)
 }

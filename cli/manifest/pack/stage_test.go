@@ -209,11 +209,11 @@ func TestStageEntryRejections(t *testing.T) {
 func TestCopyTreeFollowsSymlinkedRoot(t *testing.T) {
 	base := t.TempDir()
 
-	real := filepath.Join(base, "real")
-	writeTree(t, real, map[string]string{"a.lua": "a", "sub/b.lua": "b"})
+	realPath := filepath.Join(base, "real")
+	writeTree(t, realPath, map[string]string{"a.lua": "a", "sub/b.lua": "b"})
 
 	link := filepath.Join(base, "link")
-	require.NoError(t, os.Symlink(real, link))
+	require.NoError(t, os.Symlink(realPath, link))
 
 	dst := t.TempDir()
 	require.NoError(t, copyTree(link, dst))

@@ -22,7 +22,9 @@ func TestGetCredsFromFile(t *testing.T) {
 
 	testCases := make(map[getCredsFromFileInputValue]getCredsFromFileOutputValue)
 
-	testCases[getCredsFromFileInputValue{path: "./testdata/nonexisting"}] = getCredsFromFileOutputValue{
+	testCases[getCredsFromFileInputValue{
+		path: "./testdata/nonexisting",
+	}] = getCredsFromFileOutputValue{
 		result: UserCredentials{},
 		err:    fmt.Errorf("open ./testdata/nonexisting: no such file or directory"),
 	}

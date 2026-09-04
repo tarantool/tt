@@ -16,7 +16,9 @@ const (
 	TypeBeta
 	TypeRC
 	TypeRelease
+)
 
+const (
 	// CliSeparator is used in commands to specify version. E.g: program=version.
 	CliSeparator = "="
 	// FsSeparator is used in file names to specify version. E.g: program_version.

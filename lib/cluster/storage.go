@@ -474,8 +474,11 @@ func NewStorageConnection(
 		return gstorage.NewStorage(driver), func() { _ = conn.Close() }, tcsStorageType, nil
 	}
 
-	return nil, func() {}, "", fmt.Errorf("failed to establish a connection to tarantool or etcd: %w, %w",
-		errTCS, errEtcd)
+	return nil,
+		func() {},
+		"",
+		fmt.Errorf("failed to establish a connection to tarantool or etcd: %w, %w",
+			errTCS, errEtcd)
 }
 
 // loadRootCA and the code below is a copy-paste from Go sources. We need an

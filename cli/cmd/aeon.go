@@ -217,7 +217,8 @@ func readConfigFilePath(configPath, instance string) error {
 
 	// Get SSL connection.
 	var rawAdvertise any
-	if _, err = instCfg.Get(goconfig.NewKeyPath("roles_cfg/aeon.grpc/advertise"), &rawAdvertise); err != nil {
+	_, err = instCfg.Get(goconfig.NewKeyPath("roles_cfg/aeon.grpc/advertise"), &rawAdvertise)
+	if err != nil {
 		return fmt.Errorf("failed to get aeon advertise config: %w", err)
 	}
 
