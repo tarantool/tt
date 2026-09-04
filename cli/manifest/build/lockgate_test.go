@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/cli/manifest/resolve"
 )
 
 // fakeResolver drives the lock gate without a registry.
@@ -19,16 +20,20 @@ type fakeResolver struct {
 	reason        string
 	fresh         *manifest.Lock
 	resolveCalled bool
+	// pins records the pin set of every resolve, in order.
+	pins []resolve.Pins
 }
 
 func (f *fakeResolver) IsStale(*manifest.Manifest, *manifest.Lock) (bool, string, error) {
 	return f.stale, f.reason, nil
 }
 
-func (f *fakeResolver) Resolve(
-	context.Context, *manifest.Manifest,
+func (f *fakeResolver) ResolvePinned(
+	_ context.Context, _ *manifest.Manifest, pins resolve.Pins,
 ) (*manifest.Lock, []string, error) {
 	f.resolveCalled = true
+	f.pins = append(f.pins, pins)
+
 	return f.fresh, nil, nil
 }
 
@@ -119,6 +124,46 @@ func TestGateLock_staleUnlockedRewrites(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, r.resolveCalled)
 	assert.Equal(t, "sha256:new", lockOnDisk(t, dir).ManifestHash)
+}
+
+// TestGateLock_staleRewriteHoldsLockedVersions pins what separates a build's
+// re-resolve from an update: a stale lock still decides the versions, so a
+// build never pulls a newer release than the one already recorded.
+func TestGateLock_staleRewriteHoldsLockedVersions(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	existing := freshLock()
+	existing.ManifestHash = "sha256:existing"
+	existing.Products["default"] = manifest.LockProduct{
+		Dependencies: []manifest.LockDependency{
+			{Name: "checks", Version: "3.1.0-1", Source: sourceRegistry},
+			{Name: "metrics", Version: "1.0.0-1", Source: sourceRegistry},
+		},
+	}
+	writeLock(t, dir, existing)
+
+	r := &fakeResolver{stale: true, reason: "manifest changed", fresh: freshLock()}
+	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, false)
+	require.NoError(t, err)
+
+	require.Len(t, r.pins, 1)
+	assert.Equal(t, resolve.Pins{"checks": "3.1.0-1", "metrics": "1.0.0-1"}, r.pins[0])
+}
+
+// TestGateLock_noLockPinsNothing covers the first resolve of a project: there
+// is no recorded version to hold, so the registry decides every pick.
+func TestGateLock_noLockPinsNothing(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	r := &fakeResolver{stale: false, reason: "", fresh: freshLock()}
+	_, _, err := gateLock(context.Background(), r, &manifest.Manifest{}, dir, false)
+	require.NoError(t, err)
+
+	require.Len(t, r.pins, 1)
+	assert.Empty(t, r.pins[0])
 }
 
 func TestGateLock_staleLockedFails(t *testing.T) {
