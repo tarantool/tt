@@ -120,6 +120,10 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt package build`: a stale lock is re-resolved holding every version it
+  already recorded, so a build no longer pulls newer releases from the
+  registry behind the user's back. `tt package update` remains the way to move
+  dependencies forward.
 - `tt package`: a dependency declared as `*` — which is what `tt package add`
   writes when no version is given — now resolves to whatever the registry
   serves instead of failing with `cannot parse constraint "*"`. A constraint
