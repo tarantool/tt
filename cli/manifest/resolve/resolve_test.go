@@ -305,6 +305,49 @@ metrics = '<2.0.0'
 	assert.Equal(t, "1.5.0-1", got.Version)
 }
 
+// TestMovingVersionIsReported: a lock holding a branch looks exactly like a
+// lock holding a release, so the one moment a user can be told is the resolve
+// that chose it.
+func TestMovingVersionIsReported(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAdapter().add("metrics", "scm-1", "aaa")
+
+	man := parseManifest(t, oneProduct+`[dependencies]
+metrics = '*'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	lock, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+
+	got := findDep(t, lock.Products["default"].Dependencies, "metrics")
+	assert.Equal(t, "scm-1", got.Version)
+
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "metrics")
+	assert.Contains(t, warnings[0], "tracks a branch")
+}
+
+// TestReleasedVersionIsNotReported is the other half: the warning has to be
+// about the branch, not about every resolve.
+func TestReleasedVersionIsNotReported(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeAdapter().add("metrics", "1.0.0-1", "aaa")
+
+	man := parseManifest(t, oneProduct+`[dependencies]
+metrics = '*'
+`)
+
+	engine := resolve.NewEngine(fake, "", "tt 3.4.0")
+
+	_, warnings, err := engine.Resolve(context.Background(), man)
+	require.NoError(t, err)
+	assert.Empty(t, warnings)
+}
+
 func TestTransitiveClosure(t *testing.T) {
 	t.Parallel()
 

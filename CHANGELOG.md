@@ -123,10 +123,17 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt package`: dependency resolution prefers released versions over `scm` and
+  `dev`. LuaRocks orders a branch above every number, so an ordinary constraint
+  like `>=3.0.0` used to select the development branch and pin the lock to code
+  that changes underneath it. A branch is chosen only when the constraint names
+  one (`==scm`) or when the rock has no released version at all, and that case
+  is now reported.
 - `tt package build`: a stale lock is re-resolved holding every version it
   already recorded, so a build no longer pulls newer releases from the
   registry behind the user's back. `tt package update` remains the way to move
-  dependencies forward.
+  dependencies forward. `--locked` on a stale lock now names `tt package
+  resolve` in the error instead of only reporting the staleness.
 - `tt package`: a dependency declared as `*` — which is what `tt package add`
   writes when no version is given — now resolves to whatever the registry
   serves instead of failing with `cannot parse constraint "*"`. A constraint

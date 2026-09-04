@@ -124,14 +124,70 @@ func resolveWith(
 // pickNewest returns the highest-versioned candidate satisfying every
 // constraint. An empty constraint list matches all. ok is false when nothing
 // matches.
+//
+// Released versions win over moving ones. LuaRocks orders scm and dev above
+// every number, so an ordinary lower bound like ">=3.0.0" would otherwise
+// select the development branch and pin a lock to something that changes
+// underneath it. A moving version is chosen only when the constraints name one
+// outright, or when the rock has no released version at all.
+//
+// The fallback deliberately turns on the rock's publication history rather than
+// on whether the stable pass matched: were it the latter, a constraint no
+// release satisfies would quietly be answered with the branch, which is the
+// same surprise by a narrower door.
 func pickNewest(
 	candidates []luarocks.VersionedRock, constraints []luarocks.VersionConstraint,
+) (luarocks.VersionedRock, bool) {
+	stableOnly := hasRelease(candidates) && !wantsMoving(constraints)
+
+	return pickNewestAmong(candidates, constraints, stableOnly)
+}
+
+// hasRelease reports whether any candidate names a release, as opposed to the
+// rock being published only as a branch.
+func hasRelease(candidates []luarocks.VersionedRock) bool {
+	for _, candidate := range candidates {
+		if !moving(candidate.Version) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// moving reports whether a version tracks a branch rather than naming a
+// release, and so may resolve to different code on a later day.
+func moving(version luarocks.Version) bool {
+	return version.IsSCM || version.IsDev
+}
+
+// wantsMoving reports whether the constraints name a moving version outright,
+// which is how a project asks for the development branch on purpose.
+func wantsMoving(constraints []luarocks.VersionConstraint) bool {
+	for _, constraint := range constraints {
+		if moving(constraint.Version) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// pickNewestAmong is pickNewest over one class of candidates: stableOnly skips
+// the moving versions, otherwise every candidate is considered.
+func pickNewestAmong(
+	candidates []luarocks.VersionedRock, constraints []luarocks.VersionConstraint,
+	stableOnly bool,
 ) (luarocks.VersionedRock, bool) {
 	var best luarocks.VersionedRock
 
 	found := false
 
 	for _, candidate := range candidates {
+		if stableOnly && moving(candidate.Version) {
+			continue
+		}
+
 		if !deps.Match(candidate.Version, constraints) {
 			continue
 		}
