@@ -135,26 +135,9 @@ func etcdPut(t *testing.T, etcd *clientv3.Client, key, value string) {
 	require.NotNil(t, pResp)
 }
 
-func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
-	t.Helper()
-	var (
-		resp *clientv3.GetResponse
-		err  error
-	)
-	doWithCtx(func(ctx context.Context) error {
-		resp, err = etcd.Get(ctx, key)
-		return nil
-	})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	if len(resp.Kvs) == 0 {
-		return []byte(""), 0
-	}
-	require.Len(t, resp.Kvs, 1)
-	return resp.Kvs[0].Value, resp.Kvs[0].ModRevision
-}
-
 func renderEtcdAppConfig(t *testing.T, endpoint, src, dst string) {
+	t.Helper()
+
 	engine := templates.NewDefaultEngine()
 	err := engine.RenderFile(src, dst, map[string]string{
 		"endpoint": endpoint,

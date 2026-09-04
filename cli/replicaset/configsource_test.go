@@ -20,12 +20,16 @@ var cconfigSourceTestDataFS embed.FS
 const revision = int64(42)
 
 func readFile(t *testing.T, path string, fs embed.FS) []byte {
+	t.Helper()
+
 	content, err := fs.ReadFile(path)
 	require.NoError(t, err)
 	return content
 }
 
 func readKV(t *testing.T, dir string, fs embed.FS) map[string][]byte {
+	t.Helper()
+
 	ret := map[string][]byte{}
 	entries, err := fs.ReadDir(dir)
 	require.NoError(t, err)
@@ -95,6 +99,8 @@ func newOnceMockDataPublisher(err error) *mockDataPublisher {
 }
 
 func assertPublished(t *testing.T, p *mockDataPublisher, key string, revision int64, data []byte) {
+	t.Helper()
+
 	require.Equal(t, 1, p.Called)
 	require.Equal(t, []string{key}, p.Keys)
 	require.Equal(t, []int64{revision}, p.Revisions)

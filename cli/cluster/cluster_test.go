@@ -41,12 +41,6 @@ func getCfgString(t *testing.T, cfg goconfig.Config, path string) string {
 	return v
 }
 
-// cfgHasPath reports whether the given slash-separated path exists in cfg.
-func cfgHasPath(cfg goconfig.Config, path string) bool {
-	_, ok := cfg.Lookup(goconfig.NewKeyPath(path))
-	return ok
-}
-
 func TestGetClusterConfig_path(t *testing.T) {
 	clearAmbientTTEnv(t)
 	cfg, err := cluster.GetClusterConfig(context.Background(), "testdata/app/config.yaml",

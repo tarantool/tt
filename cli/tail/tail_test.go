@@ -134,6 +134,8 @@ five
 }
 
 func linesChecker(t *testing.T, expected []string) func(str string) {
+	t.Helper()
+
 	i := 0
 	return func(str string) {
 		require.Less(t, i, len(expected))

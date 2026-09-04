@@ -25,6 +25,8 @@ const (
 func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock string,
 	binaryPort string, logger ttlog.Logger,
 ) *scriptInstance {
+	t.Helper()
+
 	assert := assert.New(t)
 
 	// Need absolute path to the script, because working dir is changed on start.
@@ -65,6 +67,8 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 // cleanupTestInstance sends a SIGKILL signal to test
 // Instance that remain alive after the test done.
 func cleanupTestInstance(t *testing.T, inst *scriptInstance) {
+	t.Helper()
+
 	if inst.IsAlive() {
 		err := inst.Stop(stopTimeout)
 		assert.NoError(t, err)
