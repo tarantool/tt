@@ -22,6 +22,7 @@ func newProcessController(cmd *exec.Cmd) (*processController, error) {
 type processController struct {
 	// Cmd represents an external command to run.
 	*exec.Cmd
+
 	// waitMutex is used to prevent several invokes of the "Wait"
 	// for the same process.
 	// https://github.com/golang/go/issues/28461

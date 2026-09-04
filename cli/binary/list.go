@@ -43,7 +43,6 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 	if fileInfo, err := os.Lstat(programPath); err == nil {
 		if program == search.ProgramDev &&
 			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
-
 			binActive, isTarantoolBinary, err := install.IsTarantoolDev(programPath, binDir)
 			if err != nil {
 				return binaryVersions, err

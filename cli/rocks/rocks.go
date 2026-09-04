@@ -64,7 +64,6 @@ func getRocksRepoPath(rocksRepoPath string) string {
 	rockRepoPathFromEnv := os.Getenv(repoRocksPathEnvVarName)
 	if rocksRepoPath == "" || (rocksRepoPath != "" &&
 		!util.IsRegularFile(filepath.Join(rocksRepoPath, rocksRepoManifestName))) {
-
 		if rockRepoPathFromEnv != "" {
 			rocksRepoPath = rockRepoPathFromEnv
 		}

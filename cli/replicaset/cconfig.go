@@ -64,6 +64,7 @@ type cconfigInstance struct {
 // CConfigInstance is an instance with the centralized config orchestrator.
 type CConfigInstance struct {
 	cachedDiscoverer
+
 	evaler connector.Evaler
 }
 
@@ -152,6 +153,7 @@ func (c *CConfigInstance) RolesChange(ctx RolesChangeCtx,
 // orchestrator.
 type CConfigApplication struct {
 	cachedDiscoverer
+
 	runningCtx running.RunningCtx
 	publishers libcluster.Factory
 	collectors libcluster.Factory
@@ -908,7 +910,7 @@ func cconfigGetElectionMode(cfg goconfig.Config, instName string) (ElectionMode,
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
 			// This is true if failover == "election" && replica is not anonymous.
 			// https://github.com/tarantool/tarantool/blob/e01fe8f7144eebc64249ab60a83f656cb4a11dc0/
-			// src/box/lua/config/applier/box_cfg.lua#L418-L420
+			// src/box/lua/config/applier/box_cfg.lua#L418-L420.
 			return ElectionModeCandidate, nil
 		}
 		return ElectionModeCandidate, fmt.Errorf("failed to get election_mode: %w", err)

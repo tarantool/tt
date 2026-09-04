@@ -226,7 +226,7 @@ func sendApiRequest(request apiRequest, doer TntIoDoer) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "tt") // Consider making User-Agent configurable or dynamic
+	req.Header.Set("User-Agent", "tt") // Consider making User-Agent configurable or dynamic.
 
 	if doer != nil {
 		return doer.Do(req)

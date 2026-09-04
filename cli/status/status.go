@@ -82,8 +82,8 @@ type instanceStatus struct {
 	Box                string                     `json:"box"`
 	Upstream           string                     `json:"upstream"`
 	Alerts             []instanceAlert            `json:"alerts"`
-	rawReplicationInfo []rawReplicationInfo       `json:"-" yaml:"-"`
-	procStatus         process_utils.ProcessState `json:"-" yaml:"-"`
+	rawReplicationInfo []rawReplicationInfo       `json:"-"        yaml:"-"`
+	procStatus         process_utils.ProcessState `json:"-"        yaml:"-"`
 }
 
 func (is *instanceStatus) addAlert(message string, severity severity) {
@@ -106,7 +106,7 @@ type instanceStatusMap = map[string]*instanceStatus
 func processReplicationInfo(instStatus *instanceStatus, uuid2name map[string]string) {
 	for _, repl := range instStatus.rawReplicationInfo {
 		fullInstanceUpstreamName, ok := uuid2name[repl.UUID]
-		// Use repl.Name if available, otherwise fallback to repl.UUID
+		// Use repl.Name if available, otherwise fallback to repl.UUID.
 		if !ok {
 			if repl.Name != nil {
 				fullInstanceUpstreamName = *repl.Name

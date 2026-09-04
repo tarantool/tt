@@ -136,7 +136,6 @@ func aeonConnectValidateArgs(cmd *cobra.Command, args []string) error {
 
 	if !cmd.Flags().Changed("transport") && (connectCtx.Ssl.KeyFile != "" ||
 		connectCtx.Ssl.CertFile != "" || connectCtx.Ssl.CaFile != "") {
-
 		connectCtx.Transport = aeoncmd.TransportSsl
 	}
 

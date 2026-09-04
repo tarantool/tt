@@ -34,6 +34,7 @@ type customTopology struct {
 // case, we can obtain a minimum of information for a replicaset.
 type CustomInstance struct {
 	cachedDiscoverer
+
 	evaler connector.Evaler
 }
 
@@ -101,6 +102,7 @@ func (c *CustomInstance) RolesChange(_ RolesChangeCtx, action RolesChangerAction
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
 	cachedDiscoverer
+
 	runningCtx running.RunningCtx
 }
 

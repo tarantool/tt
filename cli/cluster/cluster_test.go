@@ -173,8 +173,8 @@ func TestGetInstanceConfig_noinstance(t *testing.T) {
 func TestGetClusterConfig_env_two_tier_priority(t *testing.T) {
 	cases := []struct {
 		name          string
-		mainEnv       string // TT_REPLICATION_FAILOVER value ("" means unset)
-		defaultEnv    string // TT_REPLICATION_FAILOVER_DEFAULT value ("" means unset)
+		mainEnv       string // TT_REPLICATION_FAILOVER value ("" means unset).
+		defaultEnv    string // TT_REPLICATION_FAILOVER_DEFAULT value ("" means unset).
 		expectedValue string
 	}{
 		{
@@ -265,7 +265,7 @@ groups:
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
-	_ = cfg // just built for sanity
+	_ = cfg // just built for sanity.
 
 	// With two unreachable endpoints, GetClusterConfig should error.
 	_, err = cluster.GetClusterConfig(context.Background(), f.Name(), integrity.IntegrityCtx{})

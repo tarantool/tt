@@ -48,7 +48,7 @@ func evalPlainTextConn(conn net.Conn, funcBody string, args []interface{},
 		return nil, err
 	}
 
-	// recv from socket
+	// recv from socket.
 	resBytes, err := readFromPlainTextConn(conn, opts)
 	if err == io.EOF {
 		return nil, err
@@ -91,7 +91,7 @@ func formatAndSendEvalFunc(conn net.Conn, funcBody string, args []interface{},
 	)
 	evalFuncFormatted = strings.Join(strings.Fields(evalFuncFormatted), " ") + "\n"
 
-	// write to socket
+	// write to socket.
 	if err := writeToPlainTextConn(conn, evalFuncFormatted); err != nil {
 		return fmt.Errorf("failed to send eval function to socket: %s", err)
 	}
@@ -159,7 +159,7 @@ func readFromPlainTextConn(conn net.Conn, opts EvalPlainTextOpts) ([]byte, error
 		// ...
 		//
 		// So, when data portion starts with a tag prefix, we have to read one more value
-		// received tag string can be handled via pushCallback function
+		// received tag string can be handled via pushCallback function.
 		//
 		dataPortionBytes, err := readDataPortionFromPlainTextConn(conn, &buffer, opts.ReadTimeout)
 		if err == io.EOF {
@@ -240,14 +240,12 @@ func readDataPortionFromPlainTextConn(conn net.Conn, buffer *bytes.Buffer,
 		if strings.HasPrefix(endOfYAMLOutput, dataString) ||
 			strings.HasPrefix(tagPushPrefixYAML, dataString) ||
 			strings.HasPrefix(tagPushPrefixLua, dataString) {
-
 			continue
 		}
 
 		if !hasYAMLOutputPrefix &&
 			strings.HasPrefix(dataString, startOfYamlOutput) ||
 			strings.HasPrefix(dataString, tagPushPrefixYAML) {
-
 			hasYAMLOutputPrefix = true
 		}
 
@@ -284,16 +282,16 @@ func getPushedData(pushedDataBytes []byte) (interface{}, error) {
 	pushedDataString := string(pushedDataBytes)
 
 	if strings.HasPrefix(pushedDataString, tagPushPrefixYAML) {
-		// YAML - just decode tag
+		// YAML - just decode tag.
 		if err := yaml.Unmarshal(pushedDataBytes, &pushedData); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal pushed data: %s", err)
 		}
 	} else {
-		// Lua
+		// Lua.
 
-		// remove first line (-- Push)
+		// remove first line (-- Push).
 		pushedDataString = strings.SplitN(pushedDataString, "\n", 2)[1]
-		// remove ";"
+		// remove ";".
 		pushedDataString = strings.TrimRight(pushedDataString, ";")
 
 		pushedData = pushedDataString
@@ -328,7 +326,7 @@ func processEvalTarantoolRes(resBytes []byte, result interface{}) ([]interface{}
 	// tarantool> return 'XXX'
 	// "XXX";
 	// tarantool> error('XXX')
-	// "XXX";
+	// "XXX";.
 
 	resString := string(resBytes)
 	if strings.HasPrefix(resString, startOfYamlOutput) {

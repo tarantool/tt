@@ -63,40 +63,40 @@ func TestFormatter_Format_String(t *testing.T) {
 func TestFormatter_MakeOutputFormat(t *testing.T) {
 	cases := []struct {
 		outputFormat formatter.Format
-		input        string // string from server side
-		output       string // render content to console
+		input        string // string from server side.
+		output       string // render content to console.
 		panic        bool
 	}{
 		{
-			// when user typed to console: localhost:xxxx> 1,2,3
+			// when user typed to console: localhost:xxxx> 1,2,3.
 			formatter.DefaultFormat,
 			"---\n- 1\n- 2\n- 3\n...",
 			"---\n- 1\n- 2\n- 3\n...\n",
 			false,
 		},
 		{
-			// when user typed to console: localhost:xxxx> 1,2,3
+			// when user typed to console: localhost:xxxx> 1,2,3.
 			formatter.YamlFormat,
 			"---\n- 1\n- 2\n- 3\n...",
 			"---\n- 1\n- 2\n- 3\n...\n",
 			false,
 		},
 		{
-			// when user typed to console: localhost:xxxx>
+			// when user typed to console: localhost:xxxx>.
 			formatter.LuaFormat,
 			"---\n...\n",
 			";\n",
 			false,
 		},
 		{
-			// when user typed to console: localhost:xxxx> 1,2,3
+			// when user typed to console: localhost:xxxx> 1,2,3.
 			formatter.LuaFormat,
 			"--- [1, 2, 3]\n...",
 			"1, 2, 3;\n",
 			false,
 		},
 		{
-			// when user typed to console: localhost:xxxx> 1,2,3
+			// when user typed to console: localhost:xxxx> 1,2,3.
 			formatter.TableFormat,
 			"--- [1, 2, 3]\n...",
 			"+------+\n" +
@@ -111,7 +111,7 @@ func TestFormatter_MakeOutputFormat(t *testing.T) {
 			false,
 		},
 		{
-			// when user typed to console: localhost:xxxx> 1,2,3
+			// when user typed to console: localhost:xxxx> 1,2,3.
 			formatter.TTableFormat,
 			"--- [1, 2, 3]\n...",
 			"+------+---+---+---+\n" +
@@ -305,7 +305,7 @@ func TestFormatter_MakeOutputFormat(t *testing.T) {
 			false,
 		},
 		{
-			// panic case
+			// panic case.
 			2023,
 			"",
 			"",

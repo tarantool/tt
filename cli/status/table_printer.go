@@ -19,7 +19,7 @@ type TablePrinterOption func(*TablePrinter)
 
 // TablePrinter implements InstanceStatusPrinter for table output.
 type TablePrinter struct {
-	// Options for table formatting
+	// Options for table formatting.
 	pretty  bool
 	details bool
 }

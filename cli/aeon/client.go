@@ -95,7 +95,7 @@ func getDialOpts(ctx cmd.ConnectCtx) (grpc.DialOption, error) {
 func NewAeonHandler(ctx cmd.ConnectCtx) (*Client, error) {
 	c := Client{title: ctx.Address}
 	target := makeAddress(ctx)
-	// var err error
+	// var err error.
 	opt, err := getDialOpts(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w", err)

@@ -65,10 +65,8 @@ type UninstallResult struct {
 	Scope state.Scope `json:"scope" yaml:"scope"`
 	// RemovedDependencies are the shared dependencies dropped along with it,
 	// because nothing else owned them. In name order.
-	//nolint:lll // A struct tag is one string literal and cannot be wrapped.
 	RemovedDependencies []string `json:"removed_dependencies,omitempty" yaml:"removed_dependencies,omitempty"`
 	// KeptDependencies are the ones another package still holds. In name order.
-	//nolint:lll // A struct tag is one string literal and cannot be wrapped.
 	KeptDependencies []KeptDependency `json:"kept_dependencies,omitempty" yaml:"kept_dependencies,omitempty"`
 }
 

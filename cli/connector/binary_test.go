@@ -12,6 +12,7 @@ import (
 
 type binaryConnectorStub struct {
 	tarantool.Connector
+
 	err    error
 	closed int
 }

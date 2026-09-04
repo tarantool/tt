@@ -23,17 +23,14 @@ linters:
 
   disable:
     - arangolint
-    - canonicalheader
     - clickhouselint
     - containedctx
     - contextcheck
-    - copyloopvar
     - cyclop
     - decorder
     - depguard
     - dupl
     - dupword
-    - embeddedstructfieldcheck
     - err113
     - errcheck
     - errorlint
@@ -41,12 +38,10 @@ linters:
     - exhaustruct
     - exhaustruct_v5
     - exptostd
-    - fatcontext
     - forbidigo
     - forcetypeassert
     - funcorder
     - funlen
-    - ginkgolinter
     - gochecknoglobals
     - gochecknoinits
     - gocognit
@@ -54,7 +49,6 @@ linters:
     - gocritic
     - gocyclo
     - godoclint
-    - godot
     - godox
     - goheader
     - gomodguard
@@ -63,52 +57,40 @@ linters:
     - gosmopolitan
     - govet
     - iface
-    - importas
     - inamedparam
     - intrange
     - ireturn
-    - loggercheck
     - maintidx
-    - mirror
     - misspell
     - mnd
     - modernize
     - musttag
-    - nakedret
     - nestif
     - nilerr
     - nilnil
     - nlreturn
     - noctx
     - noinlineerr
-    - nolintlint
     - nonamedreturns
     - paralleltest
     - perfsprint
     - prealloc
-    - promlinter
     - protogetter
     - recvcheck
     - revive
-    - sloglint
     - staticcheck
-    - tagalign
     - tagliatelle
     - testifylint
     - testpackage
     - tparallel
     - unconvert
     - unparam
-    - unqueryvet
-    - usestdlibvars
     - usetesting
     - varnamelen
     - wastedassign
-    - whitespace
     - wrapcheck
     - wsl
     - wsl_v5
-    - zerologlint
 
   settings:
     gomoddirectives:
@@ -152,6 +134,7 @@ linters:
       branch-max-lines: 2
       case-max-lines: 0
       default: all
+
     depguard:
       rules:
         main:
@@ -218,3 +201,12 @@ linters:
             - "github.com/klauspost/compress/zstd"
             # cli/manifest/inventory tests round-trip the YAML they rendered.
             - "gopkg.in/yaml.v3"
+
+  exclusions:
+    rules:
+      # Go struct tags cannot be split across source lines. Keep the 100-column
+      # limit everywhere else without scattering nolint directives in code.
+      - path: ^cli/manifest/inventory/uninstall\.go$
+        source: ^\s+(RemovedDependencies|KeptDependencies)\s
+        linters:
+          - lll

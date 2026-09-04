@@ -102,7 +102,7 @@ func saveResponseBodyToFile(body []byte, destFilePath string) (errRet error) {
 	}
 
 	defer func() {
-		// Report close error only if no other error occurred during copy
+		// Report close error only if no other error occurred during copy.
 		if closeErr := file.Close(); closeErr != nil && errRet == nil {
 			errRet = fmt.Errorf("failed to close destination file %s: %w", destFilePath, closeErr)
 		}

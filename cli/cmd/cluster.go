@@ -554,7 +554,6 @@ func checkRolesChangeFlags(isAdd bool) error {
 	}
 	if !rolesChangeCtx.IsGlobal && rolesChangeCtx.GroupName == "" &&
 		rolesChangeCtx.ReplicasetName == "" && rolesChangeCtx.InstName == "" {
-
 		return util.NewArgError(fmt.Sprintf("need to provide flag(s) with scope roles will %s",
 			action))
 	}

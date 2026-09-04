@@ -107,11 +107,11 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 			return err
 		}
 
-		// Store process group PID atomically
+		// Store process group PID atomically.
 		wd.processGroupPID.Store(int32(wd.cmd.Process.Pid))
 		wd.cmdMutex.Unlock()
 
-		// Write PID files after successful start
+		// Write PID files after successful start.
 		if err := wd.writePIDFiles(); err != nil {
 			log.Errorf("Failed to write PID files: %v", err)
 			_ = wd.terminateProcess() // Clean up if PID files fail.
@@ -155,7 +155,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 			return nil
 		}
 
-		// Wait before restarting
+		// Wait before restarting.
 		log.Infof("Waiting %s before restart...", wd.restartTimeout)
 		select {
 		case <-time.After(wd.restartTimeout):
@@ -174,7 +174,7 @@ func (wd *Watchdog) Start(bin string, args ...string) error {
 // It ensures all resources are properly cleaned up and goroutines are terminated.
 func (wd *Watchdog) Stop() {
 	// Atomically set shouldStop flag to prevent multiple concurrent stops
-	// CompareAndSwap ensures only one goroutine can execute the stop sequence
+	// CompareAndSwap ensures only one goroutine can execute the stop sequence.
 	if !wd.shouldStop.CompareAndSwap(false, true) {
 		return // Already stopping or stopped.
 	}

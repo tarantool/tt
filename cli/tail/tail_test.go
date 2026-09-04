@@ -67,7 +67,7 @@ five
 				count: 10,
 			},
 			want:    []byte{},
-			wantErr: true, // EOF
+			wantErr: true, // EOF.
 		},
 		{
 			name: "No new-line, want 0",
@@ -376,7 +376,6 @@ func TestFollow(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			outFile, err := os.CreateTemp(tmpDir, "*.txt")

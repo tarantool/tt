@@ -63,7 +63,7 @@ func TestTemplateFileRenderMissingValues(t *testing.T) {
 	require.NoError(t, os.WriteFile(srcFileName, []byte(templateText), 0o666))
 
 	dstFileName := filepath.Join(workDir, resultFileName)
-	data := map[string]string{"cluster_cookie": "test_cookie"} // login & password are missing
+	data := map[string]string{"cluster_cookie": "test_cookie"} // login & password are missing.
 	engine := GoTextEngine{}
 	require.EqualError(t, engine.RenderFile(srcFileName, dstFileName, data), "template execution "+
 		"failed: template: origin.lua.tt.template:2:9: executing \"origin.lua.tt.template\" at "+
