@@ -123,14 +123,14 @@ func renderTable(out io.Writer, listing *Listing) error {
 
 	table := tabwriter.NewWriter(out, 0, 0, tabColumnPadding, ' ', 0)
 
-	_, err := fmt.Fprintln(table, "NAME\tVERSION\tKIND\tDESCRIPTION")
+	_, err := fmt.Fprintln(table, "NAME\tVERSION\tORIGIN\tDESCRIPTION")
 	if err != nil {
 		return fmt.Errorf("rendering table: %w", err)
 	}
 
 	for _, entry := range listing.Packages {
 		_, err = fmt.Fprintf(table, "%s\t%s\t%s\t%s\n",
-			entry.Name, dash(entry.Version), kindOf(entry), oneLine(entry.Description))
+			entry.Name, dash(entry.Version), originOf(entry), oneLine(entry.Description))
 		if err != nil {
 			return fmt.Errorf("rendering table: %w", err)
 		}
@@ -426,8 +426,8 @@ func shareNote(owner string, dep RockEntry) string {
 	return " (shared with " + strings.Join(others, ", ") + ")"
 }
 
-// kindOf labels a row as the project's own package or a guest.
-func kindOf(entry Entry) string {
+// originOf labels a row as the project's own package or a guest.
+func originOf(entry Entry) string {
 	if entry.Primary {
 		return "primary"
 	}

@@ -11,7 +11,7 @@ def test_list_shows_primary_and_guests(run_tt):
     assert result.returncode == 0, result.stderr
 
     lines = result.stdout.strip().splitlines()
-    assert lines[0].split() == ["NAME", "VERSION", "KIND", "DESCRIPTION"]
+    assert lines[0].split() == ["NAME", "VERSION", "ORIGIN", "DESCRIPTION"]
     assert len(lines) == 4
 
     rows = {line.split()[0]: line for line in lines[1:]}
