@@ -194,6 +194,14 @@ func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []de
 		return nil, nil, fmt.Errorf("metadata for %q: %w", req.name, err)
 	}
 
+	// A branch version is only ever chosen deliberately or for lack of a
+	// release, and either way the lock stops describing fixed code.
+	if (resolved.Version.IsSCM || resolved.Version.IsDev) && w.cache.markMoving(resolved.Name) {
+		w.warnings = append(w.warnings, fmt.Sprintf(
+			"%s resolved to %s, which tracks a branch; the lock will not pin fixed code",
+			resolved.Name, resolved.Version.Raw))
+	}
+
 	checksum, ok := rocks.Checksum(spec)
 	if !ok && w.cache.markNoMD5(resolved.URL) {
 		// Emit once per run: resolveOne re-runs per product (the walker is
@@ -382,7 +390,7 @@ func mergeDeps(
 		if !seen {
 			byName[name] = &depReq{
 				name:           name,
-				constraintExpr: dependency.Version,
+				constraintExpr: manifest.ConstraintExpr(dependency.Version),
 				constraints:    nil,
 				registry:       dependency.Registry,
 				source:         dependency.Source,
@@ -438,7 +446,8 @@ func mergeInto(existing *depReq, name string, dependency manifest.Dependency) er
 		existing.registry = dependency.Registry
 	}
 
-	existing.constraintExpr = joinConstraints(existing.constraintExpr, dependency.Version)
+	existing.constraintExpr = joinConstraints(
+		existing.constraintExpr, manifest.ConstraintExpr(dependency.Version))
 
 	return nil
 }

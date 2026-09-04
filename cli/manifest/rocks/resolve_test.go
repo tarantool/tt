@@ -137,6 +137,75 @@ func TestResolveConstraintPicksNewestMatch(t *testing.T) {
 	assert.Equal(t, "1.0.0-1", resolved.Version.Raw)
 }
 
+// TestResolveSkipsMovingVersions: LuaRocks orders scm above every number, so an
+// ordinary lower bound would otherwise select the development branch and pin a
+// lock to code that changes underneath it.
+func TestResolveSkipsMovingVersions(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+
+	server := manifestServer(t, repoJSON("metrics", "1.0.0-1", "2.0.0-1", "scm-1"), &hits)
+
+	adapter := newAdapter(server.URL)
+
+	resolved, err := adapter.Resolve(context.Background(), "metrics", ">=1.0.0", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "2.0.0-1", resolved.Version.Raw)
+}
+
+// TestResolveTakesMovingWhenAskedFor: naming the branch is how a project asks
+// for it on purpose, and that request must still be honoured.
+func TestResolveTakesMovingWhenAskedFor(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+
+	server := manifestServer(t, repoJSON("metrics", "1.0.0-1", "scm-1"), &hits)
+
+	adapter := newAdapter(server.URL)
+
+	resolved, err := adapter.Resolve(context.Background(), "metrics", "==scm", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "scm-1", resolved.Version.Raw)
+}
+
+// TestResolveFallsBackToMoving: a rock published only as a branch is the
+// ordinary state for much of the ecosystem, so refusing it would resolve
+// nothing at all.
+func TestResolveFallsBackToMoving(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+
+	server := manifestServer(t, repoJSON("metrics", "scm-1"), &hits)
+
+	adapter := newAdapter(server.URL)
+
+	resolved, err := adapter.Resolve(context.Background(), "metrics", ">=1.0.0", "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "scm-1", resolved.Version.Raw)
+}
+
+// TestResolveSkipsMovingOutOfRange: the stable pass narrows the candidates, it
+// does not widen them - a released version outside the range stays refused
+// rather than being replaced by the branch.
+func TestResolveSkipsMovingOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	var hits int32
+
+	server := manifestServer(t, repoJSON("metrics", "1.0.0-1", "scm-1"), &hits)
+
+	adapter := newAdapter(server.URL)
+
+	_, err := adapter.Resolve(context.Background(), "metrics", ">=2.0.0", "")
+	assert.ErrorIs(t, err, rocks.ErrNoMatch)
+}
+
 func TestResolveNotFound(t *testing.T) {
 	t.Parallel()
 

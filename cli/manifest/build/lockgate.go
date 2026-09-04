@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/tarantool/tt/cli/manifest"
+	"github.com/tarantool/tt/cli/manifest/resolve"
 )
 
 // resolver is the slice of resolve.Engine the lock gate drives: report whether
@@ -16,7 +17,9 @@ import (
 // exercised without a registry.
 type resolver interface {
 	IsStale(man *manifest.Manifest, lock *manifest.Lock) (bool, string, error)
-	Resolve(ctx context.Context, man *manifest.Manifest) (*manifest.Lock, []string, error)
+	ResolvePinned(
+		ctx context.Context, man *manifest.Manifest, pins resolve.Pins,
+	) (*manifest.Lock, []string, error)
 }
 
 // loadLock reads and parses the lock next to the manifest. It never resolves —
@@ -65,7 +68,7 @@ func gateLock(
 				"%w: %s not found and --locked forbids resolving", errLockStale, lockFileName)
 		}
 
-		return resolveAndWrite(ctx, res, man, path)
+		return resolveAndWrite(ctx, res, man, path, nil)
 	}
 
 	if readErr != nil {
@@ -87,17 +90,26 @@ func gateLock(
 	}
 
 	if locked {
-		return nil, nil, exitErrorf(exitStateError, "%w: %s (--locked)", errLockStale, reason)
+		// Naming the command that fixes it matters more here than elsewhere:
+		// --locked is what a release pipeline passes, so whoever reads this is
+		// looking at a failed build rather than at a shell.
+		return nil, nil, exitErrorf(exitStateError,
+			"%w: %s (--locked); run tt package resolve to bring the lock back in step",
+			errLockStale, reason)
 	}
 
-	return resolveAndWrite(ctx, res, man, path)
+	// Every version the stale lock already chose is held: a manifest edit moves
+	// what it touches and what that drags in, and nothing else. Pulling newer
+	// versions from the registry is tt package update's job.
+	return resolveAndWrite(ctx, res, man, path, resolve.PinsFromLock(lock))
 }
 
-// resolveAndWrite resolves man into a fresh lock and writes it to path.
+// resolveAndWrite resolves man into a fresh lock, preferring pins, and writes
+// it to path.
 func resolveAndWrite(
-	ctx context.Context, res resolver, man *manifest.Manifest, path string,
+	ctx context.Context, res resolver, man *manifest.Manifest, path string, pins resolve.Pins,
 ) (*manifest.Lock, []string, error) {
-	lock, warnings, err := res.Resolve(ctx, man)
+	lock, warnings, err := res.ResolvePinned(ctx, man, pins)
 	if err != nil {
 		return nil, nil, fmt.Errorf("resolving dependencies: %w", err)
 	}

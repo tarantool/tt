@@ -10,6 +10,42 @@ import (
 	"github.com/tarantool/go-luarocks/deps"
 )
 
+func TestValidateConstraint(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		expr string
+		ok   bool
+	}{
+		{name: "any version", expr: "*", ok: true},
+		{name: "any version padded", expr: "  *  ", ok: true},
+		{name: "omitted", expr: "", ok: true},
+		{name: "single bound", expr: ">=3.0.0", ok: true},
+		{name: "range", expr: ">=3.0.0,<4.0.0", ok: true},
+		{name: "bare version", expr: "1.2.3", ok: true},
+		{name: "unknown operator", expr: "~~1.0", ok: false},
+		{name: "star inside a range", expr: ">=1.0.0,*", ok: false},
+		{name: "not a version", expr: ">=nope!", ok: false},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateConstraint(testCase.expr)
+			if testCase.ok {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), testCase.expr)
+		})
+	}
+}
+
 func TestSatisfiable(t *testing.T) {
 	t.Parallel()
 

@@ -40,6 +40,11 @@ func addWith(
 		constraint = defaultConstraint
 	}
 
+	constraintErr := resolve.ValidateConstraint(constraint)
+	if constraintErr != nil {
+		return nil, stateErrorf("%w", constraintErr)
+	}
+
 	table := manifest.TableDependencies
 	if dev {
 		table = manifest.TableDevDependencies

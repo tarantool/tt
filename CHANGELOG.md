@@ -102,6 +102,9 @@ for machine-readable output.
 - `tt enable` and `tt instances` commands removed.
 - `tt init`, `tt pack`, and `tt build` commands removed. Use
   `tt package build` and `tt package pack` for manifest-based applications.
+- `tt package list`: the table's `KIND` column is now `ORIGIN`. `kind` names
+  what a component is (`library` or `binary`); what this column reports is
+  where a package came from — the project itself or an installed archive.
 - `tt status`: deprecate `--pretty` option in favor of `--format=pretty-table`.
 - tarantoolctl layout is no longer supported.
 - `tt create`: cartridge support removed.
@@ -120,6 +123,23 @@ for machine-readable output.
 
 ### Fixed
 
+- `tt package`: dependency resolution prefers released versions over `scm` and
+  `dev`. LuaRocks orders a branch above every number, so an ordinary constraint
+  like `>=3.0.0` used to select the development branch and pin the lock to code
+  that changes underneath it. A branch is chosen only when the constraint names
+  one (`==scm`) or when the rock has no released version at all, and that case
+  is now reported.
+- `tt package build`: a stale lock is re-resolved holding every version it
+  already recorded, so a build no longer pulls newer releases from the
+  registry behind the user's back. `tt package update` remains the way to move
+  dependencies forward. `--locked` on a stale lock now names `tt package
+  resolve` in the error instead of only reporting the staleness.
+- `tt package`: a dependency declared as `*` — which is what `tt package add`
+  writes when no version is given — now resolves to whatever the registry
+  serves instead of failing with `cannot parse constraint "*"`. A constraint
+  the resolver cannot act on is also refused before the manifest is edited, so
+  a rejected `tt package add` no longer leaves a declaration behind with the
+  lock out of step.
 - `tt`: return non-zero exit code on unknown command.
 - `tt run`: report `tarantool executable is not found` instead of a raw
   `open "": no such file or directory` error when Tarantool is missing.

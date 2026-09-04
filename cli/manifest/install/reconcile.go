@@ -7,6 +7,8 @@ import (
 
 	luarocks "github.com/tarantool/go-luarocks"
 	"github.com/tarantool/go-luarocks/deps"
+
+	"github.com/tarantool/tt/cli/manifest"
 )
 
 // contribution is one package's stake in a shared dependency: the version that
@@ -106,11 +108,12 @@ func gatherConstraints(
 	all := make([]luarocks.VersionConstraint, 0, len(contributions))
 
 	for _, contrib := range contributions {
-		if contrib.constraint == "" {
+		expr := manifest.ConstraintExpr(contrib.constraint)
+		if expr == "" {
 			continue
 		}
 
-		parsed, err := deps.ParseConstraints(contrib.constraint)
+		parsed, err := deps.ParseConstraints(expr)
 		if err != nil {
 			return nil, fmt.Errorf("%w %q: package %q declared unparseable constraint %q: %w",
 				errIncompatibleDeps, dep, contrib.pkg, contrib.constraint, err)

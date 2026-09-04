@@ -11,7 +11,7 @@ const anyToken = "any"
 
 // hostToken returns the platform token of the machine pack runs on:
 // "<os>-<arch>", e.g. linux-amd64, linux-arm64, darwin-amd64, darwin-arm64.
-// Go's GOARCH names already match the RFC's token vocabulary for the four
+// Go's GOOS and GOARCH names are already the token spelling for the four
 // supported pairs, so no translation table is needed.
 func hostToken() string {
 	return runtime.GOOS + "-" + runtime.GOARCH
