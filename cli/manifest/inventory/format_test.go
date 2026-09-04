@@ -109,7 +109,7 @@ func TestRenderTable(t *testing.T) {
 	require.Len(t, lines, 3)
 	assert.Contains(t, lines[0], "NAME")
 	assert.Contains(t, lines[0], "VERSION")
-	assert.Contains(t, lines[0], "KIND")
+	assert.Contains(t, lines[0], "ORIGIN")
 
 	assert.Contains(t, lines[1], "my-app")
 	assert.Contains(t, lines[1], "1.2.3")

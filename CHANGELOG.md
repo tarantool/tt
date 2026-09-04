@@ -102,6 +102,9 @@ for machine-readable output.
 - `tt enable` and `tt instances` commands removed.
 - `tt init`, `tt pack`, and `tt build` commands removed. Use
   `tt package build` and `tt package pack` for manifest-based applications.
+- `tt package list`: the table's `KIND` column is now `ORIGIN`. `kind` names
+  what a component is (`library` or `binary`); what this column reports is
+  where a package came from — the project itself or an installed archive.
 - `tt status`: deprecate `--pretty` option in favor of `--format=pretty-table`.
 - tarantoolctl layout is no longer supported.
 - `tt create`: cartridge support removed.
