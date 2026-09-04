@@ -17,6 +17,8 @@ func cleanupPidFiles() {
 }
 
 func verifyProcessRunning(t *testing.T, wd *Watchdog) {
+	t.Helper()
+
 	wd.cmdMutex.Lock()
 	defer wd.cmdMutex.Unlock()
 
@@ -26,6 +28,8 @@ func verifyProcessRunning(t *testing.T, wd *Watchdog) {
 }
 
 func verifyNoErrors(t *testing.T, errChan chan error) {
+	t.Helper()
+
 	select {
 	case err := <-errChan:
 		if err != nil {

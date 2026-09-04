@@ -60,6 +60,8 @@ func textConnectWithValidation(t *testing.T) *TextConnector {
 }
 
 func binaryConnectWithValidation(t *testing.T) *BinaryConnector {
+	t.Helper()
+
 	conn := test_helpers.ConnectWithValidation(t, dialer, opts)
 	return NewBinaryConnector(conn)
 }
@@ -70,6 +72,8 @@ type testConnect struct {
 }
 
 func createTestConnects(t *testing.T) []testConnect {
+	t.Helper()
+
 	return []testConnect{
 		{TextProtocol, textConnectWithValidation(t)},
 		{BinaryProtocol, binaryConnectWithValidation(t)},

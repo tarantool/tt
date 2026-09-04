@@ -25,6 +25,8 @@ func (mock *mockRepository) ValidateAll() error {
 }
 
 func getCliOpts(t *testing.T, configFile string) *config.CliOpts {
+	t.Helper()
+
 	cliOpts, configPath, err := configure.GetCliOpts(configFile,
 		&mockRepository{})
 	require.NoError(t, err)
