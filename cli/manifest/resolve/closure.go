@@ -194,6 +194,14 @@ func (w *walker) resolveOne(ctx context.Context, req depReq) (*resolvedDep, []de
 		return nil, nil, fmt.Errorf("metadata for %q: %w", req.name, err)
 	}
 
+	// A branch version is only ever chosen deliberately or for lack of a
+	// release, and either way the lock stops describing fixed code.
+	if (resolved.Version.IsSCM || resolved.Version.IsDev) && w.cache.markMoving(resolved.Name) {
+		w.warnings = append(w.warnings, fmt.Sprintf(
+			"%s resolved to %s, which tracks a branch; the lock will not pin fixed code",
+			resolved.Name, resolved.Version.Raw))
+	}
+
 	checksum, ok := rocks.Checksum(spec)
 	if !ok && w.cache.markNoMD5(resolved.URL) {
 		// Emit once per run: resolveOne re-runs per product (the walker is

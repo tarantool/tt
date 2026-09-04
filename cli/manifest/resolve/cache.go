@@ -32,16 +32,20 @@ type resolveCache struct {
 	// droppedPins records the rocks whose preferred version was dropped for no
 	// longer fitting, so that warning too is emitted once per run.
 	droppedPins map[string]bool
+	// warnedMoving records the rocks pinned to a branch rather than a release,
+	// so that warning too is emitted once per run.
+	warnedMoving map[string]bool
 }
 
 func newResolveCache() *resolveCache {
 	return &resolveCache{
-		resolved:    map[string]rocks.ResolvedRock{},
-		metadata:    map[string]*luarocks.Rockspec{},
-		content:     map[string]string{},
-		local:       map[string]*luarocks.Rockspec{},
-		warnedNoMD5: map[string]bool{},
-		droppedPins: map[string]bool{},
+		resolved:     map[string]rocks.ResolvedRock{},
+		metadata:     map[string]*luarocks.Rockspec{},
+		content:      map[string]string{},
+		local:        map[string]*luarocks.Rockspec{},
+		warnedNoMD5:  map[string]bool{},
+		droppedPins:  map[string]bool{},
+		warnedMoving: map[string]bool{},
 	}
 }
 
@@ -54,6 +58,19 @@ func (c *resolveCache) markNoMD5(url string) bool {
 	}
 
 	c.warnedNoMD5[url] = true
+
+	return true
+}
+
+// markMoving records that name resolved to a branch rather than a release and
+// reports whether this is the first time in the run - so a rock several
+// products depend on warns once, not once per product.
+func (c *resolveCache) markMoving(name string) bool {
+	if c.warnedMoving[name] {
+		return false
+	}
+
+	c.warnedMoving[name] = true
 
 	return true
 }
