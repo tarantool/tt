@@ -287,8 +287,9 @@ func TestBundleRuntimeNoSourceAtAll(t *testing.T) {
 	assert.ErrorIs(t, err, errNoRuntime)
 }
 
-// TestBundleRuntimeRequiresTarantoolLicense enforces the RFC rule that a
-// bundled Tarantool ships its LICENSE.
+// TestBundleRuntimeRequiresTarantoolLicense pins that a bundled Tarantool
+// ships its LICENSE: an archive that redistributes the binary carries the
+// terms it is redistributed under.
 func TestBundleRuntimeRequiresTarantoolLicense(t *testing.T) {
 	cache := t.TempDir()
 	writeTree(t, filepath.Join(cache, runtimeTarantool, flavorCE, "3.0.5"), map[string]string{
