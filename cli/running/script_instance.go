@@ -145,7 +145,7 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	cmd.Env = append(cmd.Env,
 		"TT_CLI_INSTANCE="+inst.appPath,
 		"TT_CLI_WORK_DIR="+workDir,
-		"TT_CLI=true",       // Set the sign that the program is running under "tt".
+		"TT_CLI=true", // Set the sign that the program is running under "tt".
 		"TT_VINYL_DIR="+inst.vinylDir,
 		"TT_WAL_DIR="+inst.walDir,
 		"TT_MEMTX_DIR="+inst.memtxDir,

@@ -115,8 +115,7 @@ func appendFlags(flags ...string) optsUpdater {
 // appendLdFlags appends linker flags.
 func appendLdFlags(flags ...string) optsUpdater {
 	return func(args []string) ([]string, error) {
-		buildLdflags := make([]string, len(ldflags))
-		copy(buildLdflags, ldflags)
+		buildLdflags := append([]string(nil), ldflags...)
 		buildLdflags = append(buildLdflags, flags...)
 
 		buildType := os.Getenv(buildTypeEnv)

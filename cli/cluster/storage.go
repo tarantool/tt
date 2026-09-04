@@ -319,7 +319,8 @@ func readTcsEndpoints(
 ) (*goconfig.Config, error) {
 	// Read endpoints list as []any (each element is a map[string]any).
 	var rawEndpoints any
-	if _, err := cfg.Get(goconfig.NewKeyPath("config/storage/endpoints"), &rawEndpoints); err != nil {
+	_, err := cfg.Get(goconfig.NewKeyPath("config/storage/endpoints"), &rawEndpoints)
+	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
 			return nil, nil
 		}
@@ -415,7 +416,13 @@ func readTcsEndpoints(
 		}
 		defer gsCleanup()
 
-		tcsCollector, err := collectorFactory.NewRemoteStorage(stor, prefix, "", timeout, "tarantool")
+		tcsCollector, err := collectorFactory.NewRemoteStorage(
+			stor,
+			prefix,
+			"",
+			timeout,
+			"tarantool",
+		)
 		if err != nil {
 			connectionErrors = append(connectionErrors,
 				fmt.Errorf("endpoint[%d] %q: create collector: %w", i, addr, err))

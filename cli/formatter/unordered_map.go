@@ -5,10 +5,10 @@ type unorderedMap[T comparable] struct {
 	keys     []T
 }
 
-func createUnorderedMap[T comparable](len int) unorderedMap[T] {
+func createUnorderedMap[T comparable](length int) unorderedMap[T] {
 	return unorderedMap[T]{
 		innerMap: make(map[T]any),
-		keys:     make([]T, 0, len),
+		keys:     make([]T, 0, length),
 	}
 }
 
