@@ -36,7 +36,7 @@ func (dummyRepository) Read(path string) (io.ReadCloser, error) {
 	}
 	return f, nil
 }
-func (dummyRepository) ValidateAll() error                      { return nil }
+func (dummyRepository) ValidateAll() error { return nil }
 
 // NewSigner constructs a noop Signer.
 func NewSigner(path string) (Signer, error) {

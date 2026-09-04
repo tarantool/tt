@@ -812,7 +812,7 @@ func MergeFiles(destFilePath string, srcFilePaths ...string) error {
 // If mustExist flag is set and no yaml files are found, ErrNotExists error is returned,
 // passed fileName is returned otherwise.
 func GetYamlFileName(fileName string, mustExist bool) (string, error) {
-	fileBaseName := fileName
+	var fileBaseName string
 	switch filepath.Ext(fileName) {
 	case ".yaml":
 		fileBaseName = strings.TrimSuffix(fileName, ".yaml")

@@ -907,7 +907,8 @@ func cconfigGetElectionMode(cfg goconfig.Config, instName string) (ElectionMode,
 	if _, err = instCfg.Get(goconfig.NewKeyPath("replication/election_mode"), &raw); err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
 			// This is true if failover == "election" && replica is not anonymous.
-			// https://github.com/tarantool/tarantool/blob/e01fe8f7144eebc64249ab60a83f656cb4a11dc0/src/box/lua/config/applier/box_cfg.lua#L418-L420
+			// https://github.com/tarantool/tarantool/blob/e01fe8f7144eebc64249ab60a83f656cb4a11dc0/
+			// src/box/lua/config/applier/box_cfg.lua#L418-L420
 			return ElectionModeCandidate, nil
 		}
 		return ElectionModeCandidate, fmt.Errorf("failed to get election_mode: %w", err)
@@ -976,7 +977,8 @@ func patchCConfigPromote(config *goconfig.MutableConfig,
 }
 
 // patchCConfigExpel patches the config to expel an instance, following the documentation:
-// https://www.tarantool.io/en/doc/latest/how-to/replication/repl_bootstrap/#disconnecting-an-instance
+// https://www.tarantool.io/en/doc/latest/how-to/replication/
+// repl_bootstrap/#disconnecting-an-instance
 //
 // It set up:
 // instance.iproto.listen = {}.
