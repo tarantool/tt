@@ -1,7 +1,12 @@
-// Package deps implements the three commands that change what a package
-// depends on: tt package add, tt package remove and tt package update. Each is
-// the same two-step transaction — edit the declaration, then re-resolve the
-// lock — and the whole package exists to make those two steps agree.
+// Package deps implements the commands that work on what a package depends on.
+//
+// Four of them write the lock: tt package add, tt package remove and
+// tt package update, plus tt package resolve, which is the same transaction
+// with no manifest edit in front of it. Each is the two-step transaction — edit
+// the declaration, then re-resolve the lock — and the whole package exists to
+// make those two steps agree. The fifth, tt package deps, only reads: it
+// reports the declarations and the versions the lock resolved them to, without
+// touching a registry (see Deps).
 //
 // The manifest half is done by the position-preserving editor in
 // cli/manifest (NewEditor): app.manifest.toml is hand-authored, so an edit
@@ -18,9 +23,9 @@
 // edit that had nothing to do with it. resolve.Pins is what prevents that, and
 // choosing the pin set is the whole of what distinguishes the commands:
 //
-//   - Add and Remove pin everything the lock already holds. The rock being
-//     added is not in the lock, so it resolves fresh; every other rock keeps
-//     the version it had.
+//   - Add, Remove and Resolve pin everything the lock already holds. The rock
+//     being added is not in the lock, so it resolves fresh; every other rock
+//     keeps the version it had.
 //   - Update with no argument pins nothing. It is the only command that pulls
 //     newer registry versions, which is exactly the rule resolve.IsStale
 //     states.
@@ -146,23 +151,6 @@ type resolver interface {
 	ResolvePinned(
 		ctx context.Context, man *manifest.Manifest, pins resolve.Pins,
 	) (*manifest.Lock, []string, error)
-}
-
-// ReResolve re-resolves man into a fresh lock, preferring pins.
-//
-// It is exported because it is the whole of tt package resolve: that command is
-// this step with no manifest edit in front of it, and duplicating the adapter
-// and engine wiring is how the two would drift apart. It does not write
-// anything — the caller decides whether the lock reaches disk.
-func ReResolve(
-	ctx context.Context, opts Options, man *manifest.Manifest, pins resolve.Pins,
-) (*manifest.Lock, []string, error) {
-	lock, warnings, err := engineFor(opts).ResolvePinned(ctx, man, pins)
-	if err != nil {
-		return nil, nil, stateErrorf("resolving dependencies: %w", err)
-	}
-
-	return lock, warnings, nil
 }
 
 // engineFor builds the resolution engine the commands drive: the rocks adapter

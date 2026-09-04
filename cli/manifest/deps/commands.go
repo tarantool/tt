@@ -201,6 +201,36 @@ func updateWith(
 		manifest.Change{Existed: false, Previous: ""})
 }
 
+// Resolve rewrites the lock from the manifest, changing no declaration and
+// building nothing.
+//
+// It is what a user reaches for after editing [dependencies] by hand: the lock
+// catches up with the manifest without a build, without fetching anything into
+// .rocks/ and without pulling newer registry versions. Every version the lock
+// already holds is pinned, exactly as add and remove pin them — the edit that
+// prompted the run is the only thing allowed to move the closure, and pulling
+// newer versions is what tt package update is for.
+//
+// A resolve of an already-current lock is not an error and not a no-op: the
+// lock is rewritten from the same inputs, so it comes out identical and the
+// caller sees no moves.
+func Resolve(ctx context.Context, opts Options) (*Result, error) {
+	return resolveWith(ctx, opts, engineFor(opts))
+}
+
+// resolveWith is Resolve against an injected resolver.
+func resolveWith(ctx context.Context, opts Options, res resolver) (*Result, error) {
+	proj, err := load(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// A nil edit, like update: the manifest on disk is already the one to
+	// resolve, hash included.
+	return apply(ctx, opts, res, proj, nil, resolve.PinsFromLock(proj.lock),
+		manifest.Change{Existed: false, Previous: ""})
+}
+
 // notDeclared builds the error for a name the manifest does not declare, naming
 // the component tables that do declare it when any do — the difference between
 // "you mistyped it" and "it is there, but somewhere this command may not touch"
