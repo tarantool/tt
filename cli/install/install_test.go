@@ -99,14 +99,15 @@ func Test_getLatestRelease(t *testing.T) {
 		return ver
 	}
 
-	versions := []version.Version{
+	versions := make([]version.Version, 0, 7)
+	versions = append(versions,
 		getFirst("2.10.6"),
 		getFirst("2.10.7-entrypoint"),
 		getFirst("2.11.0-entrypoint"),
 		getFirst("2.11.0-rc1"),
 		getFirst("2.11.0-rc2"),
 		getFirst("3.0.0-entrypoint"),
-	}
+	)
 
 	latestRelease := getLatestRelease(versions)
 	require.Equal(t, "2.10.6", latestRelease)

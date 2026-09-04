@@ -291,7 +291,7 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 		configPath = ""
 	}
 
-	configDir := ""
+	var configDir string
 	if configPath == "" {
 		configDir, err = os.Getwd()
 		if err != nil {
@@ -591,7 +591,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 // configureLocalLaunch configures the context using the specified local launch path.
 func configureLocalLaunch(cmdCtx *cmdcontext.CmdCtx) error {
 	var err error
-	launchDir := ""
+	var launchDir string
 	if cmdCtx.Cli.LocalLaunchDir != "" {
 		if launchDir, err = filepath.Abs(cmdCtx.Cli.LocalLaunchDir); err != nil {
 			return fmt.Errorf(`failed to get absolute path to local directory: %s`, err)

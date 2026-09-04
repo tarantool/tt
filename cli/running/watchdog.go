@@ -185,7 +185,7 @@ func (wd *Watchdog) startInstance(ctx context.Context) bool {
 	}
 
 	// Start the Instance.
-	if err := wd.instance.Start(context.Background()); err != nil {
+	if err := wd.instance.Start(ctx); err != nil {
 		wd.logger.Printf(`(ERROR):  instance start failed: %v.`, err)
 		return false
 	}

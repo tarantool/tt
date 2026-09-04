@@ -150,7 +150,7 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 			return nil, nil, err
 		}
 
-		isRW := false
+		var isRW bool
 
 		if instance.Mode == replicaset.ModeUnknown {
 			// TODO (gh-1034): Temporary workaround for mode assignment.

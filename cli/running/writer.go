@@ -17,12 +17,8 @@ var (
 		"W": color.New(color.FgYellow),
 	}
 
-	logLevelRgx *regexp.Regexp
-)
-
-func init() {
 	logLevelRgx = regexp.MustCompile(" ([F!EW])> ")
-}
+)
 
 type colorizedWriter func(msg []byte) (int, error)
 

@@ -3,6 +3,7 @@ package formatter
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
 
@@ -121,7 +121,7 @@ func isSingleType(batch []any, t nodeType) bool {
 
 // renderScalars returns a table as string for scalars.
 func renderScalars(batch []any, transpose bool, opts Opts) (string, error) {
-	var arrays []any
+	arrays := make([]any, 0, len(batch))
 	for _, item := range batch {
 		arrays = append(arrays, []any{item})
 	}
@@ -171,7 +171,7 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 		item := item.([]any)
 		itemMap := createUnorderedMap[any](maxLen)
 
-		for i := 0; i < maxLen; i++ {
+		for i := range maxLen {
 			if i < len(item) {
 				itemMap.insert(strconv.Itoa(i+1), item[i])
 			} else {
@@ -246,10 +246,10 @@ func transposeRows(rowsRaw []table.Row) []table.Row {
 		}
 	}
 
-	var rowsRawTransposed []table.Row
-	for i := 0; i < rowsRawTransposedCap; i++ {
+	rowsRawTransposed := make([]table.Row, 0, rowsRawTransposedCap)
+	for i := range rowsRawTransposedCap {
 		var rowTransposed table.Row
-		for j := 0; j < len(rowsRaw); j++ {
+		for j := range rowsRaw {
 			if i < len(rowsRaw[j]) {
 				rowTransposed = append(rowTransposed, rowsRaw[j][i])
 			} else {
@@ -381,7 +381,7 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 		batchPointer := 0
 		mapsBatches[batchPointer] = append(mapsBatches[batchPointer], anyMaps[0])
 
-		for i := 0; i < len(anyMaps)-1; i++ {
+		for i := range len(anyMaps) - 1 {
 			if !isMapKeysEqual(anyMaps[i], anyMaps[i+1]) {
 				batchPointer++
 			}
@@ -441,7 +441,7 @@ type metadataRows struct {
 
 // remapMetadataRows creates maps from rows with a meta information.
 func remapMetadataRows(meta metadataRows) []any {
-	var nodes []any
+	nodes := make([]any, 0, len(meta.Rows))
 	maxLen := 0
 	for _, row := range meta.Rows {
 		if len(row) > maxLen {
@@ -451,7 +451,7 @@ func remapMetadataRows(meta metadataRows) []any {
 	for _, row := range meta.Rows {
 		index := 1
 		mapped := createUnorderedMap[any](len(row))
-		for i := 0; i < maxLen; i++ {
+		for i := range maxLen {
 			if i >= len(row) {
 				mapped.insert(index, "")
 				index++
@@ -540,7 +540,7 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 	batches := make([][]any, len(nodes))
 	batchPointer := 0
 	batches[batchPointer] = append(batches[batchPointer], nodes[0])
-	for i := 0; i < len(nodes)-1; i++ {
+	for i := range len(nodes) - 1 {
 		if !isNodeTypeEqual(nodes[i], nodes[i+1]) {
 			batchPointer++
 		}

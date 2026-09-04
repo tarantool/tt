@@ -135,7 +135,7 @@ func CollectDataBytes(ctx context.Context, collector libcluster.DataCollector) (
 		if err != nil {
 			return nil, fmt.Errorf("collect data: parse %q: %w", d.Source, err)
 		}
-		if err := fillOnlyMerge(mut, extra); err != nil {
+		if err := fillOnlyMerge(ctx, mut, extra); err != nil {
 			return nil, fmt.Errorf("collect data: merge %q: %w", d.Source, err)
 		}
 	}
@@ -377,7 +377,7 @@ func readTcsEndpoints(
 		}
 		addr := fmt.Sprintf("%s://%s", network, address)
 
-		sslEnable := false
+		var sslEnable bool
 		switch transport {
 		case "ssl":
 			sslEnable = true

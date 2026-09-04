@@ -62,7 +62,7 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 		versions = append(versions, version)
 	}
 
-	sort.Stable(version.VersionSlice(versions))
+	sort.Stable(versions)
 
 	return versions, nil
 }

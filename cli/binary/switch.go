@@ -137,6 +137,8 @@ func Switch(switchCtx *SwitchCtx) error {
 
 	case search.ProgramUnknown:
 		return fmt.Errorf("unknown application: %s", switchCtx.Program)
+	case search.ProgramCe, search.ProgramEe, search.ProgramDev, search.ProgramTcm:
+		// These programs do not require tt version normalization.
 	}
 
 	versionStr := switchCtx.Program.String() + version.FsSeparator + switchCtx.Version

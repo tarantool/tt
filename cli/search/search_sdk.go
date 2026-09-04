@@ -14,6 +14,8 @@ func GetApiPackage(program Program) string {
 		return "enterprise"
 	case ProgramTcm:
 		return "tarantool-cluster-manager"
+	case ProgramUnknown, ProgramCe, ProgramTt, ProgramDev:
+		// These programs do not have a customer-zone API package name.
 	}
 	return ""
 }

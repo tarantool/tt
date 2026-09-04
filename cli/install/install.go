@@ -174,7 +174,7 @@ func getVersionsFromRepo(local bool, distfiles, program string,
 func getCommit(local bool, distfiles, programName string,
 	line string,
 ) (string, error) {
-	commit := ""
+	var commit string
 	var err error
 
 	if local {
@@ -285,6 +285,8 @@ func programDependenciesInstalled(program search.Program) error {
 			}
 			return nil
 		}
+	case search.ProgramUnknown, search.ProgramEe, search.ProgramDev, search.ProgramTcm:
+		// These programs have no source-build dependency checks.
 	}
 	missing_pack := []string{}
 	// Programs that are installed from source.
@@ -505,7 +507,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 		}
 	}
 
-	versionStr := ""
+	var versionStr string
 
 	if versionFound {
 		versionStr = search.ProgramTt.Exec() + version.FsSeparator + ttVersion
@@ -969,7 +971,7 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 		}
 	}
 
-	versionStr := ""
+	var versionStr string
 
 	if versionFound {
 		versionStr = search.ProgramCe.String() + version.FsSeparator + tarVersion
@@ -1190,6 +1192,8 @@ func isUpdatePossible(installCtx InstallCtx,
 					return false, err
 				}
 				curBinHash = ttVer.Hash
+			case search.ProgramUnknown, search.ProgramEe, search.ProgramDev, search.ProgramTcm:
+				// Current callers only pass Tarantool CE or tt.
 			}
 		}
 	}
