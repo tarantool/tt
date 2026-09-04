@@ -58,6 +58,8 @@ func (provider *providerTestImpl) IsRestartable() (bool, error) {
 
 // createTestWatchdog creates an instance and a watchdog for the test.
 func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
+	t.Helper()
+
 	assert := assert.New(t)
 
 	dataDir := t.TempDir()
@@ -87,6 +89,8 @@ func createTestWatchdog(t *testing.T, restartable bool) *Watchdog {
 // killAndCheckRestart kills the instance by signal and checks if a
 // new instance has been started.
 func killAndCheckRestart(t *testing.T, wd *Watchdog, signal syscall.Signal) {
+	t.Helper()
+
 	// Remove the file. It must be created again by the restarted instance.
 	os.Remove(os.Getenv("started_flag_file"))
 	wd.instance.SendSignal(signal)

@@ -35,6 +35,8 @@ func yamlUnmarshal(data []byte, v any) error {
 const timeout = 5 * time.Second
 
 func tcsIsSupported(t *testing.T) bool {
+	t.Helper()
+
 	ok, err := test_helpers.IsTcsSupported()
 	if err != nil {
 		t.Fatalf("Failed to check if TCS is supported: %s", err)
@@ -43,11 +45,15 @@ func tcsIsSupported(t *testing.T) bool {
 }
 
 func startTcs(t *testing.T) *tcs_helper.TCS {
+	t.Helper()
+
 	tcs := tcs_helper.StartTesting(t, 3301)
 	return &tcs
 }
 
 func stopTcs(t *testing.T, inst any) {
+	t.Helper()
+
 	tcs, ok := inst.(*tcs_helper.TCS)
 	if !ok {
 		t.Fatalf("Shutdown expected *tcs_helper.TCS, got %T", inst)
@@ -512,10 +518,14 @@ var testsIntegrity = []struct {
 		Name:       "tarantool",
 		Applicable: tcsIsSupported,
 		Setup: func(t *testing.T) interface{} {
+			t.Helper()
+
 			inst := startTcs(t)
 			return inst
 		},
 		Shutdown: func(t *testing.T, inst interface{}) {
+			t.Helper()
+
 			stopTcs(t, inst)
 		},
 		NewPublisher: func(
@@ -525,6 +535,8 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataPublisher, func()) {
+			t.Helper()
+
 			tcs, ok := inst.(*tcs_helper.TCS)
 			if !ok {
 				t.Fatalf("NewPublisher expected *tcs_helper.TCS, got %T", inst)
@@ -562,6 +574,8 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataCollector, func()) {
+			t.Helper()
+
 			tcs, ok := inst.(*tcs_helper.TCS)
 			if !ok {
 				t.Fatalf("NewCollector expected *tcs_helper.TCS, got %T", inst)
@@ -597,13 +611,21 @@ var testsIntegrity = []struct {
 		},
 	},
 	{
-		Name:       "etcd",
-		Applicable: func(t *testing.T) bool { return true },
+		Name: "etcd",
+		Applicable: func(t *testing.T) bool {
+			t.Helper()
+
+			return true
+		},
 		Setup: func(t *testing.T) interface{} {
+			t.Helper()
+
 			inst := startEtcd(t, etcdOpts{})
 			return inst
 		},
 		Shutdown: func(t *testing.T, inst interface{}) {
+			t.Helper()
+
 			inst.(*etcdtest.LazyCluster).Terminate()
 		},
 		NewPublisher: func(
@@ -613,6 +635,8 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataPublisher, func()) {
+			t.Helper()
+
 			publisherFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
@@ -637,6 +661,8 @@ var testsIntegrity = []struct {
 			key string,
 			inst interface{},
 		) (cluster.DataCollector, func()) {
+			t.Helper()
+
 			collectorFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)

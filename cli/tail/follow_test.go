@@ -33,6 +33,8 @@ func readWithTimeout(t *testing.T, ch <-chan string, timeout time.Duration) (str
 }
 
 func writeLogLines(t *testing.T, f *os.File, count int, line_fmt string) error {
+	t.Helper()
+
 	for i := range count {
 		_, err := fmt.Fprintln(f, fmt.Sprintf(line_fmt, i+1))
 		if err != nil {
@@ -196,6 +198,8 @@ func TestFollow2_NonExistentFile(t *testing.T) {
 }
 
 func rotationTest(t *testing.T, use_delay bool) {
+	t.Helper()
+
 	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
 
 	ctx, cancel := context.WithCancel(context.Background())
