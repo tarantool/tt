@@ -181,7 +181,8 @@ func TestHasNativeArtifacts(t *testing.T) {
 	})
 }
 
-// TestOutputDir pins where the archive lands: RFC 0010 puts it in _build/pack.
+// TestOutputDir pins where the archive lands: _build/pack under the project,
+// unless an explicit output directory overrides it.
 func TestOutputDir(t *testing.T) {
 	assert.Equal(t, filepath.Join("/proj", "_build", "pack"),
 		outputDir(Options{ProjectDir: "/proj"}))
