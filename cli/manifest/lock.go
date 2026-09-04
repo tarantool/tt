@@ -29,7 +29,13 @@ type Lock struct {
 	// DevDependencies is the closure of [dev_dependencies], as
 	// [[lock.dev_dependencies]]. It is one list rather than one per product:
 	// the manifest declares dev dependencies globally, so there is nothing to
-	// key them by. Empty for a manifest that declares none, and then absent
+	// key them by.
+	//
+	// It is pinned like any other closure because it can shape the artifact:
+	// the dev tree is materialized into .rocks/ before the component build
+	// backends run, so a generator installed as a dev dependency writes files
+	// that are then laid out and packed. Recording the versions is what makes
+	// such a build reproducible. Empty for a manifest that declares none, and then absent
 	// from the file entirely - a lock written before dev dependencies existed
 	// is therefore indistinguishable from one whose manifest declares none,
 	// which is why IsStale checks the manifest side too.

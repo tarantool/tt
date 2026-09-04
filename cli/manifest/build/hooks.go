@@ -21,6 +21,13 @@ const (
 // component TT_OUTPUT_DIR / TT_COMPONENT_NAME). An absent hook is a no-op. The
 // hook runs in its own cwd (default: the project root), so pre_build can
 // generate files anywhere in the tree before components are gathered.
+//
+// pre_build runs before the dependency closure is materialized, so .rocks/ may
+// not exist yet and PATH is not extended to reach it. That ordering is what
+// lets a hook produce the contents of a path dependency, whose hash and
+// rockspec the resolver reads immediately afterwards. Generation that feeds the
+// artifact belongs in a component's build backend instead, which runs after
+// materialization and is handed TT_OUTPUT_DIR.
 func runHook(
 	ctx context.Context, man *manifest.Manifest, ver version.Version,
 	name, projectDir string, showOutput bool,

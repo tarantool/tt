@@ -90,7 +90,12 @@ func gateLock(
 	}
 
 	if locked {
-		return nil, nil, exitErrorf(exitStateError, "%w: %s (--locked)", errLockStale, reason)
+		// Naming the command that fixes it matters more here than elsewhere:
+		// --locked is what a release pipeline passes, so whoever reads this is
+		// looking at a failed build rather than at a shell.
+		return nil, nil, exitErrorf(exitStateError,
+			"%w: %s (--locked); run tt package resolve to bring the lock back in step",
+			errLockStale, reason)
 	}
 
 	// Every version the stale lock already chose is held: a manifest edit moves
