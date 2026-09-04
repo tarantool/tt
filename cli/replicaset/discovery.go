@@ -23,6 +23,7 @@ type discoverer interface {
 // cachedDiscoverer allows to automatically cache discovery results.
 type cachedDiscoverer struct {
 	discoverer
+
 	cached      bool
 	replicasets Replicasets
 }

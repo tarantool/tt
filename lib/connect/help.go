@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// nolint: lll
-const EnvTarantoolCredentialsHelp = "The command supports the following Tarantool environment variables:\n" +
+const EnvTarantoolCredentialsHelp = "The command supports the following " +
+	"Tarantool environment variables:\n" +
 	"* " + TarantoolUsernameEnv + " - specifies a Tarantool username\n" +
 	"* " + TarantoolPasswordEnv + " - specifies a Tarantool password"
 
@@ -16,7 +16,6 @@ const EnvEtcdCredentialsHelp = "The command supports the following Etcd environm
 	"* " + EtcdUsernameEnv + " - specifies a Etcd username\n" +
 	"* " + EtcdPasswordEnv + " - specifies a Etcd password"
 
-// nolint: lll
 // MakeURLHelp returns a part of command help message related to URL arguments.
 // The function uses a template to generate the message.
 // Accepts following placeholders in the `data` map:
@@ -36,7 +35,8 @@ func MakeURLHelp(data map[string]any) string {
 	st := `{{ if .header }}{{.header}}
 {{end -}}
 The URL specifies a {{.service}} connection settings in the following format:
-http(s)://[username:password@]host:port{{ if .prefix }}/prefix{{end}}[?arguments]{{ if .tag }}[#tag]{{end}}
+http(s)://[username:password@]host:port{{ if .prefix }}/prefix{{end}}` +
+		`[?arguments]{{ if .tag }}[#tag]{{end}}
 {{- if or .prefix .tag }}{{ $NL := "" }}
 
 {{with .prefix }}* prefix - {{.}}.{{ $NL = "\n" }}{{end -}}
@@ -54,8 +54,10 @@ Possible arguments:
 * {{.ssl_ca_file}} - a path to a trusted certificate authorities (CA) file.
 * {{.ssl_ca_path}} - a path to a trusted certificate authorities (CA) directory.
 * {{.ssl_ciphers}} - a list of allowed SSL ciphers.
-* {{.verify_host}} - set off (default {{.default_verify_host}}) verification of the certificate’s name against the host.
-* {{.verify_peer}} - set off (default {{.default_verify_peer}}) verification of the peer’s SSL certificate.
+* {{.verify_host}} - set off (default {{.default_verify_host}})` +
+		` verification of the certificate’s name against the host.
+* {{.verify_peer}} - set off (default {{.default_verify_peer}})` +
+		` verification of the peer’s SSL certificate.
 {{- if or .env_auth .env_vars }}
 
 The command supports the following environment variables:

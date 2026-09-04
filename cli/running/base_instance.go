@@ -18,6 +18,7 @@ import (
 type baseInstance struct {
 	// processController is a child process controller.
 	*processController
+
 	// logger represents an active logging object.
 	logger ttlog.Logger
 	// tarantoolPath describes the path to the tarantool binary

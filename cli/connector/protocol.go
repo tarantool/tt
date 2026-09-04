@@ -40,7 +40,7 @@ func (protocol Protocol) String() string {
 
 // GetProtocol gets a protocol name from the reader greeting. See:
 // https://github.com/tarantool/tarantool/blob/8dcefeb2bf5291487496d168cb81f5b6082a2af0/
-// test/unit/xrow.cc#L92-L123
+// test/unit/xrow.cc#L92-L123.
 func GetProtocol(reader io.Reader) (Protocol, error) {
 	greeting := make([]byte, greetingSize)
 	if _, err := reader.Read(greeting); err != nil {

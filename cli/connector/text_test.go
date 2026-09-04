@@ -12,6 +12,7 @@ import (
 
 type plainConnectorStub struct {
 	net.Conn
+
 	err    error
 	closed int
 }

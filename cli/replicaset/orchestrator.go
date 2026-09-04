@@ -18,11 +18,11 @@ type Orchestrator int
 
 const (
 	// OrchestratorUnknown is an unknown orchestrator.
-	OrchestratorUnknown Orchestrator = iota // unknown
+	OrchestratorUnknown Orchestrator = iota // unknown.
 	// OrchestratorCentralizedConfig is centralized config for Tarantool 3.0.
-	OrchestratorCentralizedConfig // centralized config
+	OrchestratorCentralizedConfig // centralized config.
 	// OrchestratorCustom is a custom orchestrator.
-	OrchestratorCustom // custom
+	OrchestratorCustom // custom.
 )
 
 var knownOrchestrators = []Orchestrator{

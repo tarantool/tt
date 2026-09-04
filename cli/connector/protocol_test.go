@@ -36,6 +36,7 @@ func TestProtocol_String(t *testing.T) {
 
 type greetingReadStub struct {
 	io.Reader
+
 	err  error
 	data []byte
 }

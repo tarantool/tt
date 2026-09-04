@@ -81,7 +81,7 @@ func (m *mockDoer) Do(req *http.Request) ([]byte, error) {
 		m.t.Errorf("failed to read request body: %v", err)
 		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
-	// Restore the body for potential re-reads
+	// Restore the body for potential re-reads.
 	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	type expectedApiRequest struct {
@@ -118,7 +118,7 @@ func (m *mockDoer) Token() string {
 func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 	t.Helper()
 
-	// Verify the output contains the expected versions in the correct order
+	// Verify the output contains the expected versions in the correct order.
 	lastIndex := -1
 	for _, ver := range expected {
 		currentIndex := strings.Index(got, ver)
@@ -137,7 +137,7 @@ func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 		}
 	}
 
-	// Ensure no unexpected versions are printed (optional, stricter check)
+	// Ensure no unexpected versions are printed (optional, stricter check).
 	lines := strings.Split(strings.TrimSpace(got), "\n")
 	require.Equal(t, len(expected), len(lines),
 		"Output contains unexpected lines or missing expected versions")
@@ -455,6 +455,8 @@ func TestSearchVersions_TntIo(t *testing.T) {
 }
 
 func TestTntIoMakePkgURI(t *testing.T) {
+	const packagesURL = "https://www.tarantool.io/en/accounts/customer_zone/packages/"
+
 	type args struct {
 		platform  *platformInfo
 		program   search.Program
@@ -474,8 +476,8 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				version:  "1.3",
 				tarball:  "tcm.tar.gz",
 			},
-			// nolint: lll
-			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/tarantool-cluster-manager/release/linux/amd64/1.3/tcm.tar.gz",
+			expected: packagesURL +
+				"tarantool-cluster-manager/release/linux/amd64/1.3/tcm.tar.gz",
 		},
 
 		"tcm arm macos": {
@@ -486,8 +488,8 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				devBuilds: true,
 				tarball:   "tcm.tar.gz",
 			},
-			// nolint: lll
-			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/tarantool-cluster-manager/dev/macos/arm64/1.1/tcm.tar.gz",
+			expected: packagesURL +
+				"tarantool-cluster-manager/dev/macos/arm64/1.1/tcm.tar.gz",
 		},
 
 		"tarantool x86 linux": {
@@ -497,8 +499,8 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				version:  "3.0",
 				tarball:  "tarantool.tar.gz",
 			},
-			// nolint: lll
-			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/enterprise/release/linux/x86_64/3.0/tarantool.tar.gz",
+			expected: packagesURL +
+				"enterprise/release/linux/x86_64/3.0/tarantool.tar.gz",
 		},
 
 		"tarantool arm macos": {
@@ -509,8 +511,8 @@ func TestTntIoMakePkgURI(t *testing.T) {
 				devBuilds: true,
 				tarball:   "tarantool.tar.gz",
 			},
-			// nolint: lll
-			expected: "https://www.tarantool.io/en/accounts/customer_zone/packages/enterprise/dev/macos/aarch64/3.3/tarantool.tar.gz",
+			expected: packagesURL +
+				"enterprise/dev/macos/aarch64/3.3/tarantool.tar.gz",
 		},
 
 		"no platform informer": {
