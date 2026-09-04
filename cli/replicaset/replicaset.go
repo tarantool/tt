@@ -42,6 +42,8 @@ func recalculateMaster(replicaset *Replicaset) {
 			masters++
 		case ModeUnknown:
 			unknown++
+		case ModeRead:
+			// Read-only instances do not affect master counters.
 		}
 	}
 

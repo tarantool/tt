@@ -61,7 +61,7 @@ func Less(verLeft, verRight version.Version) bool {
 
 	largestLen := util.Max(len(left), len(right))
 
-	for i := 0; i < largestLen; i++ {
+	for i := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
 		if i < len(left) {
 			valLeft = left[i]
@@ -148,6 +148,8 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 				if !strings.Contains(pkg, "-debug-") {
 					continue
 				}
+			case SearchAll:
+				// Keep both release and debug packages.
 			}
 
 			bundles = append(bundles, eeVer)

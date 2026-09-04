@@ -15,8 +15,8 @@ import (
 
 // fillOnlyMerge copies leaf values from src into dst only when the key is not
 // already present in dst (fill-only semantics: never overwrite existing keys).
-func fillOnlyMerge(dst *goconfig.MutableConfig, src goconfig.Config) error {
-	ch, err := src.Walk(context.Background(), nil, -1)
+func fillOnlyMerge(ctx context.Context, dst *goconfig.MutableConfig, src goconfig.Config) error {
+	ch, err := src.Walk(ctx, nil, -1)
 	if err != nil {
 		if errors.Is(err, goconfig.ErrPathNotFound) {
 			return nil
@@ -81,7 +81,7 @@ func GetClusterConfig(
 
 	// Fill-only merge storage layer (file > storage per Tarantool docs).
 	if _, ok := storageCfg.Lookup(nil); ok {
-		if err := fillOnlyMerge(mut, storageCfg); err != nil {
+		if err := fillOnlyMerge(ctx, mut, storageCfg); err != nil {
 			return nil, fmt.Errorf("unable to merge storage config: %w", err)
 		}
 	}
@@ -95,7 +95,7 @@ func GetClusterConfig(
 	if err != nil {
 		return nil, fmt.Errorf("unable to load config from %q with default env: %w", path, err)
 	}
-	if err := fillOnlyMerge(mut, def.Snapshot()); err != nil {
+	if err := fillOnlyMerge(ctx, mut, def.Snapshot()); err != nil {
 		return nil, fmt.Errorf("unable to merge default env config: %w", err)
 	}
 

@@ -38,7 +38,7 @@ func ConnectPool(opts []ConnectOpts) (*Pool, error) {
 // success.
 func (pool *Pool) Eval(expr string, args []any, opts RequestOpts) ([]any, error) {
 	var err error
-	for i := 0; i < len(pool.opts); i++ {
+	for range pool.opts {
 		if pool.current == nil {
 			conn, err := Connect(pool.opts[pool.currentIndex])
 			if err != nil {

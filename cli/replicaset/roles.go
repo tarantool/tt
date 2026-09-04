@@ -18,7 +18,7 @@ const (
 // RolesChangerAction implements changing (add or remove) of roles.
 type RolesChangerAction interface {
 	// ChangeRoleFunc is a function type for addition or removing a role.
-	Change([]string, string) ([]string, error)
+	Change(roles []string, role string) ([]string, error)
 	// Action is a method that returns RoleAction.
 	Action() RoleAction
 }

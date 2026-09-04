@@ -219,7 +219,7 @@ func IsLess(verLeft, verRight Version) bool {
 
 	largestLen := util.Max(len(left), len(right))
 
-	for i := 0; i < largestLen; i++ {
+	for i := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
 		if i < len(left) {
 			valLeft = left[i]

@@ -17,7 +17,7 @@ type DemoteCtx struct {
 // Demoter is an interface to demote an instance in the replicaset.
 type Demoter interface {
 	// Demote demotes an instance.
-	Demote(DemoteCtx) error
+	Demote(ctx DemoteCtx) error
 }
 
 // newErrDemoteByInstanceNotSupported creates a new error that demote is not

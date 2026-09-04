@@ -829,7 +829,7 @@ func Logrotate(run *InstanceCtx) error {
 		return errors.New(instStateDead.String())
 	}
 
-	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {
+	if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
 		return fmt.Errorf(`can't rotate logs: "%v"`, err)
 	}
 
@@ -857,7 +857,7 @@ func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 // If an application is multi-instance, the format will be AppName:InstName.
 // Otherwise, the format is AppName.
 func GetAppInstanceName(instance InstanceCtx) string {
-	fullInstanceName := ""
+	var fullInstanceName string
 	if instance.SingleApp {
 		fullInstanceName = instance.AppName
 	} else {

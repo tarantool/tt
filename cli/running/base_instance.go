@@ -160,7 +160,8 @@ func (inst *baseInstance) Run(opts RunOpts) error {
 	}
 	f.Close()
 	newInstanceEnv := os.Environ()
-	args := []string{inst.tarantoolPath}
+	args := make([]string, 0, 1+len(opts.RunArgs))
+	args = append(args, inst.tarantoolPath)
 	args = append(args, opts.RunArgs...)
 	log.Debugf("Running Tarantool with args: %s", strings.Join(args[1:], " "))
 	execErr := syscall.Exec(inst.tarantoolPath, args, newInstanceEnv)

@@ -33,14 +33,13 @@ var programToString = map[Program]string{
 }
 
 // stringToProgram contains the reverse mapping for efficient lookup.
-var stringToProgram = make(map[string]Program, len(programToString))
-
-// init initialize the reverse map.
-func init() {
+var stringToProgram = func() map[string]Program {
+	result := make(map[string]Program, len(programToString))
 	for k, v := range programToString {
-		stringToProgram[v] = k
+		result[v] = k
 	}
-}
+	return result
+}()
 
 // String returns a string representation of Program type.
 func (p Program) String() string {

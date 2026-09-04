@@ -33,14 +33,9 @@ const (
 )
 
 var (
-	ControlLeftBytes  []byte
-	ControlRightBytes []byte
-)
-
-func init() {
-	ControlLeftBytes = []byte{0x1b, 0x62}
+	ControlLeftBytes  = []byte{0x1b, 0x62}
 	ControlRightBytes = []byte{0x1b, 0x66}
-}
+)
 
 // Console describes the console connected to the tarantool instance.
 type Console struct {

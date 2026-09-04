@@ -23,7 +23,7 @@ func TestParseBinaries(t *testing.T) {
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 	expectedSortedVersions := []string{"master", "2.10.5", "2.8.6 [active]", "1.10.0", "0000000"}
 	require.Equal(t, len(expectedSortedVersions), len(versions))
-	for i := 0; i < len(expectedSortedVersions); i++ {
+	for i := range expectedSortedVersions {
 		assert.Equal(t, expectedSortedVersions[i], versions[i].Str)
 	}
 }
@@ -55,7 +55,7 @@ func TestParseBinariesNoSymlink(t *testing.T) {
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 	expectedSortedVersions := []string{"3.1.0-entrypoint-83-gcb0264c3c [active]", "2.10.1"}
 	require.Equal(t, len(expectedSortedVersions), len(versions))
-	for i := 0; i < len(expectedSortedVersions); i++ {
+	for i := range expectedSortedVersions {
 		assert.Equal(t, expectedSortedVersions[i], versions[i].Str)
 	}
 	versions, err = ParseBinaries(fileList, search.ProgramEe, tmpDir)
@@ -63,7 +63,7 @@ func TestParseBinariesNoSymlink(t *testing.T) {
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 	expectedSortedVersions = []string{"2.11.1"}
 	require.Equal(t, len(expectedSortedVersions), len(versions))
-	for i := 0; i < len(expectedSortedVersions); i++ {
+	for i := range expectedSortedVersions {
 		assert.Equal(t, expectedSortedVersions[i], versions[i].Str)
 	}
 
@@ -74,7 +74,7 @@ func TestParseBinariesNoSymlink(t *testing.T) {
 	sort.Stable(sort.Reverse(version.VersionSlice(versions)))
 	expectedSortedVersions = []string{"2.11.1"}
 	require.Equal(t, len(expectedSortedVersions), len(versions))
-	for i := 0; i < len(expectedSortedVersions); i++ {
+	for i := range expectedSortedVersions {
 		assert.Equal(t, expectedSortedVersions[i], versions[i].Str)
 	}
 

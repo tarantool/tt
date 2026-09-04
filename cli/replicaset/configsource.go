@@ -43,7 +43,7 @@ type path struct {
 // DataPublisher can publish the config by the specified key, which contains the prefix.
 type DataPublisher interface {
 	// Publish publishes the config.
-	Publish(string, int64, []byte) error
+	Publish(key string, revision int64, data []byte) error
 }
 
 // collectCConfig fetches and merges the config data, returning both the

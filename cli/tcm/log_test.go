@@ -44,11 +44,11 @@ type mockTailer struct {
 // mockFollower aimed to test logic for [tcm.FollowLogs] method.
 // Not considered to dependency on [tail] library.
 type mockFollower struct {
-	t     *testing.T
-	name  string
-	error error
-	done  chan struct{}
-	ctx   context.Context
+	t       *testing.T
+	name    string
+	error   error
+	done    chan struct{}
+	ctxDone <-chan struct{}
 }
 
 // Read implements the Reader interface for mockTailer.
@@ -70,14 +70,14 @@ func (mf *mockFollower) Follow(ctx context.Context, lines int) (<-chan string, e
 	}
 
 	mf.done = make(chan struct{})
-	mf.ctx = ctx
+	mf.ctxDone = ctx.Done()
 
 	return fileReaderByLine(mf.t, ctx, lines, filepath.Join(testDataDir, mf.name), mf.done)
 }
 
 func (mf *mockFollower) Wait() {
 	mf.t.Helper()
-	require.NotNil(mf.t, mf.ctx, "Wait called before Follow - no context")
+	require.NotNil(mf.t, mf.ctxDone, "Wait called before Follow - no context")
 	require.NotNil(mf.t, mf.done, "Wait called before Follow - no done channel")
 
 	select {
@@ -85,12 +85,12 @@ func (mf *mockFollower) Wait() {
 		// Got notification about finished reading file lines.
 		syscall.Kill(os.Getpid(), syscall.SIGINT)
 
-	case <-mf.ctx.Done():
+	case <-mf.ctxDone:
 		return
 	}
 
 	// Wait to context handle interrupt signal.
-	<-mf.ctx.Done()
+	<-mf.ctxDone
 }
 
 func fileReaderByLine(

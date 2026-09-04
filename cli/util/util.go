@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -26,7 +27,6 @@ import (
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/constraints"
 	"gopkg.in/yaml.v2"
 )
 
@@ -445,7 +445,7 @@ func RemoveScheme(inputURL string) (string, error) {
 func Chdir(newPath string) (func() error, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 	if err = os.Chdir(newPath); err != nil {
 		return nil, fmt.Errorf("failed to change directory: %s", err)
@@ -900,7 +900,7 @@ func RelativeToCurrentWorkingDir(fullPath string) string {
 }
 
 // Min returns minimal of two values.
-func Min[T constraints.Ordered](a, b T) T {
+func Min[T cmp.Ordered](a, b T) T {
 	if a < b {
 		return a
 	}

@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/binary"
 	"github.com/tarantool/tt/cli/cmdcontext"
 	"github.com/tarantool/tt/cli/search"
-	"golang.org/x/exp/slices"
 )
 
 var binariesSupportedPrograms = []string{

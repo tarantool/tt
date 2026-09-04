@@ -257,8 +257,10 @@ type helpCmd struct {
 
 // newHelpCmd creates a new helpCmd object.
 func newHelpCmd(infos []cmdInfo) helpCmd {
-	shorts := []string{strings.Join(getHelp, ", ")}
-	longs := []string{"show this screen"}
+	shorts := make([]string, 0, 1+len(infos))
+	shorts = append(shorts, strings.Join(getHelp, ", "))
+	longs := make([]string, 0, 1+len(infos))
+	longs = append(longs, "show this screen")
 	msg := `
   To get help, see the Tarantool manual at https://tarantool.io/en/doc/
   To start the interactive Tarantool tutorial, type 'tutorial()' here.
@@ -279,7 +281,7 @@ func newHelpCmd(infos []cmdInfo) helpCmd {
 		longs = append(longs, info.Long)
 	}
 
-	for i := 0; i < len(shorts); i++ {
+	for i := range shorts {
 		msg += "  " + shorts[i]
 		for j := len(shorts[i]); j < shortMaxLen; j++ {
 			msg += " "
@@ -578,7 +580,8 @@ type cmdExecutor struct {
 func newCmdExecutor() cmdExecutor {
 	// Create a full list of console commands.
 	helpCmd := newNoArgsCmdDecorator(newHelpCmd(cmdInfos))
-	cmds := []cmd{helpCmd}
+	cmds := make([]cmd, 0, 1+len(cmdInfos))
+	cmds = append(cmds, helpCmd)
 	for _, info := range cmdInfos {
 		cmds = append(cmds, info.Cmd)
 	}

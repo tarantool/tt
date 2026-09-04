@@ -25,7 +25,8 @@ func makeArgs(b manifest.Build, cwd string) []string {
 		entrypoint = defaultMakefile
 	}
 
-	args := []string{"-C", cwd, "-f", entrypoint, b.MakeTarget}
+	args := make([]string, 0, 5+len(b.Flags))
+	args = append(args, "-C", cwd, "-f", entrypoint, b.MakeTarget)
 
 	return append(args, b.Flags...)
 }
