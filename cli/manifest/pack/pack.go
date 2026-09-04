@@ -8,11 +8,17 @@
 // namespace subtrees; installing that archive extracts it and refetches the
 // dependencies from the registry using the lock's pins.
 //
-// Neither mode carries the dev closure. The build pack runs first materializes
-// [dev_dependencies] into .rocks/ like any other build, and so did every build
-// the developer ran before it, so the archive is kept clean here - where its
-// content is selected - rather than by declining to install them. See
+// Neither mode carries the dev closure's rocks. The build pack runs first
+// materializes [dev_dependencies] into .rocks/ like any other build, and so did
+// every build the developer ran before it, so the archive is kept clean here -
+// where its content is selected - rather than by declining to install them. See
 // devOnlyRocks and stageRocks.
+//
+// The lock inside the archive still lists that closure. The archived lock is a
+// record of the build, not an inventory of the archive - it also carries
+// generated_by and the bundled runtime versions - and the dev versions belong
+// to that record, since a generator run from the dev tree can shape what was
+// packed. Nothing on the install side reads the section.
 package pack
 
 import (
