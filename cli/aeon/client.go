@@ -158,7 +158,7 @@ func (c *Client) Execute(input string) any {
 	return parseSQLResponse(resp)
 }
 
-// Stop implements console.Handler interface.
+// Close implements console.Handler interface.
 func (c *Client) Close() {
 	c.conn.Close()
 }

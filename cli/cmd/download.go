@@ -10,7 +10,7 @@ import (
 
 var downloadCtx download.DownloadCtx
 
-// newDownloadCmd Downloads and saves the Tarantool SDK.
+// NewDownloadCmd creates a command that downloads and saves the Tarantool SDK.
 func NewDownloadCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "download <VERSION>",

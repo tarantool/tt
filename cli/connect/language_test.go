@@ -106,7 +106,7 @@ func TestChangeLanguage_requestInputs(t *testing.T) {
 			evaler := &inputEvaler{}
 			ChangeLanguage(evaler, c.lang)
 			assert.Equal(t, expectedFun, evaler.fun)
-			assert.Equal(t, c.arg, evaler.args[0].(string))
+			assert.Equal(t, c.arg, evaler.args[0])
 			assert.Equal(t, expectedOpts, evaler.opts)
 		})
 	}

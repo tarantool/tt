@@ -129,8 +129,10 @@ func makeConnOpts(network, address string, connCtx connect.ConnectCtx) connector
 // It returns connection options and the remaining args.
 func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	connectCtx *connect.ConnectCtx, target string) (
-	connOpts connector.ConnectOpts, err error,
+	connector.ConnectOpts, error,
 ) {
+	var connOpts connector.ConnectOpts
+	var err error
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
 	fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{target},

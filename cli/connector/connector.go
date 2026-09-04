@@ -30,7 +30,7 @@ type RequestOpts struct {
 	ResData interface{}
 }
 
-// Eval is an interface that wraps Eval method.
+// Evaler is an interface that wraps Eval method.
 type Evaler interface {
 	// Eval passes Lua expression for evaluation.
 	Eval(expr string, args []interface{}, opts RequestOpts) ([]interface{}, error)

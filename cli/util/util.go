@@ -394,7 +394,7 @@ func CheckRecommendedBinaries(binaries ...string) {
 	}
 }
 
-// isRegularFile checks if filePath is a directory. Returns true if the directory exists.
+// IsDir checks if filePath is a directory. Returns true if the directory exists.
 func IsDir(filePath string) bool {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
@@ -404,7 +404,7 @@ func IsDir(filePath string) bool {
 	return fileInfo.IsDir()
 }
 
-// isRegularFile checks if filePath is a regular file. Returns true if the file exists
+// IsRegularFile checks if filePath is a regular file. Returns true if the file exists
 // and it is a regular file.
 func IsRegularFile(filePath string) bool {
 	fileInfo, err := os.Stat(filePath)
@@ -425,7 +425,7 @@ func IsURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != "" && u.Opaque == "" && u.User == nil
 }
 
-// removeScheme removes the scheme from the input URL.
+// RemoveScheme removes the scheme from the input URL.
 func RemoveScheme(inputURL string) (string, error) {
 	parsedURL, err := url.Parse(inputURL)
 	if err != nil {
@@ -752,7 +752,7 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 	return nil
 }
 
-// writeYaml writes YAML encoding of object o to fileName.
+// WriteYaml writes YAML encoding of object o to fileName.
 func WriteYaml(fileName string, o interface{}) error {
 	file, err := os.Create(fileName)
 	if err != nil {

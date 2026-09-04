@@ -44,7 +44,7 @@ type RunOptions struct {
 
 // interruptHandler start goroutine that handles interrupt signal and calls cancellation function.
 // The returned function is to be called to stop signal handling.
-func interruptHandler(cancelFunc context.CancelFunc) (stopSignalProcessing func()) {
+func interruptHandler(cancelFunc context.CancelFunc) func() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 	go func() {
@@ -139,7 +139,7 @@ func createContainer(dockerClient *mobyclient.Client, runOptions RunOptions) (st
 
 // RunContainer builds docker image and runs a container.
 func RunContainer(runOptions RunOptions, writer io.Writer) error {
-	dockerClient, err := mobyclient.NewClientWithOpts(mobyclient.FromEnv,
+	dockerClient, err := mobyclient.New(mobyclient.FromEnv,
 		mobyclient.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
