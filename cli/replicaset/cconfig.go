@@ -467,6 +467,17 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 		unavailable []string
 	)
 
+	if ctx.InstName == "" {
+		for _, r := range c.replicasets.Replicasets {
+			for _, i := range r.Instances {
+				if !i.InstanceCtxFound {
+					unavailable = append(unavailable, i.Alias)
+					continue
+				}
+				instances = append(instances, i.InstanceCtx)
+			}
+		}
+	}
 	if ctx.InstName != "" {
 		targetReplicaset, targetInstance, found :=
 			findInstanceByAlias(replicasets, ctx.InstName)
@@ -482,16 +493,6 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 				continue
 			}
 			instances = append(instances, inst.InstanceCtx)
-		}
-	} else {
-		for _, r := range c.replicasets.Replicasets {
-			for _, i := range r.Instances {
-				if !i.InstanceCtxFound {
-					unavailable = append(unavailable, i.Alias)
-					continue
-				}
-				instances = append(instances, i.InstanceCtx)
-			}
 		}
 	}
 	if len(unavailable) > 0 {
@@ -873,28 +874,30 @@ func cconfigGetFailover(cfg goconfig.Config, instName string) (Failover, error) 
 	}
 
 	var raw any
-	if _, err = instCfg.Get(goconfig.NewKeyPath("replication/failover"), &raw); err != nil {
-		if errors.Is(err, goconfig.ErrKeyNotFound) {
-			// Path not found. Check whether "replication" exists but is not a
-			// map (e.g. replication: 42), to preserve the original error message.
-			if repVal, ok := instCfg.Lookup(goconfig.NewKeyPath("replication")); ok {
-				var repMap map[string]any
-				if innerErr := repVal.Get(&repMap); innerErr != nil {
-					return FailoverOff,
-						fmt.Errorf(`path ["replication"] is not a map`)
-				}
-			}
-			// https://github.com/tarantool/tt/issues/791
-			return FailoverOff, nil
+	if _, err = instCfg.Get(goconfig.NewKeyPath("replication/failover"), &raw); err == nil {
+		failoverStr, ok := raw.(string)
+		if !ok {
+			return FailoverOff,
+				fmt.Errorf("unexpected failover type: %T, string expected", raw)
 		}
+		return ParseFailover(failoverStr), nil
+	}
+	if !errors.Is(err, goconfig.ErrKeyNotFound) {
 		return FailoverOff, fmt.Errorf("failed to get failover: %w", err)
 	}
-	failoverStr, ok := raw.(string)
+
+	// Path not found. Check whether "replication" exists but is not a
+	// map (e.g. replication: 42), to preserve the original error message.
+	repVal, ok := instCfg.Lookup(goconfig.NewKeyPath("replication"))
 	if !ok {
-		return FailoverOff,
-			fmt.Errorf("unexpected failover type: %T, string expected", raw)
+		// https://github.com/tarantool/tt/issues/791
+		return FailoverOff, nil
 	}
-	return ParseFailover(failoverStr), nil
+	var repMap map[string]any
+	if innerErr := repVal.Get(&repMap); innerErr != nil {
+		return FailoverOff, fmt.Errorf(`path ["replication"] is not a map`)
+	}
+	return FailoverOff, nil
 }
 
 // cconfigGetElectionMode extracts election_mode from the cluster config.

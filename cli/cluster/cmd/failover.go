@@ -118,39 +118,7 @@ func Switch(url string, switchCtx SwitchCtx) error {
 	key := uriOpts.Prefix + failoverPath + uuid
 
 	if switchCtx.Wait {
-		ctxWatch, cancelWatch := context.WithTimeout(context.Background(),
-			time.Duration(switchCtx.Timeout)*time.Second+cmdAdditionalWait)
-		defer cancelWatch()
-		watchChan, err := conn.Watch(ctxWatch, key)
-		if err != nil {
-			return fmt.Errorf("unable to create watch channel: %w", err)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
-		err = conn.Put(ctx, key, string(yamlCmd))
-		cancel()
-
-		if err != nil {
-			return err
-		}
-
-		for ev := range watchChan {
-			var result switchCmdResult
-			err = yaml.Unmarshal(ev.Value, &result)
-			if err != nil {
-				return err
-			}
-			fmt.Printf("%s", ev.Value)
-			if result.Status == "success" || result.Status == "failed" {
-				return nil
-			}
-		}
-		if ctxWatch.Err() == context.DeadlineExceeded {
-			log.Info("Timeout for command execution reached.")
-			return nil
-		}
-
-		return fmt.Errorf("unexpected problem with watch context: %w", ctxWatch.Err())
+		return waitForSwitch(conn, key, yamlCmd, switchCtx.Timeout)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
@@ -167,6 +135,42 @@ func Switch(url string, switchCtx SwitchCtx) error {
 		url, uuid)
 
 	return nil
+}
+
+func waitForSwitch(conn *libcluster.RawStorage, key string, yamlCmd []byte, timeout uint64) error {
+	ctxWatch, cancelWatch := context.WithTimeout(context.Background(),
+		time.Duration(timeout)*time.Second+cmdAdditionalWait)
+	defer cancelWatch()
+	watchChan, err := conn.Watch(ctxWatch, key)
+	if err != nil {
+		return fmt.Errorf("unable to create watch channel: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultEtcdTimeout)
+	err = conn.Put(ctx, key, string(yamlCmd))
+	cancel()
+
+	if err != nil {
+		return err
+	}
+
+	for ev := range watchChan {
+		var result switchCmdResult
+		err = yaml.Unmarshal(ev.Value, &result)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s", ev.Value)
+		if result.Status == "success" || result.Status == "failed" {
+			return nil
+		}
+	}
+	if ctxWatch.Err() == context.DeadlineExceeded {
+		log.Info("Timeout for command execution reached.")
+		return nil
+	}
+
+	return fmt.Errorf("unexpected problem with watch context: %w", ctxWatch.Err())
 }
 
 // SwitchStatus shows master switching status.

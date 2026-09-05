@@ -363,19 +363,8 @@ func (Unit) Coverage() error {
 		return err
 	}
 	coverDir := filepath.Join(cwd, "coverage", "unit")
-	coverageDirInfo, err := os.Stat(coverDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(coverDir, 0o750); err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	} else {
-		if !coverageDirInfo.IsDir() {
-			return fmt.Errorf("%q is not a directory", coverDir)
-		}
+	if err := ensureCoverageDir(coverDir); err != nil {
+		return err
 	}
 
 	err = runUnitTests([]string{
@@ -395,6 +384,20 @@ func (Unit) Coverage() error {
 	go tool covdata func -i %q
 `, relCoverDir)
 
+	return nil
+}
+
+func ensureCoverageDir(coverDir string) error {
+	coverageDirInfo, err := os.Stat(coverDir)
+	if os.IsNotExist(err) {
+		return os.MkdirAll(coverDir, 0o750)
+	}
+	if err != nil {
+		return err
+	}
+	if !coverageDirInfo.IsDir() {
+		return fmt.Errorf("%q is not a directory", coverDir)
+	}
 	return nil
 }
 
