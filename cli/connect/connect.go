@@ -10,7 +10,7 @@ import (
 	"github.com/tarantool/tt/cli/connect/internal/luabody"
 	"github.com/tarantool/tt/cli/connector"
 	"github.com/tarantool/tt/cli/formatter"
-	"golang.org/x/crypto/ssh/terminal"
+	terminal "golang.org/x/term"
 	"gopkg.in/yaml.v2"
 )
 

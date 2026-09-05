@@ -98,7 +98,7 @@ func (history *commandHistory) appendCommand(command string) {
 func (history *commandHistory) writeToFile() error {
 	historyContent := bytes.Buffer{}
 	for i, command := range history.commands {
-		historyContent.WriteString(fmt.Sprintf("#%d\n%s\n", history.timestamps[i], command))
+		fmt.Fprintf(&historyContent, "#%d\n%s\n", history.timestamps[i], command)
 	}
 	if err := os.WriteFile(history.filepath, historyContent.Bytes(), 0o640); err != nil {
 		return fmt.Errorf("failed to write to history file: %s", err)

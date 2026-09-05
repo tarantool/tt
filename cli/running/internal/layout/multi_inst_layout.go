@@ -33,17 +33,6 @@ func NewMultiInstLayout(baseDir, appName, instanceName string) (*MultiInstLayout
 	}, nil
 }
 
-// genFilePath generate file path.
-func (layout MultiInstLayout) genFilePath(subdir, fileName string) string {
-	var dstDir string
-	if filepath.IsAbs(subdir) {
-		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.appName, layout.instanceName)
-	} else {
-		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.instanceName)
-	}
-	return filepath.Join(dstDir, fileName)
-}
-
 // PidFile returns pid file path.
 func (layout MultiInstLayout) PidFile(dir string) string {
 	return layout.genFilePath(dir, "tt.pid")
@@ -67,4 +56,15 @@ func (layout MultiInstLayout) BinaryPort(dir string) string {
 // DataDir returns data directory path.
 func (layout MultiInstLayout) DataDir(dir string) string {
 	return filepath.Dir(layout.genFilePath(dir, "0"))
+}
+
+// genFilePath generate file path.
+func (layout MultiInstLayout) genFilePath(subdir, fileName string) string {
+	var dstDir string
+	if filepath.IsAbs(subdir) {
+		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.appName, layout.instanceName)
+	} else {
+		dstDir = util.JoinPaths(layout.baseDir, subdir, layout.instanceName)
+	}
+	return filepath.Join(dstDir, fileName)
 }

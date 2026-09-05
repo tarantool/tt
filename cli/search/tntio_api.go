@@ -36,6 +36,10 @@ type PlatformInformer interface {
 
 type realInfo struct{}
 
+func NewPlatformInformer() *realInfo {
+	return &realInfo{}
+}
+
 // GetOs implement PlatformInformer interface.
 func (*realInfo) GetOs() (util.OsType, error) {
 	return util.GetOs()
@@ -44,10 +48,6 @@ func (*realInfo) GetOs() (util.OsType, error) {
 // GetArch implement PlatformInformer interface.
 func (*realInfo) GetArch() (string, error) {
 	return util.GetArch()
-}
-
-func NewPlatformInformer() *realInfo {
-	return &realInfo{}
 }
 
 // TntIoDoer is an interface that wraps the Do method.

@@ -146,31 +146,6 @@ func GetAppPath(instance InstanceCtx) string {
 	return instance.AppDir
 }
 
-// updateCtx updates cmdCtx according to the current contents of the cfg file.
-func (provider *providerImpl) updateCtx() error {
-	cliOpts, _, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath,
-		provider.cmdCtx.Integrity.Repository)
-	if err != nil {
-		return err
-	}
-
-	var args []string
-	if provider.instanceCtx.SingleApp {
-		args = []string{provider.instanceCtx.AppName}
-	} else {
-		args = []string{provider.instanceCtx.AppName + string(InstanceDelimiter) +
-			provider.instanceCtx.InstName}
-	}
-
-	var runningCtx RunningCtx
-	if err = FillCtx(
-		cliOpts, provider.cmdCtx, &runningCtx, args, ConfigLoadSkip); err != nil {
-		return err
-	}
-	provider.instanceCtx = &runningCtx.Instances[0]
-	return nil
-}
-
 // createInstance creates an Instance.
 func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
 	opts ...InstanceOption,
@@ -238,6 +213,31 @@ func (provider *providerImpl) IsRestartable() (bool, error) {
 	}
 
 	return provider.instanceCtx.Restartable, nil
+}
+
+// updateCtx updates cmdCtx according to the current contents of the cfg file.
+func (provider *providerImpl) updateCtx() error {
+	cliOpts, _, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath,
+		provider.cmdCtx.Integrity.Repository)
+	if err != nil {
+		return err
+	}
+
+	var args []string
+	if provider.instanceCtx.SingleApp {
+		args = []string{provider.instanceCtx.AppName}
+	} else {
+		args = []string{provider.instanceCtx.AppName + string(InstanceDelimiter) +
+			provider.instanceCtx.InstName}
+	}
+
+	var runningCtx RunningCtx
+	if err = FillCtx(
+		cliOpts, provider.cmdCtx, &runningCtx, args, ConfigLoadSkip); err != nil {
+		return err
+	}
+	provider.instanceCtx = &runningCtx.Instances[0]
+	return nil
 }
 
 // searchApplicationScript searches for application script in a directory.

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/cmdcontext"
-	"github.com/tarantool/tt/cli/util"
 	"gopkg.in/yaml.v3"
 )
 
@@ -49,7 +49,7 @@ func RunCmd(cmdCtx *cmdcontext.CmdCtx, cmdPath string, modulesInfo *ModulesInfo,
 // GetDefaultCmdArgs returns all arguments from the command line
 // to external module that come after the command name.
 func GetDefaultCmdArgs(cmdName string) []string {
-	cmdNameIndexInArgs := util.Find(os.Args, cmdName)
+	cmdNameIndexInArgs := slices.Index(os.Args, cmdName)
 	return os.Args[cmdNameIndexInArgs+1:]
 }
 

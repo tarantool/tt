@@ -46,20 +46,6 @@ type Process struct {
 	DaemonTag string
 }
 
-// startSignalHandling adds "SIGTERM" and "SIGINT"
-// signal handling to terminate gracefully.
-func (process *Process) startSignalHandling() {
-	sigTermChan := make(chan os.Signal, 1)
-	signal.Notify(sigTermChan, syscall.SIGINT, syscall.SIGTERM)
-
-	for {
-		select {
-		case <-sigTermChan:
-			process.Stop()
-		}
-	}
-}
-
 // NewProcess creates new Process.
 func NewProcess(worker Worker, pidFileName string, logOpts ttlog.LoggerOpts) *Process {
 	process := &Process{
@@ -142,4 +128,15 @@ func (process *Process) Stop() {
 		os.Exit(1)
 	}
 	os.Exit(0)
+}
+
+// startSignalHandling adds "SIGTERM" and "SIGINT"
+// signal handling to terminate gracefully.
+func (process *Process) startSignalHandling() {
+	sigTermChan := make(chan os.Signal, 1)
+	signal.Notify(sigTermChan, syscall.SIGINT, syscall.SIGTERM)
+
+	for range sigTermChan {
+		process.Stop()
+	}
 }
