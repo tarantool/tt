@@ -85,29 +85,6 @@ func NewCConfigInstance(evaler connector.Evaler) *CConfigInstance {
 	return inst
 }
 
-// discovery returns a replicasets topology for a single instance with
-// the centralized config orchestrator.
-func (c *CConfigInstance) discovery() (Replicasets, error) {
-	topology, err := getCConfigInstanceTopology(c.evaler)
-	if err != nil {
-		return Replicasets{}, err
-	}
-
-	return recalculateMasters(Replicasets{
-		State:        StateBootstrapped,
-		Orchestrator: OrchestratorCentralizedConfig,
-		Replicasets: []Replicaset{
-			{
-				UUID:       topology.UUID,
-				LeaderUUID: topology.LeaderUUID,
-				Alias:      topology.Alias,
-				Failover:   ParseFailover(topology.Failover),
-				Instances:  topology.Instances,
-			},
-		},
-	}), nil
-}
-
 // Promote promotes an instance.
 func (c *CConfigInstance) Promote(ctx PromoteCtx) error {
 	return cconfigPromoteElection(c.evaler, ctx.Timeout)
@@ -149,6 +126,29 @@ func (c *CConfigInstance) RolesChange(ctx RolesChangeCtx,
 	return newErrRolesChangeByInstanceNotSupported(OrchestratorCentralizedConfig, changeRoleAction)
 }
 
+// discovery returns a replicasets topology for a single instance with
+// the centralized config orchestrator.
+func (c *CConfigInstance) discovery() (Replicasets, error) {
+	topology, err := getCConfigInstanceTopology(c.evaler)
+	if err != nil {
+		return Replicasets{}, err
+	}
+
+	return recalculateMasters(Replicasets{
+		State:        StateBootstrapped,
+		Orchestrator: OrchestratorCentralizedConfig,
+		Replicasets: []Replicaset{
+			{
+				UUID:       topology.UUID,
+				LeaderUUID: topology.LeaderUUID,
+				Alias:      topology.Alias,
+				Failover:   ParseFailover(topology.Failover),
+				Instances:  topology.Instances,
+			},
+		},
+	}), nil
+}
+
 // CConfigApplication is an application with the centralized config
 // orchestrator.
 type CConfigApplication struct {
@@ -175,38 +175,6 @@ func NewCConfigApplication(
 	}
 	app.discoverer = app
 	return app
-}
-
-// discovery returns a replicasets topology for an application with
-// the centralized config orchestrator.
-func (c *CConfigApplication) discovery() (Replicasets, error) {
-	var topologies []cconfigTopology
-
-	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
-		func(ictx running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-			topology, err := getCConfigInstanceTopology(evaler)
-			if err != nil {
-				return true, err
-			}
-			for i := range topology.Instances {
-				if topology.Instances[i].UUID == topology.InstanceUUID {
-					topology.Instances[i].InstanceCtx = ictx
-					topology.Instances[i].InstanceCtxFound = true
-				}
-			}
-
-			topologies = append(topologies, topology)
-			return false, nil
-		}))
-	if err != nil {
-		return Replicasets{}, err
-	}
-
-	if len(topologies) == 0 {
-		return Replicasets{}, fmt.Errorf("no instance found in the application")
-	}
-
-	return mergeCConfigTopologies(topologies)
 }
 
 // Expel expels an instance from the centralized config's replicasets.
@@ -539,6 +507,38 @@ func (c *CConfigApplication) RolesChange(ctx RolesChangeCtx,
 		err = errors.Join(err, reloadCConfig(instances))
 	}
 	return err
+}
+
+// discovery returns a replicasets topology for an application with
+// the centralized config orchestrator.
+func (c *CConfigApplication) discovery() (Replicasets, error) {
+	var topologies []cconfigTopology
+
+	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
+		func(ictx running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+			topology, err := getCConfigInstanceTopology(evaler)
+			if err != nil {
+				return true, err
+			}
+			for i := range topology.Instances {
+				if topology.Instances[i].UUID == topology.InstanceUUID {
+					topology.Instances[i].InstanceCtx = ictx
+					topology.Instances[i].InstanceCtxFound = true
+				}
+			}
+
+			topologies = append(topologies, topology)
+			return false, nil
+		}))
+	if err != nil {
+		return Replicasets{}, err
+	}
+
+	if len(topologies) == 0 {
+		return Replicasets{}, fmt.Errorf("no instance found in the application")
+	}
+
+	return mergeCConfigTopologies(topologies)
 }
 
 // cconfigPromoteElection tries to promote an instance via `box.ctl.promote()`.

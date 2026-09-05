@@ -88,6 +88,41 @@ func collectCConfig(
 	return configData, merged, nil
 }
 
+// Promote patches a config to promote an instance.
+func (c *CConfigSource) Promote(ctx PromoteCtx) error {
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigPromotePath,
+		patchCConfigPromote,
+	)
+}
+
+// Demote patches a config to demote an instance.
+func (c *CConfigSource) Demote(ctx DemoteCtx) error {
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigDemotePath,
+		patchCConfigDemote,
+	)
+}
+
+// Expel patches a config to expel an instance.
+func (c *CConfigSource) Expel(ctx ExpelCtx) error {
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigExpelPath,
+		patchCConfigExpel,
+	)
+}
+
+// ChangeRole patches a config with addition/removing role.
+func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, action RolesChangerAction) error {
+	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, action.Change, patchCConfigEditRole)
+}
+
 // pickTarget applies keyPicker to the targets slice and returns picked target.
 func (c *CConfigSource) pickTarget(targets []patchTarget, force bool,
 	pathMsg string,
@@ -215,41 +250,6 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 		return fmt.Errorf("failed to publish the config: %w", err)
 	}
 	return nil
-}
-
-// Promote patches a config to promote an instance.
-func (c *CConfigSource) Promote(ctx PromoteCtx) error {
-	return c.patchInstanceConfig(
-		ctx.InstName,
-		ctx.Force,
-		getCConfigPromotePath,
-		patchCConfigPromote,
-	)
-}
-
-// Demote patches a config to demote an instance.
-func (c *CConfigSource) Demote(ctx DemoteCtx) error {
-	return c.patchInstanceConfig(
-		ctx.InstName,
-		ctx.Force,
-		getCConfigDemotePath,
-		patchCConfigDemote,
-	)
-}
-
-// Expel patches a config to expel an instance.
-func (c *CConfigSource) Expel(ctx ExpelCtx) error {
-	return c.patchInstanceConfig(
-		ctx.InstName,
-		ctx.Force,
-		getCConfigExpelPath,
-		patchCConfigExpel,
-	)
-}
-
-// ChangeRole patches a config with addition/removing role.
-func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, action RolesChangerAction) error {
-	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, action.Change, patchCConfigEditRole)
 }
 
 // getCConfigRolesPath returns a path and it's minimum interesting depth

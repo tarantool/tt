@@ -63,23 +63,6 @@ func NewConsole(opts ConsoleOpts) (Console, error) {
 	return c, nil
 }
 
-func (c *Console) runOnPipe() error {
-	pipe := bufio.NewScanner(os.Stdin)
-	log.Infof("Processing piped input")
-	for pipe.Scan() {
-		line := pipe.Text()
-		c.execute(line)
-	}
-
-	err := pipe.Err()
-	if err == nil {
-		log.Info("EOF on pipe")
-	} else {
-		log.Warnf("Error on pipe %v", err)
-	}
-	return err
-}
-
 // Run starts console.
 func (c *Console) Run() error {
 	if c.quit {
@@ -106,6 +89,23 @@ func (c *Console) Close() {
 	if c.impl.History != nil {
 		c.impl.History.Close()
 	}
+}
+
+func (c *Console) runOnPipe() error {
+	pipe := bufio.NewScanner(os.Stdin)
+	log.Infof("Processing piped input")
+	for pipe.Scan() {
+		line := pipe.Text()
+		c.execute(line)
+	}
+
+	err := pipe.Err()
+	if err == nil {
+		log.Info("EOF on pipe")
+	} else {
+		log.Warnf("Error on pipe %v", err)
+	}
+	return err
 }
 
 // executeEmbeddedCommand try process additional backslash commands.

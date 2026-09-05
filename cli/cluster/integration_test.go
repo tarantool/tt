@@ -4,7 +4,6 @@ package cluster_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -198,7 +197,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 
 	// Etcd config from file.
 	assert.Equal(t, endpoints[0], cfgGet[string](t, snap,
-		fmt.Sprintf("config/etcd/endpoints/0")))
+		"config/etcd/endpoints/0"))
 	assert.Equal(t, "root", cfgGet[string](t, snap, "config/etcd/username"))
 	assert.Equal(t, "pass", cfgGet[string](t, snap, "config/etcd/password"))
 	assert.Equal(t, "/test", cfgGet[string](t, snap, "config/etcd/prefix"))

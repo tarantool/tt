@@ -62,6 +62,26 @@ type logPrinter struct {
 	sync     func() error
 }
 
+// Print reads lines from the input channel and prints them to the output writer.
+func (l *logPrinter) Print(ctx context.Context, in <-chan string) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case line, ok := <-in:
+			if !ok {
+				return nil
+			}
+
+			fmt.Fprintln(l.out, l.format(line))
+
+			if l.sync != nil {
+				l.sync()
+			}
+		}
+	}
+}
+
 // format formats a log string, applying colors and indentation if necessary.
 // If noFormat is true or the string is not a valid JSON object, it returns
 // the string as is without any formatting.
@@ -97,26 +117,6 @@ func (l *logPrinter) format(str string) string {
 	resultLines = append(resultLines, color.Sprint("}"))
 
 	return strings.Join(resultLines, "\n")
-}
-
-// Print reads lines from the input channel and prints them to the output writer.
-func (l *logPrinter) Print(ctx context.Context, in <-chan string) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case line, ok := <-in:
-			if !ok {
-				return nil
-			}
-
-			fmt.Fprintln(l.out, l.format(line))
-
-			if l.sync != nil {
-				l.sync()
-			}
-		}
-	}
 }
 
 func colorizeJsonLines(lines []string, cKey, cVal color.Color) []string {

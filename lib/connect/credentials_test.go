@@ -86,10 +86,7 @@ func Test_getCredsFromEnvVars(t *testing.T) {
 			prepare: func() {},
 			want:    UserCredentials{Username: "", Password: ""},
 			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
-				if err.Error() == "no credentials in environment variables were found" {
-					return true
-				}
-				return false
+				return err.Error() == "no credentials in environment variables were found"
 			},
 		},
 		{
@@ -110,7 +107,7 @@ func Test_getCredsFromEnvVars(t *testing.T) {
 			t.Setenv(EnvSdkPassword, "")
 			tt.prepare()
 			got, err := getCredsFromEnvVars()
-			if !tt.wantErr(t, err, fmt.Sprintf("getCredsFromEnvVars()")) {
+			if !tt.wantErr(t, err, "getCredsFromEnvVars()") {
 				return
 			}
 			assert.Equalf(t, tt.want, got, "getCredsFromEnvVars()")

@@ -139,8 +139,7 @@ func createContainer(dockerClient *mobyclient.Client, runOptions RunOptions) (st
 
 // RunContainer builds docker image and runs a container.
 func RunContainer(runOptions RunOptions, writer io.Writer) error {
-	dockerClient, err := mobyclient.New(mobyclient.FromEnv,
-		mobyclient.WithAPIVersionNegotiation())
+	dockerClient, err := mobyclient.New(mobyclient.FromEnv)
 	if err != nil {
 		return err
 	}
