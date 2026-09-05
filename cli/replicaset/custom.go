@@ -47,28 +47,6 @@ func NewCustomInstance(evaler connector.Evaler) *CustomInstance {
 	return inst
 }
 
-// discovery returns a replicasets topology for a single
-// instance with a custom type of orchestrator.
-func (c *CustomInstance) discovery() (Replicasets, error) {
-	topology, err := getCustomInstanceTopology("", c.evaler)
-	if err != nil {
-		return Replicasets{}, err
-	}
-
-	return recalculateMasters(Replicasets{
-		State:        StateBootstrapped,
-		Orchestrator: OrchestratorCustom,
-		Replicasets: []Replicaset{
-			{
-				UUID:       topology.UUID,
-				LeaderUUID: topology.LeaderUUID,
-				Alias:      topology.Alias,
-				Instances:  topology.Instances,
-			},
-		},
-	}), nil
-}
-
 // Promote is not supported for a single instance by the Custom orchestrator.
 func (c *CustomInstance) Promote(ctx PromoteCtx) error {
 	return newErrPromoteByInstanceNotSupported(OrchestratorCustom)
@@ -99,6 +77,28 @@ func (c *CustomInstance) RolesChange(_ RolesChangeCtx, action RolesChangerAction
 	return newErrRolesChangeByInstanceNotSupported(OrchestratorCustom, action)
 }
 
+// discovery returns a replicasets topology for a single
+// instance with a custom type of orchestrator.
+func (c *CustomInstance) discovery() (Replicasets, error) {
+	topology, err := getCustomInstanceTopology("", c.evaler)
+	if err != nil {
+		return Replicasets{}, err
+	}
+
+	return recalculateMasters(Replicasets{
+		State:        StateBootstrapped,
+		Orchestrator: OrchestratorCustom,
+		Replicasets: []Replicaset{
+			{
+				UUID:       topology.UUID,
+				LeaderUUID: topology.LeaderUUID,
+				Alias:      topology.Alias,
+				Instances:  topology.Instances,
+			},
+		},
+	}), nil
+}
+
 // CustomApplication is an application with a custom orchestrator.
 type CustomApplication struct {
 	cachedDiscoverer
@@ -113,34 +113,6 @@ func NewCustomApplication(runningCtx running.RunningCtx) *CustomApplication {
 	}
 	app.discoverer = app
 	return app
-}
-
-// discovery returns a replicasets configuration for an application with
-// a custom orchestrator.
-func (c *CustomApplication) discovery() (Replicasets, error) {
-	var topologies []customTopology
-
-	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
-		func(ictx running.InstanceCtx, evaler connector.Evaler) (bool, error) {
-			topology, err := getCustomInstanceTopology(ictx.InstName, evaler)
-			if err != nil {
-				return true, err
-			}
-			for i := range topology.Instances {
-				if topology.Instances[i].UUID == topology.InstanceUUID {
-					topology.Instances[i].InstanceCtx = ictx
-					topology.Instances[i].InstanceCtxFound = true
-				}
-			}
-
-			topologies = append(topologies, topology)
-			return false, nil
-		}))
-	if err != nil {
-		return Replicasets{}, err
-	}
-
-	return mergeCustomTopologies(topologies)
 }
 
 // Promote is not supported for an application by the Custom orchestrator.
@@ -173,6 +145,34 @@ func (c *CustomApplication) RolesChange(_ RolesChangeCtx,
 	action RolesChangerAction,
 ) error {
 	return newErrRolesChangeByAppNotSupported(OrchestratorCustom, action)
+}
+
+// discovery returns a replicasets configuration for an application with
+// a custom orchestrator.
+func (c *CustomApplication) discovery() (Replicasets, error) {
+	var topologies []customTopology
+
+	err := EvalForeachAlive(c.runningCtx.Instances, InstanceEvalFunc(
+		func(ictx running.InstanceCtx, evaler connector.Evaler) (bool, error) {
+			topology, err := getCustomInstanceTopology(ictx.InstName, evaler)
+			if err != nil {
+				return true, err
+			}
+			for i := range topology.Instances {
+				if topology.Instances[i].UUID == topology.InstanceUUID {
+					topology.Instances[i].InstanceCtx = ictx
+					topology.Instances[i].InstanceCtxFound = true
+				}
+			}
+
+			topologies = append(topologies, topology)
+			return false, nil
+		}))
+	if err != nil {
+		return Replicasets{}, err
+	}
+
+	return mergeCustomTopologies(topologies)
 }
 
 // getCustomInstanceTopology returns a topology for an instance.

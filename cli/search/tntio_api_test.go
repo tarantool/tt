@@ -431,7 +431,7 @@ func TestSearchVersions_TntIo(t *testing.T) {
 
 			var logBuilder strings.Builder
 			for _, entry := range handler.Entries {
-				logBuilder.WriteString(fmt.Sprintf("%s %s\n", entry.Level, entry.Message))
+				fmt.Fprintf(&logBuilder, "%s %s\n", entry.Level, entry.Message)
 			}
 			gotLog := logBuilder.String()
 			t.Logf("Log:\n%s", gotLog)

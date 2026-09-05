@@ -50,6 +50,27 @@ func DefaultHistoryFile() (History, error) {
 	return NewHistory(file, DefaultHistoryLines)
 }
 
+// AppendCommand insert new command to the history file.
+// Implements HistoryKeeper.AppendCommand interface method.
+func (h *History) AppendCommand(input string) {
+	h.commands = append(h.commands, input)
+	h.timestamps = append(h.timestamps, time.Now().Unix())
+	if len(h.commands) > h.maxCommands {
+		h.commands = h.commands[1:]
+		h.timestamps = h.timestamps[1:]
+	}
+	h.writeToFile()
+}
+
+// Commands implements HistoryKeeper.Commands interface method.
+func (h *History) Commands() []string {
+	return h.commands
+}
+
+// Close implements HistoryKeeper.Close interface method.
+func (h *History) Close() {
+}
+
 func (h *History) load() error {
 	if !util.IsRegularFile(h.filepath) {
 		return nil
@@ -108,32 +129,11 @@ func (h *History) parseCells(lines []string) {
 func (h *History) writeToFile() error {
 	buff := bytes.Buffer{}
 	for i, c := range h.commands {
-		buff.WriteString(fmt.Sprintf("#%d\n%s\n", h.timestamps[i], c))
+		fmt.Fprintf(&buff, "#%d\n%s\n", h.timestamps[i], c)
 	}
 	if err := os.WriteFile(h.filepath, buff.Bytes(), 0o640); err != nil {
 		return fmt.Errorf("failed to write to history file: %s", err)
 	}
 
 	return nil
-}
-
-// AppendCommand insert new command to the history file.
-// Implements HistoryKeeper.AppendCommand interface method.
-func (h *History) AppendCommand(input string) {
-	h.commands = append(h.commands, input)
-	h.timestamps = append(h.timestamps, time.Now().Unix())
-	if len(h.commands) > h.maxCommands {
-		h.commands = h.commands[1:]
-		h.timestamps = h.timestamps[1:]
-	}
-	h.writeToFile()
-}
-
-// Commands implements HistoryKeeper.Commands interface method.
-func (h *History) Commands() []string {
-	return h.commands
-}
-
-// Close implements HistoryKeeper.Close interface method.
-func (h *History) Close() {
 }

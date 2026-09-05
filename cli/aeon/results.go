@@ -22,6 +22,18 @@ type resultError struct {
 	*pb.Error
 }
 
+// Format produce formatted string according required console.Format settings.
+func (r resultType) Format(f console.Format) (string, error) {
+	if len(r.names) == 0 {
+		return "", nil
+	}
+	output, err := formatter.MakeOutput(f.Mode, r.asYaml(), f.Opts)
+	if err != nil {
+		return "", err
+	}
+	return output, nil
+}
+
 // asYaml prepare results for formatter.MakeOutput.
 func (r resultType) asYaml() string {
 	yaml := "---\n"
@@ -34,18 +46,6 @@ func (r resultType) asYaml() string {
 		}
 	}
 	return yaml
-}
-
-// Format produce formatted string according required console.Format settings.
-func (r resultType) Format(f console.Format) (string, error) {
-	if len(r.names) == 0 {
-		return "", nil
-	}
-	output, err := formatter.MakeOutput(f.Mode, r.asYaml(), f.Opts)
-	if err != nil {
-		return "", err
-	}
-	return output, nil
 }
 
 // Format produce formatted string according required console.Format settings.

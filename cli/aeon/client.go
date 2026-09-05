@@ -114,19 +114,6 @@ func NewAeonHandler(ctx cmd.ConnectCtx) (*Client, error) {
 	return &c, nil
 }
 
-func (c *Client) ping() error {
-	log.Infof("Start ping aeon server")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	diag := pb.NewDiagServiceClient(c.conn)
-	_, err := diag.Ping(ctx, &pb.PingRequest{})
-	if err != nil {
-		log.Warnf("Aeon ping %s", err)
-	}
-	return err
-}
-
 // Title implements console.Handler interface.
 func (c *Client) Title() string {
 	return c.title
@@ -171,6 +158,19 @@ func (c *Client) Close() {
 func (c *Client) Complete(input prompt.Document) []prompt.Suggest {
 	// TODO: waiting until there is support from Aeon side.
 	return nil
+}
+
+func (c *Client) ping() error {
+	log.Infof("Start ping aeon server")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	diag := pb.NewDiagServiceClient(c.conn)
+	_, err := diag.Ping(ctx, &pb.PingRequest{})
+	if err != nil {
+		log.Warnf("Aeon ping %s", err)
+	}
+	return err
 }
 
 // parseSQLResponse returns result as table in map.

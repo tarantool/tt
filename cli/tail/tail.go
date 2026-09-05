@@ -41,6 +41,9 @@ func (t *tailer) Read(ctx context.Context, lines int) (<-chan string, error) {
 	return TailN(ctx, fmt, t.name, lines)
 }
 
+// LogFormatter is a function used to format log string before output.
+type LogFormatter func(str string) string
+
 // NewLogFormatter creates a function to make log prefix colored.
 func NewLogFormatter(prefix string, color color.Color) LogFormatter {
 	buf := strings.Builder{}
@@ -52,9 +55,6 @@ func NewLogFormatter(prefix string, color color.Color) LogFormatter {
 		return buf.String()
 	}
 }
-
-// LogFormatter is a function used to format log string before output.
-type LogFormatter func(str string) string
 
 // newTailReader returns a reader for last count lines.
 func newTailReader(ctx context.Context, reader io.ReadSeeker, count int) (io.Reader, int64, error) {

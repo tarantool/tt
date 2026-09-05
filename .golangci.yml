@@ -31,7 +31,6 @@ linters:
     - exhaustruct
     - exhaustruct_v5
     - forbidigo
-    - funcorder
     - funlen
     - gochecknoglobals
     - gocognit
@@ -50,7 +49,6 @@ linters:
     - paralleltest
     - perfsprint
     - revive
-    - staticcheck
     - testifylint
     - testpackage
     - tparallel
@@ -193,6 +191,18 @@ linters:
         source: ^\s*return nil, nil$
         linters:
           - nilnil
+      # Request push messages use box.session.push(); NewWatcher handles the
+      # different box.broadcast protocol and is not a drop-in replacement.
+      - path: ^cli/connector/binary\.go$
+        source: \bfuture\.GetIterator\(\)
+        linters:
+          - staticcheck
+      # etcd still uses grpc.DialContext and documents WithBlock for waiting
+      # until the connection is ready within DialTimeout.
+      - path: ^lib/cluster/storage\.go$
+        source: \bgrpc\.WithBlock\(\)
+        linters:
+          - staticcheck
       # Go struct tags cannot be split across source lines. Keep the 100-column
       # limit everywhere else without scattering nolint directives in code.
       - path: ^cli/manifest/inventory/uninstall\.go$

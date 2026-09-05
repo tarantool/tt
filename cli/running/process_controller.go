@@ -31,16 +31,6 @@ type processController struct {
 	done bool
 }
 
-// start starts the process.
-func (pc *processController) start() error {
-	// Start an Instance.
-	if err := pc.Start(); err != nil {
-		return err
-	}
-	pc.done = false
-	return nil
-}
-
 // Wait waits for the process to complete.
 func (pc *processController) Wait() error {
 	if pc.done {
@@ -128,4 +118,14 @@ func (pc *processController) GetPid() int {
 // ProcessState returns completed process state.
 func (pc *processController) ProcessState() *os.ProcessState {
 	return pc.Cmd.ProcessState
+}
+
+// start starts the process.
+func (pc *processController) start() error {
+	// Start an Instance.
+	if err := pc.Start(); err != nil {
+		return err
+	}
+	pc.done = false
+	return nil
 }

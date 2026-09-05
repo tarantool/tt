@@ -80,13 +80,6 @@ func shortenSocketPath(socketPath, basePath string) (string, error) {
 	return "", err
 }
 
-// setTarantoolLog sets tarantool log file path env var.
-func (inst *scriptInstance) setTarantoolLog(cmd *exec.Cmd) {
-	if inst.logDir != "" {
-		cmd.Env = append(cmd.Env, "TARANTOOL_LOG=")
-	}
-}
-
 // Start starts the Instance with the specified parameters.
 func (inst *scriptInstance) Start(ctx context.Context) error {
 	if inst.integrityChecks {
@@ -168,4 +161,11 @@ func (inst *scriptInstance) Start(ctx context.Context) error {
 	StdinPipe.Close()
 
 	return nil
+}
+
+// setTarantoolLog sets tarantool log file path env var.
+func (inst *scriptInstance) setTarantoolLog(cmd *exec.Cmd) {
+	if inst.logDir != "" {
+		cmd.Env = append(cmd.Env, "TARANTOOL_LOG=")
+	}
 }
