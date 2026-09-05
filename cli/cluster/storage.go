@@ -168,12 +168,12 @@ func readStorageFromConfig(
 	}
 
 	// Try TCS (Tarantool Config Storage).
-	tcsResult, err := readTcsEndpoints(ctx, cfg, collectorFactory)
+	tcsResult, tcsFound, err := readTcsEndpoints(ctx, cfg, collectorFactory)
 	if err != nil {
 		return goconfig.Config{}, nil, err
 	}
-	if tcsResult != nil {
-		return *tcsResult, nil, nil
+	if tcsFound {
+		return tcsResult, nil, nil
 	}
 
 	return goconfig.Config{}, nil, nil
@@ -308,7 +308,7 @@ func readEtcdEndpoints(
 
 // readTcsEndpoints reads TCS (Tarantool Config Storage) configuration from cfg,
 // connects to the first reachable endpoint, and returns the parsed goconfig.Config.
-// Returns (nil, nil) if no TCS endpoints are configured.
+// The boolean result is false if no TCS endpoints are configured.
 //
 // Per TCS semantics: stop on first successful connect, aggregate errors only if
 // all endpoints fail.
@@ -316,29 +316,29 @@ func readTcsEndpoints(
 	ctx context.Context,
 	cfg goconfig.Config,
 	collectorFactory libcluster.Factory,
-) (*goconfig.Config, error) {
+) (goconfig.Config, bool, error) {
 	// Read endpoints list as []any (each element is a map[string]any).
 	var rawEndpoints any
 	_, err := cfg.Get(goconfig.NewKeyPath("config/storage/endpoints"), &rawEndpoints)
 	if err != nil {
 		if errors.Is(err, goconfig.ErrKeyNotFound) {
-			return nil, nil
+			return goconfig.Config{}, false, nil
 		}
-		return nil, fmt.Errorf("read storage endpoints: %w", err)
+		return goconfig.Config{}, false, fmt.Errorf("read storage endpoints: %w", err)
 	}
 
 	endpointList, ok := rawEndpoints.([]any)
 	if !ok || len(endpointList) == 0 {
-		return nil, nil
+		return goconfig.Config{}, false, nil
 	}
 
 	prefix, err := cfgGetString(cfg, "config/storage/prefix")
 	if err != nil {
-		return nil, fmt.Errorf("read storage prefix: %w", err)
+		return goconfig.Config{}, false, fmt.Errorf("read storage prefix: %w", err)
 	}
 	timeoutSec, err := cfgGetFloat64(cfg, "config/storage/timeout")
 	if err != nil {
-		return nil, fmt.Errorf("read storage timeout: %w", err)
+		return goconfig.Config{}, false, fmt.Errorf("read storage timeout: %w", err)
 	}
 	timeout := time.Duration(timeoutSec * float64(time.Second))
 
@@ -444,12 +444,12 @@ func readTcsEndpoints(
 		}
 
 		// First reachable endpoint wins.
-		return &parsedCfg, nil
+		return parsedCfg, true, nil
 	}
 
 	if len(connectionErrors) > 0 {
-		return nil, errors.Join(connectionErrors...)
+		return goconfig.Config{}, false, errors.Join(connectionErrors...)
 	}
 
-	return nil, nil
+	return goconfig.Config{}, false, nil
 }

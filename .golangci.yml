@@ -44,7 +44,6 @@ linters:
     - mnd
     - modernize
     - nestif
-    - nilnil
     - nlreturn
     - noctx
     - noinlineerr
@@ -100,6 +99,11 @@ linters:
         text: don't use `init` function
         linters:
           - gochecknoinits
+      # Protobuf null is represented by an untyped nil value.
+      - path: ^cli/aeon/decode\.go$
+        source: ^\s*return nil, nil$
+        linters:
+          - nilnil
 
   settings:
     gomoddirectives:

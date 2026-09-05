@@ -330,10 +330,6 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 func loadInstanceConfig(configPath, instName string,
 	integrityCtx integrity.IntegrityCtx,
 ) (*goconfig.Config, error) {
-	if configPath == "" {
-		return nil, nil
-	}
-
 	cfg, err := cluster.GetClusterConfig(context.Background(), configPath, integrityCtx)
 	if err != nil {
 		return nil, err
@@ -409,11 +405,13 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 		}
 		log.Debugf("Instance %q", instance.InstName)
 
-		instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
-			instance.InstName, integrityCtx)
-		if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
-			return instances, fmt.Errorf("error loading instance %q configuration from "+
-				"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
+		if instance.ClusterConfigPath != "" {
+			instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
+				instance.InstName, integrityCtx)
+			if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
+				return instances, fmt.Errorf("error loading instance %q configuration from "+
+					"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
+			}
 		}
 
 		instance.SingleApp = false
