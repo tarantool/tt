@@ -445,80 +445,180 @@ func gitCheckout(repoDir, checkout string, verbose bool, logWriter io.Writer) er
 	return nil
 }
 
-// installTt installs selected version of tt.
-func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
-	versionFound := false
-	pullRequestHash := ""
-	isPullRequest := false
-	pullRequestID := ""
+type resolvedInstallVersion struct {
+	version         string
+	versionStr      string
+	versionFound    bool
+	isPullRequest   bool
+	pullRequestID   string
+	pullRequestHash string
+}
+
+func resolveTtInstallVersion(installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	result := resolvedInstallVersion{version: installCtx.version}
 
 	// Get latest version if it was not specified.
-	ttVersion := installCtx.version
-	if ttVersion == "" {
+	if result.version == "" {
 		log.Infof("Getting latest tt version...")
 		versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tt", search.GitRepoTT)
 		if err != nil {
-			return err
+			return resolvedInstallVersion{}, err
 		}
 		if len(versions) == 0 {
-			return fmt.Errorf("no versions were fetched")
-		} else {
-			ttVersion = versions[len(versions)-1].Str
+			return resolvedInstallVersion{}, fmt.Errorf("no versions were fetched")
 		}
+		result.version = versions[len(versions)-1].Str
 	}
 
-	// Check that the version exists.
-	// The tag format in tt is vX.Y.Z, but the user can use the X.Y.Z format
-	// and this option needs to be supported.
-	if ttVersion != "master" {
-		if version.IsVersion(ttVersion, false) {
+	// The tag format in tt is vX.Y.Z, but the user can use X.Y.Z.
+	if result.version != "master" {
+		if version.IsVersion(result.version, false) {
 			log.Infof("Searching in versions...")
-			versions, err := getVersionsFromRepo(installCtx.Local, distfiles,
-				"tt", search.GitRepoTT)
+			versions, err := getVersionsFromRepo(
+				installCtx.Local, distfiles, "tt", search.GitRepoTT)
 			if err != nil {
-				return err
+				return resolvedInstallVersion{}, err
 			}
-			match, err := version.MatchVersion(ttVersion, versions)
+			match, err := version.MatchVersion(result.version, versions)
 			if err != nil {
 				var errNotFound version.NotFoundError
 				if !errors.As(err, &errNotFound) {
-					return err
+					return resolvedInstallVersion{}, err
 				}
 			} else {
-				versionFound = true
-				ttVersion = match
+				result.versionFound = true
+				result.version = match
 			}
 		}
-		if !versionFound {
-			isPullRequest, pullRequestID = util.IsPullRequest(ttVersion)
-
-			if isPullRequest {
+		if !result.versionFound {
+			result.isPullRequest, result.pullRequestID = util.IsPullRequest(result.version)
+			if result.isPullRequest {
 				log.Infof("Searching in pull-requests...")
 			} else {
 				log.Infof("Searching in commits...")
 			}
 
 			var err error
-			ttVersion, pullRequestHash, err = checkCommit(
-				ttVersion, "tt", installCtx, distfiles)
+			result.version, result.pullRequestHash, err = checkCommit(
+				result.version, "tt", installCtx, distfiles)
 			if err != nil {
-				return err
+				return resolvedInstallVersion{}, err
 			}
 		}
 	}
 
-	var versionStr string
+	switch {
+	case result.versionFound:
+		result.versionStr = search.ProgramTt.Exec() + version.FsSeparator + result.version
+	case result.isPullRequest:
+		result.versionStr = search.ProgramTt.Exec() + version.FsSeparator + result.pullRequestHash
+	default:
+		result.versionStr = search.ProgramTt.Exec() + version.FsSeparator +
+			result.version[0:util.Min(len(result.version), util.MinCommitHashLength)]
+	}
 
-	if versionFound {
-		versionStr = search.ProgramTt.Exec() + version.FsSeparator + ttVersion
-	} else {
-		if isPullRequest {
-			versionStr = search.ProgramTt.Exec() + version.FsSeparator + pullRequestHash
-		} else {
-			versionStr = search.ProgramTt.Exec() + version.FsSeparator +
-				ttVersion[0:util.Min(len(ttVersion), util.MinCommitHashLength)]
+	return result, nil
+}
+
+func resolveTarantoolInstallVersion(installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	result := resolvedInstallVersion{version: installCtx.version}
+
+	// Get latest release if it was not specified.
+	if result.version == "" {
+		log.Infof("Getting latest tarantool version...")
+		versions, err := getVersionsFromRepo(
+			installCtx.Local, distfiles, "tarantool", search.GitRepoTarantool)
+		if err != nil {
+			return resolvedInstallVersion{}, err
+		}
+		result.version = getLatestRelease(versions)
+		if result.version == "" {
+			return resolvedInstallVersion{}, fmt.Errorf("no version found")
 		}
 	}
+
+	if result.version != "master" {
+		if version.IsVersion(result.version, false) {
+			log.Infof("Searching in versions...")
+			versions, err := getVersionsFromRepo(
+				installCtx.Local, distfiles, "tarantool", search.GitRepoTarantool)
+			if err != nil {
+				return resolvedInstallVersion{}, err
+			}
+			match, err := version.MatchVersion(result.version, versions)
+			if err != nil {
+				var errNotFound version.NotFoundError
+				if !errors.As(err, &errNotFound) {
+					return resolvedInstallVersion{}, err
+				}
+			} else {
+				result.versionFound = true
+				result.version = match
+			}
+		}
+		if !result.versionFound {
+			result.isPullRequest, result.pullRequestID = util.IsPullRequest(result.version)
+			if result.isPullRequest {
+				log.Infof("Searching in pull-requests...")
+			} else {
+				log.Infof("Searching in commits...")
+			}
+
+			var err error
+			result.version, result.pullRequestHash, err = checkCommit(
+				result.version, "tarantool", installCtx, distfiles)
+			if err != nil {
+				return resolvedInstallVersion{}, err
+			}
+		}
+	}
+
+	switch {
+	case result.versionFound:
+		result.versionStr = search.ProgramCe.String() + version.FsSeparator + result.version
+	case result.isPullRequest:
+		result.versionStr = search.ProgramCe.String() + version.FsSeparator + result.pullRequestHash
+	default:
+		result.versionStr = search.ProgramCe.String() + version.FsSeparator +
+			result.version[0:util.Min(len(result.version), util.MinCommitHashLength)]
+	}
+
+	return result, nil
+}
+
+func prepareTarantoolInstall(binDir, incDir string, installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	if binDir == "" {
+		return resolvedInstallVersion{},
+			fmt.Errorf("bin_dir is not set, check %s", configure.ConfigName)
+	}
+	if incDir == "" {
+		return resolvedInstallVersion{},
+			fmt.Errorf("inc_dir is not set, check %s", configure.ConfigName)
+	}
+	return resolveTarantoolInstallVersion(installCtx, distfiles)
+}
+
+// installTt installs selected version of tt.
+func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
+	resolved, err := resolveTtInstallVersion(installCtx, distfiles)
+	if err != nil {
+		return err
+	}
+	ttVersion := resolved.version
+	versionStr := resolved.versionStr
+	versionFound := resolved.versionFound
+	isPullRequest := resolved.isPullRequest
+	pullRequestID := resolved.pullRequestID
+	pullRequestHash := resolved.pullRequestHash
 
 	// Check if that version is already installed.
 	// If it is installed, check if the newest version exists.
@@ -899,87 +999,17 @@ func changeActiveTarantoolVersion(versionStr, binDir, incDir string) error {
 
 // installTarantool installs selected version of tarantool.
 func installTarantool(binDir string, installCtx InstallCtx, distfiles string) error {
-	// Check bin and header dirs.
-	if binDir == "" {
-		return fmt.Errorf("bin_dir is not set, check %s", configure.ConfigName)
-	}
 	incDir := installCtx.IncDir
-	if incDir == "" {
-		return fmt.Errorf("inc_dir is not set, check %s", configure.ConfigName)
+	resolved, err := prepareTarantoolInstall(binDir, incDir, installCtx, distfiles)
+	if err != nil {
+		return err
 	}
-
-	versionFound := false
-	pullRequestHash := ""
-	isPullRequest := false
-	pullRequestID := ""
-
-	// Get latest version if it was not specified.
-	tarVersion := installCtx.version
-	if tarVersion == "" {
-		log.Infof("Getting latest tarantool version...")
-
-		versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tarantool",
-			search.GitRepoTarantool)
-		if err != nil {
-			return err
-		}
-
-		tarVersion = getLatestRelease(versions)
-		if tarVersion == "" {
-			return fmt.Errorf("no version found")
-		}
-	}
-
-	// Check that the version exists.
-	if tarVersion != "master" {
-		if version.IsVersion(tarVersion, false) {
-			log.Infof("Searching in versions...")
-			versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tarantool",
-				search.GitRepoTarantool)
-			if err != nil {
-				return err
-			}
-			match, err := version.MatchVersion(tarVersion, versions)
-			if err != nil {
-				var errNotFound version.NotFoundError
-				if !errors.As(err, &errNotFound) {
-					return err
-				}
-			} else {
-				versionFound = true
-				tarVersion = match
-			}
-		}
-		if !versionFound {
-			isPullRequest, pullRequestID = util.IsPullRequest(tarVersion)
-
-			if isPullRequest {
-				log.Infof("Searching in pull-requests...")
-			} else {
-				log.Infof("Searching in commits...")
-			}
-
-			var err error
-			tarVersion, pullRequestHash, err = checkCommit(
-				tarVersion, "tarantool", installCtx, distfiles)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	var versionStr string
-
-	if versionFound {
-		versionStr = search.ProgramCe.String() + version.FsSeparator + tarVersion
-	} else {
-		if isPullRequest {
-			versionStr = search.ProgramCe.String() + version.FsSeparator + pullRequestHash
-		} else {
-			versionStr = search.ProgramCe.String() + version.FsSeparator +
-				tarVersion[0:util.Min(len(tarVersion), util.MinCommitHashLength)]
-		}
-	}
+	tarVersion := resolved.version
+	versionStr := resolved.versionStr
+	versionFound := resolved.versionFound
+	isPullRequest := resolved.isPullRequest
+	pullRequestID := resolved.pullRequestID
+	pullRequestHash := resolved.pullRequestHash
 
 	// Check if program is already installed.
 	// If it is installed, check if newest version exists.
