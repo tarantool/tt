@@ -247,7 +247,8 @@ func programDependenciesInstalled(program search.Program) error {
 	case search.ProgramTt:
 		programs = []Package{{"mage", "mage"}, {"git", "git"}}
 	case search.ProgramCe:
-		if osName == "darwin" {
+		switch {
+		case osName == "darwin":
 			programs = []Package{
 				{"cmake", "cmake"},
 				{"git", "git"},
@@ -255,7 +256,7 @@ func programDependenciesInstalled(program search.Program) error {
 				{"clang", "clang"},
 				{"openssl", "openssl"},
 			}
-		} else if strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian") {
+		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
 			programs = []Package{
 				{"cmake", "cmake"},
 				{"git", "git"},
@@ -263,7 +264,7 @@ func programDependenciesInstalled(program search.Program) error {
 				{"gcc", " build-essential"},
 			}
 			packages = []string{"coreutils", "sed"} // spell-checker:disable-line
-		} else if strings.Contains(osName, "CentOs") {
+		case strings.Contains(osName, "CentOs"):
 			programs = []Package{
 				{"cmake", "cmake"},
 				{"git", "git"},
@@ -272,7 +273,7 @@ func programDependenciesInstalled(program search.Program) error {
 				{"g++", "gcc-c++ "},
 			}
 			packages = []string{"libstdc++-static", "perl"}
-		} else {
+		default:
 			answer, err := util.AskConfirm(os.Stdin,
 				"Unknown OS, can't check if dependencies"+
 					" are installed.\n"+
@@ -313,7 +314,8 @@ func programDependenciesInstalled(program search.Program) error {
 		var errMsg strings.Builder
 		errMsg.WriteString("Missing packages: " + strings.Join(missing_pack, " ") + " " +
 			strings.Join(missing_pack_src, " ") + "\n")
-		if osName == "darwin" {
+		switch {
+		case osName == "darwin":
 			errMsg.WriteString(
 				"You can install them by running commands:\nbrew install " + strings.Join(
 					missing_pack,
@@ -324,7 +326,7 @@ func programDependenciesInstalled(program search.Program) error {
 						" ",
 					) + "\n",
 			)
-		} else if strings.Contains(osName, "CentOs") {
+		case strings.Contains(osName, "CentOs"):
 			errMsg.WriteString("You can install them by running command:\n")
 			if len(missing_pack) != 0 {
 				errMsg.WriteString(" sudo yum install " + strings.Join(missing_pack, " ") + "\n")
@@ -333,7 +335,7 @@ func programDependenciesInstalled(program search.Program) error {
 				errMsg.WriteString("install from sources: " +
 					strings.Join(missing_pack_src, " ") + "\n")
 			}
-		} else if strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian") {
+		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
 			errMsg.WriteString("You can install them by running command:\n")
 			if len(missing_pack) != 0 {
 				errMsg.WriteString(" sudo apt install " + strings.Join(missing_pack, " ") + "\n")
@@ -368,9 +370,7 @@ func downloadRepo(repoLink, tag, dst string, logFile *os.File, verbose bool) err
 }
 
 // copyBuildedTT copies tt binary.
-func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
-	logFile *os.File,
-) error {
+func copyBuildedTT(binDir, path, version string, installCtx InstallCtx) error {
 	var err error
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
 		err = os.MkdirAll(binDir, defaultDirPermissions)
@@ -644,7 +644,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 
 	// Copy binary.
 	log.Infof("Copying executable...")
-	err = copyBuildedTT(binDir, path, versionStr, installCtx, logFile)
+	err = copyBuildedTT(binDir, path, versionStr, installCtx)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
@@ -670,7 +670,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 // prepareCmakeOpts prepares cmake command line options for tarantool building.
 func prepareCmakeOpts(buildPath string,
 	installCtx InstallCtx,
-) ([]string, error) {
+) []string {
 	cmakeOpts := []string{".."}
 
 	cmakeOpts = append(cmakeOpts, `-DCMAKE_TARANTOOL_ARGS=-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
@@ -683,7 +683,7 @@ func prepareCmakeOpts(buildPath string,
 		cmakeOpts = append(cmakeOpts, "-DCMAKE_INSTALL_PREFIX="+buildPath)
 	}
 
-	return cmakeOpts, nil
+	return cmakeOpts
 }
 
 // prepareMakeOpts prepares make command line options for tarantool building.
@@ -712,10 +712,7 @@ func buildTarantool(srcPath string,
 		return "", err
 	}
 
-	cmakeOpts, err := prepareCmakeOpts(buildPath, installCtx)
-	if err != nil {
-		return "", err
-	}
+	cmakeOpts := prepareCmakeOpts(buildPath, installCtx)
 
 	err = util.ExecuteCommand("cmake", installCtx.verbose, logFile, buildPath, cmakeOpts...)
 	if err != nil {

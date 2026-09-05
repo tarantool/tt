@@ -36,7 +36,6 @@ linters:
     - gochecknoglobals
     - gocognit
     - goconst
-    - gocritic
     - gocyclo
     - godox
     - gomodguard
@@ -58,8 +57,6 @@ linters:
     - testifylint
     - testpackage
     - tparallel
-    - unparam
-    - usetesting
     - varnamelen
     - wrapcheck
     - wsl

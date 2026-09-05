@@ -177,13 +177,14 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 			isRW = instance.Mode.String() == "rw"
 		}
 
-		if isRW && master != nil {
+		switch {
+		case isRW && master != nil:
 			closeConnectors(master, replicas)
 			return nil, nil, fmt.Errorf("%s and %s are both masters",
-				running.GetAppInstanceName((*master).run), fullInstanceName)
-		} else if isRW {
+				running.GetAppInstanceName(master.run), fullInstanceName)
+		case isRW:
 			master = &instanceMeta{run, conn}
-		} else {
+		default:
 			replicas = append(replicas, instanceMeta{run, conn})
 		}
 	}
@@ -197,11 +198,12 @@ func waitLSN(conn connector.Connector, masterIID uint32, masterLSN uint64, lsnTi
 	deadline := time.Now().Add(time.Duration(lsnTimeout) * time.Second)
 	for {
 		res, err := conn.Eval(query, []any{}, connector.RequestOpts{})
-		if err != nil {
+		switch {
+		case err != nil:
 			lastError = fmt.Errorf("failed to evaluate LSN query: %w", err)
-		} else if len(res) == 0 {
+		case len(res) == 0:
 			lastError = errors.New("empty result from LSN query")
-		} else {
+		default:
 			var lsn uint64
 			if err := mapstructure.Decode(res[0], &lsn); err != nil {
 				lastError = fmt.Errorf("failed to decode LSN: %w", err)

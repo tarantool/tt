@@ -47,17 +47,18 @@ func recalculateMaster(replicaset *Replicaset) {
 		}
 	}
 
-	if masters > 1 {
+	switch {
+	case masters > 1:
 		replicaset.Master = MasterMulti
-	} else if masters == 1 {
+	case masters == 1:
 		if unknown == 0 {
 			replicaset.Master = MasterSingle
 		} else {
 			replicaset.Master = MasterUnknown
 		}
-	} else if unknown == 0 {
+	case unknown == 0:
 		replicaset.Master = MasterNo
-	} else {
+	default:
 		replicaset.Master = MasterUnknown
 	}
 }

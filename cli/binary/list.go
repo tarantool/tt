@@ -41,8 +41,9 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 	binActive := ""
 	programPath := filepath.Join(binDir, symlinkName)
 	if fileInfo, err := os.Lstat(programPath); err == nil {
-		if program == search.ProgramDev &&
-			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+		switch {
+		case program == search.ProgramDev &&
+			fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink:
 			binActive, isTarantoolBinary, err := install.IsTarantoolDev(programPath, binDir)
 			if err != nil {
 				return binaryVersions, err
@@ -52,7 +53,7 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 					version.Version{Str: program.String() + " -> " + binActive + " [active]"})
 			}
 			return binaryVersions, nil
-		} else if program == search.ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0 {
+		case program == search.ProgramCe && fileInfo.Mode()&os.ModeSymlink == 0:
 			tntCli := cmdcontext.TarantoolCli{Executable: programPath}
 			binaryVersion, err := tntCli.GetVersion()
 			if err != nil {
@@ -60,7 +61,7 @@ func ParseBinaries(fileList []fs.DirEntry, program search.Program,
 			}
 			binaryVersion.Str += " [active]"
 			binaryVersions = append(binaryVersions, binaryVersion)
-		} else {
+		default:
 			binActive, err = util.ResolveSymlink(programPath)
 			if err != nil && !os.IsNotExist(err) {
 				return binaryVersions, err

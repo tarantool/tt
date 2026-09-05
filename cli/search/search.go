@@ -75,9 +75,9 @@ func SearchVersions(searchCtx SearchCtx, cliOpts *config.CliOpts) error {
 	var vers version.VersionSlice
 	switch prg {
 	case ProgramCe:
-		vers, err = searchVersionsGit(cliOpts, GitRepoTarantool)
+		vers, err = searchVersionsGit(GitRepoTarantool)
 	case ProgramTt:
-		vers, err = searchVersionsGit(cliOpts, GitRepoTT)
+		vers, err = searchVersionsGit(GitRepoTT)
 	case ProgramEe, ProgramTcm: // Group of API-based searches.
 		vers, err = searchVersionsTntIo(cliOpts, &searchCtx)
 	default:

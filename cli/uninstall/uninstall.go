@@ -31,9 +31,7 @@ var errNotInstalled = errors.New("program is not installed")
 
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
-func remove(program search.Program, programVersion, directory string,
-	cmdCtx *cmdcontext.CmdCtx,
-) (bool, error) {
+func remove(program search.Program, programVersion, directory string) (bool, error) {
 	var linkPath string
 	var err error
 
@@ -133,7 +131,7 @@ func UninstallProgram(
 
 	var isSymlinkRemoved bool
 	for _, verToDel := range versionsToDelete {
-		isSymlinkRemoved, err = remove(program, verToDel, binDst, cmdCtx)
+		isSymlinkRemoved, err = remove(program, verToDel, binDst)
 		if err != nil && !errors.Is(err, errNotInstalled) {
 			return err
 		}
@@ -147,7 +145,7 @@ func UninstallProgram(
 
 	if program.IsTarantool() {
 		log.Infof("Removing headers...")
-		_, err = remove(program, programVersion, headerDst, cmdCtx)
+		_, err = remove(program, programVersion, headerDst)
 		if err != nil {
 			return err
 		}

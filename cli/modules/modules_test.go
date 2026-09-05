@@ -214,7 +214,7 @@ func TestGetModulesInfo(t *testing.T) {
 				},
 			}
 			if tt.env_modules != "" {
-				os.Setenv("TT_CLI_MODULES_PATH", tt.env_modules)
+				t.Setenv("TT_CLI_MODULES_PATH", tt.env_modules)
 			}
 			var buf bytes.Buffer
 			log.SetOutput(&buf)

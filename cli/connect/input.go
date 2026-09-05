@@ -93,9 +93,7 @@ func cleanupDelimiter(stmt, delim string) (string, bool) {
 	if delim == "" {
 		return stmt, true
 	}
-	no_space := strings.TrimRightFunc(stmt, func(r rune) bool {
-		return unicode.IsSpace(r)
-	})
+	no_space := strings.TrimRightFunc(stmt, unicode.IsSpace)
 	no_delim := strings.TrimSuffix(no_space, delim)
 	if len(no_space) > len(no_delim) {
 		return no_delim, true
