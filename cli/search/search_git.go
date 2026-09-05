@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/tarantool/tt/cli/config"
 	"github.com/tarantool/tt/cli/util"
 	"github.com/tarantool/tt/cli/version"
 )
@@ -162,7 +161,7 @@ func GetVersionsFromGitLocal(repo string) (version.VersionSlice, error) {
 }
 
 // searchVersionsGit handles searching versions from a remote Git repository.
-func searchVersionsGit(cliOpts *config.CliOpts, repo string) (
+func searchVersionsGit(repo string) (
 	version.VersionSlice, error,
 ) {
 	versions, err := GetVersionsFromGitRemote(repo)

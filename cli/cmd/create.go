@@ -105,11 +105,12 @@ func createValidArgsFunction(
 		for _, entry := range entries {
 			eName := entry.Name()
 			ext := filepath.Ext(eName)
-			if entry.IsDir() {
+			switch {
+			case entry.IsDir():
 				templates = append(templates, eName)
-			} else if ext == ".tgz" {
+			case ext == ".tgz":
 				templates = append(templates, eName[:len(eName)-4])
-			} else if ext == ".gz" && filepath.Ext(eName[:len(eName)-3]) == ".tar" {
+			case ext == ".gz" && filepath.Ext(eName[:len(eName)-3]) == ".tar":
 				templates = append(templates, eName[:len(eName)-7])
 			}
 		}

@@ -176,7 +176,7 @@ groups:
 		for _, full := range tc.Full {
 			t.Run(tc.Name+"_"+fmt.Sprint(full), func(t *testing.T) {
 				for k, v := range tc.Env {
-					os.Setenv(k, v)
+					t.Setenv(k, v)
 				}
 
 				view, err := cluster.BuildGoConfigFromBytes(context.Background(), []byte(tc.Data))

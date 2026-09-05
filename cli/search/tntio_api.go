@@ -155,7 +155,7 @@ func getBuildType(isDev bool) string {
 }
 
 // TntIoMakePkgURI generates a URI for downloading a package.
-func TntIoMakePkgURI(searchCtx *SearchCtx, Tarball string) (string, error) {
+func TntIoMakePkgURI(searchCtx *SearchCtx, tarball string) (string, error) {
 	var uri string
 
 	if searchCtx.platformInformer == nil || reflect.ValueOf(searchCtx.platformInformer).IsNil() {
@@ -179,7 +179,7 @@ func TntIoMakePkgURI(searchCtx *SearchCtx, Tarball string) (string, error) {
 		osType,
 		arch,
 		searchCtx.ReleaseVersion,
-		Tarball,
+		tarball,
 	)
 
 	return uri, nil

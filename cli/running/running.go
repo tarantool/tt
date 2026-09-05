@@ -897,11 +897,12 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	}
 	newArgs = append(newArgs, args...)
 
-	if cmdCtx.Cli.IsSystem {
+	switch {
+	case cmdCtx.Cli.IsSystem:
 		newArgs = append(newArgs, "-S")
-	} else if cmdCtx.Cli.LocalLaunchDir != "" {
+	case cmdCtx.Cli.LocalLaunchDir != "":
 		newArgs = append(newArgs, "-L", cmdCtx.Cli.LocalLaunchDir)
-	} else {
+	default:
 		newArgs = append(newArgs, "--cfg", cmdCtx.Cli.ConfigPath)
 	}
 

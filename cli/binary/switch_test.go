@@ -1,7 +1,6 @@
 package binary
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -24,10 +23,8 @@ func TestCleanString(t *testing.T) {
 }
 
 func TestSwitchTarantool(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "switch_test")
-	defer os.RemoveAll(tempDir)
-	assert.Nil(t, err)
-	err = copy.Copy("./testdata/switch_test", tempDir)
+	tempDir := t.TempDir()
+	err := copy.Copy("./testdata/switch_test", tempDir)
 	assert.Nil(t, err)
 
 	var testCtx SwitchCtx

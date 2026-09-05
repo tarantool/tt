@@ -129,9 +129,7 @@ func (c *Console) cleanupDelimiter() bool {
 	if c.delimiter == "" {
 		return true
 	}
-	no_space := strings.TrimRightFunc(c.input, func(r rune) bool {
-		return unicode.IsSpace(r)
-	})
+	no_space := strings.TrimRightFunc(c.input, unicode.IsSpace)
 	no_delim := strings.TrimSuffix(no_space, c.delimiter)
 	if len(no_space) > len(no_delim) {
 		c.input = no_delim

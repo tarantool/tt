@@ -113,11 +113,12 @@ func internalCleanModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 			var statusMsg string
 
 			err := clean(&run)
-			if errors.Is(err, ErrCanceledByUser) {
+			switch {
+			case errors.Is(err, ErrCanceledByUser):
 				statusMsg = ErrCanceledByUser.Error()
-			} else if err != nil {
+			case err != nil:
 				statusMsg = "[ERR] " + err.Error()
-			} else {
+			default:
 				statusMsg = "[OK]"
 			}
 

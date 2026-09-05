@@ -124,7 +124,8 @@ func Test_installTarantoolDev(t *testing.T) {
 	ttBinDir := "binDir"
 	ttIncDir := "incDir"
 
-	setupEnv := func() string {
+	setupEnv := func(t *testing.T) string {
+		t.Helper()
 		//	├── ttBinDir
 		//	├── build_ce
 		//	│   └── src
@@ -135,8 +136,7 @@ func Test_installTarantoolDev(t *testing.T) {
 		//	│           └── tarantool
 		//	└── ttIncDir
 
-		tempDir := os.TempDir()
-		tempsDir, _ := os.MkdirTemp(tempDir, "install_tarantool_dev_test")
+		tempsDir := t.TempDir()
 
 		ttBinDir := filepath.Join(tempsDir, ttBinDir)
 		os.Mkdir(ttBinDir, os.ModePerm)
@@ -160,8 +160,7 @@ func Test_installTarantoolDev(t *testing.T) {
 	}
 
 	t.Run("no include-dir", func(t *testing.T) {
-		tempDirectory := setupEnv()
-		defer os.RemoveAll(tempDirectory)
+		tempDirectory := setupEnv(t)
 
 		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
 		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
@@ -188,8 +187,7 @@ func Test_installTarantoolDev(t *testing.T) {
 	})
 
 	t.Run("with include-dir", func(t *testing.T) {
-		tempDirectory := setupEnv()
-		defer os.RemoveAll(tempDirectory)
+		tempDirectory := setupEnv(t)
 
 		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
 		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
@@ -237,8 +235,7 @@ func Test_installTarantoolDev(t *testing.T) {
 	})
 
 	t.Run("no executable", func(t *testing.T) {
-		tempDirectory := setupEnv()
-		defer os.RemoveAll(tempDirectory)
+		tempDirectory := setupEnv(t)
 
 		ttBinPath := filepath.Join(tempDirectory, ttBinDir)
 		ttIncPath := filepath.Join(tempDirectory, ttIncDir)
@@ -251,9 +248,7 @@ func Test_installTarantoolDev(t *testing.T) {
 }
 
 func TestSearchTarantoolHeaders(t *testing.T) {
-	tempDir := os.TempDir()
-	tempsDir, _ := os.MkdirTemp(tempDir, "search_tarantool_headers_test")
-	defer os.RemoveAll(tempsDir)
+	tempsDir := t.TempDir()
 
 	buildEmptyPath := filepath.Join(tempsDir, "build_empty")
 	os.MkdirAll(buildEmptyPath, os.ModePerm)

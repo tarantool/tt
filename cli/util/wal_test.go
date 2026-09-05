@@ -227,20 +227,16 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, os.Chdir(wd))
-	}()
-
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			if len(test.input) == 0 || test.input[0][0] != '/' {
 				// If the first element of input is relative path,
 				// we need to change the working directory to the test directory.
-				require.NoError(t, os.Chdir(tstDir))
+				t.Chdir(tstDir)
 			} else {
 				// If the first element of input is absolute path,
 				// run test from current directory, not in temp.
-				require.NoError(t, os.Chdir(wd))
+				t.Chdir(wd)
 			}
 
 			var buf bytes.Buffer
