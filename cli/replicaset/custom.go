@@ -17,17 +17,17 @@ var customGetInstanceTopologyBody string
 // with a custom orchestrator.
 type customTopology struct {
 	// UUID is a current replicaset UUID.
-	UUID string
+	UUID string `mapstructure:"uuid"`
 	// LeaderUUID is a leader UUID in the replicaset.
-	LeaderUUID string
+	LeaderUUID string `mapstructure:"leaderuuid"`
 	// Alias is a short name of the replicaset.
-	Alias string
+	Alias string `mapstructure:"alias"`
 	// Instances is a list of known instances in a replicaset.
-	Instances []Instance
+	Instances []Instance `mapstructure:"instances"`
 	// InstanceUUID is a current instance UUID.
-	InstanceUUID string
+	InstanceUUID string `mapstructure:"instanceuuid"`
 	// InstanceRW is true when the current instance is in RW mode.
-	InstanceRW bool
+	InstanceRW bool `mapstructure:"instancerw"`
 }
 
 // CustomInstance is an instance with custom/unknown orchestrator. In this

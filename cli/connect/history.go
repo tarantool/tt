@@ -26,7 +26,9 @@ type commandHistory struct {
 // for each command.
 func parseHistoryCells(
 	lines []string,
-) (commands []string, timestamps []int64) {
+) ([]string, []int64) {
+	var commands []string
+	var timestamps []int64
 	timestampRegex := regexp.MustCompile(`^#\d+$`)
 
 	// startPos is the first position of a timestamp.

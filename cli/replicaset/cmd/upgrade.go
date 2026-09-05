@@ -150,7 +150,7 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 			return nil, nil, err
 		}
 
-		isRW := false
+		var isRW bool
 
 		if instance.Mode == replicaset.ModeUnknown {
 			// TODO (gh-1034): Temporary workaround for mode assignment.
@@ -164,7 +164,15 @@ func collectRwRoInfo(rs replicaset.Replicaset,
 					"can't determine RO/RW mode on instance: %s",
 					fullInstanceName)
 			}
-			isRW = !res[0].(bool)
+			isReadOnly, ok := res[0].(bool)
+			if !ok {
+				conn.Close()
+				closeConnectors(master, replicas)
+				return nil, nil, fmt.Errorf(
+					"can't determine RO/RW mode on instance %s: expected bool, got %T",
+					fullInstanceName, res[0])
+			}
+			isRW = !isReadOnly
 		} else {
 			isRW = instance.Mode.String() == "rw"
 		}

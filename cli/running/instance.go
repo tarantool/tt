@@ -9,7 +9,7 @@ import (
 // Instance describes a running tarantool instance.
 type Instance interface {
 	// Start starts the Instance with the specified parameters.
-	Start(context.Context) error
+	Start(ctx context.Context) error
 
 	// Run runs tarantool interpreter.
 	Run(opts RunOpts) error

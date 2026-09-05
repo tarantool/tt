@@ -14,7 +14,7 @@ import (
 // Returns zero-value strings and false if the path does not match the
 // expected 6-segment layout (indices 0=="groups", 2=="replicasets",
 // 4=="instances").
-func splitInstancePath(path string) (group, replicaset, instance string) {
+func splitInstancePath(path string) (string, string, string) {
 	kp := goconfig.NewKeyPath(path)
 	if len(kp) != 6 {
 		return "", "", ""
@@ -54,7 +54,7 @@ func HasInstance(cfg goconfig.Config, name string) bool {
 
 // FindInstance scans EffectiveAll() keys to locate the instance with the given
 // name, returning its containing group and replicaset names.
-func FindInstance(cfg goconfig.Config, name string) (group, replicaset string, found bool) {
+func FindInstance(cfg goconfig.Config, name string) (string, string, bool) {
 	all, err := cfg.EffectiveAll()
 	if err != nil {
 		return "", "", false
@@ -71,7 +71,7 @@ func FindInstance(cfg goconfig.Config, name string) (group, replicaset string, f
 
 // FindGroupByReplicaset scans EffectiveAll() keys and returns the group that
 // contains the given replicaset name.
-func FindGroupByReplicaset(cfg goconfig.Config, replicaset string) (group string, found bool) {
+func FindGroupByReplicaset(cfg goconfig.Config, replicaset string) (string, bool) {
 	all, err := cfg.EffectiveAll()
 	if err != nil {
 		return "", false

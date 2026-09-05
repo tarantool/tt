@@ -17,7 +17,7 @@ type PromoteCtx struct {
 // Promoter is an interface to promote an instance in the replicaset.
 type Promoter interface {
 	// Promote promotes an instance.
-	Promote(PromoteCtx) error
+	Promote(ctx PromoteCtx) error
 }
 
 // newErrPromoteByInstanceNotSupported creates a new error that promote is not

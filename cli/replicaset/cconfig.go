@@ -38,19 +38,19 @@ var (
 // instance with the centralized config orchestrator.
 type cconfigTopology struct {
 	// UUID is a current replicaset UUID.
-	UUID string
+	UUID string `mapstructure:"uuid"`
 	// LeaderUUID is a leader UUID in the replicaset.
-	LeaderUUID string
+	LeaderUUID string `mapstructure:"leaderuuid"`
 	// Alias is a short name of the replicaset.
-	Alias string
+	Alias string `mapstructure:"alias"`
 	// Failover is a string representation of a failover.
-	Failover string
+	Failover string `mapstructure:"failover"`
 	// Instances is a list of known instances in a replicaset.
-	Instances []Instance
+	Instances []Instance `mapstructure:"instances"`
 	// InstanceUUID is a current instance UUID.
-	InstanceUUID string
+	InstanceUUID string `mapstructure:"instanceuuid"`
 	// InstanceRW is true when the current instance is in RW mode.
-	InstanceRW bool
+	InstanceRW bool `mapstructure:"instancerw"`
 }
 
 // cconfigInstance describes an instance in the cluster config.
@@ -616,7 +616,7 @@ func reloadCConfig(instances []running.InstanceCtx) error {
 // if the instance config was published.
 func (c *CConfigApplication) promote(instance Instance,
 	ctx PromoteCtx,
-) (wasConfigPublished bool, err error) {
+) (bool, error) {
 	clusterCfgPath := instance.InstanceCtx.ClusterConfigPath
 	clusterCfg, err := cluster.GetClusterConfig(context.Background(), clusterCfgPath, c.integ)
 	if err != nil {
@@ -655,7 +655,7 @@ func (c *CConfigApplication) promote(instance Instance,
 // if the instance config was published.
 func (c *CConfigApplication) demote(instance Instance,
 	replicaset Replicaset, ctx DemoteCtx,
-) (wasConfigPublished bool, err error) {
+) (bool, error) {
 	clusterCfgPath := instance.InstanceCtx.ClusterConfigPath
 	clusterCfg, err := cluster.GetClusterConfig(context.Background(), clusterCfgPath, c.integ)
 	if err != nil {
@@ -731,9 +731,10 @@ func (c *CConfigApplication) expel(instance running.InstanceCtx, name string) (b
 // https://github.com/tarantool/tarantool/issues/9855
 func (c *CConfigApplication) demoteElection(instanceCtx running.InstanceCtx,
 	cconfigInstance cconfigInstance, timeout int,
-) (wasConfigPublished bool, err error) {
+) (bool, error) {
+	var wasConfigPublished bool
 	// Set election_mode: "voter" on the target instance.
-	err = patchLocalCConfig(
+	err := patchLocalCConfig(
 		instanceCtx.ClusterConfigPath,
 		c.collectors,
 		c.publishers,

@@ -8,7 +8,7 @@ type Mode int
 const (
 	// ModeUnknown is used when read-write mode is unknown.
 	ModeUnknown Mode = iota // unknown.
-	// MOdeRead is used when box.cfg.read_only = true.
+	// ModeRead is used when box.cfg.read_only = true.
 	ModeRead // read.
 	// ModeRW is used when box.cfg.read_only = false.
 	ModeRW // rw.

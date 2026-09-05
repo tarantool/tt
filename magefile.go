@@ -150,7 +150,8 @@ func appendTags(args []string) ([]string, error) {
 // Building tt executable. Supported environment variables:
 // TT_CLI_BUILD_SSL=(no|static|shared).
 func buildTt(argUpdaters ...optsUpdater) error {
-	args := []string{"build", "-o", ttExecutableName}
+	args := make([]string, 0, 8)
+	args = append(args, "build", "-o", ttExecutableName)
 	var err error
 	for _, updateArguments := range argUpdaters {
 		if args, err = updateArguments(args); err != nil {
@@ -171,21 +172,21 @@ func buildTt(argUpdaters ...optsUpdater) error {
 
 type Build mg.Namespace
 
-// Building release tt executable without debug info.
+// Release builds the release tt executable without debug info.
 func (Build) Release() error {
 	fmt.Println("Building release tt...")
 
 	return buildTt(appendTags, appendLdFlags("-s", "-w"))
 }
 
-// Building debug tt executable.
+// Debug builds the debug tt executable.
 func (Build) Debug() error {
 	fmt.Println("Building debug tt...")
 
 	return buildTt(appendTags, appendLdFlags())
 }
 
-// Building tt executable with coverage.
+// Coverage builds the tt executable with coverage.
 func (Build) Coverage() error {
 	fmt.Println("Building release tt with coverage...")
 
@@ -198,7 +199,7 @@ func (Build) Coverage() error {
 	return nil
 }
 
-// Run license checker.
+// CheckLicenses runs the license checker.
 func CheckLicenses() error {
 	fmt.Println("Running license checker...")
 
@@ -216,13 +217,13 @@ func CheckLicenses() error {
 
 type Lint mg.Namespace
 
-// Run golang and python linters.
+// Full runs golang and python linters.
 func (Lint) Full() error {
 	mg.Deps(Lint.Golang, Lint.Python)
 	return nil
 }
 
-// Run golang linters.
+// Golang runs golang linters.
 func (Lint) Golang() error {
 	linter, err := resolveLinter()
 	if err != nil {
@@ -299,7 +300,7 @@ func linterVersionOf(exe string) (string, error) {
 	return match[1] + "." + match[2] + "." + match[3], nil
 }
 
-// Run python linters.
+// Python runs python linters.
 func (Lint) Python() error {
 	fmt.Println("Running Ruff...")
 
@@ -332,28 +333,28 @@ func runUnitTests(flags []string) error {
 	return nil
 }
 
-// Run unit tests.
+// Default runs unit tests.
 func (Unit) Default() error {
 	fmt.Println("Running unit tests...")
 
 	return runUnitTests([]string{})
 }
 
-// Run unit tests with a Tarantool instance integration.
+// Full runs unit tests with Tarantool instance integration.
 func (Unit) Full() error {
 	fmt.Println("Running full unit tests...")
 
 	return runUnitTests([]string{"-tags", "integration,integration_docker"})
 }
 
-// Run unit tests with a Tarantool instance integration, excluding docker tests.
+// FullSkipDocker runs unit tests with Tarantool instance integration, excluding docker tests.
 func (Unit) FullSkipDocker() error {
 	fmt.Println("Running full unit tests, excluding docker...")
 
 	return runUnitTests([]string{"-tags", "integration"})
 }
 
-// Run full unit tests set with code coverage.
+// Coverage runs the full unit test set with code coverage.
 func (Unit) Coverage() error {
 	fmt.Println("Running full unit tests with code coverage...")
 
@@ -397,7 +398,7 @@ func (Unit) Coverage() error {
 	return nil
 }
 
-// Run integration tests, excluding slow tests.
+// Integration runs integration tests, excluding slow tests.
 func Integration() error {
 	fmt.Println("Running integration tests...")
 
@@ -405,7 +406,7 @@ func Integration() error {
 		"and not notarantool", "test/integration")
 }
 
-// Run full set of integration tests.
+// IntegrationFull runs the full set of integration tests.
 func IntegrationFull() error {
 	fmt.Println("Running all integration tests...")
 
@@ -413,7 +414,7 @@ func IntegrationFull() error {
 		"test/integration")
 }
 
-// Run full set of integration tests, excluding docker tests.
+// IntegrationFullSkipDocker runs the full set of integration tests, excluding docker tests.
 func IntegrationFullSkipDocker() error {
 	fmt.Println("Running all integration tests, excluding docker...")
 
@@ -421,7 +422,7 @@ func IntegrationFullSkipDocker() error {
 		"not slow_ee and not notarantool and not docker", "test/integration")
 }
 
-// Run only docker tests from the full set.
+// IntegrationFullDocker runs only docker tests from the full set.
 func IntegrationFullDocker() error {
 	fmt.Println("Running docker integration tests...")
 
@@ -429,14 +430,14 @@ func IntegrationFullDocker() error {
 		"not slow_ee and not notarantool and docker", "test/integration")
 }
 
-// Run set of ee integration tests.
+// IntegrationEE runs the set of EE integration tests.
 func IntegrationEE() error {
 	fmt.Println("Running all EE integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "test/integration/ee")
 }
 
-// Run integration tests without system-wide installed Tarantool.
+// IntegrationNoTarantool runs integration tests without a system-wide Tarantool installation.
 func IntegrationNoTarantool() error {
 	fmt.Println("Running integration tests without Tarantool...")
 
@@ -444,24 +445,24 @@ func IntegrationNoTarantool() error {
 		"test/integration")
 }
 
-// Run code spell checks.
+// CodeSpell runs code spell checks.
 func CodeSpell() error {
 	fmt.Println("Running code spell tests...")
 
 	return sh.RunV("codespell", ".") // spell-checker:disable-line
 }
 
-// Run all tests together, excluding slow and unit integration tests.
+// Test runs all tests together, excluding slow and unit integration tests.
 func Test() {
 	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Default, Integration)
 }
 
-// Run all tests together.
+// TestFull runs all tests together.
 func TestFull() {
 	mg.SerialDeps(Lint.Full, CheckLicenses, Unit.Full, IntegrationFull)
 }
 
-// Cleanup directory.
+// Clean cleans up the directory.
 func Clean() {
 	fmt.Println("Cleaning directory...")
 

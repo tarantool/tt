@@ -88,7 +88,7 @@ func internalCatModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 
 	os.Setenv("TT_CLI_CAT_FILES", string(filesJson))
 	os.Setenv("TT_CLI_CAT_SHOW_SYS", strconv.FormatBool(catFlags.ShowSystem))
-	os.Setenv("TT_CLI_CAT_FORMAT", string(catFlags.Format))
+	os.Setenv("TT_CLI_CAT_FORMAT", catFlags.Format)
 
 	// List of spaces is passed to lua cat script via environment variable in json format.
 	spacesJson, err := json.Marshal(catFlags.Space)

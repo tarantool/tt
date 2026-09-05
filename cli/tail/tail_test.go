@@ -139,7 +139,7 @@ func linesChecker(t *testing.T, expected []string) func(str string) {
 	i := 0
 	return func(str string) {
 		require.Less(t, i, len(expected))
-		assert.Equal(t, expected[i], string(str))
+		assert.Equal(t, expected[i], str)
 		i++
 	}
 }

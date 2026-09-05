@@ -38,7 +38,7 @@ const (
 
 var instStateDead = process_utils.ProcStateDead
 
-// Running contains information about application instances.
+// RunningCtx contains information about application instances.
 type RunningCtx struct {
 	// Instances contains information about application instances.
 	Instances []InstanceCtx
@@ -125,15 +125,15 @@ type providerImpl struct {
 type ConfigLoad int
 
 const (
-	// Skip loading cluster config and instances scripts.
+	// ConfigLoadSkip skips loading cluster config and instance scripts.
 	ConfigLoadSkip ConfigLoad = iota
-	// Cluster configuration is required, trigger an error if not.
+	// ConfigLoadCluster requires cluster configuration and reports an error if it is missing.
 	// Instances scripts could be omitted.
 	ConfigLoadCluster
-	// Instance script is required, trigger an error if not.
+	// ConfigLoadScripts requires an instance script and reports an error if it is missing.
 	// Cluster configuration could be omitted.
 	ConfigLoadScripts
-	// Load cluster config and instances scripts, trigger an errors if not.
+	// ConfigLoadAll loads cluster config and instance scripts and reports errors if missing.
 	ConfigLoadAll
 )
 
@@ -174,7 +174,7 @@ func (provider *providerImpl) updateCtx() error {
 // createInstance creates an Instance.
 func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
 	opts ...InstanceOption,
-) (inst Instance, err error) {
+) (Instance, error) {
 	if instanceCtx.ClusterConfigPath != "" {
 		return newClusterInstance(cmdCtx.Cli.TarantoolCli, instanceCtx, opts...)
 	}
@@ -182,9 +182,9 @@ func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
 }
 
 // createInstance reads config and creates an Instance.
-func (provider *providerImpl) CreateInstance(logger ttlog.Logger) (inst Instance, err error) {
-	if err = provider.updateCtx(); err != nil {
-		return inst, err
+func (provider *providerImpl) CreateInstance(logger ttlog.Logger) (Instance, error) {
+	if err := provider.updateCtx(); err != nil {
+		return nil, err
 	}
 
 	opts := []InstanceOption{StdLoggerOpt(logger)}
@@ -271,25 +271,27 @@ type appDirCtx struct {
 }
 
 // collectAppDirFiles searches for config files and default instance script.
-func collectAppDirFiles(appDir string) (appDirCtx appDirCtx, err error) {
-	appDirCtx.defaultLuaPath = filepath.Join(appDir, "init.lua")
-	if _, err = os.Stat(appDirCtx.defaultLuaPath); err != nil && !os.IsNotExist(err) {
-		return appDirCtx, err
+func collectAppDirFiles(appDir string) (appDirCtx, error) {
+	var files appDirCtx
+	var err error
+	files.defaultLuaPath = filepath.Join(appDir, "init.lua")
+	if _, err = os.Stat(files.defaultLuaPath); err != nil && !os.IsNotExist(err) {
+		return files, err
 	} else if os.IsNotExist(err) {
-		appDirCtx.defaultLuaPath = ""
+		files.defaultLuaPath = ""
 	}
 
-	if appDirCtx.clusterCfgPath, err = util.GetYamlFileName(
+	if files.clusterCfgPath, err = util.GetYamlFileName(
 		filepath.Join(appDir, clusterConfigDefaultFileName), false); err != nil {
-		return appDirCtx, err
+		return files, err
 	}
 
-	if appDirCtx.instCfgPath, err = util.GetYamlFileName(
+	if files.instCfgPath, err = util.GetYamlFileName(
 		filepath.Join(appDir, "instances.yml"), false); err != nil {
-		return appDirCtx, err
+		return files, err
 	}
 
-	return appDirCtx, err
+	return files, err
 }
 
 // getInstanceName gets instance name from app name + instance name.
@@ -829,7 +831,7 @@ func Logrotate(run *InstanceCtx) error {
 		return errors.New(instStateDead.String())
 	}
 
-	if err := syscall.Kill(pid, syscall.Signal(syscall.SIGHUP)); err != nil {
+	if err := syscall.Kill(pid, syscall.SIGHUP); err != nil {
 		return fmt.Errorf(`can't rotate logs: "%v"`, err)
 	}
 
@@ -857,7 +859,7 @@ func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 // If an application is multi-instance, the format will be AppName:InstName.
 // Otherwise, the format is AppName.
 func GetAppInstanceName(instance InstanceCtx) string {
-	fullInstanceName := ""
+	var fullInstanceName string
 	if instance.SingleApp {
 		fullInstanceName = instance.AppName
 	} else {

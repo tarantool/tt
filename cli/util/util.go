@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -26,7 +27,6 @@ import (
 	"github.com/apex/log"
 	"github.com/otiai10/copy"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/constraints"
 	"gopkg.in/yaml.v2"
 )
 
@@ -394,7 +394,7 @@ func CheckRecommendedBinaries(binaries ...string) {
 	}
 }
 
-// isRegularFile checks if filePath is a directory. Returns true if the directory exists.
+// IsDir checks if filePath is a directory. Returns true if the directory exists.
 func IsDir(filePath string) bool {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
@@ -404,7 +404,7 @@ func IsDir(filePath string) bool {
 	return fileInfo.IsDir()
 }
 
-// isRegularFile checks if filePath is a regular file. Returns true if the file exists
+// IsRegularFile checks if filePath is a regular file. Returns true if the file exists
 // and it is a regular file.
 func IsRegularFile(filePath string) bool {
 	fileInfo, err := os.Stat(filePath)
@@ -425,7 +425,7 @@ func IsURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != "" && u.Opaque == "" && u.User == nil
 }
 
-// removeScheme removes the scheme from the input URL.
+// RemoveScheme removes the scheme from the input URL.
 func RemoveScheme(inputURL string) (string, error) {
 	parsedURL, err := url.Parse(inputURL)
 	if err != nil {
@@ -445,7 +445,7 @@ func RemoveScheme(inputURL string) (string, error) {
 func Chdir(newPath string) (func() error, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 	if err = os.Chdir(newPath); err != nil {
 		return nil, fmt.Errorf("failed to change directory: %s", err)
@@ -752,7 +752,7 @@ func CreateDirectory(dirName string, fileMode os.FileMode) error {
 	return nil
 }
 
-// writeYaml writes YAML encoding of object o to fileName.
+// WriteYaml writes YAML encoding of object o to fileName.
 func WriteYaml(fileName string, o interface{}) error {
 	file, err := os.Create(fileName)
 	if err != nil {
@@ -900,7 +900,7 @@ func RelativeToCurrentWorkingDir(fullPath string) string {
 }
 
 // Min returns minimal of two values.
-func Min[T constraints.Ordered](a, b T) T {
+func Min[T cmp.Ordered](a, b T) T {
 	if a < b {
 		return a
 	}

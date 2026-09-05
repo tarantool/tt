@@ -3,6 +3,7 @@ package formatter
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
 
@@ -79,9 +79,11 @@ func deepCastAnyMapToStringMap(v any) interface{} {
 
 // encodeScalar encodes a scalar into a string.
 func encodeScalar(val any) string {
-	switch val.(type) {
-	case float64, float32:
-		return strconv.FormatFloat(val.(float64), 'f', -1, 64)
+	switch value := val.(type) {
+	case float64:
+		return strconv.FormatFloat(value, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(value), 'f', -1, 32)
 	case nil:
 		return "nil"
 	default:
@@ -121,7 +123,7 @@ func isSingleType(batch []any, t nodeType) bool {
 
 // renderScalars returns a table as string for scalars.
 func renderScalars(batch []any, transpose bool, opts Opts) (string, error) {
-	var arrays []any
+	arrays := make([]any, 0, len(batch))
 	for _, item := range batch {
 		arrays = append(arrays, []any{item})
 	}
@@ -145,7 +147,10 @@ func isSingleArrayOfArrays(batch []any) bool {
 // renderArrays returns a string representation of arrays.
 func renderArrays(batch []any, transpose bool, opts Opts) (string, error) {
 	if isSingleArrayOfArrays(batch) {
-		array := batch[0].([]any)
+		array, ok := batch[0].([]any)
+		if !ok {
+			return "", fmt.Errorf("expected an array, got %T", batch[0])
+		}
 		return renderArraysAsTable(array, transpose, opts)
 	} else {
 		return renderArraysAsTable(batch, transpose, opts)
@@ -156,7 +161,11 @@ func renderArrays(batch []any, transpose bool, opts Opts) (string, error) {
 func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error) {
 	maxLen := 0
 	for _, item := range batch {
-		itemLen := len(item.([]any))
+		array, ok := item.([]any)
+		if !ok {
+			return "", fmt.Errorf("expected an array, got %T", item)
+		}
+		itemLen := len(array)
 		if itemLen > maxLen {
 			maxLen = itemLen
 		}
@@ -168,12 +177,15 @@ func renderArraysAsTable(batch []any, transpose bool, opts Opts) (string, error)
 
 	var mapped []unorderedMap[any]
 	for _, item := range batch {
-		item := item.([]any)
+		array, ok := item.([]any)
+		if !ok {
+			return "", fmt.Errorf("expected an array, got %T", item)
+		}
 		itemMap := createUnorderedMap[any](maxLen)
 
-		for i := 0; i < maxLen; i++ {
-			if i < len(item) {
-				itemMap.insert(strconv.Itoa(i+1), item[i])
+		for i := range maxLen {
+			if i < len(array) {
+				itemMap.insert(strconv.Itoa(i+1), array[i])
 			} else {
 				itemMap.insert(strconv.Itoa(i+1), "")
 			}
@@ -246,10 +258,10 @@ func transposeRows(rowsRaw []table.Row) []table.Row {
 		}
 	}
 
-	var rowsRawTransposed []table.Row
-	for i := 0; i < rowsRawTransposedCap; i++ {
+	rowsRawTransposed := make([]table.Row, 0, rowsRawTransposedCap)
+	for i := range rowsRawTransposedCap {
 		var rowTransposed table.Row
-		for j := 0; j < len(rowsRaw); j++ {
+		for j := range rowsRaw {
 			if i < len(rowsRaw[j]) {
 				rowTransposed = append(rowTransposed, rowsRaw[j][i])
 			} else {
@@ -371,8 +383,10 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 			switch n := node.(type) {
 			case unorderedMap[any]:
 				castedMap = n
+			case map[any]any:
+				castedMap = castMapToUMap(n)
 			default:
-				castedMap = castMapToUMap(node.(map[any]any))
+				return "", fmt.Errorf("expected a map, got %T", node)
 			}
 			anyMaps = append(anyMaps, castedMap)
 		}
@@ -381,7 +395,7 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 		batchPointer := 0
 		mapsBatches[batchPointer] = append(mapsBatches[batchPointer], anyMaps[0])
 
-		for i := 0; i < len(anyMaps)-1; i++ {
+		for i := range len(anyMaps) - 1 {
 			if !isMapKeysEqual(anyMaps[i], anyMaps[i+1]) {
 				batchPointer++
 			}
@@ -441,7 +455,7 @@ type metadataRows struct {
 
 // remapMetadataRows creates maps from rows with a meta information.
 func remapMetadataRows(meta metadataRows) []any {
-	var nodes []any
+	nodes := make([]any, 0, len(meta.Rows))
 	maxLen := 0
 	for _, row := range meta.Rows {
 		if len(row) > maxLen {
@@ -451,7 +465,7 @@ func remapMetadataRows(meta metadataRows) []any {
 	for _, row := range meta.Rows {
 		index := 1
 		mapped := createUnorderedMap[any](len(row))
-		for i := 0; i < maxLen; i++ {
+		for i := range maxLen {
 			if i >= len(row) {
 				mapped.insert(index, "")
 				index++
@@ -540,7 +554,7 @@ func makeTableOutput(input string, transpose bool, opts Opts) (string, error) {
 	batches := make([][]any, len(nodes))
 	batchPointer := 0
 	batches[batchPointer] = append(batches[batchPointer], nodes[0])
-	for i := 0; i < len(nodes)-1; i++ {
+	for i := range len(nodes) - 1 {
 		if !isNodeTypeEqual(nodes[i], nodes[i+1]) {
 			batchPointer++
 		}

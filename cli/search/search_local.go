@@ -123,7 +123,7 @@ func FindLocalBundles(program Program, fsys fs.FS) (BundleInfoSlice, error) {
 
 // getBaseDirectory determines the base directory for local search.
 func getBaseDirectory(cfgPath string, repo *config.RepoOpts) string {
-	localDir := ""
+	var localDir string
 	if repo != nil && repo.Install != "" {
 		localDir = repo.Install
 	} else {

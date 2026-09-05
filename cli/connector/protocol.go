@@ -20,9 +20,9 @@ const (
 type Protocol int
 
 const (
-	// IPROTO.
+	// BinaryProtocol represents IPROTO.
 	BinaryProtocol Protocol = iota
-	// Plain text messages.
+	// TextProtocol represents plain text messages.
 	TextProtocol
 )
 

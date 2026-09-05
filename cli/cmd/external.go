@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"slices"
+
 	"github.com/spf13/cobra"
 	"github.com/tarantool/tt/cli/modules"
-	"golang.org/x/exp/slices"
 )
 
 // configureExternalCmd configures external commands.
@@ -45,7 +46,8 @@ func configureNonExistentCmd(rootCmd *cobra.Command, modulesInfo *modules.Module
 	// We avoid overwriting existing commands - we should add a command only
 	// if it doesn't have an internal implementation in Tarantool CLI.
 	// So first collect list of internal command names.
-	internalCmdNames := []string{"help"}
+	internalCmdNames := make([]string, 0, 1+len(rootCmd.Commands()))
+	internalCmdNames = append(internalCmdNames, "help")
 	for _, cmd := range rootCmd.Commands() {
 		internalCmdNames = append(internalCmdNames, cmd.Name())
 	}

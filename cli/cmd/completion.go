@@ -45,7 +45,7 @@ func NewCompletionCmd() *cobra.Command {
 func RootShellCompletionCommands(cmd *cobra.Command, args []string,
 	toComplete string,
 ) ([]string, cobra.ShellCompDirective) {
-	var commands []string
+	commands := make([]string, 0, len(modulesInfo))
 	for name, manifest := range modulesInfo {
 		commands = append(commands, fmt.Sprintf("%s\t%s", name, manifest.Help))
 	}

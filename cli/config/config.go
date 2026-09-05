@@ -19,7 +19,7 @@ package config
 //  ee:
 //    credential_path: path
 
-// ModuleOpts is used to store all module options.
+// ModulesOpts is used to store all module options.
 type ModulesOpts struct {
 	// Directories is a list of paths to directories where the external modules
 	// are stored.

@@ -73,7 +73,8 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open pack script: %v", err)
 	}
-	cmdArgs := []string{"-s", "--"}
+	cmdArgs := make([]string, 0, 2+len(scriptArgs))
+	cmdArgs = append(cmdArgs, "-s", "--")
 	cmd := exec.Command("bash", append(cmdArgs, scriptArgs...)...)
 	cmd.Stdin = script
 	cmd.Stdout = os.Stdout

@@ -92,7 +92,7 @@ func getSystemAppOpts() *config.AppOpts {
 	}
 }
 
-// GetDefaultCliOpts returns `CliOpts` filled with default values.
+// GetSystemCliOpts returns `CliOpts` filled with system defaults.
 func GetSystemCliOpts() *config.CliOpts {
 	modules := config.ModulesOpts{
 		Directories: []string{ModulesPath},
@@ -233,7 +233,11 @@ func decodeStringAsArrayField(from, to reflect.Type, value interface{}) (
 	if to != reflect.TypeOf(config.FieldStringArrayType{}) || from.Kind() != reflect.String {
 		return value, nil
 	}
-	return []string{value.(string)}, nil
+	str, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("expected a string value, got %T", value)
+	}
+	return []string{str}, nil
 }
 
 func decodeConfig(input map[string]any, cfg *config.CliOpts) error {
@@ -291,7 +295,7 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 		configPath = ""
 	}
 
-	configDir := ""
+	var configDir string
 	if configPath == "" {
 		configDir, err = os.Getwd()
 		if err != nil {
@@ -591,7 +595,7 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 // configureLocalLaunch configures the context using the specified local launch path.
 func configureLocalLaunch(cmdCtx *cmdcontext.CmdCtx) error {
 	var err error
-	launchDir := ""
+	var launchDir string
 	if cmdCtx.Cli.LocalLaunchDir != "" {
 		if launchDir, err = filepath.Abs(cmdCtx.Cli.LocalLaunchDir); err != nil {
 			return fmt.Errorf(`failed to get absolute path to local directory: %s`, err)

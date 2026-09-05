@@ -626,7 +626,9 @@ var testsIntegrity = []struct {
 		Shutdown: func(t *testing.T, inst interface{}) {
 			t.Helper()
 
-			inst.(*etcdtest.LazyCluster).Terminate()
+			etcdInst, ok := inst.(*etcdtest.LazyCluster)
+			require.True(t, ok, "unexpected etcd instance type: %T", inst)
+			etcdInst.Terminate()
 		},
 		NewPublisher: func(
 			t *testing.T,
@@ -640,7 +642,8 @@ var testsIntegrity = []struct {
 			publisherFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
-			etcdInst := inst.(*etcdtest.LazyCluster)
+			etcdInst, ok := inst.(*etcdtest.LazyCluster)
+			require.True(t, ok, "unexpected etcd instance type: %T", inst)
 
 			etcd, err := clientv3.New(clientv3.Config{
 				Endpoints:   etcdInst.EndpointsGRPC(),
@@ -666,7 +669,8 @@ var testsIntegrity = []struct {
 			collectorFactory := cluster.NewFactory(
 				cluster.WithIntegrity(integrityOpts),
 			)
-			etcdInst := inst.(*etcdtest.LazyCluster)
+			etcdInst, ok := inst.(*etcdtest.LazyCluster)
+			require.True(t, ok, "unexpected etcd instance type: %T", inst)
 
 			etcd, err := clientv3.New(clientv3.Config{
 				Endpoints:   etcdInst.EndpointsGRPC(),

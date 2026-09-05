@@ -22,8 +22,9 @@ func ValidArgsFunction(
 	toComplete string,
 	appPicker InstPicker,
 	instPicker InstPicker,
-) (args []string, directive cobra.ShellCompDirective) {
-	directive = cobra.ShellCompDirectiveNoFileComp
+) ([]string, cobra.ShellCompDirective) {
+	var args []string
+	directive := cobra.ShellCompDirectiveNoFileComp
 
 	var runningCtx running.RunningCtx
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, nil, running.ConfigLoadSkip)

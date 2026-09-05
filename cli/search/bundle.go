@@ -29,17 +29,17 @@ type BundleInfo struct {
 // sorting from oldest to newest.
 type BundleInfoSlice []BundleInfo
 
-// sort.Interface Swap implementation.
+// Swap implements sort.Interface.
 func (bundles BundleInfoSlice) Swap(i, j int) {
 	bundles[i], bundles[j] = bundles[j], bundles[i]
 }
 
-// sort.Interface Len implementation.
+// Len implements sort.Interface.
 func (bundles BundleInfoSlice) Len() int {
 	return len(bundles)
 }
 
-// sort.Interface Less implementation.
+// Less implements sort.Interface.
 func (bundles BundleInfoSlice) Less(i, j int) bool {
 	verLeft := bundles[i].Version
 	verRight := bundles[j].Version
@@ -61,7 +61,7 @@ func Less(verLeft, verRight version.Version) bool {
 
 	largestLen := util.Max(len(left), len(right))
 
-	for i := 0; i < largestLen; i++ {
+	for i := range largestLen {
 		var valLeft, valRight uint64 = 0, 0
 		if i < len(left) {
 			valLeft = left[i]
@@ -148,6 +148,8 @@ func getBundles(rawBundleInfoList map[string][]string, searchCtx *SearchCtx) (
 				if !strings.Contains(pkg, "-debug-") {
 					continue
 				}
+			case SearchAll:
+				// Keep both release and debug packages.
 			}
 
 			bundles = append(bundles, eeVer)
