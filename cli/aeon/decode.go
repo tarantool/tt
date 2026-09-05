@@ -15,7 +15,11 @@ import (
 //
 // Copy from https://github.com/tarantool/aeon/blob/master/aeon/grpc/server/pb/decode.go
 func decodeValue(val *pb.Value) (any, error) {
-	switch casted := val.Kind.(type) {
+	if val == nil {
+		return nil, fmt.Errorf("protobuf value is nil")
+	}
+
+	switch val.GetKind().(type) {
 	case *pb.Value_UnsignedValue:
 		return val.GetUnsignedValue(), nil
 	case *pb.Value_StringValue:
@@ -43,11 +47,15 @@ func decodeValue(val *pb.Value) (any, error) {
 		}
 		return res, nil
 	case *pb.Value_DatetimeValue:
-		sec := casted.DatetimeValue.Seconds
-		nsec := casted.DatetimeValue.Nsec
+		dateTime := val.GetDatetimeValue()
+		if dateTime == nil {
+			return nil, fmt.Errorf("protobuf datetime value is nil")
+		}
+		sec := dateTime.GetSeconds()
+		nsec := dateTime.GetNsec()
 		t := time.Unix(sec, nsec)
-		if len(casted.DatetimeValue.Location) > 0 {
-			locStr := casted.DatetimeValue.Location
+		if len(dateTime.GetLocation()) > 0 {
+			locStr := dateTime.GetLocation()
 			loc, err := time.LoadLocation(locStr)
 			if err != nil {
 				return nil, err
@@ -60,22 +68,30 @@ func decodeValue(val *pb.Value) (any, error) {
 		}
 		return res, nil
 	case *pb.Value_IntervalValue:
+		interval := val.GetIntervalValue()
+		if interval == nil {
+			return nil, fmt.Errorf("protobuf interval value is nil")
+		}
 		res := datetime.Interval{
-			Year:   casted.IntervalValue.Year,
-			Month:  casted.IntervalValue.Month,
-			Week:   casted.IntervalValue.Week,
-			Day:    casted.IntervalValue.Day,
-			Hour:   casted.IntervalValue.Hour,
-			Min:    casted.IntervalValue.Min,
-			Sec:    casted.IntervalValue.Sec,
-			Nsec:   casted.IntervalValue.Nsec,
-			Adjust: datetime.Adjust(casted.IntervalValue.Adjust),
+			Year:   interval.GetYear(),
+			Month:  interval.GetMonth(),
+			Week:   interval.GetWeek(),
+			Day:    interval.GetDay(),
+			Hour:   interval.GetHour(),
+			Min:    interval.GetMin(),
+			Sec:    interval.GetSec(),
+			Nsec:   interval.GetNsec(),
+			Adjust: datetime.Adjust(interval.GetAdjust()),
 		}
 		return res, nil
 	case *pb.Value_ArrayValue:
 		array := val.GetArrayValue()
-		res := make([]any, len(array.Fields))
-		for k, v := range array.Fields {
+		if array == nil {
+			return nil, fmt.Errorf("protobuf array value is nil")
+		}
+		fields := array.GetFields()
+		res := make([]any, len(fields))
+		for k, v := range fields {
 			field, err := decodeValue(v)
 			if err != nil {
 				return nil, err
@@ -84,8 +100,13 @@ func decodeValue(val *pb.Value) (any, error) {
 		}
 		return res, nil
 	case *pb.Value_MapValue:
-		res := make(map[any]any, len(casted.MapValue.Fields))
-		for k, v := range casted.MapValue.Fields {
+		mapValue := val.GetMapValue()
+		if mapValue == nil {
+			return nil, fmt.Errorf("protobuf map value is nil")
+		}
+		fields := mapValue.GetFields()
+		res := make(map[any]any, len(fields))
+		for k, v := range fields {
 			item, err := decodeValue(v)
 			if err != nil {
 				return nil, err

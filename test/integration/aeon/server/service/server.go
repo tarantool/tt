@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/tarantool/tt/cli/aeon/pb"
@@ -17,8 +18,11 @@ type Server struct {
 func (s *Server) SQLCheck(ctx context.Context,
 	request *pb.SQLRequest,
 ) (*pb.SQLCheckResponse, error) {
+	if request == nil {
+		return nil, errors.New("sql check request is nil")
+	}
 	status := pb.SQLCheckStatus_SQL_QUERY_INCOMPLETE
-	switch strings.ToLower(request.Query) {
+	switch strings.ToLower(request.GetQuery()) {
 	case "ok":
 		status = pb.SQLCheckStatus_SQL_QUERY_VALID
 	case "error":
@@ -28,12 +32,18 @@ func (s *Server) SQLCheck(ctx context.Context,
 }
 
 func (s *Server) SQL(ctx context.Context, in *pb.SQLRequest) (*pb.SQLResponse, error) {
-	res := makeSQLResponse(in.Query)
+	if in == nil {
+		return nil, errors.New("sql request is nil")
+	}
+	res := makeSQLResponse(in.GetQuery())
 	return &res, nil
 }
 
 func (s *Server) SQLStream(in *pb.SQLRequest, stream pb.SQLService_SQLStreamServer) error {
-	res := makeSQLResponse(in.Query)
+	if in == nil {
+		return errors.New("sql stream request is nil")
+	}
+	res := makeSQLResponse(in.GetQuery())
 	stream.Send(&res)
 	return nil
 }

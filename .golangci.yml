@@ -49,7 +49,6 @@ linters:
     - noinlineerr
     - paralleltest
     - perfsprint
-    - protogetter
     - revive
     - staticcheck
     - testifylint
