@@ -363,20 +363,20 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 			return nil, fmt.Errorf(
 				"cluster config %q is found, but instances config (instances.yml) is missing",
 				appDirFiles.clusterCfgPath)
-		} else {
-			if appDirFiles.defaultLuaPath != "" {
-				return []InstanceCtx{{
-					InstanceScript: appDirFiles.defaultLuaPath,
-					AppName:        filepath.Base(appDir),
-					InstName:       filepath.Base(appDir),
-					AppDir:         appDir,
-					SingleApp:      true,
-				}}, nil
-			} else if loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts {
-				return nil, fmt.Errorf("require files are missing in application directory %q: "+
-					"there must be instances config or the default instance script (%q)",
-					appDir, "init.lua")
-			}
+		}
+		if appDirFiles.defaultLuaPath != "" {
+			return []InstanceCtx{{
+				InstanceScript: appDirFiles.defaultLuaPath,
+				AppName:        filepath.Base(appDir),
+				InstName:       filepath.Base(appDir),
+				AppDir:         appDir,
+				SingleApp:      true,
+			}}, nil
+		}
+		if loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts {
+			return nil, fmt.Errorf("require files are missing in application directory %q: "+
+				"there must be instances config or the default instance script (%q)",
+				appDir, "init.lua")
 		}
 	}
 

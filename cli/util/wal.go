@@ -70,26 +70,7 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 	}
 
 	// Handle the case where path is a directory.
-	if isRecursive {
-		err := filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				log.Warnf("Skipping %q due to error during walk: %s", p, err)
-				if d != nil && d.IsDir() && errors.Is(err, fs.ErrPermission) {
-					// Skip directory if permission denied, but continue walking other parts.
-					return fs.SkipDir
-				}
-				return nil
-			}
-
-			if !d.IsDir() && isWal(d.Name()) {
-				collected = append(collected, p)
-			}
-			return nil
-		})
-		if err != nil {
-			log.Warnf("Error encountered during recursive walk of %q: %s", path, err)
-		}
-	} else {
+	if !isRecursive {
 		dirEntries, readErr := os.ReadDir(path)
 		if readErr != nil {
 			log.Warnf("Failed to read directory %q: %s", path, readErr)
@@ -100,6 +81,26 @@ func collectWALsFromSinglePath(path string, isRecursive bool) ([]string, error) 
 				collected = append(collected, filepath.Join(path, entry.Name()))
 			}
 		}
+		return collected, nil
+	}
+
+	err = filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			log.Warnf("Skipping %q due to error during walk: %s", p, err)
+			if d != nil && d.IsDir() && errors.Is(err, fs.ErrPermission) {
+				// Skip directory if permission denied, but continue walking other parts.
+				return fs.SkipDir
+			}
+			return nil
+		}
+
+		if !d.IsDir() && isWal(d.Name()) {
+			collected = append(collected, p)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Warnf("Error encountered during recursive walk of %q: %s", path, err)
 	}
 
 	return collected, nil

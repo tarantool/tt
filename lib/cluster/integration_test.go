@@ -103,55 +103,57 @@ func startEtcd(t *testing.T) *etcdtest.LazyCluster {
 	config := etcdtest.ClusterConfig{Size: 1, PeerTLS: tls}
 	inst := etcdtest.NewLazyCluster(config)
 
-	if opts.Username != "" {
-		etcd, err := clientv3.New(clientv3.Config{
-			Endpoints: inst.EndpointsGRPC(),
-		})
-		require.NoError(t, err)
-		defer etcd.Close()
+	if opts.Username == "" {
+		return inst
+	}
 
+	etcd, err := clientv3.New(clientv3.Config{
+		Endpoints: inst.EndpointsGRPC(),
+	})
+	require.NoError(t, err)
+	defer etcd.Close()
+
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to create user in etcd: %s", err)
+	}
+
+	if opts.Username != "root" {
+		// We need the root user for auth enable anyway.
 		if err := doWithCtx(func(ctx context.Context) error {
-			_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
+			_, err := etcd.UserAdd(ctx, "root", "")
 			return err
 		}); err != nil {
 			inst.Terminate()
-			t.Fatalf("Failed to create user in etcd: %s", err)
-		}
-
-		if opts.Username != "root" {
-			// We need the root user for auth enable anyway.
-			if err := doWithCtx(func(ctx context.Context) error {
-				_, err := etcd.UserAdd(ctx, "root", "")
-				return err
-			}); err != nil {
-				inst.Terminate()
-				t.Fatalf("Failed to create root in etcd: %s", err)
-			}
-
-			if err := doWithCtx(func(ctx context.Context) error {
-				_, err := etcd.UserGrantRole(ctx, "root", "root")
-				return err
-			}); err != nil {
-				inst.Terminate()
-				t.Fatalf("Failed to grant root in etcd: %s", err)
-			}
+			t.Fatalf("Failed to create root in etcd: %s", err)
 		}
 
 		if err := doWithCtx(func(ctx context.Context) error {
-			_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
+			_, err := etcd.UserGrantRole(ctx, "root", "root")
 			return err
 		}); err != nil {
 			inst.Terminate()
-			t.Fatalf("Failed to grant user in etcd: %s", err)
+			t.Fatalf("Failed to grant root in etcd: %s", err)
 		}
+	}
 
-		if err := doWithCtx(func(ctx context.Context) error {
-			_, err = etcd.AuthEnable(ctx)
-			return err
-		}); err != nil {
-			inst.Terminate()
-			t.Fatalf("Failed to enable auth in etcd: %s", err)
-		}
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to grant user in etcd: %s", err)
+	}
+
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err = etcd.AuthEnable(ctx)
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to enable auth in etcd: %s", err)
 	}
 
 	return inst

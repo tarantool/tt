@@ -20,11 +20,31 @@ type CollectTemplateVarsFromUser struct {
 	Reader stringReader
 }
 
+func validateExistingValue(createCtx *create_ctx.CreateCtx, varInfo app_template.UserPrompt,
+	existingValue string, found bool,
+) (bool, error) {
+	if !found || varInfo.Re == "" {
+		return found, nil
+	}
+
+	matched, err := regexp.MatchString(varInfo.Re, existingValue)
+	if err != nil {
+		return false, fmt.Errorf("failed to validate user input: %s", err)
+	}
+	if matched {
+		return true, nil
+	}
+	if createCtx.SilentMode {
+		return false, fmt.Errorf("invalid format of %s variable", varInfo.Name)
+	}
+	fmt.Printf("Invalid format of %s variable.\n", varInfo.Name)
+	return false, nil
+}
+
 // Run collects template variables from user in interactive mode.
 func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 	createCtx *create_ctx.CreateCtx, templateCtx *app_template.TemplateCtx,
 ) error {
-	var err error
 	if !templateCtx.IsManifestPresent {
 		return nil
 	}
@@ -32,24 +52,12 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 	for _, varInfo := range templateCtx.Manifest.Vars {
 		// Check if var is present, and validate it.
 		existingValue, found := templateCtx.Vars[varInfo.Name]
-		if found {
-			if varInfo.Re != "" {
-				matched, err := regexp.MatchString(varInfo.Re, existingValue)
-				if err != nil {
-					return fmt.Errorf("failed to validate user input: %s", err)
-				}
-				if !matched {
-					if createCtx.SilentMode {
-						return fmt.Errorf("invalid format of %s variable", varInfo.Name)
-					} else {
-						fmt.Printf("Invalid format of %s variable.\n", varInfo.Name)
-					}
-				} else {
-					continue
-				}
-			} else {
-				continue
-			}
+		valid, err := validateExistingValue(createCtx, varInfo, existingValue, found)
+		if err != nil {
+			return err
+		}
+		if valid {
+			continue
 		}
 
 		matched := false
@@ -83,22 +91,22 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 					input = varInfo.Default
 				}
 			}
-			if input != "" {
-				if varInfo.Re != "" {
-					matched, err = regexp.MatchString(varInfo.Re, input)
-					if err != nil {
-						return fmt.Errorf("failed to validate user input: %s", err)
-					}
-					if !matched {
-						if createCtx.SilentMode {
-							return fmt.Errorf("invalid format of %s variable", varInfo.Name)
-						} else {
-							fmt.Println("Invalid format. Try again.")
-						}
-					}
-				} else {
-					matched = true
+			if input == "" {
+				continue
+			}
+			if varInfo.Re == "" {
+				matched = true
+				continue
+			}
+			matched, err = regexp.MatchString(varInfo.Re, input)
+			if err != nil {
+				return fmt.Errorf("failed to validate user input: %s", err)
+			}
+			if !matched {
+				if createCtx.SilentMode {
+					return fmt.Errorf("invalid format of %s variable", varInfo.Name)
 				}
+				fmt.Println("Invalid format. Try again.")
 			}
 		}
 		templateCtx.Vars[varInfo.Name] = input

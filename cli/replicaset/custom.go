@@ -254,22 +254,22 @@ func updateCustomInstances(replicaset *Replicaset, topology customTopology) {
 				instance = &replicaset.Instances[i]
 			}
 		}
-		if instance != nil {
-			if instance.Alias == "" {
-				instance.Alias = tinstance.Alias
-			}
-			if instance.URI == "" {
-				instance.URI = tinstance.URI
-			}
-			if instance.Mode == ModeUnknown {
-				instance.Mode = tinstance.Mode
-			}
-			if !instance.InstanceCtxFound {
-				instance.InstanceCtx = tinstance.InstanceCtx
-				instance.InstanceCtxFound = tinstance.InstanceCtxFound
-			}
-		} else {
+		if instance == nil {
 			replicaset.Instances = append(replicaset.Instances, tinstance)
+			continue
+		}
+		if instance.Alias == "" {
+			instance.Alias = tinstance.Alias
+		}
+		if instance.URI == "" {
+			instance.URI = tinstance.URI
+		}
+		if instance.Mode == ModeUnknown {
+			instance.Mode = tinstance.Mode
+		}
+		if !instance.InstanceCtxFound {
+			instance.InstanceCtx = tinstance.InstanceCtx
+			instance.InstanceCtxFound = tinstance.InstanceCtxFound
 		}
 	}
 }

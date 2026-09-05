@@ -427,61 +427,7 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target str
 	}
 	var connOpts connector.ConnectOpts
 	err = running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{target}, loadConfig)
-	if err == nil {
-		ctx.IsApplication = true
-		if len(ctx.RunningCtx.Instances) == 1 {
-			if connectCtx.Username != "" || connectCtx.Password != "" {
-				err = fmt.Errorf("username and password are not supported" +
-					" with a connection via a control socket")
-				return err
-			}
-			connOpts = makeConnOpts(
-				connector.UnixNetwork,
-				ctx.RunningCtx.Instances[0].ConsoleSocket,
-				connectCtx,
-			)
-			ctx.IsInstanceConnect = true
-			appName, instName, found := strings.Cut(target, string(running.InstanceDelimiter))
-			if found {
-				if instName != ctx.RunningCtx.Instances[0].InstName {
-					return fmt.Errorf("instance %q not found", instName)
-				}
-				// Re-fill context for an application.
-				ctx.InstName = instName
-				err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{appName},
-					loadConfig)
-				if err != nil {
-					// Should not happen.
-					return err
-				}
-			}
-		}
-		// In case of adding/removing role when user may not provide an instance.
-		if (cmdCtx.CommandName == "add" || cmdCtx.CommandName == "remove") && ctx.InstName == "" {
-			if len(ctx.RunningCtx.Instances) == 0 {
-				return fmt.Errorf("there are no running instances")
-			}
-			// Trying to find alive instance to create connection with it.
-			var err error
-			for _, i := range ctx.RunningCtx.Instances {
-				connOpts = makeConnOpts(
-					connector.UnixNetwork,
-					i.ConsoleSocket,
-					connectCtx,
-				)
-				var conn connector.Connector
-				conn, err = connector.Connect(connOpts)
-				if err == nil {
-					ctx.IsInstanceConnect = true
-					conn.Close()
-					break
-				}
-			}
-			if err != nil {
-				return fmt.Errorf("cannot connect to any instance from replicaset")
-			}
-		}
-	} else {
+	if err != nil {
 		if isRunningCtxRequired {
 			return err
 		}
@@ -490,6 +436,11 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target str
 			return err
 		}
 		ctx.IsInstanceConnect = true
+	} else {
+		connOpts, err = fillReplicasetAppCtx(cmdCtx, ctx, target, loadConfig, connectCtx)
+		if err != nil {
+			return err
+		}
 	}
 
 	if ctx.IsInstanceConnect {
@@ -502,6 +453,80 @@ func replicasetFillCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target str
 	}
 
 	return nil
+}
+
+func fillReplicasetAppCtx(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx, target string,
+	loadConfig running.ConfigLoad, connectCtx connect.ConnectCtx,
+) (connector.ConnectOpts, error) {
+	ctx.IsApplication = true
+	var connOpts connector.ConnectOpts
+	if len(ctx.RunningCtx.Instances) == 1 {
+		var err error
+		connOpts, err = fillSingleReplicasetInstance(
+			cmdCtx, ctx, target, loadConfig, connectCtx)
+		if err != nil {
+			return connOpts, err
+		}
+	}
+
+	// In case of adding/removing role when user may not provide an instance.
+	if (cmdCtx.CommandName != "add" && cmdCtx.CommandName != "remove") || ctx.InstName != "" {
+		return connOpts, nil
+	}
+	if len(ctx.RunningCtx.Instances) == 0 {
+		return connOpts, fmt.Errorf("there are no running instances")
+	}
+	// Trying to find alive instance to create connection with it.
+	var err error
+	for _, i := range ctx.RunningCtx.Instances {
+		connOpts = makeConnOpts(
+			connector.UnixNetwork,
+			i.ConsoleSocket,
+			connectCtx,
+		)
+		var conn connector.Connector
+		conn, err = connector.Connect(connOpts)
+		if err == nil {
+			ctx.IsInstanceConnect = true
+			conn.Close()
+			break
+		}
+	}
+	if err != nil {
+		return connOpts, fmt.Errorf("cannot connect to any instance from replicaset")
+	}
+	return connOpts, nil
+}
+
+func fillSingleReplicasetInstance(cmdCtx *cmdcontext.CmdCtx, ctx *replicasetCtx,
+	target string, loadConfig running.ConfigLoad, connectCtx connect.ConnectCtx,
+) (connector.ConnectOpts, error) {
+	var connOpts connector.ConnectOpts
+	if connectCtx.Username != "" || connectCtx.Password != "" {
+		return connOpts, fmt.Errorf("username and password are not supported" +
+			" with a connection via a control socket")
+	}
+	connOpts = makeConnOpts(
+		connector.UnixNetwork,
+		ctx.RunningCtx.Instances[0].ConsoleSocket,
+		connectCtx,
+	)
+	ctx.IsInstanceConnect = true
+	appName, instName, found := strings.Cut(target, string(running.InstanceDelimiter))
+	if !found {
+		return connOpts, nil
+	}
+	if instName != ctx.RunningCtx.Instances[0].InstName {
+		return connOpts, fmt.Errorf("instance %q not found", instName)
+	}
+	// Re-fill context for an application.
+	ctx.InstName = instName
+	if err := running.FillCtx(cliOpts, cmdCtx, &ctx.RunningCtx, []string{appName},
+		loadConfig); err != nil {
+		// Should not happen.
+		return connOpts, err
+	}
+	return connOpts, nil
 }
 
 // internalReplicasetUpgradeModule is a "upgrade" command for the replicaset module.

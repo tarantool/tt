@@ -681,17 +681,19 @@ func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workD
 // CreateSymlink creates newName as a symbolic link to oldName. Overwrites existing if overwrite
 // flag is set.
 func CreateSymlink(oldName, newName string, overwrite bool) error {
-	if _, err := os.Stat(newName); err == nil {
-		if !overwrite {
-			return fmt.Errorf("symbolic link cannot be created: '%s' already exists", newName)
-		} else {
-			log.Debugf("Replace existing '%s' with new symlink.", newName)
-			if err := os.Remove(newName); err != nil {
-				return err
-			}
-		}
-	} else if !os.IsNotExist(err) {
+	_, err := os.Stat(newName)
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("symbolic link cannot be created: %s", err)
+	}
+	if os.IsNotExist(err) {
+		return os.Symlink(oldName, newName)
+	}
+	if !overwrite {
+		return fmt.Errorf("symbolic link cannot be created: '%s' already exists", newName)
+	}
+	log.Debugf("Replace existing '%s' with new symlink.", newName)
+	if err := os.Remove(newName); err != nil {
+		return err
 	}
 
 	return os.Symlink(oldName, newName)
