@@ -30,11 +30,11 @@ const (
 
 // addLuarocksRepoOpts adds --server option to luarocks command line if rocks repository
 // info is specified in tt config. Return updated args slice.
-func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) ([]string, error) {
+func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) []string {
 	// Make sure there is no --only-server option is specified.
 	for _, opt := range args {
 		if opt == "--only-server" || strings.HasPrefix(opt, "--only-server=") {
-			return args, nil // If --only-server is specified, no need to add --server option.
+			return args // If --only-server is specified, no need to add --server option.
 		}
 	}
 
@@ -55,7 +55,7 @@ func addLuarocksRepoOpts(cliOpts *config.CliOpts, args []string) ([]string, erro
 		}
 	}
 
-	return args, nil
+	return args
 }
 
 // getRocksRepoPath returns actual rocks repo path: either from passed path argument or
@@ -124,10 +124,7 @@ func GetTarantoolPrefix(cli *cmdcontext.CliCtx, cliOpts *config.CliOpts) (string
 func Exec(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts, args []string) error {
 	cliOpts.Repo.Rocks = getRocksRepoPath(cliOpts.Repo.Rocks)
 
-	var err error
-	if args, err = addLuarocksRepoOpts(cliOpts, args); err != nil {
-		return err
-	}
+	args = addLuarocksRepoOpts(cliOpts, args)
 
 	version, err := cmdCtx.Cli.TarantoolCli.GetVersion()
 	if err != nil {

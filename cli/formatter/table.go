@@ -274,7 +274,7 @@ func transposeRows(rowsRaw []table.Row) []table.Row {
 }
 
 // createMarkdownTable creates a table in markdown notation.
-func createMarkdownTable(table []string, columns int, opts Opts) string {
+func createMarkdownTable(table []string, columns int) string {
 	empty := "| "
 	separator := "|-"
 	for i := 1; i < columns; i++ {
@@ -332,7 +332,7 @@ func renderEqualMaps(maps []unorderedMap[any], transpose bool, opts Opts) (strin
 
 	if opts.TableDialect == MarkdownTableDialect {
 		markdown := strings.Split(t.RenderMarkdown(), "\n")
-		return createMarkdownTable(markdown, columnsAmount, opts) + "\n", nil
+		return createMarkdownTable(markdown, columnsAmount) + "\n", nil
 	}
 	if opts.TableDialect == JiraTableDialect {
 		return t.RenderMarkdown() + "\n\n", nil
@@ -374,9 +374,10 @@ func isMapKeysEqual(x, y unorderedMap[any]) bool {
 
 // renderBatch parses renders batch and return tables as string for it.
 func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
-	if isSingleType(batch, scalarNodeType) {
+	switch {
+	case isSingleType(batch, scalarNodeType):
 		return renderScalars(batch, transpose, opts)
-	} else if isSingleType(batch, mapNodeType) {
+	case isSingleType(batch, mapNodeType):
 		var anyMaps []unorderedMap[any]
 		for _, node := range batch {
 			var castedMap unorderedMap[any]
@@ -418,9 +419,9 @@ func renderBatch(batch []any, transpose bool, opts Opts) (string, error) {
 		}
 
 		return res, nil
-	} else if isSingleType(batch, arrayNodeType) {
+	case isSingleType(batch, arrayNodeType):
 		return renderArrays(batch, transpose, opts)
-	} else {
+	default:
 		return "", fmt.Errorf("unknown parsing case with current render batch")
 	}
 }

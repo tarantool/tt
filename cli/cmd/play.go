@@ -102,7 +102,8 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 	// FillCtx returns error if no instances found.
 	var runningCtx running.RunningCtx
 	err := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{args[0]}, running.ConfigLoadAll)
-	if err == nil {
+	switch {
+	case err == nil:
 		if len(runningCtx.Instances) > 1 {
 			return util.InternalError(
 				"Internal error: specify instance name",
@@ -117,7 +118,7 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		}
 
 		args[0] = runningCtx.Instances[0].BinaryPort
-	} else if libconnect.IsCredentialsURI(args[0]) {
+	case libconnect.IsCredentialsURI(args[0]):
 		if playUsername != "" || playPassword != "" {
 			return errors.New("username and password are specified with" +
 				" flags and a URI")
@@ -126,14 +127,14 @@ func internalPlayModule(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		playUsername = user
 		playPassword = pass
 		args[0] = uri
-	} else if libconnect.IsBaseURI(args[0]) {
+	case libconnect.IsBaseURI(args[0]):
 		if playUsername == "" {
 			playUsername = os.Getenv(libconnect.TarantoolUsernameEnv)
 		}
 		if playPassword == "" {
 			playPassword = os.Getenv(libconnect.TarantoolPasswordEnv)
 		}
-	} else {
+	default:
 		return util.InternalError("could not resolve URI or application: %q (%s)",
 			version.GetVersion, args[0], err)
 	}

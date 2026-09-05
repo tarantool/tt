@@ -713,10 +713,8 @@ func IsApp(path string) bool {
 				}
 			}
 		}
-	} else {
-		if filepath.Ext(entry.Name()) == ".lua" {
-			return true
-		}
+	} else if filepath.Ext(entry.Name()) == ".lua" {
+		return true
 	}
 
 	return false
@@ -837,12 +835,13 @@ func GetYamlFileName(fileName string, mustExist bool) (string, error) {
 		return "", err
 	}
 	yamlFilesCount := len(foundYamlFiles)
-	if yamlFilesCount > 1 {
+	switch {
+	case yamlFilesCount > 1:
 		return "", fmt.Errorf("more than one YAML files are found:\n%s\nAmbiguous selection",
 			strings.Join(foundYamlFiles, ", "))
-	} else if yamlFilesCount == 1 {
+	case yamlFilesCount == 1:
 		return foundYamlFiles[0], nil
-	} else if !mustExist {
+	case !mustExist:
 		return "", nil
 	}
 

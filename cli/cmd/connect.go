@@ -137,7 +137,8 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 	var runningCtx running.RunningCtx
 	fillErr := running.FillCtx(cliOpts, cmdCtx, &runningCtx, []string{target},
 		running.ConfigLoadCluster)
-	if fillErr == nil {
+	switch {
+	case fillErr == nil:
 		if len(runningCtx.Instances) > 1 {
 			err = fmt.Errorf("specify instance name")
 			return connOpts, err
@@ -156,7 +157,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 				connector.UnixNetwork, runningCtx.Instances[0].ConsoleSocket, *connectCtx,
 			)
 		}
-	} else if libconnect.IsCredentialsURI(target) {
+	case libconnect.IsCredentialsURI(target):
 		if connectCtx.Username != "" || connectCtx.Password != "" {
 			err = fmt.Errorf("username and password are specified with" +
 				" flags and a URI")
@@ -168,7 +169,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		connectCtx.Password = pass
 		connOpts = makeConnOpts(network, address, *connectCtx)
 		connectCtx.ConnectTarget = newURI
-	} else if libconnect.IsBaseURI(target) {
+	case libconnect.IsBaseURI(target):
 		// Environment variables do not overwrite values.
 		if connectCtx.Username == "" {
 			connectCtx.Username = os.Getenv(libconnect.TarantoolUsernameEnv)
@@ -178,7 +179,7 @@ func resolveConnectOpts(cmdCtx *cmdcontext.CmdCtx, cliOpts *config.CliOpts,
 		}
 		network, address := libconnect.ParseBaseURI(target)
 		connOpts = makeConnOpts(network, address, *connectCtx)
-	} else {
+	default:
 		err = fillErr
 		return connOpts, err
 	}

@@ -80,12 +80,13 @@ func TestGetProtocol(t *testing.T) {
 			s := &greetingReadStub{err: c.err, data: []byte(c.greeting)}
 			p, err := GetProtocol(s)
 			assert.Equal(t, c.expected, p)
-			if c.err != nil {
+			switch {
+			case c.err != nil:
 				assert.ErrorContains(t, err, "failed to read Tarantool greeting:")
 				assert.ErrorContains(t, err, c.err.Error())
-			} else if !c.ok {
+			case !c.ok:
 				assert.ErrorContains(t, err, "failed to parse Tarantool greeting:")
-			} else {
+			default:
 				assert.NoError(t, err)
 			}
 		})

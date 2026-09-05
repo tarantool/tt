@@ -27,8 +27,8 @@ func clearAmbientTTEnv(t *testing.T) {
 		}
 		k := strings.SplitN(kv, "=", 2)[0]
 		saved := os.Getenv(k)
-		os.Unsetenv(k)
-		t.Cleanup(func() { os.Setenv(k, saved) })
+		t.Setenv(k, saved)
+		require.NoError(t, os.Unsetenv(k))
 	}
 }
 
@@ -258,7 +258,7 @@ groups:
 
 	// Calling readStorageFromConfig indirectly through GetClusterConfig with a
 	// temp file that has the above content.
-	f, err := os.CreateTemp("", "tt-tcs-test-*.yaml")
+	f, err := os.CreateTemp(t.TempDir(), "tt-tcs-test-*.yaml")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.Remove(f.Name()) })
 	_, err = f.WriteString(cfgYAML)
@@ -297,7 +297,7 @@ groups:
         instances:
           i: {}
 `
-	f, err := os.CreateTemp("", "tt-etcd-env-test-*.yaml")
+	f, err := os.CreateTemp(t.TempDir(), "tt-etcd-env-test-*.yaml")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.Remove(f.Name()) })
 	_, err = f.WriteString(cfgYAML)

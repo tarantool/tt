@@ -61,11 +61,9 @@ func TestIsDir(t *testing.T) {
 
 	workDir := t.TempDir()
 
-	defer os.RemoveAll(workDir)
-
 	require.True(t, IsDir(workDir))
 
-	tmpFile, err := os.CreateTemp("", "")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 
@@ -76,7 +74,7 @@ func TestIsDir(t *testing.T) {
 func TestIsRegularFile(t *testing.T) {
 	assert := assert.New(t)
 
-	tmpFile, err := os.CreateTemp("", "")
+	tmpFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 

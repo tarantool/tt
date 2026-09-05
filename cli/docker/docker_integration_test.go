@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client, expectedTag string) {
+func findAndRemoveBuiltImage(t *testing.T, dockerClient *mobyclient.Client) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -42,7 +42,7 @@ func TestBuildImage(t *testing.T) {
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", false,
 		os.Stdout))
-	findAndRemoveBuiltImage(t, dockerClient, "ubuntu:tt_test")
+	findAndRemoveBuiltImage(t, dockerClient)
 }
 
 func TestBuildImageFail(t *testing.T) {
@@ -75,7 +75,7 @@ func TestBuildImageOutputVerbose(t *testing.T) {
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", true, out))
 	out.Close()
-	findAndRemoveBuiltImage(t, dockerClient, "ubuntu:tt_test")
+	findAndRemoveBuiltImage(t, dockerClient)
 
 	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestBuildImageOutput(t *testing.T) {
 
 	require.NoError(t, buildDockerImage(dockerClient, "ubuntu:tt_test", "testdata", false, out))
 	out.Close()
-	findAndRemoveBuiltImage(t, dockerClient, "ubuntu:tt_test")
+	findAndRemoveBuiltImage(t, dockerClient)
 
 	in, err := os.Open(filepath.Join(tmpDir, "out.log"))
 	require.NoError(t, err)

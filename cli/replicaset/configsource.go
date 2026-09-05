@@ -223,12 +223,7 @@ func (c *CConfigSource) Promote(ctx PromoteCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigPromotePath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (
-			*goconfig.MutableConfig,
-			error,
-		) {
-			return patchCConfigPromote(config, inst)
-		},
+		patchCConfigPromote,
 	)
 }
 
@@ -238,12 +233,7 @@ func (c *CConfigSource) Demote(ctx DemoteCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigDemotePath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (
-			*goconfig.MutableConfig,
-			error,
-		) {
-			return patchCConfigDemote(config, inst)
-		},
+		patchCConfigDemote,
 	)
 }
 
@@ -253,12 +243,7 @@ func (c *CConfigSource) Expel(ctx ExpelCtx) error {
 		ctx.InstName,
 		ctx.Force,
 		getCConfigExpelPath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (
-			*goconfig.MutableConfig,
-			error,
-		) {
-			return patchCConfigExpel(config, inst)
-		},
+		patchCConfigExpel,
 	)
 }
 
@@ -424,10 +409,7 @@ func getCConfigPatchTargets(data []libcluster.Data,
 				fmt.Errorf("failed to decode config from %q: %w", item.Source, err)
 		}
 		snap := mut.Snapshot()
-		depth, err := getCConfigPathDepth(snap, path, depth)
-		if err != nil {
-			return nil, err
-		}
+		depth := getCConfigPathDepth(snap, path, depth)
 		if depth != noDepth {
 			targets = append(targets, patchTarget{
 				key:      item.Source,
@@ -449,11 +431,11 @@ const noDepth = -1
 // If it is less than lowerDepth, it returns noDepth.
 func getCConfigPathDepth(config goconfig.Config,
 	path goconfig.KeyPath, lowerDepth int,
-) (int, error) {
+) int {
 	for i := len(path); i >= lowerDepth; i-- {
 		if _, ok := config.Lookup(path[:i]); ok {
-			return i, nil
+			return i
 		}
 	}
-	return noDepth, nil
+	return noDepth
 }

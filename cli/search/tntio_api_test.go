@@ -144,8 +144,8 @@ func checkOutputVersionOrder(t *testing.T, got string, expected []string) {
 }
 
 func TestSearchVersions_TntIo(t *testing.T) {
-	os.Setenv("TT_CLI_EE_USERNAME", testingUsername)
-	os.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
+	t.Setenv("TT_CLI_EE_USERNAME", testingUsername)
+	t.Setenv("TT_CLI_EE_PASSWORD", testingPassword)
 	defer os.Unsetenv("TT_CLI_EE_USERNAME")
 	defer os.Unsetenv("TT_CLI_EE_PASSWORD")
 

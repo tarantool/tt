@@ -19,10 +19,9 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 		args    []string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    []string
-		wantErr bool
+		name string
+		args args
+		want []string
 	}{
 		{
 			"Rocks repo is not specified",
@@ -35,7 +34,6 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 				[]string{},
 			},
 			[]string{},
-			false,
 		},
 		{
 			"Nil repo config",
@@ -46,7 +44,6 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 				[]string{},
 			},
 			[]string{},
-			false,
 		},
 		{
 			"Rock repo is specified",
@@ -59,7 +56,6 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 				[]string{},
 			},
 			[]string{"--server", "local_path"},
-			false,
 		},
 		{
 			"Rock repo is specified and --only-server opt is provided",
@@ -72,7 +68,6 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 				[]string{"--only-server", "/other/repo"},
 			},
 			[]string{"--only-server", "/other/repo"}, // No --server option is added.
-			false,
 		},
 		{
 			"Rock repo is specified and --server is passed",
@@ -85,7 +80,6 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 				[]string{"--server", "/other/repo"},
 			},
 			[]string{"--server", "/other/repo local_path"},
-			false,
 		},
 		{
 			"Rock repo is specified and --server= is passed",
@@ -98,18 +92,12 @@ func TestAddLuarocksRepoOpts(t *testing.T) {
 				[]string{"--server=/other/repo"},
 			},
 			[]string{"--server=/other/repo local_path"},
-			false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := addLuarocksRepoOpts(tt.args.cliOpts, tt.args.args)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			got := addLuarocksRepoOpts(tt.args.cliOpts, tt.args.args)
 			require.EqualValues(t, got, tt.want)
 		})
 	}
@@ -120,7 +108,7 @@ func TestGetRocksRepoPath(t *testing.T) {
 	assert.EqualValues(t, "./testdata/repo", getRocksRepoPath("./testdata/repo"))
 	assert.EqualValues(t, "./testdata/emptyrepo", getRocksRepoPath("./testdata/emptyrepo"))
 
-	os.Setenv(repoRocksPathEnvVarName, "./other_repo")
+	t.Setenv(repoRocksPathEnvVarName, "./other_repo")
 	// If env var is set, return it if manifests is missing in passed repo.
 	assert.EqualValues(t, "./other_repo", getRocksRepoPath("./testdata/emptyrepo"))
 	// Return passed repo path, since manifest exists. Env var is ignored.
@@ -230,7 +218,7 @@ func TestSetupTarantoolPrefix(t *testing.T) {
 		require.NoError(t, err)
 
 		if input.tntPrefixEnv != "" {
-			os.Setenv(tarantoolPrefixEnvVarName, input.tntPrefixEnv)
+			t.Setenv(tarantoolPrefixEnvVarName, input.tntPrefixEnv)
 		}
 		tarantoolPrefix, err := GetTarantoolPrefix(&input.cli, input.cliOpts)
 		os.Unsetenv(tarantoolPrefixEnvVarName)

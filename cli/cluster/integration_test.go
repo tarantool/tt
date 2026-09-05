@@ -162,9 +162,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 	defer inst.Terminate()
 	endpoints := inst.EndpointsGRPC()
 
-	tmpDir, err := os.MkdirTemp("", "work_dir")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	renderEtcdAppConfig(t, endpoints[0], "testdata/etcdapp/config.yaml.template", configPath)
@@ -231,9 +229,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 	defer inst.Terminate()
 	endpoints := inst.EndpointsGRPC()
 
-	tmpDir, err := os.MkdirTemp("", "work_dir")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	renderEtcdAppConfig(t, endpoints[0], "testdata/etcdapp/config.yaml.template", configPath)
