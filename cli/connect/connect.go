@@ -53,30 +53,26 @@ const (
 
 // getEvalCmd returns a command from the input source (file or stdin).
 func getEvalCmd(connectCtx ConnectCtx) (string, error) {
-	var cmd string
-
 	if connectCtx.SrcFile == "-" {
-		if !terminal.IsTerminal(syscall.Stdin) {
-			cmdByte, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				return "", err
-			}
-			cmd = string(cmdByte)
-		} else {
+		if terminal.IsTerminal(syscall.Stdin) {
 			return "", fmt.Errorf("can't use interactive input as a source file")
 		}
-	} else {
-		cmdPath := path.Clean(connectCtx.SrcFile)
-		if _, err := os.Stat(cmdPath); err == nil {
-			cmdByte, err := os.ReadFile(cmdPath)
-			if err != nil {
-				return "", err
-			}
-			cmd = string(cmdByte)
+		cmdByte, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", err
 		}
+		return string(cmdByte), nil
 	}
 
-	return cmd, nil
+	cmdPath := path.Clean(connectCtx.SrcFile)
+	if _, err := os.Stat(cmdPath); err == nil {
+		cmdByte, err := os.ReadFile(cmdPath)
+		if err != nil {
+			return "", err
+		}
+		return string(cmdByte), nil
+	}
+	return "", nil
 }
 
 // Connect establishes a connection to the instance and starts the console.

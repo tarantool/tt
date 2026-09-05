@@ -221,35 +221,36 @@ func prepareForReinstall(bp *bundleParams) error {
 	destBinPath := filepath.Join(bp.opts.Env.BinDir, bp.prgVersion)
 	destIncPath := filepath.Join(bp.inst.IncDir, bp.prgVersion)
 
-	if bp.inst.Reinstall {
-		if util.IsRegularFile(destBinPath) {
-			log.Infof("%s version of %q already exists, removing...",
-				bp.prgVersion, bp.inst.Program)
-
-			if err := os.RemoveAll(destBinPath); err != nil {
-				fmt.Fprintf(bp.logFile, "Error removing binary: %v\n", err)
-				return fmt.Errorf("failed to remove binary %s: %w", destBinPath, err)
-			}
+	if !bp.inst.Reinstall {
+		if util.IsRegularFile(destBinPath) || util.IsDir(destIncPath) {
+			return fmt.Errorf("installation path %s or %s already exists",
+				destBinPath, destIncPath)
 		}
-
-		if util.IsDir(destIncPath) {
-			log.Infof("Include directory for %s version already exists, removing...",
-				bp.prgVersion)
-			if err := os.RemoveAll(destIncPath); err != nil {
-				fmt.Fprintf(bp.logFile, "Error removing include dir: %v\n", err)
-				return fmt.Errorf("failed to remove include directory %s: %w",
-					destIncPath, err)
-			}
-		}
-
-		log.Debugf("Existing files removed to reinstall version %q for program %q",
-			bp.prgVersion, bp.inst.Program)
-	} else if util.IsRegularFile(destBinPath) || util.IsDir(destIncPath) {
-		// If no Reinstall option, ensure that we don't have already installed version.
-		return fmt.Errorf("installation path %s or %s already exists",
-			destBinPath, destIncPath)
+		return nil
 	}
 
+	if util.IsRegularFile(destBinPath) {
+		log.Infof("%s version of %q already exists, removing...",
+			bp.prgVersion, bp.inst.Program)
+
+		if err := os.RemoveAll(destBinPath); err != nil {
+			fmt.Fprintf(bp.logFile, "Error removing binary: %v\n", err)
+			return fmt.Errorf("failed to remove binary %s: %w", destBinPath, err)
+		}
+	}
+
+	if util.IsDir(destIncPath) {
+		log.Infof("Include directory for %s version already exists, removing...",
+			bp.prgVersion)
+		if err := os.RemoveAll(destIncPath); err != nil {
+			fmt.Fprintf(bp.logFile, "Error removing include dir: %v\n", err)
+			return fmt.Errorf("failed to remove include directory %s: %w",
+				destIncPath, err)
+		}
+	}
+
+	log.Debugf("Existing files removed to reinstall version %q for program %q",
+		bp.prgVersion, bp.inst.Program)
 	return nil
 }
 

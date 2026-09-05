@@ -249,17 +249,18 @@ func TestCollectWalFiles_recursive(t *testing.T) {
 
 			if test.errMsg != "" {
 				assert.ErrorContains(t, err, test.errMsg)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, test.output, result)
+			if buf.Len() == 0 {
+				return
+			}
+			logStr := buf.String()
+			if test.logMsg != "" {
+				assert.Contains(t, logStr, test.logMsg)
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, test.output, result)
-				if buf.Len() > 0 {
-					logStr := buf.String()
-					if test.logMsg != "" {
-						assert.Contains(t, logStr, test.logMsg)
-					} else {
-						t.Log(logStr)
-					}
-				}
+				t.Log(logStr)
 			}
 		})
 	}

@@ -42,7 +42,6 @@ linters:
     - maintidx
     - mnd
     - modernize
-    - nestif
     - nlreturn
     - noctx
     - noinlineerr

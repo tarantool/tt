@@ -79,23 +79,25 @@ func buildDockerImage(dockerClient *mobyclient.Client, imageTag, buildContextDir
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer interruptHandler(cancelFunc)()
-	if buildResult, err := dockerClient.ImageBuild(ctx, buildCtx, opts); err == nil {
-		if buildResult.Body != nil {
-			defer buildResult.Body.Close()
-			if !verbose {
-				writer = io.Discard
-			}
-			termFd, isTerm := term.GetFdInfo(writer)
-			if err = jsonmessage.DisplayJSONMessagesStream(buildResult.Body,
-				writer, termFd, isTerm, nil); err != nil {
-				if ctx.Err() == context.Canceled {
-					return fmt.Errorf("the operation is interrupted")
-				}
-				return err
-			}
-		}
-	} else {
+	buildResult, err := dockerClient.ImageBuild(ctx, buildCtx, opts)
+	if err != nil {
 		return fmt.Errorf("docker image build failed: %s", err)
+	}
+	if buildResult.Body == nil {
+		return nil
+	}
+
+	defer buildResult.Body.Close()
+	if !verbose {
+		writer = io.Discard
+	}
+	termFd, isTerm := term.GetFdInfo(writer)
+	if err = jsonmessage.DisplayJSONMessagesStream(buildResult.Body,
+		writer, termFd, isTerm, nil); err != nil {
+		if ctx.Err() == context.Canceled {
+			return fmt.Errorf("the operation is interrupted")
+		}
+		return err
 	}
 	return nil
 }

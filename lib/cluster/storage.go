@@ -310,30 +310,11 @@ func (r *RawStorage) put(ctx context.Context, key string, data []byte, revision 
 // configured with the provided connection parameters, including TLS settings.
 func connectEtcdClient(cfg gsconnect.Config) (*clientv3.Client, error) {
 	var tlsConfig *tls.Config
-	if cfg.SSL.KeyFile != "" || cfg.SSL.CertFile != "" || cfg.SSL.CaFile != "" ||
-		cfg.SSL.CaPath != "" || !cfg.SSL.VerifyHost || !cfg.SSL.VerifyPeer {
-		tlsInfo := transport.TLSInfo{
-			CertFile:      cfg.SSL.CertFile,
-			KeyFile:       cfg.SSL.KeyFile,
-			TrustedCAFile: cfg.SSL.CaFile,
-		}
-
+	if needsEtcdTLSConfig(cfg.SSL) {
 		var err error
-		tlsConfig, err = tlsInfo.ClientConfig()
+		tlsConfig, err = makeEtcdTLSConfig(cfg.SSL)
 		if err != nil {
-			return nil, fmt.Errorf("fail to create tls client config: %w", err)
-		}
-
-		if cfg.SSL.CaPath != "" {
-			roots, err := loadRootCA(cfg.SSL.CaPath)
-			if err != nil {
-				return nil, fmt.Errorf("fail to load CA directory: %w", err)
-			}
-			tlsConfig.RootCAs = roots
-		}
-
-		if !cfg.SSL.VerifyHost || !cfg.SSL.VerifyPeer {
-			tlsConfig.InsecureSkipVerify = true
+			return nil, err
 		}
 	}
 
@@ -346,6 +327,34 @@ func connectEtcdClient(cfg gsconnect.Config) (*clientv3.Client, error) {
 		Logger:      zap.NewNop(),
 		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 	})
+}
+
+func needsEtcdTLSConfig(sslCfg gsconnect.SSLConfig) bool {
+	return sslCfg.KeyFile != "" || sslCfg.CertFile != "" || sslCfg.CaFile != "" ||
+		sslCfg.CaPath != "" || !sslCfg.VerifyHost || !sslCfg.VerifyPeer
+}
+
+func makeEtcdTLSConfig(sslCfg gsconnect.SSLConfig) (*tls.Config, error) {
+	tlsInfo := transport.TLSInfo{
+		CertFile:      sslCfg.CertFile,
+		KeyFile:       sslCfg.KeyFile,
+		TrustedCAFile: sslCfg.CaFile,
+	}
+	tlsConfig, err := tlsInfo.ClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("fail to create tls client config: %w", err)
+	}
+	if sslCfg.CaPath != "" {
+		roots, err := loadRootCA(sslCfg.CaPath)
+		if err != nil {
+			return nil, fmt.Errorf("fail to load CA directory: %w", err)
+		}
+		tlsConfig.RootCAs = roots
+	}
+	if !sslCfg.VerifyHost || !sslCfg.VerifyPeer {
+		tlsConfig.InsecureSkipVerify = true
+	}
+	return tlsConfig, nil
 }
 
 // connectTarantoolConnector creates and returns a new tarantool connection

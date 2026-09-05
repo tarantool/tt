@@ -17,30 +17,31 @@ type RenderTemplate struct{}
 func render(templateCtx *app_template.TemplateCtx, templateFileNamePattern *regexp.Regexp,
 	filePath string, fileInfo os.FileInfo,
 ) error {
-	if !fileInfo.Mode().IsDir() {
-		if matches := templateFileNamePattern.FindStringSubmatch(
-			fileInfo.Name()); matches != nil {
-			// File name matches template pattern. Render the file.
-			resultFilePath := path.Join(path.Dir(filePath), matches[1])
-			if err := templateCtx.Engine.RenderFile(filePath,
-				resultFilePath, templateCtx.Vars); err != nil {
-				return err
-			}
-			// Remove original template file.
-			if err := os.Remove(filePath); err != nil {
-				return fmt.Errorf("error removing %s: %s", filePath, err)
-			}
-			filePath = resultFilePath
+	if fileInfo.Mode().IsDir() {
+		return nil
+	}
+	if matches := templateFileNamePattern.FindStringSubmatch(
+		fileInfo.Name()); matches != nil {
+		// File name matches template pattern. Render the file.
+		resultFilePath := path.Join(path.Dir(filePath), matches[1])
+		if err := templateCtx.Engine.RenderFile(filePath,
+			resultFilePath, templateCtx.Vars); err != nil {
+			return err
 		}
-		// Render file name.
-		newFileName, err := templateCtx.Engine.RenderText(filePath, templateCtx.Vars)
-		if err != nil {
-			return fmt.Errorf("failed file name processing %s: %s", filePath, err)
+		// Remove original template file.
+		if err := os.Remove(filePath); err != nil {
+			return fmt.Errorf("error removing %s: %s", filePath, err)
 		}
-		if newFileName != filePath {
-			if err = os.Rename(filePath, newFileName); err != nil {
-				return fmt.Errorf("error renaming %s to %s: %s", filePath, newFileName, err)
-			}
+		filePath = resultFilePath
+	}
+	// Render file name.
+	newFileName, err := templateCtx.Engine.RenderText(filePath, templateCtx.Vars)
+	if err != nil {
+		return fmt.Errorf("failed file name processing %s: %s", filePath, err)
+	}
+	if newFileName != filePath {
+		if err = os.Rename(filePath, newFileName); err != nil {
+			return fmt.Errorf("error renaming %s to %s: %s", filePath, newFileName, err)
 		}
 	}
 	return nil

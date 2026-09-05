@@ -499,26 +499,8 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		return err
 	}
 
-	if cmdCtx.Cli.ConfigPath == "" {
-		cmdCtx.Cli.ConfigPath, err = util.GetYamlFileName(filepath.Join(launchDir, ConfigName),
-			true)
-		if err != nil {
-			// TODO: Add warning messages, discussion what if the file
-			// exists, but access is denied, etc.
-			if !os.IsNotExist(err) {
-				return fmt.Errorf("failed to get access to configuration file: %s", err)
-			}
-			if cmdCtx.Cli.ConfigPath, err = getConfigPath(); err != nil {
-				return fmt.Errorf("failed to get Tarantool CLI config: %s", err)
-			}
-			if cmdCtx.Cli.ConfigPath == "" {
-				if cmdCtx.Cli.LocalLaunchDir != "" {
-					return fmt.Errorf("failed to find Tarantool CLI config for '%s'",
-						cmdCtx.Cli.LocalLaunchDir)
-				}
-				cmdCtx.Cli.ConfigPath = getSystemConfigPath()
-			}
-		}
+	if err := ensureCliConfigPath(cmdCtx, launchDir); err != nil {
+		return err
 	}
 
 	cliOpts, _, err := GetCliOpts(cmdCtx.Cli.ConfigPath, cmdCtx.Integrity.Repository)
@@ -560,35 +542,68 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		return err
 	}
 
-	// This should save us from exec looping.
-	if localCli != "" && localCli != currentCli {
-		if _, err := os.Stat(localCli); err == nil {
-			if _, err := exec.LookPath(localCli); err != nil {
-				return fmt.Errorf(
-					`found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
-			}
+	return switchToLocalCli(cmdCtx, localCli, currentCli, launchDir)
+}
 
-			// Before switching to local cli, we shall check its integrity.
-			f, err := cmdCtx.Integrity.Repository.Read(localCli)
-			if err != nil {
-				return err
-			}
-			f.Close()
-
-			// We are not using the "RunExec" function because we have no reason to have several
-			// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
-			// which starts tarantool or some external module.
-			err = syscall.Exec(localCli, append([]string{localCli},
-				excludeArgumentsForChildTt(os.Args[1:])...), os.Environ())
-			if err != nil {
-				return err
-			}
-		} else if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to get access to tt binary file: %s", err)
-		}
+func ensureCliConfigPath(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
+	if cmdCtx.Cli.ConfigPath != "" {
+		return nil
 	}
 
+	configPath, err := util.GetYamlFileName(filepath.Join(launchDir, ConfigName), true)
+	if err == nil {
+		cmdCtx.Cli.ConfigPath = configPath
+		return nil
+	}
+	// TODO: Add warning messages, discussion what if the file
+	// exists, but access is denied, etc.
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to get access to configuration file: %s", err)
+	}
+	configPath, err = getConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get Tarantool CLI config: %s", err)
+	}
+	if configPath != "" {
+		cmdCtx.Cli.ConfigPath = configPath
+		return nil
+	}
+	if cmdCtx.Cli.LocalLaunchDir != "" {
+		return fmt.Errorf("failed to find Tarantool CLI config for '%s'",
+			cmdCtx.Cli.LocalLaunchDir)
+	}
+	cmdCtx.Cli.ConfigPath = getSystemConfigPath()
 	return nil
+}
+
+func switchToLocalCli(cmdCtx *cmdcontext.CmdCtx, localCli, currentCli, launchDir string) error {
+	// This should save us from exec looping.
+	if localCli == "" || localCli == currentCli {
+		return nil
+	}
+	if _, err := os.Stat(localCli); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get access to tt binary file: %s", err)
+	}
+	if _, err := exec.LookPath(localCli); err != nil {
+		return fmt.Errorf(
+			`found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
+	}
+
+	// Before switching to local cli, we shall check its integrity.
+	f, err := cmdCtx.Integrity.Repository.Read(localCli)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	// We are not using the "RunExec" function because we have no reason to have several
+	// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
+	// which starts tarantool or some external module.
+	return syscall.Exec(localCli, append([]string{localCli},
+		excludeArgumentsForChildTt(os.Args[1:])...), os.Environ())
 }
 
 // configureLocalLaunch configures the context using the specified local launch path.

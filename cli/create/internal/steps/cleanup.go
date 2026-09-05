@@ -45,17 +45,17 @@ func (hook Cleanup) Run(createCtx *create_ctx.CreateCtx,
 			if err != nil {
 				return err
 			}
-			found := filesToKeep[filePath]
-			if !found {
-				if fileInfo.IsDir() {
-					if filePath != templateCtx.AppPath {
-						dirsToRemove = append(dirsToRemove, filePath)
-					}
-				} else if fileInfo.Mode().IsRegular() {
-					log.Debugf("Removing %s", filePath)
-					if err := os.Remove(filePath); err != nil {
-						log.Errorf("failed to remove %s: %s", filePath, err)
-					}
+			if filesToKeep[filePath] {
+				return nil
+			}
+			if fileInfo.IsDir() {
+				if filePath != templateCtx.AppPath {
+					dirsToRemove = append(dirsToRemove, filePath)
+				}
+			} else if fileInfo.Mode().IsRegular() {
+				log.Debugf("Removing %s", filePath)
+				if err := os.Remove(filePath); err != nil {
+					log.Errorf("failed to remove %s: %s", filePath, err)
 				}
 			}
 
