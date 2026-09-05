@@ -247,7 +247,8 @@ func programDependenciesInstalled(program search.Program) error {
 	case search.ProgramTt:
 		programs = []Package{{"mage", "mage"}, {"git", "git"}}
 	case search.ProgramCe:
-		if osName == "darwin" {
+		switch {
+		case osName == "darwin":
 			programs = []Package{
 				{"cmake", "cmake"},
 				{"git", "git"},
@@ -255,7 +256,7 @@ func programDependenciesInstalled(program search.Program) error {
 				{"clang", "clang"},
 				{"openssl", "openssl"},
 			}
-		} else if strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian") {
+		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
 			programs = []Package{
 				{"cmake", "cmake"},
 				{"git", "git"},
@@ -263,7 +264,7 @@ func programDependenciesInstalled(program search.Program) error {
 				{"gcc", " build-essential"},
 			}
 			packages = []string{"coreutils", "sed"} // spell-checker:disable-line
-		} else if strings.Contains(osName, "CentOs") {
+		case strings.Contains(osName, "CentOs"):
 			programs = []Package{
 				{"cmake", "cmake"},
 				{"git", "git"},
@@ -272,7 +273,7 @@ func programDependenciesInstalled(program search.Program) error {
 				{"g++", "gcc-c++ "},
 			}
 			packages = []string{"libstdc++-static", "perl"}
-		} else {
+		default:
 			answer, err := util.AskConfirm(os.Stdin,
 				"Unknown OS, can't check if dependencies"+
 					" are installed.\n"+
@@ -313,7 +314,8 @@ func programDependenciesInstalled(program search.Program) error {
 		var errMsg strings.Builder
 		errMsg.WriteString("Missing packages: " + strings.Join(missing_pack, " ") + " " +
 			strings.Join(missing_pack_src, " ") + "\n")
-		if osName == "darwin" {
+		switch {
+		case osName == "darwin":
 			errMsg.WriteString(
 				"You can install them by running commands:\nbrew install " + strings.Join(
 					missing_pack,
@@ -324,7 +326,7 @@ func programDependenciesInstalled(program search.Program) error {
 						" ",
 					) + "\n",
 			)
-		} else if strings.Contains(osName, "CentOs") {
+		case strings.Contains(osName, "CentOs"):
 			errMsg.WriteString("You can install them by running command:\n")
 			if len(missing_pack) != 0 {
 				errMsg.WriteString(" sudo yum install " + strings.Join(missing_pack, " ") + "\n")
@@ -333,7 +335,7 @@ func programDependenciesInstalled(program search.Program) error {
 				errMsg.WriteString("install from sources: " +
 					strings.Join(missing_pack_src, " ") + "\n")
 			}
-		} else if strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian") {
+		case strings.Contains(osName, "Ubuntu") || strings.Contains(osName, "Debian"):
 			errMsg.WriteString("You can install them by running command:\n")
 			if len(missing_pack) != 0 {
 				errMsg.WriteString(" sudo apt install " + strings.Join(missing_pack, " ") + "\n")
@@ -368,9 +370,7 @@ func downloadRepo(repoLink, tag, dst string, logFile *os.File, verbose bool) err
 }
 
 // copyBuildedTT copies tt binary.
-func copyBuildedTT(binDir, path, version string, installCtx InstallCtx,
-	logFile *os.File,
-) error {
+func copyBuildedTT(binDir, path, version string, installCtx InstallCtx) error {
 	var err error
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
 		err = os.MkdirAll(binDir, defaultDirPermissions)
@@ -445,116 +445,267 @@ func gitCheckout(repoDir, checkout string, verbose bool, logWriter io.Writer) er
 	return nil
 }
 
-// installTt installs selected version of tt.
-func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
-	versionFound := false
-	pullRequestHash := ""
-	isPullRequest := false
-	pullRequestID := ""
+type resolvedInstallVersion struct {
+	version         string
+	versionStr      string
+	versionFound    bool
+	isPullRequest   bool
+	pullRequestID   string
+	pullRequestHash string
+}
+
+func matchRequestedInstallVersion(result resolvedInstallVersion, installCtx InstallCtx,
+	distfiles, programName, repo string,
+) (resolvedInstallVersion, error) {
+	if !version.IsVersion(result.version, false) {
+		return result, nil
+	}
+	log.Infof("Searching in versions...")
+	versions, err := getVersionsFromRepo(installCtx.Local, distfiles, programName, repo)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+	match, err := version.MatchVersion(result.version, versions)
+	if err != nil {
+		var errNotFound version.NotFoundError
+		if !errors.As(err, &errNotFound) {
+			return resolvedInstallVersion{}, err
+		}
+		return result, nil
+	}
+	result.versionFound = true
+	result.version = match
+	return result, nil
+}
+
+func resolveRequestedInstallVersion(result resolvedInstallVersion, installCtx InstallCtx,
+	distfiles, programName, repo string,
+) (resolvedInstallVersion, error) {
+	if result.version == "master" {
+		return result, nil
+	}
+	result, err := matchRequestedInstallVersion(
+		result, installCtx, distfiles, programName, repo)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+	if result.versionFound {
+		return result, nil
+	}
+
+	result.isPullRequest, result.pullRequestID = util.IsPullRequest(result.version)
+	if result.isPullRequest {
+		log.Infof("Searching in pull-requests...")
+	} else {
+		log.Infof("Searching in commits...")
+	}
+
+	result.version, result.pullRequestHash, err = checkCommit(
+		result.version, programName, installCtx, distfiles)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+	return result, nil
+}
+
+func resolveTtInstallVersion(installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	result := resolvedInstallVersion{version: installCtx.version}
 
 	// Get latest version if it was not specified.
-	ttVersion := installCtx.version
-	if ttVersion == "" {
+	if result.version == "" {
 		log.Infof("Getting latest tt version...")
 		versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tt", search.GitRepoTT)
 		if err != nil {
-			return err
+			return resolvedInstallVersion{}, err
 		}
 		if len(versions) == 0 {
-			return fmt.Errorf("no versions were fetched")
-		} else {
-			ttVersion = versions[len(versions)-1].Str
+			return resolvedInstallVersion{}, fmt.Errorf("no versions were fetched")
+		}
+		result.version = versions[len(versions)-1].Str
+	}
+
+	// The tag format in tt is vX.Y.Z, but the user can use X.Y.Z.
+	var err error
+	result, err = resolveRequestedInstallVersion(
+		result, installCtx, distfiles, "tt", search.GitRepoTT)
+	if err != nil {
+		return resolvedInstallVersion{}, err
+	}
+
+	switch {
+	case result.versionFound:
+		result.versionStr = search.ProgramTt.Exec() + version.FsSeparator + result.version
+	case result.isPullRequest:
+		result.versionStr = search.ProgramTt.Exec() + version.FsSeparator + result.pullRequestHash
+	default:
+		result.versionStr = search.ProgramTt.Exec() + version.FsSeparator +
+			result.version[0:util.Min(len(result.version), util.MinCommitHashLength)]
+	}
+
+	return result, nil
+}
+
+func resolveTarantoolInstallVersion(installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	result := resolvedInstallVersion{version: installCtx.version}
+
+	// Get latest release if it was not specified.
+	if result.version == "" {
+		log.Infof("Getting latest tarantool version...")
+		versions, err := getVersionsFromRepo(
+			installCtx.Local, distfiles, "tarantool", search.GitRepoTarantool)
+		if err != nil {
+			return resolvedInstallVersion{}, err
+		}
+		result.version = getLatestRelease(versions)
+		if result.version == "" {
+			return resolvedInstallVersion{}, fmt.Errorf("no version found")
 		}
 	}
 
-	// Check that the version exists.
-	// The tag format in tt is vX.Y.Z, but the user can use the X.Y.Z format
-	// and this option needs to be supported.
-	if ttVersion != "master" {
-		if version.IsVersion(ttVersion, false) {
-			log.Infof("Searching in versions...")
-			versions, err := getVersionsFromRepo(installCtx.Local, distfiles,
-				"tt", search.GitRepoTT)
-			if err != nil {
-				return err
-			}
-			match, err := version.MatchVersion(ttVersion, versions)
-			if err != nil {
-				var errNotFound version.NotFoundError
-				if !errors.As(err, &errNotFound) {
-					return err
-				}
-			} else {
-				versionFound = true
-				ttVersion = match
-			}
-		}
-		if !versionFound {
-			isPullRequest, pullRequestID = util.IsPullRequest(ttVersion)
-
-			if isPullRequest {
-				log.Infof("Searching in pull-requests...")
-			} else {
-				log.Infof("Searching in commits...")
-			}
-
-			var err error
-			ttVersion, pullRequestHash, err = checkCommit(
-				ttVersion, "tt", installCtx, distfiles)
-			if err != nil {
-				return err
-			}
-		}
+	var err error
+	result, err = resolveRequestedInstallVersion(
+		result, installCtx, distfiles, "tarantool", search.GitRepoTarantool)
+	if err != nil {
+		return resolvedInstallVersion{}, err
 	}
 
-	var versionStr string
+	switch {
+	case result.versionFound:
+		result.versionStr = search.ProgramCe.String() + version.FsSeparator + result.version
+	case result.isPullRequest:
+		result.versionStr = search.ProgramCe.String() + version.FsSeparator + result.pullRequestHash
+	default:
+		result.versionStr = search.ProgramCe.String() + version.FsSeparator +
+			result.version[0:util.Min(len(result.version), util.MinCommitHashLength)]
+	}
 
-	if versionFound {
-		versionStr = search.ProgramTt.Exec() + version.FsSeparator + ttVersion
-	} else {
-		if isPullRequest {
-			versionStr = search.ProgramTt.Exec() + version.FsSeparator + pullRequestHash
-		} else {
-			versionStr = search.ProgramTt.Exec() + version.FsSeparator +
-				ttVersion[0:util.Min(len(ttVersion), util.MinCommitHashLength)]
+	return result, nil
+}
+
+func prepareTarantoolInstall(binDir, incDir string, installCtx InstallCtx, distfiles string) (
+	resolvedInstallVersion,
+	error,
+) {
+	if binDir == "" {
+		return resolvedInstallVersion{},
+			fmt.Errorf("bin_dir is not set, check %s", configure.ConfigName)
+	}
+	if incDir == "" {
+		return resolvedInstallVersion{},
+			fmt.Errorf("inc_dir is not set, check %s", configure.ConfigName)
+	}
+	return resolveTarantoolInstallVersion(installCtx, distfiles)
+}
+
+func prepareExistingTt(installCtx *InstallCtx, binDir, versionStr, ttVersion,
+	distfiles string,
+) (bool, error) {
+	if installCtx.Reinstall {
+		return false, nil
+	}
+	log.Infof("Checking existing...")
+	pathToBin := filepath.Join(binDir, versionStr)
+	if !util.IsRegularFile(pathToBin) {
+		return false, nil
+	}
+	isBinExecutable, err := util.IsExecOwner(pathToBin)
+	if err != nil {
+		return false, err
+	}
+
+	updatePossible, err := isUpdatePossible(*installCtx, pathToBin, search.ProgramTt,
+		ttVersion, distfiles, isBinExecutable)
+	if err != nil {
+		return false, err
+	}
+	if updatePossible {
+		log.Info("Found newest commit of tt in master")
+		// Reduce the case to a reinstallation.
+		installCtx.Reinstall = true
+		return false, nil
+	}
+
+	log.Infof("%s version of tt already exists, updating symlink...", versionStr)
+	if err := util.CreateSymlink(versionStr,
+		filepath.Join(binDir, search.ProgramTt.Exec()), true); err != nil {
+		return false, err
+	}
+	log.Infof("Done")
+	return true, nil
+}
+
+func downloadTtSource(path, ttVersion, distfiles string, resolved resolvedInstallVersion,
+	installCtx InstallCtx, logFile *os.File,
+) error {
+	if installCtx.Local {
+		if !util.IsDir(filepath.Join(distfiles, "tt")) {
+			return fmt.Errorf("can't find distfiles directory")
+		}
+		log.Infof("Local files found, installing from them...")
+		localPath, _ := util.JoinAbspath(distfiles, "tt")
+		if err := copy.Copy(localPath, path); err != nil {
+			return err
+		}
+		err := gitCheckout(path, ttVersion, installCtx.verbose, logFile)
+		if err != nil {
+			printLog(logFile.Name())
+		}
+		return err
+	}
+
+	log.Infof("Downloading tt...")
+	if resolved.versionFound {
+		err := downloadRepo(search.GitRepoTT, ttVersion, path, logFile, installCtx.verbose)
+		if err != nil {
+			printLog(logFile.Name())
+		}
+		return err
+	}
+	if err := downloadRepo(search.GitRepoTT, "master", path, logFile,
+		installCtx.verbose); err != nil {
+		printLog(logFile.Name())
+		return err
+	}
+	if resolved.isPullRequest {
+		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + ttVersion
+		if err := util.ExecuteCommand("git", installCtx.verbose, logFile, path,
+			"fetch", "origin", pullRequestCommand); err != nil {
+			printLog(logFile.Name())
+			return err
 		}
 	}
+	err := gitCheckout(path, ttVersion, installCtx.verbose, logFile)
+	if err != nil {
+		printLog(logFile.Name())
+	}
+	return err
+}
+
+// installTt installs selected version of tt.
+func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
+	resolved, err := resolveTtInstallVersion(installCtx, distfiles)
+	if err != nil {
+		return err
+	}
+	ttVersion := resolved.version
+	versionStr := resolved.versionStr
+	isPullRequest := resolved.isPullRequest
+	pullRequestHash := resolved.pullRequestHash
 
 	// Check if that version is already installed.
 	// If it is installed, check if the newest version exists.
-	if !installCtx.Reinstall {
-		log.Infof("Checking existing...")
-		pathToBin := filepath.Join(binDir, versionStr)
-		if util.IsRegularFile(pathToBin) {
-			isBinExecutable, err := util.IsExecOwner(pathToBin)
-			if err != nil {
-				return err
-			}
-
-			isUpdatePossible, err := isUpdatePossible(installCtx,
-				pathToBin,
-				search.ProgramTt,
-				ttVersion,
-				distfiles,
-				isBinExecutable)
-			if err != nil {
-				return err
-			}
-
-			if !isUpdatePossible {
-				log.Infof("%s version of tt already exists, updating symlink...", versionStr)
-				err := util.CreateSymlink(versionStr,
-					filepath.Join(binDir, search.ProgramTt.Exec()), true)
-				if err != nil {
-					return err
-				}
-				log.Infof("Done")
-				return nil
-			}
-			log.Info("Found newest commit of tt in master")
-			// Reduce the case to a reinstallation.
-			installCtx.Reinstall = true
-		}
+	done, err := prepareExistingTt(&installCtx, binDir, versionStr, ttVersion, distfiles)
+	if err != nil {
+		return err
+	}
+	if done {
+		return nil
 	}
 
 	// Check binary directory.
@@ -589,44 +740,8 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 	}
 
 	// Download tt.
-	if installCtx.Local {
-		if util.IsDir(filepath.Join(distfiles, "tt")) {
-			log.Infof("Local files found, installing from them...")
-			localPath, _ := util.JoinAbspath(distfiles, "tt")
-			err = copy.Copy(localPath, path)
-			if err != nil {
-				return err
-			}
-			err = gitCheckout(path, ttVersion, installCtx.verbose, logFile)
-		} else {
-			return fmt.Errorf("can't find distfiles directory")
-		}
-	} else {
-		log.Infof("Downloading tt...")
-		if versionFound {
-			err = downloadRepo(search.GitRepoTT, ttVersion, path, logFile, installCtx.verbose)
-		} else {
-			err = downloadRepo(search.GitRepoTT, "master", path, logFile, installCtx.verbose)
-			if err != nil {
-				printLog(logFile.Name())
-				return err
-			}
-			if isPullRequest {
-				pullRequestCommand := "pull/" + pullRequestID +
-					"/head:" + ttVersion
-				err = util.ExecuteCommand("git", installCtx.verbose, logFile, path,
-					"fetch", "origin", pullRequestCommand)
-				if err != nil {
-					printLog(logFile.Name())
-					return err
-				}
-			}
-			err = gitCheckout(path, ttVersion, installCtx.verbose, logFile)
-		}
-	}
-
+	err = downloadTtSource(path, ttVersion, distfiles, resolved, installCtx, logFile)
 	if err != nil {
-		printLog(logFile.Name())
 		return err
 	}
 	// Build tt.
@@ -644,7 +759,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 
 	// Copy binary.
 	log.Infof("Copying executable...")
-	err = copyBuildedTT(binDir, path, versionStr, installCtx, logFile)
+	err = copyBuildedTT(binDir, path, versionStr, installCtx)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
@@ -670,7 +785,7 @@ func installTt(binDir string, installCtx InstallCtx, distfiles string) error {
 // prepareCmakeOpts prepares cmake command line options for tarantool building.
 func prepareCmakeOpts(buildPath string,
 	installCtx InstallCtx,
-) ([]string, error) {
+) []string {
 	cmakeOpts := []string{".."}
 
 	cmakeOpts = append(cmakeOpts, `-DCMAKE_TARANTOOL_ARGS=-DCMAKE_BUILD_TYPE=RelWithDebInfo;`+
@@ -683,7 +798,7 @@ func prepareCmakeOpts(buildPath string,
 		cmakeOpts = append(cmakeOpts, "-DCMAKE_INSTALL_PREFIX="+buildPath)
 	}
 
-	return cmakeOpts, nil
+	return cmakeOpts
 }
 
 // prepareMakeOpts prepares make command line options for tarantool building.
@@ -712,10 +827,7 @@ func buildTarantool(srcPath string,
 		return "", err
 	}
 
-	cmakeOpts, err := prepareCmakeOpts(buildPath, installCtx)
-	if err != nil {
-		return "", err
-	}
+	cmakeOpts := prepareCmakeOpts(buildPath, installCtx)
 
 	err = util.ExecuteCommand("cmake", installCtx.verbose, logFile, buildPath, cmakeOpts...)
 	if err != nil {
@@ -900,125 +1012,88 @@ func changeActiveTarantoolVersion(versionStr, binDir, incDir string) error {
 	return err
 }
 
-// installTarantool installs selected version of tarantool.
-func installTarantool(binDir string, installCtx InstallCtx, distfiles string) error {
-	// Check bin and header dirs.
-	if binDir == "" {
-		return fmt.Errorf("bin_dir is not set, check %s", configure.ConfigName)
+func prepareExistingTarantool(installCtx InstallCtx, binDir, incDir, versionStr,
+	tarVersion, distfiles string,
+) (bool, error) {
+	if installCtx.Reinstall {
+		return false, nil
 	}
-	incDir := installCtx.IncDir
-	if incDir == "" {
-		return fmt.Errorf("inc_dir is not set, check %s", configure.ConfigName)
+	log.Infof("Checking existing...")
+	pathToBin := filepath.Join(binDir, versionStr)
+	if !util.IsRegularFile(pathToBin) || !util.IsDir(filepath.Join(incDir, versionStr)) {
+		return false, nil
+	}
+	isBinExecutable, err := util.IsExecOwner(pathToBin)
+	if err != nil {
+		return false, err
 	}
 
-	versionFound := false
-	pullRequestHash := ""
-	isPullRequest := false
-	pullRequestID := ""
+	updatePossible, err := isUpdatePossible(installCtx, pathToBin, search.ProgramCe,
+		tarVersion, distfiles, isBinExecutable)
+	if err != nil {
+		return false, err
+	}
+	if updatePossible {
+		log.Infof("Found newest commit of tarantool in master")
+		return false, nil
+	}
 
-	// Get latest version if it was not specified.
-	tarVersion := installCtx.version
-	if tarVersion == "" {
-		log.Infof("Getting latest tarantool version...")
+	log.Infof("%s version of tarantool already exists, updating symlinks...", versionStr)
+	if err := changeActiveTarantoolVersion(versionStr, binDir, incDir); err != nil {
+		return false, err
+	}
+	log.Infof("Done")
+	return true, nil
+}
 
-		versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tarantool",
-			search.GitRepoTarantool)
-		if err != nil {
+func downloadTarantoolSource(path, tarVersion, distfiles string,
+	resolved resolvedInstallVersion, installCtx InstallCtx, logFile *os.File,
+) error {
+	if installCtx.Local {
+		log.Infof("Checking local files...")
+		return copyLocalTarantool(distfiles, path, tarVersion, installCtx, logFile)
+	}
+
+	log.Infof("Downloading tarantool...")
+	if resolved.versionFound {
+		return downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile,
+			installCtx.verbose)
+	}
+	if err := downloadRepo(search.GitRepoTarantool, "master", path, logFile,
+		installCtx.verbose); err != nil {
+		return err
+	}
+	if resolved.isPullRequest {
+		pullRequestCommand := "pull/" + resolved.pullRequestID + "/head:" + tarVersion
+		if err := util.ExecuteCommand("git", installCtx.verbose, logFile, path,
+			"fetch", "origin", pullRequestCommand); err != nil {
 			return err
 		}
-
-		tarVersion = getLatestRelease(versions)
-		if tarVersion == "" {
-			return fmt.Errorf("no version found")
-		}
 	}
+	return gitCheckout(path, tarVersion, installCtx.verbose, logFile)
+}
 
-	// Check that the version exists.
-	if tarVersion != "master" {
-		if version.IsVersion(tarVersion, false) {
-			log.Infof("Searching in versions...")
-			versions, err := getVersionsFromRepo(installCtx.Local, distfiles, "tarantool",
-				search.GitRepoTarantool)
-			if err != nil {
-				return err
-			}
-			match, err := version.MatchVersion(tarVersion, versions)
-			if err != nil {
-				var errNotFound version.NotFoundError
-				if !errors.As(err, &errNotFound) {
-					return err
-				}
-			} else {
-				versionFound = true
-				tarVersion = match
-			}
-		}
-		if !versionFound {
-			isPullRequest, pullRequestID = util.IsPullRequest(tarVersion)
-
-			if isPullRequest {
-				log.Infof("Searching in pull-requests...")
-			} else {
-				log.Infof("Searching in commits...")
-			}
-
-			var err error
-			tarVersion, pullRequestHash, err = checkCommit(
-				tarVersion, "tarantool", installCtx, distfiles)
-			if err != nil {
-				return err
-			}
-		}
+// installTarantool installs selected version of tarantool.
+func installTarantool(binDir string, installCtx InstallCtx, distfiles string) error {
+	incDir := installCtx.IncDir
+	resolved, err := prepareTarantoolInstall(binDir, incDir, installCtx, distfiles)
+	if err != nil {
+		return err
 	}
-
-	var versionStr string
-
-	if versionFound {
-		versionStr = search.ProgramCe.String() + version.FsSeparator + tarVersion
-	} else {
-		if isPullRequest {
-			versionStr = search.ProgramCe.String() + version.FsSeparator + pullRequestHash
-		} else {
-			versionStr = search.ProgramCe.String() + version.FsSeparator +
-				tarVersion[0:util.Min(len(tarVersion), util.MinCommitHashLength)]
-		}
-	}
+	tarVersion := resolved.version
+	versionStr := resolved.versionStr
+	isPullRequest := resolved.isPullRequest
+	pullRequestHash := resolved.pullRequestHash
 
 	// Check if program is already installed.
 	// If it is installed, check if newest version exists.
-	if !installCtx.Reinstall {
-		log.Infof("Checking existing...")
-		pathToBin := filepath.Join(binDir, versionStr)
-		if util.IsRegularFile(pathToBin) &&
-			util.IsDir(filepath.Join(incDir, versionStr)) {
-			isBinExecutable, err := util.IsExecOwner(pathToBin)
-			if err != nil {
-				return err
-			}
-
-			isUpdatePossible, err := isUpdatePossible(installCtx,
-				pathToBin,
-				search.ProgramCe,
-				tarVersion,
-				distfiles,
-				isBinExecutable)
-			if err != nil {
-				return err
-			}
-
-			if !isUpdatePossible {
-				log.Infof("%s version of tarantool already exists, updating symlinks...",
-					versionStr)
-				err = changeActiveTarantoolVersion(versionStr, binDir, incDir)
-				if err != nil {
-					return err
-				}
-				log.Infof("Done")
-				return nil
-			}
-
-			log.Infof("Found newest commit of tarantool in master")
-		}
+	done, err := prepareExistingTarantool(
+		installCtx, binDir, incDir, versionStr, tarVersion, distfiles)
+	if err != nil {
+		return err
+	}
+	if done {
+		return nil
 	}
 
 	if installCtx.BuildInDocker {
@@ -1051,34 +1126,7 @@ func installTarantool(binDir string, installCtx InstallCtx, distfiles string) er
 	}
 
 	// Download tarantool.
-	if installCtx.Local {
-		log.Infof("Checking local files...")
-		err = copyLocalTarantool(distfiles, path, tarVersion, installCtx,
-			logFile)
-	} else {
-		log.Infof("Downloading tarantool...")
-		if versionFound {
-			err = downloadRepo(search.GitRepoTarantool, tarVersion, path, logFile,
-				installCtx.verbose)
-		} else {
-			err = downloadRepo(search.GitRepoTarantool, "master", path, logFile, installCtx.verbose)
-			if err != nil {
-				printLog(logFile.Name())
-				return err
-			}
-			if isPullRequest {
-				pullRequestCommand := "pull/" + pullRequestID +
-					"/head:" + tarVersion
-				err = util.ExecuteCommand("git", installCtx.verbose, logFile, path,
-					"fetch", "origin", pullRequestCommand)
-				if err != nil {
-					printLog(logFile.Name())
-					return err
-				}
-			}
-			err = gitCheckout(path, tarVersion, installCtx.verbose, logFile)
-		}
-	}
+	err = downloadTarantoolSource(path, tarVersion, distfiles, resolved, installCtx, logFile)
 	if err != nil {
 		printLog(logFile.Name())
 		return err
@@ -1147,55 +1195,52 @@ func isUpdatePossible(installCtx InstallCtx,
 	distfiles string,
 	isBinExecutable bool,
 ) (bool, error) {
-	var curBinHash, lastCommitHash string
 	// We need to make sure that we check newest commits only for
 	// production 'master' branch. Also we want to ask if user wants
 	// to check for updates.
-	if isBinExecutable && progVer == "master" {
-		var err error
-		answer := false
-		if !installCtx.skipMasterUpdate {
-			answer, err = util.AskConfirm(os.Stdin, "The 'master' version of the "+
-				program.String()+" has already been installed.\n"+
-				"Would you like to update it if there are newer commits available?")
-			if err != nil {
-				return false, err
-			}
-		}
+	if !isBinExecutable || progVer != "master" || installCtx.skipMasterUpdate {
+		return false, nil
+	}
+	answer, err := util.AskConfirm(os.Stdin, "The 'master' version of the "+
+		program.String()+" has already been installed.\n"+
+		"Would you like to update it if there are newer commits available?")
+	if err != nil {
+		return false, err
+	}
+	if !answer {
+		return false, nil
+	}
 
-		if answer {
-			lastCommitHash, err = getCommit(installCtx.Local, distfiles,
-				program.String(), progVer)
-			if err != nil {
-				return false, err
-			}
+	lastCommitHash, err := getCommit(installCtx.Local, distfiles, program.String(), progVer)
+	if err != nil {
+		return false, err
+	}
 
-			switch program {
-			case search.ProgramCe:
-				tarantoolBin := cmdcontext.TarantoolCli{
-					Executable: pathToBin,
-				}
-				binVersion, err := tarantoolBin.GetVersion()
-				if err != nil {
-					return false, err
-				}
-				// We need to trim first rune to get commit hash
-				// from string structure 'g<commitHash>'.
-				if len(binVersion.Hash) < 1 {
-					return false, fmt.Errorf("could not get commit hash of the version"+
-						"of an installed %s", program)
-				}
-				curBinHash = binVersion.Hash[1:]
-			case search.ProgramTt:
-				ttVer, err := cmdcontext.GetTtVersion(pathToBin)
-				if err != nil {
-					return false, err
-				}
-				curBinHash = ttVer.Hash
-			case search.ProgramUnknown, search.ProgramEe, search.ProgramDev, search.ProgramTcm:
-				// Current callers only pass Tarantool CE or tt.
-			}
+	var curBinHash string
+	switch program {
+	case search.ProgramCe:
+		tarantoolBin := cmdcontext.TarantoolCli{
+			Executable: pathToBin,
 		}
+		binVersion, err := tarantoolBin.GetVersion()
+		if err != nil {
+			return false, err
+		}
+		// We need to trim first rune to get commit hash
+		// from string structure 'g<commitHash>'.
+		if len(binVersion.Hash) < 1 {
+			return false, fmt.Errorf("could not get commit hash of the version"+
+				"of an installed %s", program)
+		}
+		curBinHash = binVersion.Hash[1:]
+	case search.ProgramTt:
+		ttVer, err := cmdcontext.GetTtVersion(pathToBin)
+		if err != nil {
+			return false, err
+		}
+		curBinHash = ttVer.Hash
+	case search.ProgramUnknown, search.ProgramEe, search.ProgramDev, search.ProgramTcm:
+		// Current callers only pass Tarantool CE or tt.
 	}
 
 	if strings.HasPrefix(lastCommitHash, curBinHash) {
@@ -1259,47 +1304,49 @@ func installTarantoolDev(ttBinDir, ttIncludeDir, buildDir,
 
 		var isExecOwner bool
 		isExecOwner, err = util.IsExecOwner(binaryPath)
-		if err == nil && isExecOwner && !util.IsDir(binaryPath) {
-			// Check that tt directories exist.
-			if err = util.CreateDirectory(ttBinDir, defaultDirPermissions); err != nil {
-				return err
-			}
-			if err = util.CreateDirectory(ttIncludeDir, defaultDirPermissions); err != nil {
-				return err
-			}
-
-			log.Infof("Changing symlinks...")
-			err = util.CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
-			if err != nil {
-				return err
-			}
-
-			includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
-			if err != nil {
-				return err
-			}
-			tarantoolIncludeSymlink := filepath.Join(ttIncludeDir, "tarantool")
-			// Remove old symlink to the tarantool headers.
-			// RemoveAll is used to perform deletion even if the file is not a symlink.
-			err = os.RemoveAll(tarantoolIncludeSymlink)
-			if err != nil {
-				return err
-			}
-			if includeDir == "" {
-				log.Warn("Tarantool headers location was not specified. " +
-					"`tt package build`, `tt rocks` may not work properly.\n" +
-					"  To specify include files location use --include-dir option.")
-			} else {
-				err = util.CreateSymlink(includeDir, tarantoolIncludeSymlink, true)
-				if err != nil {
-					return err
-				}
-				log.Infof("tarantool headers directory set as %v.", includeDir)
-			}
-			log.Infof("Done.")
-			return nil
+		if err != nil || !isExecOwner || util.IsDir(binaryPath) {
+			checkedBinaryPaths = append(checkedBinaryPaths, binaryPath)
+			continue
 		}
-		checkedBinaryPaths = append(checkedBinaryPaths, binaryPath)
+
+		// Check that tt directories exist.
+		if err = util.CreateDirectory(ttBinDir, defaultDirPermissions); err != nil {
+			return err
+		}
+		if err = util.CreateDirectory(ttIncludeDir, defaultDirPermissions); err != nil {
+			return err
+		}
+
+		log.Infof("Changing symlinks...")
+		err = util.CreateSymlink(binaryPath, filepath.Join(ttBinDir, "tarantool"), true)
+		if err != nil {
+			return err
+		}
+
+		includeDir, err = searchTarantoolHeaders(buildDir, includeDir)
+		if err != nil {
+			return err
+		}
+		tarantoolIncludeSymlink := filepath.Join(ttIncludeDir, "tarantool")
+		// Remove old symlink to the tarantool headers.
+		// RemoveAll is used to perform deletion even if the file is not a symlink.
+		err = os.RemoveAll(tarantoolIncludeSymlink)
+		if err != nil {
+			return err
+		}
+		if includeDir == "" {
+			log.Warn("Tarantool headers location was not specified. " +
+				"`tt package build`, `tt rocks` may not work properly.\n" +
+				"  To specify include files location use --include-dir option.")
+		} else {
+			err = util.CreateSymlink(includeDir, tarantoolIncludeSymlink, true)
+			if err != nil {
+				return err
+			}
+			log.Infof("tarantool headers directory set as %v.", includeDir)
+		}
+		log.Infof("Done.")
+		return nil
 	}
 
 	return fmt.Errorf("tarantool binary was not found in the paths:\n%s",

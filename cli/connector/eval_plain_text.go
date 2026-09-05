@@ -363,17 +363,7 @@ func processEvalTarantoolRes(resBytes []byte, result interface{}) ([]interface{}
 func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 	evalResults := []PlainTextEvalRes{}
 	if err := yaml.UnmarshalStrict(resBytes, &evalResults); err != nil {
-		errorStrings := make([]map[string]string, 0)
-		if err := yaml.UnmarshalStrict(resBytes, &errorStrings); err == nil {
-			if len(errorStrings) > 0 {
-				errStr, found := errorStrings[0]["error"]
-				if found {
-					return "", errors.New(errStr)
-				}
-			}
-		}
-
-		return "", fmt.Errorf("failed to parse eval result: %s", err)
+		return "", getPlainTextEvalError(resBytes, err)
 	}
 
 	if len(evalResults) != 1 {
@@ -382,6 +372,21 @@ func getPlainTextEvalResYaml(resBytes []byte) (string, error) {
 
 	evalResult := evalResults[0]
 	return evalResult.DataEncBase64, nil
+}
+
+func getPlainTextEvalError(resBytes []byte, parseErr error) error {
+	errorStrings := make([]map[string]string, 0)
+	if err := yaml.UnmarshalStrict(resBytes, &errorStrings); err != nil {
+		return fmt.Errorf("failed to parse eval result: %s", parseErr)
+	}
+	if len(errorStrings) == 0 {
+		return fmt.Errorf("failed to parse eval result: %s", parseErr)
+	}
+	errStr, found := errorStrings[0]["error"]
+	if !found {
+		return fmt.Errorf("failed to parse eval result: %s", parseErr)
+	}
+	return errors.New(errStr)
 }
 
 func getPlainTextEvalResLua(resBytes []byte) (string, error) {

@@ -31,9 +31,7 @@ var errNotInstalled = errors.New("program is not installed")
 
 // remove removes binary/directory and symlinks from directory.
 // It returns true if symlink was removed, error.
-func remove(program search.Program, programVersion, directory string,
-	cmdCtx *cmdcontext.CmdCtx,
-) (bool, error) {
+func remove(program search.Program, programVersion, directory string) (bool, error) {
 	var linkPath string
 	var err error
 
@@ -59,12 +57,10 @@ func remove(program search.Program, programVersion, directory string,
 	var isSymlinkRemoved bool
 
 	_, err = os.Lstat(linkPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return false, fmt.Errorf("failed to access %q: %w", linkPath, err)
-		}
-		isSymlinkRemoved = false
-	} else {
+	if err != nil && !os.IsNotExist(err) {
+		return false, fmt.Errorf("failed to access %q: %w", linkPath, err)
+	}
+	if err == nil {
 		// Get path where symlink point.
 		resolvedPath, err := util.ResolveSymlink(linkPath)
 		if err != nil {
@@ -133,7 +129,7 @@ func UninstallProgram(
 
 	var isSymlinkRemoved bool
 	for _, verToDel := range versionsToDelete {
-		isSymlinkRemoved, err = remove(program, verToDel, binDst, cmdCtx)
+		isSymlinkRemoved, err = remove(program, verToDel, binDst)
 		if err != nil && !errors.Is(err, errNotInstalled) {
 			return err
 		}
@@ -147,7 +143,7 @@ func UninstallProgram(
 
 	if program.IsTarantool() {
 		log.Infof("Removing headers...")
-		_, err = remove(program, programVersion, headerDst, cmdCtx)
+		_, err = remove(program, programVersion, headerDst)
 		if err != nil {
 			return err
 		}
@@ -276,18 +272,10 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 		if !slices.Contains(programsToSearch, programName) {
 			continue
 		}
-		if latestHash == "" {
-			isHash, _ := util.IsValidCommitHash(matches["ver"])
-			if isHash {
-				if program.IsTarantool() {
-					// Same version of headers is required to activate the Tarantool binary.
-					if _, err := os.Stat(filepath.Join(headerDst, binaryName)); os.IsNotExist(err) {
-						continue
-					}
-				}
-				latestHash = binaryName
-				continue
-			}
+		if latestHash == "" && isUsableCommitBinary(program, headerDst, binaryName,
+			matches["ver"]) {
+			latestHash = binaryName
+			continue
 		}
 
 		ver, err := version.Parse(matches["ver"])
@@ -311,6 +299,19 @@ func searchLatestVersion(program search.Program, binDst, headerDst string) (stri
 		return latestVersion, nil
 	}
 	return latestHash, nil
+}
+
+func isUsableCommitBinary(program search.Program, headerDst, binaryName, versionStr string) bool {
+	isHash, _ := util.IsValidCommitHash(versionStr)
+	if !isHash {
+		return false
+	}
+	if !program.IsTarantool() {
+		return true
+	}
+	// Same version of headers is required to activate the Tarantool binary.
+	_, err := os.Stat(filepath.Join(headerDst, binaryName))
+	return !os.IsNotExist(err)
 }
 
 // switchProgramToLatestVersion switches the active version of the program to the latest installed.

@@ -64,7 +64,7 @@ func checkInstallDirs(binDir, includeDir string) error {
 
 // checkExistingInstallation checks if the specific version of the program is already installed.
 // Returns true if the installation exists, false otherwise.
-func checkExistingInstallation(bp *bundleParams) (bool, error) {
+func checkExistingInstallation(bp *bundleParams) bool {
 	binPath := filepath.Join(bp.opts.Env.BinDir, bp.prgVersion)
 	incPath := filepath.Join(bp.inst.IncDir, bp.prgVersion)
 
@@ -72,13 +72,13 @@ func checkExistingInstallation(bp *bundleParams) (bool, error) {
 
 	if !bp.inst.Program.IsTarantool() {
 		log.Debugf("Checking existence: bin=%s (%t)", binPath, binExists)
-		return binExists, nil
+		return binExists
 	}
 	incExists := util.IsDir(incPath)
 
 	log.Debugf("Checking existence: bin=%s (%t), inc=%s (%t)",
 		binPath, binExists, incPath, incExists)
-	return binExists && incExists, nil
+	return binExists && incExists
 }
 
 // prepareTemporaryDirs creates temporary directories for installation and logging.
@@ -221,37 +221,36 @@ func prepareForReinstall(bp *bundleParams) error {
 	destBinPath := filepath.Join(bp.opts.Env.BinDir, bp.prgVersion)
 	destIncPath := filepath.Join(bp.inst.IncDir, bp.prgVersion)
 
-	if bp.inst.Reinstall {
-		if util.IsRegularFile(destBinPath) {
-			log.Infof("%s version of %q already exists, removing...",
-				bp.prgVersion, bp.inst.Program)
-
-			if err := os.RemoveAll(destBinPath); err != nil {
-				fmt.Fprintf(bp.logFile, "Error removing binary: %v\n", err)
-				return fmt.Errorf("failed to remove binary %s: %w", destBinPath, err)
-			}
-		}
-
-		if util.IsDir(destIncPath) {
-			log.Infof("Include directory for %s version already exists, removing...",
-				bp.prgVersion)
-			if err := os.RemoveAll(destIncPath); err != nil {
-				fmt.Fprintf(bp.logFile, "Error removing include dir: %v\n", err)
-				return fmt.Errorf("failed to remove include directory %s: %w",
-					destIncPath, err)
-			}
-		}
-
-		log.Debugf("Existing files removed to reinstall version %q for program %q",
-			bp.prgVersion, bp.inst.Program)
-	} else {
-		// If no Reinstall option, ensure that we don't have already installed version.
+	if !bp.inst.Reinstall {
 		if util.IsRegularFile(destBinPath) || util.IsDir(destIncPath) {
 			return fmt.Errorf("installation path %s or %s already exists",
 				destBinPath, destIncPath)
 		}
+		return nil
 	}
 
+	if util.IsRegularFile(destBinPath) {
+		log.Infof("%s version of %q already exists, removing...",
+			bp.prgVersion, bp.inst.Program)
+
+		if err := os.RemoveAll(destBinPath); err != nil {
+			fmt.Fprintf(bp.logFile, "Error removing binary: %v\n", err)
+			return fmt.Errorf("failed to remove binary %s: %w", destBinPath, err)
+		}
+	}
+
+	if util.IsDir(destIncPath) {
+		log.Infof("Include directory for %s version already exists, removing...",
+			bp.prgVersion)
+		if err := os.RemoveAll(destIncPath); err != nil {
+			fmt.Fprintf(bp.logFile, "Error removing include dir: %v\n", err)
+			return fmt.Errorf("failed to remove include directory %s: %w",
+				destIncPath, err)
+		}
+	}
+
+	log.Debugf("Existing files removed to reinstall version %q for program %q",
+		bp.prgVersion, bp.inst.Program)
 	return nil
 }
 
@@ -454,10 +453,7 @@ func installBundleProgram(installCtx *InstallCtx, cliOpts *config.CliOpts) error
 
 	if !bp.inst.Reinstall {
 		log.Infof("Checking existing installation...")
-		exists, err := checkExistingInstallation(&bp)
-		if err != nil {
-			return fmt.Errorf("failed to check existing installation: %w", err)
-		}
+		exists := checkExistingInstallation(&bp)
 
 		if exists {
 			log.Infof("%s version %s already exists.", bp.inst.Program, bp.prgVersion)

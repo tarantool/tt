@@ -76,7 +76,7 @@ func TestHistory_AppendCommand(t *testing.T) {
 			[]string{"1"},
 		},
 	}
-	tmp, _ := os.MkdirTemp(os.TempDir(), "history_test*")
+	tmp := t.TempDir()
 
 	// Write and ensure last command in buffer.
 	for i, tt := range tests {

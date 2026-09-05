@@ -98,12 +98,12 @@ func newOnceMockDataPublisher(err error) *mockDataPublisher {
 	}
 }
 
-func assertPublished(t *testing.T, p *mockDataPublisher, key string, revision int64, data []byte) {
+func assertPublished(t *testing.T, p *mockDataPublisher, key string, data []byte) {
 	t.Helper()
 
 	require.Equal(t, 1, p.Called)
 	require.Equal(t, []string{key}, p.Keys)
-	require.Equal(t, []int64{revision}, p.Revisions)
+	require.Equal(t, []int64{42}, p.Revisions)
 	require.Equal(t, [][]byte{data}, p.Data)
 }
 
@@ -255,7 +255,7 @@ func TestCConfigSource_Promote_single_key(t *testing.T) {
 			source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
 			err := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
 			require.NoError(t, err)
-			assertPublished(t, publisher, "all", revision, expected)
+			assertPublished(t, publisher, "all", expected)
 		})
 	}
 }
@@ -482,7 +482,7 @@ func TestCConfigSource_Promote_many_keys(t *testing.T) {
 			source := replicaset.NewCConfigSource(collector, publisher, picker)
 			err := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
 			require.NoError(t, err)
-			assertPublished(t, publisher, tc.keys[0], revision, expected)
+			assertPublished(t, publisher, tc.keys[0], expected)
 		})
 	}
 }
@@ -519,7 +519,7 @@ func TestCConfigSource_Promote_many_keys_choose_affects(t *testing.T) {
 	err := source.Promote(replicaset.PromoteCtx{InstName: "instance-002"})
 	require.NoError(t, err)
 	fmt.Println(string(publisher.Data[0]))
-	assertPublished(t, publisher, "b", revision, expected)
+	assertPublished(t, publisher, "b", expected)
 }
 
 func TestCConfigSource_Promote_mix_failovers(t *testing.T) {
@@ -647,7 +647,7 @@ func TestCConfigSource_Demote_single_key(t *testing.T) {
 			source := replicaset.NewCConfigSource(collector, publisher, keyPicker)
 			err := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
 			require.NoError(t, err)
-			assertPublished(t, publisher, "all", revision, expected)
+			assertPublished(t, publisher, "all", expected)
 		})
 	}
 }
@@ -687,7 +687,7 @@ func TestCConfigSource_Demote_many_keys(t *testing.T) {
 			err := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
 			require.NoError(t, err)
 			fmt.Println(string(publisher.Data[0]))
-			assertPublished(t, publisher, tc.keys[0], revision, expected)
+			assertPublished(t, publisher, tc.keys[0], expected)
 		})
 	}
 }
@@ -734,7 +734,7 @@ func TestCConfigSource_Demote_many_keys_choose_affects(t *testing.T) {
 	source := replicaset.NewCConfigSource(collector, publisher, picker)
 	err := source.Demote(replicaset.DemoteCtx{InstName: "instance-002"})
 	require.NoError(t, err)
-	assertPublished(t, publisher, "b", revision, expected)
+	assertPublished(t, publisher, "b", expected)
 }
 
 func TestCConfigSource_Expel_single_key(t *testing.T) {
@@ -767,7 +767,7 @@ func TestCConfigSource_Expel_single_key(t *testing.T) {
             iproto:
               listen: {}
 `)
-	assertPublished(t, publisher, "a", revision, expected)
+	assertPublished(t, publisher, "a", expected)
 }
 
 func TestCConfigSource_AddRole(t *testing.T) {
@@ -949,7 +949,7 @@ roles:
 				require.EqualError(t, err, tc.errMsg)
 			} else {
 				require.NoError(t, err)
-				assertPublished(t, publisher, "a", revision, tc.expectedCfg)
+				assertPublished(t, publisher, "a", tc.expectedCfg)
 			}
 		})
 	}
@@ -1135,7 +1135,7 @@ roles: []
 				require.EqualError(t, err, tc.errMsg)
 			} else {
 				require.NoError(t, err)
-				assertPublished(t, publisher, "a", revision, tc.expectedCfg)
+				assertPublished(t, publisher, "a", tc.expectedCfg)
 			}
 		})
 	}

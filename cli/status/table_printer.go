@@ -62,18 +62,6 @@ func formatAlert(alert instanceAlert) string {
 	}
 }
 
-// printInstanceAlerts prints alerts for a specific instance.
-func (t TablePrinter) printInstanceAlerts(instanceName string, instStatus *instanceStatus) {
-	if len(instStatus.Alerts) == 0 {
-		return
-	}
-	fmt.Printf("Alerts for %s:\n", instanceName)
-	for _, alert := range instStatus.Alerts {
-		fmt.Printf("  • %s\n", formatAlert(alert))
-	}
-	fmt.Println()
-}
-
 // hasAlerts checks if any instance has alerts.
 func hasAlerts(instances map[string]*instanceStatus) bool {
 	for _, instStatus := range instances {
@@ -136,4 +124,16 @@ func (t TablePrinter) Print(instances map[string]*instanceStatus) error {
 	}
 
 	return nil
+}
+
+// printInstanceAlerts prints alerts for a specific instance.
+func (t TablePrinter) printInstanceAlerts(instanceName string, instStatus *instanceStatus) {
+	if len(instStatus.Alerts) == 0 {
+		return
+	}
+	fmt.Printf("Alerts for %s:\n", instanceName)
+	for _, alert := range instStatus.Alerts {
+		fmt.Printf("  • %s\n", formatAlert(alert))
+	}
+	fmt.Println()
 }

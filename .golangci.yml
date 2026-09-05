@@ -31,13 +31,10 @@ linters:
     - exhaustruct
     - exhaustruct_v5
     - forbidigo
-    - funcorder
     - funlen
     - gochecknoglobals
     - gocognit
     - goconst
-    - gocritic
-    - gocyclo
     - godox
     - gomodguard
     - gosec
@@ -45,21 +42,15 @@ linters:
     - maintidx
     - mnd
     - modernize
-    - nestif
-    - nilnil
     - nlreturn
     - noctx
     - noinlineerr
     - paralleltest
     - perfsprint
-    - protogetter
     - revive
-    - staticcheck
     - testifylint
     - testpackage
     - tparallel
-    - unparam
-    - usetesting
     - varnamelen
     - wrapcheck
     - wsl
@@ -96,6 +87,8 @@ linters:
     exhaustive:
       # A switch with a default clause is treated as exhaustive.
       default-signifies-exhaustive: true
+    gocyclo:
+      min-complexity: 30
     godot:
       scope: all
     lll:
@@ -192,6 +185,23 @@ linters:
         text: don't use `init` function
         linters:
           - gochecknoinits
+      # Protobuf null is represented by an untyped nil value.
+      - path: ^cli/aeon/decode\.go$
+        source: ^\s*return nil, nil$
+        linters:
+          - nilnil
+      # Request push messages use box.session.push(); NewWatcher handles the
+      # different box.broadcast protocol and is not a drop-in replacement.
+      - path: ^cli/connector/binary\.go$
+        source: \bfuture\.GetIterator\(\)
+        linters:
+          - staticcheck
+      # etcd still uses grpc.DialContext and documents WithBlock for waiting
+      # until the connection is ready within DialTimeout.
+      - path: ^lib/cluster/storage\.go$
+        source: \bgrpc\.WithBlock\(\)
+        linters:
+          - staticcheck
       # Go struct tags cannot be split across source lines. Keep the 100-column
       # limit everywhere else without scattering nolint directives in code.
       - path: ^cli/manifest/inventory/uninstall\.go$

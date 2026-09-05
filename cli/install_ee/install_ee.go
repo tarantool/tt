@@ -18,6 +18,21 @@ type httpDoer struct {
 	token  string
 }
 
+// NewTntIoDownloader configures and returns an HTTP client suitable for downloading bundles.
+func NewTntIoDownloader(token string) *httpDoer {
+	return &httpDoer{
+		client: &http.Client{
+			Timeout: 0,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				req.Host = req.URL.Hostname()
+				addSessionIdCookie(req, token)
+				return nil
+			},
+		},
+		token: token,
+	}
+}
+
 // Do implement TntIoDoer interface.
 // It sends an HTTP request and returns Body data from HTTP response.
 func (d *httpDoer) Do(req *http.Request) ([]byte, error) {
@@ -64,21 +79,6 @@ func addSessionIdCookie(req *http.Request, token string) {
 			Value: token,
 		}
 		req.AddCookie(cookie)
-	}
-}
-
-// NewTntIoDownloader configures and returns an HTTP client suitable for downloading bundles.
-func NewTntIoDownloader(token string) *httpDoer {
-	return &httpDoer{
-		client: &http.Client{
-			Timeout: 0,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				req.Host = req.URL.Hostname()
-				addSessionIdCookie(req, token)
-				return nil
-			},
-		},
-		token: token,
 	}
 }
 

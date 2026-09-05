@@ -88,6 +88,41 @@ func collectCConfig(
 	return configData, merged, nil
 }
 
+// Promote patches a config to promote an instance.
+func (c *CConfigSource) Promote(ctx PromoteCtx) error {
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigPromotePath,
+		patchCConfigPromote,
+	)
+}
+
+// Demote patches a config to demote an instance.
+func (c *CConfigSource) Demote(ctx DemoteCtx) error {
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigDemotePath,
+		patchCConfigDemote,
+	)
+}
+
+// Expel patches a config to expel an instance.
+func (c *CConfigSource) Expel(ctx ExpelCtx) error {
+	return c.patchInstanceConfig(
+		ctx.InstName,
+		ctx.Force,
+		getCConfigExpelPath,
+		patchCConfigExpel,
+	)
+}
+
+// ChangeRole patches a config with addition/removing role.
+func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, action RolesChangerAction) error {
+	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, action.Change, patchCConfigEditRole)
+}
+
 // pickTarget applies keyPicker to the targets slice and returns picked target.
 func (c *CConfigSource) pickTarget(targets []patchTarget, force bool,
 	pathMsg string,
@@ -215,56 +250,6 @@ func (c *CConfigSource) patchConfigWithRoles(ctx RolesChangeCtx,
 		return fmt.Errorf("failed to publish the config: %w", err)
 	}
 	return nil
-}
-
-// Promote patches a config to promote an instance.
-func (c *CConfigSource) Promote(ctx PromoteCtx) error {
-	return c.patchInstanceConfig(
-		ctx.InstName,
-		ctx.Force,
-		getCConfigPromotePath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (
-			*goconfig.MutableConfig,
-			error,
-		) {
-			return patchCConfigPromote(config, inst)
-		},
-	)
-}
-
-// Demote patches a config to demote an instance.
-func (c *CConfigSource) Demote(ctx DemoteCtx) error {
-	return c.patchInstanceConfig(
-		ctx.InstName,
-		ctx.Force,
-		getCConfigDemotePath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (
-			*goconfig.MutableConfig,
-			error,
-		) {
-			return patchCConfigDemote(config, inst)
-		},
-	)
-}
-
-// Expel patches a config to expel an instance.
-func (c *CConfigSource) Expel(ctx ExpelCtx) error {
-	return c.patchInstanceConfig(
-		ctx.InstName,
-		ctx.Force,
-		getCConfigExpelPath,
-		func(config *goconfig.MutableConfig, inst cconfigInstance) (
-			*goconfig.MutableConfig,
-			error,
-		) {
-			return patchCConfigExpel(config, inst)
-		},
-	)
-}
-
-// ChangeRole patches a config with addition/removing role.
-func (c *CConfigSource) ChangeRole(ctx RolesChangeCtx, action RolesChangerAction) error {
-	return c.patchConfigWithRoles(ctx, getCConfigRolesPath, action.Change, patchCConfigEditRole)
 }
 
 // getCConfigRolesPath returns a path and it's minimum interesting depth
@@ -424,10 +409,7 @@ func getCConfigPatchTargets(data []libcluster.Data,
 				fmt.Errorf("failed to decode config from %q: %w", item.Source, err)
 		}
 		snap := mut.Snapshot()
-		depth, err := getCConfigPathDepth(snap, path, depth)
-		if err != nil {
-			return nil, err
-		}
+		depth := getCConfigPathDepth(snap, path, depth)
 		if depth != noDepth {
 			targets = append(targets, patchTarget{
 				key:      item.Source,
@@ -449,11 +431,11 @@ const noDepth = -1
 // If it is less than lowerDepth, it returns noDepth.
 func getCConfigPathDepth(config goconfig.Config,
 	path goconfig.KeyPath, lowerDepth int,
-) (int, error) {
+) int {
 	for i := len(path); i >= lowerDepth; i-- {
 		if _, ok := config.Lookup(path[:i]); ok {
-			return i, nil
+			return i
 		}
 	}
-	return noDepth, nil
+	return noDepth
 }

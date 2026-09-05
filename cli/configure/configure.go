@@ -261,7 +261,8 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 	// Config could not be processed.
 	configPath, err := util.GetYamlFileName(configurePath, true)
 	// Before loading configure file, we'll initialize integrity checking.
-	if err == nil {
+	switch {
+	case err == nil:
 		if configPath, err = filepath.Abs(configPath); err != nil {
 			return nil, "", fmt.Errorf("cannot determine config file path: %s", err)
 		}
@@ -287,11 +288,11 @@ func GetCliOpts(configurePath string, repository integrity.Repository) (
 			return nil, "",
 				fmt.Errorf("failed to parse Tarantool CLI configuration: missing tt section")
 		}
-	} else if err != nil && !os.IsNotExist(err) {
+	case err != nil && !os.IsNotExist(err):
 		// TODO: Add warning in next patches, discussion
 		// what if the file exists, but access is denied, etc.
 		return nil, "", fmt.Errorf("failed to get access to configuration file: %s", err)
-	} else if os.IsNotExist(err) {
+	case os.IsNotExist(err):
 		configPath = ""
 	}
 
@@ -375,11 +376,9 @@ func ValidateCliOpts(cliCtx *cmdcontext.CliCtx) error {
 			return fmt.Errorf(
 				"you can specify only one of -L(--local), -c(--cfg) and 'TT_CLI_CFG' options")
 		}
-	} else {
-		if cliCtx.IsSystem && cliCtx.ConfigPath != "" {
-			return fmt.Errorf(
-				"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options")
-		}
+	} else if cliCtx.IsSystem && cliCtx.ConfigPath != "" {
+		return fmt.Errorf(
+			"you can specify only one of -S(--system), -c(--cfg) and 'TT_CLI_CFG' options")
 	}
 	if len(cliCtx.IntegrityCheck) == 0 && cliCtx.IntegrityCheckPeriod != 0 {
 		return fmt.Errorf("need to specify public key in --integrity-check to " +
@@ -500,26 +499,8 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		return err
 	}
 
-	if cmdCtx.Cli.ConfigPath == "" {
-		cmdCtx.Cli.ConfigPath, err = util.GetYamlFileName(filepath.Join(launchDir, ConfigName),
-			true)
-		if err != nil {
-			// TODO: Add warning messages, discussion what if the file
-			// exists, but access is denied, etc.
-			if !os.IsNotExist(err) {
-				return fmt.Errorf("failed to get access to configuration file: %s", err)
-			}
-			if cmdCtx.Cli.ConfigPath, err = getConfigPath(ConfigName); err != nil {
-				return fmt.Errorf("failed to get Tarantool CLI config: %s", err)
-			}
-			if cmdCtx.Cli.ConfigPath == "" {
-				if cmdCtx.Cli.LocalLaunchDir != "" {
-					return fmt.Errorf("failed to find Tarantool CLI config for '%s'",
-						cmdCtx.Cli.LocalLaunchDir)
-				}
-				cmdCtx.Cli.ConfigPath = getSystemConfigPath()
-			}
-		}
+	if err := ensureCliConfigPath(cmdCtx, launchDir); err != nil {
+		return err
 	}
 
 	cliOpts, _, err := GetCliOpts(cmdCtx.Cli.ConfigPath, cmdCtx.Integrity.Repository)
@@ -561,35 +542,68 @@ func configureLocalCli(cmdCtx *cmdcontext.CmdCtx) error {
 		return err
 	}
 
-	// This should save us from exec looping.
-	if localCli != "" && localCli != currentCli {
-		if _, err := os.Stat(localCli); err == nil {
-			if _, err := exec.LookPath(localCli); err != nil {
-				return fmt.Errorf(
-					`found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
-			}
+	return switchToLocalCli(cmdCtx, localCli, currentCli, launchDir)
+}
 
-			// Before switching to local cli, we shall check its integrity.
-			f, err := cmdCtx.Integrity.Repository.Read(localCli)
-			if err != nil {
-				return err
-			}
-			f.Close()
-
-			// We are not using the "RunExec" function because we have no reason to have several
-			// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
-			// which starts tarantool or some external module.
-			err = syscall.Exec(localCli, append([]string{localCli},
-				excludeArgumentsForChildTt(os.Args[1:])...), os.Environ())
-			if err != nil {
-				return err
-			}
-		} else if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to get access to tt binary file: %s", err)
-		}
+func ensureCliConfigPath(cmdCtx *cmdcontext.CmdCtx, launchDir string) error {
+	if cmdCtx.Cli.ConfigPath != "" {
+		return nil
 	}
 
+	configPath, err := util.GetYamlFileName(filepath.Join(launchDir, ConfigName), true)
+	if err == nil {
+		cmdCtx.Cli.ConfigPath = configPath
+		return nil
+	}
+	// TODO: Add warning messages, discussion what if the file
+	// exists, but access is denied, etc.
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to get access to configuration file: %s", err)
+	}
+	configPath, err = getConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get Tarantool CLI config: %s", err)
+	}
+	if configPath != "" {
+		cmdCtx.Cli.ConfigPath = configPath
+		return nil
+	}
+	if cmdCtx.Cli.LocalLaunchDir != "" {
+		return fmt.Errorf("failed to find Tarantool CLI config for '%s'",
+			cmdCtx.Cli.LocalLaunchDir)
+	}
+	cmdCtx.Cli.ConfigPath = getSystemConfigPath()
 	return nil
+}
+
+func switchToLocalCli(cmdCtx *cmdcontext.CmdCtx, localCli, currentCli, launchDir string) error {
+	// This should save us from exec looping.
+	if localCli == "" || localCli == currentCli {
+		return nil
+	}
+	if _, err := os.Stat(localCli); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get access to tt binary file: %s", err)
+	}
+	if _, err := exec.LookPath(localCli); err != nil {
+		return fmt.Errorf(
+			`found tt binary in local directory "%s" isn't executable: %s`, launchDir, err)
+	}
+
+	// Before switching to local cli, we shall check its integrity.
+	f, err := cmdCtx.Integrity.Repository.Read(localCli)
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	// We are not using the "RunExec" function because we have no reason to have several
+	// "tt" processes. Moreover, it looks strange when we start "tt", which starts "tt",
+	// which starts tarantool or some external module.
+	return syscall.Exec(localCli, append([]string{localCli},
+		excludeArgumentsForChildTt(os.Args[1:])...), os.Environ())
 }
 
 // configureLocalLaunch configures the context using the specified local launch path.
@@ -617,7 +631,7 @@ func excludeArgumentsForChildTt(args []string) []string {
 	skip := 0
 	for _, arg := range args {
 		if skip > 0 {
-			skip = skip - 1
+			skip--
 			continue
 		}
 		switch arg {
@@ -667,7 +681,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 		// If the config is found, we assume that it is a local launch in this directory.
 		// If the config is not found, then we take it from the standard place (/etc/tarantool).
 
-		if cmdCtx.Cli.ConfigPath, err = getConfigPath(ConfigName); err != nil {
+		if cmdCtx.Cli.ConfigPath, err = getConfigPath(); err != nil {
 			return fmt.Errorf("failed to get Tarantool CLI config: %s", err)
 		}
 	}
@@ -682,7 +696,7 @@ func configureDefaultCli(cmdCtx *cmdcontext.CmdCtx) error {
 // getConfigPath looks for the path to the tt.yaml configuration file,
 // looking through all directories from the current one to the root.
 // This search pattern is chosen for the convenience of the user.
-func getConfigPath(configName string) (string, error) {
+func getConfigPath() (string, error) {
 	curDir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("failed to detect current directory: %s", err)

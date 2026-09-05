@@ -146,31 +146,6 @@ func GetAppPath(instance InstanceCtx) string {
 	return instance.AppDir
 }
 
-// updateCtx updates cmdCtx according to the current contents of the cfg file.
-func (provider *providerImpl) updateCtx() error {
-	cliOpts, _, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath,
-		provider.cmdCtx.Integrity.Repository)
-	if err != nil {
-		return err
-	}
-
-	var args []string
-	if provider.instanceCtx.SingleApp {
-		args = []string{provider.instanceCtx.AppName}
-	} else {
-		args = []string{provider.instanceCtx.AppName + string(InstanceDelimiter) +
-			provider.instanceCtx.InstName}
-	}
-
-	var runningCtx RunningCtx
-	if err = FillCtx(
-		cliOpts, provider.cmdCtx, &runningCtx, args, ConfigLoadSkip); err != nil {
-		return err
-	}
-	provider.instanceCtx = &runningCtx.Instances[0]
-	return nil
-}
-
 // createInstance creates an Instance.
 func createInstance(cmdCtx cmdcontext.CmdCtx, instanceCtx InstanceCtx,
 	opts ...InstanceOption,
@@ -238,6 +213,31 @@ func (provider *providerImpl) IsRestartable() (bool, error) {
 	}
 
 	return provider.instanceCtx.Restartable, nil
+}
+
+// updateCtx updates cmdCtx according to the current contents of the cfg file.
+func (provider *providerImpl) updateCtx() error {
+	cliOpts, _, err := configure.GetCliOpts(provider.cmdCtx.Cli.ConfigPath,
+		provider.cmdCtx.Integrity.Repository)
+	if err != nil {
+		return err
+	}
+
+	var args []string
+	if provider.instanceCtx.SingleApp {
+		args = []string{provider.instanceCtx.AppName}
+	} else {
+		args = []string{provider.instanceCtx.AppName + string(InstanceDelimiter) +
+			provider.instanceCtx.InstName}
+	}
+
+	var runningCtx RunningCtx
+	if err = FillCtx(
+		cliOpts, provider.cmdCtx, &runningCtx, args, ConfigLoadSkip); err != nil {
+		return err
+	}
+	provider.instanceCtx = &runningCtx.Instances[0]
+	return nil
 }
 
 // searchApplicationScript searches for application script in a directory.
@@ -330,10 +330,6 @@ func findInstanceScriptInAppDir(appDir, instName, clusterCfgPath, defaultScript 
 func loadInstanceConfig(configPath, instName string,
 	integrityCtx integrity.IntegrityCtx,
 ) (*goconfig.Config, error) {
-	if configPath == "" {
-		return nil, nil
-	}
-
 	cfg, err := cluster.GetClusterConfig(context.Background(), configPath, integrityCtx)
 	if err != nil {
 		return nil, err
@@ -367,20 +363,20 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 			return nil, fmt.Errorf(
 				"cluster config %q is found, but instances config (instances.yml) is missing",
 				appDirFiles.clusterCfgPath)
-		} else {
-			if appDirFiles.defaultLuaPath != "" {
-				return []InstanceCtx{{
-					InstanceScript: appDirFiles.defaultLuaPath,
-					AppName:        filepath.Base(appDir),
-					InstName:       filepath.Base(appDir),
-					AppDir:         appDir,
-					SingleApp:      true,
-				}}, nil
-			} else if loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts {
-				return nil, fmt.Errorf("require files are missing in application directory %q: "+
-					"there must be instances config or the default instance script (%q)",
-					appDir, "init.lua")
-			}
+		}
+		if appDirFiles.defaultLuaPath != "" {
+			return []InstanceCtx{{
+				InstanceScript: appDirFiles.defaultLuaPath,
+				AppName:        filepath.Base(appDir),
+				InstName:       filepath.Base(appDir),
+				AppDir:         appDir,
+				SingleApp:      true,
+			}}, nil
+		}
+		if loadConfig == ConfigLoadAll || loadConfig == ConfigLoadScripts {
+			return nil, fmt.Errorf("require files are missing in application directory %q: "+
+				"there must be instances config or the default instance script (%q)",
+				appDir, "init.lua")
 		}
 	}
 
@@ -409,11 +405,13 @@ func collectInstancesFromAppDir(appDir, selectedInstName string,
 		}
 		log.Debugf("Instance %q", instance.InstName)
 
-		instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
-			instance.InstName, integrityCtx)
-		if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
-			return instances, fmt.Errorf("error loading instance %q configuration from "+
-				"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
+		if instance.ClusterConfigPath != "" {
+			instance.Configuration, err = loadInstanceConfig(instance.ClusterConfigPath,
+				instance.InstName, integrityCtx)
+			if err != nil && (loadConfig == ConfigLoadAll || loadConfig == ConfigLoadCluster) {
+				return instances, fmt.Errorf("error loading instance %q configuration from "+
+					"config %q: %w", instance.InstName, instance.ClusterConfigPath, err)
+			}
 		}
 
 		instance.SingleApp = false
@@ -897,11 +895,12 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 	}
 	newArgs = append(newArgs, args...)
 
-	if cmdCtx.Cli.IsSystem {
+	switch {
+	case cmdCtx.Cli.IsSystem:
 		newArgs = append(newArgs, "-S")
-	} else if cmdCtx.Cli.LocalLaunchDir != "" {
+	case cmdCtx.Cli.LocalLaunchDir != "":
 		newArgs = append(newArgs, "-L", cmdCtx.Cli.LocalLaunchDir)
-	} else {
+	default:
 		newArgs = append(newArgs, "--cfg", cmdCtx.Cli.ConfigPath)
 	}
 

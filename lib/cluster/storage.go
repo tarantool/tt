@@ -57,69 +57,68 @@ type RawStorage struct {
 	timeout        time.Duration
 }
 
+// NewStorage returns a *RawStorage bound to the given backend.
+//
+// Most callers should use Factory.NewRemoteStorage, which fills objectLocation
+// with the default configLocation. Use this directly only when a different
+// objectLocation (or none) is required, such as for the failover command
+// namespace.
+func NewStorage(
+	storage gstorage.Storage,
+	prefix string,
+	timeout time.Duration,
+	key string,
+	storageType string,
+	integrityOpts *IntegrityOptions,
+	objectLocation string,
+) (*RawStorage, error) {
+	prefix = strings.TrimRight(prefix, "/")
+
+	codec := integrity.NewCodecBuilder[StorageDataType]().
+		WithMarshaller(marshaller.NewTypedBytesMarshaller())
+	if objectLocation != "" {
+		codec = codec.WithObjectLocation(objectLocation)
+	}
+	if integrityOpts != nil {
+		for _, h := range integrityOpts.Hashers {
+			codec = codec.WithHasher(h)
+		}
+		for _, sv := range integrityOpts.SignerVerifiers {
+			codec = codec.WithSignerVerifier(sv)
+		}
+		for _, signer := range integrityOpts.Signers {
+			codec = codec.WithSigner(signer)
+		}
+		for _, verifier := range integrityOpts.Verifiers {
+			codec = codec.WithVerifier(verifier)
+		}
+	}
+
+	codecBuild, err := codec.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	storage, err = gstorage.Prefixed(prefix, storage)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RawStorage{
+		storage:        codecBuild.Bind(storage),
+		codec:          codecBuild,
+		key:            key,
+		storageType:    storageType,
+		timeout:        timeout,
+		prefix:         prefix,
+		objectLocation: objectLocation,
+	}, nil
+}
+
 // SetCleanup attaches a cleanup callback that Close will invoke. Used when the
 // caller wants Close to also release an underlying connection.
 func (r *RawStorage) SetCleanup(cleanup func()) {
 	r.cleanup = cleanup
-}
-
-// normalizeName normalizes a name by removing the prefix and object location from it.
-// It trims leading slashes and strips the configured prefix and object location,
-// returning the relative name within the storage.
-func (r *RawStorage) normalizeName(name string) string {
-	if name == "" {
-		return ""
-	}
-
-	trimObjectLocation := func(name string) string {
-		name = strings.TrimPrefix(name, "/")
-		if r.objectLocation == "" {
-			return name
-		}
-		if trimmed, ok := strings.CutPrefix(name, r.objectLocation); ok {
-			return strings.TrimPrefix(trimmed, "/")
-		}
-		return name
-	}
-
-	if r.prefix == "" {
-		return trimObjectLocation(name)
-	}
-
-	configPrefix := r.prefix
-	if trimmed, ok := strings.CutPrefix(name, configPrefix); ok {
-		return trimObjectLocation(trimmed)
-	}
-
-	configPrefix = strings.TrimSuffix(configPrefix, "/")
-	if trimmed, ok := strings.CutPrefix(name, configPrefix); ok {
-		return trimObjectLocation(trimmed)
-	}
-
-	return trimObjectLocation(name)
-}
-
-// sourceName constructs the full source path for a name by combining
-// the prefix, object location and the normalized name.
-func (r *RawStorage) sourceName(name string) string {
-	name = r.normalizeName(name)
-	if name == "" {
-		return r.prefix
-	}
-
-	result := r.prefix
-	if r.objectLocation != "" {
-		result += "/" + r.objectLocation
-	}
-	return result + "/" + name
-}
-
-// withTimeout returns a context bounded by r.timeout (background context if 0).
-func (r *RawStorage) withTimeout() (context.Context, context.CancelFunc) {
-	if r.timeout == 0 {
-		return context.Background(), func() {}
-	}
-	return context.WithTimeout(context.Background(), r.timeout)
 }
 
 // Collect collects values from storage by prefix (if no key bound) or by key.
@@ -211,21 +210,6 @@ func (r *RawStorage) Put(ctx context.Context, key, value string) error {
 	return r.put(ctx, key, []byte(value), 0) //nolint:wrapcheck // put already wraps.
 }
 
-func (r *RawStorage) put(ctx context.Context, key string, data []byte, revision int64) error {
-	if data == nil {
-		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
-	}
-	var predicates []integrity.Predicate
-	if revision != 0 {
-		predicates = append(predicates, r.codec.VersionEqual(revision))
-	}
-	if err := r.storage.Put(ctx, r.normalizeName(key), data,
-		integrity.WithPutPredicates(predicates...)); err != nil {
-		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
-	}
-	return nil
-}
-
 // Watch watches on a key and return watched events through the returned channel.
 func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, error) {
 	ch := make(chan WatchEvent)
@@ -248,92 +232,89 @@ func (r *RawStorage) Watch(ctx context.Context, key string) (<-chan WatchEvent, 
 	return ch, nil
 }
 
-// NewStorage returns a *RawStorage bound to the given backend.
-//
-// Most callers should use Factory.NewRemoteStorage, which fills objectLocation
-// with the default configLocation. Use this directly only when a different
-// objectLocation (or none) is required, such as for the failover command
-// namespace.
-func NewStorage(
-	storage gstorage.Storage,
-	prefix string,
-	timeout time.Duration,
-	key string,
-	storageType string,
-	integrityOpts *IntegrityOptions,
-	objectLocation string,
-) (*RawStorage, error) {
-	prefix = strings.TrimRight(prefix, "/")
-
-	codec := integrity.NewCodecBuilder[StorageDataType]().
-		WithMarshaller(marshaller.NewTypedBytesMarshaller())
-	if objectLocation != "" {
-		codec = codec.WithObjectLocation(objectLocation)
-	}
-	if integrityOpts != nil {
-		for _, h := range integrityOpts.Hashers {
-			codec = codec.WithHasher(h)
-		}
-		for _, sv := range integrityOpts.SignerVerifiers {
-			codec = codec.WithSignerVerifier(sv)
-		}
-		for _, signer := range integrityOpts.Signers {
-			codec = codec.WithSigner(signer)
-		}
-		for _, verifier := range integrityOpts.Verifiers {
-			codec = codec.WithVerifier(verifier)
-		}
+// normalizeName normalizes a name by removing the prefix and object location from it.
+// It trims leading slashes and strips the configured prefix and object location,
+// returning the relative name within the storage.
+func (r *RawStorage) normalizeName(name string) string {
+	if name == "" {
+		return ""
 	}
 
-	codecBuild, err := codec.Build()
-	if err != nil {
-		return nil, err
+	trimObjectLocation := func(name string) string {
+		name = strings.TrimPrefix(name, "/")
+		if r.objectLocation == "" {
+			return name
+		}
+		if trimmed, ok := strings.CutPrefix(name, r.objectLocation); ok {
+			return strings.TrimPrefix(trimmed, "/")
+		}
+		return name
 	}
 
-	storage, err = gstorage.Prefixed(prefix, storage)
-	if err != nil {
-		return nil, err
+	if r.prefix == "" {
+		return trimObjectLocation(name)
 	}
 
-	return &RawStorage{
-		storage:        codecBuild.Bind(storage),
-		codec:          codecBuild,
-		key:            key,
-		storageType:    storageType,
-		timeout:        timeout,
-		prefix:         prefix,
-		objectLocation: objectLocation,
-	}, nil
+	configPrefix := r.prefix
+	if trimmed, ok := strings.CutPrefix(name, configPrefix); ok {
+		return trimObjectLocation(trimmed)
+	}
+
+	configPrefix = strings.TrimSuffix(configPrefix, "/")
+	if trimmed, ok := strings.CutPrefix(name, configPrefix); ok {
+		return trimObjectLocation(trimmed)
+	}
+
+	return trimObjectLocation(name)
+}
+
+// sourceName constructs the full source path for a name by combining
+// the prefix, object location and the normalized name.
+func (r *RawStorage) sourceName(name string) string {
+	name = r.normalizeName(name)
+	if name == "" {
+		return r.prefix
+	}
+
+	result := r.prefix
+	if r.objectLocation != "" {
+		result += "/" + r.objectLocation
+	}
+	return result + "/" + name
+}
+
+// withTimeout returns a context bounded by r.timeout (background context if 0).
+func (r *RawStorage) withTimeout() (context.Context, context.CancelFunc) {
+	if r.timeout == 0 {
+		return context.Background(), func() {}
+	}
+	return context.WithTimeout(context.Background(), r.timeout)
+}
+
+func (r *RawStorage) put(ctx context.Context, key string, data []byte, revision int64) error {
+	if data == nil {
+		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, errDataMissing)
+	}
+	var predicates []integrity.Predicate
+	if revision != 0 {
+		predicates = append(predicates, r.codec.VersionEqual(revision))
+	}
+	if err := r.storage.Put(ctx, r.normalizeName(key), data,
+		integrity.WithPutPredicates(predicates...)); err != nil {
+		return fmt.Errorf("failed to publish data into %s: %w", r.storageType, err)
+	}
+	return nil
 }
 
 // connectEtcdClient creates and returns a new etcd client connection
 // configured with the provided connection parameters, including TLS settings.
 func connectEtcdClient(cfg gsconnect.Config) (*clientv3.Client, error) {
 	var tlsConfig *tls.Config
-	if cfg.SSL.KeyFile != "" || cfg.SSL.CertFile != "" || cfg.SSL.CaFile != "" ||
-		cfg.SSL.CaPath != "" || !cfg.SSL.VerifyHost || !cfg.SSL.VerifyPeer {
-		tlsInfo := transport.TLSInfo{
-			CertFile:      cfg.SSL.CertFile,
-			KeyFile:       cfg.SSL.KeyFile,
-			TrustedCAFile: cfg.SSL.CaFile,
-		}
-
+	if needsEtcdTLSConfig(cfg.SSL) {
 		var err error
-		tlsConfig, err = tlsInfo.ClientConfig()
+		tlsConfig, err = makeEtcdTLSConfig(cfg.SSL)
 		if err != nil {
-			return nil, fmt.Errorf("fail to create tls client config: %w", err)
-		}
-
-		if cfg.SSL.CaPath != "" {
-			roots, err := loadRootCA(cfg.SSL.CaPath)
-			if err != nil {
-				return nil, fmt.Errorf("fail to load CA directory: %w", err)
-			}
-			tlsConfig.RootCAs = roots
-		}
-
-		if !cfg.SSL.VerifyHost || !cfg.SSL.VerifyPeer {
-			tlsConfig.InsecureSkipVerify = true
+			return nil, err
 		}
 	}
 
@@ -346,6 +327,34 @@ func connectEtcdClient(cfg gsconnect.Config) (*clientv3.Client, error) {
 		Logger:      zap.NewNop(),
 		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 	})
+}
+
+func needsEtcdTLSConfig(sslCfg gsconnect.SSLConfig) bool {
+	return sslCfg.KeyFile != "" || sslCfg.CertFile != "" || sslCfg.CaFile != "" ||
+		sslCfg.CaPath != "" || !sslCfg.VerifyHost || !sslCfg.VerifyPeer
+}
+
+func makeEtcdTLSConfig(sslCfg gsconnect.SSLConfig) (*tls.Config, error) {
+	tlsInfo := transport.TLSInfo{
+		CertFile:      sslCfg.CertFile,
+		KeyFile:       sslCfg.KeyFile,
+		TrustedCAFile: sslCfg.CaFile,
+	}
+	tlsConfig, err := tlsInfo.ClientConfig()
+	if err != nil {
+		return nil, fmt.Errorf("fail to create tls client config: %w", err)
+	}
+	if sslCfg.CaPath != "" {
+		roots, err := loadRootCA(sslCfg.CaPath)
+		if err != nil {
+			return nil, fmt.Errorf("fail to load CA directory: %w", err)
+		}
+		tlsConfig.RootCAs = roots
+	}
+	if !sslCfg.VerifyHost || !sslCfg.VerifyPeer {
+		tlsConfig.InsecureSkipVerify = true
+	}
+	return tlsConfig, nil
 }
 
 // connectTarantoolConnector creates and returns a new tarantool connection

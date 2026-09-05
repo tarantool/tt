@@ -52,7 +52,7 @@ func startTestInstance(t *testing.T, ctx context.Context, app, consoleSock strin
 	assert.Nilf(err, `Can't create an instance. Error: "%v".`, err)
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
-	os.Setenv("started_flag_file", filepath.Join(binDir, app))
+	t.Setenv("started_flag_file", filepath.Join(binDir, app))
 	defer os.Remove(os.Getenv("started_flag_file"))
 	err = inst.Start(ctx)
 	assert.Nilf(err, `Can't start the instance. Error: "%v".`, err)
@@ -238,7 +238,7 @@ func TestInstanceLogs(t *testing.T) {
 	t.Cleanup(func() { cleanupTestInstance(t, inst) })
 
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
-	os.Setenv("started_flag_file", filepath.Join(binDir, app))
+	t.Setenv("started_flag_file", filepath.Join(binDir, app))
 	defer os.Remove(os.Getenv("started_flag_file"))
 	err = inst.Start(context.Background())
 	require.NoError(t, err)

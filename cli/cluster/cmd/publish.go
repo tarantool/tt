@@ -128,17 +128,7 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 	snap := mut.Snapshot()
 
 	gname, rname, found := cluster.FindInstance(snap, instance)
-	if found {
-		// Instance already exists: validate group/replicaset names.
-		if replicaset != "" && replicaset != rname {
-			return fmt.Errorf("wrong replicaset name, expected %q, have %q", rname, replicaset)
-		}
-		if group != "" && group != gname {
-			return fmt.Errorf("wrong group name, expected %q, have %q", gname, group)
-		}
-		group = gname
-		replicaset = rname
-	} else {
+	if !found {
 		// Instance not found: resolve group/replicaset.
 		if replicaset == "" {
 			return fmt.Errorf(
@@ -151,6 +141,17 @@ func setInstanceConfig(group, replicaset, instance string, instanceMap map[strin
 				return fmt.Errorf("failed to determine the group of the %q replicaset", replicaset)
 			}
 		}
+	}
+	if found {
+		// Instance already exists: validate group/replicaset names.
+		if replicaset != "" && replicaset != rname {
+			return fmt.Errorf("wrong replicaset name, expected %q, have %q", rname, replicaset)
+		}
+		if group != "" && group != gname {
+			return fmt.Errorf("wrong group name, expected %q, have %q", gname, group)
+		}
+		group = gname
+		replicaset = rname
 	}
 
 	keyPath := goconfig.NewKeyPath(

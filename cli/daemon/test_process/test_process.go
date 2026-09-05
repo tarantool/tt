@@ -30,12 +30,7 @@ func (w *TestWorker) Start(ttPath string) {
 	w.logger.Println(daemon.StartTestWorkerMsg)
 
 	go func() {
-		for {
-			select {
-			case <-w.done:
-				return
-			}
-		}
+		<-w.done
 	}()
 }
 

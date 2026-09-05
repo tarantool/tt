@@ -6,14 +6,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"sort"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/adam-hanna/arrayOperations"
 	"github.com/apex/log"
-	"golang.org/x/crypto/ssh/terminal"
+	terminal "golang.org/x/term"
 	"gopkg.in/yaml.v2"
 
 	"github.com/tarantool/go-prompt"
@@ -334,12 +333,11 @@ func getCompleter(console *Console, connectCtx ConnectCtx) prompt.Completer {
 			return nil
 		}
 
-		suggestionsTexts = arrayOperations.DifferenceString(suggestionsTexts)
+		slices.Sort(suggestionsTexts)
+		suggestionsTexts = slices.Compact(suggestionsTexts)
 		if len(suggestionsTexts) == 0 {
 			return nil
 		}
-
-		sort.Strings(suggestionsTexts)
 
 		suggestions := make([]prompt.Suggest, len(suggestionsTexts))
 		for i, suggestionText := range suggestionsTexts {

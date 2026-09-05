@@ -32,21 +32,18 @@ func readWithTimeout(t *testing.T, ch <-chan string, timeout time.Duration) (str
 	}
 }
 
-func writeLogLines(t *testing.T, f *os.File, count int, line_fmt string) error {
+func writeLogLines(t *testing.T, f *os.File, count int, line_fmt string) {
 	t.Helper()
 
 	for i := range count {
 		_, err := fmt.Fprintln(f, fmt.Sprintf(line_fmt, i+1))
 		if err != nil {
 			t.Fatalf("Failed to write line %d: %v", i+1, err)
-			return err
 		}
 	}
-
-	return nil
 }
 
-func createTmpLogFile(t *testing.T, count int, line_fmt string) string {
+func createTmpLogFile(t *testing.T) string {
 	t.Helper()
 
 	f, err := os.CreateTemp(t.TempDir(), "follow-test-*.log")
@@ -55,17 +52,15 @@ func createTmpLogFile(t *testing.T, count int, line_fmt string) string {
 	}
 	defer f.Close()
 
-	if err = writeLogLines(t, f, count, line_fmt); err != nil {
-		t.Fatalf("Failed to write initial log lines: %v", err)
-	}
+	writeLogLines(t, f, linesPerStep, logLineFormat)
 
 	return f.Name()
 }
 
-func checksLinesInFile(t *testing.T, lines int, ch <-chan string, exp_fmt string) error {
+func checksLinesInFile(t *testing.T, ch <-chan string, exp_fmt string) error {
 	t.Helper()
 
-	for i := range lines {
+	for i := range linesPerStep {
 		n := i + 1
 
 		line, err := readWithTimeout(t, ch, time.Second)
@@ -83,7 +78,7 @@ func checksLinesInFile(t *testing.T, lines int, ch <-chan string, exp_fmt string
 }
 
 func TestFollow2_ReadExistingContent(t *testing.T) {
-	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
+	lf := createTmpLogFile(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -95,7 +90,7 @@ func TestFollow2_ReadExistingContent(t *testing.T) {
 		t.Fatalf("Failed to follow: %v", err)
 	}
 
-	err = checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
+	err = checksLinesInFile(t, outCh, logLineFormat)
 	if err != nil {
 		t.Fatalf("Failed to check lines in file: %v", err)
 	}
@@ -109,7 +104,7 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 		t.Skip("Skipping flaky test on CI until issue #TNTP-3131 is fixed")
 	}
 
-	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
+	lf := createTmpLogFile(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -121,7 +116,7 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 		t.Fatalf("Failed to follow: %v", err)
 	}
 
-	err = checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
+	err = checksLinesInFile(t, outCh, logLineFormat)
 	if err != nil {
 		t.Fatalf("Failed to check lines in file: %v", err)
 	}
@@ -132,14 +127,11 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 		t.Fatalf("Failed to open file for append: %v", err)
 	}
 
-	err = writeLogLines(t, appendFile, linesPerStep, logNewLineFormat)
-	if err != nil {
-		t.Fatalf("Failed to write new log lines: %v", err)
-	}
+	writeLogLines(t, appendFile, linesPerStep, logNewLineFormat)
 
 	appendFile.Close()
 
-	err = checksLinesInFile(t, linesPerStep, outCh, logNewLineFormat)
+	err = checksLinesInFile(t, outCh, logNewLineFormat)
 	if err != nil {
 		t.Fatalf("Failed to check lines in file: %v", err)
 	}
@@ -149,7 +141,7 @@ func TestFollow2_FollowNewContent(t *testing.T) {
 }
 
 func TestFollow2_ContextCancellation(t *testing.T) {
-	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
+	lf := createTmpLogFile(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -161,7 +153,7 @@ func TestFollow2_ContextCancellation(t *testing.T) {
 		t.Fatalf("Failed to follow: %v", err)
 	}
 
-	err = checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
+	err = checksLinesInFile(t, outCh, logLineFormat)
 	if err != nil {
 		t.Fatalf("Failed to check lines in file: %v", err)
 	}
@@ -200,7 +192,7 @@ func TestFollow2_NonExistentFile(t *testing.T) {
 func rotationTest(t *testing.T, use_delay bool) {
 	t.Helper()
 
-	lf := createTmpLogFile(t, linesPerStep, logLineFormat)
+	lf := createTmpLogFile(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -212,7 +204,7 @@ func rotationTest(t *testing.T, use_delay bool) {
 		t.Skipf("Failed to follow: %v", err)
 	}
 
-	err = checksLinesInFile(t, linesPerStep, outCh, logLineFormat)
+	err = checksLinesInFile(t, outCh, logLineFormat)
 	if err != nil {
 		t.Skipf("Failed to check initial lines in file: %v", err)
 		return
@@ -232,18 +224,13 @@ func rotationTest(t *testing.T, use_delay bool) {
 		t.Fatalf("Failed to create new log file: %v", err)
 	}
 
-	err = writeLogLines(t, newFile, linesPerStep, logNewLineFormat)
+	writeLogLines(t, newFile, linesPerStep, logNewLineFormat)
 
 	newFile.Close()
 
-	if err != nil {
-		t.Skipf("Failed to write new log lines after rotation: %v", err)
-		return
-	}
-
 	newFile.Close()
 
-	err = checksLinesInFile(t, linesPerStep, outCh, logNewLineFormat)
+	err = checksLinesInFile(t, outCh, logNewLineFormat)
 	if err != nil {
 		t.Skipf("Failed to check appended lines in file: %v", err)
 		return

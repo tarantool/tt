@@ -116,7 +116,7 @@ func TestWatchdogBase(t *testing.T) {
 
 	binPath, err := os.Executable()
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
-	os.Setenv("started_flag_file", filepath.Join(filepath.Dir(binPath), t.Name()))
+	t.Setenv("started_flag_file", filepath.Join(filepath.Dir(binPath), t.Name()))
 
 	wd := createTestWatchdog(t, true)
 	t.Cleanup(func() { cleanupWatchdog(t, wd) })
@@ -149,7 +149,7 @@ func TestWatchdogNotRestartable(t *testing.T) {
 
 	binPath, err := os.Executable()
 	require.NoErrorf(t, err, `Can't get the path to the executable. Error: "%v".`, err)
-	os.Setenv("started_flag_file", filepath.Join(filepath.Dir(binPath), t.Name()))
+	t.Setenv("started_flag_file", filepath.Join(filepath.Dir(binPath), t.Name()))
 
 	wd := createTestWatchdog(t, false)
 	t.Cleanup(func() { cleanupWatchdog(t, wd) })

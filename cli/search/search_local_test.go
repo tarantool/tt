@@ -20,10 +20,12 @@ type mockDirEntry struct {
 	isDir bool
 }
 
-func (m mockDirEntry) Name() string               { return m.name }
-func (m mockDirEntry) IsDir() bool                { return m.isDir }
-func (m mockDirEntry) Type() fs.FileMode          { return 0 }
-func (m mockDirEntry) Info() (fs.FileInfo, error) { return nil, nil }
+func (m mockDirEntry) Name() string      { return m.name }
+func (m mockDirEntry) IsDir() bool       { return m.isDir }
+func (m mockDirEntry) Type() fs.FileMode { return 0 }
+func (m mockDirEntry) Info() (fs.FileInfo, error) {
+	return nil, errors.New("not implemented")
+}
 
 // mockFS is a mock implementation of fs.FS for testing.
 type mockFS struct {

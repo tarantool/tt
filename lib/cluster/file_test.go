@@ -1,6 +1,7 @@
 package cluster_test
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,9 +20,7 @@ const (
 )
 
 func TestNewFileCollector(t *testing.T) {
-	var collector cluster.DataCollector
-
-	collector = cluster.NewFileCollector(testYamlPath)
+	var collector cluster.DataCollector = cluster.NewFileCollector(testYamlPath)
 
 	assert.NotNil(t, collector)
 }
@@ -31,7 +30,7 @@ func TestNewFileCollector_fileReadFunc_error(t *testing.T) {
 
 	factory := cluster.NewFactory(
 		cluster.WithFileReadFunc(func(path string) (io.ReadCloser, error) {
-			return nil, fmt.Errorf(errMsg)
+			return nil, errors.New(errMsg)
 		}),
 	)
 	collector := factory.NewFileCollector("foo")
@@ -123,9 +122,7 @@ func TestNewFileCollector_not_exist(t *testing.T) {
 }
 
 func TestNewFilePublisher(t *testing.T) {
-	var publisher cluster.DataPublisher
-
-	publisher = cluster.NewFilePublisher("")
+	var publisher cluster.DataPublisher = cluster.NewFilePublisher("")
 	assert.NotNil(t, publisher)
 }
 

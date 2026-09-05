@@ -63,23 +63,6 @@ func NewConsole(opts ConsoleOpts) (Console, error) {
 	return c, nil
 }
 
-func (c *Console) runOnPipe() error {
-	pipe := bufio.NewScanner(os.Stdin)
-	log.Infof("Processing piped input")
-	for pipe.Scan() {
-		line := pipe.Text()
-		c.execute(line)
-	}
-
-	err := pipe.Err()
-	if err == nil {
-		log.Info("EOF on pipe")
-	} else {
-		log.Warnf("Error on pipe %v", err)
-	}
-	return err
-}
-
 // Run starts console.
 func (c *Console) Run() error {
 	if c.quit {
@@ -108,6 +91,23 @@ func (c *Console) Close() {
 	}
 }
 
+func (c *Console) runOnPipe() error {
+	pipe := bufio.NewScanner(os.Stdin)
+	log.Infof("Processing piped input")
+	for pipe.Scan() {
+		line := pipe.Text()
+		c.execute(line)
+	}
+
+	err := pipe.Err()
+	if err == nil {
+		log.Info("EOF on pipe")
+	} else {
+		log.Warnf("Error on pipe %v", err)
+	}
+	return err
+}
+
 // executeEmbeddedCommand try process additional backslash commands.
 func (c *Console) executeEmbeddedCommand(in string) bool {
 	if c.input == "" && c.internal != nil {
@@ -129,9 +129,7 @@ func (c *Console) cleanupDelimiter() bool {
 	if c.delimiter == "" {
 		return true
 	}
-	no_space := strings.TrimRightFunc(c.input, func(r rune) bool {
-		return unicode.IsSpace(r)
-	})
+	no_space := strings.TrimRightFunc(c.input, unicode.IsSpace)
 	no_delim := strings.TrimSuffix(no_space, c.delimiter)
 	if len(no_space) > len(no_delim) {
 		c.input = no_delim

@@ -75,8 +75,9 @@ func doWithCtx(action func(context.Context) error) error {
 	return action(ctx)
 }
 
-func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
+func startEtcd(t *testing.T) *etcdtest.LazyCluster {
 	t.Helper()
+	opts := etcdOpts{}
 
 	myDir, err := os.Getwd()
 	if err != nil {
@@ -102,55 +103,57 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 	config := etcdtest.ClusterConfig{Size: 1, PeerTLS: tls}
 	inst := etcdtest.NewLazyCluster(config)
 
-	if opts.Username != "" {
-		etcd, err := clientv3.New(clientv3.Config{
-			Endpoints: inst.EndpointsGRPC(),
-		})
-		require.NoError(t, err)
-		defer etcd.Close()
+	if opts.Username == "" {
+		return inst
+	}
 
+	etcd, err := clientv3.New(clientv3.Config{
+		Endpoints: inst.EndpointsGRPC(),
+	})
+	require.NoError(t, err)
+	defer etcd.Close()
+
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to create user in etcd: %s", err)
+	}
+
+	if opts.Username != "root" {
+		// We need the root user for auth enable anyway.
 		if err := doWithCtx(func(ctx context.Context) error {
-			_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
+			_, err := etcd.UserAdd(ctx, "root", "")
 			return err
 		}); err != nil {
 			inst.Terminate()
-			t.Fatalf("Failed to create user in etcd: %s", err)
-		}
-
-		if opts.Username != "root" {
-			// We need the root user for auth enable anyway.
-			if err := doWithCtx(func(ctx context.Context) error {
-				_, err := etcd.UserAdd(ctx, "root", "")
-				return err
-			}); err != nil {
-				inst.Terminate()
-				t.Fatalf("Failed to create root in etcd: %s", err)
-			}
-
-			if err := doWithCtx(func(ctx context.Context) error {
-				_, err := etcd.UserGrantRole(ctx, "root", "root")
-				return err
-			}); err != nil {
-				inst.Terminate()
-				t.Fatalf("Failed to grant root in etcd: %s", err)
-			}
+			t.Fatalf("Failed to create root in etcd: %s", err)
 		}
 
 		if err := doWithCtx(func(ctx context.Context) error {
-			_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
+			_, err := etcd.UserGrantRole(ctx, "root", "root")
 			return err
 		}); err != nil {
 			inst.Terminate()
-			t.Fatalf("Failed to grant user in etcd: %s", err)
+			t.Fatalf("Failed to grant root in etcd: %s", err)
 		}
+	}
 
-		if err := doWithCtx(func(ctx context.Context) error {
-			_, err = etcd.AuthEnable(ctx)
-			return err
-		}); err != nil {
-			inst.Terminate()
-			t.Fatalf("Failed to enable auth in etcd: %s", err)
-		}
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to grant user in etcd: %s", err)
+	}
+
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err = etcd.AuthEnable(ctx)
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to enable auth in etcd: %s", err)
 	}
 
 	return inst
@@ -190,18 +193,18 @@ func etcdGet(t *testing.T, etcd *clientv3.Client, key string) ([]byte, int64) {
 }
 
 func newEtcdCollector(t *testing.T, stor pkgstorage.Storage,
-	prefix, key string, timeout time.Duration,
+	key string,
 ) cluster.DataCollector {
 	t.Helper()
 
-	collector, err := cluster.NewFactory().NewRemoteStorage(stor, prefix, key, timeout, "etcd")
+	collector, err := cluster.NewFactory().NewRemoteStorage(stor, "/foo/", key, timeout, "etcd")
 	require.NoError(t, err)
 
 	return collector
 }
 
 func newEtcdPublisher(t *testing.T, stor pkgstorage.Storage,
-	prefix, key string, timeout time.Duration,
+	prefix, key string,
 ) cluster.DataPublisher {
 	t.Helper()
 
@@ -212,7 +215,7 @@ func newEtcdPublisher(t *testing.T, stor pkgstorage.Storage,
 }
 
 func TestEtcdCollectors_single(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -228,8 +231,8 @@ func TestEtcdCollectors_single(t *testing.T) {
 		Name      string
 		Collector cluster.DataCollector
 	}{
-		{"all", newEtcdCollector(t, stor, "/foo/", "", timeout)},
-		{"key", newEtcdCollector(t, stor, "/foo/", "bar", timeout)},
+		{"all", newEtcdCollector(t, stor, "")},
+		{"key", newEtcdCollector(t, stor, "bar")},
 	}
 
 	for _, tc := range cases {
@@ -245,7 +248,7 @@ func TestEtcdCollectors_single(t *testing.T) {
 }
 
 func TestEtcdAllCollector_merge(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -258,7 +261,7 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/a", "foo: bar")
 	etcdPut(t, etcd, "/foo/config/b", "foo: car\nzoo: car")
 
-	data, err := newEtcdCollector(t, stor, "/foo/", "", timeout).Collect()
+	data, err := newEtcdCollector(t, stor, "").Collect()
 	require.NoError(t, err)
 	// Two separate etcd keys → two Data entries.
 	require.Len(t, data, 2)
@@ -275,7 +278,7 @@ func TestEtcdAllCollector_merge(t *testing.T) {
 }
 
 func TestEtcdCollectors_empty(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -289,8 +292,8 @@ func TestEtcdCollectors_empty(t *testing.T) {
 		Name      string
 		Collector cluster.DataCollector
 	}{
-		{"all", newEtcdCollector(t, stor, "/foo/", "", timeout)},
-		{"key", newEtcdCollector(t, stor, "/foo/", "bar", timeout)},
+		{"all", newEtcdCollector(t, stor, "")},
+		{"key", newEtcdCollector(t, stor, "bar")},
 	}
 
 	for _, tc := range cases {
@@ -303,7 +306,7 @@ func TestEtcdCollectors_empty(t *testing.T) {
 }
 
 func TestEtcdDataPublishers_Publish_single(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -319,8 +322,8 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 		Key       string
 		Publisher cluster.DataPublisher
 	}{
-		{"all", "all", newEtcdPublisher(t, stor, "/foo/", "", timeout)},
-		{"key", "key", newEtcdPublisher(t, stor, "/foo/", "key", timeout)},
+		{"all", "all", newEtcdPublisher(t, stor, "/foo/", "")},
+		{"key", "key", newEtcdPublisher(t, stor, "/foo/", "key")},
 	}
 
 	for _, tc := range cases {
@@ -335,7 +338,7 @@ func TestEtcdDataPublishers_Publish_single(t *testing.T) {
 }
 
 func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -352,8 +355,8 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 		Key       string
 		Publisher cluster.DataPublisher
 	}{
-		{"all", "all", newEtcdPublisher(t, stor, "/foo/", "", timeout)},
-		{"key", "key", newEtcdPublisher(t, stor, "/foo/", "key", timeout)},
+		{"all", "all", newEtcdPublisher(t, stor, "/foo/", "")},
+		{"key", "key", newEtcdPublisher(t, stor, "/foo/", "key")},
 	}
 
 	for _, tc := range cases {
@@ -369,7 +372,7 @@ func TestEtcdDataPublishers_Publish_rewrite(t *testing.T) {
 }
 
 func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -383,7 +386,7 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/zoo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = newEtcdPublisher(t, stor, "/foo/", "", timeout).Publish(0, data)
+	err = newEtcdPublisher(t, stor, "/foo/", "").Publish(0, data)
 	require.NoError(t, err)
 
 	actual, _ := etcdGet(t, etcd, "/foo/config/zoo")
@@ -397,7 +400,7 @@ func TestEtcdAllDataPublisher_Publish_rewrite_prefix(t *testing.T) {
 }
 
 func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -412,7 +415,7 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 
 	data := []byte("baz")
 
-	publisher := newEtcdPublisher(t, stor, "/foo", "key", timeout)
+	publisher := newEtcdPublisher(t, stor, "/foo", "key")
 	// Use wrong revision.
 	err = publisher.Publish(modRevision-1, data)
 	assert.Errorf(t, err, "failed to put data into etcd: wrong revision")
@@ -427,7 +430,7 @@ func TestEtcdKeyDataPublisher_Publish_modRevision_specified(t *testing.T) {
 }
 
 func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -441,7 +444,7 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo")
 
 	data := []byte("zoo bar foo")
-	err = newEtcdPublisher(t, stor, "/foo/", "all", timeout).Publish(0, data)
+	err = newEtcdPublisher(t, stor, "/foo/", "all").Publish(0, data)
 
 	assert.NoError(t, err)
 
@@ -456,7 +459,7 @@ func TestEtcdAllDataPublisher_Publish_ignore_prefix(t *testing.T) {
 }
 
 func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
-	inst := startEtcd(t, etcdOpts{})
+	inst := startEtcd(t)
 	defer inst.Terminate()
 
 	endpoints := inst.EndpointsGRPC()
@@ -469,8 +472,8 @@ func TestEtcdAllDataPublisher_collect_publish_collect(t *testing.T) {
 	etcdPut(t, etcd, "/foo/config/foo", "zoo: bar")
 
 	prefix := "/foo/"
-	publisher := newEtcdPublisher(t, stor, prefix, "", timeout)
-	collector := newEtcdCollector(t, stor, prefix, "", timeout)
+	publisher := newEtcdPublisher(t, stor, prefix, "")
+	collector := newEtcdCollector(t, stor, "")
 
 	// Collect and verify initial data.
 	data, err := collector.Collect()
@@ -620,7 +623,7 @@ var testsIntegrity = []struct {
 		Setup: func(t *testing.T) interface{} {
 			t.Helper()
 
-			inst := startEtcd(t, etcdOpts{})
+			inst := startEtcd(t)
 			return inst
 		},
 		Shutdown: func(t *testing.T, inst interface{}) {

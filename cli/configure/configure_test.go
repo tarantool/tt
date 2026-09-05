@@ -44,6 +44,8 @@ func newMockRepository() mockRepository {
 // Test Tarantool CLI configuration (system and local).
 func TestConfigureCli(t *testing.T) {
 	assert := assert.New(t)
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
 
 	mockRepository := newMockRepository()
 
@@ -66,6 +68,9 @@ func TestConfigureCli(t *testing.T) {
 	assert.Equal(cmdCtx.Cli.ConfigPath, ConfigName)
 
 	testDir := t.TempDir()
+	// Cli changes the process working directory for a local launch. Register
+	// restoration before calling it and before the temporary directory cleanup.
+	t.Chdir(cwd)
 
 	// Test local configuration.
 	cmdCtx.Cli.IsSystem = false
@@ -86,10 +91,6 @@ func TestConfigureCli(t *testing.T) {
 
 	defer os.Remove(expectedTarantoolPath)
 
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(wd) // Chdir from local launch dir after the Cli call.
-
 	require.NoError(t, Cli(&cmdCtx))
 	assert.Equal(cmdCtx.Cli.ConfigPath, expectedConfigPath)
 	assert.Equal(cmdCtx.Cli.TarantoolCli.Executable, expectedTarantoolPath)
@@ -107,7 +108,7 @@ func TestConfigureCli(t *testing.T) {
 	// Check if it will go down to the bottom of the directory looking
 	// for the tt.yaml configuration file, specifically skip a file
 	// in the working directory.
-	os.Chdir(dir)
+	t.Chdir(dir)
 	expectedConfigPath = filepath.Join(filepath.Dir(dir), ConfigName)
 
 	assert.Nil(os.WriteFile(
@@ -249,11 +250,7 @@ func TestDetectLocalTarantool(t *testing.T) {
 	require.Equal(t, expected, cmdCtx.Cli.TarantoolCli.Executable)
 
 	// Chdir to temporary directory to avoid loading tt.yaml from parent directories.
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	err = os.Chdir(t.TempDir())
-	require.NoError(t, err)
-	defer os.Chdir(wd)
+	t.Chdir(t.TempDir())
 
 	// Tarantool executable is in PATH.
 	cliOpts.Env.BinDir = "./testdata"
@@ -280,8 +277,7 @@ func TestDetectLocalTt(t *testing.T) {
 
 func TestGetSystemConfigPath(t *testing.T) {
 	require.Equal(t, filepath.Join(defaultConfigPath, ConfigName), getSystemConfigPath())
-	os.Setenv(systemConfigDirEnvName, "/system_config_dir")
-	defer os.Unsetenv(getSystemConfigPath())
+	t.Setenv(systemConfigDirEnvName, "/system_config_dir")
 	require.Equal(t, filepath.Join("/system_config_dir", ConfigName), getSystemConfigPath())
 }
 
@@ -295,20 +291,17 @@ func TestGetConfigPath(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(tempDir, "tt.yaml"), []byte(""),
 		0o664))
 
-	if wd, err := os.Getwd(); err == nil {
-		require.NoError(t, os.Chdir(filepath.Join(tempDir, "a", "b")))
-		defer os.Chdir(wd)
-	}
+	t.Chdir(filepath.Join(tempDir, "a", "b"))
 	workdir, _ := os.Getwd()
 	workdir = strings.TrimSuffix(workdir, "/a/b")
 
-	configName, err := getConfigPath(ConfigName)
+	configName, err := getConfigPath()
 	assert.Equal(t, "", configName)
 	assert.True(t, strings.Contains(err.Error(), "more than one YAML files are found"))
 
 	require.NoError(t, os.Remove(filepath.Join(tempDir, "a", ConfigName)))
 
-	configName, err = getConfigPath(ConfigName)
+	configName, err = getConfigPath()
 
 	assert.Equal(t, filepath.Join(workdir, "a", "tt.yml"), configName)
 	assert.NoError(t, err)

@@ -32,55 +32,6 @@ type HTTPServer struct {
 	logger ttlog.Logger
 }
 
-// listenIP discovers IP address on the specified interface.
-// If interface name is not specified returned value is 0.0.0.0;
-// returns the first discovered IP address on the specified interface.
-func (httpServer *HTTPServer) listenIP() (string, error) {
-	if httpServer.listenIface == "" {
-		return net.IPv4zero.String(), nil
-	}
-
-	iface, err := net.InterfaceByName(httpServer.listenIface)
-	if err != nil {
-		return "", err
-	}
-
-	if iface.Flags&net.FlagUp == 0 {
-		return "", fmt.Errorf("interface down")
-	}
-
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return "", err
-	}
-
-	// The socket will bind to the first discovered
-	// IP address on the specified interface.
-	for _, addr := range addrs {
-		var ip net.IP
-		switch v := addr.(type) {
-		case *net.IPNet:
-			ip = v.IP
-		case *net.IPAddr:
-			ip = v.IP
-		}
-
-		if ip == nil {
-			continue
-		}
-
-		// TODO: Support IPv6 by option
-		// Not an IPv4 address.
-		if ip.To4() == nil {
-			continue
-		}
-
-		return ip.String(), nil
-	}
-
-	return "", fmt.Errorf("listen IP is not available")
-}
-
 // NewHTTPServer creates new HTTPServer.
 func NewHTTPServer(listenInterface string, port int) *HTTPServer {
 	return &HTTPServer{
@@ -144,4 +95,53 @@ func (httpServer *HTTPServer) Stop() error {
 	cancel()
 
 	return err
+}
+
+// listenIP discovers IP address on the specified interface.
+// If interface name is not specified returned value is 0.0.0.0;
+// returns the first discovered IP address on the specified interface.
+func (httpServer *HTTPServer) listenIP() (string, error) {
+	if httpServer.listenIface == "" {
+		return net.IPv4zero.String(), nil
+	}
+
+	iface, err := net.InterfaceByName(httpServer.listenIface)
+	if err != nil {
+		return "", err
+	}
+
+	if iface.Flags&net.FlagUp == 0 {
+		return "", fmt.Errorf("interface down")
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return "", err
+	}
+
+	// The socket will bind to the first discovered
+	// IP address on the specified interface.
+	for _, addr := range addrs {
+		var ip net.IP
+		switch v := addr.(type) {
+		case *net.IPNet:
+			ip = v.IP
+		case *net.IPAddr:
+			ip = v.IP
+		}
+
+		if ip == nil {
+			continue
+		}
+
+		// TODO: Support IPv6 by option
+		// Not an IPv4 address.
+		if ip.To4() == nil {
+			continue
+		}
+
+		return ip.String(), nil
+	}
+
+	return "", fmt.Errorf("listen IP is not available")
 }

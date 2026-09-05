@@ -4,7 +4,6 @@ package cluster_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -67,55 +66,57 @@ func startEtcd(t *testing.T, opts etcdOpts) *etcdtest.LazyCluster {
 	config := etcdtest.ClusterConfig{Size: 1, PeerTLS: tls}
 	inst := etcdtest.NewLazyCluster(config)
 
-	if opts.Username != "" {
-		etcd, err := clientv3.New(clientv3.Config{
-			Endpoints: inst.EndpointsGRPC(),
-		})
-		require.NoError(t, err)
-		defer etcd.Close()
+	if opts.Username == "" {
+		return inst
+	}
 
+	etcd, err := clientv3.New(clientv3.Config{
+		Endpoints: inst.EndpointsGRPC(),
+	})
+	require.NoError(t, err)
+	defer etcd.Close()
+
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to create user in etcd: %s", err)
+	}
+
+	if opts.Username != "root" {
+		// We need the root user for auth enable anyway.
 		if err := doWithCtx(func(ctx context.Context) error {
-			_, err := etcd.UserAdd(ctx, opts.Username, opts.Password)
+			_, err := etcd.UserAdd(ctx, "root", "")
 			return err
 		}); err != nil {
 			inst.Terminate()
-			t.Fatalf("Failed to create user in etcd: %s", err)
-		}
-
-		if opts.Username != "root" {
-			// We need the root user for auth enable anyway.
-			if err := doWithCtx(func(ctx context.Context) error {
-				_, err := etcd.UserAdd(ctx, "root", "")
-				return err
-			}); err != nil {
-				inst.Terminate()
-				t.Fatalf("Failed to create root in etcd: %s", err)
-			}
-
-			if err := doWithCtx(func(ctx context.Context) error {
-				_, err := etcd.UserGrantRole(ctx, "root", "root")
-				return err
-			}); err != nil {
-				inst.Terminate()
-				t.Fatalf("Failed to grant root in etcd: %s", err)
-			}
+			t.Fatalf("Failed to create root in etcd: %s", err)
 		}
 
 		if err := doWithCtx(func(ctx context.Context) error {
-			_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
+			_, err := etcd.UserGrantRole(ctx, "root", "root")
 			return err
 		}); err != nil {
 			inst.Terminate()
-			t.Fatalf("Failed to grant user in etcd: %s", err)
+			t.Fatalf("Failed to grant root in etcd: %s", err)
 		}
+	}
 
-		if err := doWithCtx(func(ctx context.Context) error {
-			_, err = etcd.AuthEnable(ctx)
-			return err
-		}); err != nil {
-			inst.Terminate()
-			t.Fatalf("Failed to enable auth in etcd: %s", err)
-		}
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err := etcd.UserGrantRole(ctx, opts.Username, "root")
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to grant user in etcd: %s", err)
+	}
+
+	if err := doWithCtx(func(ctx context.Context) error {
+		_, err = etcd.AuthEnable(ctx)
+		return err
+	}); err != nil {
+		inst.Terminate()
+		t.Fatalf("Failed to enable auth in etcd: %s", err)
 	}
 
 	return inst
@@ -162,9 +163,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 	defer inst.Terminate()
 	endpoints := inst.EndpointsGRPC()
 
-	tmpDir, err := os.MkdirTemp("", "work_dir")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	renderEtcdAppConfig(t, endpoints[0], "testdata/etcdapp/config.yaml.template", configPath)
@@ -200,7 +199,7 @@ func TestGetClusterConfig_etcd(t *testing.T) {
 
 	// Etcd config from file.
 	assert.Equal(t, endpoints[0], cfgGet[string](t, snap,
-		fmt.Sprintf("config/etcd/endpoints/0")))
+		"config/etcd/endpoints/0"))
 	assert.Equal(t, "root", cfgGet[string](t, snap, "config/etcd/username"))
 	assert.Equal(t, "pass", cfgGet[string](t, snap, "config/etcd/password"))
 	assert.Equal(t, "/test", cfgGet[string](t, snap, "config/etcd/prefix"))
@@ -231,9 +230,7 @@ func TestGetClusterConfig_etcd_connect_from_env(t *testing.T) {
 	defer inst.Terminate()
 	endpoints := inst.EndpointsGRPC()
 
-	tmpDir, err := os.MkdirTemp("", "work_dir")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	configPath := filepath.Join(tmpDir, "config.yaml")
 	renderEtcdAppConfig(t, endpoints[0], "testdata/etcdapp/config.yaml.template", configPath)

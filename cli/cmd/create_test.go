@@ -11,9 +11,8 @@ import (
 )
 
 func TestCreateValidArgsFunction(t *testing.T) {
-	tempDir := os.TempDir()
-	tempsDir1, _ := os.MkdirTemp(tempDir, "create_test")
-	tempsDir2, _ := os.MkdirTemp(tempDir, "create_test")
+	tempsDir1 := t.TempDir()
+	tempsDir2 := t.TempDir()
 	oldOpts := cliOpts
 	cliOpts = &config.CliOpts{
 		Templates: []config.TemplateOpts{
@@ -23,16 +22,16 @@ func TestCreateValidArgsFunction(t *testing.T) {
 	}
 	defer func() {
 		cliOpts = oldOpts
-		os.RemoveAll(tempsDir1)
-		os.RemoveAll(tempsDir2)
 	}()
 	os.Create(tempsDir1 + "/" + "excess.A")
 	os.Create(tempsDir1 + "/" + "archive.tgz")
-	tDir1, _ := os.MkdirTemp(tempsDir1, "template1")
+	tDir1 := filepath.Join(tempsDir1, "template1")
+	assert.NoError(t, os.Mkdir(tDir1, 0o755))
 
 	os.Create(tempsDir2 + "/" + "excess.B")
 	os.Create(tempsDir2 + "/" + "template2.tar.gz")
-	tDir2, _ := os.MkdirTemp(tempsDir2, "template2")
+	tDir2 := filepath.Join(tempsDir2, "template2")
+	assert.NoError(t, os.Mkdir(tDir2, 0o755))
 
 	_, tDir1Name := filepath.Split(tDir1)
 	_, tDir2Name := filepath.Split(tDir2)

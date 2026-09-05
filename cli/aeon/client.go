@@ -114,19 +114,6 @@ func NewAeonHandler(ctx cmd.ConnectCtx) (*Client, error) {
 	return &c, nil
 }
 
-func (c *Client) ping() error {
-	log.Infof("Start ping aeon server")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	diag := pb.NewDiagServiceClient(c.conn)
-	_, err := diag.Ping(ctx, &pb.PingRequest{})
-	if err != nil {
-		log.Warnf("Aeon ping %s", err)
-	}
-	return err
-}
-
 // Title implements console.Handler interface.
 func (c *Client) Title() string {
 	return c.title
@@ -142,8 +129,12 @@ func (c *Client) Validate(input string) bool {
 		log.Warnf("Aeon validate %s\nFor request: %q", err, input)
 		return false
 	}
+	if check == nil {
+		log.Warnf("Aeon validate returned an empty response for request: %q", input)
+		return false
+	}
 
-	return check.Status == pb.SQLCheckStatus_SQL_QUERY_VALID
+	return check.GetStatus() == pb.SQLCheckStatus_SQL_QUERY_VALID
 }
 
 // Execute implements console.Handler interface.
@@ -169,29 +160,51 @@ func (c *Client) Complete(input prompt.Document) []prompt.Suggest {
 	return nil
 }
 
+func (c *Client) ping() error {
+	log.Infof("Start ping aeon server")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	diag := pb.NewDiagServiceClient(c.conn)
+	_, err := diag.Ping(ctx, &pb.PingRequest{})
+	if err != nil {
+		log.Warnf("Aeon ping %s", err)
+	}
+	return err
+}
+
 // parseSQLResponse returns result as table in map.
 // Where keys is name of columns. And body is array of values.
 // On any issue return an error.
 func parseSQLResponse(resp *pb.SQLResponse) any {
-	if resp.Error != nil {
-		return resultError{resp.Error}
+	if resp == nil {
+		return errors.New("empty Aeon SQL response")
 	}
-	if resp.TupleFormat == nil {
+	if responseError := resp.GetError(); responseError != nil {
+		return resultError{responseError}
+	}
+	tupleFormat := resp.GetTupleFormat()
+	if tupleFormat == nil {
 		return resultType{}
 	}
+	names := tupleFormat.GetNames()
+	tuples := resp.GetTuples()
 	res := resultType{
-		names: slices.Clone(resp.TupleFormat.Names),
-		rows:  make([]resultRow, len(resp.Tuples)),
+		names: slices.Clone(names),
+		rows:  make([]resultRow, len(tuples)),
 	}
-	for i := range resp.Tuples {
-		res.rows[i] = make([]any, 0, len(resp.TupleFormat.Names))
+	for i := range tuples {
+		res.rows[i] = make([]any, 0, len(names))
 	}
 
-	for r, row := range resp.Tuples {
-		for _, v := range row.Fields {
+	for r, row := range tuples {
+		if row == nil {
+			return fmt.Errorf("tuple %d is nil", r)
+		}
+		for _, v := range row.GetFields() {
 			val, err := decodeValue(v)
 			if err != nil {
-				return fmt.Errorf("tuple %d can't decode %s: %w", r, v.String(), err)
+				return fmt.Errorf("tuple %d can't decode value %v: %w", r, v, err)
 			}
 			res.rows[r] = append(res.rows[r], val)
 		}

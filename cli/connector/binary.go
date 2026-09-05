@@ -46,25 +46,8 @@ func (conn *BinaryConnector) Eval(expr string, args []interface{},
 	var data []interface{}
 	future := conn.conn.Do(evalReq)
 	if opts.PushCallback != nil {
-		var timeout time.Duration
-		if opts.ReadTimeout != 0 {
-			timeout = opts.ReadTimeout
-		} else {
-			timeout = time.Duration(math.MaxInt64)
-		}
-		for it := future.GetIterator().WithTimeout(timeout); it.Next(); {
-			if err := it.Err(); err != nil {
-				return nil, replaceContextDone(err)
-			}
-			if !it.IsPush() {
-				break
-			}
-			resp := it.Value()
-			pushData, err := resp.Decode()
-			if err != nil {
-				return nil, replaceContextDone(err)
-			}
-			opts.PushCallback(pushData[0])
+		if err := processPushes(future, opts); err != nil {
+			return nil, err
 		}
 	}
 
@@ -84,6 +67,30 @@ func (conn *BinaryConnector) Eval(expr string, args []interface{},
 	}
 
 	return data, nil
+}
+
+func processPushes(future *tarantool.Future, opts RequestOpts) error {
+	var timeout time.Duration
+	if opts.ReadTimeout != 0 {
+		timeout = opts.ReadTimeout
+	} else {
+		timeout = time.Duration(math.MaxInt64)
+	}
+	for it := future.GetIterator().WithTimeout(timeout); it.Next(); {
+		if err := it.Err(); err != nil {
+			return replaceContextDone(err)
+		}
+		if !it.IsPush() {
+			break
+		}
+		resp := it.Value()
+		pushData, err := resp.Decode()
+		if err != nil {
+			return replaceContextDone(err)
+		}
+		opts.PushCallback(pushData[0])
+	}
+	return nil
 }
 
 // Close closes the tarantool.Connector created from.
