@@ -36,7 +36,6 @@ linters:
     - gochecknoglobals
     - gocognit
     - goconst
-    - gocyclo
     - godox
     - gomodguard
     - gosec
@@ -93,6 +92,8 @@ linters:
     exhaustive:
       # A switch with a default clause is treated as exhaustive.
       default-signifies-exhaustive: true
+    gocyclo:
+      min-complexity: 30
     godot:
       scope: all
     lll:
