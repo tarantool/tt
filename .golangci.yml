@@ -44,7 +44,6 @@ linters:
     - mnd
     - modernize
     - nestif
-    - nilnil
     - nlreturn
     - noctx
     - noinlineerr
@@ -190,6 +189,11 @@ linters:
         text: don't use `init` function
         linters:
           - gochecknoinits
+      # Protobuf null is represented by an untyped nil value.
+      - path: ^cli/aeon/decode\.go$
+        source: ^\s*return nil, nil$
+        linters:
+          - nilnil
       # Go struct tags cannot be split across source lines. Keep the 100-column
       # limit everywhere else without scattering nolint directives in code.
       - path: ^cli/manifest/inventory/uninstall\.go$
