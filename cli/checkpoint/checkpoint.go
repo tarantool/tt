@@ -70,7 +70,7 @@ func Play(tntCli cmdcontext.TarantoolCli) error {
 	scanner := bufio.NewScanner(stdoutPipe)
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
-		fmt.Println(scanner.Text())
+		fmt.Fprintln(os.Stdout, scanner.Text())
 	}
 	cmd.Wait()
 

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -62,17 +63,17 @@ func internalModulesList(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		m := modulesInfo[path]
 
 		if showVersion {
-			fmt.Printf("%-5s\t", m.Version)
+			fmt.Fprintf(os.Stdout, "%-5s\t", m.Version)
 		}
-		fmt.Printf("%s - ", m.Name)
+		fmt.Fprintf(os.Stdout, "%s - ", m.Name)
 
 		if showPath {
-			fmt.Print(m.Main)
+			fmt.Fprint(os.Stdout, m.Main)
 		} else {
-			fmt.Print(m.Help)
+			fmt.Fprint(os.Stdout, m.Help)
 		}
 
-		fmt.Print("\n")
+		fmt.Fprint(os.Stdout, "\n")
 	}
 	return nil
 }

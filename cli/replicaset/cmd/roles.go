@@ -2,6 +2,7 @@ package replicasetcmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/connector"
@@ -66,7 +67,7 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 	}
 
 	log.Info("Discovery application...")
-	fmt.Println()
+	fmt.Fprintln(os.Stdout)
 
 	// Get and print status.
 	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
@@ -74,7 +75,7 @@ func RolesChange(ctx RolesChangeCtx, changeRoleAction replicaset.RolesChangerAct
 		return err
 	}
 	statusReplicasets(replicasets)
-	fmt.Println()
+	fmt.Fprintln(os.Stdout)
 
 	action := []string{"Add", "to"}
 	if changeRoleAction.Action() == replicaset.RemoveAction {

@@ -3,6 +3,7 @@ package replicasetcmd
 import (
 	_ "embed"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
@@ -62,10 +63,10 @@ func internalDowngrade(replicasets []replicaset.Replicaset, lsnTimeout int, vers
 	for _, replicaset := range replicasets {
 		err := downgradeReplicaset(replicaset, lsnTimeout, version, connOpts)
 		if err != nil {
-			fmt.Printf("• %s: error\n", replicaset.Alias)
+			fmt.Fprintf(os.Stdout, "• %s: error\n", replicaset.Alias)
 			return fmt.Errorf("replicaset %s: %w", replicaset.Alias, err)
 		}
-		fmt.Printf("• %s: ok\n", replicaset.Alias)
+		fmt.Fprintf(os.Stdout, "• %s: ok\n", replicaset.Alias)
 	}
 	return nil
 }

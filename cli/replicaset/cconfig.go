@@ -591,7 +591,7 @@ func reloadCConfig(instances []running.InstanceCtx) error {
 		opts := connector.RequestOpts{}
 		_, err := evaler.Eval("require('config'):reload()", args, opts)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stdout, err)
 			errored = append(errored, instance.InstName)
 		}
 		return false, nil

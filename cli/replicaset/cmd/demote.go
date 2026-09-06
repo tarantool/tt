@@ -2,6 +2,7 @@ package replicasetcmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/apex/log"
 	"github.com/tarantool/tt/cli/connector"
@@ -48,7 +49,7 @@ func Demote(ctx DemoteCtx) error {
 	}
 
 	log.Info("Discovery application...")
-	fmt.Println()
+	fmt.Fprintln(os.Stdout)
 
 	// Get and print status.
 	replicasets, err := orchestrator.Discovery(replicaset.SkipCache)
@@ -56,7 +57,7 @@ func Demote(ctx DemoteCtx) error {
 		return err
 	}
 	statusReplicasets(replicasets)
-	fmt.Println()
+	fmt.Fprintln(os.Stdout)
 
 	if ctx.InstName != "" {
 		log.Infof("Demote instance: %s", ctx.InstName)

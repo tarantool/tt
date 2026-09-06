@@ -348,7 +348,7 @@ func TestMain(m *testing.M) {
 	flag.Parse()
 
 	if *updateTestdata {
-		fmt.Println("Updating testdata files...")
+		fmt.Fprintln(os.Stdout, "Updating testdata files...")
 		os.RemoveAll(filepath.Join(testDataDir, expectedSubDir))
 	}
 

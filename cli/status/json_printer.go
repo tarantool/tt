@@ -3,6 +3,7 @@ package status
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 )
 
 // JSONPrinter implements InstanceStatusPrinter for JSON output.
@@ -19,6 +20,6 @@ func (j JSONPrinter) Print(instances map[string]*instanceStatus) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal instances to JSON: %w", err)
 	}
-	fmt.Println(string(jsonData))
+	fmt.Fprintln(os.Stdout, string(jsonData))
 	return nil
 }

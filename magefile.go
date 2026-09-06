@@ -175,34 +175,34 @@ type Build mg.Namespace
 
 // Release builds the release tt executable without debug info.
 func (Build) Release() error {
-	fmt.Println("Building release tt...")
+	fmt.Fprintln(os.Stdout, "Building release tt...")
 
 	return buildTt(appendTags, appendLdFlags("-s", "-w"))
 }
 
 // Debug builds the debug tt executable.
 func (Build) Debug() error {
-	fmt.Println("Building debug tt...")
+	fmt.Fprintln(os.Stdout, "Building debug tt...")
 
 	return buildTt(appendTags, appendLdFlags())
 }
 
 // Coverage builds the tt executable with coverage.
 func (Build) Coverage() error {
-	fmt.Println("Building release tt with coverage...")
+	fmt.Fprintln(os.Stdout, "Building release tt with coverage...")
 
 	err := buildTt(appendFlags("-cover"), appendTags, appendLdFlags("-s", "-w"))
 	if err != nil {
 		return err
 	}
-	fmt.Println(`Set coverage data destination directory (must exist) and run tt:
+	fmt.Fprintln(os.Stdout, `Set coverage data destination directory (must exist) and run tt:
 	GOCOVERDIR=./<coverage_dest_dir> tt <opts>`)
 	return nil
 }
 
 // CheckLicenses runs the license checker.
 func CheckLicenses() error {
-	fmt.Println("Running license checker...")
+	fmt.Fprintln(os.Stdout, "Running license checker...")
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -231,7 +231,7 @@ func (Lint) Golang() error {
 		return err
 	}
 
-	fmt.Printf("Running %s over %s...\n", linter, lintConfig)
+	fmt.Fprintf(os.Stdout, "Running %s over %s...\n", linter, lintConfig)
 
 	root, err := os.Getwd()
 	if err != nil {
@@ -303,7 +303,7 @@ func linterVersionOf(exe string) (string, error) {
 
 // Python runs python linters.
 func (Lint) Python() error {
-	fmt.Println("Running Ruff...")
+	fmt.Fprintln(os.Stdout, "Running Ruff...")
 
 	if err := sh.RunV(pythonExecutableName, "-m", "ruff", "check", "test"); err != nil {
 		return err
@@ -336,28 +336,28 @@ func runUnitTests(flags []string) error {
 
 // Default runs unit tests.
 func (Unit) Default() error {
-	fmt.Println("Running unit tests...")
+	fmt.Fprintln(os.Stdout, "Running unit tests...")
 
 	return runUnitTests([]string{})
 }
 
 // Full runs unit tests with Tarantool instance integration.
 func (Unit) Full() error {
-	fmt.Println("Running full unit tests...")
+	fmt.Fprintln(os.Stdout, "Running full unit tests...")
 
 	return runUnitTests([]string{"-tags", "integration,integration_docker"})
 }
 
 // FullSkipDocker runs unit tests with Tarantool instance integration, excluding docker tests.
 func (Unit) FullSkipDocker() error {
-	fmt.Println("Running full unit tests, excluding docker...")
+	fmt.Fprintln(os.Stdout, "Running full unit tests, excluding docker...")
 
 	return runUnitTests([]string{"-tags", "integration"})
 }
 
 // Coverage runs the full unit test set with code coverage.
 func (Unit) Coverage() error {
-	fmt.Println("Running full unit tests with code coverage...")
+	fmt.Fprintln(os.Stdout, "Running full unit tests with code coverage...")
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -380,8 +380,8 @@ func (Unit) Coverage() error {
 	if err != nil {
 		relCoverDir = coverDir
 	}
-	fmt.Printf("Coverage data is saved to %q\n", relCoverDir)
-	fmt.Printf(`Example command for analysis:
+	fmt.Fprintf(os.Stdout, "Coverage data is saved to %q\n", relCoverDir)
+	fmt.Fprintf(os.Stdout, `Example command for analysis:
 	go tool covdata func -i %q
 `, relCoverDir)
 
@@ -406,7 +406,7 @@ func ensureCoverageDir(coverDir string) error {
 
 // Integration runs integration tests, excluding slow tests.
 func Integration() error {
-	fmt.Println("Running integration tests...")
+	fmt.Fprintln(os.Stdout, "Running integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow and not slow_ee "+
 		"and not notarantool", "test/integration")
@@ -414,7 +414,7 @@ func Integration() error {
 
 // IntegrationFull runs the full set of integration tests.
 func IntegrationFull() error {
-	fmt.Println("Running all integration tests...")
+	fmt.Fprintln(os.Stdout, "Running all integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "not slow_ee and not notarantool",
 		"test/integration")
@@ -422,7 +422,7 @@ func IntegrationFull() error {
 
 // IntegrationFullSkipDocker runs the full set of integration tests, excluding docker tests.
 func IntegrationFullSkipDocker() error {
-	fmt.Println("Running all integration tests, excluding docker...")
+	fmt.Fprintln(os.Stdout, "Running all integration tests, excluding docker...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
 		"not slow_ee and not notarantool and not docker", "test/integration")
@@ -430,7 +430,7 @@ func IntegrationFullSkipDocker() error {
 
 // IntegrationFullDocker runs only docker tests from the full set.
 func IntegrationFullDocker() error {
-	fmt.Println("Running docker integration tests...")
+	fmt.Fprintln(os.Stdout, "Running docker integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m",
 		"not slow_ee and not notarantool and docker", "test/integration")
@@ -438,14 +438,14 @@ func IntegrationFullDocker() error {
 
 // IntegrationEE runs the set of EE integration tests.
 func IntegrationEE() error {
-	fmt.Println("Running all EE integration tests...")
+	fmt.Fprintln(os.Stdout, "Running all EE integration tests...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "test/integration/ee")
 }
 
 // IntegrationNoTarantool runs integration tests without a system-wide Tarantool installation.
 func IntegrationNoTarantool() error {
-	fmt.Println("Running integration tests without Tarantool...")
+	fmt.Fprintln(os.Stdout, "Running integration tests without Tarantool...")
 
 	return sh.RunV(pythonExecutableName, "-m", "pytest", "-m", "notarantool",
 		"test/integration")
@@ -453,7 +453,7 @@ func IntegrationNoTarantool() error {
 
 // CodeSpell runs code spell checks.
 func CodeSpell() error {
-	fmt.Println("Running code spell tests...")
+	fmt.Fprintln(os.Stdout, "Running code spell tests...")
 
 	return sh.RunV("codespell", ".") // spell-checker:disable-line
 }
@@ -470,7 +470,7 @@ func TestFull() {
 
 // Clean cleans up the directory.
 func Clean() {
-	fmt.Println("Cleaning directory...")
+	fmt.Fprintln(os.Stdout, "Cleaning directory...")
 
 	os.Remove(ttExecutableName)
 }

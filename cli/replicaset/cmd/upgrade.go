@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -85,10 +86,10 @@ func internalUpgrade(replicasets []replicaset.Replicaset, lsnTimeout int,
 	for _, replicaset := range replicasets {
 		err := upgradeReplicaset(replicaset, lsnTimeout, connOpts)
 		if err != nil {
-			fmt.Printf("• %s: error\n", replicaset.Alias)
+			fmt.Fprintf(os.Stdout, "• %s: error\n", replicaset.Alias)
 			return fmt.Errorf("replicaset %s: %w", replicaset.Alias, err)
 		}
-		fmt.Printf("• %s: ok\n", replicaset.Alias)
+		fmt.Fprintf(os.Stdout, "• %s: ok\n", replicaset.Alias)
 	}
 	return nil
 }

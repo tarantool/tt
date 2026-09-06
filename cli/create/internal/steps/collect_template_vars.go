@@ -2,6 +2,7 @@ package steps
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -37,7 +38,7 @@ func validateExistingValue(createCtx *create_ctx.CreateCtx, varInfo app_template
 	if createCtx.SilentMode {
 		return false, fmt.Errorf("invalid format of %s variable", varInfo.Name)
 	}
-	fmt.Printf("Invalid format of %s variable.\n", varInfo.Name)
+	fmt.Fprintf(os.Stdout, "Invalid format of %s variable.\n", varInfo.Name)
 	return false, nil
 }
 
@@ -67,12 +68,12 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 				if createCtx.SilentMode {
 					return fmt.Errorf("%s variable value is not set", varInfo.Name)
 				}
-				fmt.Printf("%s: ", varInfo.Prompt)
+				fmt.Fprintf(os.Stdout, "%s: ", varInfo.Prompt)
 			} else {
 				if createCtx.SilentMode {
 					input = varInfo.Default
 				} else {
-					fmt.Printf("%s (default: %s): ", varInfo.Prompt, varInfo.Default)
+					fmt.Fprintf(os.Stdout, "%s (default: %s): ", varInfo.Prompt, varInfo.Default)
 				}
 			}
 
@@ -86,7 +87,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 
 			if input == "" {
 				if varInfo.Default == "" {
-					fmt.Println("Please enter a value.")
+					fmt.Fprintln(os.Stdout, "Please enter a value.")
 				} else {
 					input = varInfo.Default
 				}
@@ -106,7 +107,7 @@ func (collectTemplateVarsFromUser CollectTemplateVarsFromUser) Run(
 				if createCtx.SilentMode {
 					return fmt.Errorf("invalid format of %s variable", varInfo.Name)
 				}
-				fmt.Println("Invalid format. Try again.")
+				fmt.Fprintln(os.Stdout, "Invalid format. Try again.")
 			}
 		}
 		templateCtx.Vars[varInfo.Name] = input

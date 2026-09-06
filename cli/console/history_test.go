@@ -47,7 +47,7 @@ func TestNewHistory(t *testing.T) {
 			}
 			cmds := hist.Commands()
 			if !reflect.DeepEqual(cmds, tt.want) {
-				fmt.Print(cmds)
+				fmt.Fprint(os.Stdout, cmds)
 				t.Errorf("NewHistory() = %v, want %v", cmds, tt.want)
 			}
 		})

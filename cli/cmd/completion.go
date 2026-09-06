@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/fs"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -100,7 +101,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Print(string(res))
+		fmt.Fprint(os.Stdout, string(res))
 
 	case shellZsh:
 		if err := rootCmd.GenZshCompletion(&buf); err != nil {
@@ -110,7 +111,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Print(string(res))
+		fmt.Fprint(os.Stdout, string(res))
 
 	case shellFish:
 		if err := rootCmd.GenFishCompletion(&buf, true); err != nil {
@@ -120,7 +121,7 @@ func internalCompletionCmd(cmdCtx *cmdcontext.CmdCtx, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Print(string(res))
+		fmt.Fprint(os.Stdout, string(res))
 
 	default:
 		return fmt.Errorf("specified shell type is not supported. Available: %s", listShells())

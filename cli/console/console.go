@@ -179,10 +179,10 @@ func (c *Console) execute(in string) {
 		os.Exit(0)
 	}
 
-	fmt.Println("---")
+	fmt.Fprintln(os.Stdout, "---")
 	output, err := c.impl.Format.Sprint(results)
 	if err == nil {
-		fmt.Println(output)
+		fmt.Fprintln(os.Stdout, output)
 	} else {
 		log.Errorf("Unable to format output: %s", err)
 		log.Infof("Source results:\n%v", results)
@@ -247,7 +247,7 @@ func (c *Console) getPromptOptions() []prompt.Option {
 				Fn: func(buf *prompt.Buffer) {
 					c.input = ""
 					c.livePrefixEnabled = false
-					fmt.Println("^C")
+					fmt.Fprintln(os.Stdout, "^C")
 				},
 			},
 		),

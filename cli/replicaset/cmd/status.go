@@ -2,6 +2,7 @@ package replicasetcmd
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -62,17 +63,17 @@ func statusReplicasets(replicasets replicaset.Replicasets) error {
 		return fmt.Errorf("unknown or empty replicasets configuration")
 	}
 
-	fmt.Println("Orchestrator:     ", replicasets.Orchestrator)
-	fmt.Println("Replicasets state:", replicasets.State)
+	fmt.Fprintln(os.Stdout, "Orchestrator:     ", replicasets.Orchestrator)
+	fmt.Fprintln(os.Stdout, "Replicasets state:", replicasets.State)
 
 	replicasets = fillAliases(replicasets)
 	replicasets = sortAliases(replicasets)
 
 	if len(replicasets.Replicasets) > 0 {
-		fmt.Println()
+		fmt.Fprintln(os.Stdout)
 	}
 	for _, replicaset := range replicasets.Replicasets {
-		fmt.Print(replicasetToString(replicaset))
+		fmt.Fprint(os.Stdout, replicasetToString(replicaset))
 	}
 	return nil
 }

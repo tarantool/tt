@@ -340,7 +340,7 @@ func TestPoolEval_error(t *testing.T) {
 func runTestMain(m *testing.M) int {
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
-		fmt.Println("Failed to prepare test work dir:", err)
+		fmt.Fprintln(os.Stdout, "Failed to prepare test work dir:", err)
 		return 1
 	}
 
@@ -354,7 +354,7 @@ func runTestMain(m *testing.M) int {
 		Dialer:       dialer,
 	})
 	if err != nil {
-		fmt.Println("Failed to prepare test tarantool:", err)
+		fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool:", err)
 		return 1
 	}
 	defer test_helpers.StopTarantoolWithCleanup(inst)
@@ -363,7 +363,7 @@ func runTestMain(m *testing.M) int {
 	defer cancel()
 	conn, err := tarantool.Connect(ctx, dialer, opts)
 	if err != nil {
-		fmt.Println("Failed to check tarantool version:", err)
+		fmt.Fprintln(os.Stdout, "Failed to check tarantool version:", err)
 		return 1
 	}
 	req := tarantool.NewEvalRequest("return box.info.package")
@@ -371,7 +371,7 @@ func runTestMain(m *testing.M) int {
 	conn.Close()
 
 	if err != nil {
-		fmt.Println("Failed to get box.info.package:", err)
+		fmt.Fprintln(os.Stdout, "Failed to get box.info.package:", err)
 		return 1
 	}
 
@@ -384,7 +384,7 @@ func runTestMain(m *testing.M) int {
 	if tarantoolEe {
 		absTLSWorkDir, err := filepath.Abs(workDir + "_tls")
 		if err != nil {
-			fmt.Println("Failed to prepare TLS test work dir:", err)
+			fmt.Fprintln(os.Stdout, "Failed to prepare TLS test work dir:", err)
 			return 1
 		}
 
@@ -413,7 +413,7 @@ func runTestMain(m *testing.M) int {
 			Dialer:       tlsDialer,
 		})
 		if err != nil {
-			fmt.Println("Failed to prepare test tarantool with TLS:", err)
+			fmt.Fprintln(os.Stdout, "Failed to prepare test tarantool with TLS:", err)
 			return 1
 		}
 		defer test_helpers.StopTarantoolWithCleanup(inst)
