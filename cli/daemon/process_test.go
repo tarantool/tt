@@ -16,7 +16,7 @@ func TestProcessBase(t *testing.T) {
 	t.Cleanup(func() { cleanupDaemonFiles(TestProcessLogPath, TestProcessPidFile) })
 
 	// Start daemon.
-	cmd := exec.Command("go", "run", "test_process/test_process.go")
+	cmd := exec.CommandContext(t.Context(), "go", "run", "test_process/test_process.go")
 	err := cmd.Run()
 	require.Nilf(t, err, `Can't start daemon. Error: "%v".`, err)
 

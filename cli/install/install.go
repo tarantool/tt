@@ -2,6 +2,7 @@ package install
 
 import (
 	"bufio"
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -202,7 +203,7 @@ func isProgramInstalled(program string) bool {
 
 // isPackageInstalledDebian checks if package is installed on Debian/Ubuntu.
 func isPackageInstalledDebian(packageName string) bool {
-	cmd := exec.Command("dpkg", "-L", packageName)
+	cmd := exec.CommandContext(context.Background(), "dpkg", "-L", packageName)
 	cmd.Start()
 	if cmd.Wait() == nil {
 		return true

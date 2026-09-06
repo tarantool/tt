@@ -1,6 +1,7 @@
 package steps
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,7 +45,8 @@ func (hook RunHook) Run(ctx *create_ctx.CreateCtx, templateCtx *app_template.Tem
 		return fmt.Errorf("error access to %s: %s", executablePath, err)
 	}
 	log.Infof("Executing %s-hook %s", hook.HookType, hookPath)
-	if err = exec.Command(executablePath, templateCtx.AppPath).Run(); err != nil {
+	if err = exec.CommandContext(
+		context.Background(), executablePath, templateCtx.AppPath).Run(); err != nil {
 		return fmt.Errorf("error executing %s: %s", executablePath, err)
 	}
 	// Remove pre/post executable.

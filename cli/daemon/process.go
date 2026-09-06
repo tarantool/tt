@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -101,7 +102,7 @@ func (process *Process) Start() error {
 		return err
 	}
 
-	cmd := exec.Command(process.cmdPath, process.cmdArgs...)
+	cmd := exec.CommandContext(context.Background(), process.cmdPath, process.cmdArgs...)
 	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=true", process.DaemonTag))
 
 	if err := cmd.Start(); err != nil {

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -105,7 +106,7 @@ func NewTcmCmd() *cobra.Command {
 }
 
 func startTcmInteractive(logLevel string) error {
-	tcmApp := exec.Command(tcmCtx.Executable,
+	tcmApp := exec.CommandContext(context.Background(), tcmCtx.Executable,
 		"--log.default.add-source",
 		"--log.default.output=file",
 		"--log.default.format=json",

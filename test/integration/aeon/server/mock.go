@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
@@ -93,7 +94,7 @@ func getListener() net.Listener {
 		protocol = "tcp"
 		address = fmt.Sprintf("localhost:%d", *args.port)
 	}
-	lis, err := net.Listen(protocol, address)
+	lis, err := (&net.ListenConfig{}).Listen(context.Background(), protocol, address)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}

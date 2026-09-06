@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,7 +66,9 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 		res = &errorResult{err.Error()}
 	} else {
 		status = http.StatusOK
-		commandRes, err := handler.callCommand(&cmd)
+		// A daemon command must continue running if the HTTP client disconnects.
+		commandCtx := context.WithoutCancel(req.Context())
+		commandRes, err := handler.callCommand(commandCtx, &cmd)
 		if err != nil {
 			res = &errorResult{err.Error()}
 		} else {
@@ -94,10 +97,10 @@ func (handler *DaemonHandler) ServeHTTP(wr http.ResponseWriter, req *http.Reques
 }
 
 // callCommand invokes the command and returns the execution result.
-func (handler *DaemonHandler) callCommand(ttCmd *command) (string, error) {
+func (handler *DaemonHandler) callCommand(ctx context.Context, ttCmd *command) (string, error) {
 	newArgs := append([]string{ttCmd.Name}, ttCmd.Params...)
 
-	cmd := exec.Command(handler.cmdPath, newArgs...)
+	cmd := exec.CommandContext(ctx, handler.cmdPath, newArgs...)
 
 	var stderr bytes.Buffer
 	var stdout bytes.Buffer

@@ -2,6 +2,7 @@ package search
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -223,7 +224,8 @@ func sendApiRequest(request apiRequest, doer TntIoDoer) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal API request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, ApiURI, bytes.NewBuffer(postData))
+	req, err := http.NewRequestWithContext(
+		context.Background(), http.MethodPost, ApiURI, bytes.NewBuffer(postData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}

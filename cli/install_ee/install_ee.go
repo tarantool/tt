@@ -1,6 +1,7 @@
 package install_ee
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -84,7 +85,8 @@ func addSessionIdCookie(req *http.Request, token string) {
 
 // createHttpRequest creates a new GET HTTP request with the necessary headers and cookies.
 func createHttpRequest(bundleSource, token string) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, bundleSource, http.NoBody)
+	req, err := http.NewRequestWithContext(
+		context.Background(), http.MethodGet, bundleSource, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}

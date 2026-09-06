@@ -844,7 +844,8 @@ func Check(cmdCtx *cmdcontext.CmdCtx, run *InstanceCtx) error {
 	var errBuff bytes.Buffer
 	os.Setenv("TT_CLI_INSTANCE", run.InstanceScript)
 
-	cmd := exec.Command(cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
+	cmd := exec.CommandContext(
+		context.Background(), cmdCtx.Cli.TarantoolCli.Executable, "-e", checkSyntax)
 	cmd.Stderr = &errBuff
 	if err := cmd.Run(); err != nil {
 		return errors.New(errBuff.String())
@@ -914,7 +915,7 @@ func StartWatchdog(cmdCtx *cmdcontext.CmdCtx, ttExecutable string, instance Inst
 
 	log.Infof("Starting an instance [%s]...", appName)
 
-	wdCmd := exec.Command(ttExecutable, newArgs...)
+	wdCmd := exec.CommandContext(context.Background(), ttExecutable, newArgs...)
 	// Set new pgid for watchdog process, so it will not be killed after a session is closed.
 	wdCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return wdCmd.Start()

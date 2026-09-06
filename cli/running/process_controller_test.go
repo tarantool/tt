@@ -16,7 +16,7 @@ import (
 )
 
 func TestProcessController(t *testing.T) {
-	cmd := exec.Command("bash", "-c", "echo hello")
+	cmd := exec.CommandContext(t.Context(), "bash", "-c", "echo hello")
 	out := strings.Builder{}
 	cmd.Stdout = &out
 	dpc, err := newProcessController(cmd)
@@ -33,7 +33,7 @@ func TestProcessController(t *testing.T) {
 	require.NoError(t, copy.Copy("./testdata/signal_handling.py",
 		filepath.Join(tmpDir, "signal_handling.py")))
 
-	cmd = exec.Command("python3", filepath.Join(tmpDir, "signal_handling.py"))
+	cmd = exec.CommandContext(t.Context(), "python3", filepath.Join(tmpDir, "signal_handling.py"))
 	outBuf := bytes.Buffer{}
 	cmd.Stdout = &outBuf
 	dpc, err = newProcessController(cmd)
@@ -54,7 +54,7 @@ func TestProcessController(t *testing.T) {
 	assert.False(t, dpc.IsAlive())
 
 	// Test unknown command.
-	cmd = exec.Command("unknown_command")
+	cmd = exec.CommandContext(t.Context(), "unknown_command")
 	dpc, err = newProcessController(cmd)
 	require.ErrorContains(t, err, "executable file not found")
 	require.Nil(t, dpc)

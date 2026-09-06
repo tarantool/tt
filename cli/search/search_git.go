@@ -1,6 +1,7 @@
 package search
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,7 +32,8 @@ func GetVersionsFromGitRemote(repo string) (version.VersionSlice, error) {
 		return nil, errors.New("'git' is required for 'tt search' to work")
 	}
 
-	output, err := exec.Command("git", "ls-remote", "--tags", "--refs", repo).Output()
+	output, err := exec.CommandContext(
+		context.Background(), "git", "ls-remote", "--tags", "--refs", repo).Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get versions from %s: %w", repo, err)
 	}
@@ -77,7 +79,7 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 	if isPullRequest {
 		commandStr := "pull/" + pullRequestID +
 			"/head:" + input
-		cmd := exec.Command("git", "fetch", "origin", commandStr)
+		cmd := exec.CommandContext(context.Background(), "git", "fetch", "origin", commandStr)
 		cmd.Dir = repo
 		err := cmd.Run()
 		if err != nil {
@@ -85,7 +87,7 @@ func GetCommitFromGitLocal(repo, input string) (string, error) {
 		}
 	}
 
-	cmd := exec.Command("git", "show", input, "--quiet")
+	cmd := exec.CommandContext(context.Background(), "git", "show", input, "--quiet")
 	cmd.Dir = repo
 
 	output, err := cmd.Output()
@@ -113,8 +115,8 @@ func GetCommitFromGitRemote(repo, input string) (string, error) {
 
 	defer os.RemoveAll(tempRepoPath)
 
-	cmd := exec.Command("git", "clone", "--filter=blob:none", "--no-checkout",
-		repo, tempRepoPath)
+	cmd := exec.CommandContext(context.Background(), "git", "clone",
+		"--filter=blob:none", "--no-checkout", repo, tempRepoPath)
 
 	err = cmd.Run()
 	if err != nil {
@@ -132,7 +134,7 @@ func GetVersionsFromGitLocal(repo string) (version.VersionSlice, error) {
 		return nil, errors.New("'git' is required for 'tt search' to work")
 	}
 
-	output, err := exec.Command("git", "-C", repo, "tag").Output()
+	output, err := exec.CommandContext(context.Background(), "git", "-C", repo, "tag").Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get versions from %s: %w", repo, err)
 	}

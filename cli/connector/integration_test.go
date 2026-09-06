@@ -49,7 +49,7 @@ var sslOpts = SslOpts{
 func textConnectWithValidation(t *testing.T) *TextConnector {
 	t.Helper()
 
-	conn, err := net.Dial("unix", console)
+	conn, err := (&net.Dialer{}).DialContext(t.Context(), "unix", console)
 	require.NoError(t, err)
 
 	protocol, err := GetProtocol(conn)

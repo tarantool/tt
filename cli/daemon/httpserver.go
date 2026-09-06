@@ -70,7 +70,8 @@ func (httpServer *HTTPServer) Start(ttPath string) {
 	http.Handle("/tarantool", daemonHandler)
 
 	// Start HTTP server.
-	socket, err := net.Listen("tcp4", httpServer.srv.Addr)
+	socket, err := (&net.ListenConfig{}).Listen(
+		context.Background(), "tcp4", httpServer.srv.Addr)
 	if err != nil {
 		httpServer.logger.Fatal(err)
 	}

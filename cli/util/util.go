@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"cmp"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -309,7 +310,7 @@ func AskConfirm(ioReader io.Reader, question string) (bool, error) {
 
 // GetArch returns Architecture of machine.
 func GetArch() (string, error) {
-	out, err := exec.Command("uname", "-m").Output()
+	out, err := exec.CommandContext(context.Background(), "uname", "-m").Output()
 	if err != nil {
 		return "", err
 	}
@@ -319,7 +320,7 @@ func GetArch() (string, error) {
 
 // GetOs returns the operating system version of the host.
 func GetOs() (OsType, error) {
-	out, err := exec.Command("uname", "-s").Output()
+	out, err := exec.CommandContext(context.Background(), "uname", "-s").Output()
 	if err != nil {
 		return OsUnknown, err
 	}
@@ -532,7 +533,7 @@ func ResolveSymlink(linkPath string) (string, error) {
 
 // RunCommandAndGetOutput returns output of command.
 func RunCommandAndGetOutput(program string, args ...string) (string, error) {
-	out, err := exec.Command(program, args...).Output()
+	out, err := exec.CommandContext(context.Background(), program, args...).Output()
 	if err != nil {
 		return "", err
 	}
@@ -612,7 +613,7 @@ func ExtractTar(tarName string) error {
 func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir string,
 	args ...string,
 ) error {
-	cmd := exec.Command(program, args...)
+	cmd := exec.CommandContext(context.Background(), program, args...)
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
 	}
@@ -640,7 +641,7 @@ func ExecuteCommand(program string, isVerbose bool, writer io.Writer, workDir st
 func ExecuteCommandStdin(program string, isVerbose bool, logFile *os.File, workDir string,
 	stdinData []byte, args ...string,
 ) error {
-	cmd := exec.Command(program, args...)
+	cmd := exec.CommandContext(context.Background(), program, args...)
 	if isVerbose {
 		log.Infof("Run: %s\n", cmd)
 	}

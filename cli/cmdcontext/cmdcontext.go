@@ -1,6 +1,7 @@
 package cmdcontext
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -48,7 +49,8 @@ func (tntCli *TarantoolCli) GetVersion() (version.Version, error) {
 		return tntCli.version, fmt.Errorf(
 			"tarantool executable is not set, unable to get tarantool version")
 	}
-	output, err := exec.Command(tntCli.Executable, "--version").Output()
+	output, err := exec.CommandContext(
+		context.Background(), tntCli.Executable, "--version").Output()
 	if err != nil {
 		return tntCli.version, fmt.Errorf("failed to get tarantool version: %s", err)
 	}
@@ -76,7 +78,7 @@ func GetTtVersion(pathToBin string) (version.Version, error) {
 		return version.Version{}, fmt.Errorf("file %q not found", pathToBin)
 	}
 
-	output, err := exec.Command(pathToBin, "--self", "version",
+	output, err := exec.CommandContext(context.Background(), pathToBin, "--self", "version",
 		"--commit").Output()
 	if err != nil {
 		return version.Version{}, fmt.Errorf("failed to get tt version: %s", err)

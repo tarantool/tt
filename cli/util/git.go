@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,7 +31,7 @@ func CheckVersionFromGit(basePath string) (string, error) {
 		return "", err
 	}
 
-	cmd := exec.Command("git", "describe", "--tags", "--long")
+	cmd := exec.CommandContext(context.Background(), "git", "describe", "--tags", "--long")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err = cmd.Run()
@@ -61,7 +62,7 @@ func isGitFetchJobsSupported(gitOutput string) bool {
 
 // IsGitFetchJobsSupported checks if fetchJobs option (-j) is supported by current git version.
 func IsGitFetchJobsSupported() bool {
-	cmd := exec.Command("git", "--version")
+	cmd := exec.CommandContext(context.Background(), "git", "--version")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()

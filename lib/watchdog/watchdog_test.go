@@ -44,7 +44,7 @@ func TestWatchdog_Successful(t *testing.T) {
 	wd := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
 	t.Cleanup(cleanupPidFiles)
 
-	cmd := exec.Command("sleep", "1")
+	cmd := exec.CommandContext(t.Context(), "sleep", "1")
 	errChan := make(chan error, 1)
 
 	go func() { errChan <- wd.Start(cmd.Path, cmd.Args[1:]...) }()
@@ -64,7 +64,7 @@ func TestWatchdog_EarlyTermination(t *testing.T) {
 	wd := NewWatchdog("test.pid", "wd.pid", time.Second)
 	t.Cleanup(cleanupPidFiles)
 
-	cmd := exec.Command("sleep", "10")
+	cmd := exec.CommandContext(t.Context(), "sleep", "10")
 	errChan := make(chan error, 1)
 
 	go func() { errChan <- wd.Start(cmd.Path, cmd.Args[1:]...) }()
@@ -81,7 +81,7 @@ func TestWatchdog_ProcessRestart(t *testing.T) {
 	wd := NewWatchdog("test.pid", "wd.pid", 100*time.Millisecond)
 	t.Cleanup(cleanupPidFiles)
 
-	cmd := exec.Command("false")
+	cmd := exec.CommandContext(t.Context(), "false")
 	errChan := make(chan error, 1)
 
 	go func() { errChan <- wd.Start(cmd.Path, cmd.Args[1:]...) }()
@@ -137,11 +137,14 @@ func TestWatchdog_WritePIDFiles(t *testing.T) {
 		wdPidFile: wdPidFile,
 	}
 
-	cmd := exec.Command("sleep", "1")
+	cmd := exec.CommandContext(t.Context(), "sleep", "1")
 	err := cmd.Start()
 	require.NoError(t, err)
 
-	defer cmd.Process.Kill()
+	defer func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	}()
 
 	wd.cmd = cmd
 

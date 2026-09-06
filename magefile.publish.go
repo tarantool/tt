@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -128,7 +129,7 @@ func PublishRWS() error {
 		}
 		flags = append(flags, "-u", rwsAuth)
 
-		cmd := exec.Command("curl", flags...)
+		cmd := exec.CommandContext(context.Background(), "curl", flags...)
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {

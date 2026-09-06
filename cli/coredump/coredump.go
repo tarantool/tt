@@ -1,6 +1,7 @@
 package coredump
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"fmt"
@@ -75,7 +76,7 @@ func Pack(corePath, executable, outputDir string, pid uint, time string) error {
 	}
 	cmdArgs := make([]string, 0, 2+len(scriptArgs))
 	cmdArgs = append(cmdArgs, "-s", "--")
-	cmd := exec.Command("bash", append(cmdArgs, scriptArgs...)...)
+	cmd := exec.CommandContext(context.Background(), "bash", append(cmdArgs, scriptArgs...)...)
 	cmd.Stdin = script
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -146,7 +147,7 @@ func Inspect(archiveOrDir, sourceDir string) error {
 
 	// GDB-wrapper use standard input, so we need to launch it directly
 	// rather than pass it over standard input to bash -s.
-	cmd := exec.Command(scriptPath, scriptArgs...)
+	cmd := exec.CommandContext(context.Background(), scriptPath, scriptArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
